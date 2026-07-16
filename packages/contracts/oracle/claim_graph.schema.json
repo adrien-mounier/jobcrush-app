@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cv-factory/contracts/claim_graph.schema.json",
+  "title": "Grounded-claim graph",
+  "description": "Contract 1. The reusable asset the Tailor renders from and nothing else. See claim_graph.schema.md. Runtime enforcement: _claim_graph/validate_graph.mjs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "graphVersion", "built_from_root_cv", "nodes"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "graphVersion": { "type": "integer", "minimum": 1 },
+    "built_from_root_cv": { "type": "string" },
+    "built_at": { "type": "string" },
+    "sources": { "type": "array", "items": { "type": "string" } },
+    "nodes": { "type": "array", "items": { "$ref": "#/$defs/claimNode" } }
+  },
+  "$defs": {
+    "classification": {
+      "enum": ["Verified", "Derived", "Partially-Supported", "Unsupported-but-Plausible", "Negative"]
+    },
+    "claimNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "text", "classification", "source_file", "source_quote",
+        "inferred_from", "tags", "risk", "renderable", "origin",
+        "narrative_ref", "confirmed_date"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "text": { "type": "string", "minLength": 1 },
+        "classification": { "$ref": "#/$defs/classification" },
+        "source_file": { "type": ["string", "null"] },
+        "source_quote": { "type": ["string", "null"] },
+        "inferred_from": {
+          "type": ["array", "null"],
+          "items": { "type": "string" }
+        },
+        "tags": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "risk": { "enum": ["Low", "Med", "High", null] },
+        "renderable": { "type": "boolean" },
+        "origin": { "enum": ["source", "enrichment"] },
+        "narrative_ref": { "type": ["string", "null"] },
+        "confirmed_date": { "type": ["string", "null"] }
+      },
+      "allOf": [
+        {
+          "$comment": "Invariant 5: Negative implies not renderable.",
+          "if": { "properties": { "classification": { "const": "Negative" } } },
+          "then": { "properties": { "renderable": { "const": false } } }
+        },
+        {
+          "$comment": "Invariant 6: Unsupported-but-Plausible has no provenance and carries a risk.",
+          "if": { "properties": { "classification": { "const": "Unsupported-but-Plausible" } } },
+          "then": {
+            "properties": {
+              "source_file": { "type": "null" },
+              "risk": { "enum": ["Low", "Med", "High"] },
+              "narrative_ref": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        {
+          "$comment": "Invariant 7: graded/negative classes require provenance.",
+          "if": {
+            "properties": {
+              "classification": { "enum": ["Verified", "Derived", "Partially-Supported", "Negative"] }
+            }
+          },
+          "then": { "properties": { "source_file": { "type": "string", "minLength": 1 } } }
+        },
+        {
+          "$comment": "Invariant 8: Partially-Supported carries a risk.",
+          "if": { "properties": { "classification": { "const": "Partially-Supported" } } },
+          "then": { "properties": { "risk": { "enum": ["Low", "Med", "High"] } } }
+        },
+        {
+          "$comment": "Invariant 9: enrichment-origin nodes point to an interview narrative.",
+          "if": { "properties": { "origin": { "const": "enrichment" } } },
+          "then": { "properties": { "narrative_ref": { "type": "string", "minLength": 1 } } }
+        }
+      ]
+    }
+  }
+}

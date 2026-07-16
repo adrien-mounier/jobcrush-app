@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0",
+  "proposals": [
+    {
+      "id": "decided-without-timestamp",
+      "claimText": "An approved proposal that never recorded when it was decided.",
+      "intendedClass": "Partially-Supported",
+      "interviewNarrative": "Narrative exists.",
+      "source": "tailor_gap",
+      "originOffer": null,
+      "tags": ["governance"],
+      "state": "approved",
+      "createdAt": "2026-07-17T00:00:00Z",
+      "decidedAt": null,
+      "targetContextFile": null,
+      "narrativeAnchor": "decided-without-timestamp"
+    },
+    {
+      "id": "verified-cannot-be-proposed",
+      "claimText": "Proposals may only carry stretch classes, never Verified.",
+      "intendedClass": "Verified",
+      "interviewNarrative": "n/a",
+      "source": "enricher_scan",
+      "originOffer": null,
+      "tags": ["invalid"],
+      "state": "pending",
+      "createdAt": "2026-07-17T00:00:00Z",
+      "decidedAt": null,
+      "targetContextFile": null,
+      "narrativeAnchor": "verified-cannot-be-proposed"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0",
+  "proposals": [
+    {
+      "id": "acme-vendor-governance-bridge",
+      "claimText": "Coordinated vendor deliverables and acceptance across two outsourced workstreams.",
+      "intendedClass": "Partially-Supported",
+      "interviewNarrative": "At Acme I coordinated two outsourced workstreams; I would be transparent that formal vendor P&L sat with procurement.",
+      "source": "tailor_gap",
+      "originOffer": "job_offers/2026-07-01_acme_senior-project-manager",
+      "tags": ["vendor-management", "governance"],
+      "state": "pending",
+      "createdAt": "2026-07-17T00:00:00Z",
+      "decidedAt": null,
+      "targetContextFile": "context/skills_addendum.md",
+      "narrativeAnchor": "acme-vendor-governance-bridge"
+    },
+    {
+      "id": "acme-scrum-practice",
+      "claimText": "Embedded scrum practice across the delivery team.",
+      "intendedClass": "Unsupported-but-Plausible",
+      "interviewNarrative": "I ran the ceremonies de facto for 6 months while we had no scrum master.",
+      "source": "enricher_scan",
+      "originOffer": null,
+      "tags": ["scrum", "agile"],
+      "state": "approved",
+      "createdAt": "2026-07-10T00:00:00Z",
+      "decidedAt": "2026-07-12T09:00:00Z",
+      "targetContextFile": "context/skills_addendum.md",
+      "narrativeAnchor": "acme-scrum-practice"
+    }
+  ]
+}

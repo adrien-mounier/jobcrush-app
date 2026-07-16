@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cv-factory/contracts/card_payload.schema.json",
+  "title": "Card payload",
+  "description": "Contract 2. UI-agnostic handoff from Layer 1 to JobCrush's review UI. See card_payload.schema.md. Runtime enforcement: _claim_graph/validate_card.mjs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "jobId", "company", "title", "location", "fitScore",
+    "scoreBreakdown", "lane", "offerFolder", "pdfPath", "firstPagePngPath",
+    "cvVersion", "diffVsRoot", "auditFlags", "auditModel", "auditDegraded",
+    "easyApplyAnswers", "heldQuestions", "needsAnswer", "status", "createdAt"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "jobId": { "type": "string", "minLength": 1 },
+    "company": { "type": "string" },
+    "title": { "type": "string" },
+    "location": { "type": "string" },
+    "fitScore": { "type": "number", "minimum": 0, "maximum": 100 },
+    "scoreBreakdown": { "type": "object" },
+    "lane": { "enum": ["easy_apply", "external_ats"] },
+    "offerFolder": { "type": "string" },
+    "pdfPath": { "type": "string" },
+    "firstPagePngPath": { "type": ["string", "null"] },
+    "cvVersion": { "type": "string" },
+    "diffVsRoot": { "type": "string" },
+    "auditFlags": { "type": "array", "items": { "$ref": "#/$defs/auditFlag" } },
+    "auditModel": { "type": "string" },
+    "auditDegraded": { "type": "boolean" },
+    "easyApplyAnswers": { "type": "array", "items": { "$ref": "#/$defs/answer" } },
+    "heldQuestions": { "type": "array", "items": { "$ref": "#/$defs/heldQuestion" } },
+    "needsAnswer": { "type": "boolean" },
+    "status": {
+      "enum": ["seen", "screened", "rejected_score", "staged", "tailored", "ready_for_review", "held", "queued", "applied", "declined"]
+    },
+    "createdAt": { "type": "string" }
+  },
+  "$defs": {
+    "auditFlag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim", "classification", "risk", "note", "provenance", "isStrategicStretch", "narrativeRef"],
+      "properties": {
+        "claim": { "type": "string" },
+        "classification": {
+          "enum": ["Verified", "Derived", "Partially-Supported", "Unsupported-but-Plausible", "Negative"]
+        },
+        "risk": { "enum": ["Low", "Med", "High", null] },
+        "note": { "type": "string" },
+        "provenance": { "type": ["string", "null"] },
+        "isStrategicStretch": { "type": "boolean" },
+        "narrativeRef": { "type": ["string", "null"] }
+      },
+      "allOf": [
+        {
+          "$comment": "A flagged strategic stretch must point to its prepared interview narrative.",
+          "if": { "properties": { "isStrategicStretch": { "const": true } } },
+          "then": { "properties": { "narrativeRef": { "type": "string", "minLength": 1 } } }
+        }
+      ]
+    },
+    "answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question", "answer"],
+      "properties": {
+        "question": { "type": "string" },
+        "answer": { "type": "string" }
+      }
+    },
+    "heldQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question", "reason"],
+      "properties": {
+        "question": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    }
+  }
+}

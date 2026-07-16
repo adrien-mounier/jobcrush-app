@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cv-factory/contracts/claim_trace.schema.json",
+  "title": "Claim trace",
+  "description": "Internal artifact (not a JobCrush seam). Render provenance: every CV bullet -> graph node id(s) + classification. See claim_trace.schema.md. Runtime enforcement: _claim_graph/validate_trace.mjs, which also cross-checks node ids, renderability, and classification against the live graph.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "graphVersion", "cvFile", "entries", "gaps"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "graphVersion": { "type": "integer", "minimum": 1 },
+    "cvFile": { "type": "string" },
+    "entries": { "type": "array", "items": { "$ref": "#/$defs/traceEntry" } },
+    "gaps": { "type": "array", "items": { "$ref": "#/$defs/traceGap" } }
+  },
+  "$defs": {
+    "traceEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bullet", "section", "nodeIds", "classifications"],
+      "properties": {
+        "bullet": { "type": "string", "minLength": 1 },
+        "section": { "type": "string" },
+        "nodeIds": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "classifications": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "traceGap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signal", "note", "proposalId"],
+      "properties": {
+        "signal": { "type": "string" },
+        "note": { "type": "string" },
+        "proposalId": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

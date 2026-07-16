@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "1.0",
+  "graphVersion": 1,
+  "built_from_root_cv": "v1",
+  "built_at": "2026-07-17",
+  "sources": ["root_cv/cv_user_root_v1.md", "context/skills_addendum.md"],
+  "nodes": [
+    {
+      "id": "acme-sit-uat-coordination",
+      "text": "Coordinate and run SIT and UAT cycles with QA and business users through to sign-off.",
+      "classification": "Verified",
+      "source_file": "context/skills_addendum.md",
+      "source_quote": "Runs and coordinates SIT and UAT testing cycles through to sign-off.",
+      "inferred_from": null,
+      "tags": ["sit", "uat", "test-coordination"],
+      "risk": null,
+      "renderable": true,
+      "origin": "source",
+      "narrative_ref": null,
+      "confirmed_date": "2026-07-01"
+    },
+    {
+      "id": "gap-mandarin",
+      "text": "No Mandarin language ability.",
+      "classification": "Negative",
+      "source_file": "context/skills_addendum.md",
+      "source_quote": "No Mandarin ability.",
+      "inferred_from": null,
+      "tags": ["mandarin", "language"],
+      "risk": null,
+      "renderable": false,
+      "origin": "source",
+      "narrative_ref": null,
+      "confirmed_date": "2026-07-01"
+    },
+    {
+      "id": "acme-cloud-migration-bridge",
+      "text": "Positioned to lead cloud-migration workstreams based on adjacent infrastructure delivery experience.",
+      "classification": "Unsupported-but-Plausible",
+      "source_file": null,
+      "source_quote": null,
+      "inferred_from": ["acme-sit-uat-coordination"],
+      "tags": ["cloud-migration", "infrastructure"],
+      "risk": "Med",
+      "renderable": true,
+      "origin": "enrichment",
+      "narrative_ref": "context/interview_prep/strategic_narratives.md#acme-cloud-migration-bridge",
+      "confirmed_date": "2026-07-10"
+    }
+  ]
+}

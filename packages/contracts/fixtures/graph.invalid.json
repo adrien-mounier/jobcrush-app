@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0",
+  "graphVersion": 1,
+  "built_from_root_cv": "v1",
+  "nodes": [
+    {
+      "id": "gap-renders-anyway",
+      "text": "A confirmed gap that would render — the safety-critical violation.",
+      "classification": "Negative",
+      "source_file": "context/skills_addendum.md",
+      "source_quote": "gap.",
+      "inferred_from": null,
+      "tags": ["gap"],
+      "risk": null,
+      "renderable": true,
+      "origin": "source",
+      "narrative_ref": null,
+      "confirmed_date": null
+    },
+    {
+      "id": "stretch-without-narrative",
+      "text": "A stretch claim with no interview narrative behind it.",
+      "classification": "Unsupported-but-Plausible",
+      "source_file": null,
+      "source_quote": null,
+      "inferred_from": null,
+      "tags": ["stretch"],
+      "risk": null,
+      "renderable": true,
+      "origin": "enrichment",
+      "narrative_ref": null,
+      "confirmed_date": null
+    }
+  ]
+}
