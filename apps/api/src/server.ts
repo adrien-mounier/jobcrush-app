@@ -1,6 +1,7 @@
-// JC-8 API skeleton: Fastify + zod-typed routes, error envelope, auth stub, healthz, and the
-// JC-9 jobs endpoints (create demo job, get status, SSE progress stream).
-import Fastify, { type FastifyError } from "fastify";
+// API composition root: Fastify + zod-typed routes, error envelope, session resolution,
+// healthz, JC-9 job endpoints, and the S1 route plugins (sessions, uploads, cv, previews).
+import Fastify, { type FastifyError, type FastifyRequest } from "fastify";
+import cookie from "@fastify/cookie";
 import {
   serializerCompiler,
   validatorCompiler,
@@ -8,37 +9,70 @@ import {
 } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { InMemoryJobStore, isTerminal, runDemoJob, type JobStore } from "./jobs.js";
+import { InMemorySessionStore, type SessionRecord, type SessionStore } from "./sessions.js";
+import { SESSION_COOKIE, sessionRoutes } from "./routes/sessions.js";
+import { uploadRoutes, type UploadDeps } from "./routes/uploads.js";
+import { InMemoryBlobStorage, type BlobStorage } from "./storage.js";
+import { InMemoryUploadStore, REJECT_MESSAGES } from "./uploads.js";
 
 declare module "fastify" {
   interface FastifyRequest {
-    sessionId: string | null;
+    session: SessionRecord | null;
   }
 }
 
 export interface BuildOptions {
   store?: JobStore;
+  sessions?: SessionStore;
+  blobs?: BlobStorage;
+  uploads?: InMemoryUploadStore;
+  onUploaded?: UploadDeps["onUploaded"];
+}
+
+/** 401 helper: routes that require the JC-10 anonymous session call this first. */
+export function requireSession(req: FastifyRequest): SessionRecord {
+  if (!req.session) {
+    const err = new Error("no active session") as FastifyError;
+    err.statusCode = 401;
+    err.code = "no_session";
+    throw err;
+  }
+  return req.session;
 }
 
 export function buildServer(opts: BuildOptions = {}) {
   const store = opts.store ?? new InMemoryJobStore();
+  const sessions = opts.sessions ?? new InMemorySessionStore();
+  const blobs = opts.blobs ?? new InMemoryBlobStorage();
+  const uploads = opts.uploads ?? new InMemoryUploadStore();
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" }).withTypeProvider<ZodTypeProvider>();
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+  app.register(cookie);
 
   // Error envelope: every error becomes { error: { code, message } }.
   app.setErrorHandler((err: FastifyError, _req, reply) => {
+    if (err.code === "FST_ERR_CTP_BODY_TOO_LARGE") {
+      return reply.status(413).send({ error: { code: "too_big", message: REJECT_MESSAGES.tooBig } });
+    }
     const status = err.statusCode ?? 500;
     reply.status(status).send({
       error: { code: err.code ?? "internal_error", message: err.message },
     });
   });
 
-  // Auth stub (JC-18 replaces this): reads a bearer/session token if present, attaches a session
-  // context. Nothing is rejected yet — routes that need auth opt in once real auth lands.
-  app.decorateRequest("sessionId", null);
+  // Session resolution (JC-10): cookie first, bearer token as the non-browser fallback.
+  // Every S1 route authorizes against the resolved session; nothing is global.
+  app.decorateRequest("session", null);
   app.addHook("onRequest", async (req) => {
     const auth = req.headers.authorization;
-    if (auth?.startsWith("Bearer ")) req.sessionId = auth.slice(7);
+    const token = req.cookies?.[SESSION_COOKIE] ?? (auth?.startsWith("Bearer ") ? auth.slice(7) : null);
+    if (!token) return;
+    const session = await sessions.getByToken(token);
+    if (session) {
+      req.session = session;
+      await sessions.touch(session.id);
+    }
   });
 
   app.get("/healthz", async () => ({
@@ -47,11 +81,14 @@ export function buildServer(opts: BuildOptions = {}) {
     env: process.env.APP_ENV ?? "local",
   }));
 
+  app.register(sessionRoutes(sessions));
+  app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded }));
+
   app.post(
     "/jobs/demo",
     { schema: { response: { 201: z.object({ id: z.string() }) } } },
     async (req, reply) => {
-      const job = await store.create("demo-job", req.sessionId);
+      const job = await store.create("demo-job", req.session?.id ?? null);
       void runDemoJob(store, job.id); // fire-and-forget; progress lands in the store
       reply.status(201);
       return { id: job.id };
@@ -104,5 +141,5 @@ export function buildServer(opts: BuildOptions = {}) {
     },
   );
 
-  return { app, store };
+  return { app, store, sessions, blobs, uploads };
 }
