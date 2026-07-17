@@ -19,10 +19,9 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-  # Deploys to Fly staging on main once JC-6's accounts exist.
-  # Unblock: create the Fly apps (docs/deploy.md), add FLY_API_TOKEN repo secret, remove `if: false`.
+  # Deploys to Fly staging on every green main build (JC-6 unblocked 2026-07-17).
   deploy-staging:
-    if: false
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: test
     runs-on: ubuntu-latest
     steps:

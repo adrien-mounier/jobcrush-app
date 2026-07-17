@@ -2,14 +2,14 @@
 // real LLM-backed pipeline steps (mine + preview). Tests build their own server with fakes.
 import { join } from "node:path";
 import { buildServer } from "./server.js";
-import { LocalDiskStorage } from "./storage.js";
+import { storageFromEnv } from "./storage.js";
 import { llmFromEnv } from "./llm.js";
 import { makeMineStep } from "./miner.js";
 import { makePreviewStep } from "./preview.js";
 
 const llm = llmFromEnv();
 const { app } = buildServer({
-  blobs: new LocalDiskStorage(process.env.UPLOAD_DIR ?? join(process.cwd(), "data", "uploads")),
+  blobs: storageFromEnv(process.env.UPLOAD_DIR ?? join(process.cwd(), "data", "uploads")),
   pipeline: { mine: makeMineStep(llm), preview: makePreviewStep(llm) },
 });
 

@@ -1,9 +1,11 @@
-// JC-11 blob storage. R2 is the production target but is blocked on account creation
-// (docs/deploy.md), so the interface ships with two drivers: in-memory (tests) and local disk
-// (dev). The R2 driver implements presignPut with a real presigned URL; the local drivers
-// "presign" the API's own PUT /uploads/:id/content route instead.
+// JC-11 blob storage. Three drivers behind one interface: in-memory (tests), local disk
+// (dev fallback), and R2 (production — S3-compatible presigned PUT). The local drivers
+// "presign" the API's own PUT /uploads/:id/content route; R2 presigns the real bucket URL,
+// so upload bytes never pass through the API.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export interface BlobStorage {
   /** Where the browser should PUT the file. Local drivers return an API-relative path. */
@@ -24,6 +26,69 @@ export class InMemoryBlobStorage implements BlobStorage {
   async get(key: string) {
     return this.blobs.get(key) ?? null;
   }
+}
+
+export interface R2Config {
+  accountId: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucket: string;
+}
+
+export class R2Storage implements BlobStorage {
+  private client: S3Client;
+  constructor(private config: R2Config) {
+    this.client = new S3Client({
+      region: "auto",
+      endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+      },
+    });
+  }
+
+  async presignPut(key: string) {
+    const url = await getSignedUrl(
+      this.client,
+      new PutObjectCommand({ Bucket: this.config.bucket, Key: key }),
+      { expiresIn: 600 },
+    );
+    return { url, method: "PUT" as const };
+  }
+
+  // The browser PUTs straight to the presigned URL; this path only serves tests/tools.
+  async put(key: string, data: Buffer) {
+    await this.client.send(
+      new PutObjectCommand({ Bucket: this.config.bucket, Key: key, Body: data }),
+    );
+  }
+
+  async get(key: string) {
+    try {
+      const res = await this.client.send(
+        new GetObjectCommand({ Bucket: this.config.bucket, Key: key }),
+      );
+      const bytes = await res.Body?.transformToByteArray();
+      return bytes ? Buffer.from(bytes) : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+/** Pick the blob driver from the environment: R2 when configured, local disk otherwise. */
+export function storageFromEnv(uploadDir: string): BlobStorage {
+  const { R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY } = process.env;
+  if (R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY) {
+    return new R2Storage({
+      accountId: R2_ACCOUNT_ID,
+      accessKeyId: R2_ACCESS_KEY_ID,
+      secretAccessKey: R2_SECRET_ACCESS_KEY,
+      bucket: process.env.R2_BUCKET ?? "jobcrush-staging",
+    });
+  }
+  return new LocalDiskStorage(uploadDir);
 }
 
 export class LocalDiskStorage implements BlobStorage {

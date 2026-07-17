@@ -33,7 +33,10 @@ export async function uploadCv(file: File): Promise<{ jobId: string }> {
     method: "POST",
     body: JSON.stringify({ filename: file.name }),
   });
-  const put = await fetch(`/api${created.putUrl}`, {
+  // R2 presigns an absolute bucket URL (browser PUTs straight to storage); the local-disk
+  // driver returns an API-relative path that goes through the /api proxy.
+  const target = created.putUrl.startsWith("http") ? created.putUrl : `/api${created.putUrl}`;
+  const put = await fetch(target, {
     method: "PUT",
     headers: { "content-type": "application/octet-stream" },
     body: file,

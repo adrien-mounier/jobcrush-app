@@ -1,4 +1,12 @@
-# JC-6 — infra bootstrap (blocked on account creation: the user's ~30-minute action)
+# JC-6 — infra bootstrap
+
+> **Status 2026-07-17: staging is LIVE.** `jobcrush-api-staging` + `jobcrush-pg-staging`
+> (attached) run in `sin`; `https://jobcrush-api-staging.fly.dev/healthz` returns the build SHA
+> and the demo job streams over SSE; `FLY_API_TOKEN` is set on GitHub and the CI deploy job is
+> active (every green `main` push deploys). Still open: **R2** (bucket + token → `.env` →
+> `fly secrets set R2_*`; the `R2Storage` driver auto-activates when the secrets exist) and
+> **Redis** (deferred — nothing uses it until the BullMQ driver; `flyctl redis create` is
+> interactive, run it by hand when needed). Original checklist below for reference.
 
 Deployable artifacts in this repo are ready: `Dockerfile`, `fly.api.toml`, and the CI deploy job
 (disabled with `if: false` in `.github/workflows/ci.yml`). To go live:
