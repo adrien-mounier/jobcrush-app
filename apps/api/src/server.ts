@@ -91,15 +91,9 @@ export function buildServer(opts: BuildOptions = {}) {
     env: process.env.APP_ENV ?? "local",
   }));
 
-  // Persistent scoreboard/debug trail of every onboarding run. Optionally gate with GUESTBOOK_KEY
-  // (?key=…); left open otherwise since rows carry no CV content or contact info, only outcomes.
-  app.get("/guestbook", async (req, reply) => {
-    const key = process.env.GUESTBOOK_KEY;
-    if (key && (req.query as { key?: string }).key !== key) {
-      return reply
-        .status(401)
-        .send({ error: { code: "unauthorized", message: "guestbook key required" } });
-    }
+  // Persistent scoreboard/debug trail of every onboarding run. Always open: rows carry no CV
+  // content or contact info, only outcomes. (GUESTBOOK_KEY gates only the CV-content routes below.)
+  app.get("/guestbook", async (_req, reply) => {
     try {
       const rows = await guestbook.list();
       reply.header("content-type", "text/html; charset=utf-8");
