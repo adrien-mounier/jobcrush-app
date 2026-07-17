@@ -1,5 +1,11 @@
 # JC-6 — infra bootstrap
 
+> **Keep the API at ONE machine** (`fly scale count 1 -a jobcrush-api-staging`) until the shared
+> session/job store lands (JC-9). Sessions, uploads, and jobs are in-memory per machine, so with 2+
+> machines Fly round-robins requests and a session created on one machine 401s on the next — an
+> intermittent break of the whole upload flow. The guestbook (Postgres) is already shared and is
+> unaffected. Scaling up is safe only once the in-memory stores move to Postgres/Redis.
+
 > **Guestbook (persistent run log + kept CV data).** Every onboarding run writes one durable row to
 > Postgres (the previously-unused attached DB) via `src/guestbook.ts`. Two layers:
 > - **Scoreboard (always open):** `GET /guestbook` — outcome, stage, mined-claim count, matched
