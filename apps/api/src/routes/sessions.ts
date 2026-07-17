@@ -12,7 +12,14 @@ export function sessionRoutes(sessions: SessionStore, limiter = new IpRateLimite
 
     app.post(
       "/sessions/anonymous",
-      { schema: { response: { 201: z.object({ id: z.string() }) } } },
+      {
+        schema: {
+          response: {
+            201: z.object({ id: z.string() }),
+            429: z.object({ error: z.object({ code: z.string(), message: z.string() }) }),
+          },
+        },
+      },
       async (req, reply) => {
         if (!limiter.allow(req.ip)) {
           return reply

@@ -5,3 +5,7 @@ dist/
 .env
 .env.*
 coverage/
+.next/
+data/uploads/
+next-env.d.ts
+scripts/s1-smoke-preview.html

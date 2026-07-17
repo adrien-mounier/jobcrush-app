@@ -13,10 +13,11 @@ export type PipelineInput =
 export interface PipelineDeps {
   /** JC-13 claim miner. Optional so the extract stage can ship/test on its own. */
   mine?: (rawCv: RawCv) => Promise<{ claims: unknown[]; needsGrill: number; roles: number }>;
-  /** JC-16 preview: mined claims + target titles → rendered watermarked HTML. */
+  /** JC-16 preview: mined claims + target titles (+ raw CV for header data) → watermarked HTML. */
   preview?: (
     minerOutput: unknown,
     targetTitles: string[],
+    rawCv: RawCv,
   ) => Promise<{ html: string; postingTitle: string; postingCompany: string }>;
 }
 
@@ -88,7 +89,7 @@ export async function runOnboardingJob(
         job = await store.get(jobId);
         if (!job?.progress.preview) {
           await appendFeed(store, jobId, "Picking a live posting that matches your targets…");
-          const rendered = await deps.preview(miner, targetTitles);
+          const rendered = await deps.preview(miner, targetTitles, rawCv);
           await store.update(jobId, {
             progress: {
               preview: {

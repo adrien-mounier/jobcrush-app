@@ -1,0 +1,204 @@
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import { CandidateClaims } from "@jobcrush/contracts";
+import { buildServer } from "../src/server.js";
+import { matchPosting, makePreviewStep, renderPreviewHtml, tailorDraft, type Draft } from "../src/preview.js";
+import { makeMineStep } from "../src/miner.js";
+import { isTerminal } from "../src/jobs.js";
+import type { LlmClient } from "../src/llm.js";
+
+const fixtures = join(dirname(fileURLToPath(import.meta.url)));
+
+const sampleDraft: Draft = {
+  name: "Maria Kowalski",
+  headline: "IT Project Manager for enterprise delivery",
+  contact: "Warsaw | maria.kowalski@example.com",
+  summary: "Project manager with delivery accountability across vendors.",
+  experience: [
+    {
+      role: "IT Project Manager",
+      employer: "Nordic Retail Group",
+      dates: "Mar 2021 - Present",
+      bullets: ["Led the checkout replatforming, delivered 2 months early"],
+    },
+  ],
+  skills: ["Jira", "MS Project"],
+  education: ["MSc MIS, University of Warsaw, 2017"],
+};
+
+async function recordedClaims(): Promise<CandidateClaims> {
+  return CandidateClaims.parse(
+    JSON.parse(await readFile(join(fixtures, "eval", "recordings", "clean-pdf.json"), "utf8")),
+  );
+}
+
+function llmReturning(json: unknown): LlmClient {
+  return { complete: async () => JSON.stringify(json) };
+}
+
+async function startSession(app: ReturnType<typeof buildServer>["app"]) {
+  const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+  return `jc_session=${res.cookies.find((c) => c.name === "jc_session")!.value}`;
+}
+
+describe("JC-16 posting match + render", () => {
+  it("matches a posting by title keywords", () => {
+    const pm = matchPosting(["IT Project Manager"]);
+    expect(pm.title.toLowerCase()).toContain("project manager");
+    const ba = matchPosting(["Business Analyst"]);
+    expect(ba.title.toLowerCase()).toContain("business analyst");
+  });
+
+  it("falls back to the first posting when nothing matches", () => {
+    const p = matchPosting(["Zookeeper"]);
+    expect(p).toBeTruthy();
+  });
+
+  it("burns the watermark into the rendered document itself", () => {
+    const posting = matchPosting(["Project Manager"]);
+    const html = renderPreviewHtml(sampleDraft, posting);
+    expect(html).toContain("DRAFT");
+    expect(html).toContain("background-image"); // watermark is part of the render
+    expect(html).toContain("Facts not yet verified");
+    expect(html).toContain("Maria Kowalski");
+    expect(html).not.toContain("<script"); // self-contained, no active content
+  });
+
+  it("escapes claim-derived content in the render", () => {
+    const hostile = { ...sampleDraft, name: `<img src=x onerror=alert(1)>` };
+    const html = renderPreviewHtml(hostile, matchPosting([]));
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&lt;img");
+  });
+
+  it("tailorDraft validates the LLM's JSON against the draft schema", async () => {
+    const draft = await tailorDraft(await recordedClaims(), matchPosting([]), llmReturning(sampleDraft));
+    expect(draft.name).toBe("Maria Kowalski");
+    await expect(
+      tailorDraft(await recordedClaims(), matchPosting([]), llmReturning({ nope: 1 })),
+    ).rejects.toThrow();
+  });
+});
+
+describe("JC-16/17 pipeline end to end (fake LLMs)", () => {
+  function fakePipeline() {
+    const mined = { schemaVersion: "0", roles: [], claims: [], parser_flags: [] };
+    const mine = async () => ({
+      doc: (await recordedClaims()) ?? mined,
+      claims: (await recordedClaims()).claims,
+      roles: 2,
+      needsGrill: 2,
+    });
+    return { mine, preview: makePreviewStep(llmReturning(sampleDraft)) };
+  }
+
+  async function waitTerminal(server: ReturnType<typeof buildServer>, jobId: string) {
+    await new Promise<void>((resolve) => {
+      const un = server.store.subscribe(jobId, (j) => {
+        if (isTerminal(j.status)) {
+          un();
+          resolve();
+        }
+      });
+      void server.store.get(jobId).then((j) => {
+        if (j && isTerminal(j.status)) {
+          un();
+          resolve();
+        }
+      });
+    });
+  }
+
+  it("paste (JC-17) → mine → preview: full flow with feed and watermarked HTML", async () => {
+    const server = buildServer({ pipeline: fakePipeline() });
+    const cookie = await startSession(server.app);
+    await server.app.inject({
+      method: "PUT",
+      url: "/sessions/me/targets",
+      headers: { cookie },
+      payload: { targetTitles: ["IT Project Manager"] },
+    });
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/cv/paste",
+      headers: { cookie },
+      payload: { text: "Experience\nPM at Acme 2020 - 2024\n- shipped things\n".repeat(5) },
+    });
+    expect(created.statusCode).toBe(201);
+    const { jobId } = created.json();
+    await waitTerminal(server, jobId);
+
+    const job = await server.app.inject({ method: "GET", url: `/jobs/${jobId}`, headers: { cookie } });
+    expect(job.json().status).toBe("completed");
+    const feed = job.json().progress.feed as string[];
+    expect(feed.some((l) => l.includes("Tailored a draft"))).toBe(true);
+    // preview html never travels through the job payload
+    expect(job.json().progress.previewHtml).toBeUndefined();
+    expect(job.json().progress.miner).toBeUndefined();
+
+    const preview = await server.app.inject({
+      method: "GET",
+      url: `/previews/${jobId}`,
+      headers: { cookie },
+    });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.headers["content-type"]).toContain("text/html");
+    expect(preview.body).toContain("DRAFT");
+  });
+
+  it("previews are session-scoped: another session gets 404", async () => {
+    const server = buildServer({ pipeline: fakePipeline() });
+    const mine = await startSession(server.app);
+    const theirs = await startSession(server.app);
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/cv/paste",
+      headers: { cookie: mine },
+      payload: { text: "Experience\nPM at Acme 2020 - 2024\n- shipped things\n".repeat(5) },
+    });
+    const { jobId } = created.json();
+    await waitTerminal(server, jobId);
+    expect(
+      (await server.app.inject({ method: "GET", url: `/previews/${jobId}`, headers: { cookie: theirs } }))
+        .statusCode,
+    ).toBe(404);
+    expect(
+      (await server.app.inject({ method: "GET", url: `/jobs/${jobId}`, headers: { cookie: theirs } }))
+        .statusCode,
+    ).toBe(404);
+  });
+
+  it("JC-16 AC: no export/share/download route exists server-side (checked against the API)", async () => {
+    const server = buildServer();
+    await server.app.ready();
+    const routes = server.app.printRoutes({ commonPrefix: false });
+    for (const forbidden of ["export", "download", "pdf", "docx", "share"]) {
+      expect(routes.toLowerCase()).not.toContain(forbidden);
+    }
+  });
+
+  it("short paste is rejected (min 100 chars)", async () => {
+    const server = buildServer();
+    const cookie = await startSession(server.app);
+    const res = await server.app.inject({
+      method: "POST",
+      url: "/cv/paste",
+      headers: { cookie },
+      payload: { text: "too short" },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
+describe("JC-13 mine step adapter", () => {
+  it("shapes the pipeline payload from a mined doc", async () => {
+    const claims = await recordedClaims();
+    const step = makeMineStep({ complete: async () => JSON.stringify(claims) });
+    const out = await step({ source: "paste", status: "ok", fullText: "cv", blocks: [], stats: { roles: 0, bullets: 0, chars: 2, pages: null } });
+    expect(out.roles).toBe(claims.roles.length);
+    expect(out.claims.length).toBe(claims.claims.length);
+    expect(out.doc.schemaVersion).toBe("0");
+  });
+});

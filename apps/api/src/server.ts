@@ -15,6 +15,8 @@ import { uploadRoutes, type UploadDeps } from "./routes/uploads.js";
 import { InMemoryBlobStorage, type BlobStorage } from "./storage.js";
 import { InMemoryUploadStore, REJECT_MESSAGES } from "./uploads.js";
 import { runOnboardingJob, type PipelineDeps } from "./pipeline.js";
+import { cvRoutes } from "./routes/cv.js";
+import type { JobRecord } from "./jobs.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -102,6 +104,16 @@ export function buildServer(opts: BuildOptions = {}) {
     return { jobId: job.id };
   };
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
+  app.register(cvRoutes({ store, pipeline: pipelineDeps }));
+
+  // Job payloads sent to the client: the preview HTML travels only via GET /previews/:jobId
+  // (in-app view), and jobs bound to a session are visible to that session alone.
+  const clientView = (job: JobRecord) => {
+    const { previewHtml: _previewHtml, miner: _miner, rawCv: _rawCv, ...progress } = job.progress;
+    return { ...job, progress };
+  };
+  const canSee = (req: FastifyRequest, job: JobRecord) =>
+    job.sessionId === null || job.sessionId === req.session?.id;
 
   app.post(
     "/jobs/demo",
@@ -119,8 +131,9 @@ export function buildServer(opts: BuildOptions = {}) {
     { schema: { params: z.object({ id: z.string() }) } },
     async (req, reply) => {
       const job = await store.get(req.params.id);
-      if (!job) return reply.status(404).send({ error: { code: "not_found", message: "unknown job" } });
-      return job;
+      if (!job || !canSee(req, job))
+        return reply.status(404).send({ error: { code: "not_found", message: "unknown job" } });
+      return clientView(job);
     },
   );
 
@@ -130,14 +143,15 @@ export function buildServer(opts: BuildOptions = {}) {
     { schema: { params: z.object({ id: z.string() }) } },
     async (req, reply) => {
       const job = await store.get(req.params.id);
-      if (!job) return reply.status(404).send({ error: { code: "not_found", message: "unknown job" } });
+      if (!job || !canSee(req, job))
+        return reply.status(404).send({ error: { code: "not_found", message: "unknown job" } });
 
       reply.raw.writeHead(200, {
         "content-type": "text/event-stream",
         "cache-control": "no-cache",
         connection: "keep-alive",
       });
-      const send = (j: unknown) => reply.raw.write(`data: ${JSON.stringify(j)}\n\n`);
+      const send = (j: JobRecord) => reply.raw.write(`data: ${JSON.stringify(clientView(j))}\n\n`);
       send(job);
       if (isTerminal(job.status)) {
         reply.raw.end();
