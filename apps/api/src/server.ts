@@ -111,6 +111,55 @@ export function buildServer(opts: BuildOptions = {}) {
     }
   });
 
+  // CV content is personal data: the detail routes below expose the kept CV text, mined claims, and
+  // original file, so they ALWAYS require GUESTBOOK_KEY to be set and matched (?key=…). With no key
+  // set they refuse — PII is never served from an ungated URL, even though the scoreboard is open.
+  const contentKeyOk = (req: FastifyRequest) => {
+    const key = process.env.GUESTBOOK_KEY;
+    return !!key && (req.query as { key?: string }).key === key;
+  };
+  const mimeByKind: Record<string, string> = {
+    pdf: "application/pdf",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    txt: "text/plain; charset=utf-8",
+  };
+
+  app.get(
+    "/guestbook/:id",
+    { schema: { params: z.object({ id: z.coerce.number().int().positive() }) } },
+    async (req, reply) => {
+      if (!contentKeyOk(req))
+        return reply.status(403).send({
+          error: { code: "forbidden", message: "set GUESTBOOK_KEY and pass ?key=… to read CV data" },
+        });
+      const row = await guestbook.get(req.params.id);
+      if (!row)
+        return reply.status(404).send({ error: { code: "not_found", message: "unknown visit" } });
+      return row;
+    },
+  );
+
+  // Download the original uploaded file (kept in R2). Same key gate as the detail route.
+  app.get(
+    "/guestbook/:id/file",
+    { schema: { params: z.object({ id: z.coerce.number().int().positive() }) } },
+    async (req, reply) => {
+      if (!contentKeyOk(req))
+        return reply.status(403).send({
+          error: { code: "forbidden", message: "set GUESTBOOK_KEY and pass ?key=… to download files" },
+        });
+      const row = await guestbook.get(req.params.id);
+      if (!row?.uploadKey)
+        return reply.status(404).send({ error: { code: "not_found", message: "no stored file for this visit" } });
+      const data = await blobs.get(row.uploadKey);
+      if (!data)
+        return reply.status(404).send({ error: { code: "gone", message: "file no longer in storage" } });
+      reply.header("content-type", mimeByKind[row.kind ?? "txt"] ?? "application/octet-stream");
+      reply.header("content-disposition", `attachment; filename="cv-${row.id}.${row.kind ?? "bin"}"`);
+      return data;
+    },
+  );
+
   app.register(sessionRoutes(sessions));
 
   // A completed upload starts the onboarding pipeline job (extract → mine → preview).
@@ -126,7 +175,7 @@ export function buildServer(opts: BuildOptions = {}) {
     void runOnboardingJob(
       store,
       job.id,
-      { type: "upload", data, kind: row.kind },
+      { type: "upload", data, kind: row.kind, key: row.id },
       session?.targetTitles ?? [],
       pipelineDeps,
     );

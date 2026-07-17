@@ -30,8 +30,31 @@ describe("guestbook hook", () => {
       needsGrill: 1,
       posting: "PM at Acme",
       error: null,
+      uploadKey: null, // paste has no stored file
+      kind: null,
     });
     expect(visits[0].feed.length).toBeGreaterThan(0);
+    expect(visits[0].rawCv).toBeTruthy(); // extracted CV kept
+    expect(Array.isArray(visits[0].claims)).toBe(true); // mined claims kept
+  });
+
+  it("keeps the upload key + kind when the input is an uploaded file", async () => {
+    const store = new InMemoryJobStore();
+    const job = await store.create("onboarding", "sess-up");
+    const visits: VisitRecord[] = [];
+    await runOnboardingJob(
+      store,
+      job.id,
+      { type: "upload", data: Buffer.from("Jane Doe\nPM 2020-2024\n- x"), kind: "txt", key: "r2-key-123" },
+      [],
+      {
+        mine: async () => ({ claims: [{}], needsGrill: 0, roles: 1 }),
+        preview: async () => ({ html: "<p>x</p>", postingTitle: "PM", postingCompany: "Acme" }),
+        recordVisit: async (v) => void visits.push(v),
+      },
+    );
+    expect(visits[0].uploadKey).toBe("r2-key-123");
+    expect(visits[0].kind).toBe("txt");
   });
 
   it("records a failed visit with the raw error and the stage it reached", async () => {
@@ -57,8 +80,10 @@ describe("guestbook hook", () => {
     await gb.record({
       jobId: "j", sessionId: null, finished: true, stage: "preview", minedClaims: 1,
       roles: 1, needsGrill: 0, posting: null, durationMs: 10, error: null, feed: [],
+      uploadKey: null, kind: null, rawCv: null, claims: null,
     });
     expect(await gb.list()).toEqual([]);
+    expect(await gb.get(1)).toBeNull();
   });
 
   it("renders an HTML scoreboard and escapes error text", () => {

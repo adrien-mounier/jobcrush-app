@@ -1,13 +1,21 @@
 # JC-6 — infra bootstrap
 
-> **Guestbook (persistent run log).** Every onboarding run writes one durable row to Postgres
-> (the previously-unused attached DB) via `src/guestbook.ts` — outcome, stage reached, mined-claim
-> count, matched posting, duration, the raw error, and the full step feed for debugging. View the
-> scoreboard at `https://jobcrush-api-staging.fly.dev/guestbook` (HTML, newest first). The table is
-> auto-created on boot (`CREATE TABLE IF NOT EXISTS`, no migration step). Writes are best-effort and
-> never block a run. Rows carry no CV content or contact info, so the page is open by default; set a
-> `GUESTBOOK_KEY` Fly secret to require `?key=…`. (For persisting *all* request logs — not just
-> per-run outcomes — add a Fly log drain later; unneeded at current volume.)
+> **Guestbook (persistent run log + kept CV data).** Every onboarding run writes one durable row to
+> Postgres (the previously-unused attached DB) via `src/guestbook.ts`. Two layers:
+> - **Scoreboard (open):** `GET /guestbook` — outcome, stage, mined-claim count, matched posting,
+>   duration, raw error, and the full step feed for debugging. Content-free (no CV text / contact
+>   info), so it's open by default. HTML, newest first.
+> - **Kept CV data (key-gated):** each row also stores the extracted CV (`raw_cv`), the mined
+>   `claims`, and the R2 `upload_key` of the original file. Because that's personal data, it is only
+>   readable via `GET /guestbook/:id` (JSON) and `GET /guestbook/:id/file` (original download), both
+>   of which **require `GUESTBOOK_KEY` to be set and passed as `?key=…`** — with no key set they
+>   refuse (PII is never served from an ungated URL). Enable retrieval with
+>   `fly secrets set GUESTBOOK_KEY=<random> -a jobcrush-api-staging` (setting it also gates the
+>   scoreboard). Data is *kept* on every run regardless of the key; the key only gates reading it back.
+>
+> Table auto-created/evolved on boot (`CREATE TABLE IF NOT EXISTS` + `ADD COLUMN IF NOT EXISTS`, no
+> migration step). Writes are best-effort and never block a run. (For persisting *all* request logs —
+> not just per-run outcomes — add a Fly log drain later; unneeded at current volume.)
 
 > **Status 2026-07-18: staging API + web are both LIVE.** `jobcrush-api-staging` +
 > `jobcrush-pg-staging` (attached) run in `sin`; `https://jobcrush-api-staging.fly.dev/healthz`

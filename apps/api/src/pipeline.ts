@@ -7,10 +7,11 @@ import { buildRawCv, extractRawCv, type RawCv } from "./extract.js";
 import type { CvKind } from "./uploads.js";
 
 export type PipelineInput =
-  | { type: "upload"; data: Buffer; kind: CvKind }
+  | { type: "upload"; data: Buffer; kind: CvKind; key: string }
   | { type: "paste"; text: string };
 
-/** One durable line per run (persisted by the guestbook). Debuggable: keeps the error + step feed. */
+/** One durable line per run (persisted by the guestbook). Debuggable: keeps the error + step feed,
+ *  and the kept CV data: the original file's R2 key, the extracted CV, and the mined claims. */
 export interface VisitRecord {
   jobId: string;
   sessionId: string | null;
@@ -23,6 +24,10 @@ export interface VisitRecord {
   durationMs: number;
   error: string | null;
   feed: string[];
+  uploadKey: string | null; // R2 key of the original file (null for pasted text)
+  kind: string | null; // pdf | docx | txt
+  rawCv: unknown; // extracted CV (kept)
+  claims: unknown; // mined claims (kept)
 }
 
 export interface PipelineDeps {
@@ -153,6 +158,10 @@ export async function runOnboardingJob(
           durationMs: Date.now() - startedAt,
           error: final?.error ?? null,
           feed: Array.isArray(p.feed) ? (p.feed as string[]) : [],
+          uploadKey: input.type === "upload" ? input.key : null,
+          kind: input.type === "upload" ? input.kind : null,
+          rawCv: p.rawCv ?? null,
+          claims: miner?.claims ?? null,
         });
       } catch {
         // guestbook is observability only; swallow anything so a run never fails because of it
