@@ -16,6 +16,7 @@ import { InMemoryBlobStorage, type BlobStorage } from "./storage.js";
 import { InMemoryUploadStore, REJECT_MESSAGES } from "./uploads.js";
 import { runOnboardingJob, type PipelineDeps } from "./pipeline.js";
 import { cvRoutes } from "./routes/cv.js";
+import { createGuestbook, renderGuestbookHtml, type Guestbook } from "./guestbook.js";
 import type { JobRecord } from "./jobs.js";
 
 declare module "fastify" {
@@ -32,6 +33,8 @@ export interface BuildOptions {
   /** LLM-backed pipeline steps (mine, preview). Absent steps are skipped — tests inject fakes. */
   pipeline?: PipelineDeps;
   onUploaded?: UploadDeps["onUploaded"];
+  /** Persistent per-run guestbook. Defaults to Postgres via DATABASE_URL; no-op when unset. */
+  guestbook?: Guestbook;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */
@@ -50,7 +53,9 @@ export function buildServer(opts: BuildOptions = {}) {
   const sessions = opts.sessions ?? new InMemorySessionStore();
   const blobs = opts.blobs ?? new InMemoryBlobStorage();
   const uploads = opts.uploads ?? new InMemoryUploadStore();
+  const guestbook = opts.guestbook ?? createGuestbook(process.env.DATABASE_URL);
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" }).withTypeProvider<ZodTypeProvider>();
+  guestbook.init().catch((err) => app.log.error(err, "guestbook init failed"));
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.register(cookie);
@@ -86,10 +91,34 @@ export function buildServer(opts: BuildOptions = {}) {
     env: process.env.APP_ENV ?? "local",
   }));
 
+  // Persistent scoreboard/debug trail of every onboarding run. Optionally gate with GUESTBOOK_KEY
+  // (?key=…); left open otherwise since rows carry no CV content or contact info, only outcomes.
+  app.get("/guestbook", async (req, reply) => {
+    const key = process.env.GUESTBOOK_KEY;
+    if (key && (req.query as { key?: string }).key !== key) {
+      return reply
+        .status(401)
+        .send({ error: { code: "unauthorized", message: "guestbook key required" } });
+    }
+    try {
+      const rows = await guestbook.list();
+      reply.header("content-type", "text/html; charset=utf-8");
+      return renderGuestbookHtml(rows);
+    } catch (err) {
+      return reply.status(503).send({
+        error: { code: "guestbook_unavailable", message: err instanceof Error ? err.message : String(err) },
+      });
+    }
+  });
+
   app.register(sessionRoutes(sessions));
 
   // A completed upload starts the onboarding pipeline job (extract → mine → preview).
-  const pipelineDeps = opts.pipeline ?? {};
+  // Every run leaves one durable line in the guestbook (recordVisit).
+  const pipelineDeps: PipelineDeps = {
+    ...(opts.pipeline ?? {}),
+    recordVisit: opts.pipeline?.recordVisit ?? guestbook.record,
+  };
   const defaultOnUploaded: NonNullable<UploadDeps["onUploaded"]> = async (row, data) => {
     if (!row.kind) return null;
     const job = await store.create("onboarding", row.sessionId);

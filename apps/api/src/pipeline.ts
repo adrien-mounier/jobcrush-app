@@ -10,6 +10,21 @@ export type PipelineInput =
   | { type: "upload"; data: Buffer; kind: CvKind }
   | { type: "paste"; text: string };
 
+/** One durable line per run (persisted by the guestbook). Debuggable: keeps the error + step feed. */
+export interface VisitRecord {
+  jobId: string;
+  sessionId: string | null;
+  finished: boolean;
+  stage: string; // last stage reached: extract | mine | preview | start
+  minedClaims: number | null;
+  roles: number | null;
+  needsGrill: number | null;
+  posting: string | null;
+  durationMs: number;
+  error: string | null;
+  feed: string[];
+}
+
 export interface PipelineDeps {
   /** JC-13 claim miner. Optional so the extract stage can ship/test on its own. */
   mine?: (rawCv: RawCv) => Promise<{ claims: unknown[]; needsGrill: number; roles: number }>;
@@ -19,6 +34,8 @@ export interface PipelineDeps {
     targetTitles: string[],
     rawCv: RawCv,
   ) => Promise<{ html: string; postingTitle: string; postingCompany: string }>;
+  /** Best-effort guestbook write; called once on any terminal state. Never throws into the run. */
+  recordVisit?: (visit: VisitRecord) => Promise<void>;
 }
 
 export const UNPARSEABLE_ERROR = "unparseable_cv";
@@ -36,6 +53,7 @@ export async function runOnboardingJob(
   targetTitles: string[],
   deps: PipelineDeps = {},
 ): Promise<void> {
+  const startedAt = Date.now();
   try {
     await store.update(jobId, { status: "running" });
 
@@ -114,5 +132,31 @@ export async function runOnboardingJob(
       status: "failed",
       error: err instanceof Error ? err.message : String(err),
     });
+  } finally {
+    // One durable, debuggable line per run — reads the final job state, so every exit path
+    // (success, unparseable, crash) is covered from a single place. Never disturbs the run.
+    if (deps.recordVisit) {
+      try {
+        const final = await store.get(jobId);
+        const p = final?.progress ?? {};
+        const miner = p.miner as { claims?: unknown[]; roles?: number; needsGrill?: number } | undefined;
+        const preview = p.preview as { postingTitle?: string; postingCompany?: string } | undefined;
+        await deps.recordVisit({
+          jobId,
+          sessionId: final?.sessionId ?? null,
+          finished: final?.status === "completed",
+          stage: preview ? "preview" : miner ? "mine" : p.rawCv ? "extract" : "start",
+          minedClaims: miner?.claims?.length ?? null,
+          roles: miner?.roles ?? null,
+          needsGrill: miner?.needsGrill ?? null,
+          posting: preview ? `${preview.postingTitle} at ${preview.postingCompany}` : null,
+          durationMs: Date.now() - startedAt,
+          error: final?.error ?? null,
+          feed: Array.isArray(p.feed) ? (p.feed as string[]) : [],
+        });
+      } catch {
+        // guestbook is observability only; swallow anything so a run never fails because of it
+      }
+    }
   }
 }

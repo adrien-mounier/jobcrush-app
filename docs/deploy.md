@@ -1,5 +1,14 @@
 # JC-6 — infra bootstrap
 
+> **Guestbook (persistent run log).** Every onboarding run writes one durable row to Postgres
+> (the previously-unused attached DB) via `src/guestbook.ts` — outcome, stage reached, mined-claim
+> count, matched posting, duration, the raw error, and the full step feed for debugging. View the
+> scoreboard at `https://jobcrush-api-staging.fly.dev/guestbook` (HTML, newest first). The table is
+> auto-created on boot (`CREATE TABLE IF NOT EXISTS`, no migration step). Writes are best-effort and
+> never block a run. Rows carry no CV content or contact info, so the page is open by default; set a
+> `GUESTBOOK_KEY` Fly secret to require `?key=…`. (For persisting *all* request logs — not just
+> per-run outcomes — add a Fly log drain later; unneeded at current volume.)
+
 > **Status 2026-07-18: staging API + web are both LIVE.** `jobcrush-api-staging` +
 > `jobcrush-pg-staging` (attached) run in `sin`; `https://jobcrush-api-staging.fly.dev/healthz`
 > returns the build SHA and the demo job streams over SSE. The web shell is now
