@@ -5,7 +5,6 @@ node_modules
 **/.turbo
 .git
 data/uploads
-apps/web
 scripts
 *.log
 .env

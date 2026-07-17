@@ -1,12 +1,28 @@
 # JC-6 — infra bootstrap
 
-> **Status 2026-07-17: staging is LIVE.** `jobcrush-api-staging` + `jobcrush-pg-staging`
-> (attached) run in `sin`; `https://jobcrush-api-staging.fly.dev/healthz` returns the build SHA
-> and the demo job streams over SSE; `FLY_API_TOKEN` is set on GitHub and the CI deploy job is
-> active (every green `main` push deploys). Still open: **R2** (bucket + token → `.env` →
-> `fly secrets set R2_*`; the `R2Storage` driver auto-activates when the secrets exist) and
-> **Redis** (deferred — nothing uses it until the BullMQ driver; `flyctl redis create` is
-> interactive, run it by hand when needed). Original checklist below for reference.
+> **Status 2026-07-18: staging API + web are both LIVE.** `jobcrush-api-staging` +
+> `jobcrush-pg-staging` (attached) run in `sin`; `https://jobcrush-api-staging.fly.dev/healthz`
+> returns the build SHA and the demo job streams over SSE. The web shell is now
+> `jobcrush-web-staging.fly.dev` (Next.js, `Dockerfile.web` + `fly.web.toml`); its `/api/*` proxy
+> reaches the live API same-origin (verified: `/api/healthz` returns the API SHA). `API_URL` is a
+> **build arg**, not just a runtime env — Next resolves `rewrites()` at build time and bakes it
+> into the routes manifest. CI now deploys both apps on every green `main` push.
+>
+> **One open item — R2 CORS for the web origin (user, ~30 s in the Cloudflare dashboard).**
+> A credential-free preflight (`OPTIONS` on a real presigned PUT URL, `Origin:
+> https://jobcrush-web-staging.fly.dev`) returns `403` with no `Access-Control-Allow-*` headers —
+> the bucket does not yet allow the web origin, so browser uploads from the hosted app will fail.
+> The app's R2 token is **object-scoped**, so it cannot set bucket CORS (`PutBucketCors` →
+> `AccessDenied` even from inside the API container); this must be done with the dashboard or an
+> admin-scoped token. In R2 → bucket `jobcrush-staging` → Settings → CORS Policy, add:
+> ```json
+> [{ "AllowedOrigins": ["https://jobcrush-web-staging.fly.dev"],
+>    "AllowedMethods": ["PUT", "GET", "HEAD"],
+>    "AllowedHeaders": ["*"], "MaxAgeSeconds": 3600 }]
+> ```
+> Re-run the preflight (or just try an upload from the hosted app) to confirm it flips to `200`
+> with the origin echoed. **Redis** stays deferred (nothing uses it until the BullMQ driver).
+> Original checklist below for reference.
 
 Deployable artifacts in this repo are ready: `Dockerfile`, `fly.api.toml`, and the CI deploy job
 (disabled with `if: false` in `.github/workflows/ci.yml`). To go live:
