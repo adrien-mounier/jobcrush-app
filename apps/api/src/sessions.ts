@@ -15,6 +15,7 @@ export interface SessionRecord {
 export interface SessionStore {
   create(): Promise<SessionRecord>;
   getByToken(token: string): Promise<SessionRecord | null>;
+  getById(id: string): Promise<SessionRecord | null>;
   touch(id: string): Promise<void>;
   setTargetTitles(id: string, titles: string[]): Promise<void>;
 }
@@ -40,6 +41,10 @@ export class InMemorySessionStore implements SessionStore {
 
   async getByToken(token: string): Promise<SessionRecord | null> {
     return this.byToken.get(token) ?? null;
+  }
+
+  async getById(id: string): Promise<SessionRecord | null> {
+    return this.byId.get(id) ?? null;
   }
 
   async touch(id: string): Promise<void> {

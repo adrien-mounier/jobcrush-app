@@ -1,0 +1,33 @@
+/* JC-14 design tokens — the single source both web (S1) and mobile (S4) style from.
+   Mirrors src/index.ts; keep the two in sync. */
+:root {
+  /* evidence-badge palette (spec §5 table) */
+  --jc-verified: #1a7f37;
+  --jc-derived: #0969da;
+  --jc-partial: #9a6700;
+  --jc-suggested: #8250df;
+  --jc-negative: #57606a;
+  --jc-danger: #cf222e;
+
+  /* surface + text */
+  --jc-bg: #faf9f7;
+  --jc-surface: #ffffff;
+  --jc-ink: #1f2328;
+  --jc-ink-muted: #59636e;
+  --jc-line: #d9d5cf;
+  --jc-accent: #0b6e5f;
+  --jc-accent-ink: #ffffff;
+
+  /* spacing scale (px) */
+  --jc-sp-xs: 4px;
+  --jc-sp-sm: 8px;
+  --jc-sp-md: 16px;
+  --jc-sp-lg: 24px;
+  --jc-sp-xl: 40px;
+
+  --jc-radius-card: 12px;
+  --jc-radius-pill: 999px;
+
+  --jc-font:
+    "Avenir Next", "Segoe UI Variable", Seravek, Corbel, source-sans-pro, sans-serif;
+}

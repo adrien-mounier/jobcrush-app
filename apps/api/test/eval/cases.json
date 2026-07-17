@@ -1,0 +1,59 @@
+{
+  "_comment": "JC-13 eval cases. `expectations` are human-rated: for the claim whose text or source_quote contains `match`, the tags must satisfy touchIn/classIn/needsGrill. Aggregate tier accuracy across all cases must be >= 0.9 (the JC-13 merge bar); the <=15 individual-card budget is asserted per case (JC-2 finding). The 5 real CVs (user action, pending) get added as cases here when they arrive — these synthetic cases pin mechanics until then.",
+  "cases": [
+    {
+      "name": "synthetic-01",
+      "file": "eval/cvs/synthetic-01.txt",
+      "kind": "txt",
+      "expectations": [
+        { "match": "project coordination and delivery", "classIn": ["Partially-Supported"], "needsGrill": true },
+        { "match": "offshore teams", "touchIn": ["verbatim"], "classIn": ["Verified"] },
+        { "match": "customer satisfaction", "needsGrill": true },
+        { "match": "PSM I", "needsGrill": true },
+        { "match": "ecommerce migration", "classIn": ["Verified"] },
+        { "match": "improved delivery process", "needsGrill": true }
+      ]
+    },
+    {
+      "name": "clean-pdf",
+      "file": "fixtures/clean.pdf",
+      "kind": "pdf",
+      "expectations": [
+        { "match": "checkout", "classIn": ["Verified"] },
+        { "match": "1.2M", "touchIn": ["verbatim"], "classIn": ["Verified"] },
+        { "match": "RAID", "classIn": ["Verified"] },
+        { "match": "PRINCE2", "classIn": ["Verified"] }
+      ]
+    },
+    {
+      "name": "linkedin-profile-pdf",
+      "file": "fixtures/linkedin-profile.pdf",
+      "kind": "pdf",
+      "expectations": [
+        { "match": "merchant onboarding backlog", "touchIn": ["verbatim"], "classIn": ["Verified"] },
+        { "match": "acceptance criteria", "classIn": ["Verified"] },
+        { "match": "Product Roadmapping", "classIn": ["Derived", "Partially-Supported"] }
+      ]
+    },
+    {
+      "name": "table-docx",
+      "file": "fixtures/table-based.docx",
+      "kind": "docx",
+      "expectations": [
+        { "match": "40 apps", "classIn": ["Verified"] },
+        { "match": "on-call rotation", "classIn": ["Verified"] },
+        { "match": "stakeholder reporting", "classIn": ["Derived", "Partially-Supported"] }
+      ]
+    },
+    {
+      "name": "plain-txt",
+      "file": "fixtures/plain.txt",
+      "kind": "txt",
+      "expectations": [
+        { "match": "enterprise accounts", "classIn": ["Verified"] },
+        { "match": "capacity planning", "classIn": ["Verified"] },
+        { "match": "team of 6", "touchIn": ["verbatim"], "classIn": ["Verified"] }
+      ]
+    }
+  ]
+}

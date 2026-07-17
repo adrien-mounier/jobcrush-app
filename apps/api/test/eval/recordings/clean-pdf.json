@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "0",
+  "roles": [
+    {
+      "employer": "Nordic Retail Group",
+      "title": "IT Project Manager",
+      "dates_as_written": "Mar 2021 - Present",
+      "dates_missing": false
+    },
+    {
+      "employer": "Baltic Software House",
+      "title": "Project Coordinator",
+      "dates_as_written": "Jun 2017 - Feb 2021",
+      "dates_missing": false
+    },
+    {
+      "employer": "University of Warsaw",
+      "title": "MSc Management Information Systems",
+      "dates_as_written": "2017",
+      "dates_missing": false
+    }
+  ],
+  "claims": [
+    {
+      "id": "nrg-led-checkout-replatform",
+      "role": "IT Project Manager - Nordic Retail Group",
+      "text": "Led the replatforming of the e-commerce checkout, delivered 2 months early.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Led the replatforming of the e-commerce checkout, delivered 2 months early",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "nrg-managed-budget",
+      "role": "IT Project Manager - Nordic Retail Group",
+      "text": "Managed a budget of EUR 1.2M across 3 vendor teams.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Managed a budget of EUR 1.2M across 3 vendor teams",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "nrg-steering-committee-reporting",
+      "role": "IT Project Manager - Nordic Retail Group",
+      "text": "Ran steering committee reporting for the CIO.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Ran steering committee reporting for the CIO",
+      "needs_grill": true,
+      "grill_hint": "No outcome or metric given for the steering committee reporting - ask what impact or decisions it drove."
+    },
+    {
+      "id": "bsh-coordinated-squad-releases",
+      "role": "Project Coordinator - Baltic Software House",
+      "text": "Coordinated releases for 4 agile squads (approx. 30 engineers).",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Coordinated releases for 4 agile squads (approx. 30 engineers)",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "bsh-raid-logging-escalations",
+      "role": "Project Coordinator - Baltic Software House",
+      "text": "Introduced RAID logging, cutting escalations by a third.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Introduced RAID logging, cutting escalations by a third",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "edu-msc-mis-warsaw",
+      "role": "MSc Management Information Systems - University of Warsaw",
+      "text": "Holds an MSc in Management Information Systems from the University of Warsaw, 2017.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "MSc Management Information Systems - University of Warsaw, 2017",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "profile-skills-list",
+      "role": "profile",
+      "text": "Has skills in Jira, MS Project, Confluence, SQL basics, and Power BI.",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "Jira, MS Project, Confluence, SQL basics, Power BI",
+      "needs_grill": true,
+      "grill_hint": "Skills list is self-reported with no tied project evidence - ask for concrete examples of use."
+    },
+    {
+      "id": "profile-prince2-cert",
+      "role": "profile",
+      "text": "Holds PRINCE2 Practitioner certification, obtained 2019.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "PRINCE2 Practitioner (2019)",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "profile-psm1-cert",
+      "role": "profile",
+      "text": "Holds PSM I certification, obtained 2020.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "PSM I (2020)",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "profile-language-polish",
+      "role": "profile",
+      "text": "Native Polish speaker.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Polish (native)",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "profile-language-english",
+      "role": "profile",
+      "text": "English proficiency at C1 level.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "English (C1)",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "profile-language-german",
+      "role": "profile",
+      "text": "German proficiency at B1 level.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "German (B1)",
+      "needs_grill": false,
+      "grill_hint": null
+    }
+  ],
+  "parser_flags": [
+    "no-metrics: steering committee reporting bullet has no outcome or metric",
+    "ambiguous-segment: education entry shows only graduation year 2017, no start date",
+    "no-metrics: skills list is asserted without tied project or usage evidence"
+  ]
+}

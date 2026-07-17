@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "0",
+  "roles": [
+    {
+      "employer": "CloudWorks India",
+      "title": "Technical Project Manager",
+      "dates_as_written": "2021-2025",
+      "dates_missing": false
+    },
+    {
+      "employer": "InfraCore",
+      "title": "Systems Engineer",
+      "dates_as_written": "2017-2021",
+      "dates_missing": false
+    },
+    {
+      "employer": "Anna University",
+      "title": "BTech Information Technology",
+      "dates_as_written": "2013-2017",
+      "dates_missing": false
+    }
+  ],
+  "claims": [
+    {
+      "id": "cloudworks-migrated-40-apps-aws",
+      "role": "CloudWorks India, Technical Project Manager",
+      "text": "Migrated 40 applications to AWS.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "migrated 40 apps to AWS",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "infracore-ran-oncall-payments",
+      "role": "InfraCore, Systems Engineer",
+      "text": "Ran the on-call rotation for payments infrastructure.",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "ran the on-call rotation for payments infra",
+      "needs_grill": true,
+      "grill_hint": "No scope (team size, incident volume, SLA) or outcome metric given for the on-call rotation."
+    },
+    {
+      "id": "anna-university-btech-it",
+      "role": "Anna University, BTech Information Technology",
+      "text": "Holds a BTech in Information Technology from Anna University (2013-2017).",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "BTech Information Technology, Anna University",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "skill-aws",
+      "role": "profile",
+      "text": "Skilled in AWS.",
+      "machine_touch": "verbatim",
+      "classification": "Derived",
+      "source_quote": "AWS, Terraform, Jira, MS Project, stakeholder reporting",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "skill-terraform",
+      "role": "profile",
+      "text": "Skilled in Terraform.",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "AWS, Terraform, Jira, MS Project, stakeholder reporting",
+      "needs_grill": true,
+      "grill_hint": "Terraform listed as a skill but no role bullet demonstrates its use."
+    },
+    {
+      "id": "skill-jira",
+      "role": "profile",
+      "text": "Skilled in Jira.",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "AWS, Terraform, Jira, MS Project, stakeholder reporting",
+      "needs_grill": true,
+      "grill_hint": "Jira listed as a skill but no role bullet demonstrates its use."
+    },
+    {
+      "id": "skill-ms-project",
+      "role": "profile",
+      "text": "Skilled in MS Project.",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "AWS, Terraform, Jira, MS Project, stakeholder reporting",
+      "needs_grill": true,
+      "grill_hint": "MS Project listed as a skill but no role bullet demonstrates its use."
+    },
+    {
+      "id": "skill-stakeholder-reporting",
+      "role": "profile",
+      "text": "Experienced in stakeholder reporting.",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "AWS, Terraform, Jira, MS Project, stakeholder reporting",
+      "needs_grill": true,
+      "grill_hint": "Stakeholder reporting asserted as a skill with no supporting role/outcome evidence."
+    }
+  ],
+  "parser_flags": [
+    "no-metrics: InfraCore on-call rotation bullet lacks any metric or outcome",
+    "no-metrics: Terraform, Jira, MS Project, and stakeholder reporting skills lack any supporting role evidence"
+  ]
+}

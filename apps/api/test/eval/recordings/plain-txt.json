@@ -1,0 +1,131 @@
+{
+  "schemaVersion": "0",
+  "roles": [
+    {
+      "employer": "NileWare",
+      "title": "Delivery Manager",
+      "dates_as_written": "2020-",
+      "dates_missing": false
+    },
+    {
+      "employer": "PyramidNet",
+      "title": "IT Support Lead",
+      "dates_as_written": "2016-2020",
+      "dates_missing": false
+    },
+    {
+      "employer": "Cairo University",
+      "title": "BSc Computer Science",
+      "dates_as_written": "2016",
+      "dates_missing": false
+    }
+  ],
+  "claims": [
+    {
+      "id": "nileware-ran-delivery-two-accounts",
+      "role": "Delivery Manager, NileWare",
+      "text": "Ran delivery for two enterprise accounts",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Ran delivery for two enterprise accounts",
+      "needs_grill": true,
+      "grill_hint": "No outcome or metric given for what 'running delivery' achieved (e.g. SLA, revenue, satisfaction)."
+    },
+    {
+      "id": "nileware-capacity-planning-5-teams",
+      "role": "Delivery Manager, NileWare",
+      "text": "Set up capacity planning across 5 teams",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Set up capacity planning across 5 teams",
+      "needs_grill": true,
+      "grill_hint": "No outcome/impact stated for the capacity planning initiative (e.g. utilization improvement, cost saved)."
+    },
+    {
+      "id": "nileware-role-open-ended",
+      "role": "Delivery Manager, NileWare",
+      "text": "Currently or as of last update working as Delivery Manager at NileWare since 2020",
+      "machine_touch": "inferred",
+      "classification": "Partially-Supported",
+      "source_quote": "Delivery Manager, NileWare (2020-)",
+      "needs_grill": true,
+      "grill_hint": "End date is not specified; confirm if role is still current or has ended."
+    },
+    {
+      "id": "pyramidnet-managed-team-of-6",
+      "role": "IT Support Lead, PyramidNet",
+      "text": "Managed a team of 6",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Managed a team of 6",
+      "needs_grill": true,
+      "grill_hint": "No outcome/metric given for team management (e.g. ticket resolution time, uptime, retention)."
+    },
+    {
+      "id": "education-bsc-cs-cairo-university",
+      "role": "BSc Computer Science, Cairo University",
+      "text": "Holds a BSc in Computer Science from Cairo University (2016)",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "BSc Computer Science, Cairo University (2016)",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "skill-itil",
+      "role": "profile",
+      "text": "Lists ITIL as a skill",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "ITIL",
+      "needs_grill": true,
+      "grill_hint": "No role bullet directly ties ITIL usage to a project or certification level."
+    },
+    {
+      "id": "skill-jira",
+      "role": "profile",
+      "text": "Lists Jira as a skill",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "Jira",
+      "needs_grill": true,
+      "grill_hint": "No bullet shows concrete Jira usage or project context."
+    },
+    {
+      "id": "skill-servicenow",
+      "role": "profile",
+      "text": "Lists ServiceNow as a skill",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "ServiceNow",
+      "needs_grill": true,
+      "grill_hint": "No bullet shows concrete ServiceNow usage or project context."
+    },
+    {
+      "id": "skill-arabic-native",
+      "role": "profile",
+      "text": "Native Arabic speaker",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "Arabic (native)",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "skill-english-fluent",
+      "role": "profile",
+      "text": "Fluent in English",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "English (fluent)",
+      "needs_grill": false,
+      "grill_hint": null
+    }
+  ],
+  "parser_flags": [
+    "ambiguous-segment: Delivery Manager role at NileWare has no end date (2020-), unclear if current",
+    "no-metrics: Delivery Manager bullets lack quantified outcomes beyond headcounts/team counts",
+    "no-metrics: IT Support Lead bullet lacks outcome beyond team size",
+    "unsupported-self-description: skills list (ITIL, Jira, ServiceNow) asserted without linked evidence in role bullets"
+  ]
+}

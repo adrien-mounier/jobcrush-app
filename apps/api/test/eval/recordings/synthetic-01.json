@@ -1,0 +1,309 @@
+{
+  "schemaVersion": "0",
+  "roles": [
+    {
+      "employer": "FPT Software",
+      "title": "Project Coordinator then Project Manager",
+      "dates_as_written": "not specified (2023 referenced only for one project)",
+      "dates_missing": true
+    },
+    {
+      "employer": "Viettel IDC",
+      "title": "IT Support / Sysadmin",
+      "dates_as_written": "2019-2021",
+      "dates_missing": false
+    },
+    {
+      "employer": "Freelance web projects",
+      "title": "Freelance Web Developer",
+      "dates_as_written": "before 2019",
+      "dates_missing": true
+    },
+    {
+      "employer": "Danang University of Technology",
+      "title": "Engineer Degree",
+      "dates_as_written": "not specified",
+      "dates_missing": true
+    }
+  ],
+  "claims": [
+    {
+      "id": "profile-summary-it-professional",
+      "role": "profile",
+      "text": "IT professional with experience in project coordination and delivery",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "IT professional with experience in project coordination and delivery.",
+      "needs_grill": true,
+      "grill_hint": "Unevidenced self-description; ask for specific projects/outcomes backing this summary."
+    },
+    {
+      "id": "profile-hardworking",
+      "role": "profile",
+      "text": "Candidate describes self as hard working",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "hard working",
+      "needs_grill": true,
+      "grill_hint": "Unevidenced self-description; ask for concrete examples."
+    },
+    {
+      "id": "profile-detail-oriented",
+      "role": "profile",
+      "text": "Candidate describes self as detail oriented",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "detail oriented",
+      "needs_grill": true,
+      "grill_hint": "Unevidenced self-description; ask for concrete examples."
+    },
+    {
+      "id": "profile-good-communication",
+      "role": "profile",
+      "text": "Candidate describes self as having good communication",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "good communication",
+      "needs_grill": true,
+      "grill_hint": "Unevidenced self-description; ask for concrete examples."
+    },
+    {
+      "id": "fpt-role-title",
+      "role": "FPT Software — Project Coordinator then Project Manager",
+      "text": "Worked at FPT Software progressing from Project Coordinator to Project Manager",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "FPT Software — Project Coordinator then Project Manager",
+      "needs_grill": true,
+      "grill_hint": "No start/end dates given for this role; confirm employment timeline."
+    },
+    {
+      "id": "fpt-coordinate-offshore-teams",
+      "role": "FPT Software — Project Coordinator then Project Manager",
+      "text": "Coordinated offshore teams for Japanese clients",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "responsible for coordination of offshore teams for japanese clients",
+      "needs_grill": true,
+      "grill_hint": "No metric on number of teams/clients coordinated."
+    },
+    {
+      "id": "fpt-managed-schedule-budget",
+      "role": "FPT Software — Project Coordinator then Project Manager",
+      "text": "Managed schedule and budget for several projects",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "managed schedule and budget for several projects",
+      "needs_grill": true,
+      "grill_hint": "No specific project count or budget figures given."
+    },
+    {
+      "id": "fpt-work-with-qa-ba",
+      "role": "FPT Software — Project Coordinator then Project Manager",
+      "text": "Worked with QA and BA teams",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "working with QA and BA teams",
+      "needs_grill": true,
+      "grill_hint": "No outcome described for this collaboration."
+    },
+    {
+      "id": "fpt-daily-standup",
+      "role": "FPT Software — Project Coordinator then Project Manager",
+      "text": "Participated in daily standups",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "daily standup",
+      "needs_grill": true,
+      "grill_hint": "Routine duty with no stated outcome."
+    },
+    {
+      "id": "fpt-report-to-pmo",
+      "role": "FPT Software — Project Coordinator then Project Manager",
+      "text": "Reported to PMO",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "report to PMO",
+      "needs_grill": true,
+      "grill_hint": "Routine duty with no stated outcome or frequency."
+    },
+    {
+      "id": "fpt-improved-delivery-process",
+      "role": "FPT Software — Project Coordinator then Project Manager",
+      "text": "Improved delivery process",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "improved delivery process",
+      "needs_grill": true,
+      "grill_hint": "No metric or specifics on what was improved or by how much."
+    },
+    {
+      "id": "fpt-customer-satisfaction-improved",
+      "role": "FPT Software — Project Coordinator then Project Manager",
+      "text": "Customer satisfaction improved after process change",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "customer satisfaction improved a lot after process change",
+      "needs_grill": true,
+      "grill_hint": "Vague quantifier 'a lot'; no measured figure given."
+    },
+    {
+      "id": "fpt-took-over-pm-ecommerce-migration",
+      "role": "FPT Software — Project Coordinator then Project Manager",
+      "text": "Took over Project Manager role for an ecommerce migration project with a team of approximately 12 after the previous PM left, in 2023",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "took over PM role for ecommerce migration project (team ~12) after previous PM left, 2023",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "viettel-role-title",
+      "role": "Viettel IDC — IT Support / Sysadmin",
+      "text": "Worked as IT Support / Sysadmin at Viettel IDC from 2019 to 2021",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Viettel IDC (2019-2021) - IT Support / Sysadmin",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "viettel-support-internal-users-tickets-sla",
+      "role": "Viettel IDC — IT Support / Sysadmin",
+      "text": "Supported internal users via a ticketing system under SLA",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "support internal users, tickets, SLA",
+      "needs_grill": true,
+      "grill_hint": "No ticket volume or SLA performance figures given."
+    },
+    {
+      "id": "viettel-setup-monitoring-zabbix",
+      "role": "Viettel IDC — IT Support / Sysadmin",
+      "text": "Set up server monitoring using Zabbix",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "setup monitoring for servers (zabbix)",
+      "needs_grill": true,
+      "grill_hint": "No detail on number/scope of servers monitored."
+    },
+    {
+      "id": "viettel-helped-python-scripts",
+      "role": "Viettel IDC — IT Support / Sysadmin",
+      "text": "Occasionally helped build small internal tools using Python scripts",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "sometimes helped with small internal tools (python scripts)",
+      "needs_grill": true,
+      "grill_hint": "Vague frequency/scope ('sometimes', 'small'); no example given."
+    },
+    {
+      "id": "freelance-role-title",
+      "role": "Freelance web projects",
+      "text": "Did freelance web projects before 2019",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "freelance web projects (before 2019)",
+      "needs_grill": true,
+      "grill_hint": "Date range is vague ('before 2019'); confirm actual timeframe."
+    },
+    {
+      "id": "freelance-built-websites-wordpress",
+      "role": "Freelance web projects",
+      "text": "Built websites for small businesses using WordPress",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "built websites for small businesses with wordpress",
+      "needs_grill": true,
+      "grill_hint": "No count of websites built or client outcomes given."
+    },
+    {
+      "id": "freelance-seo-work",
+      "role": "Freelance web projects",
+      "text": "Did some SEO work",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "some SEO work",
+      "needs_grill": true,
+      "grill_hint": "Vague scope ('some'); no outcome or client results given."
+    },
+    {
+      "id": "education-engineer-degree",
+      "role": "Danang University of Technology",
+      "text": "Holds an engineer degree from Danang University of Technology",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Danang University of Technology, engineer degree",
+      "needs_grill": true,
+      "grill_hint": "No dates or field of study given for this degree."
+    },
+    {
+      "id": "skills-jira-confluence-msproject-excel",
+      "role": "profile",
+      "text": "Lists proficiency with Jira, Confluence, MS Project, and Excel",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "Jira, Confluence, MS Project, Excel",
+      "needs_grill": true,
+      "grill_hint": "Skill list is self-asserted; no direct evidence of tool usage in experience bullets."
+    },
+    {
+      "id": "skills-python-basic",
+      "role": "profile",
+      "text": "Lists basic Python skill",
+      "machine_touch": "verbatim",
+      "classification": "Derived",
+      "source_quote": "python (basic)",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "skills-agile-scrum",
+      "role": "profile",
+      "text": "Lists Agile/Scrum as a skill",
+      "machine_touch": "verbatim",
+      "classification": "Derived",
+      "source_quote": "agile/scrum",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "skills-japanese-n3",
+      "role": "profile",
+      "text": "Lists Japanese language proficiency at N3 level",
+      "machine_touch": "verbatim",
+      "classification": "Derived",
+      "source_quote": "Japanese N3",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "skills-english-good",
+      "role": "profile",
+      "text": "Self-assesses English as 'good'",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "English (good)",
+      "needs_grill": true,
+      "grill_hint": "Self-assessed language level; no supporting evidence given."
+    },
+    {
+      "id": "cert-psm1",
+      "role": "profile",
+      "text": "Holds PSM I certification, obtained around 2022",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "PSM I (2022?)",
+      "needs_grill": true,
+      "grill_hint": "Certification year is uncertain (marked with '?'); confirm exact date."
+    }
+  ],
+  "parser_flags": [
+    "undated-role: FPT Software — Project Coordinator then Project Manager (no overall date range given)",
+    "ambiguous-segment: Freelance web projects dated only as 'before 2019'",
+    "no-metrics: several FPT Software bullets (schedule/budget management, offshore coordination, process improvement, customer satisfaction) lack quantifiable outcomes",
+    "no-metrics: Viettel IDC support duties lack quantifiable outcomes (ticket volume, SLA performance, monitoring scope)",
+    "undated-role: Danang University of Technology degree lacks dates and field of study",
+    "ambiguous-segment: certification date noted as '2022?' (uncertain)"
+  ]
+}

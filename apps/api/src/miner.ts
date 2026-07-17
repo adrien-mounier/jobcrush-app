@@ -1,0 +1,62 @@
+// JC-13 claim miner: raw_cv text → validated candidate_claims. The prompt is version-controlled
+// (prompts/claim-miner.md); output is schema-gated by @jobcrush/contracts. One retry with the
+// validation errors appended — a second bad answer fails the job rather than shipping junk.
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { CandidateClaims } from "@jobcrush/contracts";
+import type { RawCv } from "./extract.js";
+import type { LlmClient } from "./llm.js";
+
+const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts", "claim-miner.md");
+
+let cachedPrompt: string | null = null;
+export function minerPrompt(): string {
+  if (!cachedPrompt) {
+    // strip the HTML comment header — it's for humans reading the repo, not the model
+    cachedPrompt = readFileSync(PROMPT_PATH, "utf8").replace(/^<!--[\s\S]*?-->\s*/, "");
+  }
+  return cachedPrompt;
+}
+
+export function buildMinerInput(cvText: string): string {
+  return `${minerPrompt()}\n${cvText}\n`;
+}
+
+/** Tolerates prose/code fences around the JSON: takes the first { … last }. */
+export function extractJson(raw: string): unknown {
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end <= start) throw new Error("no JSON object in miner output");
+  return JSON.parse(raw.slice(start, end + 1));
+}
+
+export async function mineClaims(cvText: string, llm: LlmClient): Promise<CandidateClaims> {
+  let lastError = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const input =
+      attempt === 0
+        ? buildMinerInput(cvText)
+        : `${buildMinerInput(cvText)}\n\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
+    const raw = await llm.complete(input);
+    try {
+      return CandidateClaims.parse(extractJson(raw));
+    } catch (err) {
+      lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
+    }
+  }
+  throw new Error(`miner output failed validation twice: ${lastError.slice(0, 500)}`);
+}
+
+/** Adapter for the pipeline's mine step. */
+export function makeMineStep(llm: LlmClient) {
+  return async (rawCv: RawCv) => {
+    const mined = await mineClaims(rawCv.fullText, llm);
+    return {
+      doc: mined,
+      claims: mined.claims,
+      roles: mined.roles.length,
+      needsGrill: mined.claims.filter((c) => c.needs_grill).length,
+    };
+  };
+}

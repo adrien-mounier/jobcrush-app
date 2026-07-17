@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "0",
+  "roles": [
+    {
+      "employer": "Klarnify AB",
+      "title": "Product Owner",
+      "dates_as_written": "January 2022 - Present (3 years 7 months)",
+      "dates_missing": false
+    },
+    {
+      "employer": "PayNordic",
+      "title": "Business Analyst",
+      "dates_as_written": "2018 - 2021 (3 years)",
+      "dates_missing": false
+    },
+    {
+      "employer": "KTH Royal Institute of Technology",
+      "title": "BSc, Computer Science",
+      "dates_as_written": "2014 - 2018",
+      "dates_missing": false
+    }
+  ],
+  "claims": [
+    {
+      "id": "profile-summary-6yrs-payments",
+      "role": "profile",
+      "text": "Product Owner with 6 years of experience in payments platforms.",
+      "machine_touch": "verbatim",
+      "classification": "Derived",
+      "source_quote": "Product Owner with 6 years in payments platforms.",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "profile-skill-product-roadmapping",
+      "role": "profile",
+      "text": "Lists Product Roadmapping as a top skill.",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "Product Roadmapping",
+      "needs_grill": true,
+      "grill_hint": "Skill is self-listed with no supporting example or outcome; ask for a specific roadmap artifact or decision."
+    },
+    {
+      "id": "profile-skill-stakeholder-management",
+      "role": "profile",
+      "text": "Lists Stakeholder Management as a top skill.",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "Stakeholder Management",
+      "needs_grill": true,
+      "grill_hint": "No role bullet evidences stakeholder management; ask for a concrete example (who, conflict, outcome)."
+    },
+    {
+      "id": "profile-skill-agile-methodologies",
+      "role": "profile",
+      "text": "Lists Agile Methodologies as a top skill.",
+      "machine_touch": "verbatim",
+      "classification": "Partially-Supported",
+      "source_quote": "Agile Methodologies",
+      "needs_grill": true,
+      "grill_hint": "No bullet describes agile ceremonies, frameworks used, or team cadence; ask for specifics."
+    },
+    {
+      "id": "klarnify-title-dates",
+      "role": "Klarnify AB - Product Owner",
+      "text": "Held the title of Product Owner at Klarnify AB from January 2022 to present (3 years 7 months).",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Product Owner\nJanuary 2022 - Present (3 years 7 months)",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "klarnify-onboarding-backlog-ownership",
+      "role": "Klarnify AB - Product Owner",
+      "text": "Owned the merchant onboarding backlog for 8 squads.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Owned the merchant onboarding backlog for 8 squads.",
+      "needs_grill": true,
+      "grill_hint": "No outcome or metric given for backlog ownership; ask what results (throughput, merchant activation time, etc.) followed."
+    },
+    {
+      "id": "paynordic-title-dates",
+      "role": "PayNordic - Business Analyst",
+      "text": "Held the title of Business Analyst at PayNordic from 2018 to 2021 (3 years).",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Business Analyst\n2018 - 2021 (3 years)",
+      "needs_grill": false,
+      "grill_hint": null
+    },
+    {
+      "id": "paynordic-acceptance-criteria",
+      "role": "PayNordic - Business Analyst",
+      "text": "Wrote acceptance criteria for the card-issuing API.",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "Wrote acceptance criteria for the card-issuing API.",
+      "needs_grill": true,
+      "grill_hint": "No metric or outcome tied to this deliverable; ask about scope (number of criteria, API adoption, defect rate)."
+    },
+    {
+      "id": "kth-bsc-computer-science",
+      "role": "KTH Royal Institute of Technology - BSc, Computer Science",
+      "text": "Earned a BSc in Computer Science from KTH Royal Institute of Technology (2014 - 2018).",
+      "machine_touch": "verbatim",
+      "classification": "Verified",
+      "source_quote": "BSc, Computer Science (2014 - 2018)",
+      "needs_grill": false,
+      "grill_hint": null
+    }
+  ],
+  "parser_flags": [
+    "no-metrics: Klarnify AB Product Owner bullet (merchant onboarding backlog) lacks any outcome or metric",
+    "no-metrics: PayNordic Business Analyst bullet (acceptance criteria) lacks any outcome or metric"
+  ]
+}

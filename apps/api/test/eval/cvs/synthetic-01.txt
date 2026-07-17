@@ -1,0 +1,33 @@
+LINH TRAN
+Da Nang | linh.tran.pm@example.com | 090xxxxxxx
+
+profile: IT professional with experience in project coordination and delivery. hard working,
+detail oriented, good communication.
+
+EXPERIENCE
+
+FPT Software — Project Coordinator then Project Manager
+- responsible for coordination of offshore teams for japanese clients
+- managed schedule and budget for several projects
+- working with QA and BA teams, daily standup, report to PMO
+- improved delivery process
+- customer satisfaction improved a lot after process change
+- took over PM role for ecommerce migration project (team ~12) after previous PM left, 2023
+
+Viettel IDC (2019-2021) - IT Support / Sysadmin
+- support internal users, tickets, SLA
+- setup monitoring for servers (zabbix)
+- sometimes helped with small internal tools (python scripts)
+
+freelance web projects (before 2019)
+- built websites for small businesses with wordpress
+- some SEO work
+
+EDUCATION
+Danang University of Technology, engineer degree
+
+SKILLS
+Jira, Confluence, MS Project, Excel, python (basic), agile/scrum, Japanese N3, English (good)
+
+CERTS
+PSM I (2022?)

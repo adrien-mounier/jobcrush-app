@@ -14,6 +14,7 @@ import { SESSION_COOKIE, sessionRoutes } from "./routes/sessions.js";
 import { uploadRoutes, type UploadDeps } from "./routes/uploads.js";
 import { InMemoryBlobStorage, type BlobStorage } from "./storage.js";
 import { InMemoryUploadStore, REJECT_MESSAGES } from "./uploads.js";
+import { runOnboardingJob, type PipelineDeps } from "./pipeline.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -26,6 +27,8 @@ export interface BuildOptions {
   sessions?: SessionStore;
   blobs?: BlobStorage;
   uploads?: InMemoryUploadStore;
+  /** LLM-backed pipeline steps (mine, preview). Absent steps are skipped — tests inject fakes. */
+  pipeline?: PipelineDeps;
   onUploaded?: UploadDeps["onUploaded"];
 }
 
@@ -82,7 +85,23 @@ export function buildServer(opts: BuildOptions = {}) {
   }));
 
   app.register(sessionRoutes(sessions));
-  app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded }));
+
+  // A completed upload starts the onboarding pipeline job (extract → mine → preview).
+  const pipelineDeps = opts.pipeline ?? {};
+  const defaultOnUploaded: NonNullable<UploadDeps["onUploaded"]> = async (row, data) => {
+    if (!row.kind) return null;
+    const job = await store.create("onboarding", row.sessionId);
+    const session = await sessions.getById(row.sessionId);
+    void runOnboardingJob(
+      store,
+      job.id,
+      { type: "upload", data, kind: row.kind },
+      session?.targetTitles ?? [],
+      pipelineDeps,
+    );
+    return { jobId: job.id };
+  };
+  app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
 
   app.post(
     "/jobs/demo",
