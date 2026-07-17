@@ -12,7 +12,9 @@ const cvPath = process.argv[3] ?? join(here, "..", "apps", "api", "test", "fixtu
 
 let cookie = "";
 async function call(method, path, body, headers = {}) {
-  const res = await fetch(api + path, {
+  // absolute URLs (R2 presigned PUTs) go straight to storage; relative paths hit the API
+  const url = path.startsWith("http") ? path : api + path;
+  const res = await fetch(url, {
     method,
     headers: { cookie, ...headers },
     body,
