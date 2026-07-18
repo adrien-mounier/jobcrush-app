@@ -2,6 +2,35 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-18 (session 4) — JC-24 the grill (gap-filling) shipped
+
+The last feature of E3's deck+grill epic (commit `ba97b44`), built from a PO-grade plan (13 candidate
+gap types → 3 ranked v1 types → dev plan). Executed with one improvement found by reading the miner
+contract first: detection leans on signals the miner already computes (`claim-miner.md` rule 4:
+`needs_grill` + `grill_hint`; `MinedRole.dates_missing`) rather than re-deriving gaps with brittle regex.
+
+- `grill.ts`: `detectGaps(confirmed, roles)` — pure/deterministic. Two gap types: **missing-dates**
+  (per undated role that still has a confirmed claim, ranked first) and **needs-info** (per `needs_grill`
+  claim using its hint; deduped against a role already getting a date question). Capped at 5.
+  `templateQuestion` is the always-on fallback; `makeGrillPhraser(llm)` is the prod LLM path with a
+  per-call template fallback (the model can never take the grill down). `answerToClaim` →
+  verbatim/Verified/user-authored, `needs_grill=false`, stable kebab id.
+- routes: `POST /onboarding/grill` (detect + phrase; empty when no gaps), `POST /onboarding/grill/answer`
+  (re-detect → `claims.add`; unknown gap = 404). Skipping = not answering; never blocks.
+- sessions: `OnboardingStage` gains `grill` (deck → grill → ready|loopback).
+- web: deck page gains a grill phase — "Continue" commits the batch, opens the grill, shows questions
+  or (no gaps) builds straight through.
+
+Verified: api 114 pass incl. 12 grill tests; all 4 e2e green in a real browser against the live model —
+the happy path answered an LLM-phrased question and traced it into the final CV (logs: 2×/grill,
+1×/grill/answer). typecheck 7/7, build clean.
+
+Also added a **CLAUDE.md session-hygiene convention** this session: keep roadmap/session-log/lessons
+current as work lands, not only at session end (this entry is that rule in action).
+
+**Next:** JC-55 Path B stub (a "coming soon" door) closes E3, then E2 auth (JC-18/19/20 — the signup
+wall). The grill's "too thin" trigger (promote v2 gap types) wants two counters in the guestbook first.
+
 ## 2026-07-18 (session 3) — E3 deck UI + tiering, browser e2e, two latent bugs fixed
 
 Continued E3 on the slice-A loop, then made the whole onboarding flow self-verifiable in a real browser.

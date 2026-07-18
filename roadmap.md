@@ -46,9 +46,12 @@ Riskiest first; per-ticket ACs are in the archived `dev-plan-v01-hosted.md`.
 - **✅ E3 deck done** (JC-22 tiering `3681824`, JC-23 browser deck UI `c9efe8d`) — `/deck/[jobId]` with
   individual yes/edit/remove cards + batch-by-section, build → verified root CV or loop-back. A
   Playwright browser e2e covers happy / loop-back / input-error paths (`2c4f93d`, `3e65843`, `10991aa`).
-- **E3 grill (remaining)** — JC-24 grill engine (mechanical gap detection from the graph, LLM phrases
-  ~5–8 Qs), JC-26 grounded-fact persistence (the claims store's `add()` already accepts grill answers),
-  JC-55 Path B ("I don't have a CV") — **stub only in S2**; the real guided interview moved to S4.
+- **✅ E3 grill done** (JC-24 `ba97b44`) — `detectGaps` (missing-dates + needs-info, capped 5) → ~5
+  skippable questions, LLM-phrased with a template fallback; answers become confirmed user-authored
+  claims (JC-26 via `claims.add`). Browser e2e answers a grill question and traces it into the CV.
+- **E3 remaining** — JC-55 Path B ("I don't have a CV") — a "coming soon" **stub only in S2**; the real
+  guided interview moved to S4. (Also pending: the grill's "too thin" trigger — two counters in the
+  guestbook — before promoting any v2 gap types.)
 - **E2 auth** — JC-18 magic-link, JC-19 anon→account merge (at the preview moment), JC-20 anon auto-purge.
 
 Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
@@ -61,6 +64,10 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 
 ## Completed
 
+- [x] 2026-07-18 — **JC-24 the grill.** Gap-filling questions after the deck: `detectGaps`
+      (missing-dates + needs-info, capped 5), kind LLM phrasing with a template fallback, answers →
+      confirmed user-authored claims. api 114 pass (12 grill tests); browser e2e answers a grill
+      question and traces it into the final CV. Commit `ba97b44`.
 - [x] 2026-07-18 — **E3 deck UI + browser e2e.** The confirm deck ships (JC-22 tiering, JC-23
       `/deck/[jobId]` UI); the onboarding flow is browser-verified end to end by a Playwright smoke
       (happy, loop-back, paste-too-short, unparseable-upload). Two latent bugs fixed en route (empty-body

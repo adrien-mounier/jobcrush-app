@@ -50,6 +50,22 @@ Default to **committing directly to `main` and pushing** — solo repo, no branc
   `main` and push (no PR).
 - **Commit or push only when the user asks** (or when establishing a convention like this one).
 
+## Keeping the plan honest (session hygiene)
+
+`roadmap.md`, `session-log.md`, and `lessons.md` are the project's memory — keep them current **as part
+of the work**, proactively, not only when asked or at session end:
+
+- After a **meaningful unit of work** lands (a ticket, a bug fix, a shippable slice), before moving on:
+  add a newest-first `session-log.md` entry with ticket + commit refs, and update `roadmap.md` (mark
+  done, trim what remains). "Meaningful" is a judgment call — skip trivia; log what a future session
+  would want to know.
+- When you **learn something non-obvious** that would save future-you time (a gotcha, a latent-bug
+  class, a tool or flow that works here), add a short `lessons.md` entry. Only genuinely reusable
+  insight — never a restatement of the code or the commit message.
+
+The `close-session` skill still does the full end-of-session sync (context files + all three docs);
+this rule keeps the docs honest *between* those, so no progress goes unrecorded.
+
 ## Repo rules
 
 - **The `.mjs` oracles are the contract spec.** If a zod port and `packages/contracts/oracle/*`

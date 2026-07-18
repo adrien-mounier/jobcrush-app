@@ -57,3 +57,14 @@ empty-body content-type bug: both passed typecheck + build and broke only on an 
 flow never walked — the exact blind spot the browser e2e exists to cover. When adding a page or an
 API-calling flow, check it works reached cold (deep link / refresh), not just via the one nav that
 precedes it in the demo.
+
+## Check what the upstream stage already computes before building detection logic
+
+JC-24's gap detection first looked like fresh work (regex for missing metrics, matching roles to find
+undated ones). But the miner already flags every gap: `claim-miner.md` rule 4 sets `needs_grill` + a
+`grill_hint` whenever a role lacks dates, a bullet lacks a metric, scope is absent, or a claim was
+inferred — and `MinedRole.dates_missing` is the authoritative per-role date signal. Reading the miner
+prompt first turned brittle re-derivation into "filter on `needs_grill`, type by `dates_missing`".
+Before writing detection or validation over a pipeline stage's output, read the stage that produced it
+— the signal you need is often already computed upstream. (Same lesson shape as JC-32: the contract
+layer was already built.)
