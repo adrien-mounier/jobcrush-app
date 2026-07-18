@@ -13,15 +13,21 @@ export default function VerifyScreen() {
 
   useEffect(() => {
     (async () => {
-      const token = new URLSearchParams(window.location.search).get("token");
+      const params = new URLSearchParams(window.location.search);
+      const resume = () => {
+        const jobId = localStorage.getItem("jc_job");
+        router.replace(jobId ? `/deck/${jobId}` : "/import");
+      };
+      // Google OAuth return: the callback already claimed this session server-side — just resume.
+      if (params.get("oauth") === "ok") return resume();
+      const token = params.get("token");
       if (!token) {
         setError("This sign-in link is missing its token.");
         return;
       }
       try {
         await verifyToken(token);
-        const jobId = localStorage.getItem("jc_job");
-        router.replace(jobId ? `/deck/${jobId}` : "/import");
+        resume();
       } catch (e) {
         setError(e instanceof Error ? e.message : "This sign-in link is invalid or has expired.");
       }

@@ -131,3 +131,59 @@ describe("E2 auth routes", () => {
     expect(res.cookies.find((c) => c.name === "jc_session")?.value).toBe("");
   });
 });
+
+// Google OAuth (ported from vitacairn). The code→email exchange is injected; the routes own the
+// state CSRF cookie and the same claim seam as magic-link verify.
+describe("E2 auth — Google OAuth", () => {
+  it("/auth/google redirects to signup?login=error when Google is not configured", async () => {
+    const server = buildServer(); // no googleEmail injected, no GOOGLE_CLIENT_ID in test env
+    const res = await server.app.inject({ method: "GET", url: "/auth/google" });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toContain("/signup?login=error");
+  });
+
+  it("callback with a bad or absent state is rejected (CSRF guard)", async () => {
+    const server = buildServer({ googleEmail: async () => "a@x.com" });
+    const res = await server.app.inject({ method: "GET", url: "/auth/google/callback?code=x&state=forged" });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toContain("/signup?login=expired");
+  });
+
+  it("happy path: /auth/google sets state → callback claims the anonymous session for the user", async () => {
+    const server = buildServer({ googleEmail: async (code) => (code === "good-code" ? "g@x.com" : null) });
+    const cookie = await anonSession(server.app);
+
+    const start = await server.app.inject({ method: "GET", url: "/auth/google", headers: { cookie } });
+    expect(start.statusCode).toBe(302);
+    expect(start.headers.location).toContain("accounts.google.com");
+    const state = start.cookies.find((c) => c.name === "jc_oauth_state")!.value;
+    expect(start.headers.location).toContain(`state=${state}`);
+
+    const cb = await server.app.inject({
+      method: "GET",
+      url: `/auth/google/callback?code=good-code&state=${state}`,
+      headers: { cookie: `${cookie}; jc_oauth_state=${state}` },
+    });
+    expect(cb.statusCode).toBe(302);
+    expect(cb.headers.location).toContain("/auth/verify?oauth=ok");
+
+    // The anonymous session is claimed (the JC-19 merge) — the wall opens for this browser.
+    const me = await server.app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(me.json().claimedByUserId).toBeTruthy();
+  });
+
+  it("callback with an exchange that fails (bad code) never claims the session", async () => {
+    const server = buildServer({ googleEmail: async () => null });
+    const cookie = await anonSession(server.app);
+    const start = await server.app.inject({ method: "GET", url: "/auth/google", headers: { cookie } });
+    const state = start.cookies.find((c) => c.name === "jc_oauth_state")!.value;
+    const cb = await server.app.inject({
+      method: "GET",
+      url: `/auth/google/callback?code=bad&state=${state}`,
+      headers: { cookie: `${cookie}; jc_oauth_state=${state}` },
+    });
+    expect(cb.headers.location).toContain("/signup?login=expired");
+    const me = await server.app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(me.json().claimedByUserId).toBeNull();
+  });
+});

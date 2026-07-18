@@ -2,9 +2,21 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
-## 2026-07-19 (session 8) — Audit + root-CV review: S2 complete
+## 2026-07-19 (session 8) — Audit + root-CV review (S2 complete) + Google OAuth on the wall
 
-The last two S2 pieces (kickoff decisions #6 and #7), closing the slice.
+The last two S2 pieces (kickoff decisions #6 and #7), closing the slice; then Google sign-in
+ported from vitacairn onto the signup wall.
+
+**Google OAuth** (ported from vitacairn's `oauth.ts` + routes, by copying — same auth-code flow,
+no SDK): `GET /auth/google` (state CSRF cookie → Google) and `GET /auth/google/callback`
+(state check → code→email exchange → `upsertUser` + `setClaimedByUserId`, the same JC-19 seam as
+magic-link verify — the anonymous preview follows the user into the account). The exchange is
+injectable (`googleEmail` in BuildOptions) so tests fake it; unconfigured → the signup page shows
+the email fallback message. Web: "Continue with Google" button on `/signup`, `/auth/verify?oauth=ok`
+resumes to the stashed deck. 4 new route tests (unconfigured redirect, CSRF guard, happy-path
+session claim, failed-exchange never claims). Needs on staging: `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET`, `WEB_URL`, and the redirect URI `<web>/api/auth/google/callback`
+registered in the Google console (dev: `http://localhost:3000/api/auth/google/callback`).
 
 - **Audit** (`audit.ts`, `prompts/root-cv-audit.md`): inside `/onboarding/build`, after render and
   before the gate, the LLM polishes bullet wording against the cv-brain rules. Same shape as the
@@ -19,10 +31,11 @@ The last two S2 pieces (kickoff decisions #6 and #7), closing the slice.
   `PUT /claims/:id`, remove rejects it, then the CV rebuilds through audit + gate. Never a freeform
   CV editor; a remove that empties the CV lands in the existing loop-back, never a dead end.
 
-Verified: api 152 pass (audit guards unit-tested; route test proves mined-only polish + a dead
-auditor never blocks the build); typecheck 7/7; build clean; all 6 browser e2e green against the
-local stack — the happy path now fixes a line from the review and asserts the exact fixed words in
-the re-rendered CV. Playwright suite timeout 240→300s (build carries an audit LLM call).
+Verified: api 156 pass (audit guards unit-tested; route test proves mined-only polish + a dead
+auditor never blocks the build; 4 OAuth tests); typecheck 7/7; build clean; all 6 browser e2e green
+against the local stack — twice (once for audit+review, once after the OAuth wall change) — the
+happy path fixes a line from the review and asserts the exact fixed words in the re-rendered CV.
+Playwright suite timeout 240→300s (build carries an audit LLM call).
 
 **S2 is done.** Next: S3 (the hunt) — E5 cluster engine first (riskiest), then E6 feed + hunt,
 E7 swipe + prepared apply. Ops leftover: `RESEND_API_KEY` + `WEB_URL` on staging for real email.

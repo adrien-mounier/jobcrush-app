@@ -52,8 +52,10 @@ export interface BuildOptions {
   auth?: AuthStore;
   /** E2 email seam. Absent → DevMailer (returns the link instead of sending it). */
   mailer?: Mailer;
-  /** Absolute web origin for emailed sign-in links (only needed with a real mailer). */
+  /** Absolute web origin for emailed sign-in links + OAuth redirects. */
   webUrl?: string;
+  /** Google OAuth code→email exchange. Tests inject a fake; absent → the real Google endpoint. */
+  googleEmail?: (code: string, redirectUri: string) => Promise<string | null>;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */
@@ -212,7 +214,7 @@ export function buildServer(opts: BuildOptions = {}) {
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps }));
   app.register(onboardingRoutes({ claims, store, sessions, phraseGrill: opts.phraseGrill, auditCv: opts.auditCv }));
-  app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl }));
+  app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail }));
 
   // Job payloads sent to the client: the preview HTML travels only via GET /previews/:jobId
   // (in-app view), and jobs bound to a session are visible to that session alone.

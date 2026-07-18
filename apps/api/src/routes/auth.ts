@@ -11,9 +11,11 @@ import type { AuthStore } from "../auth.js";
 import type { Mailer } from "../mailer.js";
 import { IpRateLimiter, type SessionStore } from "../sessions.js";
 import { SESSION_COOKIE } from "./sessions.js";
+import { googleAuthUrl, googleConfigured, googleEmailFromCode } from "../oauth.js";
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 const TOKEN_TTL_MS = 15 * 60 * 1000;
+const OAUTH_STATE_COOKIE = "jc_oauth_state";
 
 export interface AuthDeps {
   auth: AuthStore;
@@ -23,6 +25,8 @@ export interface AuthDeps {
   webUrl?: string;
   /** Defaults to 5 requests / 15 min per IP. */
   limiter?: IpRateLimiter;
+  /** Google code→email exchange (ported from vitacairn). Tests inject a fake. */
+  googleEmail?: (code: string, redirectUri: string) => Promise<string | null>;
 }
 
 export function authRoutes(deps: AuthDeps) {
@@ -75,5 +79,59 @@ export function authRoutes(deps: AuthDeps) {
       reply.clearCookie(SESSION_COOKIE, { path: "/" });
       return { ok: true };
     });
+
+    // --- Google OAuth (ported from vitacairn) ---
+    // Same account seam as verify: resolve a verified email, upsert the user, claim the session
+    // (the JC-19 merge). Redirects go through the web app's /api proxy, so the registered redirect
+    // URI is `${webUrl}/api/auth/google/callback`.
+    const base = deps.webUrl || "http://localhost:3000";
+    const googleRedirectUri = `${base}/api/auth/google/callback`;
+    const exchange = deps.googleEmail ?? googleEmailFromCode;
+    const cookieSecure = process.env.APP_ENV !== "local" && process.env.NODE_ENV !== "test";
+
+    app.get("/auth/google", async (_req, reply) => {
+      if (!googleConfigured() && !deps.googleEmail)
+        return reply.redirect(`${base}/signup?login=error`);
+      // Short-lived CSRF token: set here, echoed back by Google, checked on callback.
+      const state = randomBytes(16).toString("base64url");
+      reply.setCookie(OAUTH_STATE_COOKIE, state, {
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        secure: cookieSecure,
+        maxAge: 600,
+      });
+      return reply.redirect(googleAuthUrl(googleRedirectUri, state));
+    });
+
+    app.get(
+      "/auth/google/callback",
+      { schema: { querystring: z.object({ code: z.string().optional(), state: z.string().optional() }) } },
+      async (req, reply) => {
+        const saved = req.cookies?.[OAUTH_STATE_COOKIE];
+        reply.clearCookie(OAUTH_STATE_COOKIE, { path: "/" });
+        // CSRF: the state cookie must match the state Google echoed back.
+        if (!saved || !req.query.state || saved !== req.query.state || !req.query.code)
+          return reply.redirect(`${base}/signup?login=expired`);
+        const email = await exchange(req.query.code, googleRedirectUri);
+        if (!email) return reply.redirect(`${base}/signup?login=expired`);
+
+        // Claim the browser's anonymous session (its preview rides along); a visitor who somehow
+        // arrives without one still gets logged in on a fresh session.
+        let session = req.session;
+        if (!session) {
+          session = await deps.sessions.create();
+          reply.setCookie(SESSION_COOKIE, session.token, {
+            path: "/",
+            httpOnly: true,
+            sameSite: "lax",
+            secure: cookieSecure,
+          });
+        }
+        const user = await deps.auth.upsertUser(email);
+        await deps.sessions.setClaimedByUserId(session.id, user.id); // the JC-19 merge, same as verify
+        return reply.redirect(`${base}/auth/verify?oauth=ok`);
+      },
+    );
   };
 }
