@@ -110,6 +110,35 @@ describe("JC-21/27/31 onboarding deck → build loop", () => {
     expect(me.json().stage).toBe("ready");
   });
 
+  it("tiers the deck by machine_touch: verbatim batches, machine-touched goes individual (JC-22)", async () => {
+    const server = buildServer({
+      pipeline: {
+        mine: async () => ({
+          doc: null,
+          roles: 1,
+          needsGrill: 0,
+          claims: [
+            claim({ id: "acme-verbatim", machine_touch: "verbatim" }),
+            claim({ id: "acme-reworded", machine_touch: "reworded" }),
+          ],
+        }),
+      },
+    });
+    const cookie = await startSession(server.app);
+    const jobId = await mineAndGetJob(server, cookie);
+    const deck = await server.app.inject({
+      method: "POST",
+      url: "/onboarding/deck",
+      headers: { cookie },
+      payload: { jobId },
+    });
+    const tierById = Object.fromEntries(
+      (deck.json().claims as Array<{ id: string; tier: string }>).map((c) => [c.id, c.tier]),
+    );
+    expect(tierById["acme-verbatim"]).toBe("batch");
+    expect(tierById["acme-reworded"]).toBe("individual");
+  });
+
   it("the deck is session-scoped: another session cannot open your job", async () => {
     const server = buildServer({ pipeline: fakePipeline() });
     const mine = await startSession(server.app);

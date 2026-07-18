@@ -26,6 +26,17 @@ export interface OnboardingDeps {
   sessions: SessionStore;
 }
 
+// The deck's tiering policy (JC-22, kickoff decision #3). A claim copied verbatim from the CV
+// batch-approves as part of its section; anything the machine reworded or inferred gets an individual
+// review card — those are the claims we might have gotten wrong. This lives here, not in the store,
+// because it is deck policy (the store deliberately bakes none).
+// ponytail: machine_touch split only; stakes-weighted ranking (titles/dates > tools) is the upgrade
+// IF a CV ever overflows ~15 individual cards — the miner eval keeps the touched count under that, so
+// there is nothing to rank yet.
+export type DeckTier = "individual" | "batch";
+export const claimTier = (touch: CandidateClaim["machine_touch"]): DeckTier =>
+  touch === "verbatim" ? "batch" : "individual";
+
 export function onboardingRoutes(deps: OnboardingDeps) {
   return async function plugin(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>();
@@ -50,7 +61,11 @@ export function onboardingRoutes(deps: OnboardingDeps) {
               .send({ error: { code: "not_ready", message: "claims not mined yet" } });
           await deps.claims.seed(session.id, mined);
         }
-        return { stage: session.stage, claims: await deps.claims.list(session.id) };
+        const claims = (await deps.claims.list(session.id)).map((c) => ({
+          ...c,
+          tier: claimTier(c.machine_touch),
+        }));
+        return { stage: session.stage, claims };
       },
     );
 
