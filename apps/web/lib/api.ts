@@ -14,8 +14,10 @@ async function jfetch<T>(url: string, init?: RequestInit): Promise<T> {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const message = (body as { error?: { message?: string } }).error?.message ?? res.statusText;
-    throw new Error(message);
+    const envelope = (body as { error?: { code?: string; message?: string } }).error;
+    const err = new Error(envelope?.message ?? res.statusText) as Error & { code?: string };
+    err.code = envelope?.code; // callers branch on this (e.g. login_required → the wall)
+    throw err;
   }
   return body as T;
 }
@@ -136,4 +138,18 @@ export function answerGrill(jobId: string, gapId: string, answer: string): Promi
     method: "POST",
     body: JSON.stringify({ jobId, gapId, answer }),
   });
+}
+
+// --- E2 auth (magic-link) ---
+
+export function requestLink(email: string): Promise<{ ok: boolean; devLink?: string }> {
+  return jfetch("/api/auth/request-link", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export function verifyToken(token: string): Promise<{ user: { id: string; email: string } }> {
+  return jfetch("/api/auth/verify", { method: "POST", body: JSON.stringify({ token }) });
+}
+
+export function logout(): Promise<{ ok: boolean }> {
+  return jfetch("/api/auth/logout", { method: "POST" });
 }

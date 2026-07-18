@@ -34,13 +34,21 @@ MSc Management Information Systems, University of Warsaw (2017)
 Languages
 Polish (Native), English (Fluent)`;
 
-// Paste the CV, wait out the real mine + preview, and land on the deck.
+// Paste the CV, wait out the real mine + preview, cross the signup wall, and land on the deck.
 async function pasteToDeck(page: Page) {
   await page.goto("/paste");
   await page.getByRole("textbox").fill(SAMPLE_CV);
   await page.getByRole("button", { name: "Use this text" }).click();
   await page.waitForURL(/\/preview\//, { timeout: 200_000 }); // mine + preview on the live model
   await page.getByRole("link", { name: "Confirm my facts" }).click();
+
+  // E2 wall: the deck is login-gated, so it redirects to /signup. Sign in via the dev magic-link.
+  await page.waitForURL(/\/signup/);
+  await page.getByRole("textbox").fill("e2e@example.com");
+  await page.getByRole("button", { name: "Email me a sign-in link" }).click();
+  await page.getByRole("link", { name: /Open your sign-in link/ }).click();
+
+  await page.waitForURL(/\/deck\//);
   await expect(page.getByRole("heading", { name: "Confirm your facts" })).toBeVisible();
 }
 

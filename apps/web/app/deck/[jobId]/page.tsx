@@ -7,7 +7,7 @@
 // Interactions match the API's synchronous design: individual decisions save on the spot; batch
 // keep/remove is local until "Build", which commits the batch then builds. No freeform editor — an
 // edit becomes a user-authored, auto-confirmed claim (kickoff decision 7).
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   answerGrill,
@@ -25,6 +25,7 @@ import {
 
 export default function DeckScreen() {
   const { jobId } = useParams<{ jobId: string }>();
+  const router = useRouter();
   const [claims, setClaims] = useState<DeckClaim[] | null>(null);
   const [removed, setRemoved] = useState<Set<string>>(new Set()); // batch claims toggled off
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
@@ -41,10 +42,15 @@ export default function DeckScreen() {
         const deck = await openDeck(jobId);
         setClaims(deck.claims);
       } catch (e) {
+        if ((e as { code?: string }).code === "login_required") {
+          localStorage.setItem("jc_job", jobId); // the wall sends us back here after sign-in
+          router.replace("/signup");
+          return;
+        }
         setError(e instanceof Error ? e.message : "could not open your deck");
       }
     })();
-  }, [jobId]);
+  }, [jobId, router]);
 
   const individual = useMemo(() => (claims ?? []).filter((c) => c.tier === "individual"), [claims]);
   const batchBySection = useMemo(() => {
