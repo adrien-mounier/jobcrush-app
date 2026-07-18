@@ -7,7 +7,7 @@ dist/
 coverage/
 .next/
 *.tsbuildinfo
-data/uploads/
+data/
 next-env.d.ts
 scripts/s1-smoke-preview.html
 test-results/

@@ -5,7 +5,7 @@
 // coming-soon — their click-through rate is free demand data.
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { uploadCv } from "../../lib/api";
+import { ensureSession, uploadCv } from "../../lib/api";
 
 export default function ImportScreen() {
   const router = useRouter();
@@ -19,6 +19,7 @@ export default function ImportScreen() {
     setBusy(true);
     setError(null);
     try {
+      await ensureSession(); // self-sufficient: a direct visit / refresh has no session yet
       const { jobId } = await uploadCv(file);
       router.push(`/progress/${jobId}`);
     } catch (e) {
