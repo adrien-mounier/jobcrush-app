@@ -20,11 +20,12 @@ no autonomous submit, no LinkedIn credentials, ever).
 - [x] **S1 — Magic mirror (walking skeleton)** — _done 2026-07-18_. A stranger on the web app, no
       account, uploads a CV and gets a watermarked tailored preview in ~2 min. **Quality floor passed
       (JC-2 round 2).** The CV brain that powers it lives in `docs/cv-brain/`.
-- [ ] **S2 — Own your facts** — _next_. Full onboarding: signup-after-preview → tiered confirm deck →
-      grill → root-CV review → audit → quality gate → validated claim graph v1 in Postgres.
+- [ ] **S2 — Own your facts** — _in progress_. Full onboarding: signup-after-preview → tiered confirm
+      deck → grill → root-CV review → audit → quality gate → validated claim graph v1 in Postgres.
       Epics: E2 auth (JC-18/19/20), E3 deck + grill (JC-21…26, JC-55 Path B), E4 root CV / audit /
-      gate / graph (JC-27…32). _Demo: a user completes onboarding and their profile flips to `ready`
-      with a validator-clean graph._
+      gate / graph (JC-27…32). **Status: E4 spine + E3 deck/grill/Path-B done and browser-verified;
+      E2 auth is the last epic, then the in-memory stores become Postgres for the graph-in-DB goal.**
+      _Demo: a user completes onboarding and their profile flips to `ready` with a validator-clean graph._
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
       Epics: E5 cluster engine (JC-33/34/35), E6 feed + hunt (JC-36…40), E7 swipe + prepared apply
@@ -49,9 +50,9 @@ Riskiest first; per-ticket ACs are in the archived `dev-plan-v01-hosted.md`.
 - **✅ E3 grill done** (JC-24 `ba97b44`) — `detectGaps` (missing-dates + needs-info, capped 5) → ~5
   skippable questions, LLM-phrased with a template fallback; answers become confirmed user-authored
   claims (JC-26 via `claims.add`). Browser e2e answers a grill question and traces it into the CV.
-- **E3 remaining** — JC-55 Path B ("I don't have a CV") — a "coming soon" **stub only in S2**; the real
-  guided interview moved to S4. (Also pending: the grill's "too thin" trigger — two counters in the
-  guestbook — before promoting any v2 gap types.)
+- **✅ E3 complete** — JC-55 Path B coming-soon door shipped (`89b4c67`); deck + grill done and
+  browser-verified. (Deferred until data exists: the grill's "too thin" trigger — two guestbook
+  counters — before promoting any v2 gap types.)
 - **E2 auth** — JC-18 magic-link, JC-19 anon→account merge (at the preview moment), JC-20 anon auto-purge.
 
 Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
@@ -64,6 +65,9 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 
 ## Completed
 
+- [x] 2026-07-18 — **JC-55 Path B stub → E3 complete.** A "coming soon" door on `/import` ("I don't
+      have a CV yet") for the from-scratch guided interview that ships in S4. Closes E3 (deck + grill).
+      Commit `89b4c67`.
 - [x] 2026-07-18 — **JC-24 the grill.** Gap-filling questions after the deck: `detectGaps`
       (missing-dates + needs-info, capped 5), kind LLM phrasing with a template fallback, answers →
       confirmed user-authored claims. api 114 pass (12 grill tests); browser e2e answers a grill

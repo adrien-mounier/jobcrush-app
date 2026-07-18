@@ -2,6 +2,21 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-18 (session 5) — JC-55 Path B stub → E3 complete
+
+The last E3 ticket (commit `89b4c67`): a "coming soon" door on `/import` — "I don't have a CV yet" —
+for the from-scratch guided interview that ships for real in S4 (s2-kickoff decision 8). Pure UI stub:
+renders coming-soon and logs interest (click-through = demand data), with a message tailored to the
+no-CV case rather than the generic "just upload a file." A fast deterministic e2e asserts the door.
+
+**E3 (deck + grill) is now complete** — JC-22 tiering, JC-23 deck UI, JC-24 grill, JC-55 Path B stub.
+With E4 done too, **E2 auth is the only S2 epic left**.
+
+**Next:** E2 auth (JC-18 magic-link, JC-19 anon→account merge at the preview moment, JC-20 anon
+auto-purge) — the signup wall. Worth a short design pass first: auth carries a security surface, and it
+runs into the standing question of turning the in-memory stores into Postgres (JC-6) for S2's
+"validated claim graph v1 in Postgres" demo goal.
+
 ## 2026-07-18 (session 4) — JC-24 the grill (gap-filling) shipped
 
 The last feature of E3's deck+grill epic (commit `ba97b44`), built from a PO-grade plan (13 candidate
