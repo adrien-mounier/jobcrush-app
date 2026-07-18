@@ -5,6 +5,12 @@ Hosted JobCrush v0.1 — server API + web and mobile thin clients. Clean-room re
 Spec and plan live there: `docs/onboarding-init-design.md` (§8 authoritative) and
 `docs/dev-plan-v01-hosted.md` (+ per-slice `docs/s*-kickoff.md`).
 
+**CV brain (forked 2026-07-18):** the CV-tailoring reasoning + research now lives **here**, in
+[`docs/cv-brain/`](docs/cv-brain/README.md) — it was copied once from JobCrush, which is now frozen
+for CV logic. This repo owns and evolves the CV brain independently; do CV-reasoning work here, never
+in JobCrush. That folder is the source of truth the miner/tailor prompts and `preview.ts` must stay
+true to.
+
 ## Layout
 
 | Path | What |
