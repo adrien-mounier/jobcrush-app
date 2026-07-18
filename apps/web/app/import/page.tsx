@@ -1,8 +1,8 @@
 "use client";
 
-// JC-14 import screen: the four §8-6 doors, in that order of prominence. In S1 only
-// "Upload a file" and the paste path are live; LinkedIn and Email render visibly
-// coming-soon — their click-through rate is free demand data.
+// JC-14 import screen: the §8-6 doors, in order of prominence. "Upload a file" + the paste path are
+// live; LinkedIn, Email, and Path B ("I don't have a CV yet", JC-55 — the guided interview ships in S4)
+// render visibly coming-soon — their click-through rate is free demand data.
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { ensureSession, uploadCv } from "../../lib/api";
@@ -73,10 +73,19 @@ export default function ImportScreen() {
         </div>
       </button>
 
+      <button className="door" onClick={() => comingSoon("nocv")}>
+        <div>
+          <div className="door-title">I don&apos;t have a CV yet</div>
+          <div className="door-sub">We&apos;ll build one with you from scratch — a few questions, no file needed</div>
+        </div>
+        <span className="soon">coming soon</span>
+      </button>
+
       {soonClicked && (
         <p className="lede" style={{ marginTop: 8 }}>
-          That door opens soon — noted that you wanted it! For now, uploading a file is the
-          fastest way in.
+          {soonClicked === "nocv"
+            ? 'Building your CV from scratch together is coming soon — noted that you want it. For now, even rough notes pasted into "Build it with me" give us enough to start.'
+            : "That door opens soon — noted that you wanted it! For now, uploading a file is the fastest way in."}
         </p>
       )}
       {error && <p className="error">{error}</p>}

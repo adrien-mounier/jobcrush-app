@@ -24,3 +24,9 @@ test("unparseable upload: routed to the paste fallback, never OCR-guessed", asyn
   await page.getByRole("button", { name: "Paste my CV text" }).click();
   await expect(page).toHaveURL(/\/paste$/);
 });
+
+test("Path B door ('no CV yet', JC-55) is a polite coming-soon, not a dead click", async ({ page }) => {
+  await page.goto("/import");
+  await page.getByRole("button", { name: /I don.t have a CV yet/i }).click();
+  await expect(page.getByText(/from scratch together is coming soon/i)).toBeVisible();
+});
