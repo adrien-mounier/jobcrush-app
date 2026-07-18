@@ -3,9 +3,9 @@
 // JC-20 purge job can read them later; claimedByUserId is the JC-19 merge hook.
 import { randomBytes } from "node:crypto";
 
-// Where a session sits in the S2 onboarding loop (JC-27/31); the client reads it on load to pick a
-// screen. Slice A only models deck → ready/loopback — pre-deck and grill stages land with full E3.
-export type OnboardingStage = "deck" | "ready" | "loopback";
+// Where a session sits in the S2 onboarding loop; the client reads it on load to pick a screen.
+// deck → grill (JC-24 gap-filling) → ready | loopback.
+export type OnboardingStage = "deck" | "grill" | "ready" | "loopback";
 
 export interface SessionRecord {
   id: string;

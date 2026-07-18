@@ -10,14 +10,17 @@
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
+  answerGrill,
   buildRootCv,
   confirmClaim,
   editClaim,
   ensureSession,
   openDeck,
+  openGrill,
   rejectClaim,
   type BuildResult,
   type DeckClaim,
+  type GrillQuestion,
 } from "../../../lib/api";
 
 export default function DeckScreen() {
@@ -26,6 +29,8 @@ export default function DeckScreen() {
   const [removed, setRemoved] = useState<Set<string>>(new Set()); // batch claims toggled off
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const [built, setBuilt] = useState<BuildResult | null>(null);
+  const [grill, setGrill] = useState<GrillQuestion[] | null>(null); // set → grill phase
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,16 +92,33 @@ export default function DeckScreen() {
 
   const undecided = individual.filter((c) => c.decision === "pending").length;
 
-  const build = async () => {
+  // Commit batch decisions (kept → confirm, removed → reject), then look for gaps to grill on.
+  // ponytail: a call per batch claim; fine at deck sizes — a bulk endpoint only if decks grow big.
+  const continueToGrill = async () => {
     setBusy(true);
     setError(null);
     try {
-      // Commit batch decisions now (kept → confirm, removed → reject), then build over the confirmed set.
-      // ponytail: a call per batch claim; fine at deck sizes — a bulk endpoint only if decks grow big.
       for (const [, group] of batchBySection) {
-        for (const c of group) {
-          await (removed.has(c.id) ? rejectClaim(c.id) : confirmClaim(c.id));
-        }
+        for (const c of group) await (removed.has(c.id) ? rejectClaim(c.id) : confirmClaim(c.id));
+      }
+      const g = await openGrill(jobId);
+      if (g.questions.length > 0) setGrill(g.questions); // → grill phase
+      else setBuilt(await buildRootCv()); // no gaps → straight to the CV
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "could not continue");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Submit whatever the user answered (blank = skipped, never blocks), then build.
+  const buildFromGrill = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      for (const q of grill ?? []) {
+        const a = answers[q.gapId]?.trim();
+        if (a) await answerGrill(jobId, q.gapId, a);
       }
       setBuilt(await buildRootCv());
     } catch (e) {
@@ -109,6 +131,32 @@ export default function DeckScreen() {
   if (error && !claims) return <main><p className="error">{error}</p></main>;
   if (!claims) return <main><p className="lede">Opening your deck…</p></main>;
   if (built) return <BuildOutcome result={built} onFix={() => setBuilt(null)} />;
+
+  if (grill)
+    return (
+      <main style={{ maxWidth: 720 }}>
+        <h1>A couple of quick questions</h1>
+        <p className="lede">
+          These fill small gaps we spotted in your CV. Answer what you can — skip anything you&apos;d
+          rather not; nothing here is required.
+        </p>
+        {grill.map((q) => (
+          <div className="card" data-testid="grill-question" key={q.gapId}>
+            <p style={{ margin: "0 0 10px", fontWeight: 600 }}>{q.question}</p>
+            <input
+              type="text"
+              placeholder="Your answer — or leave blank to skip"
+              value={answers[q.gapId] ?? ""}
+              onChange={(e) => setAnswers((a) => ({ ...a, [q.gapId]: e.target.value }))}
+            />
+          </div>
+        ))}
+        {error && <p className="error">{error}</p>}
+        <button className="btn" style={{ marginTop: 12 }} onClick={buildFromGrill} disabled={busy}>
+          {busy ? "Building…" : "Build my verified CV"}
+        </button>
+      </main>
+    );
 
   return (
     <main style={{ maxWidth: 720 }}>
@@ -210,10 +258,10 @@ export default function DeckScreen() {
       <button
         className="btn"
         style={{ marginTop: 12 }}
-        onClick={build}
+        onClick={continueToGrill}
         disabled={busy || undecided > 0}
       >
-        {busy ? "Building…" : "Build my verified CV"}
+        {busy ? "Working…" : "Continue"}
       </button>
       {undecided > 0 && (
         <p className="lede" style={{ marginTop: 8 }}>

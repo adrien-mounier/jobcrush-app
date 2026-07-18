@@ -6,11 +6,13 @@ import { storageFromEnv } from "./storage.js";
 import { llmFromEnv } from "./llm.js";
 import { makeMineStep } from "./miner.js";
 import { makePreviewStep } from "./preview.js";
+import { makeGrillPhraser } from "./grill.js";
 
 const llm = llmFromEnv();
 const { app } = buildServer({
   blobs: storageFromEnv(process.env.UPLOAD_DIR ?? join(process.cwd(), "data", "uploads")),
   pipeline: { mine: makeMineStep(llm), preview: makePreviewStep(llm) },
+  phraseGrill: makeGrillPhraser(llm),
 });
 
 const port = Number(process.env.PORT ?? 3001);

@@ -120,3 +120,20 @@ export function editClaim(id: string, text: string): Promise<{ ok: boolean }> {
 export function buildRootCv(): Promise<BuildResult> {
   return jfetch("/api/onboarding/build", { method: "POST" });
 }
+
+export interface GrillQuestion {
+  gapId: string;
+  type: "missing-dates" | "needs-info";
+  question: string;
+}
+
+export function openGrill(jobId: string): Promise<{ stage: string; questions: GrillQuestion[] }> {
+  return jfetch("/api/onboarding/grill", { method: "POST", body: JSON.stringify({ jobId }) });
+}
+
+export function answerGrill(jobId: string, gapId: string, answer: string): Promise<{ ok: boolean }> {
+  return jfetch("/api/onboarding/grill/answer", {
+    method: "POST",
+    body: JSON.stringify({ jobId, gapId, answer }),
+  });
+}

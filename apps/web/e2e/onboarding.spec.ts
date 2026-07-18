@@ -60,14 +60,30 @@ test("happy path: reject one, confirm the rest → build → verified root CV", 
     await looksRight.first().click();
   }
 
-  const build = page.getByRole("button", { name: "Build my verified CV" });
-  await expect(build).toBeEnabled();
-  await build.click();
+  // Continue → the grill (JC-24). It may or may not surface questions depending on what the model
+  // mined, so wait for whichever comes: a grill question, or the reward screen (no gaps → straight build).
+  const cont = page.getByRole("button", { name: "Continue" });
+  await expect(cont).toBeEnabled();
+  await cont.click();
+
+  const grillQ = page.getByTestId("grill-question").first();
+  const reward = page.getByRole("heading", { name: "You own your facts" });
+  await expect(grillQ.or(reward)).toBeVisible({ timeout: 60_000 });
+
+  let grillAnswer: string | null = null;
+  if (await grillQ.isVisible()) {
+    grillAnswer = "handled a 2 million dollar budget"; // a distinctive answer to trace into the CV
+    await grillQ.getByRole("textbox").fill(grillAnswer);
+    await page.getByRole("button", { name: "Build my verified CV" }).click();
+  }
 
   // Clean gate → the reward screen with a rendered CV…
-  await expect(page.getByRole("heading", { name: "You own your facts" })).toBeVisible({ timeout: 30_000 });
+  await expect(reward).toBeVisible({ timeout: 30_000 });
   const rootcv = page.getByTestId("rootcv");
   await expect(rootcv).toContainText("•"); // at least one bullet rendered
+
+  // …a grill answer we gave becomes a fact in the CV (JC-24 persistence)…
+  if (grillAnswer) await expect(rootcv).toContainText(grillAnswer);
 
   // …and the claim we rejected is nowhere in it (nothing renders that the user didn't confirm).
   if (rejectedText && rejectedText.length > 12) {
@@ -89,7 +105,8 @@ test("loop-back: rejecting every fact loops back, never certifies an empty CV", 
     await keptChips.first().click();
   }
 
-  await page.getByRole("button", { name: "Build my verified CV" }).click();
+  // Nothing confirmed → no gaps to grill → Continue goes straight to build.
+  await page.getByRole("button", { name: "Continue" }).click();
 
   // Failing gate → a precise loop-back, never a dead end and never a certified empty CV.
   await expect(page.getByRole("heading", { name: "Almost there" })).toBeVisible({ timeout: 30_000 });

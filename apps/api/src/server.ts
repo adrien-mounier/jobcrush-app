@@ -18,6 +18,7 @@ import { runOnboardingJob, type PipelineDeps } from "./pipeline.js";
 import { cvRoutes } from "./routes/cv.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
 import { InMemoryClaimStore, type ClaimStore } from "./claims.js";
+import type { GrillPhraser } from "./grill.js";
 import { createGuestbook, renderGuestbookHtml, type Guestbook } from "./guestbook.js";
 import type { JobRecord } from "./jobs.js";
 
@@ -39,6 +40,8 @@ export interface BuildOptions {
   guestbook?: Guestbook;
   /** JC-21 confirmed-claims store backing the onboarding deck. Postgres driver lands with JC-6/26. */
   claims?: ClaimStore;
+  /** JC-24 grill question phrasing (LLM-backed in prod). Absent → deterministic template phrasing. */
+  phraseGrill?: GrillPhraser;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */
@@ -182,7 +185,7 @@ export function buildServer(opts: BuildOptions = {}) {
   };
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps }));
-  app.register(onboardingRoutes({ claims, store, sessions }));
+  app.register(onboardingRoutes({ claims, store, sessions, phraseGrill: opts.phraseGrill }));
 
   // Job payloads sent to the client: the preview HTML travels only via GET /previews/:jobId
   // (in-app view), and jobs bound to a session are visible to that session alone.
