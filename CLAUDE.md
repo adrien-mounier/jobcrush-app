@@ -40,15 +40,22 @@ not a copy to let rot.
 
 ## Git workflow
 
-Default to **committing directly to `main` and pushing** — solo repo, no branch protection.
+Solo repo, no branch protection. **Stay on `main`.** Don't create branches for ordinary work —
+branches + merging exist for teams and PR review, neither of which applies here.
 
-- **CI auto-deploys `main`** to Fly staging (both api + web) on every green push. So **keep `main`
-  green**: run `pnpm test && pnpm typecheck` before pushing. A red `main` ships a broken staging.
+**When a meaningful unit of work lands** (see session hygiene below), git is part of finishing it:
+
+1. **Commit to `main`** with a clear message. Commits are local and reversible — always safe to make.
+2. **Run `pnpm test && pnpm typecheck`.** Both green → **push**. Red → fix first; a red push ships a
+   broken staging. Pushing is automatic *only when green* — that gate is the safety net.
+
+**CI auto-deploys `main`** to Fly staging (both api + web) on every green push, so **a push is a
+deploy**. That is why the green gate is non-negotiable, and why we keep `main` green.
+
 - Use a branch + PR only for a `/code-review` pass or a change risky enough that staging must stay up
   while it is in progress.
 - Background-job **worktree isolation** still applies: finish in a worktree, then fast-forward into
-  `main` and push (no PR).
-- **Commit or push only when the user asks** (or when establishing a convention like this one).
+  `main` and push-when-green (no PR).
 
 ## Keeping the plan honest (session hygiene)
 
@@ -56,9 +63,9 @@ Default to **committing directly to `main` and pushing** — solo repo, no branc
 of the work**, proactively, not only when asked or at session end:
 
 - After a **meaningful unit of work** lands (a ticket, a bug fix, a shippable slice), before moving on:
-  add a newest-first `session-log.md` entry with ticket + commit refs, and update `roadmap.md` (mark
-  done, trim what remains). "Meaningful" is a judgment call — skip trivia; log what a future session
-  would want to know.
+  add a newest-first `session-log.md` entry with ticket + commit refs, update `roadmap.md` (mark
+  done, trim what remains), **then commit and push-when-green** (see Git workflow). "Meaningful" is a
+  judgment call — skip trivia; log what a future session would want to know.
 - When you **learn something non-obvious** that would save future-you time (a gotcha, a latent-bug
   class, a tool or flow that works here), add a short `lessons.md` entry. Only genuinely reusable
   insight — never a restatement of the code or the commit message.
