@@ -4,7 +4,14 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { CandidateClaims } from "@jobcrush/contracts";
 import { buildServer } from "../src/server.js";
-import { matchPosting, makePreviewStep, renderPreviewHtml, tailorDraft, type Draft } from "../src/preview.js";
+import {
+  conservationIssues,
+  matchPosting,
+  makePreviewStep,
+  renderPreviewHtml,
+  tailorDraft,
+  type Draft,
+} from "../src/preview.js";
 import { makeMineStep } from "../src/miner.js";
 import { isTerminal } from "../src/jobs.js";
 import type { LlmClient } from "../src/llm.js";
@@ -14,18 +21,31 @@ const fixtures = join(dirname(fileURLToPath(import.meta.url)));
 const sampleDraft: Draft = {
   name: "Maria Kowalski",
   headline: "IT Project Manager for enterprise delivery",
-  contact: "Warsaw | maria.kowalski@example.com",
+  contact: "Warsaw · maria.kowalski@example.com",
   summary: "Project manager with delivery accountability across vendors.",
   experience: [
     {
       role: "IT Project Manager",
       employer: "Nordic Retail Group",
+      location: "Warsaw, Poland",
       dates: "Mar 2021 - Present",
-      bullets: ["Led the checkout replatforming, delivered 2 months early"],
+      bullets: [
+        "Led the checkout replatforming, delivered 2 months early",
+        "Managed a budget of EUR 1.2M across 3 vendor teams",
+        "Ran steering committee reporting for the CIO",
+        "Coordinated cross-functional delivery across vendors",
+        "Owned the release calendar across squads",
+        "Drove risk and dependency management for delivery",
+      ],
     },
   ],
-  skills: ["Jira", "MS Project"],
-  education: ["MSc MIS, University of Warsaw, 2017"],
+  skills: [{ label: "Delivery", items: ["Jira", "MS Project"] }],
+  certifications: [
+    { name: "PRINCE2 Practitioner", date: "2019" },
+    { name: "PSM I", date: "2020" },
+  ],
+  education: [{ institution: "University of Warsaw", detail: "MSc MIS", dates: "2017" }],
+  additional: [{ label: "Languages", value: "Polish (Native), English (Fluent)" }],
 };
 
 async function recordedClaims(): Promise<CandidateClaims> {
@@ -79,6 +99,87 @@ describe("JC-16 posting match + render", () => {
     await expect(
       tailorDraft(await recordedClaims(), matchPosting([]), llmReturning({ nope: 1 })),
     ).rejects.toThrow();
+  });
+
+  it("rating-pair render (watermark off) has no draft banner or watermark", () => {
+    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { watermark: false });
+    expect(html).not.toContain("DRAFT");
+    expect(html).not.toContain("background-image");
+    expect(html).not.toContain("Facts not yet verified");
+  });
+
+  it("renders the engine's canonical sections: certs, grouped skills, education, additional", () => {
+    const html = renderPreviewHtml(sampleDraft, matchPosting([]));
+    expect(html).toContain("<h2>Certifications</h2>");
+    expect(html).toContain("PRINCE2 Practitioner");
+    expect(html).toContain("<strong>Delivery</strong>"); // bold skill-group label, not a run-on list
+    expect(html).toContain("<strong>University of Warsaw</strong>");
+    expect(html).toContain("<strong>Languages:</strong>");
+  });
+
+  it("omits empty sections entirely (no Certifications heading without certs)", () => {
+    const bare = { ...sampleDraft, certifications: [], education: [], additional: [] };
+    const html = renderPreviewHtml(bare, matchPosting([]));
+    expect(html).not.toContain("<h2>Certifications</h2>");
+    expect(html).not.toContain("<h2>Education</h2>");
+    expect(html).not.toContain("<h2>Additional Information</h2>");
+  });
+
+  it("normalizes forbidden glyphs (en/em dashes, pipes) in rendered content", () => {
+    const glyphy = {
+      ...sampleDraft,
+      contact: "Warsaw | maria@example.com",
+      experience: [
+        { ...sampleDraft.experience[0]!, dates: "Mar 2021 – Present" },
+      ],
+    };
+    const html = renderPreviewHtml(glyphy, matchPosting([]), { watermark: false });
+    expect(html).toContain("Mar 2021 - Present");
+    expect(html).toContain("Warsaw · maria@example.com");
+    expect(html).not.toContain("–");
+  });
+});
+
+describe("conservation lint — tailor by emphasis, not amputation", () => {
+  it("passes a draft that keeps certs, languages, and current-role density", async () => {
+    expect(conservationIssues(await recordedClaims(), sampleDraft)).toEqual([]);
+  });
+
+  it("flags dropped certifications, lost languages, and a thinned current role", async () => {
+    const lossy: Draft = {
+      ...sampleDraft,
+      certifications: [],
+      additional: [],
+      experience: [
+        { ...sampleDraft.experience[0]!, bullets: ["Led the checkout replatforming"] },
+      ],
+    };
+    const issues = conservationIssues(await recordedClaims(), lossy);
+    expect(issues.some((i) => i.includes("certifications lost"))).toBe(true);
+    expect(issues.some((i) => i.includes("languages lost"))).toBe(true);
+    expect(issues.some((i) => i.includes("current role too thin"))).toBe(true);
+  });
+
+  it("tailorDraft feeds lint issues back on retry and accepts the corrected draft", async () => {
+    const lossy = { ...sampleDraft, certifications: [] };
+    let calls = 0;
+    const llm = {
+      complete: async (prompt: string) => {
+        calls++;
+        if (calls === 1) return JSON.stringify(lossy);
+        expect(prompt).toContain("certifications lost");
+        return JSON.stringify(sampleDraft);
+      },
+    };
+    const draft = await tailorDraft(await recordedClaims(), matchPosting([]), llm);
+    expect(calls).toBe(2);
+    expect(draft.certifications.length).toBe(2);
+  });
+
+  it("ships a still-lossy draft after retry instead of failing the job", async () => {
+    const lossy = { ...sampleDraft, certifications: [] };
+    const draft = await tailorDraft(await recordedClaims(), matchPosting([]), llmReturning(lossy));
+    expect(draft.certifications.length).toBe(0); // shipped, flagged via console.warn
   });
 });
 

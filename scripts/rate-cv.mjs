@@ -25,7 +25,9 @@ if (!kind) throw new Error("unsupported extension");
 const { extractRawCv } = await import(apiDist("extract.js"));
 const { mineClaims } = await import(apiDist("miner.js"));
 const { llmFromEnv } = await import(apiDist("llm.js"));
-const { matchPosting, tailorDraft, renderPreviewHtml } = await import(apiDist("preview.js"));
+const { matchPosting, tailorDraft, renderPreviewHtml, conservationIssues } = await import(
+  apiDist("preview.js")
+);
 
 const t0 = Date.now();
 const stamp = () => `[${((Date.now() - t0) / 1000).toFixed(1)}s]`;
@@ -66,7 +68,14 @@ const headerText = rawCv.blocks
   .map((b) => b.text)
   .join("\n");
 const draft = await tailorDraft(mined, posting, llm, headerText);
-writeFileSync(out(".draft.html"), renderPreviewHtml(draft, posting), "utf8");
+// Rating pairs are judged blind against the original — no watermark, no banner.
+writeFileSync(out(".draft.html"), renderPreviewHtml(draft, posting, { watermark: false }), "utf8");
+
+const issues = conservationIssues(mined, draft);
+if (issues.length) {
+  console.warn(stamp(), `CONSERVATION ISSUES (draft ships anyway — review before rating):`);
+  for (const i of issues) console.warn(`  - ${i}`);
+}
 
 console.log(stamp(), `done — rating pair ready:`);
 console.log(`  original: ${cvPath}`);
