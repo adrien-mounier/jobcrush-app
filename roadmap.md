@@ -39,9 +39,11 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 Riskiest first; per-ticket ACs are in the archived `dev-plan-v01-hosted.md`.
 
-- **E4 graph is the S2 spine** — JC-32 server-side graph build (port `_claim_graph/validate_graph.mjs`),
-  JC-31 quality gate, JC-27 root-CV renderer (renders **only** from confirmed claims). These close the
-  slice.
+- **E4 graph is the S2 spine** — **JC-32 landed** (`a77f974`): `buildClaimGraph` maps confirmed claims →
+  a validator-clean Contract-1 graph (the oracle + zod port + goldens already existed from S0/S1, so
+  the real gap was the builder). Remaining to close the slice: JC-31 quality gate (wraps `validateGraph`
+  + a trace-to-confirmed check), JC-27 root-CV renderer (renders **only** from confirmed claims, over
+  `nodes.renderable`).
 - **E3 deck + grill** — JC-21 claims store + deck API, JC-22/23 deck UI (batch + individual cards,
   ≤15 individual decisions), JC-24 grill engine (gap-filling only), JC-26 grounded-fact persistence,
   JC-55 Path B ("I don't have a CV") — **stub only in S2**; the real guided interview moved to S4.
