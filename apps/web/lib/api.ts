@@ -4,7 +4,13 @@
 async function jfetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
-    headers: { "content-type": "application/json", ...init?.headers },
+    // Only advertise a JSON body when we actually send one. Fastify rejects an empty body that
+    // carries content-type: application/json (FST_ERR_CTP_EMPTY_JSON_BODY) — which is what our
+    // no-body POSTs are (upload /complete, deck confirm/reject, build).
+    headers: {
+      ...(init?.body != null ? { "content-type": "application/json" } : {}),
+      ...init?.headers,
+    },
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
