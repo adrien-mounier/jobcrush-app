@@ -110,6 +110,24 @@ describe("JC-21/27/31 onboarding deck → build loop", () => {
     expect(me.json().stage).toBe("ready");
   });
 
+  it("building with nothing confirmed loops back instead of certifying an empty CV", async () => {
+    const server = buildServer({ pipeline: fakePipeline() });
+    const cookie = await startSession(server.app);
+    const jobId = await mineAndGetJob(server, cookie);
+    await server.app.inject({
+      method: "POST",
+      url: "/onboarding/deck",
+      headers: { cookie },
+      payload: { jobId },
+    });
+    // Confirm nothing, then build: an empty confirmed set is a loop-back, never a `ready` empty CV.
+    const built = await server.app.inject({ method: "POST", url: "/onboarding/build", headers: { cookie } });
+    const body = built.json();
+    expect(body.stage).toBe("loopback");
+    expect(body.gate.ok).toBe(false);
+    expect(body.gate.errors.join(" ")).toMatch(/at least one fact/i);
+  });
+
   it("tiers the deck by machine_touch: verbatim batches, machine-touched goes individual (JC-22)", async () => {
     const server = buildServer({
       pipeline: {

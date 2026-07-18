@@ -30,3 +30,20 @@ seconds more but it's the same command CI runs.
 "strong enough" rule. That is what lets decision #5 hold — the S2 gate judges our pipeline's work, not
 the user's career, so any honest user (even a thin CV) can produce a validator-clean graph. Don't add
 richness checks to the validator; profile-strength feedback belongs in the future advisory feature.
+
+## UI changes can be self-verified in a real browser — don't stop at typecheck + build
+
+The empty-body content-type bug (`jfetch` sent `content-type: application/json` on no-body POSTs, which
+Fastify rejects with `FST_ERR_CTP_EMPTY_JSON_BODY`) passed typecheck **and** the Next build, then broke
+upload on staging. Those gates never exercise the running client. **The Playwright e2e now closes that
+gap** (`apps/web/e2e/onboarding.spec.ts`, `pnpm --filter @jobcrush/web e2e`) — and this environment can
+run it end to end without a human: headless Chromium launches, outbound HTTPS works, and
+`ANTHROPIC_API_KEY` is set, so the real pipeline runs. Two ways:
+
+- **Local (tests the worktree code):** `node apps/api/dist/main.js` (API on :3001, inherits the key) +
+  `next start apps/web -p 3000`, then run the e2e with the default `baseURL`. Use `curl --retry
+  --retry-connrefused` for readiness — foreground `sleep` is blocked in this harness.
+- **Staging (tests the deployed sha):** `E2E_BASE_URL=https://jobcrush-web-staging.fly.dev`. But it only
+  reflects what's pushed — `data-testid`s or fixes still in the worktree won't be there yet.
+
+So after a UI change, run the e2e before claiming it works — "I can't drive a browser" is no longer true.

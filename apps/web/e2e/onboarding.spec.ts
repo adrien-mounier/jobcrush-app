@@ -1,9 +1,8 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 // The S2 onboarding loop, end to end in a real browser against the real pipeline:
-// paste a CV → mine + preview → confirm deck → build → verified root CV.
-// Non-deterministic (real LLM), so assertions are structural. One dynamic check with teeth:
-// a claim rejected in the deck must NOT appear in the built root CV (the anti-fabrication rule).
+// paste a CV → mine + preview → confirm deck → build → verified root CV (or a loop-back).
+// Non-deterministic (real LLM), so assertions are structural.
 const SAMPLE_CV = `Maria Kowalska
 IT Project Manager — Warsaw, Poland
 maria.kowalska@example.com
@@ -35,20 +34,20 @@ MSc Management Information Systems, University of Warsaw (2017)
 Languages
 Polish (Native), English (Fluent)`;
 
-test("paste → preview → confirm deck → build → verified root CV", async ({ page }) => {
-  // 1. Paste a CV and kick the pipeline.
+// Paste the CV, wait out the real mine + preview, and land on the deck.
+async function pasteToDeck(page: Page) {
   await page.goto("/paste");
   await page.getByRole("textbox").fill(SAMPLE_CV);
   await page.getByRole("button", { name: "Use this text" }).click();
-
-  // 2. Pipeline runs (mine + preview on the real model) — the progress screen redirects when done.
-  await page.waitForURL(/\/preview\//, { timeout: 200_000 });
-
-  // 3. Into the deck.
+  await page.waitForURL(/\/preview\//, { timeout: 200_000 }); // mine + preview on the live model
   await page.getByRole("link", { name: "Confirm my facts" }).click();
   await expect(page.getByRole("heading", { name: "Confirm your facts" })).toBeVisible();
+}
 
-  // 4. Reject the first individual claim (capturing its text), then confirm the rest.
+test("happy path: reject one, confirm the rest → build → verified root CV", async ({ page }) => {
+  await pasteToDeck(page);
+
+  // Reject the first individual claim (capturing its text), then confirm the rest.
   const individualCount = await page.getByTestId("individual-claim").count();
   let rejectedText: string | null = null;
   if (individualCount > 0) {
@@ -56,21 +55,17 @@ test("paste → preview → confirm deck → build → verified root CV", async 
     rejectedText = (await first.getByTestId("claim-text").innerText()).trim();
     await first.getByRole("button", { name: "Remove" }).click();
   }
-  // Confirm every remaining individual card (each click removes its own "Looks right").
   const looksRight = page.getByRole("button", { name: "Looks right" });
   for (let guard = 0; (await looksRight.count()) > 0 && guard < 30; guard++) {
     await looksRight.first().click();
   }
 
-  // 5. Build the verified root CV.
   const build = page.getByRole("button", { name: "Build my verified CV" });
   await expect(build).toBeEnabled();
   await build.click();
 
-  // 6. A clean gate flips to the reward screen with a rendered CV…
-  await expect(page.getByRole("heading", { name: "You own your facts" })).toBeVisible({
-    timeout: 30_000,
-  });
+  // Clean gate → the reward screen with a rendered CV…
+  await expect(page.getByRole("heading", { name: "You own your facts" })).toBeVisible({ timeout: 30_000 });
   const rootcv = page.getByTestId("rootcv");
   await expect(rootcv).toContainText("•"); // at least one bullet rendered
 
@@ -78,4 +73,26 @@ test("paste → preview → confirm deck → build → verified root CV", async 
   if (rejectedText && rejectedText.length > 12) {
     await expect(rootcv).not.toContainText(rejectedText);
   }
+});
+
+test("loop-back: rejecting every fact loops back, never certifies an empty CV", async ({ page }) => {
+  await pasteToDeck(page);
+
+  // Reject every individual claim…
+  const removes = page.getByTestId("individual-claim").getByRole("button", { name: "Remove" });
+  for (let guard = 0; (await removes.count()) > 0 && guard < 40; guard++) {
+    await removes.first().click();
+  }
+  // …and drop every kept batch chip (data-on flips to false on tap).
+  const keptChips = page.locator("button.chip[data-on='true']");
+  for (let guard = 0; (await keptChips.count()) > 0 && guard < 60; guard++) {
+    await keptChips.first().click();
+  }
+
+  await page.getByRole("button", { name: "Build my verified CV" }).click();
+
+  // Failing gate → a precise loop-back, never a dead end and never a certified empty CV.
+  await expect(page.getByRole("heading", { name: "Almost there" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/at least one fact/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Back to my facts" })).toBeVisible();
 });

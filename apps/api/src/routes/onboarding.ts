@@ -112,11 +112,14 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       const confirmed = await deps.claims.confirmed(session.id);
       const graph = buildClaimGraph(confirmed);
       const rootCv = renderRootCv(graph);
-      const gate = runGate(
-        graph,
-        rootCv.trace,
-        confirmed.map((c) => c.id),
-      );
+      // An empty confirmed set builds a structurally-valid but empty graph — the validator passes it,
+      // yet a verified CV with nothing in it isn't "ready". Loop back to keep at least one fact
+      // (a precise, non-dead-end loop-back, kickoff decision 5), never certify an empty CV. This is
+      // deck policy, so it lives here — the validator stays structure-only (see lessons.md).
+      const gate =
+        confirmed.length === 0
+          ? { ok: false, errors: ["Keep at least one fact — a verified CV can't be empty."] }
+          : runGate(graph, rootCv.trace, confirmed.map((c) => c.id));
       const stage = gate.ok ? "ready" : "loopback";
       await deps.sessions.setStage(session.id, stage);
       return { stage, gate, rootCv };
