@@ -2,6 +2,40 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-18 (session 2) — E4 spine finished + E3 deck/build loop closed
+
+**E4 spine completed** (commit `8cd246a`): the three items the previous session queued all shipped —
+claims store (JC-21), gate (JC-31), root-CV renderer (JC-27). Per-session confirmed-claims store (same
+record + async-interface + `InMemory*` pattern as `sessions.ts`); `runGate` = the `ClaimGraph` zod port
+(≡ `validate_graph.mjs`) + trace-to-confirmed (every rendered bullet → a renderable, user-confirmed
+node; errors name the node for precise loop-backs); `renderRootCv` renders only over
+`nodes.filter(renderable)`, bucketed by the kind tag. 11 tests. Not yet wired to routes.
+
+**E3 slice A — the onboarding loop now closes end to end** (commit `7994b29`). Grilled the plan first,
+then built a deliberately thin vertical slice to exercise the 405 lines of untouched spine through a
+real HTTP request before building the deck's intelligence:
+
+- `routes/onboarding.ts`: `POST /onboarding/deck` seeds the per-session claim store from the job's
+  mined claims (idempotent, session-scoped like `/previews/:jobId`); confirm/reject/edit are plain
+  synchronous store writes; `POST /onboarding/build` runs `buildClaimGraph → renderRootCv → runGate`
+  inline and returns the root CV + gate result. **No job/SSE — the spine is pure arithmetic** (verified).
+- `sessions.ts`: one `stage` field (`deck | ready | loopback`) + `setStage` — the entire "state machine"
+  for this slice; the client reads it on load.
+- `server.ts`: wires an `InMemoryClaimStore`, registers the routes.
+- `onboarding.test.ts`: walks paste → mine → deck → confirm/edit/reject → build → `ready` over
+  `app.inject`, asserting the root CV traces clean through the gate + a session-scoping 404.
+
+Four grill decisions: (a) vertical slice over a fully-featured deck; (b) synchronous saves + a `stage`
+field over a background job; (c) ride the anonymous session, defer **all** auth to E2; (d) prove with
+the API + one integration test, browser UI as the next slice. Risk flagged in the grill — graph node
+IDs vs claim IDs — turned out moot: `graph.ts` reuses claim IDs 1:1, so the gate reads confirmed claim
+IDs directly.
+
+Gate green before ship: `pnpm test` = 100 pass / 5 skipped, `pnpm typecheck` = 7/7. Pushed to `main`.
+
+**Next:** E3 continues — deck tiering (JC-22/23), then the grill (JC-24/26), then the browser deck UI
+on this API; then E2 auth (JC-18/19/20) drops the signup wall in front of the deck.
+
 ## 2026-07-18 — S2 kickoff + E4 keystone shipped
 
 **S2 design locked (grill session).** Eight product decisions fixed before writing code, recorded in

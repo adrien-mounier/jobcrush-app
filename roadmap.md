@@ -39,14 +39,14 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 Riskiest first; per-ticket ACs are in the archived `dev-plan-v01-hosted.md`.
 
-- **E4 graph is the S2 spine** — **JC-32 landed** (`a77f974`): `buildClaimGraph` maps confirmed claims →
-  a validator-clean Contract-1 graph (the oracle + zod port + goldens already existed from S0/S1, so
-  the real gap was the builder). Remaining to close the slice: JC-31 quality gate (wraps `validateGraph`
-  + a trace-to-confirmed check), JC-27 root-CV renderer (renders **only** from confirmed claims, over
-  `nodes.renderable`).
-- **E3 deck + grill** — JC-21 claims store + deck API, JC-22/23 deck UI (batch + individual cards,
-  ≤15 individual decisions), JC-24 grill engine (gap-filling only), JC-26 grounded-fact persistence,
-  JC-55 Path B ("I don't have a CV") — **stub only in S2**; the real guided interview moved to S4.
+- **✅ E4 spine complete and wired** (JC-32 `a77f974`, JC-21/31/27 `8cd246a`, E3 slice A `7994b29`) —
+  the onboarding loop now **closes end to end**: `POST /onboarding/deck` → confirm/edit/reject →
+  `POST /onboarding/build` runs `buildClaimGraph → renderRootCv → runGate` synchronously and flips the
+  session to `ready`. Rides the anonymous session; no tiering, no grill yet (API + integration test only).
+- **E3 deck + grill (remaining)** — JC-22/23 deck UI (stakes × uncertainty: ≤15 individual
+  yes/edit/reject cards + batch-by-section, on top of the slice-A API), JC-24 grill engine
+  (mechanical gap detection, LLM phrasing, ~5–8 Qs), JC-26 grounded-fact persistence, JC-55 Path B
+  ("I don't have a CV") — **stub only in S2**; the real guided interview moved to S4.
 - **E2 auth** — JC-18 magic-link, JC-19 anon→account merge (at the preview moment), JC-20 anon auto-purge.
 
 Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
@@ -59,6 +59,11 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 
 ## Completed
 
+- [x] 2026-07-18 — **E4 spine + E3 deck/build loop closes.** The onboarding loop runs end to end
+      (paste → mine → deck → confirm/edit/reject → build → `ready`): claim-graph builder (JC-32,
+      `a77f974`), claims store + gate + root-CV renderer (JC-21/31/27, `8cd246a`), and the synchronous
+      deck + build API over the spine (E3 slice A, `7994b29`). API + integration test only; deck UI,
+      grill, and auth still ahead.
 - [x] 2026-07-18 — **S1 done: magic-mirror preview + quality floor passed.** Anonymous upload →
       mine → tailor → watermarked preview on the hosted web app; JC-2 round 2 confirmed the improved
       draft beats the original. Engine parity + conservation lint landed (`2d8411f`, `db79ae6`); CV
