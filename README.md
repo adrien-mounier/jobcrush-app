@@ -2,8 +2,11 @@
 
 Hosted JobCrush v0.1 — server API + web and mobile thin clients. Clean-room repo: logic is
 **ported by copying** from the personal-pipeline repo (`JobCrush`), never imported across repos.
-Spec and plan live there: `docs/onboarding-init-design.md` (§8 authoritative) and
-`docs/dev-plan-v01-hosted.md` (+ per-slice `docs/s*-kickoff.md`).
+
+**Plan lives here:** the forward roadmap is [`roadmap.md`](roadmap.md) (S2 → S4; S0 + S1 done). The
+original detailed spec, per-ticket ACs, and per-slice kickoffs are **archived in the JobCrush repo**
+(`docs/onboarding-init-design.md` §8 authoritative, `docs/dev-plan-v01-hosted.md`,
+`docs/s0..s4-kickoff.md`) — frozen reference, not a live dependency.
 
 **CV brain (forked 2026-07-18):** the CV-tailoring reasoning + research now lives **here**, in
 [`docs/cv-brain/`](docs/cv-brain/README.md) — it was copied once from JobCrush, which is now frozen
