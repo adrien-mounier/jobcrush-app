@@ -3,6 +3,7 @@
 // JC-16 preview screen: the watermarked draft, rendered in a sandboxed iframe from the
 // server's HTML (watermark is part of that render, not a UI overlay). Ends on the S2 hook —
 // in S1 that's a notify-me button, which doubles as the tester-feedback channel.
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { JobSnapshot } from "../../../lib/api";
@@ -12,7 +13,6 @@ export default function PreviewScreen() {
   const [job, setJob] = useState<JobSnapshot | null>(null);
   const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notified, setNotified] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -63,19 +63,12 @@ export default function PreviewScreen() {
           This is a draft — the facts aren&apos;t verified yet.
         </p>
         <p className="lede" style={{ marginBottom: 12 }}>
-          Next step: confirm your facts to make this real — a 2-minute review where you approve
-          each claim, then the watermark comes off and the hunt begins. That part is almost
-          ready.
+          Next step: confirm your facts to make this real — a quick review where you approve each
+          claim, then the watermark comes off and you own a verified master CV.
         </p>
-        {notified ? (
-          <p style={{ margin: 0, color: "var(--jc-verified)" }}>
-            Noted — you&apos;ll be first to know. Thanks for trying the preview!
-          </p>
-        ) : (
-          <button className="btn" onClick={() => setNotified(true)}>
-            Notify me when it opens
-          </button>
-        )}
+        <Link className="btn" href={`/deck/${jobId}`}>
+          Confirm my facts
+        </Link>
       </div>
     </main>
   );

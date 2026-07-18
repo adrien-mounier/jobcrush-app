@@ -69,3 +69,48 @@ export interface JobSnapshot {
     [k: string]: unknown;
   };
 }
+
+// --- S2 onboarding deck (JC-21/22/27/31) ---
+
+export interface DeckClaim {
+  id: string;
+  text: string;
+  role: string; // employer+title as written, or "profile" — batch claims group by this
+  source_quote: string;
+  machine_touch: "verbatim" | "reworded" | "inferred";
+  classification: "Verified" | "Derived" | "Partially-Supported";
+  decision: "pending" | "confirmed" | "rejected";
+  origin: "mined" | "user-authored";
+  tier: "individual" | "batch"; // JC-22: verbatim → batch, machine-touched → individual
+}
+
+export interface DeckState {
+  stage: "deck" | "ready" | "loopback";
+  claims: DeckClaim[];
+}
+
+export interface BuildResult {
+  stage: "ready" | "loopback";
+  gate: { ok: boolean; errors: string[] };
+  rootCv: { markdown: string; trace: unknown };
+}
+
+export function openDeck(jobId: string): Promise<DeckState> {
+  return jfetch("/api/onboarding/deck", { method: "POST", body: JSON.stringify({ jobId }) });
+}
+
+export function confirmClaim(id: string): Promise<{ ok: boolean }> {
+  return jfetch(`/api/onboarding/claims/${id}/confirm`, { method: "POST" });
+}
+
+export function rejectClaim(id: string): Promise<{ ok: boolean }> {
+  return jfetch(`/api/onboarding/claims/${id}/reject`, { method: "POST" });
+}
+
+export function editClaim(id: string, text: string): Promise<{ ok: boolean }> {
+  return jfetch(`/api/onboarding/claims/${id}`, { method: "PUT", body: JSON.stringify({ text }) });
+}
+
+export function buildRootCv(): Promise<BuildResult> {
+  return jfetch("/api/onboarding/build", { method: "POST" });
+}
