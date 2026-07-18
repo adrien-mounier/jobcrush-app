@@ -16,11 +16,13 @@ test("unparseable upload: routed to the paste fallback, never OCR-guessed", asyn
   await page.goto("/import");
   // Set the hidden file input directly (the visible door just clicks it).
   await page.locator('input[type="file"]').setInputFiles(SCANNED_PDF);
-  await page.waitForURL(/\/progress\//, { timeout: 30_000 });
+  // Generous: against staging this is a real R2 upload (presign → PUT → complete), slower than the
+  // local disk driver and prone to latency under parallel load.
+  await page.waitForURL(/\/progress\//, { timeout: 60_000 });
 
   // Extract detects the empty text layer and fails the job — the progress screen offers paste,
   // never a guess. (This also exercises the real upload path: presign → PUT → complete.)
-  await expect(page.getByRole("button", { name: "Paste my CV text" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Paste my CV text" })).toBeVisible({ timeout: 45_000 });
   await page.getByRole("button", { name: "Paste my CV text" }).click();
   await expect(page).toHaveURL(/\/paste$/);
 });

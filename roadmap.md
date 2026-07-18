@@ -23,8 +23,8 @@ no autonomous submit, no LinkedIn credentials, ever).
 - [ ] **S2 — Own your facts** — _in progress_. Full onboarding: signup-after-preview → tiered confirm
       deck → grill → root-CV review → audit → quality gate → validated claim graph v1 in Postgres.
       Epics: E2 auth (JC-18/19/20), E3 deck + grill (JC-21…26, JC-55 Path B), E4 root CV / audit /
-      gate / graph (JC-27…32). **Status: E4 spine + E3 deck/grill/Path-B done and browser-verified;
-      E2 auth is the last epic, then the in-memory stores become Postgres for the graph-in-DB goal.**
+      gate / graph (JC-27…32). **Status: E4 + E3 (deck/grill/Path-B) done; JC-6 persistence done —
+      sessions + the claim graph now survive restart in Postgres. E2 auth is the last S2 epic.**
       _Demo: a user completes onboarding and their profile flips to `ready` with a validator-clean graph._
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
@@ -53,7 +53,12 @@ Riskiest first; per-ticket ACs are in the archived `dev-plan-v01-hosted.md`.
 - **✅ E3 complete** — JC-55 Path B coming-soon door shipped (`89b4c67`); deck + grill done and
   browser-verified. (Deferred until data exists: the grill's "too thin" trigger — two guestbook
   counters — before promoting any v2 gap types.)
-- **E2 auth** — JC-18 magic-link, JC-19 anon→account merge (at the preview moment), JC-20 anon auto-purge.
+- **✅ JC-6 persistence done** (`8a18efa`) — sessions + confirmed claims persist to Postgres when
+  `DATABASE_URL` is set (in-memory otherwise). A shared store-contract test runs both drivers (Postgres
+  via pg-mem). Delivers S2's "claim graph v1 in Postgres" and unblocks real accounts. Jobs/uploads stay
+  in-memory (transient run-state).
+- **E2 auth — the last S2 epic** — JC-18 magic-link, JC-19 anon→account merge (at the preview moment),
+  JC-20 anon auto-purge.
 
 Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 
@@ -65,6 +70,10 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 
 ## Completed
 
+- [x] 2026-07-18 — **JC-6 Postgres persistence.** Sessions + the confirmed-claim graph persist to
+      Postgres (`DATABASE_URL`), in-memory otherwise; a shared contract test runs both drivers via
+      pg-mem (which caught + fixed an in-memory seed idempotency bug). Meets S2's "graph v1 in Postgres".
+      Commit `8a18efa`.
 - [x] 2026-07-18 — **JC-55 Path B stub → E3 complete.** A "coming soon" door on `/import` ("I don't
       have a CV yet") for the from-scratch guided interview that ships in S4. Closes E3 (deck + grill).
       Commit `89b4c67`.

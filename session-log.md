@@ -2,6 +2,34 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-18 (session 6) — JC-6 Postgres persistence (sessions + claim graph)
+
+Chose "persistence first" over jumping to E2 auth: an account that vanishes on every deploy isn't an
+account, and S2's demo goal is literally "claim graph v1 in Postgres." Commit `8a18efa`.
+
+- `db.ts`: one shared, memoized pg pool + an `iso()` timestamp helper.
+- `PgSessionStore` / `PgClaimStore` behind the existing interfaces, mirroring the guestbook's pg
+  pattern (`CREATE TABLE IF NOT EXISTS` in `init()`, parameterized queries). `claims.seq bigserial`
+  preserves CV order (load-bearing for deck tiers + the grill cap). Factories pick the driver by
+  `DATABASE_URL`; `init()` added to both interfaces (in-memory = no-op). Jobs/uploads stay in-memory
+  (transient run-state) — deferred.
+- `main.ts`: build the stores from `DATABASE_URL`, `init()` before serving, fail fast if the DB is down.
+
+Testing the load-bearing SQL with no CI database: a **shared store-contract test runs the same
+assertions against in-memory AND Postgres via pg-mem** (an in-process Postgres), so the real SQL is
+exercised in CI. It immediately earned its keep — caught that in-memory `seed` clobbered decisions on
+re-seed while Postgres (`ON CONFLICT DO NOTHING`) didn't; fixed in-memory to match.
+
+Verified: api 130 pass (16 contract tests, both drivers); typecheck 7/7; all 5 e2e green in a browser
+(in-memory path). **Real-Postgres path verified against staging** (`8a18efa`): the happy-path +
+loop-back e2e — which create a session and seed/confirm/add/read claims on Postgres, then build — pass
+against live staging. (The unparseable-upload e2e flaked once against staging under parallel load — a
+real-R2 upload latency issue, reliable locally; bumped its timeouts.)
+
+**Next:** E2 auth (JC-18 magic-link → JC-19 anon→account merge at the preview moment → JC-20 anon
+auto-purge) — now unblocked by persistence. Worth a short design pass (email delivery in dev/staging,
+token storage, the merge semantics).
+
 ## 2026-07-18 (session 5) — JC-55 Path B stub → E3 complete
 
 The last E3 ticket (commit `89b4c67`): a "coming soon" door on `/import` — "I don't have a CV yet" —
