@@ -31,6 +31,29 @@ export function extractJson(raw: string): unknown {
   return JSON.parse(raw.slice(start, end + 1));
 }
 
+/**
+ * Claim ids are machine-internal slugs; on non-English CVs the model emits accented ids
+ * ("edu-école-…") that fail the kebab-case regex. Normalizing is deterministic and
+ * semantic-preserving, so fix it here instead of burning a retry on it.
+ */
+export function slugifyClaimIds(doc: unknown): unknown {
+  if (typeof doc !== "object" || doc === null || !Array.isArray((doc as { claims?: unknown[] }).claims)) {
+    return doc;
+  }
+  for (const claim of (doc as { claims: Array<{ id?: unknown }> }).claims) {
+    if (typeof claim?.id === "string") {
+      claim.id =
+        claim.id
+          .normalize("NFD")
+          .replace(/[̀-ͯ]/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "") || "claim";
+    }
+  }
+  return doc;
+}
+
 export async function mineClaims(cvText: string, llm: LlmClient): Promise<CandidateClaims> {
   let lastError = "";
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -40,7 +63,7 @@ export async function mineClaims(cvText: string, llm: LlmClient): Promise<Candid
         : `${buildMinerInput(cvText)}\n\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
     const raw = await llm.complete(input);
     try {
-      return CandidateClaims.parse(extractJson(raw));
+      return CandidateClaims.parse(slugifyClaimIds(extractJson(raw)));
     } catch (err) {
       lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
     }

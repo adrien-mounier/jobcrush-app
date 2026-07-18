@@ -65,4 +65,13 @@ describe("JC-13 miner plumbing", () => {
     const llm = fakeLlm(["{}", "{}"]);
     await expect(mineClaims("cv text", llm)).rejects.toThrow(/failed validation twice/);
   });
+
+  it("normalizes accented/messy claim ids to kebab-case instead of burning a retry", async () => {
+    const doc = structuredClone(validDoc);
+    doc.claims[0].id = "edu-École-Supérieure_PL/300";
+    const llm = fakeLlm([JSON.stringify(doc)]);
+    const mined = await mineClaims("cv text", llm);
+    expect(mined.claims[0]!.id).toBe("edu-ecole-superieure-pl-300");
+    expect(llm.calls).toHaveLength(1);
+  });
 });

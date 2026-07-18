@@ -56,6 +56,9 @@ Rules — these mirror the claim-graph extraction discipline:
 
 Output shape:
 
+Claim `id`s are ASCII kebab-case slugs: lowercase a-z, digits, hyphens only — transliterate
+accented characters ("école" → "ecole").
+
 ```json
 {
   "schemaVersion": "0",

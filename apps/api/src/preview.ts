@@ -127,11 +127,16 @@ export function buildTailorInput(
   );
 }
 
-const isCertClaim = (c: { id: string; text: string }) =>
-  c.id.startsWith("cert-") || /certif/i.test(c.text);
-const isLanguageClaim = (c: { id: string; text: string }) =>
+// Prefix-first (the miner tags cert-/lang- ids); the text fallback only applies to
+// profile-level claims so an education block ("Leaving Certificate") or an experience bullet
+// ("led the PCI certification audit") never counts as a lost certification.
+const isCertClaim = (c: { id: string; text: string; role: string }) =>
+  c.id.startsWith("cert-") || (c.role === "profile" && /\bcertif/i.test(c.text));
+const isLanguageClaim = (c: { id: string; text: string; role: string }) =>
   c.id.startsWith("lang-") ||
-  /\b(native|fluent|conversational|proficient|bilingual)\b/i.test(c.text);
+  (c.role === "profile" &&
+    (/\blanguages?\b|\bspeaker\b/i.test(c.text) ||
+      /\((native|fluent|conversational|proficient|bilingual|basic)\)/i.test(c.text)));
 
 /**
  * Conservation lint — the "never destroy" gate. The tailor may rephrase, reorder, merge, and

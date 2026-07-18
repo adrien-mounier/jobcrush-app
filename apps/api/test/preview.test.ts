@@ -160,6 +160,34 @@ describe("conservation lint — tailor by emphasis, not amputation", () => {
     expect(issues.some((i) => i.includes("current role too thin"))).toBe(true);
   });
 
+  it("does not count education diplomas or experience bullets as certifications", async () => {
+    const claims = await recordedClaims();
+    claims.claims.push(
+      {
+        id: "edu-leaving-certificate",
+        role: "Marcel Pagnol High School",
+        text: "Leaving Certificate, secondary school examination",
+        machine_touch: "verbatim",
+        classification: "Verified",
+        source_quote: "Leaving Certificate",
+        needs_grill: false,
+        grill_hint: null,
+      },
+      {
+        id: "nrg-pci-certification-audit",
+        role: "IT Project Manager - Nordic Retail Group",
+        text: "Led the PCI certification audit",
+        machine_touch: "verbatim",
+        classification: "Verified",
+        source_quote: "Led the PCI certification audit",
+        needs_grill: false,
+        grill_hint: null,
+      },
+    );
+    // sampleDraft renders 2 certs; source still counts 2 (PRINCE2 + PSM I), not 4.
+    expect(conservationIssues(claims, sampleDraft)).toEqual([]);
+  });
+
   it("tailorDraft feeds lint issues back on retry and accepts the corrected draft", async () => {
     const lossy = { ...sampleDraft, certifications: [] };
     let calls = 0;
