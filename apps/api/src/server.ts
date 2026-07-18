@@ -16,6 +16,8 @@ import { InMemoryBlobStorage, type BlobStorage } from "./storage.js";
 import { InMemoryUploadStore, REJECT_MESSAGES } from "./uploads.js";
 import { runOnboardingJob, type PipelineDeps } from "./pipeline.js";
 import { cvRoutes } from "./routes/cv.js";
+import { onboardingRoutes } from "./routes/onboarding.js";
+import { InMemoryClaimStore, type ClaimStore } from "./claims.js";
 import { createGuestbook, renderGuestbookHtml, type Guestbook } from "./guestbook.js";
 import type { JobRecord } from "./jobs.js";
 
@@ -35,6 +37,8 @@ export interface BuildOptions {
   onUploaded?: UploadDeps["onUploaded"];
   /** Persistent per-run guestbook. Defaults to Postgres via DATABASE_URL; no-op when unset. */
   guestbook?: Guestbook;
+  /** JC-21 confirmed-claims store backing the onboarding deck. Postgres driver lands with JC-6/26. */
+  claims?: ClaimStore;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */
@@ -53,6 +57,7 @@ export function buildServer(opts: BuildOptions = {}) {
   const sessions = opts.sessions ?? new InMemorySessionStore();
   const blobs = opts.blobs ?? new InMemoryBlobStorage();
   const uploads = opts.uploads ?? new InMemoryUploadStore();
+  const claims = opts.claims ?? new InMemoryClaimStore();
   const guestbook = opts.guestbook ?? createGuestbook(process.env.DATABASE_URL);
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" }).withTypeProvider<ZodTypeProvider>();
   guestbook.init().catch((err) => app.log.error(err, "guestbook init failed"));
@@ -177,6 +182,7 @@ export function buildServer(opts: BuildOptions = {}) {
   };
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps }));
+  app.register(onboardingRoutes({ claims, store, sessions }));
 
   // Job payloads sent to the client: the preview HTML travels only via GET /previews/:jobId
   // (in-app view), and jobs bound to a session are visible to that session alone.
@@ -246,5 +252,5 @@ export function buildServer(opts: BuildOptions = {}) {
     },
   );
 
-  return { app, store, sessions, blobs, uploads };
+  return { app, store, sessions, blobs, uploads, claims };
 }

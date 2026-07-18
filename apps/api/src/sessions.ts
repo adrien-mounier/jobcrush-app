@@ -3,6 +3,10 @@
 // JC-20 purge job can read them later; claimedByUserId is the JC-19 merge hook.
 import { randomBytes } from "node:crypto";
 
+// Where a session sits in the S2 onboarding loop (JC-27/31); the client reads it on load to pick a
+// screen. Slice A only models deck → ready/loopback — pre-deck and grill stages land with full E3.
+export type OnboardingStage = "deck" | "ready" | "loopback";
+
 export interface SessionRecord {
   id: string;
   token: string;
@@ -10,6 +14,7 @@ export interface SessionRecord {
   lastSeenAt: string;
   claimedByUserId: string | null;
   targetTitles: string[];
+  stage: OnboardingStage;
 }
 
 export interface SessionStore {
@@ -18,6 +23,7 @@ export interface SessionStore {
   getById(id: string): Promise<SessionRecord | null>;
   touch(id: string): Promise<void>;
   setTargetTitles(id: string, titles: string[]): Promise<void>;
+  setStage(id: string, stage: OnboardingStage): Promise<void>;
 }
 
 export class InMemorySessionStore implements SessionStore {
@@ -33,6 +39,7 @@ export class InMemorySessionStore implements SessionStore {
       lastSeenAt: now,
       claimedByUserId: null,
       targetTitles: [],
+      stage: "deck",
     };
     this.byToken.set(session.token, session);
     this.byId.set(session.id, session);
@@ -55,6 +62,11 @@ export class InMemorySessionStore implements SessionStore {
   async setTargetTitles(id: string, titles: string[]): Promise<void> {
     const s = this.byId.get(id);
     if (s) s.targetTitles = titles;
+  }
+
+  async setStage(id: string, stage: OnboardingStage): Promise<void> {
+    const s = this.byId.get(id);
+    if (s) s.stage = stage;
   }
 }
 
