@@ -82,16 +82,17 @@ export function authRoutes(deps: AuthDeps) {
 
     // --- Google OAuth (ported from vitacairn) ---
     // Same account seam as verify: resolve a verified email, upsert the user, claim the session
-    // (the JC-19 merge). Redirects go through the web app's /api proxy, so the registered redirect
-    // URI is `${webUrl}/api/auth/google/callback`.
-    const base = deps.webUrl || "http://localhost:3000";
-    const googleRedirectUri = `${base}/api/auth/google/callback`;
+    // (the JC-19 merge). The browser reaches these routes through the web app's /api proxy, so
+    // browser-bound redirects are RELATIVE (they stay on the web origin in every environment).
+    // Only the redirect_uri sent to Google must be absolute — `${WEB_URL}/api/auth/google/callback`,
+    // matching the URI registered in the Google console (dev default: localhost:3000).
+    const googleRedirectUri = `${deps.webUrl || "http://localhost:3000"}/api/auth/google/callback`;
     const exchange = deps.googleEmail ?? googleEmailFromCode;
     const cookieSecure = process.env.APP_ENV !== "local" && process.env.NODE_ENV !== "test";
 
     app.get("/auth/google", async (_req, reply) => {
       if (!googleConfigured() && !deps.googleEmail)
-        return reply.redirect(`${base}/signup?login=error`);
+        return reply.redirect(`/signup?login=error`);
       // Short-lived CSRF token: set here, echoed back by Google, checked on callback.
       const state = randomBytes(16).toString("base64url");
       reply.setCookie(OAUTH_STATE_COOKIE, state, {
@@ -112,9 +113,9 @@ export function authRoutes(deps: AuthDeps) {
         reply.clearCookie(OAUTH_STATE_COOKIE, { path: "/" });
         // CSRF: the state cookie must match the state Google echoed back.
         if (!saved || !req.query.state || saved !== req.query.state || !req.query.code)
-          return reply.redirect(`${base}/signup?login=expired`);
+          return reply.redirect(`/signup?login=expired`);
         const email = await exchange(req.query.code, googleRedirectUri);
-        if (!email) return reply.redirect(`${base}/signup?login=expired`);
+        if (!email) return reply.redirect(`/signup?login=expired`);
 
         // Claim the browser's anonymous session (its preview rides along); a visitor who somehow
         // arrives without one still gets logged in on a fresh session.
@@ -130,7 +131,7 @@ export function authRoutes(deps: AuthDeps) {
         }
         const user = await deps.auth.upsertUser(email);
         await deps.sessions.setClaimedByUserId(session.id, user.id); // the JC-19 merge, same as verify
-        return reply.redirect(`${base}/auth/verify?oauth=ok`);
+        return reply.redirect(`/auth/verify?oauth=ok`);
       },
     );
   };
