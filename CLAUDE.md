@@ -10,8 +10,10 @@ product development** as of 2026-07-18.
 It is a **clean-room repo**: logic is **ported by copying** from the personal-pipeline repo
 (`JobCrush`), never imported across repos. The two are separate products and evolve independently.
 
-**Status:** S0 (spikes + foundation) and **S1 (magic-mirror preview) are DONE** — the S1 quality
-floor passed JC-2 round 2 on 2026-07-18. S2 (full onboarding) is the next slice.
+**Status:** S0 (foundation), S1 (magic-mirror preview), and **S2 (own your facts) are DONE** — S2
+closed 2026-07-19: signup wall (magic-link + Google OAuth) → confirm deck → grill → audited root CV
+with fix-this review, claim graph v1 in Postgres. **S3 (the hunt) is the next slice** — E5 cluster
+engine first.
 
 ## Relationship to the JobCrush repo (read this before touching CV logic)
 

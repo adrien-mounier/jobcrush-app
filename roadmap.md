@@ -70,10 +70,10 @@ The hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, t
   wording against `docs/cv-brain/`, number-conservation + glyph guards, user-authored words never
   touched, any failure ships the unaudited CV) and the review (decision #7: the ready screen renders
   from the trace with a per-line "fix" that edits/rejects the claim behind it and rebuilds — never a
-  freeform CV editor). Google OAuth also live on the wall (ported from vitacairn). Still open (ops,
-  not code): on staging set `RESEND_API_KEY` + `WEB_URL` for real email, and `GOOGLE_CLIENT_ID` +
-  `GOOGLE_CLIENT_SECRET` (+ register `<web>/api/auth/google/callback` in the Google console) for
-  Google sign-in — unconfigured, both fall back gracefully (dev link / email-only wall).
+  freeform CV editor). Google OAuth also live on the wall (ported from vitacairn) — **configured on
+  staging 2026-07-19** (Google console client + `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`WEB_URL`
+  Fly secrets; `/auth/google` verified redirecting to Google). Still open (ops, not code):
+  `RESEND_API_KEY` on staging for real magic-link email (today it returns the dev link).
 
 Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 

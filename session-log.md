@@ -37,8 +37,17 @@ against the local stack — twice (once for audit+review, once after the OAuth w
 happy path fixes a line from the review and asserts the exact fixed words in the re-rendered CV.
 Playwright suite timeout 240→300s (build carries an audit LLM call).
 
-**S2 is done.** Next: S3 (the hunt) — E5 cluster engine first (riskiest), then E6 feed + hunt,
-E7 swipe + prepared apply. Ops leftover: `RESEND_API_KEY` + `WEB_URL` on staging for real email.
+**Staging OAuth activated live** during the session: Google Cloud client created (guided), the
+localhost-fallback redirect footgun found the honest way (a real click bounced to localhost) and
+fixed (`058a2ad`, relative redirects — see lessons.md), Fly secrets set via
+`~/.fly/bin/flyctl secrets set -a jobcrush-api-staging`, staging `/auth/google` verified 302→Google.
+Note: the client secret was pasted into the session transcript — rotate in the Google console if
+that ever matters. Session close: context files synced (AGENTS.md picked up PR #2's push-when-green
+git workflow + the session-hygiene section; both status blocks now say S2 done / S3 next).
+
+**S2 is done.** Next session: **kick off S3 (the hunt)** — E5 cluster engine first (riskiest), then
+E6 feed + hunt, E7 swipe + prepared apply; worth a short design pass on E5 before coding. Ops
+leftover: `RESEND_API_KEY` on staging for real email; confirm the Google click-through in a browser.
 
 ## 2026-07-19 (session 7) — E2 auth: magic-link, session merge, server wall, purge
 

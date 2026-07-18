@@ -2,6 +2,16 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## API routes the browser reaches through the /api proxy must redirect with RELATIVE paths
+
+The browser navigates to `<web-origin>/api/auth/google`; Next proxies it server-side, so the 302 the
+API returns is seen *on the web origin* — a relative `Location: /signup?...` lands exactly where it
+should in every environment. The first OAuth cut built absolute URLs from `WEB_URL` with a
+`localhost:3000` fallback, which bounced real staging users to localhost the moment the env var was
+missing (`058a2ad` fixed it). Only values sent to *third parties* (Google's `redirect_uri`) genuinely
+need the absolute `WEB_URL`. Applies to any future browser-facing redirect route (payment returns,
+share links).
+
 ## Check what already exists before assuming a ticket is greenfield
 
 JC-32 read as "port `validate_graph.mjs` + build the graph". Half of it was already done: the oracle,

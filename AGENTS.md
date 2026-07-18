@@ -10,8 +10,10 @@ product development** as of 2026-07-18.
 It is a **clean-room repo**: logic is **ported by copying** from the personal-pipeline repo
 (`JobCrush`), never imported across repos. The two are separate products and evolve independently.
 
-**Status:** S0 (spikes + foundation) and **S1 (magic-mirror preview) are DONE** — the S1 quality
-floor passed JC-2 round 2 on 2026-07-18. S2 (full onboarding) is the next slice.
+**Status:** S0 (foundation), S1 (magic-mirror preview), and **S2 (own your facts) are DONE** — S2
+closed 2026-07-19: signup wall (magic-link + Google OAuth) → confirm deck → grill → audited root CV
+with fix-this review, claim graph v1 in Postgres. **S3 (the hunt) is the next slice** — E5 cluster
+engine first.
 
 ## Relationship to the JobCrush repo (read this before touching CV logic)
 
@@ -40,15 +42,38 @@ not a copy to let rot.
 
 ## Git workflow
 
-Default to **committing directly to `main` and pushing** — solo repo, no branch protection.
+Solo repo, no branch protection. **Stay on `main`.** Don't create branches for ordinary work —
+branches + merging exist for teams and PR review, neither of which applies here.
 
-- **CI auto-deploys `main`** to Fly staging (both api + web) on every green push. So **keep `main`
-  green**: run `pnpm test && pnpm typecheck` before pushing. A red `main` ships a broken staging.
+**When a meaningful unit of work lands** (see session hygiene below), git is part of finishing it:
+
+1. **Commit to `main`** with a clear message. Commits are local and reversible — always safe to make.
+2. **Run `pnpm test && pnpm typecheck`.** Both green → **push**. Red → fix first; a red push ships a
+   broken staging. Pushing is automatic *only when green* — that gate is the safety net.
+
+**CI auto-deploys `main`** to Fly staging (both api + web) on every green push, so **a push is a
+deploy**. That is why the green gate is non-negotiable, and why we keep `main` green.
+
 - Use a branch + PR only for a `/code-review` pass or a change risky enough that staging must stay up
   while it is in progress.
 - Background-job **worktree isolation** still applies: finish in a worktree, then fast-forward into
-  `main` and push (no PR).
-- **Commit or push only when the user asks** (or when establishing a convention like this one).
+  `main` and push-when-green (no PR).
+
+## Keeping the plan honest (session hygiene)
+
+`roadmap.md`, `session-log.md`, and `lessons.md` are the project's memory — keep them current **as part
+of the work**, proactively, not only when asked or at session end:
+
+- After a **meaningful unit of work** lands (a ticket, a bug fix, a shippable slice), before moving on:
+  add a newest-first `session-log.md` entry with ticket + commit refs, update `roadmap.md` (mark
+  done, trim what remains), **then commit and push-when-green** (see Git workflow). "Meaningful" is a
+  judgment call — skip trivia; log what a future session would want to know.
+- When you **learn something non-obvious** that would save future-you time (a gotcha, a latent-bug
+  class, a tool or flow that works here), add a short `lessons.md` entry. Only genuinely reusable
+  insight — never a restatement of the code or the commit message.
+
+The `close-session` skill still does the full end-of-session sync (context files + all three docs);
+this rule keeps the docs honest *between* those, so no progress goes unrecorded.
 
 ## Repo rules
 
