@@ -32,21 +32,14 @@
 > **build arg**, not just a runtime env — Next resolves `rewrites()` at build time and bakes it
 > into the routes manifest. CI now deploys both apps on every green `main` push.
 >
-> **One open item — R2 CORS for the web origin (user, ~30 s in the Cloudflare dashboard).**
-> A credential-free preflight (`OPTIONS` on a real presigned PUT URL, `Origin:
-> https://jobcrush-web-staging.fly.dev`) returns `403` with no `Access-Control-Allow-*` headers —
-> the bucket does not yet allow the web origin, so browser uploads from the hosted app will fail.
-> The app's R2 token is **object-scoped**, so it cannot set bucket CORS (`PutBucketCors` →
-> `AccessDenied` even from inside the API container); this must be done with the dashboard or an
-> admin-scoped token. In R2 → bucket `jobcrush-staging` → Settings → CORS Policy, add:
-> ```json
-> [{ "AllowedOrigins": ["https://jobcrush-web-staging.fly.dev"],
->    "AllowedMethods": ["PUT", "GET", "HEAD"],
->    "AllowedHeaders": ["*"], "MaxAgeSeconds": 3600 }]
-> ```
-> Re-run the preflight (or just try an upload from the hosted app) to confirm it flips to `200`
-> with the origin echoed. **Redis** stays deferred (nothing uses it until the BullMQ driver).
-> Original checklist below for reference.
+> **R2 CORS for the web origin — done 2026-07-18.** Bucket `jobcrush-staging` now allows
+> `https://jobcrush-web-staging.fly.dev` for `PUT, GET, HEAD` (set via the Cloudflare dashboard —
+> the app's R2 token is object-scoped and can't call `PutBucketCors` itself). Verified with a
+> credential-free preflight (`OPTIONS` on a real presigned PUT URL, `Origin:
+> https://jobcrush-web-staging.fly.dev`): now `204` with `Access-Control-Allow-Origin` echoed and
+> `Access-Control-Allow-Methods: PUT, GET, HEAD` — was `403` with no CORS headers before. Browser
+> uploads from the hosted app are unblocked. **Redis** stays deferred (nothing uses it until the
+> BullMQ driver). Original checklist below for reference.
 
 Deployable artifacts in this repo are ready: `Dockerfile`, `fly.api.toml`, and the CI deploy job
 (disabled with `if: false` in `.github/workflows/ci.yml`). To go live:
