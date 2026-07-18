@@ -23,8 +23,10 @@ no autonomous submit, no LinkedIn credentials, ever).
 - [ ] **S2 — Own your facts** — _in progress_. Full onboarding: signup-after-preview → tiered confirm
       deck → grill → root-CV review → audit → quality gate → validated claim graph v1 in Postgres.
       Epics: E2 auth (JC-18/19/20), E3 deck + grill (JC-21…26, JC-55 Path B), E4 root CV / audit /
-      gate / graph (JC-27…32). **Status: E4 + E3 (deck/grill/Path-B) done; JC-6 persistence done —
-      sessions + the claim graph now survive restart in Postgres. E2 auth is the last S2 epic.**
+      gate / graph (JC-27…32). **Status: E2 auth done — the core loop closes end to end WITH accounts
+      (preview → signup wall → deck → grill → build → `ready`; sessions + claim graph in Postgres).
+      Remaining for S2 (polish, not demo blockers): the audit (LLM root-CV wording polish, decision
+      #6) and interactive root-CV review (fix-this loop-backs, decision #7).**
       _Demo: a user completes onboarding and their profile flips to `ready` with a validator-clean graph._
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
@@ -57,8 +59,15 @@ Riskiest first; per-ticket ACs are in the archived `dev-plan-v01-hosted.md`.
   `DATABASE_URL` is set (in-memory otherwise). A shared store-contract test runs both drivers (Postgres
   via pg-mem). Delivers S2's "claim graph v1 in Postgres" and unblocks real accounts. Jobs/uploads stay
   in-memory (transient run-state).
-- **E2 auth — the last S2 epic** — JC-18 magic-link, JC-19 anon→account merge (at the preview moment),
-  JC-20 anon auto-purge.
+- **✅ E2 auth done** (`1b398b9`) — passwordless magic-link (JC-18), anon→account merge via one
+  `setClaimedByUserId` (JC-19), auto-purge of unclaimed data (JC-20); server-side wall on the deck.
+  Security: single-use / 15-min / sha256-only tokens, per-IP rate limit, no email enumeration. Both
+  drivers pg-mem-tested; browser e2e traverses the wall.
+- **S2 remaining (polish, not demo blockers)** — the **audit** (LLM re-reads the root CV against
+  `docs/cv-brain/` and polishes wording, kickoff decision #6) and interactive **root-CV review**
+  (read-only + "fix this" loop-backs, decision #7). The core onboarding loop is done without them.
+  Also: wire a real mail provider (`RESEND_API_KEY`) + `WEB_URL` on staging when we want real email
+  (today staging returns the dev sign-in link).
 
 Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 
@@ -70,6 +79,10 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 
 ## Completed
 
+- [x] 2026-07-19 — **E2 auth (JC-18/19/20).** Passwordless magic-link login, anon→account merge
+      (one `setClaimedByUserId`), auto-purge; server-side signup wall on the onboarding routes.
+      Security ACs (single-use/expiry/rate-limit/no-enumeration) pg-mem + API tested; browser e2e
+      signs in through the wall. Commit `1b398b9`.
 - [x] 2026-07-18 — **JC-6 Postgres persistence.** Sessions + the confirmed-claim graph persist to
       Postgres (`DATABASE_URL`), in-memory otherwise; a shared contract test runs both drivers via
       pg-mem (which caught + fixed an in-memory seed idempotency bug). Meets S2's "graph v1 in Postgres".

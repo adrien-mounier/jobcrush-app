@@ -2,6 +2,36 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-19 (session 7) — E2 auth: magic-link, session merge, server wall, purge
+
+The last S2 epic, built from a PO design pass (16 candidates → v1). Commits `c7228f8` (backend) +
+`1b398b9` (web). Passwordless: request a link → click → the anonymous session is claimed for the user.
+
+- `mailer.ts` (seam like `llm.ts`): Resend if `RESEND_API_KEY`, else a dev mailer that RETURNS the link
+  so local/CI/e2e traverse signup without real mail.
+- `auth.ts`: users + login_tokens, both drivers (pg-mem contract-tested). Tokens single-use + 15-min +
+  stored only as sha256; a new link invalidates the prior.
+- `routes/auth.ts`: request-link (per-IP rate limit, uniform 200 — no enumeration; dev link only when
+  no real mailer), verify (consume → upsert user → `setClaimedByUserId` = the whole JC-19 merge), logout.
+- `requireUser` on deck/grill/build — the wall is server-side (§8-3). `purge.ts` (JC-20): one rule,
+  swept on boot + every 6h (Postgres only).
+- web: `/signup` + `/auth/verify` pages; the deck redirects to `/signup` on a 401 (server is the wall,
+  client reacts); `jfetch` now surfaces the error `code`.
+
+Verified: api 145 pass (auth contract both drivers + security ACs, purge via pg-mem); all 6 e2e green
+in a browser — the onboarding happy-path + loop-back now sign in through the wall before the deck
+(logs: request-link + verify). typecheck 7/7, build clean. **Real-Postgres auth path verified against
+staging** (`1b398b9`): the happy-path + loop-back run the full magic-link flow (request-link → verify →
+session claimed, writing users + login_tokens on real Postgres) then the deck; the wall-redirect test
+passes isolated in <1s (it flaked once under parallel load — bumped its timeout, same as the R2 case).
+
+**S2 status:** the core loop closes end to end WITH accounts. Remaining S2 polish (not demo blockers):
+the audit (LLM root-CV wording polish, decision #6) and interactive root-CV review (fix-this loop-backs,
+decision #7). Staging returns the dev sign-in link until `RESEND_API_KEY` + `WEB_URL` are set.
+
+**Next:** the audit + review polish, or start S3 (the hunt) — the S2 demo (ready profile + validated
+graph in Postgres, behind a signup wall) is achievable today.
+
 ## 2026-07-18 (session 6) — JC-6 Postgres persistence (sessions + claim graph)
 
 Chose "persistence first" over jumping to E2 auth: an account that vanishes on every deploy isn't an

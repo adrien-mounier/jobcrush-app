@@ -35,6 +35,7 @@ test("Path B door ('no CV yet', JC-55) is a polite coming-soon, not a dead click
 
 test("E2 wall: the deck is login-gated — logged out, it redirects to signup", async ({ page }) => {
   await page.goto("/deck/any-job-id"); // no session/login → server 401 login_required
-  await page.waitForURL(/\/signup/, { timeout: 15_000 });
+  // Generous: against staging this is 3 sequential round-trips (ensure session → deck → redirect).
+  await page.waitForURL(/\/signup/, { timeout: 45_000 });
   await expect(page.getByRole("heading", { name: /verify your email/i })).toBeVisible();
 });

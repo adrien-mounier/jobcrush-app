@@ -68,3 +68,14 @@ prompt first turned brittle re-derivation into "filter on `needs_grill`, type by
 Before writing detection or validation over a pipeline stage's output, read the stage that produced it
 — the signal you need is often already computed upstream. (Same lesson shape as JC-32: the contract
 layer was already built.)
+
+## Adding a server-side gate ripples to every test that used the gated routes
+
+E2's wall (`requireUser` on deck/grill/build) instantly 401'd every onboarding + grill API test — they
+built anonymous sessions the routes no longer accept. The fix wasn't editing each test one by one: it
+was folding the new precondition (a magic-link login) into the ONE shared `startSession` helper each
+file already used, so every test upgraded at once. When you gate shared routes with a new precondition,
+update the shared test setup, not the call sites — and it doubles as a real end-to-end exercise of the
+new login path on every run. (pg-mem earned its keep again here too: it caught nothing new, but running
+the auth store's SQL — single-use UPDATE…RETURNING, ON CONFLICT upsert — in CI is why staging wasn't
+the first place the queries ran.)
