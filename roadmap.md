@@ -30,7 +30,8 @@ no autonomous submit, no LinkedIn credentials, ever).
       Epics: E5 cluster engine (JC-33/34/35), E6 feed + hunt (JC-36…40), E7 swipe + prepared apply
       (JC-41/42/43). _Demo: the core loop closes on web._
 - [ ] **S4 — Every day, everywhere** — per-user daily runs + notifications; the **mobile app** (swipe,
-      deck, voice grill); email-ingest + LinkedIn import doors; update flow; GDPR delete/export.
+      deck, voice grill); the full Path B guided interview (JC-55, stubbed in S2); email-ingest +
+      LinkedIn import doors; update flow; GDPR delete/export.
       Epics: E8 daily loop (JC-44/45), E9 mobile (JC-46…49), E10 import doors (JC-50/51), E11 update +
       compliance (JC-52…54, JC-56). _Demo: a returning user gets fresh cards daily on their phone._
 
@@ -42,9 +43,17 @@ Riskiest first; per-ticket ACs are in the archived `dev-plan-v01-hosted.md`.
   JC-31 quality gate, JC-27 root-CV renderer (renders **only** from confirmed claims). These close the
   slice.
 - **E3 deck + grill** — JC-21 claims store + deck API, JC-22/23 deck UI (batch + individual cards,
-  ≤15 individual decisions), JC-24 grill engine, JC-26 grounded-fact persistence, JC-55 Path B
-  ("I don't have a CV").
+  ≤15 individual decisions), JC-24 grill engine (gap-filling only), JC-26 grounded-fact persistence,
+  JC-55 Path B ("I don't have a CV") — **stub only in S2**; the real guided interview moved to S4.
 - **E2 auth** — JC-18 magic-link, JC-19 anon→account merge (at the preview moment), JC-20 anon auto-purge.
+
+Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
+
+## Later (unscheduled)
+
+- **Advisory "improve your profile"** — a kind, never-blocking way to tell a user their profile is
+  thin and how to strengthen it. The S2 gate deliberately judges only our pipeline's work, never the
+  user's career; this feature is where profile-strength feedback will live. Decided 2026-07-18.
 
 ## Completed
 
