@@ -168,6 +168,43 @@ describe("JC-21/27/31 onboarding deck → build loop", () => {
     expect(tierById["acme-reworded"]).toBe("individual");
   });
 
+  it("build audits mined wording but never user-authored words, and a dead auditor never blocks (decision #6)", async () => {
+    const server = buildServer({
+      pipeline: fakePipeline(),
+      // Polishes every bullet it is shown; the route must only show it MINED bullets.
+      auditCv: async (bullets) => bullets.map((b) => `${b.text} (polished)`),
+    });
+    const cookie = await startSession(server.app);
+    const jobId = await mineAndGetJob(server, cookie);
+    await server.app.inject({ method: "POST", url: "/onboarding/deck", headers: { cookie }, payload: { jobId } });
+    const call = (method: "POST" | "PUT", url: string, payload?: unknown) =>
+      server.app.inject({ method, url, headers: { cookie }, payload });
+    await call("POST", "/onboarding/claims/acme-led-migration/confirm"); // mined → audited
+    await call("PUT", "/onboarding/claims/cert-pmp", { text: "PMP and PgMP, 2021." }); // user-authored → untouched
+    await call("POST", "/onboarding/claims/skill-jira/reject");
+
+    const body = (await call("POST", "/onboarding/build")).json();
+    expect(body.stage).toBe("ready");
+    expect(body.gate).toEqual({ ok: true, errors: [] }); // the gate certifies the AUDITED trace
+    const md = body.rootCv.markdown as string;
+    expect(md).toContain("Led the checkout replatform, delivered 2 months early. (polished)");
+    expect(md).toContain("PMP and PgMP, 2021."); // the user's own words, exactly
+    expect(md).not.toContain("PMP and PgMP, 2021. (polished)");
+
+    // An auditor that dies never takes the build down: same session, audit now throws → unaudited CV.
+    const down = buildServer({
+      pipeline: fakePipeline(),
+      auditCv: async () => { throw new Error("model down"); },
+    });
+    const cookie2 = await startSession(down.app);
+    const jobId2 = await mineAndGetJob(down, cookie2);
+    await down.app.inject({ method: "POST", url: "/onboarding/deck", headers: { cookie: cookie2 }, payload: { jobId: jobId2 } });
+    await down.app.inject({ method: "POST", url: "/onboarding/claims/acme-led-migration/confirm", headers: { cookie: cookie2 } });
+    const body2 = (await down.app.inject({ method: "POST", url: "/onboarding/build", headers: { cookie: cookie2 } })).json();
+    expect(body2.stage).toBe("ready");
+    expect(body2.rootCv.markdown).toContain("Led the checkout replatform, delivered 2 months early.");
+  });
+
   it("the deck is session-scoped: another session cannot open your job", async () => {
     const server = buildServer({ pipeline: fakePipeline() });
     const mine = await startSession(server.app);

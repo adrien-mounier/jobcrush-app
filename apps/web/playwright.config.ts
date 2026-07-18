@@ -10,7 +10,7 @@ import { defineConfig } from "@playwright/test";
 //               pnpm --filter @jobcrush/web e2e
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 240_000, // a full paste → mine → preview → deck → build round trip on the real model
+  timeout: 300_000, // paste → mine → preview → deck → build (now with the audit) + a review-fix rebuild, all on the real model
   expect: { timeout: 15_000 },
   reporter: [["list"]],
   use: {

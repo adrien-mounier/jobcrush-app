@@ -76,7 +76,7 @@ test("happy path: reject one, confirm the rest → build → verified root CV", 
 
   const grillQ = page.getByTestId("grill-question").first();
   const reward = page.getByRole("heading", { name: "You own your facts" });
-  await expect(grillQ.or(reward)).toBeVisible({ timeout: 60_000 });
+  await expect(grillQ.or(reward)).toBeVisible({ timeout: 120_000 }); // build includes the LLM audit
 
   let grillAnswer: string | null = null;
   if (await grillQ.isVisible()) {
@@ -86,17 +86,26 @@ test("happy path: reject one, confirm the rest → build → verified root CV", 
   }
 
   // Clean gate → the reward screen with a rendered CV…
-  await expect(reward).toBeVisible({ timeout: 30_000 });
+  await expect(reward).toBeVisible({ timeout: 120_000 }); // build includes the LLM audit
   const rootcv = page.getByTestId("rootcv");
   await expect(rootcv).toContainText("•"); // at least one bullet rendered
 
-  // …a grill answer we gave becomes a fact in the CV (JC-24 persistence)…
+  // …a grill answer we gave becomes a fact in the CV (JC-24 persistence; user-authored words are
+  // never reworded by the audit, so the exact text must survive)…
   if (grillAnswer) await expect(rootcv).toContainText(grillAnswer);
 
   // …and the claim we rejected is nowhere in it (nothing renders that the user didn't confirm).
   if (rejectedText && rejectedText.length > 12) {
     await expect(rootcv).not.toContainText(rejectedText);
   }
+
+  // The root-CV review (decision #7): fix a line → the fact behind it is edited (user-authored),
+  // the CV rebuilds through audit + gate, and the exact fixed words render.
+  const fixedText = "Chaired the weekly delivery review for 6 squads";
+  await page.getByTestId("cv-bullet").first().getByRole("button", { name: "fix" }).click();
+  await page.getByTestId("fix-editor").getByRole("textbox").fill(fixedText);
+  await page.getByRole("button", { name: "Save fix" }).click();
+  await expect(rootcv).toContainText(fixedText, { timeout: 120_000 });
 });
 
 test("loop-back: rejecting every fact loops back, never certifies an empty CV", async ({ page }) => {

@@ -20,6 +20,7 @@ import { buildClaimGraph } from "../graph.js";
 import { renderRootCv } from "../rootcv.js";
 import { runGate } from "../gate.js";
 import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
+import { auditRootCv, type CvAuditor } from "../audit.js";
 
 export interface OnboardingDeps {
   claims: ClaimStore;
@@ -27,6 +28,8 @@ export interface OnboardingDeps {
   sessions: SessionStore;
   /** JC-24: LLM phrasing for grill questions. Absent → template phrasing (tests + the safe fallback). */
   phraseGrill?: GrillPhraser;
+  /** S2 decision #6: LLM wording audit of the built root CV. Absent → the CV ships unaudited. */
+  auditCv?: CvAuditor;
 }
 
 /** The miner stores its full doc (incl. per-role date flags) under progress.miner.doc. */
@@ -163,13 +166,20 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       },
     );
 
-    // Build: the confirmed claims → graph → root CV → gate. Pure + synchronous. On a clean gate the
-    // session flips to `ready`; a failing gate returns the errors (each names a node) and `loopback`.
+    // Build: the confirmed claims → graph → root CV → audit → gate. On a clean gate the session
+    // flips to `ready`; a failing gate returns the errors (each names a node) and `loopback`.
     app.post("/onboarding/build", async (req) => {
       const session = requireUser(req);
       const confirmed = await deps.claims.confirmed(session.id);
       const graph = buildClaimGraph(confirmed);
-      const rootCv = renderRootCv(graph);
+      let rootCv = renderRootCv(graph);
+      // The audit (decision #6) polishes mined wording before the gate certifies. User-authored
+      // claims are the user's own words — never audited. auditRootCv never throws: any failure
+      // returns the unaudited CV, and nodeIds are untouched so the gate below still holds.
+      if (deps.auditCv && confirmed.length > 0) {
+        const userAuthored = new Set(confirmed.filter((c) => c.origin === "user-authored").map((c) => c.id));
+        rootCv = await auditRootCv(rootCv, deps.auditCv, userAuthored);
+      }
       // An empty confirmed set builds a structurally-valid but empty graph — the validator passes it,
       // yet a verified CV with nothing in it isn't "ready". Loop back to keep at least one fact
       // (a precise, non-dead-end loop-back, kickoff decision 5), never certify an empty CV. This is

@@ -136,7 +136,7 @@ export default function DeckScreen() {
 
   if (error && !claims) return <main><p className="error">{error}</p></main>;
   if (!claims) return <main><p className="lede">Opening your deck…</p></main>;
-  if (built) return <BuildOutcome result={built} onFix={() => setBuilt(null)} />;
+  if (built) return <BuildOutcome result={built} onFix={() => setBuilt(null)} onRebuilt={setBuilt} />;
 
   if (grill)
     return (
@@ -281,7 +281,24 @@ export default function DeckScreen() {
 
 // The build result: a clean gate flips to `ready` and shows the master CV; a failing gate loops back
 // with the reasons (each names a claim), never a dead end (kickoff decision 5).
-function BuildOutcome({ result, onFix }: { result: BuildResult; onFix: () => void }) {
+//
+// The ready screen is the root-CV REVIEW (kickoff decision 7): read-only rendering from the trace —
+// every bullet keeps its claim pointer — with a "fix" affordance per line. A fix reopens the claim
+// (edit → user-authored via the store, or remove → reject) and rebuilds, so the CV re-renders from
+// verified facts. Never a freeform editor over the CV text itself.
+function BuildOutcome({
+  result,
+  onFix,
+  onRebuilt,
+}: {
+  result: BuildResult;
+  onFix: () => void;
+  onRebuilt: (r: BuildResult) => void;
+}) {
+  const [fixing, setFixing] = useState<{ nodeId: string; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   if (result.stage !== "ready") {
     return (
       <main>
@@ -300,20 +317,89 @@ function BuildOutcome({ result, onFix }: { result: BuildResult; onFix: () => voi
       </main>
     );
   }
+
+  // Group the trace entries by section, preserving render order.
+  const sections: Array<[string, typeof result.rootCv.trace.entries]> = [];
+  for (const e of result.rootCv.trace.entries) {
+    const last = sections[sections.length - 1];
+    if (last && last[0] === e.section) last[1].push(e);
+    else sections.push([e.section, [e]]);
+  }
+
+  // The fix flows through the claims store, then the CV rebuilds (re-audited, re-gated).
+  const applyFix = async (action: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+      onRebuilt(await buildRootCv());
+      setFixing(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "could not apply your fix");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <main style={{ maxWidth: 720 }}>
       <h1>You own your facts</h1>
       <p className="lede">
-        Every line below traces to something you confirmed. This is your verified master CV.
+        Every line below traces to something you confirmed. This is your verified master CV. Spot
+        something off? Fix the fact behind the line and the CV re-renders.
       </p>
       <div className="card" data-testid="rootcv">
-        {result.rootCv.markdown.split("\n").map((line, i) => {
-          if (line.startsWith("## ")) return <h3 key={i}>{line.slice(3)}</h3>;
-          if (line.startsWith("- ")) return <p key={i} style={{ margin: "4px 0" }}>• {line.slice(2)}</p>;
-          if (line.startsWith("# ")) return null;
-          return null;
-        })}
+        {sections.map(([section, entries]) => (
+          <div key={section}>
+            <h3>{section}</h3>
+            {entries.map((e) => {
+              const nodeId = e.nodeIds[0];
+              if (fixing?.nodeId === nodeId)
+                return (
+                  <div key={nodeId} data-testid="fix-editor" style={{ margin: "8px 0" }}>
+                    <textarea
+                      rows={3}
+                      value={fixing.text}
+                      onChange={(ev) => setFixing({ nodeId, text: ev.target.value })}
+                    />
+                    <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        className="btn"
+                        disabled={busy || fixing.text.trim().length < 1}
+                        onClick={() => applyFix(() => editClaim(nodeId, fixing.text))}
+                      >
+                        {busy ? "Rebuilding…" : "Save fix"}
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        disabled={busy}
+                        onClick={() => applyFix(() => rejectClaim(nodeId))}
+                      >
+                        Remove this line
+                      </button>
+                      <button className="btn btn-secondary" disabled={busy} onClick={() => setFixing(null)}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                );
+              return (
+                <p key={nodeId} data-testid="cv-bullet" style={{ margin: "4px 0" }}>
+                  • {e.bullet}{" "}
+                  <button
+                    onClick={() => setFixing({ nodeId, text: e.bullet })}
+                    title="Something wrong? Fix the fact behind this line."
+                    style={{ background: "none", border: "none", color: "var(--jc-accent)", cursor: "pointer", padding: 0, font: "inherit", fontSize: "0.85em" }}
+                  >
+                    fix
+                  </button>
+                </p>
+              );
+            })}
+          </div>
+        ))}
       </div>
+      {error && <p className="error">{error}</p>}
     </main>
   );
 }

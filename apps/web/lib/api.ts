@@ -97,10 +97,19 @@ export interface DeckState {
   claims: DeckClaim[];
 }
 
+// One rendered CV line + the confirmed claim(s) behind it — the review's "fix this" pointers
+// (kickoff decision 7): a fix reopens the claim via editClaim/rejectClaim, never edits the CV text.
+export interface TraceEntry {
+  bullet: string;
+  section: string;
+  nodeIds: string[];
+  classifications: string[];
+}
+
 export interface BuildResult {
   stage: "ready" | "loopback";
   gate: { ok: boolean; errors: string[] };
-  rootCv: { markdown: string; trace: unknown };
+  rootCv: { markdown: string; trace: { entries: TraceEntry[] } };
 }
 
 export function openDeck(jobId: string): Promise<DeckState> {

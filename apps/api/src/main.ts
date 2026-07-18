@@ -7,6 +7,7 @@ import { llmFromEnv } from "./llm.js";
 import { makeMineStep } from "./miner.js";
 import { makePreviewStep } from "./preview.js";
 import { makeGrillPhraser } from "./grill.js";
+import { makeCvAuditor } from "./audit.js";
 import { sessionStoreFromEnv } from "./sessions.js";
 import { claimStoreFromEnv } from "./claims.js";
 import { authStoreFromEnv } from "./auth.js";
@@ -39,6 +40,7 @@ const { app } = buildServer({
   blobs: storageFromEnv(process.env.UPLOAD_DIR ?? join(process.cwd(), "data", "uploads")),
   pipeline: { mine: makeMineStep(llm), preview: makePreviewStep(llm) },
   phraseGrill: makeGrillPhraser(llm),
+  auditCv: makeCvAuditor(llm),
 });
 
 // JC-20 purge: sweep unclaimed anonymous sessions/claims + spent tokens on boot and every 6h

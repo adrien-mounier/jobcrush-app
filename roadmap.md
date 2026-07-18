@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-07-18_
+_Last updated: 2026-07-19_
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
@@ -20,13 +20,12 @@ no autonomous submit, no LinkedIn credentials, ever).
 - [x] **S1 — Magic mirror (walking skeleton)** — _done 2026-07-18_. A stranger on the web app, no
       account, uploads a CV and gets a watermarked tailored preview in ~2 min. **Quality floor passed
       (JC-2 round 2).** The CV brain that powers it lives in `docs/cv-brain/`.
-- [ ] **S2 — Own your facts** — _in progress_. Full onboarding: signup-after-preview → tiered confirm
-      deck → grill → root-CV review → audit → quality gate → validated claim graph v1 in Postgres.
-      Epics: E2 auth (JC-18/19/20), E3 deck + grill (JC-21…26, JC-55 Path B), E4 root CV / audit /
-      gate / graph (JC-27…32). **Status: E2 auth done — the core loop closes end to end WITH accounts
-      (preview → signup wall → deck → grill → build → `ready`; sessions + claim graph in Postgres).
-      Remaining for S2 (polish, not demo blockers): the audit (LLM root-CV wording polish, decision
-      #6) and interactive root-CV review (fix-this loop-backs, decision #7).**
+- [x] **S2 — Own your facts** — _done 2026-07-19_. Full onboarding: signup-after-preview → tiered
+      confirm deck → grill → root CV → review → audit → quality gate → validated claim graph v1 in
+      Postgres. Epics: E2 auth (JC-18/19/20), E3 deck + grill (JC-21…26, JC-55 Path B), E4 root CV /
+      audit / gate / graph (JC-27…32). The audit (decision #6) and the root-CV review with fix-this
+      loop-backs (decision #7) closed the slice. Ops note: staging returns the dev sign-in link until
+      `RESEND_API_KEY` + `WEB_URL` are set.
       _Demo: a user completes onboarding and their profile flips to `ready` with a validator-clean graph._
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
@@ -38,9 +37,13 @@ no autonomous submit, no LinkedIn credentials, ever).
       Epics: E8 daily loop (JC-44/45), E9 mobile (JC-46…49), E10 import doors (JC-50/51), E11 update +
       compliance (JC-52…54, JC-56). _Demo: a returning user gets fresh cards daily on their phone._
 
-## Backlog (S2, the immediate next work)
+## Backlog (S3, the immediate next work)
 
-Riskiest first; per-ticket ACs are in the archived `dev-plan-v01-hosted.md`.
+The hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6 feed + hunt
+(JC-36…40), then E7 swipe + prepared apply (JC-41/42/43). Per-ticket ACs are in the archived
+`dev-plan-v01-hosted.md`.
+
+### S2 record (all done)
 
 - **✅ E4 spine complete and wired** (JC-32 `a77f974`, JC-21/31/27 `8cd246a`, E3 slice A `7994b29`) —
   the onboarding loop now **closes end to end**: `POST /onboarding/deck` → confirm/edit/reject →
@@ -63,11 +66,12 @@ Riskiest first; per-ticket ACs are in the archived `dev-plan-v01-hosted.md`.
   `setClaimedByUserId` (JC-19), auto-purge of unclaimed data (JC-20); server-side wall on the deck.
   Security: single-use / 15-min / sha256-only tokens, per-IP rate limit, no email enumeration. Both
   drivers pg-mem-tested; browser e2e traverses the wall.
-- **S2 remaining (polish, not demo blockers)** — the **audit** (LLM re-reads the root CV against
-  `docs/cv-brain/` and polishes wording, kickoff decision #6) and interactive **root-CV review**
-  (read-only + "fix this" loop-backs, decision #7). The core onboarding loop is done without them.
-  Also: wire a real mail provider (`RESEND_API_KEY`) + `WEB_URL` on staging when we want real email
-  (today staging returns the dev sign-in link).
+- **✅ Audit + root-CV review done → S2 complete** — the audit (decision #6: LLM polishes mined
+  wording against `docs/cv-brain/`, number-conservation + glyph guards, user-authored words never
+  touched, any failure ships the unaudited CV) and the review (decision #7: the ready screen renders
+  from the trace with a per-line "fix" that edits/rejects the claim behind it and rebuilds — never a
+  freeform CV editor). Still open (ops, not code): wire `RESEND_API_KEY` + `WEB_URL` on staging when
+  we want real email (today staging returns the dev sign-in link).
 
 Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 
@@ -79,6 +83,13 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 
 ## Completed
 
+- [x] 2026-07-19 — **Audit + root-CV review → S2 done.** The audit (decision #6): `audit.ts` +
+      `prompts/root-cv-audit.md` polish mined bullet wording inside `/onboarding/build`, gated by
+      mechanical guards (numbers conserved exactly, no forbidden glyphs, per-bullet fallback,
+      user-authored words never sent to the model); the gate certifies the audited trace. The review
+      (decision #7): the ready screen renders from the trace, each line carries a "fix" that reopens
+      the claim (edit → user-authored / remove → reject) and rebuilds. api 152 pass, typecheck 7/7,
+      all 6 browser e2e green including a review fix traced into the re-rendered CV.
 - [x] 2026-07-19 — **E2 auth (JC-18/19/20).** Passwordless magic-link login, anon→account merge
       (one `setClaimedByUserId`), auto-purge; server-side signup wall on the onboarding routes.
       Security ACs (single-use/expiry/rate-limit/no-enumeration) pg-mem + API tested; browser e2e

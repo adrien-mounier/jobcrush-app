@@ -37,6 +37,22 @@ export interface RootCv {
 
 const headingFor = (n: ClaimNode) => SECTIONS.find(([tag]) => tag === n.tags[0])?.[1] ?? OTHER;
 
+/** Markdown from trace entries (already in render order). The audit reuses this after polishing. */
+export function markdownFromEntries(entries: TraceEntry[]): string {
+  const lines: string[] = ["# Root CV", ""];
+  let current: string | null = null;
+  for (const e of entries) {
+    if (e.section !== current) {
+      if (current !== null) lines.push("");
+      lines.push(`## ${e.section}`, "");
+      current = e.section;
+    }
+    lines.push(`- ${e.bullet}`);
+  }
+  if (entries.length) lines.push("");
+  return lines.join("\n");
+}
+
 export function renderRootCv(graph: ClaimGraph, cvFile = "root-cv.md"): RootCv {
   const renderable = graph.nodes.filter((n) => n.renderable);
 
@@ -50,14 +66,9 @@ export function renderRootCv(graph: ClaimGraph, cvFile = "root-cv.md"): RootCv {
   }
 
   const order = [...SECTIONS.map(([, h]) => h), OTHER];
-  const lines: string[] = ["# Root CV", ""];
   const entries: TraceEntry[] = [];
   for (const heading of order) {
-    const nodes = buckets.get(heading);
-    if (!nodes?.length) continue;
-    lines.push(`## ${heading}`, "");
-    for (const n of nodes) {
-      lines.push(`- ${n.text}`);
+    for (const n of buckets.get(heading) ?? []) {
       entries.push({
         bullet: n.text,
         section: heading,
@@ -65,11 +76,10 @@ export function renderRootCv(graph: ClaimGraph, cvFile = "root-cv.md"): RootCv {
         classifications: [n.classification],
       });
     }
-    lines.push("");
   }
 
   return {
-    markdown: lines.join("\n"),
+    markdown: markdownFromEntries(entries),
     trace: { graphVersion: graph.graphVersion, cvFile, entries, gaps: [] },
   };
 }

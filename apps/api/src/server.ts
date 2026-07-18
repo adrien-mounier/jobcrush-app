@@ -19,6 +19,7 @@ import { cvRoutes } from "./routes/cv.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
 import { InMemoryClaimStore, type ClaimStore } from "./claims.js";
 import type { GrillPhraser } from "./grill.js";
+import type { CvAuditor } from "./audit.js";
 import { InMemoryAuthStore, type AuthStore } from "./auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { DevMailer, type Mailer } from "./mailer.js";
@@ -45,6 +46,8 @@ export interface BuildOptions {
   claims?: ClaimStore;
   /** JC-24 grill question phrasing (LLM-backed in prod). Absent → deterministic template phrasing. */
   phraseGrill?: GrillPhraser;
+  /** S2 decision #6 root-CV wording audit (LLM-backed in prod). Absent → the CV ships unaudited. */
+  auditCv?: CvAuditor;
   /** E2 accounts + magic-link tokens. Postgres driver lands with JC-6's DATABASE_URL. */
   auth?: AuthStore;
   /** E2 email seam. Absent → DevMailer (returns the link instead of sending it). */
@@ -208,7 +211,7 @@ export function buildServer(opts: BuildOptions = {}) {
   };
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps }));
-  app.register(onboardingRoutes({ claims, store, sessions, phraseGrill: opts.phraseGrill }));
+  app.register(onboardingRoutes({ claims, store, sessions, phraseGrill: opts.phraseGrill, auditCv: opts.auditCv }));
   app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl }));
 
   // Job payloads sent to the client: the preview HTML travels only via GET /previews/:jobId
