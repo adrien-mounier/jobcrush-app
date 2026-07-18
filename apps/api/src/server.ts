@@ -19,6 +19,9 @@ import { cvRoutes } from "./routes/cv.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
 import { InMemoryClaimStore, type ClaimStore } from "./claims.js";
 import type { GrillPhraser } from "./grill.js";
+import { InMemoryAuthStore, type AuthStore } from "./auth.js";
+import { authRoutes } from "./routes/auth.js";
+import { DevMailer, type Mailer } from "./mailer.js";
 import { createGuestbook, renderGuestbookHtml, type Guestbook } from "./guestbook.js";
 import type { JobRecord } from "./jobs.js";
 
@@ -42,6 +45,12 @@ export interface BuildOptions {
   claims?: ClaimStore;
   /** JC-24 grill question phrasing (LLM-backed in prod). Absent → deterministic template phrasing. */
   phraseGrill?: GrillPhraser;
+  /** E2 accounts + magic-link tokens. Postgres driver lands with JC-6's DATABASE_URL. */
+  auth?: AuthStore;
+  /** E2 email seam. Absent → DevMailer (returns the link instead of sending it). */
+  mailer?: Mailer;
+  /** Absolute web origin for emailed sign-in links (only needed with a real mailer). */
+  webUrl?: string;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */
@@ -55,12 +64,26 @@ export function requireSession(req: FastifyRequest): SessionRecord {
   return req.session;
 }
 
+/** E2 wall (server-side, spec §8-3): onboarding routes past the preview require a claimed session. */
+export function requireUser(req: FastifyRequest): SessionRecord {
+  const session = requireSession(req);
+  if (!session.claimedByUserId) {
+    const err = new Error("login required") as FastifyError;
+    err.statusCode = 401;
+    err.code = "login_required";
+    throw err;
+  }
+  return session;
+}
+
 export function buildServer(opts: BuildOptions = {}) {
   const store = opts.store ?? new InMemoryJobStore();
   const sessions = opts.sessions ?? new InMemorySessionStore();
   const blobs = opts.blobs ?? new InMemoryBlobStorage();
   const uploads = opts.uploads ?? new InMemoryUploadStore();
   const claims = opts.claims ?? new InMemoryClaimStore();
+  const auth = opts.auth ?? new InMemoryAuthStore();
+  const mailer = opts.mailer ?? new DevMailer();
   const guestbook = opts.guestbook ?? createGuestbook(process.env.DATABASE_URL);
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" }).withTypeProvider<ZodTypeProvider>();
   guestbook.init().catch((err) => app.log.error(err, "guestbook init failed"));
@@ -186,6 +209,7 @@ export function buildServer(opts: BuildOptions = {}) {
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps }));
   app.register(onboardingRoutes({ claims, store, sessions, phraseGrill: opts.phraseGrill }));
+  app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl }));
 
   // Job payloads sent to the client: the preview HTML travels only via GET /previews/:jobId
   // (in-app view), and jobs bound to a session are visible to that session alone.
@@ -255,5 +279,5 @@ export function buildServer(opts: BuildOptions = {}) {
     },
   );
 
-  return { app, store, sessions, blobs, uploads, claims };
+  return { app, store, sessions, blobs, uploads, claims, auth };
 }

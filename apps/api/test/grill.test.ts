@@ -100,7 +100,17 @@ function fakeMine(claims: ClaimRecord[], roles: MinedRole[]) {
 
 async function startSession(app: ReturnType<typeof buildServer>["app"]) {
   const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });
-  return `jc_session=${res.cookies.find((c) => c.name === "jc_session")!.value}`;
+  const cookie = `jc_session=${res.cookies.find((c) => c.name === "jc_session")!.value}`;
+  // E2 wall: onboarding routes require a claimed session — log in via the magic-link.
+  const link = await app.inject({
+    method: "POST",
+    url: "/auth/request-link",
+    headers: { cookie },
+    payload: { email: "e2e@example.com" },
+  });
+  const token = new URL("http://x" + link.json().devLink).searchParams.get("token")!;
+  await app.inject({ method: "POST", url: "/auth/verify", headers: { cookie }, payload: { token } });
+  return cookie;
 }
 
 async function seededDeck(server: ReturnType<typeof buildServer>, cookie: string) {

@@ -12,7 +12,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import type { CandidateClaim, MinedRole } from "@jobcrush/contracts";
-import { requireSession } from "../server.js";
+import { requireUser } from "../server.js";
 import type { ClaimStore } from "../claims.js";
 import type { JobStore } from "../jobs.js";
 import type { SessionStore } from "../sessions.js";
@@ -54,7 +54,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       "/onboarding/deck",
       { schema: { body: z.object({ jobId: z.string() }) } },
       async (req, reply) => {
-        const session = requireSession(req);
+        const session = requireUser(req);
         const job = await deps.store.get(req.body.jobId);
         if (!job || job.sessionId !== session.id)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown job" } });
@@ -80,7 +80,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       "/onboarding/claims/:id/confirm",
       { schema: { params: z.object({ id: z.string() }) } },
       async (req) => {
-        const session = requireSession(req);
+        const session = requireUser(req);
         await deps.claims.confirm(session.id, req.params.id);
         return { ok: true };
       },
@@ -90,7 +90,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       "/onboarding/claims/:id/reject",
       { schema: { params: z.object({ id: z.string() }) } },
       async (req) => {
-        const session = requireSession(req);
+        const session = requireUser(req);
         await deps.claims.reject(session.id, req.params.id);
         return { ok: true };
       },
@@ -106,7 +106,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         },
       },
       async (req) => {
-        const session = requireSession(req);
+        const session = requireUser(req);
         await deps.claims.edit(session.id, req.params.id, req.body.text);
         return { ok: true };
       },
@@ -118,7 +118,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       "/onboarding/grill",
       { schema: { body: z.object({ jobId: z.string() }) } },
       async (req, reply) => {
-        const session = requireSession(req);
+        const session = requireUser(req);
         const job = await deps.store.get(req.body.jobId);
         if (!job || job.sessionId !== session.id)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown job" } });
@@ -146,7 +146,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       "/onboarding/grill/answer",
       { schema: { body: z.object({ jobId: z.string(), gapId: z.string(), answer: z.string().trim().min(1) }) } },
       async (req, reply) => {
-        const session = requireSession(req);
+        const session = requireUser(req);
         const job = await deps.store.get(req.body.jobId);
         if (!job || job.sessionId !== session.id)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown job" } });
@@ -166,7 +166,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // Build: the confirmed claims → graph → root CV → gate. Pure + synchronous. On a clean gate the
     // session flips to `ready`; a failing gate returns the errors (each names a node) and `loopback`.
     app.post("/onboarding/build", async (req) => {
-      const session = requireSession(req);
+      const session = requireUser(req);
       const confirmed = await deps.claims.confirmed(session.id);
       const graph = buildClaimGraph(confirmed);
       const rootCv = renderRootCv(graph);

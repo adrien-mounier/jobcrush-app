@@ -28,6 +28,8 @@ export interface SessionStore {
   touch(id: string): Promise<void>;
   setTargetTitles(id: string, titles: string[]): Promise<void>;
   setStage(id: string, stage: OnboardingStage): Promise<void>;
+  /** JC-19 merge: claim this anonymous session for a user (the whole merge is this one update). */
+  setClaimedByUserId(id: string, userId: string): Promise<void>;
 }
 
 function newSession(): SessionRecord {
@@ -77,6 +79,11 @@ export class InMemorySessionStore implements SessionStore {
   async setStage(id: string, stage: OnboardingStage): Promise<void> {
     const s = this.byId.get(id);
     if (s) s.stage = stage;
+  }
+
+  async setClaimedByUserId(id: string, userId: string): Promise<void> {
+    const s = this.byId.get(id);
+    if (s) s.claimedByUserId = userId;
   }
 }
 
@@ -136,6 +143,10 @@ export class PgSessionStore implements SessionStore {
   }
   async setStage(id: string, stage: OnboardingStage): Promise<void> {
     await this.pool.query(`UPDATE sessions SET stage = $2 WHERE id = $1`, [id, stage]);
+  }
+
+  async setClaimedByUserId(id: string, userId: string): Promise<void> {
+    await this.pool.query(`UPDATE sessions SET claimed_by_user_id = $2 WHERE id = $1`, [id, userId]);
   }
 }
 
