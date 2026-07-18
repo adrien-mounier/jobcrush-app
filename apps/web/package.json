@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no unit tests (UI is exercised by the S1 staging smoke)'"
+    "test": "echo 'no unit tests (UI is exercised by the e2e onboarding smoke)'",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@jobcrush/ui": "workspace:*",
@@ -16,6 +17,7 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^22.0.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",

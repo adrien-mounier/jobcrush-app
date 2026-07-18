@@ -122,7 +122,7 @@ export default function DeckScreen() {
         <>
           <h2 style={{ fontSize: "1.1rem" }}>Worth a closer look</h2>
           {individual.map((c) => (
-            <div className="card" key={c.id}>
+            <div className="card" data-testid="individual-claim" key={c.id}>
               {editing?.id === c.id ? (
                 <>
                   <textarea
@@ -141,7 +141,9 @@ export default function DeckScreen() {
                 </>
               ) : (
                 <>
-                  <p style={{ margin: "0 0 6px", fontWeight: 600 }}>{c.text}</p>
+                  <p style={{ margin: "0 0 6px", fontWeight: 600 }} data-testid="claim-text">
+                    {c.text}
+                  </p>
                   <p className="lede" style={{ fontSize: "0.85rem", margin: "0 0 12px" }}>
                     From your CV: “{c.source_quote}”
                   </p>
@@ -250,7 +252,7 @@ function BuildOutcome({ result, onFix }: { result: BuildResult; onFix: () => voi
       <p className="lede">
         Every line below traces to something you confirmed. This is your verified master CV.
       </p>
-      <div className="card">
+      <div className="card" data-testid="rootcv">
         {result.rootCv.markdown.split("\n").map((line, i) => {
           if (line.startsWith("## ")) return <h3 key={i}>{line.slice(3)}</h3>;
           if (line.startsWith("- ")) return <p key={i} style={{ margin: "4px 0" }}>• {line.slice(2)}</p>;

@@ -10,3 +10,5 @@ coverage/
 data/uploads/
 next-env.d.ts
 scripts/s1-smoke-preview.html
+test-results/
+playwright-report/
