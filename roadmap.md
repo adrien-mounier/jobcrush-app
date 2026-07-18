@@ -27,6 +27,11 @@ no autonomous submit, no LinkedIn credentials, ever).
       loop-backs (decision #7) closed the slice. Ops note: staging returns the dev sign-in link until
       `RESEND_API_KEY` + `WEB_URL` are set.
       _Demo: a user completes onboarding and their profile flips to `ready` with a validator-clean graph._
+- [ ] **S2.5 — UX/UI cleanup** — _decided 2026-07-19: polish the existing flow before building S3._
+      The onboarding journey works end to end but the experience is rough; clean it up so what
+      exists feels like a product before adding the next slice. Scope: a critique pass over the
+      live flow (import → progress → preview → signup → deck → grill → ready/review) to enumerate
+      concrete fixes, then apply them. _Demo: the current flow, same features, feels polished._
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
       Epics: E5 cluster engine (JC-33/34/35), E6 feed + hunt (JC-36…40), E7 swipe + prepared apply
@@ -37,11 +42,14 @@ no autonomous submit, no LinkedIn credentials, ever).
       Epics: E8 daily loop (JC-44/45), E9 mobile (JC-46…49), E10 import doors (JC-50/51), E11 update +
       compliance (JC-52…54, JC-56). _Demo: a returning user gets fresh cards daily on their phone._
 
-## Backlog (S3, the immediate next work)
+## Backlog (S2.5, the immediate next work)
 
-The hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6 feed + hunt
-(JC-36…40), then E7 swipe + prepared apply (JC-41/42/43). Per-ticket ACs are in the archived
-`dev-plan-v01-hosted.md`.
+UX/UI cleanup of the existing flow (see milestone above). First step: walk the live staging flow
+and enumerate the concrete improvements into a checklist here, then work through it.
+
+Then S3, the hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6
+feed + hunt (JC-36…40), then E7 swipe + prepared apply (JC-41/42/43). Per-ticket ACs are in the
+archived `dev-plan-v01-hosted.md`.
 
 ### S2 record (all done)
 
