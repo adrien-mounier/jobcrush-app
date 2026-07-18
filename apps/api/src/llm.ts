@@ -25,9 +25,18 @@ export class AnthropicLlm implements LlmClient {
       },
       // claude-sonnet-5 rejects sampling params (temperature/top_p/top_k) — omit them;
       // determinism is steered via the prompt.
+      //
+      // sonnet-5 also runs adaptive thinking by DEFAULT, and thinking tokens count against
+      // max_tokens. On a dense CV the miner spent 12–24k tokens thinking and truncated its JSON
+      // ("no JSON object" / parse-error) — invisible on the small fixtures, fatal on a real long
+      // résumé. This pipeline is structured extraction/generation steered by the prompt, so
+      // disable thinking and give the output generous headroom.
+      // (thinking:{type:"disabled"} is accepted on sonnet-5 / opus-4.x but 400s on fable-5 —
+      // omit the field there if DEFAULT_MODEL ever changes to a fable-tier model.)
       body: JSON.stringify({
         model: this.model,
-        max_tokens: opts.maxTokens ?? 16000,
+        max_tokens: opts.maxTokens ?? 32000,
+        thinking: { type: "disabled" },
         messages: [{ role: "user", content: prompt }],
       }),
     });
