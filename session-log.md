@@ -2,6 +2,44 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-18 (session 3) — E3 deck UI + tiering, browser e2e, two latent bugs fixed
+
+Continued E3 on the slice-A loop, then made the whole onboarding flow self-verifiable in a real browser.
+
+**JC-22 deck tiering** (`3681824`): the deck response stamps each claim with a `tier` — verbatim →
+batch, machine-touched → individual. Policy lives in the deck route (`claimTier`), not the store.
+Deliberately the simple `machine_touch` split, not stakes-weighted ranking — the miner eval already
+keeps the touched count under ~15, so there is nothing to rank yet (ponytail note left for the upgrade).
+
+**JC-23 browser deck UI** (`c9efe8d`): `/deck/[jobId]` — individual yes/edit/remove cards (saved on the
+spot; edit → user-authored auto-confirmed), batch-by-section tap-to-remove chips (committed at build),
+then build → the verified root CV or a loop-back. The preview page's placeholder "Notify me" dead-end
+now links into the deck. Typed deck helpers in `lib/api.ts`.
+
+**Self-verification via Playwright** (`2c4f93d`), after the user asked why I don't test it myself: a
+real-browser onboarding smoke over the true pipeline. This environment runs it end to end (headless
+Chromium + outbound net + `ANTHROPIC_API_KEY`), against local servers or staging.
+
+**Two latent bugs the e2e caught that typecheck + build never would:**
+1. `jfetch` set `content-type: application/json` on every request; Fastify rejects an empty body with
+   that header (`FST_ERR_CTP_EMPTY_JSON_BODY`), so every no-body POST 400'd — broke staging upload
+   (`/complete`), would have broken deck confirm/build. One guard in the shared helper (`8680fea`).
+2. `/import` uploaded without `ensureSession()`, so a direct visit / refresh 401'd on `POST /uploads`
+   (it only worked when reached via the landing page). Self-ensures now, matching `/paste` (`10991aa`).
+
+**Loop-back made reachable + guarded** (`3e65843`): `ClaimGraph.nodes` has no min-1, so "reject
+everything" built a valid empty graph the gate passed as `ready`. The build route now loops back on an
+empty confirmed set ("keep at least one fact") instead of certifying an empty CV.
+
+**E2E suite now (all browser-verified):** happy path, loop-back, paste-too-short, unparseable upload.
+`lessons.md` updated (self-verify UI; pages self-ensure session).
+
+Gate at each push: `pnpm test` 102 pass / 5 skipped, `pnpm typecheck` 7/7, web build clean, 4/4 e2e green.
+
+**Next:** the grill (JC-24 gap detection + LLM phrasing, JC-26 persistence via `claims.add`) — the last
+feature in E3 — then JC-55 Path B stub, then E2 auth (JC-18/19/20). Looming infra: everything is still
+in-memory; the S2 "graph v1 in Postgres" goal needs the JC-6 Postgres drivers.
+
 ## 2026-07-18 (session 2) — E4 spine finished + E3 deck/build loop closed
 
 **E4 spine completed** (commit `8cd246a`): the three items the previous session queued all shipped —

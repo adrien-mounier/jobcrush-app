@@ -47,3 +47,13 @@ run it end to end without a human: headless Chromium launches, outbound HTTPS wo
   reflects what's pushed — `data-testid`s or fixes still in the worktree won't be there yet.
 
 So after a UI change, run the e2e before claiming it works — "I can't drive a browser" is no longer true.
+
+## Every client page that hits the API must self-ensure the session
+
+`/import` called `uploadCv` without `ensureSession()` — it only worked because the landing page creates
+the session before routing there, so a direct visit / refresh 401'd on `POST /uploads`. Pages must
+`ensureSession()` themselves (as `/paste` does), never assume a referrer did it. Same shape as the
+empty-body content-type bug: both passed typecheck + build and broke only on an entry path the happy
+flow never walked — the exact blind spot the browser e2e exists to cover. When adding a page or an
+API-calling flow, check it works reached cold (deep link / refresh), not just via the one nav that
+precedes it in the demo.

@@ -43,10 +43,12 @@ Riskiest first; per-ticket ACs are in the archived `dev-plan-v01-hosted.md`.
   the onboarding loop now **closes end to end**: `POST /onboarding/deck` → confirm/edit/reject →
   `POST /onboarding/build` runs `buildClaimGraph → renderRootCv → runGate` synchronously and flips the
   session to `ready`. Rides the anonymous session; no tiering, no grill yet (API + integration test only).
-- **E3 deck + grill (remaining)** — JC-22/23 deck UI (stakes × uncertainty: ≤15 individual
-  yes/edit/reject cards + batch-by-section, on top of the slice-A API), JC-24 grill engine
-  (mechanical gap detection, LLM phrasing, ~5–8 Qs), JC-26 grounded-fact persistence, JC-55 Path B
-  ("I don't have a CV") — **stub only in S2**; the real guided interview moved to S4.
+- **✅ E3 deck done** (JC-22 tiering `3681824`, JC-23 browser deck UI `c9efe8d`) — `/deck/[jobId]` with
+  individual yes/edit/remove cards + batch-by-section, build → verified root CV or loop-back. A
+  Playwright browser e2e covers happy / loop-back / input-error paths (`2c4f93d`, `3e65843`, `10991aa`).
+- **E3 grill (remaining)** — JC-24 grill engine (mechanical gap detection from the graph, LLM phrases
+  ~5–8 Qs), JC-26 grounded-fact persistence (the claims store's `add()` already accepts grill answers),
+  JC-55 Path B ("I don't have a CV") — **stub only in S2**; the real guided interview moved to S4.
 - **E2 auth** — JC-18 magic-link, JC-19 anon→account merge (at the preview moment), JC-20 anon auto-purge.
 
 Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
@@ -59,6 +61,11 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 
 ## Completed
 
+- [x] 2026-07-18 — **E3 deck UI + browser e2e.** The confirm deck ships (JC-22 tiering, JC-23
+      `/deck/[jobId]` UI); the onboarding flow is browser-verified end to end by a Playwright smoke
+      (happy, loop-back, paste-too-short, unparseable-upload). Two latent bugs fixed en route (empty-body
+      content-type; `/import` missing session). Commits `3681824`, `c9efe8d`, `8680fea`, `2c4f93d`,
+      `3e65843`, `10991aa`.
 - [x] 2026-07-18 — **E4 spine + E3 deck/build loop closes.** The onboarding loop runs end to end
       (paste → mine → deck → confirm/edit/reject → build → `ready`): claim-graph builder (JC-32,
       `a77f974`), claims store + gate + root-CV renderer (JC-21/31/27, `8cd246a`), and the synchronous
