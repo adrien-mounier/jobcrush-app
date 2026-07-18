@@ -2,7 +2,17 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
-## 2026-07-19 (session 8) — Audit + root-CV review (S2 complete) + Google OAuth on the wall
+## 2026-07-19 (session 9) — Staging bugfix: miner fails a job on an over-long source_quote
+
+User hit "Something went wrong while processing your CV" on staging `/import`. The staging
+guestbook (`/guestbook`, run #13) showed the real error in one click: the miner LLM emitted a
+`source_quote` > 200 chars, the candidateClaims zod cap rejected it on both attempts, job failed.
+The 200 cap is ours alone (not in any `.mjs` oracle), the prompt already says ≤ 200, and
+`grill.ts` already `.slice(0, 200)`s the same field — so this is the `slugifyClaimIds` class:
+a deterministic, semantic-preserving repair, not a retry. `slugifyClaimIds` became
+`repairClaims` (miner.ts) and now also clamps `source_quote` to its 200-char prefix (still a
+verbatim CV fragment; the eval grounding check only uses the first 60 chars). One new miner
+test. api 157 pass, typecheck 7/7.
 
 The last two S2 pieces (kickoff decisions #6 and #7), closing the slice; then Google sign-in
 ported from vitacairn onto the signup wall.

@@ -32,15 +32,19 @@ export function extractJson(raw: string): unknown {
 }
 
 /**
- * Claim ids are machine-internal slugs; on non-English CVs the model emits accented ids
- * ("edu-école-…") that fail the kebab-case regex. Normalizing is deterministic and
- * semantic-preserving, so fix it here instead of burning a retry on it.
+ * Deterministic, semantic-preserving repairs of known model slips — fixed here instead of
+ * burning a retry (or failing the job) on them:
+ * - Claim ids are machine-internal slugs; on non-English CVs the model emits accented ids
+ *   ("edu-école-…") that fail the kebab-case regex. Normalize them.
+ * - source_quote must be ≤ 200 chars (candidateClaims schema); on long CV bullets the model
+ *   quotes past the cap despite the prompt. Clamp to the 200-char prefix — still a verbatim
+ *   fragment of the CV, same as the grill does for answers.
  */
-export function slugifyClaimIds(doc: unknown): unknown {
+export function repairClaims(doc: unknown): unknown {
   if (typeof doc !== "object" || doc === null || !Array.isArray((doc as { claims?: unknown[] }).claims)) {
     return doc;
   }
-  for (const claim of (doc as { claims: Array<{ id?: unknown }> }).claims) {
+  for (const claim of (doc as { claims: Array<{ id?: unknown; source_quote?: unknown }> }).claims) {
     if (typeof claim?.id === "string") {
       claim.id =
         claim.id
@@ -49,6 +53,9 @@ export function slugifyClaimIds(doc: unknown): unknown {
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-+|-+$/g, "") || "claim";
+    }
+    if (typeof claim?.source_quote === "string" && claim.source_quote.length > 200) {
+      claim.source_quote = claim.source_quote.slice(0, 200);
     }
   }
   return doc;
@@ -63,7 +70,7 @@ export async function mineClaims(cvText: string, llm: LlmClient): Promise<Candid
         : `${buildMinerInput(cvText)}\n\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
     const raw = await llm.complete(input);
     try {
-      return CandidateClaims.parse(slugifyClaimIds(extractJson(raw)));
+      return CandidateClaims.parse(repairClaims(extractJson(raw)));
     } catch (err) {
       lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
     }

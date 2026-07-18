@@ -74,4 +74,13 @@ describe("JC-13 miner plumbing", () => {
     expect(mined.claims[0]!.id).toBe("edu-ecole-superieure-pl-300");
     expect(llm.calls).toHaveLength(1);
   });
+
+  it("clamps an over-long source_quote to 200 chars instead of failing the job", async () => {
+    const doc = structuredClone(validDoc);
+    doc.claims[0].source_quote = "x".repeat(250);
+    const llm = fakeLlm([JSON.stringify(doc)]);
+    const mined = await mineClaims("cv text", llm);
+    expect(mined.claims[0]!.source_quote).toBe("x".repeat(200));
+    expect(llm.calls).toHaveLength(1);
+  });
 });
