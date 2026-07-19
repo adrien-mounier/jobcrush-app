@@ -75,7 +75,7 @@ export default function PreviewScreen() {
             }}
           />
           <p className="lede mobile-hint" style={{ marginTop: 8, fontSize: "0.85rem" }}>
-            It&apos;s a full-page CV — pinch or scroll inside to read it all.
+            It&apos;s a full-page CV — scroll inside to read it all.
           </p>
         </>
       )}

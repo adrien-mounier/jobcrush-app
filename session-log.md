@@ -55,8 +55,10 @@ pipeline. api 160, typecheck 7/7, web build clean.
   on the SSE feed (the trust engine was silent to SR) + `role="alert"` on every flow error +
   `role="status"` on transient notices; `aria-pressed` on landing + deck chips; `aria-label` on every
   placeholder-only input; chip touch target ~33→~40px; `input[type=email]` finally styled (batch-1 P2);
-  preview iframe gets a mobile "pinch to read" hint (full fit-to-width scaling stays deferred to the
-  server preview render — a client hint is the honest interim).
+  preview iframe now fits to width on mobile — the deferred server-side change landed: a
+  `width=device-width` viewport meta (was absent, so the iframe laid out at ~980px and overflowed) +
+  a `max-width:600px` padding trim in `renderPreviewHtml`. The "pinch to read" hint became "scroll
+  inside to read it all"; content now reflows to the iframe width and only scrolls vertically.
 - **Copy:** signup h1 "Save your draft to your account" (was "unlock your draft" — confusing right after
   they saw it; the e2e heading assertion moved with it); preview→wall forewarning "takes an email, no
   password"; import door "Build it with me" → "Paste your CV text" (label now matches its paste

@@ -56,8 +56,8 @@ UX/UI cleanup of the existing flow (see milestone above). Critique done 2026-07-
 - [x] **A11y** — one authored `:focus-visible` ring app-wide; `aria-live` on the SSE feed + `role="alert"`
       on every flow error + `role="status"` on transient notices; `aria-pressed` on landing + deck chips;
       `aria-label` on every placeholder-only input; chip touch target ~33→~40px; styled `input[type=email]`;
-      preview iframe gets a mobile "pinch to read" hint (full fit-to-width scaling deferred to the server
-      preview render).
+      preview iframe now fits to width on mobile (viewport meta + narrow-screen padding in the server
+      preview render); the old "pinch to read" hint is now "scroll inside to read it all".
 - [x] **Copy** — signup h1 "Save your draft to your account" (was "unlock your draft"); preview→wall
       forewarning ("takes an email, no password"); "Build it with me" → "Paste your CV text"; the untrue
       "stays on your device" import lede → "we use it only to build your draft".

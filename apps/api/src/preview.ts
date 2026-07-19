@@ -303,6 +303,7 @@ export function renderPreviewHtml(
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Draft CV preview</title>
 <meta name="robots" content="noindex">
 <style>
@@ -326,6 +327,9 @@ export function renderPreviewHtml(
   .skill-group{margin:0 0 8px;}
   .cert{display:flex;justify-content:space-between;gap:12px;margin-bottom:3px;}
   .edu,.addl{margin:0 0 6px;}
+  /* Fit-to-width on phones: viewport meta reflows to the iframe width; trim the page
+     margins so the content isn't cramped by the desktop padding. */
+  @media (max-width:600px){body{padding:20px 16px;}}
 </style></head><body>
 ${
   watermark
