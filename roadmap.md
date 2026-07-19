@@ -124,6 +124,13 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
   thin and how to strengthen it. The S2 gate deliberately judges only our pipeline's work, never the
   user's career; this feature is where profile-strength feedback will live. Decided 2026-07-18.
 
+- **Grill: onboarding-flow design (Tinder/Bumble as prior art)** — a brainstorming/grilling session on
+  how dating apps run account setup *before the first swipe* (progressive profiling, one-question-per-
+  screen, deferred/optional fields, momentum + completion cues, why they ask what they ask when) and
+  what we should steal. Same shape of problem — earn the right to show cards — but a harder constraint:
+  the info we must gather up front is much heavier (a full CV → claim graph), where they collect a
+  handful of light fields. Grill later with `/grill-with-docs`; output feeds our own onboarding UX. Added 2026-07-20.
+
 ## Completed
 
 - [x] 2026-07-19 — **Audit + root-CV review → S2 done.** The audit (decision #6): `audit.ts` +
