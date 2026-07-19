@@ -91,6 +91,29 @@ Before writing detection or validation over a pipeline stage's output, read the 
 — the signal you need is often already computed upstream. (Same lesson shape as JC-32: the contract
 layer was already built.)
 
+## Staging ops: the `!` prompt runs bash, Resend caps free domains, and `--stage` batches restarts
+
+Three things learned wiring real email onto Fly staging:
+
+- **The interactive `!` prompt runs bash, not PowerShell.** A PowerShell call `& "$HOME\.fly\bin\flyctl.exe" …`
+  pasted into `!` dies with `syntax error near unexpected token '&'` and does nothing. Give the user
+  either the **bash form** (`~/.fly/bin/flyctl.exe secrets set …`, no `&`) for the `!` prompt, or tell
+  them to open their **own** PowerShell window for the `&` form. Corollary: the `!` prompt **echoes its
+  input into the transcript**, so never route a secret through it — have the user set secret values from
+  their own terminal.
+- **Resend's free tier verifies exactly ONE sending domain per account.** A second product's domain hits
+  a $20/mo Pro-plan wall in the same account. Workaround with zero code change: a **second free Resend
+  account** (Gmail plus-addressing — `you+jobcrush@gmail.com` — counts as distinct), verify the domain
+  there, use that account's API key. Bonus: separate 3k/mo quotas. The catch to remember: the API key on
+  staging must come from **the account that owns the verified domain**, or `MAIL_FROM=@thatdomain` sends
+  fail silently. And a custom domain is unavoidable for emailing arbitrary users — every provider
+  requires you to verify a domain you own (test senders like `onboarding@resend.dev` only reach the
+  account owner).
+- **`flyctl secrets set --stage` parks a value without restarting.** Stage all the non-secret config
+  (`WEB_URL`, `MAIL_FROM`), then one real `secrets set` (of the secret) applies everything in a single
+  rolling restart instead of one restart per value — and lets the user run only the secret-bearing
+  command themselves.
+
 ## Adding a server-side gate ripples to every test that used the gated routes
 
 E2's wall (`requireUser` on deck/grill/build) instantly 401'd every onboarding + grill API test — they

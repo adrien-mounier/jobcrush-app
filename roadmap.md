@@ -24,8 +24,12 @@ no autonomous submit, no LinkedIn credentials, ever).
       confirm deck → grill → root CV → review → audit → quality gate → validated claim graph v1 in
       Postgres. Epics: E2 auth (JC-18/19/20), E3 deck + grill (JC-21…26, JC-55 Path B), E4 root CV /
       audit / gate / graph (JC-27…32). The audit (decision #6) and the root-CV review with fix-this
-      loop-backs (decision #7) closed the slice. Ops note: staging returns the dev sign-in link until
-      `RESEND_API_KEY` + `WEB_URL` are set.
+      loop-backs (decision #7) closed the slice. Ops (session 11): `RESEND_API_KEY` + `WEB_URL` +
+      `MAIL_FROM` now set — real magic-link email verified live, Google OAuth verified by a real
+      click-through (external users can sign in via Google today). Custom domain `jobcrush.org` verified
+      in Resend (Cloudflare DNS); the `login@jobcrush.org` sender is **staged, pending an API-key swap**
+      onto the second Resend account that owns the domain — until then email delivers only to the
+      account owner's address.
       _Demo: a user completes onboarding and their profile flips to `ready` with a validator-clean graph._
 - [x] **S2.5 — UX/UI cleanup** — _done 2026-07-19._ `/impeccable critique` of the live flow (24/40),
       then three fix batches: (1) harden — magic-link cross-browser P0 + resilience; (2) the ending —
@@ -105,8 +109,12 @@ archived `dev-plan-v01-hosted.md`.
   from the trace with a per-line "fix" that edits/rejects the claim behind it and rebuilds — never a
   freeform CV editor). Google OAuth also live on the wall (ported from vitacairn) — **configured on
   staging 2026-07-19** (Google console client + `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`WEB_URL`
-  Fly secrets; `/auth/google` verified redirecting to Google). Still open (ops, not code):
-  `RESEND_API_KEY` on staging for real magic-link email (today it returns the dev link).
+  Fly secrets; `/auth/google` verified redirecting to Google — and **verified end to end by a real
+  click-through 2026-07-19 (session 11)**: external users can sign in via Google today. Real magic-link
+  email also wired that session (`RESEND_API_KEY`/`WEB_URL`/`MAIL_FROM` set, verified live). One ops
+  item remains: swap staging's `RESEND_API_KEY` to the second Resend account that owns `jobcrush.org`
+  so the staged `login@jobcrush.org` sender goes live and email reaches *any* user, not just the
+  account owner. Plus a security follow-up: rotate the two Resend keys that leaked into a transcript.
 
 Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 

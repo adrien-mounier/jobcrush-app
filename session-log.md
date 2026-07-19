@@ -2,6 +2,35 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-19 (session 11) — Staging ops leftovers: real email wiring + OAuth verified + sending domain
+
+Closed the two S2 ops leftovers (config, not code) and set up the real sending domain.
+
+- **Real magic-link email is live on staging.** Set `RESEND_API_KEY` + `WEB_URL`
+  (`https://jobcrush-web-staging.fly.dev`) + `MAIL_FROM` on `jobcrush-api-staging` via `flyctl secrets
+  set` (staged the two non-secrets with `--stage`, then one real set applied all three in one restart).
+  Started on Resend's test sender `onboarding@resend.dev` (delivers only to the account owner's own
+  address) — verified end to end: a magic-link email arrived and signed in.
+- **Google OAuth verified** by a real cross-browser click-through on staging: "Continue with Google" →
+  Google → back to `jobcrush-web-staging.fly.dev` signed in. No redirect-to-localhost regression (the
+  `058a2ad` relative-redirect fix holds). **So external users can already sign in via Google today.**
+- **Custom sending domain `jobcrush.org` verified in Resend.** The name "JobCrush" is contested but
+  *unregistered* — an early-stage German JobCrush (same concept) + an active JobCrusher.com exist, no
+  trademark filing in USPTO/EUIPO; user chose to keep the name for now and bought `jobcrush.org`
+  (`.com`/`.in`/`.top` taken; picked `.org` over `.vip`/`.work` for email deliverability). DNS is on
+  Cloudflare (Cloudflare Registrar) — added the 4 Resend records (DKIM TXT `resend._domainkey`, MX +
+  SPF TXT on `send`, DMARC TXT `_dmarc`), verified.
+- **`MAIL_FROM=JobCrush <login@jobcrush.org>` is STAGED, not live.** Resend's 1-free-domain-per-account
+  limit meant `jobcrush.org` had to go in a *second* free Resend account (`+jobcrush` plus-address), so
+  activating it needs the API key from **that** account swapped onto staging. User deferred that swap —
+  until it lands, staging still sends via the test sender (owner's address only). So **email-signup for
+  strangers is one `flyctl secrets set RESEND_API_KEY=…` away**; Google-signup already works.
+- **Security debt:** two Resend keys got pasted into the session transcript (the `!` prompt echoes) —
+  flagged for deletion/rotation; the eventual `jobcrush-staging` key must be set from the user's own
+  terminal, never the chat.
+
+No code changed — pure staging config. `roadmap.md` + `lessons.md` updated.
+
 ## 2026-07-19 (session 10) — S2.5: `/impeccable critique` of the web flow + first harden batch
 
 Ran a dual-agent `/impeccable critique` over the whole web workflow (landing → import → progress →
