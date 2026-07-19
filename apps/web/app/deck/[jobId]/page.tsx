@@ -23,6 +23,23 @@ import {
   type GrillQuestion,
 } from "../../../lib/api";
 
+// Evidence provenance → the shared badge palette (spec §5, tokens.css). A rendered line carries one
+// classification today; if a future graph attaches several to a bullet, surface the least-grounded so
+// the eye lands on what still needs a look.
+const CLS_META: Record<string, { key: string; label: string }> = {
+  Verified: { key: "verified", label: "Verified" },
+  Derived: { key: "derived", label: "Derived" },
+  "Partially-Supported": { key: "partial", label: "Partial" },
+  "Unsupported-but-Plausible": { key: "suggested", label: "Suggested" },
+  Negative: { key: "negative", label: "Negative" },
+};
+const CLS_RANK = ["Verified", "Derived", "Partially-Supported", "Unsupported-but-Plausible", "Negative"];
+function evidenceBadge(classifications: string[]): { key: string; label: string } {
+  let worst = classifications[0] ?? "Verified";
+  for (const c of classifications) if (CLS_RANK.indexOf(c) > CLS_RANK.indexOf(worst)) worst = c;
+  return CLS_META[worst] ?? { key: "verified", label: worst };
+}
+
 export default function DeckScreen() {
   const { jobId } = useParams<{ jobId: string }>();
   const router = useRouter();
@@ -207,7 +224,12 @@ export default function DeckScreen() {
 
       {individual.length > 0 && (
         <>
-          <h2 style={{ fontSize: "1.1rem" }}>Worth a closer look</h2>
+          <div className="deck-progress">
+            <h2 style={{ fontSize: "1.1rem", margin: 0 }}>Worth a closer look</h2>
+            <span style={{ fontSize: "0.85rem", color: "var(--jc-ink-muted)" }}>
+              {individual.length - undecided} of {individual.length} reviewed
+            </span>
+          </div>
           {individual.map((c) => (
             <div className="card" data-testid="individual-claim" key={c.id}>
               {editing?.id === c.id ? (
@@ -229,6 +251,14 @@ export default function DeckScreen() {
                 </>
               ) : (
                 <>
+                  <span
+                    className="badge"
+                    data-cls={evidenceBadge([c.classification]).key}
+                    title={`${evidenceBadge([c.classification]).label} — how we sourced this`}
+                    style={{ marginBottom: 8 }}
+                  >
+                    {evidenceBadge([c.classification]).label}
+                  </span>
                   <p style={{ margin: "0 0 6px", fontWeight: 600 }} data-testid="claim-text">
                     {c.text}
                   </p>
@@ -314,23 +344,6 @@ export default function DeckScreen() {
   );
 }
 
-// Evidence provenance → the shared badge palette (spec §5, tokens.css). A rendered line carries one
-// classification today; if a future graph attaches several to a bullet, surface the least-grounded so
-// the eye lands on what still needs a look.
-const CLS_META: Record<string, { key: string; label: string }> = {
-  Verified: { key: "verified", label: "Verified" },
-  Derived: { key: "derived", label: "Derived" },
-  "Partially-Supported": { key: "partial", label: "Partial" },
-  "Unsupported-but-Plausible": { key: "suggested", label: "Suggested" },
-  Negative: { key: "negative", label: "Negative" },
-};
-const CLS_RANK = ["Verified", "Derived", "Partially-Supported", "Unsupported-but-Plausible", "Negative"];
-function evidenceBadge(classifications: string[]): { key: string; label: string } {
-  let worst = classifications[0] ?? "Verified";
-  for (const c of classifications) if (CLS_RANK.indexOf(c) > CLS_RANK.indexOf(worst)) worst = c;
-  return CLS_META[worst] ?? { key: "verified", label: worst };
-}
-
 // The build result: a clean gate flips to `ready` and shows the master CV; a failing gate loops back
 // with the reasons (each names a claim), never a dead end (kickoff decision 5).
 //
@@ -352,15 +365,27 @@ function BuildOutcome({
   const [error, setError] = useState<string | null>(null);
 
   if (result.stage !== "ready") {
+    // The gate strings are mechanical (spec §8-3): the empty-CV case is already human, but the
+    // trace/structural ones ("entry[2] … nodeId … not user-confirmed") are for us, not the user.
+    // Show the human ones as-is and fold any technical ones into one actionable line.
+    const isTechnical = (e: string) => /nodeId|graph invalid|entry\[/.test(e);
+    const humanErrors = result.gate.errors.filter((e) => !isTechnical(e));
+    const hasTechnical = result.gate.errors.some(isTechnical);
     return (
       <main>
         <h1>Almost there</h1>
         <p className="lede">A couple of things need another look before we can certify your CV:</p>
         <div className="card">
           <ul>
-            {result.gate.errors.map((e, i) => (
+            {humanErrors.map((e, i) => (
               <li key={i}>{e}</li>
             ))}
+            {hasTechnical && (
+              <li>
+                A line or two couldn&apos;t be traced back to a fact you confirmed — reopen your facts
+                and confirm or drop them.
+              </li>
+            )}
           </ul>
         </div>
         <button className="btn" onClick={onFix}>

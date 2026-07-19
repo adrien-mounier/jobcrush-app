@@ -64,7 +64,24 @@ pipeline. api 160, typecheck 7/7, web build clean.
 
 Whole flow re-screenshotted via a booted dev server (landing/import/signup/paste, desktop + mobile) —
 0px overflow, brand bar + chips + styled inputs all clean. api 160, typecheck 7/7, web build clean.
-S2.5 closed; next is S3 (the hunt, E5 cluster engine).
+
+**Then batch 4 — backlog cleanup (closes the critique's full 5-command plan).** A self-audit against the
+recommended actions surfaced four sub-items the first three batches skipped:
+- **clarify / gate-error strings:** the loopback ("Almost there") dumped raw mechanical gate strings
+  (`entry[2] "…": nodeId "x" is not user-confirmed`). Now it shows the already-human ones (empty-CV) and
+  folds any technical trace/structural strings into one actionable line.
+- **shape / deck progression:** an "N of M reviewed" counter beside the "Worth a closer look" heading
+  (`.deck-progress`) — the grind becomes a countable task.
+- **colorize / deck claims:** each individual claim card now carries its evidence badge (the reusable
+  `.badge` + `evidenceBadge()` helper, hoisted above DeckScreen). `classification` was fetched and unused
+  on the deck itself; now shown where it varies (machine-touched claims), not on verbatim chips.
+- **polish / button-state + chip-overflow:** `.btn`/`.btn-secondary`/`.chip` get hover + active states
+  (150ms, `color-mix` darken, 1px press) with a `prefers-reduced-motion` guard; `.chip` gets
+  `max-width:100% + overflow-wrap` so a long batch claim wraps in-card instead of overflowing.
+
+Deck confirm + loopback verified via a throwaway harness (desktop + mobile, 0px overflow; badges,
+progress line, hover state, and long-chip wrapping all correct). api 160, typecheck 7/7, web build clean.
+S2.5 fully closed against the 5-command plan; next is S3 (the hunt, E5 cluster engine).
 
 ## 2026-07-19 (session 9) — Staging bugfix: miner fails a job on an over-long source_quote
 

@@ -62,7 +62,14 @@ UX/UI cleanup of the existing flow (see milestone above). Critique done 2026-07-
       forewarning ("takes an email, no password"); "Build it with me" → "Paste your CV text"; the untrue
       "stays on your device" import lede → "we use it only to build your draft".
 
-S2.5 done. Full flow re-screenshotted (landing/import/signup/paste, desktop + mobile, 0px overflow).
+- [x] **Backlog cleanup** — the sub-items missed in the first three batches, to fully close the
+      critique's 5-command plan: gate-failure copy (loopback now folds the mechanical `nodeId…` strings
+      into one actionable line, keeps the human ones); deck **progression** ("N of M reviewed" by the
+      "Worth a closer look" heading); evidence badge on each **individual deck claim** (colorize — the
+      classification was fetched and unused on the deck); `.btn`/`.chip` **hover + active** states with a
+      reduced-motion guard; **chip overflow** contained (long batch claims wrap in-card, no overflow).
+
+S2.5 done. Flow + deck re-screenshotted (desktop + mobile, 0px overflow throughout).
 Next: **S3 — the hunt** (E5 cluster engine, JC-33/34/35).
 
 Then S3, the hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6

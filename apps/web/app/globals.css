@@ -70,6 +70,15 @@ p.lede {
   font-weight: 600;
   cursor: pointer;
   text-decoration: none;
+  transition:
+    background-color 150ms ease,
+    transform 100ms ease;
+}
+.btn:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--jc-accent) 88%, black);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .btn:disabled {
   opacity: 0.5;
@@ -79,6 +88,9 @@ p.lede {
   background: transparent;
   color: var(--jc-accent);
   border: 1.5px solid var(--jc-accent);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--jc-accent) 8%, transparent);
 }
 
 .chip {
@@ -92,6 +104,13 @@ p.lede {
   font-size: 0.9rem;
   cursor: pointer;
   color: var(--jc-ink);
+  /* A batch chip can carry a whole CV bullet — keep it inside the card instead of overflowing. */
+  max-width: 100%;
+  overflow-wrap: break-word;
+  transition: border-color 150ms ease;
+}
+.chip:hover {
+  border-color: var(--jc-accent);
 }
 .chip[data-on="true"] {
   background: var(--jc-accent);
@@ -309,6 +328,26 @@ textarea {
 .cv-fix:hover {
   opacity: 1;
   text-decoration: underline;
+}
+
+/* Review progress on the confirm deck — turns a wall of cards into a countable task. */
+.deck-progress {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--jc-sp-sm);
+  margin-bottom: var(--jc-sp-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+  .btn:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 @media (max-width: 480px) {
