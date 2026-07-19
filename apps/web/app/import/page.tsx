@@ -34,7 +34,7 @@ export default function ImportScreen() {
   return (
     <main>
       <h1>Bring in your CV</h1>
-      <p className="lede">Pick whichever is easiest — it stays on your device session only.</p>
+      <p className="lede">Pick whichever is easiest — we use it only to build your draft.</p>
 
       <button className="door" onClick={() => comingSoon("linkedin")}>
         <div>
@@ -68,8 +68,8 @@ export default function ImportScreen() {
 
       <button className="door" onClick={() => router.push("/paste")}>
         <div>
-          <div className="door-title">Build it with me</div>
-          <div className="door-sub">No file handy? Paste your CV text and start from there</div>
+          <div className="door-title">Paste your CV text</div>
+          <div className="door-sub">No file handy? Paste it in and start from there</div>
         </div>
       </button>
 
@@ -82,13 +82,13 @@ export default function ImportScreen() {
       </button>
 
       {soonClicked && (
-        <p className="lede" style={{ marginTop: 8 }}>
+        <p className="lede" style={{ marginTop: 8 }} aria-live="polite">
           {soonClicked === "nocv"
-            ? 'Building your CV from scratch together is coming soon — noted that you want it. For now, even rough notes pasted into "Build it with me" give us enough to start.'
+            ? 'Building your CV from scratch together is coming soon — noted that you want it. For now, even rough notes pasted into "Paste your CV text" give us enough to start.'
             : "That door opens soon — noted that you wanted it! For now, uploading a file is the fastest way in."}
         </p>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
     </main>
   );
 }

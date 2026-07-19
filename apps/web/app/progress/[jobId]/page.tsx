@@ -46,7 +46,8 @@ export default function ProgressScreen() {
       </p>
 
       <div className="card">
-        <ul className="feed">
+        {/* The wait is where trust is built — announce each newly-found fact to screen readers too. */}
+        <ul className="feed" aria-live="polite" aria-label="What we're finding in your CV">
           {feed.length === 0 && <li>Warming up…</li>}
           {feed.map((line, i) => (
             <li key={i}>{line}</li>
@@ -55,7 +56,7 @@ export default function ProgressScreen() {
       </div>
 
       {connectionLost && !failed && (
-        <p className="lede">Connection hiccup — reconnecting automatically…</p>
+        <p className="lede" role="status">Connection hiccup — reconnecting automatically…</p>
       )}
 
       {unparseable && (
@@ -71,7 +72,7 @@ export default function ProgressScreen() {
       )}
       {failed && !unparseable && (
         <div className="card">
-          <p style={{ marginTop: 0 }} className="error">
+          <p style={{ marginTop: 0 }} className="error" role="alert">
             Something went wrong while processing your CV.
           </p>
           <button className="btn" onClick={() => router.push("/import")}>

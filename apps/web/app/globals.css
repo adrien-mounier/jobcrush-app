@@ -20,6 +20,25 @@ main {
   padding: var(--jc-sp-xl) var(--jc-sp-md);
 }
 
+/* App-wide brand bar — every screen now shows what product you're in (there was no logo/wordmark
+   anywhere before). Minimal by intent: product register, not a nav. */
+.brandbar {
+  border-bottom: 1px solid var(--jc-line);
+  background: var(--jc-surface);
+}
+.brandbar > div {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 13px var(--jc-sp-md);
+}
+.brandbar a {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--jc-accent);
+  text-decoration: none;
+}
+
 h1 {
   font-size: 2rem;
   letter-spacing: -0.02em;
@@ -67,10 +86,12 @@ p.lede {
   border: 1px solid var(--jc-line);
   background: var(--jc-surface);
   border-radius: var(--jc-radius-pill);
-  padding: 6px 14px;
+  /* ~40px tall — a comfortable touch target (was ~33px, under the mobile floor). */
+  padding: 10px 15px;
   margin: 0 var(--jc-sp-sm) var(--jc-sp-sm) 0;
   font-size: 0.9rem;
   cursor: pointer;
+  color: var(--jc-ink);
 }
 .chip[data-on="true"] {
   background: var(--jc-accent);
@@ -79,6 +100,7 @@ p.lede {
 }
 
 input[type="text"],
+input[type="email"],
 textarea {
   width: 100%;
   padding: 12px 14px;
@@ -88,6 +110,14 @@ textarea {
   border-radius: 8px;
   background: var(--jc-surface);
   color: var(--jc-ink);
+}
+
+/* One authored focus ring for the whole app — keyboard users could not see focus before (there were
+   no :focus styles at all). :focus-visible keeps it off mouse clicks; :where() keeps specificity 0 so
+   component styles still win on everything else. */
+:where(a, button, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--jc-accent);
+  outline-offset: 2px;
 }
 
 .door {
@@ -144,6 +174,16 @@ textarea {
 
 .error {
   color: var(--jc-danger);
+}
+
+/* Shown only on small screens (e.g. the "pinch to read" hint under the preview iframe). */
+.mobile-hint {
+  display: none;
+}
+@media (max-width: 640px) {
+  .mobile-hint {
+    display: block;
+  }
 }
 
 /* --- Verified master CV (the ready screen) --- */

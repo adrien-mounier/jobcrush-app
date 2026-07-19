@@ -183,13 +183,14 @@ export default function DeckScreen() {
             <p style={{ margin: "0 0 10px", fontWeight: 600 }}>{q.question}</p>
             <input
               type="text"
+              aria-label={q.question}
               placeholder="Your answer — or leave blank to skip"
               value={answers[q.gapId] ?? ""}
               onChange={(e) => setAnswers((a) => ({ ...a, [q.gapId]: e.target.value }))}
             />
           </div>
         ))}
-        {error && <p className="error">{error}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
         <button className="btn" style={{ marginTop: 12 }} onClick={buildFromGrill} disabled={busy}>
           {busy ? "Building…" : "Build my verified CV"}
         </button>
@@ -213,6 +214,7 @@ export default function DeckScreen() {
                 <>
                   <textarea
                     rows={3}
+                    aria-label="Edit this fact"
                     value={editing.text}
                     onChange={(e) => setEditing({ id: c.id, text: e.target.value })}
                   />
@@ -279,6 +281,7 @@ export default function DeckScreen() {
                     key={c.id}
                     className="chip"
                     data-on={!removed.has(c.id)}
+                    aria-pressed={!removed.has(c.id)}
                     onClick={() => toggleBatch(c.id)}
                     title={removed.has(c.id) ? "Dropped — tap to keep" : "Kept — tap to drop"}
                   >
@@ -292,7 +295,7 @@ export default function DeckScreen() {
         </>
       )}
 
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       <button
         className="btn"
         style={{ marginTop: 12 }}
@@ -423,6 +426,7 @@ function BuildOutcome({
                   <div key={nodeId} data-testid="fix-editor" style={{ margin: "8px 0" }}>
                     <textarea
                       rows={3}
+                      aria-label="Edit this line"
                       value={fixing.text}
                       onChange={(ev) => setFixing({ nodeId, text: ev.target.value })}
                     />
@@ -468,7 +472,7 @@ function BuildOutcome({
         ))}
       </div>
 
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
 
       <div className="card" style={{ marginTop: 24 }}>
         <p style={{ marginTop: 0, fontWeight: 600 }}>What happens next</p>

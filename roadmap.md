@@ -27,11 +27,10 @@ no autonomous submit, no LinkedIn credentials, ever).
       loop-backs (decision #7) closed the slice. Ops note: staging returns the dev sign-in link until
       `RESEND_API_KEY` + `WEB_URL` are set.
       _Demo: a user completes onboarding and their profile flips to `ready` with a validator-clean graph._
-- [ ] **S2.5 — UX/UI cleanup** — _decided 2026-07-19: polish the existing flow before building S3._
-      The onboarding journey works end to end but the experience is rough; clean it up so what
-      exists feels like a product before adding the next slice. Scope: a critique pass over the
-      live flow (import → progress → preview → signup → deck → grill → ready/review) to enumerate
-      concrete fixes, then apply them. _Demo: the current flow, same features, feels polished._
+- [x] **S2.5 — UX/UI cleanup** — _done 2026-07-19._ `/impeccable critique` of the live flow (24/40),
+      then three fix batches: (1) harden — magic-link cross-browser P0 + resilience; (2) the ending —
+      verified-CV document + evidence-palette badges + next-step; (3) brand bar + a11y + copy. See the
+      S2.5 backlog below for the itemised record. _Demo: same features, now feels like a product._
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
       Epics: E5 cluster engine (JC-33/34/35), E6 feed + hunt (JC-36…40), E7 swipe + prepared apply
@@ -53,11 +52,18 @@ UX/UI cleanup of the existing flow (see milestone above). Critique done 2026-07-
       removed" seal (resolves the preview's promise), a per-line evidence badge in the shared palette
       (`.badge` component; `--jc-verified/derived/partial/suggested` — the differentiator, finally
       shown) with a legend, and a "What happens next" step. Per-line "fix" kept.
-- [ ] **Brand presence** — no header/logo/wordmark on any screen today.
-- [ ] **A11y** — authored `:focus` styles, `aria-live` on the SSE feed + busy/error states, chip
-      `aria-pressed`, real `<label>`s; mobile: preview iframe legibility, ≥44px touch targets.
-- [ ] **Copy** — signup h1 ("unlock your draft" when they just saw it), preview→wall forewarning,
-      "Build it with me" label vs. paste destination, the untrue "stays on your device" import lede.
+- [x] **Brand presence** — app-wide `.brandbar` (JobCrush wordmark) in `layout.tsx`, on every screen.
+- [x] **A11y** — one authored `:focus-visible` ring app-wide; `aria-live` on the SSE feed + `role="alert"`
+      on every flow error + `role="status"` on transient notices; `aria-pressed` on landing + deck chips;
+      `aria-label` on every placeholder-only input; chip touch target ~33→~40px; styled `input[type=email]`;
+      preview iframe gets a mobile "pinch to read" hint (full fit-to-width scaling deferred to the server
+      preview render).
+- [x] **Copy** — signup h1 "Save your draft to your account" (was "unlock your draft"); preview→wall
+      forewarning ("takes an email, no password"); "Build it with me" → "Paste your CV text"; the untrue
+      "stays on your device" import lede → "we use it only to build your draft".
+
+S2.5 done. Full flow re-screenshotted (landing/import/signup/paste, desktop + mobile, 0px overflow).
+Next: **S3 — the hunt** (E5 cluster engine, JC-33/34/35).
 
 Then S3, the hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6
 feed + hunt (JC-36…40), then E7 swipe + prepared apply (JC-41/42/43). Per-ticket ACs are in the

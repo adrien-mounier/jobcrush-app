@@ -58,21 +58,26 @@ export default function PreviewScreen() {
         </p>
       )}
 
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       {!html && !error && <p className="lede">Loading your draft…</p>}
       {html && (
-        <iframe
-          sandbox=""
-          srcDoc={html}
-          title="Tailored CV draft"
-          style={{
-            width: "100%",
-            height: "75vh",
-            border: "1px solid var(--jc-line)",
-            borderRadius: "var(--jc-radius-card)",
-            background: "white",
-          }}
-        />
+        <>
+          <iframe
+            sandbox=""
+            srcDoc={html}
+            title="Tailored CV draft"
+            style={{
+              width: "100%",
+              height: "75vh",
+              border: "1px solid var(--jc-line)",
+              borderRadius: "var(--jc-radius-card)",
+              background: "white",
+            }}
+          />
+          <p className="lede mobile-hint" style={{ marginTop: 8, fontSize: "0.85rem" }}>
+            It&apos;s a full-page CV — pinch or scroll inside to read it all.
+          </p>
+        </>
       )}
 
       <div className="card" style={{ marginTop: 24 }}>
@@ -86,6 +91,10 @@ export default function PreviewScreen() {
         <Link className="btn" href={`/deck/${jobId}`}>
           Confirm my facts
         </Link>
+        {/* Set the contract before the wall so it isn't a surprise. */}
+        <p className="lede" style={{ margin: "10px 0 0", fontSize: "0.85rem" }}>
+          Takes an email, no password — your draft saves to your account.
+        </p>
       </div>
     </main>
   );

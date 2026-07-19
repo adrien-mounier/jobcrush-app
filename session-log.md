@@ -48,9 +48,23 @@ at 1280/375 (0px overflow both). Kept `You own your facts` + `rootcv`/`cv-bullet
 so the onboarding e2e still holds. `color-mix(in oklab, …)` for the badge tints passes the Next CSS
 pipeline. api 160, typecheck 7/7, web build clean.
 
-Still open from the critique (later S2.5 batches): brand presence (no header/logo anywhere),
-`:focus`/`aria-live` a11y + ≥44px touch targets, mobile preview-iframe legibility, copy fixes
-(signup h1, preview→wall forewarning, "Build it with me", the untrue "stays on your device" lede).
+**Then batch 3 — brand + a11y + copy (closes S2.5).**
+- **Brand presence:** app-wide `.brandbar` (JobCrush wordmark, accent) in `layout.tsx` — every screen
+  now shows the product; there was no logo/wordmark anywhere before.
+- **A11y:** one authored `:focus-visible` ring app-wide (there were *zero* focus styles); `aria-live`
+  on the SSE feed (the trust engine was silent to SR) + `role="alert"` on every flow error +
+  `role="status"` on transient notices; `aria-pressed` on landing + deck chips; `aria-label` on every
+  placeholder-only input; chip touch target ~33→~40px; `input[type=email]` finally styled (batch-1 P2);
+  preview iframe gets a mobile "pinch to read" hint (full fit-to-width scaling stays deferred to the
+  server preview render — a client hint is the honest interim).
+- **Copy:** signup h1 "Save your draft to your account" (was "unlock your draft" — confusing right after
+  they saw it; the e2e heading assertion moved with it); preview→wall forewarning "takes an email, no
+  password"; import door "Build it with me" → "Paste your CV text" (label now matches its paste
+  destination); the untrue "stays on your device" import lede → "we use it only to build your draft".
+
+Whole flow re-screenshotted via a booted dev server (landing/import/signup/paste, desktop + mobile) —
+0px overflow, brand bar + chips + styled inputs all clean. api 160, typecheck 7/7, web build clean.
+S2.5 closed; next is S3 (the hunt, E5 cluster engine).
 
 ## 2026-07-19 (session 9) — Staging bugfix: miner fails a job on an over-long source_quote
 

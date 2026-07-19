@@ -43,7 +43,7 @@ export default function SignupScreen() {
 
   return (
     <main>
-      <h1>Verify your email to unlock your draft</h1>
+      <h1>Save your draft to your account</h1>
       <p className="lede">
         Your tailored draft is ready. Confirm your email and we&apos;ll turn it into a verified master
         CV that&apos;s yours to keep — no password, just a one-tap link.
@@ -67,12 +67,13 @@ export default function SignupScreen() {
           <p className="lede" style={{ margin: "0 0 12px" }}>or get a sign-in link by email:</p>
           <input
             type="email"
+            aria-label="Email address"
             placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && email.includes("@") && submit()}
           />
-          {error && <p className="error" style={{ marginBottom: 0 }}>{error}</p>}
+          {error && <p className="error" role="alert" style={{ marginBottom: 0 }}>{error}</p>}
           <button
             className="btn"
             style={{ marginTop: 12 }}
