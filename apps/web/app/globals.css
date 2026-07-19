@@ -146,6 +146,131 @@ textarea {
   color: var(--jc-danger);
 }
 
+/* --- Verified master CV (the ready screen) --- */
+
+/* Resolves the preview's watermark promise: this is the certified, un-watermarked CV. */
+.verified-seal {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--jc-verified);
+  background: color-mix(in oklab, var(--jc-verified) 9%, var(--jc-surface));
+  border: 1px solid color-mix(in oklab, var(--jc-verified) 30%, transparent);
+  border-radius: var(--jc-radius-pill);
+  padding: 6px 14px;
+  margin-bottom: var(--jc-sp-md);
+}
+
+/* Evidence provenance badge (spec §5) — the per-line proof, in the shared token palette. Meaning is
+   carried by the text label too, never colour alone. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 9px;
+  border-radius: var(--jc-radius-pill);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.badge[data-cls="verified"] {
+  color: var(--jc-verified);
+  border-color: color-mix(in oklab, var(--jc-verified) 32%, transparent);
+  background: color-mix(in oklab, var(--jc-verified) 8%, var(--jc-surface));
+}
+.badge[data-cls="derived"] {
+  color: var(--jc-derived);
+  border-color: color-mix(in oklab, var(--jc-derived) 32%, transparent);
+  background: color-mix(in oklab, var(--jc-derived) 8%, var(--jc-surface));
+}
+.badge[data-cls="partial"] {
+  color: var(--jc-partial);
+  border-color: color-mix(in oklab, var(--jc-partial) 32%, transparent);
+  background: color-mix(in oklab, var(--jc-partial) 8%, var(--jc-surface));
+}
+.badge[data-cls="suggested"] {
+  color: var(--jc-suggested);
+  border-color: color-mix(in oklab, var(--jc-suggested) 32%, transparent);
+  background: color-mix(in oklab, var(--jc-suggested) 8%, var(--jc-surface));
+}
+.badge[data-cls="negative"] {
+  color: var(--jc-negative);
+  border-color: color-mix(in oklab, var(--jc-negative) 32%, transparent);
+  background: color-mix(in oklab, var(--jc-negative) 8%, var(--jc-surface));
+}
+
+/* One-time key to the badges, so the colours are recognised not recalled. */
+.badge-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  color: var(--jc-ink-muted);
+  font-size: 0.8rem;
+  margin: 0 0 var(--jc-sp-md);
+}
+
+/* The document itself: a little more air than a plain card, so it reads as a finished CV. */
+.cv-doc {
+  padding: var(--jc-sp-lg) var(--jc-sp-lg) var(--jc-sp-md);
+}
+.cv-doc section + section {
+  margin-top: var(--jc-sp-md);
+}
+.cv-doc h3 {
+  font-size: 0.95rem;
+  margin: 0 0 var(--jc-sp-xs);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--jc-line);
+}
+.cv-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--jc-sp-sm);
+  padding: 7px 0;
+}
+.cv-line + .cv-line {
+  border-top: 1px dashed var(--jc-line);
+}
+.cv-line .badge {
+  flex: none;
+  position: relative;
+  top: 1px;
+}
+.cv-line-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+/* A quiet affordance until you want it — the fix pointer per line (kickoff decision 7). */
+.cv-fix {
+  flex: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--jc-accent);
+  cursor: pointer;
+  opacity: 0.7;
+}
+.cv-fix:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
 @media (max-width: 480px) {
   h1 {
     font-size: 1.5rem;

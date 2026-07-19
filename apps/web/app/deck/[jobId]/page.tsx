@@ -311,6 +311,23 @@ export default function DeckScreen() {
   );
 }
 
+// Evidence provenance → the shared badge palette (spec §5, tokens.css). A rendered line carries one
+// classification today; if a future graph attaches several to a bullet, surface the least-grounded so
+// the eye lands on what still needs a look.
+const CLS_META: Record<string, { key: string; label: string }> = {
+  Verified: { key: "verified", label: "Verified" },
+  Derived: { key: "derived", label: "Derived" },
+  "Partially-Supported": { key: "partial", label: "Partial" },
+  "Unsupported-but-Plausible": { key: "suggested", label: "Suggested" },
+  Negative: { key: "negative", label: "Negative" },
+};
+const CLS_RANK = ["Verified", "Derived", "Partially-Supported", "Unsupported-but-Plausible", "Negative"];
+function evidenceBadge(classifications: string[]): { key: string; label: string } {
+  let worst = classifications[0] ?? "Verified";
+  for (const c of classifications) if (CLS_RANK.indexOf(c) > CLS_RANK.indexOf(worst)) worst = c;
+  return CLS_META[worst] ?? { key: "verified", label: worst };
+}
+
 // The build result: a clean gate flips to `ready` and shows the master CV; a failing gate loops back
 // with the reasons (each names a claim), never a dead end (kickoff decision 5).
 //
@@ -375,14 +392,29 @@ function BuildOutcome({
 
   return (
     <main style={{ maxWidth: 720 }}>
+      <div className="verified-seal">✓ Verified · watermark removed</div>
       <h1>You own your facts</h1>
       <p className="lede">
-        Every line below traces to something you confirmed. This is your verified master CV. Spot
-        something off? Fix the fact behind the line and the CV re-renders.
+        The watermark&apos;s off. This is your verified master CV — every line traces to a fact you
+        confirmed, and nothing you didn&apos;t. It&apos;s yours to keep. Spot something off? Fix the
+        fact behind the line and the CV re-renders.
       </p>
-      <div className="card" data-testid="rootcv">
+
+      <div className="badge-legend">
+        <span>
+          <span className="badge" data-cls="verified">Verified</span> word-for-word from your CV
+        </span>
+        <span>
+          <span className="badge" data-cls="derived">Derived</span> reworded from it
+        </span>
+        <span>
+          <span className="badge" data-cls="partial">Partial</span> worth a closer look
+        </span>
+      </div>
+
+      <div className="card cv-doc" data-testid="rootcv">
         {sections.map(([section, entries]) => (
-          <div key={section}>
+          <section key={section}>
             <h3>{section}</h3>
             {entries.map((e) => {
               const nodeId = e.nodeIds[0];
@@ -415,23 +447,37 @@ function BuildOutcome({
                     </div>
                   </div>
                 );
+              const badge = evidenceBadge(e.classifications);
               return (
-                <p key={nodeId} data-testid="cv-bullet" style={{ margin: "4px 0" }}>
-                  • {e.bullet}{" "}
+                <div key={nodeId} className="cv-line" data-testid="cv-bullet">
+                  <span className="badge" data-cls={badge.key} title={`${badge.label} — how we sourced this line`}>
+                    {badge.label}
+                  </span>
+                  <span className="cv-line-text">{e.bullet}</span>
                   <button
+                    className="cv-fix"
                     onClick={() => setFixing({ nodeId, text: e.bullet })}
                     title="Something wrong? Fix the fact behind this line."
-                    style={{ background: "none", border: "none", color: "var(--jc-accent)", cursor: "pointer", padding: 0, font: "inherit", fontSize: "0.85em" }}
                   >
                     fix
                   </button>
-                </p>
+                </div>
               );
             })}
-          </div>
+          </section>
         ))}
       </div>
+
       {error && <p className="error">{error}</p>}
+
+      <div className="card" style={{ marginTop: 24 }}>
+        <p style={{ marginTop: 0, fontWeight: 600 }}>What happens next</p>
+        <p className="lede" style={{ marginBottom: 0 }}>
+          We start matching this verified CV against live postings and bring back roles worth your
+          time — tailored to the facts you just confirmed. That&apos;s rolling out now; you&apos;re at
+          the front of the line.
+        </p>
+      </div>
     </main>
   );
 }

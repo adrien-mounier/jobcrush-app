@@ -33,9 +33,24 @@ Then applied the P0 + four supporting harden fixes (this branch):
 - **Deck friendly not-found** — a bad/expired jobId shows a friendly screen with "Upload my CV",
   not the raw error string.
 
-api 160 pass, typecheck 7/7, web build clean. Still open from the critique (later S2.5 batches):
-render the ready CV as a document + classification badges + a next-step (the biggest gap), brand
-presence, `:focus`/`aria-live` a11y, mobile preview iframe, touch-target sizes.
+api 160 pass, typecheck 7/7, web build clean.
+
+**Then batch 2 — the ending (the critique's biggest gap).** The ready screen ("You own your facts")
+was flat trace bullets that never rendered as a document, never used the evidence-badge palette (the
+product differentiator — `classification` is fetched and was thrown away), never resolved the
+preview's watermark promise, and dead-ended. Rebuilt: a "✓ Verified · watermark removed" seal, a
+per-line evidence badge in the shared token palette (new `.badge` component in globals.css, keyed
+`verified/derived/partial/suggested/negative`) with a one-time legend, the CV styled as a real
+document (`.cv-doc`/`.cv-line`), and a "What happens next" card ending the flow forward (S3 hunt,
+honestly "rolling out"). Per-line "fix" (kickoff decision 7) kept; the e2e "•" assertion swapped for a
+`cv-bullet` visibility check. Badge palette battle-tested via a throwaway static harness screenshotted
+at 1280/375 (0px overflow both). Kept `You own your facts` + `rootcv`/`cv-bullet`/`fix-editor` testids
+so the onboarding e2e still holds. `color-mix(in oklab, …)` for the badge tints passes the Next CSS
+pipeline. api 160, typecheck 7/7, web build clean.
+
+Still open from the critique (later S2.5 batches): brand presence (no header/logo anywhere),
+`:focus`/`aria-live` a11y + ≥44px touch targets, mobile preview-iframe legibility, copy fixes
+(signup h1, preview→wall forewarning, "Build it with me", the untrue "stays on your device" lede).
 
 ## 2026-07-19 (session 9) — Staging bugfix: miner fails a job on an over-long source_quote
 

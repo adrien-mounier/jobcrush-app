@@ -49,9 +49,10 @@ UX/UI cleanup of the existing flow (see milestone above). Critique done 2026-07-
 
 - [x] **Harden batch 1** — magic-link cross-browser session carry (P0), signup email-typo recovery,
       deck batch-persistence + friendly not-found, preview polling. api 160 / typecheck 7.
-- [ ] **The ending** (biggest gap): render the ready CV as a real document, badge each line with the
-      evidence palette (`--jc-verified/derived/partial/suggested` — fetched today, never shown), and
-      end on a next-step, not trace bullets with tiny "fix" links.
+- [x] **The ending** — the ready screen now renders as a document with a "✓ Verified · watermark
+      removed" seal (resolves the preview's promise), a per-line evidence badge in the shared palette
+      (`.badge` component; `--jc-verified/derived/partial/suggested` — the differentiator, finally
+      shown) with a legend, and a "What happens next" step. Per-line "fix" kept.
 - [ ] **Brand presence** — no header/logo/wordmark on any screen today.
 - [ ] **A11y** — authored `:focus` styles, `aria-live` on the SSE feed + busy/error states, chip
       `aria-pressed`, real `<label>`s; mobile: preview iframe legibility, ≥44px touch targets.
