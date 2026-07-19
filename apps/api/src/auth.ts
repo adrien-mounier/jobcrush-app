@@ -13,12 +13,27 @@ export interface User {
   email: string;
 }
 
+/** What a consumed magic-link token yields: the email, and the anonymous session that requested it. */
+export interface ConsumedToken {
+  email: string;
+  /** The session that was active when the link was requested — the one holding the job/claims.
+      null when the link was requested with no session. See routes/auth.ts verify for why this matters. */
+  pendingSessionId: string | null;
+}
+
 export interface AuthStore {
   init(): Promise<void>;
-  /** Store a token hash for an email, invalidating any prior token for that email (one live link). */
-  createToken(email: string, tokenHash: string, expiresAt: string): Promise<void>;
-  /** If the hash is an unused, unexpired token: mark it used and return its email; else null. */
-  consumeToken(tokenHash: string): Promise<string | null>;
+  /** Store a token hash for an email, invalidating any prior token for that email (one live link).
+      `pendingSessionId` is the requesting session, carried so verify can claim the RIGHT session even
+      when the link is opened in a different browser (the JC-18 cross-browser fix). */
+  createToken(
+    email: string,
+    tokenHash: string,
+    expiresAt: string,
+    pendingSessionId?: string | null,
+  ): Promise<void>;
+  /** If the hash is an unused, unexpired token: mark it used and return {email, pendingSessionId}; else null. */
+  consumeToken(tokenHash: string): Promise<ConsumedToken | null>;
   /** Create-or-get the user for an email. */
   upsertUser(email: string): Promise<User>;
   getUserById(id: string): Promise<User | null>;
@@ -28,6 +43,7 @@ interface TokenRow {
   email: string;
   expiresAt: string;
   usedAt: string | null;
+  pendingSessionId: string | null;
 }
 
 export class InMemoryAuthStore implements AuthStore {
@@ -37,16 +53,21 @@ export class InMemoryAuthStore implements AuthStore {
 
   async init(): Promise<void> {}
 
-  async createToken(email: string, tokenHash: string, expiresAt: string): Promise<void> {
+  async createToken(
+    email: string,
+    tokenHash: string,
+    expiresAt: string,
+    pendingSessionId: string | null = null,
+  ): Promise<void> {
     for (const [hash, t] of this.tokens) if (t.email === email) this.tokens.delete(hash);
-    this.tokens.set(tokenHash, { email, expiresAt, usedAt: null });
+    this.tokens.set(tokenHash, { email, expiresAt, usedAt: null, pendingSessionId });
   }
 
-  async consumeToken(tokenHash: string): Promise<string | null> {
+  async consumeToken(tokenHash: string): Promise<ConsumedToken | null> {
     const t = this.tokens.get(tokenHash);
     if (!t || t.usedAt || t.expiresAt <= new Date().toISOString()) return null;
     t.usedAt = new Date().toISOString();
-    return t.email;
+    return { email: t.email, pendingSessionId: t.pendingSessionId };
   }
 
   async upsertUser(email: string): Promise<User> {
@@ -70,10 +91,11 @@ const AUTH_TABLES = [
      created_at timestamptz NOT NULL DEFAULT now()
    )`,
   `CREATE TABLE IF NOT EXISTS login_tokens (
-     token_hash text PRIMARY KEY,
-     email      text NOT NULL,
-     expires_at timestamptz NOT NULL,
-     used_at    timestamptz
+     token_hash         text PRIMARY KEY,
+     email              text NOT NULL,
+     expires_at         timestamptz NOT NULL,
+     used_at            timestamptz,
+     pending_session_id text
    )`,
 ];
 
@@ -82,25 +104,38 @@ export class PgAuthStore implements AuthStore {
 
   async init(): Promise<void> {
     for (const ddl of AUTH_TABLES) await this.pool.query(ddl);
+    // Additive migration for token tables created before JC-18's cross-browser fix. Idempotent;
+    // best-effort so it never blocks startup (and pg-mem, which lacks ADD COLUMN IF NOT EXISTS on
+    // older builds, just no-ops — the fresh CREATE TABLE above already has the column).
+    await this.pool
+      .query(`ALTER TABLE login_tokens ADD COLUMN IF NOT EXISTS pending_session_id text`)
+      .catch(() => {});
   }
 
-  async createToken(email: string, tokenHash: string, expiresAt: string): Promise<void> {
+  async createToken(
+    email: string,
+    tokenHash: string,
+    expiresAt: string,
+    pendingSessionId: string | null = null,
+  ): Promise<void> {
     await this.pool.query(`DELETE FROM login_tokens WHERE email = $1`, [email]);
     await this.pool.query(
-      `INSERT INTO login_tokens (token_hash, email, expires_at) VALUES ($1, $2, $3)`,
-      [tokenHash, email, expiresAt],
+      `INSERT INTO login_tokens (token_hash, email, expires_at, pending_session_id) VALUES ($1, $2, $3, $4)`,
+      [tokenHash, email, expiresAt, pendingSessionId],
     );
   }
 
-  async consumeToken(tokenHash: string): Promise<string | null> {
+  async consumeToken(tokenHash: string): Promise<ConsumedToken | null> {
     // Single-use + unexpired, atomically: only an unused, live token flips to used and returns email.
     const { rows } = await this.pool.query(
       `UPDATE login_tokens SET used_at = now()
        WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
-       RETURNING email`,
+       RETURNING email, pending_session_id`,
       [tokenHash],
     );
-    return rows[0] ? (rows[0].email as string) : null;
+    return rows[0]
+      ? { email: rows[0].email as string, pendingSessionId: (rows[0].pending_session_id as string) ?? null }
+      : null;
   }
 
   async upsertUser(email: string): Promise<User> {

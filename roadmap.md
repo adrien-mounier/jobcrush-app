@@ -27,11 +27,10 @@ no autonomous submit, no LinkedIn credentials, ever).
       loop-backs (decision #7) closed the slice. Ops note: staging returns the dev sign-in link until
       `RESEND_API_KEY` + `WEB_URL` are set.
       _Demo: a user completes onboarding and their profile flips to `ready` with a validator-clean graph._
-- [ ] **S2.5 — UX/UI cleanup** — _decided 2026-07-19: polish the existing flow before building S3._
-      The onboarding journey works end to end but the experience is rough; clean it up so what
-      exists feels like a product before adding the next slice. Scope: a critique pass over the
-      live flow (import → progress → preview → signup → deck → grill → ready/review) to enumerate
-      concrete fixes, then apply them. _Demo: the current flow, same features, feels polished._
+- [x] **S2.5 — UX/UI cleanup** — _done 2026-07-19._ `/impeccable critique` of the live flow (24/40),
+      then three fix batches: (1) harden — magic-link cross-browser P0 + resilience; (2) the ending —
+      verified-CV document + evidence-palette badges + next-step; (3) brand bar + a11y + copy. See the
+      S2.5 backlog below for the itemised record. _Demo: same features, now feels like a product._
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
       Epics: E5 cluster engine (JC-33/34/35), E6 feed + hunt (JC-36…40), E7 swipe + prepared apply
@@ -44,8 +43,34 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Backlog (S2.5, the immediate next work)
 
-UX/UI cleanup of the existing flow (see milestone above). First step: walk the live staging flow
-and enumerate the concrete improvements into a checklist here, then work through it.
+UX/UI cleanup of the existing flow (see milestone above). Critique done 2026-07-19 (dual-agent
+`/impeccable critique`, 24/40; snapshot in `.impeccable/critique/`). Working through the fixes:
+
+- [x] **Harden batch 1** — magic-link cross-browser session carry (P0), signup email-typo recovery,
+      deck batch-persistence + friendly not-found, preview polling. api 160 / typecheck 7.
+- [x] **The ending** — the ready screen now renders as a document with a "✓ Verified · watermark
+      removed" seal (resolves the preview's promise), a per-line evidence badge in the shared palette
+      (`.badge` component; `--jc-verified/derived/partial/suggested` — the differentiator, finally
+      shown) with a legend, and a "What happens next" step. Per-line "fix" kept.
+- [x] **Brand presence** — app-wide `.brandbar` (JobCrush wordmark) in `layout.tsx`, on every screen.
+- [x] **A11y** — one authored `:focus-visible` ring app-wide; `aria-live` on the SSE feed + `role="alert"`
+      on every flow error + `role="status"` on transient notices; `aria-pressed` on landing + deck chips;
+      `aria-label` on every placeholder-only input; chip touch target ~33→~40px; styled `input[type=email]`;
+      preview iframe now fits to width on mobile (viewport meta + narrow-screen padding in the server
+      preview render); the old "pinch to read" hint is now "scroll inside to read it all".
+- [x] **Copy** — signup h1 "Save your draft to your account" (was "unlock your draft"); preview→wall
+      forewarning ("takes an email, no password"); "Build it with me" → "Paste your CV text"; the untrue
+      "stays on your device" import lede → "we use it only to build your draft".
+
+- [x] **Backlog cleanup** — the sub-items missed in the first three batches, to fully close the
+      critique's 5-command plan: gate-failure copy (loopback now folds the mechanical `nodeId…` strings
+      into one actionable line, keeps the human ones); deck **progression** ("N of M reviewed" by the
+      "Worth a closer look" heading); evidence badge on each **individual deck claim** (colorize — the
+      classification was fetched and unused on the deck); `.btn`/`.chip` **hover + active** states with a
+      reduced-motion guard; **chip overflow** contained (long batch claims wrap in-card, no overflow).
+
+S2.5 done. Flow + deck re-screenshotted (desktop + mobile, 0px overflow throughout).
+Next: **S3 — the hunt** (E5 cluster engine, JC-33/34/35).
 
 Then S3, the hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6
 feed + hunt (JC-36…40), then E7 swipe + prepared apply (JC-41/42/43). Per-ticket ACs are in the

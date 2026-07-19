@@ -37,5 +37,5 @@ test("E2 wall: the deck is login-gated — logged out, it redirects to signup", 
   await page.goto("/deck/any-job-id"); // no session/login → server 401 login_required
   // Generous: against staging this is 3 sequential round-trips (ensure session → deck → redirect).
   await page.waitForURL(/\/signup/, { timeout: 45_000 });
-  await expect(page.getByRole("heading", { name: /verify your email/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /save your draft/i })).toBeVisible();
 });

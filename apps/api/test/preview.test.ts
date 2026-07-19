@@ -84,6 +84,7 @@ describe("JC-16 posting match + render", () => {
     expect(html).toContain("Facts not yet verified");
     expect(html).toContain("Maria Kowalski");
     expect(html).not.toContain("<script"); // self-contained, no active content
+    expect(html).toContain('name="viewport"'); // fit-to-width on mobile, not pinch-to-read
   });
 
   it("escapes claim-derived content in the render", () => {

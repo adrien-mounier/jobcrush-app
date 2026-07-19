@@ -20,6 +20,25 @@ main {
   padding: var(--jc-sp-xl) var(--jc-sp-md);
 }
 
+/* App-wide brand bar — every screen now shows what product you're in (there was no logo/wordmark
+   anywhere before). Minimal by intent: product register, not a nav. */
+.brandbar {
+  border-bottom: 1px solid var(--jc-line);
+  background: var(--jc-surface);
+}
+.brandbar > div {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 13px var(--jc-sp-md);
+}
+.brandbar a {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--jc-accent);
+  text-decoration: none;
+}
+
 h1 {
   font-size: 2rem;
   letter-spacing: -0.02em;
@@ -51,6 +70,15 @@ p.lede {
   font-weight: 600;
   cursor: pointer;
   text-decoration: none;
+  transition:
+    background-color 150ms ease,
+    transform 100ms ease;
+}
+.btn:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--jc-accent) 88%, black);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .btn:disabled {
   opacity: 0.5;
@@ -61,16 +89,28 @@ p.lede {
   color: var(--jc-accent);
   border: 1.5px solid var(--jc-accent);
 }
+.btn-secondary:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--jc-accent) 8%, transparent);
+}
 
 .chip {
   display: inline-block;
   border: 1px solid var(--jc-line);
   background: var(--jc-surface);
   border-radius: var(--jc-radius-pill);
-  padding: 6px 14px;
+  /* ~40px tall — a comfortable touch target (was ~33px, under the mobile floor). */
+  padding: 10px 15px;
   margin: 0 var(--jc-sp-sm) var(--jc-sp-sm) 0;
   font-size: 0.9rem;
   cursor: pointer;
+  color: var(--jc-ink);
+  /* A batch chip can carry a whole CV bullet — keep it inside the card instead of overflowing. */
+  max-width: 100%;
+  overflow-wrap: break-word;
+  transition: border-color 150ms ease;
+}
+.chip:hover {
+  border-color: var(--jc-accent);
 }
 .chip[data-on="true"] {
   background: var(--jc-accent);
@@ -79,6 +119,7 @@ p.lede {
 }
 
 input[type="text"],
+input[type="email"],
 textarea {
   width: 100%;
   padding: 12px 14px;
@@ -88,6 +129,14 @@ textarea {
   border-radius: 8px;
   background: var(--jc-surface);
   color: var(--jc-ink);
+}
+
+/* One authored focus ring for the whole app — keyboard users could not see focus before (there were
+   no :focus styles at all). :focus-visible keeps it off mouse clicks; :where() keeps specificity 0 so
+   component styles still win on everything else. */
+:where(a, button, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--jc-accent);
+  outline-offset: 2px;
 }
 
 .door {
@@ -144,6 +193,161 @@ textarea {
 
 .error {
   color: var(--jc-danger);
+}
+
+/* Shown only on small screens (e.g. the "pinch to read" hint under the preview iframe). */
+.mobile-hint {
+  display: none;
+}
+@media (max-width: 640px) {
+  .mobile-hint {
+    display: block;
+  }
+}
+
+/* --- Verified master CV (the ready screen) --- */
+
+/* Resolves the preview's watermark promise: this is the certified, un-watermarked CV. */
+.verified-seal {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--jc-verified);
+  background: color-mix(in oklab, var(--jc-verified) 9%, var(--jc-surface));
+  border: 1px solid color-mix(in oklab, var(--jc-verified) 30%, transparent);
+  border-radius: var(--jc-radius-pill);
+  padding: 6px 14px;
+  margin-bottom: var(--jc-sp-md);
+}
+
+/* Evidence provenance badge (spec §5) — the per-line proof, in the shared token palette. Meaning is
+   carried by the text label too, never colour alone. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 9px;
+  border-radius: var(--jc-radius-pill);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.badge[data-cls="verified"] {
+  color: var(--jc-verified);
+  border-color: color-mix(in oklab, var(--jc-verified) 32%, transparent);
+  background: color-mix(in oklab, var(--jc-verified) 8%, var(--jc-surface));
+}
+.badge[data-cls="derived"] {
+  color: var(--jc-derived);
+  border-color: color-mix(in oklab, var(--jc-derived) 32%, transparent);
+  background: color-mix(in oklab, var(--jc-derived) 8%, var(--jc-surface));
+}
+.badge[data-cls="partial"] {
+  color: var(--jc-partial);
+  border-color: color-mix(in oklab, var(--jc-partial) 32%, transparent);
+  background: color-mix(in oklab, var(--jc-partial) 8%, var(--jc-surface));
+}
+.badge[data-cls="suggested"] {
+  color: var(--jc-suggested);
+  border-color: color-mix(in oklab, var(--jc-suggested) 32%, transparent);
+  background: color-mix(in oklab, var(--jc-suggested) 8%, var(--jc-surface));
+}
+.badge[data-cls="negative"] {
+  color: var(--jc-negative);
+  border-color: color-mix(in oklab, var(--jc-negative) 32%, transparent);
+  background: color-mix(in oklab, var(--jc-negative) 8%, var(--jc-surface));
+}
+
+/* One-time key to the badges, so the colours are recognised not recalled. */
+.badge-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  color: var(--jc-ink-muted);
+  font-size: 0.8rem;
+  margin: 0 0 var(--jc-sp-md);
+}
+
+/* The document itself: a little more air than a plain card, so it reads as a finished CV. */
+.cv-doc {
+  padding: var(--jc-sp-lg) var(--jc-sp-lg) var(--jc-sp-md);
+}
+.cv-doc section + section {
+  margin-top: var(--jc-sp-md);
+}
+.cv-doc h3 {
+  font-size: 0.95rem;
+  margin: 0 0 var(--jc-sp-xs);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--jc-line);
+}
+.cv-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--jc-sp-sm);
+  padding: 7px 0;
+}
+.cv-line + .cv-line {
+  border-top: 1px dashed var(--jc-line);
+}
+.cv-line .badge {
+  flex: none;
+  position: relative;
+  top: 1px;
+}
+.cv-line-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+/* A quiet affordance until you want it — the fix pointer per line (kickoff decision 7). */
+.cv-fix {
+  flex: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--jc-accent);
+  cursor: pointer;
+  opacity: 0.7;
+}
+.cv-fix:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* Review progress on the confirm deck — turns a wall of cards into a countable task. */
+.deck-progress {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--jc-sp-sm);
+  margin-bottom: var(--jc-sp-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+  .btn:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 @media (max-width: 480px) {

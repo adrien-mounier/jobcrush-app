@@ -34,12 +34,13 @@ export default function PasteScreen() {
       <div className="card">
         <textarea
           rows={16}
+          aria-label="Your CV text"
           placeholder={"Jane Doe\nProject Manager\n\nExperience\n…"}
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
       </div>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       <button className="btn" onClick={submit} disabled={busy || text.trim().length < 100}>
         {busy ? "Sending…" : "Use this text"}
       </button>

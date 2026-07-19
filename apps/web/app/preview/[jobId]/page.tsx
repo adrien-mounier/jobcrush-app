@@ -15,18 +15,35 @@ export default function PreviewScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const jobRes = await fetch(`/api/jobs/${jobId}`);
         if (!jobRes.ok) throw new Error("preview not found");
+        if (cancelled) return;
         setJob(await jobRes.json());
-        const htmlRes = await fetch(`/api/previews/${jobId}`);
-        if (!htmlRes.ok) throw new Error("preview not ready yet");
-        setHtml(await htmlRes.text());
+        // The rendered HTML can lag the job's completion by a beat. Poll while the server says
+        // "not_ready" instead of flashing a dead-end error the user can't act on; a real miss
+        // (not_found) or any other failure stops immediately.
+        for (let attempt = 0; attempt < 8 && !cancelled; attempt++) {
+          const htmlRes = await fetch(`/api/previews/${jobId}`);
+          if (htmlRes.ok) {
+            const text = await htmlRes.text();
+            if (!cancelled) setHtml(text);
+            return;
+          }
+          const body = (await htmlRes.json().catch(() => ({}))) as { error?: { code?: string } };
+          if (body.error?.code !== "not_ready") throw new Error("could not load the preview");
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        if (!cancelled) throw new Error("your draft is taking longer than usual — refresh in a moment");
       } catch (e) {
-        setError(e instanceof Error ? e.message : "could not load the preview");
+        if (!cancelled) setError(e instanceof Error ? e.message : "could not load the preview");
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [jobId]);
 
   const posting = job?.progress.preview;
@@ -41,21 +58,26 @@ export default function PreviewScreen() {
         </p>
       )}
 
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       {!html && !error && <p className="lede">Loading your draft…</p>}
       {html && (
-        <iframe
-          sandbox=""
-          srcDoc={html}
-          title="Tailored CV draft"
-          style={{
-            width: "100%",
-            height: "75vh",
-            border: "1px solid var(--jc-line)",
-            borderRadius: "var(--jc-radius-card)",
-            background: "white",
-          }}
-        />
+        <>
+          <iframe
+            sandbox=""
+            srcDoc={html}
+            title="Tailored CV draft"
+            style={{
+              width: "100%",
+              height: "75vh",
+              border: "1px solid var(--jc-line)",
+              borderRadius: "var(--jc-radius-card)",
+              background: "white",
+            }}
+          />
+          <p className="lede mobile-hint" style={{ marginTop: 8, fontSize: "0.85rem" }}>
+            It&apos;s a full-page CV — scroll inside to read it all.
+          </p>
+        </>
       )}
 
       <div className="card" style={{ marginTop: 24 }}>
@@ -69,6 +91,10 @@ export default function PreviewScreen() {
         <Link className="btn" href={`/deck/${jobId}`}>
           Confirm my facts
         </Link>
+        {/* Set the contract before the wall so it isn't a surprise. */}
+        <p className="lede" style={{ margin: "10px 0 0", fontSize: "0.85rem" }}>
+          Takes an email, no password — your draft saves to your account.
+        </p>
       </div>
     </main>
   );

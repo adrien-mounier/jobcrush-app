@@ -88,7 +88,7 @@ test("happy path: reject one, confirm the rest → build → verified root CV", 
   // Clean gate → the reward screen with a rendered CV…
   await expect(reward).toBeVisible({ timeout: 120_000 }); // build includes the LLM audit
   const rootcv = page.getByTestId("rootcv");
-  await expect(rootcv).toContainText("•"); // at least one bullet rendered
+  await expect(page.getByTestId("cv-bullet").first()).toBeVisible(); // at least one bullet rendered
 
   // …a grill answer we gave becomes a fact in the CV (JC-24 persistence; user-authored words are
   // never reworded by the audit, so the exact text must survive)…

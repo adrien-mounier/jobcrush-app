@@ -60,13 +60,20 @@ export default function Landing() {
         <p style={{ marginTop: 0, fontWeight: 600 }}>What roles are you targeting?</p>
         <div>
           {SUGGESTIONS.map((s) => (
-            <button key={s} className="chip" data-on={picked.includes(s)} onClick={() => toggle(s)}>
+            <button
+              key={s}
+              className="chip"
+              data-on={picked.includes(s)}
+              aria-pressed={picked.includes(s)}
+              onClick={() => toggle(s)}
+            >
               {s}
             </button>
           ))}
         </div>
         <input
           type="text"
+          aria-label="Add your own target role"
           placeholder="Or type your own (comma-separated)…"
           value={freeText}
           onChange={(e) => setFreeText(e.target.value)}
@@ -74,7 +81,7 @@ export default function Landing() {
         />
       </div>
 
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       <button className="btn" onClick={start} disabled={busy || titles.length === 0}>
         {busy ? "Starting…" : "Continue"}
       </button>

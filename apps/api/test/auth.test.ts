@@ -26,8 +26,15 @@ for (const [name, make] of authDrivers) {
       const s = make();
       await s.init();
       await s.createToken("a@x.com", sha256("raw1"), future());
-      expect(await s.consumeToken(sha256("raw1"))).toBe("a@x.com");
+      expect(await s.consumeToken(sha256("raw1"))).toMatchObject({ email: "a@x.com" });
       expect(await s.consumeToken(sha256("raw1"))).toBeNull();
+    });
+
+    it("carries the requesting session id through consume (JC-18 cross-browser)", async () => {
+      const s = make();
+      await s.init();
+      await s.createToken("a@x.com", sha256("raw-s"), future(), "sess-abc");
+      expect(await s.consumeToken(sha256("raw-s"))).toEqual({ email: "a@x.com", pendingSessionId: "sess-abc" });
     });
 
     it("expired token does not consume", async () => {
@@ -43,7 +50,7 @@ for (const [name, make] of authDrivers) {
       await s.createToken("a@x.com", sha256("old"), future());
       await s.createToken("a@x.com", sha256("new"), future());
       expect(await s.consumeToken(sha256("old"))).toBeNull();
-      expect(await s.consumeToken(sha256("new"))).toBe("a@x.com");
+      expect(await s.consumeToken(sha256("new"))).toMatchObject({ email: "a@x.com" });
     });
 
     it("upsertUser is idempotent by email; getUserById round-trips", async () => {
@@ -104,15 +111,42 @@ describe("E2 auth routes", () => {
     expect(replay.statusCode).toBe(400);
   });
 
-  it("verify with a bad token is 400; without a session is 401", async () => {
+  it("cross-browser: verify claims the REQUESTING session and re-homes the opener", async () => {
+    const server = buildServer();
+    const cookieA = await anonSession(server.app); // the browser that uploaded — holds the job/deck
+    const cookieB = await anonSession(server.app); // the mail-app webview that opens the link
+    const tokenA = cookieA.split("=")[1];
+
+    const link = await server.app.inject({ method: "POST", url: "/auth/request-link", headers: { cookie: cookieA }, payload: { email: "a@x.com" } });
+    const token = tokenOf(link.json().devLink);
+
+    // Open the link in browser B (a different session entirely).
+    const verified = await server.app.inject({ method: "POST", url: "/auth/verify", headers: { cookie: cookieB }, payload: { token } });
+    expect(verified.statusCode).toBe(200);
+
+    // Session A — the requester, holding the job — is the one claimed, so its deck now opens.
+    const meA = await server.app.inject({ method: "GET", url: "/sessions/me", headers: { cookie: cookieA } });
+    expect(meA.json().claimedByUserId).toBeTruthy();
+    // …and the opener (B) is re-homed onto A: its response cookie now carries A's token.
+    expect(verified.cookies.find((c) => c.name === "jc_session")?.value).toBe(tokenA);
+  });
+
+  it("verify with a bad token is 400 regardless of session; a valid token with no session to claim is 401", async () => {
     const server = buildServer();
     const cookie = await anonSession(server.app);
+    // A bad link is 400 whether or not you hold a session — the token is what's invalid.
     expect(
       (await server.app.inject({ method: "POST", url: "/auth/verify", headers: { cookie }, payload: { token: "garbage" } })).statusCode,
     ).toBe(400);
     expect(
       (await server.app.inject({ method: "POST", url: "/auth/verify", payload: { token: "garbage" } })).statusCode,
-    ).toBe(401); // no session
+    ).toBe(400);
+    // A valid token requested with no session, opened with no session → nothing to attach → 401.
+    const link = await server.app.inject({ method: "POST", url: "/auth/request-link", payload: { email: "b@x.com" } });
+    const token = tokenOf(link.json().devLink);
+    expect(
+      (await server.app.inject({ method: "POST", url: "/auth/verify", payload: { token } })).statusCode,
+    ).toBe(401); // no session to claim
   });
 
   it("the wall is server-side: the deck is 401 login_required without a claimed session", async () => {

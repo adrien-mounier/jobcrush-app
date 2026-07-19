@@ -2,6 +2,89 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-19 (session 10) — S2.5: `/impeccable critique` of the web flow + first harden batch
+
+Ran a dual-agent `/impeccable critique` over the whole web workflow (landing → import → progress →
+preview → signup → deck → ready). Score 24/40, cognitive load HIGH; deterministic detector clean;
+snapshot at `.impeccable/critique/2026-07-19T04-48-20Z__apps-web-app.md`. Headline: not AI-slop but
+*under-designed* (no brand presence; the evidence-badge palette + `classification` data are fetched
+and never rendered), one P0, and an anticlimactic ending (the verified CV never renders as a document,
+no download).
+
+Then applied the P0 + four supporting harden fixes (this branch):
+
+- **P0 — magic link opened in another browser orphaned the session.** The job *and* claims are
+  anchored to the anonymous session that uploaded (`job.sessionId === session.id`), and verify claimed
+  *the opener's* session — so a mail-app in-app-webview open both lost the jobId (per-browser
+  localStorage) and, even resumed, 404'd the deck. Fix: the login token now carries the requesting
+  session id (`login_tokens.pending_session_id`, additive migration); verify claims **that** session
+  and re-homes the opener's cookie onto it, so every continuation path (webview *or* back-in-Safari
+  *or* different device) lands on the right claimed session. The jobId also rides the emailed link
+  (`?job=`) so routing survives cross-browser. OAuth is same-browser by nature — left as-is. New
+  store-contract test (pendingSessionId) + a cross-browser route test; the verify 400/401 ordering
+  flipped (bad token is 400 regardless of session) and its test updated.
+- **Signup typo recovery** — the "check your email" card now has "Wrong email? Change it" (keeps the
+  typed address).
+- **Deck batch persistence** — verbatim keep/drop persists per tap (optimistic + revert), rehydrates
+  from the server on load (drops survive refresh), and Continue confirms the kept-by-default set in
+  parallel + idempotent instead of a fragile sequential commit loop.
+- **Preview polling** — polls while the server says `not_ready` instead of flashing a dead-end error
+  when the render lags the job's completion.
+- **Deck friendly not-found** — a bad/expired jobId shows a friendly screen with "Upload my CV",
+  not the raw error string.
+
+api 160 pass, typecheck 7/7, web build clean.
+
+**Then batch 2 — the ending (the critique's biggest gap).** The ready screen ("You own your facts")
+was flat trace bullets that never rendered as a document, never used the evidence-badge palette (the
+product differentiator — `classification` is fetched and was thrown away), never resolved the
+preview's watermark promise, and dead-ended. Rebuilt: a "✓ Verified · watermark removed" seal, a
+per-line evidence badge in the shared token palette (new `.badge` component in globals.css, keyed
+`verified/derived/partial/suggested/negative`) with a one-time legend, the CV styled as a real
+document (`.cv-doc`/`.cv-line`), and a "What happens next" card ending the flow forward (S3 hunt,
+honestly "rolling out"). Per-line "fix" (kickoff decision 7) kept; the e2e "•" assertion swapped for a
+`cv-bullet` visibility check. Badge palette battle-tested via a throwaway static harness screenshotted
+at 1280/375 (0px overflow both). Kept `You own your facts` + `rootcv`/`cv-bullet`/`fix-editor` testids
+so the onboarding e2e still holds. `color-mix(in oklab, …)` for the badge tints passes the Next CSS
+pipeline. api 160, typecheck 7/7, web build clean.
+
+**Then batch 3 — brand + a11y + copy (closes S2.5).**
+- **Brand presence:** app-wide `.brandbar` (JobCrush wordmark, accent) in `layout.tsx` — every screen
+  now shows the product; there was no logo/wordmark anywhere before.
+- **A11y:** one authored `:focus-visible` ring app-wide (there were *zero* focus styles); `aria-live`
+  on the SSE feed (the trust engine was silent to SR) + `role="alert"` on every flow error +
+  `role="status"` on transient notices; `aria-pressed` on landing + deck chips; `aria-label` on every
+  placeholder-only input; chip touch target ~33→~40px; `input[type=email]` finally styled (batch-1 P2);
+  preview iframe now fits to width on mobile — the deferred server-side change landed: a
+  `width=device-width` viewport meta (was absent, so the iframe laid out at ~980px and overflowed) +
+  a `max-width:600px` padding trim in `renderPreviewHtml`. The "pinch to read" hint became "scroll
+  inside to read it all"; content now reflows to the iframe width and only scrolls vertically.
+- **Copy:** signup h1 "Save your draft to your account" (was "unlock your draft" — confusing right after
+  they saw it; the e2e heading assertion moved with it); preview→wall forewarning "takes an email, no
+  password"; import door "Build it with me" → "Paste your CV text" (label now matches its paste
+  destination); the untrue "stays on your device" import lede → "we use it only to build your draft".
+
+Whole flow re-screenshotted via a booted dev server (landing/import/signup/paste, desktop + mobile) —
+0px overflow, brand bar + chips + styled inputs all clean. api 160, typecheck 7/7, web build clean.
+
+**Then batch 4 — backlog cleanup (closes the critique's full 5-command plan).** A self-audit against the
+recommended actions surfaced four sub-items the first three batches skipped:
+- **clarify / gate-error strings:** the loopback ("Almost there") dumped raw mechanical gate strings
+  (`entry[2] "…": nodeId "x" is not user-confirmed`). Now it shows the already-human ones (empty-CV) and
+  folds any technical trace/structural strings into one actionable line.
+- **shape / deck progression:** an "N of M reviewed" counter beside the "Worth a closer look" heading
+  (`.deck-progress`) — the grind becomes a countable task.
+- **colorize / deck claims:** each individual claim card now carries its evidence badge (the reusable
+  `.badge` + `evidenceBadge()` helper, hoisted above DeckScreen). `classification` was fetched and unused
+  on the deck itself; now shown where it varies (machine-touched claims), not on verbatim chips.
+- **polish / button-state + chip-overflow:** `.btn`/`.btn-secondary`/`.chip` get hover + active states
+  (150ms, `color-mix` darken, 1px press) with a `prefers-reduced-motion` guard; `.chip` gets
+  `max-width:100% + overflow-wrap` so a long batch claim wraps in-card instead of overflowing.
+
+Deck confirm + loopback verified via a throwaway harness (desktop + mobile, 0px overflow; badges,
+progress line, hover state, and long-chip wrapping all correct). api 160, typecheck 7/7, web build clean.
+S2.5 fully closed against the 5-command plan; next is S3 (the hunt, E5 cluster engine).
+
 ## 2026-07-19 (session 9) — Staging bugfix: miner fails a job on an over-long source_quote
 
 User hit "Something went wrong while processing your CV" on staging `/import`. The staging

@@ -15,7 +15,9 @@ export default function VerifyScreen() {
     (async () => {
       const params = new URLSearchParams(window.location.search);
       const resume = () => {
-        const jobId = localStorage.getItem("jc_job");
+        // Prefer the jobId carried on the link (survives a cross-browser open); fall back to the
+        // localStorage stash the deck left (the same-browser OAuth return has no job in the URL).
+        const jobId = params.get("job") || localStorage.getItem("jc_job");
         router.replace(jobId ? `/deck/${jobId}` : "/import");
       };
       // Google OAuth return: the callback already claimed this session server-side — just resume.
