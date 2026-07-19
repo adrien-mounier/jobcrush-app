@@ -108,6 +108,29 @@ node apps/api/dist/main.js   # then: curl localhost:3000/healthz
 
 The LLM seam (`apps/api/src/llm.ts`): a real `ANTHROPIC_API_KEY` uses the Anthropic API; local dev
 falls back to the Claude Code CLI; tests inject a fake. Model: `claude-sonnet-5`, thinking disabled.
+
+## Agent skills
+
+This repo runs the **development-lifecycle** workflow (`/grill-with-docs` or `/wayfinder` →
+`/to-spec` → `/to-tickets` → `/orchestrate-team`). See `AI/ai-lab/skill_lab/docs/development-lifecycle.md`.
+
+### Issue tracker
+
+Specs and tickets are GitHub Issues in `adrien-mounier/jobcrush-app` (via `gh`). See
+`docs/agents/issue-tracker.md`.
+
+### Labels
+
+`ready-for-agent` for agent-grabbable specs/tickets; `wayfinder:*` for wayfinder maps and ticket types.
+
+### Domain docs
+
+Single-context — glossary in `CONTEXT.md`, decisions in `docs/adr/` (both created lazily by
+`/domain-modeling`). The CV-reasoning source of truth is `docs/cv-brain/`. See `docs/agents/domain.md`.
+
+### Coding standards
+
+`CODING_STANDARDS.md` — read and cited by the Standards axis of `/code-review`.
 <!-- SHARED:END -->
 
 ## Tool-specific notes (private — non-Claude-Code agents)
