@@ -48,6 +48,23 @@ export default function PreviewScreen() {
 
   const posting = job?.progress.preview;
 
+  // If the job itself never loaded (stale/foreign preview URL → the API 401s a no-session tab or
+  // 404s a job this session doesn't own), don't dress the dead-end up as a real draft. Mirror the
+  // deck's "not available" screen. A loaded job with only slow HTML keeps the chrome below.
+  if (error && !job)
+    return (
+      <main>
+        <h1>This draft isn&apos;t available</h1>
+        <p className="lede">
+          We couldn&apos;t open it — it may have expired, or the link belongs to another session.
+          Upload your CV to start a fresh draft.
+        </p>
+        <Link className="btn" href="/import">
+          Upload my CV
+        </Link>
+      </main>
+    );
+
   return (
     <main style={{ maxWidth: 860 }}>
       <h1>Your draft, tailored{posting ? ` for ${posting.postingCompany}` : ""}</h1>
