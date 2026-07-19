@@ -2,6 +2,41 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-19 (session 10) — S2.5: `/impeccable critique` of the web flow + first harden batch
+
+Ran a dual-agent `/impeccable critique` over the whole web workflow (landing → import → progress →
+preview → signup → deck → ready). Score 24/40, cognitive load HIGH; deterministic detector clean;
+snapshot at `.impeccable/critique/2026-07-19T04-48-20Z__apps-web-app.md`. Headline: not AI-slop but
+*under-designed* (no brand presence; the evidence-badge palette + `classification` data are fetched
+and never rendered), one P0, and an anticlimactic ending (the verified CV never renders as a document,
+no download).
+
+Then applied the P0 + four supporting harden fixes (this branch):
+
+- **P0 — magic link opened in another browser orphaned the session.** The job *and* claims are
+  anchored to the anonymous session that uploaded (`job.sessionId === session.id`), and verify claimed
+  *the opener's* session — so a mail-app in-app-webview open both lost the jobId (per-browser
+  localStorage) and, even resumed, 404'd the deck. Fix: the login token now carries the requesting
+  session id (`login_tokens.pending_session_id`, additive migration); verify claims **that** session
+  and re-homes the opener's cookie onto it, so every continuation path (webview *or* back-in-Safari
+  *or* different device) lands on the right claimed session. The jobId also rides the emailed link
+  (`?job=`) so routing survives cross-browser. OAuth is same-browser by nature — left as-is. New
+  store-contract test (pendingSessionId) + a cross-browser route test; the verify 400/401 ordering
+  flipped (bad token is 400 regardless of session) and its test updated.
+- **Signup typo recovery** — the "check your email" card now has "Wrong email? Change it" (keeps the
+  typed address).
+- **Deck batch persistence** — verbatim keep/drop persists per tap (optimistic + revert), rehydrates
+  from the server on load (drops survive refresh), and Continue confirms the kept-by-default set in
+  parallel + idempotent instead of a fragile sequential commit loop.
+- **Preview polling** — polls while the server says `not_ready` instead of flashing a dead-end error
+  when the render lags the job's completion.
+- **Deck friendly not-found** — a bad/expired jobId shows a friendly screen with "Upload my CV",
+  not the raw error string.
+
+api 160 pass, typecheck 7/7, web build clean. Still open from the critique (later S2.5 batches):
+render the ready CV as a document + classification badges + a next-step (the biggest gap), brand
+presence, `:focus`/`aria-live` a11y, mobile preview iframe, touch-target sizes.
+
 ## 2026-07-19 (session 9) — Staging bugfix: miner fails a job on an over-long source_quote
 
 User hit "Something went wrong while processing your CV" on staging `/import`. The staging

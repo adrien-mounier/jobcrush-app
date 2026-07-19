@@ -2,6 +2,18 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## A magic link is opened in a different browser than it was requested from — plan for it
+
+The mail-app in-app webview (Gmail/Outlook on mobile) is a *separate cookie jar and localStorage* from
+the browser the user requested the link in. So anything the sign-in flow relied on from the requesting
+tab — the session cookie, a stashed jobId — is simply absent when the link opens. The trap here was
+double: our onboarding job + claims are anchored to the anonymous **session** (`job.sessionId`), and
+verify claimed *the opener's* session, so a cross-browser open couldn't reach the deck even if it
+resumed. Fix pattern: carry the requesting session id on the token and claim **that** session on
+verify (then re-home the opener's cookie onto it), and put any needed routing ids **in the link URL**,
+never only in localStorage. OAuth is exempt — it's a full-page redirect, so it always returns to the
+same browser. Applies to any future emailed/SMS deep link that resumes server-anchored state.
+
 ## API routes the browser reaches through the /api proxy must redirect with RELATIVE paths
 
 The browser navigates to `<web-origin>/api/auth/google`; Next proxies it server-side, so the 302 the

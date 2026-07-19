@@ -44,8 +44,19 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Backlog (S2.5, the immediate next work)
 
-UX/UI cleanup of the existing flow (see milestone above). First step: walk the live staging flow
-and enumerate the concrete improvements into a checklist here, then work through it.
+UX/UI cleanup of the existing flow (see milestone above). Critique done 2026-07-19 (dual-agent
+`/impeccable critique`, 24/40; snapshot in `.impeccable/critique/`). Working through the fixes:
+
+- [x] **Harden batch 1** — magic-link cross-browser session carry (P0), signup email-typo recovery,
+      deck batch-persistence + friendly not-found, preview polling. api 160 / typecheck 7.
+- [ ] **The ending** (biggest gap): render the ready CV as a real document, badge each line with the
+      evidence palette (`--jc-verified/derived/partial/suggested` — fetched today, never shown), and
+      end on a next-step, not trace bullets with tiny "fix" links.
+- [ ] **Brand presence** — no header/logo/wordmark on any screen today.
+- [ ] **A11y** — authored `:focus` styles, `aria-live` on the SSE feed + busy/error states, chip
+      `aria-pressed`, real `<label>`s; mobile: preview iframe legibility, ≥44px touch targets.
+- [ ] **Copy** — signup h1 ("unlock your draft" when they just saw it), preview→wall forewarning,
+      "Build it with me" label vs. paste destination, the untrue "stays on your device" import lede.
 
 Then S3, the hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6
 feed + hunt (JC-36…40), then E7 swipe + prepared apply (JC-41/42/43). Per-ticket ACs are in the

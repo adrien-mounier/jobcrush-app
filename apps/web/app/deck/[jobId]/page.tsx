@@ -41,10 +41,15 @@ export default function DeckScreen() {
         await ensureSession();
         const deck = await openDeck(jobId);
         setClaims(deck.claims);
+        // Rehydrate batch drops from the server so they survive a refresh / app-switch (the drops
+        // persist on tap below). Kept-by-default claims stay off this set.
+        setRemoved(
+          new Set(deck.claims.filter((c) => c.tier === "batch" && c.decision === "rejected").map((c) => c.id)),
+        );
       } catch (e) {
         if ((e as { code?: string }).code === "login_required") {
-          localStorage.setItem("jc_job", jobId); // the wall sends us back here after sign-in
-          router.replace("/signup");
+          localStorage.setItem("jc_job", jobId); // same-browser stash for the OAuth return
+          router.replace(`/signup?job=${jobId}`); // …and on the link, so it survives a cross-browser open
           return;
         }
         setError(e instanceof Error ? e.message : "could not open your deck");
@@ -89,24 +94,39 @@ export default function DeckScreen() {
     }
   };
 
-  const toggleBatch = (id: string) =>
+  // Persist each batch keep/drop on tap (optimistic, revert on failure) so a refresh or app-switch
+  // never loses a decision. confirm/reject are idempotent, so a re-tap is always safe.
+  const toggleBatch = async (id: string) => {
+    const willRemove = !removed.has(id);
+    setError(null);
     setRemoved((r) => {
       const next = new Set(r);
-      next.has(id) ? next.delete(id) : next.add(id);
+      willRemove ? next.add(id) : next.delete(id);
       return next;
     });
+    try {
+      await (willRemove ? rejectClaim(id) : confirmClaim(id));
+    } catch (e) {
+      setRemoved((r) => {
+        const next = new Set(r);
+        willRemove ? next.delete(id) : next.add(id); // revert the optimistic toggle
+        return next;
+      });
+      setError(e instanceof Error ? e.message : "could not save that");
+    }
+  };
 
   const undecided = individual.filter((c) => c.decision === "pending").length;
 
-  // Commit batch decisions (kept → confirm, removed → reject), then look for gaps to grill on.
-  // ponytail: a call per batch claim; fine at deck sizes — a bulk endpoint only if decks grow big.
+  // Drops are already persisted per-tap; here we only need to confirm the kept batch claims that were
+  // never tapped (verbatim → kept by default), in parallel + idempotent, before looking for gaps.
+  // ponytail: a call per kept claim; fine at deck sizes — a bulk endpoint only if decks grow big.
   const continueToGrill = async () => {
     setBusy(true);
     setError(null);
     try {
-      for (const [, group] of batchBySection) {
-        for (const c of group) await (removed.has(c.id) ? rejectClaim(c.id) : confirmClaim(c.id));
-      }
+      const keptBatch = (claims ?? []).filter((c) => c.tier === "batch" && !removed.has(c.id));
+      await Promise.all(keptBatch.map((c) => confirmClaim(c.id)));
       const g = await openGrill(jobId);
       if (g.questions.length > 0) setGrill(g.questions); // → grill phase
       else setBuilt(await buildRootCv()); // no gaps → straight to the CV
@@ -134,7 +154,19 @@ export default function DeckScreen() {
     }
   };
 
-  if (error && !claims) return <main><p className="error">{error}</p></main>;
+  if (error && !claims)
+    return (
+      <main>
+        <h1>This draft isn&apos;t available</h1>
+        <p className="lede">
+          We couldn&apos;t open it — it may have expired, or the link was incomplete. Upload your CV
+          again to pick up where you left off.
+        </p>
+        <button className="btn" onClick={() => router.push("/import")}>
+          Upload my CV
+        </button>
+      </main>
+    );
   if (!claims) return <main><p className="lede">Opening your deck…</p></main>;
   if (built) return <BuildOutcome result={built} onFix={() => setBuilt(null)} onRebuilt={setBuilt} />;
 

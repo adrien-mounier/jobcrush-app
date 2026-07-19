@@ -13,10 +13,15 @@ export default function SignupScreen() {
   const [sent, setSent] = useState<{ devLink?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The deck we're mid-flow on (the wall redirected here with ?job=…). Carried into the sign-in link
+  // so it can route back cross-browser.
+  const [job, setJob] = useState<string | null>(null);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setJob(params.get("job"));
     // Surface how we got here: a Google sign-in that didn't complete, or one that isn't set up.
-    const login = new URLSearchParams(window.location.search).get("login");
+    const login = params.get("login");
     if (login === "expired") setError("Google sign-in didn't complete — try again, or use your email below.");
     else if (login === "error") setError("Google sign-in isn't available right now — use your email below.");
     // The anonymous session must exist BEFORE the Google redirect, or the callback can't claim it
@@ -29,7 +34,7 @@ export default function SignupScreen() {
     setError(null);
     try {
       await ensureSession(); // the anonymous session we'll claim must exist before we send the link
-      setSent(await requestLink(email));
+      setSent(await requestLink(email, job ?? undefined));
     } catch (e) {
       setError(e instanceof Error ? e.message : "could not send your link");
       setBusy(false);
@@ -80,14 +85,24 @@ export default function SignupScreen() {
       ) : (
         <div className="card">
           <p style={{ marginTop: 0, fontWeight: 600 }}>Check your email</p>
-          <p className="lede" style={{ marginBottom: sent.devLink ? 12 : 0 }}>
+          <p className="lede" style={{ marginBottom: 12 }}>
             We sent a sign-in link to <strong>{email}</strong>. It expires in 15 minutes.
           </p>
           {sent.devLink && (
-            <a className="btn" href={sent.devLink}>
+            <a className="btn" href={sent.devLink} style={{ marginRight: 12 }}>
               Open your sign-in link (dev)
             </a>
           )}
+          {/* Recovery from a typo'd address: back to the form with the email kept, so it's a quick fix. */}
+          <button
+            className="btn btn-secondary"
+            onClick={() => {
+              setSent(null);
+              setBusy(false);
+            }}
+          >
+            Wrong email? Change it
+          </button>
         </div>
       )}
     </main>

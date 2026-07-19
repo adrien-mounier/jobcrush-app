@@ -6,7 +6,6 @@ import { createHash, randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import { requireSession } from "../server.js";
 import type { AuthStore } from "../auth.js";
 import type { Mailer } from "../mailer.js";
 import { IpRateLimiter, type SessionStore } from "../sessions.js";
@@ -35,11 +34,13 @@ export function authRoutes(deps: AuthDeps) {
 
   return async function plugin(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>();
+    const cookieSecure = process.env.APP_ENV !== "local" && process.env.NODE_ENV !== "test";
 
     app.post(
       "/auth/request-link",
-      // Trim before validating — pasted emails often carry trailing whitespace.
-      { schema: { body: z.object({ email: z.string().trim().email() }) } },
+      // Trim before validating — pasted emails often carry trailing whitespace. `job` is the onboarding
+      // job the user is mid-flow on; it rides the link so verify can route back cross-browser.
+      { schema: { body: z.object({ email: z.string().trim().email(), job: z.string().optional() }) } },
       async (req, reply) => {
         if (!limiter.allow(req.ip))
           return reply.status(429).send({
@@ -48,9 +49,12 @@ export function authRoutes(deps: AuthDeps) {
         const email = req.body.email.toLowerCase();
         const raw = randomBytes(32).toString("base64url");
         const expiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
-        await deps.auth.createToken(email, sha256(raw), expiresAt);
+        // Carry the requesting session: verify claims THIS session (the one holding the preview/deck),
+        // not whichever browser opens the email — the JC-18 in-app-webview footgun.
+        await deps.auth.createToken(email, sha256(raw), expiresAt, req.session?.id ?? null);
 
-        const path = `/auth/verify?token=${raw}`;
+        const job = req.body.job ? `&job=${encodeURIComponent(req.body.job)}` : "";
+        const path = `/auth/verify?token=${raw}${job}`;
         await deps.mailer.sendLoginLink(email, webUrl + path);
         // Uniform 200 whether or not the email has an account (no enumeration). The link is returned
         // ONLY when no real mailer is configured (dev/CI/e2e), as a same-origin relative path.
@@ -62,14 +66,38 @@ export function authRoutes(deps: AuthDeps) {
       "/auth/verify",
       { schema: { body: z.object({ token: z.string().min(1) }) } },
       async (req, reply) => {
-        const session = requireSession(req); // the anonymous session to claim
-        const email = await deps.auth.consumeToken(sha256(req.body.token));
-        if (!email)
+        // Token first: a bad link is 400 regardless of who's holding a session (the token is what's
+        // invalid). Only after a good token do we need a session to attach the account to.
+        const consumed = await deps.auth.consumeToken(sha256(req.body.token));
+        if (!consumed)
           return reply.status(400).send({
             error: { code: "invalid_or_expired", message: "this sign-in link is invalid or has expired" },
           });
-        const user = await deps.auth.upsertUser(email);
-        await deps.sessions.setClaimedByUserId(session.id, user.id); // ← the JC-19 merge, in full
+
+        // Claim the session that REQUESTED the link (it holds the preview/deck), falling back to the
+        // browser that opened it. This is what makes a cross-browser open (mail-app webview) work: the
+        // right anonymous session becomes the account's, whichever browser lands here.
+        const opener = req.session;
+        const target =
+          (consumed.pendingSessionId && (await deps.sessions.getById(consumed.pendingSessionId))) ||
+          opener;
+        if (!target)
+          return reply.status(401).send({
+            error: { code: "no_session", message: "no active session to attach this sign-in to" },
+          });
+
+        const user = await deps.auth.upsertUser(consumed.email);
+        await deps.sessions.setClaimedByUserId(target.id, user.id); // ← the JC-19 merge, in full
+
+        // Re-home this browser onto the claimed session so a cross-browser open continues seamlessly
+        // (its cookie now points at the session that owns the job). No-op when they're already the same.
+        if (opener?.id !== target.id)
+          reply.setCookie(SESSION_COOKIE, target.token, {
+            path: "/",
+            httpOnly: true,
+            sameSite: "lax",
+            secure: cookieSecure,
+          });
         return { user };
       },
     );
@@ -88,7 +116,6 @@ export function authRoutes(deps: AuthDeps) {
     // matching the URI registered in the Google console (dev default: localhost:3000).
     const googleRedirectUri = `${deps.webUrl || "http://localhost:3000"}/api/auth/google/callback`;
     const exchange = deps.googleEmail ?? googleEmailFromCode;
-    const cookieSecure = process.env.APP_ENV !== "local" && process.env.NODE_ENV !== "test";
 
     app.get("/auth/google", async (_req, reply) => {
       if (!googleConfigured() && !deps.googleEmail)

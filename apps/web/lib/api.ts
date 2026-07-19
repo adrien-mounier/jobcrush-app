@@ -151,8 +151,13 @@ export function answerGrill(jobId: string, gapId: string, answer: string): Promi
 
 // --- E2 auth (magic-link) ---
 
-export function requestLink(email: string): Promise<{ ok: boolean; devLink?: string }> {
-  return jfetch("/api/auth/request-link", { method: "POST", body: JSON.stringify({ email }) });
+// `job` rides along so the emailed link can route back to the deck even when opened in another
+// browser (the mail-app webview) — where localStorage from the original tab isn't available.
+export function requestLink(email: string, job?: string): Promise<{ ok: boolean; devLink?: string }> {
+  return jfetch("/api/auth/request-link", {
+    method: "POST",
+    body: JSON.stringify({ email, ...(job ? { job } : {}) }),
+  });
 }
 
 export function verifyToken(token: string): Promise<{ user: { id: string; email: string } }> {
