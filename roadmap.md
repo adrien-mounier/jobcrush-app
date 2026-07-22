@@ -41,9 +41,12 @@ no autonomous submit, no LinkedIn credentials, ever).
       in user-confirmed claims; suggested specifics as switch-off chips; two dials (claim big, write
       plain); **two scores that never mix** (well-made = mechanical lint over `cv-brain`; aimed-at-job
       = model panel, sees the CV *and* the confirmed claims); **workbench before live meter**, real
-      CVs only. Two open questions each need their own session: **(A) the grill's stopping rule + UX**
-      (gamification/progression — `/wayfinder` next), **(B) how `cv-authoring-rules.md` is fed and
-      maintained**. _Demo: a prompt change is proved better, not felt better._
+      CVs only. Two open questions each needed their own session: **(A) the grill's stopping rule +
+      UX** — **answered 2026-07-23** in
+      [`docs/onboarding-reward-design.md`](docs/onboarding-reward-design.md) (cards are the payoff,
+      the CV is the by-product; endless countdown, no completion bar; **one visible number**, the
+      match % on a job — never a number on the person); **(B) how `cv-authoring-rules.md` is fed and
+      maintained** — still open. _Demo: a prompt change is proved better, not felt better._
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
       Epics: E5 cluster engine (JC-33/34/35), E6 feed + hunt (JC-36…40), E7 swipe + prepared apply
@@ -51,6 +54,10 @@ no autonomous submit, no LinkedIn credentials, ever).
       **E5 got its shape from the CV-quality session:** offline monthly research per big job family
       (the floor) + one cheap LLM call per job ad (the specifics), with cost tracked per job.
       `tailoring-reasoning.md` §4 is the hand-written PM-only prototype of the family floor.
+      **E5 also owes the reward design two things** (`docs/onboarding-reward-design.md` §8-9):
+      **re-scoring existing cards when the profile changes** (the month-two hook — an old 34% card
+      reading 51% on return), and its **ranked requirement list per ad** doing double duty as the
+      instant, model-free match tick during onboarding.
 - [ ] **S4 — Every day, everywhere** — per-user daily runs + notifications; the **mobile app** (swipe,
       deck, voice grill); the full Path B guided interview (JC-55, stubbed in S2); email-ingest +
       LinkedIn import doors; update flow; GDPR delete/export.
@@ -140,17 +147,12 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
   current, which rules we commit to, and where the concrete readability rule lands (sentence-length
   cap, one idea per bullet). Open question B from `docs/cv-quality-kickoff.md`. Added 2026-07-22.
 
-- **Grill A: the grill's stopping rule + onboarding UX (Tinder/Bumble as prior art)** — _promoted to
-  next session 2026-07-22; this is open question A from `docs/cv-quality-kickoff.md`._ How many
-  questions do we ask, when do we stop, and how do we make answering not feel like a chore? Users are
-  lazy and under-report, we cannot interrogate them for an hour, and we must not infer a thin profile
-  from a thin answer. Prior art: how dating apps run account setup *before the first swipe*
-  (progressive profiling, one-question-per-screen, deferred/optional fields, momentum + completion
-  cues, why they ask what they ask when). Same shape of problem — earn the right to show cards — but a
-  harder constraint: we must gather a full CV → claim graph, where they collect a handful of light
-  fields. Ideas to explore: gamification, levels, visible progression, effort/reward. Needs real
-  research into how other apps solve it. **`/wayfinder` next session.** Added 2026-07-20, promoted
-  2026-07-22.
+- ~~**Grill A: the grill's stopping rule + onboarding UX**~~ — **answered 2026-07-23**, see
+  [`docs/onboarding-reward-design.md`](docs/onboarding-reward-design.md). The stopping rule is that
+  there is none: the bar only ever counts down to the next card drop, so nothing is ever
+  "incomplete" and the user leaves whenever they like, holding what they earned. What remains from
+  this entry — the **front-door copy**, **which ~5 questions we ask**, and the **character-sheet UI**
+  — are listed as open there.
 
 ## Completed
 

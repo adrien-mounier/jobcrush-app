@@ -2,6 +2,19 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## A number on a person and a number on a job are different objects, at identical maths
+
+"This job: 34%" is useful — skip it. "Your profile: 34%" tells a human being, in their first minute,
+that they are poor, and they close the tab. Same arithmetic, opposite outcome, and reframing does not
+save it: we designed a "fuel gauge, not a grade" level meter (low = early, not bad) and a council pass
+killed it anyway — users read any digit next to their own name as a verdict, whatever the label says.
+The escape is not a gentler number, it's **no number**: a countdown to the next reward ("3 answers
+until your next jobs") does the same motivational work with nothing to be graded by, and the
+progression moves onto counters that only ever go up (lines in your document, jobs you own, a job's %
+climbing as you answer). Applies anywhere we're tempted to score the user rather than our own work —
+the same line the S2 quality gate already draws. Full design:
+[`docs/onboarding-reward-design.md`](docs/onboarding-reward-design.md) §7-8.
+
 ## A magic link is opened in a different browser than it was requested from — plan for it
 
 The mail-app in-app webview (Gmail/Outlook on mobile) is a *separate cookie jar and localStorage* from

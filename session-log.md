@@ -2,6 +2,60 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-23 (session 13) — Onboarding reward structure: 12 decisions locked (no code)
+
+Design session, no code. Answers **open question A** from session 12 (the grill's stopping rule +
+onboarding UX). Full record: [`docs/onboarding-reward-design.md`](docs/onboarding-reward-design.md).
+The question was "what actually pulls a user through the questions?", made urgent because the no-CV
+user is now in scope and today's only reward — the CV preview — cannot exist for them.
+
+**The two moves everything else follows from:**
+
+- **Cards are the payoff, the CV is the by-product.** Nobody wants a CV; they want a job. This fixes
+  the meaning of every question in the middle — "do you know C?" now reads as *unlocking jobs*, not
+  *polishing a document*. The magic-mirror preview stops being the hook.
+- **One visible number: the match % on a job card.** The profile level/strength meter was designed,
+  then deliberately killed. A number on a *job* and a number on a *person* are different objects at
+  identical maths: "this job: 34%" is useful, "your profile: 34%" tells a human being in their first
+  minute that they are poor — and it lands hardest on the user who arrived with nothing. The bar
+  survives with **no digit at all**: *"3 answers until your next jobs"* — a countdown, not a score.
+
+Other decisions worth a future reader's time:
+
+- **The stopping rule is that there is none.** The bar never completes; it only ever counts down to
+  the next drop, so nothing is ever "incomplete" and the user leaves whenever they like holding what
+  they earned. Both known failures avoided: LinkedIn's meter you can never finish, and the 100% bar
+  that makes people stop forever.
+- **The progression moved onto the collection**, since the level number is gone: the **profile
+  document as character sheet** (every answer writes a real line — "Added: managed a €2M budget
+  across 4 teams" — never resets, only grows; flagged for maximum design effort, the feeling is *my
+  character is evolving*, not a text list), **cards as loot** ("you have 12 jobs" only goes up), and
+  **percentages that climb**. That last one is the **month-two answer** nobody had: a returning user's
+  old 34% card reads 51%.
+- **Visible cards re-score live on every answer**, but the tick is a **lookup, not a model call** —
+  E5's ranked requirement list per ad makes it instant and free; the honest re-score lands in the
+  background at the next drop. Constraint: the cheap tick under-promises, because **a visible number
+  must never go down**.
+- **One flow, one door.** A CV is a shortcut that auto-answers questions, never a second path. The
+  landing is a single "ready?" invitation to be interviewed, with a small *upload your CV to skip
+  ahead* beside it — this decides the previously-open **input order** question: job intent first.
+- **A CV buys one visible jump, then the game continues** — and the first question after upload must
+  be one only a reader could ask ("your CV mentions a 2024 migration — what was your actual role?").
+  That proves we read the file better than any progress bar. Good CV = fewer questions to a good
+  match; where you start does not matter.
+- **The wall moved to after the reveal, onto the actions** (save / apply / see the rest / alerts).
+  Google OAuth leads, magic link is a deliberately quiet secondary — firing an email at peak
+  curiosity is the known-fragile path. **Answers persist server-side from question 1**, because
+  localStorage cannot tell us where people quit.
+- **Reversal condition, written down:** if v1 cards are not obviously better than a LinkedIn search
+  in ten seconds, the wall moves *before* the reveal. A promise beats disappointing proof. The
+  evidence for it is a half-day experiment, still pending: score 20 real ads against 3 real CVs,
+  print the 9 cards, look at them.
+
+Method note: the session ran as `/grill-me` (10 forks, one at a time), with the numbers question
+handed to a `/multi-llm-adversarial-validation` council mid-way — the council's push is what
+converted "two numbers, level framed as a fuel gauge" into "one number, kill the level entirely".
+
 ## 2026-07-22 (session 12) — CV quality: grilling session, 11 decisions locked (no code)
 
 Pure design session, triggered by reading a real tailored CV and finding the sentences too complex,
