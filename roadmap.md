@@ -35,10 +35,22 @@ no autonomous submit, no LinkedIn credentials, ever).
       then three fix batches: (1) harden — magic-link cross-browser P0 + resilience; (2) the ending —
       verified-CV document + evidence-palette badges + next-step; (3) brand bar + a11y + copy. See the
       S2.5 backlog below for the itemised record. _Demo: same features, now feels like a product._
+- [ ] **S2.75 — CV quality (the ruler)** — _in design 2026-07-22._ Before S3: define and measure CV
+      quality, then fix the output against it. Decisions locked in
+      [`docs/cv-quality-kickoff.md`](docs/cv-quality-kickoff.md) — quality = fit to the job, grounded
+      in user-confirmed claims; suggested specifics as switch-off chips; two dials (claim big, write
+      plain); **two scores that never mix** (well-made = mechanical lint over `cv-brain`; aimed-at-job
+      = model panel, sees the CV *and* the confirmed claims); **workbench before live meter**, real
+      CVs only. Two open questions each need their own session: **(A) the grill's stopping rule + UX**
+      (gamification/progression — `/wayfinder` next), **(B) how `cv-authoring-rules.md` is fed and
+      maintained**. _Demo: a prompt change is proved better, not felt better._
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
       Epics: E5 cluster engine (JC-33/34/35), E6 feed + hunt (JC-36…40), E7 swipe + prepared apply
       (JC-41/42/43). _Demo: the core loop closes on web._
+      **E5 got its shape from the CV-quality session:** offline monthly research per big job family
+      (the floor) + one cheap LLM call per job ad (the specifics), with cost tracked per job.
+      `tailoring-reasoning.md` §4 is the hand-written PM-only prototype of the family floor.
 - [ ] **S4 — Every day, everywhere** — per-user daily runs + notifications; the **mobile app** (swipe,
       deck, voice grill); the full Path B guided interview (JC-55, stubbed in S2); email-ingest +
       LinkedIn import doors; update flow; GDPR delete/export.
@@ -124,12 +136,21 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
   thin and how to strengthen it. The S2 gate deliberately judges only our pipeline's work, never the
   user's career; this feature is where profile-strength feedback will live. Decided 2026-07-18.
 
-- **Grill: onboarding-flow design (Tinder/Bumble as prior art)** — a brainstorming/grilling session on
-  how dating apps run account setup *before the first swipe* (progressive profiling, one-question-per-
-  screen, deferred/optional fields, momentum + completion cues, why they ask what they ask when) and
-  what we should steal. Same shape of problem — earn the right to show cards — but a harder constraint:
-  the info we must gather up front is much heavier (a full CV → claim graph), where they collect a
-  handful of light fields. Grill later with `/grill-with-docs`; output feeds our own onboarding UX. Added 2026-07-20.
+- **Grill B: feeding + maintaining `cv-authoring-rules.md`** — how rules get in, how they stay
+  current, which rules we commit to, and where the concrete readability rule lands (sentence-length
+  cap, one idea per bullet). Open question B from `docs/cv-quality-kickoff.md`. Added 2026-07-22.
+
+- **Grill A: the grill's stopping rule + onboarding UX (Tinder/Bumble as prior art)** — _promoted to
+  next session 2026-07-22; this is open question A from `docs/cv-quality-kickoff.md`._ How many
+  questions do we ask, when do we stop, and how do we make answering not feel like a chore? Users are
+  lazy and under-report, we cannot interrogate them for an hour, and we must not infer a thin profile
+  from a thin answer. Prior art: how dating apps run account setup *before the first swipe*
+  (progressive profiling, one-question-per-screen, deferred/optional fields, momentum + completion
+  cues, why they ask what they ask when). Same shape of problem — earn the right to show cards — but a
+  harder constraint: we must gather a full CV → claim graph, where they collect a handful of light
+  fields. Ideas to explore: gamification, levels, visible progression, effort/reward. Needs real
+  research into how other apps solve it. **`/wayfinder` next session.** Added 2026-07-20, promoted
+  2026-07-22.
 
 ## Completed
 

@@ -2,6 +2,50 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-22 (session 12) — CV quality: grilling session, 11 decisions locked (no code)
+
+Pure design session, triggered by reading a real tailored CV and finding the sentences too complex,
+unclear, and AI-sounding. Decided to fix the *measurement* before the symptom, and it went wider than
+sentence style: it redefined what "quality" means for this product. Full record:
+[`docs/cv-quality-kickoff.md`](docs/cv-quality-kickoff.md).
+
+The headline shift: **quality = fit to the job**, not intrinsic well-formedness — but every claim stays
+grounded in experience the user confirms. The enricher derives a target checklist from the offer and
+*asks* ("C matters here — any experience, even a school project?"); real experience becomes a claim,
+none means swipe left. The checklist decides what we ask, the user's answers decide what ships.
+
+Other locked decisions worth the future-reader's time:
+
+- **Suggested specifics are switch-off chips.** A claim is written at full strength; the details the
+  model *inferred* (memory management, performance tuning…) are chips the user taps off, with a notice
+  that anything kept becomes theirs and may be interviewed on. Kept chips → confirmed claims; dropped
+  chips never enter the graph. This replaced an earlier two-version intensity slider — the chips *are*
+  the intensity control.
+- **Two dials: claim big, write plain.** Claim size and writing density are separate. The session's own
+  example proved it: the "stronger" line carried the rule-of-three *and* "solid" — which
+  `ai-writing-tells.md` lists as the *replacement* for banned "robust". The model reached for the safe
+  synonym anyway, which is exactly why a model cannot grade its own style.
+- **Two scores that never mix:** *well made* (mechanical lint over `cv-brain` rules) and *aimed at this
+  job* (model panel). Merging them hides which half broke. Noted: **no rule in `cv-authoring-rules.md`
+  ever looks at the job offer** — a plumber's CV can score full marks and be sent to a C job.
+- **Anything countable gets counted, never judged.** Lint owns mechanics; a *fresh* model (plus a 4-5
+  model panel) judges only what counting cannot see. The scorer sees the CV **and** the confirmed
+  claims, so "we forgot to ask" is distinguishable from "the user genuinely lacks it" — the same line
+  the S2 gate draws: judge our pipeline, never the user's career.
+- **Workbench before live meter.** ~5 *real* CVs (LLM-written ones would poison it: robot in, robot
+  out) + LinkedIn ads, generated ads as fallback. A magnifying glass, not statistics — 100+ cases for
+  statistical power will never exist.
+- **E5 got its real shape:** offline monthly research per big job family (the floor) + one cheap LLM
+  call per ad (the specifics), cost tracked per job. `tailoring-reasoning.md` §4 is already the
+  hand-written PM-only prototype of that family floor, and its "shared baseline (ignore — too generic)"
+  list is what makes keyword ranking work at all.
+
+Two questions were deliberately **not** answered, each needing its own session: **(A)** the grill's
+stopping rule + onboarding UX (merged with the existing Tinder/Bumble backlog item, promoted to next
+session, `/wayfinder`), **(B)** how `cv-authoring-rules.md` gets fed and maintained (backlog, after A).
+
+Roadmap gains **S2.75 — CV quality (the ruler)** between S2.5 and S3. No code changed.
+
 ## 2026-07-19 (session 11) — Staging ops leftovers: real email wiring + OAuth verified + sending domain
 
 Closed the two S2 ops leftovers (config, not code) and set up the real sending domain.
