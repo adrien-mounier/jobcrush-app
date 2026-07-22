@@ -59,7 +59,7 @@ in about six questions.
 
 | Speed | What the user sees | When |
 |---|---|---|
-| **Instant** | A line writes itself into the profile document | Every single answer |
+| **Instant** | A line **writes itself letter by letter** into the profile document | Every single answer |
 | **Slow** | The countdown bar advances | Every answer, toward the next drop |
 | **Rare** | Cards unlock — *"3 new jobs matched you"* | Every 5 answers |
 
@@ -114,6 +114,21 @@ grow.
 - **The profile document is the character sheet.** Every answer writes a real line into a real
   document: *"Added: managed a €2M budget across 4 teams."* It never resets. It only grows. After 30
   questions the user scrolls a page of themselves that did not exist an hour ago.
+
+  **The line must be seen writing itself, letter by letter — this is a requirement, not a flourish.**
+  It is the *instant* speed of §4, the only feedback that fires on every single answer, and the whole
+  point is watching the document take form under your own words. A line that simply appears, already
+  complete, is a different and much weaker product: it reads as data being saved. The typewriter is
+  what makes it read as *being written*.
+
+  Two consequences that constrain the build:
+  - **The line must be available instantly** — the typing cannot wait on a model round-trip, or the
+    animation starts two seconds late and the causal link to the answer is broken. Compose the line
+    cheaply and locally from the confirmed answer, then let the polish pass rewrite it later, the same
+    split §9 uses for the match tick: **fast where it is felt, accurate where it matters.**
+  - **A line, once written, is never silently rewritten on screen.** Same rule as the match % never
+    going down — the document only ever grows.
+
   **This screen gets maximum design effort.** It must not read as a list of text being scrolled — the
   target feeling is *my character is evolving*, and that lives in original animation and layout work,
   not in the data. Call it **your profile**, never "your CV": the cards are still the prize.

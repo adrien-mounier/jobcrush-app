@@ -28,8 +28,9 @@ Other decisions worth a future reader's time:
   that makes people stop forever.
 - **The progression moved onto the collection**, since the level number is gone: the **profile
   document as character sheet** (every answer writes a real line — "Added: managed a €2M budget
-  across 4 teams" — never resets, only grows; flagged for maximum design effort, the feeling is *my
-  character is evolving*, not a text list), **cards as loot** ("you have 12 jobs" only goes up), and
+  across 4 teams" — **seen typing itself letter by letter**, never resets, only grows; flagged for
+  maximum design effort, the feeling is *my character is evolving*, not a text list), **cards as
+  loot** ("you have 12 jobs" only goes up), and
   **percentages that climb**. That last one is the **month-two answer** nobody had: a returning user's
   old 34% card reads 51%.
 - **Visible cards re-score live on every answer**, but the tick is a **lookup, not a model call** —
