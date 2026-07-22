@@ -59,11 +59,11 @@ in about six questions.
 
 | Speed | What the user sees | When |
 |---|---|---|
-| **Instant** | A line **writes itself letter by letter** into the profile document | Every single answer |
+| **Instant** | A line **writes itself letter by letter** into the CV, and the card's % climbs | Every single answer |
 | **Slow** | The countdown bar advances | Every answer, toward the next drop |
 | **Rare** | Cards unlock — *"3 new jobs matched you"* | Every 5 answers |
 
-Build order, cheapest first: **bar → document → unlock.**
+Build order, cheapest first: **bar → CV typing → unlock.**
 
 ## 5. Endless, and always nearly there
 
@@ -111,27 +111,11 @@ score**:
 Removing the level number does not remove the progression — it moves it onto things that only ever
 grow.
 
-- **The profile document is the character sheet.** Every answer writes a real line into a real
-  document: *"Added: managed a €2M budget across 4 teams."* It never resets. It only grows. After 30
-  questions the user scrolls a page of themselves that did not exist an hour ago.
-
-  **The line must be seen writing itself, letter by letter — this is a requirement, not a flourish.**
-  It is the *instant* speed of §4, the only feedback that fires on every single answer, and the whole
-  point is watching the document take form under your own words. A line that simply appears, already
-  complete, is a different and much weaker product: it reads as data being saved. The typewriter is
-  what makes it read as *being written*.
-
-  Two consequences that constrain the build:
-  - **The line must be available instantly** — the typing cannot wait on a model round-trip, or the
-    animation starts two seconds late and the causal link to the answer is broken. Compose the line
-    cheaply and locally from the confirmed answer, then let the polish pass rewrite it later, the same
-    split §9 uses for the match tick: **fast where it is felt, accurate where it matters.**
-  - **A line, once written, is never silently rewritten on screen.** Same rule as the match % never
-    going down — the document only ever grows.
-
-  **This screen gets maximum design effort.** It must not read as a list of text being scrolled — the
-  target feeling is *my character is evolving*, and that lives in original animation and layout work,
-  not in the data. Call it **your profile**, never "your CV": the cards are still the prize.
+- **The CV writes itself, letter by letter.** Every answer types a real line into a real CV, on
+  screen, while the user watches: *"Managed a €2M budget across 4 teams."*
+- **The profile fills up.** Everything the user has ever told us lands there and stays. It never
+  resets, it only grows. After 30 questions they can scroll a page of themselves that did not exist an
+  hour ago.
 - **The cards are loot.** Jobs you unlock stay unlocked. *"You have 12 jobs"* only ever goes up — and
   that number is safe, because it counts things the user earned.
 - **The percentages climb.** You saw a job at 34%. You answer four more questions. It says 51%. Real,
@@ -141,11 +125,89 @@ That last one is also the **month-two answer**: a returning user's visit is mean
 old cards move. It requires **re-scoring existing cards when the profile changes** — genuine
 engineering, and it belongs in **S3 with E5**.
 
+### 8.1 The profile and the CV are two different objects
+
+They were one thing ("the document") for most of this session. They are not, and conflating them
+breaks the design.
+
+| | **The profile** | **The CV** |
+|---|---|---|
+| What | everything the user ever told us | a condensed selection of it |
+| Size | unbounded | bounded — 2 pages, and that is the point |
+| Rule | **accumulates**, never drops a fact | **selects**, aimed at one job |
+| Backend | the claim graph (S2, Postgres) | the rendered draft |
+
+A toy box and a school bag. The box keeps every toy forever; the bag holds a few, chosen for today.
+
+**Consequence to design for, not paper over:** a fact can land in the profile and *not* appear on the
+CV, because the CV is bounded and had to choose. The user will notice, and if we say nothing the
+typewriter looks broken. It needs an honest line — *"saved to your profile — it'll be used when a job
+asks for it."*
+
+### 8.2 The typewriter is a requirement, not a flourish
+
+**The line must be seen writing itself, letter by letter.** It is the *instant* speed of §4 — the only
+feedback that fires on every single answer — and the whole point is watching the CV take form under
+your own words. A line that simply appears, already complete, is a different and much weaker product:
+it reads as *data being saved*. The typing is what makes it read as *being written*.
+
+Two constraints that follow:
+
+- **The line must be available instantly.** The typing cannot wait on a model round-trip, or the
+  animation starts two seconds late and the causal link to the answer is broken. Compose it cheaply
+  and locally from the confirmed answer, let the polish pass rewrite it later — the same split §9 uses
+  for the match tick: **fast where it is felt, accurate where it matters.**
+- **A line, once written, is never silently rewritten on screen.** Same family of rule as the match %
+  never going down.
+
+### 8.3 Screen budget: what is visible and what is a badge
+
+Four things want the screen — the question, the CV, the profile, the cards — and a phone has room for
+about two. So one of them is hidden behind a signal.
+
+The game answer is **loot and inventory**: you kill something, the item *flies* into your bag, the bag
+count ticks up. The item is never shown in full; you open the bag when you are curious. The flight is
+the entire notification and it costs no layout.
+
+On every answer:
+
+- **The CV types its line, live, in place.** The star of the screen.
+- **The card's % climbs, and the card's contents update**, right beside it (§9).
+- **A chip flies into the profile icon**, which grows — a number, a visual, or both. That is the whole
+  profile notification.
+- **Tap the icon** and the full profile opens as its own screen.
+
+Why this way round: the CV is what the user *cares* about seeing, because it is what an employer
+receives. A profile is a store, and stores are satisfying to **open**, not to watch. And the count
+climbing is a safe number under §7 — it counts things earned.
+
+**Naming: "your profile".** Deliberately boring, because a stranger must understand it with zero
+thinking — a name is a door handle, it should not be clever. Be interesting *inside* it instead:
+*"47 things you've told me."*
+
+**This screen gets maximum design effort.** The profile must not read as a list of text being
+scrolled — the target feeling is *my character is evolving*, and that lives in original animation and
+layout work, not in the data.
+
+### 8.4 The CV on screen follows the card
+
+During the first questions no cards exist, so there is nothing to aim at: the CV is the **generic root
+CV** (S2 already builds one). **When the first cards land, the CV re-aims** at the card on top — and
+swaps when the user swipes.
+
+Why it must follow the card rather than stay generic: the user answers, watches a line appear in the
+CV **for this job**, and sees **this job's %** jump right next to it. Cause and effect, one motion,
+one screen. A generic CV puts the line over here and the number over there, connected by nothing.
+
+The re-aim moment is itself worth designing — *the CV visibly turns to face the job.*
+
+Cost accepted: every visible card needs its CV kept fresh, and the swipe needs a CV swap animation.
+
 ## 9. Cards on screen are alive
 
 Visible cards **re-score on every answer**. The user watches 34% → 41% → 51% tick up while they
 answer. Watching a number you care about move because of something you just said is the strongest
-feedback in the design — arguably stronger than the document line.
+feedback in the design — arguably stronger than the typed CV line.
 
 Doing that through a model on every answer would be 3 calls per question: slow and expensive. It does
 not have to be:
@@ -212,10 +274,12 @@ anything.
 - **Input order is decided** (it was an open ticket): **job intent first**, CV as an accelerator on the
   same screen. §10.
 - **The preview is no longer the hook.** The magic-mirror moment does not disappear — it becomes the
-  profile document of §8, growing line by line instead of arriving in one piece.
+  live-typing CV of §8.2, arriving line by line instead of all at once.
 - **The stopping rule is decided** (open question A): there is none. §5.
 - **S3/E5 gains a requirement:** re-scoring existing cards when the profile changes, plus the ranked
   requirement list per ad doing double duty as the cheap live tick. §9.
+- **The claim graph gets a face.** S2 built it as backend truth; §8.1 makes it a screen the user opens,
+  which means it needs a readable, human rendering it has never had.
 
 ## Pending — before any product code
 
@@ -228,5 +292,7 @@ a LinkedIn search in ten seconds, the wall moves before the reveal.
 - **Copy for the front door.** The "ready?" invitation and the CV skip-ahead line. Wording is
   load-bearing here — it is the whole conversion of a stranger into a participant.
 - **What the ~5 questions actually are**, and how they are chosen per user.
-- **The character-sheet UI itself** — the animation and layout work §8 calls for. A `/prototype` or
-  `/impeccable` job, not a grill.
+- **The onboarding screen itself** — the typing CV, the live card, the flying chip, the profile icon
+  and where it sits, the re-aim moment. All the animation and layout work §8.2-8.4 calls for. A
+  `/prototype` or `/impeccable` job, not a grill.
+- **How the profile screen renders** — the claim graph has never been shown to a user. §8.1.

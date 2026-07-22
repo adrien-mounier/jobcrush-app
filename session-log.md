@@ -2,7 +2,7 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
-## 2026-07-23 (session 13) — Onboarding reward structure: 12 decisions locked (no code)
+## 2026-07-23 (session 13) — Onboarding reward structure: 13 decisions locked (no code)
 
 Design session, no code. Answers **open question A** from session 12 (the grill's stopping rule +
 onboarding UX). Full record: [`docs/onboarding-reward-design.md`](docs/onboarding-reward-design.md).
@@ -26,11 +26,9 @@ Other decisions worth a future reader's time:
   the next drop, so nothing is ever "incomplete" and the user leaves whenever they like holding what
   they earned. Both known failures avoided: LinkedIn's meter you can never finish, and the 100% bar
   that makes people stop forever.
-- **The progression moved onto the collection**, since the level number is gone: the **profile
-  document as character sheet** (every answer writes a real line — "Added: managed a €2M budget
-  across 4 teams" — **seen typing itself letter by letter**, never resets, only grows; flagged for
-  maximum design effort, the feeling is *my character is evolving*, not a text list), **cards as
-  loot** ("you have 12 jobs" only goes up), and
+- **The progression moved onto the collection**, since the level number is gone: **the CV typing
+  itself letter by letter** on every answer, **the profile** filling up and never resetting, **cards
+  as loot** ("you have 12 jobs" only goes up), and
   **percentages that climb**. That last one is the **month-two answer** nobody had: a returning user's
   old 34% card reads 51%.
 - **Visible cards re-score live on every answer**, but the tick is a **lookup, not a model call** —
@@ -53,7 +51,20 @@ Other decisions worth a future reader's time:
   evidence for it is a half-day experiment, still pending: score 20 real ads against 3 real CVs,
   print the 9 cards, look at them.
 
-Method note: the session ran as `/grill-me` (10 forks, one at a time), with the numbers question
+- **The profile and the CV are two different objects** — a late correction that would have broken the
+  build if it had stayed buried. They spent most of the session collapsed into one thing called "the
+  document". A toy box and a school bag: the profile **accumulates** (unbounded, never drops a fact —
+  it is the S2 claim graph, finally getting a face) and the CV **selects** (2 pages, aimed at one job).
+  The live typing belongs to the **CV**; the profile gets a chip that **flies into an icon** which
+  ticks up, loot-into-inventory style, because four things (question, CV, profile, cards) do not fit on
+  a phone and the store is the one that is satisfying to *open* rather than watch. Falls out of it: a
+  fact can land in the profile and not on the CV, and we must say so or the typewriter looks broken.
+- **The CV on screen follows the card you are looking at** — generic root CV during the first
+  questions, then it **re-aims** when the cards land and swaps on swipe. Reason: the line you watch
+  being typed and the % that jumps are then the same event on the same screen. A generic CV puts the
+  line over here and the number over there, connected by nothing.
+
+Method note: the session ran as `/grill-me` (13 forks, one at a time), with the numbers question
 handed to a `/multi-llm-adversarial-validation` council mid-way — the council's push is what
 converted "two numbers, level framed as a fuel gauge" into "one number, kill the level entirely".
 
