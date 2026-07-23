@@ -53,11 +53,19 @@ no autonomous submit, no LinkedIn credentials, ever).
       (JC-41/42/43). _Demo: the core loop closes on web._
       **E5 got its shape from the CV-quality session:** offline monthly research per big job family
       (the floor) + one cheap LLM call per job ad (the specifics), with cost tracked per job.
-      `tailoring-reasoning.md` §4 is the hand-written PM-only prototype of the family floor.
-      **E5 also owes the reward design two things** (`docs/onboarding-reward-design.md` §8-9):
+      ⚠️ **`tailoring-reasoning.md` §4 is NOT that floor** — corrected 2026-07-23
+      ([#6](https://github.com/adrien-mounier/jobcrush-app/issues/6)). §4 is a *discriminator* (which
+      role language the CV adopts) and it explicitly ignores the "too generic" shared baseline —
+      budget, stakeholder management, requirements gathering. A floor is made of exactly what a
+      discriminator throws away. **E5 has to build the floor from scratch.**
+      **E5 also owes the reward design three things** (`docs/onboarding-reward-design.md` §6.2, §8-9):
       **re-scoring existing cards when the profile changes** (the month-two hook — an old 34% card
-      reading 51% on return), and its **ranked requirement list per ad** doing double duty as the
-      instant, model-free match tick during onboarding.
+      reading 51% on return); its **ranked requirement list per ad** doing double duty as the
+      instant, model-free match tick during onboarding; and **the family floor in the shape discovery
+      can consume** — ranked into bands (the essential band *is* discovery's gate), each item carrying
+      a question a lazy person answers in seconds, that question's answer options, the CV section it
+      writes into, and whether a "no" is fatal or fine. An item that cannot be phrased as a question is
+      not usable: discovery is the floor's first consumer.
 - [ ] **S4 — Every day, everywhere** — per-user daily runs + notifications; the **mobile app** (swipe,
       deck, voice grill); the full Path B guided interview (JC-55, stubbed in S2); email-ingest +
       LinkedIn import doors; update flow; GDPR delete/export.
@@ -154,9 +162,10 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
   this entry is tracked on the wayfinder map
   [Onboarding journey: landing to first card](https://github.com/adrien-mounier/jobcrush-app/issues/5):
   the **front door** is **done 2026-07-23** (*"Answer questions. Collect jobs."* on a centred door
-  that writes itself, then **Ready?**, then the CV shortcut — §10.1); still open are **the discovery questions**
-  (no longer "~5" — §6 made discovery variable-length, running until the root CV covers the family
-  floor), **the profile screen**, and **the job card's contents**.
+  that writes itself, then **Ready?**, then the CV shortcut — §10.1), and **the discovery questions**
+  are **done 2026-07-23** (§6.1-6.2: one free box for question 1, and discovery runs until the family
+  floor's **essential band** has been *asked* — covered means asked, not satisfied). Still open:
+  **the profile screen** and **the job card's contents**.
 
 ## Completed
 

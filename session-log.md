@@ -2,6 +2,54 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-23 (session 16) — Discovery: one free box, a ranked floor, and a correction to the CV brain (no product code)
+
+Resolved [The discovery questions: what we ask, how we choose, and when we stop](https://github.com/adrien-mounier/jobcrush-app/issues/6)
+on the wayfinder map [Onboarding journey: landing to first card](https://github.com/adrien-mounier/jobcrush-app/issues/5).
+Commits `dc8a300` → `d653c7d` and the follow-ups. Doc: `docs/onboarding-reward-design.md` **§6.1** and
+**§6.2** (new). Prototype: `apps/web/prototypes/first-question.prototype.html`.
+
+**Question 1 is one free text box, with no preset job options.** The ticket named *what "Something
+else" opens* as its hardest part; building it dissolved the question rather than answering it. The
+escape hatch **only ever opens the same free box** the boxless shapes lead with, two taps later, after
+the screen has told the visitor they are unusual. So there is nothing behind it to design — **the box
+is the question**, and a model places whatever is typed into a family. Adrien then dropped the preset
+job chips outright: we do not know who is on the other side, so any list is wrong for most of them.
+
+**The ask is wide, and the argument for it was not richness.** §6's promise reads *"142 project manager
+jobs are open **in Paris** right now"*, and **nothing anywhere else in the whole flow asks where the
+user is.** A title-only question 1 silently breaks §6. The placeholder — *"e.g. IT project manager in
+Paris, mostly ERP, I use Jira and MS Project"* — is the teaching device, and every volunteered fact
+pays out its own line in its own section (one answer produced three facts across two sections).
+Suggestions widen to the **family**, under a label saying *same kind of job*: without the label,
+offering other titles reads as *"your words were not found"*. Also decided: **no name on the CV** —
+asking a stranger their name pays nothing back, and Google OAuth hands it over free at the wall (§12) —
+and empty sections are **blank, not ruled** (dashes read as a form; space reads as an unwritten page).
+
+**Discovery stops on a competitive rule, made to terminate by ranking.** Adrien chose *competitive*
+(the CV covers what the family's ads ask for) over *structural* (the CV stands up as a document),
+against the recommendation, and it holds up because of four rules: **covered means asked, not
+satisfied** (a "no" closes a gap as well as a "yes", or every junior user is trapped forever); the
+floor is **ranked** and the gate is its **essential band**, not a count; the items that fall through
+are **the same queue as the card's weak fits**, which §9 already feeds to the tailor screen; and there
+is **no escape button** out of discovery, because one would compete with answering and hand out the
+weak deck as a choice (§3). Ranking is what keeps discovery short enough not to need an exit.
+
+**Employers and dates are triggered by a reward, never scheduled.** `cv-authoring-rules.md` requires a
+bold employer, a date line and a role title on every experience entry and forbids inventing them — but
+that question moves no score, and it would land before any card exists. So the first time an
+achievement needs a home, we ask *"nice — which job was that?"*, and the section unlocks. The most
+form-like moment in the product becomes the container for something earned thirty seconds earlier.
+
+**Two things the Playwright pass caught that looking did not**: the fixed note bar sat on top of the
+last answer on a phone, and a freshly written CV line got shoved back under the fold when the next
+question's options grew the ask band — which §8.2 explicitly forbids. Both are layout-shift bugs that
+look fine in a static screenshot.
+
+**The ticket turned out not to be blocked by the core-CV-structure fog**, which it expected to be: the
+design references *"the section this item writes into"* abstractly, so it is specified against whatever
+the canonical list becomes. That fog still blocks *building* the screen.
+
 ## 2026-07-23 (session 15) — The front door: its words, then its shape, decided twice (no product code)
 
 Resolved [Front-door copy: the invitation and the skip-ahead](https://github.com/adrien-mounier/jobcrush-app/issues/7)

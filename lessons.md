@@ -2,6 +2,39 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## A discriminator is not a floor — they are made of opposite material
+
+A ticket was written on the belief that `docs/cv-brain/tailoring-reasoning.md` §4 already held a
+hand-written family floor for PM/PO/PdM, and its whole stopping rule was built on top of that. It does
+not. §4 is a **discriminator**: you tally its signals to decide whether a CV should speak Project
+Manager, Product Owner or Product Manager. It opens with a **"shared baseline (ignore — too generic to
+discriminate)"** list — budget, user stories, stakeholder management, requirements gathering, agile
+familiarity. Those are precisely the things a floor is made of. **A discriminator keeps what separates
+the families and throws away what they share; a floor keeps what they share and ignores what
+separates them.** §4 discards "budget" *because* every PM ad asks for it, and budget is exactly what a
+PM CV cannot be missing. The two lists are near-complements, which is why one reads convincingly as the
+other at a glance — same domain, same vocabulary, same shape on the page. The tell: a floor is a
+checklist you could tick off; a discriminator is a tally you compare. **Before building on a document
+someone cites by section number, open it and read its heading** — §4's is *"Decision rules (which role
+language the CV adopts)"*, and that sentence alone settles it. Cost of not checking: a stopping rule
+that terminates on a list that was never meant to terminate. Record: `docs/onboarding-reward-design.md`
+§6.2, wayfinder ticket #6.
+
+## A prototype's layout-shift bugs are invisible in a screenshot and invisible to reasoning
+
+Two bugs in one throwaway prototype, both found only by driving it: a fixed bottom note bar sat on top
+of the last tappable answer on a phone (a guessed `padding-bottom` on `body` did not match the bar's
+real height, which varies with its text), and a CV line that had just been typed got shoved back below
+the fold the instant the next question rendered — because the next question's options are taller than
+the "writing it down" placeholder, so the bottom band grew and the scroll container shrank under it.
+The second one violates a stated design requirement (§8.2: *the CV scrolls to the line, then types*),
+and no amount of staring at a finished screenshot shows it, because **the end state is correct — only
+the transition is wrong.** Both are the same class: **one element's size changing after another
+element's position was computed.** Fixes are cheap and both are measurements rather than guesses —
+measure the bar and set the padding from it; re-anchor the scroll after the band relays out. Reach for
+Playwright with `isMobile: true` for any prototype with a fixed element or a band whose height changes
+between states. Record: `apps/web/prototypes/first-question.prototype.html`, wayfinder ticket #6.
+
 ## A bare .html prototype with no viewport meta is being judged at the wrong size on every phone
 
 Two sessions of "open it on your phone and tell me how it feels" were showing the wrong thing. Neither

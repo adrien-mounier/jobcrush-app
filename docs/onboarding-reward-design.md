@@ -187,6 +187,108 @@ page.
 own effort. The prototype's hand list is a stand-in.* Prototype:
 `apps/web/prototypes/first-question.prototype.html`.
 
+### 6.2 When discovery stops, and what it asks _(decided 2026-07-23, [#6](https://github.com/adrien-mounier/jobcrush-app/issues/6))_
+
+**Discovery ends when the job family's floor is covered — not when the CV merely stands up as a
+document.** The rejected alternative was structural (a role, some experience, some skills, education,
+and you are through). It was tempting because it needs no research and could be built today, but it
+lets a user reach the deck with a CV nothing scores well against, and the score is the entire bet
+(§3).
+
+**Correction to a load-bearing assumption.** `docs/cv-brain/tailoring-reasoning.md` §4 was believed to
+hold a hand-written PM/PO/PdM version of the family floor. **It does not.** §4 is a *discriminator* —
+it tallies signals to decide whether the CV should speak Project Manager, Product Owner or Product
+Manager — and it opens with a **"shared baseline (ignore — too generic to discriminate)"** list:
+budget, user stories, stakeholder management, requirements gathering, agile familiarity. A
+discriminator and a floor are opposites: **a discriminator throws away what everyone has; a floor is
+made of it.** §4 discards "budget" precisely because every PM ad asks for it, and budget is exactly
+what a PM CV cannot be missing. So there is no floor yet — it is E5's offline monthly research
+(`cv-quality-kickoff.md` §8), and it does not exist.
+
+Four rules make the gate work anyway, without inventing that research here.
+
+**1. Covered means *asked*, not *satisfied*.** If the floor says *PMP certification* and the user has
+not got one, **"no" closes that gap as well as "yes" does** — we now know, and the claim graph records
+it. Requiring every item be satisfied would trap every junior or career-changing user in discovery
+permanently. Under §7, a "no" may never be presented as a failure.
+
+**2. The floor is ranked, and the gate is its essential band — not the whole list, and not a count.**
+`cv-quality-kickoff.md` §8 already frames it as *"every basic/standard requirement the job family
+expects"*; those bands are the gate. Nice-to-have items fall through. This is what makes a competitive
+rule terminate without an arbitrary cap, and it needs no new machinery: §9 already has E5 producing a
+**ranked** requirement list per ad, so ranking the family floor is the same idea one level up.
+
+**3. The items that fall through are not lost — they are the same queue as the card's weak fits.** §9
+already turns those into the tailor screen's questions. So the floor still gets finished; it gets
+finished **per job, with a card in front of the user**, which is where answering is most motivating
+anyway. Discovery is short because the gate is the top of the floor, not because we stopped caring.
+
+**4. There is no escape button out of discovery.** Considered and rejected: a *"show me jobs now"*
+exit competes with answering at exactly the moment we want answering, and hands out the weak deck as a
+*choice* — the disappointing-proof failure §3 warns about. Ranking is what keeps discovery short
+enough not to need one. (Note the asymmetry with §8.5: **tailoring** has an always-present exit
+because it has no gate; discovery has a gate instead.)
+
+#### What the floor must hand discovery — the contract for E5
+
+Each floor item, in rank order, must carry:
+
+| Field | Why |
+|---|---|
+| **Rank band** (essential / standard / nice-to-have) | it *is* the gate — discovery covers the first bands |
+| **A question a lazy person answers in seconds** | discovery is the questions; an item that cannot be phrased as one is not usable |
+| **Its answer options** | questions are tappable by default (below), so the options ship with the item |
+| **The CV section it writes into** | every answer must know its section — the bars move because a section filled (§6) |
+| **Whether a "no" is fatal or fine** | so a "no" is recorded without ever being shown as a verdict (§7) |
+
+#### What a question looks like
+
+**Tappable options by default; free text only where the answer cannot be enumerated.** Question 1 is
+typed because a job title cannot be listed (§6.1); almost nothing after it has that problem — *biggest
+budget you have owned* is three ranges. Users are lazy and under-report, and §4's instant-feedback loop
+wants the tap-to-line latency as close to zero as possible.
+
+#### Employers and dates are triggered, never scheduled
+
+The floor produces achievements — *€2M budget*, *ERP migration*, *a team of 12*. **None of them can go
+on a real CV on their own.** `cv-brain/cv-authoring-rules.md` requires every experience entry to carry
+a bold **employer**, a **date line** and a **role title**, and forbids inventing any of them. So
+somebody has to be asked where they worked and when — and that question moves no score at all.
+
+**So it is never asked in advance.** The first time an achievement needs to land in Experience, it
+needs a home, and *that* is when we ask: *"nice — which job was that?"* One question, and the section
+unlocks. It turns the most form-like moment in the product into the container for something the user
+earned thirty seconds earlier.
+
+Rejected: asking it inside discovery as ordinary questions (longer and duller, before any card
+exists), and not asking it at all until the user applies (the CV on screen through discovery would be
+a pile of achievements with no employer, and the Experience bar could not honestly fill).
+
+Dates are still needed for ATS, so *"when was that?"* is unavoidable — rough (*2022–2024*) rather than
+exact. Someone with four jobs is asked four times, once per job, as achievements accumulate.
+
+#### What the bars measure now
+
+**Each bar is that section's share of the *gate*, not of the whole floor** — otherwise a bar could
+never fill, since the nice-to-have band is deliberately never reached in discovery. Because every floor
+item carries the section it writes into, the bars and the gate become the same object seen two ways:
+per-section, and in total. They can no longer disagree, which they would have if the bars kept
+measuring "the document looks full" while the gate measured "the family is covered".
+
+#### The upload path, under this rule
+
+A CV auto-answers floor items *and* supplies the employers and dates that item 4 above would otherwise
+trigger, so §11's "one jump" is naturally larger here — a good CV can clear most of the gate. It may
+never clear **all** of it: §11 requires the first question after an upload to be one **only a reader
+could ask**, and that fires regardless. A CV that skipped straight to the deck would be the
+"skipping to near-complete" §11 rejects.
+
+#### No longer blocked on the core CV structure
+
+This was expected to be blocked by the canonical section list (the map's fog). It is not: the design
+references *"the section this item writes into"* abstractly, and the floor contract carries the tag.
+Whatever the canonical list turns out to be, discovery is specified against it.
+
 ## 7. One visible number
 
 Four numbers existed across this design and `cv-quality-kickoff.md`. The user sees **one**.
@@ -513,8 +615,12 @@ anything.
 - **The claim graph gets a face.** S2 built it as backend truth; §8.1 makes it a screen the user opens,
   which means it needs a readable, human rendering it has never had.
 - **The root CV becomes a user-facing milestone.** S2 built it as a pipeline artefact; §6 makes
-  "the root CV is good enough" the gate that opens the deck, so the family floor in
-  `docs/cv-brain/tailoring-reasoning.md` §4 has to be a list that actually terminates.
+  "the root CV is good enough" the gate that opens the deck.
+- **E5 gains a hard deliverable, and `tailoring-reasoning.md` §4 is not it.** §4 is a discriminator,
+  not a floor — see §6.2. The family floor E5 must produce is a **ranked** list whose items each carry
+  a question, its answer options, a CV section and whether a "no" is fatal. Discovery is the floor's
+  first consumer, so an item that cannot be phrased as a question a lazy person answers in seconds is
+  not a usable item.
 - **The existing design system is out.** `packages/ui/src/tokens.css` is not a constraint on this
   work — see *The shape*.
 
@@ -535,14 +641,18 @@ Tracked as tickets on the wayfinder map
 - ~~**The front door — its words and its shape.**~~ — **done 2026-07-23**, see §10.1
   ([#7](https://github.com/adrien-mounier/jobcrush-app/issues/7)). *"Answer questions. Collect jobs."*,
   centred, writing itself, with **Ready?** arriving after it and the CV shortcut last.
-- **What the discovery questions are, how they're chosen, and when we stop.** One mechanism: pick the
-  next question from the gap between the family floor and what we know; stop when the gap closes.
-  ([#6](https://github.com/adrien-mounier/jobcrush-app/issues/6))
+- ~~**What the discovery questions are, how they're chosen, and when we stop.**~~ — **done
+  2026-07-23**, see §6.1 and §6.2 ([#6](https://github.com/adrien-mounier/jobcrush-app/issues/6)).
+  One free box for question 1; the ranked family floor supplies the rest and its essential band is the
+  gate; employers and dates are triggered by a reward, never scheduled. Prototype:
+  `apps/web/prototypes/first-question.prototype.html`.
 - **The profile — badge and screen.** The badge is decided (§8.3); the screen has never been shown to
   a user at all. ([#9](https://github.com/adrien-mounier/jobcrush-app/issues/9))
 - **The job card's contents** — what it shows and why it beats a job board.
   ([#10](https://github.com/adrien-mounier/jobcrush-app/issues/10))
 - **Where the wall sits now.** §12 needs re-picking against the three-screen shape.
 - **The core CV structure** — the canonical section list discovery renders empty. Belongs to the CV
-  brain / S2.75, not this design, but discovery cannot be built without it.
+  brain / S2.75, not this design. **No longer blocks the discovery design** (§6.2): every floor item
+  carries the section it writes into, so discovery is specified against whatever that list turns out
+  to be. It still blocks *building* the screen.
 - **Where a saved application lives.** Ruled out of scope for this design; §8.5's exits assume it.
