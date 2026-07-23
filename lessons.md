@@ -2,6 +2,28 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## One renderer mounted in two places: style the output, not the mount
+
+`cardInner()` produced the same card markup for the deck (inside `.jobcard`) and for the live screen
+(inside `.live-card`). The CSS said `.jobcard h2 { font-size: 18.5px }`. On the live screen that
+selector simply did not match, so the title silently fell back to the browser default `h2` — 2em bold
+— and ate half the phone. **Nothing errors, nothing warns; it just looks wrong somewhere you were not
+looking.** The rule: the moment a render function is called from a second container, its styles must
+key off something the *function itself* emits, not off whichever box it happens to land in
+(`.jcbody h2, .live-card h2`, or better, a class the renderer writes). Same trap for anything targeted
+by position — the first version highlighted the row that had changed via
+`querySelectorAll(".req")[index]`, which quietly broke whenever the list was re-sorted; a `data-req`
+attribute written by the renderer survives every reordering.
+
+**And a derived count that mixes states will lie.** The card's header read *"what they ask for: 7 of
+7"* for a user who had answered *never* twice, because the count was `total − open` and a settled "no"
+is neither met nor open. Any *"N of M"* over items with more than two states needs to name which state
+it counts — and the honest reading here was the one that made the design better: fits are one number,
+things still open are another, and they move in opposite directions.
+
+Both were found by driving the prototype with Playwright at `isMobile`, not by reading it — see the
+layout-shift lesson below, which is the same argument for a different bug class.
+
 ## A discriminator is not a floor — they are made of opposite material
 
 A ticket was written on the belief that `docs/cv-brain/tailoring-reasoning.md` §4 already held a
@@ -99,6 +121,15 @@ progression moves onto counters that only ever go up (lines in your document, jo
 climbing as you answer). Applies anywhere we're tempted to score the user rather than our own work —
 the same line the S2 quality gate already draws. Full design:
 [`docs/onboarding-reward-design.md`](docs/onboarding-reward-design.md) §7-8.
+
+**Refined 2026-07-23 (the job card, §9.1): attaching the number to a job is necessary but not
+sufficient — a number nobody can audit slides back into being a grade.** A card showing a bare *61%*
+invites *"61% of what, and is that good?"*, and with no way to check it the user supplies their own
+answer, which is a verdict on themselves. The fix is not a smaller number or a softer label: it is
+that **the number never appears without the thing it is made of inside the same glance**. On the card
+that is one sentence naming the user's strongest matching fact and the biggest thing still open. Test
+to apply anywhere we show a score: *can the user see, without scrolling or tapping, what would make it
+move?* If not, it is a grade whatever it is attached to.
 
 ## A magic link is opened in a different browser than it was requested from — plan for it
 

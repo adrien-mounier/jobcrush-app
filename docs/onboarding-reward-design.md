@@ -28,7 +28,7 @@ jobs**, and that changed several decisions below. Where a section is amended, it
 |---|---|---|---|
 | **0** | **The front door** | The invitation, writing itself, then **Ready?**, then the CV shortcut | No questions — the first one is on the other side (§10.1) |
 | **1** | **Discovery** | The CV, writing itself, and the questions | **No cards — none exist yet** |
-| **2** | **The deck** | Swipeable job cards: the job, the score, where you fit and where you don't | No questions |
+| **2** | **The deck** | Swipeable job cards: the job, the score, the highlight bubble, where you fit and where you don't, the ad folded away last (§9.1) | No questions |
 | **3** | **Tailor** | Job + score on top, the CV below, questions aimed at *this* job | No countdown |
 
 Discovery runs until the **root CV** is good enough — it covers what the job family expects. (**§4 of
@@ -465,6 +465,58 @@ next question.
 > **Amended 2026-07-23.** Was "cards re-score" — three of them, at once, on a screen that also held
 > the CV. The deck/tailor split means only one card is ever live, which is both cheaper and clearer.
 
+### 9.1 What the card shows _(decided 2026-07-23, [#10](https://github.com/adrien-mounier/jobcrush-app/issues/10))_
+
+Three shapes were built on the same job and the same facts, and pressed on a phone: **the ad plus a
+number** (a job board with a score bolted on — deliberately the control §3 has to beat), **the
+verdict** (every ask paired with the user's own fact, the ad demoted), and **the scorecard** (the
+ranked requirement list in bands, no prose at all). The decided card takes the **first shape's two
+lists**, the **second's highlight**, and puts the ad **last**. Prototype:
+`apps/web/prototypes/job-card.prototype.html`.
+
+Top to bottom:
+
+- **Title, subtitle, score.** The job, then company · place · salary · working pattern, then the match
+  % in a ring. Still the only number on the card (§7).
+- **The highlight bubble**, directly under them and above everything else. Two clauses: **the user's
+  strongest fact against something this ad leads with**, and **the biggest thing still open**. This is
+  what stops the % ever appearing bare — a lone *61%* invites *"61% of what, and is that good?"*, and
+  a number nobody can audit is a grade. The bubble is the audit, in one sentence.
+- **Where you fit** — the user's own facts, in rank order. **Where you don't — yet** — the ad's asks,
+  in rank order. **Asked and closed** — see below.
+- **The ad itself, last and folded shut.** It is far longer in real life than in any sample, and it is
+  the one part of the card a job board already gives you. Leading with it spends the user's first ten
+  seconds on the part that is not ours.
+
+**The reveal shows nothing behind it.** *"3 jobs just matched you"* on a semi-opaque screen, one line,
+one button. A version that fanned the three cards out face-up — scored and sorted, so the number would
+read comparatively from first sight — was built and **rejected: it spends the reveal early and kills
+the mystery that carries the user through it.** Past the curtain the deck is **sorted by score**, so it
+always opens on the best match; the comparison happens as you swipe, not before you start.
+
+**Three mark states, and none of them is a cross.** A fit is a gold ✓. An open requirement is a grey
+`?`. A requirement the user has answered **no** to is a third state — a dim dot, its own quiet
+*asked and closed* group — because §6.2 rule 1 makes a "no" close a gap as well as a "yes" does, and
+§7 forbids ever showing it as a failure.
+
+**What a "no" pays.** It is the hard case and it is the common one: it moves the match % by zero, so
+§4's *every answer produces visible feedback* would break on exactly the answers users give most.
+What it hands back instead is that **the question goes away** — the item leaves *where you don't fit*,
+and the bubble stops naming it as the gap. So two things move on every answer and neither can ever
+embarrass anyone: **the match % only ever climbs, and the list of open things only ever shrinks.** The
+ledger line under the answers says which just happened (*+9% · SAP S/4HANA*, or *asked and closed · 1
+still open*) — a second number, deliberately, but one attached to the job's own list and only ever
+falling.
+
+**The bubble is derived, not frozen.** Its gap clause names the highest-ranked requirement still open,
+so closing that gap rewrites the sentence instead of leaving it stale.
+
+**The swipe.** Right is *I want this one* and lands on Tailor (§8.4's re-aim). Left is *Not for me* and
+brings the next card; the job goes, nothing the user said goes with it. **When the deck runs out it
+sends the user back to answering**, not to a dead end — *"142 project manager jobs are open in Paris. I
+scored the three closest. Tell me more and I'll widen the net."* That is §5's ladder with no top,
+and it is the moment the loop closes.
+
 ## 10. The front door
 
 **Two entry points, rendered as one door.** The user is never asked to choose a path.
@@ -613,6 +665,10 @@ anything.
 - **S3/E5 gains requirements:** re-scoring existing cards when the profile changes, and the ranked
   requirement list per ad doing triple duty — it scores the match, it renders as the card's *where you
   don't fit yet*, and it chooses the tailor screen's next question. §9.
+- **E5 also owes the highlight bubble its two clauses** (§9.1): given an ad and a profile, name **the
+  user's strongest fact against something this ad leads with**. The gap clause is free — it is the
+  highest-ranked open requirement — but the hit clause is a judgement, and it is the sentence the whole
+  card's credibility rests on. **Its own build ticket**, not part of this design.
 - **The claim graph gets a face.** S2 built it as backend truth; §8.1 makes it a screen the user opens,
   which means it needs a readable, human rendering it has never had.
 - **The root CV becomes a user-facing milestone.** S2 built it as a pipeline artefact; §6 makes
@@ -649,8 +705,10 @@ Tracked as tickets on the wayfinder map
   `apps/web/prototypes/first-question.prototype.html`.
 - **The profile — badge and screen.** The badge is decided (§8.3); the screen has never been shown to
   a user at all. ([#9](https://github.com/adrien-mounier/jobcrush-app/issues/9))
-- **The job card's contents** — what it shows and why it beats a job board.
-  ([#10](https://github.com/adrien-mounier/jobcrush-app/issues/10))
+- ~~**The job card's contents** — what it shows and why it beats a job board.~~ — **done 2026-07-23**,
+  see §9.1 ([#10](https://github.com/adrien-mounier/jobcrush-app/issues/10)). The reveal hides the
+  deck; the card is title/score, then a highlight bubble, then where you fit and where you don't, with
+  the ad folded away last. Prototype: `apps/web/prototypes/job-card.prototype.html`.
 - **Where the wall sits now.** §12 needs re-picking against the three-screen shape.
 - **The core CV structure** — the canonical section list discovery renders empty. Belongs to the CV
   brain / S2.75, not this design. **No longer blocks the discovery design** (§6.2): every floor item

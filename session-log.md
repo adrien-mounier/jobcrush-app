@@ -2,6 +2,55 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-23 (session 17) — The job card: a bubble that audits the number, and a reveal that hides the deck (no product code)
+
+Resolved [The job card: what it shows and why it beats a job board](https://github.com/adrien-mounier/jobcrush-app/issues/10)
+on the wayfinder map [Onboarding journey: landing to first card](https://github.com/adrien-mounier/jobcrush-app/issues/5).
+Commits `589b3df` → `46849d3` and the follow-ups. Doc: `docs/onboarding-reward-design.md` **§9.1**
+(new). Prototype: `apps/web/prototypes/job-card.prototype.html`. Artifact (private):
+`https://claude.ai/code/artifact/2fd4ab9c-65ad-46e0-94a7-b0b0f20efc46`.
+
+**Three shapes were built on the same job and the same facts**, so §3's reversal condition had a
+control to be judged against: *the ad plus a number* (a job board with a score bolted on), *the
+verdict* (every ask paired with the user's own fact, the ad demoted), and *the scorecard* (the ranked
+requirement list in bands, no prose). Adrien took **the first shape's two lists, the second's
+highlight bubble, and moved the ad to the bottom, folded shut** — a real ad is far longer than any
+sample, and it is the one part of the card a job board already gives you, so leading with it spends
+the user's first ten seconds on the part that is not ours.
+
+**The bubble is why the % is never shown bare.** It sits directly under title/subtitle/score and
+carries two clauses: the user's **strongest fact against something this ad leads with**, and the
+**biggest thing still open**. A lone *61%* invites *"61% of what, and is that good?"* — a number
+nobody can audit is a grade, which is §7's failure through a new door. The bubble is the audit, in one
+sentence. Its gap clause is **derived** (the highest-ranked open requirement), so closing a gap
+rewrites the sentence instead of leaving it stale.
+
+**The reveal shows nothing behind it — a recommendation overruled, correctly.** A fanned three-card
+haul was built: all three face-up, scored and sorted, so the number would read *comparatively* from
+first sight (47 under 61 and 54 reads as *start here*; a lone 47 reads as a grade). Adrien restored
+#8's curtain instead — one line, one button, no cards — because **seeing the deck early spends the
+reveal and kills the mystery that carries the user into it.** The comparison still happens, one swipe
+later: the deck is **sorted**, so it always opens on the best match.
+
+**A "no" is a third mark, and it had to be made to pay.** Gold ✓ / grey `?` / a dim dot for
+*asked and closed* — never a cross, because §6.2 rule 1 makes a "no" close a gap as well as a "yes"
+and §7 forbids showing it as a failure. But a "no" moves the match % by **zero**, so §4's
+*every answer produces visible feedback* would have broken on exactly the answers users give most.
+What it pays instead: **the question goes away.** The item leaves *where you don't fit* and the bubble
+stops naming it. Two things move on every answer and neither can embarrass anyone — the % only climbs,
+the open list only shrinks.
+
+**Also decided:** left swipe drops the job and nothing else (*"everything you told me stays on your
+profile"*), and **the empty deck sends the user back to answering** rather than dead-ending — §5's
+ladder with no top, and the moment the loop closes.
+
+**Handed to E5, not decided here:** the bubble's *hit* clause is a judgement over an ad and a profile,
+and it is build work with its own ticket. Recorded on `roadmap.md`'s E5 entry as its fourth debt.
+The **wall** (§12) stays fog — the reveal now has a concrete *See them* button to hang it on, but
+whether it sits before or after the reveal still waits on the S2.75 workbench.
+
+Frontier after this session: **[#9, the profile screen](https://github.com/adrien-mounier/jobcrush-app/issues/9)**, alone.
+
 ## 2026-07-23 (session 16) — Discovery: one free box, a ranked floor, and a correction to the CV brain (no product code)
 
 Resolved [The discovery questions: what we ask, how we choose, and when we stop](https://github.com/adrien-mounier/jobcrush-app/issues/6)

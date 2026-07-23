@@ -58,14 +58,18 @@ no autonomous submit, no LinkedIn credentials, ever).
       role language the CV adopts) and it explicitly ignores the "too generic" shared baseline —
       budget, stakeholder management, requirements gathering. A floor is made of exactly what a
       discriminator throws away. **E5 has to build the floor from scratch.**
-      **E5 also owes the reward design three things** (`docs/onboarding-reward-design.md` §6.2, §8-9):
+      **E5 also owes the reward design four things** (`docs/onboarding-reward-design.md` §6.2, §8-9.1):
       **re-scoring existing cards when the profile changes** (the month-two hook — an old 34% card
       reading 51% on return); its **ranked requirement list per ad** doing double duty as the
       instant, model-free match tick during onboarding; and **the family floor in the shape discovery
       can consume** — ranked into bands (the essential band *is* discovery's gate), each item carrying
       a question a lazy person answers in seconds, that question's answer options, the CV section it
       writes into, and whether a "no" is fatal or fine. An item that cannot be phrased as a question is
-      not usable: discovery is the floor's first consumer.
+      not usable: discovery is the floor's first consumer. And the **job card's highlight bubble**
+      (§9.1, added 2026-07-23): given an ad and a profile, name **the user's strongest fact against
+      something this ad leads with**. Its other clause is free — the highest-ranked open requirement —
+      but this one is a judgement, and it is the sentence the card's credibility rests on, because it
+      is what stops the match % ever being shown bare.
 - [ ] **S4 — Every day, everywhere** — per-user daily runs + notifications; the **mobile app** (swipe,
       deck, voice grill); the full Path B guided interview (JC-55, stubbed in S2); email-ingest +
       LinkedIn import doors; update flow; GDPR delete/export.
@@ -164,8 +168,11 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
   the **front door** is **done 2026-07-23** (*"Answer questions. Collect jobs."* on a centred door
   that writes itself, then **Ready?**, then the CV shortcut — §10.1), and **the discovery questions**
   are **done 2026-07-23** (§6.1-6.2: one free box for question 1, and discovery runs until the family
-  floor's **essential band** has been *asked* — covered means asked, not satisfied). Still open:
-  **the profile screen** and **the job card's contents**.
+  floor's **essential band** has been *asked* — covered means asked, not satisfied), and **the job
+  card** is **done 2026-07-23** (§9.1: the reveal hides the deck and the deck opens on the best match;
+  the card is title/score → a **highlight bubble** → where you fit / where you don't / asked and
+  closed → the ad folded shut last). Still open: **the profile screen**, and **where the wall sits**
+  (fog — it waits on the S2.75 workbench, not on this map).
 
 ## Completed
 
