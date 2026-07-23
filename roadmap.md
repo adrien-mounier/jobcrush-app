@@ -186,8 +186,12 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
   floor's **essential band** has been *asked* — covered means asked, not satisfied), and **the job
   card** is **done 2026-07-23** (§9.1: the reveal hides the deck and the deck opens on the best match;
   the card is title/score → a **highlight bubble** → where you fit / where you don't / asked and
-  closed → the ad folded shut last). Still open: **the profile screen**, and **where the wall sits**
-  (fog — it waits on the S2.75 workbench, not on this map).
+  closed → the ad folded shut last), and **the profile screen** is **done 2026-07-24** (§8.3
+  resolution: two views behind a toggle — Sorted + Constellation — under one colour law, **gold = on
+  your CV, grey = saved for later**; the "no" is off this screen). **The map's frontier is now empty
+  and its destination — a decided onboarding design ready for `/to-spec` — is reached.** The only
+  thing still deliberately open is **where the wall sits** (fog — it waits on the S2.75 workbench, not
+  on this map).
 
 ## Completed
 

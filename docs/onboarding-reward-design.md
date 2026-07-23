@@ -432,6 +432,35 @@ thinking — a name is a door handle, it should not be clever. Be interesting *i
 scrolled — the target feeling is *my character is evolving*, and that lives in original animation and
 layout work, not in the data.
 
+> **The screen is decided — 2026-07-24** ([#9](https://github.com/adrien-mounier/jobcrush-app/issues/9)).
+> Prototype: `apps/web/prototypes/profile-screen.prototype.html`. Three shapes were built on the same
+> real claim-graph facts and pressed; the strata (profile-as-time) was dropped. **The screen carries
+> two views behind an in-screen icon toggle:**
+>
+> - **Sorted** — the useful one. Facts grouped into domains, each led by its strongest fact at reading
+>   size; the rest sit under it as chips. Opens on the domain you have most of. This is *what you are
+>   made of*, and it answers §8.3's "not a list being scrolled".
+> - **Constellation** — the one worth screenshotting (Adrien's call: keep both, it may sell the app one
+>   day). The claim graph drawn as light, on canvas, in the Obsidian/Logseq graph-view register —
+>   bloom, depth, points that levitate, desktop hover that lights a node and its web. Deliberately
+>   **marigold, not the violet every second-brain app uses**. Density becomes light, so telling us more
+>   makes you brighter — and a glow has no full state, so it can never grade the person (§7).
+>
+> **One colour law, both views** ([re-pointed 2026-07-24](https://github.com/adrien-mounier/jobcrush-app/issues/9)):
+> **gold = on your CV right now** (the thing an employer receives), **cool grey = saved to the profile,
+> waiting for a job that asks.** The *source* of a fact (you told me / read from your CV) is demoted to
+> neutral text — it is no longer a colour. This is the §8.1 honest line, made visual and always-on: the
+> reserve growing in grey is a positive, never a lack.
+>
+> **The "no" is gone from this screen** — §7 generalised: a number on a job is information, on a person
+> a grade, and the same is true of a "no". A list of what you lack is an inventory of your gaps. The
+> "no" still lives in the claim graph and still works on the cards; it never reaches the profile. (This
+> surfaced a real backend gap — see §6.2's 2026-07-24 amendment: a "no" is *not* persisted today, and
+> correcting/revising a fact is unbuilt. Both are tracked on [the map](https://github.com/adrien-mounier/jobcrush-app/issues/5).)
+>
+> **Badge:** one change to the §8.3 decision above — the layer count is now logarithmic, so the pile
+> keeps growing past 30 facts instead of drawing the same icon forever.
+
 ### 8.4 The CV on screen follows the card
 
 Through discovery no cards exist, so there is nothing to aim at: the CV is the **root CV** (S2 already
@@ -728,8 +757,11 @@ Tracked as tickets on the wayfinder map
   One free box for question 1; the ranked family floor supplies the rest and its essential band is the
   gate; employers and dates are triggered by a reward, never scheduled. Prototype:
   `apps/web/prototypes/first-question.prototype.html`.
-- **The profile — badge and screen.** The badge is decided (§8.3); the screen has never been shown to
-  a user at all. ([#9](https://github.com/adrien-mounier/jobcrush-app/issues/9))
+- ~~**The profile — badge and screen.**~~ — **done 2026-07-24**, see the §8.3 resolution block
+  ([#9](https://github.com/adrien-mounier/jobcrush-app/issues/9)). Two views behind an in-screen
+  toggle — **Sorted** (what you're made of) and **Constellation** (the claim graph as light); one
+  colour law, **gold = on your CV, grey = saved for later**; the "no" is off this screen. Prototype:
+  `apps/web/prototypes/profile-screen.prototype.html`.
 - ~~**The job card's contents** — what it shows and why it beats a job board.~~ — **done 2026-07-23**,
   see §9.1 ([#10](https://github.com/adrien-mounier/jobcrush-app/issues/10)). The reveal hides the
   deck; the card is title/score, then a highlight bubble, then where you fit and where you don't, with

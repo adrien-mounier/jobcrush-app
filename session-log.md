@@ -2,6 +2,51 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-24 (session 18) — The profile screen: two views, gold = on your CV, and two backend holes found (no product code)
+
+Resolved and **closed** [The profile: the badge that grows and the screen it opens](https://github.com/adrien-mounier/jobcrush-app/issues/9)
+— the **last ticket** on the wayfinder map [Onboarding journey: landing to first card](https://github.com/adrien-mounier/jobcrush-app/issues/5),
+so the map's destination (a decided onboarding design, ready for `/to-spec`) is now **reached**.
+Commits `2865e4d` → `2b0ac38` → `e804782` → `d601df9` → `ce8fb08`. Doc: `docs/onboarding-reward-design.md`
+§8.3 resolution block (+ §6.2 amendment). Prototype: `apps/web/prototypes/profile-screen.prototype.html`.
+Artifact (private): `https://claude.ai/code/artifact/afd3e90b-8fb3-4c4d-b4fc-2ca0ee4921c1`.
+
+**Three shapes on the same real claim-graph facts**, pressed on a phone: the strata (profile-as-time),
+the constellation (profile-as-graph), the character sheet (profile-as-what-you're-made-of). The strata
+was dropped. Adrien's call: **keep two** — the character sheet (**Sorted**) for real use, and the
+**Constellation** because it is the screenshot that may sell the app one day. They live behind an
+in-screen icon toggle, centred in the top bar.
+
+**The constellation is rebuilt to the Obsidian/Logseq graph-view register** — canvas with additive
+bloom, per-point depth/drift so it levitates, and desktop hover that lights a node and its own web
+while the rest recedes. Deliberately **marigold, not the violet every second-brain app uses**. Density
+becomes light, so telling us more makes you brighter, and a glow has no full state to grade against (§7).
+
+**Adrien re-pointed the colour axis, and it is the load-bearing decision.** Gold stops meaning "you
+told me this" (the source) and starts meaning **"on your CV right now"**; cool grey means **"saved to
+the profile, waiting for a job that asks"**. Source is demoted to neutral text. One law across both
+views, taught in the header sentence itself (the on-CV count gold, the waiting count grey). This makes
+§8.1's honest line visual and always-on, and gives the screen a story: early a short CV is mostly gold,
+and the grey reserve grows as the profile outgrows two pages — a positive, never a lack.
+
+**The ruled-out "no" was removed from the screen** on Adrien's push, and the reason generalises §7: a
+number on a job is information, on a person a grade — and so is a "no". A list of what you lack is an
+inventory of gaps. It still lives in the claim graph and works on the cards.
+
+**That removal surfaced two real backend holes** (Adrien asked the right follow-up: "does hiding it
+still stop us re-asking?"). Checked against the shipped S2 spine — **no**: `graph.ts` hardcodes
+`renderable:true` with no `Negative` path, `claims.confirmed()` drops rejected claims, and
+`detectGaps()` re-derives gaps from the confirmed set, so **a "no" would be re-asked**. §6.2 now carries
+this as a hard E5/discovery requirement. And **nothing lets a user correct or revise a fact** — added
+to the map (mistap-during-onboarding as fog; revise-as-life-changes as its own out-of-scope future
+`/wayfinder` effort).
+
+**Pressing caught what review would not**, and the **desktop pass was the story**: the iPhone context
+reports `(hover: none)`, so the entire hover feature shipped untested until a 1280px pass was added —
+which then caught a **badge/header count mismatch** (badge still counted the removed "no"s: 54 vs 47)
+and a **latent throw** (the ignite ring referenced the old `TONE.you` key). 59 mobile + 4 desktop
+checks green, both views, 6 / 24 / 47 / 200 facts.
+
 ## 2026-07-23 (session 17) — The job card: a bubble that audits the number, and a reveal that hides the deck (no product code)
 
 Resolved [The job card: what it shows and why it beats a job board](https://github.com/adrien-mounier/jobcrush-app/issues/10)

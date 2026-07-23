@@ -2,6 +2,39 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## A phone-emulation Playwright pass silently skips every hover/desktop path
+
+The whole prototype-pressing habit runs on `devices["iPhone 13"]`, which reports `(hover: none)` and
+`(pointer: coarse)`. Any behaviour gated behind `matchMedia("(hover: hover) and (pointer: fine)")` —
+desktop hover, cursor changes, mouse-only affordances — **never executes**, so the mobile pass goes
+green while that code has never once run. Session 18 shipped a canvas hover feature that was completely
+untested until a second Playwright context at `viewport: 1280×1000` was added; that desktop pass
+immediately caught a count mismatch (a badge reading 54 while the page it opened read 47) and a latent
+`TONE.you is undefined` throw on the ignite path. **The rule: if a prototype has a real desktop
+interaction, one green mobile pass is not coverage — add a `(hover: hover)` context.** A cheap
+prototype hook (`window.__sky = sky`) lets the pass assert internal hover state directly instead of
+guessing from pixels.
+
+## Removing a state from one view means auditing every count that still includes it
+
+Dropping the "no" facts from the profile *display* was one filter (`shown()`), but the badge count,
+the constellation's node sizing, and the `+fact` counter each derived their own number straight from
+`S.facts`. The badge kept counting the hidden "no"s and read 54 while the screen it opened said 47.
+**When a class of item stops being shown, grep every place that counts or measures the collection —
+a hidden item that still inflates a visible number is a lie the user can catch.** One source of truth
+for "what the screen shows" (here, a single `shown()` helper used by badge, header, sky and Sorted)
+is what stops the counts from disagreeing.
+
+## An assertion in a design doc is not a fact about the code — check the spine
+
+`onboarding-reward-design.md` §6.2 stated "the claim graph records it" about a user's "no". It did not:
+`graph.ts` hardcodes `renderable:true` with no `Negative` path, the miner can't emit one, and
+`detectGaps()` re-derives gaps from the *confirmed* set so an unrecorded "no" gets re-asked forever.
+The design had quietly assumed a write path that was never built. **When a design doc asserts runtime
+behaviour ("we store X", "we never re-ask Y"), trace it to the code before repeating it — a plausible
+sentence in a spec is the easiest kind of bug to inherit.** The contract already supported the fix
+(`Negative` is valid, `gate.ts` blocks `renderable:false`); only the write path was missing.
+
 ## One renderer mounted in two places: style the output, not the mount
 
 `cardInner()` produced the same card markup for the deck (inside `.jobcard`) and for the live screen
