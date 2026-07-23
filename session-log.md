@@ -2,6 +2,52 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-23 (session 14) — The onboarding screen prototyped; the flow became three screens (no product code)
+
+Resolved [The onboarding screen](https://github.com/adrien-mounier/jobcrush-app/issues/8) on the
+wayfinder map [Onboarding journey: landing to first card](https://github.com/adrien-mounier/jobcrush-app/issues/5).
+`/prototype` in the browser, worked live. Asset: `apps/web/prototypes/onboarding-screen.prototype.html`.
+Doc updated in place — read **"The shape"** at the top of `docs/onboarding-reward-design.md` first.
+
+**The ticket asked what one screen looks like. Building it proved there isn't one.** Discovery has no
+cards on it — they don't exist yet — so the screen has two phases, and once split they turned out to be
+three screens with three different jobs: **discovery** (CV + questions only, runs until the root CV
+covers the family floor) → **the deck** (full-screen swipeable job cards, no questions) → **tailor**
+(job + score on top, CV below, questions aimed at that one job). Layout **C, split bands** won for 1
+and 3; the CV-as-full-screen-stage and the sealed-deck variants are dead.
+
+What that killed: **the flat 5→3 pace**, the *"3 answers until your next jobs"* countdown, and
+"three cards re-score live" (only one card is ever live now — cheaper and clearer). **"The bar never
+completes"** survived but amended: discovery *does* complete, and that is fine because **completion is
+a door into the deck, not a finish line**.
+
+Decisions worth a future reader's time:
+
+- **The card's weak fits became the tailor screen's questions.** Answer one and a grey `?` flips to a
+  gold `✓` **on the card in front of you**. This emerged from needing something for screen 3 to ask
+  about — it wasn't designed. It turns "where you don't fit" from a verdict into a to-do list, and it
+  gives E5's ranked requirement list a third job: score the match, explain the gap, choose the question.
+- **The CV opens with its skeleton visible and empty** — summary / experience / skills / education,
+  ruled. You see the shape of what you're filling before you fill it. The progress bars carry those
+  same section names, so a bar filling and a section filling are one event shown twice.
+- **Profile badge: a pile that only gets taller, with the count beside it**, and the word *facts* next
+  to it for the first few answers, then gone. "24" alone is meaningless — a number needs a unit. Two
+  shapes banned: anything that **fills** (a full state makes a half-full one read *you are 40% of a
+  person* — §7 through the side door) and anything **document-shaped** (it would compete with the CV).
+- **Two exits, one landing.** A quiet *"I'm done — use this CV"* from the very first question, plus the
+  automatic version when questions run out. Both → **Apply** vs **Save for later**. Plus a discreet
+  **Drop this job** that says what survives: *everything you told me stays on your profile*.
+- **The existing design system was rejected outright** as not good enough, so the visual direction
+  started from scratch: **ink and glass** — charcoal chrome that recedes, the CV as warm lit paper (the
+  only bright object, because it's the thing being made), marigold for anything earned since the
+  metaphor is already loot, serif for the document because a serif typing itself reads as *written*
+  rather than *saved*. `packages/ui/src/tokens.css` is no longer a constraint on this work.
+
+Tracker: #8 closed with the full record. #6 widened to own the stopping rule (same checklist picks the
+question and decides when to stop, so it's one ticket). #9 widened to hold the badge decision. Map
+updated — new fog on where the wall sits now, and *where a saved application lives* ruled out of scope
+(the tailor screen's exits sit past this map's destination).
+
 ## 2026-07-23 (session 13) — Onboarding reward structure: 13 decisions locked (no code)
 
 Design session, no code. Answers **open question A** from session 12 (the grill's stopping rule +

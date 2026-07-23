@@ -18,6 +18,37 @@ compete — the preview (a CV) and the cards (jobs).
 
 ---
 
+## The shape — read this first _(amended 2026-07-23)_
+
+Prototyping the onboarding screen ([wayfinder ticket #8](https://github.com/adrien-mounier/jobcrush-app/issues/8))
+showed there is no single onboarding screen. The journey is **three screens with three different
+jobs**, and that changed several decisions below. Where a section is amended, it says so.
+
+| | Screen | On it | Not on it |
+|---|---|---|---|
+| **1** | **Discovery** | The CV, writing itself, and the questions | **No cards — none exist yet** |
+| **2** | **The deck** | Swipeable job cards: the job, the score, where you fit and where you don't | No questions |
+| **3** | **Tailor** | Job + score on top, the CV below, questions aimed at *this* job | No countdown |
+
+Discovery runs until the **root CV** is good enough — it covers what the job family expects
+(`docs/cv-brain/tailoring-reasoning.md` §4 is the hand-written PM version of that floor). Then:
+*"3 jobs just matched you."* Swipe right on one and you land on Tailor.
+
+**Layout: split bands** — a fixed top band, the CV in the middle, questions docked at the bottom. Two
+rejected alternatives: the CV as a full-screen stage with a question sheet, and a sealed-deck stage
+showing face-down cards during discovery.
+
+**Visual direction: ink and glass.** The shipped `packages/ui` tokens were rejected as not good
+enough — this starts from scratch. Deep charcoal chrome that recedes, the CV as **warm lit paper, the
+only bright object on screen**, because it is the thing being made. Marigold for anything earned, since
+the metaphor is already loot. Serif for the document — a serif typing itself reads as *written*, not
+*saved* — platform sans for the HUD, mono for counts.
+
+**The loop that emerged from building it, not from planning:** the card's **weak fits become the
+tailor screen's questions**. Answer one and a grey `?` on the card in front of you flips to a gold `✓`.
+You repair the card you are looking at. It turns "where you don't fit" from a verdict into a to-do
+list.
+
 ## 1. One flow
 
 Everyone walks the same road. **A CV is a shortcut that auto-answers questions, not a separate path.**
@@ -37,8 +68,12 @@ document*. And it is true — the answers really do widen the search.
 
 ## 3. Earn the cards, then reveal them fully
 
-No grey teaser cards, no locked scores. **~5 questions uninterrupted → three real, fully visible,
-scored cards.** No mid-flow soft capture in v1.
+No grey teaser cards, no locked scores. **Questions uninterrupted → real, fully visible, scored
+cards.** No mid-flow soft capture in v1.
+
+> **Amended 2026-07-23.** This said "~5 questions". Discovery now runs until the root CV is good
+> enough — see *The shape*. The principle is untouched: work first, then cards that are fully visible
+> and already scored.
 
 The alternative considered and rejected: show real-but-unscored cards immediately ("here are 12 jobs,
 answer 3 questions to see if you'd get them"). It gives the reward before the work, but the cards are
@@ -80,10 +115,30 @@ only the next step and each step hands you something real.
 **This is the stopping rule.** We never stop asking; the user stops whenever they want, and always
 leaves holding what they earned. Nothing is ever "incomplete" — they are simply mid-countdown.
 
-## 6. Flat pace
+> **Amended 2026-07-23.** Discovery *does* complete — that is how you reach the deck. The rule
+> survives because **completion is a door, not a finish line**: hitting it opens the Tinder phase,
+> which is the actual product, so it never tells the user they are done. Past that door there is no
+> countdown at all: the tailor screen's line is *"Tell me more and this CV gets stronger for this
+> job"*, and the user stops whenever they want via the always-present *"I'm done — use this CV"*.
 
-**5 questions → 3 cards. Every time. No curve, no cap.** No escalating cost per drop, no diminishing
-returns, no ceiling where the game ends.
+## 6. Pacing _(rewritten 2026-07-23)_
+
+Originally: *5 questions → 3 cards, every time, no curve, no cap.* **Dead.** The three-screen split
+replaced it, because a fixed pace cannot serve two phases with different jobs.
+
+- **Discovery** is as long as the root CV needs. A user arriving with a good CV answers fewer
+  questions; one arriving with nothing answers more. **Where you start does not matter** (§11) — the
+  door is the same distance from wherever you are.
+- **Progress is shown as the CV's own sections filling** — professional summary / professional
+  experience / skills / education — not as a count of questions. The bars carry the section names, so
+  filling a bar and filling a section are one event shown twice. You are completing a page.
+- **The CV opens with that skeleton already visible and empty**, ruled. You see the shape of the thing
+  you are filling before you fill it. (The canonical section list is the core CV structure — its own
+  ticket; the four above are a stand-in.)
+- **A promise carries the middle**, since no cards exist yet: *"142 project manager jobs are open in
+  Paris right now."* Not proof, not a card — a reason to keep going, which is the same
+  promise-beats-disappointing-proof rule as §3's reversal condition.
+- **Tailoring** has no pace at all. It ends when the questions run out or when the user says stop.
 
 ## 7. One visible number
 
@@ -159,6 +214,9 @@ Two constraints that follow:
   for the match tick: **fast where it is felt, accurate where it matters.**
 - **A line, once written, is never silently rewritten on screen.** Same family of rule as the match %
   never going down.
+- **The CV scrolls to the line, then types — in that order.** Smoothly, and it keeps following as the
+  line wraps onto a second row. Typing that happens below the fold is worse than no animation: the
+  user paid for a reward they never saw.
 
 ### 8.3 Screen budget: what is visible and what is a badge
 
@@ -172,10 +230,20 @@ the entire notification and it costs no layout.
 On every answer:
 
 - **The CV types its line, live, in place.** The star of the screen.
-- **The card's % climbs, and the card's contents update**, right beside it (§9).
-- **A chip flies into the profile icon**, which grows — a number, a visual, or both. That is the whole
-  profile notification.
-- **Tap the icon** and the full profile opens as its own screen.
+- **The card's % climbs, and the card's contents update**, right beside it (§9) — on the tailor screen,
+  where a card exists.
+- **A chip flies into the profile badge**, which grows. That is the whole profile notification.
+- **Tap the badge** and the full profile opens as its own screen.
+
+**The badge is a pile that only ever gets taller, with the count beside it** — decided 2026-07-23
+([ticket #9](https://github.com/adrien-mounier/jobcrush-app/issues/9)). A bare number in a circle is
+meaningless: 24 what, out of what? So the count carries a unit — the word *facts* sits next to it for
+the first few answers, then collapses away, teaching once and then getting out of the way.
+
+Two shapes are banned. **Anything that fills** — a jar, a battery, a silhouette becoming solid — has a
+full state, so a half-full one reads as *you are 40% of a person*: §7's grade-on-a-person coming back
+through the side door. And **anything document-shaped**, because a page icon would compete with the CV
+already on screen. A pile has no capacity and looks like nothing else here, so it can only grow.
 
 Why this way round: the CV is what the user *cares* about seeing, because it is what an employer
 receives. A profile is a store, and stores are satisfying to **open**, not to watch. And the count
@@ -191,9 +259,8 @@ layout work, not in the data.
 
 ### 8.4 The CV on screen follows the card
 
-During the first questions no cards exist, so there is nothing to aim at: the CV is the **generic root
-CV** (S2 already builds one). **When the first cards land, the CV re-aims** at the card on top — and
-swaps when the user swipes.
+Through discovery no cards exist, so there is nothing to aim at: the CV is the **root CV** (S2 already
+builds one). **On swipe-right the CV re-aims** at that job.
 
 Why it must follow the card rather than stay generic: the user answers, watches a line appear in the
 CV **for this job**, and sees **this job's %** jump right next to it. Cause and effect, one motion,
@@ -201,24 +268,52 @@ one screen. A generic CV puts the line over here and the number over there, conn
 
 The re-aim moment is itself worth designing — *the CV visibly turns to face the job.*
 
-Cost accepted: every visible card needs its CV kept fresh, and the swipe needs a CV swap animation.
+Cost accepted: every job the user takes needs its own CV kept fresh.
 
-## 9. Cards on screen are alive
+> **Amended 2026-07-23.** Was "when the first cards land, the CV re-aims at the card on top, and swaps
+> when the user swipes". The deck is now its own screen with no CV on it, so the re-aim happens once,
+> on the swipe that takes you into tailoring.
 
-Visible cards **re-score on every answer**. The user watches 34% → 41% → 51% tick up while they
+### 8.5 Exits: two ways to stop, one place they land _(added 2026-07-23)_
+
+Tailoring has no countdown, so it needs an ending. Both routes to it are the same ending:
+
+- **The user stops.** A quiet *"I'm done — use this CV"* sits under the answers **from the very first
+  question**. Always available, never shouting. §5's rule — the user stops whenever they want.
+- **We stop.** When there is nothing left worth asking. The algorithm is its own ticket.
+
+Both land on: **Apply with this CV** (primary) or **Save it and come back later** (secondary), with a
+line saying what was achieved — *"you closed 2 of the 3 gaps this job asked about."*
+
+A third, deliberately quiet exit: **Drop this job**, small and grey, never competing with Apply. It
+must say what survives — *"everything you told me stays on your profile"* — because it does. You lose
+the job, never the work.
+
+*Where a saved application lives is out of scope here — it sits past this design's boundary.*
+
+## 9. The card on screen is alive
+
+The visible card **re-scores on every answer**. The user watches 34% → 41% → 51% tick up while they
 answer. Watching a number you care about move because of something you just said is the strongest
 feedback in the design — arguably stronger than the typed CV line.
 
-Doing that through a model on every answer would be 3 calls per question: slow and expensive. It does
-not have to be:
+Doing that through a model on every answer would be slow and expensive. It does not have to be:
 
 - **The tick is a lookup, not a judgement.** When the user confirms "yes, €2M budget", we already know
-  which requirements on which visible cards that satisfies — E5 produces a **ranked requirement list
-  per ad**, so the match moves deterministically, instantly, for free.
-- **The honest model re-score runs in the background**, landing at the next drop.
+  which requirements that satisfies — E5 produces a **ranked requirement list per ad**, so the match
+  moves deterministically, instantly, for free.
+- **The honest model re-score runs in the background.**
 
 **Constraint: a visible number must never go down.** The cheap tick and the real re-score can
 disagree, so the cheap tick is always **conservative — it under-promises**.
+
+**The requirement list is also the question list.** The same ranked requirements that move the score
+are what the card shows as *where you don't fit yet* — and those are exactly what the tailor screen
+asks about. One artefact doing three jobs: it scores the match, it explains the gap, and it chooses the
+next question.
+
+> **Amended 2026-07-23.** Was "cards re-score" — three of them, at once, on a screen that also held
+> the CV. The deck/tailor split means only one card is ever live, which is both cheaper and clearer.
 
 ## 10. The front door
 
@@ -254,8 +349,13 @@ chance of matching — that is the product thesis, and the reason the ladder has
 
 ## 12. The wall
 
-**After the reveal, on the actions.** Five questions uninterrupted → three scored cards fully visible
-→ an account is required to **save, apply, see the rest, or get alerts**.
+**After the reveal, on the actions.** Questions uninterrupted → scored cards fully visible → an
+account is required to **save, apply, see the rest, or get alerts**.
+
+> **Open again after 2026-07-23.** This was written when the reveal was three cards after five
+> questions. With discovery variable-length and the deck its own screen, the exact moment needs
+> re-picking — most likely entering the deck, or the first Apply/Save. The *principle* is untouched:
+> reward first, wall on the actions.
 
 - **Google OAuth leads.** The magic link stays as a quiet secondary link, deliberately less visible so
   people choose Google — firing an email at peak curiosity is the known-fragile path.
@@ -275,11 +375,18 @@ anything.
   same screen. §10.
 - **The preview is no longer the hook.** The magic-mirror moment does not disappear — it becomes the
   live-typing CV of §8.2, arriving line by line instead of all at once.
-- **The stopping rule is decided** (open question A): there is none. §5.
-- **S3/E5 gains a requirement:** re-scoring existing cards when the profile changes, plus the ranked
-  requirement list per ad doing double duty as the cheap live tick. §9.
+- **The stopping rule is decided** (open question A): there is none *for the product*. Discovery has a
+  door (the root CV is covered); past it the user stops whenever they want. §5, §6, §8.5.
+- **S3/E5 gains requirements:** re-scoring existing cards when the profile changes, and the ranked
+  requirement list per ad doing triple duty — it scores the match, it renders as the card's *where you
+  don't fit yet*, and it chooses the tailor screen's next question. §9.
 - **The claim graph gets a face.** S2 built it as backend truth; §8.1 makes it a screen the user opens,
   which means it needs a readable, human rendering it has never had.
+- **The root CV becomes a user-facing milestone.** S2 built it as a pipeline artefact; §6 makes
+  "the root CV is good enough" the gate that opens the deck, so the family floor in
+  `docs/cv-brain/tailoring-reasoning.md` §4 has to be a list that actually terminates.
+- **The existing design system is out.** `packages/ui/src/tokens.css` is not a constraint on this
+  work — see *The shape*.
 
 ## Pending — before any product code
 
@@ -289,10 +396,23 @@ a LinkedIn search in ten seconds, the wall moves before the reveal.
 
 ## Open
 
+Tracked as tickets on the wayfinder map
+[Onboarding journey: landing to first card](https://github.com/adrien-mounier/jobcrush-app/issues/5).
+
+- ~~**The onboarding screen itself**~~ — **done 2026-07-23**, see *The shape*
+  ([#8](https://github.com/adrien-mounier/jobcrush-app/issues/8)). Prototype:
+  `apps/web/prototypes/onboarding-screen.prototype.html`.
 - **Copy for the front door.** The "ready?" invitation and the CV skip-ahead line. Wording is
   load-bearing here — it is the whole conversion of a stranger into a participant.
-- **What the ~5 questions actually are**, and how they are chosen per user.
-- **The onboarding screen itself** — the typing CV, the live card, the flying chip, the profile icon
-  and where it sits, the re-aim moment. All the animation and layout work §8.2-8.4 calls for. A
-  `/prototype` or `/impeccable` job, not a grill.
-- **How the profile screen renders** — the claim graph has never been shown to a user. §8.1.
+  ([#7](https://github.com/adrien-mounier/jobcrush-app/issues/7))
+- **What the discovery questions are, how they're chosen, and when we stop.** One mechanism: pick the
+  next question from the gap between the family floor and what we know; stop when the gap closes.
+  ([#6](https://github.com/adrien-mounier/jobcrush-app/issues/6))
+- **The profile — badge and screen.** The badge is decided (§8.3); the screen has never been shown to
+  a user at all. ([#9](https://github.com/adrien-mounier/jobcrush-app/issues/9))
+- **The job card's contents** — what it shows and why it beats a job board.
+  ([#10](https://github.com/adrien-mounier/jobcrush-app/issues/10))
+- **Where the wall sits now.** §12 needs re-picking against the three-screen shape.
+- **The core CV structure** — the canonical section list discovery renders empty. Belongs to the CV
+  brain / S2.75, not this design, but discovery cannot be built without it.
+- **Where a saved application lives.** Ruled out of scope for this design; §8.5's exits assume it.

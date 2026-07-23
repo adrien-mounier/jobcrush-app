@@ -1,0 +1,818 @@
+<!-- PROTOTYPE — throwaway. Wayfinder ticket #8 "The onboarding screen".
+     The decided three-screen flow: discovery (root CV) → deck → tailor.
+     Spec: docs/onboarding-reward-design.md §4, §7, §8.2-8.4, §9, as amended 2026-07-23.
+     Not production code. -->
+<title>JobCrush — onboarding flow prototype</title>
+
+<style>
+  :root {
+    --hud-0: #101419;
+    --hud-1: #171c23;
+    --hud-2: #1f262f;
+    --hud-line: #2b333d;
+    --hud-ink: #e8eaed;
+    --hud-mute: #7f8b98;
+
+    --paper: #f6f2ea;
+    --paper-edge: #e2dacb;
+    --ink: #16150f;
+    --ink-mute: #6b6455;
+    --rule: #d9d0bd;
+
+    --gold: #e8a33d;
+    --gold-dim: #a8762b;
+    --gold-glow: rgba(232,163,61,.22);
+    --weak: #6f7d8c;
+
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+
+    --page: #0b0e12; --page-ink: #cfd5dc;
+  }
+  @media (prefers-color-scheme: light) { :root { --page: #dfe3e8; --page-ink: #2b333d; } }
+  :root[data-theme="light"] { --page: #dfe3e8; --page-ink: #2b333d; }
+  :root[data-theme="dark"] { --page: #0b0e12; --page-ink: #cfd5dc; }
+
+  * { box-sizing: border-box; }
+
+  /* Scrollbars: gone on touch, a hairline that melts into the surface on desktop.
+     One neutral translucent grey so the same thumb reads on dark chrome and on paper. */
+  * { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.28) transparent; }
+  ::-webkit-scrollbar { width: 3px; height: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(140,150,160,.28); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(140,150,160,.45); }
+  @media (hover: none), (pointer: coarse) {
+    * { scrollbar-width: none; -ms-overflow-style: none; }
+    ::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  }
+
+  body {
+    margin: 0; background: var(--page); color: var(--page-ink);
+    font-family: var(--sans); min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 22px 16px 92px; gap: 16px;
+  }
+  .caption { font-size: 13px; text-align: center; max-width: 50ch; line-height: 1.55; opacity: .75; margin: 0; }
+  .caption b { font-weight: 650; }
+
+  .phone {
+    width: 390px; height: 810px; background: var(--hud-0);
+    border-radius: 34px; border: 1px solid #333c47;
+    box-shadow: 0 30px 70px -20px rgba(0,0,0,.7), 0 0 0 8px #05070a;
+    overflow: hidden; position: relative; color: var(--hud-ink);
+    display: flex; flex-direction: column; isolation: isolate;
+  }
+  @media (max-width: 460px) {
+    body { padding: 0 0 68px; gap: 0; justify-content: flex-start; }
+    .caption { display: none; }
+    .phone { width: 100vw; height: 100dvh; border-radius: 0; border: none; box-shadow: none; }
+  }
+
+  /* ---------- HUD ---------- */
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; flex: 0 0 auto; }
+  .wordmark { font-size: 12.5px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--hud-mute); }
+  .spacer { flex: 1; }
+
+  /* The profile badge: a pile that only ever gets taller, with the count beside it.
+     Never a shape that FILLS — a full state would grade the person (§7). */
+  .prof { position: relative; display: flex; align-items: center; gap: 7px;
+    padding: 5px 11px 5px 9px; border-radius: 999px;
+    background: var(--hud-2); border: 1px solid var(--hud-line); cursor: pointer;
+    transition: transform 260ms cubic-bezier(.2,1.6,.4,1), border-color 400ms ease, background 400ms ease; }
+  .prof:hover { background: #262f3a; }
+  .prof svg { width: 18px; height: 21px; display: block; overflow: visible; }
+  .prof svg rect { fill: var(--hud-mute); transition: fill 400ms ease; }
+  .prof svg rect.top { fill: #a9b4bf; }
+  .prof svg rect.new { animation: layerin 480ms cubic-bezier(.2,1.4,.4,1); }
+  @keyframes layerin { from { transform: translateY(-7px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .prof .n { font-family: var(--mono); font-size: 13px; font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--hud-ink); }
+  .prof .unit { font-size: 11.5px; color: var(--hud-mute); margin-left: -3px; }
+  .prof.pulse { transform: scale(1.1); border-color: var(--gold); }
+  .prof.pulse svg rect.top { fill: var(--gold); }
+  .prof .ring { position: absolute; inset: -1px; border-radius: 999px; border: 1.5px solid var(--gold); opacity: 0; }
+  .prof.pulse .ring { animation: ringout 620ms ease-out; }
+  @keyframes ringout { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: scale(1.14); } }
+
+  /* ---------- the block rail — "you are completing a page", not answering questions ---------- */
+  .blocks { display: flex; gap: 6px; padding: 0 16px 14px; flex: 0 0 auto; }
+  .blk { flex: 1; min-width: 0; }
+  .blk .bar { height: 3px; border-radius: 2px; background: var(--hud-2); overflow: hidden; }
+  .blk .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+    border-radius: 2px; transition: width 620ms cubic-bezier(.3,.9,.3,1); }
+  .blk .nm { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--hud-mute);
+    margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color 400ms ease; }
+  .blk.active .nm { color: var(--gold); }
+  .blk.done .nm { color: var(--hud-ink); }
+  .blk.done .nm::after { content: " ✓"; color: var(--gold); }
+
+  /* ---------- the promise ---------- */
+  .promise { margin: 0 16px 12px; padding: 12px 14px; border-radius: 11px; flex: 0 0 auto;
+    background: linear-gradient(135deg, rgba(232,163,61,.13), rgba(232,163,61,.05));
+    border: 1px solid rgba(232,163,61,.32); display: flex; gap: 11px; align-items: center;
+    animation: rise 560ms cubic-bezier(.2,1,.3,1); }
+  .promise .n { font-family: var(--mono); font-size: 19px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .promise p { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--hud-ink); }
+  .promise p span { color: var(--hud-mute); }
+
+  /* ---------- paper CV ---------- */
+  .divider { display: flex; align-items: center; gap: 9px; padding: 0 16px 9px; flex: 0 0 auto;
+    font-family: var(--mono); font-size: 10px; color: var(--hud-mute); text-transform: uppercase; letter-spacing: .1em; }
+  .divider::after { content: ""; flex: 1; height: 1px; background: var(--hud-line); }
+  .band-cv { flex: 1; overflow-y: auto; padding: 0 16px 12px; }
+
+  .cv { background: var(--paper); color: var(--ink); border-radius: 10px; min-height: 100%;
+    box-shadow: 0 18px 44px -14px rgba(0,0,0,.75), 0 1px 0 rgba(255,255,255,.16) inset;
+    border: 1px solid var(--paper-edge); padding: 20px 20px 26px; font-family: var(--serif); position: relative; overflow: hidden; }
+  .cv::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background-image: radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px); background-size: 3px 3px; }
+  .cv-aim { font-family: var(--sans); font-size: 10px; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--ink-mute); margin-bottom: 13px; min-height: 13px; }
+  .cv-aim .tgt { color: var(--gold-dim); font-weight: 700; }
+  .cv-aim.swap { animation: aimswap 700ms ease; }
+  @keyframes aimswap { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+  .cv-name { font-size: 21px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 2px; min-height: 26px; }
+  .cv-role { font-family: var(--sans); font-size: 12px; color: var(--ink-mute); margin: 0 0 14px; min-height: 15px; }
+  .cv-sec { font-family: var(--sans); font-size: 9.5px; text-transform: uppercase; letter-spacing: .14em;
+    color: var(--ink-mute); margin: 16px 0 8px; animation: rise 480ms cubic-bezier(.2,1,.3,1); }
+  .cv-sec:first-of-type { margin-top: 0; }
+  .cv-line { font-size: 14.5px; line-height: 1.45; padding-left: 14px; position: relative; margin: 0 0 9px; }
+  .cv-line::before { content: ""; position: absolute; left: 0; top: .62em; width: 5px; height: 5px;
+    border-radius: 50%; background: var(--gold-dim); opacity: 0; transition: opacity 300ms ease 120ms; }
+  .cv-line.done::before { opacity: 1; }
+  .cv-line.landing { animation: rise 520ms cubic-bezier(.2,1.1,.3,1); }
+  .caret { display: inline-block; width: 2px; height: 1em; background: var(--gold-dim);
+    vertical-align: -.14em; margin-left: 1px; animation: blink 900ms steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .cv-ghost { height: 1px; margin: 13px 0; opacity: .55;
+    background: repeating-linear-gradient(90deg, var(--rule) 0 24px, transparent 24px 34px); }
+  .cv-hint { font-family: var(--sans); font-size: 12px; color: var(--ink-mute); margin: 20px 0 0; font-style: italic; }
+  .cv-blank { color: var(--rule); font-weight: 400; }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- the question ---------- */
+  .ask { background: var(--hud-1); border-top: 1px solid var(--hud-line);
+    padding: 15px 16px calc(15px + env(safe-area-inset-bottom)); flex: 0 0 auto; }
+  .ask .why { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--gold); margin: 0 0 8px; }
+  .ask .q { font-size: 16.5px; line-height: 1.35; font-weight: 550; margin: 0 0 13px; letter-spacing: -.01em; text-wrap: balance; }
+  .opts { display: flex; flex-direction: column; gap: 7px; }
+  .opt { appearance: none; text-align: left; width: 100%; background: var(--hud-2); color: var(--hud-ink);
+    border: 1px solid var(--hud-line); border-radius: 11px; padding: 12.5px 15px; font: inherit; font-size: 14.5px;
+    cursor: pointer; transition: background 140ms ease, border-color 140ms ease, transform 90ms ease; }
+  .opt:hover { background: #262f3a; border-color: #3b4653; }
+  .opt:active { transform: scale(.985); }
+  .opt:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+  /* Exits — always available, never shouting. The user stops when they want. */
+  .exits { display: flex; align-items: center; gap: 10px; margin-top: 12px;
+    padding-top: 11px; border-top: 1px solid var(--hud-line); }
+  .exits button { appearance: none; background: none; border: none; font: inherit; font-size: 12px;
+    color: var(--hud-mute); cursor: pointer; padding: 4px 0; border-radius: 4px; }
+  .exits button:hover { color: var(--hud-ink); }
+  .exits button.drop:hover { color: #c98b8b; }
+  .exits .spacer { flex: 1; }
+  .exits .done-cta { color: var(--gold); font-weight: 620; }
+
+  /* the finish state, once we've asked enough */
+  .finish { display: flex; flex-direction: column; gap: 9px; }
+  .finish .head { font-size: 15.5px; font-weight: 600; margin: 0 0 2px; letter-spacing: -.01em; text-wrap: balance; }
+  .finish .note { font-size: 12.5px; color: var(--hud-mute); margin: 0 0 6px; line-height: 1.45; }
+  .btn-primary { appearance: none; border: none; border-radius: 12px; padding: 15px; font: inherit;
+    font-size: 15.5px; font-weight: 650; cursor: pointer; background: var(--gold); color: #1a1206;
+    transition: transform 90ms ease; }
+  .btn-primary:active { transform: scale(.985); }
+  .btn-ghost { appearance: none; border: 1px solid var(--hud-line); border-radius: 12px; padding: 13px;
+    font: inherit; font-size: 14px; cursor: pointer; background: var(--hud-2); color: var(--hud-ink); }
+
+  /* ---------- score ring — the one number, never a colour that judges ---------- */
+  .score { position: relative; width: 46px; height: 46px; flex: 0 0 auto; display: grid; place-items: center; }
+  .score.lg { width: 62px; height: 62px; }
+  .score svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .score .bg { fill: none; stroke: rgba(255,255,255,.12); stroke-width: 3.5; }
+  .score .fg { fill: none; stroke: var(--gold); stroke-width: 3.5; stroke-linecap: round;
+    transition: stroke-dashoffset 700ms cubic-bezier(.3,.9,.3,1); }
+  .score .n { font-family: var(--mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--hud-ink); }
+  .score.lg .n { font-size: 17px; }
+  .score .n .pct { font-size: 8px; color: var(--hud-mute); }
+  .score.bumped .n { animation: bump 460ms cubic-bezier(.2,1.5,.4,1); }
+  @keyframes bump { 0% { transform: none; } 40% { transform: scale(1.3); color: var(--gold); } 100% { transform: none; } }
+
+  /* ---------- deck (screen 2) ---------- */
+  .deck { flex: 1; position: relative; padding: 4px 16px calc(14px + env(safe-area-inset-bottom)); }
+  .jobcard { position: absolute; top: 4px; left: 16px; right: 16px; bottom: calc(14px + env(safe-area-inset-bottom));
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 18px;
+    display: flex; flex-direction: column; overflow: hidden;
+    animation: dealin 520ms cubic-bezier(.2,1,.3,1);
+    touch-action: pan-y; user-select: none; -webkit-user-select: none;
+    transition: transform 300ms cubic-bezier(.2,1,.3,1); }
+  .jcbody { flex: 1; overflow-y: auto; padding: 20px 20px 4px; }
+  /* the swipe buttons live INSIDE the card — the card is one object you throw or tap */
+  .jcfoot { flex: 0 0 auto; display: flex; gap: 10px; padding: 13px 14px 14px;
+    border-top: 1px solid var(--hud-line); background: var(--hud-1); }
+  .stamp { position: absolute; top: 26px; font-family: var(--sans); font-size: 15px; font-weight: 750;
+    letter-spacing: .08em; text-transform: uppercase; padding: 7px 13px; border-radius: 8px;
+    border: 2.5px solid currentColor; opacity: 0; pointer-events: none; }
+  .stamp.yes { left: 20px; transform: rotate(-13deg); color: var(--gold); }
+  .stamp.no  { right: 20px; transform: rotate(13deg); color: #b0787a; }
+  @keyframes dealin { from { opacity: 0; transform: translateY(22px) scale(.96); } to { opacity: 1; transform: none; } }
+  .jobcard.out-left { animation: outL 340ms ease forwards; }
+  .jobcard.out-right { animation: outR 340ms ease forwards; }
+  @keyframes outL { to { opacity: 0; transform: translateX(-120%) rotate(-9deg); } }
+  @keyframes outR { to { opacity: 0; transform: translateX(120%) rotate(9deg); } }
+  .jobcard .hd { display: flex; gap: 13px; align-items: flex-start; margin-bottom: 6px; }
+  .jobcard h2 { font-size: 19px; font-weight: 620; letter-spacing: -.015em; margin: 0 0 4px; line-height: 1.25; text-wrap: balance; }
+  .jobcard .co { font-size: 12.5px; color: var(--hud-mute); margin: 0; }
+  .jobcard .desc { font-size: 13.5px; line-height: 1.5; color: #c3ccd5; margin: 14px 0 0;
+    padding-top: 14px; border-top: 1px solid var(--hud-line); }
+  .fits { margin-top: 16px; display: flex; flex-direction: column; gap: 7px; }
+  .fits h3 { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--hud-mute); margin: 6px 0 2px; }
+  .fit { display: flex; gap: 9px; font-size: 13px; line-height: 1.4; align-items: flex-start; }
+  .fit .mk { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 9px; margin-top: 1px; }
+  .fit.good .mk { background: rgba(232,163,61,.18); color: var(--gold); border: 1px solid rgba(232,163,61,.4); }
+  .fit.bad .mk { background: rgba(111,125,140,.16); color: var(--weak); border: 1px solid rgba(111,125,140,.35); }
+  .fit.bad { color: var(--hud-mute); }
+  .sw { flex: 1; appearance: none; border-radius: 999px; padding: 14px; font: inherit; font-size: 14.5px;
+    font-weight: 620; cursor: pointer; border: 1px solid var(--hud-line); background: var(--hud-2); color: var(--hud-mute);
+    transition: transform 90ms ease, background 160ms ease; }
+  .sw:active { transform: scale(.97); }
+  .sw.yes { background: var(--gold); color: #1a1206; border-color: var(--gold); flex: 1.6; }
+  .deckcount { font-family: var(--mono); font-size: 10.5px; color: var(--hud-mute); text-align: center; padding: 0 0 10px; }
+
+  /* ---------- transition ---------- */
+  .curtain { position: absolute; inset: 0; z-index: 40; background: rgba(9,12,16,.9); backdrop-filter: blur(8px);
+    display: grid; place-items: center; text-align: center; padding: 32px; opacity: 0; pointer-events: none;
+    transition: opacity 340ms ease; }
+  .curtain.show { opacity: 1; pointer-events: auto; }
+  .curtain .burst { font-size: 42px; margin-bottom: 16px; animation: burst 720ms cubic-bezier(.2,1.5,.4,1); }
+  @keyframes burst { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+  .curtain .big { font-size: 27px; font-weight: 680; letter-spacing: -.02em; margin: 0 0 9px; text-wrap: balance; }
+  .curtain .big em { font-style: normal; color: var(--gold); }
+  .curtain .sub { font-size: 14px; color: var(--hud-mute); margin: 0 0 24px; line-height: 1.5; }
+  .curtain .go { background: var(--gold); color: #1a1206; border: none; border-radius: 999px;
+    padding: 13px 32px; font: inherit; font-weight: 650; font-size: 15px; cursor: pointer; }
+
+  .chip-fly { position: fixed; z-index: 90; pointer-events: none; background: var(--gold); color: #1a1206;
+    font-family: var(--sans); font-size: 11px; font-weight: 650; padding: 6px 11px; border-radius: 999px;
+    white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.45);
+    transition: transform 720ms cubic-bezier(.4,.05,.3,1), opacity 720ms ease; }
+
+  .screen { display: none; flex-direction: column; height: 100%; }
+  .screen.on { display: flex; }
+
+  .switcher { position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); z-index: 200;
+    display: flex; align-items: center; gap: 4px; background: #f2f4f7; color: #101419;
+    border-radius: 999px; padding: 5px; box-shadow: 0 8px 26px rgba(0,0,0,.4); font-family: var(--sans); }
+  .switcher .lbl { font-size: 12.5px; font-weight: 620; padding: 0 10px; white-space: nowrap; }
+  .switcher button { appearance: none; border: none; font: inherit; font-size: 11.5px; font-weight: 600;
+    border-radius: 999px; padding: 0 13px; height: 29px; cursor: pointer; background: #101419; color: #f2f4f7; }
+  .switcher button.ghost { background: #dfe3e8; color: #101419; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: 1ms !important; transition-duration: 1ms !important; } }
+</style>
+
+<p class="caption">
+  Ticket #8 — the decided flow. <b>1 · Discovery</b> builds your root CV, no cards.
+  <b>2 · The deck</b> is jobs only, no questions. <b>3 · Tailor</b> sharpens one CV for one job.
+  Tap through it.
+</p>
+
+<div class="phone" id="phone">
+  <div class="screen" id="s1"></div>
+  <div class="screen" id="s2"></div>
+  <div class="screen" id="s3"></div>
+  <div class="curtain" id="curtain"><div>
+    <div class="burst">🂠</div>
+    <p class="big" id="curtainBig"></p>
+    <p class="sub" id="curtainSub"></p>
+    <button class="go" id="curtainGo"></button>
+  </div></div>
+</div>
+
+<div class="switcher">
+  <span class="lbl" id="lbl"></span>
+  <button class="ghost" id="skip">skip ahead</button>
+  <button id="reset">restart</button>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// PROTOTYPE. Throwaway. The three-screen flow decided on ticket #8.
+//   1 discovery → root CV complete → 2 deck → swipe right → 3 tailor
+// ---------------------------------------------------------------------------
+
+const NAME = "Camille Roussel";
+
+// The CV skeleton — every CV has these, so they are on screen from the first
+// second, empty. The real list comes from the core CV structure (its own ticket);
+// this is a stand-in. Blocks map 1:1 onto sections, so filling a bar visibly
+// fills a section of the page.
+const SECTIONS = [
+  { key: "summary", label: "Professional summary", ghost: 2 },
+  { key: "exp",     label: "Professional experience", ghost: 3 },
+  { key: "skills",  label: "Skills", ghost: 2 },
+  { key: "edu",     label: "Education", ghost: 1 },
+];
+
+const BLOCKS = SECTIONS.map(s => ({ key: s.key, label: s.label.replace("Professional ", "") }));
+
+const DISCOVERY = [
+  { b: "summary", sec: "head", q: "What kind of job are you going for?",
+    opts: ["IT Project Manager", "Delivery Manager", "Product Owner"],
+    cv: "IT Project Manager", fact: "IT Project Manager" },
+  { b: "summary", sec: "summary", q: "Roughly how long have you been doing it?",
+    opts: ["2–4 years", "5–9 years", "10+ years"],
+    cv: "8 years leading IT delivery in Paris, owning budget, vendors and mixed teams.", fact: "8 years in IT delivery" },
+
+  { b: "exp", sec: "exp", q: "Biggest budget you've owned?", opts: ["Under €500k", "€500k – €2M", "Over €2M"],
+    cv: "Managed a €2M budget across 4 teams", fact: "€2M budget" },
+  { b: "exp", sec: "exp", q: "How big was the biggest team you ran?", opts: ["1–5 people", "6–15 people", "More than 15"],
+    cv: "Led a team of 12 engineers and analysts", fact: "Led 12 people" },
+  { b: "exp", sec: "exp", q: "Which of these have you actually shipped?", opts: ["An ERP migration", "A move to cloud", "A new product launch"],
+    cv: "Shipped an ERP migration end to end, on time", fact: "ERP migration",
+    promise: { n: 142, txt: "project manager jobs are open in Paris right now.", sub: "Keep going and I'll score them against you." } },
+  { b: "exp", sec: "exp", q: "How do you usually run a project?", opts: ["Agile", "Waterfall", "A bit of both"],
+    cv: "Runs both agile and stage-gate delivery", fact: "Agile + waterfall" },
+
+  { b: "skills", sec: "skills", q: "Which of these do you use day to day?", opts: ["Jira and Confluence", "MS Project", "Both"],
+    cv: "Jira · Confluence · MS Project · Power BI", fact: "Jira, MS Project" },
+  { b: "skills", sec: "skills", q: "Which languages do you work in?", opts: ["French only", "French and English", "Three or more"],
+    cv: "French (native) · English (fluent)", fact: "French, English" },
+
+  { b: "edu", sec: "edu", q: "Highest qualification you finished?", opts: ["Bachelor's", "Master's", "Something else"],
+    cv: "MSc Information Systems · PMP certified", fact: "MSc + PMP" },
+];
+
+const JOBS = [
+  { title: "Senior IT Project Manager", co: "Atos · Paris 15e · €68–78k · Hybrid", score: 61,
+    desc: "Lead the replacement of a legacy finance platform across four European sites. You own the plan, the budget and the vendor relationship, reporting to the IT director.",
+    good: ["€2M budget — they ask for €1M+", "ERP migration — that is exactly the programme", "Team of 12 — they ask for 10+"],
+    bad: ["They want SAP S/4HANA specifically", "They want public-sector experience"] },
+  { title: "IT Programme Manager", co: "Orange · Paris · €72–85k · 3 days on site", score: 54,
+    desc: "Run a portfolio of three network-modernisation projects. Heavy stakeholder work with regulators and internal security.",
+    good: ["8 years delivery — they ask for 7+", "Both agile and stage-gate"],
+    bad: ["They want a security clearance", "They want telecoms background"] },
+  { title: "Delivery Lead, Core Banking", co: "Capgemini · Lyon · €65–75k · Remote-first", score: 47,
+    desc: "Client-facing delivery of a core banking replacement for a regional bank. Mixed onshore/offshore team of about 30.",
+    good: ["ERP migration experience transfers", "Fluent English for the offshore team"],
+    bad: ["They want banking domain knowledge", "They want offshore team experience"] },
+];
+
+// Screen 3: the questions come straight from the card's weak fits.
+const TAILOR = [
+  { q: "This job wants SAP S/4HANA. Have you touched that version — even a pilot?",
+    opts: ["Yes, ran a project on it", "Only the older ECC", "Never"],
+    cv: "Delivered on SAP S/4HANA, including cutover planning", fact: "SAP S/4HANA", gain: 13, fixes: 0 },
+  { q: "They want public-sector experience. Any of your work been for government or a public body?",
+    opts: ["Yes, several", "One contract", "No"],
+    cv: "Delivered for public-sector clients under EU procurement rules", fact: "Public-sector delivery", gain: 11, fixes: 1 },
+  { q: "How many sites did the ERP migration cover?",
+    opts: ["One", "Two or three", "Four or more"],
+    cv: "Coordinated the rollout across 5 European sites", fact: "5-site rollout", gain: 6, fixes: null },
+];
+
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = (s, r = document) => r.querySelector(s);
+
+let S;
+function fresh() {
+  S = { screen: "s1", i: 0, facts: [], cv: {}, sec: {}, promise: null,
+        deck: 0, job: null, jobScore: 0, ti: 0, fixed: [], busy: false };
+}
+fresh();
+
+// --- helpers ---------------------------------------------------------------
+
+// The line being written must never be typed off-screen. Smoothly bring it into
+// view before the first character, and again as it grows (a line can wrap).
+function keepInView(box, el) {
+  if (!box || !el) return;
+  const b = box.getBoundingClientRect(), e = el.getBoundingClientRect(), pad = 30;
+  let d = 0;
+  if (e.bottom > b.bottom - pad) d = e.bottom - (b.bottom - pad);
+  else if (e.top < b.top + pad) d = e.top - (b.top + pad);
+  if (Math.abs(d) > 1) box.scrollTo({ top: box.scrollTop + d, behavior: reduced ? "auto" : "smooth" });
+}
+
+function typeInto(el, text, done) {
+  const box = el.closest(".band-cv");
+  if (reduced) { el.textContent = text; keepInView(box, el); done && done(); return; }
+  el.textContent = "";
+  const caret = document.createElement("span");
+  caret.className = "caret";
+  el.appendChild(caret);
+  let n = 0;
+  const step = () => {
+    n++; caret.remove();
+    el.textContent = text.slice(0, n);
+    if (n < text.length) {
+      el.appendChild(caret);
+      if (n % 6 === 0) keepInView(box, el);        // follow the line as it wraps
+      setTimeout(step, 16 + Math.random() * 22);
+    } else { keepInView(box, el); done && done(); }
+  };
+  // scroll first, type second — never the other way round
+  keepInView(box, el);
+  setTimeout(step, reduced ? 0 : 360);
+}
+
+function flyChip(from, to, label, after) {
+  if (!from || !to) { after && after(); return; }
+  const a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+  const chip = document.createElement("div");
+  chip.className = "chip-fly";
+  chip.textContent = "+ " + label;
+  chip.style.left = a.left + "px";
+  chip.style.top = (a.top + a.height / 2 - 12) + "px";
+  document.body.appendChild(chip);
+  const land = () => {
+    to.classList.add("pulse");
+    setTimeout(() => to.classList.remove("pulse"), 640);
+    chip.remove(); after && after();
+  };
+  if (reduced) { land(); return; }
+  requestAnimationFrame(() => {
+    const c = chip.getBoundingClientRect();
+    chip.style.transform =
+      `translate(${b.left + b.width / 2 - c.left - c.width / 2}px, ${b.top + b.height / 2 - c.top - c.height / 2}px) scale(.35)`;
+    chip.style.opacity = "0";
+  });
+  setTimeout(land, 700);
+}
+
+function tweenScore(el, from, to) {
+  const num = $(".n", el), ring = $(".fg", el);
+  const r = el.classList.contains("lg") ? 27 : 20, C = 2 * Math.PI * r;
+  ring.style.strokeDasharray = C;
+  ring.style.strokeDashoffset = C * (1 - to / 100);
+  el.classList.add("bumped");
+  setTimeout(() => el.classList.remove("bumped"), 480);
+  if (reduced) { num.innerHTML = to + '<span class="pct">%</span>'; return; }
+  const t0 = performance.now();
+  const tick = t => {
+    const k = Math.min(1, (t - t0) / 680), e = 1 - Math.pow(1 - k, 3);
+    num.innerHTML = Math.round(from + (to - from) * e) + '<span class="pct">%</span>';
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function scoreEl(score, big) {
+  const r = big ? 27 : 20, C = 2 * Math.PI * r, s = big ? 62 : 46;
+  return `<div class="score ${big ? "lg" : ""}"><svg viewBox="0 0 ${s} ${s}">
+    <circle class="bg" cx="${s/2}" cy="${s/2}" r="${r}"></circle>
+    <circle class="fg" cx="${s/2}" cy="${s/2}" r="${r}" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-score/100)}"></circle>
+  </svg><span class="n">${score}<span class="pct">%</span></span></div>`;
+}
+
+// ponytail: a layer per 6 facts, capped at 5 drawn layers — past that the count
+// carries it. A real pile compresses too; swap for a density ramp if it reads flat.
+const layersFor = n => Math.min(5, Math.max(1, Math.ceil(n / 6)));
+
+function stackSvg(n) {
+  const L = layersFor(n);
+  return Array.from({ length: L }, (_, i) => {
+    const w = 16 - i * 1.4, x = (18 - w) / 2, y = 16 - i * 3.3;
+    return `<rect class="${i === L - 1 ? "top" : ""}" x="${x}" y="${y}" width="${w}" height="4.6" rx="1.4"
+      ${n === 0 ? 'opacity=".35"' : ""}></rect>`;
+  }).join("");
+}
+
+function profEl(id) {
+  const n = S.facts.length;
+  return `<div class="prof" id="${id}" title="Your profile — ${n} facts about you">
+    <span class="ring"></span>
+    <svg viewBox="0 0 18 21" aria-hidden="true">${stackSvg(n)}</svg>
+    <span class="n">${n}</span>${n <= 3 ? `<span class="unit">facts</span>` : ""}
+  </div>`;
+}
+
+// One more fact landed: tick the count, and add a layer if the pile just grew.
+function bumpProfile(id, fact) {
+  const before = layersFor(S.facts.length);
+  S.facts.push(fact);
+  const p = document.getElementById(id);
+  if (!p) return;
+  $(".n", p).textContent = S.facts.length;
+  $("svg", p).innerHTML = stackSvg(S.facts.length);   // also drops the faint zero state
+  if (layersFor(S.facts.length) > before) $("svg rect.top", p).classList.add("new");
+}
+
+// Clear the empty rules out of the section this answer belongs to, and hand back
+// the element the line will be typed into.
+function writeSlot(r, secKey) {
+  if (secKey === "head") { const t = $(".cv-role", r); t.textContent = ""; return t; }
+  const box = $(`[data-sec="${secKey || "exp"}"]`, r);
+  box.querySelectorAll(".cv-ghost").forEach(g => g.remove());
+  const p = document.createElement("p");
+  p.className = "cv-line landing";
+  box.appendChild(p);
+  return p;
+}
+
+// The page is never blank — it is an empty CV, with every section already named.
+// You can see the shape of the thing you are filling before you fill it.
+function cvEl(aimTitle) {
+  const c = S.cv;
+  const ghosts = n => Array.from({ length: n }, () => `<div class="cv-ghost"></div>`).join("");
+  const body = key => {
+    const got = S.sec[key] || [];
+    if (!got.length) return ghosts(SECTIONS.find(s => s.key === key).ghost);
+    return got.map(t => `<p class="cv-line done">${t}</p>`).join("");
+  };
+  return `<div class="cv">
+    <div class="cv-aim">${aimTitle ? `Aimed at <span class="tgt">${aimTitle}</span>` : "Your CV — building"}</div>
+    <p class="cv-name">${c.head ? NAME : `<span class="cv-blank">Your name</span>`}</p>
+    <p class="cv-role" data-slot="role">${c.head || ""}</p>
+    ${SECTIONS.map(s => `<p class="cv-sec">${s.label}</p>
+      <div data-sec="${s.key}">${body(s.key)}</div>`).join("")}
+    ${!c.head ? `<p class="cv-hint">Answer below and this page starts writing itself.</p>` : ""}
+  </div>`;
+}
+
+// --- screen 1: discovery ---------------------------------------------------
+
+function blocksEl() {
+  const cur = DISCOVERY[S.i] ? DISCOVERY[S.i].b : null;
+  return `<div class="blocks">${BLOCKS.map(b => {
+    const all = DISCOVERY.filter(d => d.b === b.key).length;
+    const did = DISCOVERY.slice(0, S.i).filter(d => d.b === b.key).length;
+    const state = did >= all ? "done" : b.key === cur ? "active" : "";
+    return `<div class="blk ${state}"><div class="bar"><i style="width:${(did/all)*100}%"></i></div>
+      <div class="nm">${b.label}</div></div>`;
+  }).join("")}</div>`;
+}
+
+function renderS1() {
+  const step = DISCOVERY[S.i];
+  $("#s1").innerHTML = `
+    <div class="topbar"><span class="wordmark">JobCrush</span><span class="spacer"></span>${profEl("prof1")}</div>
+    ${blocksEl()}
+    ${S.promise ? `<div class="promise"><span class="n">${S.promise.n}</span>
+      <p>${S.promise.txt}<br><span>${S.promise.sub}</span></p></div>` : ""}
+    <div class="divider">Your CV</div>
+    <div class="band-cv">${cvEl(null)}</div>
+    <div class="ask">
+      <p class="q">${step ? step.q : "Done."}</p>
+      <div class="opts">${step ? step.opts.map((o,k)=>`<button class="opt" data-opt="${k}">${o}</button>`).join("") : ""}</div>
+    </div>`;
+  wire("#s1", answerDiscovery, "prof1");
+}
+
+function answerDiscovery(btn) {
+  if (S.busy) return;
+  const step = DISCOVERY[S.i];
+  if (!step) return;
+  S.busy = true;
+  const r = $("#s1");
+  r.querySelectorAll(".opt").forEach(o => { o.disabled = true; o.style.opacity = o === btn ? "1" : ".35"; });
+
+  flyChip(btn, $("#prof1"), step.fact, () => bumpProfile("prof1", step.fact));
+
+  const target = writeSlot(r, step.sec);
+  typeInto(target, step.cv, () => {
+    target.classList.add("done");
+    if (step.sec === "head") {
+      S.cv.head = step.cv;
+      $(".cv-name", r).textContent = NAME;
+      const h = $(".cv-hint", r); if (h) h.remove();
+    } else (S.sec[step.sec] = S.sec[step.sec] || []).push(step.cv);
+    S.i++;
+    if (step.promise) S.promise = step.promise;
+
+    if (S.i >= DISCOVERY.length) { setTimeout(rootCvDone, 620); return; }
+    setTimeout(() => { S.busy = false; renderS1(); }, 360);
+  });
+}
+
+function rootCvDone() {
+  curtain("3 jobs just <em>matched you</em>",
+    "Your CV covers what a project-manager job expects. I scored every open role against it.",
+    "See them", () => { S.screen = "s2"; S.busy = false; show(); });
+}
+
+// --- screen 2: the deck ----------------------------------------------------
+
+function renderS2() {
+  const j = JOBS[S.deck];
+  $("#s2").innerHTML = `
+    <div class="topbar"><span class="wordmark">JobCrush</span><span class="spacer"></span>${profEl("prof2")}</div>
+    <p class="deckcount">${S.deck + 1} of ${JOBS.length} matched today${j ? " · swipe or tap" : ""}</p>
+    <div class="deck">${j ? `<div class="jobcard" id="jc">
+      <span class="stamp yes">Want it</span><span class="stamp no">Not for me</span>
+      <div class="jcbody">
+        <div class="hd"><div style="flex:1;min-width:0">
+          <h2>${j.title}</h2><p class="co">${j.co}</p>
+        </div>${scoreEl(j.score, true)}</div>
+        <p class="desc">${j.desc}</p>
+        <div class="fits">
+          <h3>Where you fit</h3>
+          ${j.good.map(g => `<div class="fit good"><span class="mk">✓</span><span>${g}</span></div>`).join("")}
+          <h3>Where you don't — yet</h3>
+          ${j.bad.map(b => `<div class="fit bad"><span class="mk">?</span><span>${b}</span></div>`).join("")}
+        </div>
+      </div>
+      <div class="jcfoot">
+        <button class="sw" id="no">Not for me</button>
+        <button class="sw yes" id="yes">I want this one</button>
+      </div>
+    </div>` : `<div style="display:grid;place-items:center;height:100%;color:var(--hud-mute);font-size:14px;text-align:center;padding:0 20px">
+      That's today's deck.<br>Restart to run it again.</div>`}</div>`;
+  $("#prof2").onclick = openProfile;
+  const card = $("#jc");
+  if (!card) return;
+  const reject = () => { card.classList.add("out-left"); setTimeout(() => { S.deck++; renderS2(); }, 320); };
+  const accept = () => {
+    card.classList.add("out-right");
+    setTimeout(() => {
+      S.job = JOBS[S.deck]; S.jobScore = S.job.score; S.ti = 0; S.fixed = [];
+      S.screen = "s3"; show();
+    }, 320);
+  };
+  $("#no").onclick = reject;
+  $("#yes").onclick = accept;
+  makeSwipeable(card, reject, accept);
+}
+
+// Throw the card, or press a button — same two outcomes. Vertical drags are left
+// alone so the card body still scrolls.
+function makeSwipeable(el, onLeft, onRight) {
+  const yes = $(".stamp.yes", el), no = $(".stamp.no", el);
+  let x0 = null, y0 = null, dx = 0, live = false;
+
+  el.addEventListener("pointerdown", e => {
+    if (e.target.closest("button")) return;
+    x0 = e.clientX; y0 = e.clientY; dx = 0; live = false;
+  });
+
+  el.addEventListener("pointermove", e => {
+    if (x0 === null) return;
+    const ddx = e.clientX - x0, ddy = e.clientY - y0;
+    if (!live) {
+      if (Math.abs(ddx) < 8) return;
+      if (Math.abs(ddx) < Math.abs(ddy)) { x0 = null; return; }   // it's a scroll, not a swipe
+      live = true;
+      el.style.transition = "none";
+      el.setPointerCapture(e.pointerId);
+    }
+    dx = ddx;
+    el.style.transform = `translateX(${dx}px) rotate(${dx * 0.045}deg)`;
+    const k = Math.min(1, Math.abs(dx) / 110);
+    yes.style.opacity = dx > 0 ? k : 0;
+    no.style.opacity = dx < 0 ? k : 0;
+  });
+
+  const release = () => {
+    if (x0 === null) return;
+    x0 = null;
+    if (!live) return;
+    live = false;
+    el.style.transition = "";
+    // past the threshold, let it keep going from where the thumb left it
+    if (dx > 90) onRight();
+    else if (dx < -90) onLeft();
+    else { el.style.transform = ""; yes.style.opacity = 0; no.style.opacity = 0; }
+  };
+  el.addEventListener("pointerup", release);
+  el.addEventListener("pointercancel", release);
+}
+
+// --- screen 3: tailor ------------------------------------------------------
+
+function renderS3() {
+  const step = TAILOR[S.ti], j = S.job;
+  const bad = j.bad.map((b, k) => S.fixed.includes(k)
+    ? `<div class="fit good"><span class="mk">✓</span><span>${b.replace(/^They want/, "You have")}</span></div>`
+    : `<div class="fit bad"><span class="mk">?</span><span>${b}</span></div>`).join("");
+  $("#s3").innerHTML = `
+    <div class="topbar"><span class="wordmark">JobCrush</span><span class="spacer"></span>${profEl("prof3")}</div>
+    <div style="padding:0 16px 12px;flex:0 0 auto">
+      <div class="job" style="display:flex;gap:13px;align-items:center;background:var(--hud-1);
+           border:1px solid var(--hud-line);border-radius:14px;padding:13px">
+        <div style="flex:1;min-width:0">
+          <p style="font-size:14.5px;font-weight:600;margin:0 0 3px;letter-spacing:-.01em;
+             white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${j.title}</p>
+          <p style="font-size:12px;color:var(--hud-mute);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${j.co}</p>
+        </div>${scoreEl(S.jobScore)}
+      </div>
+      <div class="fits" style="margin-top:11px">${bad}</div>
+    </div>
+    <div class="divider">Your CV for this job</div>
+    <div class="band-cv">${cvEl(j.title)}</div>
+    <div class="ask">${step ? `
+      <p class="why">Tell me more and this CV gets stronger for this job</p>
+      <p class="q">${step.q}</p>
+      <div class="opts">${step.opts.map((o,k)=>`<button class="opt" data-opt="${k}">${o}</button>`).join("")}</div>
+      <div class="exits">
+        <button id="enough" class="done-cta">I'm done — use this CV</button>
+        <span class="spacer"></span>
+        <button id="drop" class="drop">Drop this job</button>
+      </div>` : `
+      <div class="finish">
+        <p class="head">This CV is as strong as I can make it for this job.</p>
+        <p class="note">${S.fixed.length
+          ? `You closed ${S.fixed.length} of the ${j.bad.length} gaps this job asked about.`
+          : "Everything you told me is in there."}</p>
+        <button class="btn-primary" id="apply">Apply with this CV</button>
+        <button class="btn-ghost" id="later">Save it and come back later</button>
+        <div class="exits"><span class="spacer"></span><button id="drop" class="drop">Drop this job</button></div>
+      </div>`}
+    </div>`;
+  wire("#s3", answerTailor, "prof3");
+  const on = (id, fn) => { const e = $("#" + id); if (e) e.onclick = fn; };
+  on("enough", finishJob);
+  on("apply", applyJob);
+  on("later", saveJob);
+  on("drop", () => curtain("Dropped", `“${j.title}” is off your deck. Everything you told me stays on your profile.`,
+    "Back to the deck", () => { S.deck++; S.screen = "s2"; show(); }));
+}
+
+// Two ways to reach the end: we run out of questions, or the user says stop.
+// Both land on the same choice — apply now, or save it for later.
+function finishJob() { S.ti = TAILOR.length; renderS3(); }
+
+function applyJob() {
+  curtain("Ready to <em>send</em>", `Your CV for “${S.job.title}” is done, plus answers to their screening questions. Nothing goes out until you press send.`,
+    "Back to the deck", () => { S.deck++; S.screen = "s2"; show(); });
+}
+
+function saveJob() {
+  curtain("Saved", `“${S.job.title}” is waiting for you at ${S.jobScore}%. Pick it up whenever you want.`,
+    "Back to the deck", () => { S.deck++; S.screen = "s2"; show(); });
+}
+
+function answerTailor(btn) {
+  if (S.busy) return;
+  const step = TAILOR[S.ti];
+  if (!step) return;
+  S.busy = true;
+  const r = $("#s3");
+  r.querySelectorAll(".opt").forEach(o => { o.disabled = true; o.style.opacity = o === btn ? "1" : ".35"; });
+
+  flyChip(btn, $("#prof3"), step.fact, () => bumpProfile("prof3", step.fact));
+
+  const p = writeSlot(r, "exp");
+  typeInto(p, step.cv, () => {
+    p.classList.add("done");
+    (S.sec.exp = S.sec.exp || []).push(step.cv);
+    const before = S.jobScore;
+    S.jobScore = Math.min(97, S.jobScore + step.gain);
+    tweenScore($(".score", r), before, S.jobScore);      // §9 — the % climbs beside the line that caused it
+    if (step.fixes !== null && step.fixes !== undefined) S.fixed.push(step.fixes);
+    S.ti++;
+    setTimeout(() => { S.busy = false; renderS3(); }, 900);
+  });
+}
+
+// --- shared ----------------------------------------------------------------
+
+function wire(sel, handler, profId) {
+  const r = $(sel);
+  r.querySelectorAll("[data-opt]").forEach(b => (b.onclick = () => handler(b)));
+  const p = $("#" + profId); if (p) p.onclick = openProfile;
+}
+
+function openProfile() {
+  alert("Your profile\n\n" + S.facts.length + " facts about you:\n\n• " +
+    S.facts.join("\n• ") + "\n\n(Prototype stand-in — the real screen is ticket #9.)");
+}
+
+function curtain(big, sub, cta, then) {
+  const c = $("#curtain");
+  $("#curtainBig").innerHTML = big;
+  $("#curtainSub").textContent = sub;
+  $("#curtainGo").textContent = cta;
+  c.classList.add("show");
+  $("#curtainGo").onclick = () => { c.classList.remove("show"); then(); };
+}
+
+const TITLES = { s1: "1 · Discovery — build the root CV", s2: "2 · The deck", s3: "3 · Tailor for this job" };
+function show() {
+  document.querySelectorAll(".screen").forEach(e => e.classList.remove("on"));
+  $("#" + S.screen).classList.add("on");
+  $("#lbl").textContent = TITLES[S.screen];
+  ({ s1: renderS1, s2: renderS2, s3: renderS3 })[S.screen]();
+}
+
+$("#reset").onclick = () => { fresh(); show(); };
+$("#skip").onclick = () => {
+  // jump straight to the deck with a finished root CV, for judging screens 2 and 3
+  if (S.screen === "s1") {
+    DISCOVERY.forEach(d => {
+      S.facts.push(d.fact);
+      if (d.sec === "head") S.cv.head = d.cv;
+      else (S.sec[d.sec] = S.sec[d.sec] || []).push(d.cv);
+    });
+    S.i = DISCOVERY.length; S.screen = "s2";
+  } else if (S.screen === "s2") {
+    S.job = JOBS[S.deck] || JOBS[0]; S.jobScore = S.job.score; S.ti = 0; S.fixed = []; S.screen = "s3";
+  } else { S.deck++; S.screen = "s2"; }
+  S.busy = false; show();
+};
+
+show();
+</script>

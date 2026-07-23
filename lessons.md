@@ -2,6 +2,18 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## Prototype the screen before trusting the flow you designed on paper
+
+The reward structure was grilled to 13 locked decisions over two sessions, all of them defensible on
+paper. Building one throwaway HTML mock broke three of them inside an hour — the flat "5 questions → 3
+cards" pace, the countdown copy, and "three cards re-score live" — because the paper design never
+noticed that **during the first questions there are no cards on screen at all**. Nothing to re-score,
+nothing to count down to. One screen turned out to be three, with different jobs. The tell was needing
+content for a screen and finding none: if you cannot populate a mock without inventing a mechanism,
+the design has a hole. A second thing fell out of the same build — the card's *weak fits* became the
+next screen's questions, which no amount of arguing would have produced. **Prototype before `/to-spec`,
+not after.** Record: `docs/onboarding-reward-design.md` ("The shape"), wayfinder ticket #8.
+
 ## A number on a person and a number on a job are different objects, at identical maths
 
 "This job: 34%" is useful — skip it. "Your profile: 34%" tells a human being, in their first minute,
