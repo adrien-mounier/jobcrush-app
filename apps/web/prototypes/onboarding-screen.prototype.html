@@ -3,6 +3,9 @@
      The decided flow: front door → discovery (root CV) → deck → tailor.
      Spec: docs/onboarding-reward-design.md §4, §7, §8.2-8.4, §9, §10-12, as amended 2026-07-23.
      Not production code. -->
+<!-- Without this, a phone lays the page out at ~980px and zooms out: the mobile
+     CSS never applies and the screens are judged at the wrong size. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>JobCrush — onboarding flow prototype</title>
 
 <style>

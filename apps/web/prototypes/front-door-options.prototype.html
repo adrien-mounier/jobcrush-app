@@ -4,6 +4,9 @@
      the SHAPE and the THRESHOLD — what the screen looks like, and what pressing it does.
      Visual system: ink and glass, from onboarding-screen.prototype.html.
      Not production code. -->
+<!-- Without this, a phone lays the page out at ~980px and zooms out: the mobile
+     CSS never applies and the door is judged at the wrong size. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>JobCrush — front door: five shapes</title>
 
 <style>
@@ -67,6 +70,7 @@
   .picker button.on { border-color: var(--gold); background: rgba(232,163,61,.12); }
   .picker button b { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
     text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
+  .picker button i { font-style: normal; }
 
   .phone {
     width: 390px; height: 810px; background: var(--hud-0);
@@ -75,11 +79,19 @@
     overflow: hidden; position: relative; color: var(--hud-ink); isolation: isolate; flex: 0 0 auto;
   }
   @media (max-width: 460px) {
-    body { padding: 0 0 62px; gap: 10px; }
+    /* Let flex hand the phone exactly the space the picker and note bar leave,
+       rather than guessing it with a calc that clips the bottom of the door. */
+    body { padding: 0 0 54px; gap: 8px; height: 100dvh; overflow: hidden; }
     .intro { display: none; }
-    /* leave room for the note bar so it never sits on top of the question */
-    .phone { width: 100vw; height: calc(100dvh - 62px); border-radius: 0; border: none; box-shadow: none; }
-    .picker { padding: 8px 8px 0; }
+    /* one scrollable row of tags — the chrome must not eat the screen the door
+       is being judged on */
+    .picker { flex: 0 0 auto; flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start;
+      width: 100%; padding: 8px 10px 0; gap: 6px; }
+    .picker button { flex: 0 0 auto; padding: 7px 11px; }
+    .picker button b { margin-bottom: 0; }
+    .picker button i { display: none; }
+    .phone { width: 100vw; height: auto; flex: 1 1 auto; min-height: 0;
+      border-radius: 0; border: none; box-shadow: none; }
   }
 
   .stage { position: absolute; inset: 0; overflow: hidden; }
@@ -138,14 +150,41 @@
   .fade { transition: opacity 260ms ease, transform 260ms ease; }
   .out { opacity: 0; transform: translateY(-10px); }
 
-  /* ---------- A · centre split ---------- */
+  /* ---------- A · centre split, written on screen ---------- */
   .dA { position: absolute; inset: 0; display: grid; place-items: center; padding: 0 26px; text-align: center; }
   .dA .stackA { display: flex; flex-direction: column; align-items: center; }
-  .dA .h { display: flex; flex-direction: column; }
-  .dA .l1, .dA .l2 { display: block; transition: transform 640ms cubic-bezier(.6,.02,.3,1), opacity 500ms ease; }
+  .dA .h { display: flex; flex-direction: column; align-items: center; }
+  .dA .ln { display: inline-block; position: relative;
+    transition: transform 640ms cubic-bezier(.6,.02,.3,1), opacity 500ms ease; }
+  /* The ghost holds the line's final width so centred text does not jitter left
+     and right as each letter lands — the box is fixed, the letters fill it. */
+  .dA .gh { visibility: hidden; }
+  .dA .tx { position: absolute; left: 0; top: 0; white-space: pre; }
   .dA.split .l1 { transform: translateY(-44vh); opacity: 0; }
   .dA.split .l2 { transform: translateY(44vh); opacity: 0; }
-  .dA .ready { margin-top: 26px; padding: 15px 38px; font-size: 16px; }
+  .dA .ready {
+    margin-top: 30px; padding: 15px 38px; font-size: 16px;
+    opacity: 0; transform: translateY(12px); pointer-events: none;
+    transition: opacity 520ms ease, transform 620ms cubic-bezier(.2,1.05,.3,1),
+                box-shadow 700ms ease, scale 110ms ease;
+  }
+  .dA .ready.in { opacity: 1; transform: none; pointer-events: auto;
+    box-shadow: 0 14px 34px -12px rgba(232,163,61,.55); }
+  .dA .ready.in:active { scale: .96; }
+
+  /* The CV shortcut sits at the bottom edge, not under the button. Directly
+     beneath "Ready?" it would read as the second of two choices — the fork §10
+     forbids. Down here it is plainly a footnote. */
+  .dA .skipA {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 0 30px calc(28px + env(safe-area-inset-bottom));
+    font-size: 12.5px; line-height: 1.5; color: var(--hud-mute); text-align: center;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 560ms ease, transform 560ms cubic-bezier(.2,1,.3,1);
+  }
+  .dA .skipA.in { opacity: 1; transform: none; }
+  .dA .skipA u { color: var(--hud-ink); font-weight: 600; text-underline-offset: 3px; cursor: pointer; }
+  .dA .skipA u:hover { color: var(--gold); }
 
   /* ---------- B · the thumb target ---------- */
   .dB { position: absolute; inset: 0; }
@@ -303,21 +342,64 @@ const SHAPES = {
   },
 
   A: {
-    tag: "A · the split",
-    name: "Everything centred",
-    note: "Press and the headline parts like a door — the question rises through the gap.",
+    tag: "A · chosen",
+    name: "Centred, written on screen",
+    note: "The line writes itself, then the button arrives. Press it and the headline parts like a door.",
     render() {
       $("#stage").innerHTML = `<div class="dA" id="dA">
         <div class="stackA">
-          <p class="h"><span class="l1">Answer questions.</span><span class="l2 g">Collect jobs.</span></p>
-          <button class="ready fade">Ready?</button>
+          <p class="h">
+            <span class="ln l1"><span class="gh">Answer questions.</span><span class="tx" id="al1"></span></span>
+            <span class="ln l2 g"><span class="gh">Collect jobs.</span><span class="tx" id="al2"></span></span>
+          </p>
+          <button class="ready">Ready?</button>
         </div>
+        <p class="skipA">Already have a CV? <u>Upload it</u> and skip the questions it already answers.</p>
       </div>`;
-      $(".ready").onclick = () => this.go();
+      const root = $("#dA"), btn = $("#dA .ready"), skipLine = $("#dA .skipA");
+      const l1 = $("#al1"), l2 = $("#al2");
+      btn.onclick = () => this.go();
+
+      // Order matters: the invitation lands, then the button, then the shortcut.
+      // The main path is offered before the side door, never together with it.
+      const arrive = () => {
+        btn.classList.add("in");
+        this.timers.push(setTimeout(() => skipLine.classList.add("in"), 260));
+        root.onclick = null;
+      };
+      // Finish instantly on a tap, or when the viewer asked for less motion.
+      // Nobody impatient should be made to wait for the button to exist.
+      const finish = () => {
+        this.timers.forEach(clearTimeout);
+        this.timers = [];
+        l1.textContent = "Answer questions.";
+        l2.textContent = "Collect jobs.";
+        btn.classList.add("in");
+        skipLine.classList.add("in");
+        root.onclick = null;
+      };
+      this.timers = [];
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return finish();
+      root.onclick = e => { if (e.target !== btn) finish(); };
+
+      l1.innerHTML = `<i class="caret"></i>`;
+      type(l1, "Answer questions.", 36, () => {
+        this.timers.push(setTimeout(() => {
+          l1.querySelector(".caret")?.remove();
+          l2.innerHTML = `<i class="caret"></i>`;
+          type(l2, "Collect jobs.", 36, () => {
+            this.timers.push(setTimeout(() => {
+              l2.querySelector(".caret")?.remove();
+              arrive();
+            }, 300));
+          }, this.timers);
+        }, 190));
+      }, this.timers);
     },
     go() {
       const d = $("#dA");
-      d.querySelectorAll(".fade").forEach(e => e.classList.add("out"));
+      d.querySelector(".ready").classList.remove("in");
+      d.querySelector(".skipA").classList.remove("in");
       setTimeout(() => d.classList.add("split"), 130);
       setTimeout(() => {
         $("#stage").innerHTML = dest();
@@ -380,14 +462,15 @@ const SHAPES = {
         <p class="sub" style="opacity:0">${SUB}</p>
         <button class="ready" style="opacity:0;pointer-events:none">Ready?</button>
       </div>`;
-      type($("#cl1"), "Answer questions.", 42, () =>
-        setTimeout(() => type($("#cl2"), "Collect jobs.", 42, () => {
-          const s = $("#dC .sub"), r = $("#dC .ready");
+      const c1 = $("#cl1"), c2 = $("#cl2"), s = $("#dC .sub"), r = $("#dC .ready");
+      this.timers = [];
+      type(c1, "Answer questions.", 42, () =>
+        this.timers.push(setTimeout(() => type(c2, "Collect jobs.", 42, () => {
           s.style.transition = r.style.transition = "opacity 420ms ease";
           s.style.opacity = "1";
-          setTimeout(() => { r.style.opacity = "1"; r.style.pointerEvents = "auto"; }, 160);
+          this.timers.push(setTimeout(() => { r.style.opacity = "1"; r.style.pointerEvents = "auto"; }, 160));
           r.onclick = () => this.go();
-        }), 260));
+        }, this.timers), 260)), this.timers);
     },
     go() {
       const d = $("#dC");
@@ -460,17 +543,26 @@ function fillBar(delay) {
   }, delay || 260);
 }
 
-function type(el, text, speed, done) {
+// Writes text into el one letter at a time. Any caret already inside el is left
+// in place at the end of the line, so the text grows and the caret rides along.
+// Pass `bag` to collect the timeouts, so a skip can cancel mid-word.
+function type(el, text, speed, done, bag) {
+  const caret = el.querySelector(".caret");
+  let node = [...el.childNodes].find(n => n.nodeType === 3);
+  if (!node) el.insertBefore((node = document.createTextNode("")), caret || null);
   let i = 0;
   (function tick() {
-    el.textContent = text.slice(0, ++i);
-    if (i < text.length) setTimeout(tick, speed);
+    node.nodeValue = text.slice(0, ++i);
+    if (i < text.length) { const t = setTimeout(tick, speed); if (bag) bag.push(t); }
     else if (done) done();
   })();
 }
 
 let cur = "0";
 function pick(k) {
+  // Cancel anything the outgoing shape still had in flight, or its callbacks
+  // fire against a DOM that no longer exists.
+  Object.values(SHAPES).forEach(s => { (s.timers || []).forEach(clearTimeout); s.timers = []; });
   cur = k;
   document.querySelectorAll("#picker button").forEach(b => b.classList.toggle("on", b.dataset.k === k));
   $("#noteTxt").textContent = SHAPES[k].note;
@@ -478,9 +570,9 @@ function pick(k) {
 }
 
 $("#picker").innerHTML = Object.entries(SHAPES).map(([k, s]) =>
-  `<button data-k="${k}"><b>${s.tag}</b>${s.name}</button>`).join("");
+  `<button data-k="${k}"><b>${s.tag}</b><i>${s.name}</i></button>`).join("");
 document.querySelectorAll("#picker button").forEach(b => (b.onclick = () => pick(b.dataset.k)));
 $("#again").onclick = () => pick(cur);
 
-pick("0");
+pick("A");
 </script>
