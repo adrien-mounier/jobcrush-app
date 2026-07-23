@@ -50,6 +50,21 @@ merely states ("experienced in stakeholder management", with no supporting role 
 
 ## 4. Decision rules (which role language the CV adopts)
 
+> **This is a discriminator, not a family floor** — _clarified 2026-07-23, after it was read as one
+> and a design was built on top of that reading
+> ([#6](https://github.com/adrien-mounier/jobcrush-app/issues/6))._
+>
+> The signals below decide **which role's language** the CV adopts. They are the words that
+> *separate* PM from PO from PdM. A **family floor** is the opposite material: what *every* job in a
+> family expects — largely the shared baseline this section deliberately throws away. **Budget is
+> dropped here precisely because every PM ad asks for it, and that is exactly why a PM CV cannot be
+> missing it.**
+>
+> So do not read the clusters below as a checklist of what a CV must cover. A discriminator is a tally
+> you compare; a floor is a checklist you tick off. The floor is **E5's offline family research and
+> does not exist yet**; the shape it has to take is written down in
+> `docs/onboarding-reward-design.md` §6.2.
+
 Signals are additive. Tally per cluster; the dominant cluster sets the CV's language. Note secondary
 clusters.
 

@@ -17,8 +17,18 @@ other at a glance — same domain, same vocabulary, same shape on the page. The 
 checklist you could tick off; a discriminator is a tally you compare. **Before building on a document
 someone cites by section number, open it and read its heading** — §4's is *"Decision rules (which role
 language the CV adopts)"*, and that sentence alone settles it. Cost of not checking: a stopping rule
-that terminates on a list that was never meant to terminate. Record: `docs/onboarding-reward-design.md`
-§6.2, wayfinder ticket #6.
+that terminates on a list that was never meant to terminate.
+
+**And when you disprove a belief, `grep` for it — do not just fix where you tripped over it.** This one
+had been copied into five places across three sessions (a ticket body, `roadmap.md`, two separate
+sections of `onboarding-reward-design.md`, and `cv-quality-kickoff.md` §8), and every copy read as
+independent confirmation of the others. The first pass corrected two, and reported the job done; Adrien
+asking *"so we should update `tailoring-reasoning.md` now?"* is what surfaced the remaining three. Two
+rules fall out. **Correct the source document first** — the file everyone lands on has to carry the
+note, or the claim simply regrows from it. And **a session log is history, so annotate, never
+rewrite**: the old entry keeps its wrong sentence with a dated correction beneath it, because the log
+records what that session believed at the time. Record: `docs/cv-brain/tailoring-reasoning.md` §4's
+note, `docs/onboarding-reward-design.md` §6.2, wayfinder ticket #6.
 
 ## A prototype's layout-shift bugs are invisible in a screenshot and invisible to reasoning
 

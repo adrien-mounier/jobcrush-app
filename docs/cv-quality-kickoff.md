@@ -150,9 +150,17 @@ Two layers, both needed:
 - **This specific ad** — SAP, French, a security clearance. Only ever in the ad itself. **One
   cheap LLM call per job offer**, ranked requirements out.
 
-`tailoring-reasoning.md` §4 already contains a hand-written version of the family floor for
-PM/PO/PdM, and states the machinery is role-agnostic. **This session gave E5 (the cluster engine,
-JC-33/34/35) its real shape** — it is the offline family research plus the per-ad call.
+> ⚠️ **Corrected 2026-07-23** ([#6](https://github.com/adrien-mounier/jobcrush-app/issues/6)). This
+> said `tailoring-reasoning.md` §4 already contained a hand-written family floor for PM/PO/PdM.
+> **It does not.** §4 is a *discriminator* — it picks which role language the CV adopts — and it
+> explicitly ignores the shared baseline as "too generic". A floor is made of exactly that baseline.
+> **The family floor does not exist yet; E5 builds it from scratch.** (It is §2's closing note, not
+> §4, that says the machinery is role-agnostic.)
+
+**This session gave E5 (the cluster engine, JC-33/34/35) its real shape** — it is the offline family
+research plus the per-ad call. What discovery needs that research to hand back — ranked bands, and per
+item a question, its answer options, a CV section and whether a "no" is fatal — is specified in
+`docs/onboarding-reward-design.md` §6.2.
 
 Its **"shared baseline (ignore — too generic)"** list is load-bearing for the keyword ranker: a
 word only counts if it *separates* this family from the others. "Stakeholder management" appears

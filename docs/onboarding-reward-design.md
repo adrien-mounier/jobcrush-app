@@ -31,8 +31,9 @@ jobs**, and that changed several decisions below. Where a section is amended, it
 | **2** | **The deck** | Swipeable job cards: the job, the score, where you fit and where you don't | No questions |
 | **3** | **Tailor** | Job + score on top, the CV below, questions aimed at *this* job | No countdown |
 
-Discovery runs until the **root CV** is good enough — it covers what the job family expects
-(`docs/cv-brain/tailoring-reasoning.md` §4 is the hand-written PM version of that floor). Then:
+Discovery runs until the **root CV** is good enough — it covers what the job family expects. (**§4 of
+`docs/cv-brain/tailoring-reasoning.md` is *not* that floor**, though this line used to say so — it is a
+discriminator, and the floor does not exist yet. See §6.2.) Then:
 *"3 jobs just matched you."* Swipe right on one and you land on Tailor.
 
 **Layout: split bands** — a fixed top band, the CV in the middle, questions docked at the bottom. Two

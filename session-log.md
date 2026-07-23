@@ -50,6 +50,15 @@ look fine in a static screenshot.
 design references *"the section this item writes into"* abstractly, so it is specified against whatever
 the canonical list becomes. That fog still blocks *building* the screen.
 
+**Follow-up in the same session, prompted by Adrien: the §4 correction was swept through the repo.**
+The first pass fixed `roadmap.md` and the design doc's *"What this changes"* and stopped there. The
+belief had actually been copied into five places over three sessions, and three still carried it —
+including **`tailoring-reasoning.md` itself**, the file everyone lands on, which had no note at all.
+Now: §4 opens with a blockquote saying it is a discriminator and not a floor and pointing at §6.2;
+`cv-quality-kickoff.md` §8 and `onboarding-reward-design.md` *"The shape"* carry dated corrections; and
+session 14's entry keeps its wrong sentence with a correction under it, because a log records what a
+session believed rather than what turned out to be true.
+
 ## 2026-07-23 (session 15) — The front door: its words, then its shape, decided twice (no product code)
 
 Resolved [Front-door copy: the invitation and the skip-ahead](https://github.com/adrien-mounier/jobcrush-app/issues/7)
@@ -273,6 +282,10 @@ Other locked decisions worth the future-reader's time:
   call per ad (the specifics), cost tracked per job. `tailoring-reasoning.md` §4 is already the
   hand-written PM-only prototype of that family floor, and its "shared baseline (ignore — too generic)"
   list is what makes keyword ranking work at all.
+  <br>⚠️ **The §4 claim in the line above was wrong, corrected in session 16 (2026-07-23).** §4 is a
+  discriminator, not a floor; the floor does not exist and E5 builds it from scratch. Left in place
+  because this log records what the session believed. The second half stands — the shared-baseline
+  list really is what makes keyword ranking work.
 
 Two questions were deliberately **not** answered, each needing its own session: **(A)** the grill's
 stopping rule + onboarding UX (merged with the existing Tinder/Bumble backlog item, promoted to next
