@@ -1,0 +1,486 @@
+<!-- PROTOTYPE — throwaway. Wayfinder ticket #7, re-opened 2026-07-23.
+     Five shapes for the front door, each with its own way of getting to the questions.
+     The words are settled ("Answer questions. Collect jobs."). This file is only about
+     the SHAPE and the THRESHOLD — what the screen looks like, and what pressing it does.
+     Visual system: ink and glass, from onboarding-screen.prototype.html.
+     Not production code. -->
+<title>JobCrush — front door: five shapes</title>
+
+<style>
+  :root {
+    --hud-0: #101419;
+    --hud-1: #171c23;
+    --hud-2: #1f262f;
+    --hud-line: #2b333d;
+    --hud-ink: #e8eaed;
+    --hud-mute: #7f8b98;
+
+    --paper: #f6f2ea;
+    --paper-edge: #e2dacb;
+    --ink: #16150f;
+    --ink-mute: #6b6455;
+    --rule: #d9d0bd;
+
+    --gold: #e8a33d;
+    --gold-dim: #a8762b;
+
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+
+    --page: #0b0e12; --page-ink: #cfd5dc; --card: #171c23; --card-line: #2b333d;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --page: #dfe3e8; --page-ink: #2b333d; --card: #fff; --card-line: #c8cfd7; }
+  }
+  :root[data-theme="light"] { --page: #dfe3e8; --page-ink: #2b333d; --card: #fff; --card-line: #c8cfd7; }
+  :root[data-theme="dark"] { --page: #0b0e12; --page-ink: #cfd5dc; --card: #171c23; --card-line: #2b333d; }
+
+  * { box-sizing: border-box; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.28) transparent; }
+  ::-webkit-scrollbar { width: 3px; height: 3px; }
+  ::-webkit-scrollbar-thumb { background: rgba(140,150,160,.28); border-radius: 3px; }
+  @media (hover: none), (pointer: coarse) {
+    * { scrollbar-width: none; }
+    ::-webkit-scrollbar { width: 0; display: none; }
+  }
+
+  body {
+    margin: 0; background: var(--page); color: var(--page-ink); font-family: var(--sans);
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    padding: 26px 16px 120px; gap: 18px;
+  }
+
+  .intro { max-width: 60ch; text-align: center; }
+  .intro h1 { font-family: var(--serif); font-size: 25px; font-weight: 600; letter-spacing: -.015em; margin: 0 0 8px; }
+  .intro p { font-size: 13.5px; line-height: 1.6; opacity: .78; margin: 0; }
+
+  .picker { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 760px; }
+  .picker button {
+    appearance: none; font: inherit; font-size: 12.5px; cursor: pointer;
+    background: var(--card); color: var(--page-ink); border: 1px solid var(--card-line);
+    border-radius: 10px; padding: 9px 13px; text-align: left; line-height: 1.35;
+    transition: border-color 140ms ease, transform 90ms ease;
+  }
+  .picker button:hover { border-color: var(--gold); }
+  .picker button:active { transform: scale(.97); }
+  .picker button.on { border-color: var(--gold); background: rgba(232,163,61,.12); }
+  .picker button b { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
+
+  .phone {
+    width: 390px; height: 810px; background: var(--hud-0);
+    border-radius: 34px; border: 1px solid #333c47;
+    box-shadow: 0 30px 70px -20px rgba(0,0,0,.7), 0 0 0 8px #05070a;
+    overflow: hidden; position: relative; color: var(--hud-ink); isolation: isolate; flex: 0 0 auto;
+  }
+  @media (max-width: 460px) {
+    body { padding: 0 0 62px; gap: 10px; }
+    .intro { display: none; }
+    /* leave room for the note bar so it never sits on top of the question */
+    .phone { width: 100vw; height: calc(100dvh - 62px); border-radius: 0; border: none; box-shadow: none; }
+    .picker { padding: 8px 8px 0; }
+  }
+
+  .stage { position: absolute; inset: 0; overflow: hidden; }
+
+  /* ---------- shared HUD ---------- */
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+  .wordmark { font-size: 12.5px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--hud-mute); }
+
+  .blocks { display: flex; gap: 6px; padding: 0 16px 14px; }
+  .blk { flex: 1; }
+  .blk .bar { height: 3px; border-radius: 2px; background: var(--hud-2); overflow: hidden; }
+  .blk .bar i { display: block; height: 100%; width: 0; background: var(--gold); border-radius: 2px; }
+  .blk .nm { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--hud-mute); margin-top: 6px; }
+
+  .divider { display: flex; align-items: center; gap: 9px; padding: 0 16px 9px;
+    font-family: var(--mono); font-size: 10px; color: var(--hud-mute); text-transform: uppercase; letter-spacing: .1em; }
+  .divider::after { content: ""; flex: 1; height: 1px; background: var(--hud-line); }
+
+  /* ---------- the paper ---------- */
+  .cv { background: var(--paper); color: var(--ink); border-radius: 10px;
+    box-shadow: 0 18px 44px -14px rgba(0,0,0,.75); border: 1px solid var(--paper-edge);
+    padding: 20px 20px 26px; font-family: var(--serif); overflow: hidden; }
+  .cv-aim { font-family: var(--sans); font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-mute); margin-bottom: 13px; }
+  .cv-name { font-size: 21px; font-weight: 600; margin: 0 0 2px; color: var(--rule); }
+  .cv-sec { font-family: var(--sans); font-size: 9.5px; text-transform: uppercase; letter-spacing: .14em; color: var(--ink-mute); margin: 16px 0 8px; }
+  .cv-sec:first-of-type { margin-top: 14px; }
+  .cv-ghost { height: 1px; margin: 13px 0; opacity: .55;
+    background: repeating-linear-gradient(90deg, var(--rule) 0 24px, transparent 24px 34px); }
+
+  /* ---------- the question dock ---------- */
+  .ask { background: var(--hud-1); border-top: 1px solid var(--hud-line); padding: 15px 16px 17px; }
+  .ask .q { font-size: 16.5px; line-height: 1.35; font-weight: 550; margin: 0 0 13px; letter-spacing: -.01em; text-wrap: balance; min-height: 22px; }
+  .opts { display: flex; flex-direction: column; gap: 7px; }
+  .opt { appearance: none; text-align: left; width: 100%; background: var(--hud-2); color: var(--hud-ink);
+    border: 1px solid var(--hud-line); border-radius: 11px; padding: 12.5px 15px; font: inherit; font-size: 14.5px; cursor: pointer; }
+  .opt:hover { background: #262f3a; }
+  .opt.other { background: none; color: var(--hud-mute); border-style: dashed; }
+  .skip { margin: 13px 0 0; padding-top: 12px; border-top: 1px solid var(--hud-line);
+    font-size: 12.5px; line-height: 1.45; color: var(--hud-mute); }
+  .skip u { color: var(--hud-ink); font-weight: 600; text-underline-offset: 3px; }
+
+  /* ---------- door typography, shared by every shape ---------- */
+  .h { font-size: 30px; line-height: 1.14; font-weight: 680; letter-spacing: -.028em; margin: 0; text-wrap: balance; }
+  .h .g { color: var(--gold); }
+  .sub { font-size: 14.5px; line-height: 1.55; color: var(--hud-mute); margin: 14px 0 0; text-wrap: pretty; }
+  .ready {
+    appearance: none; border: none; font: inherit; cursor: pointer; background: var(--gold); color: #1a1206;
+    font-weight: 680; border-radius: 999px; transition: transform 110ms ease, box-shadow 260ms ease;
+  }
+  .ready:active { transform: scale(.96); }
+  .ready:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 3px; }
+  .caret { display: inline-block; width: 3px; height: .92em; background: var(--gold);
+    vertical-align: -.12em; margin-left: 2px; animation: blink 900ms steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .fade { transition: opacity 260ms ease, transform 260ms ease; }
+  .out { opacity: 0; transform: translateY(-10px); }
+
+  /* ---------- A · centre split ---------- */
+  .dA { position: absolute; inset: 0; display: grid; place-items: center; padding: 0 26px; text-align: center; }
+  .dA .stackA { display: flex; flex-direction: column; align-items: center; }
+  .dA .h { display: flex; flex-direction: column; }
+  .dA .l1, .dA .l2 { display: block; transition: transform 640ms cubic-bezier(.6,.02,.3,1), opacity 500ms ease; }
+  .dA.split .l1 { transform: translateY(-44vh); opacity: 0; }
+  .dA.split .l2 { transform: translateY(44vh); opacity: 0; }
+  .dA .ready { margin-top: 26px; padding: 15px 38px; font-size: 16px; }
+
+  /* ---------- B · the thumb target ---------- */
+  .dB { position: absolute; inset: 0; }
+  .dB .topB { position: absolute; left: 0; right: 0; top: 74px; padding: 0 24px; }
+  .dB .pill {
+    position: absolute; left: 50%; top: 56%; width: 168px; height: 168px; border-radius: 50%;
+    transform: translate(-50%, -50%); font-size: 19px; display: grid; place-items: center;
+    box-shadow: 0 0 0 0 rgba(232,163,61,.45), 0 16px 40px -12px rgba(232,163,61,.5);
+    animation: breathe 2600ms ease-in-out infinite;
+    transition: left 620ms cubic-bezier(.5,.02,.25,1), top 620ms cubic-bezier(.5,.02,.25,1),
+                width 620ms cubic-bezier(.5,.02,.25,1), height 620ms cubic-bezier(.5,.02,.25,1),
+                border-radius 620ms ease, background 500ms ease, transform 620ms cubic-bezier(.5,.02,.25,1),
+                box-shadow 500ms ease, color 300ms ease;
+  }
+  @keyframes breathe {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(232,163,61,.42), 0 16px 40px -12px rgba(232,163,61,.5); }
+    60% { box-shadow: 0 0 0 20px rgba(232,163,61,0), 0 16px 40px -12px rgba(232,163,61,.5); }
+  }
+  .dB.dock .pill {
+    left: 0; top: calc(100% - 250px); width: 100%; height: 250px;
+    border-radius: 18px 18px 0 0; transform: none; background: var(--hud-1);
+    box-shadow: 0 -14px 40px -18px rgba(0,0,0,.8); animation: none; color: transparent;
+  }
+
+  /* ---------- C · the typewriter ---------- */
+  .dC { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 24px; }
+  .dC .h { transition: font-size 520ms cubic-bezier(.4,0,.2,1), opacity 420ms ease, transform 520ms cubic-bezier(.4,0,.2,1); }
+  .dC.up { position: absolute; inset: auto 0 auto 0; top: 60px; }
+  .dC.up .h { font-size: 19px; opacity: .5; }
+  .dC .sub, .dC .ready { transition: opacity 320ms ease, transform 320ms ease; }
+  .dC .ready { margin-top: 24px; padding: 15px 34px; font-size: 16px; align-self: flex-start; }
+
+  /* ---------- D · the paper arrives ---------- */
+  .dD { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 24px; }
+  .dD .ready { margin-top: 26px; padding: 15px 36px; font-size: 16px; align-self: flex-start; }
+
+  /* ---------- the destination, shared ---------- */
+  .dest { position: absolute; inset: 0; display: flex; flex-direction: column; }
+  .dest .band { flex: 1; overflow: hidden; padding: 0 16px 12px; }
+  .dest .cv { height: 100%; }
+
+  .arrive { animation: arrive 620ms cubic-bezier(.2,1,.3,1) both; }
+  @keyframes arrive { from { opacity: 0; transform: translateY(18px) scale(.985); } to { opacity: 1; transform: none; } }
+  .slideup { animation: slideup 700ms cubic-bezier(.18,1.02,.3,1) both; }
+  @keyframes slideup { from { transform: translateY(108%); } to { transform: none; } }
+  .dockup { animation: dockup 420ms cubic-bezier(.2,1,.3,1) both; }
+  @keyframes dockup { from { transform: translateY(100%); } to { transform: none; } }
+  .stagger > * { animation: rise 420ms cubic-bezier(.2,1,.3,1) both; }
+  .stagger > *:nth-child(2) { animation-delay: 70ms; }
+  .stagger > *:nth-child(3) { animation-delay: 140ms; }
+  .stagger > *:nth-child(4) { animation-delay: 210ms; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  .note {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 200;
+    display: flex; align-items: center; gap: 10px; background: #f2f4f7; color: #101419;
+    border-radius: 999px; padding: 7px 8px 7px 16px; box-shadow: 0 8px 26px rgba(0,0,0,.4);
+    font-family: var(--sans); font-size: 12.5px; max-width: calc(100vw - 24px);
+  }
+  .note span { font-weight: 620; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .note button { appearance: none; border: none; font: inherit; font-size: 11.5px; font-weight: 650;
+    border-radius: 999px; padding: 0 14px; height: 29px; cursor: pointer; background: #101419; color: #f2f4f7; flex: 0 0 auto; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: 1ms !important; transition-duration: 1ms !important; } }
+</style>
+
+<div class="intro">
+  <h1>The front door — five shapes</h1>
+  <p>
+    The words are settled. This is only about the <b>shape</b> of the screen and the <b>threshold</b> —
+    what happens when you agree to start. Pick one, then press it. Each has a different way of turning
+    into the first question.
+  </p>
+</div>
+
+<div class="picker" id="picker"></div>
+
+<div class="phone"><div class="stage" id="stage"></div></div>
+
+<div class="note"><span id="noteTxt"></span><button id="again">again</button></div>
+
+<script>
+// ---------------------------------------------------------------------------
+// PROTOTYPE. Throwaway. Ticket #7 re-opened: is the door question 1, or is it
+// an invitation with a "Ready?" that opens onto the questions?
+//
+// Shape 0 is what is currently decided, kept here as the baseline to beat.
+// A–D are alternatives. Every one of them lands in the SAME place — the first
+// question, with the empty CV above it — so the only thing being compared is
+// the threshold itself.
+// ---------------------------------------------------------------------------
+
+const $ = (s, r = document) => r.querySelector(s);
+const HEAD = `Answer questions. <span class="g">Collect jobs.</span>`;
+const SUB = `Each answer writes your CV and brings the next matches closer. Stop whenever you like — you keep everything you've earned.`;
+const Q = "What kind of job are you going for?";
+const OPTS = ["IT Project Manager", "Delivery Manager", "Product Owner"];
+const SKIP = `Already have a CV? <u>Upload it</u> and skip the questions it already answers.`;
+
+const SECS = ["Professional summary", "Professional experience", "Skills", "Education"];
+const BARS = ["Summary", "Experience", "Skills", "Education"];
+
+const topbar = () => `<div class="topbar"><span class="wordmark">JobCrush</span></div>`;
+
+const bars = () => `<div class="blocks">${BARS.map(b =>
+  `<div class="blk"><div class="bar"><i></i></div><div class="nm">${b}</div></div>`).join("")}</div>`;
+
+// The empty CV. Every section named, nothing written yet — you see the shape of
+// the thing you are filling before you fill it.
+const paper = () => `<div class="cv">
+  <div class="cv-aim">Your CV — building</div>
+  <p class="cv-name">Your name</p>
+  ${SECS.map(s => `<p class="cv-sec">${s}</p><div class="cv-ghost"></div><div class="cv-ghost"></div>`).join("")}
+</div>`;
+
+const askInner = (q = Q, withSkip = false) => `
+  <p class="q">${q}</p>
+  <div class="opts stagger">
+    ${OPTS.map(o => `<button class="opt">${o}</button>`).join("")}
+    <button class="opt other">Something else</button>
+  </div>
+  ${withSkip ? `<p class="skip">${SKIP}</p>` : ""}`;
+
+// Where all five shapes end up.
+const dest = () => `<div class="dest">
+  ${topbar()}${bars()}
+  <div class="divider">Your CV</div>
+  <div class="band">${paper()}</div>
+  <div class="ask">${askInner()}</div>
+</div>`;
+
+// ---------------------------------------------------------------------------
+
+const SHAPES = {
+  0: {
+    tag: "0 · decided",
+    name: "The door is question 1",
+    note: "No Ready button. The first tap is already an answer — and it buys the paper.",
+    render() {
+      $("#stage").innerHTML = `<div class="dest" id="d0">
+        ${topbar()}
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding:0 22px 22px">
+          <p class="h">${HEAD}</p><p class="sub">${SUB}</p>
+        </div>
+        <div class="ask">${askInner(Q, true)}</div>
+      </div>`;
+      $("#stage").querySelectorAll(".opt").forEach(b => (b.onclick = () => this.go()));
+    },
+    go() {
+      // The void is replaced by the paper. No screen change — the top half fills in.
+      $("#stage").innerHTML = dest();
+      $("#stage").querySelector(".band").classList.add("arrive");
+      fillBar(0);
+    },
+  },
+
+  A: {
+    tag: "A · the split",
+    name: "Everything centred",
+    note: "Press and the headline parts like a door — the question rises through the gap.",
+    render() {
+      $("#stage").innerHTML = `<div class="dA" id="dA">
+        <div class="stackA">
+          <p class="h"><span class="l1">Answer questions.</span><span class="l2 g">Collect jobs.</span></p>
+          <button class="ready fade">Ready?</button>
+        </div>
+      </div>`;
+      $(".ready").onclick = () => this.go();
+    },
+    go() {
+      const d = $("#dA");
+      d.querySelectorAll(".fade").forEach(e => e.classList.add("out"));
+      setTimeout(() => d.classList.add("split"), 130);
+      setTimeout(() => {
+        $("#stage").innerHTML = dest();
+        $("#stage").querySelector(".dest").classList.add("arrive");
+        fillBar(0);
+      }, 560);
+    },
+  },
+
+  B: {
+    tag: "B · the target",
+    name: "A button where the thumb is",
+    note: "The button does not disappear — it grows into the panel the question arrives in.",
+    render() {
+      $("#stage").innerHTML = `<div class="dB" id="dB">
+        ${topbar()}
+        <div class="topB"><p class="h">${HEAD}</p><p class="sub">${SUB}</p></div>
+        <button class="ready pill">Ready?</button>
+      </div>`;
+      $(".pill").onclick = () => this.go();
+    },
+    go() {
+      const d = $("#dB");
+      d.querySelector(".topB").classList.add("fade");
+      requestAnimationFrame(() => d.querySelector(".topB").classList.add("out"));
+      d.classList.add("dock");
+      // The paper slides in behind while the button is still travelling.
+      setTimeout(() => {
+        const back = document.createElement("div");
+        back.className = "dest arrive";
+        back.style.zIndex = "0";
+        back.innerHTML = `${topbar()}${bars()}<div class="divider">Your CV</div>
+          <div class="band">${paper()}</div><div style="height:250px"></div>`;
+        d.parentNode.insertBefore(back, d);
+        d.querySelector(".topbar").remove();   // back brings its own — otherwise two wordmarks overlap
+        d.style.zIndex = "1";
+        fillBar(0);
+      }, 300);
+      // The pill is now the panel's shape and background; the real question fades
+      // in on top of it at the same rect, so it keeps the dock's own styling.
+      setTimeout(() => {
+        const ask = document.createElement("div");
+        ask.className = "ask";
+        ask.style.cssText = "position:absolute;left:0;right:0;bottom:0;height:250px;z-index:2;" +
+          "background:transparent;border-top:none;opacity:0;transition:opacity 320ms ease";
+        ask.innerHTML = askInner();
+        d.appendChild(ask);
+        requestAnimationFrame(() => (ask.style.opacity = "1"));
+      }, 560);
+    },
+  },
+
+  C: {
+    tag: "C · the typewriter",
+    name: "The door writes itself",
+    note: "It teaches the mechanic before explaining it: the CV types itself later, so the door does it first.",
+    render() {
+      $("#stage").innerHTML = `<div class="dC" id="dC">
+        <p class="h"><span id="cl1"></span><br><span class="g" id="cl2"></span><i class="caret" id="ccar"></i></p>
+        <p class="sub" style="opacity:0">${SUB}</p>
+        <button class="ready" style="opacity:0;pointer-events:none">Ready?</button>
+      </div>`;
+      type($("#cl1"), "Answer questions.", 42, () =>
+        setTimeout(() => type($("#cl2"), "Collect jobs.", 42, () => {
+          const s = $("#dC .sub"), r = $("#dC .ready");
+          s.style.transition = r.style.transition = "opacity 420ms ease";
+          s.style.opacity = "1";
+          setTimeout(() => { r.style.opacity = "1"; r.style.pointerEvents = "auto"; }, 160);
+          r.onclick = () => this.go();
+        }), 260));
+    },
+    go() {
+      const d = $("#dC");
+      d.querySelector(".sub").style.opacity = "0";
+      d.querySelector(".ready").style.opacity = "0";
+      $("#ccar").remove();
+      // The headline does not leave. It shrinks and steps aside, still readable.
+      setTimeout(() => {
+        const back = document.createElement("div");
+        back.className = "dest";
+        back.style.opacity = "0";
+        back.style.transition = "opacity 500ms ease";
+        back.innerHTML = `${topbar()}${bars()}<div class="divider">Your CV</div>
+          <div class="band">${paper()}</div>
+          <div class="ask"><p class="q"><span id="qtxt"></span><i class="caret"></i></p><div class="opts" id="qopts"></div></div>`;
+        d.parentNode.insertBefore(back, d);
+        d.remove();
+        requestAnimationFrame(() => (back.style.opacity = "1"));
+        fillBar(0);
+        // The question types itself, in the same hand that wrote the headline.
+        setTimeout(() => type($("#qtxt"), Q, 26, () => {
+          back.querySelector(".caret").remove();
+          $("#qopts").className = "opts stagger";
+          $("#qopts").innerHTML = OPTS.map(o => `<button class="opt">${o}</button>`).join("") +
+            `<button class="opt other">Something else</button>`;
+        }), 420);
+      }, 300);
+    },
+  },
+
+  D: {
+    tag: "D · the hand-off",
+    name: "The paper is placed in front of you",
+    note: "Press and a blank sheet slides up and settles, like being handed a form. Then the question docks under it.",
+    render() {
+      $("#stage").innerHTML = `<div class="dD" id="dD">
+        ${topbar()}
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+          <p class="h">${HEAD}</p><p class="sub">${SUB}</p>
+          <button class="ready">Ready?</button>
+        </div>
+      </div>`;
+      $(".ready").onclick = () => this.go();
+    },
+    go() {
+      const d = $("#dD");
+      d.classList.add("fade");
+      requestAnimationFrame(() => d.classList.add("out"));
+      setTimeout(() => {
+        $("#stage").innerHTML = `<div class="dest">
+          ${topbar()}${bars()}
+          <div class="divider">Your CV</div>
+          <div class="band" id="dband">${paper()}</div>
+          <div class="ask" id="dask" style="visibility:hidden">${askInner()}</div>
+        </div>`;
+        $("#dband").classList.add("slideup");
+        fillBar(320);
+        setTimeout(() => { $("#dask").style.visibility = "visible"; $("#dask").classList.add("dockup"); }, 520);
+      }, 260);
+    },
+  },
+};
+
+// The first section bar moves as soon as the CV is on screen — the page you are
+// filling shows its shape, and its first step, before you have filled anything.
+function fillBar(delay) {
+  setTimeout(() => {
+    const i = document.querySelector(".blk .bar i");
+    if (i) { i.style.transition = "width 700ms cubic-bezier(.3,.9,.3,1)"; i.style.width = "14%"; }
+  }, delay || 260);
+}
+
+function type(el, text, speed, done) {
+  let i = 0;
+  (function tick() {
+    el.textContent = text.slice(0, ++i);
+    if (i < text.length) setTimeout(tick, speed);
+    else if (done) done();
+  })();
+}
+
+let cur = "0";
+function pick(k) {
+  cur = k;
+  document.querySelectorAll("#picker button").forEach(b => b.classList.toggle("on", b.dataset.k === k));
+  $("#noteTxt").textContent = SHAPES[k].note;
+  SHAPES[k].render();
+}
+
+$("#picker").innerHTML = Object.entries(SHAPES).map(([k, s]) =>
+  `<button data-k="${k}"><b>${s.tag}</b>${s.name}</button>`).join("");
+document.querySelectorAll("#picker button").forEach(b => (b.onclick = () => pick(b.dataset.k)));
+$("#again").onclick = () => pick(cur);
+
+pick("0");
+</script>
