@@ -159,6 +159,21 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
   current, which rules we commit to, and where the concrete readability rule lands (sentence-length
   cap, one idea per bullet). Open question B from `docs/cv-quality-kickoff.md`. Added 2026-07-22.
 
+- **Owning your own answers: correcting and revising a fact.** Added 2026-07-24, raised by Adrien
+  while resolving [the profile screen](https://github.com/adrien-mounier/jobcrush-app/issues/9).
+  **Wants its own `/wayfinder` effort** — it is a hole in the concept, not a ticket. Two halves:
+  - **Persisting a "no" so it is never re-asked.** `onboarding-reward-design.md` §6.2 rule 1 says the
+    claim graph records a "no". **It does not.** `graph.ts` hardcodes `renderable: true` and has no
+    `Negative` path; the miner cannot emit one; `claims.confirmed()` drops rejected claims rather
+    than recording them; and `detectGaps()` re-derives gaps from the confirmed set, so an unanswered
+    hole is re-detected and **the question comes back**. The contract already supports the fix
+    (`claim_graph.schema.json` has `Negative`, `gate.ts` already blocks `renderable: false` from
+    rendering) — only the write path is missing. **E5/discovery requirement**, recorded in §6.2.
+  - **Letting a past answer change.** People get the certification, get the clearance, change sector.
+    Nothing lets them revise, and once "never re-ask" is enforced an out-of-date "no" becomes
+    load-bearing forever. Also covers correcting a mistap *during* onboarding, which is in scope for
+    the onboarding map and now sits in its fog.
+
 - ~~**Grill A: the grill's stopping rule + onboarding UX**~~ — **answered 2026-07-23**, see
   [`docs/onboarding-reward-design.md`](docs/onboarding-reward-design.md). The stopping rule is that
   there is none: the bar only ever counts down to the next card drop, so nothing is ever

@@ -213,6 +213,31 @@ not got one, **"no" closes that gap as well as "yes" does** — we now know, and
 it. Requiring every item be satisfied would trap every junior or career-changing user in discovery
 permanently. Under §7, a "no" may never be presented as a failure.
 
+> **Amended 2026-07-24** ([#9](https://github.com/adrien-mounier/jobcrush-app/issues/9)). *"The claim
+> graph records it"* was an assertion, not a fact, and **nothing in the code makes it true today.**
+> Checked against the shipped S2 spine:
+>
+> - `apps/api/src/graph.ts` hardcodes `renderable: true` on every node it builds and only ever passes
+>   through `Verified` / `Derived` / `Partially-Supported`. It has **no path that emits a `Negative`
+>   node** — and `MINEABLE_CLASSIFICATIONS` means the miner cannot emit one either.
+> - `claims.confirmed()` filters to `decision === "confirmed"`, so a **rejected claim is dropped, not
+>   recorded as a negative fact**. "Rejected in the deck" and "the user answered no" are different
+>   events and only the first exists.
+> - Worse, `detectGaps()` (`grill.ts`) re-derives gaps from the **confirmed** set on every run. A "no"
+>   leaves the same hole it started with, so **the same question is detected again**. Re-asking is the
+>   current behaviour by construction, not a bug to be found later.
+>
+> So this rule now carries a **hard requirement on E5 / discovery**, not just a principle:
+>
+> **A "no" must be persisted as a first-class negative claim (`classification: "Negative"`,
+> `renderable: false`), and an answered floor item must never be asked again — in this session or any
+> later one.** The contract already supports it: `claim_graph.schema.json` allows `Negative`, the
+> `gap-mandarin` fixture is one, and `gate.ts` already refuses to render a `renderable: false` node.
+> Only the write path is missing.
+>
+> Re-asking a question someone already answered is the single fastest way to prove we were not
+> listening — which is the opposite of the whole product's claim.
+
 **2. The floor is ranked, and the gate is its essential band — not the whole list, and not a count.**
 `cv-quality-kickoff.md` §8 already frames it as *"every basic/standard requirement the job family
 expects"*; those bands are the gate. Nice-to-have items fall through. This is what makes a competitive
@@ -709,6 +734,15 @@ Tracked as tickets on the wayfinder map
   see §9.1 ([#10](https://github.com/adrien-mounier/jobcrush-app/issues/10)). The reveal hides the
   deck; the card is title/score, then a highlight bubble, then where you fit and where you don't, with
   the ad folded away last. Prototype: `apps/web/prototypes/job-card.prototype.html`.
+- **How a user corrects a fact they got wrong.** Added 2026-07-24
+  ([#9](https://github.com/adrien-mounier/jobcrush-app/issues/9)). Discovery is tap-to-answer, so a
+  mistap becomes a wrong fact in the profile in seconds, and §6.2 rule 1 (as amended) now forbids
+  re-asking — which makes a wrong answer *permanent*. S2's shipped deck has confirm/**edit**/reject
+  per claim; the three-screen flow has no equivalent. In scope for the onboarding map.
+- **Revising the profile later, as life changes.** Ruled **out of scope** for this design on
+  2026-07-24 and parked on the map: people get the certification, get the clearance, change sector,
+  and nothing lets a past answer be revised. It sits past "first card seen" and wants its own
+  wayfinder effort. Distinct from the month-two question, which is only about old cards re-scoring.
 - **Where the wall sits now.** §12 needs re-picking against the three-screen shape.
 - **The core CV structure** — the canonical section list discovery renders empty. Belongs to the CV
   brain / S2.75, not this design. **No longer blocks the discovery design** (§6.2): every floor item
