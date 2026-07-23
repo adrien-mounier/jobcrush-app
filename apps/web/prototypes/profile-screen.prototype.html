@@ -1,0 +1,772 @@
+<!-- PROTOTYPE — throwaway. Wayfinder ticket #9 "The profile: the badge that grows
+     and the screen it opens".
+     Spec: docs/onboarding-reward-design.md §7 (one number, never on the person),
+     §8 (progression lives in things that only grow), §8.1 (the profile and the CV
+     are different objects), §8.3 (the badge is decided; THIS SCREEN gets maximum
+     design effort and must not read as a list of text being scrolled), and §6.2
+     rule 1 (a "no" closes a gap as well as a "yes").
+     Data shape is the real claim graph: packages/contracts/fixtures/graph.valid.json
+     + packages/contracts/src/candidateClaims.ts — every fact carries the sentence,
+     its classification, and the source_quote it came from.
+     Visual system reused verbatim from job-card.prototype.html — ink and glass.
+     Not production code. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JobCrush — the profile screen</title>
+
+<style>
+  :root {
+    --hud-0: #101419;
+    --hud-1: #171c23;
+    --hud-2: #1f262f;
+    --hud-line: #2b333d;
+    --hud-ink: #e8eaed;
+    --hud-mute: #7f8b98;
+
+    --gold: #e8a33d;
+    --gold-dim: #a8762b;
+    --weak: #6f7d8c;
+    /* the third mark state, from the job card: a "no" that is recorded and closed.
+       Deliberately not red, not a cross — §7 forbids showing a "no" as a failure. */
+    --settled: #4d5865;
+
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+
+    --page: #0b0e12; --page-ink: #cfd5dc;
+    --sw-h: 62px;   /* measured from the switcher at runtime */
+  }
+  @media (prefers-color-scheme: light) { :root { --page: #dfe3e8; --page-ink: #2b333d; } }
+  :root[data-theme="light"] { --page: #dfe3e8; --page-ink: #2b333d; }
+  :root[data-theme="dark"] { --page: #0b0e12; --page-ink: #cfd5dc; }
+
+  * { box-sizing: border-box; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.28) transparent; }
+  ::-webkit-scrollbar { width: 3px; height: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(140,150,160,.28); border-radius: 3px; }
+  @media (hover: none), (pointer: coarse) {
+    * { scrollbar-width: none; -ms-overflow-style: none; }
+    ::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  }
+
+  body {
+    margin: 0; background: var(--page); color: var(--page-ink);
+    font-family: var(--sans); min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 22px 16px 110px; gap: 16px;
+  }
+  .caption { font-size: 13px; text-align: center; max-width: 60ch; line-height: 1.55; opacity: .78; margin: 0; }
+  .caption b { font-weight: 650; }
+
+  .phone {
+    width: 390px; height: 810px; background: var(--hud-0);
+    border-radius: 34px; border: 1px solid #333c47;
+    box-shadow: 0 30px 70px -20px rgba(0,0,0,.7), 0 0 0 8px #05070a;
+    overflow: hidden; position: relative; color: var(--hud-ink);
+    display: flex; flex-direction: column; isolation: isolate;
+  }
+  /* The switcher must never sit on top of the screen's own controls, and this one
+     is two rows tall on a phone — so the frame stops short of its MEASURED height
+     rather than a guess. */
+  @media (max-width: 460px) {
+    body { padding: 0 0 var(--sw-h); gap: 0; justify-content: flex-start; }
+    .caption { display: none; }
+    .phone { width: 100vw; height: calc(100dvh - var(--sw-h)); border-radius: 0; border: none; box-shadow: none; }
+  }
+
+  /* ---------- HUD ---------- */
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; flex: 0 0 auto; }
+  .wordmark { font-size: 12.5px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--hud-mute); }
+  .spacer { flex: 1; }
+
+  /* The badge, decided on #8: a pile that only ever gets taller, count beside it.
+     Never a shape that FILLS — a full state would grade the person (§7).
+     One change here, and the reason is in the JS: the layer count is logarithmic,
+     so the pile keeps moving past 30 facts instead of saturating. */
+  .prof { position: relative; display: flex; align-items: center; gap: 7px;
+    padding: 5px 11px 5px 9px; border-radius: 999px;
+    background: var(--hud-2); border: 1px solid var(--hud-line); cursor: pointer;
+    transition: transform 260ms cubic-bezier(.2,1.6,.4,1), border-color 400ms ease; }
+  .prof svg { width: 18px; height: 21px; display: block; overflow: visible; }
+  .prof svg rect { fill: var(--hud-mute); transition: fill 400ms ease; }
+  .prof svg rect.top { fill: #a9b4bf; }
+  .prof svg rect.new { animation: layerin 480ms cubic-bezier(.2,1.4,.4,1); }
+  @keyframes layerin { from { transform: translateY(-7px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .prof .n { font-family: var(--mono); font-size: 13px; font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--hud-ink); }
+  .prof .unit { font-size: 11.5px; color: var(--hud-mute); margin-left: -3px; }
+  .prof.pulse { transform: scale(1.1); border-color: var(--gold); }
+  .prof.pulse svg rect.top { fill: var(--gold); }
+  .prof .ring { position: absolute; inset: -1px; border-radius: 999px; border: 1.5px solid var(--gold); opacity: 0; }
+  .prof.pulse .ring { animation: ringout 620ms ease-out; }
+  @keyframes ringout { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: scale(1.14); } }
+
+  .back { appearance: none; background: none; border: none; font: inherit; font-size: 13px;
+    color: var(--hud-mute); cursor: pointer; padding: 4px 2px; border-radius: 6px; }
+  .back:hover { color: var(--hud-ink); }
+  .back:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+  /* ---------- the head, identical across all three shapes ----------
+     So the three are compared on their BODY, not on their copy. §8.3: the name is
+     deliberately boring, and the interesting thing is inside — "47 things you've
+     told me". No person's name anywhere: pre-wall we do not know it (§6.1). */
+  .phead { padding: 2px 18px 14px; flex: 0 0 auto; }
+  .ptitle { font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--hud-mute); margin: 0 0 7px; }
+  .pcount { font-size: 23px; font-weight: 620; letter-spacing: -.02em; margin: 0; line-height: 1.15; }
+  .pcount .n { font-family: var(--mono); font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+  /* §8.1's honest line, as a standing fact rather than an apology. A fact that did
+     not make the bounded CV is not rejected — it is held. Both counts only grow. */
+  .pwait { font-size: 12px; line-height: 1.45; color: var(--hud-mute); margin: 8px 0 0; }
+  .pwait b { color: var(--hud-ink); font-weight: 600; }
+  .pwait .dot { color: var(--gold); }
+
+  .body { flex: 1; overflow-y: auto; min-height: 0; }
+
+  /* ================= SHAPE 1 — the strata =================
+     The badge, opened. The pile from the top bar unfolds into the screen: newest
+     layer on top, and you scroll DOWN into your own history. The argument: the
+     profile is time, and accumulation is the whole point. */
+  .strata { padding: 0 18px calc(26px + env(safe-area-inset-bottom)); display: flex; }
+  .gutter { flex: 0 0 26px; position: relative; }
+  /* one continuous core-sample line, so the slabs read as one column of sediment
+     rather than as N separate cards */
+  .gutter::before { content: ""; position: absolute; left: 11px; top: 6px; bottom: 8px; width: 1px;
+    background: linear-gradient(var(--gold-dim), var(--hud-line) 22%, var(--hud-line)); opacity: .8; }
+  .slabs { flex: 1; min-width: 0; }
+
+  .era { display: flex; align-items: center; gap: 9px; margin: 12px 0 5px;
+    font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--hud-mute); }
+  .era:first-child { margin-top: 2px; }
+  .era::after { content: ""; flex: 1; height: 1px; background: var(--hud-line); }
+
+  /* Tight on purpose. A slab per sentence with breathing room IS the list §8.3
+     bans — the pile only reads as sediment if enough layers are in one glance. */
+  .slab { position: relative; background: var(--hud-1); border: 1px solid var(--hud-line);
+    border-left-width: 3px; border-radius: 2px 7px 7px 2px; padding: 7px 12px 7px 11px;
+    margin-bottom: 2px; cursor: pointer;
+    box-shadow: 0 1px 0 rgba(0,0,0,.4); transition: background 160ms ease, transform 120ms ease; }
+  .slab:hover { background: #1c222a; }
+  .slab:active { transform: translateY(1px); }
+  .slab .txt { font-size: 12.5px; line-height: 1.35; }
+  /* the classification, carried straight from the claim graph, as an edge colour */
+  .slab.verified { border-left-color: var(--gold-dim); }
+  .slab.derived { border-left-color: #4c6b7a; }
+  .slab.partial { border-left-color: #6a5f7a; }
+  .slab.no { border-left-color: var(--settled); background: #141920; }
+  .slab.no .txt { color: var(--settled); }
+  /* the newest layer is lit, and it is the only lit thing on the screen */
+  .slab.fresh { background: #1e242c; border-color: rgba(232,163,61,.42); box-shadow: 0 2px 0 rgba(0,0,0,.35), 0 0 22px -6px var(--gold); }
+  .slab.landing { animation: slabin 560ms cubic-bezier(.2,1.15,.3,1); }
+  @keyframes slabin { from { opacity: 0; transform: translateY(-16px) scaleY(.55); } to { opacity: 1; transform: none; } }
+
+  .slab .meta { display: none; margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--hud-line); }
+  .slab.open .meta { display: block; animation: fade 300ms ease; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .said { font-size: 12px; line-height: 1.5; color: var(--hud-mute); margin: 0; }
+  .said b { color: var(--hud-ink); font-weight: 600; }
+  .cvtag { display: inline-flex; align-items: center; gap: 6px; margin-top: 9px;
+    font-size: 11.5px; color: var(--hud-mute); }
+  .cvtag i { width: 6px; height: 6px; border-radius: 50%; background: var(--settled); flex: 0 0 auto; }
+  .cvtag.on { color: var(--gold); }
+  .cvtag.on i { background: var(--gold); }
+
+  .tick { position: absolute; left: 8px; width: 7px; height: 1px; background: var(--hud-line); }
+  .depth { position: absolute; left: 0; font-family: var(--mono); font-size: 8.5px; color: var(--hud-mute);
+    transform: translateY(-4px); }
+
+  /* ================= SHAPE 2 — the constellation =================
+     The claim graph, drawn. Facts are points; a point links to its nearest
+     neighbour in the same cluster, so the field branches instead of listing. The
+     argument: relationships are the one thing a list physically cannot show. */
+  /* The field stops short of the sheet: a cluster hidden behind it is a cluster
+     the user never sees, and the bottom one always lost that fight. */
+  .sky { position: relative; height: 100%; touch-action: manipulation;
+    padding-bottom: 88px; display: flex; }
+  .sky svg { width: 100%; height: 100%; display: block; }
+  .sky .lnk { stroke: rgba(127,139,152,.42); stroke-width: .35; }
+  .sky .nd { cursor: pointer; }
+  .sky .nd circle { fill: var(--hud-mute); transition: fill 240ms ease; }
+  .sky .nd.verified circle { fill: #d5dbe2; }
+  .sky .nd.derived circle { fill: #7f97a8; }
+  .sky .nd.partial circle { fill: #8b7fa0; }
+  .sky .nd.no circle { fill: var(--settled); }
+  .sky .nd.sel circle { fill: var(--gold); }
+  .sky .nd .halo { fill: none; stroke: var(--gold); stroke-width: .8; opacity: 0; }
+  .sky .nd.fresh .halo { animation: ignite 1500ms ease-out; }
+  .sky .nd.fresh circle { fill: var(--gold); }
+  @keyframes ignite { 0% { opacity: .95; r: 2; } 100% { opacity: 0; r: 15; } }
+  .sky .clabel { fill: var(--hud-mute); font-family: var(--mono); font-size: 3.2px;
+    letter-spacing: .12em; text-transform: uppercase; text-anchor: middle;
+    paint-order: stroke; stroke: var(--hud-0); stroke-width: 1.1px; stroke-linejoin: round; }
+
+  /* the sheet: a point has no room for a sentence, so tapping opens one */
+  .sheet { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 15px; padding: 15px 16px;
+    box-shadow: 0 -10px 40px -12px rgba(0,0,0,.8); }
+  .sheet.hint { text-align: center; color: var(--hud-mute); font-size: 12.5px; }
+  .sheet .txt { font-size: 14.5px; line-height: 1.4; margin: 0 0 3px; }
+  .sheet.in { animation: sheetin 340ms cubic-bezier(.2,1,.3,1); }
+  @keyframes sheetin { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .sheet .cl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--hud-mute); margin: 0 0 8px; }
+
+  /* ================= SHAPE 3 — the character sheet =================
+     Facts sorted into what you are made of. Each domain leads with its strongest
+     fact; the rest sit under it as marks. The argument: §8.3's target feeling is
+     "my character is evolving", and this reads as identity rather than as a log.
+     Nothing empty is ever drawn — an empty slot is a capacity, and a capacity
+     grades the person (§7). */
+  .sheetwrap { padding: 0 18px calc(26px + env(safe-area-inset-bottom)); }
+  .dom { border-top: 1px solid var(--hud-line); padding: 15px 0 16px; }
+  .dom:first-child { border-top: none; padding-top: 2px; }
+  .dom.landing { animation: domin 620ms cubic-bezier(.2,1,.3,1); }
+  @keyframes domin { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .dhead { display: flex; align-items: baseline; gap: 9px; margin-bottom: 9px; }
+  .dname { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--hud-mute); }
+  .dcount { font-family: var(--mono); font-size: 10px; color: var(--settled); margin-left: auto; font-variant-numeric: tabular-nums; }
+  .dnew { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+    color: #1a1206; background: var(--gold); border-radius: 3px; padding: 1px 5px; }
+  /* the headline fact carries the domain — one sentence at reading size, not 40 */
+  .dlead { font-size: 15.5px; line-height: 1.32; font-weight: 560; letter-spacing: -.015em; margin: 0 0 10px; text-wrap: balance; }
+  /* a 2px rule under the line, not a highlighter block — the gradient-stop version
+     painted a third of the line height solid tan and read as damage */
+  .dlead .u { background-image: linear-gradient(rgba(232,163,61,.5), rgba(232,163,61,.5));
+    background-size: 100% 2px; background-position: 0 100%; background-repeat: no-repeat;
+    padding-bottom: 2px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { font-size: 11.5px; line-height: 1.25; padding: 5px 9px; border-radius: 999px;
+    background: var(--hud-2); border: 1px solid var(--hud-line); color: var(--hud-ink); cursor: pointer;
+    transition: background 140ms ease, transform 90ms ease; }
+  .chip:hover { background: #262f3a; }
+  .chip:active { transform: scale(.96); }
+  .chip.no { background: transparent; border-style: dashed; border-color: #333d48; color: var(--settled); }
+  .chip.no::before { content: "· "; }
+  .chip.waiting::after { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--settled); margin-left: 7px; vertical-align: middle; }
+  .chip.fresh { border-color: var(--gold); background: rgba(232,163,61,.14); animation: chipin 620ms cubic-bezier(.2,1.4,.4,1); }
+  @keyframes chipin { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: none; } }
+  .dnote { font-size: 11.5px; color: var(--settled); margin: 10px 0 0; line-height: 1.45; }
+
+  /* the ruled-out footer — a "no" is a fact you gave, and §6.2 rule 1 makes it
+     close a gap as well as a "yes" does. It is never a failure, never a cross. */
+  .ruled { margin-top: 22px; padding: 14px 15px; border-radius: 12px;
+    background: rgba(77,88,101,.1); border: 1px solid #2a323b; }
+  .ruled p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--hud-mute); }
+  .ruled p b { color: var(--hud-ink); font-weight: 600; }
+
+  /* the detail sheet is shared by shapes 1 and 3 as a modal */
+  .modal { position: absolute; inset: 0; background: rgba(9,12,16,.76); backdrop-filter: blur(5px);
+    display: flex; align-items: flex-end; z-index: 30; animation: fade 220ms ease; }
+  .modal .card { width: 100%; background: var(--hud-1); border-top: 1px solid var(--hud-line);
+    border-radius: 18px 18px 0 0; padding: 20px 20px calc(22px + env(safe-area-inset-bottom));
+    animation: sheetin 340ms cubic-bezier(.2,1,.3,1); }
+  .modal .card .txt { font-size: 16.5px; line-height: 1.35; margin: 0 0 12px; letter-spacing: -.01em; text-wrap: balance; }
+  .modal .card .x { appearance: none; background: none; border: none; color: var(--hud-mute); font: inherit;
+    font-size: 12.5px; cursor: pointer; margin-top: 14px; padding: 4px 0; }
+
+  .empty { padding: 34px 22px; text-align: center; color: var(--hud-mute); font-size: 13.5px; line-height: 1.55; }
+
+  .screen { display: none; flex-direction: column; height: 100%; min-height: 0; }
+  .screen.on { display: flex; }
+
+  .switcher { position: fixed; bottom: 11px; left: 50%; transform: translateX(-50%); z-index: 200;
+    display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px;
+    background: #f2f4f7; color: #101419; max-width: calc(100vw - 12px);
+    border-radius: 18px; padding: 5px; box-shadow: 0 8px 26px rgba(0,0,0,.4); font-family: var(--sans); }
+  .switcher .lbl { font-size: 11px; font-weight: 700; padding: 0 7px; white-space: nowrap; letter-spacing: .03em; }
+  .switcher button { appearance: none; border: none; font: inherit; font-size: 11.5px; font-weight: 600;
+    border-radius: 999px; padding: 0 12px; height: 29px; cursor: pointer; background: #d7dce3; color: #101419;
+    white-space: nowrap; }
+  .switcher button.on { background: #101419; color: #f2f4f7; }
+  .switcher button:focus-visible { outline: 2px solid #101419; outline-offset: 2px; }
+  .switcher .sep { width: 1px; height: 20px; background: #c3cad3; margin: 0 3px; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: 1ms !important; transition-duration: 1ms !important; } }
+</style>
+
+<p class="caption">
+  <b>Ticket #9 — the profile screen.</b> Three shapes on the same real claims, so they are judged on
+  shape and not on copy: <b>the strata</b> (the profile is time — the badge's pile, opened),
+  <b>the constellation</b> (the profile is a graph — the one thing a list cannot draw), and
+  <b>the character sheet</b> (the profile is what you are made of). Use <b>+ fact</b> to see what
+  opening it right after a chip flew in feels like, and the <b>scale</b> buttons to press §8.3's real
+  question: does it still read at 6 facts, and at 200?
+</p>
+
+<div class="phone" id="phone">
+  <div class="screen on" id="scr"></div>
+</div>
+
+<div class="switcher" id="switcher">
+  <span class="lbl">Shape</span>
+  <button data-shape="strata">Strata</button>
+  <button data-shape="sky">Constellation</button>
+  <button data-shape="sheet">Character</button>
+  <span class="sep"></span>
+  <span class="lbl">Facts</span>
+  <button data-n="6">6</button>
+  <button data-n="24">24</button>
+  <button data-n="47">47</button>
+  <button data-n="200">200</button>
+  <span class="sep"></span>
+  <button id="add">+ fact</button>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// PROTOTYPE. Throwaway. Ticket #9 — how the profile renders.
+//
+// The persona is the Camille Roussel the other prototypes build: 8 years IT
+// delivery in Paris, €2M budget, a team of 12, an ERP migration, agile and
+// stage-gate, Jira/MS Project, FR/EN, MSc + PMP. No name is ever drawn — pre-wall
+// we do not know it (§6.1), and the wall is where Google OAuth hands it over.
+//
+// Every fact below is shaped like a real claim-graph node
+// (packages/contracts/fixtures/graph.valid.json):
+//   text           the sentence, as it would render
+//   cls            classification — verified | derived | partial | no ("Negative")
+//   said           source_quote: what the user actually typed, or the CV line
+//   from           origin — "you" (typed an answer) or "cv" (mined from an upload)
+//   dom            the domain it belongs to (the constellation's cluster, the
+//                  character sheet's section)
+//   onCv           whether the BOUNDED CV currently carries it (§8.1). A `no` can
+//                  never be on a CV — the real graph marks those renderable:false.
+// ---------------------------------------------------------------------------
+
+// ORDER IS CHRONOLOGY. The array is the order the user gave things, so slicing it
+// to N gives a truthful "this user is N facts in". Grouping it by domain instead
+// (the first draft) truncated every "no" off the end — so the one thing only this
+// screen can show was invisible at every scale below 28.
+const BASE = [
+  // --- what question 1 alone paid out (§6.1: the ask is wide) ----------------
+  { dom: "Sectors",    cls: "verified", onCv: 1, from: "you", text: "Eight years in IT delivery.",                    said: "you typed <b>“IT project manager in Paris, mostly ERP, I use Jira and MS Project”</b>" },
+  { dom: "Tools",      cls: "verified", onCv: 1, from: "you", text: "Jira, every day.",                               said: "you typed <b>“… I use Jira and MS Project”</b>" },
+  { dom: "Tools",      cls: "verified", onCv: 1, from: "you", text: "MS Project.",                                    said: "you typed <b>“… I use Jira and MS Project”</b>" },
+
+  // --- the first tapped answers ----------------------------------------------
+  { dom: "Scale",      cls: "verified", onCv: 1, from: "you", text: "Managed a €2M budget across 4 teams.",           said: "you tapped <b>€1M – €5M</b>" },
+  { dom: "Scale",      cls: "verified", onCv: 1, from: "you", text: "Led a team of 12.",                              said: "you tapped <b>10 – 20 people</b>" },
+  // A "no" arrives early, because it does in real life. §6.2 rule 1: it closes a
+  // gap as well as a "yes" does, and the claim graph stores it (classification
+  // "Negative", renderable:false — it can never reach a CV). The profile is the
+  // ONLY screen where a "no" is visible as something the user OWNS, so how it
+  // renders here is a real question, not decoration.
+  { dom: "Sectors",    cls: "no", onCv: 0, from: "you", text: "No public-sector delivery.",                           said: "you tapped <b>No</b>" },
+  { dom: "Delivery",   cls: "verified", onCv: 1, from: "you", text: "Delivered an ERP migration end to end, on time.", said: "you tapped <b>Yes — start to finish</b>" },
+  { dom: "Delivery",   cls: "verified", onCv: 1, from: "you", text: "Runs agile and stage-gate both.",                 said: "you tapped <b>Both, depending on the client</b>" },
+  { dom: "Qualifications", cls: "no", onCv: 0, from: "you", text: "No security clearance.",                           said: "you tapped <b>No</b>" },
+  { dom: "Languages",  cls: "verified", onCv: 1, from: "you", text: "French, native.",                                said: "you tapped <b>Native</b>" },
+  { dom: "Languages",  cls: "verified", onCv: 1, from: "you", text: "English, fluent.",                               said: "you tapped <b>Fluent</b>" },
+  { dom: "Qualifications", cls: "verified", onCv: 1, from: "you", text: "PMP certified.",                             said: "you tapped <b>Yes, PMP</b>" },
+  { dom: "Tools",      cls: "partial",  onCv: 1, from: "you", text: "SAP ECC — not S/4HANA yet.",                     said: "you tapped <b>Only the older ECC</b>" },
+  { dom: "Scale",      cls: "verified", onCv: 0, from: "you", text: "Ran three projects at once.",                    said: "you tapped <b>2 – 4 at a time</b>" },
+  { dom: "Sectors",    cls: "no", onCv: 0, from: "you", text: "No banking domain work.",                              said: "you tapped <b>No</b>" },
+  { dom: "Delivery",   cls: "verified", onCv: 0, from: "you", text: "Cut a release cycle from six weeks to two.",      said: "you typed <b>“we got releases down from 6 weeks to 2”</b>" },
+  { dom: "Tools",      cls: "verified", onCv: 0, from: "you", text: "Confluence.",                                    said: "you tapped <b>Confluence</b>" },
+  { dom: "Sectors",    cls: "verified", onCv: 0, from: "you", text: "Two years in retail supply chain.",              said: "you typed <b>“2 years before that in retail supply chain”</b>" },
+
+  // --- read from the uploaded CV (§11: a CV buys one jump) -------------------
+  { dom: "Sectors",    cls: "verified", onCv: 1, from: "cv",  text: "Finance platforms.",                             said: "from your CV: “Finance platform replacement, Paris.”" },
+  { dom: "Delivery",   cls: "verified", onCv: 1, from: "cv",  text: "Ran SIT and UAT cycles through to sign-off.",     said: "from your CV: “Runs and coordinates SIT and UAT testing cycles through to sign-off.”" },
+  { dom: "Delivery",   cls: "verified", onCv: 1, from: "cv",  text: "Owned the vendor relationship and the contract.", said: "from your CV: “Vendor and contract ownership across two suppliers.”" },
+  { dom: "Delivery",   cls: "partial",  onCv: 1, from: "cv",  text: "Recovered a programme that was four months late.",said: "from your CV: “Brought a delayed programme back to plan.”" },
+  { dom: "Qualifications", cls: "verified", onCv: 1, from: "cv",  text: "MSc, information systems.",                  said: "from your CV: “MSc Information Systems, Dauphine.”" },
+  { dom: "Scale",      cls: "verified", onCv: 0, from: "cv",  text: "Reported monthly to the group CIO.",             said: "from your CV: “Monthly reporting to group CIO.”" },
+  { dom: "Scale",      cls: "derived",  onCv: 0, from: "cv",  text: "Chaired a steering committee of nine.",          said: "from your CV: “Chaired the project steering committee.”" },
+  { dom: "Delivery",   cls: "derived",  onCv: 0, from: "cv",  text: "Built and ran the risk register weekly.",         said: "from your CV: “Weekly risk and issue review.”" },
+  { dom: "Tools",      cls: "derived",  onCv: 0, from: "cv",  text: "Power BI for portfolio reporting.",              said: "from your CV: “Portfolio dashboards in Power BI.”" },
+  { dom: "Languages",  cls: "no", onCv: 0, from: "cv",  text: "No Mandarin.",                                         said: "from your CV: “No Mandarin ability.”" },
+];
+
+// Filler for the scale test. Composed, not copy-pasted, so 200 facts read as 200
+// plausible facts rather than as one fact repeated — which is the only way the
+// "does it still read at 200" question gets a truthful answer.
+// ponytail: a template shuffle, not a generator worth its own module.
+const FILL = [
+  ["Delivery", "Ran the {a} workstream through to handover.", "you tapped <b>Yes, I ran it</b>",
+    ["cutover", "data migration", "integration", "training", "hypercare", "rollback", "vendor onboarding",
+     "regression", "go-live", "decommissioning", "change control", "benefits tracking"]],
+  ["Scale", "Managed a {a} of stakeholders across the programme.", "you tapped <b>Yes</b>",
+    ["steering group", "vendor panel", "user forum", "architecture board", "finance review", "change board"]],
+  ["Tools", "{a}.", "you tapped <b>{a}</b>",
+    ["Smartsheet", "Miro", "Azure DevOps", "Trello", "Asana", "SAP Solution Manager",
+     "Planview", "Monday.com", "Notion", "Tableau", "Visio", "Lucidchart"]],
+  ["Sectors", "Worked in {a}.", "you tapped <b>Yes</b>",
+    ["insurance", "logistics", "energy", "pharma distribution", "telco billing", "manufacturing",
+     "e-commerce", "utilities", "media", "automotive"]],
+  ["Delivery", "Handled {a} on the finance platform replacement.", "from your CV: “{a}.”",
+    ["the cutover plan", "the test strategy", "the RAID log", "the benefits case", "the comms plan",
+     "the resourcing plan", "the vendor SLA", "the data cleanse"]],
+  ["Qualifications", "{a}.", "you tapped <b>Yes</b>",
+    ["PRINCE2 Practitioner", "Scrum Master certified", "ITIL Foundation", "SAFe Agilist",
+     "Lean Six Sigma green belt", "Certified Product Owner"]],
+];
+
+const CLASSES = ["verified", "verified", "verified", "derived", "partial"];
+
+function buildFacts(n) {
+  const out = BASE.slice(0, Math.min(n, BASE.length)).map((f, i) => ({ ...f, id: "b" + i }));
+  let k = 0;
+  while (out.length < n) {
+    const [dom, tpl, saidTpl, words] = FILL[k % FILL.length];
+    const w = words[Math.floor(k / FILL.length) % words.length];
+    // every 7th is a "no" — they keep arriving as the user answers, so the
+    // ruled-out group has to hold up at scale too, not just at 24
+    const isNo = k % 7 === 6;
+    out.push({
+      id: "f" + k, dom, cls: isNo ? "no" : CLASSES[k % CLASSES.length],
+      onCv: isNo ? 0 : (k % 3 === 0 ? 1 : 0), from: k % 4 === 0 ? "cv" : "you",
+      text: isNo ? `No ${w} experience.` : tpl.replace("{a}", w),
+      said: isNo ? "you tapped <b>No</b>" : saidTpl.replace(/\{a\}/g, w),
+    });
+    k++;
+  }
+  // Newest last in the array; every shape decides for itself which end is "new".
+  return out;
+}
+
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const CLS_NAME = { verified: "You told me this", derived: "Read from your CV", partial: "Partly answered", no: "Asked and closed" };
+
+let S = { shape: "strata", n: 24, facts: buildFacts(24), fresh: null, open: null, sel: null };
+
+// --- the badge -------------------------------------------------------------
+//
+// Decided on #8 and not reopened: a pile that only ever gets taller, count beside
+// it, the word "facts" for the first few answers then gone. ONE change, and it is
+// the open item the ticket lists: #8 drew "a layer per 6 facts, capped at 5", so
+// the pile stops moving at 30 and every count above it draws the same icon. A
+// logarithmic layer count keeps it growing — and because more layers share the
+// same height, a bigger pile reads as DENSER rather than taller-off-the-badge,
+// which is what a real pile does.
+const layersFor = n => Math.min(9, Math.max(1, Math.round(Math.log2(n + 1))));
+
+function stackSvg(n, freshTop) {
+  const L = layersFor(n), gap = 15 / L, h = Math.max(1.6, gap * .72);
+  return Array.from({ length: L }, (_, i) => {
+    const w = 16 - i * (10 / L), x = (18 - w) / 2, y = 16 - i * gap;
+    const c = [i === L - 1 ? "top" : "", i === L - 1 && freshTop ? "new" : ""].filter(Boolean).join(" ");
+    return `<rect class="${c}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" rx="1.2"></rect>`;
+  }).join("");
+}
+
+function profEl() {
+  const n = S.facts.length;
+  // The unit teaches once and then gets out of the way (§8.3).
+  const unit = n <= 3 ? `<span class="unit">facts</span>` : "";
+  return `<span class="prof" id="prof" title="Your profile — ${n} facts about you">
+    <span class="ring"></span>
+    <svg viewBox="0 0 18 21" aria-hidden="true">${stackSvg(n, false)}</svg>
+    <span class="n">${n}</span>${unit}</span>`;
+}
+
+// --- the head, shared ------------------------------------------------------
+
+function head() {
+  const n = S.facts.length;
+  const onCv = S.facts.filter(f => f.onCv).length;
+  const waiting = S.facts.filter(f => !f.onCv && f.cls !== "no").length;
+  // "waiting", never "left off". §8.1's honest line, framed as held in reserve —
+  // which is TRUE (the CV is bounded and re-selects per job), and it is the only
+  // framing that does not read as a verdict on the fact or on the person (§7).
+  // A brand-new user has nothing waiting yet, and "0 are waiting" is a zero on the
+  // first screen they open — deflating, and pointless. Say the true simple thing.
+  const line = waiting
+    ? `<b>${onCv}</b> are on your CV right now. <span class="dot">·</span> <b>${waiting}</b> are waiting for a job that asks for them.`
+    : `All <b>${onCv}</b> are on your CV right now.`;
+  return `<div class="phead">
+      <p class="ptitle">your profile</p>
+      <h1 class="pcount"><span class="n">${n}</span> things you've told me</h1>
+      <p class="pwait">${line}</p>
+    </div>`;
+}
+
+function chrome(bodyHtml) {
+  return `<div class="topbar">
+      <button class="back" id="back">‹ Back</button>
+      <span class="spacer"></span>${profEl()}
+    </div>
+    ${head()}
+    <div class="body" id="scrollbox">${bodyHtml}</div>`;
+}
+
+// --- shape 1: the strata ---------------------------------------------------
+
+// The era has to be TRUE, not decorative. The first draft labelled everything past
+// slab 12 "read from your CV" regardless of where it came from — so half the pile
+// lied about its own origin. Now it is read off the fact.
+function eraOf(f, i) {
+  if (f.from === "cv") return "read from your CV";
+  if (i === 0) return "just now";
+  if (i < 5) return "a moment ago";
+  return "earlier";
+}
+
+function renderStrata() {
+  // Newest first: you open the pile at the top layer, the one that just landed,
+  // and scrolling down goes back in time. The CV-mined facts sit at the bottom —
+  // the floor the pile was built on, which is what an upload actually is (§11).
+  const typed = S.facts.filter(f => f.from !== "cv").reverse();
+  const mined = S.facts.filter(f => f.from === "cv");
+  const seq = [...typed, ...mined];
+  let html = "", era = null;
+  seq.forEach((f, i) => {
+    const e = eraOf(f, i);
+    if (e !== era) { html += `<div class="era">${e}</div>`; era = e; }
+    const isFresh = S.fresh === f.id;
+    html += `<div class="slab ${f.cls} ${isFresh ? "fresh landing" : ""} ${S.open === f.id ? "open" : ""}" data-id="${f.id}">
+        <div class="txt">${esc(f.text)}</div>
+        <div class="meta">
+          <p class="said">${f.said}</p>
+          <span class="cvtag ${f.onCv ? "on" : ""}"><i></i>${cvLine(f)}</span>
+        </div>
+      </div>`;
+  });
+  return `<div class="strata">
+      <div class="gutter"></div>
+      <div class="slabs" id="slabs">${html}</div>
+    </div>`;
+}
+
+// The §8.1 line, per fact. Three cases, and only one of them is an explanation:
+// on the CV, held for later, or a "no" that can never be on a CV at all.
+function cvLine(f) {
+  if (f.cls === "no") return "A “no” answers the question too — it stays here, never on your CV.";
+  return f.onCv ? "On your CV right now."
+    : "Saved to your profile — it'll be used when a job asks for it.";
+}
+
+// --- shape 2: the constellation --------------------------------------------
+//
+// Deterministic layout, no physics. Clusters sit on a ring; inside a cluster each
+// point is placed on a golden-angle spiral, and linked to its NEAREST already-
+// placed neighbour — which branches like a real constellation and costs n-1 lines
+// instead of n². ponytail: O(n²) nearest-neighbour scan, fine at n ≤ 200.
+const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+const VB = 120;   // the viewBox is FIXED, and that is the whole fix
+
+// Fitting the viewBox to the nodes was the bug: with few facts it zoomed in and
+// the points became balloons; with 200 the clusters grew into each other and the
+// screen became one blob. A fixed viewBox means a point is the same size on
+// screen at 6 facts and at 200 — only the DENSITY changes, which is the thing
+// this shape is supposed to show.
+function skyLayout(facts) {
+  const doms = [...new Set(facts.map(f => f.dom))];
+  const nodes = [], links = [], labels = [];
+  // R leaves room for a label OUTSIDE every cluster: ring + spread + label must
+  // still fit the fixed field, or the label gets clamped back on top of the points.
+  const R = doms.length <= 2 ? 17 : 34;
+  // Clusters share a fixed field, so each one's radius is capped by the gap to
+  // its neighbour on the ring — they can never grow into each other.
+  const maxSpread = doms.length < 3 ? 18 : Math.min(19, R * Math.sin(Math.PI / doms.length) * 0.9);
+  doms.forEach((d, di) => {
+    const a = (di / doms.length) * Math.PI * 2 - Math.PI / 2;
+    const cx = VB / 2 + Math.cos(a) * R, cy = VB / 2 + Math.sin(a) * R * .94;
+    const mine = facts.filter(f => f.dom === d);
+    const spread = Math.min(maxSpread, 3.4 + Math.sqrt(mine.length) * 2.6);
+    const placed = [];
+    mine.forEach((f, i) => {
+      const r = spread * Math.sqrt((i + .6) / mine.length), th = i * GOLDEN;
+      const x = cx + Math.cos(th) * r, y = cy + Math.sin(th) * r;
+      const nd = { f, x, y };
+      // link to the closest point already in this cluster
+      let best = null, bd = Infinity;
+      for (const p of placed) {
+        const dd = (p.x - x) ** 2 + (p.y - y) ** 2;
+        if (dd < bd) { bd = dd; best = p; }
+      }
+      if (best) links.push([best.x, best.y, x, y]);
+      placed.push(nd); nodes.push(nd);
+    });
+    // Push the label radially OUTWARD from the field centre, not always upward:
+    // "above" collides with whatever cluster sits above on the ring, and the top
+    // cluster's label ran off the edge entirely.
+    const lx = cx + Math.cos(a) * (spread + 6), ly = cy + Math.sin(a) * (spread + 6) + 1.1;
+    // Anchor by side too, so a label grows AWAY from the field instead of
+    // spanning back across its neighbour.
+    const anchor = Math.cos(a) > .4 ? "start" : Math.cos(a) < -.4 ? "end" : "middle";
+    labels.push({ d, anchor, x: Math.max(3, Math.min(VB - 3, lx)), y: Math.max(4, Math.min(VB - 2, ly)) });
+  });
+  return { nodes, links, labels };
+}
+
+const NODE_W = { verified: 1, derived: .82, partial: .74, no: .62 };
+// A point shrinks as the sky fills, so a dense field stays legible as points
+// rather than merging into one mass.
+const baseR = n => Math.max(.62, Math.min(1.9, 9 / Math.sqrt(n)));
+
+function renderSky() {
+  const { nodes, links, labels } = skyLayout(S.facts);
+  const br = baseR(S.facts.length);
+  const sel = S.sel && S.facts.find(f => f.id === S.sel);
+  return `<div class="sky">
+      <svg viewBox="0 0 ${VB} ${VB}" preserveAspectRatio="xMidYMid meet">
+        <g>${links.map(l => `<line class="lnk" x1="${l[0].toFixed(2)}" y1="${l[1].toFixed(2)}" x2="${l[2].toFixed(2)}" y2="${l[3].toFixed(2)}"></line>`).join("")}</g>
+        <g>${labels.map(l => `<text class="clabel" text-anchor="${l.anchor}" x="${l.x.toFixed(2)}" y="${l.y.toFixed(2)}">${esc(l.d)}</text>`).join("")}</g>
+        <g>${nodes.map(n => {
+          const f = n.f, cl = [f.cls, S.fresh === f.id ? "fresh" : "", S.sel === f.id ? "sel" : ""].filter(Boolean).join(" ");
+          return `<g class="nd ${cl}" data-id="${f.id}" transform="translate(${n.x.toFixed(2)} ${n.y.toFixed(2)})">
+            <circle class="halo" r="2"></circle>
+            <circle r="${(br * NODE_W[f.cls]).toFixed(2)}"></circle>
+            <circle r="${Math.max(2.6, br * 2).toFixed(2)}" fill="transparent"></circle>
+          </g>`;
+        }).join("")}</g>
+      </svg>
+      ${sel
+        ? `<div class="sheet in"><p class="cl">${CLS_NAME[sel.cls]}</p><p class="txt">${esc(sel.text)}</p>
+             <p class="said">${sel.said}</p>
+             <span class="cvtag ${sel.onCv ? "on" : ""}"><i></i>${cvLine(sel)}</span></div>`
+        : `<div class="sheet hint">Every point is something you told me. Tap one.</div>`}
+    </div>`;
+}
+
+// --- shape 3: the character sheet ------------------------------------------
+
+function renderSheet() {
+  const doms = [...new Set(S.facts.map(f => f.dom))];
+  // biggest first, so the screen opens on what the user has most of — never on an
+  // empty or thin one. Nothing absent is ever drawn: an empty slot is a capacity,
+  // and a capacity is a grade (§7).
+  const groups = doms.map(d => ({ d, all: S.facts.filter(f => f.dom === d) }))
+    .sort((a, b) => b.all.length - a.all.length);
+  const noes = S.facts.filter(f => f.cls === "no");
+
+  const body = groups.map(g => {
+    const yes = g.all.filter(f => f.cls !== "no");
+    const no = g.all.filter(f => f.cls === "no");
+    if (!yes.length && !no.length) return "";
+    // the headline is the newest "verified" fact in the domain, else the newest —
+    // so a domain visibly re-leads when you answer something strong about it
+    const lead = [...yes].reverse().find(f => f.cls === "verified") || [...yes].reverse()[0];
+    const rest = g.all.filter(f => f !== lead);
+    const isNew = S.fresh && g.all.some(f => f.id === S.fresh);
+    // "new" only for a domain that did not exist a second ago — a domain that
+    // merely grew says so, and says by how much. Calling both "new" is the kind of
+    // small lie that makes the whole screen feel like decoration.
+    const badge = g.all.length === 1 ? "new" : "+1";
+    return `<section class="dom ${isNew ? "landing" : ""}">
+        <div class="dhead">
+          <span class="dname">${esc(g.d)}</span>
+          ${isNew ? `<span class="dnew">${badge}</span>` : ""}
+          <span class="dcount">${g.all.length}</span>
+        </div>
+        ${lead ? `<p class="dlead" data-id="${lead.id}"><span class="u">${esc(lead.text)}</span></p>` : ""}
+        ${rest.length ? `<div class="chips">${rest.map(f => `
+          <button class="chip ${f.cls === "no" ? "no" : ""} ${!f.onCv && f.cls !== "no" ? "waiting" : ""} ${S.fresh === f.id ? "fresh" : ""}"
+                  data-id="${f.id}">${esc(f.text.replace(/\.$/, ""))}</button>`).join("")}</div>` : ""}
+      </section>`;
+  }).join("");
+
+  return `<div class="sheetwrap">${body}
+      ${noes.length ? `<div class="ruled">
+        <p><b>${noes.length} things you've ruled out.</b> They count. A “no” answers a
+        question just as well as a “yes” does — it means I stop asking, and I stop
+        showing you jobs that need it.</p></div>` : ""}
+      <p class="dnote" style="margin-top:16px">A dot means it's saved here but not on your CV yet — the CV is
+      two pages, so it picks. Nothing is ever dropped.</p>
+    </div>`;
+}
+
+// --- render ----------------------------------------------------------------
+
+const BODIES = { strata: renderStrata, sky: renderSky, sheet: renderSheet };
+
+function render(keepScroll) {
+  const box = $("#scrollbox");
+  const y = keepScroll && box ? box.scrollTop : 0;
+  $("#scr").innerHTML = chrome(BODIES[S.shape]());
+  const nbox = $("#scrollbox");
+  if (nbox && y) nbox.scrollTop = y;
+
+  $("#back").onclick = () => {};   // prototype: the profile is the only screen here
+  $$("#scr [data-id]").forEach(el => el.onclick = () => pick(el.dataset.id));
+  $$(".switcher button").forEach(b => {
+    b.classList.toggle("on", b.dataset.shape === S.shape || +b.dataset.n === S.n);
+  });
+  // The freshly-landed fact must be VISIBLE, not merely rendered — the same rule
+  // §8.2 puts on the typewriter: feedback below the fold was never delivered.
+  if (S.fresh) {
+    const el = $(`#scr [data-id="${S.fresh}"]`);
+    if (el && nbox && el.scrollIntoView) {
+      const b = nbox.getBoundingClientRect(), e = el.getBoundingClientRect();
+      if (e.top < b.top || e.bottom > b.bottom)
+        nbox.scrollTo({ top: nbox.scrollTop + (e.top - b.top) - 40, behavior: reduced ? "auto" : "smooth" });
+    }
+  }
+}
+
+function pick(id) {
+  const f = S.facts.find(x => x.id === id);
+  if (!f) return;
+  if (S.shape === "sky") { S.sel = id; render(true); return; }
+  if (S.shape === "strata") { S.open = S.open === id ? null : id; render(true); return; }
+  modal(f);
+}
+
+function modal(f) {
+  const m = document.createElement("div");
+  m.className = "modal";
+  m.innerHTML = `<div class="card">
+      <p class="cl" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--hud-mute);margin:0 0 8px">${CLS_NAME[f.cls]}</p>
+      <p class="txt">${esc(f.text)}</p>
+      <p class="said">${f.said}</p>
+      <span class="cvtag ${f.onCv ? "on" : ""}"><i></i>${cvLine(f)}</span>
+      <br><button class="x">Close</button>
+    </div>`;
+  const close = () => m.remove();
+  m.onclick = e => { if (e.target === m || e.target.classList.contains("x")) close(); };
+  $("#phone").appendChild(m);
+}
+
+// A new fact lands — this is the moment the ticket actually asks about: what the
+// growth feels like when you open the profile right after a chip flew into the
+// badge. Each shape answers it differently, which is the point.
+const NEW_FACTS = [
+  { dom: "Delivery", cls: "verified", onCv: 1, from: "you", text: "Ran a cutover across four European sites.", said: "you tapped <b>Yes — all four</b>" },
+  { dom: "Scale",    cls: "verified", onCv: 0, from: "you", text: "Owned a €400k change budget on top.",       said: "you tapped <b>Yes</b>" },
+  { dom: "Tools",    cls: "verified", onCv: 0, from: "you", text: "ServiceNow.",                               said: "you tapped <b>ServiceNow</b>" },
+  { dom: "Sectors",  cls: "no",       onCv: 0, from: "you", text: "No defence work.",                          said: "you tapped <b>No</b>" },
+  { dom: "Certifications", cls: "verified", onCv: 1, from: "you", text: "PRINCE2 Practitioner.",               said: "you tapped <b>Yes</b>" },
+];
+let newIdx = 0;
+
+function addFact() {
+  const f = { ...NEW_FACTS[newIdx % NEW_FACTS.length], id: "n" + newIdx };
+  newIdx++;
+  S.facts.push(f);
+  S.n = S.facts.length;
+  S.fresh = f.id;
+  S.open = null; S.sel = null;
+  render(true);
+  // the badge does its decided thing: the pile grows by a layer and pulses
+  const p = $("#prof");
+  if (p) {
+    $("svg", p).innerHTML = stackSvg(S.facts.length, true);
+    p.classList.add("pulse");
+    setTimeout(() => p.classList.remove("pulse"), 640);
+  }
+}
+
+// --- wiring ----------------------------------------------------------------
+
+$$(".switcher button[data-shape]").forEach(b => b.onclick = () => {
+  S.shape = b.dataset.shape; S.open = null; S.sel = null; render(false);
+});
+$$(".switcher button[data-n]").forEach(b => b.onclick = () => {
+  S.n = +b.dataset.n; S.facts = buildFacts(S.n); S.fresh = null; S.open = null; S.sel = null; render(false);
+});
+$("#add").onclick = addFact;
+
+// Measure the switcher instead of guessing: it wraps to two rows on a phone, and
+// a guessed height is how a control ends up under the fold.
+const sw = $("#switcher");
+const measure = () => document.documentElement.style.setProperty("--sw-h", (sw.offsetHeight + 22) + "px");
+new ResizeObserver(measure).observe(sw);
+measure();
+
+render(false);
+</script>
