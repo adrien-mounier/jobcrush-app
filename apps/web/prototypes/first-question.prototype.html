@@ -1,17 +1,18 @@
 <!-- PROTOTYPE — throwaway. Wayfinder ticket #6 "The discovery questions".
-     QUESTION 1 — the first thing after the front door.
-     Round 1 killed the closed list: its "Something else" only ever opens the same free
-     box the other shapes lead with, so there is no escape hatch to design — the box IS
-     the question. A model places whatever is typed into a family.
-     Round 2 is about HOW MUCH question 1 asks for: a title only, or the title plus
-     whatever else the user volunteers. Everything after question 1 is identical, so
-     only the first ask is being judged.
+     QUESTION 1, decided 2026-07-23 over two rounds of pressing it.
+     Round 1 killed the closed list: "Something else" only ever opens the same free box
+     the other shapes lead with, so there is no escape hatch to design — the box IS the
+     question, and a model places whatever is typed into a family.
+     Round 2 chose the wide ask over a title-only one, and dropped the preset job
+     buttons: we do not know who is on the other side, so any list is wrong for most.
+     The suggestions show the FAMILY, which is what we search on — the list teaches
+     the mechanic before the copy under the question explains it.
      Visual system: ink and glass, from onboarding-screen.prototype.html.
      Not production code. -->
 <!-- Without this, a phone lays the page out at ~980px and zooms out: the mobile
      CSS never applies and the screens are judged at the wrong size. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>JobCrush — question 1: how much to ask</title>
+<title>JobCrush — question 1</title>
 
 <style>
   :root {
@@ -64,19 +65,10 @@
   .intro h1 { font-family: var(--serif); font-size: 25px; font-weight: 600; letter-spacing: -.015em; margin: 0 0 8px; }
   .intro p { font-size: 13.5px; line-height: 1.6; opacity: .78; margin: 0; }
 
-  .picker { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 780px; }
-  .picker button {
-    appearance: none; font: inherit; font-size: 12.5px; cursor: pointer;
-    background: var(--card); color: var(--page-ink); border: 1px solid var(--card-line);
-    border-radius: 10px; padding: 9px 13px; text-align: left; line-height: 1.35;
-    transition: border-color 140ms ease, transform 90ms ease;
-  }
-  .picker button:hover { border-color: var(--gold); }
-  .picker button:active { transform: scale(.97); }
-  .picker button.on { border-color: var(--gold); background: rgba(232,163,61,.12); }
-  .picker button b { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
-  .picker button i { font-style: normal; }
+  .reset { appearance: none; font: inherit; font-size: 12px; cursor: pointer; color: var(--page-ink);
+    background: var(--card); border: 1px solid var(--card-line); border-radius: 999px; padding: 7px 15px;
+    opacity: .8; transition: border-color 140ms ease; }
+  .reset:hover { border-color: var(--gold); opacity: 1; }
 
   .phone {
     width: 390px; height: 810px; background: var(--hud-0);
@@ -86,13 +78,9 @@
     display: flex; flex-direction: column;
   }
   @media (max-width: 460px) {
-    body { padding: 0 0 52px; gap: 8px; height: 100dvh; overflow: hidden; }
+    body { padding: 0 0 52px; gap: 6px; height: 100dvh; overflow: hidden; }
     .intro { display: none; }
-    .picker { flex: 0 0 auto; flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start;
-      width: 100%; padding: 8px 10px 0; gap: 6px; }
-    .picker button { flex: 0 0 auto; padding: 7px 11px; }
-    .picker button b { margin-bottom: 0; }
-    .picker button i { display: none; }
+    .reset { flex: 0 0 auto; margin: 7px 0 0; padding: 5px 13px; font-size: 11.5px; }
     .phone { width: 100vw; height: auto; flex: 1 1 auto; min-height: 0;
       border-radius: 0; border: none; box-shadow: none; }
   }
@@ -228,6 +216,11 @@
   .sugg.live button { border: none; border-radius: 0; text-align: left; width: 100%;
     border-bottom: 1px solid var(--hud-line); background: none; padding: 11px 14px; }
   .sugg.live button:last-child { border-bottom: none; }
+  /* Names what the list is, so showing OTHER titles does not read as "your words
+     were not found". The list is the family we will search, not a spellcheck. */
+  .sugg.live .fam { font-family: var(--mono); font-size: 9.5px; text-transform: uppercase;
+    letter-spacing: .11em; color: var(--hud-mute); padding: 9px 14px 7px;
+    border-bottom: 1px solid var(--hud-line); }
   .sugg .none { font-size: 12.5px; color: var(--hud-mute); padding: 10px 2px; line-height: 1.45; }
 
   .note { max-width: 720px; text-align: center; font-size: 13px; line-height: 1.55;
@@ -240,15 +233,15 @@
 </style>
 
 <div class="intro">
-  <h1>Question 1 — how much to ask</h1>
-  <p>The box is settled: question 1 takes free text, and a model places it in a family. Open now is
-  <b>how much it asks for</b>. <b>C1</b> takes a job title. <b>C2</b>’s placeholder invites the city
-  and the tools too, and pays out a line for each. <b>B</b> is C1 moved onto the paper — and it only
-  works narrow, so C2 rules it out. Watch the promise at the top: in C1 it has no city, because
-  nothing in the flow ever asks for one.</p>
+  <h1>Question 1 — decided</h1>
+  <p>One free box, no preset jobs, and a placeholder that teaches you to say more than a title. As you
+  type, the suggestions are <b>the family we will search</b>, not near-spellings of your words — which
+  is the same thing the line under the question promises. Everything you volunteer pays out its own
+  line in its own section. Try <i>nurse</i>, or <i>IT project manager in Lyon, mostly ERP, I use Jira
+  and MS Project</i>.</p>
 </div>
 
-<div class="picker" id="picker"></div>
+<button class="reset" id="again">↻ start over</button>
 
 <div class="phone">
   <div class="topbar">
@@ -266,7 +259,11 @@
   <div class="ask" id="ask"></div>
 </div>
 
-<div class="note" id="note"></div>
+<div class="note" id="note">
+  <b>Try <i>nurse</i></b> — the suggestions are the family, not spellings of your word.
+  Then <b>↻ start over</b> and try <i>IT project manager in Lyon, mostly ERP, I use Jira and MS
+  Project</i>: one answer, three facts, two sections, and the promise finally has a city.
+</div>
 
 <script>
 // ---------------------------------------------------------------------------
@@ -303,19 +300,25 @@ const TITLES = [
   ["IT Support Technician", "IT support"], ["System Administrator", "IT support"],
   ["Cybersecurity Analyst", "cybersecurity"], ["Network Engineer", "network engineer"],
   ["UX Designer", "design"], ["UI Designer", "design"], ["Graphic Designer", "design"],
-  ["Registered Nurse", "nursing"], ["Care Assistant", "care"], ["Physiotherapist", "physiotherapy"],
+  ["Nurse", "nursing"], ["Registered Nurse", "nursing"], ["Staff Nurse", "nursing"],
+  ["Nurse Practitioner", "nursing"], ["Ward Nurse", "nursing"],
+  ["Care Assistant", "care"], ["Physiotherapist", "physiotherapy"],
   ["Pharmacist", "pharmacy"], ["Medical Secretary", "medical admin"],
-  ["Primary School Teacher", "teaching"], ["Secondary School Teacher", "teaching"],
+  ["Teacher", "teaching"], ["Primary School Teacher", "teaching"],
+  ["Secondary School Teacher", "teaching"], ["Lecturer", "teaching"],
   ["Teaching Assistant", "teaching support"], ["Training Manager", "training"],
-  ["Accountant", "accounting"], ["Bookkeeper", "accounting"], ["Financial Controller", "finance"],
-  ["Auditor", "audit"], ["Payroll Officer", "payroll"],
-  ["Sales Representative", "sales"], ["Account Manager", "account management"],
+  ["Accountant", "accounting"], ["Bookkeeper", "accounting"],
+  ["Accounts Assistant", "accounting"], ["Management Accountant", "accounting"],
+  ["Financial Controller", "finance"], ["Auditor", "audit"], ["Payroll Officer", "payroll"],
+  ["Sales Representative", "sales"], ["Sales Manager", "sales"],
+  ["Business Development Manager", "sales"], ["Account Manager", "account management"],
   ["Marketing Manager", "marketing"], ["Digital Marketing Specialist", "digital marketing"],
   ["Customer Service Advisor", "customer service"],
   ["HR Manager", "human resources"], ["Recruiter", "recruitment"],
   ["Office Manager", "office management"], ["Executive Assistant", "executive assistant"],
   ["Warehouse Supervisor", "warehouse"], ["Logistics Coordinator", "logistics"],
-  ["Truck Driver", "driving"], ["Production Operator", "production"],
+  ["Truck Driver", "driving"], ["Delivery Driver", "driving"], ["HGV Driver", "driving"],
+  ["Production Operator", "production"],
   ["Maintenance Technician", "maintenance"], ["Electrician", "electrical"],
   ["Plumber", "plumbing"], ["Carpenter", "carpentry"], ["Welder", "welding"],
   ["Chef", "kitchen"], ["Waiter", "hospitality"], ["Hotel Receptionist", "hospitality"],
@@ -325,11 +328,11 @@ const TITLES = [
   ["Security Guard", "security"], ["Cleaner", "cleaning"],
 ];
 
-// Shortcut chips: the common answers, offered before anything is typed.
-const SHORTLIST = ["Project Manager", "Software Engineer", "Registered Nurse",
-                   "Sales Representative", "Accountant", "Primary School Teacher"];
+// No shortcut chips. A preset list of jobs is wrong for most visitors — we do not
+// know who is on the other side — and the free box already accepts everything a
+// list would have offered. Decided 2026-07-23.
 
-// The wide shape pulls more than a title out of one answer. In the real thing this
+// Question 1 pulls more than a title out of one answer. In the real thing this
 // is the same model call that places the family; here, two small lists, enough to
 // feel what a rich first answer pays back.
 // WHY LOCATION MATTERS: §6's promise is "142 <family> jobs are open IN PARIS right
@@ -360,8 +363,9 @@ function fresh() {
 }
 
 // --- title matching --------------------------------------------------------
-// Substring match, prefix hits first. Cheap on purpose: the real thing is a model
-// call or a taxonomy service; this only has to answer "would typing find me?".
+// The real version of all of this is a clustering + classification model, and it is
+// its own ticket, later. Substring matching over a hand list is enough here to feel
+// the one thing that matters: what the suggestions are FOR.
 function match(q) {
   const t = q.trim().toLowerCase();
   if (t.length < 2) return [];
@@ -371,11 +375,27 @@ function match(q) {
     if (l.startsWith(t)) starts.push(pair);
     else if (l.includes(t)) contains.push(pair);
   }
-  return starts.concat(contains).slice(0, 4);
+  // Once the answer grows into a sentence it CONTAINS a title rather than being one,
+  // so the family stays visible while the user keeps typing detail.
+  const mentioned = TITLES.filter(p => t.includes(p[0].toLowerCase()))
+                          .sort((a, b) => b[0].length - a[0].length);
+  return starts.concat(contains, mentioned).slice(0, 6);
 }
+
 function familyOf(title) {
   const hit = TITLES.find(p => p[0].toLowerCase() === title.trim().toLowerCase());
   return hit ? hit[1] : null;
+}
+
+// Suggestions are the FAMILY the typed words land in, not a list of near-spellings.
+// That is the point: we search the family, so the suggestion list is the first place
+// the user sees that happening — shown before any copy explains it.
+function suggest(q) {
+  const best = match(q)[0];
+  if (!best) return null;
+  const kin = TITLES.filter(p => p[1] === best[1]).map(p => p[0]);
+  kin.sort((a, b) => (a === best[0] ? -1 : b === best[0] ? 1 : 0));
+  return { family: best[1], titles: kin.slice(0, 5) };
 }
 
 // --- HUD -------------------------------------------------------------------
@@ -546,129 +566,70 @@ function askQ2() {
 }
 
 // --- the four shapes -------------------------------------------------------
-const SHAPES = {
-  c1: {
-    tag: "C1", name: "Just the job",
-    note: `<b>C1 — just the job.</b> One field, common answers as chips, typeahead as you type.
-           Anything is accepted; a model places it in a family. Watch the promise land
-           <i>without a city</i> — nothing in the flow has asked where you are.`,
-    render: function () {
-      renderCV();
-      renderBlocks("summary");
-      $("#ask").innerHTML =
-        `<p class="why">question 1</p>` +
-        `<p class="q">What kind of job are you going for?</p>` +
-        `<div id="live"></div>` +
-        `<div class="sugg" id="chips">` +
-          SHORTLIST.slice(0, 4).map(o => `<button>${o}</button>`).join("") +
-        `</div>` +
-        `<div class="field">` +
-          `<input id="txt" placeholder="Type a job title" autocomplete="off">` +
-          `<button class="go" id="go" disabled>Go</button>` +
-        `</div>`;
-      $("#chips").querySelectorAll("button").forEach(b => b.onclick = () => commit(b.textContent, false));
-      wireTypeahead(false, () => { if ($("#chips")) $("#chips").style.display = "none"; });
-    },
-  },
-
-  c2: {
-    tag: "C2", name: "The job, and anything else",
-    note: `<b>C2 — the job, and anything else.</b> Same box, but the placeholder teaches you to
-           say more, and every extra thing pays out its own line in its own section.
-           Try: <i>IT project manager in Lyon, mostly ERP, I use Jira and MS Project</i>.`,
-    render: function () {
-      renderCV();
-      renderBlocks("summary");
-      $("#ask").innerHTML =
-        `<p class="why">question 1</p>` +
-        `<p class="q">What kind of job are you going for?</p>` +
-        `<p class="sub">Say as much or as little as you like.</p>` +
-        `<div id="live"></div>` +
-        `<div class="sugg" id="chips">` +
-          SHORTLIST.slice(0, 3).map(o => `<button>${o}</button>`).join("") +
-        `</div>` +
-        `<div class="field">` +
-          `<textarea id="txt" rows="2" placeholder="e.g. IT project manager in Paris, mostly ERP, I use Jira and MS Project"></textarea>` +
-        `</div>` +
-        `<button class="go wide" id="go" disabled>That’s me</button>`;
-      $("#chips").querySelectorAll("button").forEach(b => b.onclick = () => commit(b.textContent, true));
-      wireTypeahead(true, () => { if ($("#chips")) $("#chips").style.display = "none"; });
-    },
-  },
-
-  b: {
-    tag: "B", name: "Same box, on the paper",
-    note: `<b>B — into the paper.</b> The same free box, moved onto the CV’s own role line, so the
-           first line of the document is typed by you. <b>It only works narrow</b> — a sentence
-           about Lyon and Jira cannot be typed onto a role line. Choosing C2 rules B out.`,
-    render: function () {
-      renderCV(`<input id="txt" placeholder="the job you’re going for" autocomplete="off" spellcheck="false">`);
-      $("#cvrole").classList.add("armed");
-      renderBlocks("summary");
-      $("#ask").innerHTML =
-        `<p class="why">question 1</p>` +
-        `<p class="q">Start with the job you’re going for.</p>` +
-        `<p class="sub">Write it on the line — that is where it goes on the real thing.</p>` +
-        `<div id="live"></div>` +
-        `<button class="go wide" id="go" disabled>That’s me</button>`;
-      wireTypeahead(false, () => $("#cvrole").classList.remove("armed"));
-      after(reduced ? 0 : 700, () => { if ($("#txt")) $("#txt").focus({ preventScroll: true }); });
-    },
-  },
-};
+// --- the decided question 1 ------------------------------------------------
+// No preset job buttons. We do not know who is on the other side, so any list of
+// jobs is wrong for most of them — and the box already accepts everything a list
+// would have offered. The placeholder does the teaching a list was doing.
+function renderQ1() {
+  renderCV();
+  renderBlocks("summary");
+  $("#ask").innerHTML =
+    `<p class="why">question 1</p>` +
+    `<p class="q">What kind of job are you going for?</p>` +
+    // Says out loud what the suggestion list is already showing: your words are a
+    // way in to a family, not a filter you have to get exactly right.
+    `<p class="sub">I search the whole family, not just your words — say
+       <b>project manager</b> and I’ll also read <i>IT project manager</i>,
+       <i>programme manager</i>, <i>delivery manager</i>.</p>` +
+    `<div id="live"></div>` +
+    `<div class="field">` +
+      `<textarea id="txt" rows="2" placeholder="e.g. IT project manager in Paris, mostly ERP, I use Jira and MS Project"></textarea>` +
+    `</div>` +
+    `<button class="go wide" id="go" disabled>That’s me</button>`;
+  wireTypeahead();
+}
 
 // Shared by A (after the escape), B and C: type → live matches → tap one, or keep
 // your own words. The "no match" branch is the one worth watching.
-function wireTypeahead(wide, onFirstKey) {
+function wireTypeahead() {
   const txt = $("#txt"), go = $("#go"), live = $("#live");
-  let fired = false;
   txt.oninput = function () {
     const v = txt.value.trim();
     go.disabled = v.length < 2;
-    if (!fired && v && onFirstKey) { fired = true; onFirstKey(); }
-    if (!v) { live.innerHTML = ""; return; }
-    const hits = match(v);
-    if (wide && !hits.length) { live.innerHTML = ""; return; }  // a sentence is not a failed lookup
-    if (hits.length) {
-      live.innerHTML = `<div class="sugg live">` + hits.map(function (p) {
-        const t = p[0], i = t.toLowerCase().indexOf(v.toLowerCase());
+    const s = v ? suggest(v) : null;
+    // No match is not a failure worth announcing — the model places the answer, and
+    // the user can always just keep their own words. Silence beats "not found".
+    if (!s) { live.innerHTML = ""; return; }
+    live.innerHTML = `<div class="sugg live"><div class="fam">same kind of job</div>` +
+      s.titles.map(function (t) {
+        const i = t.toLowerCase().indexOf(v.toLowerCase());
         const label = i < 0 ? t
           : t.slice(0, i) + "<em>" + t.slice(i, i + v.length) + "</em>" + t.slice(i + v.length);
         return `<button>${label}</button>`;
       }).join("") + `</div>`;
-      live.querySelectorAll("button").forEach(b => b.onclick = () => commit(b.textContent, wide));
-    } else {
-      live.innerHTML = `<div class="sugg"><div class="none">Nothing on our list matches
-        “${v}”. Your own words are fine — a model places them.</div></div>`;
-    }
+    live.querySelectorAll("button").forEach(b => b.onclick = () => commit(b.textContent, true));
   };
-  go.onclick = () => commit(txt.value.trim(), wide);
-  // Enter submits a single-line field; in a textarea it is a newline, so leave it alone.
-  if (txt.tagName === "INPUT") {
-    txt.onkeydown = function (e) {
-      if (e.key === "Enter" && !go.disabled) { e.preventDefault(); go.click(); }
-    };
-  }
+  go.onclick = () => commit(txt.value.trim(), true);
+  // Enter is a newline in a textarea, so it is left alone — the button commits.
 }
 
 // --- picker ----------------------------------------------------------------
 // ponytail: on a phone the software keyboard overlaps the ask band in B/C/D. Real
 // enough to notice, not worth solving in a throwaway — scroll the band into view
 // on focus if it gets in the way of judging.
-function pick(k) {
+// --- start -----------------------------------------------------------------
+function start() {
   timers.forEach(clearTimeout); timers = [];
   fresh();
   renderPile();
   $("#promiseSlot").innerHTML = "";
-  document.querySelectorAll("#picker button").forEach(b => b.classList.toggle("on", b.dataset.k === k));
-  $("#note").innerHTML = SHAPES[k].note;
-  SHAPES[k].render();
+  renderQ1();
   fitNote();
 }
 
-// On a phone the note bar is fixed to the bottom edge, and the notes are not all
-// the same length — a guessed padding-bottom leaves it sitting on top of the last
-// answer. Measure it instead. (Caught by the Playwright pass, not by looking.)
+// On a phone the note bar is fixed to the bottom edge, so a guessed padding-bottom
+// leaves it sitting on top of the last answer. Measure it instead. (Caught by the
+// Playwright pass, not by looking.)
 function fitNote() {
   const n = $("#note");
   document.body.style.paddingBottom =
@@ -676,9 +637,6 @@ function fitNote() {
 }
 addEventListener("resize", fitNote);
 
-$("#picker").innerHTML = Object.entries(SHAPES).map(function (e) {
-  return `<button data-k="${e[0]}"><b>${e[1].tag}</b><i>${e[1].name}</i></button>`;
-}).join("");
-document.querySelectorAll("#picker button").forEach(b => (b.onclick = () => pick(b.dataset.k)));
-pick("c1");
+$("#again").onclick = start;
+start();
 </script>
