@@ -5,45 +5,54 @@
      are different objects), §8.3 (the badge is decided; THIS SCREEN gets maximum
      design effort and must not read as a list of text being scrolled), and §6.2
      rule 1 (a "no" closes a gap as well as a "yes").
+
+     DECIDED 2026-07-23: the screen carries BOTH shapes behind a toggle —
+     "Sorted" (the useful one) and "Constellation" (the one worth screenshotting).
+     The strata was built, shown and dropped; see git history for it.
+
      Data shape is the real claim graph: packages/contracts/fixtures/graph.valid.json
      + packages/contracts/src/candidateClaims.ts — every fact carries the sentence,
      its classification, and the source_quote it came from.
-     Visual system reused verbatim from job-card.prototype.html — ink and glass.
+
+     Visual system: "ink and glass" from the earlier prototypes, pushed into the
+     Obsidian/Logseq graph-view register — bloom, depth, drift — but in MARIGOLD
+     rather than the violet every second-brain app uses.
      Not production code. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>JobCrush — the profile screen</title>
 
 <style>
   :root {
-    --hud-0: #101419;
-    --hud-1: #171c23;
-    --hud-2: #1f262f;
-    --hud-line: #2b333d;
+    --hud-0: #0d1116;
+    --hud-1: #151a21;
+    --hud-2: #1d242d;
+    --hud-line: #29313b;
     --hud-ink: #e8eaed;
     --hud-mute: #7f8b98;
 
     --gold: #e8a33d;
-    --gold-dim: #a8762b;
-    --weak: #6f7d8c;
-    /* the third mark state, from the job card: a "no" that is recorded and closed.
-       Deliberately not red, not a cross — §7 forbids showing a "no" as a failure. */
+    --gold-lo: #a8762b;
+    --gold-hi: #ffd9a0;
+    /* what your CV gave us, not you — cool, so the sky is legible at a glance */
+    --steel: #86b3cc;
+    /* a "no": recorded, owned, never a failure and never red (§7) */
     --settled: #4d5865;
 
     --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
     --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
 
-    --page: #0b0e12; --page-ink: #cfd5dc;
-    --sw-h: 62px;   /* measured from the switcher at runtime */
+    --page: #07090c; --page-ink: #cfd5dc;
+    --sw-h: 62px;
   }
   @media (prefers-color-scheme: light) { :root { --page: #dfe3e8; --page-ink: #2b333d; } }
   :root[data-theme="light"] { --page: #dfe3e8; --page-ink: #2b333d; }
-  :root[data-theme="dark"] { --page: #0b0e12; --page-ink: #cfd5dc; }
+  :root[data-theme="dark"] { --page: #07090c; --page-ink: #cfd5dc; }
 
   * { box-sizing: border-box; }
-  * { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.28) transparent; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.22) transparent; }
   ::-webkit-scrollbar { width: 3px; height: 3px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(140,150,160,.28); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb { background: rgba(140,150,160,.22); border-radius: 3px; }
   @media (hover: none), (pointer: coarse) {
     * { scrollbar-width: none; -ms-overflow-style: none; }
     ::-webkit-scrollbar { width: 0; height: 0; display: none; }
@@ -55,19 +64,23 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: 22px 16px 110px; gap: 16px;
   }
-  .caption { font-size: 13px; text-align: center; max-width: 60ch; line-height: 1.55; opacity: .78; margin: 0; }
+  .caption { font-size: 13px; text-align: center; max-width: 62ch; line-height: 1.55; opacity: .78; margin: 0; }
   .caption b { font-weight: 650; }
 
   .phone {
     width: 390px; height: 810px; background: var(--hud-0);
-    border-radius: 34px; border: 1px solid #333c47;
-    box-shadow: 0 30px 70px -20px rgba(0,0,0,.7), 0 0 0 8px #05070a;
+    border-radius: 34px; border: 1px solid #2a333e;
+    box-shadow: 0 30px 70px -20px rgba(0,0,0,.8), 0 0 0 8px #04060a;
     overflow: hidden; position: relative; color: var(--hud-ink);
     display: flex; flex-direction: column; isolation: isolate;
   }
-  /* The switcher must never sit on top of the screen's own controls, and this one
-     is two rows tall on a phone — so the frame stops short of its MEASURED height
-     rather than a guess. */
+  /* atmosphere: the screen is lit from where the facts are, not flat charcoal */
+  .phone::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(120% 62% at 50% -8%, rgba(232,163,61,.09), transparent 62%),
+      radial-gradient(90% 50% at 50% 108%, rgba(134,179,204,.05), transparent 60%);
+  }
   @media (max-width: 460px) {
     body { padding: 0 0 var(--sw-h); gap: 0; justify-content: flex-start; }
     .caption { display: none; }
@@ -75,17 +88,17 @@
   }
 
   /* ---------- HUD ---------- */
-  .topbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; flex: 0 0 auto; }
-  .wordmark { font-size: 12.5px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--hud-mute); }
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 8px; flex: 0 0 auto; position: relative; z-index: 2; }
   .spacer { flex: 1; }
 
   /* The badge, decided on #8: a pile that only ever gets taller, count beside it.
      Never a shape that FILLS — a full state would grade the person (§7).
-     One change here, and the reason is in the JS: the layer count is logarithmic,
-     so the pile keeps moving past 30 facts instead of saturating. */
+     One change, and the reason is in the JS: the layer count is logarithmic, so
+     the pile keeps moving past 30 facts instead of drawing the same icon forever. */
   .prof { position: relative; display: flex; align-items: center; gap: 7px;
     padding: 5px 11px 5px 9px; border-radius: 999px;
-    background: var(--hud-2); border: 1px solid var(--hud-line); cursor: pointer;
+    background: rgba(29,36,45,.75); border: 1px solid var(--hud-line);
+    backdrop-filter: blur(10px); cursor: pointer;
     transition: transform 260ms cubic-bezier(.2,1.6,.4,1), border-color 400ms ease; }
   .prof svg { width: 18px; height: 21px; display: block; overflow: visible; }
   .prof svg rect { fill: var(--hud-mute); transition: fill 400ms ease; }
@@ -99,173 +112,167 @@
   .prof.pulse svg rect.top { fill: var(--gold); }
   .prof .ring { position: absolute; inset: -1px; border-radius: 999px; border: 1.5px solid var(--gold); opacity: 0; }
   .prof.pulse .ring { animation: ringout 620ms ease-out; }
-  @keyframes ringout { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: scale(1.14); } }
+  @keyframes ringout { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: scale(1.16); } }
 
   .back { appearance: none; background: none; border: none; font: inherit; font-size: 13px;
     color: var(--hud-mute); cursor: pointer; padding: 4px 2px; border-radius: 6px; }
   .back:hover { color: var(--hud-ink); }
   .back:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
-  /* ---------- the head, identical across all three shapes ----------
-     So the three are compared on their BODY, not on their copy. §8.3: the name is
-     deliberately boring, and the interesting thing is inside — "47 things you've
-     told me". No person's name anywhere: pre-wall we do not know it (§6.1). */
-  .phead { padding: 2px 18px 14px; flex: 0 0 auto; }
-  .ptitle { font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
-    color: var(--hud-mute); margin: 0 0 7px; }
-  .pcount { font-size: 23px; font-weight: 620; letter-spacing: -.02em; margin: 0; line-height: 1.15; }
-  .pcount .n { font-family: var(--mono); font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
-  /* §8.1's honest line, as a standing fact rather than an apology. A fact that did
-     not make the bounded CV is not rejected — it is held. Both counts only grow. */
-  .pwait { font-size: 12px; line-height: 1.45; color: var(--hud-mute); margin: 8px 0 0; }
-  .pwait b { color: var(--hud-ink); font-weight: 600; }
-  .pwait .dot { color: var(--gold); }
-
-  .body { flex: 1; overflow-y: auto; min-height: 0; }
-
-  /* ================= SHAPE 1 — the strata =================
-     The badge, opened. The pile from the top bar unfolds into the screen: newest
-     layer on top, and you scroll DOWN into your own history. The argument: the
-     profile is time, and accumulation is the whole point. */
-  .strata { padding: 0 18px calc(26px + env(safe-area-inset-bottom)); display: flex; }
-  .gutter { flex: 0 0 26px; position: relative; }
-  /* one continuous core-sample line, so the slabs read as one column of sediment
-     rather than as N separate cards */
-  .gutter::before { content: ""; position: absolute; left: 11px; top: 6px; bottom: 8px; width: 1px;
-    background: linear-gradient(var(--gold-dim), var(--hud-line) 22%, var(--hud-line)); opacity: .8; }
-  .slabs { flex: 1; min-width: 0; }
-
-  .era { display: flex; align-items: center; gap: 9px; margin: 12px 0 5px;
-    font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--hud-mute); }
-  .era:first-child { margin-top: 2px; }
-  .era::after { content: ""; flex: 1; height: 1px; background: var(--hud-line); }
-
-  /* Tight on purpose. A slab per sentence with breathing room IS the list §8.3
-     bans — the pile only reads as sediment if enough layers are in one glance. */
-  .slab { position: relative; background: var(--hud-1); border: 1px solid var(--hud-line);
-    border-left-width: 3px; border-radius: 2px 7px 7px 2px; padding: 7px 12px 7px 11px;
-    margin-bottom: 2px; cursor: pointer;
-    box-shadow: 0 1px 0 rgba(0,0,0,.4); transition: background 160ms ease, transform 120ms ease; }
-  .slab:hover { background: #1c222a; }
-  .slab:active { transform: translateY(1px); }
-  .slab .txt { font-size: 12.5px; line-height: 1.35; }
-  /* the classification, carried straight from the claim graph, as an edge colour */
-  .slab.verified { border-left-color: var(--gold-dim); }
-  .slab.derived { border-left-color: #4c6b7a; }
-  .slab.partial { border-left-color: #6a5f7a; }
-  .slab.no { border-left-color: var(--settled); background: #141920; }
-  .slab.no .txt { color: var(--settled); }
-  /* the newest layer is lit, and it is the only lit thing on the screen */
-  .slab.fresh { background: #1e242c; border-color: rgba(232,163,61,.42); box-shadow: 0 2px 0 rgba(0,0,0,.35), 0 0 22px -6px var(--gold); }
-  .slab.landing { animation: slabin 560ms cubic-bezier(.2,1.15,.3,1); }
-  @keyframes slabin { from { opacity: 0; transform: translateY(-16px) scaleY(.55); } to { opacity: 1; transform: none; } }
-
-  .slab .meta { display: none; margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--hud-line); }
-  .slab.open .meta { display: block; animation: fade 300ms ease; }
-  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-  .said { font-size: 12px; line-height: 1.5; color: var(--hud-mute); margin: 0; }
-  .said b { color: var(--hud-ink); font-weight: 600; }
-  .cvtag { display: inline-flex; align-items: center; gap: 6px; margin-top: 9px;
-    font-size: 11.5px; color: var(--hud-mute); }
-  .cvtag i { width: 6px; height: 6px; border-radius: 50%; background: var(--settled); flex: 0 0 auto; }
-  .cvtag.on { color: var(--gold); }
-  .cvtag.on i { background: var(--gold); }
-
-  .tick { position: absolute; left: 8px; width: 7px; height: 1px; background: var(--hud-line); }
-  .depth { position: absolute; left: 0; font-family: var(--mono); font-size: 8.5px; color: var(--hud-mute);
-    transform: translateY(-4px); }
-
-  /* ================= SHAPE 2 — the constellation =================
-     The claim graph, drawn. Facts are points; a point links to its nearest
-     neighbour in the same cluster, so the field branches instead of listing. The
-     argument: relationships are the one thing a list physically cannot show. */
-  /* The field stops short of the sheet: a cluster hidden behind it is a cluster
-     the user never sees, and the bottom one always lost that fight. */
-  .sky { position: relative; height: 100%; touch-action: manipulation;
-    padding-bottom: 88px; display: flex; }
-  .sky svg { width: 100%; height: 100%; display: block; }
-  .sky .lnk { stroke: rgba(127,139,152,.42); stroke-width: .35; }
-  .sky .nd { cursor: pointer; }
-  .sky .nd circle { fill: var(--hud-mute); transition: fill 240ms ease; }
-  .sky .nd.verified circle { fill: #d5dbe2; }
-  .sky .nd.derived circle { fill: #7f97a8; }
-  .sky .nd.partial circle { fill: #8b7fa0; }
-  .sky .nd.no circle { fill: var(--settled); }
-  .sky .nd.sel circle { fill: var(--gold); }
-  .sky .nd .halo { fill: none; stroke: var(--gold); stroke-width: .8; opacity: 0; }
-  .sky .nd.fresh .halo { animation: ignite 1500ms ease-out; }
-  .sky .nd.fresh circle { fill: var(--gold); }
-  @keyframes ignite { 0% { opacity: .95; r: 2; } 100% { opacity: 0; r: 15; } }
-  .sky .clabel { fill: var(--hud-mute); font-family: var(--mono); font-size: 3.2px;
-    letter-spacing: .12em; text-transform: uppercase; text-anchor: middle;
-    paint-order: stroke; stroke: var(--hud-0); stroke-width: 1.1px; stroke-linejoin: round; }
-
-  /* the sheet: a point has no room for a sentence, so tapping opens one */
-  .sheet { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
-    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 15px; padding: 15px 16px;
-    box-shadow: 0 -10px 40px -12px rgba(0,0,0,.8); }
-  .sheet.hint { text-align: center; color: var(--hud-mute); font-size: 12.5px; }
-  .sheet .txt { font-size: 14.5px; line-height: 1.4; margin: 0 0 3px; }
-  .sheet.in { animation: sheetin 340ms cubic-bezier(.2,1,.3,1); }
-  @keyframes sheetin { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-  .sheet .cl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+  /* ---------- the head ----------
+     §8.3: the NAME is deliberately boring, so the interesting thing has to be
+     inside — the count is the hero. No person's name anywhere: pre-wall we do not
+     know it (§6.1). */
+  .phead { padding: 0 18px 12px; flex: 0 0 auto; position: relative; z-index: 2; }
+  .ptitle { font-family: var(--mono); font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase;
     color: var(--hud-mute); margin: 0 0 8px; }
+  .pcount { font-size: 22px; font-weight: 600; letter-spacing: -.022em; margin: 0; line-height: 1.1;
+    display: flex; align-items: baseline; gap: 9px; }
+  .pcount .n { font-family: var(--mono); font-size: 38px; font-weight: 700; color: var(--gold-hi);
+    font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1;
+    text-shadow: 0 0 26px rgba(232,163,61,.55), 0 0 8px rgba(232,163,61,.4); }
+  .pcount .t { color: var(--hud-ink); font-weight: 560; }
+  /* §8.1's honest line, framed as held-in-reserve rather than as an apology.
+     A fact that did not make the bounded CV is not rejected. Both counts only grow. */
+  .pwait { font-size: 11.5px; line-height: 1.5; color: var(--hud-mute); margin: 9px 0 0; }
+  .pwait b { color: #b9c3cd; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .pwait .dot { color: var(--gold-lo); }
 
-  /* ================= SHAPE 3 — the character sheet =================
-     Facts sorted into what you are made of. Each domain leads with its strongest
-     fact; the rest sit under it as marks. The argument: §8.3's target feeling is
-     "my character is evolving", and this reads as identity rather than as a log.
-     Nothing empty is ever drawn — an empty slot is a capacity, and a capacity
-     grades the person (§7). */
-  .sheetwrap { padding: 0 18px calc(26px + env(safe-area-inset-bottom)); }
-  .dom { border-top: 1px solid var(--hud-line); padding: 15px 0 16px; }
-  .dom:first-child { border-top: none; padding-top: 2px; }
-  .dom.landing { animation: domin 620ms cubic-bezier(.2,1,.3,1); }
-  @keyframes domin { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-  .dhead { display: flex; align-items: baseline; gap: 9px; margin-bottom: 9px; }
-  .dname { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--hud-mute); }
-  .dcount { font-family: var(--mono); font-size: 10px; color: var(--settled); margin-left: auto; font-variant-numeric: tabular-nums; }
-  .dnew { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
-    color: #1a1206; background: var(--gold); border-radius: 3px; padding: 1px 5px; }
-  /* the headline fact carries the domain — one sentence at reading size, not 40 */
-  .dlead { font-size: 15.5px; line-height: 1.32; font-weight: 560; letter-spacing: -.015em; margin: 0 0 10px; text-wrap: balance; }
-  /* a 2px rule under the line, not a highlighter block — the gradient-stop version
-     painted a third of the line height solid tan and read as damage */
-  .dlead .u { background-image: linear-gradient(rgba(232,163,61,.5), rgba(232,163,61,.5));
-    background-size: 100% 2px; background-position: 0 100%; background-repeat: no-repeat;
-    padding-bottom: 2px; }
+  /* ---------- the toggle ----------
+     Two views of one profile, not two screens — so it sits INSIDE the screen, on
+     glass, and slides. */
+  .views { display: flex; padding: 0 18px 10px; flex: 0 0 auto; position: relative; z-index: 2; }
+  .seg { position: relative; display: flex; padding: 3px; border-radius: 999px;
+    background: rgba(21,26,33,.8); border: 1px solid var(--hud-line); backdrop-filter: blur(10px); }
+  .seg .ind { position: absolute; top: 3px; bottom: 3px; border-radius: 999px;
+    background: linear-gradient(180deg, #2c3540, #222a33);
+    border: 1px solid #3a4552; box-shadow: 0 2px 8px rgba(0,0,0,.5);
+    transition: left 380ms cubic-bezier(.3,1.1,.3,1), width 380ms cubic-bezier(.3,1.1,.3,1); }
+  .seg button { position: relative; appearance: none; background: none; border: none; font: inherit;
+    font-size: 12px; font-weight: 600; letter-spacing: .01em; color: var(--hud-mute);
+    padding: 7px 15px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+    display: flex; align-items: center; gap: 6px; transition: color 260ms ease; }
+  .seg button.on { color: var(--hud-ink); }
+  .seg button.on .ic { color: var(--gold); }
+  .seg button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .seg .ic { width: 13px; height: 13px; display: block; color: var(--hud-mute); transition: color 260ms ease; }
+
+  .body { flex: 1; overflow-y: auto; min-height: 0; position: relative; z-index: 1; }
+
+  /* ================= SORTED — what you are made of =================
+     Facts grouped into domains; each leads with its strongest fact and the rest
+     sit under it as marks. Nothing empty is ever drawn: an empty slot is a
+     capacity, and a capacity grades the person (§7). */
+  .sheetwrap { padding: 2px 18px calc(26px + env(safe-area-inset-bottom)); }
+  .dom { position: relative; padding: 13px 0 14px; }
+  .dom + .dom::before { content: ""; position: absolute; top: 0; left: -18px; right: -18px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--hud-line) 22%, var(--hud-line) 78%, transparent); }
+  /* the same language as the sky: what you have more of, glows more. A glow has
+     no full state, so it can never read as a score (§7). */
+  .dom .aura { position: absolute; left: -30px; top: 8px; width: 150px; height: 76px; pointer-events: none;
+    background: radial-gradient(closest-side, rgba(232,163,61,var(--a,.05)), transparent); }
+  .dom { animation: domrise 560ms cubic-bezier(.2,1,.3,1) backwards; }
+  @keyframes domrise { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: none; } }
+  .dhead { display: flex; align-items: baseline; gap: 9px; margin-bottom: 10px; position: relative; }
+  .dname { font-family: var(--mono); font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--hud-mute); }
+  .dcount { font-family: var(--mono); font-size: 10px; color: var(--settled); margin-left: auto;
+    font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+  .dnew { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: #1a1206; background: var(--gold); border-radius: 3px; padding: 2px 5px; font-weight: 700;
+    box-shadow: 0 0 16px rgba(232,163,61,.5); }
+  /* the headline carries the domain — one sentence at reading size, not forty */
+  .dlead { font-size: 16.5px; line-height: 1.3; font-weight: 550; letter-spacing: -.018em;
+    margin: 0 0 11px; text-wrap: balance; position: relative; cursor: pointer; color: #f2f5f8; }
+  /* No underline. On a two-line headline the rule broke into two floating dashes
+     and read as damage — and the lead is already the biggest thing in its section,
+     so it needs no help. Gold is kept for the fact that just landed. */
+  /* A new fact often becomes its domain's headline — the most prominent slot on
+     the screen. Without this it was the one place a landing fact got NO feedback. */
+  .dlead.fresh { color: #ffe6c2; text-shadow: 0 0 26px rgba(232,163,61,.55); animation: leadin 700ms cubic-bezier(.2,1.1,.3,1); }
+  @keyframes leadin { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
   .chips { display: flex; flex-wrap: wrap; gap: 5px; }
-  .chip { font-size: 11.5px; line-height: 1.25; padding: 5px 9px; border-radius: 999px;
-    background: var(--hud-2); border: 1px solid var(--hud-line); color: var(--hud-ink); cursor: pointer;
-    transition: background 140ms ease, transform 90ms ease; }
-  .chip:hover { background: #262f3a; }
+  .chip { font-size: 11.5px; line-height: 1.25; padding: 6px 11px; border-radius: 999px;
+    background: linear-gradient(180deg, rgba(41,49,59,.85), rgba(29,36,45,.85));
+    border: 1px solid #2f3945; color: #dbe2e9; cursor: pointer; font-family: inherit;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.045);
+    transition: background 160ms ease, transform 90ms ease, border-color 160ms ease; }
+  .chip:hover { border-color: #3e4a58; }
   .chip:active { transform: scale(.96); }
-  .chip.no { background: transparent; border-style: dashed; border-color: #333d48; color: var(--settled); }
+  .chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  /* a "no": present, owned, quiet. Dashed, never a cross, never red. */
+  .chip.no { background: none; border-style: dashed; border-color: #333d48; color: var(--settled); box-shadow: none; }
   .chip.no::before { content: "· "; }
+  /* held for later: a hollow ring reads as "kept", a filled dot reads as "missing" */
   .chip.waiting::after { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%;
-    background: var(--settled); margin-left: 7px; vertical-align: middle; }
-  .chip.fresh { border-color: var(--gold); background: rgba(232,163,61,.14); animation: chipin 620ms cubic-bezier(.2,1.4,.4,1); }
-  @keyframes chipin { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: none; } }
-  .dnote { font-size: 11.5px; color: var(--settled); margin: 10px 0 0; line-height: 1.45; }
+    border: 1px solid var(--gold-lo); margin-left: 7px; vertical-align: middle; }
+  .chip.fresh { border-color: var(--gold); background: rgba(232,163,61,.16); color: #ffe6c2;
+    box-shadow: 0 0 20px rgba(232,163,61,.4); animation: chipin 640ms cubic-bezier(.2,1.4,.4,1); }
+  @keyframes chipin { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
 
-  /* the ruled-out footer — a "no" is a fact you gave, and §6.2 rule 1 makes it
-     close a gap as well as a "yes" does. It is never a failure, never a cross. */
-  .ruled { margin-top: 22px; padding: 14px 15px; border-radius: 12px;
-    background: rgba(77,88,101,.1); border: 1px solid #2a323b; }
-  .ruled p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--hud-mute); }
-  .ruled p b { color: var(--hud-ink); font-weight: 600; }
+  /* a "no" is a fact you gave, and §6.2 rule 1 makes it close a gap as well as a
+     "yes" does. It is never a failure. */
+  .ruled { margin-top: 20px; padding: 14px 15px; border-radius: 13px;
+    background: linear-gradient(180deg, rgba(77,88,101,.11), rgba(77,88,101,.05));
+    border: 1px solid #262e37; }
+  .ruled p { margin: 0; font-size: 12px; line-height: 1.55; color: var(--hud-mute); }
+  .ruled p b { color: #b9c3cd; font-weight: 600; }
+  .dnote { font-size: 11px; color: var(--settled); margin: 14px 0 0; line-height: 1.5; }
 
-  /* the detail sheet is shared by shapes 1 and 3 as a modal */
-  .modal { position: absolute; inset: 0; background: rgba(9,12,16,.76); backdrop-filter: blur(5px);
+  /* ================= CONSTELLATION =================
+     Canvas, not SVG: real bloom needs additive compositing, and SVG filters are
+     too slow for it on a phone. Clusters bloom into a nebula on their own, so
+     DENSITY becomes light — the more you have told it, the brighter you are. A
+     glow has no capacity, so it can never grade the person (§7). */
+  .sky { position: relative; height: 100%; touch-action: manipulation; overflow: hidden; }
+  .sky canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .sky .vig { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(120% 88% at 50% 44%, transparent 52%, rgba(7,9,12,.82)); }
+
+  .sheet { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+    background: rgba(21,26,33,.86); border: 1px solid var(--hud-line); border-radius: 16px;
+    padding: 15px 16px; backdrop-filter: blur(18px) saturate(1.2);
+    box-shadow: 0 -12px 46px -14px rgba(0,0,0,.9); }
+  .sheet.hint { text-align: center; color: var(--hud-mute); font-size: 12px; }
+  .sheet .txt { font-size: 14.5px; line-height: 1.38; margin: 0 0 4px; letter-spacing: -.01em; color: #f2f5f8; }
+  .sheet.in { animation: sheetin 360ms cubic-bezier(.2,1,.3,1); }
+  @keyframes sheetin { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .cl { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--hud-mute); margin: 0 0 8px; display: flex; align-items: center; gap: 7px; }
+  .cl i { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); flex: 0 0 auto;
+    box-shadow: 0 0 10px currentColor; }
+  .cl.cv i { background: var(--steel); }
+  .cl.no i { background: var(--settled); box-shadow: none; }
+
+  /* the legend: the sky is only readable if the colours mean something */
+  .legend { position: absolute; left: 16px; top: 10px; display: flex; flex-direction: column; gap: 5px;
+    pointer-events: none; }
+  .legend span { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--hud-mute); display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 5px; height: 5px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+  .legend .c i { background: var(--steel); box-shadow: 0 0 8px var(--steel); }
+  .legend .n i { background: var(--settled); box-shadow: none; }
+
+  .said { font-size: 11.5px; line-height: 1.5; color: var(--hud-mute); margin: 0; }
+  .said b { color: #cdd5dd; font-weight: 600; }
+  .cvtag { display: inline-flex; align-items: flex-start; gap: 7px; margin-top: 10px;
+    font-size: 11.5px; color: var(--hud-mute); line-height: 1.45; }
+  .cvtag i { width: 5px; height: 5px; border-radius: 50%; background: transparent;
+    border: 1px solid var(--gold-lo); flex: 0 0 auto; margin-top: 5px; }
+  .cvtag.on { color: var(--gold); }
+  .cvtag.on i { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 8px var(--gold); }
+
+  /* the detail sheet, as a modal, for the sorted view */
+  .modal { position: absolute; inset: 0; background: rgba(6,8,11,.72); backdrop-filter: blur(6px);
     display: flex; align-items: flex-end; z-index: 30; animation: fade 220ms ease; }
-  .modal .card { width: 100%; background: var(--hud-1); border-top: 1px solid var(--hud-line);
-    border-radius: 18px 18px 0 0; padding: 20px 20px calc(22px + env(safe-area-inset-bottom));
-    animation: sheetin 340ms cubic-bezier(.2,1,.3,1); }
-  .modal .card .txt { font-size: 16.5px; line-height: 1.35; margin: 0 0 12px; letter-spacing: -.01em; text-wrap: balance; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .modal .card { width: 100%; background: rgba(21,26,33,.97); border-top: 1px solid var(--hud-line);
+    border-radius: 20px 20px 0 0; padding: 20px 20px calc(22px + env(safe-area-inset-bottom));
+    animation: sheetin 360ms cubic-bezier(.2,1,.3,1); }
+  .modal .card .txt { font-size: 17px; line-height: 1.32; margin: 0 0 12px; letter-spacing: -.015em;
+    text-wrap: balance; color: #f2f5f8; }
   .modal .card .x { appearance: none; background: none; border: none; color: var(--hud-mute); font: inherit;
-    font-size: 12.5px; cursor: pointer; margin-top: 14px; padding: 4px 0; }
-
-  .empty { padding: 34px 22px; text-align: center; color: var(--hud-mute); font-size: 13.5px; line-height: 1.55; }
+    font-size: 12.5px; cursor: pointer; margin-top: 16px; padding: 4px 0; }
+  .modal .card .x:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
   .screen { display: none; flex-direction: column; height: 100%; min-height: 0; }
   .screen.on { display: flex; }
@@ -273,8 +280,8 @@
   .switcher { position: fixed; bottom: 11px; left: 50%; transform: translateX(-50%); z-index: 200;
     display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px;
     background: #f2f4f7; color: #101419; max-width: calc(100vw - 12px);
-    border-radius: 18px; padding: 5px; box-shadow: 0 8px 26px rgba(0,0,0,.4); font-family: var(--sans); }
-  .switcher .lbl { font-size: 11px; font-weight: 700; padding: 0 7px; white-space: nowrap; letter-spacing: .03em; }
+    border-radius: 18px; padding: 5px; box-shadow: 0 8px 26px rgba(0,0,0,.5); font-family: var(--sans); }
+  .switcher .lbl { font-size: 11px; font-weight: 700; padding: 0 7px; white-space: nowrap; }
   .switcher button { appearance: none; border: none; font: inherit; font-size: 11.5px; font-weight: 600;
     border-radius: 999px; padding: 0 12px; height: 29px; cursor: pointer; background: #d7dce3; color: #101419;
     white-space: nowrap; }
@@ -286,12 +293,12 @@
 </style>
 
 <p class="caption">
-  <b>Ticket #9 — the profile screen.</b> Three shapes on the same real claims, so they are judged on
-  shape and not on copy: <b>the strata</b> (the profile is time — the badge's pile, opened),
-  <b>the constellation</b> (the profile is a graph — the one thing a list cannot draw), and
-  <b>the character sheet</b> (the profile is what you are made of). Use <b>+ fact</b> to see what
-  opening it right after a chip flew in feels like, and the <b>scale</b> buttons to press §8.3's real
-  question: does it still read at 6 facts, and at 200?
+  <b>Ticket #9 — the profile screen.</b> One screen, two views, toggled inside it:
+  <b>Sorted</b> is what you are made of, and <b>Constellation</b> is the same facts as light —
+  gold for what you told me, steel for what your CV gave, a dim ember for what you've ruled out.
+  Dense areas bloom on their own, so telling it more makes you brighter, and a glow has no full
+  state to grade you against. Use <b>+ fact</b> for the moment a chip lands, and the
+  <b>scale</b> buttons for §8.3's real question: does it hold at 6 facts, and at 200?
 </p>
 
 <div class="phone" id="phone">
@@ -299,11 +306,6 @@
 </div>
 
 <div class="switcher" id="switcher">
-  <span class="lbl">Shape</span>
-  <button data-shape="strata">Strata</button>
-  <button data-shape="sky">Constellation</button>
-  <button data-shape="sheet">Character</button>
-  <span class="sep"></span>
   <span class="lbl">Facts</span>
   <button data-n="6">6</button>
   <button data-n="24">24</button>
@@ -322,22 +324,21 @@
 // stage-gate, Jira/MS Project, FR/EN, MSc + PMP. No name is ever drawn — pre-wall
 // we do not know it (§6.1), and the wall is where Google OAuth hands it over.
 //
-// Every fact below is shaped like a real claim-graph node
+// Every fact is shaped like a real claim-graph node
 // (packages/contracts/fixtures/graph.valid.json):
-//   text           the sentence, as it would render
-//   cls            classification — verified | derived | partial | no ("Negative")
-//   said           source_quote: what the user actually typed, or the CV line
-//   from           origin — "you" (typed an answer) or "cv" (mined from an upload)
-//   dom            the domain it belongs to (the constellation's cluster, the
-//                  character sheet's section)
-//   onCv           whether the BOUNDED CV currently carries it (§8.1). A `no` can
-//                  never be on a CV — the real graph marks those renderable:false.
+//   text   the sentence, as it would render
+//   cls    classification — verified | derived | partial | no ("Negative")
+//   said   source_quote: what the user actually typed, or the CV line
+//   from   origin — "you" (typed an answer) or "cv" (mined from an upload)
+//   dom    the domain: a section in Sorted, a cluster in the Constellation
+//   onCv   whether the BOUNDED CV currently carries it (§8.1). A `no` can never
+//          be on a CV — the real graph marks those renderable:false.
+//
+// ORDER IS CHRONOLOGY. Slicing the array to N gives a truthful "this user is N
+// facts in". Grouping it by domain instead (the first draft) truncated every "no"
+// off the end, so the one thing only this screen can show was invisible below 28.
 // ---------------------------------------------------------------------------
 
-// ORDER IS CHRONOLOGY. The array is the order the user gave things, so slicing it
-// to N gives a truthful "this user is N facts in". Grouping it by domain instead
-// (the first draft) truncated every "no" off the end — so the one thing only this
-// screen can show was invisible at every scale below 28.
 const BASE = [
   // --- what question 1 alone paid out (§6.1: the ask is wide) ----------------
   { dom: "Sectors",    cls: "verified", onCv: 1, from: "you", text: "Eight years in IT delivery.",                    said: "you typed <b>“IT project manager in Paris, mostly ERP, I use Jira and MS Project”</b>" },
@@ -350,8 +351,7 @@ const BASE = [
   // A "no" arrives early, because it does in real life. §6.2 rule 1: it closes a
   // gap as well as a "yes" does, and the claim graph stores it (classification
   // "Negative", renderable:false — it can never reach a CV). The profile is the
-  // ONLY screen where a "no" is visible as something the user OWNS, so how it
-  // renders here is a real question, not decoration.
+  // ONLY screen where a "no" is visible as something the user OWNS.
   { dom: "Sectors",    cls: "no", onCv: 0, from: "you", text: "No public-sector delivery.",                           said: "you tapped <b>No</b>" },
   { dom: "Delivery",   cls: "verified", onCv: 1, from: "you", text: "Delivered an ERP migration end to end, on time.", said: "you tapped <b>Yes — start to finish</b>" },
   { dom: "Delivery",   cls: "verified", onCv: 1, from: "you", text: "Runs agile and stage-gate both.",                 said: "you tapped <b>Both, depending on the client</b>" },
@@ -380,8 +380,8 @@ const BASE = [
 ];
 
 // Filler for the scale test. Composed, not copy-pasted, so 200 facts read as 200
-// plausible facts rather than as one fact repeated — which is the only way the
-// "does it still read at 200" question gets a truthful answer.
+// plausible facts rather than one fact repeated — the only way "does it still
+// read at 200" gets a truthful answer.
 // ponytail: a template shuffle, not a generator worth its own module.
 const FILL = [
   ["Delivery", "Ran the {a} workstream through to handover.", "you tapped <b>Yes, I ran it</b>",
@@ -422,7 +422,6 @@ function buildFacts(n) {
     });
     k++;
   }
-  // Newest last in the array; every shape decides for itself which end is "new".
   return out;
 }
 
@@ -430,19 +429,26 @@ const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
-const CLS_NAME = { verified: "You told me this", derived: "Read from your CV", partial: "Partly answered", no: "Asked and closed" };
 
-let S = { shape: "strata", n: 24, facts: buildFacts(24), fresh: null, open: null, sel: null };
+// What a fact IS, in the user's terms — not "Verified"/"Derived", which are the
+// pipeline's words, not theirs.
+function kindOf(f) {
+  if (f.cls === "no") return { k: "no", label: "Asked and closed" };
+  if (f.from === "cv") return { k: "cv", label: "Read from your CV" };
+  return { k: "you", label: "You told me this" };
+}
+
+let S = { view: "sorted", n: 24, facts: buildFacts(24), fresh: null, sel: null };
 
 // --- the badge -------------------------------------------------------------
 //
 // Decided on #8 and not reopened: a pile that only ever gets taller, count beside
 // it, the word "facts" for the first few answers then gone. ONE change, and it is
 // the open item the ticket lists: #8 drew "a layer per 6 facts, capped at 5", so
-// the pile stops moving at 30 and every count above it draws the same icon. A
-// logarithmic layer count keeps it growing — and because more layers share the
-// same height, a bigger pile reads as DENSER rather than taller-off-the-badge,
-// which is what a real pile does.
+// the pile stops moving at 30 and every count above draws the same icon. A
+// logarithmic layer count keeps it growing — and because the layers share a fixed
+// height, a bigger pile reads as DENSER rather than taller off the badge, which is
+// what a real pile does.
 const layersFor = n => Math.min(9, Math.max(1, Math.round(Math.log2(n + 1))));
 
 function stackSvg(n, freshTop) {
@@ -456,7 +462,6 @@ function stackSvg(n, freshTop) {
 
 function profEl() {
   const n = S.facts.length;
-  // The unit teaches once and then gets out of the way (§8.3).
   const unit = n <= 3 ? `<span class="unit">facts</span>` : "";
   return `<span class="prof" id="prof" title="Your profile — ${n} facts about you">
     <span class="ring"></span>
@@ -464,25 +469,32 @@ function profEl() {
     <span class="n">${n}</span>${unit}</span>`;
 }
 
-// --- the head, shared ------------------------------------------------------
+// --- the head + the toggle -------------------------------------------------
+
+const ICONS = {
+  sorted: `<svg class="ic" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 3.5h10M2 7h7M2 10.5h4"/></svg>`,
+  sky: `<svg class="ic" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="3.4" cy="4" r="1.5"/><circle cx="10.6" cy="3.2" r="1.2"/><circle cx="7" cy="9.8" r="1.6"/><path d="M4.6 4.9 5.9 8.5M9.6 4.2 8 8.5" stroke-linecap="round"/></svg>`,
+};
 
 function head() {
   const n = S.facts.length;
   const onCv = S.facts.filter(f => f.onCv).length;
   const waiting = S.facts.filter(f => !f.onCv && f.cls !== "no").length;
-  // "waiting", never "left off". §8.1's honest line, framed as held in reserve —
-  // which is TRUE (the CV is bounded and re-selects per job), and it is the only
-  // framing that does not read as a verdict on the fact or on the person (§7).
   // A brand-new user has nothing waiting yet, and "0 are waiting" is a zero on the
-  // first screen they open — deflating, and pointless. Say the true simple thing.
+  // first screen they ever open — deflating, and pointless. Say the simple truth.
   const line = waiting
     ? `<b>${onCv}</b> are on your CV right now. <span class="dot">·</span> <b>${waiting}</b> are waiting for a job that asks for them.`
     : `All <b>${onCv}</b> are on your CV right now.`;
   return `<div class="phead">
       <p class="ptitle">your profile</p>
-      <h1 class="pcount"><span class="n">${n}</span> things you've told me</h1>
+      <h1 class="pcount"><span class="n">${n}</span> <span class="t">things you've told me</span></h1>
       <p class="pwait">${line}</p>
-    </div>`;
+    </div>
+    <div class="views"><div class="seg" id="seg">
+      <span class="ind" id="ind"></span>
+      <button data-view="sorted" class="${S.view === "sorted" ? "on" : ""}">${ICONS.sorted}Sorted</button>
+      <button data-view="sky" class="${S.view === "sky" ? "on" : ""}">${ICONS.sky}Constellation</button>
+    </div></div>`;
 }
 
 function chrome(bodyHtml) {
@@ -494,44 +506,6 @@ function chrome(bodyHtml) {
     <div class="body" id="scrollbox">${bodyHtml}</div>`;
 }
 
-// --- shape 1: the strata ---------------------------------------------------
-
-// The era has to be TRUE, not decorative. The first draft labelled everything past
-// slab 12 "read from your CV" regardless of where it came from — so half the pile
-// lied about its own origin. Now it is read off the fact.
-function eraOf(f, i) {
-  if (f.from === "cv") return "read from your CV";
-  if (i === 0) return "just now";
-  if (i < 5) return "a moment ago";
-  return "earlier";
-}
-
-function renderStrata() {
-  // Newest first: you open the pile at the top layer, the one that just landed,
-  // and scrolling down goes back in time. The CV-mined facts sit at the bottom —
-  // the floor the pile was built on, which is what an upload actually is (§11).
-  const typed = S.facts.filter(f => f.from !== "cv").reverse();
-  const mined = S.facts.filter(f => f.from === "cv");
-  const seq = [...typed, ...mined];
-  let html = "", era = null;
-  seq.forEach((f, i) => {
-    const e = eraOf(f, i);
-    if (e !== era) { html += `<div class="era">${e}</div>`; era = e; }
-    const isFresh = S.fresh === f.id;
-    html += `<div class="slab ${f.cls} ${isFresh ? "fresh landing" : ""} ${S.open === f.id ? "open" : ""}" data-id="${f.id}">
-        <div class="txt">${esc(f.text)}</div>
-        <div class="meta">
-          <p class="said">${f.said}</p>
-          <span class="cvtag ${f.onCv ? "on" : ""}"><i></i>${cvLine(f)}</span>
-        </div>
-      </div>`;
-  });
-  return `<div class="strata">
-      <div class="gutter"></div>
-      <div class="slabs" id="slabs">${html}</div>
-    </div>`;
-}
-
 // The §8.1 line, per fact. Three cases, and only one of them is an explanation:
 // on the CV, held for later, or a "no" that can never be on a CV at all.
 function cvLine(f) {
@@ -540,121 +514,39 @@ function cvLine(f) {
     : "Saved to your profile — it'll be used when a job asks for it.";
 }
 
-// --- shape 2: the constellation --------------------------------------------
-//
-// Deterministic layout, no physics. Clusters sit on a ring; inside a cluster each
-// point is placed on a golden-angle spiral, and linked to its NEAREST already-
-// placed neighbour — which branches like a real constellation and costs n-1 lines
-// instead of n². ponytail: O(n²) nearest-neighbour scan, fine at n ≤ 200.
-const GOLDEN = Math.PI * (3 - Math.sqrt(5));
-const VB = 120;   // the viewBox is FIXED, and that is the whole fix
+// --- SORTED ----------------------------------------------------------------
 
-// Fitting the viewBox to the nodes was the bug: with few facts it zoomed in and
-// the points became balloons; with 200 the clusters grew into each other and the
-// screen became one blob. A fixed viewBox means a point is the same size on
-// screen at 6 facts and at 200 — only the DENSITY changes, which is the thing
-// this shape is supposed to show.
-function skyLayout(facts) {
-  const doms = [...new Set(facts.map(f => f.dom))];
-  const nodes = [], links = [], labels = [];
-  // R leaves room for a label OUTSIDE every cluster: ring + spread + label must
-  // still fit the fixed field, or the label gets clamped back on top of the points.
-  const R = doms.length <= 2 ? 17 : 34;
-  // Clusters share a fixed field, so each one's radius is capped by the gap to
-  // its neighbour on the ring — they can never grow into each other.
-  const maxSpread = doms.length < 3 ? 18 : Math.min(19, R * Math.sin(Math.PI / doms.length) * 0.9);
-  doms.forEach((d, di) => {
-    const a = (di / doms.length) * Math.PI * 2 - Math.PI / 2;
-    const cx = VB / 2 + Math.cos(a) * R, cy = VB / 2 + Math.sin(a) * R * .94;
-    const mine = facts.filter(f => f.dom === d);
-    const spread = Math.min(maxSpread, 3.4 + Math.sqrt(mine.length) * 2.6);
-    const placed = [];
-    mine.forEach((f, i) => {
-      const r = spread * Math.sqrt((i + .6) / mine.length), th = i * GOLDEN;
-      const x = cx + Math.cos(th) * r, y = cy + Math.sin(th) * r;
-      const nd = { f, x, y };
-      // link to the closest point already in this cluster
-      let best = null, bd = Infinity;
-      for (const p of placed) {
-        const dd = (p.x - x) ** 2 + (p.y - y) ** 2;
-        if (dd < bd) { bd = dd; best = p; }
-      }
-      if (best) links.push([best.x, best.y, x, y]);
-      placed.push(nd); nodes.push(nd);
-    });
-    // Push the label radially OUTWARD from the field centre, not always upward:
-    // "above" collides with whatever cluster sits above on the ring, and the top
-    // cluster's label ran off the edge entirely.
-    const lx = cx + Math.cos(a) * (spread + 6), ly = cy + Math.sin(a) * (spread + 6) + 1.1;
-    // Anchor by side too, so a label grows AWAY from the field instead of
-    // spanning back across its neighbour.
-    const anchor = Math.cos(a) > .4 ? "start" : Math.cos(a) < -.4 ? "end" : "middle";
-    labels.push({ d, anchor, x: Math.max(3, Math.min(VB - 3, lx)), y: Math.max(4, Math.min(VB - 2, ly)) });
-  });
-  return { nodes, links, labels };
-}
-
-const NODE_W = { verified: 1, derived: .82, partial: .74, no: .62 };
-// A point shrinks as the sky fills, so a dense field stays legible as points
-// rather than merging into one mass.
-const baseR = n => Math.max(.62, Math.min(1.9, 9 / Math.sqrt(n)));
-
-function renderSky() {
-  const { nodes, links, labels } = skyLayout(S.facts);
-  const br = baseR(S.facts.length);
-  const sel = S.sel && S.facts.find(f => f.id === S.sel);
-  return `<div class="sky">
-      <svg viewBox="0 0 ${VB} ${VB}" preserveAspectRatio="xMidYMid meet">
-        <g>${links.map(l => `<line class="lnk" x1="${l[0].toFixed(2)}" y1="${l[1].toFixed(2)}" x2="${l[2].toFixed(2)}" y2="${l[3].toFixed(2)}"></line>`).join("")}</g>
-        <g>${labels.map(l => `<text class="clabel" text-anchor="${l.anchor}" x="${l.x.toFixed(2)}" y="${l.y.toFixed(2)}">${esc(l.d)}</text>`).join("")}</g>
-        <g>${nodes.map(n => {
-          const f = n.f, cl = [f.cls, S.fresh === f.id ? "fresh" : "", S.sel === f.id ? "sel" : ""].filter(Boolean).join(" ");
-          return `<g class="nd ${cl}" data-id="${f.id}" transform="translate(${n.x.toFixed(2)} ${n.y.toFixed(2)})">
-            <circle class="halo" r="2"></circle>
-            <circle r="${(br * NODE_W[f.cls]).toFixed(2)}"></circle>
-            <circle r="${Math.max(2.6, br * 2).toFixed(2)}" fill="transparent"></circle>
-          </g>`;
-        }).join("")}</g>
-      </svg>
-      ${sel
-        ? `<div class="sheet in"><p class="cl">${CLS_NAME[sel.cls]}</p><p class="txt">${esc(sel.text)}</p>
-             <p class="said">${sel.said}</p>
-             <span class="cvtag ${sel.onCv ? "on" : ""}"><i></i>${cvLine(sel)}</span></div>`
-        : `<div class="sheet hint">Every point is something you told me. Tap one.</div>`}
-    </div>`;
-}
-
-// --- shape 3: the character sheet ------------------------------------------
-
-function renderSheet() {
+function renderSorted() {
   const doms = [...new Set(S.facts.map(f => f.dom))];
-  // biggest first, so the screen opens on what the user has most of — never on an
-  // empty or thin one. Nothing absent is ever drawn: an empty slot is a capacity,
-  // and a capacity is a grade (§7).
+  // biggest first, so the screen opens on what the user has most of — never on a
+  // thin one, and never on an empty one, because empties are never drawn at all
   const groups = doms.map(d => ({ d, all: S.facts.filter(f => f.dom === d) }))
     .sort((a, b) => b.all.length - a.all.length);
   const noes = S.facts.filter(f => f.cls === "no");
+  const big = groups[0] ? groups[0].all.length : 1;
 
-  const body = groups.map(g => {
+  const body = groups.map((g, gi) => {
     const yes = g.all.filter(f => f.cls !== "no");
-    const no = g.all.filter(f => f.cls === "no");
-    if (!yes.length && !no.length) return "";
+    if (!yes.length && !g.all.length) return "";
     // the headline is the newest "verified" fact in the domain, else the newest —
     // so a domain visibly re-leads when you answer something strong about it
     const lead = [...yes].reverse().find(f => f.cls === "verified") || [...yes].reverse()[0];
     const rest = g.all.filter(f => f !== lead);
     const isNew = S.fresh && g.all.some(f => f.id === S.fresh);
-    // "new" only for a domain that did not exist a second ago — a domain that
-    // merely grew says so, and says by how much. Calling both "new" is the kind of
-    // small lie that makes the whole screen feel like decoration.
+    // "new" only for a domain that did not exist a second ago; one that merely
+    // grew says so, and says by how much. Calling both "new" is the kind of small
+    // lie that makes a whole screen feel like decoration.
     const badge = g.all.length === 1 ? "new" : "+1";
-    return `<section class="dom ${isNew ? "landing" : ""}">
+    // glow scales with how much is in the domain — same language as the sky
+    const aura = (.035 + .075 * (g.all.length / big)).toFixed(3);
+    return `<section class="dom" style="animation-delay:${Math.min(gi * 55, 330)}ms">
+        <span class="aura" style="--a:${aura}"></span>
         <div class="dhead">
           <span class="dname">${esc(g.d)}</span>
           ${isNew ? `<span class="dnew">${badge}</span>` : ""}
           <span class="dcount">${g.all.length}</span>
         </div>
-        ${lead ? `<p class="dlead" data-id="${lead.id}"><span class="u">${esc(lead.text)}</span></p>` : ""}
+        ${lead ? `<p class="dlead ${S.fresh === lead.id ? "fresh" : ""}" data-id="${lead.id}"><span class="u">${esc(lead.text)}</span></p>` : ""}
         ${rest.length ? `<div class="chips">${rest.map(f => `
           <button class="chip ${f.cls === "no" ? "no" : ""} ${!f.onCv && f.cls !== "no" ? "waiting" : ""} ${S.fresh === f.id ? "fresh" : ""}"
                   data-id="${f.id}">${esc(f.text.replace(/\.$/, ""))}</button>`).join("")}</div>` : ""}
@@ -666,32 +558,259 @@ function renderSheet() {
         <p><b>${noes.length} things you've ruled out.</b> They count. A “no” answers a
         question just as well as a “yes” does — it means I stop asking, and I stop
         showing you jobs that need it.</p></div>` : ""}
-      <p class="dnote" style="margin-top:16px">A dot means it's saved here but not on your CV yet — the CV is
-      two pages, so it picks. Nothing is ever dropped.</p>
+      <p class="dnote">A ring means it's saved here but not on your CV yet — the CV is two pages,
+      so it picks. Nothing is ever dropped.</p>
     </div>`;
+}
+
+// --- CONSTELLATION ---------------------------------------------------------
+//
+// Layout is deterministic, in a FIXED 120-unit field: clusters on a ring, and
+// inside a cluster each point on a golden-angle spiral, linked to its nearest
+// already-placed neighbour so the shape branches instead of starbursting.
+// Fitting the field to the nodes (the first build) was the bug — points ballooned
+// at 6 facts and merged into one blob at 200.
+// ponytail: O(n²) nearest-neighbour scan inside a cluster, fine at n ≤ 200.
+const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+const VB = 120;
+
+function skyLayout(facts) {
+  const doms = [...new Set(facts.map(f => f.dom))];
+  const nodes = [], links = [], labels = [];
+  // R leaves room for a label OUTSIDE every cluster; ring + spread + label must
+  // still fit the field, or the label gets clamped back on top of the points.
+  const R = doms.length <= 2 ? 17 : 34;
+  const maxSpread = doms.length < 3 ? 18 : Math.min(19, R * Math.sin(Math.PI / doms.length) * 0.9);
+  doms.forEach((d, di) => {
+    const a = (di / doms.length) * Math.PI * 2 - Math.PI / 2;
+    const cx = VB / 2 + Math.cos(a) * R, cy = VB / 2 + Math.sin(a) * R * .94;
+    const mine = facts.filter(f => f.dom === d);
+    const spread = Math.min(maxSpread, 3.4 + Math.sqrt(mine.length) * 2.6);
+    const placed = [];
+    mine.forEach((f, i) => {
+      const r = spread * Math.sqrt((i + .6) / mine.length), th = i * GOLDEN;
+      const nd = { f, x: cx + Math.cos(th) * r, y: cy + Math.sin(th) * r, ph: i * 1.7 + di };
+      let best = null, bd = Infinity;
+      for (const p of placed) {
+        const dd = (p.x - nd.x) ** 2 + (p.y - nd.y) ** 2;
+        if (dd < bd) { bd = dd; best = p; }
+      }
+      if (best) links.push([best, nd]);
+      placed.push(nd); nodes.push(nd);
+    });
+    // push the label radially OUTWARD, and anchor it by side, so it grows away
+    // from the field instead of across its neighbour
+    const lx = cx + Math.cos(a) * (spread + 7), ly = cy + Math.sin(a) * (spread + 7) + 1.2;
+    labels.push({ d, x: lx, y: ly, align: Math.cos(a) > .4 ? "left" : Math.cos(a) < -.4 ? "right" : "center" });
+  });
+  return { nodes, links, labels };
+}
+
+// Gold for what you told me, steel for what your CV gave, ember for a "no".
+// The colour is doing work: you can see at a glance how much of you is YOURS.
+const TONE = {
+  you: { core: [255, 226, 176], glow: [232, 163, 61] },
+  cv:  { core: [214, 235, 246], glow: [110, 165, 200] },
+  no:  { core: [124, 132, 141], glow: [70, 80, 92] },
+};
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+let sky = null;   // { canvas, ctx, nodes, links, labels, raf, t0, ignite }
+
+function stopSky() {
+  if (sky && sky.raf) cancelAnimationFrame(sky.raf);
+  if (sky && sky.ro) sky.ro.disconnect();
+  sky = null;
+}
+
+function renderSkyShell() {
+  return `<div class="sky" id="skyWrap">
+      <canvas id="skyCanvas"></canvas>
+      <div class="vig"></div>
+      <div class="legend">
+        <span><i></i>you told me</span>
+        <span class="c"><i></i>from your CV</span>
+        <span class="n"><i></i>ruled out</span>
+      </div>
+      <div class="sheet hint" id="skySheet">Every point is something you told me. Tap one.</div>
+    </div>`;
+}
+
+function startSky() {
+  const wrap = $("#skyWrap"), canvas = $("#skyCanvas");
+  if (!wrap || !canvas) return;
+  const ctx = canvas.getContext("2d");
+  const layout = skyLayout(S.facts);
+  sky = { wrap, canvas, ctx, ...layout, t0: performance.now(), ignite: null, w: 0, h: 0, s: 1, ox: 0, oy: 0 };
+
+  const fit = () => {
+    const r = wrap.getBoundingClientRect();
+    const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    sky.w = r.width; sky.h = r.height;
+    canvas.width = Math.max(1, Math.round(r.width * dpr));
+    canvas.height = Math.max(1, Math.round(r.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // map the fixed field into the canvas, leaving room for the sheet at the
+    // bottom — a cluster behind the sheet is a cluster nobody ever sees
+    const padB = 104, usable = Math.max(60, r.height - padB);
+    // Uniform scale left a third of the screen empty under the field on a tall
+    // phone. Stretch vertically, capped, so the sky fills the space it has —
+    // constellations are not uniform anyway, and the points stay round.
+    sky.s = Math.min(r.width, usable) / VB;
+    sky.sy = Math.min(usable / VB, sky.s * 1.32);
+    sky.ox = (r.width - VB * sky.s) / 2;
+    sky.oy = (usable - VB * sky.sy) / 2 + 6;
+  };
+  fit();
+  sky.ro = new ResizeObserver(fit);
+  sky.ro.observe(wrap);
+
+  // Points drift on their own slow sine, so the field breathes instead of sitting
+  // there printed. Amplitude is deliberately tiny — this is atmosphere, not motion.
+  const px = (nd, t) => ({
+    x: sky.ox + (nd.x + (reduced ? 0 : Math.sin(t * .00021 + nd.ph) * .9)) * sky.s,
+    y: sky.oy + (nd.y + (reduced ? 0 : Math.cos(t * .00017 + nd.ph * 1.3) * .9)) * sky.sy,
+  });
+
+  // a point shrinks as the sky fills, so a dense field stays points rather than mass
+  const baseR = Math.max(1.15, Math.min(3.2, 15 / Math.sqrt(S.facts.length)));
+
+  const draw = () => {
+    const t = performance.now() - sky.t0;
+    const ctx = sky.ctx;
+    ctx.clearRect(0, 0, sky.w, sky.h);
+
+    // the fade-in: the sky lights up rather than appearing
+    const intro = reduced ? 1 : Math.min(1, t / 900);
+
+    // links first, under everything, hair-thin
+    ctx.lineWidth = Math.max(.4, baseR * .16);
+    sky.links.forEach(([a, b]) => {
+      const pa = px(a, t), pb = px(b, t);
+      const g = ctx.createLinearGradient(pa.x, pa.y, pb.x, pb.y);
+      const ta = TONE[kindOf(a.f).k].glow, tb = TONE[kindOf(b.f).k].glow;
+      g.addColorStop(0, rgba(ta, .32 * intro));
+      g.addColorStop(1, rgba(tb, .32 * intro));
+      ctx.strokeStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(pa.x, pa.y);
+      // a slight sag, so the web reads as drawn rather than plotted
+      ctx.quadraticCurveTo((pa.x + pb.x) / 2, (pa.y + pb.y) / 2 + Math.abs(pa.x - pb.x) * .07, pb.x, pb.y);
+      ctx.stroke();
+    });
+
+    // the bloom. Additive, so dense clusters light each other and become a nebula
+    // on their own — density BECOMES light, with no full state to grade against.
+    ctx.globalCompositeOperation = "lighter";
+    sky.nodes.forEach((nd, i) => {
+      const p = px(nd, t), k = kindOf(nd.f).k, tone = TONE[k];
+      const stagger = reduced ? 1 : Math.max(0, Math.min(1, (t - i * 6) / 500));
+      if (stagger <= 0) return;
+      const dim = nd.f.cls === "derived" || nd.f.cls === "partial" ? .72 : 1;
+      const isFresh = S.fresh === nd.f.id, isSel = S.sel === nd.f.id;
+      const boost = isFresh || isSel ? 1.9 : 1;
+      const r = baseR * (k === "no" ? .74 : 1) * (isSel ? 1.35 : 1);
+
+      // halo
+      const hr = r * (k === "no" ? 3.4 : 7) * boost;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, hr);
+      g.addColorStop(0, rgba(tone.glow, .5 * dim * stagger * intro));
+      g.addColorStop(.45, rgba(tone.glow, .13 * dim * stagger * intro));
+      g.addColorStop(1, rgba(tone.glow, 0));
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(p.x, p.y, hr, 0, 7); ctx.fill();
+
+      // core
+      ctx.fillStyle = rgba(tone.core, (k === "no" ? .5 : .95) * dim * stagger * intro);
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fill();
+    });
+
+    // the ignition: a fact just landed, and the sky says so
+    if (sky.ignite) {
+      const nd = sky.ignite.nd, e = (performance.now() - sky.ignite.at) / 1100;
+      if (e >= 1) sky.ignite = null;
+      else {
+        const p = px(nd, t), ease = 1 - Math.pow(1 - e, 3);
+        ctx.strokeStyle = rgba(TONE.you.glow, .55 * (1 - e));
+        ctx.lineWidth = 1.6 * (1 - e) + .3;
+        ctx.beginPath(); ctx.arc(p.x, p.y, baseR + ease * 46, 0, 7); ctx.stroke();
+      }
+    }
+    ctx.globalCompositeOperation = "source-over";
+
+    // cluster labels, over the bloom, tiny and quiet
+    ctx.font = `500 ${Math.max(7.5, 8.5 * Math.min(1.3, sky.s / 2.6))}px ${getComputedStyle(document.body).getPropertyValue("--mono") || "monospace"}`;
+    if ("letterSpacing" in ctx) ctx.letterSpacing = "1.4px";
+    ctx.fillStyle = `rgba(127,139,152,${.85 * intro})`;
+    sky.labels.forEach(l => {
+      ctx.textAlign = l.align === "center" ? "center" : l.align === "left" ? "left" : "right";
+      ctx.fillText(l.d.toUpperCase(), sky.ox + l.x * sky.s, sky.oy + l.y * sky.sy);
+    });
+
+    sky.raf = requestAnimationFrame(draw);
+  };
+  sky.raf = requestAnimationFrame(draw);
+
+  // hit-testing: nearest point within a finger's width
+  const hit = e => {
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const t = performance.now() - sky.t0;
+    let best = null, bd = Infinity;
+    sky.nodes.forEach(nd => {
+      const p = px(nd, t), d = (p.x - mx) ** 2 + (p.y - my) ** 2;
+      if (d < bd) { bd = d; best = nd; }
+    });
+    // generous: on a sparse field a finger should land on the nearest point, not
+    // miss into empty space. 24px was a mouse-sized target, not a thumb-sized one.
+    if (best && bd < 46 * 46) { S.sel = best.f.id; paintSheet(); }
+  };
+  canvas.addEventListener("pointerdown", hit);
+}
+
+// The sheet is repainted directly rather than through a re-render, so tapping a
+// point never restarts the canvas (which would reset the drift and the intro).
+function paintSheet() {
+  const el = $("#skySheet");
+  if (!el) return;
+  const f = S.facts.find(x => x.id === S.sel);
+  if (!f) return;
+  const k = kindOf(f);
+  el.className = "sheet in";
+  el.innerHTML = `<p class="cl ${k.k}"><i></i>${k.label}</p>
+    <p class="txt">${esc(f.text)}</p>
+    <p class="said">${f.said}</p>
+    <span class="cvtag ${f.onCv ? "on" : ""}"><i></i>${cvLine(f)}</span>`;
 }
 
 // --- render ----------------------------------------------------------------
 
-const BODIES = { strata: renderStrata, sky: renderSky, sheet: renderSheet };
-
 function render(keepScroll) {
   const box = $("#scrollbox");
   const y = keepScroll && box ? box.scrollTop : 0;
-  $("#scr").innerHTML = chrome(BODIES[S.shape]());
+  stopSky();
+  $("#scr").innerHTML = chrome(S.view === "sorted" ? renderSorted() : renderSkyShell());
   const nbox = $("#scrollbox");
   if (nbox && y) nbox.scrollTop = y;
 
+  if (S.view === "sky") {
+    startSky();
+    if (S.sel) paintSheet();
+  }
+
   $("#back").onclick = () => {};   // prototype: the profile is the only screen here
   $$("#scr [data-id]").forEach(el => el.onclick = () => pick(el.dataset.id));
-  $$(".switcher button").forEach(b => {
-    b.classList.toggle("on", b.dataset.shape === S.shape || +b.dataset.n === S.n);
+  $$("#seg button").forEach(b => b.onclick = () => {
+    if (S.view === b.dataset.view) return;
+    S.view = b.dataset.view; S.sel = null; render(false);
   });
+  moveIndicator();
+
   // The freshly-landed fact must be VISIBLE, not merely rendered — the same rule
   // §8.2 puts on the typewriter: feedback below the fold was never delivered.
-  if (S.fresh) {
+  if (S.fresh && S.view === "sorted") {
     const el = $(`#scr [data-id="${S.fresh}"]`);
-    if (el && nbox && el.scrollIntoView) {
+    if (el && nbox) {
       const b = nbox.getBoundingClientRect(), e = el.getBoundingClientRect();
       if (e.top < b.top || e.bottom > b.bottom)
         nbox.scrollTo({ top: nbox.scrollTop + (e.top - b.top) - 40, behavior: reduced ? "auto" : "smooth" });
@@ -699,32 +818,35 @@ function render(keepScroll) {
   }
 }
 
+function moveIndicator() {
+  const seg = $("#seg"), ind = $("#ind");
+  if (!seg || !ind) return;
+  const on = $(`#seg button[data-view="${S.view}"]`);
+  if (!on) return;
+  ind.style.left = (on.offsetLeft) + "px";
+  ind.style.width = on.offsetWidth + "px";
+}
+
 function pick(id) {
   const f = S.facts.find(x => x.id === id);
   if (!f) return;
-  if (S.shape === "sky") { S.sel = id; render(true); return; }
-  if (S.shape === "strata") { S.open = S.open === id ? null : id; render(true); return; }
-  modal(f);
-}
-
-function modal(f) {
+  const k = kindOf(f);
   const m = document.createElement("div");
   m.className = "modal";
   m.innerHTML = `<div class="card">
-      <p class="cl" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--hud-mute);margin:0 0 8px">${CLS_NAME[f.cls]}</p>
+      <p class="cl ${k.k}"><i></i>${k.label}</p>
       <p class="txt">${esc(f.text)}</p>
       <p class="said">${f.said}</p>
       <span class="cvtag ${f.onCv ? "on" : ""}"><i></i>${cvLine(f)}</span>
       <br><button class="x">Close</button>
     </div>`;
-  const close = () => m.remove();
-  m.onclick = e => { if (e.target === m || e.target.classList.contains("x")) close(); };
+  m.onclick = e => { if (e.target === m || e.target.classList.contains("x")) m.remove(); };
   $("#phone").appendChild(m);
 }
 
-// A new fact lands — this is the moment the ticket actually asks about: what the
-// growth feels like when you open the profile right after a chip flew into the
-// badge. Each shape answers it differently, which is the point.
+// A new fact lands — the moment the ticket actually asks about: what the growth
+// feels like when you open the profile right after a chip flew into the badge.
+// Each view answers it differently, which is the point of keeping both.
 const NEW_FACTS = [
   { dom: "Delivery", cls: "verified", onCv: 1, from: "you", text: "Ran a cutover across four European sites.", said: "you tapped <b>Yes — all four</b>" },
   { dom: "Scale",    cls: "verified", onCv: 0, from: "you", text: "Owned a €400k change budget on top.",       said: "you tapped <b>Yes</b>" },
@@ -740,9 +862,13 @@ function addFact() {
   S.facts.push(f);
   S.n = S.facts.length;
   S.fresh = f.id;
-  S.open = null; S.sel = null;
+  S.sel = null;
   render(true);
-  // the badge does its decided thing: the pile grows by a layer and pulses
+  if (S.view === "sky" && sky) {
+    const nd = sky.nodes.find(x => x.f.id === f.id);
+    if (nd) sky.ignite = { nd, at: performance.now() };
+  }
+  // the badge does its decided thing: the pile gains a layer and pulses
   const p = $("#prof");
   if (p) {
     $("svg", p).innerHTML = stackSvg(S.facts.length, true);
@@ -753,20 +879,21 @@ function addFact() {
 
 // --- wiring ----------------------------------------------------------------
 
-$$(".switcher button[data-shape]").forEach(b => b.onclick = () => {
-  S.shape = b.dataset.shape; S.open = null; S.sel = null; render(false);
-});
 $$(".switcher button[data-n]").forEach(b => b.onclick = () => {
-  S.n = +b.dataset.n; S.facts = buildFacts(S.n); S.fresh = null; S.open = null; S.sel = null; render(false);
+  S.n = +b.dataset.n; S.facts = buildFacts(S.n); S.fresh = null; S.sel = null;
+  $$(".switcher button[data-n]").forEach(x => x.classList.toggle("on", x === b));
+  render(false);
 });
 $("#add").onclick = addFact;
 
-// Measure the switcher instead of guessing: it wraps to two rows on a phone, and
-// a guessed height is how a control ends up under the fold.
+// Measure the switcher instead of guessing: it wraps on a phone, and a guessed
+// height is how a control ends up under the fold.
 const sw = $("#switcher");
 const measure = () => document.documentElement.style.setProperty("--sw-h", (sw.offsetHeight + 22) + "px");
 new ResizeObserver(measure).observe(sw);
 measure();
+$(`.switcher button[data-n="24"]`).classList.add("on");
 
 render(false);
+window.addEventListener("resize", moveIndicator);
 </script>
