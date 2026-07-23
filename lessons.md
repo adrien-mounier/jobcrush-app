@@ -2,6 +2,20 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## A "gate" in a design doc often gates one small parameter, not the whole build
+
+§3's reversal condition read like it blocked building the app: "if v1 cards aren't better than a
+LinkedIn search, move the wall before the reveal." Taken at face value it says *don't build until the
+cards are proven good*. But tracing what it actually controls, it only sets **one** thing — where the
+signup wall sits — which was already a deferred, post-launch-reversible choice. The build never
+depended on it. **Before letting a stated condition block work, ask precisely what decision it
+changes; a scary-sounding gate frequently turns out to gate a single late-bound knob.** Here the
+deeper reason it doesn't gate the build is architectural: CV-tailoring quality lives in prompts +
+`preview.ts` behind the `llm.ts` seam and a versioned card contract (`cv-quality-kickoff.md` §7 tunes
+it by changing a prompt, never a screen), so quality improves later without moving the UI. When the
+output contract is stable, "make the output better" and "build the thing that shows the output" are
+independent tracks — don't serialise them.
+
 ## A phone-emulation Playwright pass silently skips every hover/desktop path
 
 The whole prototype-pressing habit runs on `devices["iPhone 13"]`, which reports `(hover: none)` and

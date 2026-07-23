@@ -47,6 +47,17 @@ which then caught a **badge/header count mismatch** (badge still counted the rem
 and a **latent throw** (the ignite ring referenced the old `TONE.you` key). 59 mobile + 4 desktop
 checks green, both views, 6 / 24 / 47 / 200 facts.
 
+**Follow-up decision — §3's reversal condition softened from a gate to a signal.** Adrien argued the
+app can be built now and average CVs improved later without touching the design. Checked against the
+code and it holds: tailoring lives in prompts + `preview.ts` behind the `llm.ts` seam and a versioned
+card contract, `cv-quality-kickoff.md` §7 tunes quality by *changing a prompt and re-running the
+workbench* (never a screen), and the posting-match is already a placeholder for the S3 cluster engine
+"swapped later with no UI change". So §3 no longer gates the build — the 20-ads × 3-CVs taste-test
+runs **in parallel**, deciding only (1) go/no-go on *bad* (not merely average) cards and (2) the wall's
+opening position (§12), which is itself reversible post-launch on server-side drop-off data. §3 and the
+doc's *Pending* section amended. The design survives average because the card never shows a bare number
+(§7, §9.1) — it always shows the reasoning.
+
 ## 2026-07-23 (session 17) — The job card: a bubble that audits the number, and a reveal that hides the deck (no product code)
 
 Resolved [The job card: what it shows and why it beats a job board](https://github.com/adrien-mounier/jobcrush-app/issues/10)

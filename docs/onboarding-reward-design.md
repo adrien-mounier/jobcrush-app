@@ -85,6 +85,27 @@ score is the thing Indeed cannot do, so the score is what we lead with.
 **Reversal condition:** if v1 cards are not obviously better than a LinkedIn search within ten
 seconds, the wall moves *before* the reveal. **A promise beats disappointing proof.**
 
+> **Softened to a signal, not a gate — 2026-07-24.** This condition does **not** block building the
+> app, because **the app design is decoupled from CV-tailoring quality**, and the codebase is built
+> that way:
+> - Quality lives in **prompts** (`prompts/claim-miner.md`, `preview-tailor.md`) + `preview.ts`, behind
+>   the `llm.ts` seam and a **versioned card contract**. `cv-quality-kickoff.md` §7 improves it by
+>   *"changing a prompt and re-running the workbench"* — never by touching a screen. The posting-match
+>   in `preview.ts` is already a placeholder for *"the real cluster engine, S3/JC-31"*, designed to be
+>   swapped later with no UI change. So **average cards get better later without moving the machine.**
+> - The design is *built* for imperfect scores: §7 and §9.1 mean the card **never shows a bare
+>   number** — it always shows the reasoning (the bubble, where you fit / don't). That stays honest
+>   even when the score is only average. **Average is survivable; only *worse-than-a-job-board* is not**,
+>   and that is a product-viability question, not a redesign.
+> - What quality still informs is **only where the wall sits** (§12), and even that is reversible after
+>   launch: answers persist server-side from question 1, so the wall can move on real drop-off data,
+>   not a pre-launch guess.
+>
+> **Consequence:** build the flow now (`/to-spec` the design). Run the 20-ads × 3-CVs taste-test *in
+> parallel* — it is a go/no-go on whether cards are *bad*, and it sets the wall's opening position; it
+> is no longer a gate the build waits behind. Do keep it before pointing *real users* at the reveal:
+> a first impression cannot be re-taken, so a soft/limited launch covers the "bad, not average" case.
+
 ## 4. Three feedback speeds
 
 The design brief, stated plainly: build the Tinder loop — *tiny action → instant visible response →
@@ -735,11 +756,15 @@ anything.
 - **The existing design system is out.** `packages/ui/src/tokens.css` is not a constraint on this
   work — see *The shape*.
 
-## Pending — before any product code
+## Pending — runs in parallel with the build _(re-scoped 2026-07-24)_
 
 **Score 20 real job ads against 3 real CVs, print the 9 cards, look at them.** Half a day, no product
-code. This is the evidence behind §3's reversal condition: if the cards are not obviously better than
-a LinkedIn search in ten seconds, the wall moves before the reveal.
+code. This was framed as *before any product code*; it is **no longer a gate** — see §3's *softened to
+a signal* note. Build the flow now (`/to-spec`) and run this **alongside** it. What it decides: (1) a
+go/no-go on whether cards are *bad* (worse than a job board) rather than merely average — the design
+survives average, not bad; and (2) the wall's **opening** position (§12), which stays reversible after
+launch on real drop-off data. Improving *average → good* is later prompt/E5 work behind a stable
+contract, and never touches the machine.
 
 ## Open
 
