@@ -319,9 +319,55 @@ next question.
 
 **Two entry points, rendered as one door.** The user is never asked to choose a path.
 
-- **Primary:** a big central invitation to *be interviewed* — the "ready?" framing, worded so a
-  stranger *wants* to participate. (Exact copy TBD, and it matters.)
+- **Primary:** a big central invitation to *be interviewed* — worded so a stranger *wants* to
+  participate.
 - **Secondary, small, same screen:** *upload your CV to skip ahead.*
+
+### 10.1 The copy, and the door is question 1 _(decided 2026-07-23, [#7](https://github.com/adrien-mounier/jobcrush-app/issues/7))_
+
+**The door has no Start button. The door *is* question 1** — the invitation sits above, and question
+1's tappable answers are the only button on the screen. A Start button is a tap that returns nothing,
+which is the exact inverse of §4's brief (*tiny action → instant visible response*). Here the first
+tap buys the paper: you land on discovery with your answer already typing itself into the CV and the
+badge at one fact. The top bar carries no profile badge until then — nothing has been earned yet, so
+an empty badge sitting at zero would be the first thing a stranger sees.
+
+The decided words:
+
+> ## Answer questions. **Collect jobs.**
+> Each answer writes your CV and brings the next matches closer. Stop whenever you like — you keep
+> everything you've earned.
+>
+> *What kind of job are you going for?* → [tappable answers]
+>
+> <sub>Already have a CV? **Upload it** and skip the questions it already answers.</sub>
+
+Four candidates were written and read on the real screen; this one won. **It is the only one whose
+headline never mentions a CV** — questions in, jobs out — so the user §1 brought into scope, the one
+arriving with nothing, is never told they are missing something. It also names the loop the whole
+design is built on (§8: *the cards are loot*) in four words. Rejected: *"Which jobs would you actually
+get?"* (sharpest statement of the differentiator, but "actually get" can be heard as "probably none" —
+§7's grade-on-a-person through the side door), *"Let me ask you about your work"* (true to the
+interview framing, but promises no payoff), and *"You don't need a CV to start"* (best for the no-CV
+user, but leads with the CV, which §2 says nobody wants).
+
+**Three things the door may never say**, each derived from a decision made elsewhere:
+
+- **No count and no duration.** §6 made discovery variable-length, so *"5 questions"* and *"takes two
+  minutes"* are promises we would be caught breaking.
+- **Nothing about account, price or signup.** §12 walls after the reveal — saying *"free"* invites
+  *why?*, and *"no signup"* plants the word.
+- **The skip-ahead says what it actually does** — it skips *the questions the CV answers*, not the
+  process. §11: a CV buys one jump, it does not end the game. *"Skip ahead"* alone would promise being
+  done.
+
+The screen is deliberately empty above the invitation. We know nothing about this person yet, so
+anything there would be generic marketing; §6's promise (*"142 project manager jobs are open in Paris
+right now"*) cannot fire until question 1 tells us the family. The emptiness is the *before*.
+
+*Watch:* "Stop whenever you like" is reassurance offered at the entrance, before there is anything to
+stop doing. It defuses *how long is this?* without naming a duration, which is why it earns its place —
+but if the door ever tests badly, that clause is the first thing to try cutting.
 
 Rejected: **CV first** (a file picker is the most expensive first step that exists, especially on a
 phone, and the no-CV user hits a wall at pixel one) and **two visible doors** (that is two flows
@@ -402,9 +448,9 @@ Tracked as tickets on the wayfinder map
 - ~~**The onboarding screen itself**~~ — **done 2026-07-23**, see *The shape*
   ([#8](https://github.com/adrien-mounier/jobcrush-app/issues/8)). Prototype:
   `apps/web/prototypes/onboarding-screen.prototype.html`.
-- **Copy for the front door.** The "ready?" invitation and the CV skip-ahead line. Wording is
-  load-bearing here — it is the whole conversion of a stranger into a participant.
-  ([#7](https://github.com/adrien-mounier/jobcrush-app/issues/7))
+- ~~**Copy for the front door.**~~ — **done 2026-07-23**, see §10.1
+  ([#7](https://github.com/adrien-mounier/jobcrush-app/issues/7)). *"Answer questions. Collect jobs."*,
+  and the door is question 1 rather than a Start button.
 - **What the discovery questions are, how they're chosen, and when we stop.** One mechanism: pick the
   next question from the gap between the family floor and what we know; stop when the gap closes.
   ([#6](https://github.com/adrien-mounier/jobcrush-app/issues/6))

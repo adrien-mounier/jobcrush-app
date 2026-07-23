@@ -151,8 +151,12 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
   [`docs/onboarding-reward-design.md`](docs/onboarding-reward-design.md). The stopping rule is that
   there is none: the bar only ever counts down to the next card drop, so nothing is ever
   "incomplete" and the user leaves whenever they like, holding what they earned. What remains from
-  this entry — the **front-door copy**, **which ~5 questions we ask**, and the **character-sheet UI**
-  — are listed as open there.
+  this entry is tracked on the wayfinder map
+  [Onboarding journey: landing to first card](https://github.com/adrien-mounier/jobcrush-app/issues/5):
+  the **front-door copy** is **done 2026-07-23** (*"Answer questions. Collect jobs."*, and the door
+  is question 1 rather than a Start button — §10.1); still open are **the discovery questions**
+  (no longer "~5" — §6 made discovery variable-length, running until the root CV covers the family
+  floor), **the profile screen**, and **the job card's contents**.
 
 ## Completed
 

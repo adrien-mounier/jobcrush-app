@@ -2,6 +2,22 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## On a copy ticket, most of the hard calls are inherited constraints, not taste
+
+The front-door ticket looked like pure wordsmithing. It wasn't: three of the four hardest calls were
+already decided elsewhere, by people (us) who never propagated the consequence to the words. The door
+**cannot say "5 questions" or "takes two minutes"** — §6 replaced the flat pace with a variable-length
+discovery, so both are promises we'd be caught breaking. It **cannot say "free" or "no signup"** — §12
+walls after the reveal, so "free" invites *why?* and "no signup" plants a word the visitor wasn't
+thinking. And the CV shortcut **cannot say just "skip ahead"** — §11 says a CV buys one jump and does
+*not* end the game, so the honest line is "skip the questions it already answers". Every one of those
+reads as a style choice and is actually a correctness constraint, enforced nowhere. So: **before
+drafting any user-facing words, re-read the decision log for what those words are no longer allowed to
+claim** — the constraint is never in the copy ticket, it's in a section three chapters away that
+changed after the copy was scoped. Same shape as the CV-brain rule: the reasoning doc is the contract,
+the surface has to stay true to it. Record: `docs/onboarding-reward-design.md` §10.1, wayfinder
+ticket #7.
+
 ## Prototype the screen before trusting the flow you designed on paper
 
 The reward structure was grilled to 13 locked decisions over two sessions, all of them defensible on

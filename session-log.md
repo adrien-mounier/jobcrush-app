@@ -2,6 +2,60 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-23 (session 15) — The front door: its words, and the discovery that it has no Start button (no product code)
+
+Resolved [Front-door copy: the invitation and the skip-ahead](https://github.com/adrien-mounier/jobcrush-app/issues/7)
+on the wayfinder map [Onboarding journey: landing to first card](https://github.com/adrien-mounier/jobcrush-app/issues/5).
+Commits `e35da28` (screen 0 + four candidates) and the follow-up collapsing it to the winner. Doc:
+`docs/onboarding-reward-design.md` **§10.1**. Prototype: `apps/web/prototypes/onboarding-screen.prototype.html`,
+screen 0.
+
+**The decided door:**
+
+> ## Answer questions. **Collect jobs.**
+> Each answer writes your CV and brings the next matches closer. Stop whenever you like — you keep
+> everything you've earned.
+>
+> *What kind of job are you going for?* → [tappable answers]
+>
+> <sub>Already have a CV? **Upload it** and skip the questions it already answers.</sub>
+
+Four candidates were written into the prototype and read on the real screen before choosing — the
+session-14 lesson applied deliberately. It won because **it is the only one whose headline never
+mentions a CV**: questions in, jobs out, so the no-CV user §1 brought into scope is never told they
+are missing something. Rejected: *"Which jobs would you actually get?"* (sharpest differentiator, but
+*"actually get"* can be heard as *"probably none"* — §7 through the side door), *"Let me ask you about
+your work"* (asks for effort, names no payoff), *"You don't need a CV to start"* (best for the no-CV
+user, but leads with the CV, which §2 says nobody wants).
+
+**The bigger outcome was structural, and the screen forced it: the door has no Start button — the door
+*is* question 1.** A Start button is a tap that returns nothing, the exact inverse of §4's brief. So
+the invitation sits above and question 1's tappable answers are the only button: the first tap buys
+the paper, and you land on discovery with your own job title already typing itself into the CV and the
+badge at one fact. Two consequences fell out — **no profile badge on the door** (nothing earned yet;
+an empty badge at zero would be a stranger's first sight of it), and the badge's first render now
+happens at exactly one, which made `1 facts` unavoidable at the first beat (fixed).
+
+**Three things the door may never say**, none of them taste calls — each is a consequence of a
+decision made in a different session: no count or duration (§6 made discovery variable-length),
+nothing about account, price or signup (§12 walls after the reveal), and the skip-ahead must say it
+skips *the questions the CV answers*, not the process (§11 — a CV buys one jump, it does not end the
+game). See `lessons.md`.
+
+Noted, not re-opened: the screen is deliberately empty above the invitation (we know nothing about
+this person yet, and §6's *"142 jobs open in Paris"* promise cannot fire until question 1 names the
+family — so its earliest possible slot is question 2); and *"Stop whenever you like"* offers an exit
+at the entrance, which is the first clause to cut if the door ever tests badly.
+
+**Unblocked [The discovery questions](https://github.com/adrien-mounier/jobcrush-app/issues/6)**, which
+inherits hard constraints from this: question 1 must be answerable in **one tap** by a total stranger
+(a text field is nearly as expensive as the file picker §10 rejected), its answer must yield a **job
+title or family** (the door's payout is the role line typed onto the paper), and the prototype's closed
+list of three PM titles cannot be the real answer — the dashed **"Something else"** escape hatch is
+required, and designing what it opens is now on the critical path because this is the *first* screen.
+
+Map frontier now: **#6** (unblocked by this), **#9** (the profile screen), **#10** (the job card).
+
 ## 2026-07-23 (session 14) — The onboarding screen prototyped; the flow became three screens (no product code)
 
 Resolved [The onboarding screen](https://github.com/adrien-mounier/jobcrush-app/issues/8) on the

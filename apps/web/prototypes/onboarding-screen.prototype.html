@@ -297,9 +297,8 @@
 
 <p class="caption">
   <b>0 · The front door</b> (ticket #7) — the invitation, and the CV skip-ahead. The door <i>is</i>
-  question 1: tap an answer and the CV starts writing itself. Press <b>wording</b> to read the four
-  candidate invitations in place. Then <b>1 · Discovery</b> builds the root CV,
-  <b>2 · The deck</b> is jobs only, <b>3 · Tailor</b> sharpens one CV for one job.
+  question 1: tap an answer and the CV starts writing itself. Then <b>1 · Discovery</b> builds the
+  root CV, <b>2 · The deck</b> is jobs only, <b>3 · Tailor</b> sharpens one CV for one job.
 </p>
 
 <div class="phone" id="phone">
@@ -317,7 +316,6 @@
 
 <div class="switcher">
   <span class="lbl" id="lbl"></span>
-  <button class="ghost" id="word">wording</button>
   <button class="ghost" id="skip">next screen</button>
   <button id="reset">restart</button>
 </div>
@@ -343,38 +341,28 @@ const SECTIONS = [
 
 const BLOCKS = SECTIONS.map(s => ({ key: s.key, label: s.label.replace("Professional ", "") }));
 
-// --- the front door: candidate wordings (ticket #7) -------------------------
-// Structure is fixed by §10 — one door, a big invitation, a small CV skip-ahead.
-// Only the WORDS are open, so they are data here: cycle them with the "wording"
-// button and read them on the real screen, in the real type, at the real size.
+// --- the front door: the decided copy (ticket #7, 2026-07-23) ---------------
+// Structure was fixed by §10 — one door, a big invitation, a small CV skip-ahead.
+// The words were the open question. Four candidates were written and read on this
+// screen; "the loot" won. The three rejected ones are recorded on the ticket.
 //
-// Two constraints every candidate obeys:
+// Why this one: it is the only candidate whose headline never mentions a CV.
+// Questions in, jobs out — so the user §1 brought into scope, the one who arrives
+// with nothing, is never told they are missing something. And it names the loop
+// the whole design is built on (§8: the cards are loot) in four words.
+//
+// Three constraints the copy obeys, all derived from decisions made elsewhere:
 //   · No count and no duration. §6 made discovery variable-length — "5 questions"
-//     and "takes 2 minutes" are now lies we would be caught in.
+//     and "takes 2 minutes" are lies we would be caught in.
 //   · No mention of account, price or signup. §12 puts the wall after the reveal;
 //     saying "free" invites "why?", and "no signup" plants the word signup.
-const DOORS = [
-  { name: "the score",
-    head: `Which jobs would you <em>actually get</em>?`,
-    sub: `Tell me about your work as we go. I'll score real openings against you — and write the CV for each one.`,
-    skip: `Already have a CV? <button id="up">Upload it</button> and skip the questions it already answers.` },
-
-  { name: "the interview",
-    head: `Let me ask you about your work.`,
-    sub: `Every answer writes a line of your CV — and unlocks real jobs, scored against you.`,
-    skip: `Already have a CV? <button id="up">Upload it</button> and skip the questions it already answers.` },
-
-  { name: "the loot",
-    head: `Answer questions. <em>Collect jobs.</em>`,
-    sub: `Each answer writes your CV and brings the next matches closer. Stop whenever you like — you keep everything you've earned.`,
-    skip: `Already have a CV? <button id="up">Upload it</button> and skip the questions it already answers.` },
-
-  { name: "no CV needed",
-    head: `You don't need a CV to start.`,
-    sub: `Answer as you go and I'll write one while you watch — then score real jobs against it.`,
-    skip: `Already have one? <button id="up">Upload it</button> to skip ahead.` },
-];
-let W = 0;
+//   · The skip-ahead says what it actually does — skips the questions the CV
+//     answers, not the process. §11: a CV buys one jump, it does not end the game.
+const DOOR = {
+  head: `Answer questions. <em>Collect jobs.</em>`,
+  sub: `Each answer writes your CV and brings the next matches closer. Stop whenever you like — you keep everything you've earned.`,
+  skip: `Already have a CV? <button id="up">Upload it</button> and skip the questions it already answers.`,
+};
 
 const DISCOVERY = [
   { b: "summary", sec: "head", q: "What kind of job are you going for?",
@@ -599,7 +587,7 @@ function cvEl(aimTitle) {
 // badge arrives with the first fact rather than sitting there empty at zero.
 
 function renderS0() {
-  const d = DOORS[W];
+  const d = DOOR;
   const q = DISCOVERY[0];
   $("#s0").innerHTML = `
     <div class="topbar"><span class="wordmark">JobCrush</span><span class="spacer"></span></div>
@@ -893,13 +881,9 @@ const TITLES = { s0: "0 · The front door", s1: "1 · Discovery — build the ro
 function show() {
   document.querySelectorAll(".screen").forEach(e => e.classList.remove("on"));
   $("#" + S.screen).classList.add("on");
-  $("#lbl").textContent = TITLES[S.screen] + (S.screen === "s0" ? ` — “${DOORS[W].name}”` : "");
-  $("#word").style.display = S.screen === "s0" ? "" : "none";
+  $("#lbl").textContent = TITLES[S.screen];
   ({ s0: renderS0, s1: renderS1, s2: renderS2, s3: renderS3 })[S.screen]();
 }
-
-// Prototype control: read all four wordings in place, in the real type.
-$("#word").onclick = () => { W = (W + 1) % DOORS.length; show(); };
 
 $("#reset").onclick = () => { fresh(); show(); };
 $("#skip").onclick = () => {
