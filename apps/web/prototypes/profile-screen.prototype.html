@@ -68,7 +68,7 @@
   .caption b { font-weight: 650; }
 
   .phone {
-    width: 390px; height: 810px; background: var(--hud-0);
+    width: 390px; height: min(810px, calc(100vh - 230px)); background: var(--hud-0);
     border-radius: 34px; border: 1px solid #2a333e;
     box-shadow: 0 30px 70px -20px rgba(0,0,0,.8), 0 0 0 8px #04060a;
     overflow: hidden; position: relative; color: var(--hud-ink);
@@ -138,24 +138,31 @@
   .pwait b { color: #b9c3cd; font-weight: 600; font-variant-numeric: tabular-nums; }
   .pwait .dot { color: var(--gold-lo); }
 
-  /* ---------- the toggle ----------
-     Two views of one profile, not two screens — so it sits INSIDE the screen, on
-     glass, and slides. */
-  .views { display: flex; padding: 0 18px 10px; flex: 0 0 auto; position: relative; z-index: 2; }
-  .seg { position: relative; display: flex; padding: 3px; border-radius: 999px;
-    background: rgba(21,26,33,.8); border: 1px solid var(--hud-line); backdrop-filter: blur(10px); }
+  /* ---------- the view toggle ----------
+     It moved into the top bar, centred, and lost its words. Two reasons, and the
+     first is the real one: sitting between the head and the content it read as
+     PART of the content and pushed the field down. A control that changes how you
+     look at something is chrome, not content — so it belongs in the chrome, where
+     it is always in the same place and costs the field nothing.
+     Textless because the two glyphs are unmistakable next to each other, and
+     because a control the user will press twice in their life should not spend a
+     third of the top bar explaining itself. Names live on the labels for
+     screen readers and on hover. */
+  .seg { position: absolute; left: 50%; transform: translateX(-50%);
+    display: flex; padding: 3px; border-radius: 999px;
+    background: rgba(21,26,33,.82); border: 1px solid var(--hud-line); backdrop-filter: blur(12px); }
   .seg .ind { position: absolute; top: 3px; bottom: 3px; border-radius: 999px;
-    background: linear-gradient(180deg, #2c3540, #222a33);
-    border: 1px solid #3a4552; box-shadow: 0 2px 8px rgba(0,0,0,.5);
-    transition: left 380ms cubic-bezier(.3,1.1,.3,1), width 380ms cubic-bezier(.3,1.1,.3,1); }
-  .seg button { position: relative; appearance: none; background: none; border: none; font: inherit;
-    font-size: 12px; font-weight: 600; letter-spacing: .01em; color: var(--hud-mute);
-    padding: 7px 15px; border-radius: 999px; cursor: pointer; white-space: nowrap;
-    display: flex; align-items: center; gap: 6px; transition: color 260ms ease; }
-  .seg button.on { color: var(--hud-ink); }
-  .seg button.on .ic { color: var(--gold); }
+    background: linear-gradient(180deg, #2f3844, #232b35);
+    border: 1px solid #3d4956; box-shadow: 0 2px 8px rgba(0,0,0,.55);
+    transition: left 400ms cubic-bezier(.3,1.15,.3,1), width 400ms cubic-bezier(.3,1.15,.3,1); }
+  .seg button { position: relative; appearance: none; background: none; border: none;
+    width: 40px; height: 30px; border-radius: 999px; cursor: pointer;
+    display: grid; place-items: center; color: var(--hud-mute); transition: color 260ms ease; }
+  .seg button.on { color: var(--gold); }
+  .seg button:hover { color: var(--hud-ink); }
+  .seg button.on:hover { color: var(--gold); }
   .seg button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-  .seg .ic { width: 13px; height: 13px; display: block; color: var(--hud-mute); transition: color 260ms ease; }
+  .seg .ic { width: 16px; height: 16px; display: block; }
 
   .body { flex: 1; overflow-y: auto; min-height: 0; position: relative; z-index: 1; }
 
@@ -199,9 +206,6 @@
   .chip:hover { border-color: #3e4a58; }
   .chip:active { transform: scale(.96); }
   .chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-  /* a "no": present, owned, quiet. Dashed, never a cross, never red. */
-  .chip.no { background: none; border-style: dashed; border-color: #333d48; color: var(--settled); box-shadow: none; }
-  .chip.no::before { content: "· "; }
   /* held for later: a hollow ring reads as "kept", a filled dot reads as "missing" */
   .chip.waiting::after { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%;
     border: 1px solid var(--gold-lo); margin-left: 7px; vertical-align: middle; }
@@ -209,13 +213,6 @@
     box-shadow: 0 0 20px rgba(232,163,61,.4); animation: chipin 640ms cubic-bezier(.2,1.4,.4,1); }
   @keyframes chipin { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
 
-  /* a "no" is a fact you gave, and §6.2 rule 1 makes it close a gap as well as a
-     "yes" does. It is never a failure. */
-  .ruled { margin-top: 20px; padding: 14px 15px; border-radius: 13px;
-    background: linear-gradient(180deg, rgba(77,88,101,.11), rgba(77,88,101,.05));
-    border: 1px solid #262e37; }
-  .ruled p { margin: 0; font-size: 12px; line-height: 1.55; color: var(--hud-mute); }
-  .ruled p b { color: #b9c3cd; font-weight: 600; }
   .dnote { font-size: 11px; color: var(--settled); margin: 14px 0 0; line-height: 1.5; }
 
   /* ================= CONSTELLATION =================
@@ -241,7 +238,6 @@
   .cl i { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); flex: 0 0 auto;
     box-shadow: 0 0 10px currentColor; }
   .cl.cv i { background: var(--steel); }
-  .cl.no i { background: var(--settled); box-shadow: none; }
 
   /* the legend: the sky is only readable if the colours mean something */
   .legend { position: absolute; left: 16px; top: 10px; display: flex; flex-direction: column; gap: 5px;
@@ -250,7 +246,6 @@
     color: var(--hud-mute); display: flex; align-items: center; gap: 6px; }
   .legend i { width: 5px; height: 5px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px var(--gold); }
   .legend .c i { background: var(--steel); box-shadow: 0 0 8px var(--steel); }
-  .legend .n i { background: var(--settled); box-shadow: none; }
 
   .said { font-size: 11.5px; line-height: 1.5; color: var(--hud-mute); margin: 0; }
   .said b { color: #cdd5dd; font-weight: 600; }
@@ -405,10 +400,16 @@ const FILL = [
 
 const CLASSES = ["verified", "verified", "verified", "derived", "partial"];
 
+// n counts what the profile SHOWS. The generated "no" facts are extra: they stay
+// in the data — so the filter is actually being exercised — but they are not part
+// of the count, exactly as the decision requires.
 function buildFacts(n) {
-  const out = BASE.slice(0, Math.min(n, BASE.length)).map((f, i) => ({ ...f, id: "b" + i }));
+  const vis = a => a.filter(f => f.cls !== "no").length;
+  const take = Math.min(n + 4, BASE.length);
+  const out = BASE.slice(0, take).map((f, i) => ({ ...f, id: "b" + i }));
+  while (vis(out) > n) out.pop();
   let k = 0;
-  while (out.length < n) {
+  while (vis(out) < n) {
     const [dom, tpl, saidTpl, words] = FILL[k % FILL.length];
     const w = words[Math.floor(k / FILL.length) % words.length];
     // every 7th is a "no" — they keep arriving as the user answers, so the
@@ -433,10 +434,29 @@ const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
 // What a fact IS, in the user's terms — not "Verified"/"Derived", which are the
 // pipeline's words, not theirs.
 function kindOf(f) {
-  if (f.cls === "no") return { k: "no", label: "Asked and closed" };
   if (f.from === "cv") return { k: "cv", label: "Read from your CV" };
   return { k: "you", label: "You told me this" };
 }
+
+// THE PROFILE SHOWS WHAT YOU HAVE. Decided 2026-07-23 with Adrien.
+//
+// A "no" is real — §6.2 rule 1 makes it close a gap as well as a "yes", the claim
+// graph stores it (classification "Negative", renderable:false), and it stops us
+// re-asking. It still does all of that. It just does not belong on THIS screen.
+//
+// The reason is §7 generalised. That rule is "a number on a job is information, a
+// number on a person is a grade" — and the same is true of a "no". On the job card
+// "no security clearance" is attached to the JOB that asked for it, so it reads as
+// information. On a page headed "24 things you've told me" it detaches from the job
+// and re-attaches to the person, and a list of what you lack is an inventory of
+// your gaps. That is §7 through the side door, made of words instead of a number —
+// the same failure as the fuel gauge and the filling badge.
+//
+// Consequence, deliberately not papered over: the count excludes them, so a "no"
+// does not move the badge. That is a real gap for DISCOVERY's feedback loop (§4),
+// and §9.1 already solved it for the card — a "no" pays by shrinking the open
+// list. Discovery should reuse that rather than this screen inventing a fix.
+const shown = () => S.facts.filter(f => f.cls !== "no");
 
 let S = { view: "sorted", n: 24, facts: buildFacts(24), fresh: null, sel: null };
 
@@ -461,7 +481,10 @@ function stackSvg(n, freshTop) {
 }
 
 function profEl() {
-  const n = S.facts.length;
+  // shown(), not S.facts: the badge and the screen it opens must agree. They did
+  // not for one build — the badge said 54 and the page it opened said 47, because
+  // the badge was still counting the ruled-out facts the screen no longer shows.
+  const n = shown().length;
   const unit = n <= 3 ? `<span class="unit">facts</span>` : "";
   return `<span class="prof" id="prof" title="Your profile — ${n} facts about you">
     <span class="ring"></span>
@@ -477,9 +500,10 @@ const ICONS = {
 };
 
 function head() {
-  const n = S.facts.length;
-  const onCv = S.facts.filter(f => f.onCv).length;
-  const waiting = S.facts.filter(f => !f.onCv && f.cls !== "no").length;
+  const fs = shown();
+  const n = fs.length;
+  const onCv = fs.filter(f => f.onCv).length;
+  const waiting = fs.filter(f => !f.onCv).length;
   // A brand-new user has nothing waiting yet, and "0 are waiting" is a zero on the
   // first screen they ever open — deflating, and pointless. Say the simple truth.
   const line = waiting
@@ -489,18 +513,22 @@ function head() {
       <p class="ptitle">your profile</p>
       <h1 class="pcount"><span class="n">${n}</span> <span class="t">things you've told me</span></h1>
       <p class="pwait">${line}</p>
-    </div>
-    <div class="views"><div class="seg" id="seg">
-      <span class="ind" id="ind"></span>
-      <button data-view="sorted" class="${S.view === "sorted" ? "on" : ""}">${ICONS.sorted}Sorted</button>
-      <button data-view="sky" class="${S.view === "sky" ? "on" : ""}">${ICONS.sky}Constellation</button>
-    </div></div>`;
+    </div>`;
+}
+
+function seg() {
+  const b = (v, label) => `<button data-view="${v}" class="${S.view === v ? "on" : ""}"
+      aria-label="${label}" title="${label}" aria-pressed="${S.view === v}">${ICONS[v]}</button>`;
+  return `<div class="seg" id="seg"><span class="ind" id="ind"></span>
+      ${b("sorted", "Sorted")}${b("sky", "Constellation")}</div>`;
 }
 
 function chrome(bodyHtml) {
   return `<div class="topbar">
       <button class="back" id="back">‹ Back</button>
-      <span class="spacer"></span>${profEl()}
+      <span class="spacer"></span>
+      ${seg()}
+      ${profEl()}
     </div>
     ${head()}
     <div class="body" id="scrollbox">${bodyHtml}</div>`;
@@ -517,20 +545,19 @@ function cvLine(f) {
 // --- SORTED ----------------------------------------------------------------
 
 function renderSorted() {
-  const doms = [...new Set(S.facts.map(f => f.dom))];
+  const fs = shown();
+  const doms = [...new Set(fs.map(f => f.dom))];
   // biggest first, so the screen opens on what the user has most of — never on a
   // thin one, and never on an empty one, because empties are never drawn at all
-  const groups = doms.map(d => ({ d, all: S.facts.filter(f => f.dom === d) }))
+  const groups = doms.map(d => ({ d, all: fs.filter(f => f.dom === d) }))
     .sort((a, b) => b.all.length - a.all.length);
-  const noes = S.facts.filter(f => f.cls === "no");
   const big = groups[0] ? groups[0].all.length : 1;
 
   const body = groups.map((g, gi) => {
-    const yes = g.all.filter(f => f.cls !== "no");
-    if (!yes.length && !g.all.length) return "";
+    if (!g.all.length) return "";
     // the headline is the newest "verified" fact in the domain, else the newest —
     // so a domain visibly re-leads when you answer something strong about it
-    const lead = [...yes].reverse().find(f => f.cls === "verified") || [...yes].reverse()[0];
+    const lead = [...g.all].reverse().find(f => f.cls === "verified") || [...g.all].reverse()[0];
     const rest = g.all.filter(f => f !== lead);
     const isNew = S.fresh && g.all.some(f => f.id === S.fresh);
     // "new" only for a domain that did not exist a second ago; one that merely
@@ -548,16 +575,12 @@ function renderSorted() {
         </div>
         ${lead ? `<p class="dlead ${S.fresh === lead.id ? "fresh" : ""}" data-id="${lead.id}"><span class="u">${esc(lead.text)}</span></p>` : ""}
         ${rest.length ? `<div class="chips">${rest.map(f => `
-          <button class="chip ${f.cls === "no" ? "no" : ""} ${!f.onCv && f.cls !== "no" ? "waiting" : ""} ${S.fresh === f.id ? "fresh" : ""}"
+          <button class="chip ${!f.onCv ? "waiting" : ""} ${S.fresh === f.id ? "fresh" : ""}"
                   data-id="${f.id}">${esc(f.text.replace(/\.$/, ""))}</button>`).join("")}</div>` : ""}
       </section>`;
   }).join("");
 
   return `<div class="sheetwrap">${body}
-      ${noes.length ? `<div class="ruled">
-        <p><b>${noes.length} things you've ruled out.</b> They count. A “no” answers a
-        question just as well as a “yes” does — it means I stop asking, and I stop
-        showing you jobs that need it.</p></div>` : ""}
       <p class="dnote">A ring means it's saved here but not on your CV yet — the CV is two pages,
       so it picks. Nothing is ever dropped.</p>
     </div>`;
@@ -589,13 +612,19 @@ function skyLayout(facts) {
     const placed = [];
     mine.forEach((f, i) => {
       const r = spread * Math.sqrt((i + .6) / mine.length), th = i * GOLDEN;
-      const nd = { f, x: cx + Math.cos(th) * r, y: cy + Math.sin(th) * r, ph: i * 1.7 + di };
+      // Each point gets its own phase, its own speed and its own DEPTH. Depth
+      // drives both how far it drifts and how big it is, so nearer points swim
+      // more than far ones and the field reads as three-dimensional rather than
+      // as one sheet sliding about.
+      const depth = .45 + ((i * 37 + di * 71) % 100) / 100 * .55;
+      const nd = { f, x: cx + Math.cos(th) * r, y: cy + Math.sin(th) * r,
+        ph: i * 1.7 + di, sp: .7 + ((i * 53 + di * 17) % 100) / 100 * .6, depth, links: [] };
       let best = null, bd = Infinity;
       for (const p of placed) {
         const dd = (p.x - nd.x) ** 2 + (p.y - nd.y) ** 2;
         if (dd < bd) { bd = dd; best = p; }
       }
-      if (best) links.push([best, nd]);
+      if (best) { links.push([best, nd]); best.links.push(nd); nd.links.push(best); }
       placed.push(nd); nodes.push(nd);
     });
     // push the label radially OUTWARD, and anchor it by side, so it grows away
@@ -611,7 +640,6 @@ function skyLayout(facts) {
 const TONE = {
   you: { core: [255, 226, 176], glow: [232, 163, 61] },
   cv:  { core: [214, 235, 246], glow: [110, 165, 200] },
-  no:  { core: [124, 132, 141], glow: [70, 80, 92] },
 };
 const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
@@ -630,7 +658,6 @@ function renderSkyShell() {
       <div class="legend">
         <span><i></i>you told me</span>
         <span class="c"><i></i>from your CV</span>
-        <span class="n"><i></i>ruled out</span>
       </div>
       <div class="sheet hint" id="skySheet">Every point is something you told me. Tap one.</div>
     </div>`;
@@ -640,8 +667,10 @@ function startSky() {
   const wrap = $("#skyWrap"), canvas = $("#skyCanvas");
   if (!wrap || !canvas) return;
   const ctx = canvas.getContext("2d");
-  const layout = skyLayout(S.facts);
-  sky = { wrap, canvas, ctx, ...layout, t0: performance.now(), ignite: null, w: 0, h: 0, s: 1, ox: 0, oy: 0 };
+  const layout = skyLayout(shown());
+  sky = { wrap, canvas, ctx, ...layout, t0: performance.now(), ignite: null, hover: null,
+    w: 0, h: 0, s: 1, sy: 1, ox: 0, oy: 0 };
+  window.__sky = sky;   // prototype only: lets the Playwright press read hover state
 
   const fit = () => {
     const r = wrap.getBoundingClientRect();
@@ -665,15 +694,21 @@ function startSky() {
   sky.ro = new ResizeObserver(fit);
   sky.ro.observe(wrap);
 
-  // Points drift on their own slow sine, so the field breathes instead of sitting
-  // there printed. Amplitude is deliberately tiny — this is atmosphere, not motion.
-  const px = (nd, t) => ({
-    x: sky.ox + (nd.x + (reduced ? 0 : Math.sin(t * .00021 + nd.ph) * .9)) * sky.s,
-    y: sky.oy + (nd.y + (reduced ? 0 : Math.cos(t * .00017 + nd.ph * 1.3) * .9)) * sky.sy,
-  });
+  // The points levitate. Two sines of different periods per axis, each point on
+  // its own phase, speed and depth, so nothing ever pulses in unison — that is
+  // what separates "alive" from "animated". Nearer points (higher depth) swim
+  // further, which reads as parallax.
+  const px = (nd, t) => {
+    if (reduced) return { x: sky.ox + nd.x * sky.s, y: sky.oy + nd.y * sky.sy };
+    const a = 2.1 * nd.depth, w = t * .00026 * nd.sp;
+    return {
+      x: sky.ox + (nd.x + Math.sin(w + nd.ph) * a + Math.sin(w * 2.3 + nd.ph * .6) * a * .3) * sky.s,
+      y: sky.oy + (nd.y + Math.cos(w * .82 + nd.ph * 1.3) * a + Math.cos(w * 1.9 + nd.ph) * a * .28) * sky.sy,
+    };
+  };
 
   // a point shrinks as the sky fills, so a dense field stays points rather than mass
-  const baseR = Math.max(1.15, Math.min(3.2, 15 / Math.sqrt(S.facts.length)));
+  const baseR = Math.max(1.15, Math.min(3.2, 15 / Math.sqrt(shown().length)));
 
   const draw = () => {
     const t = performance.now() - sky.t0;
@@ -683,14 +718,22 @@ function startSky() {
     // the fade-in: the sky lights up rather than appearing
     const intro = reduced ? 1 : Math.min(1, t / 900);
 
+    // With a point under the cursor, its own web lights and everything else
+    // recedes — the move Obsidian makes, and the reason a dense graph stays
+    // readable: you are shown one thread of yourself at a time.
+    const hv = sky.hover;
+    const near = n => !hv || n === hv || hv.links.includes(n);
+
     // links first, under everything, hair-thin
     ctx.lineWidth = Math.max(.4, baseR * .16);
     sky.links.forEach(([a, b]) => {
       const pa = px(a, t), pb = px(b, t);
+      const lit = hv && (a === hv || b === hv);
+      const al = (lit ? .95 : hv ? .1 : .32) * intro;
       const g = ctx.createLinearGradient(pa.x, pa.y, pb.x, pb.y);
       const ta = TONE[kindOf(a.f).k].glow, tb = TONE[kindOf(b.f).k].glow;
-      g.addColorStop(0, rgba(ta, .32 * intro));
-      g.addColorStop(1, rgba(tb, .32 * intro));
+      g.addColorStop(0, rgba(ta, al));
+      g.addColorStop(1, rgba(tb, al));
       ctx.strokeStyle = g;
       ctx.beginPath();
       ctx.moveTo(pa.x, pa.y);
@@ -706,22 +749,24 @@ function startSky() {
       const p = px(nd, t), k = kindOf(nd.f).k, tone = TONE[k];
       const stagger = reduced ? 1 : Math.max(0, Math.min(1, (t - i * 6) / 500));
       if (stagger <= 0) return;
-      const dim = nd.f.cls === "derived" || nd.f.cls === "partial" ? .72 : 1;
-      const isFresh = S.fresh === nd.f.id, isSel = S.sel === nd.f.id;
-      const boost = isFresh || isSel ? 1.9 : 1;
-      const r = baseR * (k === "no" ? .74 : 1) * (isSel ? 1.35 : 1);
+      // depth again: nearer points are fractionally larger and brighter
+      const dim = (nd.f.cls === "derived" || nd.f.cls === "partial" ? .72 : 1) * (.72 + nd.depth * .34);
+      const isFresh = S.fresh === nd.f.id, isSel = S.sel === nd.f.id, isHov = nd === hv;
+      const recede = near(nd) ? 1 : .22;
+      const boost = isFresh || isSel || isHov ? 1.9 : 1;
+      const r = baseR * nd.depth * 1.15 * (isSel || isHov ? 1.4 : 1);
 
       // halo
-      const hr = r * (k === "no" ? 3.4 : 7) * boost;
+      const hr = r * 7 * boost;
       const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, hr);
-      g.addColorStop(0, rgba(tone.glow, .5 * dim * stagger * intro));
-      g.addColorStop(.45, rgba(tone.glow, .13 * dim * stagger * intro));
+      g.addColorStop(0, rgba(tone.glow, .5 * dim * stagger * intro * recede));
+      g.addColorStop(.45, rgba(tone.glow, .13 * dim * stagger * intro * recede));
       g.addColorStop(1, rgba(tone.glow, 0));
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.arc(p.x, p.y, hr, 0, 7); ctx.fill();
 
       // core
-      ctx.fillStyle = rgba(tone.core, (k === "no" ? .5 : .95) * dim * stagger * intro);
+      ctx.fillStyle = rgba(tone.core, .95 * dim * stagger * intro * recede);
       ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fill();
     });
 
@@ -742,17 +787,44 @@ function startSky() {
     ctx.font = `500 ${Math.max(7.5, 8.5 * Math.min(1.3, sky.s / 2.6))}px ${getComputedStyle(document.body).getPropertyValue("--mono") || "monospace"}`;
     if ("letterSpacing" in ctx) ctx.letterSpacing = "1.4px";
     ctx.fillStyle = `rgba(127,139,152,${.85 * intro})`;
+    // Clamp the label's drawn BOX, not its anchor: anchoring right at the field
+    // edge pushed "QUALIFICATIONS" off the left of the frame and it rendered as
+    // "CATIONS". Measure, then keep the whole word on screen.
+    ctx.textAlign = "left";
     sky.labels.forEach(l => {
-      ctx.textAlign = l.align === "center" ? "center" : l.align === "left" ? "left" : "right";
-      ctx.fillText(l.d.toUpperCase(), sky.ox + l.x * sky.s, sky.oy + l.y * sky.sy);
+      const txt = l.d.toUpperCase(), w = ctx.measureText(txt).width;
+      const anchor = sky.ox + l.x * sky.s;
+      let x = l.align === "center" ? anchor - w / 2 : l.align === "left" ? anchor : anchor - w;
+      x = Math.max(6, Math.min(sky.w - w - 6, x));
+      ctx.fillText(txt, x, sky.oy + l.y * sky.sy);
     });
+
+    // the hovered point says what it is, right there, without a click — the
+    // graph-view move: labels on demand, not 200 labels at once
+    if (hv) {
+      const p = px(hv, t), txt = hv.f.text.replace(/\.$/, "");
+      ctx.font = `500 12px ${getComputedStyle(document.body).getPropertyValue("--sans") || "sans-serif"}`;
+      if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+      ctx.textAlign = "left";
+      const w = Math.min(ctx.measureText(txt).width, sky.w - 40);
+      // flip to the other side rather than run off the edge
+      let lx = p.x + 14, ly = p.y + 4;
+      if (lx + w + 12 > sky.w) lx = p.x - 14 - w;
+      ly = Math.max(16, Math.min(sky.h - 12, ly));
+      ctx.fillStyle = "rgba(9,12,16,.88)";
+      ctx.beginPath();
+      ctx.roundRect(lx - 8, ly - 14, w + 16, 22, 6);
+      ctx.fill();
+      ctx.fillStyle = "#eef2f6";
+      ctx.fillText(txt, lx, ly);
+    }
 
     sky.raf = requestAnimationFrame(draw);
   };
   sky.raf = requestAnimationFrame(draw);
 
-  // hit-testing: nearest point within a finger's width
-  const hit = e => {
+  // nearest point to a pointer, in canvas space
+  const nearest = e => {
     const r = canvas.getBoundingClientRect();
     const mx = e.clientX - r.left, my = e.clientY - r.top;
     const t = performance.now() - sky.t0;
@@ -761,11 +833,29 @@ function startSky() {
       const p = px(nd, t), d = (p.x - mx) ** 2 + (p.y - my) ** 2;
       if (d < bd) { bd = d; best = nd; }
     });
+    return { best, bd };
+  };
+
+  canvas.addEventListener("pointerdown", e => {
+    const { best, bd } = nearest(e);
     // generous: on a sparse field a finger should land on the nearest point, not
     // miss into empty space. 24px was a mouse-sized target, not a thumb-sized one.
     if (best && bd < 46 * 46) { S.sel = best.f.id; paintSheet(); }
-  };
-  canvas.addEventListener("pointerdown", hit);
+  });
+
+  // Hover belongs to a mouse, not a thumb: on touch there is no hover state and
+  // a "sticky" one left the last-touched point lit forever.
+  if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
+    canvas.addEventListener("pointermove", e => {
+      const { best, bd } = nearest(e);
+      const hit = best && bd < 26 * 26 ? best : null;
+      if (hit !== sky.hover) {
+        sky.hover = hit;
+        canvas.style.cursor = hit ? "pointer" : "default";
+      }
+    });
+    canvas.addEventListener("pointerleave", () => { sky.hover = null; canvas.style.cursor = "default"; });
+  }
 }
 
 // The sheet is repainted directly rather than through a re-render, so tapping a
@@ -851,7 +941,6 @@ const NEW_FACTS = [
   { dom: "Delivery", cls: "verified", onCv: 1, from: "you", text: "Ran a cutover across four European sites.", said: "you tapped <b>Yes — all four</b>" },
   { dom: "Scale",    cls: "verified", onCv: 0, from: "you", text: "Owned a €400k change budget on top.",       said: "you tapped <b>Yes</b>" },
   { dom: "Tools",    cls: "verified", onCv: 0, from: "you", text: "ServiceNow.",                               said: "you tapped <b>ServiceNow</b>" },
-  { dom: "Sectors",  cls: "no",       onCv: 0, from: "you", text: "No defence work.",                          said: "you tapped <b>No</b>" },
   { dom: "Certifications", cls: "verified", onCv: 1, from: "you", text: "PRINCE2 Practitioner.",               said: "you tapped <b>Yes</b>" },
 ];
 let newIdx = 0;
@@ -860,7 +949,7 @@ function addFact() {
   const f = { ...NEW_FACTS[newIdx % NEW_FACTS.length], id: "n" + newIdx };
   newIdx++;
   S.facts.push(f);
-  S.n = S.facts.length;
+  S.n = shown().length;
   S.fresh = f.id;
   S.sel = null;
   render(true);
@@ -871,7 +960,7 @@ function addFact() {
   // the badge does its decided thing: the pile gains a layer and pulses
   const p = $("#prof");
   if (p) {
-    $("svg", p).innerHTML = stackSvg(S.facts.length, true);
+    $("svg", p).innerHTML = stackSvg(shown().length, true);
     p.classList.add("pulse");
     setTimeout(() => p.classList.remove("pulse"), 640);
   }
