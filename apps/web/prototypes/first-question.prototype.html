@@ -1,15 +1,17 @@
 <!-- PROTOTYPE — throwaway. Wayfinder ticket #6 "The discovery questions".
-     Four shapes for QUESTION 1 — the first thing after the front door.
-     The ticket's hardest part: the prototype's closed list of three PM titles cannot be
-     the real answer, because on the real screen we do not know the visitor's field.
-     What the escape hatch opens is undesigned; these are four ways to not need one.
-     Everything after question 1 is held identical across shapes, so only Q1 varies.
+     QUESTION 1 — the first thing after the front door.
+     Round 1 killed the closed list: its "Something else" only ever opens the same free
+     box the other shapes lead with, so there is no escape hatch to design — the box IS
+     the question. A model places whatever is typed into a family.
+     Round 2 is about HOW MUCH question 1 asks for: a title only, or the title plus
+     whatever else the user volunteers. Everything after question 1 is identical, so
+     only the first ask is being judged.
      Visual system: ink and glass, from onboarding-screen.prototype.html.
      Not production code. -->
 <!-- Without this, a phone lays the page out at ~980px and zooms out: the mobile
      CSS never applies and the screens are judged at the wrong size. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>JobCrush — question 1: four shapes</title>
+<title>JobCrush — question 1: how much to ask</title>
 
 <style>
   :root {
@@ -143,24 +145,32 @@
     border: 1px solid var(--paper-edge); padding: 20px 20px 26px; font-family: var(--serif); position: relative; overflow: hidden; }
   .cv::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
     background-image: radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px); background-size: 3px 3px; }
-  .cv-name { font-size: 21px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 2px; }
-  .cv-role { font-family: var(--sans); font-size: 12.5px; color: var(--ink-mute); margin: 0 0 14px; min-height: 17px; }
+  /* No name. We do not know it here, and asking for it is a signup-shaped question
+     with no payout — §12 keeps account out of the flow until the wall, and Google
+     OAuth hands us the name for free at that point. So the role line is the first
+     thing on the page, which is also the line question 1 writes. */
+  .cv-role { font-family: var(--sans); font-size: 15px; font-weight: 600; color: var(--ink);
+    margin: 0 0 20px; min-height: 20px; letter-spacing: -.005em; }
   .cv-sec { font-family: var(--sans); font-size: 9.5px; text-transform: uppercase; letter-spacing: .14em;
-    color: var(--ink-mute); margin: 16px 0 8px; }
-  .cv-sec:first-of-type { margin-top: 0; }
+    color: var(--ink-mute); margin: 0 0 8px; }
   .caret { display: inline-block; width: 2px; height: 1em; background: var(--gold-dim);
     vertical-align: -.14em; margin-left: 1px; animation: blink 900ms steps(2) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
-  .cv-ghost { height: 1px; margin: 13px 0; opacity: .55;
-    background: repeating-linear-gradient(90deg, var(--rule) 0 24px, transparent 24px 34px); }
+  /* Empty sections are empty — no ruled dashes. Ruling reads as a form to fill in;
+     blank space reads as a page not written yet. (Amends §6's "ruled".) */
+  .cv-gap { height: 46px; }
+  .cv-line { font-size: 14.5px; line-height: 1.45; padding-left: 14px; position: relative; margin: 0 0 9px; }
+  .cv-line::before { content: ""; position: absolute; left: 0; top: .62em; width: 5px; height: 5px;
+    border-radius: 50%; background: var(--gold-dim); opacity: 0; transition: opacity 300ms ease 120ms; }
+  .cv-line.done::before { opacity: 1; }
   @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
   /* Shape B only: the role line IS the input. A transparent field sitting on the paper,
      so the first line of the CV is typed by the user, in the document itself. */
   .cv-role input {
     appearance: none; background: none; border: none; outline: none; padding: 0; margin: 0;
-    font-family: var(--sans); font-size: 12.5px; color: var(--ink); width: 100%;
-    caret-color: var(--gold-dim);
+    font-family: var(--sans); font-size: 15px; font-weight: 600; color: var(--ink); width: 100%;
+    caret-color: var(--gold-dim); letter-spacing: -.005em;
   }
   .cv-role input::placeholder { color: var(--rule); }
   .cv-role.armed { position: relative; }
@@ -230,11 +240,12 @@
 </style>
 
 <div class="intro">
-  <h1>Question 1 — four shapes</h1>
-  <p>The front door is settled: <i>“Answer questions. Collect jobs.”</i> → <b>Ready?</b>. This is what
-  waits on the other side. Its answer has to write the CV’s role line, and it has to work for a visitor
-  whose field we do not know. Everything after question 1 is identical in all four — only the first
-  ask changes. Try answering something we would <i>not</i> have on a list.</p>
+  <h1>Question 1 — how much to ask</h1>
+  <p>The box is settled: question 1 takes free text, and a model places it in a family. Open now is
+  <b>how much it asks for</b>. <b>C1</b> takes a job title. <b>C2</b>’s placeholder invites the city
+  and the tools too, and pays out a line for each. <b>B</b> is C1 moved onto the paper — and it only
+  works narrow, so C2 rules it out. Watch the promise at the top: in C1 it has no city, because
+  nothing in the flow ever asks for one.</p>
 </div>
 
 <div class="picker" id="picker"></div>
@@ -262,7 +273,8 @@
 // PROTOTYPE. Throwaway. Wayfinder ticket #6 — question 1 only.
 // ---------------------------------------------------------------------------
 
-const NAME = "Camille Roussel";
+// No NAME. The CV carries no name at this point in the flow — see the note on
+// .cv-role above.
 
 // Stand-in for the core CV structure (its own ticket / S2.75). Same four as the
 // onboarding prototype, so the two files agree.
@@ -313,10 +325,25 @@ const TITLES = [
   ["Security Guard", "security"], ["Cleaner", "cleaning"],
 ];
 
-// Shape A's closed list. Six of the most common families — which is the whole
-// problem with shape A, and the reason it is in here.
+// Shortcut chips: the common answers, offered before anything is typed.
 const SHORTLIST = ["Project Manager", "Software Engineer", "Registered Nurse",
                    "Sales Representative", "Accountant", "Primary School Teacher"];
+
+// The wide shape pulls more than a title out of one answer. In the real thing this
+// is the same model call that places the family; here, two small lists, enough to
+// feel what a rich first answer pays back.
+// WHY LOCATION MATTERS: §6's promise is "142 <family> jobs are open IN PARIS right
+// now". Nothing else in the flow ever asks where the user is — so if question 1 is
+// title-only, the promise has no city and cannot fire as written.
+const CITIES = ["Paris", "Lyon", "Marseille", "Toulouse", "Bordeaux", "Lille", "Nantes",
+                "London", "Berlin", "Madrid", "Amsterdam", "Brussels", "Geneva", "Remote"];
+const TOOLS = ["Jira", "Confluence", "MS Project", "SAP", "Excel", "Power BI", "Salesforce",
+               "Figma", "Python", "SQL", "AutoCAD", "Photoshop", "Notion", "Trello", "ERP"];
+
+function findIn(list, text) {
+  const t = " " + text.toLowerCase() + " ";
+  return list.filter(w => t.includes(w.toLowerCase()));
+}
 
 // Question 2, held identical in all four shapes so only question 1 is being judged.
 const Q2 = { q: "Roughly how long have you been doing it?",
@@ -329,7 +356,7 @@ let timers = [], S;
 const after = (ms, fn) => timers.push(setTimeout(fn, ms));
 
 function fresh() {
-  S = { facts: 0, role: null, family: null, answered: false };
+  S = { facts: 0, role: null, family: null, answered: false, lines: {}, city: null, tools: [] };
 }
 
 // --- title matching --------------------------------------------------------
@@ -379,23 +406,40 @@ function renderBlocks(activeKey) {
 function renderCV(roleHTML) {
   const role = roleHTML !== undefined ? roleHTML : (S.role || "");
   $("#cv").innerHTML =
-    `<div class="cv-name">${NAME}</div>` +
     `<div class="cv-role" id="cvrole">${role}</div>` +
-    SECTIONS.map(s =>
-      `<div class="cv-sec">${s.label}</div><div class="cv-ghost"></div><div class="cv-ghost"></div>`
-    ).join("");
+    SECTIONS.map(function (s) {
+      const written = (S.lines[s.key] || [])
+        .map((t, i) => `<div class="cv-line done" id="ln-${s.key}-${i}">${t}</div>`).join("");
+      return `<div class="cv-sec">${s.label}</div>` + written +
+             (written ? `<div class="cv-gap" style="height:22px"></div>` : `<div class="cv-gap"></div>`);
+    }).join("");
 }
 
 // The typewriter is a requirement, not a flourish (§8.2) — the line must be SEEN
 // writing itself, and it must be composed locally so it starts on the same beat as
 // the tap. No model round-trip in front of the animation.
+// §8.2: the CV scrolls to the line, THEN types — in that order — and keeps following
+// as the line wraps. Typing below the fold is worse than no animation: the user paid
+// for a reward they never saw.
+function keepInView(el) {
+  const box = $(".band-cv");
+  if (!box || !el) return;
+  const b = box.getBoundingClientRect(), e = el.getBoundingClientRect(), pad = 34;
+  let d = 0;
+  if (e.bottom > b.bottom - pad) d = e.bottom - (b.bottom - pad);
+  else if (e.top < b.top + pad) d = e.top - (b.top + pad);
+  if (d) box.scrollBy({ top: d, behavior: reduced ? "auto" : "smooth" });
+}
+
 function typeInto(el, text, done) {
+  keepInView(el);
   if (reduced) { el.textContent = text; if (done) done(); return; }
   el.innerHTML = `<span class="t"></span><span class="caret"></span>`;
   const t = $(".t", el);
   let i = 0;
   (function step() {
     t.textContent = text.slice(0, ++i);
+    keepInView(el);
     if (i < text.length) after(26, step);
     else after(240, () => { el.textContent = text; if (done) done(); });
   })();
@@ -403,20 +447,60 @@ function typeInto(el, text, done) {
 
 // --- what every shape does once question 1 is answered ---------------------
 // Identical across shapes on purpose: the payout is not what is being judged here.
-function commit(title) {
+// Pull the title out of whatever was typed — a bare title, or a sentence with one
+// buried in it. Stand-in for the model call that really does this.
+function extractTitle(raw) {
+  const t = raw.toLowerCase();
+  const inSentence = TITLES.filter(p => t.includes(p[0].toLowerCase()))
+                           .sort((a, b) => b[0].length - a[0].length)[0];
+  if (inSentence) return inSentence[0];
+  const m = match(raw)[0];
+  return m ? m[0] : null;
+}
+
+// Lines land one after another, each one paying out on its own: the section bar it
+// belongs to lights, the line types, the profile ticks. A wide answer is several
+// payouts from one typing, which is the whole argument for asking wide.
+function writeExtras(queue, done) {
+  if (!queue.length) { done(); return; }
+  const item = queue.shift();
+  S.lines[item.sec] = (S.lines[item.sec] || []).concat("");
+  const idx = S.lines[item.sec].length - 1;
+  renderCV();
+  renderBlocks(item.sec);
+  typeInto($("#ln-" + item.sec + "-" + idx), item.text, function () {
+    S.lines[item.sec][idx] = item.text;
+    bumpProfile();
+    after(300, () => writeExtras(queue, done));
+  });
+}
+
+function commit(raw, wide) {
   if (S.answered) return;
   S.answered = true;
+
+  const title = extractTitle(raw) || raw.replace(/\s+/g, " ").trim().slice(0, 52);
   S.role = title;
-  S.family = familyOf(title);
+  S.family = familyOf(title) || title.toLowerCase();
+
+  const queue = [];
+  if (wide) {
+    S.city = findIn(CITIES, raw)[0] || null;
+    S.tools = findIn(TOOLS, raw);
+    if (S.city) queue.push({ sec: "summary", text: "Based in " + S.city + "." });
+    if (S.tools.length) queue.push({ sec: "skills", text: S.tools.join(" · ") });
+  }
 
   renderCV("");
   bumpProfile();
   renderBlocks("summary");
-  typeInto($("#cvrole"), title, function () {
-    after(320, showPromise);
-    after(760, askQ2);
-  });
   $("#ask").innerHTML = `<p class="why">writing it down</p><p class="q">&nbsp;</p>`;
+  typeInto($("#cvrole"), title, function () {
+    writeExtras(queue, function () {
+      after(220, showPromise);
+      after(680, askQ2);
+    });
+  });
 }
 
 // §6's promise. It needs the family, which is exactly what question 1 buys — so a
@@ -424,24 +508,36 @@ function commit(title) {
 // free text, made visible rather than argued about.
 function showPromise() {
   const slot = $("#promiseSlot");
-  if (S.family) {
-    const n = 40 + (S.family.length * 17) % 260;   // stand-in for a real count
+  const n = 40 + (S.family.length * 17) % 260;   // stand-in for a real count
+
+  // The family comes from a model call, so the promise cannot land on the same beat
+  // as the typing — and does not need to. §8.2 only requires the TYPING be instant,
+  // and that comes from the user's own words. This is that beat, made visible.
+  slot.innerHTML =
+    `<div class="promise blind"><span class="n">···</span>` +
+    `<p>Placing “${S.role}”…<br><span>one model call — the typing never waited on it</span></p></div>`;
+
+  after(reduced ? 0 : 950, function () {
     slot.innerHTML =
       `<div class="promise"><span class="n">${n}</span>` +
-      `<p><b>${S.family}</b> jobs are open in Paris right now.<br>` +
-      `<span>Keep going and I’ll score them against you.</span></p></div>`;
-  } else {
-    slot.innerHTML =
-      `<div class="promise blind"><span class="n">?</span>` +
-      `<p>No count for “${S.role}” — I don’t know that family yet.<br>` +
-      `<span>Unmatched title: §6’s promise cannot fire here.</span></p></div>`;
-  }
+      `<p><b>${S.family}</b> jobs are open ${S.city ? "in " + S.city + " " : ""}right now.<br>` +
+      (S.city
+        ? `<span>Keep going and I’ll score them against you.</span>`
+        : `<span>No city — nothing in this flow has asked where you are.</span>`) +
+      `</p></div>`;
+  });
 }
 
 function askQ2() {
   $("#ask").innerHTML =
     `<p class="why">question 2</p><p class="q">${Q2.q}</p>` +
     `<div class="opts">${Q2.opts.map(o => `<button class="opt">${o}</button>`).join("")}</div>`;
+  // The next question's options are taller than "writing it down", so the ask band
+  // grows and shoves the line that was just written back under the fold. Re-anchor
+  // once the new band has laid out — every question change moves this boundary.
+  after(60, () => keepInView(document.querySelectorAll(".cv-line").length
+    ? [].slice.call(document.querySelectorAll(".cv-line")).pop()
+    : $("#cvrole")));
   $("#ask").querySelectorAll(".opt").forEach(b => b.onclick = function () {
     bumpProfile();
     $("#ask").innerHTML = `<p class="why">and so on</p>` +
@@ -451,67 +547,11 @@ function askQ2() {
 
 // --- the four shapes -------------------------------------------------------
 const SHAPES = {
-  a: {
-    tag: "A", name: "The list, with an escape hatch",
-    note: `<b>A — the list.</b> Six taps and a dashed way out. One tap for whoever is on the list;
-           for everyone else the first thing the product says is <i>you are not here</i>.
-           Press <b>Something else…</b> and see how much is left undesigned behind it.`,
-    render: function () {
-      renderCV();
-      renderBlocks("summary");
-      $("#ask").innerHTML =
-        `<p class="why">question 1</p>` +
-        `<p class="q">What kind of job are you going for?</p>` +
-        `<div class="opts">` +
-          SHORTLIST.map(o => `<button class="opt">${o}</button>`).join("") +
-          `<button class="opt escape" id="esc">Something else…</button>` +
-        `</div>`;
-      $("#ask").querySelectorAll(".opt").forEach(b => {
-        if (b.id === "esc") return;
-        b.onclick = () => commit(b.textContent);
-      });
-      $("#esc").onclick = function () {
-        // The escape hatch, opened: there is nothing behind it but a blank field.
-        $("#ask").innerHTML =
-          `<p class="why">question 1 · something else</p>` +
-          `<p class="q">What is it, then?</p>` +
-          `<p class="sub">The same field the other shapes lead with — reached two taps later,
-             after being told you are unusual.</p>` +
-          `<div id="live"></div>` +
-          `<div class="field">` +
-            `<input id="txt" placeholder="Type your job title" autocomplete="off">` +
-            `<button class="go" id="go" disabled>Go</button>` +
-          `</div>`;
-        wireTypeahead();
-      };
-    },
-  },
-
-  b: {
-    tag: "B", name: "You write the first line",
-    note: `<b>B — into the paper.</b> The caret is on the CV’s own role line: you type your job title
-           <i>into the document</i> and watch it land as you type. One line written by you, every line
-           after written for you — it teaches the typewriter by making you do it once.`,
-    render: function () {
-      renderCV(`<input id="txt" placeholder="your job title" autocomplete="off" spellcheck="false">`);
-      $("#cvrole").classList.add("armed");
-      renderBlocks("summary");
-      $("#ask").innerHTML =
-        `<p class="why">question 1</p>` +
-        `<p class="q">Start with the job you’re going for.</p>` +
-        `<p class="sub">Write it on the line — that is where it goes on the real thing.</p>` +
-        `<div id="live"></div>` +
-        `<button class="go wide" id="go" disabled>That’s me</button>`;
-      wireTypeahead(() => $("#cvrole").classList.remove("armed"));
-      after(reduced ? 0 : 700, () => { if ($("#txt")) $("#txt").focus({ preventScroll: true }); });
-    },
-  },
-
-  c: {
-    tag: "C", name: "One field, shortcuts under it",
-    note: `<b>C — the search box.</b> A field with the common answers as chips beneath it.
-           Type or tap, one control, and no escape hatch is needed because the way out
-           <i>is</i> the way in. The pragmatic shape — and the least designed moment of the four.`,
+  c1: {
+    tag: "C1", name: "Just the job",
+    note: `<b>C1 — just the job.</b> One field, common answers as chips, typeahead as you type.
+           Anything is accepted; a model places it in a family. Watch the promise land
+           <i>without a city</i> — nothing in the flow has asked where you are.`,
     render: function () {
       renderCV();
       renderBlocks("summary");
@@ -526,44 +566,60 @@ const SHAPES = {
           `<input id="txt" placeholder="Type a job title" autocomplete="off">` +
           `<button class="go" id="go" disabled>Go</button>` +
         `</div>`;
-      $("#chips").querySelectorAll("button").forEach(b => b.onclick = () => commit(b.textContent));
-      wireTypeahead(() => { if ($("#chips")) $("#chips").style.display = "none"; });
+      $("#chips").querySelectorAll("button").forEach(b => b.onclick = () => commit(b.textContent, false));
+      wireTypeahead(false, () => { if ($("#chips")) $("#chips").style.display = "none"; });
     },
   },
 
-  d: {
-    tag: "D", name: "In your own words",
-    note: `<b>D — the interview.</b> No list, no typeahead, no right answer: a box and a sentence.
-           Truest to “be interviewed”, and it accepts anyone. Cost: a blank box is work, and the
-           family has to be pulled out of the sentence by a model before §6 can promise anything.`,
+  c2: {
+    tag: "C2", name: "The job, and anything else",
+    note: `<b>C2 — the job, and anything else.</b> Same box, but the placeholder teaches you to
+           say more, and every extra thing pays out its own line in its own section.
+           Try: <i>IT project manager in Lyon, mostly ERP, I use Jira and MS Project</i>.`,
     render: function () {
       renderCV();
       renderBlocks("summary");
       $("#ask").innerHTML =
         `<p class="why">question 1</p>` +
-        `<p class="q">What kind of work are you going for?</p>` +
-        `<p class="sub">However you’d say it out loud. A title, or a sentence.</p>` +
-        `<div class="field">` +
-          `<textarea id="txt" rows="3" placeholder="e.g. running IT projects, mostly ERP stuff, ideally in Paris"></textarea>` +
+        `<p class="q">What kind of job are you going for?</p>` +
+        `<p class="sub">Say as much or as little as you like.</p>` +
+        `<div id="live"></div>` +
+        `<div class="sugg" id="chips">` +
+          SHORTLIST.slice(0, 3).map(o => `<button>${o}</button>`).join("") +
         `</div>` +
-        `<button class="go wide" id="go" disabled>That’s it</button>`;
-      const txt = $("#txt"), go = $("#go");
-      txt.oninput = () => { go.disabled = txt.value.trim().length < 3; };
-      go.onclick = function () {
-        // No typeahead here, so the title is whatever the sentence's best match is —
-        // in the real thing, one cheap model call. Shown honestly: often no family.
-        const words = txt.value.trim().split(/[\s,]+/);
-        const hit = match(words.slice(-2).join(" "))[0] || match(txt.value.trim())[0];
-        commit(hit ? hit[0] : txt.value.trim().replace(/\s+/g, " ").slice(0, 48));
-      };
-      after(reduced ? 0 : 500, () => txt.focus({ preventScroll: true }));
+        `<div class="field">` +
+          `<textarea id="txt" rows="2" placeholder="e.g. IT project manager in Paris, mostly ERP, I use Jira and MS Project"></textarea>` +
+        `</div>` +
+        `<button class="go wide" id="go" disabled>That’s me</button>`;
+      $("#chips").querySelectorAll("button").forEach(b => b.onclick = () => commit(b.textContent, true));
+      wireTypeahead(true, () => { if ($("#chips")) $("#chips").style.display = "none"; });
+    },
+  },
+
+  b: {
+    tag: "B", name: "Same box, on the paper",
+    note: `<b>B — into the paper.</b> The same free box, moved onto the CV’s own role line, so the
+           first line of the document is typed by you. <b>It only works narrow</b> — a sentence
+           about Lyon and Jira cannot be typed onto a role line. Choosing C2 rules B out.`,
+    render: function () {
+      renderCV(`<input id="txt" placeholder="the job you’re going for" autocomplete="off" spellcheck="false">`);
+      $("#cvrole").classList.add("armed");
+      renderBlocks("summary");
+      $("#ask").innerHTML =
+        `<p class="why">question 1</p>` +
+        `<p class="q">Start with the job you’re going for.</p>` +
+        `<p class="sub">Write it on the line — that is where it goes on the real thing.</p>` +
+        `<div id="live"></div>` +
+        `<button class="go wide" id="go" disabled>That’s me</button>`;
+      wireTypeahead(false, () => $("#cvrole").classList.remove("armed"));
+      after(reduced ? 0 : 700, () => { if ($("#txt")) $("#txt").focus({ preventScroll: true }); });
     },
   },
 };
 
 // Shared by A (after the escape), B and C: type → live matches → tap one, or keep
 // your own words. The "no match" branch is the one worth watching.
-function wireTypeahead(onFirstKey) {
+function wireTypeahead(wide, onFirstKey) {
   const txt = $("#txt"), go = $("#go"), live = $("#live");
   let fired = false;
   txt.oninput = function () {
@@ -572,6 +628,7 @@ function wireTypeahead(onFirstKey) {
     if (!fired && v && onFirstKey) { fired = true; onFirstKey(); }
     if (!v) { live.innerHTML = ""; return; }
     const hits = match(v);
+    if (wide && !hits.length) { live.innerHTML = ""; return; }  // a sentence is not a failed lookup
     if (hits.length) {
       live.innerHTML = `<div class="sugg live">` + hits.map(function (p) {
         const t = p[0], i = t.toLowerCase().indexOf(v.toLowerCase());
@@ -579,16 +636,19 @@ function wireTypeahead(onFirstKey) {
           : t.slice(0, i) + "<em>" + t.slice(i, i + v.length) + "</em>" + t.slice(i + v.length);
         return `<button>${label}</button>`;
       }).join("") + `</div>`;
-      live.querySelectorAll("button").forEach(b => b.onclick = () => commit(b.textContent));
+      live.querySelectorAll("button").forEach(b => b.onclick = () => commit(b.textContent, wide));
     } else {
       live.innerHTML = `<div class="sugg"><div class="none">Nothing on our list matches
-        “${v}”. Your own words are fine — that is what goes on the CV.</div></div>`;
+        “${v}”. Your own words are fine — a model places them.</div></div>`;
     }
   };
-  go.onclick = () => commit(txt.value.trim());
-  txt.onkeydown = function (e) {
-    if (e.key === "Enter" && !go.disabled) { e.preventDefault(); go.click(); }
-  };
+  go.onclick = () => commit(txt.value.trim(), wide);
+  // Enter submits a single-line field; in a textarea it is a newline, so leave it alone.
+  if (txt.tagName === "INPUT") {
+    txt.onkeydown = function (e) {
+      if (e.key === "Enter" && !go.disabled) { e.preventDefault(); go.click(); }
+    };
+  }
 }
 
 // --- picker ----------------------------------------------------------------
@@ -620,5 +680,5 @@ $("#picker").innerHTML = Object.entries(SHAPES).map(function (e) {
   return `<button data-k="${e[0]}"><b>${e[1].tag}</b><i>${e[1].name}</i></button>`;
 }).join("");
 document.querySelectorAll("#picker button").forEach(b => (b.onclick = () => pick(b.dataset.k)));
-pick("a");
+pick("c1");
 </script>
