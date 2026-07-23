@@ -141,6 +141,52 @@ replaced it, because a fixed pace cannot serve two phases with different jobs.
   promise-beats-disappointing-proof rule as §3's reversal condition.
 - **Tailoring** has no pace at all. It ends when the questions run out or when the user says stop.
 
+> **Amended 2026-07-23** ([#6](https://github.com/adrien-mounier/jobcrush-app/issues/6)): the empty
+> skeleton is **not ruled**. Dashed rules read as a form to fill in; blank space reads as a page not
+> written yet. Section headings only, then space.
+
+### 6.1 The first question _(decided 2026-07-23, [#6](https://github.com/adrien-mounier/jobcrush-app/issues/6))_
+
+**One free text box. No preset job options.** Built and pressed twice; both rounds killed a list.
+
+**Why no list.** A closed list of job titles is wrong for most visitors, because at this point we know
+nothing about the field they are in. Worse, bolting a *"Something else"* escape onto it does not fix
+it: building the escape showed it only ever opens **the same free box** the boxless shapes lead with —
+reached two taps later, after the screen has told the user they are unusual. So there is no escape
+hatch to design. **The box is the question.** A model places whatever is typed into a family.
+
+**The ask is wide, not narrow.** The placeholder is the teaching device — *"e.g. IT project manager in
+Paris, mostly ERP, I use Jira and MS Project"* — and every extra thing volunteered pays out its own
+line in its own section. One answer became three facts across two sections in the prototype.
+
+The decisive argument is not richness, it is §6's promise. It reads *"142 project manager jobs are open
+**in Paris** right now"*, and **nothing anywhere else in this flow asks where the user is.** A
+title-only question 1 leaves the promise with no city; the wide one gets it for free.
+
+**Suggestions are the family, not near-spellings.** Type *nurse* and the whole nursing family appears
+under a label saying **same kind of job**. The label is load-bearing: without it, offering *other*
+titles reads as *"your words were not found"*. With it, the list is the net we cast — and it teaches
+the family mechanic before the copy explains it. The family stays visible as the answer grows into a
+sentence, so detail can be added without losing it. A title that matches nothing is accepted in
+silence — no "not found", because the model places it.
+
+Under the question, in words: *"I search the whole family, not just your words — say **project
+manager** and I'll also read IT project manager, programme manager, delivery manager."*
+
+**The promise fires immediately after question 1**, which is its earliest possible slot (§6) and now
+also its actual one: question 1 supplies both the family and the city. It arrives a beat late, because
+placing the family is a model call — that is fine, and §8.2 is not violated: the **typing** is instant
+because it is composed from the user's own words and never waits on the model.
+
+**No name on the CV.** We do not know it here, and asking a stranger for it is a signup-shaped question
+that pays nothing back. §12 keeps account out of the flow until the wall, and Google OAuth hands the
+name over for free at that point. So the role line — written by question 1 — is the first line on the
+page.
+
+*The classifier that maps a typed answer to a family is a clustering + classification model, and its
+own effort. The prototype's hand list is a stand-in.* Prototype:
+`apps/web/prototypes/first-question.prototype.html`.
+
 ## 7. One visible number
 
 Four numbers existed across this design and `cv-quality-kickoff.md`. The user sees **one**.
