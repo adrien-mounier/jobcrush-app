@@ -25,7 +25,6 @@
     --settled: #4d5865;
 
     --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
-    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
     --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
 
     --page: #0b0e12; --page-ink: #cfd5dc;
@@ -91,6 +90,21 @@
   .score.bumped .n { animation: bump 460ms cubic-bezier(.2,1.5,.4,1); }
   @keyframes bump { 0% { transform: none; } 40% { transform: scale(1.28); color: var(--gold); } 100% { transform: none; } }
 
+  /* ---------- the curtain: the reveal, with nothing showing through ----------
+     Deliberately empty behind. Seeing the cards early spends the reveal and kills
+     the mystery that carries the user through it. */
+  .curtain { flex: 1; display: grid; place-items: center; text-align: center; padding: 32px;
+    background: rgba(9,12,16,.9); backdrop-filter: blur(8px); }
+  .curtain .burst { font-size: 42px; margin-bottom: 18px; animation: burst 720ms cubic-bezier(.2,1.5,.4,1); }
+  @keyframes burst { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+  .curtain .big { font-size: 27px; font-weight: 680; letter-spacing: -.02em; margin: 0 0 26px;
+    text-wrap: balance; line-height: 1.25; }
+  .curtain .big em { font-style: normal; color: var(--gold); }
+  .curtain .go { appearance: none; border: none; border-radius: 999px; padding: 14px 34px; font: inherit;
+    font-weight: 650; font-size: 15.5px; cursor: pointer; background: var(--gold); color: #1a1206; }
+  .curtain .go:active { transform: scale(.97); }
+  .curtain .go:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 3px; }
+
   /* ---------- deck ---------- */
   .deck { flex: 1; position: relative; padding: 4px 16px calc(14px + env(safe-area-inset-bottom)); min-height: 0; }
   .jobcard { position: absolute; top: 4px; left: 16px; right: 16px; bottom: calc(14px + env(safe-area-inset-bottom));
@@ -129,15 +143,26 @@
   .sw:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   .deckcount { font-family: var(--mono); font-size: 10.5px; color: var(--hud-mute); text-align: center; padding: 0 16px 9px; }
 
-  /* ---------- shape A: the ad, scored (the control — a job board plus a number) ---------- */
-  .desc { font-size: 13.5px; line-height: 1.5; color: #c3ccd5; margin: 14px 0 0;
-    padding-top: 14px; border-top: 1px solid var(--hud-line); }
-  .flat { margin-top: 16px; display: flex; flex-direction: column; gap: 7px; }
-  .flat h3 { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
-    color: var(--hud-mute); margin: 7px 0 2px; }
-  .flat .row { display: flex; gap: 9px; font-size: 13px; line-height: 1.4; align-items: flex-start; }
+  /* ---------- the highlight bubble ----------
+     Sits directly under title / subtitle / score, above everything else. Two
+     clauses: the user's strongest fact against something this ad leads with, and
+     the biggest thing still open. Choosing those two is backend work — its own
+     ticket — so the data below carries them explicitly rather than deriving them
+     from prose. */
+  .bubble { display: flex; gap: 14px; align-items: center; margin: 15px 0 2px; padding: 14px;
+    border-radius: 13px; background: linear-gradient(135deg, rgba(232,163,61,.12), rgba(232,163,61,.04));
+    border: 1px solid rgba(232,163,61,.3); }
+  .bubble p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--hud-ink); }
+  .bubble .gap { color: var(--hud-mute); }
 
-  /* ---------- the mark: three states, never a cross ---------- */
+  /* ---------- the two lists ---------- */
+  .flat { margin-top: 15px; display: flex; flex-direction: column; gap: 7px; }
+  .flat h3 { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--hud-mute); margin: 8px 0 2px; }
+  .flat .row { display: flex; gap: 9px; font-size: 13.5px; line-height: 1.4; align-items: flex-start;
+    padding: 1px 0; border-radius: 6px; }
+
+  /* the mark: three states, never a cross */
   .mk { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center;
     font-size: 9px; margin-top: 2px; line-height: 1; }
   .fit .mk { background: rgba(232,163,61,.18); color: var(--gold); border: 1px solid rgba(232,163,61,.4); }
@@ -145,68 +170,20 @@
   .settled .mk { background: rgba(77,88,101,.16); color: var(--settled); border: 1px solid rgba(77,88,101,.5); }
   .open { color: var(--hud-mute); }
   .settled { color: var(--settled); }
+  .landed { animation: settle 640ms cubic-bezier(.2,1,.3,1); }
+  @keyframes settle { 0% { background: rgba(232,163,61,.2); } 100% { background: transparent; } }
 
-  /* ---------- shape B: the verdict ---------- */
-  .gloss { display: flex; gap: 14px; align-items: center; margin: 16px 0 4px; padding: 14px;
-    border-radius: 13px; background: linear-gradient(135deg, rgba(232,163,61,.12), rgba(232,163,61,.04));
-    border: 1px solid rgba(232,163,61,.3); }
-  .gloss p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--hud-ink); }
-  .reqs { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; }
-  .req { display: flex; gap: 10px; padding: 8px 0; align-items: flex-start;
-    border-top: 1px solid rgba(43,51,61,.7); transition: opacity 400ms ease; }
-  .req:first-of-type { border-top: none; }
-  .req .body { flex: 1; min-width: 0; }
-  .req .ask { font-size: 13.5px; line-height: 1.35; margin: 0; color: var(--hud-ink); }
-  .req.open .ask, .req.settled .ask { color: var(--hud-mute); }
-  .req.settled .ask { color: var(--settled); }
-  .req .mine { font-size: 12px; line-height: 1.4; margin: 3px 0 0; color: var(--gold-dim); }
-  .req .mine.none { color: var(--settled); font-style: italic; }
-  .landed { animation: settle 620ms cubic-bezier(.2,1,.3,1); }
-  @keyframes settle { 0% { background: rgba(232,163,61,.16); } 100% { background: transparent; } }
-  .askhead { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
-    color: var(--hud-mute); margin: 18px 0 0; display: flex; align-items: baseline; gap: 8px; }
-  .askhead .c { color: var(--hud-ink); font-variant-numeric: tabular-nums; }
-  .askhead::after { content: ""; flex: 1; height: 1px; background: var(--hud-line); }
-
-  details.ad { margin-top: 18px; border-top: 1px solid var(--hud-line); padding-top: 12px; }
-  details.ad summary { font-size: 12.5px; color: var(--hud-mute); cursor: pointer; list-style: none; }
+  /* ---------- the ad, at the bottom, folded away ----------
+     A real ad is far longer than this one. It is also the only part of the card a
+     job board already gives you, so it goes last and closed. */
+  details.ad { margin-top: 18px; border-top: 1px solid var(--hud-line); padding-top: 13px; }
+  details.ad summary { font-size: 12.5px; color: var(--hud-mute); cursor: pointer; list-style: none; padding: 2px 0; }
   details.ad summary::-webkit-details-marker { display: none; }
   details.ad summary::before { content: "▸ "; }
   details.ad[open] summary::before { content: "▾ "; }
   details.ad summary:hover { color: var(--hud-ink); }
+  details.ad summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 4px; }
   details.ad p { font-size: 13px; line-height: 1.55; color: #c3ccd5; margin: 11px 0 0; }
-
-  /* ---------- shape C: the scorecard ---------- */
-  .band { margin-top: 17px; }
-  .band > h3 { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
-    color: var(--hud-mute); margin: 0 0 6px; display: flex; align-items: baseline; gap: 8px; }
-  .band > h3 .c { margin-left: auto; color: var(--hud-ink); font-variant-numeric: tabular-nums; }
-  .band.must > h3 { color: var(--gold); }
-  .grid { display: flex; flex-direction: column; }
-  .grid .req { padding: 7px 0; }
-  .grid .req .ask { font-size: 13px; }
-  .grid .req .mine { font-size: 11.5px; }
-
-  /* ---------- the drop: three cards arrive as a set ---------- */
-  .drop { flex: 1; display: flex; flex-direction: column; justify-content: center;
-    padding: 0 22px calc(22px + env(safe-area-inset-bottom)); gap: 18px; min-height: 0; }
-  .drop .big { font-size: 26px; font-weight: 680; letter-spacing: -.02em; margin: 0; text-align: center; text-wrap: balance; }
-  .drop .big em { font-style: normal; color: var(--gold); }
-  .haul { display: flex; flex-direction: column; gap: 9px; }
-  .mini { display: flex; gap: 13px; align-items: center; padding: 13px 14px; border-radius: 14px;
-    background: var(--hud-1); border: 1px solid var(--hud-line);
-    opacity: 0; transform: translateY(16px) scale(.97); }
-  .mini.in { opacity: 1; transform: none; transition: opacity 420ms ease, transform 520ms cubic-bezier(.2,1.1,.3,1); }
-  .mini.best { border-color: rgba(232,163,61,.45); }
-  .mini .t { flex: 1; min-width: 0; }
-  .mini .t p { margin: 0; }
-  .mini .t .ti { font-size: 14px; font-weight: 600; letter-spacing: -.01em; line-height: 1.3; }
-  .mini .t .cc { font-size: 11.5px; color: var(--hud-mute); margin-top: 2px; }
-  .drop .go { appearance: none; border: none; border-radius: 999px; padding: 15px; font: inherit; font-size: 15.5px;
-    font-weight: 650; cursor: pointer; background: var(--gold); color: #1a1206;
-    opacity: 0; transition: opacity 460ms ease; }
-  .drop .go.in { opacity: 1; }
-  .drop .go:active { transform: scale(.985); }
 
   /* ---------- the card, live ---------- */
   .live-wrap { flex: 1; overflow-y: auto; padding: 0 16px 12px; min-height: 0; }
@@ -215,9 +192,9 @@
      score away — the two things that move have to be in the same glance (§8.4). */
   .live-card .hd { position: sticky; top: 0; z-index: 2; background: var(--hud-1);
     margin: -19px -19px 0; padding: 19px 19px 13px; border-radius: 17px 17px 0 0; }
-  /* rows fade out under the pinned head rather than being sliced in half by it */
   .live-card .hd::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 16px;
     background: linear-gradient(var(--hud-1), rgba(23,28,35,0)); pointer-events: none; }
+
   .ask-band { background: var(--hud-1); border-top: 1px solid var(--hud-line);
     padding: 15px 16px calc(15px + env(safe-area-inset-bottom)); flex: 0 0 auto; }
   .ask-band .why { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .09em;
@@ -261,35 +238,31 @@
     border-radius: 999px; padding: 5px; box-shadow: 0 8px 26px rgba(0,0,0,.4); font-family: var(--sans); }
   .switcher .lbl { font-size: 11.5px; font-weight: 700; padding: 0 9px; white-space: nowrap; letter-spacing: .04em; }
   .switcher button { appearance: none; border: none; font: inherit; font-size: 11.5px; font-weight: 600;
-    border-radius: 999px; padding: 0 12px; height: 29px; cursor: pointer; background: #dfe3e8; color: #101419;
+    border-radius: 999px; padding: 0 13px; height: 29px; cursor: pointer; background: #101419; color: #f2f4f7;
     white-space: nowrap; }
-  .switcher button.on { background: #101419; color: #f2f4f7; }
   .switcher button:focus-visible { outline: 2px solid #101419; outline-offset: 2px; }
 
   @media (prefers-reduced-motion: reduce) { * { animation-duration: 1ms !important; transition-duration: 1ms !important; } }
 </style>
 
 <p class="caption">
-  <b>Ticket #10 — the job card.</b> Same job, same facts, three shapes:
-  <b>A</b> the ad plus a number (a job board with a score bolted on — the control §3 has to beat),
-  <b>B</b> the verdict (their ask, your fact, the ad demoted), <b>C</b> the scorecard (their
-  requirement list, banded, no prose). Swipe or press. Right takes you into the live card, where
-  answering moves the number — and where a <b>no</b> still pays.
+  <b>Ticket #10 — the job card.</b> The reveal shows nothing behind it, then lands on the highest
+  score. On the card: title, subtitle and score, then the <b>highlight bubble</b> — your strongest
+  fact against what this ad leads with, and the biggest thing still open. Then where you fit and
+  where you don't. The ad itself is last and folded away. Swipe right to see the card move while you
+  answer — including on a <b>no</b>, which pays nothing in percent and still has to be worth pressing.
 </p>
 
 <div class="phone" id="phone">
-  <div class="screen" id="sDrop"></div>
+  <div class="screen" id="sCurtain"></div>
   <div class="screen" id="sDeck"></div>
   <div class="screen" id="sLive"></div>
   <div class="screen" id="sEnd"></div>
 </div>
 
 <div class="switcher">
-  <span class="lbl">Card</span>
-  <button data-shape="A">A · ad</button>
-  <button data-shape="B">B · verdict</button>
-  <button data-shape="C">C · scorecard</button>
-  <button id="restart" style="margin-left:6px">restart</button>
+  <span class="lbl">The job card</span>
+  <button id="restart">restart</button>
 </div>
 
 <script>
@@ -301,18 +274,15 @@
 // agile + stage-gate, Jira/MS Project, FR/EN, MSc + PMP.
 //
 // The data shape below is a claim about what E5 must produce (§9): a RANKED
-// requirement list per ad, each item carrying the band, the ad's ask, and the
-// user's own fact that satisfies it. That third field is the whole differentiator
-// — a job board can show you the ask; only we can show you your own answer to it.
+// requirement list per ad, each item carrying its band, the ad's ask, and the
+// user's own fact that satisfies it. Plus, per job, the two clauses the highlight
+// bubble is made of. Picking those two well is backend work with its own ticket.
 // ---------------------------------------------------------------------------
 
-// Bands are §6.2's rank bands, in user-facing words. Deliberately boring: a label
-// is a door handle (§8.3), it should not be clever.
-const BANDS = [
-  { key: "must",   label: "Must have" },
-  { key: "should", label: "Usually asked for" },
-  { key: "nice",   label: "Nice to have" },
-];
+// §6.2's rank bands. They do not appear on the card — they decide which gap is
+// "the biggest" one the bubble names, and they order the lists.
+const BANDS = ["must", "should", "nice"];
+const rank = r => BANDS.indexOf(r.band);
 
 const JOBS = [
   {
@@ -320,16 +290,17 @@ const JOBS = [
     co: "Atos · Paris 15e",
     meta: "€68–78k · Hybrid, 2 days on site",
     score: 61,
-    gloss: "Your €2M budget and the ERP migration are the two things they lead with. The gap is their SAP version.",
-    ad: "Lead the replacement of a legacy finance platform across four European sites. You own the plan, the budget and the vendor relationship, reporting to the IT director. Occasional travel to Lyon and Madrid.",
+    // the fixed half of the bubble: the strongest fact, against what this ad leads with
+    hit: "Your €2M budget and the ERP migration are the two things they lead with.",
+    ad: "Lead the replacement of a legacy finance platform across four European sites. You own the plan, the budget and the vendor relationship, reporting to the IT director. You will run a mixed internal and vendor team, chair the steering committee, and report monthly to the group CIO. Occasional travel to Lyon and Madrid.",
     reqs: [
-      { band: "must",   ask: "A budget over €1M",             mine: "€2M, across 4 teams",        state: "fit" },
-      { band: "must",   ask: "An ERP migration, end to end",  mine: "You shipped one, on time",   state: "fit" },
-      { band: "must",   ask: "SAP S/4HANA",                                                       state: "open" },
-      { band: "should", ask: "A team of 10 or more",          mine: "You led 12",                 state: "fit" },
-      { band: "should", ask: "Vendor and contract ownership", mine: "You own the vendor today",   state: "fit" },
-      { band: "should", ask: "Public-sector delivery",                                            state: "open" },
-      { band: "nice",   ask: "English for a European rollout", mine: "Fluent",                    state: "fit" },
+      { band: "must",   ask: "A budget over €1M",             mine: "€2M, across 4 teams",      state: "fit" },
+      { band: "must",   ask: "An ERP migration, end to end",  mine: "You shipped one, on time", state: "fit" },
+      { band: "must",   ask: "SAP S/4HANA",                   gap: "their SAP version",         state: "open" },
+      { band: "should", ask: "A team of 10 or more",          mine: "You led 12",               state: "fit" },
+      { band: "should", ask: "Vendor and contract ownership", mine: "You own the vendor today", state: "fit" },
+      { band: "should", ask: "Public-sector delivery",        gap: "public-sector work",        state: "open" },
+      { band: "nice",   ask: "English for a European rollout", mine: "Fluent",                  state: "fit" },
     ],
   },
   {
@@ -337,15 +308,15 @@ const JOBS = [
     co: "Orange · Paris 8e",
     meta: "€72–85k · 3 days on site",
     score: 54,
-    gloss: "Eight years and both delivery styles land well. They want a clearance and telecoms, and you have said nothing about either.",
-    ad: "Run a portfolio of three network-modernisation projects. Heavy stakeholder work with regulators and internal security, and a standing seat on the transformation board.",
+    hit: "Eight years and both delivery styles are exactly what they open with.",
+    ad: "Run a portfolio of three network-modernisation projects. Heavy stakeholder work with regulators and internal security, and a standing seat on the transformation board. You will own the portfolio plan, the risk register and the quarterly business review.",
     reqs: [
-      { band: "must",   ask: "7+ years running delivery",     mine: "8 years",                    state: "fit" },
-      { band: "must",   ask: "A security clearance",                                              state: "open" },
-      { band: "must",   ask: "Agile and stage-gate both",     mine: "You run both",               state: "fit" },
-      { band: "should", ask: "Telecoms background",                                               state: "open" },
-      { band: "should", ask: "Regulator-facing work",                                             state: "open" },
-      { band: "nice",   ask: "A PMP or equivalent",           mine: "PMP certified",              state: "fit" },
+      { band: "must",   ask: "7+ years running delivery", mine: "8 years",        state: "fit" },
+      { band: "must",   ask: "A security clearance",      gap: "the clearance",   state: "open" },
+      { band: "must",   ask: "Agile and stage-gate both", mine: "You run both",   state: "fit" },
+      { band: "should", ask: "Telecoms background",       gap: "telecoms",        state: "open" },
+      { band: "should", ask: "Regulator-facing work",     gap: "regulator work",  state: "open" },
+      { band: "nice",   ask: "A PMP or equivalent",       mine: "PMP certified",  state: "fit" },
     ],
   },
   {
@@ -353,15 +324,15 @@ const JOBS = [
     co: "Capgemini · Lyon",
     meta: "€65–75k · Remote-first",
     score: 47,
-    gloss: "The migration experience transfers and your English covers the offshore team. Banking and offshore delivery are both blank.",
-    ad: "Client-facing delivery of a core banking replacement for a regional bank. A mixed onshore/offshore team of about 30, split between Lyon and Bangalore.",
+    hit: "Your ERP migration is the closest thing on the page to what they need.",
+    ad: "Client-facing delivery of a core banking replacement for a regional bank. A mixed onshore/offshore team of about 30, split between Lyon and Bangalore. You are the single point of contact for the client's programme director.",
     reqs: [
-      { band: "must",   ask: "A large platform replacement",  mine: "Your ERP migration transfers", state: "fit" },
-      { band: "must",   ask: "Banking domain knowledge",                                            state: "open" },
-      { band: "must",   ask: "Offshore team experience",                                            state: "open" },
-      { band: "should", ask: "Fluent English",                mine: "Fluent",                       state: "fit" },
-      { band: "should", ask: "A team of 25+",                 mine: "You led 12",                   state: "open" },
-      { band: "nice",   ask: "Willing to travel to Bangalore",                                      state: "open" },
+      { band: "must",   ask: "A large platform replacement", mine: "Your ERP migration transfers", state: "fit" },
+      { band: "must",   ask: "Banking domain knowledge",     gap: "banking",                       state: "open" },
+      { band: "must",   ask: "Offshore team experience",     gap: "offshore delivery",             state: "open" },
+      { band: "should", ask: "Fluent English",               mine: "Fluent",                       state: "fit" },
+      { band: "should", ask: "A team of 25+",                gap: "the team size",                 state: "open" },
+      { band: "nice",   ask: "Travel to Bangalore",          gap: "the travel",                    state: "open" },
     ],
   },
 ];
@@ -379,9 +350,9 @@ const ASKS = {
       ] },
     { req: 5, q: "They ask for public-sector delivery. Has any of your work been for a government or public body?",
       opts: [
-        { t: "Yes, several",  gain: 6, mine: "Delivered under EU public procurement" },
-        { t: "One contract",  gain: 3, mine: "One public-sector contract" },
-        { t: "No",            gain: 0, mine: null },
+        { t: "Yes, several", gain: 6, mine: "Delivered under EU public procurement" },
+        { t: "One contract", gain: 3, mine: "One public-sector contract" },
+        { t: "No",           gain: 0, mine: null },
       ] },
   ],
 };
@@ -390,16 +361,15 @@ const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
-let S, SHAPE = "B";
-
+let S;
 function fresh() {
   S = {
-    screen: "sDrop",
+    screen: "sCurtain",
     deck: 0,
     facts: 24,
-    // a per-job working copy, so restarting is a real reset
-    jobs: JOBS.map(j => ({ ...j, reqs: j.reqs.map(r => ({ ...r })) })),
-    live: null, ai: 0, ledger: null,
+    // sorted by score, so the deck always opens on the best match
+    jobs: JOBS.map(j => ({ ...j, reqs: j.reqs.map(r => ({ ...r })) })).sort((a, b) => b.score - a.score),
+    live: null, ledger: null,
   };
 }
 fresh();
@@ -441,20 +411,6 @@ function profEl() {
   return `<span class="prof"><svg viewBox="0 0 18 21">${rects}</svg><span class="n">${S.facts}</span></span>`;
 }
 
-const MARK = { fit: "✓", open: "?", settled: "·" };
-
-// One requirement, one row: their ask, and underneath it your own fact. The
-// second line is the thing a job board structurally cannot print.
-function reqRow(r, i) {
-  const mine = r.state === "fit" ? `<p class="mine">${esc(r.mine)}</p>`
-    : r.state === "settled" ? `<p class="mine none">${esc(r.mine || "not your area — asked and closed")}</p>`
-    : "";
-  return `<div class="req ${r.state}" data-req="${i}">
-    <span class="mk">${MARK[r.state]}</span>
-    <div class="body"><p class="ask">${esc(r.ask)}</p>${mine}</div>
-  </div>`;
-}
-
 // Scroll a changed row into view before it animates — same rule as §8.2's
 // typewriter: feedback that lands below the fold was never delivered.
 function keepInView(box, el, topPad = 28) {
@@ -466,90 +422,58 @@ function keepInView(box, el, topPad = 28) {
   if (Math.abs(d) > 1) box.scrollTo({ top: box.scrollTop + d, behavior: reduced ? "auto" : "smooth" });
 }
 
-// --- the three shapes ------------------------------------------------------
+// --- the card --------------------------------------------------------------
+
+// The bubble's second clause is derived, not written: it names the highest-ranked
+// requirement still open. So the bubble is live too — close that gap and the
+// sentence changes with the card instead of going stale.
+function bubbleFor(j) {
+  const worst = j.reqs.filter(r => r.state === "open").sort((a, b) => rank(a) - rank(b))[0];
+  return worst
+    ? `${esc(j.hit)} <span class="gap">The gap is ${esc(worst.gap)}.</span>`
+    : `${esc(j.hit)} <span class="gap">Nothing they ask for is still open.</span>`;
+}
+
+function row(r, i, kind) {
+  const text = kind === "fit" ? r.mine : r.ask;
+  const mark = kind === "fit" ? "✓" : kind === "open" ? "?" : "·";
+  return `<div class="row ${kind}" data-req="${i}"><span class="mk">${mark}</span><span>${esc(text)}</span></div>`;
+}
 
 function cardInner(j, live) {
-  const open = j.reqs.filter(r => r.state === "open");
-  const head = `<div class="hd">
+  const idx = r => j.reqs.indexOf(r);
+  const byRank = s => j.reqs.filter(r => r.state === s).sort((a, b) => rank(a) - rank(b));
+  const fits = byRank("fit"), open = byRank("open"), shut = byRank("settled");
+  return `<div class="hd">
       <div class="t"><h2>${esc(j.title)}</h2><p class="co">${esc(j.co)}<br>${esc(j.meta)}</p></div>
       ${scoreEl(j.score, true, live ? "liveScore" : null)}
-    </div>`;
-
-  // A — the control. What LinkedIn shows, plus our number. Two flat lists, the ad
-  // prose in the middle of the card where a job board puts it.
-  if (SHAPE === "A") {
-    const fits = j.reqs.filter(r => r.state === "fit");
-    const shut = j.reqs.filter(r => r.state === "settled");
-    return head + `<p class="desc">${esc(j.ad)}</p>
-      <div class="flat">
-        <h3>Where you fit</h3>
-        ${fits.map(r => `<div class="row fit" data-req="${j.reqs.indexOf(r)}"><span class="mk">✓</span><span>${esc(r.mine)}</span></div>`).join("")}
-        ${open.length ? `<h3>Where you don't — yet</h3>
-        ${open.map(r => `<div class="row open" data-req="${j.reqs.indexOf(r)}"><span class="mk">?</span><span>${esc(r.ask)}</span></div>`).join("")}` : ""}
-        ${shut.length ? `<h3>Asked and closed</h3>
-        ${shut.map(r => `<div class="row settled" data-req="${j.reqs.indexOf(r)}"><span class="mk">·</span><span>${esc(r.ask)}</span></div>`).join("")}` : ""}
-      </div>`;
-  }
-
-  // B — the verdict. The number never appears alone: it sits against one plain
-  // sentence saying what it is made of. Then their ask / your fact, in rank
-  // order. The ad is demoted to a disclosure — it is the one part of this card
-  // a job board already gives you.
-  if (SHAPE === "B") {
-    // The count is FITS only. A settled "no" is closed, not met — counting it as
-    // met would let the card claim 7 of 7 for a user who answered "never" twice.
-    const met = j.reqs.filter(r => r.state === "fit").length;
-    return head + `
-      <div class="gloss"><p>${esc(j.gloss)}</p></div>
-      <p class="askhead">What they ask for <span class="c">${met} of ${j.reqs.length}</span>${
-        open.length ? ` <span>· ${open.length} still open</span>` : ""}</p>
-      <div class="reqs">${j.reqs.map(reqRow).join("")}</div>
-      <details class="ad"><summary>Read the ad in full</summary><p>${esc(j.ad)}</p></details>`;
-  }
-
-  // C — the scorecard. No prose at all: the card IS the ranked requirement list,
-  // banded, with the gate made literal. The most un-job-board thing we can print,
-  // and the densest.
-  const bands = BANDS.map(b => {
-    const rows = j.reqs.filter(r => r.band === b.key);
-    if (!rows.length) return "";
-    const met = rows.filter(r => r.state === "fit").length;
-    return `<section class="band ${b.key}">
-      <h3>${b.label}<span class="c">${met} of ${rows.length}</span></h3>
-      <div class="grid">${rows.map(r => reqRow(r, j.reqs.indexOf(r))).join("")}</div>
-    </section>`;
-  }).join("");
-  return head + bands;
+    </div>
+    <div class="bubble" id="${live ? "liveBubble" : "bubble"}"><p>${bubbleFor(j)}</p></div>
+    <div class="flat">
+      ${fits.length ? `<h3>Where you fit</h3>${fits.map(r => row(r, idx(r), "fit")).join("")}` : ""}
+      ${open.length ? `<h3>Where you don't — yet</h3>${open.map(r => row(r, idx(r), "open")).join("")}` : ""}
+      ${shut.length ? `<h3>Asked and closed</h3>${shut.map(r => row(r, idx(r), "settled")).join("")}` : ""}
+    </div>
+    <details class="ad"><summary>Read the ad in full</summary><p>${esc(j.ad)}</p></details>`;
 }
 
 // --- screens ---------------------------------------------------------------
 
 function show() {
   document.querySelectorAll(".screen").forEach(s => s.classList.toggle("on", s.id === S.screen));
-  ({ sDrop: renderDrop, sDeck: renderDeck, sLive: renderLive, sEnd: renderEnd })[S.screen]();
+  ({ sCurtain: renderCurtain, sDeck: renderDeck, sLive: renderLive, sEnd: renderEnd })[S.screen]();
 }
 
-// The drop. §3 calls the cards loot, and loot is shown as a haul — three at once,
-// scored, sorted — not one at a time. It is also what makes the number safe: 61
-// beside 54 and 47 reads as "start here", where a lone 47 reads as a grade (§7).
-function renderDrop() {
-  $("#sDrop").innerHTML = `
-    <div class="topbar"><span class="wordmark">JobCrush</span><span class="spacer"></span>${profEl()}</div>
-    <div class="drop">
+// The reveal. Nothing shows through it: seeing the cards here would spend the
+// reveal early and kill the mystery that carries the user into the deck.
+function renderCurtain() {
+  $("#sCurtain").innerHTML = `
+    <div class="curtain"><div>
+      <div class="burst">🂠</div>
       <p class="big">3 jobs just <em>matched you</em></p>
-      <div class="haul">${S.jobs.map((j, i) => `
-        <div class="mini ${i === 0 ? "best" : ""}" data-mini="${i}">
-          <div class="t">
-            <p class="ti">${esc(j.title)}</p>
-            <p class="cc">${esc(j.co)} · ${esc(j.meta.split(" · ")[0])}</p>
-          </div>${scoreEl(j.score)}
-        </div>`).join("")}</div>
-      <button class="go" id="open">Start with the best one</button>
-    </div>`;
-  const minis = [...document.querySelectorAll("#sDrop .mini")];
-  minis.forEach((m, i) => setTimeout(() => m.classList.add("in"), reduced ? 0 : 120 + i * 260));
-  setTimeout(() => $("#open").classList.add("in"), reduced ? 0 : 120 + minis.length * 260);
-  $("#open").onclick = () => { S.screen = "sDeck"; show(); };
+      <button class="go" id="reveal">See them</button>
+    </div></div>`;
+  $("#reveal").onclick = () => { S.screen = "sDeck"; show(); };
 }
 
 function renderDeck() {
@@ -572,7 +496,7 @@ function renderDeck() {
   const reject = () => { card.classList.add("out-left"); setTimeout(() => { S.deck++; show(); }, 320); };
   const accept = () => {
     card.classList.add("out-right");
-    setTimeout(() => { S.live = S.deck; S.ai = 0; S.ledger = null; S.screen = "sLive"; show(); }, 320);
+    setTimeout(() => { S.live = S.deck; S.ledger = null; S.screen = "sLive"; show(); }, 320);
   };
   $("#no").onclick = reject;
   $("#yes").onclick = accept;
@@ -583,8 +507,7 @@ function renderDeck() {
 // here — this screen exists to put the CARD's behaviour on trial, nothing else.
 function renderLive() {
   const j = S.jobs[S.live];
-  const asks = (ASKS[S.live] || []).filter(a => j.reqs[a.req].state === "open");
-  const step = asks[0];
+  const step = (ASKS[S.live] || []).filter(a => j.reqs[a.req].state === "open")[0];
   $("#sLive").innerHTML = `
     <div class="topbar"><span class="wordmark">JobCrush</span><span class="spacer"></span>${profEl()}</div>
     <div class="live-wrap"><div class="live-card">${cardInner(j, true)}</div></div>
@@ -602,8 +525,9 @@ function renderLive() {
         <button id="back">Back to the deck</button>
       </div>
     </div>`;
-  $("#back").onclick = () => { S.deck++; S.screen = "sDeck"; show(); };
-  $("#useit").onclick = () => { S.deck++; S.screen = "sDeck"; show(); };
+  const next = () => { S.deck++; S.screen = "sDeck"; show(); };
+  $("#back").onclick = next;
+  $("#useit").onclick = next;
   document.querySelectorAll("#sLive .opt").forEach(b => b.onclick = () => answer(step, +b.dataset.opt));
 }
 
@@ -614,10 +538,9 @@ function renderLive() {
 // §7 forbids ever showing it as a failure — so it must still hand something back,
 // or §4's loop breaks on exactly the answers users give most.
 //
-// What it hands back: the question goes away. "What they ask for" counts one
-// higher, the open list gets shorter, and the card stops asking. Two numbers move
-// on every single answer and neither can ever embarrass anyone: the match % only
-// climbs, and the count of things still unanswered only falls.
+// What it hands back: the question goes away. The item leaves "where you don't
+// fit", the bubble stops naming it as the gap, and the card stops asking. The
+// match % only ever climbs; the list of open things only ever shrinks.
 function answer(step, k) {
   const j = S.jobs[S.live], opt = step.opts[k], r = j.reqs[step.req];
   const from = j.score;
@@ -630,13 +553,15 @@ function answer(step, k) {
   S.ledger = opt.gain > 0
     ? { txt: `+${opt.gain}%  ·  ${r.ask}` }
     : { quiet: true, txt: left ? `asked and closed  ·  ${left} still open` : "asked and closed" };
-  S.ai++;
   renderLive();
   const el = $("#liveScore");
   if (el) tweenScore(el, from, j.score);
   // Scroll to the row that changed, then let it flash — never the other way round.
-  const row = $(`#sLive [data-req="${step.req}"]`), head = $("#sLive .live-card .hd");
-  if (row) { keepInView($("#sLive .live-wrap"), row, (head ? head.offsetHeight : 0) + 14); row.classList.add("landed"); }
+  const changed = $(`#sLive [data-req="${step.req}"]`), head = $("#sLive .live-card .hd");
+  if (changed) {
+    keepInView($("#sLive .live-wrap"), changed, (head ? head.offsetHeight : 0) + 14);
+    changed.classList.add("landed");
+  }
 }
 
 // The deck runs out, and that is the loop, not the end: more answers, more jobs.
@@ -694,17 +619,6 @@ function makeSwipeable(el, onLeft, onRight) {
   el.addEventListener("pointercancel", release);
 }
 
-// --- shape switch ----------------------------------------------------------
-
-function paintSwitcher() {
-  document.querySelectorAll("[data-shape]").forEach(b => b.classList.toggle("on", b.dataset.shape === SHAPE));
-}
-document.querySelectorAll("[data-shape]").forEach(b => b.onclick = () => {
-  SHAPE = b.dataset.shape; paintSwitcher();
-  if (S.screen === "sDeck" || S.screen === "sLive") show();
-});
-$("#restart").onclick = () => { fresh(); paintSwitcher(); show(); };
-
-paintSwitcher();
+$("#restart").onclick = () => { fresh(); show(); };
 show();
 </script>
