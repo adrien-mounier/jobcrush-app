@@ -248,19 +248,42 @@
   .deckcount { font-family: var(--mono); font-size: 10.5px; color: var(--hud-mute); text-align: center; padding: 0 0 10px; }
 
   /* ---------- screen 0: the front door (ticket #7) ----------
-     Charcoal and empty on purpose. There is no paper yet — the CV lights up on
-     screen 1 as the payout for the first tap, so the door must not spend it early. */
-  /* Weight sits at the bottom, against the question dock: the invitation and question 1
-     are one moment, so they must read as one block rather than float apart. */
-  .door { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 22px 22px; }
+     Charcoal and empty on purpose. There is no paper yet — the CV arrives on
+     screen 1, so the door must not spend it early. Everything is centred: the
+     invitation writes itself, the button follows, the CV shortcut arrives last. */
+  .door { flex: 1; display: grid; place-items: center; padding: 0 26px; text-align: center; }
+  .door .stack { display: flex; flex-direction: column; align-items: center; }
   .door .invite { font-size: 30px; line-height: 1.14; font-weight: 680; letter-spacing: -.028em;
-    margin: 0 0 14px; text-wrap: balance; }
-  .door .invite em { font-style: normal; color: var(--gold); }
-  .door .sub { font-size: 14.5px; line-height: 1.55; color: var(--hud-mute); margin: 0; text-wrap: pretty; }
+    margin: 0; display: flex; flex-direction: column; align-items: center; text-wrap: balance; }
+  /* The ghost holds each line's finished width, so centred text does not jitter
+     left and right as the letters land. The box is fixed; the letters fill it. */
+  .door .ln { display: inline-block; position: relative;
+    transition: transform 640ms cubic-bezier(.6,.02,.3,1), opacity 500ms ease; }
+  .door .gh { visibility: hidden; }
+  .door .tx { position: absolute; left: 0; top: 0; white-space: pre; }
+  .door .tx em { font-style: normal; }
+  .door .l2 { color: var(--gold); }
+  .door.split .l1 { transform: translateY(-44vh); opacity: 0; }
+  .door.split .l2 { transform: translateY(44vh); opacity: 0; }
 
-  /* The skip-ahead. Small, under the answers, never a second door (§10). */
-  .skip { margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--hud-line);
-    font-size: 12.5px; line-height: 1.45; color: var(--hud-mute); }
+  .ready { appearance: none; border: none; font: inherit; cursor: pointer; background: var(--gold);
+    color: #1a1206; font-weight: 680; border-radius: 999px; margin-top: 30px; padding: 15px 38px; font-size: 16px;
+    opacity: 0; transform: translateY(12px); pointer-events: none;
+    transition: opacity 520ms ease, transform 620ms cubic-bezier(.2,1.05,.3,1),
+                box-shadow 700ms ease, scale 110ms ease; }
+  .ready.in { opacity: 1; transform: none; pointer-events: auto;
+    box-shadow: 0 14px 34px -12px rgba(232,163,61,.55); }
+  .ready.in:active { scale: .96; }
+  .ready:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 3px; }
+
+  /* The CV shortcut sits at the bottom edge, never under the button — directly
+     beneath "Ready?" it reads as the second of two choices, the fork §10 forbids. */
+  .skip { position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 0 30px calc(28px + env(safe-area-inset-bottom));
+    font-size: 12.5px; line-height: 1.5; color: var(--hud-mute); text-align: center;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 560ms ease, transform 560ms cubic-bezier(.2,1,.3,1); }
+  .skip.in { opacity: 1; transform: none; }
   .skip button { appearance: none; background: none; border: none; font: inherit; font-weight: 600;
     color: var(--hud-ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 0; }
   .skip button:hover { color: var(--gold); }
@@ -286,6 +309,9 @@
 
   .screen { display: none; flex-direction: column; height: 100%; }
   .screen.on { display: flex; }
+  /* discovery coming through the gap the parting invitation left */
+  .screen.arrive { animation: arrive 620ms cubic-bezier(.2,1,.3,1) both; }
+  @keyframes arrive { from { opacity: 0; transform: translateY(16px) scale(.99); } to { opacity: 1; transform: none; } }
 
   .switcher { position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); z-index: 200;
     display: flex; align-items: center; gap: 4px; background: #f2f4f7; color: #101419;
@@ -299,9 +325,9 @@
 </style>
 
 <p class="caption">
-  <b>0 · The front door</b> (ticket #7) — the invitation, and the CV skip-ahead. The door <i>is</i>
-  question 1: tap an answer and the CV starts writing itself. Then <b>1 · Discovery</b> builds the
-  root CV, <b>2 · The deck</b> is jobs only, <b>3 · Tailor</b> sharpens one CV for one job.
+  <b>0 · The front door</b> (ticket #7) — the invitation writes itself, then <b>Ready?</b> arrives,
+  then the CV shortcut. Press it and the invitation parts like a door. Then <b>1 · Discovery</b>
+  builds the root CV, <b>2 · The deck</b> is jobs only, <b>3 · Tailor</b> sharpens one CV for one job.
 </p>
 
 <div class="phone" id="phone">
@@ -362,8 +388,8 @@ const BLOCKS = SECTIONS.map(s => ({ key: s.key, label: s.label.replace("Professi
 //   · The skip-ahead says what it actually does — skips the questions the CV
 //     answers, not the process. §11: a CV buys one jump, it does not end the game.
 const DOOR = {
-  head: `Answer questions. <em>Collect jobs.</em>`,
-  sub: `Each answer writes your CV and brings the next matches closer. Stop whenever you like — you keep everything you've earned.`,
+  l1: `Answer questions.`,
+  l2: `Collect jobs.`,
   skip: `Already have a CV? <button id="up">Upload it</button> and skip the questions it already answers.`,
 };
 
@@ -443,6 +469,21 @@ function keepInView(box, el) {
   if (e.bottom > b.bottom - pad) d = e.bottom - (b.bottom - pad);
   else if (e.top < b.top + pad) d = e.top - (b.top + pad);
   if (Math.abs(d) > 1) box.scrollTo({ top: box.scrollTop + d, behavior: reduced ? "auto" : "smooth" });
+}
+
+// The door's typer. Deliberately not typeInto(): no CV to scroll, no random
+// cadence — a steady hand, an external caret left in place, and cancellable so a
+// tap can finish it mid-word.
+function typeLine(el, text, done, speed, bag) {
+  const caret = el.querySelector(".caret");
+  let node = [...el.childNodes].find(n => n.nodeType === 3);
+  if (!node) el.insertBefore((node = document.createTextNode("")), caret || null);
+  let i = 0;
+  (function tick() {
+    node.nodeValue = text.slice(0, ++i);
+    if (i < text.length) { const t = setTimeout(tick, speed); if (bag) bag.push(t); }
+    else if (done) done();
+  })();
 }
 
 function typeInto(el, text, done) {
@@ -582,45 +623,81 @@ function cvEl(aimTitle) {
 }
 
 // --- screen 0: the front door ----------------------------------------------
-// The door IS question 1. There is no Start button, because a tap that returns
-// nothing is the opposite of §4's brief (tiny action → instant visible response):
-// the first tap has to buy something. Here it buys the paper — you land on
-// discovery with your answer already typing itself into a CV.
-// No profile badge in the top bar either: nothing has been earned yet, so the
-// badge arrives with the first fact rather than sitting there empty at zero.
+// The invitation writes itself letter by letter, centred. Then "Ready?" fades up.
+// Then the CV shortcut arrives — last, and at the bottom edge, so the main path is
+// always offered before the side door.
+//
+// The typing is not decoration: the CV writes itself the same way on every screen
+// that follows (§8.2), so the door teaches that language before explaining it.
+// It is also skippable — a tap anywhere finishes it, and reduced-motion skips it
+// outright. Nobody impatient should be made to wait for the button to exist.
+//
+// No profile badge in the top bar: nothing has been earned yet, so the badge
+// arrives with the first fact rather than sitting there empty at zero.
+
+let doorTimers = [];
 
 function renderS0() {
-  const d = DOOR;
-  const q = DISCOVERY[0];
+  doorTimers.forEach(clearTimeout);
+  doorTimers = [];
   $("#s0").innerHTML = `
     <div class="topbar"><span class="wordmark">JobCrush</span><span class="spacer"></span></div>
-    <div class="door">
-      <h1 class="invite">${d.head}</h1>
-      <p class="sub">${d.sub}</p>
-    </div>
-    <div class="ask">
-      <p class="q">${q.q}</p>
-      <div class="opts">
-        ${q.opts.map((o, k) => `<button class="opt" data-opt="${k}">${o}</button>`).join("")}
-        <button class="opt other" data-opt="other">Something else</button>
+    <div class="door" id="door">
+      <div class="stack">
+        <h1 class="invite">
+          <span class="ln l1"><span class="gh">${DOOR.l1}</span><span class="tx" id="dl1"></span></span>
+          <span class="ln l2"><span class="gh">${DOOR.l2}</span><span class="tx" id="dl2"></span></span>
+        </h1>
+        <button class="ready">Ready?</button>
       </div>
-      <p class="skip">${d.skip}</p>
+      <p class="skip">${DOOR.skip}</p>
     </div>`;
-  $("#s0").querySelectorAll("[data-opt]").forEach(b => (b.onclick = () => answerDoor(b)));
-  const up = $("#up");
-  if (up) up.onclick = () => curtain("CV <em>read</em>.", "Now the one thing your CV couldn't tell me.",
-    "Keep going", () => { S.screen = "s1"; show(); });
+
+  const root = $("#door"), btn = $("#s0 .ready"), skip = $("#s0 .skip");
+  const l1 = $("#dl1"), l2 = $("#dl2");
+  btn.onclick = () => openDoor();
+
+  const arrive = () => {
+    btn.classList.add("in");
+    doorTimers.push(setTimeout(() => {
+      skip.classList.add("in");
+      const up = $("#up");
+      if (up) up.onclick = () => curtain("CV <em>read</em>.",
+        "Now the one thing your CV couldn't tell me.", "Keep going",
+        () => { S.screen = "s1"; show(); });
+    }, 260));
+    root.onclick = null;
+  };
+  const finish = () => {
+    doorTimers.forEach(clearTimeout);
+    doorTimers = [];
+    l1.textContent = DOOR.l1;
+    l2.textContent = DOOR.l2;
+    arrive();
+  };
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return finish();
+  root.onclick = e => { if (e.target !== btn) finish(); };
+
+  l1.innerHTML = `<i class="caret"></i>`;
+  typeLine(l1, DOOR.l1, () => {
+    doorTimers.push(setTimeout(() => {
+      l1.querySelector(".caret")?.remove();
+      l2.innerHTML = `<i class="caret"></i>`;
+      typeLine(l2, DOOR.l2, () => {
+        doorTimers.push(setTimeout(() => { l2.querySelector(".caret")?.remove(); arrive(); }, 300));
+      }, 36, doorTimers);
+    }, 190));
+  }, 36, doorTimers);
 }
 
-// Tapping an option answers question 1 and lands on discovery mid-motion, so the
-// door's payout is the CV lighting up — not a screen change.
-function answerDoor(btn) {
-  if (S.busy) return;
-  S.screen = "s1";
-  show();
-  const k = btn.dataset.opt === "other" ? 0 : btn.dataset.opt;   // prototype: "something else" falls back to option 1
-  const twin = $("#s1").querySelector(`[data-opt="${k}"]`);
-  if (twin) answerDiscovery(twin);
+// Pressing Ready parts the invitation like a door — one line up, one line down —
+// and discovery arrives through the gap.
+function openDoor() {
+  const d = $("#door");
+  $("#s0 .ready").classList.remove("in");
+  $("#s0 .skip").classList.remove("in");
+  setTimeout(() => d.classList.add("split"), 130);
+  setTimeout(() => { S.screen = "s1"; show(); $("#s1").classList.add("arrive"); }, 560);
 }
 
 // --- screen 1: discovery ---------------------------------------------------
@@ -882,7 +959,7 @@ function curtain(big, sub, cta, then) {
 const TITLES = { s0: "0 · The front door", s1: "1 · Discovery — build the root CV",
                  s2: "2 · The deck", s3: "3 · Tailor for this job" };
 function show() {
-  document.querySelectorAll(".screen").forEach(e => e.classList.remove("on"));
+  document.querySelectorAll(".screen").forEach(e => e.classList.remove("on", "arrive"));
   $("#" + S.screen).classList.add("on");
   $("#lbl").textContent = TITLES[S.screen];
   ({ s0: renderS0, s1: renderS1, s2: renderS2, s3: renderS3 })[S.screen]();

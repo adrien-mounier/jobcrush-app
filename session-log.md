@@ -2,57 +2,77 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
-## 2026-07-23 (session 15) — The front door: its words, and the discovery that it has no Start button (no product code)
+## 2026-07-23 (session 15) — The front door: its words, then its shape, decided twice (no product code)
 
 Resolved [Front-door copy: the invitation and the skip-ahead](https://github.com/adrien-mounier/jobcrush-app/issues/7)
 on the wayfinder map [Onboarding journey: landing to first card](https://github.com/adrien-mounier/jobcrush-app/issues/5).
-Commits `e35da28` (screen 0 + four candidates) and the follow-up collapsing it to the winner. Doc:
-`docs/onboarding-reward-design.md` **§10.1**. Prototype: `apps/web/prototypes/onboarding-screen.prototype.html`,
-screen 0.
+Commits `e35da28` → `ca9e705` and the follow-up. Doc: `docs/onboarding-reward-design.md` **§10.1**,
+rewritten mid-session. Prototypes: `onboarding-screen.prototype.html` (screen 0) and
+`front-door-options.prototype.html` (the five shapes).
 
-**The decided door:**
+**The decided door**, everything centred:
 
 > ## Answer questions. **Collect jobs.**
-> Each answer writes your CV and brings the next matches closer. Stop whenever you like — you keep
-> everything you've earned.
 >
-> *What kind of job are you going for?* → [tappable answers]
+> ### ( Ready? )
 >
 > <sub>Already have a CV? **Upload it** and skip the questions it already answers.</sub>
 
-Four candidates were written into the prototype and read on the real screen before choosing — the
-session-14 lesson applied deliberately. It won because **it is the only one whose headline never
-mentions a CV**: questions in, jobs out, so the no-CV user §1 brought into scope is never told they
-are missing something. Rejected: *"Which jobs would you actually get?"* (sharpest differentiator, but
-*"actually get"* can be heard as *"probably none"* — §7 through the side door), *"Let me ask you about
-your work"* (asks for effort, names no payoff), *"You don't need a CV to start"* (best for the no-CV
-user, but leads with the CV, which §2 says nobody wants).
+Three beats, in order: **the invitation writes itself letter by letter → Ready? fades up → the CV
+shortcut arrives last, at the bottom edge.** The order is the argument — the main path is fully
+offered before the side door is mentioned. Pressing Ready **parts the invitation like a door** and
+discovery arrives through the gap.
 
-**The bigger outcome was structural, and the screen forced it: the door has no Start button — the door
-*is* question 1.** A Start button is a tap that returns nothing, the exact inverse of §4's brief. So
-the invitation sits above and question 1's tappable answers are the only button: the first tap buys
-the paper, and you land on discovery with your own job title already typing itself into the CV and the
-badge at one fact. Two consequences fell out — **no profile badge on the door** (nothing earned yet;
-an empty badge at zero would be a stranger's first sight of it), and the badge's first render now
-happens at exactly one, which made `1 facts` unavoidable at the first beat (fixed).
+**The words were settled first, and never moved.** Four candidates were written into the prototype and
+read on the real screen. *"Answer questions. Collect jobs."* won because **it is the only headline that
+never mentions a CV** — questions in, jobs out — so the no-CV user §1 brought into scope is never told
+they are missing something. Rejected: *"Which jobs would you actually get?"* (sharpest differentiator,
+but *"actually get"* can be heard as *"probably none"* — §7 through the side door), *"Let me ask you
+about your work"* (asks for effort, names no payoff), *"You don't need a CV to start"* (best for the
+no-CV user, but leads with the CV, which §2 says nobody wants).
 
-**Three things the door may never say**, none of them taste calls — each is a consequence of a
-decision made in a different session: no count or duration (§6 made discovery variable-length),
-nothing about account, price or signup (§12 walls after the reveal), and the skip-ahead must say it
-skips *the questions the CV answers*, not the process (§11 — a CV buys one jump, it does not end the
-game). See `lessons.md`.
+**The shape was decided twice, and the second answer reversed the first.** The initial resolution made
+the door *be* question 1, with no Ready button, reasoning that a Start button is a tap returning
+nothing — the inverse of §4's *tiny action → instant visible response*. Adrien asked to see the
+Ready-screen version anyway. **Five shapes were built and pressed rather than argued about**, all
+landing in the same place so only the threshold varied. The reasoning turned out too narrow: **a tap is
+only dead if it gives nothing back.** A Ready screen buys a designed moment, gives the invitation a
+screen it does not share, and asks for **consent** — agreeing to be interviewed is a small promise, and
+people keep small promises; tapping a job title commits you to nothing. Rejected shapes are in
+`front-door-options.prototype.html`: the fused door, a pulsing mid-screen target that grows into the
+question panel, the door rewriting itself into the question, and a blank sheet sliding up before the
+first answer.
 
-Noted, not re-opened: the screen is deliberately empty above the invitation (we know nothing about
-this person yet, and §6's *"142 jobs open in Paris"* promise cannot fire until question 1 names the
-family — so its earliest possible slot is question 2); and *"Stop whenever you like"* offers an exit
-at the entrance, which is the first clause to cut if the door ever tests badly.
+**The typing is a requirement, not an effect.** The CV writes itself the same way on every screen that
+follows (§8.2). The door is the first time anyone sees this product move, and it moves the way the
+product moves — so it teaches the mechanic before explaining it.
 
-**Unblocked [The discovery questions](https://github.com/adrien-mounier/jobcrush-app/issues/6)**, which
-inherits hard constraints from this: question 1 must be answerable in **one tap** by a total stranger
-(a text field is nearly as expensive as the file picker §10 rejected), its answer must yield a **job
-title or family** (the door's payout is the role line typed onto the paper), and the prototype's closed
-list of three PM titles cannot be the real answer — the dashed **"Something else"** escape hatch is
-required, and designing what it opens is now on the critical path because this is the *first* screen.
+Three things building it proved, none of them arguable on paper:
+
+- **Centred text that types itself jitters** — every letter re-centres the line. Each line now carries
+  a hidden copy of its finished text to hold the width open; the letters fill a fixed box. Measured
+  drift after the fix: **0.00px**.
+- **The animation must be skippable.** ~1.5s passes before the button exists. A tap anywhere finishes
+  it; `prefers-reduced-motion` skips it outright.
+- **The CV shortcut belongs at the bottom edge, never under the button** — directly beneath "Ready?"
+  it reads as the second of two choices, the fork §10 exists to forbid.
+
+**A real bug found on the way, affecting every prototype session so far:** neither prototype had a
+`<meta name="viewport">`, so phones laid them out at ~980px and zoomed out. **Every "open it on your
+phone" before this was showing the wrong size.** Fixed in both. See `lessons.md`.
+
+**Three things the door may never say**, none of them taste calls — each is a consequence of a decision
+made in an earlier session and never carried across to the words: no count or duration (§6 made
+discovery variable-length), nothing about account, price or signup (§12 walls after the reveal), and
+the skip-ahead must say it skips *the questions the CV answers*, not the process (§11 — a CV buys one
+jump). Also in `lessons.md`.
+
+**[The discovery questions](https://github.com/adrien-mounier/jobcrush-app/issues/6) is unblocked**, and
+what it inherits changed with the shape: question 1 no longer carries the conversion — "Ready?" does —
+so it now addresses someone who has already opted in. Still binding: its answer must yield a **job
+title or family** (the CV's role line is written from it), and the prototype's closed list of three PM
+titles cannot survive a real stranger, so the dashed **"Something else"** hatch is required and
+designing what it opens is the hard part.
 
 Map frontier now: **#6** (unblocked by this), **#9** (the profile screen), **#10** (the job card).
 

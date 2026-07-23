@@ -2,6 +2,20 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## A bare .html prototype with no viewport meta is being judged at the wrong size on every phone
+
+Two sessions of "open it on your phone and tell me how it feels" were showing the wrong thing. Neither
+`apps/web/prototypes/*.html` had a `<meta name="viewport" content="width=device-width, initial-scale=1">`,
+so mobile Safari and Chrome fall back to a ~980px layout viewport and **zoom the whole page out** — the
+`@media (max-width: 460px)` block never matches, the phone-frame styles never apply, and type that was
+tuned at 30px renders at about a third of that. It is silent: on desktop everything looks perfect, and
+on the phone it looks *plausible*, just small, so you blame the design rather than the missing tag. The
+tell is a mock that renders full-width on desktop but letterboxed with tiny text on a phone. Any
+standalone HTML file meant to be judged on a phone needs the tag; a file with no explicit `<head>` still
+gets it, because the parser hoists a leading `<meta>` into the head it creates. Detectable in Playwright
+only with `isMobile: true` — a plain narrow viewport does *not* reproduce it. Fixed 2026-07-23 in both
+prototypes; record: wayfinder ticket #7.
+
 ## On a copy ticket, most of the hard calls are inherited constraints, not taste
 
 The front-door ticket looked like pure wordsmithing. It wasn't: three of the four hardest calls were
