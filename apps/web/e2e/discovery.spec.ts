@@ -217,12 +217,25 @@ test("tapping an answered CV line and picking a different option updates it in p
   await expect(page.getByText("5 to 10 years of experience as a project manager.", { exact: true })).toBeVisible();
 
   // The line is a real, named control — tapping it opens the re-ask in place of the next question.
-  await page.getByRole("button", { name: /Fix this line/i }).click();
+  const cvLine = page.getByRole("button", { name: /Fix this line/i });
+  await cvLine.click();
   await expect(page.getByText("Change your answer.")).toBeVisible();
 
+  // #24: cancelling via Esc returns keyboard focus to the corrected line, not the next question.
+  await page.keyboard.press("Escape");
+  await expect(cvLine).toBeFocused();
+
+  // #24: same for "Leave it as is".
+  await cvLine.click();
+  await page.getByRole("button", { name: "Leave it as is" }).click();
+  await expect(cvLine).toBeFocused();
+
+  // #24: committing a correction also returns focus to the (re-typed) line.
+  await cvLine.click();
   await page.getByRole("button", { name: "10+ years" }).click();
   await expect(page.getByText("10+ years of experience as a project manager.", { exact: true })).toBeVisible();
   await expect(page.getByText("5 to 10 years of experience as a project manager.", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Fix this line/i })).toBeFocused();
 });
 
 test('answering "No" gives quiet feedback and an undo, never a failure', async ({ page }) => {
@@ -233,8 +246,16 @@ test('answering "No" gives quiet feedback and an undo, never a failure', async (
   await page.getByRole("button", { name: "No", exact: true }).click();
 
   await expect(page.locator(".discovery .notice")).toContainText("Noted — one less thing to ask.");
-  await expect(page.getByRole("button", { name: "Fix that?" })).toBeVisible();
+  const fixThat = page.getByRole("button", { name: "Fix that?" });
+  await expect(fixThat).toBeVisible();
   await expect(page.getByText("Have you managed a budget?")).toHaveCount(0);
+
+  // #24: cancelling the bare-"no" fix via Esc returns focus to "Fix that?" (no CV line exists to
+  // return to), not the next question.
+  await fixThat.click();
+  await expect(page.getByText("Change your answer.")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(fixThat).toBeFocused();
 });
 
 test("the essential band done: the ask dock shows the handoff, not a completion badge", async ({ page }) => {

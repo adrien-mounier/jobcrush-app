@@ -206,6 +206,13 @@ function DiscoveryScreen() {
   // #18 in-flow correction (design-1b-spec §1) + the bare-"no" undo (§3).
   const [correcting, setCorrecting] = useState<{ itemId: string } | null>(null);
   const [lastNo, setLastNo] = useState<{ itemId: string } | null>(null);
+  // #24: an itemId to focus once its `.cv-line` button lands in the DOM as the real, enabled
+  // control — set by a correction's resolution (commit or cancel) instead of calling .focus()
+  // immediately, which can race a still-typing (aria-hidden) or still-disabled (picked) button.
+  const [focusLineId, setFocusLineId] = useState<string | null>(null);
+  // #24: same deferral, for the bare-"no" cancel branch — "Fix that?" unmounts while `correcting`
+  // is active (renderAsk shows the re-ask instead), so it isn't in the DOM yet when cancel fires.
+  const [focusFixNotice, setFocusFixNotice] = useState(false);
 
   const bandRef = useRef<HTMLDivElement>(null);
   const typingSpanRef = useRef<HTMLSpanElement>(null);
@@ -219,6 +226,10 @@ function DiscoveryScreen() {
   };
   const handoffRef = useRef<HTMLParagraphElement>(null);
   const fixNoticeButtonRef = useRef<HTMLButtonElement>(null);
+  // #24: the previous askKey the focus effect below actually acted on — lets it tell "just left a
+  // correction, back to the same next question" (skip the auto-focus, the resolution site already
+  // placed focus) apart from "genuinely entered a new question" (focus its first control).
+  const prevAskKeyRef = useRef<string | null>(null);
   // The only source of an answered item's question/options (once answered, it's gone from
   // `questions`) — a memory of what's been asked this load, not derived state (design-1b-spec §1:
   // "not recomputable from current props"). Populated fresh every render, below.
@@ -276,13 +287,34 @@ function DiscoveryScreen() {
           : (discovery.questions[0]?.itemId ?? null);
   useEffect(() => {
     if (!askKey) return;
+    // #24: leaving a correction (askKey was `fix:X`, now isn't) re-lands on whatever question was
+    // already live — never a new one — so the corrected line's own focus (set at the resolution
+    // site, below) must stick instead of this effect re-grabbing the ask dock.
+    const leavingCorrection = !!prevAskKeyRef.current?.startsWith("fix:") && !askKey.startsWith("fix:");
+    prevAskKeyRef.current = askKey;
     if (askKey === "deck") {
       handoffRef.current?.focus();
       setLiveMessage(`${C19} ${C20}`);
-    } else {
+    } else if (!leavingCorrection) {
       firstControlRef.current?.focus();
     }
   }, [askKey]);
+
+  // #24: focuses a corrected `.cv-line` button once it has actually re-rendered as the real,
+  // enabled control (not the aria-hidden typing placeholder, not disabled mid-request) — decoupled
+  // from the askKey effect above so a correction's commit/cancel never races the "next question"
+  // auto-focus.
+  useEffect(() => {
+    if (!focusLineId) return;
+    focusCvLineButton(focusLineId);
+    setFocusLineId(null);
+  }, [focusLineId]);
+
+  useEffect(() => {
+    if (!focusFixNotice) return;
+    fixNoticeButtonRef.current?.focus();
+    setFocusFixNotice(false);
+  }, [focusFixNotice]);
 
   // #18: cancelling a correction (Esc, "Leave it as is", or re-picking the same answer) is free —
   // no server call, the real line stays intact. Shared by the Esc listener below and the dock's own
@@ -292,8 +324,8 @@ function DiscoveryScreen() {
     const { itemId } = correcting;
     setCorrecting(null);
     setAskError(null);
-    if (lastNo?.itemId === itemId) fixNoticeButtonRef.current?.focus();
-    else focusCvLineButton(itemId);
+    if (lastNo?.itemId === itemId) setFocusFixNotice(true);
+    else setFocusLineId(itemId);
   }, [correcting, lastNo]);
 
   useEffect(() => {
@@ -317,7 +349,7 @@ function DiscoveryScreen() {
       setTypingId(null);
       setDiscovery(t.fullNextState);
       setLiveMessage(`${t.lineText} ${countdownCopy(t.fullNextState.essentialRemaining)}`);
-      if (t.focusAfter) focusCvLineButton(t.focusAfter);
+      if (t.focusAfter) setFocusLineId(t.focusAfter);
     });
     return () => {
       t.bag.forEach(clearTimeout);
@@ -341,8 +373,15 @@ function DiscoveryScreen() {
   // (design-1b-spec's boundary note: that's a brand-new line, so this diff-by-new-id already
   // finds it — unchanged). Structural bits (the next question, the new line's now-empty
   // container) apply immediately; the rail fill/countdown wait for that line to finish typing
-  // (see the file banner comment for why).
-  function applyAnswerResult(next: DiscoveryState, answeredItemId?: string, rawAnswer?: string) {
+  // (see the file banner comment for why). `isCorrection` (only true from commitCorrection's
+  // no-to-positive branch) asks the typing-completion callback to return focus to this new line
+  // (#24 AC1) instead of leaving it to the normal next-question auto-focus.
+  function applyAnswerResult(
+    next: DiscoveryState,
+    answeredItemId?: string,
+    rawAnswer?: string,
+    isCorrection?: boolean,
+  ) {
     finalizeInFlight();
     setFreeAnswer("");
     const prevIds = new Set((discovery?.cvLines ?? []).map((l) => l.itemId));
@@ -368,7 +407,13 @@ function DiscoveryScreen() {
       const prev = s ?? next;
       return { ...next, railFill: prev.railFill, essentialRemaining: prev.essentialRemaining };
     });
-    typingRef.current = { itemId: newLine.itemId, lineText: newLine.text, fullNextState: next, bag: [] };
+    typingRef.current = {
+      itemId: newLine.itemId,
+      lineText: newLine.text,
+      fullNextState: next,
+      bag: [],
+      focusAfter: isCorrection ? newLine.itemId : undefined,
+    };
     setTypingId(newLine.itemId);
   }
 
@@ -391,7 +436,7 @@ function DiscoveryScreen() {
       setTypingId(itemId);
     } else {
       setDiscovery(next);
-      focusCvLineButton(itemId);
+      setFocusLineId(itemId);
     }
   }
 
@@ -422,8 +467,9 @@ function DiscoveryScreen() {
       setCorrecting(null);
       if (lastNo?.itemId === itemId) setLastNo(null);
       if (!hadLine && hasLine) {
-        // A no -> positive correction is a brand-new line — the normal floor-answer path.
-        applyAnswerResult(next, itemId, answer);
+        // A no -> positive correction is a brand-new line — the normal floor-answer path, but
+        // still a correction commit (#24 AC1: focus returns to it once typed).
+        applyAnswerResult(next, itemId, answer, true);
       } else {
         applyCorrectionResult(itemId, next);
       }
