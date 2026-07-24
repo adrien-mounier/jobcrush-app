@@ -28,6 +28,15 @@
         "noIsFatal": true
       },
       {
+        "id": "budget-employer-dates",
+        "rankBand": "standard",
+        "question": "Nice — which job was that, and roughly when?",
+        "options": [],
+        "cvSection": "experience",
+        "noIsFatal": false,
+        "triggeredBy": "budget-accountability"
+      },
+      {
         "id": "delivery-methodology",
         "rankBand": "standard",
         "question": "Which delivery methodology have you worked in?",

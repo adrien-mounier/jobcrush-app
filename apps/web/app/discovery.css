@@ -518,3 +518,69 @@
   outline: 2px solid var(--hud-ink);
   outline-offset: 2px;
 }
+
+/* ---------- in-flow correction + deck handoff (#18) ---------- */
+/* a CV line becomes a real button without changing how it looks on paper. Explicit
+   font-size/line-height (not `font:inherit`): button.cv-line's (0,0,1,1) would otherwise override
+   .cv-line's own 14.5px. Keep the left padding for the bullet; zero the rest. */
+.discovery button.cv-line {
+  display: block;
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  background: none;
+  border: 0;
+  margin: 0 0 9px;
+  padding: 0 0 0 14px;
+  font-family: var(--serif);
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--ink);
+  cursor: pointer;
+}
+/* quiet, discoverable-on-focus/hover cue — no persistent clutter */
+.discovery button.cv-line:hover::after,
+.discovery button.cv-line:focus-visible::after {
+  content: "Fix";
+  position: absolute;
+  right: 0;
+  top: 0.2em;
+  font-family: var(--sans);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+/* the line being fixed: a soft warm wash, never an error colour */
+.discovery .cv-line.fixing {
+  background: var(--gold-glow);
+  border-radius: 6px;
+  transition: background 200ms ease;
+}
+
+/* inline text button inside a notice ("Fix that?", "Leave it as is") */
+.discovery .notice button {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--hud-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* deck holding moment: reuse the promise's entrance, muted (not gold) */
+.discovery .handoff {
+  animation: disc-rise 560ms cubic-bezier(0.2, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .discovery .handoff {
+    animation: none;
+  }
+  .discovery .cv-line.fixing {
+    transition: none;
+  }
+}

@@ -67,6 +67,31 @@ describe("FamilyFloor (#12) — ranked family-floor stub schema", () => {
     const parsed = FamilyFloor.parse(validFloor);
     expect(parsed.items.map((i) => i.id)).toEqual(validFloor.items.map((i) => i.id));
   });
+
+  // #18: triggeredBy is optional (existing fixtures with no such field stay valid, above), and an
+  // item that carries it still parses.
+  it("parses an item carrying triggeredBy (#18 surfaced-item stub)", () => {
+    const withTrigger = {
+      ...validFloor,
+      items: [
+        ...validFloor.items,
+        {
+          id: "budget-employer-dates",
+          rankBand: "standard",
+          question: "Nice — which job was that, and roughly when?",
+          options: [],
+          cvSection: "experience",
+          noIsFatal: false,
+          triggeredBy: "budget-accountability",
+        },
+      ],
+    };
+    const parsed = FamilyFloor.safeParse(withTrigger);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.items.at(-1)?.triggeredBy).toBe("budget-accountability");
+    }
+  });
 });
 
 describe("AdRequirements (#12) — per-ad ranked requirement list stub schema", () => {

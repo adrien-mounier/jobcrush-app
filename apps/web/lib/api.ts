@@ -183,7 +183,8 @@ export interface DiscoveryPromise {
 }
 
 export interface DiscoveryState {
-  stage: "discovery";
+  stage: "discovery" | "deck"; // "deck" once the essential band is fully asked (#18) — the client
+  // shows the handoff placeholder and nothing else; the reveal itself is #19's.
   role: string | null;
   family: string | null;
   city: string | null;
@@ -194,8 +195,10 @@ export interface DiscoveryState {
   cvLines: DiscoveryCvLine[]; // role lead line first, then answered lines — for resume
 }
 
-export function getDiscovery(): Promise<DiscoveryState> {
-  return jfetch("/api/onboarding/discovery");
+// jobId (#18, AC6): when a CV was uploaded via the front-door shortcut, the server composes a
+// reader-only first question from it — a plain call (no jobId) behaves exactly as before.
+export function getDiscovery(jobId?: string): Promise<DiscoveryState> {
+  return jfetch(`/api/onboarding/discovery${jobId ? `?job=${encodeURIComponent(jobId)}` : ""}`);
 }
 
 // Q1 typing lookup — caller debounces (~250ms). Silent no-match comes back as suggestions: [].

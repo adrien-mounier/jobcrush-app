@@ -10,7 +10,7 @@
 //     E5 can replace the producer, exactly like e5stub.ts's loadFamilyFloor.
 //   - discoveryState — rebuilds the whole DiscoveryState from the session's role + its recorded
 //     discovery answers (confirmed positives + negatives), so GET /discovery resumes with no client state.
-import type { FloorItem, CvSection } from "@jobcrush/contracts";
+import type { FloorItem, CvSection, MinedRole } from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
 import { loadFamilyFloor } from "./e5stub.js";
 
@@ -63,15 +63,22 @@ export function composeRoleLine(role: string): string {
 const stripAnswerLead = (answer: string) => answer.replace(/^(yes|no)\b[,\s]*/i, "").trim();
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
+/** A free-text answer becomes the CV line verbatim (period-terminated). Shared by composeCvLine's
+ *  no-options branch and #18's reader-only question (AC6), which has no FloorItem to key off. */
+export function freeTextLine(answer: string): string {
+  const trimmed = answer.trim();
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
 /** A cheap, deterministic CV line from a floor answer. Not grammatically perfect by design — the spec
  *  wants it instant and unpolished, with a later audit pass doing the rewrite (§8.2). Three shapes:
  *    - a free-text item (no options): the answer IS the line (the visitor's own words, e.g. a headline).
  *    - a "Which/What X …?" item: "X: <answer>".
  *    - a "Have you / Do you …?" item: "<verb phrase> — <qualifier>." (dash form, like answerToClaim). */
 export function composeCvLine(item: FloorItem, answer: string): string {
-  const trimmed = answer.trim();
-  if (item.options.length === 0) return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+  if (item.options.length === 0) return freeTextLine(answer);
 
+  const trimmed = answer.trim();
   const qualifier = stripAnswerLead(answer);
   if (/^(which|what)\b/i.test(item.question)) {
     const noun = item.question
@@ -109,7 +116,7 @@ export interface DiscoveryPromise {
   count: number | null;
 }
 export interface DiscoveryState {
-  stage: "discovery";
+  stage: "discovery" | "deck"; // #18 AC1: the essential band fully asked (yes or no) opens the deck
   role: string | null;
   family: string | null;
   city: string | null;
@@ -129,6 +136,20 @@ const toQuestion = (i: FloorItem): DiscoveryQuestion => ({
   options: i.options,
   cvSection: i.cvSection,
 });
+
+// #18 AC6: the one reader-only question — over CV facts only a reader of the uploaded CV could ask
+// (bounded stub: derives from the first mined role only; the broader "CV auto-answers" mechanism,
+// spec stories #8-11, is out of scope). Not a floor item, so it's never in essentialRemaining/railFill.
+export const READER_ROLE_ITEM_ID = "reader-role";
+
+export function readerQuestion(role: MinedRole): DiscoveryQuestion {
+  return {
+    itemId: READER_ROLE_ITEM_ID,
+    question: `Your CV mentions "${role.title}" — what was your actual role there?`,
+    options: [],
+    cvSection: "experience",
+  };
+}
 
 /** Discovery asks the leading bands (essential + standard); nice-to-have never gates the deck or the
  *  bars (spec: "the essential band alone is the discovery gate"). */
@@ -166,21 +187,31 @@ export function discoveryState(
     [...positives, ...negatives.filter((c) => isDiscoveryClaim(c.id))].map((c) => itemIdOf(c.id)),
   );
 
-  const questions = floor.filter(asked).filter((i) => !answeredIds.has(i.id)).map(toQuestion);
+  // #18 AC5: a triggered item is only askable once its trigger has a POSITIVE answer — a "no" on the
+  // trigger does not surface it. Untriggered items are always askable. "askable" gates BOTH questions
+  // and railFill, so an un-surfaced triggered item sits in neither's numerator nor denominator.
+  const isTriggered = (i: FloorItem) =>
+    !i.triggeredBy || positives.some((c) => itemIdOf(c.id) === i.triggeredBy);
+  const askable = floor.filter((i) => asked(i) && isTriggered(i));
 
-  // rail fill: per section, the share of that section's asked (essential+standard) items answered.
+  const questions = askable.filter((i) => !answeredIds.has(i.id)).map(toQuestion);
+
+  // rail fill: per section, the share of that section's askable items answered.
   const railFill = emptyRail();
   for (const section of CV_SECTIONS) {
-    const inSection = floor.filter((i) => asked(i) && i.cvSection === section);
+    const inSection = askable.filter((i) => i.cvSection === section);
     if (inSection.length === 0) continue;
     const done = inSection.filter((i) => answeredIds.has(i.id)).length;
     railFill[section] = done / inSection.length;
   }
 
+  // essentialRemaining is the discovery gate — the essential band alone, never a triggered item
+  // (triggered items are always rankBand "standard"; see the family-floor stub).
   const essential = floor.filter((i) => i.rankBand === "essential");
   const essentialRemaining = essential.filter((i) => !answeredIds.has(i.id)).length;
 
-  // cvLines: the role lead line, then each answered positive's line, in the floor's rank order.
+  // cvLines: the role lead line, then each answered positive's line in the floor's rank order, then
+  // any reader-only positive (#18 AC6 — synthetic, not a floor item, so missed by the loop above).
   const cvLines: DiscoveryCvLine[] = [
     { itemId: "role", section: "summary", text: composeRoleLine(role) },
   ];
@@ -188,9 +219,15 @@ export function discoveryState(
     const claim = positives.find((c) => itemIdOf(c.id) === i.id);
     if (claim) cvLines.push({ itemId: i.id, section: i.cvSection, text: claim.text });
   }
+  for (const claim of positives) {
+    const itemId = itemIdOf(claim.id);
+    if (itemId.startsWith("reader-") && !cvLines.some((l) => l.itemId === itemId)) {
+      cvLines.push({ itemId, section: "experience", text: claim.text });
+    }
+  }
 
   return {
-    stage: "discovery",
+    stage: essentialRemaining === 0 ? "deck" : "discovery",
     role,
     family,
     city,

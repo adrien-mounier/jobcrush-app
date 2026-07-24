@@ -14,6 +14,10 @@ export const FloorItem = z.object({
   options: z.array(z.string().min(1)), // tappable answers; MAY be empty (free-text item)
   cvSection: CvSection, // which CV section the answer writes into
   noIsFatal: z.boolean(), // whether a "no" is fatal or fine
+  // #18: the id of the item whose POSITIVE answer surfaces this one (e.g. "which job / roughly
+  // when" only makes sense once its parent achievement is confirmed). Optional — most items are
+  // always askable; a "no" on the trigger does NOT surface it (see discoveryState()).
+  triggeredBy: z.string().min(1).optional(),
 });
 
 export const FamilyFloor = z.object({

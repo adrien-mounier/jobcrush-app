@@ -26,9 +26,10 @@ import {
   composeCvLine,
   discoveryClaimId,
   discoveryState,
-  isDiscoveryClaim,
+  freeTextLine,
   isNoAnswer,
-  itemIdOf,
+  READER_ROLE_ITEM_ID,
+  readerQuestion,
   resolveFamily,
 } from "../discovery.js";
 
@@ -198,7 +199,11 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     app.post("/onboarding/build", async (req) => {
       const session = requireUser(req);
       const confirmed = await deps.claims.confirmed(session.id);
-      const graph = buildClaimGraph(confirmed);
+      // #18 wiring note (carried from #13): thread persisted "no"s into the graph so a discovery "no"
+      // becomes a Negative/renderable:false node — absent from the root CV, but visible to the profile
+      // screen (#20). Existing sessions have no negatives, so this is a no-op for them.
+      const negatives = await deps.claims.negatives(session.id);
+      const graph = buildClaimGraph(confirmed, { negatives });
       let rootCv = renderRootCv(graph);
       // The audit (decision #6) polishes mined wording before the gate certifies. User-authored
       // claims are the user's own words — never audited. auditRootCv never throws: any failure
@@ -230,11 +235,27 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       Promise.all([deps.claims.confirmed(sessionId), deps.claims.negatives(sessionId)]);
 
     // Load / resume: rebuild the state from the store. Before Q1 (no role) → the empty skeleton state.
-    app.get("/onboarding/discovery", async (req) => {
-      const session = requireSession(req);
-      const [confirmed, negatives] = await discoveryReads(session.id);
-      return discoveryState(session.targetTitles[0] ?? null, confirmed, negatives);
-    });
+    // #18 AC6: an optional ?job= prepends the ONE reader-only question — over the uploaded CV's mined
+    // roles — as long as it's this session's job, it has mined roles, and it isn't answered yet (never
+    // re-ask). A missing/foreign/role-less job just omits it; this route never errors on a bad ?job=.
+    app.get(
+      "/onboarding/discovery",
+      { schema: { querystring: z.object({ job: z.string().optional() }) } },
+      async (req) => {
+        const session = requireSession(req);
+        const [confirmed, negatives] = await discoveryReads(session.id);
+        const state = discoveryState(session.targetTitles[0] ?? null, confirmed, negatives);
+
+        const jobId = req.query.job;
+        const readerAnswered = confirmed.some((c) => c.id === discoveryClaimId(READER_ROLE_ITEM_ID));
+        if (jobId && !readerAnswered) {
+          const job = await deps.store.get(jobId);
+          const roles = job && job.sessionId === session.id ? minedRoles(job) : [];
+          if (roles.length > 0) state.questions = [readerQuestion(roles[0]!), ...state.questions];
+        }
+        return state;
+      },
+    );
 
     // Q1 typing lookup: the "same kind of job" family + kin titles. A no-match is placed in silence
     // (story #16) — never a "not found"; an empty query just returns no suggestions.
@@ -264,6 +285,10 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // Answer a floor item → a confirmed claim carrying its composed CV line (or, for a bare "no", a
     // negative via #13's answerNegative — it closes the item but adds no CV line). Returns the updated
     // state so the client types the new line + advances the bar/countdown from one response.
+    //
+    // #18 AC4: IDEMPOTENT — re-answering an already-answered item CORRECTS it (a mistapped fact or an
+    // accidental "no"). No 409 guard: add()/answerNegative() upsert (ON CONFLICT DO UPDATE / Map.set),
+    // so a positive<->negative flip is automatic, whichever way the correction goes.
     app.post(
       "/onboarding/discovery/answer",
       { schema: { body: z.object({ itemId: z.string(), answer: z.string().trim().min(1) }) } },
@@ -273,34 +298,47 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         if (!role)
           return reply.status(409).send({ error: { code: "no_role", message: "answer question 1 first" } });
 
-        const { family } = resolveFamily(role);
-        const item = loadFamilyFloor(family).items.find((i) => i.id === req.body.itemId);
-        if (!item)
-          return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
+        let claim: CandidateClaim;
+        let no = false;
+        if (req.body.itemId === READER_ROLE_ITEM_ID) {
+          // #18 AC6: the reader-only question has no floor item — the free-text answer IS the CV line.
+          claim = {
+            id: discoveryClaimId(req.body.itemId),
+            role: "profile",
+            text: freeTextLine(req.body.answer),
+            machine_touch: "verbatim",
+            classification: "Verified",
+            source_quote: req.body.answer.slice(0, 200),
+            needs_grill: false,
+            grill_hint: null,
+          };
+        } else {
+          const { family } = resolveFamily(role);
+          const item = loadFamilyFloor(family).items.find((i) => i.id === req.body.itemId);
+          if (!item)
+            return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
 
-        const [confirmed, negatives] = await discoveryReads(session.id);
-        const answered = new Set(
-          [...confirmed, ...negatives].filter((c) => isDiscoveryClaim(c.id)).map((c) => itemIdOf(c.id)),
-        );
-        if (answered.has(item.id))
-          return reply.status(409).send({ error: { code: "already_answered", message: "item already answered" } });
-
-        const no = isNoAnswer(req.body.answer);
-        const claim: CandidateClaim = {
-          id: discoveryClaimId(item.id),
-          role: "profile",
-          text: no ? `Not applicable — ${item.question}` : composeCvLine(item, req.body.answer),
-          machine_touch: "verbatim", // the visitor's own answer
-          classification: "Verified", // user-authored, they vouch for it
-          source_quote: req.body.answer.slice(0, 200),
-          needs_grill: false,
-          grill_hint: null,
-        };
+          no = isNoAnswer(req.body.answer);
+          claim = {
+            id: discoveryClaimId(item.id),
+            role: "profile",
+            text: no ? `Not applicable — ${item.question}` : composeCvLine(item, req.body.answer),
+            machine_touch: "verbatim", // the visitor's own answer
+            classification: "Verified", // user-authored, they vouch for it
+            source_quote: req.body.answer.slice(0, 200),
+            needs_grill: false,
+            grill_hint: null,
+          };
+        }
         if (no) await deps.claims.answerNegative(session.id, claim);
         else await deps.claims.add(session.id, claim);
 
-        const [confirmed2, negatives2] = await discoveryReads(session.id);
-        return discoveryState(role, confirmed2, negatives2);
+        const [confirmed, negatives] = await discoveryReads(session.id);
+        const state = discoveryState(role, confirmed, negatives);
+        // #18 AC1: the essential band fully asked (yes or no) flips the session to the deck stage, so
+        // a reload lands there too. essentialRemaining only ever counts down, so this never reverts.
+        if (state.essentialRemaining === 0) await deps.sessions.setStage(session.id, "deck");
+        return state;
       },
     );
   };

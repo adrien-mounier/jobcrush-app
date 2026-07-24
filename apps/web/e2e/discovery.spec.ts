@@ -23,6 +23,12 @@ const Q_BUDGET = {
   options: ["Yes", "No"],
   cvSection: "experience" as const,
 };
+const Q_STAKEHOLDER = {
+  itemId: "stakeholder",
+  question: "Have you reported to senior stakeholders?",
+  options: ["Yes", "No"],
+  cvSection: "experience" as const,
+};
 
 const BEFORE_START: DiscoveryState = {
   stage: "discovery",
@@ -59,6 +65,34 @@ const AFTER_ANSWER: DiscoveryState = {
   ],
 };
 
+// #18: re-answering "years" with a different option is a correction (same itemId, new text) —
+// the same /answer endpoint, now idempotent server-side.
+const AFTER_CORRECTION: DiscoveryState = {
+  ...AFTER_ANSWER,
+  cvLines: [
+    AFTER_ANSWER.cvLines[0],
+    { itemId: "years", section: "experience", text: "10+ years of experience as a project manager." },
+  ],
+};
+
+// #18: a bare "no" on "budget" — no new line, that question is gone, the countdown still advances,
+// but an essential item remains. A "no" never empties `questions` while `essentialRemaining > 0`
+// (that only happens when the last essential is answered and the gate flips stage to "deck"), so the
+// next question stays in the dock with the C15 undo notice above it — exactly what the real API emits.
+const AFTER_NO: DiscoveryState = {
+  ...AFTER_ANSWER,
+  questions: [Q_STAKEHOLDER],
+  essentialRemaining: 1,
+};
+
+// #18: "budget" was the last essential item — the server flips the stage, no new line either way.
+const AFTER_ESSENTIAL_DONE: DiscoveryState = {
+  ...AFTER_ANSWER,
+  stage: "deck",
+  questions: [],
+  essentialRemaining: 0,
+};
+
 // Mutated by the /start and /answer stubs below so a later GET (including one after a reload)
 // resumes from wherever the flow last landed.
 let current: DiscoveryState = BEFORE_START;
@@ -83,7 +117,19 @@ async function stubDiscovery(page: Page) {
     await route.fulfill({ json: current });
   });
   await page.route("**/api/onboarding/discovery/answer", async (route) => {
-    current = AFTER_ANSWER;
+    // #18: this same endpoint now also carries in-flow corrections (idempotent re-answer) — branch
+    // on what was posted so one stub drives the fresh-answer, correction, "no", and
+    // essential-band-done fixtures below.
+    const { itemId, answer } = route.request().postDataJSON() as { itemId: string; answer: string };
+    if (itemId === "years" && answer === "10+ years") {
+      current = AFTER_CORRECTION;
+    } else if (itemId === "budget" && answer === "Yes") {
+      current = AFTER_ESSENTIAL_DONE;
+    } else if (itemId === "budget" && /^no$/i.test(answer)) {
+      current = AFTER_NO;
+    } else {
+      current = AFTER_ANSWER;
+    }
     await route.fulfill({ json: current });
   });
   await page.route("**/api/onboarding/discovery", async (route) => {
@@ -119,7 +165,7 @@ test("discovery core loop: Q1 -> promise -> a floor answer types a line and adva
   // Typing a real title offers the whole family under the "same kind of job" label.
   await roleBox.fill("IT project manager in Paris");
   await expect(page.getByText("same kind of job")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Project Manager" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Project Manager", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "That's me" }).click();
 
@@ -130,20 +176,20 @@ test("discovery core loop: Q1 -> promise -> a floor answer types a line and adva
   await expect(promise).toContainText("project manager jobs are open in Paris right now.");
 
   // The role lead line lands on the CV, then the countdown shows.
-  await expect(page.getByText("IT Project Manager")).toBeVisible();
-  await expect(page.getByText("3 answers until your next jobs")).toBeVisible();
+  await expect(page.getByText("IT Project Manager", { exact: true })).toBeVisible();
+  await expect(page.getByText("3 answers until your next jobs", { exact: true })).toBeVisible();
 
   // Answer the floor question — a line types into its section, and the countdown decrements.
   await page.getByRole("button", { name: "5-10 years" }).click();
-  await expect(page.getByText("5 to 10 years of experience as a project manager.")).toBeVisible();
-  await expect(page.getByText("2 answers until your next jobs")).toBeVisible();
+  await expect(page.getByText("5 to 10 years of experience as a project manager.", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 answers until your next jobs", { exact: true })).toBeVisible();
 
   // Reload: both answers resume, rendered statically — never re-typed. A buggy re-animation of
   // two lines in sequence would take >2s to finish; a tight budget here is a real regression
   // signal, not a flaky one.
   await page.reload();
-  await expect(page.getByText("IT Project Manager")).toBeVisible();
-  await expect(page.getByText("5 to 10 years of experience as a project manager.")).toBeVisible({
+  await expect(page.getByText("IT Project Manager", { exact: true })).toBeVisible();
+  await expect(page.getByText("5 to 10 years of experience as a project manager.", { exact: true })).toBeVisible({
     timeout: 1200,
   });
 });
@@ -156,5 +202,49 @@ test("prefers-reduced-motion: the role line still lands without the letter-by-le
   await page.goto("/discovery"); // a direct load exercises ensureSession()'s own bootstrap too
   await page.getByRole("textbox", { name: "What kind of job are you going for?" }).fill("nurse");
   await page.getByRole("button", { name: "That's me" }).click();
-  await expect(page.getByText("IT Project Manager")).toBeVisible();
+  await expect(page.getByText("IT Project Manager", { exact: true })).toBeVisible();
+});
+
+// #18 discovery (screen 1b): in-flow correction, the bare-"no" undo, and the deck handoff — all
+// three net-new interactions this ticket adds on top of #16's core loop.
+
+test("tapping an answered CV line and picking a different option updates it in place", async ({ page }) => {
+  current = AFTER_START;
+  await stubDiscovery(page);
+
+  await page.goto("/discovery");
+  await page.getByRole("button", { name: "5-10 years" }).click();
+  await expect(page.getByText("5 to 10 years of experience as a project manager.", { exact: true })).toBeVisible();
+
+  // The line is a real, named control — tapping it opens the re-ask in place of the next question.
+  await page.getByRole("button", { name: /Fix this line/i }).click();
+  await expect(page.getByText("Change your answer.")).toBeVisible();
+
+  await page.getByRole("button", { name: "10+ years" }).click();
+  await expect(page.getByText("10+ years of experience as a project manager.", { exact: true })).toBeVisible();
+  await expect(page.getByText("5 to 10 years of experience as a project manager.", { exact: true })).toHaveCount(0);
+});
+
+test('answering "No" gives quiet feedback and an undo, never a failure', async ({ page }) => {
+  current = AFTER_ANSWER; // "years" already answered; "budget" (Yes/No) is the live next question
+  await stubDiscovery(page);
+
+  await page.goto("/discovery");
+  await page.getByRole("button", { name: "No", exact: true }).click();
+
+  await expect(page.locator(".discovery .notice")).toContainText("Noted — one less thing to ask.");
+  await expect(page.getByRole("button", { name: "Fix that?" })).toBeVisible();
+  await expect(page.getByText("Have you managed a budget?")).toHaveCount(0);
+});
+
+test("the essential band done: the ask dock shows the handoff, not a completion badge", async ({ page }) => {
+  current = AFTER_ANSWER;
+  await stubDiscovery(page);
+
+  await page.goto("/discovery");
+  await page.getByRole("button", { name: "Yes", exact: true }).click();
+
+  await expect(page.getByText("That's all I need to ask.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Now I'll line these jobs up against everything you told me.", { exact: true })).toBeVisible();
+  await expect(page.getByText(/100%|done|complete/i)).toHaveCount(0);
 });

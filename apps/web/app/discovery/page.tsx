@@ -12,7 +12,8 @@
 // the response arrives (no per-answer lockout); the rail fill/countdown/bullet/announcement wait
 // for that line to finish typing, so "filling a bar and filling a section" still reads as one
 // event even though the data was already known a beat earlier.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import "../discovery.css";
 import {
   answerDiscovery,
@@ -51,6 +52,15 @@ const C7 = "Finding jobs like yours…";
 const C10 = "Keep going and I'll score them against you.";
 const C13 = "Saved to your profile — it'll be used when a job asks for it.";
 const C14 = "Answer the question below and this page starts writing itself.";
+// #18 discovery (screen 1b): in-flow correction + the deck-transition placeholder + the bare-"no"
+// notice — verbatim from discovery-1b-design-spec.md's copy table.
+const C15 = "Noted — one less thing to ask.";
+const C16 = "Fix that?";
+const C17 = "Change your answer.";
+const C18 = "Leave it as is";
+const C19 = "That's all I need to ask.";
+const C20 = "Now I'll line these jobs up against everything you told me.";
+const C21 = "Changing your answer.";
 
 // The promise's number renders in its own emphasized `.n` slot (matching
 // first-question.prototype.html, which the design spec builds against); this returns the rest of
@@ -67,6 +77,11 @@ function promiseFamilyOnly(p: DiscoveryPromise): string {
 }
 function countdownCopy(n: number): string {
   return n === 1 ? "1 answer until your next jobs" : `${n} answers until your next jobs`;
+}
+// Mirrors the server's isNoAnswer (design-1b-spec.md §3) so a bare "no" gets the noted-and-closed
+// C15 branch instead of the generic "saved to your profile" C13 one.
+function isNoAnswer(answer: string): boolean {
+  return /^no[.!]?$/i.test(answer.trim());
 }
 function highlightMatch(title: string, query: string): ReactNode {
   const idx = query ? title.toLowerCase().indexOf(query.toLowerCase()) : -1;
@@ -134,6 +149,7 @@ type TypingInfo = {
   lineText: string;
   fullNextState: DiscoveryState;
   bag: ReturnType<typeof setTimeout>[];
+  focusAfter?: string; // a correction's itemId — refocus its .cv-line button once typing completes
 };
 
 // The 4-bar section rail (design §4g) — pure/stateless, so it's the one piece worth its own
@@ -166,7 +182,12 @@ function Rail({
   );
 }
 
-export default function DiscoveryScreen() {
+function DiscoveryScreen() {
+  // AC6: a CV read via the front-door shortcut lands here as /discovery?job=<jobId> — the server
+  // composes a reader-only first question from it when present; unchanged otherwise.
+  const searchParams = useSearchParams();
+  const jobId = searchParams.get("job");
+
   const [discovery, setDiscovery] = useState<DiscoveryState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -182,6 +203,9 @@ export default function DiscoveryScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
   const [liveMessage, setLiveMessage] = useState("");
+  // #18 in-flow correction (design-1b-spec §1) + the bare-"no" undo (§3).
+  const [correcting, setCorrecting] = useState<{ itemId: string } | null>(null);
+  const [lastNo, setLastNo] = useState<{ itemId: string } | null>(null);
 
   const bandRef = useRef<HTMLDivElement>(null);
   const typingSpanRef = useRef<HTMLSpanElement>(null);
@@ -193,16 +217,27 @@ export default function DiscoveryScreen() {
   const setFirstControl = (el: HTMLElement | null) => {
     firstControlRef.current = el;
   };
+  const handoffRef = useRef<HTMLParagraphElement>(null);
+  const fixNoticeButtonRef = useRef<HTMLButtonElement>(null);
+  // The only source of an answered item's question/options (once answered, it's gone from
+  // `questions`) — a memory of what's been asked this load, not derived state (design-1b-spec §1:
+  // "not recomputable from current props"). Populated fresh every render, below.
+  const seenQuestionsRef = useRef<Map<string, { question: string; options: string[] }>>(new Map());
+  if (discovery) {
+    for (const q of discovery.questions) {
+      seenQuestionsRef.current.set(q.itemId, { question: q.question, options: q.options });
+    }
+  }
 
   const loadDiscovery = useCallback(async () => {
     setLoadError(null);
     try {
       await ensureSession();
-      setDiscovery(await getDiscovery());
+      setDiscovery(await getDiscovery(jobId ?? undefined));
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "couldn't load your progress");
     }
-  }, []);
+  }, [jobId]);
 
   useEffect(() => {
     loadDiscovery();
@@ -227,11 +262,48 @@ export default function DiscoveryScreen() {
   }, [notice]);
 
   // Focus follows the current ask target: the Q1 textarea on load, then each new question's
-  // first control as it renders — no per-answer lockout (design §6 a11y).
-  const askKey = !discovery ? null : discovery.role === null ? "q1" : (discovery.questions[0]?.itemId ?? null);
+  // first control as it renders — no per-answer lockout (design §6 a11y). #18 folds in two more
+  // targets, highest-precedence first: the deck handoff, then an in-flow correction's re-ask
+  // (design-1b-spec §1 a11y: "moves focus to the re-ask's first option on entry").
+  const askKey = !discovery
+    ? null
+    : discovery.stage === "deck"
+      ? "deck"
+      : correcting
+        ? `fix:${correcting.itemId}`
+        : discovery.role === null
+          ? "q1"
+          : (discovery.questions[0]?.itemId ?? null);
   useEffect(() => {
-    if (askKey) firstControlRef.current?.focus();
+    if (!askKey) return;
+    if (askKey === "deck") {
+      handoffRef.current?.focus();
+      setLiveMessage(`${C19} ${C20}`);
+    } else {
+      firstControlRef.current?.focus();
+    }
   }, [askKey]);
+
+  // #18: cancelling a correction (Esc, "Leave it as is", or re-picking the same answer) is free —
+  // no server call, the real line stays intact. Shared by the Esc listener below and the dock's own
+  // cancel button.
+  const cancelCorrection = useCallback(() => {
+    if (!correcting) return;
+    const { itemId } = correcting;
+    setCorrecting(null);
+    setAskError(null);
+    if (lastNo?.itemId === itemId) fixNoticeButtonRef.current?.focus();
+    else focusCvLineButton(itemId);
+  }, [correcting, lastNo]);
+
+  useEffect(() => {
+    if (!correcting) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") cancelCorrection();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [correcting, cancelCorrection]);
 
   // Fires the scroll+type sequence once the new (empty) line's span has actually mounted (it and
   // `typingId` land in the same render, from applyAnswerResult below).
@@ -245,6 +317,7 @@ export default function DiscoveryScreen() {
       setTypingId(null);
       setDiscovery(t.fullNextState);
       setLiveMessage(`${t.lineText} ${countdownCopy(t.fullNextState.essentialRemaining)}`);
+      if (t.focusAfter) focusCvLineButton(t.focusAfter);
     });
     return () => {
       t.bag.forEach(clearTimeout);
@@ -264,20 +337,29 @@ export default function DiscoveryScreen() {
     setLiveMessage(`${t.lineText} ${countdownCopy(t.fullNextState.essentialRemaining)}`);
   }
 
-  // Shared by Q1 submit and every floor answer. Structural bits (the next question, the new
-  // line's now-empty container) apply immediately; the rail fill/countdown wait for that line to
-  // finish typing (see the file banner comment for why).
-  function applyAnswerResult(next: DiscoveryState) {
+  // Shared by Q1 submit, every floor answer, and a correction that turns a "no" into a positive
+  // (design-1b-spec's boundary note: that's a brand-new line, so this diff-by-new-id already
+  // finds it — unchanged). Structural bits (the next question, the new line's now-empty
+  // container) apply immediately; the rail fill/countdown wait for that line to finish typing
+  // (see the file banner comment for why).
+  function applyAnswerResult(next: DiscoveryState, answeredItemId?: string, rawAnswer?: string) {
     finalizeInFlight();
     setFreeAnswer("");
     const prevIds = new Set((discovery?.cvLines ?? []).map((l) => l.itemId));
     const newLine = next.cvLines.find((l) => !prevIds.has(l.itemId)) ?? null;
 
     if (!newLine) {
-      // Profile-only answer (design §4d/§8.1): no line to type, nothing to gate on.
+      // No line to type, nothing to gate on — either a profile-only answer (design §4d/§8.1,
+      // C13) or a bare "no" (design-1b-spec §3: noted-and-closed, never a failure — C15).
       setDiscovery(next);
-      setNotice(C13);
-      setLiveMessage(`${C13} ${countdownCopy(next.essentialRemaining)}`);
+      if (answeredItemId && rawAnswer && isNoAnswer(rawAnswer)) {
+        setNotice(null);
+        setLastNo({ itemId: answeredItemId });
+        setLiveMessage(`${C15} ${countdownCopy(next.essentialRemaining)}`);
+      } else {
+        setNotice(C13);
+        setLiveMessage(`${C13} ${countdownCopy(next.essentialRemaining)}`);
+      }
       return;
     }
 
@@ -288,6 +370,68 @@ export default function DiscoveryScreen() {
     });
     typingRef.current = { itemId: newLine.itemId, lineText: newLine.text, fullNextState: next, bag: [] };
     setTypingId(newLine.itemId);
+  }
+
+  // The 1A/1B correction commit path for a same-id edit that applyAnswerResult's new-id diff can't
+  // see (design-1b-spec §1A: "applyAnswerResult's new-line diff would miss it"). Re-types the line
+  // in place when its text actually changed; a same-option re-pick (or a positive corrected away
+  // to a "no", which isn't a flow this slice's spec designs a notice for) just syncs state quietly.
+  function applyCorrectionResult(itemId: string, next: DiscoveryState) {
+    finalizeInFlight();
+    setFreeAnswer("");
+    const updatedLine = next.cvLines.find((l) => l.itemId === itemId);
+    const prevText = discovery?.cvLines.find((l) => l.itemId === itemId)?.text;
+
+    if (updatedLine && updatedLine.text !== prevText) {
+      setDiscovery((s) => {
+        const prev = s ?? next;
+        return { ...next, railFill: prev.railFill, essentialRemaining: prev.essentialRemaining };
+      });
+      typingRef.current = { itemId, lineText: updatedLine.text, fullNextState: next, bag: [], focusAfter: itemId };
+      setTypingId(itemId);
+    } else {
+      setDiscovery(next);
+      focusCvLineButton(itemId);
+    }
+  }
+
+  function focusCvLineButton(itemId: string) {
+    bandRef.current?.querySelector<HTMLElement>(`[data-item="${itemId}"]`)?.focus();
+  }
+
+  // 1A entry (tap a written line) and 1B entry (tap "Fix that?" on a bare-no notice) both land
+  // here — client-side-first, no server call, so the real line/notice stays intact until commit.
+  function enterCorrection(itemId: string) {
+    if (picked) return;
+    setAskError(null);
+    setFreeAnswer("");
+    setCorrecting({ itemId });
+    setLiveMessage(C21);
+  }
+
+  // The correction re-ask's commit (design-1b-spec §1): re-answering an item is idempotent
+  // server-side now (upsert), so this reuses answerDiscovery — no separate correct/reopen route.
+  async function commitCorrection(itemId: string, answer: string) {
+    if (picked) return;
+    setPicked({ itemId, answer });
+    setAskError(null);
+    try {
+      const next = await answerDiscovery(itemId, answer);
+      const hadLine = discovery?.cvLines.some((l) => l.itemId === itemId) ?? false;
+      const hasLine = next.cvLines.some((l) => l.itemId === itemId);
+      setCorrecting(null);
+      if (lastNo?.itemId === itemId) setLastNo(null);
+      if (!hadLine && hasLine) {
+        // A no -> positive correction is a brand-new line — the normal floor-answer path.
+        applyAnswerResult(next, itemId, answer);
+      } else {
+        applyCorrectionResult(itemId, next);
+      }
+    } catch (e) {
+      setAskError(e instanceof Error ? e.message : "could not save that — try again");
+    } finally {
+      setPicked(null);
+    }
   }
 
   async function submitRole(raw: string) {
@@ -311,8 +455,9 @@ export default function DiscoveryScreen() {
     setPicked({ itemId: item.itemId, answer });
     setAskError(null);
     setNotice(null);
+    setLastNo(null); // the undo reaches one question past a "no" (design-1b-spec §3), then clears
     try {
-      applyAnswerResult(await answerDiscovery(item.itemId, answer));
+      applyAnswerResult(await answerDiscovery(item.itemId, answer), item.itemId, answer);
     } catch (e) {
       setAskError(e instanceof Error ? e.message : "could not save that — try again");
     } finally {
@@ -394,10 +539,27 @@ export default function DiscoveryScreen() {
         </p>
       );
     }
+    // Correctable iff asked this load (design-1b-spec §1): seenQuestions is the only source of an
+    // answered item's question/options, and a resumed-from-reload line was never seen this load.
+    if (!seenQuestionsRef.current.has(line.itemId)) {
+      return (
+        <p key={line.itemId} className="cv-line done">
+          {line.text}
+        </p>
+      );
+    }
     return (
-      <p key={line.itemId} className="cv-line done">
+      <button
+        key={line.itemId}
+        type="button"
+        className={`cv-line done${correcting?.itemId === line.itemId ? " fixing" : ""}`}
+        data-item={line.itemId}
+        disabled={!!picked}
+        aria-label={`Fix this line: ${line.text}`}
+        onClick={() => enterCorrection(line.itemId)}
+      >
         {line.text}
-      </p>
+      </button>
     );
   }
 
@@ -415,7 +577,135 @@ export default function DiscoveryScreen() {
     return <p className="cv-role">{role.text}</p>;
   }
 
+  // Ask-dock notice slot (design-1b-spec §3): the bare-"no" undo takes precedence over the
+  // generic profile-saved notice — the two never truly coexist (answerFloor clears lastNo the
+  // instant a new answer starts, before that answer's own outcome is known).
+  function renderNotice() {
+    if (lastNo) {
+      return (
+        <p className="notice">
+          {C15}{" "}
+          <button
+            type="button"
+            disabled={!!picked}
+            onClick={() => enterCorrection(lastNo.itemId)}
+            ref={fixNoticeButtonRef}
+          >
+            {C16}
+          </button>
+        </p>
+      );
+    }
+    if (notice) return <p className="notice">{notice}</p>;
+    return null;
+  }
+
+  // The correction re-ask (design-1b-spec §1): reuses .q/.sub/.opts/.opt or the free-text .field,
+  // exactly like the normal ask below — just re-asking a seen question instead of the next one.
+  function renderCorrectionAsk() {
+    if (!correcting) return null;
+    const seen = seenQuestionsRef.current.get(correcting.itemId);
+    if (!seen) return null; // shouldn't happen — the button/notice only target a seen item
+    const isAnswering = picked?.itemId === correcting.itemId;
+    const isNoCorrection = lastNo?.itemId === correcting.itemId;
+
+    if (seen.options.length === 0) {
+      return (
+        <>
+          <label htmlFor="fix-free" className="q">
+            {seen.question}
+          </label>
+          <p className="sub">{C17}</p>
+          <div className="field">
+            <input
+              id="fix-free"
+              ref={setFirstControl}
+              type="text"
+              value={freeAnswer}
+              disabled={isAnswering}
+              onChange={(e) => setFreeAnswer(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const a = freeAnswer.trim();
+                  if (a) commitCorrection(correcting.itemId, a);
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="go"
+              disabled={isAnswering || freeAnswer.trim().length < 1}
+              onClick={() => {
+                const a = freeAnswer.trim();
+                if (a) commitCorrection(correcting.itemId, a);
+              }}
+            >
+              Continue
+            </button>
+          </div>
+          <p className="notice">
+            <button type="button" disabled={isAnswering} onClick={cancelCorrection}>
+              {C18}
+            </button>
+          </p>
+          {askError && (
+            <p className="err" role="alert">
+              {askError}
+            </p>
+          )}
+        </>
+      );
+    }
+
+    return (
+      <>
+        <p className="q" id="fix-q">
+          {seen.question}
+        </p>
+        <p className="sub">{C17}</p>
+        <div className="opts" role="group" aria-labelledby="fix-q">
+          {seen.options.map((opt, i) => (
+            <button
+              key={opt}
+              ref={i === 0 ? setFirstControl : undefined}
+              type="button"
+              className={isNoCorrection && isNoAnswer(opt) ? "opt picked" : "opt"}
+              disabled={isAnswering}
+              onClick={() => commitCorrection(correcting.itemId, opt)}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+        <p className="notice">
+          <button type="button" disabled={isAnswering} onClick={cancelCorrection}>
+            {C18}
+          </button>
+        </p>
+        {askError && (
+          <p className="err" role="alert">
+            {askError}
+          </p>
+        )}
+      </>
+    );
+  }
+
   function renderAsk(d: DiscoveryState) {
+    // Precedence (design-1b-spec §1): deck > correcting > the normal next-question below.
+    if (d.stage === "deck") {
+      return (
+        <div className="handoff">
+          <p className="q" tabIndex={-1} ref={handoffRef}>
+            {C19}
+          </p>
+          <p className="sub">{C20}</p>
+        </div>
+      );
+    }
+    if (correcting) return renderCorrectionAsk();
+
     if (d.role === null) {
       const query = roleText.trim();
       return (
@@ -470,7 +760,7 @@ export default function DiscoveryScreen() {
     }
 
     const item = d.questions[0];
-    if (!item) return null; // the gate/reveal beyond the last essential item is #18, out of scope
+    if (!item) return null; // defensive fallback — the deck gate above means this shouldn't be reached
     const isAnswering = picked?.itemId === item.itemId;
 
     if (item.options.length === 0) {
@@ -509,7 +799,7 @@ export default function DiscoveryScreen() {
               Continue
             </button>
           </div>
-          {notice && <p className="notice">{notice}</p>}
+          {renderNotice()}
           {askError && (
             <p className="err" role="alert">
               {askError}
@@ -541,7 +831,7 @@ export default function DiscoveryScreen() {
             );
           })}
         </div>
-        {notice && <p className="notice">{notice}</p>}
+        {renderNotice()}
         {askError && (
           <p className="err" role="alert">
             {askError}
@@ -577,7 +867,10 @@ export default function DiscoveryScreen() {
             <p className="countdown">{countdownCopy(discovery.essentialRemaining)}</p>
           )}
 
-          <Rail railFill={discovery.railFill} activeSection={discovery.questions[0]?.cvSection ?? null} />
+          <Rail
+            railFill={discovery.railFill}
+            activeSection={discovery.stage === "deck" ? null : (discovery.questions[0]?.cvSection ?? null)}
+          />
 
           {renderPromise(discovery)}
 
@@ -604,5 +897,22 @@ export default function DiscoveryScreen() {
         </>
       )}
     </div>
+  );
+}
+
+// AC6 (#18): reading `?job` needs useSearchParams, which requires a Suspense boundary above it or
+// Next.js bails the whole route to client-only rendering with a build warning. The fallback mirrors
+// DiscoveryScreen's own loading state so there's no visible flash between the two.
+export default function DiscoveryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="discovery">
+          <div className="loadstate">Loading your questions…</div>
+        </div>
+      }
+    >
+      <DiscoveryScreen />
+    </Suspense>
   );
 }
