@@ -12,7 +12,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import type { CandidateClaim, MinedRole } from "@jobcrush/contracts";
-import { requireUser } from "../server.js";
+import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore, ClaimRecord } from "../claims.js";
 import type { JobStore } from "../jobs.js";
 import type { SessionStore } from "../sessions.js";
@@ -21,6 +21,16 @@ import { renderRootCv } from "../rootcv.js";
 import { runGate } from "../gate.js";
 import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
+import { loadFamilyFloor } from "../e5stub.js";
+import {
+  composeCvLine,
+  discoveryClaimId,
+  discoveryState,
+  isDiscoveryClaim,
+  isNoAnswer,
+  itemIdOf,
+  resolveFamily,
+} from "../discovery.js";
 
 export interface OnboardingDeps {
   claims: ClaimStore;
@@ -209,5 +219,89 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       await deps.sessions.setStage(session.id, stage);
       return { stage, gate, rootCv };
     });
+
+    // --- #16 discovery (screen 1a): the answer→CV-line→section-bar loop -------------------------
+    // Pre-wall, so it rides the ANONYMOUS session (requireSession, not requireUser): the account ask
+    // is after the reveal (spec §12), and answers persist server-side from question 1 (story #76).
+    // The whole screen is a pure function of the session's role (Q1) + its recorded discovery answers,
+    // so every response is `discoveryState(...)` and GET resumes with no client state.
+
+    const discoveryReads = (sessionId: string) =>
+      Promise.all([deps.claims.confirmed(sessionId), deps.claims.negatives(sessionId)]);
+
+    // Load / resume: rebuild the state from the store. Before Q1 (no role) → the empty skeleton state.
+    app.get("/onboarding/discovery", async (req) => {
+      const session = requireSession(req);
+      const [confirmed, negatives] = await discoveryReads(session.id);
+      return discoveryState(session.targetTitles[0] ?? null, confirmed, negatives);
+    });
+
+    // Q1 typing lookup: the "same kind of job" family + kin titles. A no-match is placed in silence
+    // (story #16) — never a "not found"; an empty query just returns no suggestions.
+    app.get(
+      "/onboarding/discovery/family",
+      { schema: { querystring: z.object({ q: z.string() }) } },
+      async (req) => {
+        requireSession(req);
+        return resolveFamily(req.query.q);
+      },
+    );
+
+    // Q1 submit: place the family, keep the role as the session's target title (persists the role for
+    // resume), and return the seeded state (floor questions + the promise carrying the city).
+    app.post(
+      "/onboarding/discovery/start",
+      { schema: { body: z.object({ role: z.string().trim().min(1) }) } },
+      async (req) => {
+        const session = requireSession(req);
+        await deps.sessions.setTargetTitles(session.id, [req.body.role]);
+        await deps.sessions.setStage(session.id, "discovery");
+        const [confirmed, negatives] = await discoveryReads(session.id);
+        return discoveryState(req.body.role, confirmed, negatives);
+      },
+    );
+
+    // Answer a floor item → a confirmed claim carrying its composed CV line (or, for a bare "no", a
+    // negative via #13's answerNegative — it closes the item but adds no CV line). Returns the updated
+    // state so the client types the new line + advances the bar/countdown from one response.
+    app.post(
+      "/onboarding/discovery/answer",
+      { schema: { body: z.object({ itemId: z.string(), answer: z.string().trim().min(1) }) } },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const role = session.targetTitles[0] ?? null;
+        if (!role)
+          return reply.status(409).send({ error: { code: "no_role", message: "answer question 1 first" } });
+
+        const { family } = resolveFamily(role);
+        const item = loadFamilyFloor(family).items.find((i) => i.id === req.body.itemId);
+        if (!item)
+          return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
+
+        const [confirmed, negatives] = await discoveryReads(session.id);
+        const answered = new Set(
+          [...confirmed, ...negatives].filter((c) => isDiscoveryClaim(c.id)).map((c) => itemIdOf(c.id)),
+        );
+        if (answered.has(item.id))
+          return reply.status(409).send({ error: { code: "already_answered", message: "item already answered" } });
+
+        const no = isNoAnswer(req.body.answer);
+        const claim: CandidateClaim = {
+          id: discoveryClaimId(item.id),
+          role: "profile",
+          text: no ? `Not applicable — ${item.question}` : composeCvLine(item, req.body.answer),
+          machine_touch: "verbatim", // the visitor's own answer
+          classification: "Verified", // user-authored, they vouch for it
+          source_quote: req.body.answer.slice(0, 200),
+          needs_grill: false,
+          grill_hint: null,
+        };
+        if (no) await deps.claims.answerNegative(session.id, claim);
+        else await deps.claims.add(session.id, claim);
+
+        const [confirmed2, negatives2] = await discoveryReads(session.id);
+        return discoveryState(role, confirmed2, negatives2);
+      },
+    );
   };
 }

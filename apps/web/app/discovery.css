@@ -1,0 +1,520 @@
+/* discovery.css — #16 discovery (screen 1a): Q1 -> promise -> tap-first floor, the answer->reward
+   core loop. Extends the front door's ink-and-glass HUD tokens 1:1 (frontdoor.css:7-14) and adds
+   the warm-paper CV tokens frontdoor.css deliberately reserved for this screen (frontdoor.css:19-20
+   / discovery-1a-design-spec.md §2). Own stylesheet, `.discovery`-scoped throughout so nothing
+   leaks to/from :root, mirroring frontdoor.css's own scoping discipline. */
+
+.discovery {
+  --hud-0: #101419;
+  --hud-1: #171c23;
+  --hud-2: #1f262f;
+  --hud-line: #2b333d;
+  --hud-ink: #e8eaed;
+  --hud-mute: #7f8b98;
+  --gold: #e8a33d;
+  --gold-dim: #a8762b;
+  --sans:
+    "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui,
+    sans-serif;
+  --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --paper: #f6f2ea;
+  --paper-edge: #e2dacb;
+  --ink: #16150f;
+  --ink-mute: #6b6455;
+  --rule: #d9d0bd;
+  --gold-glow: rgba(232, 163, 61, 0.22);
+
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--hud-0);
+  color: var(--hud-ink);
+  font-family: var(--sans);
+}
+
+@media print {
+  .discovery {
+    display: none;
+  }
+}
+
+/* visually-hidden shared live region — the one polite per-answer announcement (design §6) */
+.discovery .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- page-level load / error ---------- */
+.discovery .loadstate {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  padding: 0 26px;
+  text-align: center;
+  color: var(--hud-mute);
+  font-size: 14px;
+}
+.discovery .loadstate button {
+  appearance: none;
+  background: var(--hud-2);
+  color: var(--hud-ink);
+  border: 1px solid var(--hud-line);
+  border-radius: 999px;
+  padding: 10px 20px;
+  font: inherit;
+  cursor: pointer;
+}
+.discovery .loadstate button:hover {
+  border-color: var(--gold);
+}
+
+/* ---------- topbar (§1: right slot reserved for #17's badge) ---------- */
+.discovery .topbar {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 14px 16px 10px;
+}
+.discovery .wordmark {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--hud-mute);
+}
+
+/* ---------- countdown ---------- */
+.discovery .countdown {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 16px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--hud-mute);
+}
+
+/* ---------- section rail ---------- */
+.discovery .rail {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 0 16px 14px;
+}
+.discovery .blk {
+  flex: 1;
+  min-width: 0;
+}
+.discovery .blk .bar {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--hud-2);
+  overflow: hidden;
+}
+.discovery .blk .bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+  border-radius: 2px;
+  transition: width 620ms cubic-bezier(0.3, 0.9, 0.3, 1);
+}
+.discovery .blk .nm {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-mute);
+  margin-top: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 400ms ease;
+}
+.discovery .blk.active .nm {
+  color: var(--gold);
+}
+.discovery .blk.done .nm {
+  color: var(--hud-ink);
+}
+.discovery .blk .tick {
+  color: var(--gold);
+}
+
+/* ---------- the promise ---------- */
+.discovery .promise {
+  margin: 0 16px 12px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  flex: 0 0 auto;
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  background: linear-gradient(135deg, rgba(232, 163, 61, 0.13), rgba(232, 163, 61, 0.05));
+  border: 1px solid rgba(232, 163, 61, 0.32);
+  animation: disc-rise 560ms cubic-bezier(0.2, 1, 0.3, 1);
+}
+.discovery .promise.blind {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--hud-line);
+}
+.discovery .promise .n {
+  font-family: var(--mono);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+.discovery .promise.blind .n {
+  color: var(--hud-mute);
+}
+.discovery .promise p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--hud-ink);
+}
+.discovery .promise p span {
+  color: var(--hud-mute);
+}
+@keyframes disc-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- divider + CV paper (the only bright object) ---------- */
+.discovery .divider {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+  padding: 0 16px 9px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--hud-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.discovery .divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hud-line);
+}
+
+.discovery .band-cv {
+  flex: 1 1 0;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 0 16px 12px;
+}
+
+.discovery .cv {
+  position: relative;
+  overflow: hidden;
+  min-height: 100%;
+  padding: 20px 20px 26px;
+  border-radius: 10px;
+  border: 1px solid var(--paper-edge);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  box-shadow:
+    0 18px 44px -14px rgba(0, 0, 0, 0.75),
+    0 1px 0 rgba(255, 255, 255, 0.16) inset;
+}
+.discovery .cv::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.035) 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+.discovery .cv-role {
+  min-height: 20px;
+  margin: 0 0 20px;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+.discovery .cv-sec {
+  margin: 0 0 8px;
+  font-family: var(--sans);
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-mute);
+}
+.discovery .cv-gap {
+  height: 46px;
+}
+.discovery .cv-line {
+  position: relative;
+  margin: 0 0 9px;
+  padding-left: 14px;
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+.discovery .cv-line::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold-dim);
+  opacity: 0;
+  transition: opacity 300ms ease 120ms;
+}
+.discovery .cv-line.done::before {
+  opacity: 1;
+}
+.discovery .hint {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--ink-mute);
+}
+
+.discovery .caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  background: var(--gold-dim);
+  vertical-align: -0.14em;
+  animation: disc-blink 900ms steps(2) infinite;
+}
+@keyframes disc-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ---------- the ask band (docked, safe-area) ---------- */
+.discovery .ask {
+  flex: 0 0 auto;
+  padding: 15px 16px calc(15px + env(safe-area-inset-bottom));
+  background: var(--hud-1);
+  border-top: 1px solid var(--hud-line);
+}
+.discovery .ask label,
+.discovery .ask .q {
+  display: block;
+  margin: 0 0 13px;
+  font-size: 16.5px;
+  font-weight: 550;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  color: var(--hud-ink);
+}
+.discovery .ask .sub {
+  margin: -7px 0 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--hud-mute);
+}
+.discovery .ask .notice {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--hud-mute);
+}
+
+.discovery .opts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.discovery .opt {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  background: var(--hud-2);
+  color: var(--hud-ink);
+  border: 1px solid var(--hud-line);
+  border-radius: 11px;
+  padding: 12.5px 15px;
+  font: inherit;
+  font-size: 14.5px;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    opacity 140ms ease,
+    transform 90ms ease;
+}
+.discovery .opt:hover:not(:disabled) {
+  background: #262f3a;
+  border-color: #3b4653;
+}
+.discovery .opt:active:not(:disabled) {
+  transform: scale(0.985);
+}
+.discovery .opt.picked {
+  border-color: var(--gold);
+  background: #262f3a;
+}
+.discovery .opt.dim {
+  opacity: 0.35;
+}
+.discovery .opt:disabled {
+  cursor: default;
+}
+
+.discovery .field {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.discovery .field input,
+.discovery textarea {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  background: var(--hud-2);
+  color: var(--hud-ink);
+  border: 1px solid var(--hud-line);
+  border-radius: 11px;
+  padding: 12.5px 15px;
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 160ms ease;
+}
+.discovery textarea {
+  display: block;
+  width: 100%;
+  resize: none;
+  font-size: 14.5px;
+  line-height: 1.45;
+  margin-bottom: 9px;
+}
+.discovery .field input:focus,
+.discovery textarea:focus {
+  border-color: var(--gold);
+}
+.discovery .field input::placeholder,
+.discovery textarea::placeholder {
+  color: #5d6874;
+}
+.discovery .field input:disabled,
+.discovery textarea:disabled {
+  opacity: 0.6;
+}
+
+.discovery .go {
+  appearance: none;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 11px;
+  padding: 0 17px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 650;
+  color: #1a1206;
+  background: var(--gold);
+  cursor: pointer;
+  transition:
+    opacity 160ms ease,
+    transform 90ms ease;
+}
+.discovery .go:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.discovery .go:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.discovery .go.wide {
+  width: 100%;
+  padding: 14px;
+}
+
+.discovery .sugg.live {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+  border: 1px solid var(--hud-line);
+  border-radius: 11px;
+  overflow: hidden;
+  background: var(--hud-2);
+}
+.discovery .sugg.live .fam {
+  padding: 9px 14px 7px;
+  border-bottom: 1px solid var(--hud-line);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  color: var(--hud-mute);
+}
+.discovery .sugg.live button {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid var(--hud-line);
+  border-radius: 0;
+  background: none;
+  color: var(--hud-ink);
+  padding: 11px 14px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+.discovery .sugg.live button:last-child {
+  border-bottom: none;
+}
+.discovery .sugg.live button:hover:not(:disabled) {
+  background: #262f3a;
+}
+.discovery .sugg.live button em {
+  font-style: normal;
+  font-weight: 650;
+  color: var(--gold);
+}
+.discovery .sugg.live .loading {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--hud-mute);
+}
+
+.discovery .err {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--hud-ink);
+}
+
+/* ---------- accessibility ---------- */
+/* The global :where(...) ring (globals.css) runs at specificity 0 against --jc-accent, which does
+   not exist on this dark field — these scoped rules win and use --hud-ink for strong contrast
+   (mirrors frontdoor.css's own override). */
+.discovery :focus-visible {
+  outline: 2px solid var(--hud-ink);
+  outline-offset: 2px;
+}

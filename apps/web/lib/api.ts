@@ -157,6 +157,66 @@ export function answerGrill(jobId: string, gapId: string, answer: string): Promi
   });
 }
 
+// --- S3 discovery (screen 1a, #16): Q1 (free-text role) -> promise -> tap-first floor loop.
+// composeCvLine runs server-side — every cvLines entry below arrives already composed; the
+// client only decides when to reveal it (ticket #16's reconciliation note).
+
+export type CvSection = "summary" | "experience" | "skills" | "education";
+
+export interface DiscoveryQuestion {
+  itemId: string;
+  question: string;
+  options: string[]; // may be empty — a free-text floor item
+  cvSection: CvSection;
+}
+
+export interface DiscoveryCvLine {
+  itemId: string; // "role" = the CV lead line; anything else is a section body line
+  section: CvSection;
+  text: string;
+}
+
+export interface DiscoveryPromise {
+  family: string;
+  city: string | null;
+  count: number | null; // null = count failed but the family placed (C11 fallback)
+}
+
+export interface DiscoveryState {
+  stage: "discovery";
+  role: string | null;
+  family: string | null;
+  city: string | null;
+  promise: DiscoveryPromise | null;
+  questions: DiscoveryQuestion[]; // remaining floor items, rank order; [] before Q1
+  railFill: Record<CvSection, number>; // 0..1 per section
+  essentialRemaining: number; // the countdown
+  cvLines: DiscoveryCvLine[]; // role lead line first, then answered lines — for resume
+}
+
+export function getDiscovery(): Promise<DiscoveryState> {
+  return jfetch("/api/onboarding/discovery");
+}
+
+// Q1 typing lookup — caller debounces (~250ms). Silent no-match comes back as suggestions: [].
+export function lookupFamily(q: string): Promise<{ family: string | null; suggestions: string[] }> {
+  return jfetch(`/api/onboarding/discovery/family?q=${encodeURIComponent(q)}`);
+}
+
+export function startDiscovery(role: string): Promise<DiscoveryState> {
+  return jfetch("/api/onboarding/discovery/start", {
+    method: "POST",
+    body: JSON.stringify({ role }),
+  });
+}
+
+export function answerDiscovery(itemId: string, answer: string): Promise<DiscoveryState> {
+  return jfetch("/api/onboarding/discovery/answer", {
+    method: "POST",
+    body: JSON.stringify({ itemId, answer }),
+  });
+}
+
 // --- E2 auth (magic-link) ---
 
 // `job` rides along so the emailed link can route back to the deck even when opened in another
