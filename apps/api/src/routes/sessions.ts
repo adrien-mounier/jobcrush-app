@@ -57,5 +57,19 @@ export function sessionRoutes(sessions: SessionStore, limiter = new IpRateLimite
         return { ok: true };
       },
     );
+
+    // #15 front door → discovery handoff. Anonymous-friendly (pre-wall, like /targets above) —
+    // only these two early stages are settable here; the enum fails closed on anything else.
+    app.put(
+      "/sessions/me/stage",
+      { schema: { body: z.object({ stage: z.enum(["front-door", "discovery"]) }) } },
+      async (req, reply) => {
+        if (!req.session) {
+          return reply.status(401).send({ error: { code: "no_session", message: "no active session" } });
+        }
+        await sessions.setStage(req.session.id, req.body.stage);
+        return { ok: true };
+      },
+    );
   };
 }

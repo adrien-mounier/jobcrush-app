@@ -5,9 +5,9 @@ import { randomBytes } from "node:crypto";
 import type { Pool } from "pg";
 import { getPool, iso } from "./db.js";
 
-// Where a session sits in the S2 onboarding loop; the client reads it on load to pick a screen.
-// deck → grill (JC-24 gap-filling) → ready | loopback.
-export type OnboardingStage = "deck" | "grill" | "ready" | "loopback";
+// Where a session sits in the onboarding loop; the client reads it on load to pick a screen.
+// front-door (screen 0) → discovery (#16) → deck → grill (JC-24 gap-filling) → ready | loopback.
+export type OnboardingStage = "front-door" | "discovery" | "deck" | "grill" | "ready" | "loopback";
 
 export interface SessionRecord {
   id: string;

@@ -36,6 +36,14 @@ export function saveTargetTitles(targetTitles: string[]): Promise<{ ok: boolean 
   });
 }
 
+// #15 front door → discovery handoff (both the Ready? path and the CV path land here).
+export function setStage(stage: "front-door" | "discovery"): Promise<{ ok: boolean }> {
+  return jfetch("/api/sessions/me/stage", {
+    method: "PUT",
+    body: JSON.stringify({ stage }),
+  });
+}
+
 export async function uploadCv(file: File): Promise<{ jobId: string }> {
   const created = await jfetch<{ id: string; putUrl: string }>("/api/uploads", {
     method: "POST",

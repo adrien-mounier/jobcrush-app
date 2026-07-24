@@ -61,6 +61,36 @@ describe("JC-10 anonymous sessions", () => {
     expect(me.json().targetTitles).toEqual(["IT Project Manager", "Product Owner"]);
   });
 
+  // #15 front door → discovery handoff: the same anonymous-friendly seam as /targets above.
+  it("advances the session to the discovery stage, persisted", async () => {
+    const { app } = buildServer();
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = cookieOf(created);
+    const put = await app.inject({
+      method: "PUT",
+      url: "/sessions/me/stage",
+      headers: { cookie },
+      payload: { stage: "discovery" },
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json()).toEqual({ ok: true });
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(me.json().stage).toBe("discovery");
+  });
+
+  it("rejects an out-of-enum stage — fails closed rather than persisting an unknown value", async () => {
+    const { app } = buildServer();
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = cookieOf(created);
+    const put = await app.inject({
+      method: "PUT",
+      url: "/sessions/me/stage",
+      headers: { cookie },
+      payload: { stage: "ready" },
+    });
+    expect(put.statusCode).toBe(400);
+  });
+
   it("session creation is rate-limited per IP", async () => {
     const { app } = buildServer();
     // default limiter allows 12/hour from one IP; inject uses the same remoteAddress every time

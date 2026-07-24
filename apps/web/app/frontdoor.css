@@ -1,0 +1,297 @@
+/* frontdoor.css — #15 front door (screen 0). Ink & glass, fully `.frontdoor`-scoped: every selector
+   is a descendant of .frontdoor and the tokens below are defined on .frontdoor, never :root, so
+   nothing leaks into (or in from) the global --jc-* system. Extracted 1:1 from Shape A of
+   apps/web/prototypes/front-door-options.prototype.html — see front-door-spec.md for the mapping. */
+
+.frontdoor {
+  --hud-0: #101419;
+  --hud-1: #171c23;
+  --hud-2: #1f262f;
+  --hud-line: #2b333d;
+  --hud-ink: #e8eaed;
+  --hud-mute: #7f8b98;
+  --gold: #e8a33d;
+  --gold-dim: #a8762b;
+  --sans:
+    "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui,
+    sans-serif;
+  --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  /* --serif/--paper/--ink/--rule intentionally absent: reserved for the CV-paper document, not
+     screen 0 (spec conflict-note #1). Add if a later screen shares this file. */
+
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  background: var(--hud-0);
+  color: var(--hud-ink);
+  font-family: var(--sans);
+}
+
+@media print {
+  .frontdoor {
+    display: none;
+  }
+}
+
+/* ---------- the centred invitation (§3) ---------- */
+
+.frontdoor .invite {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0 26px;
+  text-align: center;
+}
+.frontdoor .stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.frontdoor .h {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 30px;
+  line-height: 1.14;
+  font-weight: 680;
+  letter-spacing: -0.028em;
+  margin: 0;
+  text-wrap: balance;
+  transition: opacity 250ms ease;
+}
+.frontdoor .h .g {
+  color: var(--gold);
+}
+
+/* Ghost + typed technique: .gh holds the line's final width invisibly so centred text does not
+   jitter as letters land; .tx is the node the typewriter effect writes into. */
+.frontdoor .ln {
+  display: inline-block;
+  position: relative;
+  transition:
+    transform 640ms cubic-bezier(0.6, 0.02, 0.3, 1),
+    opacity 500ms ease;
+}
+.frontdoor .gh {
+  visibility: hidden;
+}
+.frontdoor .tx {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: pre;
+}
+
+.frontdoor .caret {
+  display: inline-block;
+  width: 3px;
+  height: 0.92em;
+  background: var(--gold);
+  vertical-align: -0.12em;
+  margin-left: 2px;
+  animation: fd-blink 900ms steps(2) infinite;
+}
+@keyframes fd-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Door-parting (§7): L1 flies up, L2 flies down, then the caller navigates. */
+.frontdoor.split .l1 {
+  transform: translateY(-44vh);
+  opacity: 0;
+}
+.frontdoor.split .l2 {
+  transform: translateY(44vh);
+  opacity: 0;
+}
+
+/* ---------- Ready? (§3, §8, §9) ---------- */
+
+.frontdoor .ready {
+  appearance: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  background: var(--gold);
+  color: #1a1206;
+  font-weight: 680;
+  border-radius: 999px;
+  margin-top: 30px;
+  padding: 15px 38px;
+  font-size: 16px;
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition:
+    opacity 520ms ease,
+    transform 620ms cubic-bezier(0.2, 1.05, 0.3, 1),
+    box-shadow 700ms ease,
+    scale 110ms ease;
+}
+.frontdoor .ready.in {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  box-shadow: 0 14px 34px -12px rgba(232, 163, 61, 0.55);
+}
+.frontdoor .ready.in:active {
+  scale: 0.96;
+}
+.frontdoor .ready:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* One active path while the CV is being read: the headline dims, Ready? recedes and stops
+   accepting taps (pointer-events, not just visual — the CV panel is the only live control). It
+   stays receded through the success beat too (navigation is seconds away); it only springs back
+   on error, where data-cv matches neither selector below and both rules simply stop applying. */
+.frontdoor[data-cv="reading"] .h {
+  opacity: 0.5;
+}
+.frontdoor[data-cv="reading"] .ready.in,
+.frontdoor[data-cv="success"] .ready.in {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* ---------- the CV-shortcut footnote, bottom-anchored (§3, §4, §8) ---------- */
+
+.frontdoor .footnote {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 30px calc(28px + env(safe-area-inset-bottom));
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--hud-mute);
+  text-align: center;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 560ms ease,
+    transform 560ms cubic-bezier(0.2, 1, 0.3, 1);
+}
+.frontdoor .footnote.in {
+  opacity: 1;
+  transform: none;
+}
+.frontdoor .footnote p {
+  margin: 0;
+}
+
+.frontdoor .upload {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 8px 2px;
+  margin: -8px 0;
+  font: inherit;
+  color: var(--hud-ink);
+  font-weight: 600;
+  text-underline-offset: 3px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.frontdoor .upload:hover {
+  color: var(--gold);
+}
+
+.frontdoor .reading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.frontdoor .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: fd-pulse 2600ms ease-in-out infinite;
+}
+@keyframes fd-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
+}
+.frontdoor .reading .label {
+  font-size: 13.5px;
+  color: var(--hud-ink);
+}
+
+.frontdoor .feed {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--hud-mute);
+}
+.frontdoor .feed li {
+  padding: 2px 0;
+}
+
+.frontdoor .cvread {
+  font-size: 22px;
+  font-weight: 680;
+  color: var(--gold);
+}
+
+.frontdoor .err {
+  margin: 8px 0 0;
+  color: var(--hud-ink);
+}
+.frontdoor .retry {
+  appearance: none;
+  background: none;
+  border: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--hud-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 12px 8px;
+  min-height: 44px;
+  margin-top: 4px;
+}
+.frontdoor .retry:hover {
+  color: var(--gold);
+}
+
+/* ---------- accessibility (§9) ---------- */
+
+/* The global :where(...) ring (globals.css) runs at specificity 0 against --jc-accent, which does
+   not exist on this dark field — these scoped rules win and use --hud-ink for strong contrast. */
+.frontdoor .ready:focus-visible {
+  outline: 2px solid var(--hud-ink);
+  outline-offset: 3px;
+}
+.frontdoor :focus-visible {
+  outline: 2px solid var(--hud-ink);
+  outline-offset: 2px;
+}
+
+/* ---------- responsive floor & short viewports (§10) ---------- */
+/* 360×640 floor: the 30px headline already fits (~308px content box, 26px side padding) with no
+   further breakpoint needed — lines are separate spans so they never wrap into each other. */
+
+@media (max-height: 560px) {
+  .frontdoor .footnote {
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+}
