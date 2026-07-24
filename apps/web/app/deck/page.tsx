@@ -1,22 +1,32 @@
 "use client";
 
-// #19 the reveal + the job card (screen 2a): a full-bleed reveal ("N jobs just matched you") that
-// opens onto a best-first card deck. This is the ONBOARDING job deck (`/deck` index) — unrelated to
-// the S2 claim-confirm deck at `/deck/[jobId]`; different route segment, different data, different
-// CSS scope (`.jobdeck`, not the global classes `[jobId]/page.tsx` uses).
+// #19/#21 the reveal + swipeable job deck: a full-bleed reveal ("N jobs just matched you") that
+// opens onto a best-first card deck, then lets the visitor choose or pass on each card. This is the
+// ONBOARDING job deck (`/deck` index) — unrelated to the S2 claim-confirm deck at `/deck/[jobId]`;
+// different route segment, different data, different CSS scope (`.jobdeck`, not the global classes
+// `[jobId]/page.tsx` uses).
 //
 // Renders GET /onboarding/cards as-is (design-19-reveal-card.md's pinned override of its own §1
 // DeckJob guess): matchPct, bubble.hit/bubble.open, and the fit/dontYet/askedClosed lists' rank
 // order are all composed server-side (matchtick.ts) — nothing here re-derives them.
 //
-// Scope = 2a only: the reveal, the deck opening on the top (best) card, the card's body anatomy, the
-// three marks (gold check / grey ? / dim dot — never a cross). Swipe, accept/reject, advancing
-// through the deck, the deck-runs-out loopback, and the live re-score tween are screen 2b.
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+// Screen 2a owns the reveal and card anatomy; screen 2b adds the swipe controls, advancing,
+// exhausted-deck loopback, and minimal Tailor handoff.
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from "react";
+import { useRouter } from "next/navigation";
 import "../deck.css";
-import { ensureSession, getCards, requestLink, type JobCard } from "../../lib/api";
+import { ensureSession, getCards, requestLink, setStage, wantCard, type JobCard } from "../../lib/api";
 
-type Screen = "loading" | "error" | "empty" | "reveal" | "wall" | "deck";
+type Screen = "loading" | "error" | "empty" | "reveal" | "wall" | "deck" | "tailorHandoff" | "loopback";
+type SwipeStatus = "idle" | "leaving-left" | "leaving-right" | "committing";
 
 const L1 = "Lining up your jobs…";
 const E1 = "Couldn't line up your jobs.";
@@ -42,6 +52,11 @@ const W11 = "Couldn't send your link — try again.";
 const W12 = "Google sign-in didn't finish — try again, or use your email below.";
 const W13 = "Google sign-in isn't available right now — use your email below.";
 const WALL_LIVE = "Sign in to see your matches.";
+const SWIPE_MS = 340;
+const LOOPBACK_COPY = "I scored the three closest — tell me more and I'll widen the net";
+const WANT_UNKNOWN = "That job is no longer available. Pick another one.";
+const WANT_FAILED = "Couldn't start tailoring this job — try again.";
+const TAILOR_LIVE = "Tailoring this job.";
 
 function sentBody(email: string): string {
   return `We sent a sign-in link to ${email}. It expires in 15 minutes.`;
@@ -51,17 +66,51 @@ function revealText(n: number): string {
   return n === 1 ? "1 job just matched you" : `${n} jobs just matched you`;
 }
 
+function useReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduced(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+  return reduced;
+}
+
+function isUnknownCardError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "not_found"
+  );
+}
+
 export default function DeckPage() {
+  const router = useRouter();
   const [screen, setScreen] = useState<Screen>("loading");
   const [cards, setCards] = useState<JobCard[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [swipeStatus, setSwipeStatus] = useState<SwipeStatus>("idle");
+  const [deckError, setDeckError] = useState<string | null>(null);
   const [authed, setAuthed] = useState(false);
   const [wallError, setWallError] = useState<string | null>(null);
   const [liveMessage, setLiveMessage] = useState("");
+  const reducedMotion = useReducedMotion();
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const cardHeadingRef = useRef<HTMLHeadingElement>(null);
+  const tailorHeadingRef = useRef<HTMLHeadingElement>(null);
   const wallHeadingRef = useRef<HTMLHeadingElement>(null);
+  const yesButtonRef = useRef<HTMLButtonElement>(null);
+  const focusNextHeadingRef = useRef(false);
+  const focusYesAfterErrorRef = useRef(false);
 
   const load = useCallback(async () => {
     setScreen("loading");
+    setCurrentIndex(0);
+    setSwipeStatus("idle");
+    setDeckError(null);
     try {
       await ensureSession();
       const res = await getCards();
@@ -96,6 +145,11 @@ export default function DeckPage() {
     }
   }, []);
 
+  const waitForSwipe = useCallback(
+    () => new Promise<void>((resolve) => setTimeout(resolve, reducedMotion ? 1 : SWIPE_MS)),
+    [reducedMotion],
+  );
+
   useEffect(() => {
     load();
   }, [load]);
@@ -117,12 +171,84 @@ export default function DeckPage() {
     setLiveMessage(WALL_LIVE);
   }, [screen]);
 
+  useEffect(() => {
+    if (screen !== "deck" || !focusNextHeadingRef.current) return;
+    focusNextHeadingRef.current = false;
+    cardHeadingRef.current?.focus();
+  }, [currentIndex, screen]);
+
+  useEffect(() => {
+    if (screen !== "deck" || !deckError || !focusYesAfterErrorRef.current) return;
+    focusYesAfterErrorRef.current = false;
+    yesButtonRef.current?.focus();
+  }, [deckError, screen]);
+
+  useEffect(() => {
+    if (screen !== "tailorHandoff") return;
+    tailorHeadingRef.current?.focus();
+  }, [screen]);
+
   // #22: the single, easily-moved gate — a signed-in visitor never sees the wall.
   const onSeeThem = useCallback(() => {
     setScreen(authed ? "deck" : "wall");
   }, [authed]);
 
+  const runLoopback = useCallback(async () => {
+    setDeckError(null);
+    setSwipeStatus("committing");
+    setLiveMessage(`${LOOPBACK_COPY}.`);
+    try {
+      await setStage("discovery");
+      router.push("/discovery?loop=deck-exhausted");
+    } catch {
+      setSwipeStatus("idle");
+      setScreen("loopback");
+    }
+  }, [router]);
+
+  const onLeft = useCallback(async () => {
+    if (swipeStatus !== "idle") return;
+    setDeckError(null);
+    setSwipeStatus("leaving-left");
+    await waitForSwipe();
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < cards.length) {
+      focusNextHeadingRef.current = true;
+      setCurrentIndex(nextIndex);
+      setSwipeStatus("idle");
+      setLiveMessage(`Showing job ${nextIndex + 1} of ${cards.length}.`);
+      return;
+    }
+    await runLoopback();
+  }, [cards.length, currentIndex, runLoopback, swipeStatus, waitForSwipe]);
+
+  const onRight = useCallback(async () => {
+    const card = cards[currentIndex];
+    if (!card || swipeStatus !== "idle") return;
+    setDeckError(null);
+    setSwipeStatus("leaving-right");
+    const wanted = wantCard(card.adId).then(
+      (value) => ({ ok: true as const, value }),
+      (error: unknown) => ({ ok: false as const, error }),
+    );
+    await waitForSwipe();
+    setSwipeStatus("committing");
+    const result = await wanted;
+    if (result.ok) {
+      setLiveMessage(TAILOR_LIVE);
+      setScreen("tailorHandoff");
+      return;
+    }
+
+    const copy = isUnknownCardError(result.error) ? WANT_UNKNOWN : WANT_FAILED;
+    focusYesAfterErrorRef.current = true;
+    setDeckError(copy);
+    setLiveMessage(copy);
+    setSwipeStatus("idle");
+  }, [cards, currentIndex, swipeStatus, waitForSwipe]);
+
   const n = cards.length;
+  const currentCard = cards[currentIndex];
 
   return (
     <div className="jobdeck">
@@ -178,9 +304,48 @@ export default function DeckPage() {
             <span className="wordmark">JobCrush</span>
             <span className="spacer" />
           </div>
-          <p className="deckcount">1 of {n} matched today</p>
+          <p className="deckcount">
+            {currentIndex + 1} of {n} matched today · swipe or tap
+          </p>
           <div className="deck">
-            <JobCardView card={cards[0]!} />
+            {currentCard && (
+              <JobCardView
+                key={`${currentCard.adId}-${currentIndex}`}
+                card={currentCard}
+                deckError={deckError}
+                headingRef={cardHeadingRef}
+                onLeft={onLeft}
+                onRight={onRight}
+                reducedMotion={reducedMotion}
+                swipeStatus={swipeStatus}
+                yesButtonRef={yesButtonRef}
+              />
+            )}
+          </div>
+        </>
+      )}
+
+      {screen === "tailorHandoff" && (
+        <div className="loadstate tailorhandoff">
+          <h1 className="big" tabIndex={-1} ref={tailorHeadingRef}>
+            Tailoring this one
+          </h1>
+          <p>Tell me more and this CV gets stronger for this job.</p>
+        </div>
+      )}
+
+      {screen === "loopback" && (
+        <>
+          <div className="topbar">
+            <span className="wordmark">JobCrush</span>
+            <span className="spacer" />
+          </div>
+          <div className="loopback">
+            <p className="big">{LOOPBACK_COPY}</p>
+            <button type="button" className="go" onClick={runLoopback} disabled={swipeStatus === "committing"}>
+              Answer more questions
+            </button>
+            <p className="sub">Nothing you told me is lost.</p>
           </div>
         </>
       )}
@@ -305,17 +470,120 @@ function ScoreRing({ pct }: { pct: number }) {
   );
 }
 
+function shouldIgnoreSwipeStart(target: EventTarget) {
+  if (!(target instanceof Element)) return true;
+  return !!target.closest("button,a,summary,input,textarea,select,details.ad[open]");
+}
+
 // The card anatomy (AC4): title -> meta -> ring, then the highlight bubble, then the three
-// ranked lists, then the ad folded shut last. Body-only on 2a (no footer/swipe — screen 2b).
-function JobCardView({ card }: { card: JobCard }) {
+// ranked lists, then the ad folded shut last. 2b adds only the swipe stamps and footer controls.
+function JobCardView({
+  card,
+  deckError,
+  headingRef,
+  onLeft,
+  onRight,
+  reducedMotion,
+  swipeStatus,
+  yesButtonRef,
+}: {
+  card: JobCard;
+  deckError: string | null;
+  headingRef: RefObject<HTMLHeadingElement | null>;
+  onLeft: () => void;
+  onRight: () => void;
+  reducedMotion: boolean;
+  swipeStatus: SwipeStatus;
+  yesButtonRef: RefObject<HTMLButtonElement | null>;
+}) {
   const metaLine1 = [card.company, card.place].filter(Boolean).join(" · ");
   const metaLine2 = [card.salary, card.pattern].filter(Boolean).join(" · ");
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef<{ x0: number; y0: number; dx: number; live: boolean; pointerId: number | null } | null>(
+    null,
+  );
+  const busy = swipeStatus !== "idle";
+  const cardClass = [
+    "jobcard",
+    dragging ? "dragging" : "",
+    swipeStatus === "leaving-left" ? "out-left" : "",
+    swipeStatus === "leaving-right" ? "out-right" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const dragStyle: CSSProperties | undefined =
+    !busy && !reducedMotion && dragX !== 0
+      ? { transform: `translateX(${dragX}px) rotate(${dragX * 0.045}deg)` }
+      : undefined;
+  const stampOpacity = !busy && !reducedMotion ? Math.min(1, Math.abs(dragX) / 110) : 0;
+
+  useEffect(() => {
+    if (swipeStatus === "idle") return;
+    setDragX(0);
+    setDragging(false);
+  }, [swipeStatus]);
+
+  function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    if (busy || shouldIgnoreSwipeStart(e.target)) return;
+    dragRef.current = { x0: e.clientX, y0: e.clientY, dx: 0, live: false, pointerId: null };
+  }
+
+  function onPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || busy) return;
+    const dx = e.clientX - drag.x0;
+    const dy = e.clientY - drag.y0;
+    if (!drag.live) {
+      if (Math.abs(dx) < 8) return;
+      if (Math.abs(dx) <= Math.abs(dy)) {
+        dragRef.current = null;
+        return;
+      }
+      drag.live = true;
+      drag.pointerId = e.pointerId;
+      setDragging(true);
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    drag.dx = dx;
+    if (!reducedMotion) setDragX(dx);
+  }
+
+  function releasePointer(e: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    dragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setDragging(false);
+    setDragX(0);
+    if (!drag.live) return;
+    if (drag.dx > 90) onRight();
+    else if (drag.dx < -90) onLeft();
+  }
+
   return (
-    <div className="jobcard">
+    <div
+      className={cardClass}
+      onPointerCancel={releasePointer}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={releasePointer}
+      style={dragStyle}
+    >
+      <span className="stamp yes" aria-hidden="true" style={{ opacity: dragX > 0 ? stampOpacity : 0 }}>
+        Want it
+      </span>
+      <span className="stamp no" aria-hidden="true" style={{ opacity: dragX < 0 ? stampOpacity : 0 }}>
+        Not for me
+      </span>
       <div className="jcbody">
         <div className="hd">
           <div className="t">
-            <h2>{card.title}</h2>
+            <h2 tabIndex={-1} ref={headingRef}>
+              {card.title}
+            </h2>
             {metaLine1 && (
               <p className="co">
                 {metaLine1}
@@ -380,6 +648,32 @@ function JobCardView({ card }: { card: JobCard }) {
           <summary>{A1}</summary>
           <p>{card.adExcerpt}</p>
         </details>
+      </div>
+      {deckError && (
+        <p className="deckerr" role="alert">
+          {deckError}
+        </p>
+      )}
+      <div className="jcfoot">
+        <button
+          type="button"
+          className="sw"
+          aria-label="Not for me, show next job"
+          disabled={busy}
+          onClick={onLeft}
+        >
+          Not for me
+        </button>
+        <button
+          type="button"
+          className="sw yes"
+          aria-label="I want this one, tailor this job"
+          disabled={busy}
+          onClick={onRight}
+          ref={yesButtonRef}
+        >
+          I want this one
+        </button>
       </div>
     </div>
   );

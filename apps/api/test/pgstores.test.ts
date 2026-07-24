@@ -28,7 +28,13 @@ for (const [name, make] of sessionDrivers) {
     it("create → getByToken/getById round-trips; unknown token is null", async () => {
       const s = await store.create();
       expect(s.stage).toBe("deck");
-      expect(await store.getByToken(s.token)).toMatchObject({ id: s.id, token: s.token, stage: "deck" });
+      expect(s.tailorAdId).toBeNull();
+      expect(await store.getByToken(s.token)).toMatchObject({
+        id: s.id,
+        token: s.token,
+        stage: "deck",
+        tailorAdId: null,
+      });
       expect(await store.getById(s.id)).toMatchObject({ id: s.id });
       expect(await store.getByToken("nope")).toBeNull();
     });
@@ -40,6 +46,14 @@ for (const [name, make] of sessionDrivers) {
       const got = await store.getById(s.id);
       expect(got?.stage).toBe("ready");
       expect(got?.targetTitles).toEqual(["PM", "BA"]);
+    });
+
+    it("setTailorTarget persists the tailor stage and selected ad id together", async () => {
+      const s = await store.create();
+      await store.setTailorTarget(s.id, "ad-1");
+      const got = await store.getById(s.id);
+      expect(got?.stage).toBe("tailor");
+      expect(got?.tailorAdId).toBe("ad-1");
     });
 
     it("touch doesn't throw and keeps the row", async () => {

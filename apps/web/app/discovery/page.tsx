@@ -61,6 +61,7 @@ const C18 = "Leave it as is";
 const C19 = "That's all I need to ask.";
 const C20 = "Now I'll line these jobs up against everything you told me.";
 const C21 = "Changing your answer.";
+const C22 = "I scored the three closest — tell me more and I'll widen the net";
 
 // The promise's number renders in its own emphasized `.n` slot (matching
 // first-question.prototype.html, which the design spec builds against); this returns the rest of
@@ -187,6 +188,7 @@ function DiscoveryScreen() {
   // composes a reader-only first question from it when present; unchanged otherwise.
   const searchParams = useSearchParams();
   const jobId = searchParams.get("job");
+  const loopbackFromDeck = searchParams.get("loop") === "deck-exhausted";
   const router = useRouter();
 
   const [discovery, setDiscovery] = useState<DiscoveryState | null>(null);
@@ -283,13 +285,13 @@ function DiscoveryScreen() {
   // see the "deck" branch below.
   const askKey = !discovery
     ? null
-    : discovery.stage === "deck"
+    : discovery.stage === "deck" && !loopbackFromDeck
       ? "deck"
       : correcting
         ? `fix:${correcting.itemId}`
         : discovery.role === null
           ? "q1"
-          : (discovery.questions[0]?.itemId ?? null);
+          : (discovery.questions[0]?.itemId ?? (loopbackFromDeck ? "loopback" : null));
   useEffect(() => {
     if (!askKey) return;
     // #24: leaving a correction (askKey was `fix:X`, now isn't) re-lands on whatever question was
@@ -754,7 +756,8 @@ function DiscoveryScreen() {
 
   function renderAsk(d: DiscoveryState) {
     // Precedence (design-1b-spec §1): deck > correcting > the normal next-question below.
-    if (d.stage === "deck") {
+    // The exhausted-deck loopback is the exception: it must return to answering, not this handoff.
+    if (d.stage === "deck" && !loopbackFromDeck) {
       return (
         <div className="handoff">
           <p className="q" tabIndex={-1} ref={handoffRef}>
@@ -820,7 +823,17 @@ function DiscoveryScreen() {
     }
 
     const item = d.questions[0];
-    if (!item) return null; // defensive fallback — the deck gate above means this shouldn't be reached
+    if (!item) {
+      if (!loopbackFromDeck) return null; // defensive fallback — the deck gate above means this shouldn't be reached
+      return (
+        <>
+          <p className="q">Tell me one more thing and I'll score more jobs.</p>
+          <button type="button" className="go wide" ref={setFirstControl} onClick={loadDiscovery}>
+            Answer more questions
+          </button>
+        </>
+      );
+    }
     const isAnswering = picked?.itemId === item.itemId;
 
     if (item.options.length === 0) {
@@ -929,7 +942,9 @@ function DiscoveryScreen() {
 
           <Rail
             railFill={discovery.railFill}
-            activeSection={discovery.stage === "deck" ? null : (discovery.questions[0]?.cvSection ?? null)}
+            activeSection={
+              discovery.stage === "deck" && !loopbackFromDeck ? null : (discovery.questions[0]?.cvSection ?? null)
+            }
           />
 
           {renderPromise(discovery)}
@@ -953,7 +968,10 @@ function DiscoveryScreen() {
             </div>
           </div>
 
-          <div className="ask">{renderAsk(discovery)}</div>
+          <div className="ask">
+            {loopbackFromDeck && <p className="notice">{C22}</p>}
+            {renderAsk(discovery)}
+          </div>
         </>
       )}
     </div>

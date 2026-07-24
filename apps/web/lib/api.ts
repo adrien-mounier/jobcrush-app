@@ -263,6 +263,15 @@ export function getCards(): Promise<CardsResponse> {
   return jfetch("/api/onboarding/cards");
 }
 
+export interface WantCardResult {
+  stage: "tailor";
+  adId: string;
+}
+
+export function wantCard(adId: string): Promise<WantCardResult> {
+  return jfetch(`/api/onboarding/cards/${encodeURIComponent(adId)}/want`, { method: "POST" });
+}
+
 // --- E2 auth (magic-link) ---
 
 // `job` rides along so the emailed link can route back to the deck even when opened in another

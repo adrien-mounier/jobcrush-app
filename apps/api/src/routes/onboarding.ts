@@ -365,6 +365,23 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // for a still-anonymous session, so a returning (claimed) visitor is never re-walled.
       return { stage: session.stage, cards, authed: session.claimedByUserId !== null };
     });
+
+    app.post(
+      "/onboarding/cards/:adId/want",
+      { schema: { params: z.object({ adId: z.string() }) } },
+      async (req, reply) => {
+        const session = requireUser(req);
+        const postingIds = new Set(loadPostings().map((p) => p.id));
+        const knownCard = listAdRequirements().some(
+          (adReq) => adReq.adId === req.params.adId && postingIds.has(adReq.adId),
+        );
+        if (!knownCard)
+          return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
+
+        await deps.sessions.setTailorTarget(session.id, req.params.adId);
+        return { stage: "tailor", adId: req.params.adId };
+      },
+    );
   };
 }
 

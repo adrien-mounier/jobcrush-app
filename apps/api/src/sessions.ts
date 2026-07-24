@@ -6,8 +6,8 @@ import type { Pool } from "pg";
 import { getPool, iso } from "./db.js";
 
 // Where a session sits in the onboarding loop; the client reads it on load to pick a screen.
-// front-door (screen 0) → discovery (#16) → deck → grill (JC-24 gap-filling) → ready | loopback.
-export type OnboardingStage = "front-door" | "discovery" | "deck" | "grill" | "ready" | "loopback";
+// front-door (screen 0) → discovery (#16) → deck → tailor (#21/#23) → grill (JC-24) → ready | loopback.
+export type OnboardingStage = "front-door" | "discovery" | "deck" | "tailor" | "grill" | "ready" | "loopback";
 
 export interface SessionRecord {
   id: string;
@@ -17,6 +17,7 @@ export interface SessionRecord {
   claimedByUserId: string | null;
   targetTitles: string[];
   stage: OnboardingStage;
+  tailorAdId: string | null;
 }
 
 export interface SessionStore {
@@ -28,6 +29,7 @@ export interface SessionStore {
   touch(id: string): Promise<void>;
   setTargetTitles(id: string, titles: string[]): Promise<void>;
   setStage(id: string, stage: OnboardingStage): Promise<void>;
+  setTailorTarget(id: string, adId: string): Promise<void>;
   /** JC-19 merge: claim this anonymous session for a user (the whole merge is this one update). */
   setClaimedByUserId(id: string, userId: string): Promise<void>;
 }
@@ -42,6 +44,7 @@ function newSession(): SessionRecord {
     claimedByUserId: null,
     targetTitles: [],
     stage: "deck",
+    tailorAdId: null,
   };
 }
 
@@ -81,6 +84,14 @@ export class InMemorySessionStore implements SessionStore {
     if (s) s.stage = stage;
   }
 
+  async setTailorTarget(id: string, adId: string): Promise<void> {
+    const s = this.byId.get(id);
+    if (s) {
+      s.stage = "tailor";
+      s.tailorAdId = adId;
+    }
+  }
+
   async setClaimedByUserId(id: string, userId: string): Promise<void> {
     const s = this.byId.get(id);
     if (s) s.claimedByUserId = userId;
@@ -95,8 +106,13 @@ CREATE TABLE IF NOT EXISTS sessions (
   last_seen_at       timestamptz NOT NULL DEFAULT now(),
   claimed_by_user_id text,
   target_titles      jsonb NOT NULL DEFAULT '[]',
-  stage              text NOT NULL DEFAULT 'deck'
+  stage              text NOT NULL DEFAULT 'deck',
+  tailor_ad_id       text
 )`;
+
+const SESSIONS_ALTERS = [
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tailor_ad_id text",
+];
 
 function toSession(r: Record<string, unknown>): SessionRecord {
   const titles = r.target_titles;
@@ -108,6 +124,7 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     claimedByUserId: (r.claimed_by_user_id as string) ?? null,
     targetTitles: Array.isArray(titles) ? (titles as string[]) : JSON.parse((titles as string) ?? "[]"),
     stage: (r.stage as OnboardingStage) ?? "deck",
+    tailorAdId: (r.tailor_ad_id as string) ?? null,
   };
 }
 
@@ -116,6 +133,7 @@ export class PgSessionStore implements SessionStore {
 
   async init(): Promise<void> {
     await this.pool.query(SESSIONS_TABLE);
+    for (const alter of SESSIONS_ALTERS) await this.pool.query(alter);
   }
 
   async create(): Promise<SessionRecord> {
@@ -143,6 +161,9 @@ export class PgSessionStore implements SessionStore {
   }
   async setStage(id: string, stage: OnboardingStage): Promise<void> {
     await this.pool.query(`UPDATE sessions SET stage = $2 WHERE id = $1`, [id, stage]);
+  }
+  async setTailorTarget(id: string, adId: string): Promise<void> {
+    await this.pool.query(`UPDATE sessions SET stage = 'tailor', tailor_ad_id = $2 WHERE id = $1`, [id, adId]);
   }
 
   async setClaimedByUserId(id: string, userId: string): Promise<void> {

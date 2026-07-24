@@ -12,10 +12,21 @@ async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<
 
 const get = (app: ReturnType<typeof buildServer>["app"], cookie: string, url: string) =>
   app.inject({ method: "GET", url, headers: { cookie } });
-const post = (app: ReturnType<typeof buildServer>["app"], cookie: string, url: string, payload: unknown) =>
-  app.inject({ method: "POST", url, headers: { cookie }, payload });
+const post = (
+  app: ReturnType<typeof buildServer>["app"],
+  cookie: string,
+  url: string,
+  payload?: unknown,
+) => app.inject({ method: "POST", url, headers: { cookie }, ...(payload === undefined ? {} : { payload }) });
 
 const ROLE = "IT project manager in Paris";
+const VALID_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
+
+async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string, email: string): Promise<void> {
+  const link = await post(app, cookie, "/auth/request-link", { email });
+  const token = new URL("http://x" + link.json().devLink).searchParams.get("token")!;
+  await post(app, cookie, "/auth/verify", { token });
+}
 
 interface JobCard {
   adId: string;
@@ -57,9 +68,7 @@ describe("#19 GET /onboarding/cards", () => {
   it("authed is true once the anon→account merge has claimed the session", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
-    const link = await post(app, cookie, "/auth/request-link", { email: "e22@example.com" });
-    const token = new URL("http://x" + link.json().devLink).searchParams.get("token")!;
-    await post(app, cookie, "/auth/verify", { token });
+    await signIn(app, cookie, "e22@example.com");
 
     const res = await get(app, cookie, "/onboarding/cards");
     expect(res.statusCode).toBe(200);
@@ -133,5 +142,48 @@ describe("#19 GET /onboarding/cards", () => {
       expect(card.askedClosed.map((f) => f.id)).toContain("discovery-stakeholder-reporting");
       expect(card.fit.map((f) => f.id)).not.toContain("discovery-stakeholder-reporting");
     }
+  });
+});
+
+describe("#21 POST /onboarding/cards/:adId/want", () => {
+  it("sets the signed-in session to tailor for the selected card and persists it on /sessions/me", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    await signIn(app, cookie, "want-success@example.com");
+
+    const res = await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ stage: "tailor", adId: VALID_AD_ID });
+
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(me.json().stage).toBe("tailor");
+    expect(me.json().tailorAdId).toBe(VALID_AD_ID);
+  });
+
+  it("requires a claimed session and leaves anonymous state unchanged", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+
+    const res = await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual({ error: { code: "login_required", message: "login required" } });
+
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(me.json().stage).toBe("deck");
+    expect(me.json().tailorAdId).toBeNull();
+  });
+
+  it("fails closed with a 404 for an unknown card id and leaves the signed-in session state unchanged", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    await signIn(app, cookie, "want-unknown@example.com");
+
+    const res = await post(app, cookie, "/onboarding/cards/not-a-real-card/want");
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: { code: "not_found", message: "unknown card" } });
+
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(me.json().stage).toBe("deck");
+    expect(me.json().tailorAdId).toBeNull();
   });
 });
