@@ -312,3 +312,18 @@ update the shared test setup, not the call sites — and it doubles as a real en
 new login path on every run. (pg-mem earned its keep again here too: it caught nothing new, but running
 the auth store's SQL — single-use UPDATE…RETURNING, ON CONFLICT upsert — in CI is why staging wasn't
 the first place the queries ran.)
+
+## Live-QA the running app from a worktree: API in-memory on 3001 + `next dev` on a *free* port with `API_URL`
+
+For a UI slice, driving the real app beats trusting build+tests — and from a worktree it takes a little setup.
+Build the API (`pnpm --filter @jobcrush/api build`) and run it in-memory (`PORT=3001 node apps/api/dist/main.js` —
+no `DATABASE_URL` → InMemory stores; discovery/most routes never touch the LLM, so no API key needed). The web
+dev server proxies `/api` → `http://127.0.0.1:3001` (its `next.config.mjs` default). **Two gotchas that cost time:**
+(1) `next dev` in a worktree warns "multiple lockfiles / inferred workspace root" and its default `-p 3000`
+frequently **collides with a pre-existing API already on :3000** — the tell is a *Fastify* 404 body
+(`{"message":"Route GET:/ not found","error":"Not Found","statusCode":404}`), not a Next 404 page; run
+`next dev -p <free port>` with `API_URL=http://127.0.0.1:3001` instead of fighting the port. (2) A `"use client"`
+page SSRs only its loading shell, so `curl`ing the HTML won't show the hydrated screen — use a throwaway
+`@playwright/test` `chromium` screenshot (browsers are already installed for the repo's e2e) to see it render and
+assert on visible text. On cleanup, kill **only your own** ports (3001 + your web port); never `taskkill` a `:3000`
+you didn't start — it's likely the user's own dev server.

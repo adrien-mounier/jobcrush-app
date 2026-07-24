@@ -2,6 +2,46 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-24 (session 22) — `/orchestrate-team` on #11: shipped #13 (backend "no" write path) + #16 (discovery screen 1a)
+
+Second build session on the #11 frontier. Claimed **[#13](https://github.com/adrien-mounier/jobcrush-app/issues/13)**
++ **[#16](https://github.com/adrien-mounier/jobcrush-app/issues/16)** and **serialized** them (both live in `apps/api/src`,
+so parallel builds would fight the whole-tree gate) — #13's backend truth first, then #16 on top of it. #16's
+**design ran in parallel** with #13's build (disjoint: a scratch-file spec vs `apps/api` code). Both shipped green:
+`8a48185` (#13), `ea435f0` (#16). Frontier now **{#14, #17, #18}** (#13+#16 unblock #17 and #18).
+
+- **#13 — first-class "no" + never-re-ask + correction.** New store decision `negative` (distinct from `rejected`)
+  with `answerNegative`/`negatives`/`reopen` on **both** drivers; `buildClaimGraph(claims, { negatives })` emits
+  `Negative`/`renderable:false` nodes; `detectGaps` gains an `answered` set so an answered floor item (yes **or**
+  no) is never re-asked — which also **fixed a latent pre-existing bug** where a yes-answered gap's trigger (the
+  undated role / `needs_grill` claim) re-surfaced. Correction = existing `edit()` (wrong positive) + `reopen()`
+  (flip a mistapped "no" back to open). Unit-tested on both drivers + at the grill route. Two-axis review: **0
+  must-fix**. The discovery "no" HTTP wiring + graph-negatives-into-`/build` are **#18** (wiring note left on #18).
+- **#16 — discovery screen 1a (the answer→CV-line→section-bar loop).** Backend: 4 routes on the **anonymous**
+  session (`requireSession` — pre-wall, §12) + pure `composeCvLine`/family/city/count stubs behind provider
+  functions (E5 swap point) + a `discoveryState` builder that rebuilds the whole screen from persisted claims
+  (resume, not localStorage). Frontend: the ink-and-glass screen reusing the front door's typewriter/`keepInView`,
+  built to a designer spec. **Reconciliation:** `composeCvLine` runs **server-side** (returned in the answer
+  response), not client-local as the design assumed — `apps/web` has no unit runner + no new deps, and the
+  displayed line then === the persisted line. Two-axis review: **1 must-fix** — `isNoAnswer` (`/^no\b/i`) mis-hit
+  the option **"No, but a related certification"**, dropping a real fact as a negative (conservation violation);
+  fixed to a **bare** "no" + a regression test. **Live QA GO** — drove the real flow in a browser against the
+  in-memory API (Q1 → family suggestions → promise with city → floor question types a line + bars/countdown
+  advance; 0 page errors; screenshots captured).
+
+**Process note:** the two `#16` build sub-agents died mid-run on a **monthly spend-limit** hit; the user said
+"take over", so the orchestrator built #16's backend **by hand** and (once the limit lifted) re-spawned only the
+frontend agent — disjoint trees, same pinned contract. QA was run in-thread (a live browser drive) rather than a
+fresh qa-tester agent, to stay economical after the limit. `next dev` collided with a pre-existing `:3000` API in
+the environment; ran it on a free port instead (env issue, not code).
+
+### Next session starting point
+- **Frontier = {#14, #17, #18}.** **[#18](https://github.com/adrien-mounier/jobcrush-app/issues/18)** (discovery
+  1b — the gate + tricky answers: no / correction / dates) is the keystone that unblocks #19 → the reveal/deck
+  chain; it should **wire the "no" write path into the discovery API** (call `answerNegative` on a real "no") and
+  **pass `claims.negatives()` into `buildClaimGraph` at `/build`** (see the note on #18). #17 (profile badge) and
+  #14 (taste-test, non-code) are also grabbable. `/orchestrate-team` on the frontier.
+
 ## 2026-07-24 (session 21) — `/orchestrate-team` on #11: shipped #12 (E5 contract + stub) + #15 (front door); #16 now unblocked
 
 First build session on the #11 frontier. Claimed **[#12](https://github.com/adrien-mounier/jobcrush-app/issues/12)**
