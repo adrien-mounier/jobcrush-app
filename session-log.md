@@ -2,6 +2,58 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-24 (session 19) — The onboarding design → a spec: `/to-spec` #11, seams pinned (no product code)
+
+Ran `/to-spec` on `docs/onboarding-reward-design.md` → published
+**[#11 — Spec: the onboarding journey (front door → discovery → deck → tailor)](https://github.com/adrien-mounier/jobcrush-app/issues/11)**,
+`ready-for-agent`. Synthesized from the design (grill 2026-07-22→24; wayfinder map
+[#5](https://github.com/adrien-mounier/jobcrush-app/issues/5), closed tickets #6–#10, each with a
+built-and-pressed prototype). No product code; the only repo change is this session's tracking-file
+sync. Left a pointer on map #5 linking the spec.
+
+**Synthesis, not a grill.** The design was already locked-decisions-only, so `/to-spec` synthesized
+what was pinned rather than redirecting to `/grill-with-docs`. Read the whole S2 spine first
+(`graph.ts`, `claims.ts`, `grill.ts`, `gate.ts`, `preview.ts`, `routes/onboarding.ts`, `sessions.ts`,
+the contracts + oracles) to ground the seams in real prior art.
+
+**Seams pinned — the contract `/tdd` will honour** (spec's Testing Decisions):
+- **Primary: the onboarding/discovery HTTP API** — every server-decided behaviour (stage machine, the
+  "no" write path, never-re-ask, the instant match tick, section-bar gate, fact correction,
+  server-side persistence). Prior art `apps/api/test/onboarding.test.ts`, `api.test.ts`.
+- **The four-screen Playwright journey** — front door → discovery → reveal → swipe → tailor → wall.
+  Prior art `apps/web/e2e/onboarding.spec.ts`, `errors.spec.ts`.
+- **The E5 boundary as a pinned fixture, not a third test seam** — a `FamilyFloor` + per-ad
+  ranked-requirement zod contract (`packages/contracts`, like `roleCluster.ts`) + hand JSON stub
+  (`apps/api/data/`, like `sample-postings.json`) behind a provider fn (the `matchPosting` pattern).
+  The flow builds and tests against the stub now; E5 swaps the *producer* later with no UI change.
+
+**Scope calls captured in the spec:** build the flow now, stub the engine (§3's decoupling, softened
+2026-07-24). The one hard, **unblocked** backend requirement is the **"no" write path** — persist a
+negative as `classification:"Negative"`, `renderable:false`, and never re-ask it (this session or a
+later one); `graph.ts` hardcodes `renderable:true` with no `Negative` path, `claims.confirmed()` drops
+rejected claims, `detectGaps()` re-derives from the confirmed set — so today a "no" is re-asked. The
+contract already allows the fix; only the write path is missing. Recommended as the first ticket (no
+stub). Out of scope: E5 itself, the canonical core-CV section list, the real family classifier,
+revise-a-fact-later, the honest background re-score / month-two re-scoring. Carried risks each name a
+mitigation (contract+stub; the 20-ads × 3-CVs taste-test run *in parallel*, not a gate; the wall's
+position reversible post-launch on server-side drop-off).
+
+**Context-file sync: no changes.** `CLAUDE.md` and `AGENTS.md` shared cores are byte-for-byte identical
+(last synced 2026-07-19, untouched this session); private zones legitimately differ (Claude Code vs
+non-Claude-Code notes). No new `lessons.md` entry — the design-work lessons (gate-softening, spine-check,
+discriminator-vs-floor, prototype-first) are already recorded; this session was a clean synthesis with
+no new surprise.
+
+### Next session starting point
+- **Run `/to-tickets` on [#11](https://github.com/adrien-mounier/jobcrush-app/issues/11)** — it is
+  milestone-sized; slice it in the design's build order (§4 bar → CV typing → unlock; screens 0→3):
+  **(C)** the `FamilyFloor` zod contract + stub · **(1b) the "no" write-path + fact-correction backend
+  epic — start here, buildable now with no stub** · **(0)** front door · **(1)** discovery + typewriter
+  + section bars + the promise + question 1 · **(2)** reveal + job card + swipe · **(3)** tailor loop +
+  exits · **(P)** profile badge + Sorted + Constellation · **(X)** the wall re-position.
+- The **20-ads × 3-CVs taste-test** and the **E5 `FamilyFloor` contract** can both start immediately, in
+  parallel with the build (they gate nothing).
+
 ## 2026-07-24 (session 18) — The profile screen: two views, gold = on your CV, and two backend holes found (no product code)
 
 Resolved and **closed** [The profile: the badge that grows and the screen it opens](https://github.com/adrien-mounier/jobcrush-app/issues/9)

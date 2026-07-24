@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-07-19_
+_Last updated: 2026-07-24_
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
@@ -45,7 +45,7 @@ no autonomous submit, no LinkedIn credentials, ever).
       UX** — **answered 2026-07-23** in
       [`docs/onboarding-reward-design.md`](docs/onboarding-reward-design.md) (cards are the payoff,
       the CV is the by-product; endless countdown, no completion bar; **one visible number**, the
-      match % on a job — never a number on the person); **(B) how `cv-authoring-rules.md` is fed and
+      match % on a job — never a number on the person), and **spec'd 2026-07-24 as [#11](https://github.com/adrien-mounier/jobcrush-app/issues/11) — ready for `/to-tickets`**; **(B) how `cv-authoring-rules.md` is fed and
       maintained** — still open. _Demo: a prompt change is proved better, not felt better._
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
@@ -189,9 +189,10 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
   closed → the ad folded shut last), and **the profile screen** is **done 2026-07-24** (§8.3
   resolution: two views behind a toggle — Sorted + Constellation — under one colour law, **gold = on
   your CV, grey = saved for later**; the "no" is off this screen). **The map's frontier is now empty
-  and its destination — a decided onboarding design ready for `/to-spec` — is reached.** The only
-  thing still deliberately open is **where the wall sits** (fog — it waits on the S2.75 workbench, not
-  on this map).
+  and its destination — a decided onboarding design ready for `/to-spec` — is reached.** The design is
+  now **spec'd 2026-07-24 as [#11](https://github.com/adrien-mounier/jobcrush-app/issues/11)**
+  (`ready-for-agent`); next lifecycle step is `/to-tickets`. The only thing still deliberately open is
+  **where the wall sits** (fog — it waits on the S2.75 workbench, not on this map).
 
 ## Completed
 
