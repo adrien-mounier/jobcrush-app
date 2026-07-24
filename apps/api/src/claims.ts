@@ -6,7 +6,7 @@ import type { CandidateClaim } from "@jobcrush/contracts";
 import type { Pool } from "pg";
 import { getPool } from "./db.js";
 
-export type ClaimDecision = "pending" | "confirmed" | "rejected";
+export type ClaimDecision = "pending" | "confirmed" | "rejected" | "negative";
 // mined = straight from the CV; user-authored = the user edited it (deck) or typed it (grill).
 export type ClaimOrigin = "mined" | "user-authored";
 
@@ -29,6 +29,12 @@ export interface ClaimStore {
   edit(sessionId: string, id: string, text: string): Promise<void>;
   /** Grill answer: a new confirmed, user-authored claim. */
   add(sessionId: string, claim: CandidateClaim): Promise<void>;
+  /** #13: the decision === "negative" subset (persisted "no" answers), in insertion/seq order. */
+  negatives(sessionId: string): Promise<ClaimRecord[]>;
+  /** #13: a "no" answer — persists as user-authored, decision "negative". Never enters confirmed(). */
+  answerNegative(sessionId: string, claim: CandidateClaim): Promise<void>;
+  /** #13: correction — flip a mistapped decision (e.g. a "no") back to pending, reopening the gap. */
+  reopen(sessionId: string, id: string): Promise<void>;
 }
 
 export class InMemoryClaimStore implements ClaimStore {
@@ -85,6 +91,23 @@ export class InMemoryClaimStore implements ClaimStore {
       decision: "confirmed",
       origin: "user-authored",
     });
+  }
+
+  async negatives(sessionId: string): Promise<ClaimRecord[]> {
+    return [...this.forSession(sessionId).values()].filter((c) => c.decision === "negative");
+  }
+
+  async answerNegative(sessionId: string, claim: CandidateClaim): Promise<void> {
+    this.forSession(sessionId).set(claim.id, {
+      ...claim,
+      decision: "negative",
+      origin: "user-authored",
+    });
+  }
+
+  async reopen(sessionId: string, id: string): Promise<void> {
+    const c = this.forSession(sessionId).get(id);
+    if (c) c.decision = "pending";
   }
 }
 
@@ -185,6 +208,30 @@ export class PgClaimStore implements ClaimStore {
          decision = EXCLUDED.decision, origin = EXCLUDED.origin`,
       this.vals(sessionId, claim, "confirmed", "user-authored"),
     );
+  }
+
+  async negatives(sessionId: string): Promise<ClaimRecord[]> {
+    const { rows } = await this.pool.query(
+      `SELECT * FROM claims WHERE session_id = $1 AND decision = 'negative' ORDER BY seq`,
+      [sessionId],
+    );
+    return rows.map(toClaim);
+  }
+
+  async answerNegative(sessionId: string, claim: CandidateClaim): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO claims (${CLAIM_COLS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       ON CONFLICT (session_id, id) DO UPDATE SET
+         role = EXCLUDED.role, text = EXCLUDED.text, machine_touch = EXCLUDED.machine_touch,
+         classification = EXCLUDED.classification, source_quote = EXCLUDED.source_quote,
+         needs_grill = EXCLUDED.needs_grill, grill_hint = EXCLUDED.grill_hint,
+         decision = EXCLUDED.decision, origin = EXCLUDED.origin`,
+      this.vals(sessionId, claim, "negative", "user-authored"),
+    );
+  }
+
+  async reopen(sessionId: string, id: string): Promise<void> {
+    await this.pool.query(`UPDATE claims SET decision = 'pending' WHERE session_id = $1 AND id = $2`, [sessionId, id]);
   }
 }
 

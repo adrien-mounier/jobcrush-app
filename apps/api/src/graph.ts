@@ -19,6 +19,8 @@ export interface BuildGraphOpts {
   graphVersion?: number;
   /** ISO YYYY-MM-DD stamped on every node; defaults to today (build == the confirmation moment). */
   confirmedDate?: string;
+  /** #13: persisted "no" answers — each becomes a Negative, renderable:false node (never a bullet). */
+  negatives?: CandidateClaim[];
 }
 
 // Partially-Supported nodes MUST carry a risk (invariant 8). A claim the user confirmed in the deck
@@ -57,6 +59,25 @@ export function buildClaimGraph(claims: CandidateClaim[], opts: BuildGraphOpts =
     narrative_ref: null,
     confirmed_date,
   }));
+
+  // #13: a persisted "no" closes a gap but must never render (invariant 5) — set its fields
+  // explicitly rather than through RISK_BY_CLASS, which has no Negative key.
+  for (const c of opts.negatives ?? []) {
+    nodes.push({
+      id: c.id,
+      text: c.text,
+      classification: "Negative",
+      source_file: source, // provenance required for Negative too (invariant 7)
+      source_quote: c.source_quote,
+      inferred_from: null,
+      tags: [kindTag(c)],
+      risk: null,
+      renderable: false,
+      origin: "source",
+      narrative_ref: null,
+      confirmed_date,
+    });
+  }
 
   return {
     schemaVersion: "1.0",

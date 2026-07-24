@@ -13,7 +13,7 @@ import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import type { CandidateClaim, MinedRole } from "@jobcrush/contracts";
 import { requireUser } from "../server.js";
-import type { ClaimStore } from "../claims.js";
+import type { ClaimStore, ClaimRecord } from "../claims.js";
 import type { JobStore } from "../jobs.js";
 import type { SessionStore } from "../sessions.js";
 import { buildClaimGraph } from "../graph.js";
@@ -35,6 +35,19 @@ export interface OnboardingDeps {
 /** The miner stores its full doc (incl. per-role date flags) under progress.miner.doc. */
 const minedRoles = (job: { progress: Record<string, unknown> }): MinedRole[] =>
   ((job.progress.miner as { doc?: { roles?: MinedRole[] } } | undefined)?.doc?.roles) ?? [];
+
+// #13 never-re-ask: a gap is closed by EITHER a confirmed "yes" or a persisted "no" — pending/rejected
+// must NOT count, or a reopen() (a corrected "no") would stay silently answered instead of resurfacing.
+async function answeredGrillIds(
+  claims: ClaimStore,
+  sessionId: string,
+  confirmed: ClaimRecord[],
+): Promise<Set<string>> {
+  const negatives = await claims.negatives(sessionId);
+  return new Set(
+    [...confirmed, ...negatives].map((c) => c.id).filter((id) => id.startsWith("grill-")),
+  );
+}
 
 // The deck's tiering policy (JC-22, kickoff decision #3). A claim copied verbatim from the CV
 // batch-approves as part of its section; anything the machine reworded or inferred gets an individual
@@ -126,7 +139,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         if (!job || job.sessionId !== session.id)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown job" } });
 
-        const gaps = detectGaps(await deps.claims.confirmed(session.id), minedRoles(job));
+        const confirmed = await deps.claims.confirmed(session.id);
+        const answered = await answeredGrillIds(deps.claims, session.id, confirmed);
+        const gaps = detectGaps(confirmed, minedRoles(job), { answered });
         await deps.sessions.setStage(session.id, "grill");
         if (gaps.length === 0) return { stage: "grill", questions: [] };
 
@@ -156,7 +171,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
 
         // Re-detect (deterministic) to resolve the gap → the claim context to compose. Answering one
         // gap never removes another, so every open gapId stays resolvable across answers.
-        const gap = detectGaps(await deps.claims.confirmed(session.id), minedRoles(job)).find(
+        const confirmed = await deps.claims.confirmed(session.id);
+        const answered = await answeredGrillIds(deps.claims, session.id, confirmed);
+        const gap = detectGaps(confirmed, minedRoles(job), { answered }).find(
           (g) => g.id === req.body.gapId,
         );
         if (!gap)

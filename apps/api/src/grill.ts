@@ -46,9 +46,13 @@ const slug = (s: string) =>
 export function detectGaps(
   confirmed: ClaimRecord[],
   roles: MinedRole[],
-  opts: { max?: number } = {},
+  opts: { max?: number; answered?: ReadonlySet<string> } = {},
 ): Gap[] {
   const max = opts.max ?? DEFAULT_MAX;
+  // #13 never-re-ask: an answered gap's trigger (the undated role, or the needs_grill claim) stays
+  // in place forever, so detection alone would keep re-surfacing it. A "yes" and a "no" both close
+  // it the same way — the answer is always recorded under id `grill-${slug(gapId)}`.
+  const answered = opts.answered ?? new Set<string>();
   const nonProfile = confirmed.filter((c) => c.role !== "profile");
   const inRole = (role: string, employer: string) =>
     role.toLowerCase().includes(employer.toLowerCase());
@@ -82,7 +86,9 @@ export function detectGaps(
     });
   }
 
-  return [...dateGaps, ...infoGaps].slice(0, max); // P1 (dates) first, then P2 in CV order, capped
+  return [...dateGaps, ...infoGaps]
+    .filter((g) => !answered.has(`grill-${slug(g.id)}`))
+    .slice(0, max); // P1 (dates) first, then P2 in CV order, capped
 }
 
 /** The always-available fallback phrasing. Asks about the CV entry, never judges the person. */

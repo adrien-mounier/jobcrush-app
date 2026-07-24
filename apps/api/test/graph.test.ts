@@ -4,6 +4,8 @@
 import { describe, expect, it } from "vitest";
 import { ClaimGraph, type CandidateClaim } from "@jobcrush/contracts";
 import { buildClaimGraph } from "../src/graph.js";
+import { renderRootCv } from "../src/rootcv.js";
+import { runGate } from "../src/gate.js";
 
 const claim = (over: Partial<CandidateClaim>): CandidateClaim => ({
   id: "acme-led-migration",
@@ -56,5 +58,45 @@ describe("JC-32 buildClaimGraph", () => {
     const g = buildClaimGraph(confirmed, { confirmedDate: "2026-07-18" });
     expect(g.nodes.every((n) => n.tags.length >= 1 && n.tags[0].length > 0)).toBe(true);
     expect(g.nodes.find((n) => n.id === "cert-pmp-2021")!.tags).toEqual(["cert"]);
+  });
+});
+
+// #13 — persisted "no" answers become Negative nodes that must never render.
+describe("JC-32 buildClaimGraph negatives (#13)", () => {
+  const negative = claim({
+    id: "grill-gap-info-cert",
+    role: "profile",
+    text: "No PMP certification.",
+    source_quote: "no",
+  });
+
+  it("emits a Negative, renderable:false node with provenance set; positives are conserved unchanged", () => {
+    const g = buildClaimGraph(confirmed, { confirmedDate: "2026-07-18", negatives: [negative] });
+    const node = g.nodes.find((n) => n.id === "grill-gap-info-cert")!;
+    expect(node).toMatchObject({
+      classification: "Negative",
+      renderable: false,
+      risk: null,
+      source_file: "cv",
+      origin: "source",
+    });
+    expect(g.nodes.filter((n) => n.classification !== "Negative")).toHaveLength(confirmed.length);
+  });
+
+  it("validates clean against the frozen ClaimGraph validator", () => {
+    const g = buildClaimGraph(confirmed, { confirmedDate: "2026-07-18", negatives: [negative] });
+    const parsed = ClaimGraph.safeParse(g);
+    expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+  });
+
+  it("the gate never renders a Negative node — the root CV has no bullet for it", () => {
+    const g = buildClaimGraph(confirmed, { confirmedDate: "2026-07-18", negatives: [negative] });
+    const { markdown, trace } = renderRootCv(g);
+    expect(markdown).not.toContain(negative.text);
+    // Real call site never confirms a negative (claims.confirmed() excludes them) — confirmedIds is
+    // the positive-only set, and the gate is still clean because the trace never references the
+    // negative at all (renderRootCv already dropped it).
+    const r = runGate(g, trace, confirmed.map((c) => c.id));
+    expect(r).toEqual({ ok: true, errors: [] });
   });
 });

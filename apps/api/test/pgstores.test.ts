@@ -113,5 +113,22 @@ for (const [name, make] of claimDrivers) {
       await store.seed(sid, [claim({ id: "a" })]);
       expect(await store.list("other-session")).toEqual([]);
     });
+
+    // #13 — the "no" write path + fact correction, proven on both drivers.
+    it("answerNegative persists a negative — distinct from rejected, absent from confirmed, present in negatives", async () => {
+      await store.answerNegative(sid, claim({ id: "grill-1", text: "No PMP certification." }));
+      const [c] = await store.list(sid);
+      expect(c).toMatchObject({ decision: "negative", origin: "user-authored" });
+      expect(await store.confirmed(sid)).toEqual([]);
+      expect((await store.negatives(sid)).map((x) => x.id)).toEqual(["grill-1"]);
+    });
+
+    it("reopen flips a negative back to pending — leaves negatives() and stays unconfirmed", async () => {
+      await store.answerNegative(sid, claim({ id: "grill-1" }));
+      await store.reopen(sid, "grill-1");
+      expect(await store.negatives(sid)).toEqual([]);
+      expect(await store.confirmed(sid)).toEqual([]);
+      expect((await store.list(sid))[0].decision).toBe("pending");
+    });
   });
 }

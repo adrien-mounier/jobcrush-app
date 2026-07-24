@@ -52,4 +52,23 @@ describe("JC-21 InMemoryClaimStore", () => {
     await s.confirm("a", "x");
     expect(await s.confirmed("b")).toHaveLength(0);
   });
+
+  // #13 — the "no" write path + fact correction.
+  it("answerNegative persists a negative decision — distinct from rejected, absent from confirmed()", async () => {
+    const s = new InMemoryClaimStore();
+    await s.answerNegative("sess", claim({ id: "grill-1", text: "No PMP certification." }));
+    const [c] = await s.list("sess");
+    expect(c).toMatchObject({ id: "grill-1", decision: "negative", origin: "user-authored" });
+    expect(await s.confirmed("sess")).toHaveLength(0);
+    expect((await s.negatives("sess")).map((x) => x.id)).toEqual(["grill-1"]);
+  });
+
+  it("reopen flips a negative back to pending — leaves negatives() and stays unconfirmed", async () => {
+    const s = new InMemoryClaimStore();
+    await s.answerNegative("sess", claim({ id: "grill-1" }));
+    await s.reopen("sess", "grill-1");
+    expect(await s.negatives("sess")).toHaveLength(0);
+    expect(await s.confirmed("sess")).toHaveLength(0);
+    expect((await s.list("sess"))[0].decision).toBe("pending");
+  });
 });

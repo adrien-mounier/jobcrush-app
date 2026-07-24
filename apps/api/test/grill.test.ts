@@ -84,6 +84,23 @@ describe("JC-24 detectGaps (pure)", () => {
     expect(c.needs_grill).toBe(false);
     expect(templateQuestion(g)).toMatch(/dates/i);
   });
+
+  // #13 never-re-ask: opts.answered drops a gap whose answer (yes OR no) is already recorded.
+  it("opts.answered drops a missing-dates gap once its answer is recorded", () => {
+    const gaps = detectGaps([claim({ role: "PM - Acme" })], [undated("Acme")], {
+      answered: new Set(["grill-gap-dates-acme"]),
+    });
+    expect(gaps).toEqual([]);
+  });
+
+  it("opts.answered drops a needs-info gap once its answer is recorded (a persisted 'no' closes it the same way)", () => {
+    const gaps = detectGaps(
+      [claim({ id: "skill-x", role: "profile", text: "Stakeholder management", needs_grill: true, grill_hint: "no evidence" })],
+      [],
+      { answered: new Set(["grill-gap-info-skill-x"]) },
+    );
+    expect(gaps).toEqual([]);
+  });
 });
 
 // --- routes ---
@@ -208,5 +225,48 @@ describe("JC-24 grill routes", () => {
       payload: { jobId, gapId: "gap-dates-nope", answer: "whenever" },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  // #13 — the "no" write path: never-re-ask covers a persisted "no" the same way as a "yes", and
+  // reopen() is the correction primitive that resurfaces a mistapped one. The discovery "no"
+  // affordance itself is #16/#18 (blocked); answerNegative/reopen are exercised directly here via
+  // the store the server already exposes for tests (no new HTTP endpoint added).
+  it("a persisted no closes its gap forever; reopening it resurfaces the gap (yes stays closed)", async () => {
+    const server = buildServer({ pipeline: fakeMine(CLAIMS, ROLES) });
+    const cookie = await startSession(server.app);
+    const jobId = await seededDeck(server, cookie);
+    await confirm(server, cookie, "acme-led");
+    await confirm(server, cookie, "skill-x");
+
+    const me = await server.app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sessionId = me.json().id as string;
+
+    // Both gaps open initially.
+    let res = await server.app.inject({ method: "POST", url: "/onboarding/grill", headers: { cookie }, payload: { jobId } });
+    expect((res.json().questions as Array<{ gapId: string }>).map((q) => q.gapId).sort()).toEqual(
+      ["gap-dates-acme", "gap-info-skill-x"].sort(),
+    );
+
+    // Answer the dates gap "yes" via the real endpoint...
+    await server.app.inject({
+      method: "POST",
+      url: "/onboarding/grill/answer",
+      headers: { cookie },
+      payload: { jobId, gapId: "gap-dates-acme", answer: "2020 to 2023" },
+    });
+    // ...and the info gap "no" via the store primitive.
+    const infoGap: Gap = { id: "gap-info-skill-x", type: "needs-info", role: "profile", claimText: "Stakeholder management", hint: "no evidence" };
+    await server.claims.answerNegative(sessionId, answerToClaim(infoGap, "No, nothing to add."));
+
+    // Both are closed: neither is re-asked.
+    res = await server.app.inject({ method: "POST", url: "/onboarding/grill", headers: { cookie }, payload: { jobId } });
+    expect(res.json().questions).toEqual([]);
+
+    // Correct the mistapped "no".
+    await server.claims.reopen(sessionId, "grill-gap-info-skill-x");
+
+    // Only the reopened gap reappears; the real "yes" answer stays closed.
+    res = await server.app.inject({ method: "POST", url: "/onboarding/grill", headers: { cookie }, payload: { jobId } });
+    expect((res.json().questions as Array<{ gapId: string }>).map((q) => q.gapId)).toEqual(["gap-info-skill-x"]);
   });
 });
