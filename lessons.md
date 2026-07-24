@@ -2,6 +2,30 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## Run the app for a live e2e/QA drive without ts-node or Postgres — build to `dist` + in-memory store
+
+The `apps/api` `dev` script needs `ts-node`, which isn't installed in the worktree, so agents keep
+concluding "the app can't run here" and fall back to trace-only verification. It **can** run: `pnpm
+--filter @jobcrush/api build`, then `node apps/api/dist/main.js` with **no `DATABASE_URL` and no
+`ANTHROPIC_API_KEY`** — it falls back to the in-memory session/claim store and the no-LLM path, which
+is all the discovery → cards → deck flow needs (it's pure and deterministic). For the web side, build
+and run **`next start`, not `next dev`** (use an alternate port if 3000 is taken by another app on the
+machine): the `next dev` error/overlay (`<nextjs-portal>`) sits on top of the page and **intercepts
+clicks on bottom-docked buttons**, producing false Playwright failures that look like real defects.
+That combination is the recipe for a genuine live e2e/QA drive — used in S24 to GO/NO-GO #19 + #24.
+
+## A code trace can't be trusted for `.focus()` timing on a conditionally-mounted element — verify live
+
+#24's bare-"no" focus bug was `fixNoticeButtonRef.current?.focus()` called **synchronously** while the
+notice that mounts that button was **not rendered** (it only renders when `correcting` is null, and the
+call happened before the re-render), so the ref was `null` and `.focus()` **silently no-op'd**. It
+survived *two* code traces — the dev's and an orchestrator review — both of which reasoned "the element
+is present and enabled at call time," which is exactly the claim that is false when the element's render
+is conditional on the very state transition you're reacting to. Only the live QA run (a real browser
+asserting `toBeFocused()`) caught it. Rule: for focus/mount-timing on conditionally-rendered elements,
+**defer `.focus()` to a post-render effect** keyed on a flag (mirror the working sibling path) so it
+fires once the target has actually mounted — and **prove it with a live run, never a trace**.
+
 ## New data fixtures under `apps/api/data/` are gitignored — `git add -f` them or CI goes red on a fresh checkout
 
 `.gitignore` has a blanket `data/` rule, so a hand-authored fixture placed in `apps/api/data/` (e.g. #12's

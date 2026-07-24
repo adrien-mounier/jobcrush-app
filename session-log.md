@@ -2,6 +2,51 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-24 (session 24) — `/orchestrate-team` on #11: shipped #19 (reveal + job card, screen 2a) + #24 (correction-focus a11y)
+
+Fourth build session on the #11 frontier. Claimed **[#19](https://github.com/adrien-mounier/jobcrush-app/issues/19)**
++ **[#24](https://github.com/adrien-mounier/jobcrush-app/issues/24)** — **disjoint trees** (#19 = a new `/deck` reveal +
+card + `apps/api` match tick; #24 = a focus-timing fix in `apps/web/app/discovery/page.tsx`), built in parallel with a
+`designer` pass for #19. Left **#17** (badge — collides with #24 on `discovery/page.tsx`) and **#14** (taste-test — a
+product-owner eyeball) on the frontier. Both shipped green: `c686c8a` (#19), `c8da788` (#24). Closing #19
+**unblocked [#21](https://github.com/adrien-mounier/jobcrush-app/issues/21)** (swipe 2b) **and
+[#22](https://github.com/adrien-mounier/jobcrush-app/issues/22)** (the wall); frontier now **{#14, #17, #21, #22, #25}**.
+
+- **#19 — reveal + job card (screen 2a).** Six ACs, design-led.
+  - **Match tick** (`apps/api/src/matchtick.ts`): pure `(confirmed facts, ad's ranked reqs) → %`, band-weighted
+    **union**-token coverage → deterministic + **provably never-decreasing** (adding a fact only grows the token set,
+    so a covered req can't uncover). Unit-tested (11) + HTTP-tested (`cards.test.ts`).
+  - **`GET /onboarding/cards`**: assembles score-sorted `JobCard`s (anonymous session, pre-wall) from postings ⋈ the E5
+    ad-requirement stub; the single Manulife stub reconciled to **3 scorable postings** (added Endava, luvo).
+  - **The screen** (`/deck`): the reveal is **structural** ("nothing behind it" = the deck isn't mounted until "See
+    them"); the card leads with the job, then the **one visible number** (% ring), a highlight bubble, and three lists
+    with **three marks, never a cross** (gold ✓ / grey ? / dim ·). New `.jobdeck`-scoped `deck.css` — ink-and-glass,
+    `packages/ui` tokens out (per spec).
+  - **Contract pinning:** the `designer` independently proposed a `DeckJob`/`reqs[]` payload; I **superseded it with the
+    pinned `JobCard`** the backend built (reconciled at brief time so both sides built one shape). The `backend-dev`
+    also **corrected my brief** (the Manulife ad *does* match a posting — I'd only read the file head, not the whole
+    fixture) and independently verified before adding stubs.
+  - **Scope:** body-only card; swipe/footer/loopback/live re-score = **2b (#21)**. `fit`/`askedClosed` are
+    **session-global + unranked** for now — the per-ad ranked model was **consciously deferred to #21** (story #54's
+    ?→✓ flip forces that rework anyway); commented on #21.
+- **#24 — correction-focus a11y.** Root-caused in the **shared focus path** (not per-caller): leaving a correction the
+  `askKey` effect stole focus back to the next question (fixed with a `leavingCorrection` guard), and the
+  resolution-site `.focus()` raced a still-typing (aria-hidden) or not-yet-mounted button (fixed by **deferring**
+  through post-render effects `focusLineId` + `focusFixNotice`). All four outcomes + deck-handoff-unchanged.
+- **Two-axis review (#19):** Standards **0 must-fix**; Spec faithful with one **deferred** finding (the per-ad `fit`
+  model → #21). #24 self-reviewed clean (its later defect was a live-QA catch, not a review miss — see below).
+- **QA:** live real-stack drives via **the dist recipe** (`node apps/api/dist/main.js` + in-memory store, web via
+  `next start`; no ts-node/Postgres/LLM). #19 **GO** (6/6 ACs, `deck.spec.ts` green, card renders credibly). #24 first
+  **NO-GO** — live caught a bare-"no" Esc focus defect (**D1**) that had survived **two code traces** (the dev's and
+  mine); the symmetric `focusFixNotice` deferral fixed it, re-verified **`discovery.spec.ts` 5/5** live.
+- **Filed [#25](https://github.com/adrien-mounier/jobcrush-app/issues/25):** the discovery→`/deck` navigation is
+  **missing** — the reveal is reachable by direct URL only (the wire-up fell between the screen-sliced tickets).
+
+### Next session starting point
+- **Frontier = {#14, #17, #21, #22, #25}.** #19 opened **#21** (swipe the deck, 2b) + **#22** (the wall at the reveal).
+  #23 (tailor) still needs #21; #20 (profile screen) still needs #17. **#25** (reveal reachability) is a small nav
+  wire-up on `discovery/page.tsx` — watch it doesn't disturb #24's focus work. `/orchestrate-team` on the frontier.
+
 ## 2026-07-24 (session 23) — `/orchestrate-team` on #11: shipped #18 (discovery screen 1b — the gate + tricky answers)
 
 Third build session on the #11 frontier. Claimed **[#18](https://github.com/adrien-mounier/jobcrush-app/issues/18)**
