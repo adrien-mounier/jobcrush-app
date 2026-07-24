@@ -2,6 +2,15 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-24 (session 26) - `/orchestrate-team` on #11: shipped #21 (swipe the deck, screen 2b)
+
+Sixth build session on the #11 frontier. Re-checked the live GitHub dependencies first: **[#23 Tailor](https://github.com/adrien-mounier/jobcrush-app/issues/23)** was already written, but still native-blocked by **[#21](https://github.com/adrien-mounier/jobcrush-app/issues/21)**. Claimed #21 because it directly unblocks #23; left #17 alone because its profile-screen target still belongs to the #17 -> #20 chain. Shipped green in `c435f2c`.
+
+- **#21 - swipe/pass controls.** `/deck` now has left/right pointer swipes plus explicit footer buttons. Left advances to the next score-sorted card without mutating saved discovery answers; the exhausted deck routes back to `/discovery?loop=deck-exhausted` and shows the exact copy **"I scored the three closest — tell me more and I'll widen the net"** instead of a dead end. Right calls a new signed-in-only `POST /onboarding/cards/:adId/want`, validates the card against the E5 stub/posting set, persists `stage="tailor"` + `tailorAdId`, and shows a minimal Tailor handoff without implementing #23.
+- **Review + QA.** Designer pass set the 2b interaction contract; backend/frontend agents built disjoint slices. Two-axis review found two must-fixes (signed-in enforcement on want; durable Tailor target + loopback state), both fixed. Final Standards, Spec, and QA audits reported **0 must-fix**. Focus was verified for next-card, Tailor-handoff, loopback, and error paths.
+- **Verification.** `pnpm test`, `pnpm typecheck`, and `pnpm build` green. Focused live e2e: `apps/web/e2e/deck.spec.ts` **7/7 green** against a real local API/web pair. Adjacent `wall.spec.ts`/`discovery.spec.ts` reruns exposed only local-test noise already understood: Next dev overlay intercepting an unrelated correction click, then in-memory `/sessions/anonymous` rate limiting after repeated batches.
+- **Next session:** close #21 on GitHub after push; #23 Tailor should become the next buildable deck/tailor ticket. #17 still needs care because its profile-screen route is the other branch of the DAG.
+
 ## 2026-07-24 (session 25) — `/orchestrate-team` on #11: shipped #25 (discovery→reveal nav) + #22 (the wall) + #14 (taste-test)
 
 Fifth build session on the #11 frontier {#14, #17, #21, #22, #25}. Claimed **[#25](https://github.com/adrien-mounier/jobcrush-app/issues/25)** + **[#22](https://github.com/adrien-mounier/jobcrush-app/issues/22)** + **[#14](https://github.com/adrien-mounier/jobcrush-app/issues/14)** — all **buildable now on disjoint trees**. **Deferred #17 + #21**: both wire to a not-yet-built target (#17's badge tap-opens `/profile` from the still-blocked #20; #21's swipe-right needs Tailor from the still-blocked #23) — building them now would point at dead ends. Shipped green: `e1dd0aa` (#14), `ae56643` (#25), `0140d4a` (#22), + `08ec8ae` (chore: gitignore `qa-results/`). Frontier now **{#17, #21}**.

@@ -2,6 +2,15 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## A future screen can be unblocked by a durable handoff, not a full route
+
+In S25, #21 looked blocked-in-practice because its "swipe right advances to Tailor" AC pointed at
+the still-open #23 Tailor screen. The workable slice in S26 was narrower and better: #21 persists the
+selected `adId` server-side (`stage="tailor"`, `tailorAdId`) and shows an in-deck Tailor handoff,
+while #23 owns the real Tailor UI that consumes that stored target. Before deferring a ticket for a
+missing downstream screen, check whether the AC needs the downstream feature itself or just a durable
+state transition plus a non-dead-end handoff.
+
 ## A ticket can be GitHub-"unblocked" (`blocked_by:0`) yet practically blocked by a missing nav target
 
 When picking the frontier, GitHub's dependency graph only knows the edges someone drew. In S25, #17

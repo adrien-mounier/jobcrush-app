@@ -47,6 +47,11 @@ no autonomous submit, no LinkedIn credentials, ever).
       the CV is the by-product; endless countdown, no completion bar; **one visible number**, the
       match % on a job — never a number on the person), and **spec'd 2026-07-24 as [#11](https://github.com/adrien-mounier/jobcrush-app/issues/11), then **sliced 2026-07-24 into 12 `ready-for-agent` tickets #12–#23 (native-blocked)**; **`/orchestrate-team` building the frontier — S21: #12 (E5 contract + stub) + #15 (front door) (`d3977ff`, `d6c405f`); S22: #13 (backend "no" write path + never-re-ask + correction) + #16 (discovery screen 1a — answer types a CV line + fills a section) (`8a48185`, `ea435f0`), live-QA'd; **S23: #18 (discovery 1b — gate→`deck` + "no"/correction/triggered-date/reader-only answer types) (`f794fa5`)**, live-QA'd + Seam-2 e2e 5/5; **S24: #19 (reveal + job card, screen 2a — the never-decreasing match tick + `GET /onboarding/cards` score-sorted card) (`c686c8a`) + #24 (correction-focus a11y) (`c8da788`)**, live-QA'd; **S25: #25 (discovery→`/deck` reveal nav) (`ae56643`) + #22 (the wall at the reveal — OAuth-leading, anon-scored) (`0140d4a`) + #14 (card-quality taste-test — GO-with-guardrails) (`e1dd0aa`)**, two-axis-reviewed + live-QA'd GO; frontier now {#17 badge, #21 swipe 2b} — **both deferred this session** for missing nav targets (#17 tap-opens the not-yet-built `/profile` #20; #21 swipe-right needs the not-yet-built Tailor #23)**; **(B) how `cv-authoring-rules.md` is fed and
       maintained** — still open. _Demo: a prompt change is proved better, not felt better._
+      **2026-07-24 S26 update:** [#21](https://github.com/adrien-mounier/jobcrush-app/issues/21)
+      shipped in `c435f2c`: swipe/pass controls, signed-in want endpoint, persisted `tailorAdId`,
+      and exhausted-deck loopback. Closing it unblocks
+      [#23 Tailor](https://github.com/adrien-mounier/jobcrush-app/issues/23), which is already written
+      in the GitHub issue tracker and is the next deck/tailor step; #17 remains the other open branch.
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
       Epics: E5 cluster engine (JC-33/34/35), E6 feed + hunt (JC-36…40), E7 swipe + prepared apply
