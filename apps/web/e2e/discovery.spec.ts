@@ -269,3 +269,50 @@ test("the essential band done: the ask dock shows the handoff, not a completion 
   await expect(page.getByText("Now I'll line these jobs up against everything you told me.", { exact: true })).toBeVisible();
   await expect(page.getByText(/100%|done|complete/i)).toHaveCount(0);
 });
+
+// #25: the gate now hands off to the /deck reveal instead of dead-ending on the placeholder.
+test("the essential band done: discovery navigates to the /deck reveal, announcing once", async ({ page }) => {
+  current = AFTER_ANSWER;
+  await stubDiscovery(page);
+  // Prior art: deck.spec.ts's GET /onboarding/cards shape — one card is enough to drive the reveal.
+  await page.route("**/api/onboarding/cards", async (route) => {
+    await route.fulfill({
+      json: {
+        stage: "deck",
+        cards: [
+          {
+            adId: "ad-1",
+            title: "IT Project Manager",
+            company: "Acme",
+            place: "Paris",
+            salary: null,
+            pattern: null,
+            matchPct: 82,
+            bubble: { hit: "You match on delivery.", open: "" },
+            fit: [],
+            dontYet: [],
+            askedClosed: [],
+            adExcerpt: "excerpt",
+          },
+        ],
+      },
+    });
+  });
+
+  await page.goto("/discovery");
+  await page.getByRole("button", { name: "Yes", exact: true }).click();
+
+  // The #18 handoff still shows first, as a brief bridge — dropping it would break the moment.
+  await expect(page.getByText("That's all I need to ask.", { exact: true })).toBeVisible();
+  // AC2: the discovery side never announces the deck handoff itself — only /deck's own entry
+  // effect does, once. If this ever regressed to double-announcing, this live region would carry
+  // the C19/C20 text too.
+  await expect(page.locator(".discovery .sr-only")).not.toContainText("That's all I need to ask.");
+
+  // Then it navigates to the reveal — the single place focus + the polite announce land.
+  await page.waitForURL("/deck");
+  const heading = page.getByRole("heading", { name: /matched you/ });
+  await expect(heading).toBeVisible();
+  await expect(heading).toBeFocused();
+  await expect(page.locator('[aria-live="polite"]')).toHaveText("1 job just matched you");
+});

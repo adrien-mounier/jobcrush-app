@@ -13,7 +13,7 @@
 // for that line to finish typing, so "filling a bar and filling a section" still reads as one
 // event even though the data was already known a beat earlier.
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import "../discovery.css";
 import {
   answerDiscovery,
@@ -187,6 +187,7 @@ function DiscoveryScreen() {
   // composes a reader-only first question from it when present; unchanged otherwise.
   const searchParams = useSearchParams();
   const jobId = searchParams.get("job");
+  const router = useRouter();
 
   const [discovery, setDiscovery] = useState<DiscoveryState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -225,6 +226,9 @@ function DiscoveryScreen() {
     firstControlRef.current = el;
   };
   const handoffRef = useRef<HTMLParagraphElement>(null);
+  // #25: latches the deck-handoff navigation so a re-run of the askKey effect (e.g. a router
+  // identity change) can never fire router.push twice for the same handoff.
+  const deckNavigatedRef = useRef(false);
   const fixNoticeButtonRef = useRef<HTMLButtonElement>(null);
   // #24: the previous askKey the focus effect below actually acted on — lets it tell "just left a
   // correction, back to the same next question" (skip the auto-focus, the resolution site already
@@ -273,9 +277,10 @@ function DiscoveryScreen() {
   }, [notice]);
 
   // Focus follows the current ask target: the Q1 textarea on load, then each new question's
-  // first control as it renders — no per-answer lockout (design §6 a11y). #18 folds in two more
-  // targets, highest-precedence first: the deck handoff, then an in-flow correction's re-ask
-  // (design-1b-spec §1 a11y: "moves focus to the re-ask's first option on entry").
+  // first control as it renders — no per-answer lockout (design §6 a11y). #18 folds in an
+  // in-flow correction's re-ask (design-1b-spec §1 a11y: "moves focus to the re-ask's first
+  // option on entry"); #25 folds in the deck handoff, which navigates instead of focusing here —
+  // see the "deck" branch below.
   const askKey = !discovery
     ? null
     : discovery.stage === "deck"
@@ -293,12 +298,21 @@ function DiscoveryScreen() {
     const leavingCorrection = !!prevAskKeyRef.current?.startsWith("fix:") && !askKey.startsWith("fix:");
     prevAskKeyRef.current = askKey;
     if (askKey === "deck") {
-      handoffRef.current?.focus();
-      setLiveMessage(`${C19} ${C20}`);
+      // #25: the gate hands off to the /deck reveal — the handoff copy stays up as a brief
+      // sub-second bridge (design's pinned approach), then this navigates. No focus/announce here:
+      // /deck's own entry effect focuses its heading and gives the one polite announce, so
+      // announcing on this side too would double it (AC2).
+      const t = setTimeout(() => {
+        if (!deckNavigatedRef.current) {
+          deckNavigatedRef.current = true;
+          router.push("/deck");
+        }
+      }, 800);
+      return () => clearTimeout(t);
     } else if (!leavingCorrection) {
       firstControlRef.current?.focus();
     }
-  }, [askKey]);
+  }, [askKey, router]);
 
   // #24: focuses a corrected `.cv-line` button once it has actually re-rendered as the real,
   // enabled control (not the aria-hidden typing placeholder, not disabled mid-request) — decoupled
