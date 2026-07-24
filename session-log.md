@@ -2,6 +2,52 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-24 (session 23) — `/orchestrate-team` on #11: shipped #18 (discovery screen 1b — the gate + tricky answers)
+
+Third build session on the #11 frontier. Claimed **[#18](https://github.com/adrien-mounier/jobcrush-app/issues/18)**
+**alone** — the other two frontier tickets were deliberately deferred: **#17** (profile badge) collides with #18 on
+`apps/web/app/discovery/page.tsx` (cleaner built on the settled screen), and **#14** (card taste-test) needs a stub
+scorer that isn't built yet + is a product-owner eyeball call. Built as `backend-dev` (`apps/api` + `packages/contracts`)
+∥ `frontend-dev` (`apps/web`) on **disjoint trees + a pinned contract**, with a parallel `designer` pass. Shipped green:
+`f794fa5`. Closing #18 **unblocked [#19](https://github.com/adrien-mounier/jobcrush-app/issues/19)** (the reveal);
+frontier now **{#14, #17, #19, #24}** (#24 = an a11y follow-up split from #18).
+
+- **#18 — discovery screen 1b (the gate + tricky answers).** Six ACs, much already scaffolded by #16+#13:
+  - **Gate (AC1):** `discoveryState` returns `stage = essentialRemaining===0 ? "deck" : "discovery"`; the answer route
+    persists `setStage("deck")` on crossing. `DiscoveryState.stage` widened in the api **and** the web mirror type.
+  - **"No" + never-re-ask (AC2/AC3):** already live from #16+#13 (the floor's "No" option → `answerNegative`,
+    `answeredIds` excludes it) — **locked** with route + resume tests. Client swaps the saved-for-later C13 for **C15
+    "Noted — one less thing to ask." + a "Fix that?" undo**; nothing reads as a cross/failure.
+  - **Correction (AC4):** `POST /discovery/answer` made **idempotent** — re-answering IS the correction (no↔yes flips
+    ride the store's existing `add`/`answerNegative` upsert). **No new route** — this superseded the designer's proposed
+    `correctDiscovery` seam, reconciled at brief time so both sides built the same contract. Client: tap a written CV
+    line → re-ask in the dock → the line **re-types in place**.
+  - **Triggered dates (AC5):** new **optional** `FloorItem.triggeredBy` (unfrozen schema, no oracle) surfaces an
+    employer/date item only after its achievement is answered **positively**; `rankBand: standard` so it never gates
+    the deck; gates both `questions` and `railFill`.
+  - **Reader-only (AC6):** `GET /discovery?job=` prepends one synthetic reader question from the CV's mined roles — a
+    **bounded stub**; the broader "CV auto-answers the questions it covers" (stories #8–11) is explicitly OUT of #18.
+  - **Carried #13 wiring:** threaded `claims.negatives()` into `buildClaimGraph` at `/build` (the note left on #18) so
+    a discovery "no" becomes a `Negative`/`renderable:false` node — invisible in the root CV, read by #20.
+- **Two-axis review:** Standards **0 must-fix** (timer cleanup, semantic `button`+aria, seam-level tests all clean);
+  Spec **1 must-fix** = the `negatives`→`/build` wiring above (an explicit undone #18 instruction, one line, applied) +
+  1 confirmed a11y leave-it (correction focus doesn't return to the edited line → filed as **#24**).
+- **QA:** live real-stack drive (in-memory API, no LLM) — all 6 ACs PASS, 21/21 assertions. The pinned Seam-2 e2e
+  (`discovery.spec.ts`) was initially red on **strict-mode locator collisions** with the required `sr-only` aria-live
+  region + an `AFTER_NO` fixture modeling an **unreachable** empty-`questions` state — both **test-only** (product
+  correct throughout), fixed and re-verified **5/5 green** (see lessons).
+
+**Process note:** the QA sub-agent **again died on a monthly spend-limit** mid-verification (as in S22); the user said
+"take over, keep using sub-agents." The e2e locator + fixture fixes were made **in-thread**; a fresh **frugal,
+verify-only** `qa-tester` (~54K tokens) re-ran only `discovery.spec.ts` to confirm green. The `.gitignore` `data/` trap
+bit the commit (the `git add … && commit` chain short-circuited on the ignore hint, though the tracked file still staged).
+
+### Next session starting point
+- **Frontier = {#14, #17, #19, #24}.** **[#19](https://github.com/adrien-mounier/jobcrush-app/issues/19)** (the reveal
+  + job card, screen 2a) is **newly unblocked** by #18 and opens the deck/tailor chain (#19 → #21 → #22 → #23). **#17**
+  (profile badge) is now cleanly grabbable on the settled discovery screen; **#24** (correction-focus a11y) is a small
+  follow-up; **#14** (taste-test) still needs the stub scorer or a hand-scored pass. `/orchestrate-team` on the frontier.
+
 ## 2026-07-24 (session 22) — `/orchestrate-team` on #11: shipped #13 (backend "no" write path) + #16 (discovery screen 1a)
 
 Second build session on the #11 frontier. Claimed **[#13](https://github.com/adrien-mounier/jobcrush-app/issues/13)**

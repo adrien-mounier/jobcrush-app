@@ -327,3 +327,19 @@ page SSRs only its loading shell, so `curl`ing the HTML won't show the hydrated 
 `@playwright/test` `chromium` screenshot (browsers are already installed for the repo's e2e) to see it render and
 assert on visible text. On cleanup, kill **only your own** ports (3001 + your web port); never `taskkill` a `:3000`
 you didn't start — it's likely the user's own dev server.
+
+## Playwright `getByText` collides with the required `sr-only` aria-live region — `{ exact: true }` or scope
+
+Every a11y-correct screen mirrors its visible copy into a visually-hidden live region so screen readers announce each
+change (discovery's `<div aria-live="polite" className="sr-only">` holds the same CV-line / countdown / notice / handoff
+strings). So a loose `page.getByText("…")` matches **two** nodes — the visible one **and** the announce region — and
+Playwright **strict mode** fails ("resolved to 2 elements"). It trips the *first* such assertion per spec, so one run's
+failures are only the first-failures — sweep the whole file. Fix: `getByText(s, { exact: true })` when the visible text
+is exactly `s` (the live region carries a longer string — line + countdown — so `exact` excludes it), or **scope** to a
+container (`.discovery .notice`) when the visible node has trailing text `exact` can't match (the "no" notice carries a
+"Fix that?" button). Test-only — the sr-only region is correct and stays. Two corollaries that also cost time here: a
+stub `DiscoveryState` fixture must model a **reachable** shape (`questions: []` while `stage: "discovery"` never happens
+against the real API — an unanswered essential is always in `questions` until the gate flips to `deck` — and the screen
+renders no ask dock for it, so a notice assertion finds nothing); and to run ONE spec use `cd apps/web && npx playwright
+test e2e/discovery.spec.ts` — `pnpm --filter … e2e -- <file>` does *not* scope and runs the whole suite incl. the
+real-LLM `onboarding.spec.ts`.
