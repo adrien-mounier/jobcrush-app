@@ -400,3 +400,16 @@ against the real API — an unanswered essential is always in `questions` until 
 renders no ask dock for it, so a notice assertion finds nothing); and to run ONE spec use `cd apps/web && npx playwright
 test e2e/discovery.spec.ts` — `pnpm --filter … e2e -- <file>` does *not* scope and runs the whole suite incl. the
 real-LLM `onboarding.spec.ts`.
+
+## `/playwright` QA drivers land **untracked** — they die with the worktree unless you `git add` them
+
+The QA pass writes its human-paced drivers into `apps/web/e2e/*.mjs` (`qa-driver.mjs` + one flow file per
+journey) and its evidence into `qa-results/`. Only the evidence dir is gitignored; the drivers are merely
+**untracked**, so a green "everything is committed and pushed" session check (`git log`, `git status` glanced
+at, `origin/main..branch` empty) is still true while the drivers exist in exactly one place — a worktree that
+`git worktree remove` will delete. Nearly lost session 25's `onboarding-reveal-wall.mjs` this way. Two habits:
+`git status --untracked-files=all` in the worktree **before** removing it, and commit the drivers with the
+slice — they are not duplicate coverage of the `.spec.ts` files, which stub `GET /onboarding/cards`, while the
+drivers ride the **live** backend (the anon→account magic-link merge has no other regression test). They are
+inert to both gates: `.mjs` matches neither Playwright's default `*.@(spec|test).*` glob nor tsconfig's
+`**/*.ts` include.
