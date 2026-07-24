@@ -44,6 +44,28 @@ describe("#19 GET /onboarding/cards", () => {
     expect(body.cards.length).toBeGreaterThanOrEqual(3); // reconciled stub: >=3 scorable cards
   });
 
+  // #22: the reveal's account wall applies only to a still-anonymous visitor — the client decides
+  // whether to show it off this one bit, so it must track the session's claimed state precisely.
+  it("authed is false for a still-anonymous session", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const res = await get(app, cookie, "/onboarding/cards");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().authed).toBe(false);
+  });
+
+  it("authed is true once the anon→account merge has claimed the session", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const link = await post(app, cookie, "/auth/request-link", { email: "e22@example.com" });
+    const token = new URL("http://x" + link.json().devLink).searchParams.get("token")!;
+    await post(app, cookie, "/auth/verify", { token });
+
+    const res = await get(app, cookie, "/onboarding/cards");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().authed).toBe(true);
+  });
+
   it("card shape, score-sorted order, and a recorded 'no' surfacing in askedClosed", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);

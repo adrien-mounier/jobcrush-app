@@ -361,7 +361,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         })
         .filter((c): c is JobCard => c !== null)
         .sort((a, b) => b.matchPct - a.matchPct); // best first
-      return { stage: session.stage, cards };
+      // #22: authed tells the client whether the account wall at the reveal applies — false only
+      // for a still-anonymous session, so a returning (claimed) visitor is never re-walled.
+      return { stage: session.stage, cards, authed: session.claimedByUserId !== null };
     });
   };
 }

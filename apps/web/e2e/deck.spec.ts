@@ -8,8 +8,9 @@ import { expect, test, type Page } from "@playwright/test";
 // three mark states are actually exercised, not just asserted absent.
 //
 // `/deck` is not server-gated (the client decides when to show it — design-19-reveal-card.md §1.3),
-// so this seeds the session's discovery answers via direct API calls, then navigates to /deck
-// straight, mirroring errors.spec.ts's direct-navigation pattern.
+// so this seeds the session's discovery answers via direct API calls (and, since #22, signs the
+// session in so the reveal's wall lets the card through), then navigates to /deck straight,
+// mirroring errors.spec.ts's direct-navigation pattern.
 const ROLE = "IT project manager in Paris";
 
 async function seedNonTrivialCard(page: Page) {
@@ -35,6 +36,13 @@ async function seedNonTrivialCard(page: Page) {
       answer: "Yes, multiple teams",
     });
     await post("/api/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" });
+    // #22: the reveal now walls an anonymous "See them" (that gate is covered by wall.spec.ts). This
+    // is the 2a card-anatomy test, so it must reach the card — claim THIS session (which holds the
+    // answers above) via the real magic-link path so GET /onboarding/cards returns authed:true. Done
+    // in-page so the Secure session cookie rides along, same reason as the discovery calls above.
+    const link = await (await post("/api/auth/request-link", { email: "deck-e2e@example.com" })).json();
+    const token = new URL("http://x" + (link.devLink as string)).searchParams.get("token");
+    await post("/api/auth/verify", { token });
   }, ROLE);
 }
 

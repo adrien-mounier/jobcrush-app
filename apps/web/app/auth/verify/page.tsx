@@ -15,10 +15,24 @@ export default function VerifyScreen() {
     (async () => {
       const params = new URLSearchParams(window.location.search);
       const resume = () => {
-        // Prefer the jobId carried on the link (survives a cross-browser open); fall back to the
-        // localStorage stash the deck left (the same-browser OAuth return has no job in the URL).
+        // #22: the onboarding wall (/deck, no jobId) stashes jc_return before either sign-in door
+        // opens. Always consume it (one-shot) so an abandoned wall visit can never resurface on a
+        // later, unrelated sign-in. But a job-scoped intent (the S2 preview->signup flow, `?job=` or
+        // jc_job) always wins when present — it's more specific than the generic /deck stash, and a
+        // stale jc_return must not hijack it (the bug this guarded against).
+        const jcReturn = localStorage.getItem("jc_return");
+        localStorage.removeItem("jc_return");
+
         const jobId = params.get("job") || localStorage.getItem("jc_job");
-        router.replace(jobId ? `/deck/${jobId}` : "/import");
+        if (jobId) {
+          router.replace(`/deck/${jobId}`);
+          return;
+        }
+        if (jcReturn && jcReturn.startsWith("/") && !jcReturn.startsWith("//")) {
+          router.replace(jcReturn);
+          return;
+        }
+        router.replace("/import");
       };
       // Google OAuth return: the callback already claimed this session server-side — just resume.
       if (params.get("oauth") === "ok") return resume();

@@ -254,6 +254,9 @@ export interface JobCard {
 export interface CardsResponse {
   stage: string;
   cards: JobCard[];
+  // #22: true once the session is claimed (signed in) — false only for a still-anonymous visitor.
+  // Gates the account wall at the reveal: authed ? straight to the deck : the wall.
+  authed: boolean;
 }
 
 export function getCards(): Promise<CardsResponse> {

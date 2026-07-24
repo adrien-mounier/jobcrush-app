@@ -141,6 +141,125 @@
   transform: scale(0.97);
 }
 
+/* ---------- the account wall at the reveal (#22) — swaps in for .curtain .go, never a new
+   screen/redirect (design-22-wall.md §1). Gold stays reserved for the reward (.big em/.go/the
+   score ring/the fit check); the wall's own affordance is a gold hover/focus border only. */
+.jobdeck .wall {
+  width: 100%;
+  max-width: 300px;
+  margin: 22px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+.jobdeck .wall h2 {
+  font-size: 18px;
+  font-weight: 640;
+  letter-spacing: -0.015em;
+  color: var(--hud-ink);
+  margin: 0 0 5px;
+  text-wrap: balance;
+}
+.jobdeck .wall .sub {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--hud-mute);
+  margin: 0 0 18px;
+  text-wrap: balance;
+}
+.jobdeck .wall .oauth {
+  appearance: none;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid var(--hud-line);
+  border-radius: 999px;
+  padding: 13px 20px;
+  background: var(--hud-2);
+  color: var(--hud-ink);
+  font: inherit;
+  font-weight: 620;
+  font-size: 14.5px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.jobdeck .wall .oauth:hover {
+  border-color: var(--gold);
+}
+.jobdeck .wall .divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--hud-mute);
+  font-size: 11.5px;
+  margin: 2px 0;
+}
+.jobdeck .wall .divider::before,
+.jobdeck .wall .divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hud-line);
+}
+.jobdeck .wall input[type="email"] {
+  width: 100%;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--hud-ink);
+  background: var(--hud-2);
+  border: 1px solid var(--hud-line);
+  border-radius: 10px;
+}
+.jobdeck .wall input::placeholder {
+  color: var(--hud-mute);
+}
+.jobdeck .wall .sendlink {
+  appearance: none;
+  width: 100%;
+  border: 1px solid var(--hud-line);
+  border-radius: 999px;
+  padding: 12px 20px;
+  background: transparent;
+  color: var(--hud-ink);
+  font: inherit;
+  font-weight: 600;
+  font-size: 14.5px;
+  cursor: pointer;
+}
+.jobdeck .wall .sendlink:hover:not(:disabled) {
+  border-color: var(--gold);
+}
+.jobdeck .wall .sendlink:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.jobdeck .wall .err {
+  color: #e0876c;
+  font-size: 12.5px;
+  margin: 2px 0 0;
+  line-height: 1.4;
+}
+.jobdeck .wall .sent .lead {
+  font-weight: 640;
+  color: var(--hud-ink);
+  margin: 0 0 6px;
+}
+.jobdeck .wall .changeemail {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 4px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--hud-mute);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* ---------- deck scaffold ---------- */
 .jobdeck .topbar {
   display: flex;
