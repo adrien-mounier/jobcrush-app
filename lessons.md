@@ -2,6 +2,30 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## A ticket can be GitHub-"unblocked" (`blocked_by:0`) yet practically blocked by a missing nav target
+
+When picking the frontier, GitHub's dependency graph only knows the edges someone drew. In S25, #17
+(profile badge) and #21 (swipe the deck) both showed `blocked_by:0`, but their ACs point at screens
+another, still-blocked ticket owns: #17's badge "tap-opens the full profile as its own screen" (=
+`/profile`, built by the native-blocked #20), and #21's swipe-right "advances to Tailor" (= the
+native-blocked #23). Building either now wires a real user action to a 404. **Before claiming a
+frontier ticket, read its ACs for a route/screen/stage another ticket owns — if that owner is open,
+the ticket is blocked-in-practice regardless of the `blocked_by` count.** Cross-checking the actual
+routes (`find apps/web/app -name page.tsx`; grep the target stage) takes a minute and saves a
+dead-end build.
+
+## Return-path markers in localStorage must be one-shot, and a specific intent must beat a generic one
+
+#22's wall stashed `jc_return="/deck"` before opening a sign-in door, consumed in `/auth/verify`'s
+`resume()`. The review-caught bug: it was written **eagerly** but only cleared **on consumption**, so
+an **abandoned** wall visit left `/deck` behind, and a **later, unrelated** S2 sign-in (which carries
+its own `?job=`) found the stale marker — `router.replace("/deck")` hijacked the job-scoped resume.
+Two lessons for any cross-flow return marker: (1) **consume it one-shot** — read-and-remove at the top
+of the resume handler so it can never survive to a later sign-in; (2) **order by specificity** — a
+job-/context-scoped intent (`?job=`, `jc_job`) must be checked *before* the generic stash, and (3)
+guard `router.replace(x)` on a stored value to internal paths (`x.startsWith("/") && !x.startsWith("//")`)
+so a stray value can't become an open redirect.
+
 ## Run the app for a live e2e/QA drive without ts-node or Postgres — build to `dist` + in-memory store
 
 The `apps/api` `dev` script needs `ts-node`, which isn't installed in the worktree, so agents keep
