@@ -42,3 +42,9 @@ export function loadAdRequirements(adId: string): AdRequirements {
   if (!found) throw new Error(`no ad requirements stubbed for adId: ${adId}`);
   return AdRequirements.parse(found);
 }
+
+/** Every stubbed ad's requirements, each validated against the AdRequirements schema. #19's card
+ *  deck joins these against sample-postings.json by adId to find its scorable candidate cards. */
+export function listAdRequirements(): AdRequirements[] {
+  return loadAllAdRequirements().map((r) => AdRequirements.parse(r));
+}

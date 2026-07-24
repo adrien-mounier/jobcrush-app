@@ -51,5 +51,98 @@
         "requirement": "Prior title of Delivery Manager or equivalent"
       }
     ]
+  },
+  {
+    "schemaVersion": "0",
+    "adId": "2026-07-05_endava-vietnam_senior-project-manager",
+    "requirements": [
+      {
+        "id": "lead-agile-delivery",
+        "band": "must",
+        "requirement": "Lead the delivery of Agile projects from initiation to completion",
+        "cvSection": "experience"
+      },
+      {
+        "id": "align-business-technical-client",
+        "band": "must",
+        "requirement": "Ensure strong alignment between business goals, technical teams, and client expectations",
+        "cvSection": "experience"
+      },
+      {
+        "id": "oversee-risks-dependencies",
+        "band": "must",
+        "requirement": "Identify and oversee risks, dependencies, and technical challenges",
+        "cvSection": "experience"
+      },
+      {
+        "id": "scrum-ceremonies",
+        "band": "should",
+        "requirement": "Implement and enforce Scrum ceremonies for efficient project execution",
+        "cvSection": "skills"
+      },
+      {
+        "id": "pm-tooling",
+        "band": "should",
+        "requirement": "Use project management tools such as JIRA, Asana, or Microsoft Project",
+        "cvSection": "skills"
+      },
+      {
+        "id": "client-facing-communication",
+        "band": "should",
+        "requirement": "Manage client expectations with strong client-facing communication skills",
+        "cvSection": "experience"
+      },
+      {
+        "id": "it-experience-years",
+        "band": "nice",
+        "requirement": "8+ years of IT experience including 5+ years as a Project Manager"
+      }
+    ]
+  },
+  {
+    "schemaVersion": "0",
+    "adId": "2026-07-09_luvo-talent_senior-project-manager",
+    "requirements": [
+      {
+        "id": "end-to-end-transformation-delivery",
+        "band": "must",
+        "requirement": "Lead end-to-end delivery of a complex IT or transformation program",
+        "cvSection": "experience"
+      },
+      {
+        "id": "vendor-si-management",
+        "band": "must",
+        "requirement": "Manage third-party vendors and system integrators against SOWs and performance outcomes",
+        "cvSection": "experience"
+      },
+      {
+        "id": "executive-steerco-reporting",
+        "band": "must",
+        "requirement": "Deliver executive-level communication and SteerCo reporting",
+        "cvSection": "experience"
+      },
+      {
+        "id": "multi-stream-coordination",
+        "band": "should",
+        "requirement": "Coordinate multiple workstreams, sequencing, and interdependencies",
+        "cvSection": "experience"
+      },
+      {
+        "id": "budget-business-case",
+        "band": "should",
+        "requirement": "Own budget uplift and business case refresh for the program",
+        "cvSection": "experience"
+      },
+      {
+        "id": "governance-benefit-realisation",
+        "band": "should",
+        "requirement": "Drive governance, benefit realisation, and delivery discipline"
+      },
+      {
+        "id": "complex-stakeholder-environment",
+        "band": "nice",
+        "requirement": "Operate in a complex, challenging stakeholder environment"
+      }
+    ]
   }
 ]

@@ -11,7 +11,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import type { CandidateClaim, MinedRole } from "@jobcrush/contracts";
+import type { CandidateClaim, MinedRole, RequirementBand, AdRequirements } from "@jobcrush/contracts";
 import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore, ClaimRecord } from "../claims.js";
 import type { JobStore } from "../jobs.js";
@@ -21,7 +21,9 @@ import { renderRootCv } from "../rootcv.js";
 import { runGate } from "../gate.js";
 import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
-import { loadFamilyFloor } from "../e5stub.js";
+import { loadFamilyFloor, listAdRequirements } from "../e5stub.js";
+import { loadPostings, type Posting } from "../preview.js";
+import { matchTick, uncoveredRequirements, pickHitClause, pickOpenClause } from "../matchtick.js";
 import {
   composeCvLine,
   discoveryClaimId,
@@ -341,5 +343,77 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         return state;
       },
     );
+
+    // --- #19 the reveal + the job card (screen 2a): instant-tick, score-sorted card deck --------
+    // Rides the anonymous session like discovery (requireSession, not requireUser — the wall is
+    // after the reveal). Meaningful once session.stage === "deck", but never gated server-side:
+    // the client decides when to show it. Cards = every posting with a stubbed AdRequirements
+    // entry (the E5 boundary, e5stub.ts), joined by adId and scored by matchtick.ts against this
+    // session's confirmed/negative claims — no LLM, no IO beyond the two fixture loads.
+    app.get("/onboarding/cards", async (req) => {
+      const session = requireSession(req);
+      const [confirmed, negatives] = await discoveryReads(session.id);
+      const postings = loadPostings();
+      const cards = listAdRequirements()
+        .map((adReq) => {
+          const posting = postings.find((p) => p.id === adReq.adId);
+          return posting ? buildJobCard(posting, adReq, confirmed, negatives) : null;
+        })
+        .filter((c): c is JobCard => c !== null)
+        .sort((a, b) => b.matchPct - a.matchPct); // best first
+      return { stage: session.stage, cards };
+    });
+  };
+}
+
+// --- #19 card shape (the pinned frontend contract) -----------------------------------------------
+interface CardFact {
+  id: string;
+  text: string;
+}
+interface CardRequirement {
+  id: string;
+  band: RequirementBand;
+  requirement: string;
+}
+interface JobCard {
+  adId: string;
+  title: string;
+  company: string;
+  place: string;
+  salary: string | null; // absent in the stub postings — always null for now
+  pattern: string | null; // absent in the stub postings — always null for now
+  matchPct: number;
+  bubble: { hit: string; open: string };
+  fit: CardFact[];
+  dontYet: CardRequirement[];
+  askedClosed: CardFact[];
+  adExcerpt: string;
+}
+
+/** Pure composition, no LLM: matchtick.ts scores + ranks, this just shapes the pinned JobCard. */
+function buildJobCard(
+  posting: Posting,
+  adReq: AdRequirements,
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+): JobCard {
+  return {
+    adId: posting.id,
+    title: posting.title,
+    company: posting.company,
+    place: posting.location,
+    salary: null,
+    pattern: null,
+    matchPct: matchTick(confirmed, adReq),
+    bubble: { hit: pickHitClause(confirmed, adReq), open: pickOpenClause(confirmed, adReq) },
+    fit: confirmed.map((c) => ({ id: c.id, text: c.text })),
+    dontYet: uncoveredRequirements(confirmed, adReq).map((r) => ({
+      id: r.id,
+      band: r.band,
+      requirement: r.requirement,
+    })),
+    askedClosed: negatives.map((c) => ({ id: c.id, text: c.text })),
+    adExcerpt: posting.excerpt,
   };
 }

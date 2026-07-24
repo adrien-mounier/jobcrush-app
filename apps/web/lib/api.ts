@@ -220,6 +220,46 @@ export function answerDiscovery(itemId: string, answer: string): Promise<Discove
   });
 }
 
+// --- #19 the reveal + the job card (screen 2a) ---
+// GET /onboarding/cards returns every card already sorted by matchPct desc (best first); the
+// bubble's two clauses, the fit/dontYet/askedClosed lists, and their rank order are all composed
+// server-side (matchtick.ts) — this client only renders the shape as-is, never re-derives it.
+
+export interface CardFact {
+  id: string;
+  text: string;
+}
+
+export interface CardRequirement {
+  id: string;
+  band: "must" | "should" | "nice";
+  requirement: string;
+}
+
+export interface JobCard {
+  adId: string;
+  title: string;
+  company: string;
+  place: string;
+  salary: string | null;
+  pattern: string | null;
+  matchPct: number;
+  bubble: { hit: string; open: string };
+  fit: CardFact[];
+  dontYet: CardRequirement[];
+  askedClosed: CardFact[];
+  adExcerpt: string;
+}
+
+export interface CardsResponse {
+  stage: string;
+  cards: JobCard[];
+}
+
+export function getCards(): Promise<CardsResponse> {
+  return jfetch("/api/onboarding/cards");
+}
+
 // --- E2 auth (magic-link) ---
 
 // `job` rides along so the emailed link can route back to the deck even when opened in another
