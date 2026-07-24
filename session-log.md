@@ -2,6 +2,41 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-24 (session 20) — `/to-tickets` on #11: the onboarding spec sliced into 12 tickets (#12–#23), native-blocked (no product code)
+
+Ran `/to-tickets` on **[#11](https://github.com/adrien-mounier/jobcrush-app/issues/11)** → published **12
+tracer-bullet tickets (#12–#23)**, all `ready-for-agent`, wired with GitHub **native `blocked_by`**
+dependencies. No product code; the only repo change is this tracking-file sync. Parent spec #11 untouched.
+
+**Sliced by screen + the backend-truth epics, in the spec's own build order** (§Further Notes). The three
+heaviest screens were each split into **two vertical halves** (a demoable slice each — never backend/frontend)
+at Adrien's call, taking the count 9 → 12:
+- **#12** E5-facing contract + hand stub — `FamilyFloor` + per-ad ranked-requirements (`zod` in
+  `packages/contracts` like `roleCluster.ts`; JSON stub behind a provider fn like `matchPosting`).
+- **#13** the **"no" write path + fact correction** — the one hard, *unblocked* backend epic: a negative
+  claim distinct from `rejected`, a `Negative`/`renderable:false` node, never-re-ask on both store drivers,
+  correction via the store's `edit()`.
+- **#14** the 20-ads × 3-CVs taste-test (non-code, informs the wall) · **#15** front door + CV shortcut.
+- discovery **#16 / #18** — 1a core loop (Q1 + promise + `composeCvLine` typewriter + section bars +
+  persistence) / 1b the gate (essential band *asked*) + "no"/correction/triggered-dates/reader-only-after-CV.
+- deck **#19 / #21** — 2a reveal + job card + the instant match tick / 2b swipe + widen-the-net loopback.
+- profile **#17 / #20** — the badge (pile that only grows) / the screen (Sorted + Constellation + colour law).
+- **#22** the wall at the reveal (reuses S2 `auth.ts`/`oauth.ts`) · **#23** tailor (re-score + live card + exits).
+
+**The DAG (native `blocked_by`, verified):** roots **#12 #13 #14 #15** (the open frontier) → #16 → {#17, #18}
+→ {#19, #20} → {#21, #22} → #23. ~47 story points across the twelve.
+
+**Grounded, not guessed.** Re-verified every reuse-vs-rebuild claim in code before writing the tickets:
+`graph.ts` hardcodes `renderable:true` (no `Negative` path), `grill.ts`'s `detectGaps(confirmed)` re-derives
+holes (so a "no" returns), `preview.ts`'s `loadPostings`/`matchPosting` is the provider+stub pattern,
+`claims.ts` `ClaimDecision = pending|confirmed|rejected` with an existing `edit()` on both drivers. Tickets
+say "extend," not "rebuild."
+
+### Next session starting point
+- **`/orchestrate-team` on the frontier (#12 #13 #14 #15).** #12 (contract) and #13 ("no" write path) unblock
+  the most — the natural first pull; #14 (taste-test) is non-code and rides along. The tracker is the memory:
+  work the frontier (any ticket whose blockers are all closed), clearing context between slices.
+
 ## 2026-07-24 (session 19) — The onboarding design → a spec: `/to-spec` #11, seams pinned (no product code)
 
 Ran `/to-spec` on `docs/onboarding-reward-design.md` → published

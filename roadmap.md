@@ -45,7 +45,7 @@ no autonomous submit, no LinkedIn credentials, ever).
       UX** — **answered 2026-07-23** in
       [`docs/onboarding-reward-design.md`](docs/onboarding-reward-design.md) (cards are the payoff,
       the CV is the by-product; endless countdown, no completion bar; **one visible number**, the
-      match % on a job — never a number on the person), and **spec'd 2026-07-24 as [#11](https://github.com/adrien-mounier/jobcrush-app/issues/11) — ready for `/to-tickets`**; **(B) how `cv-authoring-rules.md` is fed and
+      match % on a job — never a number on the person), and **spec'd 2026-07-24 as [#11](https://github.com/adrien-mounier/jobcrush-app/issues/11), then **sliced 2026-07-24 into 12 `ready-for-agent` tickets #12–#23 (native-blocked) — ready for `/orchestrate-team`**; **(B) how `cv-authoring-rules.md` is fed and
       maintained** — still open. _Demo: a prompt change is proved better, not felt better._
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
@@ -161,7 +161,7 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
 
 - **Owning your own answers: correcting and revising a fact.** Added 2026-07-24, raised by Adrien
   while resolving [the profile screen](https://github.com/adrien-mounier/jobcrush-app/issues/9).
-  **Wants its own `/wayfinder` effort** — it is a hole in the concept, not a ticket. Two halves:
+  Two halves, and as of 2026-07-24 the first is ticketed while the second **still wants its own `/wayfinder` effort** — it is a hole in the concept, not a ticket:
   - **Persisting a "no" so it is never re-asked.** `onboarding-reward-design.md` §6.2 rule 1 says the
     claim graph records a "no". **It does not.** `graph.ts` hardcodes `renderable: true` and has no
     `Negative` path; the miner cannot emit one; `claims.confirmed()` drops rejected claims rather
@@ -169,6 +169,9 @@ Design decisions for this slice: [`docs/s2-kickoff.md`](docs/s2-kickoff.md).
     hole is re-detected and **the question comes back**. The contract already supports the fix
     (`claim_graph.schema.json` has `Negative`, `gate.ts` already blocks `renderable: false` from
     rendering) — only the write path is missing. **E5/discovery requirement**, recorded in §6.2.
+    **Ticketed 2026-07-24 as [#13](https://github.com/adrien-mounier/jobcrush-app/issues/13)** (the "no"
+    write path + in-onboarding fact correction); the never-re-ask gate rides in discovery
+    [#18](https://github.com/adrien-mounier/jobcrush-app/issues/18).
   - **Letting a past answer change.** People get the certification, get the clearance, change sector.
     Nothing lets them revise, and once "never re-ask" is enforced an out-of-date "no" becomes
     load-bearing forever. Also covers correcting a mistap *during* onboarding, which is in scope for
