@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-07-24_
+_Last updated: 2026-07-25_
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
@@ -52,6 +52,8 @@ no autonomous submit, no LinkedIn credentials, ever).
       and exhausted-deck loopback. Closing it unblocks
       [#23 Tailor](https://github.com/adrien-mounier/jobcrush-app/issues/23), which is already written
       in the GitHub issue tracker and is the next deck/tailor step; #17 remains the other open branch.
+      **2026-07-25 close-session:** context files were already synced; live tracker handoff is
+      #23 Tailor as `ready-for-agent` with `blocked_by: 0`, plus the separate #17/#20 profile branch.
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
       Epics: E5 cluster engine (JC-33/34/35), E6 feed + hunt (JC-36…40), E7 swipe + prepared apply

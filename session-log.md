@@ -2,6 +2,22 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-25 (session 27) - `close-session`: context sync check + tracker handoff
+
+Closed out the #21 orchestration session after push/deploy. Root context files checked: `CLAUDE.md`
+and `AGENTS.md` both already had byte-identical `SHARED` blocks, so no context-file rewrite was
+needed. #21 is closed on GitHub; #23 Tailor is open, labeled `ready-for-agent`, and has
+`blocked_by: 0`.
+
+- **Context changes:** none. `CLAUDE.md` and `AGENTS.md` shared core hash matched; private zones left
+  untouched.
+- **Roadmap changes:** refreshed the roadmap date and close-session handoff note to point at #23 as
+  the next deck/tailor ticket. No milestone status changed beyond the already-recorded #21 ship.
+- **Lessons:** no new lesson added; the durable #21 lesson ("durable handoff can unblock a future
+  screen") was already recorded in `lessons.md`.
+- **Next session:** run `/orchestrate-team` on the live `ready-for-agent` frontier; #23 Tailor is the
+  primary next deck/tailor ticket, while #17/#20 remain the profile branch to inspect separately.
+
 ## 2026-07-24 (session 26) - `/orchestrate-team` on #11: shipped #21 (swipe the deck, screen 2b)
 
 Sixth build session on the #11 frontier. Re-checked the live GitHub dependencies first: **[#23 Tailor](https://github.com/adrien-mounier/jobcrush-app/issues/23)** was already written, but still native-blocked by **[#21](https://github.com/adrien-mounier/jobcrush-app/issues/21)**. Claimed #21 because it directly unblocks #23; left #17 alone because its profile-screen target still belongs to the #17 -> #20 chain. Shipped green in `c435f2c`.
