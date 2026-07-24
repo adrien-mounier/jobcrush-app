@@ -54,6 +54,14 @@ no autonomous submit, no LinkedIn credentials, ever).
       in the GitHub issue tracker and is the next deck/tailor step; #17 remains the other open branch.
       **2026-07-25 close-session:** context files were already synced; live tracker handoff is
       #23 Tailor as `ready-for-agent` with `blocked_by: 0`, plus the separate #17/#20 profile branch.
+      **2026-07-25 S28 (parallel lane):** closed session 25's deferred OAuth-failure return path —
+      `/auth/google?from=` + an allowlisted `jc_oauth_from` cookie now land a failed Google trip back on
+      `/deck?login=…` instead of `/signup`, lighting up the branch #22 left inert. Filed the two #14
+      follow-ups: [#26](https://github.com/adrien-mounier/jobcrush-app/issues/26) fit-weighted scorer
+      (**do not build concurrently with #23** — it asserts on tick numbers) and
+      [#27](https://github.com/adrien-mounier/jobcrush-app/issues/27) curated first-card pool (only 3 ad
+      sets exist today). **#20 must not be built while #17 is in flight** — #17 creates `/profile` as its
+      tap target, which is #20's own file.
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
       Epics: E5 cluster engine (JC-33/34/35), E6 feed + hunt (JC-36…40), E7 swipe + prepared apply
