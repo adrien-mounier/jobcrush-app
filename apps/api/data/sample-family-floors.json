@@ -1,0 +1,80 @@
+[
+  {
+    "schemaVersion": "0",
+    "family": "IT Project Manager",
+    "items": [
+      {
+        "id": "budget-accountability",
+        "rankBand": "essential",
+        "question": "Have you owned a project budget?",
+        "options": ["Yes, over $1M", "Yes, under $1M", "No"],
+        "cvSection": "experience",
+        "noIsFatal": true
+      },
+      {
+        "id": "cross-functional-leadership",
+        "rankBand": "essential",
+        "question": "Have you led a cross-functional or vendor team?",
+        "options": ["Yes, multiple teams", "Yes, one team", "No"],
+        "cvSection": "experience",
+        "noIsFatal": true
+      },
+      {
+        "id": "stakeholder-reporting",
+        "rankBand": "essential",
+        "question": "Have you reported project status to senior stakeholders or a steering committee?",
+        "options": ["Yes, regularly", "Yes, occasionally", "No"],
+        "cvSection": "experience",
+        "noIsFatal": true
+      },
+      {
+        "id": "delivery-methodology",
+        "rankBand": "standard",
+        "question": "Which delivery methodology have you worked in?",
+        "options": ["Agile/Scrum", "Waterfall", "Both"],
+        "cvSection": "skills",
+        "noIsFatal": false
+      },
+      {
+        "id": "pm-certification",
+        "rankBand": "standard",
+        "question": "Do you hold a project management certification?",
+        "options": ["PMP", "PRINCE2", "Other", "No"],
+        "cvSection": "skills",
+        "noIsFatal": false
+      },
+      {
+        "id": "risk-register",
+        "rankBand": "standard",
+        "question": "Have you maintained a risk or issue register (RAID log)?",
+        "options": ["Yes", "No"],
+        "cvSection": "experience",
+        "noIsFatal": false
+      },
+      {
+        "id": "education-related-field",
+        "rankBand": "standard",
+        "question": "Do you hold a degree in a related field (business, IT, engineering)?",
+        "options": ["Yes", "No, but a related certification", "No"],
+        "cvSection": "education",
+        "noIsFatal": false
+      },
+      {
+        "id": "technical-exposure",
+        "rankBand": "nice-to-have",
+        "question": "Have you worked closely with engineers on architecture or build-vs-buy decisions?",
+        "options": ["Yes, regularly", "Yes, occasionally", "No"],
+        "cvSection": "experience",
+        "noIsFatal": false
+      },
+      {
+        "id": "headline-focus",
+        "rankBand": "nice-to-have",
+        "question": "What's the one line you want first on your CV?",
+        "options": [],
+        "cvSection": "summary",
+        "noIsFatal": false
+      }
+    ]
+  }
+]

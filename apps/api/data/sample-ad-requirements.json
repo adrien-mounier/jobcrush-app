@@ -1,0 +1,55 @@
+[
+  {
+    "schemaVersion": "0",
+    "adId": "2026-07-05_manulife_senior-it-project-manager-delivery-manager",
+    "requirements": [
+      {
+        "id": "manage-full-project-lifecycle",
+        "band": "must",
+        "requirement": "Own the full project lifecycle from planning through completion",
+        "cvSection": "experience"
+      },
+      {
+        "id": "coordinate-business-technical-stakeholders",
+        "band": "must",
+        "requirement": "Coordinate business and technical stakeholders across all project phases",
+        "cvSection": "experience"
+      },
+      {
+        "id": "identify-mitigate-risks",
+        "band": "must",
+        "requirement": "Identify, analyze, and mitigate project risks",
+        "cvSection": "experience"
+      },
+      {
+        "id": "regular-stakeholder-communication",
+        "band": "should",
+        "requirement": "Provide regular, effective communication to stakeholders and sponsors",
+        "cvSection": "experience"
+      },
+      {
+        "id": "contract-negotiation",
+        "band": "should",
+        "requirement": "Participate in negotiating vendor contract terms and conditions",
+        "cvSection": "experience"
+      },
+      {
+        "id": "staff-development",
+        "band": "should",
+        "requirement": "Hire, coach, and develop project team members",
+        "cvSection": "experience"
+      },
+      {
+        "id": "digital-transformation-exposure",
+        "band": "nice",
+        "requirement": "Experience driving digital transformation initiatives",
+        "cvSection": "skills"
+      },
+      {
+        "id": "delivery-manager-title",
+        "band": "nice",
+        "requirement": "Prior title of Delivery Manager or equivalent"
+      }
+    ]
+  }
+]
