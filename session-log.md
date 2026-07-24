@@ -2,6 +2,40 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-24 (session 21) — `/orchestrate-team` on #11: shipped #12 (E5 contract + stub) + #15 (front door); #16 now unblocked
+
+First build session on the #11 frontier. Claimed **[#12](https://github.com/adrien-mounier/jobcrush-app/issues/12)**
++ **[#15](https://github.com/adrien-mounier/jobcrush-app/issues/15)** — a **disjoint-tree pair** (backend
+contract vs web UI) so they built in parallel — and drove each through the full loop: designer spec →
+parallel build (`backend-dev` + `frontend-dev`) → two-axis review (Standards + Spec) → live QA → path-scoped
+commit → green push → close. Both on staging: `d3977ff` (#12), `d6c405f` (#15). Push gate green (contracts 14,
+api 166/5-skip, typecheck 7/7).
+
+- **#12 — E5-facing contract + hand stub.** Two **not-frozen** `zod` families in `packages/contracts`
+  (`familyFloor.ts`: `FamilyFloor` = ranked `FloorItem`s carrying `rankBand`/`question`/`options`/`cvSection`/`noIsFatal`;
+  `adRequirements.ts`: per-ad ranked `AdRequirements`) + hand JSON in `apps/api/data/` behind
+  `loadFamilyFloor`/`loadAdRequirements` (`e5stub.ts`), mirroring `preview.ts`'s `loadPostings`/`matchPosting`
+  and shape-tested like `roleCluster.ts` (no oracle). E5 (S3) later swaps the producer behind these, tests stay
+  green. Review must-fix was the `.gitignore` `data/` trap (stubs `git add -f`'d — see lessons).
+- **#15 — front door (screen 0).** Shape A of `front-door-options.prototype.html`: the *"Answer questions.
+  Collect jobs."* invitation types itself → **Ready?** → bottom-edge CV-shortcut footnote; tap/key-to-finish;
+  `prefers-reduced-motion` skips it; Ready? parts the headline → discovery. CV shortcut reuses the upload→mine
+  pipeline (never the deck) with a *"CV read."* beat + full error states — all ink-and-glass **scoped in
+  `frontdoor.css`** (the `--jc-*` system untouched, per spec). Widened `OnboardingStage`
+  (`front-door`|`discovery`, non-breaking) + `PUT /sessions/me/stage` (anonymous, zod-enum **fails closed**).
+  `/discovery` is a thin placeholder for #16. **Live QA GO — all 6 ACs** (AC5 driven live via the Claude-CLI
+  LLM fallback: real CV → "CV read." → `/discovery?job=`). Applied one review fix (keyboard-gate Ready? during
+  CV read, matching the CSS pointer gate) + fixed a brittle e2e timing budget.
+
+**#13/#14 deliberately not taken** (don't drain the frontier): #13 (backend "no" write path) shares `apps/api`
+with #12 and would fight the whole-tree gate; #14 (taste-test) reads best now that #12's stub exists to score.
+
+### Next session starting point
+- **Frontier now = {#13, #14, #16}.** **[#16](https://github.com/adrien-mounier/jobcrush-app/issues/16)**
+  (discovery screen 1a — the core loop: answer types a CV line + fills a section) is **newly unblocked** by
+  #12+#15 and is the next keystone (it unblocks #17/#18; #19 dropped to 1 blocker). #13 (backend, unblocked)
+  and #14 (non-code, now has a stub) are also grabbable. `/orchestrate-team` on the frontier.
+
 ## 2026-07-24 (session 20) — `/to-tickets` on #11: the onboarding spec sliced into 12 tickets (#12–#23), native-blocked (no product code)
 
 Ran `/to-tickets` on **[#11](https://github.com/adrien-mounier/jobcrush-app/issues/11)** → published **12

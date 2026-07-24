@@ -2,6 +2,18 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## New data fixtures under `apps/api/data/` are gitignored — `git add -f` them or CI goes red on a fresh checkout
+
+`.gitignore` has a blanket `data/` rule, so a hand-authored fixture placed in `apps/api/data/` (e.g. #12's
+`sample-family-floors.json` / `sample-ad-requirements.json`) is **silently untracked** — a plain `git add` /
+`git add -A` skips it with no error. It works locally (the file is in your working tree), but CI checks out
+**tracked files only**, so any provider that `readFileSync`s that fixture throws ENOENT and `pnpm test` goes
+**red on a fresh checkout** — which, with auto-deploy on green, means a broken staging. The precedent was
+already there and easy to miss: `apps/api/data/sample-postings.json` is force-added past the same rule. **Any
+new file under `data/` must be `git add -f`'d** — and confirm with `git status --ignored` / `git check-ignore
+<path>` before committing. General rule: when code reads a data file at runtime, verify the file is actually
+**tracked**, not merely present in your working copy.
+
 ## A "gate" in a design doc often gates one small parameter, not the whole build
 
 §3's reversal condition read like it blocked building the app: "if v1 cards aren't better than a
