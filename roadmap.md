@@ -54,6 +54,20 @@ no autonomous submit, no LinkedIn credentials, ever).
       in the GitHub issue tracker and is the next deck/tailor step; #17 remains the other open branch.
       **2026-07-25 close-session:** context files were already synced; live tracker handoff is
       #23 Tailor as `ready-for-agent` with `blocked_by: 0`, plus the separate #17/#20 profile branch.
+      **2026-07-25 S28 update:** both long-deferred tickets shipped — **[#23 Tailor (screen 3)](https://github.com/adrien-mounier/jobcrush-app/issues/23)
+      in `8091b89`** (instant never-decreasing re-score behind a session-persisted floor, `?`→`✓` +
+      bubble rewrite, derived ledger, the three exits, `jobcard.tsx` shared with the deck) and
+      **[#17 the profile badge](https://github.com/adrien-mounier/jobcrush-app/issues/17) in
+      `3895f27`** (flying chip + logarithmic pile on discovery *and* tailor, tap → `/profile`).
+      #23 landing removed #17's missing-nav-target blocker mid-session. Both two-axis-reviewed and
+      live-QA'd GO on a production build; two real-stack journey drivers committed. **All four
+      screens of the journey now exist.** Frontier is down to
+      **[#20 (profile screen — Sorted + Constellation)](https://github.com/adrien-mounier/jobcrush-app/issues/20)**,
+      whose close will **empty the spec's frontier and trigger the full-journey QA pass**. Five
+      follow-ups filed: #28, #29, #30, #31, and **#33 (the badge can still shrink — it is specified
+      to only ever grow)**. Also `03fede9`: `concurrency: deploy-main` on the deploy job, so two
+      pushes can't race and land the older build last (see `AI/Projects/SHARED_INFRA.md` — this repo
+      shares a Fly + Cloudflare account with `vitacairn`; owner backlog is #32).
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
       Epics: E5 cluster engine (JC-33/34/35), E6 feed + hunt (JC-36…40), E7 swipe + prepared apply
