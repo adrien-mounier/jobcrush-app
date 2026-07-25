@@ -2,6 +2,55 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-25 (session 29) — `/orchestrate-team` on #11: cleared three S28 follow-ups (#31, #30, #33)
+
+Eighth build session on the #11 frontier. Deliberately did **not** claim #20 (the last screen ticket,
+whose close triggers the full-journey QA pass) — instead took the three small defects S28 filed
+against already-shipped flows, on two disjoint trees so the API and web tracks ran in parallel.
+Shipped green: `f2ddf88` (#31), `c89e9f8` (#30), `1f87af8` (#33).
+
+- **#31 — the tailor match floor, keyed to the wrong thing.** `tailor_floor_pct` was gated on
+  `tailorAdId`, which `clearTailorTarget` nulls on drop — so `null !== adId` zeroed the floor on
+  drop → re-swipe of the *same* ad. Now keyed to a new `tailor_floor_ad_id` that survives a drop;
+  `clearTailorTarget` is untouched, so the 409-after-drop behaviour its pinned test depends on is
+  intact. **The review caught what the ticket didn't ask for:** the bare `ADD COLUMN` leaves the new
+  column NULL, and `NULL = $2` is *unknown* in SQL — so the very deploy that fixes #31 would
+  re-introduce it once for every live mid-tailor session. Shipped with an idempotent backfill
+  `UPDATE` in `SESSIONS_ALTERS`, the file's first deviation from its pure-`ADD COLUMN` idiom.
+- **#30 — signed-out `/tailor` dead-ended.** `login_required` now joins `no_tailor_target` on the
+  existing redirect branch → `/deck`, which fronts its own wall (OAuth leading). Safe because
+  `GET /onboarding/cards` uses `requireSession`, **not** `requireUser` — an anonymous visitor gets a
+  200, so the dead end is closed rather than relocated. Switched to `router.replace`: with `push`,
+  Back returns to `/tailor` only to be bounced forward again. Five-line diff.
+- **#33 — the badge could shrink.** A per-session `fact_floor`, raised at each of the **five** routes
+  emitting `factCount`, which now return `max(computed, floor)`; `discoveryState()` and `factCount()`
+  stay pure. The brief pinned four seams and the dev found the fifth — `buildTailorState` serves two
+  routes, and AC3 (a bare reload must not regress) needs the GET. Applying the floor on the GETs is
+  load-bearing for a second reason: confirming claims in the S2 deck touches no factCount-emitting
+  POST, so without it a visitor reaches `/discovery` with floor 0 and can still drop. No backfill
+  needed here, unlike #31 — a defaulted `0` only ever rises.
+- **Two-axis review — one must-fix across three slices, and the axes disagreed usefully.** On #31 the
+  Standards axis called the missing backfill a must-fix while the Spec axis rated it
+  take-it-or-leave-it (not visitor-reachable today, self-healing). Took it: staging has `DATABASE_URL`
+  and a push is a deploy. On #33 both axes independently landed on the same top finding — the route
+  test's reject returns `{ok:true}` even for an unknown claim id, so a changed id scheme would make
+  the guard **silently vacuous and pass green with the fix fully reverted**. Hardened to assert the
+  claim actually left the store.
+- **QA — three GOs, each earning its keep.** #31: found AC1 was pinned only at the store column, never
+  at the *visible* %, and added the route-level test that is now the only one failing on a revert;
+  verified the backfill against **real Postgres 16** across repeated `init()` runs. #30: live drive,
+  23/23, with a non-vacuity check proving `no_session`/`internal_error` still reach the retry screen —
+  the fix routes the dead end without swallowing retryable errors. #33: live drive against a
+  **Postgres-backed** API, badge monotone across 12 fresh mounts, sign-in merge verified not to lower
+  the floor; flagged that only 2 of 5 seams had unit coverage, now all five in one test.
+- **Follow-up filed:** [#35](https://github.com/adrien-mounier/jobcrush-app/issues/35) — the same
+  deck-reject path still regresses discovery's *other* monotonic surfaces (`railFill`,
+  `essentialRemaining`, and re-asking an answered question), violating stories #26/#35/#37/#79. #33
+  fixed the badge because that was its AC; the rail has the same guarantee and didn't get it.
+- **Next session:** frontier is {#20, #26, #27, #28, #29, #35}. **#20 remains the one whose close
+  empties the spec's frontier and triggers the full-journey QA pass.** #35 is the natural sibling of
+  what shipped here and the code is fresh in the log.
+
 ## 2026-07-25 (session 28) — `/orchestrate-team` on #11: shipped #23 (Tailor, screen 3) + #17 (the profile badge)
 
 Seventh build session on the #11 frontier. Claimed **[#23](https://github.com/adrien-mounier/jobcrush-app/issues/23)** + **[#17](https://github.com/adrien-mounier/jobcrush-app/issues/17)** — the two tickets S25/S26 kept deferring for missing nav targets; #23's own landing removed #17's blocker mid-session. Shipped green: `8091b89` (#23), `3895f27` (#17), plus `03fede9` (CI deploy guard). Frontier now **{#20 profile screen}** plus the follow-ups filed below.

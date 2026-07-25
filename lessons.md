@@ -2,6 +2,45 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## Adding a nullable column can re-introduce the bug the column was added to fix
+
+S29's #31 fix keyed the tailor floor to a new `tailor_floor_ad_id` and shipped the usual
+`ADD COLUMN IF NOT EXISTS`. That leaves the column **NULL on every existing row**, and in SQL
+`NULL = $2` is *unknown*, not false — so `CASE WHEN tailor_floor_ad_id = $2 … ELSE 0` falls to the
+`ELSE` for exactly the sessions that were mid-flight at deploy time. The deploy that fixed the bug
+would have re-introduced it, once, for every live session. Self-healing and invisible in tests —
+both drivers were green, because a fresh test row and a migrated production row are not the same
+thing.
+
+**When a new column participates in a comparison that decides whether to keep or discard state, the
+migration needs a backfill, not just a default.** Ask what the comparison does for a row that
+predates the column. Note the asymmetry with #33's `fact_floor` in the same session: a raise-only
+integer defaulting to `0` needs no backfill, because the first read raises it back to its true peak.
+The trap is specific to *keyed* state, not to new columns generally.
+
+`init()` runs on every boot, so the backfill must be idempotent — scope its `WHERE` so it can never
+match twice. QA verified this against real Postgres rather than pg-mem, which is the only way it
+would have been caught: **`CREATE TABLE IF NOT EXISTS` on an existing table throws `NotSupported`
+under pg-mem**, so boot-idempotence is not testable there at all.
+
+## Two local traps that make a QA sweep report defects that aren't there
+
+Both cost real time in S29 and neither is discoverable from the failure message.
+
+**(1) `turbo` does not hash `API_URL`.** So `API_URL=… pnpm build` can restore a **cached** web build
+with a *different* port baked in — and `API_URL` is a build-time constant, not a runtime one. In a
+shared-account setup this is the exact plausible-nonsense `SHARED_INFRA.md` warns about, except it
+arrives through the build cache rather than the port: one project's frontend served another
+project's backend, with a JobCrush title on a Vitacairn 404. Use
+`rm -rf .next && API_URL=… npx next build` directly, and verify the pairing **through the web app's
+own `/api/*` proxy** — hitting both ports separately proves only that two servers are up, not that
+they are talking to each other.
+
+**(2) `IpRateLimiter` allows 12 anonymous sessions per hour per IP.** A full e2e sweep exhausts it,
+and the resulting `429 rate_limited` failures look exactly like real defects — 10 of them in one S29
+sweep, all spurious. The limiter is in-memory, so restarting the API clears it. **Attribute every
+sweep failure before reporting it**; the tell is failures that vanish on a fresh API.
+
 ## A green test suite proved nothing twice in one session — both times it looked thorough
 
 S28 shipped two tickets, and in each one a *passing* suite was hiding the defect.

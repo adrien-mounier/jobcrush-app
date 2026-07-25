@@ -65,7 +65,17 @@ no autonomous submit, no LinkedIn credentials, ever).
       **[#20 (profile screen — Sorted + Constellation)](https://github.com/adrien-mounier/jobcrush-app/issues/20)**,
       whose close will **empty the spec's frontier and trigger the full-journey QA pass**. Five
       follow-ups filed: #28, #29, #30, #31, and **#33 (the badge can still shrink — it is specified
-      to only ever grow)**. Also `03fede9`: `concurrency: deploy-main` on the deploy job, so two
+      to only ever grow)**.
+      **2026-07-25 S29:** cleared three of those follow-ups — **#31** (`f2ddf88`, tailor match floor
+      keyed to a new `tailor_floor_ad_id` that survives a drop), **#30** (`c89e9f8`, signed-out
+      `/tailor` routes to the deck's wall instead of a retry-only dead end), and **#33** (`1f87af8`,
+      per-session `fact_floor` applied at all five `factCount` seams — the badge can no longer
+      shrink). All three two-axis-reviewed and live-QA'd GO, #33 driven against a Postgres-backed
+      API. Filed **[#35](https://github.com/adrien-mounier/jobcrush-app/issues/35)**: the same
+      deck-reject path still regresses discovery's *other* monotonic surfaces (`railFill`,
+      `essentialRemaining`, and re-asking an answered question) — the badge got the guarantee, the
+      rail did not. Frontier now {#20, #26, #27, #28, #29, #35}.
+      Also `03fede9`: `concurrency: deploy-main` on the deploy job, so two
       pushes can't race and land the older build last (see `AI/Projects/SHARED_INFRA.md` — this repo
       shares a Fly + Cloudflare account with `vitacairn`; owner backlog is #32).
       **2026-07-25 S28 (parallel lane):** closed session 25's deferred OAuth-failure return path —
