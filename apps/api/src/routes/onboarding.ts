@@ -262,8 +262,16 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // The whole screen is a pure function of the session's role (Q1) + its recorded discovery answers,
     // so every response is `discoveryState(...)` and GET resumes with no client state.
 
+    // Third element (rejected) is #35's addition: no new store method — filter the existing list()
+    // rather than add a ClaimStore.rejected(). Kept in this one Promise.all (not a separate serialized
+    // read) so a Pg-backed read still fires all three queries in parallel; callers that don't need it
+    // (cards, tailor) just destructure the first two.
     const discoveryReads = (sessionId: string) =>
-      Promise.all([deps.claims.confirmed(sessionId), deps.claims.negatives(sessionId)]);
+      Promise.all([
+        deps.claims.confirmed(sessionId),
+        deps.claims.negatives(sessionId),
+        deps.claims.list(sessionId).then((all) => all.filter((c) => c.decision === "rejected")),
+      ]);
 
     // Load / resume: rebuild the state from the store. Before Q1 (no role) → the empty skeleton state.
     // #18 AC6: an optional ?job= prepends the ONE reader-only question — over the uploaded CV's mined
@@ -274,11 +282,16 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       { schema: { querystring: z.object({ job: z.string().optional() }) } },
       async (req) => {
         const session = requireSession(req);
-        const [confirmed, negatives] = await discoveryReads(session.id);
-        const state = discoveryState(session.targetTitles[0] ?? null, confirmed, negatives);
+        const [confirmed, negatives, rejected] = await discoveryReads(session.id);
+        const state = discoveryState(session.targetTitles[0] ?? null, confirmed, negatives, rejected);
 
         const jobId = req.query.job;
-        const readerAnswered = confirmed.some((c) => c.id === discoveryClaimId(READER_ROLE_ITEM_ID));
+        // #35: a deck-rejected reader-role claim still closes the question — same never-re-ask rule
+        // discoveryState now applies internally; this check is separate (the reader question isn't a
+        // floor item) so it needs its own look at `rejected`.
+        const readerAnswered = [...confirmed, ...rejected].some(
+          (c) => c.id === discoveryClaimId(READER_ROLE_ITEM_ID),
+        );
         if (jobId && !readerAnswered) {
           const job = await deps.store.get(jobId);
           const roles = job && job.sessionId === session.id ? minedRoles(job) : [];
@@ -309,8 +322,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const session = requireSession(req);
         await deps.sessions.setTargetTitles(session.id, [req.body.role]);
         await deps.sessions.setStage(session.id, "discovery");
-        const [confirmed, negatives] = await discoveryReads(session.id);
-        const state = discoveryState(req.body.role, confirmed, negatives);
+        const [confirmed, negatives, rejected] = await discoveryReads(session.id);
+        const state = discoveryState(req.body.role, confirmed, negatives, rejected);
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
@@ -367,10 +380,11 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         if (no) await deps.claims.answerNegative(session.id, claim);
         else await deps.claims.add(session.id, claim);
 
-        const [confirmed, negatives] = await discoveryReads(session.id);
-        const state = discoveryState(role, confirmed, negatives);
+        const [confirmed, negatives, rejected] = await discoveryReads(session.id);
+        const state = discoveryState(role, confirmed, negatives, rejected);
         // #18 AC1: the essential band fully asked (yes or no) flips the session to the deck stage, so
-        // a reload lands there too. essentialRemaining only ever counts down, so this never reverts.
+        // a reload lands there too. essentialRemaining never climbs back up (#35: a deck reject still
+        // counts as answered), so this never reverts.
         if (state.essentialRemaining === 0) await deps.sessions.setStage(session.id, "deck");
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;

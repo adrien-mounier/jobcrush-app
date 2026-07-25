@@ -9,7 +9,8 @@
 //     clustering model, out of scope — spec "the flow uses a hand list stand-in"). Behind functions so
 //     E5 can replace the producer, exactly like e5stub.ts's loadFamilyFloor.
 //   - discoveryState — rebuilds the whole DiscoveryState from the session's role + its recorded
-//     discovery answers (confirmed positives + negatives), so GET /discovery resumes with no client state.
+//     discovery answers (confirmed positives + negatives + #35's deck-rejected, all of which close a
+//     question), so GET /discovery resumes with no client state.
 import type { FloorItem, CvSection, MinedRole } from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
 import { loadFamilyFloor } from "./e5stub.js";
@@ -196,11 +197,18 @@ export function discoveryCvLines(
 }
 
 /** Rebuild the whole screen state from persisted facts. `role` is the Q1 text (null before Q1);
- *  `confirmed`/`negatives` are this session's recorded answers. Pure + deterministic → GET resumes. */
+ *  `confirmed`/`negatives`/`rejected` are this session's recorded answers — `rejected` (#35: a claim
+ *  the S2 deck rejected) still closes its question (the visitor was asked and answered; only the
+ *  machine's phrasing of it was rejected), so it counts into `answeredIds` alongside negatives, but
+ *  never into `positives` — no CV line (cvLines stays confirmed-only, unaffected) and no trigger
+ *  (isTriggered keys off `positives`, so a rejected trigger does not surface an UNanswered triggered
+ *  item — an already-answered one stays askable; see the isTriggered comment).
+ *  Pure + deterministic → GET resumes. */
 export function discoveryState(
   role: string | null,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
+  rejected: ClaimRecord[] = [],
 ): DiscoveryState {
   if (!role) {
     return {
@@ -222,17 +230,26 @@ export function discoveryState(
   const floor = loadFamilyFloor(family).items;
   const byId = new Map(floor.map((i) => [i.id, i]));
 
-  // An item is answered by EITHER a positive or a "no" (both close it). Positives also carry a CV line.
+  // An item is answered by a positive, a "no", OR a deck-rejected claim (#35 — all three close it).
+  // Positives also carry a CV line; rejected does not (it's excluded from `positives` on purpose).
   const positives = confirmed.filter((c) => isDiscoveryClaim(c.id));
   const answeredIds = new Set(
-    [...positives, ...negatives.filter((c) => isDiscoveryClaim(c.id))].map((c) => itemIdOf(c.id)),
+    [
+      ...positives,
+      ...negatives.filter((c) => isDiscoveryClaim(c.id)),
+      ...rejected.filter((c) => isDiscoveryClaim(c.id)),
+    ].map((c) => itemIdOf(c.id)),
   );
 
   // #18 AC5: a triggered item is only askable once its trigger has a POSITIVE answer — a "no" on the
   // trigger does not surface it. Untriggered items are always askable. "askable" gates BOTH questions
   // and railFill, so an un-surfaced triggered item sits in neither's numerator nor denominator.
+  // #35: `|| answeredIds.has(i.id)` — an already-answered item can never be un-asked. Without it,
+  // rejecting the TRIGGER claim (moving it out of `positives`) would evict its already-answered
+  // follow-up from `askable` too, dropping it from railFill's numerator AND denominator — the same
+  // regression this ticket forbids, one step removed from the trigger claim itself.
   const isTriggered = (i: FloorItem) =>
-    !i.triggeredBy || positives.some((c) => itemIdOf(c.id) === i.triggeredBy);
+    !i.triggeredBy || positives.some((c) => itemIdOf(c.id) === i.triggeredBy) || answeredIds.has(i.id);
   const askable = floor.filter((i) => asked(i) && isTriggered(i));
 
   const questions = askable.filter((i) => !answeredIds.has(i.id)).map(toQuestion);
