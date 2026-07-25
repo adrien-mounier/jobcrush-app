@@ -2,6 +2,30 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-25 (session 32) — `/orchestrate-team` takeover: shipped #20 profile screen
+
+Resumed from `handoff-orchestration-20260725-2.md` with #20 already built but uncommitted after
+review. Honored the handoff's product decision: **pending mined claims stay visible as cool-grey
+reserve**; rejected/negative claims never render on the profile screen.
+
+- **#20 — profile screen (Sorted + Constellation).** Shipped `ee653e4` (`Closes #20`). Backend:
+  `GET /profile` is reachable pre-wall via the session cookie, groups facts with the same kind tags
+  and section order as the root CV, derives gold from the current rendered root-CV trace, marks
+  pending facts grey, strips rejected/negative claims from the payload, reads `source` from
+  `ClaimRecord.origin`, and returns the server-owned floored `factCount`.
+- **Frontend:** replaced #17's placeholder `/profile` with the real screen: Sorted domains led by the
+  strongest text-length proxy, a canvas Constellation, one shared detail body, neutral source text,
+  focus restoration for the Sorted dialog, and visible keyboard star targets for the Constellation.
+  The badge journey test now lands on the real profile.
+- **Review + QA:** the two-axis review caught and the takeover fixed the material issues: source
+  heuristic, locally derived count, gold-as-strength lead ranking, too-bright grey lead styling,
+  dialog focus return, and invisible constellation keyboard controls. Gates: `pnpm test`,
+  `pnpm typecheck`, `pnpm build`, focused Playwright `e2e/profile.spec.ts` (5/5), plus desktop/mobile
+  screenshots with a nonblank canvas-pixel check on a high-port Next server (`30180`, stopped after
+  QA).
+- Frontier after #20: **#26**, **#27**, **#37** remain `ready-for-agent`; #11 stays open as the parent
+  spec/frontier marker.
+
 ## 2026-07-25 (session 31) — `/orchestrate-team` on #11: closed #36, paused #20 mid-review
 
 Tenth build session on the #11 frontier. Claimed **#36** and **#20** — disjoint file trees; #26/#37
@@ -27,10 +51,11 @@ Tenth build session on the #11 frontier. Claimed **#36** and **#20** — disjoin
     states).
 - **Paused deliberately, mid-slice, at the owner's request** — a clean stopping point, not a
   blocker. Nothing committed for #20; working tree unchanged since the review finished. Frontier
-  now {#20, #26, #27, #37}.
-- **Next session:** resolve the pending-claims question with the owner first, then work the
-  must-fix list, re-gate (repo-wide, not API-scoped), commit path-scoped with `Closes #20` only on
-  green.
+  now {#20, #26, #27, #37}. Superseded by session 32: the owner handoff chose pending-as-grey and
+  the slice shipped.
+- **Historical next-session note, now handled by session 32:** resolve the pending-claims question
+  with the owner first, then work the must-fix list, re-gate (repo-wide, not API-scoped), commit
+  path-scoped with `Closes #20` only on green.
 
 ## 2026-07-25 (session 30) — `/orchestrate-team` on #11: the three monotonicity defects (#35, #28, #29)
 

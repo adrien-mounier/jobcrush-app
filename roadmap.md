@@ -95,8 +95,15 @@ no autonomous submit, no LinkedIn credentials, ever).
       mid-slice** at the owner's request — nothing committed, working tree unchanged. One
       open product call is on hold pending the owner: whether `GET /profile` may include
       `pending` claims to render "grey", or must be confirmed-only per the confirmation-gate
-      invariant — **do not decide this in code without asking again.** Frontier now
-      {#20, #26, #27, #37}.
+      invariant. **2026-07-25 S32 update:** owner handoff resolved that call in favor of
+      pending-as-grey; **#20 shipped in `ee653e4`** with `GET /profile` deriving gold from the
+      rendered root-CV trace, keeping pending mined claims as cool-grey reserve, stripping
+      rejected/negative claims from the profile payload, and returning the server-owned floored
+      `factCount`. The real `/profile` screen now replaces #17's placeholder with Sorted + canvas
+      Constellation views, neutral source text, visible keyboard star controls, and restored dialog
+      focus. Gates green: `pnpm test`, `pnpm typecheck`, `pnpm build`, focused Playwright profile
+      spec 5/5, plus desktop/mobile visual screenshots with a nonblank canvas-pixel check. Frontier
+      now {#26, #27, #37}; #11 remains open as the parent spec/frontier marker.
       Also `03fede9`: `concurrency: deploy-main` on the deploy job, so two
       pushes can't race and land the older build last (see `AI/Projects/SHARED_INFRA.md` — this repo
       shares a Fly + Cloudflare account with `vitacairn`; owner backlog is #32).
