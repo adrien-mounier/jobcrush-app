@@ -70,7 +70,9 @@ describe("E5 stub providers (#12)", () => {
     const added = listAdRequirements().filter((ad) => NEW_CURATED_AD_IDS.includes(ad.adId));
     expect(added).toHaveLength(NEW_CURATED_AD_IDS.length);
     const scores = added.map((ad) => matchTick(STRONG_SENIOR_IT_PM, ad));
-    expect(Math.min(...scores)).toBeGreaterThanOrEqual(70);
+    // #26's coherent clause fit plus deduplicated relevant-evidence breadth puts the current
+    // curated minimum at 83; pin that honest floor so scorer drift cannot hide behind slack.
+    expect(Math.min(...scores)).toBeGreaterThanOrEqual(83);
     expect(new Set(scores).size).toBeGreaterThanOrEqual(3);
   });
 });

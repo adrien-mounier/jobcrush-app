@@ -16,6 +16,24 @@ const STOPWORDS = new Set([
   "or", "as", "at", "by", "be", "not",
 ]);
 
+const IRREGULAR_ROOT: Record<string, string> = {
+  drove: "drive",
+  held: "hold",
+  led: "lead",
+};
+
+/** Cheap inflection folding so "managed"/"manage" and "risks"/"risk" count as the same evidence.
+ *  This is deliberately not a synonym table: the instant scorer stays explainable and domain-free. */
+function tokenRoot(token: string): string {
+  let root = IRREGULAR_ROOT[token] ?? token;
+  if (root.endsWith("ies") && root.length > 5) root = `${root.slice(0, -3)}y`;
+  else if (root.endsWith("ing") && root.length > 6) root = root.slice(0, -3);
+  else if (root.endsWith("ed") && root.length > 5) root = root.slice(0, -2);
+  else if (root.endsWith("s") && root.length > 4) root = root.slice(0, -1);
+  if (root.endsWith("e") && root.length > 4) root = root.slice(0, -1);
+  return root;
+}
+
 /** Lowercase word tokens, length > 2, common function words stripped — the same shape as
  *  matchPosting's targetWords, reused here for requirement/fact sentences instead of titles. */
 function tokenize(text: string): Set<string> {
@@ -23,7 +41,8 @@ function tokenize(text: string): Set<string> {
     text
       .toLowerCase()
       .split(/[^a-z]+/)
-      .filter((w) => w.length > 2 && !STOPWORDS.has(w)),
+      .filter((w) => w.length > 2 && !STOPWORDS.has(w))
+      .map(tokenRoot),
   );
 }
 
@@ -38,53 +57,123 @@ function overlapCount(a: Set<string>, b: Set<string>): number {
  *  ledger derivation needs the same weights to compute each answer's "+N%" share. */
 export const BAND_WEIGHT: Record<AdRequirement["band"], number> = { must: 3, should: 2, nice: 1 };
 
-/** The union of every fact's tokens. Union-based on purpose: it only ever grows as facts are
- *  added, which is exactly what makes matchTick's carried-risk property (never decreases) hold. */
-function factTokenSet(facts: ScoredFact[]): Set<string> {
-  return tokenize(facts.map((f) => f.text).join(" "));
+/** Keep each fact's evidence separate: unrelated lines must not pool stray words inside one idea.
+ *  Adding a fact only appends a candidate fit, preserving monotonicity. */
+function factTokenSets(facts: ScoredFact[]): Set<string>[] {
+  return facts.map((fact) => tokenize(fact.text));
 }
 
-/** True once the union of confirmed-fact tokens sufficiently overlaps the requirement's tokens.
- *  Short requirements (< 2 meaningful tokens) need only 1 hit; longer ones need 2, so a single
- *  stray shared word ("project") never claims coverage of a whole multi-clause requirement. */
+/** Punctuation and explicit conjunctions mark independently supportable ideas. Prepositional
+ *  phrases stay attached to their governing idea instead of becoming cheap one-token clauses. */
+function requirementClauses(requirement: string): Set<string>[] {
+  const clauses = requirement
+    .split(/\s*(?:[,;:]|\s(?:and|or)\s)\s*/i)
+    .map(tokenize)
+    .filter((tokens) => tokens.size > 0);
+  return clauses.length > 0 ? clauses : [tokenize(requirement)];
+}
+
+/** One clause is decided by one fact. Half its meaningful terms is a full cheap-token hit. */
+function bestClauseFit(clauseTokens: Set<string>, facts: Set<string>[]): number {
+  return facts.reduce(
+    (best, factTokens) =>
+      Math.max(
+        best,
+        Math.min(1, (overlapCount(clauseTokens, factTokens) / clauseTokens.size) * 2),
+      ),
+    0,
+  );
+}
+
+/** Clause fits combine by meaningful-token weight; different clauses may use different facts. */
+function requirementFit(requirement: AdRequirement, facts: Set<string>[]): number {
+  const clauses = requirementClauses(requirement.requirement);
+  const totalTokens = clauses.reduce((sum, tokens) => sum + tokens.size, 0);
+  const weightedFit = clauses.reduce(
+    (sum, tokens) => sum + bestClauseFit(tokens, facts) * tokens.size,
+    0,
+  );
+  return totalTokens === 0 ? 0 : weightedFit / totalTokens;
+}
+
+/** Independent relevant-evidence breadth at ad level. Facts are identified only by the normalized
+ *  tokens they share with this ad, so irrelevant filler cannot manufacture breadth. Each distinct
+ *  relevant signature contributes only its strongest single-fact requirement fit; facts never pool
+ *  to close a clause. The ad-size denominator makes the bonus diminish naturally. */
+function evidenceBreadth(facts: Set<string>[], requirements: AdRequirement[]): number {
+  const relevantTokens = new Set(
+    requirements.flatMap((requirement) =>
+      requirementClauses(requirement.requirement).flatMap((clause) => [...clause]),
+    ),
+  );
+  const uniqueFacts = new Map<string, Set<string>>();
+  for (const fact of facts) {
+    const relevantSignature = [...fact]
+      .filter((token) => relevantTokens.has(token))
+      .sort()
+      .join(" ");
+    if (relevantSignature) uniqueFacts.set(relevantSignature, fact);
+  }
+  const support = [...uniqueFacts.values()].reduce(
+    (sum, fact) =>
+      sum +
+      requirements.reduce(
+        (best, requirement) => Math.max(best, requirementFit(requirement, [fact])),
+        0,
+      ),
+    0,
+  );
+  return support === 0 ? 0 : support / (support + requirements.length);
+}
+
+/** Compatibility seam for one coherent evidence set. Production scoring instead selects the best
+ *  individual confirmed fact independently for each non-trivial clause. */
 export function requirementCovered(requirement: AdRequirement, factTokens: Set<string>): boolean {
-  const reqTokens = tokenize(requirement.requirement);
-  const threshold = Math.min(2, reqTokens.size || 1);
-  return overlapCount(reqTokens, factTokens) >= threshold;
+  return requirementFit(requirement, [factTokens]) === 1;
 }
 
 /**
  * The instant match tick (#19): a deterministic, IO-free 0..100 score against an ad's ranked,
  * band-weighted requirements.
  *
- * Coverage heuristic: band-weighted token overlap. A requirement counts as "covered" once the
- * union of all confirmed facts' words shares enough meaningful tokens with it (requirementCovered
- * above); the score is the covered requirements' weight share of the ad's total weight.
+ * Fit heuristic: split each requirement at textual idea boundaries. Each clause takes its strongest
+ * individual fact; clause fits combine by meaningful-token weight, then the requirement takes its
+ * band weight. A diminishing ad-level breadth term rewards distinct relevant facts without changing
+ * clause closure. Facts never pool tokens within a clause, and an open requirement caps the score
+ * below 100.
  *
- * Conservative by construction: adding a confirmed fact only grows the token union, so a covered
- * requirement can never become uncovered again — the score is monotonic non-decreasing in the
- * fact set, which is the property the unit seam pins.
+ * Conservative by construction: adding a confirmed fact can only preserve or improve each clause's
+ * best fit, so the score is monotonic non-decreasing in the fact set.
  */
 export function matchTick(confirmedFacts: ScoredFact[], adRequirements: AdRequirements): number {
-  const factTokens = factTokenSet(confirmedFacts);
+  const facts = factTokenSets(confirmedFacts);
   let total = 0;
-  let covered = 0;
+  let fit = 0;
+  const requirementFits: number[] = [];
   for (const req of adRequirements.requirements) {
     const weight = BAND_WEIGHT[req.band];
+    const reqFit = requirementFit(req, facts);
     total += weight;
-    if (requirementCovered(req, factTokens)) covered += weight;
+    fit += weight * reqFit;
+    requirementFits.push(reqFit);
   }
-  return total === 0 ? 0 : Math.round((covered / total) * 100);
+  if (total === 0) return 0;
+  const baseFit = fit / total;
+  const breadth = evidenceBreadth(facts, adRequirements.requirements);
+  const score = Math.round((baseFit + (1 - baseFit) * breadth) * 100);
+  return requirementFits.every((reqFit) => reqFit === 1) ? score : Math.min(99, score);
 }
 
-/** The ad's requirements not covered by any confirmed fact, in the ad's own rank (array) order —
+/** The ad's requirements not fully covered by confirmed evidence, in the ad's rank order —
  *  the card's "Where you don't — yet" list. */
 export function uncoveredRequirements(
   confirmedFacts: ScoredFact[],
   adRequirements: AdRequirements,
 ): AdRequirement[] {
-  const factTokens = factTokenSet(confirmedFacts);
-  return adRequirements.requirements.filter((r) => !requirementCovered(r, factTokens));
+  const facts = factTokenSets(confirmedFacts);
+  return adRequirements.requirements.filter(
+    (requirement) => requirementFit(requirement, facts) < 1,
+  );
 }
 
 /** The strongest single fact toward the ad's top "must" requirement (falls back to the top-ranked
