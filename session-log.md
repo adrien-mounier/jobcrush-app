@@ -2,6 +2,30 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-25 (session 32, cont.) — `/orchestrate-team`: closed #37 (tailor ledger decisionSeq)
+
+Resumed a lost Codex `orchestrate-team` run on #37 mid-flight: the backend worker's implementation
+was already in the working tree (uncommitted, green) but the two-axis review had never run. Picked
+up at the review step rather than wiping and restarting — the work was a complete, tested slice, not
+a half-broken attempt.
+
+- **#37 — tailor ledger: `seq` is creation order, so a deck confirm landing after tailor answers
+  still restamps history.** Shipped `769aa6f` (`Closes #37`). Added a separate `decisionSeq` ordinal
+  stamped at decision-time (`confirm`/`edit`/`add`/`answerNegative`) and cleared on `reject`/`reopen`;
+  `seq` keeps creation order for the deck tiering and root CV. The tailor ledger now replays confirmed
+  + negatives merged on `decisionSeq` (falling back to `seq` for hand-built fixtures), recomputing
+  coverage step by step so each line's "still open" count is frozen at the moment that answer landed.
+  Both internal ordinals are redacted from the `/onboarding/deck` payload.
+- **Review + QA:** two-axis review (Standards + Spec) clean — no must-fixes. The one substantive
+  question — whether `edit()` on an already-confirmed claim should bump `decisionSeq` — QA judged
+  correctly handled by `COALESCE`: an edit changes the claim's *text*, not *when it was decided*,
+  and AC1's "confirm/edit" is a first decision on a pending claim (the ticket's own repro). Added an
+  edit-branch test to complete AC1's "confirm/edit" coverage at the API seam; the lost session's
+  test covered only the confirm branch. Gates green: 314 passed / 5 skipped, typecheck green
+  (cache-bypassed). No payload leak.
+- Frontier after #37: **#26**, **#27** remain `ready-for-agent`; #11 stays open as the parent
+  spec/frontier marker.
+
 ## 2026-07-25 (session 32) — `/orchestrate-team` takeover: shipped #20 profile screen
 
 Resumed from `handoff-orchestration-20260725-2.md` with #20 already built but uncommitted after

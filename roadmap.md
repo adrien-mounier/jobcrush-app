@@ -104,6 +104,11 @@ no autonomous submit, no LinkedIn credentials, ever).
       focus. Gates green: `pnpm test`, `pnpm typecheck`, `pnpm build`, focused Playwright profile
       spec 5/5, plus desktop/mobile visual screenshots with a nonblank canvas-pixel check. Frontier
       now {#26, #27, #37}; #11 remains open as the parent spec/frontier marker.
+      **2026-07-25 S32 (cont.) update:** **#37 shipped** (`Closes #37`) — the tailor ledger replays
+      on a separate `decisionSeq` ordinal (decision-time) while `seq` stays creation order, so a deck
+      confirm/edit landing after tailor answers no longer restamps earlier lines' "still open" counts.
+      Two-axis review clean; edit-branch test added to complete AC1 coverage; gates green. Frontier
+      now {#26, #27}; #11 remains the parent spec/frontier marker.
       Also `03fede9`: `concurrency: deploy-main` on the deploy job, so two
       pushes can't race and land the older build last (see `AI/Projects/SHARED_INFRA.md` — this repo
       shares a Fly + Cloudflare account with `vitacairn`; owner backlog is #32).
