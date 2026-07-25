@@ -15,6 +15,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import "../discovery.css";
+import { FactBadge, type FactChipFlight } from "../factbadge";
 import {
   answerDiscovery,
   ensureSession,
@@ -216,7 +217,18 @@ function DiscoveryScreen() {
   // #24: same deferral, for the bare-"no" cancel branch — "Fix that?" unmounts while `correcting`
   // is active (renderAsk shows the re-ask instead), so it isn't in the DOM yet when cancel fires.
   const [focusFixNotice, setFocusFixNotice] = useState(false);
+  // #17 the profile badge: the parent owns the data (the loaded/answered count, monotonically
+  // clamped) and the click origin; FactBadge owns all the motion.
+  const [badgeCount, setBadgeCount] = useState(0);
+  const [fly, setFly] = useState<FactChipFlight | null>(null);
+  // The answered control's rect, captured on the root's capture-phase click/keydown — every answer
+  // handler is triggered BY one of those two, so this is always fresh by the time an answer lands.
+  // Avoids threading a DOMRect through five functions and eleven call sites for a value already
+  // available the same way this screen already stashes other transient per-answer state (typingRef,
+  // seenQuestionsRef): a ref, not a parameter.
+  const flyFromRef = useRef<DOMRect | null>(null);
 
+  const rootRef = useRef<HTMLDivElement>(null);
   const bandRef = useRef<HTMLDivElement>(null);
   const typingSpanRef = useRef<HTMLSpanElement>(null);
   const typingRef = useRef<TypingInfo | null>(null);
@@ -250,7 +262,9 @@ function DiscoveryScreen() {
     setLoadError(null);
     try {
       await ensureSession();
-      setDiscovery(await getDiscovery(jobId ?? undefined));
+      const s = await getDiscovery(jobId ?? undefined);
+      setDiscovery(s);
+      setBadgeCount((c) => Math.max(c, s.factCount)); // the monotone clamp, at every write
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "couldn't load your progress");
     }
@@ -394,12 +408,18 @@ function DiscoveryScreen() {
   // (#24 AC1) instead of leaving it to the normal next-question auto-focus.
   function applyAnswerResult(
     next: DiscoveryState,
+    rawAnswer: string,
     answeredItemId?: string,
-    rawAnswer?: string,
     isCorrection?: boolean,
   ) {
     finalizeInFlight();
     setFreeAnswer("");
+    // #17: unconditional — factCount grows on a bare "no" too (no new CV line, but the pile still
+    // grows), and FactBadge's own guard (fly only if it actually exceeds what's shown) makes a
+    // correction's zero-delta a silent no-op, so this needs no branching here. `flyFromRef` was set
+    // by the root's capture-phase click/keydown that triggered this very call.
+    setBadgeCount((c) => Math.max(c, next.factCount));
+    if (flyFromRef.current) setFly({ rect: flyFromRef.current, label: rawAnswer });
     const prevIds = new Set((discovery?.cvLines ?? []).map((l) => l.itemId));
     const newLine = next.cvLines.find((l) => !prevIds.has(l.itemId)) ?? null;
 
@@ -437,9 +457,13 @@ function DiscoveryScreen() {
   // see (design-1b-spec §1A: "applyAnswerResult's new-line diff would miss it"). Re-types the line
   // in place when its text actually changed; a same-option re-pick (or a positive corrected away
   // to a "no", which isn't a flow this slice's spec designs a notice for) just syncs state quietly.
-  function applyCorrectionResult(itemId: string, next: DiscoveryState) {
+  function applyCorrectionResult(itemId: string, next: DiscoveryState, rawAnswer: string) {
     finalizeInFlight();
     setFreeAnswer("");
+    // #17: same unconditional attempt as applyAnswerResult — a correction is normally a zero-delta
+    // no-op (FactBadge's own guard), built as specified rather than special-cased away.
+    setBadgeCount((c) => Math.max(c, next.factCount));
+    if (flyFromRef.current) setFly({ rect: flyFromRef.current, label: rawAnswer });
     const updatedLine = next.cvLines.find((l) => l.itemId === itemId);
     const prevText = discovery?.cvLines.find((l) => l.itemId === itemId)?.text;
 
@@ -485,9 +509,9 @@ function DiscoveryScreen() {
       if (!hadLine && hasLine) {
         // A no -> positive correction is a brand-new line — the normal floor-answer path, but
         // still a correction commit (#24 AC1: focus returns to it once typed).
-        applyAnswerResult(next, itemId, answer, true);
+        applyAnswerResult(next, answer, itemId, true);
       } else {
-        applyCorrectionResult(itemId, next);
+        applyCorrectionResult(itemId, next, answer);
       }
     } catch (e) {
       setAskError(e instanceof Error ? e.message : "could not save that — try again");
@@ -503,7 +527,7 @@ function DiscoveryScreen() {
     setAskError(null);
     setPromiseLoading(true);
     try {
-      applyAnswerResult(await startDiscovery(role));
+      applyAnswerResult(await startDiscovery(role), role);
     } catch (e) {
       setAskError(e instanceof Error ? e.message : "could not save that — try again");
     } finally {
@@ -519,7 +543,7 @@ function DiscoveryScreen() {
     setNotice(null);
     setLastNo(null); // the undo reaches one question past a "no" (design-1b-spec §3), then clears
     try {
-      applyAnswerResult(await answerDiscovery(item.itemId, answer), item.itemId, answer);
+      applyAnswerResult(await answerDiscovery(item.itemId, answer), answer, item.itemId);
     } catch (e) {
       setAskError(e instanceof Error ? e.message : "could not save that — try again");
     } finally {
@@ -915,7 +939,22 @@ function DiscoveryScreen() {
   }
 
   return (
-    <div className="discovery">
+    <div
+      className="discovery"
+      ref={rootRef}
+      // #17: captures the answered control's rect for the badge's flying chip, once per screen, on
+      // the root — every answer handler below is triggered BY one of these two, so `flyFromRef` is
+      // always fresh by the time an answer lands (M2: replaces threading a DOMRect through 5
+      // functions and 11 call sites).
+      onClickCapture={(e) => {
+        flyFromRef.current = (
+          (e.target as HTMLElement).closest("button,textarea,input") ?? (e.target as HTMLElement)
+        ).getBoundingClientRect();
+      }}
+      onKeyDownCapture={(e) => {
+        flyFromRef.current = (e.target as HTMLElement).getBoundingClientRect();
+      }}
+    >
       <div aria-live="polite" className="sr-only">
         {liveMessage}
       </div>
@@ -934,6 +973,7 @@ function DiscoveryScreen() {
         <>
           <div className="topbar">
             <span className="wordmark">JobCrush</span>
+            <FactBadge count={badgeCount} fly={fly} rootRef={rootRef} />
           </div>
 
           {discovery.role !== null && discovery.essentialRemaining > 0 && (

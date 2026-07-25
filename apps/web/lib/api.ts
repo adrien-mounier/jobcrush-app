@@ -193,6 +193,7 @@ export interface DiscoveryState {
   railFill: Record<CvSection, number>; // 0..1 per section
   essentialRemaining: number; // the countdown
   cvLines: DiscoveryCvLine[]; // role lead line first, then answered lines — for resume
+  factCount: number; // #17's profile badge count — every recorded answer, a "no" included, never decreases
 }
 
 // jobId (#18, AC6): when a CV was uploaded via the front-door shortcut, the server composes a
@@ -270,6 +271,47 @@ export interface WantCardResult {
 
 export function wantCard(adId: string): Promise<WantCardResult> {
   return jfetch(`/api/onboarding/cards/${encodeURIComponent(adId)}/want`, { method: "POST" });
+}
+
+// --- #23 tailor (screen 3): re-score, the live card, and the exits ---
+// Every field below is server-composed (matchtick.ts) — matchPct never decreases, the fit/dontYet/
+// askedClosed lists carry a requirement between them (the ?->check flip), and ledger/bubble text is
+// rendered verbatim, never re-derived here. cvLines is the same shape discovery already sends.
+
+export interface TailorQuestion {
+  requirementId: string;
+  question: string;
+  options: string[]; // may be empty — a free-text question, same convention as discovery
+}
+
+export interface TailorLedgerEntry {
+  requirementId: string;
+  text: string;
+}
+
+export interface TailorState {
+  card: JobCard;
+  questions: TailorQuestion[]; // empty ⇒ the ending
+  ledger: TailorLedgerEntry[];
+  cvLines: DiscoveryCvLine[];
+  closedGaps: { closed: number; asked: number };
+  done: boolean;
+  factCount: number; // #17's profile badge count, on the tailor screen too
+}
+
+export function getTailor(): Promise<TailorState> {
+  return jfetch("/api/onboarding/tailor");
+}
+
+export function answerTailor(requirementId: string, answer: string): Promise<TailorState> {
+  return jfetch("/api/onboarding/tailor/answer", {
+    method: "POST",
+    body: JSON.stringify({ requirementId, answer }),
+  });
+}
+
+export function dropTailor(): Promise<{ stage: "deck" }> {
+  return jfetch("/api/onboarding/tailor/drop", { method: "POST" });
 }
 
 // --- E2 auth (magic-link) ---

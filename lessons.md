@@ -2,6 +2,46 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## A green test suite proved nothing twice in one session — both times it looked thorough
+
+S28 shipped two tickets, and in each one a *passing* suite was hiding the defect.
+
+**(1) A route-level mock can assert the behaviour the server doesn't have.** #23's
+`tailor.spec.ts` fixture declared `bubble.open: "Nothing they ask for is still open."` when
+`dontYet` was empty — the *correct* behaviour. The real server passed the bubble through
+un-recomputed, so after a "no" the card permanently headlined the requirement the visitor had just
+declined. The mock encoded the intent, the server contradicted it, and unit + e2e were both green.
+**Every spec in `apps/web/e2e` mocks at the route layer, so no amount of them can catch a
+fixture/server divergence.** The only thing that did was QA driving the real stack. Remedy now in
+the repo: `apps/web/e2e/tailor-journey.mjs` and `factbadge-journey.mjs` — real-stack drivers, no
+mocks. Keep them running and add one per screen; when a fixture and the server disagree, they are
+the only witness.
+
+**(2) A test can drive the one path where the feature doesn't fire.** #17's test was named *"…and
+the chip actually flies"* and drove the 0→1 first answer — the single case where the badge didn't
+exist yet, so no chip was ever created. It asserted only the accessible name, which the chipless
+fallback satisfied. **Deleting the entire ~40-line chip implementation left the whole suite green.**
+Remedy: before trusting a new test, **delete the code it covers and watch it fail.** That check
+found both this and the fixture bug above, and it costs one revert-run-restore cycle. Both devs now
+report it as proof; ask for it.
+
+## `turbo run build` silently strips env vars the task doesn't declare
+
+Setting `API_URL=… npx turbo run build` does **not** reach Next: `turbo.json` declares no `env` for
+`build`, so turbo strips it and the default `http://127.0.0.1:3001` gets baked into the routes
+manifest. The stack then looks healthy — two servers, two 200s — while the web app proxies `/api/*`
+to a dead port. Run `npx next build` directly in `apps/web` when overriding an env for local QA, and
+**verify by fetching through the web app's own `/api/*` proxy**, never by checking two independent
+200s. The deploy path is unaffected (`Dockerfile.web` sets `ENV API_URL=$API_URL` and builds via
+`pnpm --filter`, not turbo) — this is a local-QA trap only.
+
+## This machine hosts a second project on the same accounts and the same default ports
+
+`vitacairn` sits beside this repo under `AI/Projects`, deploys to the **same Fly and Cloudflare
+accounts**, and defaults its API to **3000** and its web to **3001** — exactly overlapping ours. Both
+web apps proxy `/api/*` to `127.0.0.1:3000` by default, so with both running one project's frontend
+silently talks to the other's backend and returns plausible nonsense. Use distinctive high ports for
+any local drive. Full inventory, rules, and the port recipe: `C:/Users/adrie/AI/Projects/SHARED_INFRA.md`.
 ## To judge whether two sessions can run in parallel, ask which NEW files each ticket must create
 
 The dependency graph tells you build *order*; it says nothing about two sessions colliding. The sharp

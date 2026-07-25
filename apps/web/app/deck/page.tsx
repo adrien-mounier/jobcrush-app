@@ -23,6 +23,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import "../deck.css";
+import { CardBody, useReducedMotion } from "../jobcard";
 import { ensureSession, getCards, requestLink, setStage, wantCard, type JobCard } from "../../lib/api";
 
 type Screen = "loading" | "error" | "empty" | "reveal" | "wall" | "deck" | "tailorHandoff" | "loopback";
@@ -32,10 +33,6 @@ const L1 = "Lining up your jobs…";
 const E1 = "Couldn't line up your jobs.";
 const Z1 = "No matches yet.";
 const Z2 = "Answer a few more questions and I'll widen the net.";
-const H1 = "Where you fit";
-const H2 = "Where you don't — yet";
-const H3 = "Asked and closed";
-const A1 = "Read the ad in full";
 
 // #22 the account wall at the reveal — copy per design-22-wall.md §3 (deck-context copy, never the
 // S2 /signup draft copy, even where the strings happen to be close).
@@ -56,7 +53,6 @@ const SWIPE_MS = 340;
 const LOOPBACK_COPY = "I scored the three closest — tell me more and I'll widen the net";
 const WANT_UNKNOWN = "That job is no longer available. Pick another one.";
 const WANT_FAILED = "Couldn't start tailoring this job — try again.";
-const TAILOR_LIVE = "Tailoring this job.";
 
 function sentBody(email: string): string {
   return `We sent a sign-in link to ${email}. It expires in 15 minutes.`;
@@ -64,18 +60,6 @@ function sentBody(email: string): string {
 
 function revealText(n: number): string {
   return n === 1 ? "1 job just matched you" : `${n} jobs just matched you`;
-}
-
-function useReducedMotion() {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const sync = () => setReduced(media.matches);
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, []);
-  return reduced;
 }
 
 function isUnknownCardError(error: unknown) {
@@ -105,6 +89,9 @@ export default function DeckPage() {
   const yesButtonRef = useRef<HTMLButtonElement>(null);
   const focusNextHeadingRef = useRef(false);
   const focusYesAfterErrorRef = useRef(false);
+  // #23: latches the tailor handoff navigation so a re-run of this effect can never fire
+  // router.push twice for the same handoff (discovery's own deckNavigatedRef precedent).
+  const tailorNavigatedRef = useRef(false);
 
   const load = useCallback(async () => {
     setScreen("loading");
@@ -181,10 +168,24 @@ export default function DeckPage() {
     yesButtonRef.current?.focus();
   }, [deckError, screen]);
 
+  // #23: the handoff copy stays up as a brief sub-second bridge (mirroring discovery's own
+  // deck-handoff, discovery/page.tsx:302-313), then this navigates. Drop the TAILOR_LIVE announce —
+  // /tailor's own entry effect gives the one polite announce, so announcing here too would double it
+  // (discovery's stated reason for not announcing on its side). Deviation from the spec's "mirror
+  // discovery exactly": discovery's bridge also skips the local focus call, but deck.spec.ts's
+  // "shows the Tailor handoff" test pins `heading).toBeFocused()` on this exact screen — kept it to
+  // honor that pinned regression test; see the session report for the full conflict note.
   useEffect(() => {
     if (screen !== "tailorHandoff") return;
     tailorHeadingRef.current?.focus();
-  }, [screen]);
+    const t = setTimeout(() => {
+      if (!tailorNavigatedRef.current) {
+        tailorNavigatedRef.current = true;
+        router.push("/tailor");
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [screen, router]);
 
   // #22: the single, easily-moved gate — a signed-in visitor never sees the wall.
   const onSeeThem = useCallback(() => {
@@ -233,7 +234,6 @@ export default function DeckPage() {
     setSwipeStatus("committing");
     const result = await wanted;
     if (result.ok) {
-      setLiveMessage(TAILOR_LIVE);
       setScreen("tailorHandoff");
       return;
     }
@@ -451,30 +451,11 @@ function WallPanel({
   );
 }
 
-function ScoreRing({ pct }: { pct: number }) {
-  const r = 28;
-  const c = 2 * Math.PI * r;
-  return (
-    <div className="score lg" role="img" aria-label={`${pct}% match`}>
-      <svg viewBox="0 0 64 64" aria-hidden="true">
-        <circle className="bg" cx={32} cy={32} r={r} />
-        <circle className="fg" cx={32} cy={32} r={r} strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
-      </svg>
-      <span className="n">
-        {pct}
-        <span className="pct">%</span>
-      </span>
-    </div>
-  );
-}
-
 function shouldIgnoreSwipeStart(target: EventTarget) {
   if (!(target instanceof Element)) return true;
   return !!target.closest("button,a,summary,input,textarea,select,details.ad[open]");
 }
 
-// The card anatomy (AC4): title -> meta -> ring, then the highlight bubble, then the three
-// ranked lists, then the ad folded shut last. 2b adds only the swipe stamps and footer controls.
 function JobCardView({
   card,
   deckError,
@@ -494,8 +475,6 @@ function JobCardView({
   swipeStatus: SwipeStatus;
   yesButtonRef: RefObject<HTMLButtonElement | null>;
 }) {
-  const metaLine1 = [card.company, card.place].filter(Boolean).join(" · ");
-  const metaLine2 = [card.salary, card.pattern].filter(Boolean).join(" · ");
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ x0: number; y0: number; dx: number; live: boolean; pointerId: number | null } | null>(
@@ -577,75 +556,7 @@ function JobCardView({
         Not for me
       </span>
       <div className="jcbody">
-        <div className="hd">
-          <div className="t">
-            <h2 tabIndex={-1} ref={headingRef}>
-              {card.title}
-            </h2>
-            {metaLine1 && (
-              <p className="co">
-                {metaLine1}
-                {metaLine2 && (
-                  <>
-                    <br />
-                    {metaLine2}
-                  </>
-                )}
-              </p>
-            )}
-          </div>
-          <ScoreRing pct={card.matchPct} />
-        </div>
-
-        <div className="bubble">
-          <p>
-            {card.bubble.hit} <span className="gap">{card.bubble.open}</span>
-          </p>
-        </div>
-
-        <div className="flat">
-          {card.fit.length > 0 && (
-            <>
-              <h3>{H1}</h3>
-              {card.fit.map((f) => (
-                <div className="row fit" key={f.id}>
-                  <span className="mk">✓</span>
-                  <span>{f.text}</span>
-                </div>
-              ))}
-            </>
-          )}
-          {/* Already server-ranked (uncoveredRequirements) — render in array order, no re-rank. */}
-          {card.dontYet.length > 0 && (
-            <>
-              <h3>{H2}</h3>
-              {card.dontYet.map((r) => (
-                <div className="row open" key={r.id}>
-                  <span className="mk">?</span>
-                  <span>{r.requirement}</span>
-                </div>
-              ))}
-            </>
-          )}
-          {/* Omitted when empty — no discovery "no" recorded yet is the common 2a case, but a
-              session that already closed one before reaching the deck still shows it here. */}
-          {card.askedClosed.length > 0 && (
-            <>
-              <h3>{H3}</h3>
-              {card.askedClosed.map((f) => (
-                <div className="row settled" key={f.id}>
-                  <span className="mk">·</span>
-                  <span>{f.text}</span>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
-
-        <details className="ad">
-          <summary>{A1}</summary>
-          <p>{card.adExcerpt}</p>
-        </details>
+        <CardBody card={card} headingRef={headingRef} />
       </div>
       {deckError && (
         <p className="deckerr" role="alert">
