@@ -550,13 +550,23 @@ interface JobCard {
   adExcerpt: string;
 }
 
-/** Pure composition, no LLM: matchtick.ts scores + ranks, this just shapes the pinned JobCard. */
+/** Pure composition, no LLM: matchtick.ts scores + ranks, this just shapes the pinned JobCard.
+ *  #29: the negative-filter lives HERE, not in the tailor assembly. A requirement answered "no" while
+ *  tailoring is asked-and-closed on every surface that renders this ad — spec #37, "the list of open
+ *  things only ever shrinks". #23 applied it in the tailor assembly alone, deliberately, to keep #19's
+ *  deck payload byte-identical while that shipped; both callers want it now, so it moves down to the
+ *  shared function rather than being duplicated in each. For an ad the visitor never tailored the set
+ *  is empty (tailorClaimId is scoped by adId), so those cards are unchanged. */
 function buildJobCard(
   posting: Posting,
   adReq: AdRequirements,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
 ): JobCard {
+  const negativeIds = negativeRequirementIds(adReq, negatives);
+  const dontYet = uncoveredRequirements(confirmed, adReq)
+    .filter((r) => !negativeIds.has(r.id))
+    .map((r) => ({ id: r.id, band: r.band, requirement: r.requirement }));
   return {
     adId: posting.id,
     title: posting.title,
@@ -565,13 +575,15 @@ function buildJobCard(
     salary: null,
     pattern: null,
     matchPct: matchTick(confirmed, adReq),
-    bubble: { hit: pickHitClause(confirmed, adReq), open: pickOpenClause(confirmed, adReq) },
+    // #23 D1, now shared: pickOpenClause is negative-blind (it only knows the ad/coverage relation),
+    // so it can keep naming a requirement the visitor just declined. Take the open clause from the
+    // already-filtered dontYet instead — same fallback as pickOpenClause's own.
+    bubble: {
+      hit: pickHitClause(confirmed, adReq),
+      open: dontYet[0]?.requirement ?? NOTHING_OPEN_CLAUSE,
+    },
     fit: confirmed.map((c) => ({ id: c.id, text: c.text })),
-    dontYet: uncoveredRequirements(confirmed, adReq).map((r) => ({
-      id: r.id,
-      band: r.band,
-      requirement: r.requirement,
-    })),
+    dontYet,
     askedClosed: negatives.map((c) => ({ id: c.id, text: c.text })),
     adExcerpt: posting.excerpt,
   };
@@ -616,11 +628,10 @@ function buildTailorState(
   const matchPct = Math.max(matchTick(confirmed, adReq), floorPct);
   const questions = tailorQuestions(adReq, confirmed, negatives);
   const { ledger, closedGaps } = buildTailorLedger(adReq, confirmed, negatives);
+  // B1 (a "no" closes the gap too, spec #37/#38) and D1 (the bubble's gap clause rewrites with it)
+  // are both buildJobCard's job as of #29 — the deck card needs the same guarantee, so the filter
+  // moved into the shared function instead of being applied here on top.
   const card = buildJobCard(posting, adReq, confirmed, negatives);
-  // B1: a "no" closes the gap too (spec #37/#38, "the open list only ever shrinks") — uncoveredRequirements
-  // (shared with #19's untouched deck) doesn't know about negatives, so subtract them here on top.
-  const negativeIds = negativeRequirementIds(adReq, negatives);
-  const dontYet = card.dontYet.filter((r) => !negativeIds.has(r.id));
 
   // B2: "the CV below" must include tailor's own answers, not just discovery's — discoveryCvLines is
   // the narrow slice of discoveryState's work this needs (no railFill/essentialRemaining/questions
@@ -630,14 +641,8 @@ function buildTailorState(
   const discoveryLines = role ? discoveryCvLines(role, loadFamilyFloor(resolveFamily(role).family).items, confirmed) : [];
   const cvLines = [...discoveryLines, ...tailorCvLines(adReq, confirmed)];
 
-  // D1 (AC2): the bubble's gap clause must rewrite when a "no" closes the last open gap, same as
-  // dontYet does — card.bubble.open came from buildJobCard's own pickOpenClause, which is negative-
-  // blind by design (see B1), so it can keep naming a requirement the visitor just declined. Recompute
-  // it from the already negative-filtered dontYet instead of calling pickOpenClause a second time.
-  const bubble = { ...card.bubble, open: dontYet[0]?.requirement ?? NOTHING_OPEN_CLAUSE };
-
   return {
-    card: { ...card, matchPct, dontYet, bubble },
+    card: { ...card, matchPct },
     questions,
     ledger,
     cvLines,
