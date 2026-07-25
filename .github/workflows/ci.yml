@@ -23,6 +23,10 @@ jobs:
   deploy-staging:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: test
+    # Serialize deploys: two pushes minutes apart (normal with parallel agent sessions) would
+    # otherwise race and could land the OLDER build last — a live site quietly running stale code.
+    # No cancel-in-progress: an in-flight deploy finishes, the next one waits its turn.
+    concurrency: deploy-main
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
