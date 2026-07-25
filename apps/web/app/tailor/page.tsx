@@ -183,8 +183,11 @@ export default function TailorPage() {
       setScreen("flow");
     } catch (e) {
       const code = typeof e === "object" && e !== null && "code" in e ? (e as { code?: string }).code : undefined;
-      if (code === "no_tailor_target") {
-        router.push("/deck");
+      // #30: a signed-out visitor hits this on direct load (no session yet to carry a tailor target).
+      // /deck already walls the reveal for an unauthed visitor (its own onSeeThem gate) — same
+      // destination as no_tailor_target, not a new one.
+      if (code === "no_tailor_target" || code === "login_required") {
+        router.replace("/deck"); // never leave /tailor in history — it would just redirect forward again
         return;
       }
       setScreen("error");

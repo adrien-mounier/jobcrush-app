@@ -127,6 +127,27 @@ async function stubDrop(page: Page) {
   });
 }
 
+test("#30 a signed-out visitor opening /tailor directly is routed to the deck, then the wall — never stuck on a retry-only error", async ({
+  page,
+}) => {
+  await stubSession(page);
+  await page.route("**/api/onboarding/tailor", async (route) => {
+    await route.fulfill({
+      status: 401,
+      json: { error: { code: "login_required", message: "sign in first" } },
+    });
+  });
+  await page.route("**/api/onboarding/cards", async (route) => {
+    await route.fulfill({ json: { cards: [CARD_FIRST], authed: false } });
+  });
+
+  await page.goto("/tailor");
+
+  await page.waitForURL("/deck");
+  await page.getByRole("button", { name: "See them" }).click();
+  await expect(page.getByRole("link", { name: "Continue with Google" })).toBeVisible();
+});
+
 test("the first question already offers \"I'm done — use this CV\"", async ({ page }) => {
   await openTailor(page, STATE_FIRST);
 
