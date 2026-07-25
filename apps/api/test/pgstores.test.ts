@@ -99,6 +99,27 @@ for (const [name, make] of sessionDrivers) {
       expect(got?.tailorAdId).toBeNull();
     });
 
+    // #31 — drop() nulls tailorAdId, but the floor is keyed to tailorFloorAdId (the ad it was earned
+    // on), not to tailorAdId — so a drop + re-swipe of the SAME card must not zero the floor either.
+    it("drop + re-swipe the SAME ad keeps its floor (#31)", async () => {
+      const s = await store.create();
+      await store.setTailorTarget(s.id, "ad-1");
+      await store.raiseTailorFloor(s.id, 65);
+      await store.clearTailorTarget(s.id);
+      expect((await store.getById(s.id))?.tailorAdId).toBeNull(); // 409-after-drop still depends on this
+      await store.setTailorTarget(s.id, "ad-1");
+      expect((await store.getById(s.id))?.tailorFloorPct).toBe(65);
+    });
+
+    it("drop then swiping a DIFFERENT ad still starts that ad fresh, no floor carried over (#31)", async () => {
+      const s = await store.create();
+      await store.setTailorTarget(s.id, "ad-1");
+      await store.raiseTailorFloor(s.id, 65);
+      await store.clearTailorTarget(s.id);
+      await store.setTailorTarget(s.id, "ad-2");
+      expect((await store.getById(s.id))?.tailorFloorPct).toBe(0);
+    });
+
     it("touch doesn't throw and keeps the row", async () => {
       const s = await store.create();
       await store.touch(s.id);

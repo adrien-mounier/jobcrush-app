@@ -550,3 +550,51 @@ describe("#23 POST /onboarding/tailor/drop", () => {
     expect(res.json()).toEqual({ stage: "deck" });
   });
 });
+
+// #31 AC1 at the layer the visitor actually reads — card.matchPct over HTTP, not the stored floor
+// (pgstores.test.ts pins the column on both drivers; this pins that it reaches the screen).
+// The correction is the discriminator: re-answering the SAME requirement "No" flips its claim
+// negative, so the raw tick falls and only a surviving floor can hold the number. Pre-#31 this exact
+// journey read 19% → 0%; the plain drop → re-swipe → GET alone would pass either way, because the
+// tick is recomputed from claims the drop never touched.
+describe("#31 the visible % survives drop + re-swipe of the same job", () => {
+  it("holds the earned % through drop → re-swipe → a correction that lowers the raw tick", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    await reachTailor(app, cookie, "floor-survives-drop@example.com");
+    const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
+    const q = s0.questions[0];
+
+    const earned = (
+      await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" })
+    ).json().card.matchPct;
+    expect(earned).toBeGreaterThan(s0.card.matchPct); // the % was really earned
+
+    await post(app, cookie, "/onboarding/tailor/drop");
+    await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`); // swipe right on the same card again
+    const resumed = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(resumed.card.matchPct).toBeGreaterThanOrEqual(earned);
+
+    const corrected = (
+      await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })
+    ).json();
+    expect(corrected.card.matchPct).toBeGreaterThanOrEqual(earned);
+  });
+
+  it("a DIFFERENT job after a drop is scored on its own merits — no floor carried over", async () => {
+    const { app, sessions } = buildServer();
+    const cookie = await anonSession(app);
+    await reachTailor(app, cookie, "other-job-no-floor@example.com");
+    const q = (await get(app, cookie, "/onboarding/tailor")).json().questions[0];
+    await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" });
+    await post(app, cookie, "/onboarding/tailor/drop");
+
+    const other = (await get(app, cookie, "/onboarding/cards")).json().cards.find(
+      (c: { adId: string }) => c.adId !== VALID_AD_ID,
+    );
+    await post(app, cookie, `/onboarding/cards/${other.adId}/want`);
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect((await sessions.getById(me.json().id as string))?.tailorFloorPct).toBe(0);
+    expect((await get(app, cookie, "/onboarding/tailor")).json().card.matchPct).toBe(other.matchPct);
+  });
+});

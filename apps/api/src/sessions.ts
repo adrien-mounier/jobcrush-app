@@ -20,9 +20,13 @@ export interface SessionRecord {
   tailorAdId: string | null;
   /** #23 the monotonic re-score floor for the current tailor target: the highest match tick ever
    *  posted this job, so a correction/"no" can never make the visible % regress. setTailorTarget
-   *  resets it to 0 only when the ad actually changes — re-entering the SAME job (drop + re-swipe)
-   *  keeps its floor, so leaving and returning can never regress the visible % either (D2). */
+   *  resets it to 0 only when the ad actually changes — keyed to tailorFloorAdId below (#31), so
+   *  re-entering the SAME job, drop + re-swipe included, keeps its floor (D2). */
   tailorFloorPct: number;
+  /** #31 the ad tailorFloorPct was earned on. Keyed separately from tailorAdId because drop
+   *  (clearTailorTarget) nulls tailorAdId but must NOT forget whose floor this is — re-swiping the
+   *  same ad after a drop compares against this, not against tailorAdId, so the floor survives. */
+  tailorFloorAdId: string | null;
 }
 
 export interface SessionStore {
@@ -55,6 +59,7 @@ function newSession(): SessionRecord {
     stage: "deck",
     tailorAdId: null,
     tailorFloorPct: 0,
+    tailorFloorAdId: null,
   };
 }
 
@@ -98,11 +103,11 @@ export class InMemorySessionStore implements SessionStore {
     const s = this.byId.get(id);
     if (s) {
       s.stage = "tailor";
-      // D2: only a genuinely NEW ad starts fresh — re-targeting the ad already in progress keeps
-      // its floor, or the visible % can regress. This does NOT cover drop → re-swipe the same card:
-      // clearTailorTarget nulls tailorAdId first, so that path still resets. Not visitor-reachable
-      // (matchTick is monotonic in the confirmed set and the UI never re-asks) — see #31.
-      if (s.tailorAdId !== adId) s.tailorFloorPct = 0;
+      // #31: the floor is keyed to tailorFloorAdId, not tailorAdId — drop nulls tailorAdId, but the
+      // floor earned on this ad must survive a drop + re-swipe of the SAME ad. Only a genuinely
+      // different ad resets it.
+      if (s.tailorFloorAdId !== adId) s.tailorFloorPct = 0;
+      s.tailorFloorAdId = adId;
       s.tailorAdId = adId;
     }
   }
@@ -136,12 +141,20 @@ CREATE TABLE IF NOT EXISTS sessions (
   target_titles      jsonb NOT NULL DEFAULT '[]',
   stage              text NOT NULL DEFAULT 'deck',
   tailor_ad_id       text,
-  tailor_floor_pct   integer NOT NULL DEFAULT 0
+  tailor_floor_pct   integer NOT NULL DEFAULT 0,
+  tailor_floor_ad_id text
 )`;
 
 const SESSIONS_ALTERS = [
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tailor_ad_id text",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tailor_floor_pct integer NOT NULL DEFAULT 0",
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tailor_floor_ad_id text",
+  // #31 backfill (deviates from this file's plain ADD COLUMN idiom, deliberately): without it, a
+  // live session mid-tailor gets tailor_floor_ad_id = NULL on this deploy, and NULL = $2 is unknown
+  // in SQL — not false — so setTailorTarget's CASE falls to ELSE 0 on the very next re-swipe, zeroing
+  // the floor once for every in-flight session. Idempotent and inert after the first run: post-change
+  // setTailorTarget always writes both columns together, so this WHERE can never match again.
+  "UPDATE sessions SET tailor_floor_ad_id = tailor_ad_id WHERE tailor_floor_ad_id IS NULL AND tailor_ad_id IS NOT NULL",
 ];
 
 function toSession(r: Record<string, unknown>): SessionRecord {
@@ -156,6 +169,7 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     stage: (r.stage as OnboardingStage) ?? "deck",
     tailorAdId: (r.tailor_ad_id as string) ?? null,
     tailorFloorPct: (r.tailor_floor_pct as number) ?? 0,
+    tailorFloorAdId: (r.tailor_floor_ad_id as string) ?? null,
   };
 }
 
@@ -194,12 +208,15 @@ export class PgSessionStore implements SessionStore {
     await this.pool.query(`UPDATE sessions SET stage = $2 WHERE id = $1`, [id, stage]);
   }
   async setTailorTarget(id: string, adId: string): Promise<void> {
-    // D2: tailor_ad_id on the right of the CASE reads the PRE-update row (standard SQL: every SET
-    // expression in one UPDATE sees the old row, not siblings' new values) — so this resets the floor
-    // only when the ad is actually changing, and keeps it when re-targeting the same one.
+    // #31: tailor_floor_ad_id on the right of the CASE reads the PRE-update row (standard SQL: every
+    // SET expression in one UPDATE sees the old row, not siblings' new values) — so this resets the
+    // floor only when the ad the floor was earned on is actually changing. Keyed to tailor_floor_ad_id
+    // (not tailor_ad_id) so a drop (which nulls tailor_ad_id) doesn't lose the floor on re-swipe.
+    // NULL = $2 is unknown, not false, so it also falls to ELSE 0 — correct for a first-ever target,
+    // which is exactly why the backfill in SESSIONS_ALTERS exists for rows that predate this column.
     await this.pool.query(
-      `UPDATE sessions SET stage = 'tailor', tailor_ad_id = $2,
-         tailor_floor_pct = CASE WHEN tailor_ad_id = $2 THEN tailor_floor_pct ELSE 0 END
+      `UPDATE sessions SET stage = 'tailor', tailor_ad_id = $2, tailor_floor_ad_id = $2,
+         tailor_floor_pct = CASE WHEN tailor_floor_ad_id = $2 THEN tailor_floor_pct ELSE 0 END
        WHERE id = $1`,
       [id, adId],
     );
