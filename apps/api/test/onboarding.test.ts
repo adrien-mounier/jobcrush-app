@@ -225,6 +225,66 @@ describe("JC-21/27/31 onboarding deck → build loop", () => {
     expect(body2.rootCv.markdown).toContain("Led the checkout replatform, delivered 2 months early.");
   });
 
+  // #36: discovery answers land in the same claim store before the wall — the deck's old "seed only
+  // if empty" guard never fired on a real journey, so the miner's claims were never seeded.
+  it("seeds the mined claims alongside a session's prior discovery answers, without clobbering them (#36)", async () => {
+    const server = buildServer({ pipeline: fakePipeline() });
+    const cookie = await startSession(server.app);
+
+    // A discovery answer lands in the store before the deck is ever opened.
+    await server.app.inject({
+      method: "POST",
+      url: "/onboarding/discovery/start",
+      headers: { cookie },
+      payload: { role: "Product Manager" },
+    });
+    await server.app.inject({
+      method: "POST",
+      url: "/onboarding/discovery/answer",
+      headers: { cookie },
+      payload: { itemId: "budget-accountability", answer: "Yes, over $1M" },
+    });
+
+    const jobId = await mineAndGetJob(server, cookie);
+    const deck = await server.app.inject({
+      method: "POST",
+      url: "/onboarding/deck",
+      headers: { cookie },
+      payload: { jobId },
+    });
+    expect(deck.statusCode).toBe(200);
+    const claims = deck.json().claims as Array<{ id: string; decision: string }>;
+    const ids = claims.map((c) => c.id).sort();
+    // Both the discovery answer and every mined claim are present — the bug dropped the mined ones.
+    expect(ids).toEqual(
+      ["acme-led-migration", "cert-pmp", "discovery-budget-accountability", "skill-jira"].sort(),
+    );
+    const discoveryClaim = claims.find((c) => c.id === "discovery-budget-accountability")!;
+    expect(discoveryClaim.decision).toBe("confirmed"); // its prior decision, untouched by the seed
+
+    // Decide a MINED claim, then re-run the deck. This is the assertion that actually exercises
+    // seed()'s idempotency: seed() is called with the mined list, so a re-seed could clobber this
+    // decision — a discovery id is never in that list and so can never prove anything here.
+    await server.app.inject({
+      method: "POST",
+      url: "/onboarding/claims/acme-led-migration/reject",
+      headers: { cookie },
+    });
+
+    const again = await server.app.inject({
+      method: "POST",
+      url: "/onboarding/deck",
+      headers: { cookie },
+      payload: { jobId },
+    });
+    const claimsAgain = again.json().claims as Array<{ id: string; decision: string }>;
+    expect(claimsAgain.map((c) => c.id).sort()).toEqual(ids);
+    expect(claimsAgain.find((c) => c.id === "acme-led-migration")!.decision).toBe("rejected");
+    expect(claimsAgain.find((c) => c.id === "discovery-budget-accountability")!.decision).toBe(
+      "confirmed",
+    );
+  });
+
   it("the deck is session-scoped: another session cannot open your job", async () => {
     const server = buildServer({ pipeline: fakePipeline() });
     const mine = await startSession(server.app);

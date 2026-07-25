@@ -113,14 +113,18 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         if (!job || job.sessionId !== session.id)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown job" } });
 
-        // Idempotent: seed only if this session has no claims yet, so decisions survive a reopen.
-        if ((await deps.claims.list(session.id)).length === 0) {
-          const mined = (job.progress.miner as { claims?: CandidateClaim[] } | undefined)?.claims;
-          if (!mined?.length)
-            return reply
-              .status(409)
-              .send({ error: { code: "not_ready", message: "claims not mined yet" } });
+        // #36: seed whenever mined claims are available — NOT only when the store is empty. Discovery
+        // answers land in this same store, before the wall, so "empty" almost never holds by the time a
+        // real visitor reaches the deck; gating on it meant the miner's claims were silently never
+        // seeded. seed() is already idempotent on both drivers (ON CONFLICT DO NOTHING / Map guard), so
+        // re-running this is safe and never clobbers an existing decision — including a discovery one.
+        const mined = (job.progress.miner as { claims?: CandidateClaim[] } | undefined)?.claims;
+        if (mined?.length) {
           await deps.claims.seed(session.id, mined);
+        } else if ((await deps.claims.list(session.id)).length === 0) {
+          return reply
+            .status(409)
+            .send({ error: { code: "not_ready", message: "claims not mined yet" } });
         }
         // #28: `seq` is an internal ordering ordinal, not payload — on Postgres it's a table-global
         // bigserial, so leaking it would disclose the delta in OTHER sessions' write volume between
