@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-07-25_
+_Last updated: 2026-07-26_
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
@@ -118,6 +118,16 @@ no autonomous submit, no LinkedIn credentials, ever).
       Also `03fede9`: `concurrency: deploy-main` on the deploy job, so two
       pushes can't race and land the older build last (see `AI/Projects/SHARED_INFRA.md` — this repo
       shares a Fly + Cloudflare account with `vitacairn`; owner backlog is #32).
+      **2026-07-26 S34 update:** **#26 implemented in `62e8a81`** — the match tick now scores
+      clause-level coherent evidence, so unrelated facts cannot pool words to satisfy one
+      requirement, while distinct relevant evidence can still improve the overall fit. Score and
+      gap explanations share the same coverage decision; an open requirement caps the display at
+      99. The exact 20-ad × 3-CV taste-test matrix has zero inversions, including OKX, and
+      1,740 adversarial monotonicity checks pass. Two-axis review and live-stack QA are clean.
+      The closest ordering is Hire Feed at 78 vs 76, so future E5 semantic-scoring work should
+      strengthen that margin without changing this deterministic fallback's honesty guarantees.
+      Closing #26 empties the build-ticket frontier for #11; final full-journey QA is the remaining
+      closeout gate.
       **2026-07-25 S28 (parallel lane):** closed session 25's deferred OAuth-failure return path —
       `/auth/google?from=` + an allowlisted `jc_oauth_from` cookie now land a failed Google trip back on
       `/deck?login=…` instead of `/signup`, lighting up the branch #22 left inert. Filed the two #14

@@ -2,6 +2,25 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-26 (session 34) — `/orchestrate-team`: #26 fit-weighted match scorer
+
+- **#26 — coherent, fit-weighted evidence.** Implemented in `62e8a81` (`Closes #26`). Requirements
+  are split into meaningful clauses; each clause is judged against one best coherent fact, while
+  separate clauses may use separate facts. A small ad-level breadth term rewards distinct relevant
+  evidence without letting duplicate or filler-modified facts inflate the score. Score and
+  uncovered-gap text now share one `requirementFit` decision, and any open requirement caps the
+  displayed score at 99.
+- **Taste-test contract.** Restored the exact 20-ad × 3-CV matrix behind #26 as a checked-in fixture.
+  All 60 comparisons order strong > average > weak with zero inversions; OKX separates 47 / 24 / 21.
+  Facts added one at a time never reduce the score across 1,740 adversarial checks. The closest
+  remaining margin is Hire Feed at 78 / 76 / 19, a known lexical-heuristic limitation for future
+  E5 scoring work rather than a hidden claim of semantic understanding.
+- **Review + QA:** both Standards and Spec re-reviews passed with no findings after fixing two
+  honesty defects they exposed: 100% alongside an open gap, and filler variants inflating evidence
+  breadth. QA GO: 344 tests passed / 5 skipped, typecheck 7/7, build 5/5, focused scorer/caller
+  tests 87/87, and the existing live deck Playwright journey 7/7. #26 is the final build ticket
+  under #11, so the spec-level full-journey pass is the remaining closeout step.
+
 ## 2026-07-26 (session 33) — `/orchestrate-team`: closed #27 (curated first-card pool)
 
 - **#27 — launch-safe first card.** Shipped `b553b3e` (`Closes #27`). Grew the hand-maintained

@@ -1,5 +1,16 @@
 # Lessons — jobcrush-app
 
+## A score and its explanation must share one coverage decision
+
+The first #26 implementation could display 100 while listing the same requirement as still open:
+the numeric score and the gap list had independently drifted into different ideas of “covered.”
+The same review also exposed a subtler inflation path: whole-fact deduplication treated
+filler-modified copies as fresh evidence.
+
+Compute coverage once and reuse it everywhere the product explains that coverage. If breadth is
+rewarded separately, deduplicate by the evidence relevant to the ad—not by the full input string—
+so irrelevant wording cannot manufacture a higher fit score.
+
 ## A one-item ordering exception is not a new sort tier
 
 #27 needed one launch-safe card to open the deck, whose normal rule is best match first. Sorting by
