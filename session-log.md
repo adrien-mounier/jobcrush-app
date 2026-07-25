@@ -13,6 +13,40 @@ Seventh build session on the #11 frontier. Claimed **[#23](https://github.com/ad
 - **Follow-ups filed:** [#28](https://github.com/adrien-mounier/jobcrush-app/issues/28) (ledger restamps historical open counts), [#29](https://github.com/adrien-mounier/jobcrush-app/issues/29) (a Tailor-declined requirement still shows open on the deck card — the price of keeping `buildJobCard` byte-identical for #19), [#30](https://github.com/adrien-mounier/jobcrush-app/issues/30) (`/tailor` signed-out dead-ends on a 401 instead of the wall), [#31](https://github.com/adrien-mounier/jobcrush-app/issues/31) (match floor still lost on drop → re-swipe; not visitor-reachable until in-tailor correction ships), [#33](https://github.com/adrien-mounier/jobcrush-app/issues/33) (**badge can shrink** — `factCount` needs server-side monotonicity; reachable via an S2 deck reject).
 - **Cross-project infra review (owner-requested, mid-session).** `jobcrush-app` and `vitacairn` share **one Fly account and one Cloudflare account**. Hosted resources don't collide (distinct app/DB/bucket names), but **local dev ports do** — both APIs default to 3000 and both web proxies target `127.0.0.1:3000`, so one project's frontend can silently reach the other's backend. Wrote `AI/Projects/SHARED_INFRA.md` (inventory, rules, port recipe) and summarised the three critical rules in the shared `AI/Projects/CLAUDE.md`. Shipped the one code fix: `concurrency: deploy-main` on the deploy job (`03fede9`) so two pushes can't race and land the older build last — jobcrush lacked it, vitacairn already had it. Owner backlog as [#32](https://github.com/adrien-mounier/jobcrush-app/issues/32): set a spending alert, and verify vitacairn's Fly token is app-scoped (jobcrush's already is).
 - **Next session:** **#20 (profile screen — Sorted + Constellation)** is the last screen ticket on #11 and is now genuinely unblocked — #17 built the `/profile` route it replaces. Closing it empties the spec's frontier, which triggers the **full-journey QA pass** across all four screens. The five follow-ups (#28–#31, #33) are independent and small; **#33 is the one with real UX weight** (the badge is specified to only ever grow).
+## 2026-07-25 (session 28) — parallel lane: the OAuth failure return path + filed the #14 follow-ups
+
+Ran alongside a live `/orchestrate-team` session (worktree `session-26-tailor-badge`, claiming #23
+Tailor + #17 badge). Picked work on **provably disjoint trees** rather than the only open ticket:
+**#20 is the one thing that must NOT be built in parallel** — #17 has to create
+`apps/web/app/profile/page.tsx` as its tap target (its AC5) and that file *is* #20, so both sessions
+would write the same new file. No `/orchestrate-team` here: a one-file server fix does not need a
+designer or a QA gate.
+
+- **Closed session 25's deferred OAuth limitation.** Every Google failure redirected to
+  `/signup?login=…`, while the `?login=` handler in `apps/web/app/deck/page.tsx` sat **inert**,
+  commented as waiting for the server to thread a return-to. Now `/auth/google` takes `?from=`, keeps it
+  in a second short-lived cookie (`jc_oauth_from`, same opts as the state cookie), and the callback's
+  two failure redirects use it — so a failed/cancelled trip started at the deck wall lands on
+  `/deck?login=expired|error` and keeps the reveal it already showed. Success path
+  (`/auth/verify?oauth=ok`) untouched.
+- **Why a second cookie, not the `state` param.** The return-to never goes to Google, so packing it into
+  the state cookie would have meant a split-and-reparse plus editing 4 passing CSRF tests. A sibling
+  cookie left the state/CSRF logic byte-identical.
+- **Open-redirect guard.** `returnPath()` is an **allowlist** (`/deck`, `/signup`), not an "is it a
+  path?" regex — `//evil.com` passes most such checks. Validated on the way out *and* re-validated from
+  the cookie on the way back, so a forged `jc_oauth_from` falls back to `/signup`. This is the same bug
+  class session 25's review caught on the `jc_return` stash.
+- **Filed the two #14 follow-ups**, grounded in the report's measured numbers:
+  **[#26](https://github.com/adrien-mounier/jobcrush-app/issues/26)** fit-weighted scorer (the
+  token-*union* rank inversions: MRI strong 47 vs average 60; the flat OKX 27) — flagged
+  **not to be built concurrently with #23**, which asserts on tick numbers; and
+  **[#27](https://github.com/adrien-mounier/jobcrush-app/issues/27)** curated first-card pool (only
+  **3** ad-requirement sets exist, which is why the deck exhausts almost immediately).
+- **Verification:** `pnpm test` 228 passed / 5 skipped (auth.test.ts 21 → 24), `pnpm typecheck` 7/7,
+  `pnpm build` 5/5. The 3 new tests cover the `/deck` return, the unconfigured-Google return, and the
+  open-redirect refusal from both directions. Not driven in a live browser — the frontend branch it
+  lights up was already QA'd in session 25 and this change does not alter it.
+- **Next session:** #20 unblocks once #17 lands. #26 wants the taste-test matrix re-run as its ruler.
 
 ## 2026-07-25 (session 27) - `close-session`: context sync check + tracker handoff
 

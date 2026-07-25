@@ -42,6 +42,21 @@ accounts**, and defaults its API to **3000** and its web to **3001** — exactly
 web apps proxy `/api/*` to `127.0.0.1:3000` by default, so with both running one project's frontend
 silently talks to the other's backend and returns plausible nonsense. Use distinctive high ports for
 any local drive. Full inventory, rules, and the port recipe: `C:/Users/adrie/AI/Projects/SHARED_INFRA.md`.
+## To judge whether two sessions can run in parallel, ask which NEW files each ticket must create
+
+The dependency graph tells you build *order*; it says nothing about two sessions colliding. The sharp
+test is **which new files each ticket has to create**, because two worktrees writing the same new file
+means the loser's version vanishes at merge with no conflict marker to warn you. S28 ran beside an
+`/orchestrate-team` on #23 + #17 and the only open ticket was #20 — which looks independent (none of
+its six ACs mention the badge) but is the **worst** possible parallel pick: #17's AC5 forces it to
+create `apps/web/app/profile/page.tsx`, and that file is #20's entire deliverable. Conversely, a
+"blocked" ticket's *documented deferred limitation* is often the safest parallel work available: it is
+already scoped, already reviewed, and lives in files nobody is editing. Check the previous session's
+"deferred limitations" notes before concluding there is nothing parallel-safe to do.
+
+Related trap: a *semantic* collision needs no shared file. #26 (rescore `matchtick.ts`) touches nothing
+#23 touches, but #23's ACs assert on the numbers the tick produces — changing them under a session
+writing those tests breaks it in a way git cannot flag.
 
 ## A future screen can be unblocked by a durable handoff, not a full route
 

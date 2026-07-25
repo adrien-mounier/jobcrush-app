@@ -68,6 +68,18 @@ no autonomous submit, no LinkedIn credentials, ever).
       to only ever grow)**. Also `03fede9`: `concurrency: deploy-main` on the deploy job, so two
       pushes can't race and land the older build last (see `AI/Projects/SHARED_INFRA.md` — this repo
       shares a Fly + Cloudflare account with `vitacairn`; owner backlog is #32).
+      **2026-07-25 S28 (parallel lane):** closed session 25's deferred OAuth-failure return path —
+      `/auth/google?from=` + an allowlisted `jc_oauth_from` cookie now land a failed Google trip back on
+      `/deck?login=…` instead of `/signup`, lighting up the branch #22 left inert. Filed the two #14
+      follow-ups: [#26](https://github.com/adrien-mounier/jobcrush-app/issues/26) fit-weighted scorer
+      (**do not build concurrently with #23** — it asserts on tick numbers) and
+      [#27](https://github.com/adrien-mounier/jobcrush-app/issues/27) curated first-card pool (only 3 ad
+      sets exist today). **#20 must not be built while #17 is in flight** — #17 creates `/profile` as its
+      tap target, which is #20's own file. **Cleared 2026-07-25: #17 shipped in `3895f27`, so #20 is now
+      safe to claim** — it replaces the thin `/profile` placeholder #17 left behind (headline + one line +
+      Back, deliberately nothing to tear out). #26's "not concurrently with #23" caveat is also cleared —
+      #23 shipped in `8091b89`, so the fit-weighted scorer now only has to re-baseline that ticket's
+      committed tick assertions rather than race a session writing them.
 - [ ] **S3 — The hunt** — gate-pass triggers cluster grounding + first hunt; real tailored cards
       within the hour; swipe; Apply → prepared-apply package (PDF + screening answers + deep link).
       Epics: E5 cluster engine (JC-33/34/35), E6 feed + hunt (JC-36…40), E7 swipe + prepared apply

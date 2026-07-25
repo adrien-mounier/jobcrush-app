@@ -15,6 +15,13 @@ import { googleAuthUrl, googleConfigured, googleEmailFromCode } from "../oauth.j
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 const TOKEN_TTL_MS = 15 * 60 * 1000;
 const OAUTH_STATE_COOKIE = "jc_oauth_state";
+const OAUTH_FROM_COOKIE = "jc_oauth_from";
+// Where a failed/cancelled Google round-trip lands. An allowlist, not a "does it look like a path?"
+// pattern: only two screens start an OAuth trip, and an allowlist can't be talked into an open
+// redirect (`//evil.com` passes most path checks). Add a path here when a third door opens.
+const RETURN_PATHS = new Set(["/deck", "/signup"]);
+const returnPath = (from: unknown) =>
+  typeof from === "string" && RETURN_PATHS.has(from) ? from : "/signup";
 
 export interface AuthDeps {
   auth: AuthStore;
@@ -117,32 +124,44 @@ export function authRoutes(deps: AuthDeps) {
     const googleRedirectUri = `${deps.webUrl || "http://localhost:3000"}/api/auth/google/callback`;
     const exchange = deps.googleEmail ?? googleEmailFromCode;
 
-    app.get("/auth/google", async (_req, reply) => {
-      if (!googleConfigured() && !deps.googleEmail)
-        return reply.redirect(`/signup?login=error`);
-      // Short-lived CSRF token: set here, echoed back by Google, checked on callback.
-      const state = randomBytes(16).toString("base64url");
-      reply.setCookie(OAUTH_STATE_COOKIE, state, {
-        path: "/",
-        httpOnly: true,
-        sameSite: "lax",
-        secure: cookieSecure,
-        maxAge: 600,
-      });
-      return reply.redirect(googleAuthUrl(googleRedirectUri, state));
-    });
+    const oauthCookie = {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax" as const,
+      secure: cookieSecure,
+      maxAge: 600,
+    };
+
+    app.get(
+      "/auth/google",
+      { schema: { querystring: z.object({ from: z.string().optional() }) } },
+      async (req, reply) => {
+        // Remember which door the visitor came through so a failure lands back there rather than on
+        // /signup — the /deck wall keeps the reveal it already showed. Never sent to Google.
+        const from = returnPath(req.query.from);
+        if (!googleConfigured() && !deps.googleEmail) return reply.redirect(`${from}?login=error`);
+        // Short-lived CSRF token: set here, echoed back by Google, checked on callback.
+        const state = randomBytes(16).toString("base64url");
+        reply.setCookie(OAUTH_STATE_COOKIE, state, oauthCookie);
+        reply.setCookie(OAUTH_FROM_COOKIE, from, oauthCookie);
+        return reply.redirect(googleAuthUrl(googleRedirectUri, state));
+      },
+    );
 
     app.get(
       "/auth/google/callback",
       { schema: { querystring: z.object({ code: z.string().optional(), state: z.string().optional() }) } },
       async (req, reply) => {
         const saved = req.cookies?.[OAUTH_STATE_COOKIE];
+        // Re-validated, not trusted: a tampered cookie falls back to /signup like an absent one.
+        const from = returnPath(req.cookies?.[OAUTH_FROM_COOKIE]);
         reply.clearCookie(OAUTH_STATE_COOKIE, { path: "/" });
+        reply.clearCookie(OAUTH_FROM_COOKIE, { path: "/" });
         // CSRF: the state cookie must match the state Google echoed back.
         if (!saved || !req.query.state || saved !== req.query.state || !req.query.code)
-          return reply.redirect(`/signup?login=expired`);
+          return reply.redirect(`${from}?login=expired`);
         const email = await exchange(req.query.code, googleRedirectUri);
-        if (!email) return reply.redirect(`/signup?login=expired`);
+        if (!email) return reply.redirect(`${from}?login=expired`);
 
         // Claim the browser's anonymous session (its preview rides along); a visitor who somehow
         // arrives without one still gets logged in on a fresh session.

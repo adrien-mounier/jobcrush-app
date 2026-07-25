@@ -220,4 +220,48 @@ describe("E2 auth — Google OAuth", () => {
     const me = await server.app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     expect(me.json().claimedByUserId).toBeNull();
   });
+
+  // The #22 return path: a failed round-trip started at the /deck wall lands back on the wall (which
+  // already showed the reveal) instead of dumping the visitor on /signup.
+  it("a failure returns to the door the trip started at (?from=/deck)", async () => {
+    const server = buildServer({ googleEmail: async () => null });
+    const cookie = await anonSession(server.app);
+    const start = await server.app.inject({
+      method: "GET",
+      url: "/auth/google?from=/deck",
+      headers: { cookie },
+    });
+    const state = start.cookies.find((c) => c.name === "jc_oauth_state")!.value;
+    expect(start.cookies.find((c) => c.name === "jc_oauth_from")?.value).toBe("/deck");
+
+    const cb = await server.app.inject({
+      method: "GET",
+      url: `/auth/google/callback?code=bad&state=${state}`,
+      headers: { cookie: `${cookie}; jc_oauth_state=${state}; jc_oauth_from=/deck` },
+    });
+    expect(cb.headers.location).toBe("/deck?login=expired");
+  });
+
+  it("an unconfigured Google also returns to the starting door", async () => {
+    const server = buildServer(); // no googleEmail, no GOOGLE_CLIENT_ID
+    const res = await server.app.inject({ method: "GET", url: "/auth/google?from=/deck" });
+    expect(res.headers.location).toBe("/deck?login=error");
+  });
+
+  it("an off-allowlist return path is refused, never redirected to (open-redirect guard)", async () => {
+    const server = buildServer({ googleEmail: async () => null });
+    // Both doors: the query param on the way out…
+    const start = await server.app.inject({ method: "GET", url: "/auth/google?from=//evil.com" });
+    expect(start.headers.location).toContain("accounts.google.com");
+    expect(start.cookies.find((c) => c.name === "jc_oauth_from")?.value).toBe("/signup");
+
+    // …and a hand-forged cookie on the way back.
+    const state = start.cookies.find((c) => c.name === "jc_oauth_state")!.value;
+    const cb = await server.app.inject({
+      method: "GET",
+      url: `/auth/google/callback?code=bad&state=${state}`,
+      headers: { cookie: `jc_oauth_state=${state}; jc_oauth_from=https://evil.com` },
+    });
+    expect(cb.headers.location).toBe("/signup?login=expired");
+  });
 });
