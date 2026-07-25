@@ -109,6 +109,12 @@ no autonomous submit, no LinkedIn credentials, ever).
       confirm/edit landing after tailor answers no longer restamps earlier lines' "still open" counts.
       Two-axis review clean; edit-branch test added to complete AC1 coverage; gates green. Frontier
       now {#26, #27}; #11 remains the parent spec/frontier marker.
+      **2026-07-26 S33 update:** **#27 shipped in `b553b3e`** — the hand-maintained curated pool grew
+      from 3 to 8 real posting-backed requirement sets; all five additions score as believable strong
+      fits (72–94) against the documented senior IT-PM profile. `curated` is explicit but defaults
+      false for legacy v0 payloads, the API promotes only the best curated opener and score-sorts the
+      remainder, and the marker stays internal. Two-axis re-review clean; full gates + live deck e2e
+      7/7 green. Frontier now {#26}; #11 remains the parent spec/frontier marker.
       Also `03fede9`: `concurrency: deploy-main` on the deploy job, so two
       pushes can't race and land the older build last (see `AI/Projects/SHARED_INFRA.md` — this repo
       shares a Fly + Cloudflare account with `vitacairn`; owner backlog is #32).

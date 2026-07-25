@@ -2,6 +2,24 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-26 (session 33) — `/orchestrate-team`: closed #27 (curated first-card pool)
+
+- **#27 — launch-safe first card.** Shipped `b553b3e` (`Closes #27`). Grew the hand-maintained
+  ad-requirement pool from 3 to 8 real posting-backed sets and made `curated` explicit at the
+  non-frozen E5 stub boundary. Legacy v0 payloads default to `curated:false`; every checked-in set
+  declares the decision explicitly. The reveal promotes only the highest-scoring curated opener,
+  then preserves score order across the rest of the deck; the internal marker never reaches the
+  public `JobCard`.
+- **Hand-check + regression evidence.** The five new sets score 81 / 84 / 72 / 76 / 94 against the
+  documented strong senior IT-PM profile. The fixture test pins a believable-fit floor and a
+  non-flat distribution without snapshotting exact scores that #26 is expected to change. HTTP
+  coverage proves all 8 sets join to real postings and a second card remains after the opener.
+- **Review + QA:** the two-axis review caught three must-fixes before commit: breaking v0 compatibility,
+  unreproducible score evidence, and promoting the whole curated pool instead of one opener. Both
+  re-review axes passed clean. QA GO: 334 tests passed / 5 skipped, typecheck 7/7, build 5/5, and
+  live `apps/web/e2e/deck.spec.ts` 7/7. Frontier after #27: **#26** remains; #11 stays open as the
+  parent spec/frontier marker, so no final full-journey QA was due.
+
 ## 2026-07-25 (session 32, cont.) — `/orchestrate-team`: closed #37 (tailor ledger decisionSeq)
 
 Resumed a lost Codex `orchestrate-team` run on #37 mid-flight: the backend worker's implementation

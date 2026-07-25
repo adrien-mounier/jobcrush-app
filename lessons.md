@@ -1,5 +1,16 @@
 # Lessons — jobcrush-app
 
+## A one-item ordering exception is not a new sort tier
+
+#27 needed one launch-safe card to open the deck, whose normal rule is best match first. Sorting by
+`curated` and then by score looked natural, but it promoted **every** curated card ahead of every
+uncurated one. Once the wide pool arrived, a mediocre curated card could outrank a 99% ordinary
+match — a much larger product change than the ticket asked for.
+
+When a ranked list has a single exceptional position, **sort by the canonical rule first, extract
+the one exceptional item, then insert it at that position**. Test with a mixed pool where the
+exception is not already first; an all-exception fixture makes the regression assertion vacuous.
+
 ## Two CSS rules at equal specificity: load order silently decides the winner
 
 `.profile { position: relative }` (`profile.css`) collapsed the whole #20 screen to 0px because it
