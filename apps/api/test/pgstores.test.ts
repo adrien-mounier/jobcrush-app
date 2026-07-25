@@ -221,5 +221,38 @@ for (const [name, make] of claimDrivers) {
       expect(await store.confirmed(sid)).toEqual([]);
       expect((await store.list(sid))[0].decision).toBe("pending");
     });
+
+    // #28 — tailor.ts's ledger replays confirmed()+negatives() as one merged answer order via `seq`,
+    // so both drivers must agree: it's a plain number, strictly increasing in the order each record
+    // was FIRST created (add/answerNegative/seed), and a later correction must NOT bump it.
+    describe("seq — the monotonic answer-order ordinal (#28)", () => {
+      it("is a number, strictly increasing across add() calls in call order", async () => {
+        await store.add(sid, claim({ id: "a" }));
+        await store.add(sid, claim({ id: "b" }));
+        const [a, b] = (await store.list(sid)).sort((x, y) => x.id.localeCompare(y.id));
+        expect(typeof a.seq).toBe("number");
+        expect(typeof b.seq).toBe("number");
+        expect(b.seq!).toBeGreaterThan(a.seq!);
+      });
+
+      it("interleaves confirmed and negative answers in the order they actually landed", async () => {
+        await store.add(sid, claim({ id: "yes-1" })); // lands 1st
+        await store.answerNegative(sid, claim({ id: "no-1" })); // lands 2nd
+        await store.add(sid, claim({ id: "yes-2" })); // lands 3rd
+        const merged = [...(await store.confirmed(sid)), ...(await store.negatives(sid))].sort(
+          (x, y) => x.seq! - y.seq!,
+        );
+        expect(merged.map((c) => c.id)).toEqual(["yes-1", "no-1", "yes-2"]);
+      });
+
+      it("a correction (re-answer of the same id) keeps its ORIGINAL seq, not a bumped one", async () => {
+        await store.answerNegative(sid, claim({ id: "grill-1" }));
+        const before = (await store.negatives(sid))[0]!.seq;
+        await store.add(sid, claim({ id: "other" })); // a later, unrelated answer — bumps the counter
+        await store.add(sid, claim({ id: "grill-1" })); // corrects grill-1: negative -> confirmed
+        const after = (await store.confirmed(sid)).find((c) => c.id === "grill-1")!.seq;
+        expect(after).toBe(before); // unchanged — the correction didn't move it to "just now"
+      });
+    });
   });
 }

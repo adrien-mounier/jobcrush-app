@@ -13,6 +13,18 @@ export type ClaimOrigin = "mined" | "user-authored";
 export interface ClaimRecord extends CandidateClaim {
   decision: ClaimDecision;
   origin: ClaimOrigin;
+  /** #28: a monotonic per-session ordinal — the order this claim's answer was FIRST RECORDED, so a
+   *  derived view (tailor.ts's buildTailorLedger) can replay confirmed() and negatives() — two
+   *  separately-ordered lists — as ONE true answer order instead of stamping every line from today's
+   *  totals. PgClaimStore's `seq` bigserial column already backs list/confirmed/negatives' own
+   *  `ORDER BY seq`; this just surfaces it on the record. Optional: a couple of pre-existing test
+   *  fixtures (grill.test.ts, discovery.test.ts) hand-construct ClaimRecords bypassing the store and
+   *  have no reason to carry one — every record made through seed/add/answerNegative always gets one.
+   *  ponytail: `seq` is CREATION order, not decision order — confirm()/edit()/reject()/reopen() (and
+   *  their Pg twins) deliberately never touch it, so a mined claim seeded long ago and confirmed just
+   *  now still replays at its seed position. Upgrade path if that bites: a separate decision-time
+   *  ordinal, bumped only by confirm/add/answerNegative, not seed. */
+  seq?: number;
 }
 
 export interface ClaimStore {
@@ -39,6 +51,9 @@ export interface ClaimStore {
 
 export class InMemoryClaimStore implements ClaimStore {
   private bySession = new Map<string, Map<string, ClaimRecord>>();
+  // #28: per-session seq counter — mirrors PgClaimStore's bigserial (a single always-increasing
+  // ordinal), scoped per session since the in-memory driver has no shared table to serialize against.
+  private seqCounters = new Map<string, number>();
 
   async init(): Promise<void> {}
 
@@ -51,11 +66,19 @@ export class InMemoryClaimStore implements ClaimStore {
     return m;
   }
 
+  private nextSeq(sessionId: string): number {
+    const n = (this.seqCounters.get(sessionId) ?? 0) + 1;
+    this.seqCounters.set(sessionId, n);
+    return n;
+  }
+
   async seed(sessionId: string, claims: CandidateClaim[]): Promise<void> {
     const m = this.forSession(sessionId);
     // Idempotent: never clobber an existing claim's decision on re-seed (matches PgClaimStore's
     // ON CONFLICT DO NOTHING — the store-contract test pins the two drivers together).
-    for (const c of claims) if (!m.has(c.id)) m.set(c.id, { ...c, decision: "pending", origin: "mined" });
+    for (const c of claims) {
+      if (!m.has(c.id)) m.set(c.id, { ...c, decision: "pending", origin: "mined", seq: this.nextSeq(sessionId) });
+    }
   }
 
   async list(sessionId: string): Promise<ClaimRecord[]> {
@@ -86,10 +109,16 @@ export class InMemoryClaimStore implements ClaimStore {
   }
 
   async add(sessionId: string, claim: CandidateClaim): Promise<void> {
-    this.forSession(sessionId).set(claim.id, {
+    const m = this.forSession(sessionId);
+    // #28: a correction (re-answer of the same id) keeps its ORIGINAL seq — same as PgClaimStore's
+    // upsert, whose ON CONFLICT SET list never touches `seq` — so the ledger's answer order reflects
+    // when the question was first landed, not when it was last corrected.
+    const seq = m.get(claim.id)?.seq ?? this.nextSeq(sessionId);
+    m.set(claim.id, {
       ...claim,
       decision: "confirmed",
       origin: "user-authored",
+      seq,
     });
   }
 
@@ -98,10 +127,13 @@ export class InMemoryClaimStore implements ClaimStore {
   }
 
   async answerNegative(sessionId: string, claim: CandidateClaim): Promise<void> {
-    this.forSession(sessionId).set(claim.id, {
+    const m = this.forSession(sessionId);
+    const seq = m.get(claim.id)?.seq ?? this.nextSeq(sessionId);
+    m.set(claim.id, {
       ...claim,
       decision: "negative",
       origin: "user-authored",
+      seq,
     });
   }
 
@@ -128,6 +160,10 @@ CREATE TABLE IF NOT EXISTS claims (
   PRIMARY KEY (session_id, id)
 )`;
 
+// Insert columns only — `seq` is never listed (bigserial auto-assigns it). Every READ, by contrast,
+// must include `seq`: all five below are `SELECT *`, but a future projected read that drops it would
+// make toClaim's `Number(undefined)` -> NaN, and a NaN comparator silently degrades a `.sort()` to
+// input order with no error (#28).
 const CLAIM_COLS =
   "session_id, id, role, text, machine_touch, classification, source_quote, needs_grill, grill_hint, decision, origin";
 
@@ -143,6 +179,9 @@ function toClaim(r: Record<string, unknown>): ClaimRecord {
     grill_hint: (r.grill_hint as string) ?? null,
     decision: r.decision as ClaimDecision,
     origin: r.origin as ClaimOrigin,
+    // #28: bigserial reads back as a string (pg avoids silent precision loss past 2^53) — session
+    // seq counts never get remotely close, so a plain Number() is safe.
+    seq: Number(r.seq),
   };
 }
 

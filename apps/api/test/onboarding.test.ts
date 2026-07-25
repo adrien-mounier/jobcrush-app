@@ -168,6 +168,26 @@ describe("JC-21/27/31 onboarding deck → build loop", () => {
     expect(tierById["acme-reworded"]).toBe("individual");
   });
 
+  // #28 MUST-FIX: ClaimRecord grew an internal `seq` ordinal (the store's monotonic answer order,
+  // for tailor.ts's ledger replay) — the route has no response schema to strip it, so a naive
+  // `{ ...c, tier }` spread would leak it onto the wire. On Postgres `seq` is a TABLE-GLOBAL
+  // bigserial, so it'd disclose the delta in OTHER sessions' write volume between two of a visitor's
+  // own requests — pin it off, not just fix it once.
+  it("the deck payload never carries the internal `seq` ordinal (#28)", async () => {
+    const server = buildServer({ pipeline: fakePipeline() });
+    const cookie = await startSession(server.app);
+    const jobId = await mineAndGetJob(server, cookie);
+    const deck = await server.app.inject({
+      method: "POST",
+      url: "/onboarding/deck",
+      headers: { cookie },
+      payload: { jobId },
+    });
+    const claims = deck.json().claims as Array<Record<string, unknown>>;
+    expect(claims.length).toBeGreaterThan(0); // sanity: there's something that COULD leak it
+    for (const c of claims) expect(Object.prototype.hasOwnProperty.call(c, "seq")).toBe(false);
+  });
+
   it("build audits mined wording but never user-authored words, and a dead auditor never blocks (decision #6)", async () => {
     const server = buildServer({
       pipeline: fakePipeline(),

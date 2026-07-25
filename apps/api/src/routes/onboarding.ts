@@ -122,10 +122,14 @@ export function onboardingRoutes(deps: OnboardingDeps) {
               .send({ error: { code: "not_ready", message: "claims not mined yet" } });
           await deps.claims.seed(session.id, mined);
         }
-        const claims = (await deps.claims.list(session.id)).map((c) => ({
-          ...c,
-          tier: claimTier(c.machine_touch),
-        }));
+        // #28: `seq` is an internal ordering ordinal, not payload — on Postgres it's a table-global
+        // bigserial, so leaking it would disclose the delta in OTHER sessions' write volume between
+        // two of a visitor's own requests. Strip it before it reaches the wire (prior art: server.ts's
+        // job-progress redaction, sessions.ts's token redaction).
+        const claims = (await deps.claims.list(session.id)).map((c) => {
+          const { seq: _seq, ...safe } = c;
+          return { ...safe, tier: claimTier(c.machine_touch) };
+        });
         return { stage: session.stage, claims };
       },
     );

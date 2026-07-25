@@ -28,6 +28,10 @@ const AD: AdRequirements = {
 };
 const [OWN_BUDGET, LEAD_TEAM, CERTIFICATION] = AD.requirements as [AdRequirement, AdRequirement, AdRequirement];
 
+// #28: buildTailorLedger reads answer order off ClaimRecord.seq — a module-level counter so calls
+// made earlier in a test (JS evaluates arguments left-to-right) land with a lower seq, same as the
+// real store assigning it at answer time.
+let seqCounter = 0;
 const claimFor = (
   adId: string,
   req: AdRequirement,
@@ -44,6 +48,7 @@ const claimFor = (
   grill_hint: null,
   decision,
   origin: "user-authored",
+  seq: ++seqCounter,
 });
 const yesClaim = (req: AdRequirement) => claimFor(AD.adId, req, "Yes", "confirmed");
 const noClaim = (req: AdRequirement) => claimFor(AD.adId, req, "No", "negative");
@@ -159,11 +164,59 @@ describe("#23 buildTailorLedger", () => {
     );
   });
 
-  // #23 B1 regression: every negative answered so far must be excluded from "still open", not just
-  // the most recent one — otherwise "closed 2 of 3" and "N still open" can both lie simultaneously.
-  it("B1: 'still open' subtracts EVERY recorded negative, not just the line's own requirement", () => {
+  // #23 B1 regression: every negative answered so far (up to and including the one this line is
+  // about) must be excluded from "still open" — otherwise "closed 2 of 3" and "N still open" can
+  // both lie simultaneously. Post-#28, "so far" means AT THAT ANSWER'S OWN LANDING TIME, so the two
+  // lines below now differ (own-budget landed first, when 2 were still open; lead-team second, when
+  // only 1 was) — see the #28 describe block below for the regression this superseded.
+  it("B1: 'still open' subtracts every negative recorded up to and including that answer's own landing", () => {
     const { ledger } = buildTailorLedger(AD, [], [noClaim(OWN_BUDGET), noClaim(LEAD_TEAM)]);
-    for (const line of ledger) expect(line.text).toBe(`asked and closed · 1 still open`); // only certification left
+    expect(ledger.find((l) => l.requirementId === "own-budget")!.text).toBe("asked and closed · 2 still open");
+    expect(ledger.find((l) => l.requirementId === "lead-team")!.text).toBe("asked and closed · 1 still open");
+  });
+});
+
+// #28: buildTailorLedger stamped every "asked and closed" line from the CURRENT open count, computed
+// once before the loop — so rebuilding the ledger after a later "no" landed silently rewrote every
+// EARLIER line too (by session's end every one read "· 0 still open" regardless of when it actually
+// closed). Fix: replay confirmed+negatives merged by ClaimRecord.seq, one answer at a time, and stamp
+// each line with the count open right after ITS OWN answer landed.
+describe("#28 buildTailorLedger — a historical line is stamped once, not rewritten by later answers", () => {
+  it("an earlier line's count survives a later answer landing on the SAME rebuilt ledger", () => {
+    const onlyFirst = buildTailorLedger(AD, [], [noClaim(OWN_BUDGET)]);
+    expect(onlyFirst.ledger).toEqual([{ requirementId: "own-budget", text: "asked and closed · 2 still open" }]);
+
+    // Rebuilding the ledger (same as a reload) after LEAD_TEAM also lands "no": pre-fix, own-budget's
+    // line would now read "1 still open" (today's count) — a rewrite of already-shown history.
+    const afterSecond = buildTailorLedger(AD, [], [noClaim(OWN_BUDGET), noClaim(LEAD_TEAM)]);
+    expect(afterSecond.ledger.find((l) => l.requirementId === "own-budget")!.text).toBe(
+      "asked and closed · 2 still open", // unchanged from `onlyFirst` — AC1
+    );
+    expect(afterSecond.ledger.find((l) => l.requirementId === "lead-team")!.text).toBe(
+      "asked and closed · 1 still open", // its own landing-time count, not own-budget's
+    );
+  });
+
+  // Every other count-asserting test in this file only ever passes `confirmed: []` (all-negative
+  // scenarios) or answers everything "No" — so confirmedSoFar === confirmed at every replay step by
+  // construction, and the replay's use of confirmedSoFar (not the final `confirmed`) at tailor.ts's
+  // uncoveredRequirements(confirmedSoFar, ...) call goes untested. This interleaves a "no" landing
+  // BEFORE a later "yes": if the replay used the final `confirmed` list at every step instead of the
+  // accumulated confirmedSoFar, lead-team's line would wrongly treat own-budget as already covered
+  // (it isn't yet, at the moment lead-team's "no" lands) and understate "still open" by one.
+  it("a 'no' landed BEFORE a later 'yes' is stamped with pre-yes coverage, not the session's final coverage", () => {
+    const negLeadTeamFirst = noClaim(LEAD_TEAM); // constructed (and seq'd) first — lands first
+    const posOwnBudgetSecond = yesClaim(OWN_BUDGET); // constructed second — lands after
+    const { ledger } = buildTailorLedger(AD, [posOwnBudgetSecond], [negLeadTeamFirst]);
+
+    // own-budget's own "yes" covers itself immediately (the AC1 hinge) -> a "+N%" line, unaffected.
+    expect(ledger.find((l) => l.requirementId === "own-budget")!.text).toContain("+");
+
+    // lead-team's "no" landed while only itself was answered: own-budget and certification were BOTH
+    // still uncovered at that instant, minus lead-team itself (excluded as the negative in question)
+    // -> 2 still open. A buggy replay using the final `confirmed` ([own-budget]) at this step would
+    // already count own-budget as covered and report 1.
+    expect(ledger.find((l) => l.requirementId === "lead-team")!.text).toBe("asked and closed · 2 still open");
   });
 });
 
@@ -445,12 +498,13 @@ describe("#23 POST /onboarding/tailor/answer", () => {
 // from uncoveredRequirements alone, which has no notion of a negative, so a "no" left the requirement
 // in dontYet forever and the ledger's "still open" count never fell.
 describe("#23 B1 — a 'no' closes the gap, not just the question", () => {
-  it("answering every requirement 'No' empties dontYet, and the ledger's open count agrees (0)", async () => {
+  it("answering every requirement 'No' empties dontYet, and the ledger's open count agrees (0) at the end", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     await reachTailor(app, cookie, "b1-all-no@example.com");
     let state = (await get(app, cookie, "/onboarding/tailor")).json();
     expect(state.card.dontYet.length).toBeGreaterThan(0); // sanity: there's something to close
+    const totalToAnswer = state.questions.length; // every "no" here, answered in rank order (below)
 
     while (state.questions.length > 0) {
       const q = state.questions[0];
@@ -461,11 +515,50 @@ describe("#23 B1 — a 'no' closes the gap, not just the question", () => {
     // Pre-fix this stayed non-empty: dontYet was uncoveredRequirements(confirmed, adReq) with no
     // subtraction for negatives, so every "no"-answered requirement stayed a grey "?" forever.
     expect(state.card.dontYet).toEqual([]);
-    // Pre-fix this read the ad's full uncovered count (e.g. "7 still open") regardless of how many
-    // of those had already been answered "no" — a visible lie once done was also true.
-    for (const line of state.ledger) {
-      if (line.text.includes("still open")) expect(line.text).toContain("· 0 still open");
+    // #28: each line is stamped with the count open right after IT landed, not the final (0) count —
+    // answered here in rank order (questions[0] each time), so the count steps down by exactly one
+    // per line, only reaching 0 on the LAST one. Pre-fix every line read the ad's final uncovered
+    // count regardless of when it actually closed — so ALL of them read "0 still open" here.
+    const stillOpenLines = state.ledger.filter((l: { text: string }) => l.text.includes("still open"));
+    expect(stillOpenLines.map((l: { text: string }) => l.text)).toEqual(
+      Array.from({ length: totalToAnswer }, (_, i) => `asked and closed · ${totalToAnswer - i - 1} still open`),
+    );
+  });
+});
+
+// #28 AC2, at the HTTP seam (prior art: #31's "the layer the visitor actually reads" framing above):
+// buildTailorState calls buildTailorLedger fresh on every request — nothing is stored. Reload-stable
+// means a line, once landed, reads the same on every later GET, including after MORE "no"s answer and
+// even after a plain re-read with no new answer in between (a straight rebuild-vs-rebuild check).
+describe("#28 GET /onboarding/tailor — a landed ledger line survives later answers and a reload", () => {
+  it("the first-answered line's text is unchanged after more 'no's land, and a reload repeats it byte-for-byte", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    await reachTailor(app, cookie, "historical-ledger@example.com");
+    let state = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(state.questions.length).toBeGreaterThan(1); // sanity: more than one "no" is coming below
+
+    const firstReq = state.questions[0].requirementId;
+    state = (
+      await post(app, cookie, "/onboarding/tailor/answer", { requirementId: firstReq, answer: "No" })
+    ).json();
+    const firstLineAtLanding = state.ledger.find((l: { requirementId: string }) => l.requirementId === firstReq)!.text;
+
+    // More "no"s land after it — pre-fix, buildTailorLedger re-stamps EVERY historical line with
+    // today's (now lower) open count on every rebuild, so firstReq's line would drift downward too.
+    while (state.questions.length > 0) {
+      const q = state.questions[0];
+      state = (
+        await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })
+      ).json();
     }
+
+    const read1 = (await get(app, cookie, "/onboarding/tailor")).json();
+    const read2 = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(read2.ledger).toEqual(read1.ledger); // AC2: a reload rebuilds the same ledger, unchanged
+
+    const firstLineNow = read1.ledger.find((l: { requirementId: string }) => l.requirementId === firstReq)!.text;
+    expect(firstLineNow).toBe(firstLineAtLanding); // AC1: not rewritten to the current, lower count
   });
 });
 
