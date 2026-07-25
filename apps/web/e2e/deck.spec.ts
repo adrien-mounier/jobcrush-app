@@ -85,6 +85,7 @@ async function stubLoopbackDiscovery(page: Page, overrides: Partial<DiscoverySta
       { itemId: "role", section: "summary", text: "IT Project Manager" },
       { itemId: "years", section: "experience", text: "5 to 10 years of experience as a project manager." },
     ],
+    factCount: 2,
     ...overrides,
   };
   await page.route("**/api/onboarding/discovery", async (route) => {

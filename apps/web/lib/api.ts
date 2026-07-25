@@ -193,6 +193,7 @@ export interface DiscoveryState {
   railFill: Record<CvSection, number>; // 0..1 per section
   essentialRemaining: number; // the countdown
   cvLines: DiscoveryCvLine[]; // role lead line first, then answered lines — for resume
+  factCount: number; // #17's profile badge count — every recorded answer, a "no" included, never decreases
 }
 
 // jobId (#18, AC6): when a CV was uploaded via the front-door shortcut, the server composes a
@@ -295,7 +296,7 @@ export interface TailorState {
   cvLines: DiscoveryCvLine[];
   closedGaps: { closed: number; asked: number };
   done: boolean;
-  factCount: number; // #17's badge count — carried in the type, rendered nowhere in this ticket
+  factCount: number; // #17's profile badge count, on the tailor screen too
 }
 
 export function getTailor(): Promise<TailorState> {

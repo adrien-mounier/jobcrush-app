@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import "../deck.css";
 import "../tailor.css";
+import { FactBadge, type FactChipFlight } from "../factbadge";
 import { CardBody, useReducedMotion } from "../jobcard";
 import {
   answerTailor,
@@ -143,7 +144,14 @@ export default function TailorPage() {
   const [dropError, setDropError] = useState<string | null>(null);
   const [returnDropFocus, setReturnDropFocus] = useState(false);
   const [liveMessage, setLiveMessage] = useState("");
+  // #17 the profile badge: same seam as discovery — the parent owns the data, FactBadge owns motion.
+  const [badgeCount, setBadgeCount] = useState(0);
+  const [fly, setFly] = useState<FactChipFlight | null>(null);
+  // The answered control's rect, captured on the root's capture-phase click (M2: a ref, not a
+  // DOMRect threaded through answerQuestion — discovery/page.tsx's own fix, same reasoning).
+  const flyFromRef = useRef<DOMRect | null>(null);
 
+  const rootRef = useRef<HTMLDivElement>(null);
   const cardHeadingRef = useRef<HTMLHeadingElement>(null);
   const endingHeadingRef = useRef<HTMLHeadingElement>(null);
   const appliedHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -171,6 +179,7 @@ export default function TailorPage() {
       const state = await getTailor();
       setTailor(state);
       setDisplayPct(state.card.matchPct);
+      setBadgeCount((c) => Math.max(c, state.factCount)); // the monotone clamp, at every write
       setScreen("flow");
     } catch (e) {
       const code = typeof e === "object" && e !== null && "code" in e ? (e as { code?: string }).code : undefined;
@@ -322,6 +331,10 @@ export default function TailorPage() {
       const ledgerText = next.ledger.at(-1)?.text ?? "";
       setLedgerView({ key: `${requirementId}:${next.ledger.length}`, text: ledgerText, gold: next.card.matchPct > prevPct });
       pendingScrollRef.current = resolveLandedId(prevCard, next.card);
+      // #17: unconditional, same as discovery — FactBadge's own guard makes a correction's zero
+      // delta a no-op (this screen has no correction UI today, but the guard costs nothing to keep).
+      setBadgeCount((c) => Math.max(c, next.factCount));
+      if (flyFromRef.current) setFly({ rect: flyFromRef.current, label: answer });
       setTailor(next);
       // the tween's `from` is what's actually on screen right now, not the last server number — if a
       // prior tween is still mid-flight this keeps the new one visually continuous instead of jumping.
@@ -425,7 +438,18 @@ export default function TailorPage() {
   }
 
   return (
-    <div className="jobdeck tailor">
+    <div
+      className="jobdeck tailor"
+      ref={rootRef}
+      // #17: captures the answered option's rect for the badge's flying chip (M2 — a ref, not a
+      // threaded DOMRect). Tailor has no keydown-triggered answer path (its free-text branch was
+      // deleted, #23 F4), so click-only, unlike discovery's click+keydown pair.
+      onClickCapture={(e) => {
+        flyFromRef.current = (
+          (e.target as HTMLElement).closest("button") ?? (e.target as HTMLElement)
+        ).getBoundingClientRect();
+      }}
+    >
       <div aria-live="polite" className="sr-only">
         {liveMessage}
       </div>
@@ -470,6 +494,7 @@ export default function TailorPage() {
           <div className="topbar">
             <span className="wordmark">JobCrush</span>
             <span className="spacer" />
+            <FactBadge count={badgeCount} fly={fly} rootRef={rootRef} />
           </div>
 
           <div className="live-wrap" ref={liveWrapRef}>

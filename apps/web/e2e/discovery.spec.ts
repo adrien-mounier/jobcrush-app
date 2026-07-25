@@ -40,6 +40,7 @@ const BEFORE_START: DiscoveryState = {
   railFill: RAIL_ZERO,
   essentialRemaining: 3,
   cvLines: [],
+  factCount: 0,
 };
 
 const AFTER_START: DiscoveryState = {
@@ -52,6 +53,7 @@ const AFTER_START: DiscoveryState = {
   railFill: RAIL_ZERO,
   essentialRemaining: 3,
   cvLines: [{ itemId: "role", section: "summary", text: "IT Project Manager" }],
+  factCount: 1,
 };
 
 const AFTER_ANSWER: DiscoveryState = {
@@ -63,10 +65,12 @@ const AFTER_ANSWER: DiscoveryState = {
     ...AFTER_START.cvLines,
     { itemId: "years", section: "experience", text: "5 to 10 years of experience as a project manager." },
   ],
+  factCount: 2,
 };
 
 // #18: re-answering "years" with a different option is a correction (same itemId, new text) —
-// the same /answer endpoint, now idempotent server-side.
+// the same /answer endpoint, now idempotent server-side. #17: factCount is inherited, unchanged —
+// a correction flips one record in place, it doesn't grow the count (badge-ui-spec.md §12.1).
 const AFTER_CORRECTION: DiscoveryState = {
   ...AFTER_ANSWER,
   cvLines: [
@@ -79,10 +83,13 @@ const AFTER_CORRECTION: DiscoveryState = {
 // but an essential item remains. A "no" never empties `questions` while `essentialRemaining > 0`
 // (that only happens when the last essential is answered and the gate flips stage to "deck"), so the
 // next question stays in the dock with the C15 undo notice above it — exactly what the real API emits.
+// #17: factCount still grows — a "no" is a recorded negative, and the badge is what pays for it now
+// (badge-ui-spec.md §"the 'no' finally pays") even though no CV line types.
 const AFTER_NO: DiscoveryState = {
   ...AFTER_ANSWER,
   questions: [Q_STAKEHOLDER],
   essentialRemaining: 1,
+  factCount: 3,
 };
 
 // #18: "budget" was the last essential item — the server flips the stage, no new line either way.
@@ -91,6 +98,7 @@ const AFTER_ESSENTIAL_DONE: DiscoveryState = {
   stage: "deck",
   questions: [],
   essentialRemaining: 0,
+  factCount: 3,
 };
 
 // Mutated by the /start and /answer stubs below so a later GET (including one after a reload)
