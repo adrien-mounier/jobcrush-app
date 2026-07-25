@@ -332,3 +332,30 @@ export function verifyToken(token: string): Promise<{ user: { id: string; email:
 export function logout(): Promise<{ ok: boolean }> {
   return jfetch("/api/auth/logout", { method: "POST" });
 }
+
+// --- #20 the profile screen (Sorted + Constellation) ---
+// The colour law (gold = on the rendered CV right now, grey = saved in reserve) is a pure
+// server-side derivation over the claim graph + root-CV trace — this client only renders what
+// arrives, never re-derives it (design-20-profile-screen.md §3).
+
+export interface ProfileFact {
+  id: string;
+  text: string;
+  colour: "gold" | "grey";
+  source: "told" | "read";
+}
+
+export interface ProfileDomain {
+  tag: string;
+  heading: string;
+  facts: ProfileFact[];
+}
+
+export interface ProfileState {
+  factCount: number;
+  domains: ProfileDomain[];
+}
+
+export function getProfile(): Promise<ProfileState> {
+  return jfetch("/api/profile");
+}

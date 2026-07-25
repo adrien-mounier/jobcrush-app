@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { CvSection, DiscoveryState, JobCard, TailorState } from "../lib/api";
+import type { CvSection, DiscoveryState, JobCard, ProfileState, TailorState } from "../lib/api";
 
 // #17 the profile badge — "a pile that only grows". Route-mocked exactly as discovery.spec.ts /
 // tailor.spec.ts already do; fixtures kept faithful to the real DiscoveryState/TailorState shape
@@ -190,18 +190,30 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
   await page.route("**/api/onboarding/tailor", async (route) => {
     await route.fulfill({ json: tailorState });
   });
+  const profileState: ProfileState = {
+    factCount: 12,
+    domains: [
+      {
+        tag: "experience",
+        heading: "Professional Experience",
+        facts: [{ id: "sap", text: "Ran SAP rollouts across three sites.", colour: "gold", source: "told" }],
+      },
+    ],
+  };
+  await page.route("**/api/profile", async (route) => {
+    await route.fulfill({ json: profileState });
+  });
 
   await page.goto("/tailor");
   const badge = page.getByRole("link", { name: "Your profile — 12 facts about you" });
   await expect(badge).toBeVisible();
 
-  // AC5: tapping it opens the full profile as its own screen (the thin #17 placeholder — #20 builds
-  // the real thing). A real client-side <Link>, so this is a route change, not a reload.
+  // AC5: tapping it opens the full profile as its own screen (#20's Sorted + Constellation screen).
+  // A real client-side <Link>, so this is a route change, not a reload.
   await badge.click();
   await page.waitForURL("/profile");
-  const heading = page.getByRole("heading", { name: "Your profile" });
+  const heading = page.getByRole("heading", { name: "12 things you've told me" });
   await expect(heading).toBeVisible();
   await expect(heading).toBeFocused();
-  await expect(page.getByText("Everything you've told me is saved here. This screen is being built.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
 });

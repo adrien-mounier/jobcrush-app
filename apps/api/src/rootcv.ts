@@ -8,7 +8,8 @@ import type { ClaimGraph, ClaimNode } from "@jobcrush/contracts";
 
 // kind tag (set by buildClaimGraph) → CV section heading, in render order. A renderable node whose
 // tag isn't listed falls into "Additional Information" so nothing confirmed is ever dropped.
-const SECTIONS: ReadonlyArray<readonly [tag: string, heading: string]> = [
+// Exported: #20's profile route groups its (wider) claim set into the same section order/headings.
+export const SECTIONS: ReadonlyArray<readonly [tag: string, heading: string]> = [
   ["profile", "Professional Summary"],
   ["experience", "Professional Experience"],
   ["skill", "Skills"],

@@ -35,7 +35,9 @@ const RISK_BY_CLASS: Record<CandidateClaim["classification"], ClaimNode["risk"]>
 // Every node needs a non-empty tag (schema: tags is a min-1 string[]). One kind tag lets the root-CV
 // renderer bucket claims into sections without re-parsing. ponytail: single kind tag; richer semantic
 // tagging (for S3 clustering) is a later pass.
-function kindTag(claim: CandidateClaim): string {
+// Exported: #20's profile route buckets claims into the same domains the root-CV renderer uses,
+// straight from the claim (not the graph node), so it needs this same classifier.
+export function kindTag(claim: CandidateClaim): string {
   const prefix = claim.id.split("-", 1)[0];
   if (prefix === "cert" || prefix === "lang" || prefix === "skill" || prefix === "edu") return prefix;
   return claim.role === "profile" ? "profile" : "experience";

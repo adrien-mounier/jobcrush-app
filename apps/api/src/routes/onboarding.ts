@@ -16,8 +16,8 @@ import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore, ClaimRecord } from "../claims.js";
 import type { JobStore } from "../jobs.js";
 import type { SessionStore, SessionRecord } from "../sessions.js";
-import { buildClaimGraph } from "../graph.js";
-import { renderRootCv } from "../rootcv.js";
+import { buildClaimGraph, kindTag } from "../graph.js";
+import { renderRootCv, SECTIONS } from "../rootcv.js";
 import { runGate } from "../gate.js";
 import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
@@ -235,8 +235,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       const session = requireUser(req);
       const confirmed = await deps.claims.confirmed(session.id);
       // #18 wiring note (carried from #13): thread persisted "no"s into the graph so a discovery "no"
-      // becomes a Negative/renderable:false node — absent from the root CV, but visible to the profile
-      // screen (#20). Existing sessions have no negatives, so this is a no-op for them.
+      // becomes a Negative/renderable:false node — preserved in the graph, but absent from the root
+      // CV and stripped from the profile screen (#20). Existing sessions have no negatives, so this is
+      // a no-op for them.
       const negatives = await deps.claims.negatives(session.id);
       const graph = buildClaimGraph(confirmed, { negatives });
       let rootCv = renderRootCv(graph);
@@ -258,6 +259,45 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       const stage = gate.ok ? "ready" : "loopback";
       await deps.sessions.setStage(session.id, stage);
       return { stage, gate, rootCv };
+    });
+
+    // --- #20 the profile screen: session-authenticated, reachable pre-wall (requireSession, not
+    // requireUser — an unverified visitor can already open their own profile). Colour law: a fact is
+    // gold iff its claim id appears in the rendered root CV's trace. That trace is derived from the
+    // same confirmed renderable facts as /onboarding/build; grey otherwise means mined-but-not-yet-
+    // confirmed, i.e. still `pending` in the deck. Rejected/negative claims are stripped entirely
+    // (AC5): the profile never lists what the visitor lacks, while negatives still count in factCount.
+    app.get("/profile", async (req) => {
+      const session = requireSession(req);
+      const facts = (await deps.claims.list(session.id)).filter(
+        (c) => c.decision !== "rejected" && c.decision !== "negative",
+      );
+      const confirmed = facts.filter((c) => c.decision === "confirmed");
+      const negatives = await deps.claims.negatives(session.id);
+      const profileFactCount = await withFactFloor(deps.sessions, session, factCount(confirmed, negatives));
+      const rootCv = renderRootCv(buildClaimGraph(confirmed));
+      const goldIds = new Set(rootCv.trace.entries.flatMap((e) => e.nodeIds));
+
+      const byTag = new Map<string, ProfileFact[]>();
+      for (const c of facts) {
+        const tag = kindTag(c);
+        const bucket = byTag.get(tag) ?? [];
+        bucket.push({
+          id: c.id,
+          text: c.text,
+          colour: goldIds.has(c.id) ? "gold" : "grey",
+          source: c.origin === "user-authored" ? "told" : "read",
+        });
+        byTag.set(tag, bucket);
+      }
+
+      const domains: ProfileDomain[] = SECTIONS.filter(([tag]) => byTag.has(tag)).map(([tag, heading]) => ({
+        tag,
+        heading,
+        facts: byTag.get(tag)!,
+      }));
+      const payload: ProfileState = { domains, factCount: profileFactCount };
+      return payload;
     });
 
     // --- #16 discovery (screen 1a): the answer→CV-line→section-bar loop -------------------------
@@ -527,6 +567,23 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       return { stage: "deck" };
     });
   };
+}
+
+// --- #20 profile shape (the pinned frontend contract, apps/web/lib/api.ts) -------------------------
+interface ProfileFact {
+  id: string;
+  text: string;
+  colour: "gold" | "grey";
+  source: "told" | "read";
+}
+interface ProfileDomain {
+  tag: string;
+  heading: string;
+  facts: ProfileFact[];
+}
+interface ProfileState {
+  domains: ProfileDomain[];
+  factCount: number;
 }
 
 // --- #19 card shape (the pinned frontend contract) -----------------------------------------------
