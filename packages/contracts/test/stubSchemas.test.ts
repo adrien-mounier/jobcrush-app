@@ -29,6 +29,7 @@ const validFloor = {
 const validRequirements = {
   schemaVersion: "0",
   adId: "2026-07-05_manulife_senior-it-project-manager-delivery-manager",
+  curated: true,
   requirements: [
     {
       id: "manage-full-project-lifecycle",
@@ -106,6 +107,11 @@ describe("AdRequirements (#12) — per-ad ranked requirement list stub schema", 
       requirements: [rest, validRequirements.requirements[1]!],
     };
     expect(AdRequirements.safeParse(broken).success).toBe(false);
+  });
+
+  it("keeps older v0 payloads valid and defaults their curated decision to false", () => {
+    const { curated, ...legacyV0 } = validRequirements;
+    expect(AdRequirements.parse(legacyV0).curated).toBe(false);
   });
 
   it("rejects a band outside the enum", () => {

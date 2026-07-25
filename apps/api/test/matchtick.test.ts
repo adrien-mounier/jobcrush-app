@@ -14,6 +14,7 @@ import {
 const AD: AdRequirements = {
   schemaVersion: "0",
   adId: "test-ad",
+  curated: true,
   requirements: [
     { id: "own-budget", band: "must", requirement: "Own a project budget with vendor oversight" },
     { id: "lead-team", band: "must", requirement: "Lead a cross-functional delivery team" },

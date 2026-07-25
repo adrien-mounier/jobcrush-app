@@ -3,7 +3,9 @@
 // the response the frontend is pinned against, not handler internals: card shape, score-sorted
 // order, and that a recorded "no" lands in askedClosed (never re-asked, never a gap).
 import { describe, expect, it } from "vitest";
+import { orderCardsForReveal } from "../src/routes/onboarding.js";
 import { buildServer } from "../src/server.js";
+import { listAdRequirements } from "../src/e5stub.js";
 
 async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
   const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });
@@ -44,6 +46,21 @@ interface JobCard {
 }
 
 describe("#19 GET /onboarding/cards", () => {
+  it("promotes one highest-scoring curated opener, then score-sorts every remaining card", () => {
+    const ordered = orderCardsForReveal([
+      { card: { adId: "curated-low", matchPct: 70 }, curated: true },
+      { card: { adId: "wide-best", matchPct: 99 }, curated: false },
+      { card: { adId: "curated-high", matchPct: 80 }, curated: true },
+      { card: { adId: "wide-second", matchPct: 90 }, curated: false },
+    ]);
+    expect(ordered.map((card) => card.adId)).toEqual([
+      "curated-high",
+      "wide-best",
+      "wide-second",
+      "curated-low",
+    ]);
+  });
+
   it("rides the anonymous session (no wall) and mirrors the session's own persisted stage", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
@@ -52,7 +69,29 @@ describe("#19 GET /onboarding/cards", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as { stage: string; cards: JobCard[] };
     expect(body.stage).toBe(me.json().stage); // reveal-gated client-side, not blocked server-side
-    expect(body.cards.length).toBeGreaterThanOrEqual(3); // reconciled stub: >=3 scorable cards
+    expect(body.cards.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("leads with a curated posting and keeps another real card behind the reveal", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const res = await get(app, cookie, "/onboarding/cards");
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { cards: JobCard[] };
+    const allRequirements = listAdRequirements();
+    expect(body.cards.map((card) => card.adId).sort()).toEqual(
+      allRequirements.map((ad) => ad.adId).sort(),
+    ); // every requirement set resolves to a real posting and reaches the HTTP deck
+    expect(body.cards[1]).toBeDefined(); // passing the reveal card cannot exhaust the deck
+    const curatedIds = new Set(
+      allRequirements
+        .filter((ad) => ad.curated)
+        .map((ad) => ad.adId),
+    );
+    expect(curatedIds.has(body.cards[0]!.adId)).toBe(true);
+    expect(body.cards[0]!.matchPct).toBe(
+      Math.max(...body.cards.filter((card) => curatedIds.has(card.adId)).map((card) => card.matchPct)),
+    );
   });
 
   // #22: the reveal's account wall applies only to a still-anonymous visitor — the client decides
@@ -125,8 +164,8 @@ describe("#19 GET /onboarding/cards", () => {
       }
     }
 
-    // Sorted by matchPct descending (best first).
-    for (let i = 1; i < body.cards.length; i++) {
+    // After the curated opener exception, every remaining card is score-sorted.
+    for (let i = 2; i < body.cards.length; i++) {
       expect(body.cards[i]!.matchPct).toBeLessThanOrEqual(body.cards[i - 1]!.matchPct);
     }
 

@@ -17,6 +17,7 @@ export const AdRequirement = z.object({
 export const AdRequirements = z.object({
   schemaVersion: z.literal("0"),
   adId: z.string().min(1),
+  curated: z.boolean().default(false), // old v0 payloads are unreviewed; fixtures decide explicitly
   requirements: z.array(AdRequirement).min(1), // ranked; array order = rank order
 });
 

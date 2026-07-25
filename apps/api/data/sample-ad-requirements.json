@@ -2,6 +2,7 @@
   {
     "schemaVersion": "0",
     "adId": "2026-07-05_manulife_senior-it-project-manager-delivery-manager",
+    "curated": true,
     "requirements": [
       {
         "id": "manage-full-project-lifecycle",
@@ -55,6 +56,7 @@
   {
     "schemaVersion": "0",
     "adId": "2026-07-05_endava-vietnam_senior-project-manager",
+    "curated": true,
     "requirements": [
       {
         "id": "lead-agile-delivery",
@@ -102,6 +104,7 @@
   {
     "schemaVersion": "0",
     "adId": "2026-07-09_luvo-talent_senior-project-manager",
+    "curated": true,
     "requirements": [
       {
         "id": "end-to-end-transformation-delivery",
@@ -142,6 +145,264 @@
         "id": "complex-stakeholder-environment",
         "band": "nice",
         "requirement": "Operate in a complex, challenging stakeholder environment"
+      }
+    ]
+  },
+  {
+    "schemaVersion": "0",
+    "adId": "2026-06-30_schneider-electric_senior-project-manager",
+    "curated": true,
+    "requirements": [
+      {
+        "id": "end-to-end-customer-projects",
+        "band": "must",
+        "requirement": "Lead end-to-end project delivery from planning to completion",
+        "cvSection": "experience"
+      },
+      {
+        "id": "budgets-cross-functional-teams",
+        "band": "must",
+        "requirement": "Own project budgets and lead cross-functional teams",
+        "cvSection": "experience"
+      },
+      {
+        "id": "risk-assessment-mitigation",
+        "band": "must",
+        "requirement": "Manage project risks through assessment and mitigation",
+        "cvSection": "experience"
+      },
+      {
+        "id": "customer-stakeholder-communication",
+        "band": "should",
+        "requirement": "Provide executive reporting to customer stakeholders",
+        "cvSection": "experience"
+      },
+      {
+        "id": "global-team-leadership",
+        "band": "should",
+        "requirement": "Lead cross-functional delivery teams in a global environment",
+        "cvSection": "experience"
+      },
+      {
+        "id": "cost-reduction",
+        "band": "should",
+        "requirement": "Drive cost reduction and operational efficiency",
+        "cvSection": "experience"
+      },
+      {
+        "id": "quality-safety-compliance",
+        "band": "nice",
+        "requirement": "Ensure quality, safety, and regulatory compliance"
+      }
+    ]
+  },
+  {
+    "schemaVersion": "0",
+    "adId": "2026-07-01_transunion_senior-project-manager-6-months-contract",
+    "curated": true,
+    "requirements": [
+      {
+        "id": "concurrent-end-to-end-delivery",
+        "band": "must",
+        "requirement": "Manage concurrent projects through end-to-end delivery",
+        "cvSection": "experience"
+      },
+      {
+        "id": "budget-scope-timeline",
+        "band": "must",
+        "requirement": "Own project budget, scope, timelines, and delivery quality",
+        "cvSection": "experience"
+      },
+      {
+        "id": "business-technical-alignment",
+        "band": "must",
+        "requirement": "Coordinate business and technical stakeholders",
+        "cvSection": "experience"
+      },
+      {
+        "id": "vendor-sow-performance",
+        "band": "must",
+        "requirement": "Manage vendor delivery against SOWs and performance outcomes",
+        "cvSection": "experience"
+      },
+      {
+        "id": "agile-scrum-delivery",
+        "band": "should",
+        "requirement": "Lead Agile Scrum delivery using Jira",
+        "cvSection": "skills"
+      },
+      {
+        "id": "risk-issue-mitigation",
+        "band": "should",
+        "requirement": "Manage project risks, issues, dependencies, and mitigation",
+        "cvSection": "experience"
+      },
+      {
+        "id": "capex-opex-financials",
+        "band": "should",
+        "requirement": "Manage CapEx and OpEx project financials",
+        "cvSection": "experience"
+      },
+      {
+        "id": "direct-to-consumer",
+        "band": "nice",
+        "requirement": "Experience delivering direct-to-consumer products"
+      }
+    ]
+  },
+  {
+    "schemaVersion": "0",
+    "adId": "2026-07-05_computershare-hong-kong_business-readiness-senior-project-manager-9-month-contract",
+    "curated": true,
+    "requirements": [
+      {
+        "id": "business-readiness-lead",
+        "band": "must",
+        "requirement": "Lead end-to-end business readiness delivery",
+        "cvSection": "experience"
+      },
+      {
+        "id": "cross-functional-launch-stakeholders",
+        "band": "must",
+        "requirement": "Coordinate cross-functional business and technical stakeholders",
+        "cvSection": "experience"
+      },
+      {
+        "id": "governance-executive-reporting",
+        "band": "must",
+        "requirement": "Own governance and executive SteerCo reporting",
+        "cvSection": "experience"
+      },
+      {
+        "id": "readiness-plan-risks-dependencies",
+        "band": "should",
+        "requirement": "Manage project plans, risks, dependencies, and mitigation",
+        "cvSection": "experience"
+      },
+      {
+        "id": "operational-adoption",
+        "band": "should",
+        "requirement": "Drive operational adoption and change readiness",
+        "cvSection": "experience"
+      },
+      {
+        "id": "global-team-coordination",
+        "band": "should",
+        "requirement": "Lead cross-functional teams across regions",
+        "cvSection": "experience"
+      },
+      {
+        "id": "regulatory-launch",
+        "band": "should",
+        "requirement": "Prepare a launch across regulatory and legal workstreams",
+        "cvSection": "experience"
+      },
+      {
+        "id": "mobile-app-launch",
+        "band": "nice",
+        "requirement": "Deliver business readiness for a mobile app launch"
+      }
+    ]
+  },
+  {
+    "schemaVersion": "0",
+    "adId": "2026-07-05_synpulse_business-analyst-project-manager-wealth-management-data",
+    "curated": true,
+    "requirements": [
+      {
+        "id": "data-migration-lifecycle",
+        "band": "must",
+        "requirement": "Lead the full project lifecycle for data migration",
+        "cvSection": "experience"
+      },
+      {
+        "id": "internal-technical-vendor-coordination",
+        "band": "must",
+        "requirement": "Coordinate business, technical, and vendor stakeholders",
+        "cvSection": "experience"
+      },
+      {
+        "id": "risk-issue-dependency-management",
+        "band": "must",
+        "requirement": "Manage project risks, issues, dependencies, and mitigation",
+        "cvSection": "experience"
+      },
+      {
+        "id": "steering-governance-reporting",
+        "band": "should",
+        "requirement": "Drive governance and executive SteerCo reporting",
+        "cvSection": "experience"
+      },
+      {
+        "id": "large-scale-transformation",
+        "band": "should",
+        "requirement": "Deliver large-scale IT transformation programs",
+        "cvSection": "experience"
+      },
+      {
+        "id": "sdlc-database",
+        "band": "should",
+        "requirement": "Apply SDLC knowledge to database systems",
+        "cvSection": "skills"
+      },
+      {
+        "id": "banking-operations",
+        "band": "nice",
+        "requirement": "Understand banking operations and financial products"
+      },
+      {
+        "id": "wealth-management",
+        "band": "nice",
+        "requirement": "Experience in wealth management or private banking"
+      }
+    ]
+  },
+  {
+    "schemaVersion": "0",
+    "adId": "2026-07-05_hire-feed_project-manager-remote",
+    "curated": true,
+    "requirements": [
+      {
+        "id": "full-project-lifecycle",
+        "band": "must",
+        "requirement": "Own the full project lifecycle from planning through completion",
+        "cvSection": "experience"
+      },
+      {
+        "id": "budget-timeline-delivery",
+        "band": "must",
+        "requirement": "Own project budget, timeline, and delivery outcomes",
+        "cvSection": "experience"
+      },
+      {
+        "id": "cross-functional-stakeholders",
+        "band": "must",
+        "requirement": "Lead cross-functional teams and coordinate stakeholders",
+        "cvSection": "experience"
+      },
+      {
+        "id": "agile-jira",
+        "band": "should",
+        "requirement": "Lead Agile Scrum delivery using Jira",
+        "cvSection": "skills"
+      },
+      {
+        "id": "risk-mitigation",
+        "band": "should",
+        "requirement": "Manage project risks, RAID logs, and mitigation",
+        "cvSection": "experience"
+      },
+      {
+        "id": "client-senior-reporting",
+        "band": "should",
+        "requirement": "Present detailed project reports to clients and senior management",
+        "cvSection": "experience"
+      },
+      {
+        "id": "remote-team-experience",
+        "band": "nice",
+        "requirement": "Work effectively across different time zones",
+        "cvSection": "experience"
       }
     ]
   }

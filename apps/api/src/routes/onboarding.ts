@@ -445,13 +445,15 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       const session = requireSession(req);
       const [confirmed, negatives] = await discoveryReads(session.id);
       const postings = loadPostings();
-      const cards = listAdRequirements()
+      const cardCandidates = listAdRequirements()
         .map((adReq) => {
           const posting = postings.find((p) => p.id === adReq.adId);
-          return posting ? buildJobCard(posting, adReq, confirmed, negatives) : null;
+          return posting
+            ? { card: buildJobCard(posting, adReq, confirmed, negatives), curated: adReq.curated }
+            : null;
         })
-        .filter((c): c is JobCard => c !== null)
-        .sort((a, b) => b.matchPct - a.matchPct); // best first
+        .filter((entry): entry is { card: JobCard; curated: boolean } => entry !== null);
+      const cards = orderCardsForReveal(cardCandidates);
       // #22: authed tells the client whether the account wall at the reveal applies — false only
       // for a still-anonymous session, so a returning (claimed) visitor is never re-walled.
       return { stage: session.stage, cards, authed: session.claimedByUserId !== null };
@@ -609,6 +611,19 @@ interface JobCard {
   dontYet: CardRequirement[];
   askedClosed: CardFact[];
   adExcerpt: string;
+}
+
+/** Score-sort the deck, with one exception: its opener is the best launch-safe card. */
+export function orderCardsForReveal<T extends { matchPct: number }>(
+  entries: Array<{ card: T; curated: boolean }>,
+): T[] {
+  const scoreSorted = [...entries].sort((a, b) => b.card.matchPct - a.card.matchPct);
+  const openerIndex = scoreSorted.findIndex((entry) => entry.curated);
+  if (openerIndex > 0) {
+    const [opener] = scoreSorted.splice(openerIndex, 1);
+    scoreSorted.unshift(opener!);
+  }
+  return scoreSorted.map((entry) => entry.card);
 }
 
 /** Pure composition, no LLM: matchtick.ts scores + ranks, this just shapes the pinned JobCard.
