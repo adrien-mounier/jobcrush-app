@@ -245,6 +245,21 @@ for (const [name, make] of claimDrivers) {
         expect(merged.map((c) => c.id)).toEqual(["yes-1", "no-1", "yes-2"]);
       });
 
+      it("confirmed() still follows creation seq, not decision order (#37)", async () => {
+        await store.seed(sid, [claim({ id: "mined-a" }), claim({ id: "mined-b" })]);
+        await store.add(sid, claim({ id: "tailor-answer" })); // decided first, created after the mined rows
+        await store.confirm(sid, "mined-b"); // decided later, but created earlier
+
+        expect((await store.list(sid)).map((c) => c.id)).toEqual(["mined-a", "mined-b", "tailor-answer"]);
+        const confirmed = await store.confirmed(sid);
+        expect(confirmed.map((c) => c.id)).toEqual(["mined-b", "tailor-answer"]);
+        expect(
+          [...confirmed]
+            .sort((a, b) => (a.decisionSeq ?? 0) - (b.decisionSeq ?? 0))
+            .map((c) => c.id),
+        ).toEqual(["tailor-answer", "mined-b"]);
+      });
+
       it("a correction (re-answer of the same id) keeps its ORIGINAL seq, not a bumped one", async () => {
         await store.answerNegative(sid, claim({ id: "grill-1" }));
         const before = (await store.negatives(sid))[0]!.seq;

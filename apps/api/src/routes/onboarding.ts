@@ -131,7 +131,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         // two of a visitor's own requests. Strip it before it reaches the wire (prior art: server.ts's
         // job-progress redaction, sessions.ts's token redaction).
         const claims = (await deps.claims.list(session.id)).map((c) => {
-          const { seq: _seq, ...safe } = c;
+          const { seq: _seq, decisionSeq: _decisionSeq, ...safe } = c;
           return { ...safe, tier: claimTier(c.machine_touch) };
         });
         return { stage: session.stage, claims };

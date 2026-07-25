@@ -3,9 +3,10 @@
 // AC1 hinge), the ledger derivation, and the route behaviors — re-score never decreases, never-re-ask,
 // the ledger, done, and drop losing the job but never a claim.
 import { describe, expect, it } from "vitest";
-import type { AdRequirement, AdRequirements } from "@jobcrush/contracts";
+import type { AdRequirement, AdRequirements, CandidateClaim } from "@jobcrush/contracts";
 import { buildServer } from "../src/server.js";
 import type { ClaimRecord } from "../src/claims.js";
+import { loadAdRequirements } from "../src/e5stub.js";
 import { matchTick } from "../src/matchtick.js";
 import { discoveryClaimId } from "../src/discovery.js";
 import {
@@ -274,6 +275,12 @@ const post = (
   url: string,
   payload?: unknown,
 ) => app.inject({ method: "POST", url, headers: { cookie }, ...(payload === undefined ? {} : { payload }) });
+const put = (
+  app: ReturnType<typeof buildServer>["app"],
+  cookie: string,
+  url: string,
+  payload?: unknown,
+) => app.inject({ method: "PUT", url, headers: { cookie }, ...(payload === undefined ? {} : { payload }) });
 async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string, email: string): Promise<void> {
   const link = await post(app, cookie, "/auth/request-link", { email });
   const token = new URL("http://x" + link.json().devLink).searchParams.get("token")!;
@@ -282,6 +289,16 @@ async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string
 
 const ROLE = "IT project manager in Paris";
 const VALID_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
+const minedClaimFor = (req: AdRequirement): CandidateClaim => ({
+  id: `mined-${req.id}`,
+  role: "profile",
+  text: `${req.requirement}.`,
+  machine_touch: "verbatim",
+  classification: "Verified",
+  source_quote: req.requirement.slice(0, 200),
+  needs_grill: false,
+  grill_hint: null,
+});
 
 /** Discovery (3 essential answers, closing the band) -> deck -> sign in -> want -> tailor. Exact prior
  *  art: cards.test.ts's own flow, plus discovery.test.ts's known essential item ids. */
@@ -291,6 +308,26 @@ async function reachTailor(app: ReturnType<typeof buildServer>["app"], cookie: s
   await post(app, cookie, "/onboarding/discovery/answer", { itemId: "cross-functional-leadership", answer: "Yes, multiple teams" });
   await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" });
   await signIn(app, cookie, email);
+  await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
+}
+
+async function reachTailorWithSeededDeck(server: ReturnType<typeof buildServer>, cookie: string, email: string) {
+  const { app, store } = server;
+  await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+  await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
+  await post(app, cookie, "/onboarding/discovery/answer", { itemId: "cross-functional-leadership", answer: "Yes, multiple teams" });
+  await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" });
+  await signIn(app, cookie, email);
+
+  const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
+  const adReq = loadAdRequirements(VALID_AD_ID);
+  const job = await store.create("onboarding", sessionId);
+  await store.update(job.id, {
+    status: "completed",
+    progress: { miner: { claims: adReq.requirements.map(minedClaimFor), doc: { roles: [] }, roles: 0, needsGrill: 0 } },
+  });
+  const deck = await post(app, cookie, "/onboarding/deck", { jobId: job.id });
+  expect(deck.statusCode).toBe(200);
   await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
 }
 
@@ -559,6 +596,93 @@ describe("#28 GET /onboarding/tailor — a landed ledger line survives later ans
 
     const firstLineNow = read1.ledger.find((l: { requirementId: string }) => l.requirementId === firstReq)!.text;
     expect(firstLineNow).toBe(firstLineAtLanding); // AC1: not rewritten to the current, lower count
+  });
+});
+
+describe("#37 GET /onboarding/tailor - later deck decisions do not rewrite earlier Tailor ledger lines", () => {
+  it("keeps earlier Tailor open counts byte-stable after drop -> deck confirm -> re-swipe", async () => {
+    const server = buildServer();
+    const { app } = server;
+    const cookie = await anonSession(app);
+    await reachTailorWithSeededDeck(server, cookie, "deck-confirm-after-tailor@example.com");
+    let state = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(state.questions.length).toBeGreaterThan(2); // two Tailor answers, then one later deck confirm
+
+    const answeredReqIds: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const q = state.questions[0];
+      answeredReqIds.push(q.requirementId);
+      state = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })).json();
+    }
+    const linesAtLanding = Object.fromEntries(
+      answeredReqIds.map((id) => [
+        id,
+        state.ledger.find((l: { requirementId: string }) => l.requirementId === id)!.text,
+      ]),
+    );
+    const laterDeckReqId = state.questions[0].requirementId as string;
+
+    await post(app, cookie, "/onboarding/tailor/drop");
+    const confirm = await post(app, cookie, `/onboarding/claims/mined-${laterDeckReqId}/confirm`);
+    expect(confirm.statusCode).toBe(200);
+    await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
+
+    const rebuilt = (await get(app, cookie, "/onboarding/tailor")).json();
+    const linesAfterDeckConfirm = Object.fromEntries(
+      answeredReqIds.map((id) => [
+        id,
+        rebuilt.ledger.find((l: { requirementId: string }) => l.requirementId === id)!.text,
+      ]),
+    );
+    expect(linesAfterDeckConfirm).toEqual(linesAtLanding);
+    expect(rebuilt.questions.map((q: { requirementId: string }) => q.requirementId)).not.toContain(laterDeckReqId);
+  });
+
+  // AC1 names "confirm/edit" — the test above covers confirm; this covers the edit branch at the same
+  // API seam. A deck edit (PUT /onboarding/claims/:id) on a pending mined claim auto-confirms it and
+  // must stamp decisionSeq at edit-time, so a later edit landing after Tailor answers replays after
+  // them and leaves earlier lines' open counts byte-stable.
+  it("keeps earlier Tailor open counts byte-stable after drop -> deck edit -> re-swipe (AC1 'edit')", async () => {
+    const server = buildServer();
+    const { app } = server;
+    const cookie = await anonSession(app);
+    await reachTailorWithSeededDeck(server, cookie, "deck-edit-after-tailor@example.com");
+    let state = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(state.questions.length).toBeGreaterThan(2); // two Tailor answers, then one later deck edit
+
+    const answeredReqIds: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const q = state.questions[0];
+      answeredReqIds.push(q.requirementId);
+      state = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })).json();
+    }
+    const linesAtLanding = Object.fromEntries(
+      answeredReqIds.map((id) => [
+        id,
+        state.ledger.find((l: { requirementId: string }) => l.requirementId === id)!.text,
+      ]),
+    );
+    const laterDeckReqId = state.questions[0].requirementId as string;
+    const laterReq = loadAdRequirements(VALID_AD_ID).requirements.find((r) => r.id === laterDeckReqId)!;
+
+    await post(app, cookie, "/onboarding/tailor/drop");
+    // Edit the pending mined claim for the still-open requirement, with text that covers it (the
+    // requirement's own words — same text the seeded mined claim carries, so token-overlap fires).
+    const edit = await put(app, cookie, `/onboarding/claims/mined-${laterDeckReqId}`, {
+      text: `${laterReq.requirement}.`,
+    });
+    expect(edit.statusCode).toBe(200);
+    await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
+
+    const rebuilt = (await get(app, cookie, "/onboarding/tailor")).json();
+    const linesAfterDeckEdit = Object.fromEntries(
+      answeredReqIds.map((id) => [
+        id,
+        rebuilt.ledger.find((l: { requirementId: string }) => l.requirementId === id)!.text,
+      ]),
+    );
+    expect(linesAfterDeckEdit).toEqual(linesAtLanding);
+    expect(rebuilt.questions.map((q: { requirementId: string }) => q.requirementId)).not.toContain(laterDeckReqId);
   });
 });
 

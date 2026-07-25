@@ -119,8 +119,8 @@ export function buildTailorLedger(
   const uncovered = uncoveredRequirements(confirmed, adReq);
   const uncoveredIds = new Set(uncovered.map((r) => r.id));
 
-  // #28: replay confirmed + negatives as ONE merged answer order (the store's monotonic `seq` —
-  // missing on a claim, e.g. a hand-built fixture, sorts as if it landed first), recomputing coverage
+  // #37: replay confirmed + negatives as ONE merged decision order (`decisionSeq`, with `seq` as the
+  // fallback for older hand-built fixtures), recomputing coverage
   // one claim at a time so each of THIS ad's requirements gets the open count at the moment it landed,
   // not the final one. B1 still holds at each step: subtract negativeRequirementIds on top of plain
   // coverage, same as the final-state check below.
@@ -129,10 +129,11 @@ export function buildTailorLedger(
   // not just this ad's requirements, so its depth is confirmed.length + negatives.length. Fine at a
   // CV's claim-count scale (tens), revisit (incremental coverage instead of a full recompute per step)
   // if that ever grows into the hundreds.
+  const answerOrder = (claim: ClaimRecord): number => claim.decisionSeq ?? claim.seq ?? 0;
   const answeredInOrder = [
     ...confirmed.map((claim) => ({ claim, isNegative: false as const })),
     ...negatives.map((claim) => ({ claim, isNegative: true as const })),
-  ].sort((a, b) => (a.claim.seq ?? 0) - (b.claim.seq ?? 0));
+  ].sort((a, b) => answerOrder(a.claim) - answerOrder(b.claim) || (a.claim.seq ?? 0) - (b.claim.seq ?? 0));
   const openCountAtAnswerTime = new Map<string, number>();
   const confirmedSoFar: ClaimRecord[] = [];
   const negativesSoFar: ClaimRecord[] = [];

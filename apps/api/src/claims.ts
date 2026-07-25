@@ -22,9 +22,11 @@ export interface ClaimRecord extends CandidateClaim {
    *  have no reason to carry one — every record made through seed/add/answerNegative always gets one.
    *  ponytail: `seq` is CREATION order, not decision order — confirm()/edit()/reject()/reopen() (and
    *  their Pg twins) deliberately never touch it, so a mined claim seeded long ago and confirmed just
-   *  now still replays at its seed position. Upgrade path if that bites: a separate decision-time
-   *  ordinal, bumped only by confirm/add/answerNegative, not seed. */
+   *  now still replays at its seed position. #37 added decisionSeq for Tailor's replay order without
+   *  changing seq's creation-order meaning. */
   seq?: number;
+  /** #37: decision order for replaying confirmed/negative history; hand-built records may only have seq. */
+  decisionSeq?: number;
 }
 
 export interface ClaimStore {
@@ -54,6 +56,7 @@ export class InMemoryClaimStore implements ClaimStore {
   // #28: per-session seq counter — mirrors PgClaimStore's bigserial (a single always-increasing
   // ordinal), scoped per session since the in-memory driver has no shared table to serialize against.
   private seqCounters = new Map<string, number>();
+  private decisionCounters = new Map<string, number>();
 
   async init(): Promise<void> {}
 
@@ -70,6 +73,16 @@ export class InMemoryClaimStore implements ClaimStore {
     const n = (this.seqCounters.get(sessionId) ?? 0) + 1;
     this.seqCounters.set(sessionId, n);
     return n;
+  }
+
+  private nextDecisionSeq(sessionId: string): number {
+    const n = (this.decisionCounters.get(sessionId) ?? 0) + 1;
+    this.decisionCounters.set(sessionId, n);
+    return n;
+  }
+
+  private decisionSeq(sessionId: string, existing?: ClaimRecord): number {
+    return existing?.decisionSeq ?? this.nextDecisionSeq(sessionId);
   }
 
   async seed(sessionId: string, claims: CandidateClaim[]): Promise<void> {
@@ -91,12 +104,18 @@ export class InMemoryClaimStore implements ClaimStore {
 
   async confirm(sessionId: string, id: string): Promise<void> {
     const c = this.forSession(sessionId).get(id);
-    if (c) c.decision = "confirmed";
+    if (c) {
+      c.decisionSeq = this.decisionSeq(sessionId, c);
+      c.decision = "confirmed";
+    }
   }
 
   async reject(sessionId: string, id: string): Promise<void> {
     const c = this.forSession(sessionId).get(id);
-    if (c) c.decision = "rejected";
+    if (c) {
+      c.decision = "rejected";
+      delete c.decisionSeq;
+    }
   }
 
   async edit(sessionId: string, id: string, text: string): Promise<void> {
@@ -104,6 +123,7 @@ export class InMemoryClaimStore implements ClaimStore {
     if (c) {
       c.text = text;
       c.origin = "user-authored";
+      c.decisionSeq = this.decisionSeq(sessionId, c);
       c.decision = "confirmed";
     }
   }
@@ -113,12 +133,14 @@ export class InMemoryClaimStore implements ClaimStore {
     // #28: a correction (re-answer of the same id) keeps its ORIGINAL seq — same as PgClaimStore's
     // upsert, whose ON CONFLICT SET list never touches `seq` — so the ledger's answer order reflects
     // when the question was first landed, not when it was last corrected.
-    const seq = m.get(claim.id)?.seq ?? this.nextSeq(sessionId);
+    const existing = m.get(claim.id);
+    const seq = existing?.seq ?? this.nextSeq(sessionId);
     m.set(claim.id, {
       ...claim,
       decision: "confirmed",
       origin: "user-authored",
       seq,
+      decisionSeq: this.decisionSeq(sessionId, existing),
     });
   }
 
@@ -128,18 +150,23 @@ export class InMemoryClaimStore implements ClaimStore {
 
   async answerNegative(sessionId: string, claim: CandidateClaim): Promise<void> {
     const m = this.forSession(sessionId);
-    const seq = m.get(claim.id)?.seq ?? this.nextSeq(sessionId);
+    const existing = m.get(claim.id);
+    const seq = existing?.seq ?? this.nextSeq(sessionId);
     m.set(claim.id, {
       ...claim,
       decision: "negative",
       origin: "user-authored",
       seq,
+      decisionSeq: this.decisionSeq(sessionId, existing),
     });
   }
 
   async reopen(sessionId: string, id: string): Promise<void> {
     const c = this.forSession(sessionId).get(id);
-    if (c) c.decision = "pending";
+    if (c) {
+      c.decision = "pending";
+      delete c.decisionSeq;
+    }
   }
 }
 
@@ -157,8 +184,13 @@ CREATE TABLE IF NOT EXISTS claims (
   grill_hint     text,
   decision       text NOT NULL,
   origin         text NOT NULL,
+  decision_seq   bigint,
   PRIMARY KEY (session_id, id)
 )`;
+
+const CLAIMS_ALTERS = [
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS decision_seq bigint",
+];
 
 // Insert columns only — `seq` is never listed (bigserial auto-assigns it). Every READ, by contrast,
 // must include `seq`: all five below are `SELECT *`, but a future projected read that drops it would
@@ -182,6 +214,7 @@ function toClaim(r: Record<string, unknown>): ClaimRecord {
     // #28: bigserial reads back as a string (pg avoids silent precision loss past 2^53) — session
     // seq counts never get remotely close, so a plain Number() is safe.
     seq: Number(r.seq),
+    decisionSeq: r.decision_seq == null ? undefined : Number(r.decision_seq),
   };
 }
 
@@ -192,11 +225,21 @@ export class PgClaimStore implements ClaimStore {
 
   async init(): Promise<void> {
     await this.pool.query(CLAIMS_TABLE);
+    for (const alter of CLAIMS_ALTERS) await this.pool.query(alter);
   }
 
   private vals(sessionId: string, c: CandidateClaim, decision: ClaimDecision, origin: ClaimOrigin) {
     return [sessionId, c.id, c.role, c.text, c.machine_touch, c.classification, c.source_quote,
       c.needs_grill, c.grill_hint, decision, origin];
+  }
+
+  private async nextDecisionSeq(sessionId: string): Promise<number> {
+    const { rows } = await this.pool.query(
+      `SELECT GREATEST(COALESCE(MAX(seq), 0), COALESCE(MAX(decision_seq), 0)) + 1 AS next
+       FROM claims WHERE session_id = $1`,
+      [sessionId],
+    );
+    return Number(rows[0].next);
   }
 
   async seed(sessionId: string, claims: CandidateClaim[]): Promise<void> {
@@ -223,29 +266,39 @@ export class PgClaimStore implements ClaimStore {
   }
 
   async confirm(sessionId: string, id: string): Promise<void> {
-    await this.pool.query(`UPDATE claims SET decision = 'confirmed' WHERE session_id = $1 AND id = $2`, [sessionId, id]);
+    const decisionSeq = await this.nextDecisionSeq(sessionId);
+    await this.pool.query(
+      `UPDATE claims SET decision = 'confirmed', decision_seq = COALESCE(decision_seq, $3)
+       WHERE session_id = $1 AND id = $2`,
+      [sessionId, id, decisionSeq],
+    );
   }
 
   async reject(sessionId: string, id: string): Promise<void> {
-    await this.pool.query(`UPDATE claims SET decision = 'rejected' WHERE session_id = $1 AND id = $2`, [sessionId, id]);
+    await this.pool.query(`UPDATE claims SET decision = 'rejected', decision_seq = NULL WHERE session_id = $1 AND id = $2`, [sessionId, id]);
   }
 
   async edit(sessionId: string, id: string, text: string): Promise<void> {
+    const decisionSeq = await this.nextDecisionSeq(sessionId);
     await this.pool.query(
-      `UPDATE claims SET text = $3, origin = 'user-authored', decision = 'confirmed' WHERE session_id = $1 AND id = $2`,
-      [sessionId, id, text],
+      `UPDATE claims SET text = $3, origin = 'user-authored', decision = 'confirmed',
+         decision_seq = COALESCE(decision_seq, $4)
+       WHERE session_id = $1 AND id = $2`,
+      [sessionId, id, text, decisionSeq],
     );
   }
 
   async add(sessionId: string, claim: CandidateClaim): Promise<void> {
+    const decisionSeq = await this.nextDecisionSeq(sessionId);
     await this.pool.query(
-      `INSERT INTO claims (${CLAIM_COLS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        ON CONFLICT (session_id, id) DO UPDATE SET
          role = EXCLUDED.role, text = EXCLUDED.text, machine_touch = EXCLUDED.machine_touch,
          classification = EXCLUDED.classification, source_quote = EXCLUDED.source_quote,
          needs_grill = EXCLUDED.needs_grill, grill_hint = EXCLUDED.grill_hint,
-         decision = EXCLUDED.decision, origin = EXCLUDED.origin`,
-      this.vals(sessionId, claim, "confirmed", "user-authored"),
+         decision = EXCLUDED.decision, origin = EXCLUDED.origin,
+         decision_seq = COALESCE(claims.decision_seq, EXCLUDED.decision_seq)`,
+      [...this.vals(sessionId, claim, "confirmed", "user-authored"), decisionSeq],
     );
   }
 
@@ -258,19 +311,21 @@ export class PgClaimStore implements ClaimStore {
   }
 
   async answerNegative(sessionId: string, claim: CandidateClaim): Promise<void> {
+    const decisionSeq = await this.nextDecisionSeq(sessionId);
     await this.pool.query(
-      `INSERT INTO claims (${CLAIM_COLS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        ON CONFLICT (session_id, id) DO UPDATE SET
          role = EXCLUDED.role, text = EXCLUDED.text, machine_touch = EXCLUDED.machine_touch,
          classification = EXCLUDED.classification, source_quote = EXCLUDED.source_quote,
          needs_grill = EXCLUDED.needs_grill, grill_hint = EXCLUDED.grill_hint,
-         decision = EXCLUDED.decision, origin = EXCLUDED.origin`,
-      this.vals(sessionId, claim, "negative", "user-authored"),
+         decision = EXCLUDED.decision, origin = EXCLUDED.origin,
+         decision_seq = COALESCE(claims.decision_seq, EXCLUDED.decision_seq)`,
+      [...this.vals(sessionId, claim, "negative", "user-authored"), decisionSeq],
     );
   }
 
   async reopen(sessionId: string, id: string): Promise<void> {
-    await this.pool.query(`UPDATE claims SET decision = 'pending' WHERE session_id = $1 AND id = $2`, [sessionId, id]);
+    await this.pool.query(`UPDATE claims SET decision = 'pending', decision_seq = NULL WHERE session_id = $1 AND id = $2`, [sessionId, id]);
   }
 }
 

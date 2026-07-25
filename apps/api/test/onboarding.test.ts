@@ -173,7 +173,7 @@ describe("JC-21/27/31 onboarding deck → build loop", () => {
   // `{ ...c, tier }` spread would leak it onto the wire. On Postgres `seq` is a TABLE-GLOBAL
   // bigserial, so it'd disclose the delta in OTHER sessions' write volume between two of a visitor's
   // own requests — pin it off, not just fix it once.
-  it("the deck payload never carries the internal `seq` ordinal (#28)", async () => {
+  it("the deck payload never carries internal claim ordinals (#28/#37)", async () => {
     const server = buildServer({ pipeline: fakePipeline() });
     const cookie = await startSession(server.app);
     const jobId = await mineAndGetJob(server, cookie);
@@ -185,7 +185,10 @@ describe("JC-21/27/31 onboarding deck → build loop", () => {
     });
     const claims = deck.json().claims as Array<Record<string, unknown>>;
     expect(claims.length).toBeGreaterThan(0); // sanity: there's something that COULD leak it
-    for (const c of claims) expect(Object.prototype.hasOwnProperty.call(c, "seq")).toBe(false);
+    for (const c of claims) {
+      expect(Object.prototype.hasOwnProperty.call(c, "seq")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(c, "decisionSeq")).toBe(false);
+    }
   });
 
   it("build audits mined wording but never user-authored words, and a dead auditor never blocks (decision #6)", async () => {
