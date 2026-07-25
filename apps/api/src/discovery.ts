@@ -125,6 +125,16 @@ export interface DiscoveryState {
   railFill: Record<CvSection, number>;
   essentialRemaining: number;
   cvLines: DiscoveryCvLine[];
+  factCount: number;
+}
+
+/** #17 profile badge / #23 factCount — "the pile that only grows": every recorded answer counts, a
+ *  "no" included. Defined as confirmed positives + persisted negatives (session-wide, every source —
+ *  discovery, grill, tailor). A correction (no<->yes) flips one record's `decision` in place rather
+ *  than adding/removing a row, so this is monotonic non-decreasing across a normal answer/correction;
+ *  only an independent deck reject (a different, S2 flow) can lower it. */
+export function factCount(confirmed: ClaimRecord[], negatives: ClaimRecord[]): number {
+  return confirmed.length + negatives.length;
 }
 
 const emptyRail = (): Record<CvSection, number> =>
@@ -155,6 +165,34 @@ export function readerQuestion(role: MinedRole): DiscoveryQuestion {
  *  bars (spec: "the essential band alone is the discovery gate"). */
 const asked = (i: FloorItem) => i.rankBand === "essential" || i.rankBand === "standard";
 
+/** The CV lines discovery alone contributes: the role lead line, then each floor item's answered line
+ *  in floor rank order, then any reader-only positive (#18 AC6 — synthetic, not a floor item). Split
+ *  out of discoveryState (#23 B2 / standards finding): callers that only need cvLines — tailor is the
+ *  first — get exactly this, not the full discoveryState rebuild (railFill, essentialRemaining,
+ *  question/triggeredBy filtering, the promise) for fields they can't use. `floor` is passed in rather
+ *  than re-derived so discoveryState itself doesn't load+parse the family floor twice. */
+export function discoveryCvLines(
+  role: string,
+  floor: FloorItem[],
+  confirmed: ClaimRecord[],
+): DiscoveryCvLine[] {
+  const positives = confirmed.filter((c) => isDiscoveryClaim(c.id));
+  const cvLines: DiscoveryCvLine[] = [
+    { itemId: "role", section: "summary", text: composeRoleLine(role) },
+  ];
+  for (const i of floor) {
+    const claim = positives.find((c) => itemIdOf(c.id) === i.id);
+    if (claim) cvLines.push({ itemId: i.id, section: i.cvSection, text: claim.text });
+  }
+  for (const claim of positives) {
+    const itemId = itemIdOf(claim.id);
+    if (itemId.startsWith("reader-") && !cvLines.some((l) => l.itemId === itemId)) {
+      cvLines.push({ itemId, section: "experience", text: claim.text });
+    }
+  }
+  return cvLines;
+}
+
 /** Rebuild the whole screen state from persisted facts. `role` is the Q1 text (null before Q1);
  *  `confirmed`/`negatives` are this session's recorded answers. Pure + deterministic → GET resumes. */
 export function discoveryState(
@@ -173,6 +211,7 @@ export function discoveryState(
       railFill: emptyRail(),
       essentialRemaining: 0,
       cvLines: [],
+      factCount: factCount(confirmed, negatives),
     };
   }
 
@@ -210,21 +249,7 @@ export function discoveryState(
   const essential = floor.filter((i) => i.rankBand === "essential");
   const essentialRemaining = essential.filter((i) => !answeredIds.has(i.id)).length;
 
-  // cvLines: the role lead line, then each answered positive's line in the floor's rank order, then
-  // any reader-only positive (#18 AC6 — synthetic, not a floor item, so missed by the loop above).
-  const cvLines: DiscoveryCvLine[] = [
-    { itemId: "role", section: "summary", text: composeRoleLine(role) },
-  ];
-  for (const i of floor) {
-    const claim = positives.find((c) => itemIdOf(c.id) === i.id);
-    if (claim) cvLines.push({ itemId: i.id, section: i.cvSection, text: claim.text });
-  }
-  for (const claim of positives) {
-    const itemId = itemIdOf(claim.id);
-    if (itemId.startsWith("reader-") && !cvLines.some((l) => l.itemId === itemId)) {
-      cvLines.push({ itemId, section: "experience", text: claim.text });
-    }
-  }
+  const cvLines = discoveryCvLines(role, floor, confirmed);
 
   return {
     stage: essentialRemaining === 0 ? "deck" : "discovery",
@@ -236,6 +261,7 @@ export function discoveryState(
     railFill,
     essentialRemaining,
     cvLines,
+    factCount: factCount(confirmed, negatives),
   };
 }
 

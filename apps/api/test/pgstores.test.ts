@@ -29,11 +29,13 @@ for (const [name, make] of sessionDrivers) {
       const s = await store.create();
       expect(s.stage).toBe("deck");
       expect(s.tailorAdId).toBeNull();
+      expect(s.tailorFloorPct).toBe(0);
       expect(await store.getByToken(s.token)).toMatchObject({
         id: s.id,
         token: s.token,
         stage: "deck",
         tailorAdId: null,
+        tailorFloorPct: 0,
       });
       expect(await store.getById(s.id)).toMatchObject({ id: s.id });
       expect(await store.getByToken("nope")).toBeNull();
@@ -54,6 +56,47 @@ for (const [name, make] of sessionDrivers) {
       const got = await store.getById(s.id);
       expect(got?.stage).toBe("tailor");
       expect(got?.tailorAdId).toBe("ad-1");
+    });
+
+    // #23 — the monotonic re-score floor: raises only, never lowers.
+    it("raiseTailorFloor raises the floor but never lowers it", async () => {
+      const s = await store.create();
+      await store.setTailorTarget(s.id, "ad-1");
+      await store.raiseTailorFloor(s.id, 40);
+      expect((await store.getById(s.id))?.tailorFloorPct).toBe(40);
+      await store.raiseTailorFloor(s.id, 25); // lower — must not regress
+      expect((await store.getById(s.id))?.tailorFloorPct).toBe(40);
+      await store.raiseTailorFloor(s.id, 60);
+      expect((await store.getById(s.id))?.tailorFloorPct).toBe(60);
+    });
+
+    it("setTailorTarget resets the floor to 0 — a new job starts fresh", async () => {
+      const s = await store.create();
+      await store.setTailorTarget(s.id, "ad-1");
+      await store.raiseTailorFloor(s.id, 50);
+      await store.setTailorTarget(s.id, "ad-2");
+      expect((await store.getById(s.id))?.tailorFloorPct).toBe(0);
+    });
+
+    // D2 (QA-observed regression: drop + re-swipe the same card showed 29% -> 12%): re-targeting the
+    // SAME ad must keep its floor — only a genuinely different ad resets it.
+    it("setTailorTarget re-targeting the SAME ad keeps its floor (drop + re-swipe never regresses)", async () => {
+      const s = await store.create();
+      await store.setTailorTarget(s.id, "ad-1");
+      await store.raiseTailorFloor(s.id, 29);
+      await store.setTailorTarget(s.id, "ad-1"); // e.g. drop() then /want the same card again
+      expect((await store.getById(s.id))?.tailorFloorPct).toBe(29);
+      await store.setTailorTarget(s.id, "ad-2"); // a genuinely different ad still resets it
+      expect((await store.getById(s.id))?.tailorFloorPct).toBe(0);
+    });
+
+    it("clearTailorTarget drops back to deck with no ad targeted", async () => {
+      const s = await store.create();
+      await store.setTailorTarget(s.id, "ad-1");
+      await store.clearTailorTarget(s.id);
+      const got = await store.getById(s.id);
+      expect(got?.stage).toBe("deck");
+      expect(got?.tailorAdId).toBeNull();
     });
 
     it("touch doesn't throw and keeps the row", async () => {

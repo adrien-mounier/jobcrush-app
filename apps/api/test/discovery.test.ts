@@ -9,6 +9,7 @@ import {
   composeCvLine,
   composeRoleLine,
   discoveryState,
+  factCount,
   isNoAnswer,
   parseCity,
   readerQuestion,
@@ -93,6 +94,24 @@ describe("#16 discovery pure helpers", () => {
     const s = discoveryState(null, [], []);
     expect(s).toMatchObject({ role: null, promise: null, questions: [], essentialRemaining: 0, cvLines: [] });
     expect(s.railFill).toEqual({ summary: 0, experience: 0, skills: 0, education: 0 });
+    expect(s.factCount).toBe(0);
+  });
+
+  // #17 profile badge / #23 factCount — "the pile that only grows": confirmed positives + persisted
+  // negatives, a "no" counted just like a "yes". Pure-function seam directly (route coverage below).
+  describe("factCount", () => {
+    it("counts confirmed positives + persisted negatives", () => {
+      expect(factCount([], [])).toBe(0);
+      expect(factCount([discoveryClaim("a")], [])).toBe(1);
+      expect(factCount([], [discoveryClaim("b")])).toBe(1);
+      expect(factCount([discoveryClaim("a")], [discoveryClaim("b")])).toBe(2);
+    });
+
+    it("never decreases when a claim moves between the confirmed and negative buckets (a correction)", () => {
+      const before = factCount([discoveryClaim("a")], []); // "a" answered positively
+      const afterCorrection = factCount([], [discoveryClaim("a")]); // corrected to a "no" — same record, new bucket
+      expect(afterCorrection).toBeGreaterThanOrEqual(before);
+    });
   });
 
   // #18 AC1 — the gate: stage flips to "deck" only once the essential band is fully asked (not
@@ -204,6 +223,7 @@ describe("#16 discovery routes", () => {
     expect(s.essentialRemaining).toBe(2); // one essential closed
     expect(s.railFill.experience).toBeGreaterThan(0);
     expect(s.questions.map((q) => q.itemId)).not.toContain("budget-accountability"); // never re-offered
+    expect(s.factCount).toBe(1); // #17/#23: one recorded answer so far
   });
 
   it("a 'no' answer closes the item (advances the countdown) but adds no CV line — persisted as a negative", async () => {

@@ -18,6 +18,11 @@ export interface SessionRecord {
   targetTitles: string[];
   stage: OnboardingStage;
   tailorAdId: string | null;
+  /** #23 the monotonic re-score floor for the current tailor target: the highest match tick ever
+   *  posted this job, so a correction/"no" can never make the visible % regress. setTailorTarget
+   *  resets it to 0 only when the ad actually changes — re-entering the SAME job (drop + re-swipe)
+   *  keeps its floor, so leaving and returning can never regress the visible % either (D2). */
+  tailorFloorPct: number;
 }
 
 export interface SessionStore {
@@ -30,6 +35,10 @@ export interface SessionStore {
   setTargetTitles(id: string, titles: string[]): Promise<void>;
   setStage(id: string, stage: OnboardingStage): Promise<void>;
   setTailorTarget(id: string, adId: string): Promise<void>;
+  /** #23 drop: exit tailor back to the deck, clearing the target. Never touches claims. */
+  clearTailorTarget(id: string): Promise<void>;
+  /** #23: raises the tailor floor only — Math.max/GREATEST — so a correction can't lower it. */
+  raiseTailorFloor(id: string, pct: number): Promise<void>;
   /** JC-19 merge: claim this anonymous session for a user (the whole merge is this one update). */
   setClaimedByUserId(id: string, userId: string): Promise<void>;
 }
@@ -45,6 +54,7 @@ function newSession(): SessionRecord {
     targetTitles: [],
     stage: "deck",
     tailorAdId: null,
+    tailorFloorPct: 0,
   };
 }
 
@@ -88,8 +98,26 @@ export class InMemorySessionStore implements SessionStore {
     const s = this.byId.get(id);
     if (s) {
       s.stage = "tailor";
+      // D2: only a genuinely NEW ad starts fresh — re-targeting the ad already in progress keeps
+      // its floor, or the visible % can regress. This does NOT cover drop → re-swipe the same card:
+      // clearTailorTarget nulls tailorAdId first, so that path still resets. Not visitor-reachable
+      // (matchTick is monotonic in the confirmed set and the UI never re-asks) — see #31.
+      if (s.tailorAdId !== adId) s.tailorFloorPct = 0;
       s.tailorAdId = adId;
     }
+  }
+
+  async clearTailorTarget(id: string): Promise<void> {
+    const s = this.byId.get(id);
+    if (s) {
+      s.stage = "deck";
+      s.tailorAdId = null;
+    }
+  }
+
+  async raiseTailorFloor(id: string, pct: number): Promise<void> {
+    const s = this.byId.get(id);
+    if (s) s.tailorFloorPct = Math.max(s.tailorFloorPct, pct);
   }
 
   async setClaimedByUserId(id: string, userId: string): Promise<void> {
@@ -107,11 +135,13 @@ CREATE TABLE IF NOT EXISTS sessions (
   claimed_by_user_id text,
   target_titles      jsonb NOT NULL DEFAULT '[]',
   stage              text NOT NULL DEFAULT 'deck',
-  tailor_ad_id       text
+  tailor_ad_id       text,
+  tailor_floor_pct   integer NOT NULL DEFAULT 0
 )`;
 
 const SESSIONS_ALTERS = [
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tailor_ad_id text",
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tailor_floor_pct integer NOT NULL DEFAULT 0",
 ];
 
 function toSession(r: Record<string, unknown>): SessionRecord {
@@ -125,6 +155,7 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     targetTitles: Array.isArray(titles) ? (titles as string[]) : JSON.parse((titles as string) ?? "[]"),
     stage: (r.stage as OnboardingStage) ?? "deck",
     tailorAdId: (r.tailor_ad_id as string) ?? null,
+    tailorFloorPct: (r.tailor_floor_pct as number) ?? 0,
   };
 }
 
@@ -163,7 +194,26 @@ export class PgSessionStore implements SessionStore {
     await this.pool.query(`UPDATE sessions SET stage = $2 WHERE id = $1`, [id, stage]);
   }
   async setTailorTarget(id: string, adId: string): Promise<void> {
-    await this.pool.query(`UPDATE sessions SET stage = 'tailor', tailor_ad_id = $2 WHERE id = $1`, [id, adId]);
+    // D2: tailor_ad_id on the right of the CASE reads the PRE-update row (standard SQL: every SET
+    // expression in one UPDATE sees the old row, not siblings' new values) — so this resets the floor
+    // only when the ad is actually changing, and keeps it when re-targeting the same one.
+    await this.pool.query(
+      `UPDATE sessions SET stage = 'tailor', tailor_ad_id = $2,
+         tailor_floor_pct = CASE WHEN tailor_ad_id = $2 THEN tailor_floor_pct ELSE 0 END
+       WHERE id = $1`,
+      [id, adId],
+    );
+  }
+
+  async clearTailorTarget(id: string): Promise<void> {
+    await this.pool.query(`UPDATE sessions SET stage = 'deck', tailor_ad_id = NULL WHERE id = $1`, [id]);
+  }
+
+  async raiseTailorFloor(id: string, pct: number): Promise<void> {
+    await this.pool.query(
+      `UPDATE sessions SET tailor_floor_pct = GREATEST(tailor_floor_pct, $2) WHERE id = $1`,
+      [id, pct],
+    );
   }
 
   async setClaimedByUserId(id: string, userId: string): Promise<void> {

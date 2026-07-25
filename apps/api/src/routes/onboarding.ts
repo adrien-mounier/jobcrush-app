@@ -21,19 +21,32 @@ import { renderRootCv } from "../rootcv.js";
 import { runGate } from "../gate.js";
 import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
-import { loadFamilyFloor, listAdRequirements } from "../e5stub.js";
+import { loadFamilyFloor, listAdRequirements, loadAdRequirements } from "../e5stub.js";
 import { loadPostings, type Posting } from "../preview.js";
-import { matchTick, uncoveredRequirements, pickHitClause, pickOpenClause } from "../matchtick.js";
+import { matchTick, uncoveredRequirements, pickHitClause, pickOpenClause, NOTHING_OPEN_CLAUSE } from "../matchtick.js";
 import {
   composeCvLine,
   discoveryClaimId,
+  discoveryCvLines,
   discoveryState,
+  factCount,
   freeTextLine,
   isNoAnswer,
   READER_ROLE_ITEM_ID,
   readerQuestion,
   resolveFamily,
+  type DiscoveryCvLine,
 } from "../discovery.js";
+import {
+  buildTailorLedger,
+  composeTailorLine,
+  negativeRequirementIds,
+  tailorClaimId,
+  tailorCvLines,
+  tailorQuestions,
+  type LedgerLine,
+  type TailorQuestion,
+} from "../tailor.js";
 
 export interface OnboardingDeps {
   claims: ClaimStore;
@@ -382,6 +395,95 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         return { stage: "tailor", adId: req.params.adId };
       },
     );
+
+    // --- #23 tailor (screen 3): re-score, the live card, and the exits -------------------------
+    // Post-wall (requireUser, like #21's want route) — reached only after signing in at the reveal.
+    // The whole screen is a pure function of (this ad's requirements, this session's confirmed/
+    // negative facts, this session's tailor floor), so GET is a plain re-derive — same resume story
+    // as #16 discovery. card.bubble/fit/dontYet come straight from buildJobCard recomputed on the
+    // CURRENT fact set — that IS AC2's "?→✓ flip" and "bubble's gap clause rewritten"; no new state.
+
+    app.get("/onboarding/tailor", async (req, reply) => {
+      const session = requireUser(req);
+      const adId = session.tailorAdId;
+      if (!adId)
+        return reply
+          .status(409)
+          .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
+      const target = tailorTarget(adId);
+      if (!target)
+        return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
+      const { posting, adReq } = target;
+      const [confirmed, negatives] = await discoveryReads(session.id);
+      return buildTailorState(
+        posting,
+        adReq,
+        confirmed,
+        negatives,
+        session.targetTitles[0] ?? null,
+        session.tailorFloorPct,
+      );
+    });
+
+    // Idempotent, like #18's discovery answer: re-answering the same requirement CORRECTS it
+    // (positive<->negative flip) via the same upserting add()/answerNegative() — no 409 guard needed.
+    // The floor only ever rises (raiseTailorFloor: Math.max/GREATEST), so a correction/"no" right
+    // after can never make the responded matchPct lower than a prior response's (AC1).
+    app.post(
+      "/onboarding/tailor/answer",
+      { schema: { body: z.object({ requirementId: z.string(), answer: z.string().trim().min(1) }) } },
+      async (req, reply) => {
+        const session = requireUser(req);
+        const adId = session.tailorAdId;
+        if (!adId)
+          return reply
+            .status(409)
+            .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
+        const target = tailorTarget(adId);
+        if (!target)
+          return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
+        const { posting, adReq } = target;
+        const requirement = adReq.requirements.find((r) => r.id === req.body.requirementId);
+        if (!requirement)
+          return reply
+            .status(404)
+            .send({ error: { code: "unknown_requirement", message: "no such requirement" } });
+
+        const no = isNoAnswer(req.body.answer);
+        const claim: CandidateClaim = {
+          id: tailorClaimId(adReq.adId, requirement.id),
+          role: "profile",
+          text: no
+            ? `Not applicable — ${requirement.requirement}`
+            : composeTailorLine(requirement, req.body.answer),
+          machine_touch: "verbatim", // the visitor's own answer
+          classification: "Verified", // user-authored, they vouch for it
+          source_quote: req.body.answer.slice(0, 200),
+          needs_grill: false,
+          grill_hint: null,
+        };
+        if (no) await deps.claims.answerNegative(session.id, claim);
+        else await deps.claims.add(session.id, claim);
+
+        const [confirmed, negatives] = await discoveryReads(session.id);
+        await deps.sessions.raiseTailorFloor(session.id, matchTick(confirmed, adReq));
+        return buildTailorState(
+          posting,
+          adReq,
+          confirmed,
+          negatives,
+          session.targetTitles[0] ?? null,
+          session.tailorFloorPct,
+        );
+      },
+    );
+
+    // Drop: back to the deck, never touching a claim — "everything you told me stays on your profile."
+    app.post("/onboarding/tailor/drop", async (req) => {
+      const session = requireUser(req);
+      await deps.sessions.clearTailorTarget(session.id);
+      return { stage: "deck" };
+    });
   };
 }
 
@@ -434,5 +536,75 @@ function buildJobCard(
     })),
     askedClosed: negatives.map((c) => ({ id: c.id, text: c.text })),
     adExcerpt: posting.excerpt,
+  };
+}
+
+// --- #23 tailor shape (the pinned frontend contract) -----------------------------------------------
+interface TailorState {
+  card: JobCard;
+  questions: TailorQuestion[];
+  ledger: LedgerLine[];
+  cvLines: DiscoveryCvLine[];
+  closedGaps: { closed: number; asked: number };
+  done: boolean;
+  factCount: number;
+}
+
+/** This session's tailor target, resolved to its posting + requirements — or null if either is no
+ *  longer present in the fixtures. tailorAdId is PERSISTED session state that can outlive the fixture
+ *  pair that validated it at /onboarding/cards/:adId/want time (these are explicitly stubs awaiting
+ *  E5, liable to be edited/reordered) — so a miss here is reachable, not impossible, and must fail
+ *  closed with the same 404 that route already uses for an unknown card id. */
+function tailorTarget(adId: string): { posting: Posting; adReq: AdRequirements } | null {
+  const posting = loadPostings().find((p) => p.id === adId);
+  if (!posting) return null;
+  try {
+    return { posting, adReq: loadAdRequirements(adId) };
+  } catch {
+    return null;
+  }
+}
+
+/** Pure composition of TailorState — same split as buildJobCard: matchtick.ts + tailor.ts score/rank,
+ *  this shapes the pinned response. matchPct obeys the monotonic floor (AC1): never the raw tick alone. */
+function buildTailorState(
+  posting: Posting,
+  adReq: AdRequirements,
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+  role: string | null,
+  floorPct: number,
+): TailorState {
+  const matchPct = Math.max(matchTick(confirmed, adReq), floorPct);
+  const questions = tailorQuestions(adReq, confirmed, negatives);
+  const { ledger, closedGaps } = buildTailorLedger(adReq, confirmed, negatives);
+  const card = buildJobCard(posting, adReq, confirmed, negatives);
+  // B1: a "no" closes the gap too (spec #37/#38, "the open list only ever shrinks") — uncoveredRequirements
+  // (shared with #19's untouched deck) doesn't know about negatives, so subtract them here on top.
+  const negativeIds = negativeRequirementIds(adReq, negatives);
+  const dontYet = card.dontYet.filter((r) => !negativeIds.has(r.id));
+
+  // B2: "the CV below" must include tailor's own answers, not just discovery's — discoveryCvLines is
+  // the narrow slice of discoveryState's work this needs (no railFill/essentialRemaining/questions
+  // rebuild for fields tailor can't use). Before Q1 (role null — structurally unreachable in tailor,
+  // since reaching it requires discovery's essential band asked, but kept honest) discovery contributes
+  // nothing, same as discoveryState's own empty-skeleton branch.
+  const discoveryLines = role ? discoveryCvLines(role, loadFamilyFloor(resolveFamily(role).family).items, confirmed) : [];
+  const cvLines = [...discoveryLines, ...tailorCvLines(adReq, confirmed)];
+
+  // D1 (AC2): the bubble's gap clause must rewrite when a "no" closes the last open gap, same as
+  // dontYet does — card.bubble.open came from buildJobCard's own pickOpenClause, which is negative-
+  // blind by design (see B1), so it can keep naming a requirement the visitor just declined. Recompute
+  // it from the already negative-filtered dontYet instead of calling pickOpenClause a second time.
+  const bubble = { ...card.bubble, open: dontYet[0]?.requirement ?? NOTHING_OPEN_CLAUSE };
+
+  return {
+    card: { ...card, matchPct, dontYet, bubble },
+    questions,
+    ledger,
+    cvLines,
+    closedGaps,
+    done: questions.length === 0,
+    factCount: factCount(confirmed, negatives),
   };
 }

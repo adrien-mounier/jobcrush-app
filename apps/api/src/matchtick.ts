@@ -34,8 +34,9 @@ function overlapCount(a: Set<string>, b: Set<string>): number {
 }
 
 /** Band weights for the instant tick — "must" counts 3x a "nice", "should" 2x. Fixed, not
- *  learned: the whole tick is a cheap stand-in for E5's real scoring (S3/JC-31). */
-const BAND_WEIGHT: Record<AdRequirement["band"], number> = { must: 3, should: 2, nice: 1 };
+ *  learned: the whole tick is a cheap stand-in for E5's real scoring (S3/JC-31). Exported: #23's
+ *  ledger derivation needs the same weights to compute each answer's "+N%" share. */
+export const BAND_WEIGHT: Record<AdRequirement["band"], number> = { must: 3, should: 2, nice: 1 };
 
 /** The union of every fact's tokens. Union-based on purpose: it only ever grows as facts are
  *  added, which is exactly what makes matchTick's carried-risk property (never decreases) hold. */
@@ -99,9 +100,13 @@ export function pickHitClause(confirmedFacts: ScoredFact[], adRequirements: AdRe
   return confirmedFacts[0]?.text ?? "Let's find your strongest fit.";
 }
 
+// Exported (not just used below): #23's tailor assembly reuses this exact fallback when it recomputes
+// the bubble's open clause over a negative-filtered dontYet — see routes/onboarding.ts D1.
+export const NOTHING_OPEN_CLAUSE = "You're covering everything we can see so far.";
+
 /** The biggest open gap — the top-ranked uncovered requirement's own text — the "open" half of
  *  the card's bubble. */
 export function pickOpenClause(confirmedFacts: ScoredFact[], adRequirements: AdRequirements): string {
   const [top] = uncoveredRequirements(confirmedFacts, adRequirements);
-  return top?.requirement ?? "You're covering everything we can see so far.";
+  return top?.requirement ?? NOTHING_OPEN_CLAUSE;
 }
