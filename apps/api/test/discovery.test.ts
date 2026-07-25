@@ -8,6 +8,7 @@ import type { ClaimRecord } from "../src/claims.js";
 import {
   composeCvLine,
   composeRoleLine,
+  discoveryClaimId,
   discoveryState,
   factCount,
   isNoAnswer,
@@ -136,6 +137,24 @@ describe("#16 discovery pure helpers", () => {
     expect(done.essentialRemaining).toBe(0);
   });
 
+  // #35 — a claim rejected in the S2 deck still closes its question (the visitor answered it; only
+  // the machine's phrasing was rejected), but must not behave like a positive: no CV line, and no
+  // trigger surfacing (isTriggered keys off confirmed positives only).
+  it("a rejected claim closes its question (never re-asked) but contributes no CV line and no trigger", () => {
+    const role = "IT project manager in Paris";
+    const rejected = discoveryState(
+      role,
+      [discoveryClaim("cross-functional-leadership")],
+      [],
+      [discoveryClaim("budget-accountability")],
+    );
+    expect(rejected.essentialRemaining).toBe(1); // budget-accountability + cross-functional both closed
+    expect(rejected.questions.map((q) => q.itemId)).not.toContain("budget-accountability");
+    expect(rejected.cvLines.some((l) => l.itemId === "budget-accountability")).toBe(false);
+    // A rejected trigger answer does not surface the item it would otherwise have triggered.
+    expect(rejected.questions.map((q) => q.itemId)).not.toContain("budget-employer-dates");
+  });
+
   // #18 AC5 — a triggered item is gated out of both questions and railFill until its trigger fires
   // POSITIVELY; a "no" on the trigger leaves it un-surfaced.
   it("a triggered item is excluded from questions/railFill until its trigger is answered POSITIVELY", () => {
@@ -175,6 +194,14 @@ const get = (app: ReturnType<typeof buildServer>["app"], cookie: string, url: st
   app.inject({ method: "GET", url, headers: { cookie } });
 const post = (app: ReturnType<typeof buildServer>["app"], cookie: string, url: string, payload: unknown) =>
   app.inject({ method: "POST", url, headers: { cookie }, payload });
+
+// #35's route test needs a signed-in session — the reject route is post-wall (requireUser). Prior
+// art: tailor.test.ts's own signIn helper.
+async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string, email: string): Promise<void> {
+  const link = await post(app, cookie, "/auth/request-link", { email });
+  const token = new URL("http://x" + link.json().devLink).searchParams.get("token")!;
+  await post(app, cookie, "/auth/verify", { token });
+}
 
 const ROLE = "IT project manager in Paris, mostly ERP";
 
@@ -443,5 +470,119 @@ describe("#16 discovery routes", () => {
     const res = await get(app, cookie, "/onboarding/discovery?job=does-not-exist");
     expect(res.statusCode).toBe(200);
     expect((res.json() as DiscoveryState).questions.map((q) => q.itemId)).not.toContain("reader-role");
+  });
+
+  // #35 — a claim rejected in the S2 review deck must not reopen its discovery question: the visitor
+  // was asked and answered, only the machine's phrasing of the claim was rejected. Prior art: exactly
+  // the reproduction #33's tailor.test.ts route test performs (reject discovery-budget-accountability,
+  // re-read) — reused here to prove the derivation itself never regresses, not just the factCount floor.
+  it("a claim rejected in the S2 deck does not reopen its discovery question, and railFill/essentialRemaining never regress (#35)", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: "cross-functional-leadership",
+      answer: "Yes, multiple teams",
+    });
+    const before: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" })
+    ).json();
+    expect(before.stage).toBe("deck"); // essential band fully asked
+    expect(before.essentialRemaining).toBe(0);
+    const railBefore = before.railFill.experience;
+
+    // The reject route is post-wall (requireUser) — sign in, like #33's own route test does.
+    await signIn(app, cookie, "reject-reopens@example.com");
+    const rejectRes = await app.inject({
+      method: "POST",
+      url: `/onboarding/claims/${discoveryClaimId("budget-accountability")}/reject`,
+      headers: { cookie },
+    });
+    expect(rejectRes.statusCode).toBe(200);
+
+    const after: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
+    // AC1: the question does not come back.
+    expect(after.questions.map((q) => q.itemId)).not.toContain("budget-accountability");
+    // AC2: railFill for that section never decreases. Pinned to the literal as well as the AC's own
+    // >= shape: a bare >= also passes when the value RISES because the denominator shrank (askable
+    // losing an item), which is the failure mode the sibling trigger test below exists to catch.
+    expect(railBefore).toBe(0.6);
+    expect(after.railFill.experience).toBe(0.75);
+    expect(after.railFill.experience).toBeGreaterThanOrEqual(railBefore);
+    // AC3: essentialRemaining never increases.
+    expect(after.essentialRemaining).toBeLessThanOrEqual(before.essentialRemaining);
+  });
+
+  // Review fix (both axes): rejecting a TRIGGER claim must not evict its already-answered follow-up
+  // from railFill's denominator — isTriggered keyed off `positives` alone (pre-fix) loses the trigger
+  // the moment the claim moves out of `confirmed`, and "un-surfacing" an already-answered item shrinks
+  // BOTH numerator and denominator, which can mask a regression behind toBeGreaterThanOrEqual. Pin the
+  // literal value (0.4 both times), not just "not decreased".
+  it("rejecting a trigger claim does not evict its already-answered triggered follow-up from railFill (#35)", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
+    const before: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", {
+        itemId: "budget-employer-dates",
+        answer: "Acme Corp, around 2021",
+      })
+    ).json();
+    expect(before.railFill.experience).toBe(0.4); // 2 of 5 askable experience items answered
+
+    await signIn(app, cookie, "reject-trigger@example.com");
+    const rejectRes = await app.inject({
+      method: "POST",
+      url: `/onboarding/claims/${discoveryClaimId("budget-accountability")}/reject`,
+      headers: { cookie },
+    });
+    expect(rejectRes.statusCode).toBe(200);
+
+    const after: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
+    expect(after.questions.map((q) => q.itemId)).not.toContain("budget-employer-dates"); // still not re-asked
+    expect(after.railFill.experience).toBe(0.4); // unchanged, not just non-decreasing
+  });
+
+  // Review fix (Spec axis): the reader-only question (#18 AC6) has its own answered-check independent
+  // of discoveryState's answeredIds — it must also treat a deck-rejected claim as answered, or the
+  // same never-re-ask guarantee breaks one function call away from the fix above.
+  it("a deck-rejected reader-only claim does not reopen the reader question (#35)", async () => {
+    const { app, store } = buildServer();
+    const cookie = await anonSession(app);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sessionId = me.json().id as string;
+    const job = await store.create("onboarding", sessionId);
+    await store.update(job.id, {
+      progress: {
+        miner: {
+          doc: {
+            roles: [
+              { employer: "Acme", title: "Senior Consultant", dates_as_written: "2020-2022", dates_missing: false },
+            ],
+          },
+        },
+      },
+    });
+
+    await get(app, cookie, `/onboarding/discovery?job=${job.id}`); // surfaces the reader question
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: "reader-role",
+      answer: "Actually I was the interim delivery lead",
+    });
+
+    await signIn(app, cookie, "reject-reader-role@example.com");
+    const rejectRes = await app.inject({
+      method: "POST",
+      url: `/onboarding/claims/${discoveryClaimId("reader-role")}/reject`,
+      headers: { cookie },
+    });
+    expect(rejectRes.statusCode).toBe(200);
+
+    const after: DiscoveryState = (await get(app, cookie, `/onboarding/discovery?job=${job.id}`)).json();
+    expect(after.questions.map((q) => q.itemId)).not.toContain("reader-role");
   });
 });

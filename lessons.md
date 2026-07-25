@@ -2,6 +2,37 @@
 
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
+## A "never decreases" guarantee has to cover the denominator, not just the numerator
+
+S30's #35 made a rejected claim count as *answered* so `railFill` couldn't fall. It still fell — by
+0.4 → 0.25 — because `railFill` is `answered ∩ askable / askable`, and `askable` is gated by
+`isTriggered`, which keys off *positives*. Rejecting a **trigger** therefore evicted its
+already-answered follow-up from the numerator **and** the denominator at once.
+
+**When a ratio is supposed to be monotonic, every filter that gates its denominator inherits the
+guarantee.** Ask what shrinks the set, not just what shrinks the count. The fix was one clause —
+`|| answeredIds.has(i.id)`, because an already-answered item can never be un-asked — and it left the
+original trigger rule (#18 AC5: a "no" on the trigger must not surface an *unanswered* triggered
+item) intact.
+
+The test lesson is sharper than the code one: the AC was written as *"has not decreased"* and pinned
+with `toBeGreaterThanOrEqual`, **which also passes when the value rises because the denominator
+shrank**. It went green on a build that still had the bug. Assertions shaped like the AC's own words
+are the ones most likely to pass for the wrong reason — pin the literal value alongside.
+
+## A field added to a store record reaches the wire wherever that record is spread
+
+S30's #28 added an internal `seq` ordinal to `ClaimRecord` for the ledger's answer-order replay.
+`GET /onboarding/deck` returned `(await claims.list(...)).map((c) => ({ ...c, tier }))` — no response
+schema, so Fastify stripped nothing, and `seq` shipped to the client. On Postgres `seq` is a
+**table-global** bigserial, so the delta between two of a visitor's *own* requests disclosed how many
+claim rows every *other* session wrote in between.
+
+The whole suite stayed green: no test asserted the *absence* of a key, and the web client just
+ignored the extra one. **Adding a field to a type that is spread into a response is a payload change,
+not an internal one** — grep for `...record` spreads at every route before adding one, and pin the
+absence with a test, because nothing else will catch it.
+
 ## Adding a nullable column can re-introduce the bug the column was added to fix
 
 S29's #31 fix keyed the tailor floor to a new `tailor_floor_ad_id` and shipped the usual

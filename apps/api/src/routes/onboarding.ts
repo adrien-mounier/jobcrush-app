@@ -122,10 +122,14 @@ export function onboardingRoutes(deps: OnboardingDeps) {
               .send({ error: { code: "not_ready", message: "claims not mined yet" } });
           await deps.claims.seed(session.id, mined);
         }
-        const claims = (await deps.claims.list(session.id)).map((c) => ({
-          ...c,
-          tier: claimTier(c.machine_touch),
-        }));
+        // #28: `seq` is an internal ordering ordinal, not payload — on Postgres it's a table-global
+        // bigserial, so leaking it would disclose the delta in OTHER sessions' write volume between
+        // two of a visitor's own requests. Strip it before it reaches the wire (prior art: server.ts's
+        // job-progress redaction, sessions.ts's token redaction).
+        const claims = (await deps.claims.list(session.id)).map((c) => {
+          const { seq: _seq, ...safe } = c;
+          return { ...safe, tier: claimTier(c.machine_touch) };
+        });
         return { stage: session.stage, claims };
       },
     );
@@ -258,8 +262,16 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // The whole screen is a pure function of the session's role (Q1) + its recorded discovery answers,
     // so every response is `discoveryState(...)` and GET resumes with no client state.
 
+    // Third element (rejected) is #35's addition: no new store method — filter the existing list()
+    // rather than add a ClaimStore.rejected(). Kept in this one Promise.all (not a separate serialized
+    // read) so a Pg-backed read still fires all three queries in parallel; callers that don't need it
+    // (cards, tailor) just destructure the first two.
     const discoveryReads = (sessionId: string) =>
-      Promise.all([deps.claims.confirmed(sessionId), deps.claims.negatives(sessionId)]);
+      Promise.all([
+        deps.claims.confirmed(sessionId),
+        deps.claims.negatives(sessionId),
+        deps.claims.list(sessionId).then((all) => all.filter((c) => c.decision === "rejected")),
+      ]);
 
     // Load / resume: rebuild the state from the store. Before Q1 (no role) → the empty skeleton state.
     // #18 AC6: an optional ?job= prepends the ONE reader-only question — over the uploaded CV's mined
@@ -270,11 +282,16 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       { schema: { querystring: z.object({ job: z.string().optional() }) } },
       async (req) => {
         const session = requireSession(req);
-        const [confirmed, negatives] = await discoveryReads(session.id);
-        const state = discoveryState(session.targetTitles[0] ?? null, confirmed, negatives);
+        const [confirmed, negatives, rejected] = await discoveryReads(session.id);
+        const state = discoveryState(session.targetTitles[0] ?? null, confirmed, negatives, rejected);
 
         const jobId = req.query.job;
-        const readerAnswered = confirmed.some((c) => c.id === discoveryClaimId(READER_ROLE_ITEM_ID));
+        // #35: a deck-rejected reader-role claim still closes the question — same never-re-ask rule
+        // discoveryState now applies internally; this check is separate (the reader question isn't a
+        // floor item) so it needs its own look at `rejected`.
+        const readerAnswered = [...confirmed, ...rejected].some(
+          (c) => c.id === discoveryClaimId(READER_ROLE_ITEM_ID),
+        );
         if (jobId && !readerAnswered) {
           const job = await deps.store.get(jobId);
           const roles = job && job.sessionId === session.id ? minedRoles(job) : [];
@@ -305,8 +322,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const session = requireSession(req);
         await deps.sessions.setTargetTitles(session.id, [req.body.role]);
         await deps.sessions.setStage(session.id, "discovery");
-        const [confirmed, negatives] = await discoveryReads(session.id);
-        const state = discoveryState(req.body.role, confirmed, negatives);
+        const [confirmed, negatives, rejected] = await discoveryReads(session.id);
+        const state = discoveryState(req.body.role, confirmed, negatives, rejected);
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
@@ -363,10 +380,11 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         if (no) await deps.claims.answerNegative(session.id, claim);
         else await deps.claims.add(session.id, claim);
 
-        const [confirmed, negatives] = await discoveryReads(session.id);
-        const state = discoveryState(role, confirmed, negatives);
+        const [confirmed, negatives, rejected] = await discoveryReads(session.id);
+        const state = discoveryState(role, confirmed, negatives, rejected);
         // #18 AC1: the essential band fully asked (yes or no) flips the session to the deck stage, so
-        // a reload lands there too. essentialRemaining only ever counts down, so this never reverts.
+        // a reload lands there too. essentialRemaining never climbs back up (#35: a deck reject still
+        // counts as answered), so this never reverts.
         if (state.essentialRemaining === 0) await deps.sessions.setStage(session.id, "deck");
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
@@ -532,13 +550,23 @@ interface JobCard {
   adExcerpt: string;
 }
 
-/** Pure composition, no LLM: matchtick.ts scores + ranks, this just shapes the pinned JobCard. */
+/** Pure composition, no LLM: matchtick.ts scores + ranks, this just shapes the pinned JobCard.
+ *  #29: the negative-filter lives HERE, not in the tailor assembly. A requirement answered "no" while
+ *  tailoring is asked-and-closed on every surface that renders this ad — spec #37, "the list of open
+ *  things only ever shrinks". #23 applied it in the tailor assembly alone, deliberately, to keep #19's
+ *  deck payload byte-identical while that shipped; both callers want it now, so it moves down to the
+ *  shared function rather than being duplicated in each. For an ad the visitor never tailored the set
+ *  is empty (tailorClaimId is scoped by adId), so those cards are unchanged. */
 function buildJobCard(
   posting: Posting,
   adReq: AdRequirements,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
 ): JobCard {
+  const negativeIds = negativeRequirementIds(adReq, negatives);
+  const dontYet = uncoveredRequirements(confirmed, adReq)
+    .filter((r) => !negativeIds.has(r.id))
+    .map((r) => ({ id: r.id, band: r.band, requirement: r.requirement }));
   return {
     adId: posting.id,
     title: posting.title,
@@ -547,13 +575,15 @@ function buildJobCard(
     salary: null,
     pattern: null,
     matchPct: matchTick(confirmed, adReq),
-    bubble: { hit: pickHitClause(confirmed, adReq), open: pickOpenClause(confirmed, adReq) },
+    // #23 D1, now shared: pickOpenClause is negative-blind (it only knows the ad/coverage relation),
+    // so it can keep naming a requirement the visitor just declined. Take the open clause from the
+    // already-filtered dontYet instead — same fallback as pickOpenClause's own.
+    bubble: {
+      hit: pickHitClause(confirmed, adReq),
+      open: dontYet[0]?.requirement ?? NOTHING_OPEN_CLAUSE,
+    },
     fit: confirmed.map((c) => ({ id: c.id, text: c.text })),
-    dontYet: uncoveredRequirements(confirmed, adReq).map((r) => ({
-      id: r.id,
-      band: r.band,
-      requirement: r.requirement,
-    })),
+    dontYet,
     askedClosed: negatives.map((c) => ({ id: c.id, text: c.text })),
     adExcerpt: posting.excerpt,
   };
@@ -598,11 +628,10 @@ function buildTailorState(
   const matchPct = Math.max(matchTick(confirmed, adReq), floorPct);
   const questions = tailorQuestions(adReq, confirmed, negatives);
   const { ledger, closedGaps } = buildTailorLedger(adReq, confirmed, negatives);
+  // B1 (a "no" closes the gap too, spec #37/#38) and D1 (the bubble's gap clause rewrites with it)
+  // are both buildJobCard's job as of #29 — the deck card needs the same guarantee, so the filter
+  // moved into the shared function instead of being applied here on top.
   const card = buildJobCard(posting, adReq, confirmed, negatives);
-  // B1: a "no" closes the gap too (spec #37/#38, "the open list only ever shrinks") — uncoveredRequirements
-  // (shared with #19's untouched deck) doesn't know about negatives, so subtract them here on top.
-  const negativeIds = negativeRequirementIds(adReq, negatives);
-  const dontYet = card.dontYet.filter((r) => !negativeIds.has(r.id));
 
   // B2: "the CV below" must include tailor's own answers, not just discovery's — discoveryCvLines is
   // the narrow slice of discoveryState's work this needs (no railFill/essentialRemaining/questions
@@ -612,14 +641,8 @@ function buildTailorState(
   const discoveryLines = role ? discoveryCvLines(role, loadFamilyFloor(resolveFamily(role).family).items, confirmed) : [];
   const cvLines = [...discoveryLines, ...tailorCvLines(adReq, confirmed)];
 
-  // D1 (AC2): the bubble's gap clause must rewrite when a "no" closes the last open gap, same as
-  // dontYet does — card.bubble.open came from buildJobCard's own pickOpenClause, which is negative-
-  // blind by design (see B1), so it can keep naming a requirement the visitor just declined. Recompute
-  // it from the already negative-filtered dontYet instead of calling pickOpenClause a second time.
-  const bubble = { ...card.bubble, open: dontYet[0]?.requirement ?? NOTHING_OPEN_CLAUSE };
-
   return {
-    card: { ...card, matchPct, dontYet, bubble },
+    card: { ...card, matchPct },
     questions,
     ledger,
     cvLines,

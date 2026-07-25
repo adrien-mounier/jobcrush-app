@@ -143,6 +143,61 @@ describe("#19 GET /onboarding/cards", () => {
       expect(card.fit.map((f) => f.id)).not.toContain("discovery-stakeholder-reporting");
     }
   });
+
+  // #29: a requirement declined while tailoring an ad must be asked-and-closed on that ad's DECK card
+  // too — spec #37, "the list of open things only ever shrinks". #23 filtered negatives in the tailor
+  // assembly only, deliberately, so #19's deck payload stayed byte-identical while it shipped.
+  it("a requirement answered 'no' in Tailor leaves that ad's deck card gaps, and only that ad's", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    for (const itemId of ["budget-accountability", "cross-functional-leadership", "stakeholder-reporting"]) {
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: "Yes, definitely" });
+    }
+    await signIn(app, cookie, "tailor-no-hides-gap@example.com"); // the want/tailor routes are post-wall
+
+    const cardOf = async (adId: string): Promise<JobCard> => {
+      const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+      return body.cards.find((c) => c.adId === adId)!;
+    };
+
+    const before = await cardOf(VALID_AD_ID);
+    expect(before.dontYet.length).toBeGreaterThan(0); // sanity: there IS a gap to decline
+    const declined = before.dontYet[0]!;
+
+    // Another ad's card, to pin AC3 — tailorClaimId is scoped by adId, so this must not move.
+    const otherAdId = ((await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] }).cards
+      .map((c) => c.adId)
+      .find((id) => id !== VALID_AD_ID)!;
+    const otherBefore = await cardOf(otherAdId);
+
+    expect((await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`)).statusCode).toBe(200);
+    const answered = await post(app, cookie, "/onboarding/tailor/answer", {
+      requirementId: declined.id,
+      answer: "No",
+    });
+    expect(answered.statusCode).toBe(200);
+
+    const after = await cardOf(VALID_AD_ID);
+    // AC1: gone from "Where you don't — yet".
+    expect(after.dontYet.map((r) => r.id)).not.toContain(declined.id);
+    // AC2: present exactly once under "Asked and closed", never in both lists.
+    const closedIds = after.askedClosed.map((f) => f.id);
+    const claimId = closedIds.filter((id) => id.endsWith(`-${declined.id}`));
+    expect(claimId).toHaveLength(1);
+    // D1, now shared: the bubble's open clause can't keep naming the declined requirement either.
+    expect(after.bubble.open).not.toBe(declined.requirement);
+
+    // AC3: an ad the visitor never tailored still renders its gaps exactly as before — the filter is
+    // scoped by adId (tailorClaimId), so it must not shrink another ad's list.
+    const otherAfter = await cardOf(otherAdId);
+    expect(otherAfter.dontYet).toEqual(otherBefore.dontYet);
+    expect(otherAfter.bubble).toEqual(otherBefore.bubble);
+    expect(otherAfter.matchPct).toBe(otherBefore.matchPct);
+    // askedClosed is session-wide, not ad-scoped: every recorded "no" lands on every card, exactly as
+    // it already did for discovery negatives (#19). Unchanged by #29 — pinned so it stays deliberate.
+    expect(otherAfter.askedClosed.length).toBe(otherBefore.askedClosed.length + 1);
+  });
 });
 
 describe("#21 POST /onboarding/cards/:adId/want", () => {
