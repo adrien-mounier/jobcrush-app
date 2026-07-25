@@ -2,6 +2,51 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-25 (session 30) — `/orchestrate-team` on #11: the three monotonicity defects (#35, #28, #29)
+
+Ninth build session on the #11 frontier. Took the three sibling defects that all violate the same
+spec promise — *a surface that only ever improves, regressing*. Again left #20 unclaimed (its close
+triggers the full-journey pass). Shipped as **draft PR #38**, not straight to `main`: `8438964`
+(#35), `bc77914` (#28), `fbae52c` (#29). Gate at every commit green; 289 → 304 tests.
+
+- **#35 — a deck reject reopened an answered discovery question.** `discoveryState` counted only
+  confirmed + negatives as answered, so a rejected claim stopped counting: bar dropped,
+  `essentialRemaining` rose, the question came back. A rejected claim now counts as *answered* (the
+  visitor was asked and responded — only the machine's phrasing was rejected) but contributes no CV
+  line. **Both review axes independently caught the same deeper bug:** `isTriggered` gates `askable`,
+  which is *both the numerator and the denominator* of `railFill` — so rejecting a **trigger** evicted
+  its already-answered follow-up from both and the bar still fell (0.4 → 0.25 on the real fixture).
+  The diff's own test missed it *and* passed for the wrong reason: a bare `toBeGreaterThanOrEqual`
+  is satisfied when the value **rises** because the denominator shrank. Spec axis found a second
+  path — the reader-only question keeps its own `confirmed`-only check in the route. QA (GO) then
+  measured pre-fix vs post-fix through the real routes and found #35 had also fixed an unstated
+  fourth surface: the computed `stage` no longer falls back `deck` → `discovery`.
+- **#28 — the tailor ledger restamped history.** Every "asked and closed" line was derived from the
+  *current* open count, so by end of session they all read "0 still open". Kept the ledger derived —
+  what was missing was answer *order*, and `PgClaimStore` already had a `seq` bigserial backing its
+  own `ORDER BY`. Surfacing it on `ClaimRecord` lets the two separately-ordered lists replay as one
+  true answer order. **Standards axis caught that `seq` then leaked onto the `/onboarding/deck`
+  payload** — `{ ...c, tier }` with no response schema to strip it, and on Postgres `seq` is a
+  *table-global* bigserial, so it disclosed other sessions' write volume between two of a visitor's
+  own requests. Spec axis caught that the *positive* half of the replay was entirely unpinned: swap
+  `confirmedSoFar` for `confirmed` and the whole suite still passed.
+- **#29 — a requirement declined in Tailor still showed as open on the deck card.** #23 filtered
+  negatives in the tailor assembly alone, deliberately, to keep #19's deck payload byte-identical.
+  Both callers want it now, so it moved into the shared `buildJobCard` — deleting the duplication,
+  including #23's D1 bubble recompute, since the open clause now falls out of the filtered list.
+  The tailor tests pinning B1 and D1 pass untouched, which is what proves the move was behaviour-
+  preserving. Built inline rather than dispatched: the #28 QA agent died on an **account spend
+  limit**, so the rest of the session ran without sub-agents.
+- **Two follow-ups filed.** **#36** — `POST /onboarding/deck` seeds mined claims only `if
+  list(...).length === 0`, but discovery answers land in the same store first, so on the real journey
+  the miner's claims are *never* seeded and the S2 review step has nothing from the CV to review.
+  Found by QA probing sibling paths, pre-existing, unrelated to these three. **#37** — `seq` is
+  *creation* order, not decision order, so a deck confirm landing after tailor answers still replays
+  at its seed position; a proper fix needs a separate decision ordinal, so #28 shipped with a
+  `ponytail:` ceiling instead.
+- **No full-journey QA pass** — #11's frontier is not empty (#20, #26, #27 remain), and the
+  browser-driven pass would have hit the same spend limit. All three are API-seam fixes, no UI change.
+
 ## 2026-07-25 (session 29) — `/orchestrate-team` on #11: cleared three S28 follow-ups (#31, #30, #33)
 
 Eighth build session on the #11 frontier. Deliberately did **not** claim #20 (the last screen ticket,

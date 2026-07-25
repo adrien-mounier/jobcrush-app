@@ -75,6 +75,20 @@ no autonomous submit, no LinkedIn credentials, ever).
       deck-reject path still regresses discovery's *other* monotonic surfaces (`railFill`,
       `essentialRemaining`, and re-asking an answered question) — the badge got the guarantee, the
       rail did not. Frontier now {#20, #26, #27, #28, #29, #35}.
+      **2026-07-25 S30:** cleared the three monotonicity defects — **#35** (`8438964`, a deck reject
+      now *closes* a discovery question instead of reopening it; review caught two paths the obvious
+      fix missed — rejecting a *trigger* still shrank `railFill` via the `askable` denominator, and
+      the reader-only question kept its own `confirmed`-only check), **#28** (`bc77914`, the tailor
+      ledger stamps each line with the open count at the moment that answer landed, by surfacing the
+      store's existing `seq` ordinal; review also caught `seq` leaking onto the `/onboarding/deck`
+      payload, where on Postgres it is a *table-global* bigserial), and **#29** (`fbae52c`, the
+      negative-filter moves into the shared `buildJobCard`, so a requirement declined in Tailor is
+      closed on the deck card too — and #23's duplicated filter + D1 bubble recompute go away).
+      Shipped as draft **PR #38** rather than straight to `main`. Two new follow-ups: **#36** (the
+      deck never seeds the miner's claims once discovery has recorded an answer — so the S2 review
+      step has nothing from the CV to review on the real journey) and **#37** (`seq` is *creation*
+      order, so a deck confirm landing after tailor answers still replays at its seed position).
+      Frontier now {#20, #26, #27, #36, #37}.
       Also `03fede9`: `concurrency: deploy-main` on the deploy job, so two
       pushes can't race and land the older build last (see `AI/Projects/SHARED_INFRA.md` — this repo
       shares a Fly + Cloudflare account with `vitacairn`; owner backlog is #32).
