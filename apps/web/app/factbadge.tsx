@@ -7,8 +7,10 @@
 //
 // Never a fill-up: no container is drawn, no maximum exists (log2 growth has no ceiling to reach),
 // no count maps to a proportion, and the shown count only ever climbs *within one mount* — client-side
-// clamped (Math.max, at every write); the server itself can still lower factCount via an independent
-// deck-reject path (apps/api/src/discovery.ts:131-135), which is a server-side fix if it ever matters.
+// clamped (Math.max, at every write). #33: the server also floors factCount now (a per-session
+// monotonic floor, apps/api/src/sessions.ts's factFloor + apps/api/src/routes/onboarding.ts's
+// withFactFloor), so a deck-reject can no longer lower it across a reload either — this client clamp
+// is belt-and-braces on top of that, not the only thing standing between a reject and a visible drop.
 import { useEffect, useRef, useState, type RefObject } from "react";
 import Link from "next/link";
 import "./factbadge.css";

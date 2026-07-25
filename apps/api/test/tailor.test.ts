@@ -7,6 +7,7 @@ import type { AdRequirement, AdRequirements } from "@jobcrush/contracts";
 import { buildServer } from "../src/server.js";
 import type { ClaimRecord } from "../src/claims.js";
 import { matchTick } from "../src/matchtick.js";
+import { discoveryClaimId } from "../src/discovery.js";
 import {
   buildTailorLedger,
   composeTailorLine,
@@ -374,6 +375,68 @@ describe("#23 POST /onboarding/tailor/answer", () => {
 
     const afterNo = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })).json();
     expect(afterNo.factCount).toBe(afterYes.factCount); // a correction flips in place, doesn't grow or shrink
+  });
+
+  // #33 — a claim rejected in the S2 review deck really does lower the raw confirmed+negatives count,
+  // but the badge's server-side floor must not let ANY of the five factCount-emitting routes show a
+  // drop (AC4: the guarantee lives at the API seam, not the per-mount client clamp — so every seam
+  // that emits factCount needs its own proof, not just the two GETs).
+  it("factCount holds at its peak across all five emission seams, even after a deck reject (#33)", async () => {
+    const { app, claims } = buildServer();
+    const cookie = await anonSession(app);
+    await reachTailor(app, cookie, "fact-floor@example.com");
+    const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
+
+    // One genuinely new tailor answer, so peak (4) sits strictly above what the post-reject raw count
+    // (3) will be — otherwise a dropped floor on the tailor seam would coincidentally still read 3 and
+    // this test wouldn't catch it (raw alone would already equal a peak of "just the 3 discovery answers").
+    const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
+    const q = s0.questions[0];
+    const afterTailorAnswer = (
+      await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" })
+    ).json();
+    const peak = afterTailorAnswer.factCount; // 3 discovery answers + this new tailor one
+
+    // Reject one of the discovery claims in the deck — the raw count really does shrink. Assert the
+    // reject actually landed on the store (not just a 200 — InMemoryClaimStore.reject is a silent
+    // no-op on an unknown id), or a broken claim-id scheme would make this test pass for the wrong
+    // reason — exactly the "floor keyed to the wrong thing silently stops firing" failure #31 warned about.
+    const claimId = discoveryClaimId("budget-accountability");
+    expect((await claims.confirmed(sid)).map((c) => c.id)).toContain(claimId); // present before...
+    const rejectRes = await post(app, cookie, `/onboarding/claims/${claimId}/reject`);
+    expect(rejectRes.statusCode).toBe(200);
+    expect((await claims.confirmed(sid)).map((c) => c.id)).not.toContain(claimId); // ...gone after — raw is now 3
+
+    // All five emission seams. The two POST /answer calls are legitimate idempotent corrections (#18
+    // AC4 / #23's own "re-answering the same item CORRECTS it" contract) on items already answered
+    // before the reject — same item, same answer, no new record — so they exercise the route's own
+    // factCount computation without accidentally growing the raw count back up to peak on their own.
+    const seams: [string, () => Promise<{ factCount: number }>][] = [
+      ["GET /onboarding/tailor", () => get(app, cookie, "/onboarding/tailor").then((r) => r.json())],
+      ["GET /onboarding/discovery", () => get(app, cookie, "/onboarding/discovery").then((r) => r.json())],
+      [
+        "POST /onboarding/discovery/start",
+        () => post(app, cookie, "/onboarding/discovery/start", { role: ROLE }).then((r) => r.json()),
+      ],
+      [
+        "POST /onboarding/discovery/answer",
+        () =>
+          post(app, cookie, "/onboarding/discovery/answer", {
+            itemId: "cross-functional-leadership",
+            answer: "Yes, multiple teams",
+          }).then((r) => r.json()),
+      ],
+      [
+        "POST /onboarding/tailor/answer",
+        () =>
+          post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" }).then(
+            (r) => r.json(),
+          ),
+      ],
+    ];
+    const results: Record<string, number> = {};
+    for (const [name, read] of seams) results[name] = (await read()).factCount;
+    expect(results).toEqual(Object.fromEntries(seams.map(([name]) => [name, peak])));
   });
 });
 

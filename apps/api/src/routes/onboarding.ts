@@ -15,7 +15,7 @@ import type { CandidateClaim, MinedRole, RequirementBand, AdRequirements } from 
 import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore, ClaimRecord } from "../claims.js";
 import type { JobStore } from "../jobs.js";
-import type { SessionStore } from "../sessions.js";
+import type { SessionStore, SessionRecord } from "../sessions.js";
 import { buildClaimGraph } from "../graph.js";
 import { renderRootCv } from "../rootcv.js";
 import { runGate } from "../gate.js";
@@ -73,6 +73,18 @@ async function answeredGrillIds(
   return new Set(
     [...confirmed, ...negatives].map((c) => c.id).filter((id) => id.startsWith("grill-")),
   );
+}
+
+// #33: the profile badge's factCount is a session-wide monotonic floor, same pattern as #23's tailor
+// match floor — raise then clamp at every emission point, so a claim rejected in the S2 deck (which
+// really does lower confirmed+negatives) can never make a fresh read (discovery OR tailor) show a
+// drop. `session.factFloor` is a snapshot taken before the raise — on Pg that's pre-raise, on the
+// in-memory store `raiseFactFloor` mutates the same object so it's already post-raise by the time we
+// read it — but Math.max(computed, session.factFloor) gives the identical, correct result either way,
+// so no re-fetch is needed on either driver.
+async function withFactFloor(sessions: SessionStore, session: SessionRecord, computed: number): Promise<number> {
+  await sessions.raiseFactFloor(session.id, computed);
+  return Math.max(computed, session.factFloor);
 }
 
 // The deck's tiering policy (JC-22, kickoff decision #3). A claim copied verbatim from the CV
@@ -268,6 +280,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           const roles = job && job.sessionId === session.id ? minedRoles(job) : [];
           if (roles.length > 0) state.questions = [readerQuestion(roles[0]!), ...state.questions];
         }
+        state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
     );
@@ -293,7 +306,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         await deps.sessions.setTargetTitles(session.id, [req.body.role]);
         await deps.sessions.setStage(session.id, "discovery");
         const [confirmed, negatives] = await discoveryReads(session.id);
-        return discoveryState(req.body.role, confirmed, negatives);
+        const state = discoveryState(req.body.role, confirmed, negatives);
+        state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
+        return state;
       },
     );
 
@@ -353,6 +368,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         // #18 AC1: the essential band fully asked (yes or no) flips the session to the deck stage, so
         // a reload lands there too. essentialRemaining only ever counts down, so this never reverts.
         if (state.essentialRemaining === 0) await deps.sessions.setStage(session.id, "deck");
+        state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
     );
@@ -415,7 +431,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
       const { posting, adReq } = target;
       const [confirmed, negatives] = await discoveryReads(session.id);
-      return buildTailorState(
+      const state = buildTailorState(
         posting,
         adReq,
         confirmed,
@@ -423,6 +439,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         session.targetTitles[0] ?? null,
         session.tailorFloorPct,
       );
+      state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
+      return state;
     });
 
     // Idempotent, like #18's discovery answer: re-answering the same requirement CORRECTS it
@@ -467,7 +485,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
 
         const [confirmed, negatives] = await discoveryReads(session.id);
         await deps.sessions.raiseTailorFloor(session.id, matchTick(confirmed, adReq));
-        return buildTailorState(
+        const state = buildTailorState(
           posting,
           adReq,
           confirmed,
@@ -475,6 +493,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           session.targetTitles[0] ?? null,
           session.tailorFloorPct,
         );
+        state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
+        return state;
       },
     );
 

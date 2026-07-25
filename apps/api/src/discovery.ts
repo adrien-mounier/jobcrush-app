@@ -132,7 +132,9 @@ export interface DiscoveryState {
  *  "no" included. Defined as confirmed positives + persisted negatives (session-wide, every source —
  *  discovery, grill, tailor). A correction (no<->yes) flips one record's `decision` in place rather
  *  than adding/removing a row, so this is monotonic non-decreasing across a normal answer/correction;
- *  only an independent deck reject (a different, S2 flow) can lower it. */
+ *  only an independent deck reject (a different, S2 flow) can lower this RAW count. This function
+ *  stays pure and unaware of that — #33's session-wide floor (routes/onboarding.ts's withFactFloor,
+ *  sessions.ts's factFloor) is what callers apply on top so the number actually shown never drops. */
 export function factCount(confirmed: ClaimRecord[], negatives: ClaimRecord[]): number {
   return confirmed.length + negatives.length;
 }

@@ -27,6 +27,11 @@ export interface SessionRecord {
    *  (clearTailorTarget) nulls tailorAdId but must NOT forget whose floor this is — re-swiping the
    *  same ad after a drop compares against this, not against tailorAdId, so the floor survives. */
   tailorFloorAdId: string | null;
+  /** #33 the monotonic floor for the profile badge's factCount: the highest factCount ever shown
+   *  this session, so a rejected claim in the S2 deck can lower the raw confirmed+negatives count
+   *  without the badge ever visibly shrinking. Session-wide (unlike tailorFloorPct) — there's no
+   *  ad to key it to, so raiseFactFloor is unconditional, unlike setTailorTarget's reset. */
+  factFloor: number;
 }
 
 export interface SessionStore {
@@ -43,6 +48,8 @@ export interface SessionStore {
   clearTailorTarget(id: string): Promise<void>;
   /** #23: raises the tailor floor only — Math.max/GREATEST — so a correction can't lower it. */
   raiseTailorFloor(id: string, pct: number): Promise<void>;
+  /** #33: raises the factCount floor only — Math.max/GREATEST — so a deck reject can't lower it. */
+  raiseFactFloor(id: string, n: number): Promise<void>;
   /** JC-19 merge: claim this anonymous session for a user (the whole merge is this one update). */
   setClaimedByUserId(id: string, userId: string): Promise<void>;
 }
@@ -60,6 +67,7 @@ function newSession(): SessionRecord {
     tailorAdId: null,
     tailorFloorPct: 0,
     tailorFloorAdId: null,
+    factFloor: 0,
   };
 }
 
@@ -125,6 +133,11 @@ export class InMemorySessionStore implements SessionStore {
     if (s) s.tailorFloorPct = Math.max(s.tailorFloorPct, pct);
   }
 
+  async raiseFactFloor(id: string, n: number): Promise<void> {
+    const s = this.byId.get(id);
+    if (s) s.factFloor = Math.max(s.factFloor, n);
+  }
+
   async setClaimedByUserId(id: string, userId: string): Promise<void> {
     const s = this.byId.get(id);
     if (s) s.claimedByUserId = userId;
@@ -142,7 +155,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   stage              text NOT NULL DEFAULT 'deck',
   tailor_ad_id       text,
   tailor_floor_pct   integer NOT NULL DEFAULT 0,
-  tailor_floor_ad_id text
+  tailor_floor_ad_id text,
+  fact_floor         integer NOT NULL DEFAULT 0
 )`;
 
 const SESSIONS_ALTERS = [
@@ -155,6 +169,9 @@ const SESSIONS_ALTERS = [
   // the floor once for every in-flight session. Idempotent and inert after the first run: post-change
   // setTailorTarget always writes both columns together, so this WHERE can never match again.
   "UPDATE sessions SET tailor_floor_ad_id = tailor_ad_id WHERE tailor_floor_ad_id IS NULL AND tailor_ad_id IS NOT NULL",
+  // #33: no backfill needed, unlike #31 above — fact_floor defaults to 0 and only ever rises, so an
+  // existing row just starts at 0 and gets raised back up to its true peak on the very first read.
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS fact_floor integer NOT NULL DEFAULT 0",
 ];
 
 function toSession(r: Record<string, unknown>): SessionRecord {
@@ -170,6 +187,7 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     tailorAdId: (r.tailor_ad_id as string) ?? null,
     tailorFloorPct: (r.tailor_floor_pct as number) ?? 0,
     tailorFloorAdId: (r.tailor_floor_ad_id as string) ?? null,
+    factFloor: (r.fact_floor as number) ?? 0,
   };
 }
 
@@ -231,6 +249,10 @@ export class PgSessionStore implements SessionStore {
       `UPDATE sessions SET tailor_floor_pct = GREATEST(tailor_floor_pct, $2) WHERE id = $1`,
       [id, pct],
     );
+  }
+
+  async raiseFactFloor(id: string, n: number): Promise<void> {
+    await this.pool.query(`UPDATE sessions SET fact_floor = GREATEST(fact_floor, $2) WHERE id = $1`, [id, n]);
   }
 
   async setClaimedByUserId(id: string, userId: string): Promise<void> {

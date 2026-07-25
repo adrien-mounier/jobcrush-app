@@ -125,6 +125,19 @@ for (const [name, make] of sessionDrivers) {
       await store.touch(s.id);
       expect(await store.getById(s.id)).toBeTruthy();
     });
+
+    // #33 — the profile badge's monotonic floor: raises only, never lowers. Same shape as #23's
+    // raiseTailorFloor, unkeyed (there's only ever one factCount per session, no #31-style ad key).
+    it("raiseFactFloor raises the floor but never lowers it", async () => {
+      const s = await store.create();
+      expect((await store.getById(s.id))?.factFloor).toBe(0);
+      await store.raiseFactFloor(s.id, 3);
+      expect((await store.getById(s.id))?.factFloor).toBe(3);
+      await store.raiseFactFloor(s.id, 1); // lower — must not regress
+      expect((await store.getById(s.id))?.factFloor).toBe(3);
+      await store.raiseFactFloor(s.id, 5);
+      expect((await store.getById(s.id))?.factFloor).toBe(5);
+    });
   });
 }
 
