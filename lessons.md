@@ -1,5 +1,13 @@
 # Lessons — jobcrush-app
 
+## Two CSS rules at equal specificity: load order silently decides the winner
+
+`.profile { position: relative }` (`profile.css`) collapsed the whole #20 screen to 0px because it
+collided at **equal specificity** with `deck.css`'s `.jobdeck { position: fixed; inset: 0 }` — same
+selector weight, so the later stylesheet wins outright, and `profile.css` loads after `deck.css`.
+Invisible to typecheck and build; only surfaced running the app in a browser. Worth a second look
+whenever a new screen's root class silently inherits fixed/absolute positioning it didn't ask for.
+
 Non-obvious things worth remembering, so we don't relearn them the hard way.
 
 ## A "never decreases" guarantee has to cover the denominator, not just the numerator

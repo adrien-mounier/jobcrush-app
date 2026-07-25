@@ -89,6 +89,14 @@ no autonomous submit, no LinkedIn credentials, ever).
       step has nothing from the CV to review on the real journey) and **#37** (`seq` is *creation*
       order, so a deck confirm landing after tailor answers still replays at its seed position).
       Frontier now {#20, #26, #27, #36, #37}.
+      **2026-07-25 S31:** closed **#36** (`2f4ee00`, the deck's own regression test now actually
+      exercises the seed-clobber it was written to catch). Built #20's missing backend track
+      (`GET /profile`) and ran the two-axis review over the whole slice, then **paused deliberately
+      mid-slice** at the owner's request — nothing committed, working tree unchanged. One
+      open product call is on hold pending the owner: whether `GET /profile` may include
+      `pending` claims to render "grey", or must be confirmed-only per the confirmation-gate
+      invariant — **do not decide this in code without asking again.** Frontier now
+      {#20, #26, #27, #37}.
       Also `03fede9`: `concurrency: deploy-main` on the deploy job, so two
       pushes can't race and land the older build last (see `AI/Projects/SHARED_INFRA.md` — this repo
       shares a Fly + Cloudflare account with `vitacairn`; owner backlog is #32).

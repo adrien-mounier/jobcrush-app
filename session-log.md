@@ -2,6 +2,36 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-25 (session 31) — `/orchestrate-team` on #11: closed #36, paused #20 mid-review
+
+Tenth build session on the #11 frontier. Claimed **#36** and **#20** — disjoint file trees; #26/#37
+(both in the tailor/match-scoring area) left alone.
+
+- **#36 — the deck's own regression test couldn't fail.** Its re-run-is-idempotent assertion checked
+  a discovery-id claim that `seed()` never touches, so it passed regardless of correctness. Rewrote
+  it (`apps/api/test/onboarding.test.ts`) to reject a *mined* claim and assert that decision survives
+  a re-seed; shipped `2f4ee00`, `Closes #36`. Already deployed to Fly staging.
+- **#20 — profile screen (Sorted + Constellation).** The frontend track (`profile/page.tsx` +
+  `profile.css` + its e2e spec) was already built and uncommitted from a prior session. This session
+  added the missing backend track — `GET /profile` in `onboarding.ts`, exporting `kindTag()`
+  (`graph.ts`) and `SECTIONS`/`OTHER` (`rootcv.ts`) for reuse, plus a 4-test `profile.test.ts`. Ran
+  the two-axis review (Standards + Spec) over the whole slice — not yet fixed or committed.
+  - **Open product question, explicitly deferred — do not decide in code without asking again:**
+    both review axes recommended `GET /profile` serve only *confirmed* claims, dropping `pending`
+    ones (a `pending` claim is never in the claim graph the "grey" state is defined against, and the
+    confirmation-gate invariant argues the same way). The owner said no to that change for now.
+  - Other must-fixes still open: `source` should read the real `ClaimRecord.origin` field, not an
+    id-prefix heuristic; the fact badge should reuse the shared floored `factCount` rather than a
+    locally derived count; an effect-deps bug replays the Constellation's intro animation on every
+    tap; smaller items (dead `segRef`, an unused `OTHER` export, focus management on empty/error
+    states).
+- **Paused deliberately, mid-slice, at the owner's request** — a clean stopping point, not a
+  blocker. Nothing committed for #20; working tree unchanged since the review finished. Frontier
+  now {#20, #26, #27, #37}.
+- **Next session:** resolve the pending-claims question with the owner first, then work the
+  must-fix list, re-gate (repo-wide, not API-scoped), commit path-scoped with `Closes #20` only on
+  green.
+
 ## 2026-07-25 (session 30) — `/orchestrate-team` on #11: the three monotonicity defects (#35, #28, #29)
 
 Ninth build session on the #11 frontier. Took the three sibling defects that all violate the same
