@@ -18,8 +18,12 @@ Newest first. One entry per working session. Ticket + commit refs so the plan st
 - **Review + QA:** both Standards and Spec re-reviews passed with no findings after fixing two
   honesty defects they exposed: 100% alongside an open gap, and filler variants inflating evidence
   breadth. QA GO: 344 tests passed / 5 skipped, typecheck 7/7, build 5/5, focused scorer/caller
-  tests 87/87, and the existing live deck Playwright journey 7/7. #26 is the final build ticket
-  under #11, so the spec-level full-journey pass is the remaining closeout step.
+  tests 87/87, and the existing live deck Playwright journey 7/7.
+- **Spec closeout:** CI and both Fly staging deploys passed for `2427b29`. With #26 as the final
+  child ticket, full-journey QA ran across all #11 slices and returned GO: real reveal/wall 11/11,
+  Tailor 56/56, persisted badge floor 32/32, 39 badge/no/correction checks, and current Profile
+  5/5. Closed #11. Filed non-blocking #39 for four stale `.loadstate` assertions in the old badge
+  driver; they target the retired placeholder, not a missing product behavior.
 
 ## 2026-07-26 (session 33) — `/orchestrate-team`: closed #27 (curated first-card pool)
 

@@ -126,8 +126,10 @@ no autonomous submit, no LinkedIn credentials, ever).
       1,740 adversarial monotonicity checks pass. Two-axis review and live-stack QA are clean.
       The closest ordering is Hire Feed at 78 vs 76, so future E5 semantic-scoring work should
       strengthen that margin without changing this deterministic fallback's honesty guarantees.
-      Closing #26 empties the build-ticket frontier for #11; final full-journey QA is the remaining
-      closeout gate.
+      Closing #26 emptied the build-ticket frontier for #11. Final full-journey QA passed GO across
+      discovery, reveal/wall, deck, Tailor, badge persistence, correction, and the current Profile;
+      **#11 is closed.** Non-blocking [#39](https://github.com/adrien-mounier/jobcrush-app/issues/39)
+      tracks four obsolete `.loadstate` assertions in the old real-stack badge driver.
       **2026-07-25 S28 (parallel lane):** closed session 25's deferred OAuth-failure return path —
       `/auth/google?from=` + an allowlisted `jc_oauth_from` cookie now land a failed Google trip back on
       `/deck?login=…` instead of `/signup`, lighting up the branch #22 left inert. Filed the two #14
