@@ -20,15 +20,15 @@ function Brand() {
   return <div className="prototype-brand">Job<span>Crush</span></div>;
 }
 
-function Opening({ onReady }: { onReady: () => void }) {
+function Opening({ onReady, leaving }: { onReady: () => void; leaving: boolean }) {
   return (
-    <section className="opening">
+    <section className={`opening${leaving ? " leaving" : ""}`}>
       <Brand />
       <div className="opening-copy" aria-label="Answer questions. Collect jobs.">
         <h1>Answer questions.</h1>
         <h1>Collect jobs.</h1>
       </div>
-      <button className="primary ready" onClick={onReady}>Ready?</button>
+      <button className="primary ready" disabled={leaving} onClick={onReady}>Ready?</button>
     </section>
   );
 }
@@ -84,7 +84,7 @@ function SourceFields({
     <div className="source-fields">
       <CvSource onPick={onPick} />
       <LinkedInSoon />
-      <button className="text-action" onClick={onScratch}>Start questions instead</button>
+      <button className="secondary wide scratch-button" onClick={onScratch}>Start questions instead</button>
       <p className="privacy">Used temporarily during onboarding. Nothing is saved to an account yet.</p>
     </div>
   );
@@ -93,6 +93,7 @@ function SourceFields({
 function Results({ fileName, onContinue }: { fileName: string; onContinue: () => void }) {
   return (
     <section className="results">
+      <Brand />
       <div className="result-check" aria-hidden="true">✓</div>
       <p className="eyebrow">{fileName} is ready</p>
       <h2>We found 12 useful facts.</h2>
@@ -218,6 +219,7 @@ function VariantC({ stage, fileName, chooseYes, chooseNo, pickCv }: VariantProps
 function Reading({ compact = false }: { compact?: boolean }) {
   return (
     <section className={`reading-state${compact ? " compact" : ""}`}>
+      <Brand />
       <div className="scan" />
       <p className="eyebrow">Reading your CV</p>
       <h2>Finding the facts that can save you questions…</h2>
@@ -262,10 +264,12 @@ function Prototype() {
   const variant: Variant = requested === "B" || requested === "C" ? requested : "A";
   const [stage, setStage] = useState<Stage>("door");
   const [fileName, setFileName] = useState("");
+  const [doorLeaving, setDoorLeaving] = useState(false);
 
   useEffect(() => {
     setStage("door");
     setFileName("");
+    setDoorLeaving(false);
   }, [variant]);
 
   const chooseYes = () => setStage(stage === "results" ? "discovery" : "sources");
@@ -278,25 +282,36 @@ function Prototype() {
     setStage("reading");
     setTimeout(() => setStage("results"), 1150);
   };
+  const leaveDoor = () => {
+    setDoorLeaving(true);
+    setTimeout(() => {
+      setStage("choice");
+      setDoorLeaving(false);
+    }, 520);
+  };
 
   const props = { stage, fileName, chooseYes, chooseNo, pickCv };
   return (
     <main className={`source-prototype variant-${variant.toLowerCase()}`}>
       <div className="phone">
         {stage === "door" ? (
-          <Opening onReady={() => setStage("choice")} />
-        ) : variant === "A" ? (
-          <VariantA {...props} />
-        ) : variant === "B" ? (
-          <VariantB {...props} />
+          <Opening onReady={leaveDoor} leaving={doorLeaving} />
         ) : (
-          <VariantC {...props} />
+          <div key={`${variant}-${stage}`} className="stage-enter">
+            {variant === "A" ? (
+              <VariantA {...props} />
+            ) : variant === "B" ? (
+              <VariantB {...props} />
+            ) : (
+              <VariantC {...props} />
+            )}
+          </div>
         )}
         <aside className="state-readout" aria-label="Prototype state">
           variant={variant} · stage={stage} · source={fileName ? "cv" : "none"}
         </aside>
       </div>
-      <button className="reset" onClick={() => { setStage("door"); setFileName(""); }}>Restart flow</button>
+      <button className="reset" onClick={() => { setStage("door"); setFileName(""); setDoorLeaving(false); }}>Restart flow</button>
       <Switcher variant={variant} />
     </main>
   );
