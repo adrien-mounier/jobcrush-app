@@ -1016,16 +1016,18 @@ function DiscoveryScreen() {
             <FactBadge count={badgeCount} fly={fly} rootRef={rootRef} />
           </div>
 
-          {discovery.role !== null && discovery.essentialRemaining > 0 && (
-            <p className="countdown">{countdownCopy(discovery.essentialRemaining)}</p>
-          )}
+          <div className="session-strip">
+            {discovery.role !== null && discovery.essentialRemaining > 0 && (
+              <p className="countdown">{countdownCopy(discovery.essentialRemaining)}</p>
+            )}
 
-          <Rail
-            railFill={discovery.railFill}
-            activeSection={
-              discovery.stage === "deck" && !loopbackFromDeck ? null : (discovery.questions[0]?.cvSection ?? null)
-            }
-          />
+            <Rail
+              railFill={discovery.railFill}
+              activeSection={
+                discovery.stage === "deck" && !loopbackFromDeck ? null : (discovery.questions[0]?.cvSection ?? null)
+              }
+            />
+          </div>
 
           {renderPromise(discovery)}
 
