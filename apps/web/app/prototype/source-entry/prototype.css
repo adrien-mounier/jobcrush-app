@@ -181,7 +181,20 @@
   text-decoration: underline;
   text-underline-offset: 4px;
 }
-.scratch-button { margin-top: 2px; }
+.scratch-button {
+  margin-top: 2px;
+  background: transparent;
+  border-color: #27303a;
+}
+.scratch-button .source-icon {
+  color: var(--proto-muted);
+  background: var(--proto-panel);
+}
+.scratch-button .source-arrow { color: var(--proto-muted); }
+.scratch-button:hover {
+  border-color: #46515e;
+  background: rgba(255, 255, 255, .025);
+}
 .privacy,
 .muted { color: var(--proto-muted); line-height: 1.5; }
 .privacy { margin: 3px 10px 0; text-align: center; font-size: .72rem; }

@@ -84,7 +84,14 @@ function SourceFields({
     <div className="source-fields">
       <CvSource onPick={onPick} />
       <LinkedInSoon />
-      <button className="secondary wide scratch-button" onClick={onScratch}>Start questions instead</button>
+      <button className="source scratch-button" onClick={onScratch}>
+        <div className="source-icon">?</div>
+        <div>
+          <strong>Start questions instead</strong>
+          <small>Continue without importing anything</small>
+        </div>
+        <span className="source-arrow">→</span>
+      </button>
       <p className="privacy">Used temporarily during onboarding. Nothing is saved to an account yet.</p>
     </div>
   );
