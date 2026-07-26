@@ -188,7 +188,8 @@
 }
 .scratch-button .source-icon {
   color: var(--proto-muted);
-  background: var(--proto-panel);
+  background: transparent;
+  border: 1px solid #394451;
 }
 .scratch-button .source-arrow { color: var(--proto-muted); }
 .scratch-button:hover {
@@ -198,6 +199,13 @@
 .privacy,
 .muted { color: var(--proto-muted); line-height: 1.5; }
 .privacy { margin: 3px 10px 0; text-align: center; font-size: .72rem; }
+.variant-a .privacy {
+  position: absolute;
+  right: 28px;
+  bottom: 38px;
+  left: 28px;
+  margin: 0;
+}
 
 .variant-b {
   flex: 1;

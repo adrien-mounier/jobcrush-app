@@ -85,7 +85,7 @@ function SourceFields({
       <CvSource onPick={onPick} />
       <LinkedInSoon />
       <button className="source scratch-button" onClick={onScratch}>
-        <div className="source-icon">?</div>
+        <div className="source-icon">Q</div>
         <div>
           <strong>Start questions instead</strong>
           <small>Continue without importing anything</small>
