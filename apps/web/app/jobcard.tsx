@@ -14,6 +14,44 @@ const H2 = "Where you don't — yet";
 const H3 = "Asked and closed";
 const A1 = "Read the ad in full";
 
+// #51 reduced match breakdown (client-only): the met/total count is computable from the three lists
+// the card already carries; the quality label is a threshold read off matchPct. The full essential/
+// desirable split needs a versioned JobCard contract change + matchtick work (filed as #52, deferred
+// to S3's real E5 scoring engine), so this is intentionally the two-cell reduced form.
+function matchQuality(pct: number): { label: string; grade: "strong" | "partial" | "weak" } {
+  if (pct >= 70) return { label: "Strong", grade: "strong" };
+  if (pct >= 50) return { label: "Partial", grade: "partial" };
+  return { label: "Weak", grade: "weak" };
+}
+
+// #51 the reduced breakdown grid inside the card — two cells: requirements met (X/Y, computed from
+// the three lists) and match quality (a threshold label off the score). Rendered for both /deck and
+// /tailor since CardBody is shared. Skipped entirely when the ad has no requirements yet (0/0 reads
+// as broken, and that state shouldn't occur on a scored card).
+function MatchBreakdown({ card, pct }: { card: JobCard; pct?: number }) {
+  const met = card.fit.length;
+  const total = met + card.dontYet.length + card.askedClosed.length;
+  if (total === 0) return null;
+  const q = matchQuality(pct ?? card.matchPct);
+  return (
+    <div className="breakdown" aria-label="Match breakdown">
+      <p className="bd-title">Match breakdown</p>
+      <div className="bd-grid">
+        <div className="bd-cell">
+          <span className="bd-n">
+            {met}/{total}
+          </span>
+          <span className="bd-l">Requirements met</span>
+        </div>
+        <div className="bd-cell">
+          <span className={`bd-pill ${q.grade}`}>{q.label}</span>
+          <span className="bd-l">Match quality</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -137,6 +175,8 @@ export function CardBody({
           </>
         )}
       </div>
+
+      <MatchBreakdown card={card} pct={pct} />
 
       <details className="ad">
         <summary>{A1}</summary>

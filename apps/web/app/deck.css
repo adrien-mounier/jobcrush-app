@@ -550,6 +550,78 @@
   color: var(--settled);
 }
 
+/* #51 the reduced match breakdown — two cells inside the card, above the folded ad. Scoped to
+   .jobdeck so it applies to /tailor's live-card too (its root carries .jobdeck). */
+.jobdeck .breakdown {
+  margin-top: 18px;
+  padding-top: 15px;
+  border-top: 1px solid var(--hud-line);
+}
+.jobdeck .bd-title {
+  margin: 0 0 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--hud-mute);
+}
+.jobdeck .bd-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.jobdeck .bd-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: var(--hud-2);
+  border: 1px solid var(--hud-line);
+}
+.jobdeck .bd-n {
+  font-family: var(--mono);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--hud-ink);
+  font-variant-numeric: tabular-nums;
+}
+.jobdeck .bd-l {
+  font-size: 11px;
+  color: var(--hud-mute);
+}
+.jobdeck .bd-pill {
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 3px 10px;
+  line-height: 1.4;
+}
+.jobdeck .bd-pill.strong {
+  color: var(--gold);
+  background: rgba(232, 163, 61, 0.12);
+  border: 1px solid rgba(232, 163, 61, 0.4);
+}
+.jobdeck .bd-pill.strong::before {
+  content: "▲ ";
+  font-size: 8px;
+}
+.jobdeck .bd-pill.partial {
+  color: var(--hud-ink);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--hud-line);
+}
+.jobdeck .bd-pill.weak {
+  color: var(--weak);
+  background: rgba(111, 125, 140, 0.12);
+  border: 1px solid rgba(111, 125, 140, 0.32);
+}
+
 /* the ad, folded shut, last */
 .jobdeck details.ad {
   margin-top: 18px;
