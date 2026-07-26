@@ -607,26 +607,139 @@
   }
 }
 
-/* ---------- #48 desktop centring ----------
-   The root already fills the viewport (a <div>, not <main>, so the global 640px cap doesn't
-   apply). Constrain the content children to the shared column and centre them. The `.ask` dock
-   stays full-bleed (its bg + border-top span the viewport) so the HUD reads as one continuous
-   dark surface; its *content* is centred by inflating the side padding symmetrically. `max()`
-   keeps the mobile 16px gutter below the column+32px width. Phone (≤ 640px) untouched. */
+/* ---------- #51 Discovery B — desktop two-column ----------
+   Replaces #48's centred column. No JSX change: the existing DOM order (topbar, countdown, rail,
+   promise, divider, band-cv, ask) is placed into a grid — the CV paper on the left, the countdown
+   + rail + ask + promise stacked on the right (promise below the ask). The root stays full-bleed
+   (position: fixed; inset: 0) so the dark HUD still fills the viewport; padding-inline centres a
+   1120px content column within it. Scoped to the loaded screen via :has(.band-cv) so the loadstate
+   keeps #48's centring. Phone (≤ 640px) is byte-for-byte unchanged — every rule here is inside the
+   desktop media block. */
 @media (min-width: 641px) {
-  .discovery .topbar,
-  .discovery .countdown,
-  .discovery .rail,
-  .discovery .divider,
-  .discovery .band-cv {
-    max-width: var(--jc-desk-col);
-    margin-inline: auto;
+  .discovery:has(.band-cv) {
+    display: grid;
+    grid-template-columns: 1fr 460px;
+    grid-template-rows: auto auto auto 1fr auto;
+    padding-inline: max(16px, calc((100% - 1120px) / 2));
+    column-gap: 32px;
   }
+  .discovery:has(.band-cv) > .topbar {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .discovery:has(.band-cv) > .countdown {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+    padding: 4px 0 0;
+  }
+  .discovery:has(.band-cv) > .rail {
+    grid-column: 2;
+    grid-row: 3;
+    align-self: start;
+    padding: 6px 0 14px;
+  }
+  .discovery:has(.band-cv) > .ask {
+    grid-column: 2;
+    grid-row: 4;
+    align-self: stretch;
+    background: var(--hud-1);
+    border: 1px solid var(--hud-line);
+    border-radius: 14px;
+    border-top: 1px solid var(--hud-line);
+    padding: 18px;
+    margin: 0;
+  }
+  .discovery:has(.band-cv) > .promise {
+    grid-column: 2;
+    grid-row: 5;
+    align-self: start;
+    margin: 14px 0 0;
+  }
+  .discovery:has(.band-cv) > .divider {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: start;
+    padding-inline: 0;
+  }
+  .discovery:has(.band-cv) > .band-cv {
+    grid-column: 1;
+    grid-row: 2 / span 4;
+    overflow-y: auto;
+    padding: 0 0 16px;
+  }
+
+  /* the rail becomes a dot stepper (aria-hidden, so decorative) */
+  .discovery .rail {
+    gap: 0;
+  }
+  .discovery .blk {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    position: relative;
+  }
+  .discovery .blk::before {
+    content: "";
+    position: absolute;
+    top: 5px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: var(--hud-2);
+  }
+  .discovery .blk:first-child::before {
+    left: 50%;
+    width: 50%;
+  }
+  .discovery .blk:last-child::before {
+    width: 50%;
+  }
+  .discovery .blk.done::before,
+  .discovery .blk.active::before {
+    background: var(--gold-dim);
+  }
+  .discovery .blk .bar {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--hud-2);
+    border: 2px solid var(--hud-line);
+    overflow: visible;
+    position: relative;
+    z-index: 1;
+  }
+  .discovery .blk .bar i {
+    display: none;
+  }
+  .discovery .blk.done .bar {
+    background: var(--gold);
+    border-color: var(--gold);
+  }
+  .discovery .blk.active .bar {
+    background: var(--hud-0);
+    border-color: var(--gold);
+    box-shadow: 0 0 0 4px rgba(232, 163, 61, 0.18);
+  }
+  .discovery .blk .nm {
+    font-size: 9px;
+    margin-top: 0;
+  }
+
+  /* the promise becomes a slim stat banner (role="status" + text preserved — spec-pinned) */
   .discovery .promise {
-    max-width: var(--jc-desk-col);
-    margin-inline: auto;
+    align-items: baseline;
+    gap: 13px;
+    padding: 11px 15px;
+    border-radius: 12px;
   }
-  .discovery .ask {
-    padding-inline: max(16px, calc((100% - var(--jc-desk-col)) / 2));
+  .discovery .promise .n {
+    font-size: 23px;
+    line-height: 1;
+  }
+  .discovery .promise p {
+    font-size: 12.5px;
   }
 }
