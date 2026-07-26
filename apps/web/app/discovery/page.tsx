@@ -778,6 +778,45 @@ function DiscoveryScreen() {
     );
   }
 
+  // #51: a permanent free-text box alongside the option buttons — the visitor can always answer in
+  // their own words, not just pick. Submits via the same answerFloor path the options use (the
+  // server already accepts any string for an item); applyAnswerResult clears freeAnswer on every
+  // answer, so the box never carries stale text into the next question. Ctrl/Cmd+Enter submits, to
+  // match Q1's own textarea convention and let a multi-line answer breathe.
+  function renderFreeText(item: DiscoveryQuestion, isAnswering: boolean) {
+    return (
+      <div className="freetext">
+        <p className="ft-label">Or type your own answer — we'll read it</p>
+        <div className="field">
+          <textarea
+            placeholder="Anything else worth knowing?"
+            value={freeAnswer}
+            disabled={isAnswering}
+            onChange={(e) => setFreeAnswer(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                const a = freeAnswer.trim();
+                if (a) answerFloor(item, a);
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="go"
+            disabled={isAnswering || freeAnswer.trim().length < 1}
+            onClick={() => {
+              const a = freeAnswer.trim();
+              if (a) answerFloor(item, a);
+            }}
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   function renderAsk(d: DiscoveryState) {
     // Precedence (design-1b-spec §1): deck > correcting > the normal next-question below.
     // The exhausted-deck loopback is the exception: it must return to answering, not this handoff.
@@ -928,6 +967,7 @@ function DiscoveryScreen() {
             );
           })}
         </div>
+        {renderFreeText(item, isAnswering)}
         {renderNotice()}
         {askError && (
           <p className="err" role="alert">

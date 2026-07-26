@@ -454,6 +454,28 @@
   padding: 14px;
 }
 
+/* ---------- #51 the permanent free-text box (alongside the option buttons) ---------- */
+.discovery .freetext {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--hud-line);
+}
+.discovery .freetext .ft-label {
+  margin: 0 0 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hud-mute);
+}
+.discovery .freetext textarea {
+  display: block;
+  width: 100%;
+  resize: none;
+  height: 60px;
+  margin-bottom: 0;
+}
+
 .discovery .sugg.live {
   display: flex;
   flex-direction: column;
