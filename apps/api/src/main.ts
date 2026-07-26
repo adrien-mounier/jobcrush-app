@@ -16,6 +16,7 @@ import { runPurge } from "./purge.js";
 import { getPool } from "./db.js";
 
 const llm = llmFromEnv();
+const blobs = storageFromEnv(process.env.UPLOAD_DIR ?? join(process.cwd(), "data", "uploads"));
 
 // JC-6 persistence: Postgres when DATABASE_URL is set (survives restart — accounts + claim graph),
 // in-memory otherwise. Init (create tables) before serving; fail fast if the DB is unreachable.
@@ -37,11 +38,28 @@ const { app } = buildServer({
   auth,
   mailer: mailerFromEnv(),
   webUrl: process.env.WEB_URL,
-  blobs: storageFromEnv(process.env.UPLOAD_DIR ?? join(process.cwd(), "data", "uploads")),
+  blobs,
   pipeline: { mine: makeMineStep(llm), preview: makePreviewStep(llm) },
   phraseGrill: makeGrillPhraser(llm),
   auditCv: makeCvAuditor(llm),
 });
+
+// R2 CORS self-heal: the browser PUTs uploads straight to R2 (cross-origin), and R2 CORS
+// isn't dashboard-configurable, so the API sets the rule on boot using its own credentials.
+// WEB_URL is the primary origin; R2_CORS_ORIGINS (comma-separated) adds extras (fly.dev URL,
+// local). Best-effort: if the token lacks PutBucketCors permission, log and continue —
+// uploads will fail in the browser until CORS is configured another way.
+const corsOrigins = [
+  process.env.WEB_URL,
+  ...(process.env.R2_CORS_ORIGINS?.split(",") ?? []),
+]
+  .map((o) => o?.trim())
+  .filter((o): o is string => !!o);
+try {
+  await blobs.ensureCors?.(corsOrigins);
+} catch (err) {
+  app.log.error(err, "R2 CORS setup failed — browser uploads will fail until CORS is configured");
+}
 
 // JC-20 purge: sweep unclaimed anonymous sessions/claims + spent tokens on boot and every 6h
 // (Postgres only — in-memory data is wiped on restart).

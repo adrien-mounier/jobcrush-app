@@ -2,6 +2,21 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-26 (session 38) — Fix: CV uploads broken on staging (R2 CORS)
+
+- **Symptom:** on https://jobcrush.org, every CV upload (PDF/DOCX/TXT) failed at the front door with
+  *"Couldn't upload that — check your connection."* Looked PDF-specific only because most CVs are PDFs.
+- **Root cause:** the `jobcrush-staging` R2 bucket had no CORS rule. The browser PUTs the upload
+  straight to a presigned R2 URL (cross-origin); R2 replied `403 "CORS not configured for this
+  bucket"` to the preflight, so the PUT never fired. The presigned URL, storage, and pipeline were
+  all healthy (verified by PUTting via curl, which ignores CORS — full flow completed).
+- **Fix:** `R2Storage.ensureCors` sets the bucket CORS rule via the S3 `PutBucketCors` API on boot,
+  using the API's existing scoped R2 credentials; `main.ts` calls it with `WEB_URL` (+ optional
+  `R2_CORS_ORIGINS`). Idempotent (PutBucketCors replaces config). Best-effort: if the token lacks
+  permission, boot logs and continues; fallback is routing bytes through the API. Lesson + details
+  in `lessons.md`. Green gate passed (`pnpm test && pnpm typecheck`).
+- **Commit:** (this push).
+
 ## 2026-07-26 (session 37) — Wayfinder: adaptive discovery and unmapped job families
 
 - **[Define adaptive discovery after source import](https://github.com/adrien-mounier/jobcrush-app/issues/44).**

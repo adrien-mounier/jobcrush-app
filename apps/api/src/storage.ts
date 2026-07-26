@@ -4,7 +4,12 @@
 // so upload bytes never pass through the API.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  GetObjectCommand,
+  PutBucketCorsCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export interface BlobStorage {
@@ -13,6 +18,12 @@ export interface BlobStorage {
   /** Local-driver ingest (the PUT route calls this); the R2 driver never receives bodies. */
   put(key: string, data: Buffer): Promise<void>;
   get(key: string): Promise<Buffer | null>;
+  /**
+   * Best-effort: ensure the bucket accepts cross-origin browser PUTs. Only the R2 driver
+   * implements this (R2 CORS isn't exposed in the Cloudflare dashboard, so the API sets it
+   * via the S3 API on boot). Optional because local/in-memory drivers don't need it.
+   */
+  ensureCors?(allowedOrigins: string[]): Promise<void>;
 }
 
 export class InMemoryBlobStorage implements BlobStorage {
@@ -74,6 +85,32 @@ export class R2Storage implements BlobStorage {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Ensure the bucket allows cross-origin PUT from the web app. R2 CORS isn't configurable
+   * from the Cloudflare dashboard, so the API sets it on boot via the S3 API, using the same
+   * scoped R2 credentials it already has. PutBucketCors replaces the bucket's CORS config,
+   * so this is idempotent across restarts; the env (WEB_URL + R2_CORS_ORIGINS) is the source
+   * of truth for allowed origins.
+   */
+  async ensureCors(allowedOrigins: string[]): Promise<void> {
+    if (allowedOrigins.length === 0) return;
+    await this.client.send(
+      new PutBucketCorsCommand({
+        Bucket: this.config.bucket,
+        CORSConfiguration: {
+          CORSRules: [
+            {
+              AllowedOrigins: allowedOrigins,
+              AllowedMethods: ["PUT"],
+              AllowedHeaders: ["content-type"],
+              MaxAgeSeconds: 3600,
+            },
+          ],
+        },
+      }),
+    );
   }
 }
 

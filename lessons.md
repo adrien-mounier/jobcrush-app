@@ -1,5 +1,22 @@
 # Lessons — jobcrush-app
 
+## R2 CORS is not in the Cloudflare dashboard — and presigned-PUT uploads silently fail without it
+
+The browser uploads a CV straight to a presigned R2 URL (cross-origin). If the bucket has no CORS
+rule, R2 replies `403 "CORS not configured for this bucket"` to the browser's preflight and the PUT
+never fires — the front door shows its generic *"Couldn't upload that — check your connection"*
+message, which reads like a network bug, not a bucket-config bug. The Cloudflare R2 dashboard
+exposes only Object Lifecycle and Bucket Lock rules — **CORS is wrangler/S3-API only**, and `wrangler`
+isn't installed locally (by rule, to keep account-wide commands out of reach). Fix: the API sets the
+CORS rule itself on boot via `PutBucketCors` using its existing scoped R2 credentials
+(`R2Storage.ensureCors`, wired in `main.ts`), with `WEB_URL` (+ optional `R2_CORS_ORIGINS`) as the
+allowed origins. PutBucketCors replaces the whole CORS config, so the env is the source of truth —
+add extra origins to `R2_CORS_ORIGINS`, not to the bucket by hand, or the next boot overwrites them.
+If the R2 token lacks bucket-config permission, the boot logs the error and continues (uploads stay
+broken); the fallback is routing upload bytes through the API (same-origin, no CORS). The CI tests
+never catch this because they inject a fake LLM and use `InMemoryBlobStorage` — the real R2 path is
+only exercised on staging, so it rots silently.
+
 ## Windows rejects the QA driver's trailing-dot report directory through ordinary paths
 
 `qa-driver.mjs` builds its timestamp by slicing the ISO string at 15 characters, which retains the
