@@ -18,9 +18,12 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 The [first-run onboarding revision map](https://github.com/adrien-mounier/jobcrush-app/issues/40)
 is active. The opening/source-entry prototype, permitted LinkedIn acquisition path, and imported-
-evidence trust model are resolved. The next decision is
-[Define adaptive discovery after source import](https://github.com/adrien-mounier/jobcrush-app/issues/44):
-which questions remain, in what order, and when the evidence has earned a credible first job reveal.
+evidence trust model are resolved. Adaptive discovery is also resolved: recover explicit search
+intent, classify without forcing outliers, ask only material unanswered essentials, and keep the
+simple reveal while explaining Important gaps on each card. The frontier is
+[Research robust job-family classification and novelty detection](https://github.com/adrien-mounier/jobcrush-app/issues/49),
+then [Define the unmapped-role family learning workflow](https://github.com/adrien-mounier/jobcrush-app/issues/50)
+before the downstream journey audit.
 
 ## Milestones
 
