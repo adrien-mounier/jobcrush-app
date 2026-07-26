@@ -14,6 +14,14 @@ A hosted product that turns anyone's CV into a **grounded, verified profile** an
 pipeline, for many users, on web and mobile. v0.1 scope is **prepared-apply** (the user submits;
 no autonomous submit, no LinkedIn credentials, ever).
 
+## Current design frontier
+
+The [first-run onboarding revision map](https://github.com/adrien-mounier/jobcrush-app/issues/40)
+is active. The opening/source-entry prototype, permitted LinkedIn acquisition path, and imported-
+evidence trust model are resolved. The next decision is
+[Define adaptive discovery after source import](https://github.com/adrien-mounier/jobcrush-app/issues/44):
+which questions remain, in what order, and when the evidence has earned a credible first job reveal.
+
 ## Milestones
 
 - [x] **S0 — Spikes + foundation** — _done_ (monorepo, CI, Fly deploy, contracts package, the four §8 risk spikes).

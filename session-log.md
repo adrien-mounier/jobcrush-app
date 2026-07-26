@@ -2,6 +2,20 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-26 (session 35) — Wayfinder: imported-evidence trust and recovery
+
+- **[Define imported-evidence trust, merging, and recovery](https://github.com/adrien-mounier/jobcrush-app/issues/43).**
+  Resolved the first-run import trust model: explicit source facts and defensible semantic
+  equivalents receive full first-match credit; equivalent facts across sources merge and score
+  once; conflicts are field-local; system inferences only select follow-up questions.
+- **Import UX and recovery.** A compact result proves useful facts and skipped questions without
+  recreating confirmation. Partial imports retain readable value; total failures remain on the
+  source screen with retry and start-from-scratch paths. User corrections take precedence, source
+  attribution replaces "unverified" labels, and later certification uses one aggregate review.
+- **Domain language.** Added `CONTEXT.md` in `e2096ae` with source-supported fact, system inference,
+  corroborated fact, and user-resolved fact. The map's next frontier is
+  [Define adaptive discovery after source import](https://github.com/adrien-mounier/jobcrush-app/issues/44).
+
 ## 2026-07-26 (session 34) — `/orchestrate-team`: #26 fit-weighted match scorer
 
 - **#26 — coherent, fit-weighted evidence.** Implemented in `62e8a81` (`Closes #26`). Requirements
