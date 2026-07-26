@@ -2,6 +2,23 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-26 (session 37) — Wayfinder: adaptive discovery and unmapped job families
+
+- **[Define adaptive discovery after source import](https://github.com/adrien-mounier/jobcrush-app/issues/44).**
+  Resolved intent recovery, semantic question skipping, value-ordered questioning, and the reveal
+  gate. Past roles and current residence suggest but do not establish search intent; the mandatory
+  reader-only question is removed; relevant ranked jobs retain the simple reveal while Important
+  gaps are explained on cards without blocking truthful tailoring or application.
+- **Known, ambiguous, and unmapped families.** High-confidence semantic classification continues,
+  ambiguity goes to the user, and below-threshold roles are never forced into the nearest family.
+  Unmapped roles create an asynchronous Family research request with an anonymous resume link and
+  optional consented notification email. Captured the domain language and roadmap in `17ff463`.
+- **New frontier.** Added
+  [Research robust job-family classification and novelty detection](https://github.com/adrien-mounier/jobcrush-app/issues/49)
+  before [Define the unmapped-role family learning workflow](https://github.com/adrien-mounier/jobcrush-app/issues/50),
+  which now blocks the downstream journey audit. The downstream and validation tickets explicitly
+  own Important-gap card treatment and quantitative thresholds.
+
 ## 2026-07-26 (session 36) — `/orchestrate-team`: closed #39 factbadge Profile harness debt
 
 - **#39 — current Profile journey.** Shipped `25ea282` (`Closes #39`). Replaced the retired
