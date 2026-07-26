@@ -13,11 +13,15 @@ Newest first. One entry per working session. Ticket + commit refs so the plan st
   ambiguity goes to the user, and below-threshold roles are never forced into the nearest family.
   Unmapped roles create an asynchronous Family research request with an anonymous resume link and
   optional consented notification email. Captured the domain language and roadmap in `17ff463`.
-- **New frontier.** Added
+- **Classification research.**
   [Research robust job-family classification and novelty detection](https://github.com/adrien-mounier/jobcrush-app/issues/49)
-  before [Define the unmapped-role family learning workflow](https://github.com/adrien-mounier/jobcrush-app/issues/50),
-  which now blocks the downstream journey audit. The downstream and validation tickets explicitly
-  own Important-gap card treatment and quantitative thresholds.
+  resolved on `research/job-family-classification-novelty-49` at `da7935d`: nearest-neighbor
+  similarity retrieves candidates but cannot safely detect unknowns; calibrated support, local
+  density, and top-two separation drive automatic placement, clarification, or rejection.
+- **New frontier.**
+  [Define the unmapped-role family learning workflow](https://github.com/adrien-mounier/jobcrush-app/issues/50)
+  is now unblocked and blocks the downstream journey audit. The downstream and validation tickets
+  explicitly own Important-gap card treatment and quantitative thresholds.
 
 ## 2026-07-26 (session 36) — `/orchestrate-team`: closed #39 factbadge Profile harness debt
 

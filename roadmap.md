@@ -21,9 +21,11 @@ is active. The opening/source-entry prototype, permitted LinkedIn acquisition pa
 evidence trust model are resolved. Adaptive discovery is also resolved: recover explicit search
 intent, classify without forcing outliers, ask only material unanswered essentials, and keep the
 simple reveal while explaining Important gaps on each card. The frontier is
-[Research robust job-family classification and novelty detection](https://github.com/adrien-mounier/jobcrush-app/issues/49),
-then [Define the unmapped-role family learning workflow](https://github.com/adrien-mounier/jobcrush-app/issues/50)
-before the downstream journey audit.
+[Define the unmapped-role family learning workflow](https://github.com/adrien-mounier/jobcrush-app/issues/50)
+before the downstream journey audit. Its prerequisite classification research is resolved in
+[`job-family-classification-novelty.md`](https://github.com/adrien-mounier/jobcrush-app/blob/research/job-family-classification-novelty-49/docs/research/job-family-classification-novelty.md):
+vector similarity retrieves candidate families, while calibrated support, density, and separation
+decide automatic placement, clarification, or an unknown result.
 
 ## Milestones
 
