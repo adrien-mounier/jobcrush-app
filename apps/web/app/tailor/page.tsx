@@ -157,6 +157,9 @@ export default function TailorPage() {
   const appliedHeadingRef = useRef<HTMLHeadingElement>(null);
   const savedHeadingRef = useRef<HTMLHeadingElement>(null);
   const liveWrapRef = useRef<HTMLDivElement>(null);
+  // #51: on desktop .live-wrap is display:contents (no scroll box); the live-card itself scrolls.
+  // Used as the keepInView scroll container when live-wrap has no box.
+  const liveCardRef = useRef<HTMLDivElement>(null);
   const firstControlRef = useRef<HTMLElement | null>(null);
   const setFirstControl = (el: HTMLElement | null) => {
     firstControlRef.current = el;
@@ -263,9 +266,14 @@ export default function TailorPage() {
     if (!id || !tailor) return;
     pendingScrollRef.current = null;
     const wrap = liveWrapRef.current;
-    const row = wrap?.querySelector<HTMLElement>(`[data-req="${id}"]`) ?? null;
-    const head = wrap?.querySelector<HTMLElement>(".live-card .hd") ?? null;
-    if (wrap && row) keepInView(wrap, row, (head?.offsetHeight ?? 0) + 14, reducedMotion);
+    // #51: on desktop live-wrap is display:contents (zero-sized rect) — scroll the live-card
+    // instead, which is the left column's scroll box there. On mobile live-wrap has a real box
+    // and remains the scroller (card + CV share it).
+    const scrollBox =
+      wrap && wrap.getBoundingClientRect().width > 0 ? wrap : liveCardRef.current;
+    const row = liveCardRef.current?.querySelector<HTMLElement>(`[data-req="${id}"]`) ?? null;
+    const head = liveCardRef.current?.querySelector<HTMLElement>(".hd") ?? null;
+    if (scrollBox && row) keepInView(scrollBox, row, (head?.offsetHeight ?? 0) + 14, reducedMotion);
     setLandedId(id);
     if (landedTimerRef.current) clearTimeout(landedTimerRef.current);
     landedTimerRef.current = setTimeout(() => setLandedId(null), ROW_SETTLE_MS);
@@ -501,7 +509,7 @@ export default function TailorPage() {
           </div>
 
           <div className="live-wrap" ref={liveWrapRef}>
-            <div className="live-card">
+            <div className="live-card" ref={liveCardRef}>
               <CardBody
                 card={tailor.card}
                 headingRef={cardHeadingRef}
@@ -510,8 +518,10 @@ export default function TailorPage() {
                 landedId={landedId}
               />
             </div>
-            <div className="divider">{T6}</div>
-            {renderCv(tailor.cvLines)}
+            <div className="t-cv-col">
+              <div className="divider">{T6}</div>
+              {renderCv(tailor.cvLines)}
+            </div>
           </div>
 
           <div className="ask">

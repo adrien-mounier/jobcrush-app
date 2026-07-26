@@ -386,26 +386,91 @@
   animation: tl-bump 460ms cubic-bezier(0.2, 1.5, 0.4, 1);
 }
 
-/* ---------- #48 desktop centring ----------
-   `.tailor` rides on a root that also carries `.jobdeck` (which supplies the full-viewport HUD),
-   so no root change here. Cap the content children to the shared column and centre them; the
-   `.ask` dock stays full-bleed with symmetric padding so the dark surface stays continuous
-   (same pattern as discovery). `.live-card` and `.cv` sit column-width inside `.live-wrap`.
-   Phone (≤ 640px) untouched. */
+/* ---------- #51 Tailor B — desktop two-column (flow screen only) ----------
+   Replaces #48's centred column for the flow screen. Left column = the live card with the
+   question dock directly below it (the ask is no longer a full-bleed bottom band) and a
+   full-width gold "Done — show my CV" CTA at the bottom; right column = the tailored CV under
+   its divider. Scoped to the flow screen via :has(.live-wrap) so loading/error/applied/saved keep
+   the #48 centred column. .live-wrap becomes display:contents so .live-card and .t-cv-col reflow
+   as grid items; phone (≤ 640px) is byte-for-byte unchanged (the .t-cv-col wrapper is a plain
+   block there, transparent to today's single-scroller layout). */
 @media (min-width: 641px) {
-  .tailor .topbar {
-    max-width: var(--jc-desk-col);
-    margin-inline: auto;
-  }
-  .tailor .live-wrap {
-    max-width: var(--jc-desk-col);
-    margin-inline: auto;
-  }
-  .tailor .ask {
-    padding-inline: max(16px, calc((100% - var(--jc-desk-col)) / 2));
-  }
   .tailor .loadstate {
     max-width: var(--jc-desk-col);
     margin-inline: auto;
+  }
+
+  .jobdeck.tailor:has(.live-wrap) {
+    display: grid;
+    grid-template-columns: var(--t-left, 460px) 1fr;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "topbar topbar"
+      "live   right"
+      "ask    right";
+  }
+  .jobdeck.tailor:has(.live-wrap) > .topbar {
+    grid-area: topbar;
+  }
+  .jobdeck.tailor:has(.live-wrap) > .live-wrap {
+    display: contents;
+  }
+  .jobdeck.tailor:has(.live-wrap) .live-card {
+    grid-area: live;
+    overflow-y: auto;
+    margin: 16px 0 0 22px;
+  }
+  .jobdeck.tailor:has(.live-wrap) .t-cv-col {
+    grid-area: right;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 16px 22px;
+  }
+  .jobdeck.tailor:has(.live-wrap) .t-cv-col .divider {
+    flex: 0 0 auto;
+  }
+  .jobdeck.tailor:has(.live-wrap) .t-cv-col .cv {
+    flex: 1 1 0;
+    overflow-y: auto;
+    min-height: 0;
+  }
+  .jobdeck.tailor:has(.live-wrap) > .ask {
+    grid-area: ask;
+    background: transparent;
+    border-top: 1px solid var(--hud-line);
+    padding: 14px 22px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  /* Promote the Done CTA to a full-width gold call-to-action at the bottom of the left column;
+     the Drop control stays as a quiet text link beneath it. Mobile exits row is unchanged. */
+  .tailor .exits {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .tailor .exits .spacer {
+    display: none;
+  }
+  .tailor .exits .done-cta {
+    width: 100%;
+    min-height: auto;
+    padding: 16px;
+    border-radius: 12px;
+    background: var(--gold);
+    color: #1a1206;
+    font-weight: 660;
+    font-size: 15.5px;
+    justify-content: center;
+    box-shadow: 0 12px 28px -10px rgba(232, 163, 61, 0.5);
+    transition: transform 90ms ease;
+  }
+  .tailor .exits .done-cta:active {
+    transform: scale(0.985);
+  }
+  .tailor .exits button:not(.done-cta) {
+    align-self: flex-start;
+    min-height: auto;
+    padding: 4px 0;
   }
 }
