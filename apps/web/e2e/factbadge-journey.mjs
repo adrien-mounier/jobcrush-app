@@ -13,6 +13,9 @@
 //   cd apps/web && API_URL=http://127.0.0.1:30181 npx next build && npx next start -p 30180
 //   BASE_URL=http://127.0.0.1:30180 node apps/web/e2e/factbadge-journey.mjs
 //
+// Run this driver serially: every run creates an anonymous session, and the API intentionally limits
+// anonymous sessions to 12 per IP per hour.
+//
 // Ports are deliberately not 3000/3001 — another project on this machine defaults to those and the
 // /api proxy would silently reach the wrong backend. API_URL is baked at `next build` time, and
 // turbo does not forward it, so build apps/web directly.
@@ -160,15 +163,19 @@ await assert(
 );
 await qa.click('a.prof', 'AC5: tap the badge');
 await page.waitForURL('**/profile', { timeout: 10_000 });
-await qa.expectVisible('.loadstate', 'AC5: the profile opens as its own screen');
-await qa.expectText('.loadstate h1', 'Your profile', 'the profile headline');
-await qa.expectText('.loadstate p', 'This screen is being built.', 'it is honest that it is a placeholder');
-const profileBody = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
-await assert(
-  !/Sorted|Constellation|\d+\s*%/.test(profileBody),
-  `/profile is genuinely thin — no Sorted, no Constellation, no fake counts. Body: "${profileBody.slice(0, 100)}"`,
+const profileHeading = page.locator('.profile .pcount');
+await qa.expectVisible(profileHeading, 'AC5: the current Profile screen opens with the fact-count heading');
+await qa.expectText(
+  profileHeading,
+  `${afterReload.count} ${afterReload.count === 1 ? "thing you've told me" : "things you've told me"}`,
+  'the Profile heading carries the same fact count as the badge',
 );
-await qa.scrollThrough('read the whole profile placeholder');
+await assert(await profileHeading.evaluate((el) => el === document.activeElement), 'focus lands on the Profile heading');
+await qa.click(page.getByRole('button', { name: 'Constellation' }), 'switch Profile to Constellation');
+await qa.expectVisible('.profile .sky', 'the Constellation view is visible');
+await qa.click(page.getByRole('button', { name: 'Sorted' }), 'switch Profile back to Sorted');
+await qa.expectVisible('.profile .sheetwrap', 'the Sorted profile is visible again');
+await qa.scrollThrough('read the current Sorted profile');
 await qa.click(page.getByRole('button', { name: 'Back' }), 'Back returns to the screen that sent us');
 await page.waitForTimeout(1400);
 
@@ -287,7 +294,7 @@ const reachedProfile = await page
   .catch(() => false);
 await assert(reachedProfile, `AC5 by keyboard: Enter on the focused badge opens /profile (reached: ${reachedProfile})`);
 if (reachedProfile) {
-  await qa.expectVisible('.loadstate h1', 'AC5 by keyboard: the profile screen');
+  await qa.expectVisible('.profile .pcount', 'AC5 by keyboard: the current Profile screen');
   const focusOnProfile = await page.evaluate(() => document.activeElement?.tagName?.toLowerCase());
   await assert(focusOnProfile === 'h1', `focus lands on the profile heading, not the body (got ${focusOnProfile})`);
 }
