@@ -1022,43 +1022,50 @@ function DiscoveryScreen() {
             <FactBadge count={badgeCount} fly={fly} rootRef={rootRef} />
           </div>
 
-          <div className="session-strip">
-            {discovery.role !== null && discovery.essentialRemaining > 0 && (
-              <p className="countdown">{countdownCopy(discovery.essentialRemaining)}</p>
-            )}
+          <div className="disc-header">
+            <div className="disc-head">
+            <div className="session-strip">
+              {discovery.role !== null && discovery.essentialRemaining > 0 && (
+                <p className="countdown">{countdownCopy(discovery.essentialRemaining)}</p>
+              )}
 
-            <Rail
-              railFill={discovery.railFill}
-              activeSection={
-                discovery.stage === "deck" && !loopbackFromDeck ? null : (discovery.questions[0]?.cvSection ?? null)
-              }
-            />
-          </div>
-
-          {renderPromise(discovery)}
-
-          <div className="divider">your CV</div>
-          <div className="band-cv" ref={bandRef}>
-            <div className="cv">
-              {renderRoleLine(discovery)}
-              {SECTIONS.map((s) => {
-                const lines = discovery.cvLines.filter((l) => l.itemId !== "role" && l.section === s.key);
-                return (
-                  <section key={s.key} aria-labelledby={`cvsec-${s.key}`}>
-                    <h2 id={`cvsec-${s.key}`} className="cv-sec">
-                      {s.label}
-                    </h2>
-                    {lines.length === 0 ? <div className="cv-gap" /> : lines.map(renderCvLine)}
-                  </section>
-                );
-              })}
-              {discovery.cvLines.length === 0 && <p className="hint">{C14}</p>}
+              <Rail
+                railFill={discovery.railFill}
+                activeSection={
+                  discovery.stage === "deck" && !loopbackFromDeck ? null : (discovery.questions[0]?.cvSection ?? null)
+                }
+              />
             </div>
+
+            {renderPromise(discovery)}
           </div>
 
-          <div className="ask">
-            {loopbackFromDeck && <p className="notice">{C22}</p>}
-            {renderAsk(discovery)}
+            <div className="divider">your CV</div>
+          </div>
+
+          <div className="disc-main">
+            <div className="band-cv" ref={bandRef}>
+              <div className="cv">
+                {renderRoleLine(discovery)}
+                {SECTIONS.map((s) => {
+                  const lines = discovery.cvLines.filter((l) => l.itemId !== "role" && l.section === s.key);
+                  return (
+                    <section key={s.key} aria-labelledby={`cvsec-${s.key}`}>
+                      <h2 id={`cvsec-${s.key}`} className="cv-sec">
+                        {s.label}
+                      </h2>
+                      {lines.length === 0 ? <div className="cv-gap" /> : lines.map(renderCvLine)}
+                    </section>
+                  );
+                })}
+                {discovery.cvLines.length === 0 && <p className="hint">{C14}</p>}
+              </div>
+            </div>
+
+            <div className="ask">
+              {loopbackFromDeck && <p className="notice">{C22}</p>}
+              {renderAsk(discovery)}
+            </div>
           </div>
         </>
       )}

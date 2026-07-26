@@ -609,64 +609,77 @@
 }
 
 /* ---------- #51 Discovery B — desktop two-column ----------
-   Right column, top to bottom: session strip (countdown over the progress bar, aligned), the
-   promise (the "N jobs open" stat — belongs under the progress bar, not at the bottom), then the
-   ask (the question card, fills the remaining height). Left column: the "your CV" label over the
-   CV paper, which fills to match the ask's height so a blank CV doesn't sit short. The root stays
-   full-bleed (position: fixed; inset: 0); padding-inline centres a 1120px content column. Scoped
-   to the loaded screen via :has(.band-cv) so the loadstate keeps #48's centring. Phone (≤ 640px)
-   is unchanged — every rule here is inside the desktop media block. */
+   A flex-column root (no grid, so the main row isn't capped at the viewport): a header row
+   (divider left, session strip + promise right), then a main flex row with the CV sheet on the
+   left and the ask card on the right. The CV's A4 height drives the main row; the ask stretches to
+   match it (align-items: stretch) at any size — one page or two — so their top and bottom edges
+   stay aligned. The root scrolls (overflow-y: auto) when the A4 sheet is taller than the viewport.
+   Scoped to the loaded screen via :has(.band-cv); phone (≤ 640px) unchanged. */
 @media (min-width: 641px) {
   .discovery:has(.band-cv) {
-    display: grid;
-    grid-template-columns: 1fr 460px;
-    grid-template-rows: auto auto auto minmax(0, 1fr);
-    grid-template-areas:
-      "topbar  topbar"
-      "strip   divider"
-      "promise cv"
-      "ask     cv";
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
     padding-inline: max(16px, calc((100% - 1120px) / 2));
-    column-gap: 32px;
-    row-gap: 12px;
   }
   .discovery:has(.band-cv) > .topbar {
-    grid-area: topbar;
+    flex: 0 0 auto;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--hud-0);
   }
-  .discovery:has(.band-cv) > .session-strip {
-    grid-area: strip;
+  /* header row: divider (left) + disc-head (right). DOM order is disc-head then divider (for
+     mobile's stacked order), so row-reverse puts the divider on the left on desktop. */
+  .discovery:has(.band-cv) > .disc-header {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: row-reverse;
+    gap: 32px;
+    padding: 12px 0;
   }
-  .discovery:has(.band-cv) > .promise {
-    grid-area: promise;
-    align-self: start;
-    margin: 0;
+  .discovery .disc-header > .disc-head {
+    flex: 0 0 460px;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
-  .discovery:has(.band-cv) > .ask {
-    grid-area: ask;
+  .discovery .disc-header > .divider {
+    flex: 1 1 0;
+    min-width: 0;
+    align-self: end;
+    padding-inline: 0;
+  }
+  /* main row: CV (left, drives the height) + ask (right, stretches to match) */
+  .discovery:has(.band-cv) > .disc-main {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 32px;
+    align-items: stretch;
+  }
+  /* The CV column fills the left (the A4 sheet centred inside it) and drives the row's height;
+     the ask is a fixed 460px on the right and stretches to match the CV at any size — one page or
+     two — so their top and bottom edges stay aligned. */
+  .discovery .disc-main > .band-cv {
+    flex: 1 1 0;
+    overflow: visible;
+    padding: 0;
+    min-width: 0;
+    min-height: calc(520px * 297 / 210);
+  }
+  .discovery .disc-main > .ask {
+    flex: 0 0 460px;
+    max-width: 100%;
     align-self: stretch;
     background: var(--hud-1);
     border: 1px solid var(--hud-line);
     border-radius: 14px;
     padding: 18px;
     margin: 0;
-    overflow-y: auto;
-    min-height: 0;
-  }
-  .discovery:has(.band-cv) > .divider {
-    grid-area: divider;
-    align-self: start;
-    padding-inline: 0;
-  }
-  .discovery:has(.band-cv) > .band-cv {
-    grid-area: cv;
-    overflow-y: auto;
-    padding: 0 0 16px;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
   }
 
-  /* session strip: countdown sits directly above the progress bar, aligned to the same left edge */
+  /* session strip: countdown directly above the progress bar, shared left edge */
   .discovery .session-strip {
     display: flex;
     flex-direction: column;
@@ -680,21 +693,20 @@
     padding: 0;
   }
 
-  /* the CV paper reads as A4: a fixed-width sheet (centred in the left column), A4 aspect ratio
-     so a blank CV is one page, growing with content up to two pages max (then it scrolls inside).
-     Not flex:1 — it's a sheet of paper, not a fill. */
+  /* CV: A4 sheet — min-height is one A4 page (drives the grid row's min-content, so the ask
+     stretches to match it), max-height is two pages. Content grows the sheet between them; the
+     ask tracks it via the shared grid row. aspect-ratio alone doesn't feed min-content, hence the
+     explicit min-height. */
   .discovery:has(.band-cv) .cv {
     flex: 0 0 auto;
     width: 520px;
     max-width: 100%;
     margin-inline: auto;
-    aspect-ratio: 210 / 297;
+    min-height: calc(520px * 297 / 210);
     max-height: calc(520px * 297 / 210 * 2);
-    overflow-y: auto;
-    min-height: 0;
   }
 
-  /* the promise becomes a slim stat banner (role="status" + text preserved — spec-pinned) */
+  /* promise slim banner (role="status" + text preserved — spec-pinned) */
   .discovery .promise {
     align-items: baseline;
     gap: 13px;
@@ -709,3 +721,5 @@
     font-size: 12.5px;
   }
 }
+
+
