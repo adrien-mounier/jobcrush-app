@@ -2,6 +2,17 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-26 (session 39) — Wayfinder: reconciled + closed onboarding map #40
+
+- **Map:** [#40 — Revise first-run onboarding, invitation → Tailor](https://github.com/adrien-mounier/jobcrush-app/issues/40). **Closed — destination reached** (decision-complete first-run revision).
+- **Reconciliation:** three first-run decisions had been made off-map (in prototypes + the Jul 22 council run, or as implementation tickets under spec #11) and never recorded on the map; the design doc's Open section still listed two as unresolved. All three now recorded in the map's Decisions-so-far:
+  - [#18](https://github.com/adrien-mounier/jobcrush-app/issues/18) — in-flow fact correction (shipped). Post-discovery correction ruled **out of scope**; sibling to "revise profile as life changes," deferred to a future profile-editing effort.
+  - [#22](https://github.com/adrien-mounier/jobcrush-app/issues/22) — wall at the reveal / entering the deck (shipped). §12's "open again" note resolved.
+  - [#51](https://github.com/adrien-mounier/jobcrush-app/issues/51) — desktop onboarding redesign (Discovery B, Tailor B, Deck breakdown); building.
+- **Design doc:** struck the stale Open items (fact correction, wall position) in `docs/onboarding-reward-design.md`; updated §12's inline note to decided.
+- **Lesson:** the map drifted from the build — implementation tickets resolved map-level decisions without being recorded back on the map. Check a map's Open section against shipped code before treating an item as unresolved.
+- **Commit:** (this push).
+
 ## 2026-07-26 (session 38) — Fix: CV uploads broken on staging (R2 CORS)
 
 - **Symptom:** on https://jobcrush.org, every CV upload (PDF/DOCX/TXT) failed at the front door with

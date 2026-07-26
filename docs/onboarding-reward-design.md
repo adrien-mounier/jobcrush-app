@@ -712,10 +712,9 @@ chance of matching — that is the product thesis, and the reason the ladder has
 **After the reveal, on the actions.** Questions uninterrupted → scored cards fully visible → an
 account is required to **save, apply, see the rest, or get alerts**.
 
-> **Open again after 2026-07-23.** This was written when the reveal was three cards after five
-> questions. With discovery variable-length and the deck its own screen, the exact moment needs
-> re-picking — most likely entering the deck, or the first Apply/Save. The *principle* is untouched:
-> reward first, wall on the actions.
+> **Decided 2026-07-24, [#22](https://github.com/adrien-mounier/jobcrush-app/issues/22).** The wall sits
+> at entering the deck — the reveal's "See them" — not at first Apply/Save. The *principle* is
+> untouched: reward first, wall on the actions. The exact moment stays reversible on real drop-off data.
 
 - **Google OAuth leads.** The magic link stays as a quiet secondary link, deliberately less visible so
   people choose Google — firing an email at peak curiosity is the known-fragile path.
@@ -791,16 +790,19 @@ Tracked as tickets on the wayfinder map
   see §9.1 ([#10](https://github.com/adrien-mounier/jobcrush-app/issues/10)). The reveal hides the
   deck; the card is title/score, then a highlight bubble, then where you fit and where you don't, with
   the ad folded away last. Prototype: `apps/web/prototypes/job-card.prototype.html`.
-- **How a user corrects a fact they got wrong.** Added 2026-07-24
-  ([#9](https://github.com/adrien-mounier/jobcrush-app/issues/9)). Discovery is tap-to-answer, so a
-  mistap becomes a wrong fact in the profile in seconds, and §6.2 rule 1 (as amended) now forbids
-  re-asking — which makes a wrong answer *permanent*. S2's shipped deck has confirm/**edit**/reject
-  per claim; the three-screen flow has no equivalent. In scope for the onboarding map.
+- ~~**How a user corrects a fact they got wrong.**~~ — **done 2026-07-24,
+  [#18](https://github.com/adrien-mounier/jobcrush-app/issues/18)**: in-flow correction — tap a done
+  CV line to re-ask, Esc / "Leave it as is" to cancel, bare-"no" undo one question past a "no";
+  re-answering is an idempotent upsert, so it does not violate §6.2's no-re-ask. Post-discovery
+  correction (editing a wrong fact from the deck or profile after discovery ends) is **out of scope**
+  for this map — sibling to the life-changes item below; a single future profile-editing effort can
+  hold both.
 - **Revising the profile later, as life changes.** Ruled **out of scope** for this design on
   2026-07-24 and parked on the map: people get the certification, get the clearance, change sector,
   and nothing lets a past answer be revised. It sits past "first card seen" and wants its own
   wayfinder effort. Distinct from the month-two question, which is only about old cards re-scoring.
-- **Where the wall sits now.** §12 needs re-picking against the three-screen shape.
+- ~~**Where the wall sits now.**~~ — **done 2026-07-24, [#22](https://github.com/adrien-mounier/jobcrush-app/issues/22)**:
+  at the reveal, entering the deck. See §12.
 - **The core CV structure** — the canonical section list discovery renders empty. Belongs to the CV
   brain / S2.75, not this design. **No longer blocks the discovery design** (§6.2): every floor item
   carries the section it writes into, so discovery is specified against whatever that list turns out
