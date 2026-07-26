@@ -105,27 +105,21 @@
   color: var(--hud-mute);
 }
 
-/* ---------- section rail ---------- */
+/* ---------- progress rail: one overall bar + section labels ---------- */
 .discovery .rail {
-  display: flex;
-  gap: 6px;
   flex: 0 0 auto;
   padding: 0 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.discovery .blk {
-  flex: 1;
-  min-width: 0;
-}
-.discovery .blk .bar {
+.discovery .rail-track {
   height: 4px;
   border-radius: 999px;
   background: var(--hud-2);
   overflow: hidden;
 }
-.discovery .blk.active .bar {
-  background: var(--hud-line);
-}
-.discovery .blk .bar i {
+.discovery .rail-track i {
   display: block;
   height: 100%;
   width: 0;
@@ -133,26 +127,28 @@
   border-radius: 999px;
   transition: width 620ms cubic-bezier(0.3, 0.9, 0.3, 1);
 }
-.discovery .blk .nm {
+.discovery .rail-steps {
+  display: flex;
+  gap: 10px;
+}
+.discovery .rail-steps .step {
+  flex: 1;
+  min-width: 0;
   font-family: var(--mono);
   font-size: 9.5px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--hud-mute);
-  margin-top: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   transition: color 400ms ease;
 }
-.discovery .blk.active .nm {
+.discovery .rail-steps .step.active {
   color: var(--gold);
 }
-.discovery .blk.done .nm {
+.discovery .rail-steps .step.done {
   color: var(--hud-ink);
-}
-.discovery .blk .tick {
-  color: var(--gold);
 }
 
 /* ---------- the promise ---------- */
@@ -624,7 +620,7 @@
   .discovery:has(.band-cv) {
     display: grid;
     grid-template-columns: 1fr 460px;
-    grid-template-rows: auto auto auto 1fr;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
     grid-template-areas:
       "topbar  topbar"
       "strip   divider"
@@ -684,9 +680,17 @@
     padding: 0;
   }
 
-  /* the CV paper fills its column so a blank CV matches the ask's height (no short-paper misalign) */
+  /* the CV paper reads as A4: a fixed-width sheet (centred in the left column), A4 aspect ratio
+     so a blank CV is one page, growing with content up to two pages max (then it scrolls inside).
+     Not flex:1 — it's a sheet of paper, not a fill. */
   .discovery:has(.band-cv) .cv {
-    flex: 1 1 0;
+    flex: 0 0 auto;
+    width: 520px;
+    max-width: 100%;
+    margin-inline: auto;
+    aspect-ratio: 210 / 297;
+    max-height: calc(520px * 297 / 210 * 2);
+    overflow-y: auto;
     min-height: 0;
   }
 

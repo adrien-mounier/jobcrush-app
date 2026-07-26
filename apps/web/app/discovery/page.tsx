@@ -154,8 +154,9 @@ type TypingInfo = {
   focusAfter?: string; // a correction's itemId — refocus its .cv-line button once typing completes
 };
 
-// The 4-bar section rail (design §4g) — pure/stateless, so it's the one piece worth its own
-// component; everything else below shares too much live state/refs to be worth splitting.
+// The progress rail: one overall bar that fills as you answer anything (so the active section
+// never reads as "empty/broken" just because its own questions haven't been answered yet), plus
+// the four section labels underneath — the active one in gold, completed ones with a tick.
 function Rail({
   railFill,
   activeSection,
@@ -163,23 +164,28 @@ function Rail({
   railFill: Record<CvSection, number>;
   activeSection: CvSection | null;
 }) {
+  const overall = Math.round(
+    (SECTIONS.reduce((sum, s) => sum + (railFill[s.key] ?? 0), 0) / SECTIONS.length) * 100,
+  );
   return (
     <div className="rail" aria-hidden="true">
-      {SECTIONS.map((s) => {
-        const fill = railFill[s.key] ?? 0;
-        const done = fill >= 1;
-        return (
-          <div key={s.key} className={`blk${s.key === activeSection ? " active" : ""}${done ? " done" : ""}`}>
-            <div className="bar">
-              <i style={{ width: `${Math.min(100, Math.round(fill * 100))}%` }} />
-            </div>
-            <div className="nm">
+      <div className="rail-track">
+        <i style={{ width: `${overall}%` }} />
+      </div>
+      <div className="rail-steps">
+        {SECTIONS.map((s) => {
+          const done = (railFill[s.key] ?? 0) >= 1;
+          return (
+            <span
+              key={s.key}
+              className={`step${s.key === activeSection ? " active" : ""}${done ? " done" : ""}`}
+            >
               {s.label}
-              {done && <span className="tick"> ✓</span>}
-            </div>
-          </div>
-        );
-      })}
+              {done && " ✓"}
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }
