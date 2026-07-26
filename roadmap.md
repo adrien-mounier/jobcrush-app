@@ -138,6 +138,11 @@ which questions remain, in what order, and when the evidence has earned a credib
       discovery, reveal/wall, deck, Tailor, badge persistence, correction, and the current Profile;
       **#11 is closed.** Non-blocking [#39](https://github.com/adrien-mounier/jobcrush-app/issues/39)
       tracks four obsolete `.loadstate` assertions in the old real-stack badge driver.
+      **2026-07-26 S36 update:** **#39 shipped in `25ea282`** — the factbadge real-stack journey now
+      checks the current focused Profile heading, matching badge count, Sorted/Constellation toggle,
+      Back navigation, and keyboard Enter activation. The driver documents serial execution under
+      the anonymous-session rate limiter; independent QA passed 44/44 with full gates green. The
+      implementation frontier is empty; the active design frontier remains #44.
       **2026-07-25 S28 (parallel lane):** closed session 25's deferred OAuth-failure return path —
       `/auth/google?from=` + an allowlisted `jc_oauth_from` cookie now land a failed Google trip back on
       `/deck?login=…` instead of `/signup`, lighting up the branch #22 left inert. Filed the two #14

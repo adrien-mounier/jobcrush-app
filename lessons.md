@@ -1,5 +1,14 @@
 # Lessons — jobcrush-app
 
+## Windows rejects the QA driver's trailing-dot report directory through ordinary paths
+
+`qa-driver.mjs` builds its timestamp by slicing the ISO string at 15 characters, which retains the
+millisecond separator and produces a directory like `factbadge-journey-20260726-105031.`. The run
+and report are valid, but ordinary Windows path traversal can reject the trailing dot. Use the
+extended `\\?\` path to inspect existing evidence. If the timestamp helper is changed later, remove
+the separator before creating the directory; do not mistake path lookup failure for a missing QA
+report.
+
 ## A score and its explanation must share one coverage decision
 
 The first #26 implementation could display 100 while listing the same requirement as still open:

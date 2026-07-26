@@ -2,6 +2,20 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-26 (session 36) — `/orchestrate-team`: closed #39 factbadge Profile harness debt
+
+- **#39 — current Profile journey.** Shipped `25ea282` (`Closes #39`). Replaced the retired
+  `.loadstate` placeholder checks in the real-stack factbadge driver with the current Profile
+  contract: badge count matches the focused Profile heading, Sorted and Constellation both render,
+  Back returns to the sender, and keyboard Enter on the badge still opens Profile.
+- **Rate-limit-safe browser proof.** Documented that the driver must run serially under the
+  12-anonymous-sessions/IP/hour limiter. Red-before-green reproduced 39 passes / 4 stale failures;
+  the developer and independent QA runs both finished 44/44 with only three serial sessions total.
+- **Review + QA.** Standards and Spec reviews returned zero findings. Cache-bypassed QA passed
+  344 tests / 5 skipped, typecheck 7/7, build 5/5 with 12/12 routes, and the orchestrator push gate
+  stayed green. The implementation ticket frontier is empty; the separate design frontier remains
+  [#44 adaptive discovery](https://github.com/adrien-mounier/jobcrush-app/issues/44).
+
 ## 2026-07-26 (session 35) — Wayfinder: imported-evidence trust and recovery
 
 - **[Define imported-evidence trust, merging, and recovery](https://github.com/adrien-mounier/jobcrush-app/issues/43).**
