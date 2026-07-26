@@ -295,3 +295,26 @@
     overflow-y: auto;
   }
 }
+
+/* ---------- #48 desktop centring (§10) ----------
+   On desktop the global `main { max-width: 640px; margin: 0 auto; padding: … }` rule caps this
+   root (a <main>) into a centred 640px column — the dark HUD layer becomes a phone rectangle
+   with the page background + brand bar showing on either side. The `.frontdoor` class beats the
+   `main` type selector, so this override restores the full-viewport dark layer; the content
+   (`.invite`, `.footnote`, both position:absolute; inset:0) is then constrained to the shared
+   column and centred. Phone (≤ 640px) is untouched — the whole block is gated ≥ 641px. */
+@media (min-width: 641px) {
+  .frontdoor {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+  .frontdoor .invite {
+    max-width: var(--jc-desk-col);
+    margin-inline: auto;
+  }
+  .frontdoor .footnote {
+    max-width: var(--jc-desk-col);
+    margin-inline: auto;
+  }
+}

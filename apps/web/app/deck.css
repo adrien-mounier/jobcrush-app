@@ -659,3 +659,20 @@
     transform: none;
   }
 }
+
+/* ---------- #48 desktop centring ----------
+   Same pattern as discovery: cap the content children to the shared column, centre them. The
+   reveal `.curtain` is a momentary full-viewport darken (bg + backdrop-blur), not a persistent
+   band — left full-bleed; its content already self-centres via place-items, and `.wall` already
+   self-centres at max-width:300px. `.jobcard` fills the column-width `.deck` → a centred
+   phone-width card. Phone (≤ 640px) untouched. */
+@media (min-width: 641px) {
+  .jobdeck .topbar,
+  .jobdeck .deckcount,
+  .jobdeck .deck,
+  .jobdeck .loadstate,
+  .jobdeck .loopback {
+    max-width: var(--jc-desk-col);
+    margin-inline: auto;
+  }
+}

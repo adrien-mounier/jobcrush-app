@@ -358,3 +358,13 @@ textarea {
     padding: var(--jc-sp-lg) var(--jc-sp-md);
   }
 }
+
+/* #48 — desktop centring for the full-bleed onboarding HUD screens (front door / discovery /
+   deck / tailor). A shared *layout* token, not a colour token: the per-screen HUD palettes stay
+   scoped off :root by their own discipline, so this width is the one thing they share. Defined
+   inside the desktop media block so phone viewports (≤ 640px) never see it. */
+@media (min-width: 641px) {
+  :root {
+    --jc-desk-col: 560px;
+  }
+}

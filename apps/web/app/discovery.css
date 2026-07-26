@@ -584,3 +584,27 @@
     transition: none;
   }
 }
+
+/* ---------- #48 desktop centring ----------
+   The root already fills the viewport (a <div>, not <main>, so the global 640px cap doesn't
+   apply). Constrain the content children to the shared column and centre them. The `.ask` dock
+   stays full-bleed (its bg + border-top span the viewport) so the HUD reads as one continuous
+   dark surface; its *content* is centred by inflating the side padding symmetrically. `max()`
+   keeps the mobile 16px gutter below the column+32px width. Phone (≤ 640px) untouched. */
+@media (min-width: 641px) {
+  .discovery .topbar,
+  .discovery .countdown,
+  .discovery .rail,
+  .discovery .divider,
+  .discovery .band-cv {
+    max-width: var(--jc-desk-col);
+    margin-inline: auto;
+  }
+  .discovery .promise {
+    max-width: var(--jc-desk-col);
+    margin-inline: auto;
+  }
+  .discovery .ask {
+    padding-inline: max(16px, calc((100% - var(--jc-desk-col)) / 2));
+  }
+}

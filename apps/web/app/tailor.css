@@ -385,3 +385,27 @@
 .tailor .score.bumped .n {
   animation: tl-bump 460ms cubic-bezier(0.2, 1.5, 0.4, 1);
 }
+
+/* ---------- #48 desktop centring ----------
+   `.tailor` rides on a root that also carries `.jobdeck` (which supplies the full-viewport HUD),
+   so no root change here. Cap the content children to the shared column and centre them; the
+   `.ask` dock stays full-bleed with symmetric padding so the dark surface stays continuous
+   (same pattern as discovery). `.live-card` and `.cv` sit column-width inside `.live-wrap`.
+   Phone (≤ 640px) untouched. */
+@media (min-width: 641px) {
+  .tailor .topbar {
+    max-width: var(--jc-desk-col);
+    margin-inline: auto;
+  }
+  .tailor .live-wrap {
+    max-width: var(--jc-desk-col);
+    margin-inline: auto;
+  }
+  .tailor .ask {
+    padding-inline: max(16px, calc((100% - var(--jc-desk-col)) / 2));
+  }
+  .tailor .loadstate {
+    max-width: var(--jc-desk-col);
+    margin-inline: auto;
+  }
+}
