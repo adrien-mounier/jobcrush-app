@@ -17,16 +17,23 @@ Newest first. One entry per working session. Ticket + commit refs so the plan st
 
 - **Symptom:** on https://jobcrush.org, every CV upload (PDF/DOCX/TXT) failed at the front door with
   *"Couldn't upload that — check your connection."* Looked PDF-specific only because most CVs are PDFs.
-- **Root cause:** the `jobcrush-staging` R2 bucket had no CORS rule. The browser PUTs the upload
-  straight to a presigned R2 URL (cross-origin); R2 replied `403 "CORS not configured for this
-  bucket"` to the preflight, so the PUT never fired. The presigned URL, storage, and pipeline were
-  all healthy (verified by PUTting via curl, which ignores CORS — full flow completed).
-- **Fix:** `R2Storage.ensureCors` sets the bucket CORS rule via the S3 `PutBucketCors` API on boot,
-  using the API's existing scoped R2 credentials; `main.ts` calls it with `WEB_URL` (+ optional
-  `R2_CORS_ORIGINS`). Idempotent (PutBucketCors replaces config). Best-effort: if the token lacks
-  permission, boot logs and continues; fallback is routing bytes through the API. Lesson + details
-  in `lessons.md`. Green gate passed (`pnpm test && pnpm typecheck`).
-- **Commit:** (this push).
+- **Root cause:** the browser PUTs the upload straight to a presigned R2 URL (cross-origin); the
+  `jobcrush-staging` bucket had no CORS rule for jobcrush.org, so R2 replied `403 "CORS not configured
+  for this bucket"` to the preflight and the PUT never fired. The presigned URL, storage, and pipeline
+  were all healthy (verified by PUTting via curl, which ignores CORS — full flow completed).
+- **Second bug found:** `WEB_URL` on `jobcrush-api-staging` was `https://jobcrush-web-staging.fly.dev`,
+  not `https://jobcrush.org` — breaking magic-link emails + OAuth redirects. Owner set it to
+  `https://jobcrush.org` (Fly secret), which also fixed login links.
+- **Fix shipped (option 3):** `R2Storage.presignPut` returns the API-relative `/uploads/:id/content`
+  path, so the browser PUTs same-origin through the Next proxy and the API writes to R2 server-side.
+  No CORS, no extra R2 bucket permissions. First tried option 2 (API sets CORS on boot via
+  `PutBucketCors`), but the scoped R2 token can't `PutBucketCors` — the call fails every boot
+  (swallowed) and the bucket never updated to jobcrush.org even after a clean restart. Reverted
+  `ensureCors`; kept `WEB_URL` fix. Tradeoff: upload bytes (≤10 MB) flow through the API. Lesson +
+  revert notes in `lessons.md`. Green gate passed.
+- **Commits:** `fd5cef6` (option 2 attempt + WEB_URL diagnosis), (this push) (option 3).
+
+## 2026-07-26 (session 37) — Wayfinder: adaptive discovery and unmapped job families
 
 ## 2026-07-26 (session 37) — Wayfinder: adaptive discovery and unmapped job families
 

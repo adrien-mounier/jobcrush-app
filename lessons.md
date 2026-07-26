@@ -7,15 +7,25 @@ rule, R2 replies `403 "CORS not configured for this bucket"` to the browser's pr
 never fires — the front door shows its generic *"Couldn't upload that — check your connection"*
 message, which reads like a network bug, not a bucket-config bug. The Cloudflare R2 dashboard
 exposes only Object Lifecycle and Bucket Lock rules — **CORS is wrangler/S3-API only**, and `wrangler`
-isn't installed locally (by rule, to keep account-wide commands out of reach). Fix: the API sets the
-CORS rule itself on boot via `PutBucketCors` using its existing scoped R2 credentials
-(`R2Storage.ensureCors`, wired in `main.ts`), with `WEB_URL` (+ optional `R2_CORS_ORIGINS`) as the
-allowed origins. PutBucketCors replaces the whole CORS config, so the env is the source of truth —
-add extra origins to `R2_CORS_ORIGINS`, not to the bucket by hand, or the next boot overwrites them.
-If the R2 token lacks bucket-config permission, the boot logs the error and continues (uploads stay
-broken); the fallback is routing upload bytes through the API (same-origin, no CORS). The CI tests
-never catch this because they inject a fake LLM and use `InMemoryBlobStorage` — the real R2 path is
-only exercised on staging, so it rots silently.
+isn't installed locally (by rule, to keep account-wide commands out of reach).
+
+I tried making the API set CORS itself on boot via `PutBucketCors` (`R2Storage.ensureCors`, using the
+same scoped R2 token). It looked like it worked once (the `fly.dev` origin returned 204) but never
+updated the bucket to `jobcrush.org` after a `WEB_URL` change + clean restart — the running R2 token
+apparently can't `PutBucketCors`, the call fails every boot (caught and swallowed, invisible without
+Fly logs), and the one working rule was pre-existing. **Do not assume `PutBucketCors` succeeded
+without re-running the CORS preflight against the exact origin.** The durable fix that actually
+shipped: `R2Storage.presignPut` returns the API-relative `/uploads/:id/content` path, so the browser
+PUTs same-origin through the Next proxy and the API writes to R2 server-side — no CORS, no R2 bucket
+permissions beyond object PUT. The tradeoff is upload bytes flowing through the API (≤10 MB, fine for
+staging); revert to a presigned `getSignedUrl` PUT only after configuring CORS on the bucket (wrangler)
+if you want bytes off the API again. The CI tests never catch any of this because they inject a fake
+LLM and use `InMemoryBlobStorage` — the real R2 path is only exercised on staging, so it rots silently.
+
+Separate but related: `WEB_URL` on `jobcrush-api-staging` was set to `https://jobcrush-web-staging.fly.dev`
+(the old Fly URL), not `https://jobcrush.org`. That broke magic-link emails + Google OAuth redirects
+(they sent users to `fly.dev`) and would have made any CORS allow-list target the wrong origin.
+Setting `WEB_URL` to the real public origin is a Fly secret on the API app.
 
 ## Windows rejects the QA driver's trailing-dot report directory through ordinary paths
 

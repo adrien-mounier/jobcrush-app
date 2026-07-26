@@ -44,23 +44,6 @@ const { app } = buildServer({
   auditCv: makeCvAuditor(llm),
 });
 
-// R2 CORS self-heal: the browser PUTs uploads straight to R2 (cross-origin), and R2 CORS
-// isn't dashboard-configurable, so the API sets the rule on boot using its own credentials.
-// WEB_URL is the primary origin; R2_CORS_ORIGINS (comma-separated) adds extras (fly.dev URL,
-// local). Best-effort: if the token lacks PutBucketCors permission, log and continue —
-// uploads will fail in the browser until CORS is configured another way.
-const corsOrigins = [
-  process.env.WEB_URL,
-  ...(process.env.R2_CORS_ORIGINS?.split(",") ?? []),
-]
-  .map((o) => o?.trim())
-  .filter((o): o is string => !!o);
-try {
-  await blobs.ensureCors?.(corsOrigins);
-} catch (err) {
-  app.log.error(err, "R2 CORS setup failed — browser uploads will fail until CORS is configured");
-}
-
 // JC-20 purge: sweep unclaimed anonymous sessions/claims + spent tokens on boot and every 6h
 // (Postgres only — in-memory data is wiped on restart).
 if (process.env.DATABASE_URL) {
