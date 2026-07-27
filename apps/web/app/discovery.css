@@ -639,15 +639,15 @@
     padding: 12px 0;
   }
   .discovery .disc-header > .disc-head {
-    flex: 0 0 460px;
-    max-width: 100%;
+    flex: 1 1 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
   .discovery .disc-header > .divider {
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 0 0 520px;
+    max-width: 100%;
     align-self: end;
     padding-inline: 0;
   }
@@ -662,21 +662,23 @@
      the ask is a fixed 460px on the right and stretches to match the CV at any size — one page or
      two — so their top and bottom edges stay aligned. */
   .discovery .disc-main > .band-cv {
-    flex: 1 1 0;
+    flex: 0 0 520px;
+    max-width: 100%;
     overflow: visible;
     padding: 0;
-    min-width: 0;
     min-height: calc(520px * 297 / 210);
   }
   .discovery .disc-main > .ask {
-    flex: 0 0 460px;
-    max-width: 100%;
+    flex: 1 1 0;
+    min-width: 0;
     align-self: stretch;
     background: var(--hud-1);
     border: 1px solid var(--hud-line);
     border-radius: 14px;
     padding: 18px;
     margin: 0;
+    overflow-y: auto;
+    min-height: 0;
   }
 
   /* session strip: countdown directly above the progress bar, shared left edge */
@@ -698,10 +700,8 @@
      ask tracks it via the shared grid row. aspect-ratio alone doesn't feed min-content, hence the
      explicit min-height. */
   .discovery:has(.band-cv) .cv {
-    flex: 0 0 auto;
-    width: 520px;
-    max-width: 100%;
-    margin-inline: auto;
+    width: 100%;
+    margin: 0;
     min-height: calc(520px * 297 / 210);
     max-height: calc(520px * 297 / 210 * 2);
   }
