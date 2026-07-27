@@ -22,9 +22,10 @@ Newest first. One entry per working session. Ticket + commit refs so the plan st
   calling it on boot would fail silently — the original bug). New `pnpm --filter @jobcrush/web
   e2e:r2-cors` preflight check guards the real R2 path from rotting (not in `pnpm test` — CI uses
   `InMemoryBlobStorage`). Not self-healing; re-run the one-shot if the bucket is ever recreated.
-- **Status:** CORS set on bucket + verified by read-back; code green-gate; push (deploy) → re-run
-  preflight against jobcrush.org → drive real PDF/DOCX/TXT uploads to close.
-- **Commits:** (pending push). Lesson updated in `lessons.md`.
+- **Status:** CORS set on bucket + verified by read-back; pushed `46c6abd` + deployed to staging;
+  CORS preflight + real PDF/DOCX/TXT PUT to R2 all verified live on jobcrush.org (204 / 200 +
+  `Access-Control-Allow-Origin: https://jobcrush.org`); temp admin R2 token pending owner deletion.
+- **Commits:** `46c6abd`. Lesson updated in `lessons.md`.
 
 ## 2026-07-26 (session 39) — Wayfinder: reconciled + closed onboarding map #40
 
