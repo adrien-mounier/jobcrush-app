@@ -55,6 +55,24 @@ The asynchronous work initiated for an unmapped target role to construct and val
 family before discovery continues.
 _Avoid_: Classification retry, onboarding job
 
+**Family research candidate**:
+An unmapped target role submission retained for relevance screening. A candidate becomes a family
+research request only when it appears to describe a legitimate employment target worth learning.
+
+_Avoid_: Family research request, raw search query
+
+**Family learning**:
+The reusable knowledge gained by researching and validating a job family. It benefits future users
+whether or not the user whose submission prompted it creates an account.
+
+_Avoid_: User-specific search, onboarding completion
+
+**Family learning attempt**:
+The traceable lifecycle that begins when a family research candidate is screened and ends when it is
+rejected, fails validation, produces a published family, or is superseded by another attempt.
+
+_Avoid_: Background job, successful family
+
 **Important gap**:
 A job requirement that the user's current evidence does not cover and that may materially reduce
 their chances. It must be explained on the job card but does not prevent truthful tailoring or an

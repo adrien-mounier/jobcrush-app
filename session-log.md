@@ -2,6 +2,23 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 42) — Wayfinder: unmapped-role family learning workflow
+
+- Resolved [Define the unmapped-role family learning workflow](https://github.com/adrien-mounier/jobcrush-app/issues/50):
+  keep the common onboarding path, pause unknown-role reveals, and use the normal account wall with
+  “Create your account and we’ll notify you when your first matches are ready.”
+- Anonymous submissions become privacy-minimized research candidates. Abuse filtering, LLM relevance
+  screening, normalization, and deduplication precede reusable family research; one credible target
+  can trigger a versioned, validated family build.
+- Signed-up users resume automatically after publication and are notified only when a credible
+  vacancy exists. Failed or rejected attempts return users to role correction rather than waiting
+  indefinitely.
+- Monitoring covers the full attempt lifecycle from submission through notification, including
+  stage conversion, latency, failures, stuck work, family publication, match delivery, and signup.
+- Added `Family research candidate`, `Family learning`, and `Family learning attempt` to
+  `CONTEXT.md`. The next map frontier is
+  [Audit the downstream journey from discovery to Tailor](https://github.com/adrien-mounier/jobcrush-app/issues/45).
+
 ## 2026-07-28 (session 41) — Fix: Google sign-in broken on staging after jobcrush.org move
 
 - **Symptom:** on https://jobcrush.org, "Continue with Google" hit a Google **`Error 400: redirect_uri_mismatch`** page before the account picker.

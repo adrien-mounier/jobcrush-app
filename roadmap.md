@@ -17,12 +17,12 @@ no autonomous submit, no LinkedIn credentials, ever).
 ## Current design frontier
 
 The [first-run onboarding revision map](https://github.com/adrien-mounier/jobcrush-app/issues/40)
-is active. The opening/source-entry prototype, permitted LinkedIn acquisition path, and imported-
-evidence trust model are resolved. Adaptive discovery is also resolved: recover explicit search
-intent, classify without forcing outliers, ask only material unanswered essentials, and keep the
-simple reveal while explaining Important gaps on each card. The frontier is
-[Define the unmapped-role family learning workflow](https://github.com/adrien-mounier/jobcrush-app/issues/50)
-before the downstream journey audit. Its prerequisite classification research is resolved in
+has resolved the source-entry, imported-evidence, adaptive-discovery, and unmapped-role learning
+decisions. Unknown roles now pause before reveal, become screened and deduplicated learning
+candidates, publish only after validation, and resume signed-up users when a credible match exists;
+the full lifecycle is monitored. The next frontier is
+[Audit the downstream journey from discovery to Tailor](https://github.com/adrien-mounier/jobcrush-app/issues/45).
+Its prerequisite classification research is resolved in
 [`job-family-classification-novelty.md`](https://github.com/adrien-mounier/jobcrush-app/blob/research/job-family-classification-novelty-49/docs/research/job-family-classification-novelty.md):
 vector similarity retrieves candidate families, while calibrated support, density, and separation
 decide automatic placement, clarification, or an unknown result.
