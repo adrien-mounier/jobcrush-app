@@ -41,7 +41,10 @@ export function authRoutes(deps: AuthDeps) {
 
   return async function plugin(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>();
-    const cookieSecure = process.env.APP_ENV !== "local" && process.env.NODE_ENV !== "test";
+    // Unset APP_ENV (the default local-dev state — `pnpm dev` sets none) counts as local, matching
+    // healthz below (server.ts). Without this, Secure cookies are dropped over http://localhost and
+    // both Google and magic-link sign-in silently fail locally.
+    const cookieSecure = (process.env.APP_ENV ?? "local") !== "local" && process.env.NODE_ENV !== "test";
 
     app.post(
       "/auth/request-link",

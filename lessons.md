@@ -1,5 +1,30 @@
 # Lessons — jobcrush-app
 
+## After a domain move, add the new origin's Google OAuth redirect URI to the Google Console
+
+`WEB_URL` on the API drives the `redirect_uri` sent to Google (`${WEB_URL}/api/auth/google/callback`,
+`apps/api/src/routes/auth.ts`). When the site moved from `https://jobcrush-web-staging.fly.dev` to
+`https://jobcrush.org` (session 38, `WEB_URL` Fly secret updated), the app correctly started sending
+the new return address — but the Google Cloud Console's authorized redirect URIs still listed only the
+old `fly.dev` address. Google rejects an unregistered `redirect_uri` with **`Error 400: redirect_uri_mismatch`**
+on its own page, *before* the account picker — so the user never reaches the app's `?login=expired`
+bounce. The fix is a Console edit only (Credentials → OAuth client → Authorized redirect URIs → add
+`<new origin>/api/auth/google/callback`, keep the old + localhost entries), no code change, no redeploy.
+**After any future domain/origin change, update the Console's redirect URIs in the same motion as the
+`WEB_URL` Fly secret.** Symptom-to-cause: "Google sign-in shows a Google 400 error page" ≠ "app says
+sign-in didn't complete" — the first is a Console redirect-URI gap; the second is the state cookie or
+token exchange (e.g. a stale `GOOGLE_CLIENT_SECRET`).
+
+## Local dev: unset APP_ENV must count as "local" or Secure cookies break every sign-in
+
+`cookieSecure = process.env.APP_ENV !== "local" && ...` in `routes/auth.ts` and `routes/sessions.ts`
+marked the session + OAuth-state cookies `Secure` whenever `APP_ENV` was unset — which is the default
+`pnpm dev` state (the dev script sets no env, and no `.env` is auto-loaded). Browsers silently drop
+`Secure` cookies over `http://localhost`, so both Google and magic-link sign-in failed identically
+locally with no error surfaced. The fix: `(process.env.APP_ENV ?? "local") !== "local"`, matching the
+healthz convention in `server.ts`. Staging/prod are unaffected (`APP_ENV=staging` is explicit). Any new
+cookie flagged `secure` should use the same `?? "local"` default.
+
 ## R2 CORS is not in the Cloudflare dashboard — and presigned-PUT uploads silently fail without it
 
 The browser uploads a CV straight to a presigned R2 URL (cross-origin). If the bucket has no CORS

@@ -31,7 +31,7 @@ export function sessionRoutes(sessions: SessionStore, limiter = new IpRateLimite
           path: "/",
           httpOnly: true,
           sameSite: "lax",
-          secure: process.env.APP_ENV !== "local" && process.env.NODE_ENV !== "test",
+          secure: (process.env.APP_ENV ?? "local") !== "local" && process.env.NODE_ENV !== "test",
         });
         reply.status(201);
         return { id: session.id };

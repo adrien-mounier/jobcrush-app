@@ -2,6 +2,14 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 41) — Fix: Google sign-in broken on staging after jobcrush.org move
+
+- **Symptom:** on https://jobcrush.org, "Continue with Google" hit a Google **`Error 400: redirect_uri_mismatch`** page before the account picker.
+- **Root cause:** the domain move to `jobcrush.org` (session 38 updated the `WEB_URL` Fly secret) changed the `redirect_uri` the API sends to Google from `https://jobcrush-web-staging.fly.dev/api/auth/google/callback` to `https://jobcrush.org/api/auth/google/callback` — but the new URI was never added to the Google Cloud Console's authorized redirect URIs (only the old `fly.dev` + localhost entries were registered 2026-07-19). Google rejects unregistered redirect URIs at the consent screen, so the app's `?login=expired` bounce was never reached.
+- **Fix (owner, no code):** added `https://jobcrush.org/api/auth/google/callback` to the OAuth client's authorized redirect URIs in the Google Cloud Console (kept the old `fly.dev` + localhost entries). Verified live — Google sign-in now completes on staging. No redeploy needed.
+- **Second fix shipped (latent local-dev bug, separate from the staging issue):** `cookieSecure` in `routes/auth.ts:44` and `routes/sessions.ts:34` marked cookies `Secure` when `APP_ENV` was unset — the default `pnpm dev` state — so browsers dropped the session + OAuth-state cookies over `http://localhost` and both Google and magic-link sign-in failed silently locally. Changed to `(process.env.APP_ENV ?? "local") !== "local"` to match the healthz convention (`server.ts:127`). Staging/prod unchanged (`APP_ENV=staging` explicit). Lessons updated (redirect-URI-on-domain-move + unset-APP_ENV cookie default).
+- **Commits:** (this push).
+
 ## 2026-07-27 (session 40) — Fix: R2 uploads go straight to R2 again (#53, option 1)
 
 - **Ticket:** [#53 — R2: configure bucket CORS and revert to presigned-PUT uploads](https://github.com/adrien-mounier/jobcrush-app/issues/53).
