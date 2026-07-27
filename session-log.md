@@ -2,6 +2,30 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-27 (session 40) — Fix: R2 uploads go straight to R2 again (#53, option 1)
+
+- **Ticket:** [#53 — R2: configure bucket CORS and revert to presigned-PUT uploads](https://github.com/adrien-mounier/jobcrush-app/issues/53).
+- **Goal:** revert the `deeeecf` staging workaround (upload bytes routed through the API) so the
+  browser PUTs straight to R2 again.
+- **Root cause recap:** the `jobcrush-staging` R2 bucket had no CORS rule for `jobcrush.org`; the
+  first boot-time `PutBucketCors` attempt (`fd5cef6`) failed silently because the scoped R2 token
+  lacked bucket-config permission.
+- **Discovery:** the Cloudflare dashboard can scope only Object Read & Write to a single bucket —
+  Admin Read & Write is account-wide (would touch vitacairn too, breaking the shared-infra
+  one-token-one-bucket rule). So the ticket's original "admin, scoped to jobcrush-staging" approach
+  isn't available through the dashboard.
+- **Fix (option 1, owner-chosen):** keep the existing object-scoped R2 token in Fly (unchanged).
+  Set CORS once with a **temporary** admin R2 token via `pnpm --filter @jobcrush/api set-r2-cors`
+  (`apps/api/scripts/set-r2-cors.mjs`) — `PutBucketCors` + `GetBucketCors` read-back verification;
+  temp token deleted right after. Code reverts `presignPut` to a presigned `getSignedUrl` PUT (bytes
+  straight to R2) and removes the boot-time `ensureCors` (the object token can't `PutBucketCors`, so
+  calling it on boot would fail silently — the original bug). New `pnpm --filter @jobcrush/web
+  e2e:r2-cors` preflight check guards the real R2 path from rotting (not in `pnpm test` — CI uses
+  `InMemoryBlobStorage`). Not self-healing; re-run the one-shot if the bucket is ever recreated.
+- **Status:** CORS set on bucket + verified by read-back; code green-gate; push (deploy) → re-run
+  preflight against jobcrush.org → drive real PDF/DOCX/TXT uploads to close.
+- **Commits:** (pending push). Lesson updated in `lessons.md`.
+
 ## 2026-07-26 (session 39) — Wayfinder: reconciled + closed onboarding map #40
 
 - **Map:** [#40 — Revise first-run onboarding, invitation → Tailor](https://github.com/adrien-mounier/jobcrush-app/issues/40). **Closed — destination reached** (decision-complete first-run revision).

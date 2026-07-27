@@ -8,7 +8,8 @@
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
     "test": "echo 'no unit tests (UI is exercised by the e2e onboarding smoke)'",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:r2-cors": "node e2e/r2-cors-preflight.mjs"
   },
   "dependencies": {
     "@jobcrush/ui": "workspace:*",

@@ -9,18 +9,40 @@ message, which reads like a network bug, not a bucket-config bug. The Cloudflare
 exposes only Object Lifecycle and Bucket Lock rules — **CORS is wrangler/S3-API only**, and `wrangler`
 isn't installed locally (by rule, to keep account-wide commands out of reach).
 
-I tried making the API set CORS itself on boot via `PutBucketCors` (`R2Storage.ensureCors`, using the
-same scoped R2 token). It looked like it worked once (the `fly.dev` origin returned 204) but never
-updated the bucket to `jobcrush.org` after a `WEB_URL` change + clean restart — the running R2 token
-apparently can't `PutBucketCors`, the call fails every boot (caught and swallowed, invisible without
-Fly logs), and the one working rule was pre-existing. **Do not assume `PutBucketCors` succeeded
-without re-running the CORS preflight against the exact origin.** The durable fix that actually
-shipped: `R2Storage.presignPut` returns the API-relative `/uploads/:id/content` path, so the browser
-PUTs same-origin through the Next proxy and the API writes to R2 server-side — no CORS, no R2 bucket
-permissions beyond object PUT. The tradeoff is upload bytes flowing through the API (≤10 MB, fine for
-staging); revert to a presigned `getSignedUrl` PUT only after configuring CORS on the bucket (wrangler)
-if you want bytes off the API again. The CI tests never catch any of this because they inject a fake
-LLM and use `InMemoryBlobStorage` — the real R2 path is only exercised on staging, so it rots silently.
+**The R2 token must have bucket-admin permission to set CORS.** The first attempt at boot-time
+`PutBucketCors` (`R2Storage.ensureCors`, `fd5cef6`) failed silently every boot: the scoped R2 token the
+API used had only object-read/write permission, so `PutBucketCors` was denied (caught and swallowed —
+invisible without Fly logs). It looked like it worked once because a pre-existing `fly.dev` rule was on
+the bucket, not because the call succeeded. **Do not assume `PutBucketCors` succeeded without re-running
+the CORS preflight against the exact origin.** A temporary workaround (`deeeecf`) routed upload bytes
+through the API (`presignPut` returned the API-relative `/uploads/:id/content` path, same-origin, no
+CORS) — fine at staging volume, but it puts ≤10 MB uploads through the API and runs into Fly request-size
+limits at real volume.
+
+**Cloudflare's dashboard can scope only Object Read & Write / Object Read to a single bucket —
+Admin Read & Write is account-level and covers every bucket on the account** (including
+vitacairn's). So the dashboard cannot produce the "admin, scoped to only jobcrush-staging" token
+the original ticket asked for; that combo breaks the shared-infra one-token-one-bucket rule. A
+bucket-scoped admin token *is* possible via the Cloudflare API with a custom access policy
+(resource `com.cloudflare.edge.r2.bucket.<ACCOUNT_ID>_<JURISDICTION>_<BUCKET>`), if self-healing
+ever becomes worth the setup — but it is not a dashboard click.
+
+**Durable fix (#53, option 1 — one-shot CORS, no self-heal):** keep the existing object-scoped R2
+token in Fly (it's already correct for day-to-day uploads — unchanged). Set CORS **once** with a
+**temporary** admin R2 token: `pnpm --filter @jobcrush/api set-r2-cors`
+(`apps/api/scripts/set-r2-cors.mjs`) calls `PutBucketCors` from `WEB_URL` + optional
+`R2_CORS_ORIGINS` (trailing slash stripped, so a `https://jobcrush.org/` can't silently mismatch the
+browser's `Origin`), then reads the config back with `GetBucketCors` so you can see it actually
+landed. Delete the temp token immediately after. `presignPut` returns a presigned `getSignedUrl`
+PUT so bytes go straight to R2 again; the boot-time `ensureCors` is **not** wired (the object token
+can't `PutBucketCors`, so calling it on boot would fail silently — the original `fd5cef6` bug). Not
+self-healing — if the bucket is ever recreated (owner-gated per `SHARED_INFRA.md`), re-run the
+one-shot. **The CI tests never catch any of this** — they inject a fake LLM and use
+`InMemoryBlobStorage`, so the real R2 path is only exercised on staging. Guard against rot with
+`pnpm --filter @jobcrush/web e2e:r2-cors` (`apps/web/e2e/r2-cors-preflight.mjs`): it creates a
+session, gets a real presigned URL from `/api/uploads`, sends the browser's exact `OPTIONS`
+preflight, and asserts `204` + `Access-Control-Allow-Origin`. Run it against staging after any
+upload-path or CORS change.
 
 Separate but related: `WEB_URL` on `jobcrush-api-staging` was set to `https://jobcrush-web-staging.fly.dev`
 (the old Fly URL), not `https://jobcrush.org`. That broke magic-link emails + Google OAuth redirects

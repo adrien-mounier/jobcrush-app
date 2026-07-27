@@ -1,10 +1,16 @@
 // JC-11 blob storage. Three drivers behind one interface: in-memory (tests), local disk
 // (dev fallback), and R2 (production — S3-compatible presigned PUT). The local drivers
 // "presign" the API's own PUT /uploads/:id/content route; R2 presigns the real bucket URL,
-// so upload bytes never pass through the API.
+// so upload bytes never pass through the API. R2 CORS isn't dashboard-configurable, so the
+// bucket's CORS rule is set once by the `set-r2-cors` script (apps/api/scripts/), not here.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export interface BlobStorage {
   /** Where the browser should PUT the file. Local drivers return an API-relative path. */
@@ -47,17 +53,20 @@ export class R2Storage implements BlobStorage {
     });
   }
 
-  // Browser uploads go through the API's own PUT /uploads/:id/content route (same-origin,
-  // no CORS). Presigned-PUT straight to R2 was blocked: R2 CORS isn't dashboard-configurable
-  // and the scoped R2 token can't PutBucketCors, so the browser's cross-origin PUT was
-  // refused. The API writes to R2 server-side via put() below. Revert to a presigned
-  // getSignedUrl PUT only if the bucket ever gets CORS configured (e.g. via wrangler) and you
-  // want upload bytes off the API again.
+  // The browser PUTs straight to a presigned R2 URL (cross-origin), so the bucket must allow
+  // PUT from the web origin. That CORS rule is set once by the `set-r2-cors` script; if it's
+  // missing, the presigned URL is still valid but the browser preflight rejects the upload.
   async presignPut(key: string) {
-    return { url: `/uploads/${key}/content`, method: "PUT" as const };
+    const url = await getSignedUrl(
+      this.client,
+      new PutObjectCommand({ Bucket: this.config.bucket, Key: key }),
+      { expiresIn: 600 },
+    );
+    return { url, method: "PUT" as const };
   }
 
-  // The browser PUTs straight to the presigned URL; this path only serves tests/tools.
+  // Not used by the browser upload path (bytes go straight to R2), but retained for tests/tools
+  // and as a fallback if the presigned path is ever disabled.
   async put(key: string, data: Buffer) {
     await this.client.send(
       new PutObjectCommand({ Bucket: this.config.bucket, Key: key, Body: data }),
