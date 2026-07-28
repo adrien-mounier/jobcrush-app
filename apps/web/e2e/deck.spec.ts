@@ -17,6 +17,7 @@ const ROLE = "IT project manager in Paris";
 const RAIL_ZERO: Record<CvSection, number> = { summary: 0, experience: 0, skills: 0, education: 0 };
 
 const CARD_BASE: JobCard = {
+  schemaVersion: "1",
   adId: "ad-1",
   title: "IT Project Manager",
   company: "Acme",
@@ -24,6 +25,10 @@ const CARD_BASE: JobCard = {
   salary: null,
   pattern: null,
   matchPct: 82,
+  breakdown: {
+    essential: { met: 2, total: 3 },
+    desirable: { met: 1, total: 2 },
+  },
   bubble: { hit: "You match on delivery.", open: "The gap is SAP." },
   fit: [],
   dontYet: [],
@@ -53,6 +58,84 @@ async function openStubbedDeck(page: Page, cards: JobCard[]) {
   await stubCards(page, cards);
   await page.goto("/deck");
   await page.getByRole("button", { name: "See them" }).click();
+}
+
+test("match breakdown renders server band values as an accessible four-fact description list", async ({
+  page,
+}) => {
+  await openStubbedDeck(page, [CARD_BASE]);
+
+  const breakdown = page.getByRole("region", { name: "Match breakdown" });
+  await expect(breakdown.locator("dt")).toHaveText([
+    "Requirements met",
+    "Essential met",
+    "Desirable met",
+    "Match quality",
+  ]);
+  await expect(breakdown.locator("dd")).toHaveText(["3/5", "2/3", "1/2", "Strong"]);
+  await expect(breakdown.getByLabel("3 5 requirements met")).toBeVisible();
+  await expect(breakdown.getByLabel("2 3 essential requirements met")).toBeVisible();
+  await expect(breakdown.getByLabel("1 2 desirable requirements met")).toBeVisible();
+});
+
+test("match breakdown preserves an empty band and omits only an all-zero scored card", async ({
+  page,
+}) => {
+  await openStubbedDeck(page, [
+    {
+      ...CARD_BASE,
+      breakdown: {
+        essential: { met: 2, total: 3 },
+        desirable: { met: 0, total: 0 },
+      },
+    },
+    {
+      ...CARD_BASE,
+      adId: "ad-all-zero",
+      title: "All-zero card",
+      breakdown: {
+        essential: { met: 0, total: 0 },
+        desirable: { met: 0, total: 0 },
+      },
+    },
+  ]);
+  await expect(page.getByRole("region", { name: "Match breakdown" }).locator("dd")).toHaveText([
+    "2/3",
+    "2/3",
+    "0/0",
+    "Strong",
+  ]);
+  await page.getByRole("button", { name: "Not for me, show next job" }).click();
+  await expect(page.getByRole("region", { name: "Match breakdown" })).toHaveCount(0);
+});
+
+for (const [matchPct, quality] of [
+  [70, "Strong"],
+  [50, "Partial"],
+  [49, "Weak"],
+] as const) {
+  test(`match quality uses the ${matchPct}% threshold`, async ({ page }) => {
+    await openStubbedDeck(page, [{ ...CARD_BASE, matchPct }]);
+    await expect(page.getByRole("region", { name: "Match breakdown" }).getByText(quality)).toBeVisible();
+  });
+}
+
+for (const width of [360, 390]) {
+  test(`match breakdown remains a two-column grid without overflow at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await openStubbedDeck(page, [CARD_BASE]);
+    const grid = page.getByRole("region", { name: "Match breakdown" }).locator("dl");
+    await expect(grid).toHaveCSS("grid-template-columns", /.+px .+px/);
+    expect(
+      await page.evaluate(() => ({
+        document: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        grid: (() => {
+          const element = document.querySelector(".bd-grid");
+          return element ? element.scrollWidth <= element.clientWidth : false;
+        })(),
+      })),
+    ).toEqual({ document: true, grid: true });
+  });
 }
 
 async function stubStageReset(page: Page) {

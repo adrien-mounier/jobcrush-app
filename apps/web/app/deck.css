@@ -569,6 +569,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  margin: 0;
 }
 .jobdeck .bd-cell {
   display: flex;
@@ -580,6 +581,8 @@
   border: 1px solid var(--hud-line);
 }
 .jobdeck .bd-n {
+  order: -1;
+  margin: 0;
   font-family: var(--mono);
   font-size: 19px;
   font-weight: 600;
@@ -588,10 +591,13 @@
   font-variant-numeric: tabular-nums;
 }
 .jobdeck .bd-l {
+  margin: 0;
   font-size: 11px;
   color: var(--hud-mute);
 }
 .jobdeck .bd-pill {
+  order: -1;
+  margin: 0;
   align-self: flex-start;
   font-family: var(--mono);
   font-size: 11px;

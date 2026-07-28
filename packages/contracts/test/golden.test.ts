@@ -4,11 +4,13 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ClaimGraph, Inbox } from "../src/index.js";
+import { ClaimGraph, Inbox, JobCardV1 } from "../src/index.js";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateGraph } from "../oracle/validate_graph.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateInbox } from "../oracle/validate_proposal.mjs";
+// @ts-expect-error — plain .mjs oracle, no types by design
+import { validateJobCardV1 } from "../oracle/validate_job_card_v1.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string) =>
@@ -85,6 +87,37 @@ describe("Contract 3 — enrichment inbox", () => {
       const port = Inbox.safeParse(inbox).success;
       expect(port, `zod/oracle disagree after ${mutate.toString()}`).toBe(oracle);
       expect(oracle).toBe(false);
+    }
+  });
+});
+
+describe("JobCard v1", () => {
+  it("valid fixture passes both oracle and zod", () => {
+    const card = fixture("job-card-v1.valid.json");
+    expect(validateJobCardV1(card).ok).toBe(true);
+    expect(JobCardV1.safeParse(card).success).toBe(true);
+  });
+
+  it("rejects invalid counts, ranges, and versions in both", () => {
+    const mutations: Array<(card: any) => void> = [
+      (card) => (card.schemaVersion = "2"),
+      (card) => (card.matchPct = 101),
+      (card) => (card.breakdown.essential.met = -1),
+      (card) => (card.breakdown.desirable.total = 1.5),
+      (card) => (card.breakdown.essential.met = card.breakdown.essential.total + 1),
+      (card) => delete card.title,
+      (card) => (card.salary = 42),
+      (card) => delete card.bubble.open,
+      (card) => (card.fit[0].text = null),
+      (card) => (card.dontYet[0].band = "critical"),
+      (card) => (card.askedClosed = {}),
+      (card) => delete card.adExcerpt,
+    ];
+    for (const mutate of mutations) {
+      const card = fixture("job-card-v1.valid.json");
+      mutate(card);
+      expect(JobCardV1.safeParse(card).success).toBe(validateJobCardV1(card).ok);
+      expect(validateJobCardV1(card).ok).toBe(false);
     }
   });
 });

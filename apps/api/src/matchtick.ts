@@ -56,6 +56,10 @@ function overlapCount(a: Set<string>, b: Set<string>): number {
  *  learned: the whole tick is a cheap stand-in for E5's real scoring (S3/JC-31). Exported: #23's
  *  ledger derivation needs the same weights to compute each answer's "+N%" share. */
 export const BAND_WEIGHT: Record<AdRequirement["band"], number> = { must: 3, should: 2, nice: 1 };
+export interface MatchBreakdown {
+  essential: { met: number; total: number };
+  desirable: { met: number; total: number };
+}
 
 /** Keep each fact's evidence separate: unrelated lines must not pool stray words inside one idea.
  *  Adding a fact only appends a candidate fit, preserving monotonicity. */
@@ -94,6 +98,23 @@ function requirementFit(requirement: AdRequirement, facts: Set<string>[]): numbe
     0,
   );
   return totalTokens === 0 ? 0 : weightedFit / totalTokens;
+}
+
+export function matchBreakdown(
+  confirmedFacts: ScoredFact[],
+  adRequirements: AdRequirements,
+): MatchBreakdown {
+  const facts = factTokenSets(confirmedFacts);
+  const breakdown: MatchBreakdown = {
+    essential: { met: 0, total: 0 },
+    desirable: { met: 0, total: 0 },
+  };
+  for (const requirement of adRequirements.requirements) {
+    const band = requirement.band === "must" ? breakdown.essential : breakdown.desirable;
+    band.total += 1;
+    if (requirementFit(requirement, facts) === 1) band.met += 1;
+  }
+  return breakdown;
 }
 
 /** Independent relevant-evidence breadth at ad level. Facts are identified only by the normalized

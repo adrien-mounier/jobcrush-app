@@ -144,11 +144,16 @@ describe("#19 GET /onboarding/cards", () => {
     // Card shape — every field the pinned contract promises, on every card.
     for (const card of body.cards) {
       expect(card).toMatchObject({
+        schemaVersion: "1",
         adId: expect.any(String),
         title: expect.any(String),
         company: expect.any(String),
         place: expect.any(String),
         matchPct: expect.any(Number),
+        breakdown: {
+          essential: { met: expect.any(Number), total: expect.any(Number) },
+          desirable: { met: expect.any(Number), total: expect.any(Number) },
+        },
         bubble: { hit: expect.any(String), open: expect.any(String) },
         adExcerpt: expect.any(String),
       });
@@ -156,6 +161,8 @@ describe("#19 GET /onboarding/cards", () => {
       expect(card.pattern).toBeNull();
       expect(card.matchPct).toBeGreaterThanOrEqual(0);
       expect(card.matchPct).toBeLessThanOrEqual(100);
+      expect(card.breakdown.essential.met).toBeLessThanOrEqual(card.breakdown.essential.total);
+      expect(card.breakdown.desirable.met).toBeLessThanOrEqual(card.breakdown.desirable.total);
       expect(Array.isArray(card.fit)).toBe(true);
       expect(Array.isArray(card.dontYet)).toBe(true);
       expect(Array.isArray(card.askedClosed)).toBe(true);

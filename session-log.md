@@ -2,6 +2,24 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 49) — full JobCard match breakdown
+
+- Implemented [#52 Deck card: full essential/desirable match
+  breakdown](https://github.com/adrien-mounier/jobcrush-app/issues/52): the
+  fit-weighted scoring seam now returns server-authoritative essential
+  (`must`) and desirable (`should` + `nice`) met/total counts for both Deck and
+  Tailor.
+- Added the versioned `JobCardV1` Zod contract and a full-parity `.mjs` oracle
+  without changing the legacy card-payload oracle. The shared card renders the
+  approved four-cell overall/essential/desirable/quality grid with semantic
+  description-list markup, exact accessible names, and atomic Tailor updates.
+- Two-axis review found and resolved oracle/Zod shape drift, the missing client
+  version discriminator, and accessible-name copy drift. Independent QA GO:
+  347 passed + 5 skipped, typecheck 7/7, build 5/5, focused Playwright 8/8,
+  and a human-paced mobile evidence drive 8/8.
+- **Next:** closing #52 removes one blocker from #65; continue the #54
+  onboarding frontier after the separately owned #55 session closes.
+
 ## 2026-07-28 (session 48) — persistent first-run source-entry spine
 
 - Implemented [#55 First-run invitation and persistent source-entry

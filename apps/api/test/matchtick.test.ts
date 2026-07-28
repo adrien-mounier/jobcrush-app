@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { AdRequirements } from "@jobcrush/contracts";
 import {
+  matchBreakdown,
   matchTick,
   pickHitClause,
   pickOpenClause,
@@ -36,6 +37,13 @@ const TWO = [budgetFact, teamFact];
 const THREE = [budgetFact, teamFact, certFact];
 
 describe("#19 matchTick", () => {
+  it("counts fully covered requirements by essential and desirable band", () => {
+    expect(matchBreakdown([budgetFact, certFact], AD)).toEqual({
+      essential: { met: 1, total: 2 },
+      desirable: { met: 1, total: 1 },
+    });
+  });
+
   it("is deterministic — same facts + same ad yield the same score every call", () => {
     expect(matchTick(ONE, AD)).toBe(matchTick(ONE, AD));
     expect(matchTick(ONE, AD)).toBe(matchTick([...ONE], AD));

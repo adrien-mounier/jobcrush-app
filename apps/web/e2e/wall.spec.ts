@@ -8,6 +8,7 @@ import type { CardsResponse } from "../lib/api";
 // bootstrap (/api/sessions/*) rides the real API, same assumption discovery.spec.ts makes.
 
 const CARD = {
+  schemaVersion: "1" as const,
   adId: "ad-1",
   title: "IT Project Manager",
   company: "Acme",
@@ -15,6 +16,10 @@ const CARD = {
   salary: null,
   pattern: null,
   matchPct: 82,
+  breakdown: {
+    essential: { met: 2, total: 3 },
+    desirable: { met: 1, total: 2 },
+  },
   bubble: { hit: "You match on delivery.", open: "" },
   fit: [],
   dontYet: [],

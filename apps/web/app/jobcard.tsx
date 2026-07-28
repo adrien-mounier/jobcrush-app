@@ -14,41 +14,54 @@ const H2 = "Where you don't — yet";
 const H3 = "Asked and closed";
 const A1 = "Read the ad in full";
 
-// #51 reduced match breakdown (client-only): the met/total count is computable from the three lists
-// the card already carries; the quality label is a threshold read off matchPct. The full essential/
-// desirable split needs a versioned JobCard contract change + matchtick work (filed as #52, deferred
-// to S3's real E5 scoring engine), so this is intentionally the two-cell reduced form.
 function matchQuality(pct: number): { label: string; grade: "strong" | "partial" | "weak" } {
   if (pct >= 70) return { label: "Strong", grade: "strong" };
   if (pct >= 50) return { label: "Partial", grade: "partial" };
   return { label: "Weak", grade: "weak" };
 }
 
-// #51 the reduced breakdown grid inside the card — two cells: requirements met (X/Y, computed from
-// the three lists) and match quality (a threshold label off the score). Rendered for both /deck and
-// /tailor since CardBody is shared. Skipped entirely when the ad has no requirements yet (0/0 reads
-// as broken, and that state shouldn't occur on a scored card).
 function MatchBreakdown({ card, pct }: { card: JobCard; pct?: number }) {
-  const met = card.fit.length;
-  const total = met + card.dontYet.length + card.askedClosed.length;
+  const { essential, desirable } = card.breakdown;
+  const met = essential.met + desirable.met;
+  const total = essential.total + desirable.total;
   if (total === 0) return null;
   const q = matchQuality(pct ?? card.matchPct);
   return (
-    <div className="breakdown" aria-label="Match breakdown">
-      <p className="bd-title">Match breakdown</p>
-      <div className="bd-grid">
+    <section className="breakdown" aria-labelledby="match-breakdown-title">
+      <p id="match-breakdown-title" className="bd-title">
+        Match breakdown
+      </p>
+      <dl className="bd-grid">
         <div className="bd-cell">
-          <span className="bd-n">
+          <dt className="bd-l">Requirements met</dt>
+          <dd className="bd-n" aria-label={`${met} ${total} requirements met`}>
             {met}/{total}
-          </span>
-          <span className="bd-l">Requirements met</span>
+          </dd>
         </div>
         <div className="bd-cell">
-          <span className={`bd-pill ${q.grade}`}>{q.label}</span>
-          <span className="bd-l">Match quality</span>
+          <dt className="bd-l">Essential met</dt>
+          <dd
+            className="bd-n"
+            aria-label={`${essential.met} ${essential.total} essential requirements met`}
+          >
+            {essential.met}/{essential.total}
+          </dd>
         </div>
-      </div>
-    </div>
+        <div className="bd-cell">
+          <dt className="bd-l">Desirable met</dt>
+          <dd
+            className="bd-n"
+            aria-label={`${desirable.met} ${desirable.total} desirable requirements met`}
+          >
+            {desirable.met}/{desirable.total}
+          </dd>
+        </div>
+        <div className="bd-cell">
+          <dt className="bd-l">Match quality</dt>
+          <dd className={`bd-pill ${q.grade}`}>{q.label}</dd>
+        </div>
+      </dl>
+    </section>
   );
 }
 

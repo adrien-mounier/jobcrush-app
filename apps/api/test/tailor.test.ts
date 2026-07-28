@@ -391,6 +391,10 @@ describe("#23 POST /onboarding/tailor/answer", () => {
     expect(res.statusCode).toBe(200);
     const after = res.json();
     expect(after.card.matchPct).toBeGreaterThan(before.card.matchPct); // AC1: re-scores
+    expect(after.card.schemaVersion).toBe("1");
+    expect(after.card.breakdown.essential.met + after.card.breakdown.desirable.met).toBeGreaterThan(
+      before.card.breakdown.essential.met + before.card.breakdown.desirable.met,
+    );
     expect(after.questions.map((x: { requirementId: string }) => x.requirementId)).not.toContain(q.requirementId);
     expect(after.ledger.some((l: { requirementId: string; text: string }) => l.requirementId === q.requirementId && l.text.startsWith("+"))).toBe(true);
     expect(after.closedGaps.asked).toBe(1);

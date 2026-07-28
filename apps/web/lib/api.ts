@@ -238,6 +238,7 @@ export interface CardRequirement {
 }
 
 export interface JobCard {
+  schemaVersion: "1";
   adId: string;
   title: string;
   company: string;
@@ -245,6 +246,10 @@ export interface JobCard {
   salary: string | null;
   pattern: string | null;
   matchPct: number;
+  breakdown: {
+    essential: { met: number; total: number };
+    desirable: { met: number; total: number };
+  };
   bubble: { hit: string; open: string };
   fit: CardFact[];
   dontYet: CardRequirement[];

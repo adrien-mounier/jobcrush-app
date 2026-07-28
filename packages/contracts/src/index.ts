@@ -5,5 +5,6 @@ export * from "./onboardingSession.js";
 export * from "./candidateClaims.js";
 export * from "./familyFloor.js";
 export * from "./adRequirements.js";
+export * from "./jobCard.js";
 // TODO(JC-7 follow-up): zod ports of claim_trace and card_payload — oracles already copied
 // (oracle/validate_trace.mjs, oracle/validate_card.mjs); port before JC-38 needs them (S3).

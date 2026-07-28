@@ -16,6 +16,16 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
 
+**2026-07-28 deck follow-up:** [#52 Full essential/desirable match
+breakdown](https://github.com/adrien-mounier/jobcrush-app/issues/52) is implemented
+and release-gated. The versioned `JobCardV1` contract now carries
+server-authoritative essential and desirable coverage from the fit-weighted
+scoring seam; the shared Deck/Tailor card renders the approved four-cell
+breakdown with mobile and accessibility coverage. Closing #52 removes one
+dependency from [#65 Evidence-led first JobCard with Important
+gaps](https://github.com/adrien-mounier/jobcrush-app/issues/65); #65 remains
+blocked on its onboarding-engine prerequisites.
+
 **2026-07-28 implementation update:** [#55 First-run invitation and persistent
 source-entry spine](https://github.com/adrien-mounier/jobcrush-app/issues/55) is
 implemented and release-gated. The existing centered invitation now opens anonymous

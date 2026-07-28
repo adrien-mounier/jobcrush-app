@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1",
+  "adId": "ad-1",
+  "title": "Project Manager",
+  "company": "Example",
+  "place": "Remote",
+  "salary": null,
+  "pattern": null,
+  "matchPct": 75,
+  "breakdown": {
+    "essential": { "met": 2, "total": 3 },
+    "desirable": { "met": 1, "total": 2 }
+  },
+  "bubble": { "hit": "Led delivery.", "open": "Own budgets." },
+  "fit": [{ "id": "fact-1", "text": "Led delivery." }],
+  "dontYet": [{ "id": "budget", "band": "must", "requirement": "Own budgets." }],
+  "askedClosed": [],
+  "adExcerpt": "Lead project delivery."
+}

@@ -165,6 +165,7 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
   await stubSession(page);
 
   const card: JobCard = {
+    schemaVersion: "1",
     adId: "ad-1",
     title: "Senior IT Project Manager",
     company: "Atos",
@@ -172,6 +173,10 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
     salary: null,
     pattern: null,
     matchPct: 61,
+    breakdown: {
+      essential: { met: 0, total: 1 },
+      desirable: { met: 0, total: 0 },
+    },
     bubble: { hit: "hit", open: "open" },
     fit: [],
     dontYet: [{ id: "sap", band: "must", requirement: "SAP" }],

@@ -23,7 +23,7 @@ import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "
 import { auditRootCv, type CvAuditor } from "../audit.js";
 import { loadFamilyFloor, listAdRequirements, loadAdRequirements } from "../e5stub.js";
 import { loadPostings, type Posting } from "../preview.js";
-import { matchTick, uncoveredRequirements, pickHitClause, pickOpenClause, NOTHING_OPEN_CLAUSE } from "../matchtick.js";
+import { matchBreakdown, matchTick, uncoveredRequirements, pickHitClause, pickOpenClause, NOTHING_OPEN_CLAUSE } from "../matchtick.js";
 import {
   composeCvLine,
   discoveryClaimId,
@@ -599,6 +599,7 @@ interface CardRequirement {
   requirement: string;
 }
 interface JobCard {
+  schemaVersion: "1";
   adId: string;
   title: string;
   company: string;
@@ -606,6 +607,7 @@ interface JobCard {
   salary: string | null; // absent in the stub postings — always null for now
   pattern: string | null; // absent in the stub postings — always null for now
   matchPct: number;
+  breakdown: ReturnType<typeof matchBreakdown>;
   bubble: { hit: string; open: string };
   fit: CardFact[];
   dontYet: CardRequirement[];
@@ -644,6 +646,7 @@ function buildJobCard(
     .filter((r) => !negativeIds.has(r.id))
     .map((r) => ({ id: r.id, band: r.band, requirement: r.requirement }));
   return {
+    schemaVersion: "1",
     adId: posting.id,
     title: posting.title,
     company: posting.company,
@@ -651,6 +654,7 @@ function buildJobCard(
     salary: null,
     pattern: null,
     matchPct: matchTick(confirmed, adReq),
+    breakdown: matchBreakdown(confirmed, adReq),
     // #23 D1, now shared: pickOpenClause is negative-blind (it only knows the ad/coverage relation),
     // so it can keep naming a requirement the visitor just declined. Take the open clause from the
     // already-filtered dontYet instead — same fallback as pickOpenClause's own.

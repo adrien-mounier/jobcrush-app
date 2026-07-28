@@ -7,6 +7,7 @@ import type { JobCard, TailorState } from "../lib/api";
 // to /tailor (deck.spec.ts already covers the /deck -> tailorHandoff -> /tailor bridge itself).
 
 const CARD_FIRST: JobCard = {
+  schemaVersion: "1",
   adId: "ad-1",
   title: "Senior IT Project Manager",
   company: "Atos",
@@ -14,6 +15,10 @@ const CARD_FIRST: JobCard = {
   salary: null,
   pattern: null,
   matchPct: 61,
+  breakdown: {
+    essential: { met: 0, total: 1 },
+    desirable: { met: 0, total: 1 },
+  },
   bubble: {
     hit: "Your budget and the ERP migration are the two things they lead with.",
     open: "The gap is their SAP version.",
@@ -60,6 +65,10 @@ const STATE_AFTER_SAP: TailorState = {
   card: {
     ...CARD_FIRST,
     matchPct: 70,
+    breakdown: {
+      essential: { met: 1, total: 1 },
+      desirable: { met: 0, total: 1 },
+    },
     bubble: { hit: CARD_FIRST.bubble.hit, open: "The gap is public-sector delivery." },
     fit: [...CARD_FIRST.fit, { id: SAP_CLAIM_ID, text: "Ran an S/4HANA project, through cutover" }],
     dontYet: [{ id: "public", band: "should", requirement: "Public-sector delivery" }],
@@ -176,8 +185,11 @@ test("answering a gap re-scores up, flips the ? to a check, rewrites the bubble,
   // first would race past it every time (both by design — "in the same glance", spec §4).
   const flippedRow = page.locator(".row.fit").filter({ hasText: "Ran an S/4HANA project, through cutover" });
   await expect(flippedRow).toHaveClass(/landed/);
+  const breakdown = page.getByRole("region", { name: "Match breakdown" });
+  await expect(breakdown.locator("dd")).toHaveText(["1/2", "1/1", "0/1", "Partial"]);
   // AC1: the visible % re-scores up.
   await expect(page.getByRole("img", { name: "70% match" })).toBeVisible();
+  await expect(breakdown.getByText("Strong", { exact: true })).toBeVisible();
   // AC2: the grey "?" is gone from "where you don't — yet" and its gold check is in "where you fit" —
   // the pinned contract's own words for the flip (the row moved between the server's three lists).
   await expect(page.getByText("Their SAP version", { exact: true })).toHaveCount(0);
