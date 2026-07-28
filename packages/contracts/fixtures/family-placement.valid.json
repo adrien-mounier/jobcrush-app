@@ -1,0 +1,19 @@
+[
+  {
+    "schemaVersion": "1",
+    "outcome": "confirmed",
+    "family": { "familyId": "delivery-leadership-example", "version": 1 }
+  },
+  {
+    "schemaVersion": "1",
+    "outcome": "needs_clarification",
+    "choices": [
+      { "familyId": "delivery-leadership-example", "version": 1, "label": "Delivery leadership" },
+      { "familyId": "business-change-example", "version": 2, "label": "Business change" }
+    ]
+  },
+  {
+    "schemaVersion": "1",
+    "outcome": "unmapped"
+  }
+]

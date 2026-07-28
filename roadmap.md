@@ -16,6 +16,8 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
 
+**2026-07-28 family-contract update:** [#58 Three-way family-floor contracts](https://github.com/adrien-mounier/jobcrush-app/issues/58) is implemented and release-gated. Shared oracle/Zod v1 contracts now distinguish `confirmed`, `needs_clarification`, and `unmapped` without nearest-family fallback; clarification choices are explicit and distinct, confirmed placements reference immutable family versions, and structurally ranked fixture floors are isolated from production reward eligibility. The next dependency-chain slice is [#59 Fixture-driven engine](https://github.com/adrien-mounier/jobcrush-app/issues/59).
+
 **2026-07-28 explicit-intent update:** [#57 Collect explicit target role and search
 area](https://github.com/adrien-mounier/jobcrush-app/issues/57) is implemented and
 release-gated. The first-run flow now asks for target role and search area in one

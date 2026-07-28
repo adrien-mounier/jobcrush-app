@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "1",
+  "familyId": "delivery-leadership-example",
+  "version": 1,
+  "source": "test_fixture",
+  "productionRewardEligible": false,
+  "essentialItems": [
+    {
+      "id": "example-scope",
+      "priority": 1,
+      "question": {
+        "prompt": "Which example scope applies?",
+        "form": "single_select",
+        "options": [
+          { "value": "one", "label": "One" },
+          { "value": "more-than-one", "label": "More than one" }
+        ]
+      },
+      "evidenceDestination": {
+        "document": "root_cv",
+        "section": "experience"
+      },
+      "negativeSemantics": "records_explicit_negative"
+    },
+    {
+      "id": "example-detail",
+      "priority": 2,
+      "question": {
+        "prompt": "Describe the example in your own words.",
+        "form": "free_text",
+        "options": []
+      },
+      "evidenceDestination": {
+        "document": "root_cv",
+        "section": "summary"
+      },
+      "negativeSemantics": "records_explicit_negative"
+    }
+  ]
+}

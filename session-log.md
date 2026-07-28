@@ -2,6 +2,16 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 52) — three-way family-floor contracts
+
+- Implemented [#58 Three-way family-floor contracts](https://github.com/adrien-mounier/jobcrush-app/issues/58) as the contract/store foundation for honest role placement.
+- Added authoritative `.mjs` oracle and matching Zod v1 contracts for `confirmed`, `needs_clarification`, and strict `unmapped` outcomes; clarification alternatives must be distinct versioned families.
+- Added ranked essential-floor structure with question metadata, root-CV evidence destinations, explicit-negative semantics, and fixture-only literals that cannot unlock production discovery reward.
+- Added a deeply immutable fixture floor store while retaining legacy `FamilyFloor` v0 compatibility for the current discovery path.
+- Two-axis review found and closed fail-safe validation, alias immutability, and duplicate-choice defects; both re-reviews returned GO.
+- QA GO: 393 tests passed, 5 skipped, typecheck 7/7, build 5/5. No browser seam exists in this contract-only slice.
+- **Next:** [#59 Fixture-driven engine](https://github.com/adrien-mounier/jobcrush-app/issues/59), now unblocked by #58.
+
 ## 2026-07-28 (session 51) — explicit target role and search area
 
 - Implemented [#57 Collect explicit target role and search area](https://github.com/adrien-mounier/jobcrush-app/issues/57) as the next durable first-run checkpoint after question-first or continued CV proof.

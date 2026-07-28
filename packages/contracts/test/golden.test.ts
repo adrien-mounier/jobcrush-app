@@ -5,7 +5,14 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
-import { CandidateClaims, ClaimGraph, Inbox, JobCardV1 } from "../src/index.js";
+import {
+  CandidateClaims,
+  ClaimGraph,
+  FamilyFloorV1,
+  FamilyPlacement,
+  Inbox,
+  JobCardV1,
+} from "../src/index.js";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateCandidateClaims } from "../oracle/validate_candidate_claims.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
@@ -14,10 +21,100 @@ import { validateGraph } from "../oracle/validate_graph.mjs";
 import { validateInbox } from "../oracle/validate_proposal.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateJobCardV1 } from "../oracle/validate_job_card_v1.mjs";
+// @ts-expect-error — plain .mjs oracle, no types by design
+import { validateFamilyFloorV1 } from "../oracle/validate_family_floor_v1.mjs";
+// @ts-expect-error — plain .mjs oracle, no types by design
+import { validateFamilyPlacement } from "../oracle/validate_family_placement.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string) =>
   JSON.parse(readFileSync(join(here, "..", "fixtures", name), "utf8"));
+
+describe("Family placement v1", () => {
+  const placements = fixture("family-placement.valid.json");
+
+  it("accepts only confirmed, needs_clarification, and unmapped outcomes in oracle and zod", () => {
+    for (const placement of placements) {
+      expect(validateFamilyPlacement(placement).ok).toBe(true);
+      expect(FamilyPlacement.safeParse(placement).success).toBe(true);
+    }
+  });
+
+  it("confirmed references exactly one immutable family version", () => {
+    const confirmed = placements[0];
+    expect(confirmed.family).toEqual({
+      familyId: "delivery-leadership-example",
+      version: 1,
+    });
+    for (const mutate of [
+      (value: any) => delete value.family.version,
+      (value: any) => (value.family = null),
+      (value: any) => (value.family = "delivery-leadership-example"),
+      (value: any) => (value.families = [value.family]),
+      (value: any) => (value.outcome = "retrieval_match"),
+    ]) {
+      const value = structuredClone(confirmed);
+      mutate(value);
+      expect(FamilyPlacement.safeParse(value).success).toBe(
+        validateFamilyPlacement(value).ok,
+      );
+      expect(validateFamilyPlacement(value).ok).toBe(false);
+    }
+  });
+
+  it("clarification requires explicit versioned choices and unmapped cannot borrow questions", () => {
+    const oneChoice = structuredClone(placements[1]);
+    oneChoice.choices.pop();
+    const nullChoice = structuredClone(placements[1]);
+    nullChoice.choices[0] = null;
+    const duplicateChoice = structuredClone(placements[1]);
+    duplicateChoice.choices[1] = {
+      ...duplicateChoice.choices[0],
+      label: "Same version under another label",
+    };
+    const borrowed = { ...placements[2], questions: ["Nearest family's question"] };
+    for (const value of [oneChoice, nullChoice, duplicateChoice, borrowed]) {
+      expect(FamilyPlacement.safeParse(value).success).toBe(
+        validateFamilyPlacement(value).ok,
+      );
+      expect(validateFamilyPlacement(value).ok).toBe(false);
+    }
+  });
+});
+
+describe("Family floor v1", () => {
+  const valid = fixture("family-floor-v1.test-fixture.json");
+
+  it("validates ranked essentials, question metadata, evidence destination, and negative semantics", () => {
+    expect(validateFamilyFloorV1(valid).ok).toBe(true);
+    expect(FamilyFloorV1.safeParse(valid).success).toBe(true);
+    expect(valid.essentialItems.map((item: any) => item.priority)).toEqual([1, 2]);
+  });
+
+  it("keeps oracle and zod aligned for every required structural invariant", () => {
+    const mutations: Array<(value: any) => void> = [
+      (value) => delete value.essentialItems[0].priority,
+      (value) => (value.essentialItems[1].priority = 1),
+      (value) => delete value.essentialItems[0].question.prompt,
+      (value) => (value.essentialItems[0].question.options = []),
+      (value) => (value.essentialItems[1].question.options = [
+        { value: "x", label: "X" },
+      ]),
+      (value) => delete value.essentialItems[0].evidenceDestination,
+      (value) => delete value.essentialItems[0].negativeSemantics,
+      (value) => (value.source = "production"),
+      (value) => (value.productionRewardEligible = true),
+    ];
+
+    for (const mutate of mutations) {
+      const value = structuredClone(valid);
+      mutate(value);
+      const oracle = validateFamilyFloorV1(value).ok;
+      expect(FamilyFloorV1.safeParse(value).success).toBe(oracle);
+      expect(oracle).toBe(false);
+    }
+  });
+});
 
 describe("CandidateClaims v1", () => {
   const schema = JSON.parse(

@@ -4,6 +4,7 @@ export * from "./roleCluster.js";
 export * from "./onboardingSession.js";
 export * from "./candidateClaims.js";
 export * from "./familyFloor.js";
+export * from "./familyPlacement.js";
 export * from "./adRequirements.js";
 export * from "./jobCard.js";
 // TODO(JC-7 follow-up): zod ports of claim_trace and card_payload — oracles already copied
