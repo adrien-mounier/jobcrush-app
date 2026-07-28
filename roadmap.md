@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-07-28_
+_Last updated: 2026-07-29_
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
@@ -15,6 +15,8 @@ pipeline, for many users, on web and mobile. v0.1 scope is **prepared-apply** (t
 no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
+
+**2026-07-29 production-floor update:** [#60 Validate and publish initial production family floors](https://github.com/adrien-mounier/jobcrush-app/issues/60) is implemented and release-gated. The first `it-project-delivery` production floor is backed by four current employer postings, a reproducible grouped/held-out placement dataset covering comparable, ambiguous, and near-OOD roles, deterministic dataset hashing, explicit review/publication, immutable monotonic versions, and fail-closed activation. Fixture floors remain ineligible. Closing #60 removes one blocker from [#61 production discovery activation](https://github.com/adrien-mounier/jobcrush-app/issues/61).
 
 **2026-07-28 family-learning update:** [#62 Unmapped-role family learning and return lifecycle](https://github.com/adrien-mounier/jobcrush-app/issues/62) is implemented and release-gated. Unmapped targets now stop before discovery and persist only privacy-minimized role/search metadata; exact and semantic equivalents join a traceable canonical attempt, covered roles require a grounded immutable family reference, and accepted novel targets can begin reusable research from one credible submission. PostgreSQL deduplication and lifecycle/audit writes are atomic; lifecycle progression is operator-key-only, notifications require a claimed account plus live provider and are idempotent, and no-vacancy/rejected/failed-validation states return honestly. The production known-family catalog remains intentionally unwired because #58 shipped non-production fixtures only. Closing #62 removes one blocker from [#68 retention and consent](https://github.com/adrien-mounier/jobcrush-app/issues/68) and [#69 pilot observability](https://github.com/adrien-mounier/jobcrush-app/issues/69).
 

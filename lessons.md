@@ -1,5 +1,9 @@
 # Lessons — jobcrush-app
 
+## A checked-in evaluation table is not reproducible until raw inputs generate it
+
+Recording target roles, thresholds, scores, and expected/observed outcomes in JSON can still be a self-authored all-pass matrix. For a production activation gate, check in the raw held-out inputs and pinned evaluator configuration, deterministically generate scores/outcomes plus a dataset hash, and make publication regenerate and exact-match that output before computing quality metrics. Validate identity fields such as case IDs as unique; otherwise a later map/join can silently corrupt an otherwise reproducible evaluation.
+
 ## Do not use pg-mem to prove PostgreSQL transaction rollback
 
 `pg-mem` exercises this repo's SQL shape well, but it did not roll back an `UPDATE` after a later injected audit insert failure even when the store used one checked-out client with `BEGIN`/`ROLLBACK`. A green pg-mem rollback assertion would therefore test the emulator, not production semantics. For mutation-plus-audit invariants, keep pg-mem for schema/query contracts and add a deterministic transaction-boundary fault harness (or a real `DATABASE_URL`-gated PostgreSQL integration) that distinguishes pending from committed state and proves rollback leaves the committed row unchanged.

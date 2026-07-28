@@ -2,6 +2,15 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-29 (session 55) — initial production family floor
+
+- Implemented [#60 Validate and publish initial production family floors](https://github.com/adrien-mounier/jobcrush-app/issues/60) as a production-only publication catalog distinct from #58 fixtures.
+- Researched four representative live postings across Datadog, Cloudflare, Scale AI, and Asana; the shared floor is grounded in end-to-end delivery, cross-functional coordination, risk/dependency control, and stakeholder communication rather than title matching.
+- Added a reproducible grouped/held-out placement evaluation runner and hashed artifact covering comparable, ambiguous, and near-OOD roles. Publication regenerates and exact-matches evaluation output before applying the 95% comparable, 90% unfamiliar-recall, and 5% false-unknown gates.
+- Added explicit published-only activation, fixture non-promotion, immutable and monotonically increasing versions, normalized employer diversity, unique evaluation IDs, and `GET /family-floors/:familyId/active`.
+- Two-axis review ended Standards GO and Spec GO after closing provenance, version-regression, trust-boundary, and duplicate-ID defects. QA GO: 447 tests passed + 5 skipped, typecheck 7/7, build 5/5, focused floor tests 23/23, and compiled HTTP returned 200 for the published floor and 404 for an unavailable family.
+- **Next:** #60 unblocks one edge of [#61 production discovery activation](https://github.com/adrien-mounier/jobcrush-app/issues/61); re-query its remaining blockers after deployment.
+
 ## 2026-07-28 (session 54) — unmapped-role family learning
 
 - Implemented [#62 Unmapped-role family learning and return lifecycle](https://github.com/adrien-mounier/jobcrush-app/issues/62) on top of landed #59 without borrowing its confirmed-family discovery floor.

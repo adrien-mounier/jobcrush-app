@@ -20,7 +20,11 @@ import { onboardingRoutes } from "./routes/onboarding.js";
 import { InMemoryClaimStore, type ClaimStore } from "./claims.js";
 import type { GrillPhraser } from "./grill.js";
 import type { CvAuditor } from "./audit.js";
-import { TestFixtureFamilyFloorStore } from "./familyFloors.js";
+import {
+  initialProductionFamilyFloors,
+  type ProductionFamilyFloorStore,
+  TestFixtureFamilyFloorStore,
+} from "./familyFloors.js";
 import { InMemoryAuthStore, type AuthStore } from "./auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { DevMailer, type Mailer } from "./mailer.js";
@@ -54,6 +58,7 @@ export interface BuildOptions {
   claims?: ClaimStore;
   /** Deterministic, explicitly non-production floor catalog for #59 integration tests. */
   familyFloors?: TestFixtureFamilyFloorStore;
+  productionFamilyFloors?: ProductionFamilyFloorStore;
   /** JC-24 grill question phrasing (LLM-backed in prod). Absent → deterministic template phrasing. */
   phraseGrill?: GrillPhraser;
   /** S2 decision #6 root-CV wording audit (LLM-backed in prod). Absent → the CV ships unaudited. */
@@ -103,6 +108,8 @@ export function buildServer(opts: BuildOptions = {}) {
   const uploads = opts.uploads ?? new InMemoryUploadStore();
   const claims = opts.claims ?? new InMemoryClaimStore();
   const familyFloors = opts.familyFloors ?? new TestFixtureFamilyFloorStore();
+  const productionFamilyFloors =
+    opts.productionFamilyFloors ?? initialProductionFamilyFloors();
   const auth = opts.auth ?? new InMemoryAuthStore();
   const mailer = opts.mailer ?? new DevMailer();
   const guestbook = opts.guestbook ?? createGuestbook(process.env.DATABASE_URL);
@@ -144,6 +151,19 @@ export function buildServer(opts: BuildOptions = {}) {
     sha: process.env.BUILD_SHA ?? "dev",
     env: process.env.APP_ENV ?? "local",
   }));
+  app.get(
+    "/family-floors/:familyId/active",
+    { schema: { params: z.object({ familyId: z.string().min(1) }) } },
+    async (req, reply) => {
+      const publication = productionFamilyFloors.active(req.params.familyId);
+      if (!publication) {
+        return reply.status(404).send({
+          error: { code: "family_unavailable", message: "family unavailable" },
+        });
+      }
+      return publication.floor;
+    },
+  );
 
   // Persistent scoreboard/debug trail of every onboarding run. Always open: rows carry no CV
   // content or contact info, only outcomes. (GUESTBOOK_KEY gates only the CV-content routes below.)
