@@ -29,6 +29,12 @@ const Q_STAKEHOLDER = {
   options: ["Yes", "No"],
   cvSection: "experience" as const,
 };
+const Q_HEADLINE = {
+  itemId: "headline",
+  question: "What should employers notice first?",
+  options: [],
+  cvSection: "summary" as const,
+};
 
 const BEFORE_START: DiscoveryState = {
   stage: "discovery",
@@ -91,6 +97,10 @@ const AFTER_NO: DiscoveryState = {
   essentialRemaining: 1,
   factCount: 3,
 };
+const AFTER_FREE_TEXT: DiscoveryState = {
+  ...AFTER_ANSWER,
+  questions: [Q_HEADLINE],
+};
 
 // #18: "budget" was the last essential item — the server flips the stage, no new line either way.
 const AFTER_ESSENTIAL_DONE: DiscoveryState = {
@@ -143,6 +153,43 @@ async function stubDiscovery(page: Page) {
   await page.route("**/api/onboarding/discovery", async (route) => {
     await route.fulfill({ json: current });
   });
+}
+
+async function expectDiscoveryFitsViewport(page: Page) {
+  const geometry = await page.locator(".discovery").evaluate((root) => {
+    const ask = root.querySelector<HTMLElement>(".ask");
+    const cv = root.querySelector<HTMLElement>(".band-cv");
+    const rootRect = root.getBoundingClientRect();
+    const askRect = ask?.getBoundingClientRect();
+    const cvRect = cv?.getBoundingClientRect();
+    return {
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      documentWidth: document.documentElement.scrollWidth,
+      root: { left: rootRect.left, right: rootRect.right, bottom: rootRect.bottom },
+      ask: askRect
+        ? { top: askRect.top, right: askRect.right, bottom: askRect.bottom, height: askRect.height }
+        : null,
+      cv: cvRect ? { top: cvRect.top, right: cvRect.right, height: cvRect.height } : null,
+    };
+  });
+
+  expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+  expect(geometry.root.left).toBeGreaterThanOrEqual(0);
+  expect(geometry.root.right).toBeLessThanOrEqual(geometry.viewportWidth);
+  expect(geometry.root.bottom).toBeLessThanOrEqual(geometry.viewportHeight);
+  expect(geometry.ask).not.toBeNull();
+  expect(geometry.cv).not.toBeNull();
+  expect(geometry.ask!.right).toBeLessThanOrEqual(geometry.viewportWidth);
+  expect(geometry.ask!.bottom).toBeLessThanOrEqual(geometry.viewportHeight);
+  expect(geometry.cv!.right).toBeLessThanOrEqual(geometry.viewportWidth);
+
+  if (geometry.viewportWidth >= 900) {
+    expect(Math.abs(geometry.ask!.top - geometry.cv!.top)).toBeLessThanOrEqual(1);
+    expect(geometry.ask!.height).toBeLessThan(geometry.cv!.height);
+  } else {
+    expect(geometry.cv!.height).toBeGreaterThan(0);
+  }
 }
 
 test("discovery core loop: Q1 -> promise -> a floor answer types a line and advances progress; reload resumes", async ({
@@ -213,6 +260,39 @@ test("prefers-reduced-motion: the role line still lands without the letter-by-le
   await expect(page.getByText("IT Project Manager", { exact: true })).toBeVisible();
 });
 
+test("every discovery question state fits fluidly across phone, tablet and desktop", async ({ page }, testInfo) => {
+  await stubDiscovery(page);
+
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 768, height: 1024 },
+    { width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+
+    for (const state of [BEFORE_START, AFTER_START, AFTER_ANSWER, AFTER_NO, AFTER_FREE_TEXT]) {
+      current = state;
+      await page.goto("/discovery");
+      await expect(page.locator(".discovery .ask")).toBeVisible();
+      await expectDiscoveryFitsViewport(page);
+      if (process.env.CAPTURE_DISCOVERY_LAYOUT && state === AFTER_ANSWER) {
+        await page.screenshot({
+          path: testInfo.outputPath(`after-answer-${viewport.width}x${viewport.height}.png`),
+          fullPage: true,
+        });
+      }
+    }
+
+    current = BEFORE_START;
+    await page.goto("/discovery");
+    await page
+      .getByRole("textbox", { name: "What kind of job are you going for?" })
+      .fill("IT project manager in Paris");
+    await expect(page.getByText("same kind of job")).toBeVisible();
+    await expectDiscoveryFitsViewport(page);
+  }
+});
+
 // #18 discovery (screen 1b): in-flow correction, the bare-"no" undo, and the deck handoff — all
 // three net-new interactions this ticket adds on top of #16's core loop.
 
@@ -228,6 +308,7 @@ test("tapping an answered CV line and picking a different option updates it in p
   const cvLine = page.getByRole("button", { name: /Fix this line/i });
   await cvLine.click();
   await expect(page.getByText("Change your answer.")).toBeVisible();
+  await expectDiscoveryFitsViewport(page);
 
   // #24: cancelling via Esc returns keyboard focus to the corrected line, not the next question.
   await page.keyboard.press("Escape");
@@ -254,6 +335,7 @@ test('answering "No" gives quiet feedback and an undo, never a failure', async (
   await page.getByRole("button", { name: "No", exact: true }).click();
 
   await expect(page.locator(".discovery .notice")).toContainText("Noted — one less thing to ask.");
+  await expectDiscoveryFitsViewport(page);
   const fixThat = page.getByRole("button", { name: "Fix that?" });
   await expect(fixThat).toBeVisible();
   await expect(page.getByText("Have you managed a budget?")).toHaveCount(0);
@@ -275,6 +357,7 @@ test("the essential band done: the ask dock shows the handoff, not a completion 
 
   await expect(page.getByText("That's all I need to ask.", { exact: true })).toBeVisible();
   await expect(page.getByText("Now I'll line these jobs up against everything you told me.", { exact: true })).toBeVisible();
+  await expectDiscoveryFitsViewport(page);
   await expect(page.getByText(/100%|done|complete/i)).toHaveCount(0);
 });
 

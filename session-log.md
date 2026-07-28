@@ -2,6 +2,20 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 43) — Fix: discovery layout adapts across every question state
+
+- **Root cause:** the desktop A4 CV forced the shared row height and the ask card stretched to match
+  it. The wrapper introduced for that two-column layout also had no flexible-height rules in stacked
+  mode, so answering could push the dock below the viewport.
+- Replaced the equal-height coupling with viewport-owned layout: independent content-sized ask,
+  scrollable CV remainder, intrinsic A4 document shape, and a two-column breakpoint that only
+  activates when both columns have useful width. Stacked phone/tablet screens now give their main
+  wrapper the remaining height and cap only genuinely tall asks with internal scrolling.
+- Added geometry regression coverage for role entry, expanded suggestions, four-option, two-option,
+  free-text, negative-answer notice, correction, and handoff states at 390×844, 768×1024, and
+  1440×900. Focused discovery Playwright suite: 7/7 green; visual captures reviewed at all three
+  sizes.
+
 ## 2026-07-28 (session 42) — Wayfinder: unmapped-role family learning workflow
 
 - Resolved [Define the unmapped-role family learning workflow](https://github.com/adrien-mounier/jobcrush-app/issues/50):

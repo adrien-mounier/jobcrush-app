@@ -608,18 +608,18 @@
   }
 }
 
-/* ---------- #51 Discovery B — desktop two-column ----------
+/* ---------- #51 Discovery B — responsive two-column ----------
    A flex-column root (no grid, so the main row isn't capped at the viewport): a header row
    (divider left, session strip + promise right), then a main flex row with the CV sheet on the
    left and the ask card on the right. The CV's A4 height drives the main row; the ask stretches to
    match it (align-items: stretch) at any size — one page or two — so their top and bottom edges
    stay aligned. The root scrolls (overflow-y: auto) when the A4 sheet is taller than the viewport.
    Scoped to the loaded screen via :has(.band-cv); phone (≤ 640px) unchanged. */
-@media (min-width: 641px) {
+@media (min-width: 900px) {
   .discovery:has(.band-cv) {
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    overflow: hidden;
     padding-inline: max(16px, calc((100% - 1120px) / 2));
   }
   .discovery:has(.band-cv) > .topbar {
@@ -633,45 +633,51 @@
      mobile's stacked order), so row-reverse puts the divider on the left on desktop. */
   .discovery:has(.band-cv) > .disc-header {
     flex: 0 0 auto;
-    display: flex;
-    flex-direction: row-reverse;
-    gap: 32px;
+    display: grid;
+    grid-template-columns: minmax(360px, 520px) minmax(340px, 1fr);
+    gap: clamp(20px, 2.5vw, 32px);
     padding: 12px 0;
   }
   .discovery .disc-header > .disc-head {
-    flex: 1 1 0;
+    grid-column: 2;
     min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
   .discovery .disc-header > .divider {
-    flex: 0 0 520px;
+    grid-column: 1;
+    grid-row: 1;
     max-width: 100%;
     align-self: end;
     padding-inline: 0;
   }
   /* main row: CV (left, drives the height) + ask (right, stretches to match) */
   .discovery:has(.band-cv) > .disc-main {
-    flex: 0 0 auto;
-    display: flex;
-    gap: 32px;
-    align-items: stretch;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(360px, 520px) minmax(340px, 1fr);
+    gap: clamp(20px, 2.5vw, 32px);
+    align-items: start;
+    padding-bottom: 16px;
   }
   /* The CV column fills the left (the A4 sheet centred inside it) and drives the row's height;
      the ask is a fixed 460px on the right and stretches to match the CV at any size — one page or
      two — so their top and bottom edges stay aligned. */
   .discovery .disc-main > .band-cv {
-    flex: 0 0 520px;
+    width: 100%;
     max-width: 100%;
-    overflow: visible;
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 0;
-    min-height: calc(520px * 297 / 210);
   }
   .discovery .disc-main > .ask {
-    flex: 1 1 0;
+    width: 100%;
     min-width: 0;
-    align-self: stretch;
+    max-height: 100%;
+    align-self: start;
     background: var(--hud-1);
     border: 1px solid var(--hud-line);
     border-radius: 14px;
@@ -702,8 +708,8 @@
   .discovery:has(.band-cv) .cv {
     width: 100%;
     margin: 0;
-    min-height: calc(520px * 297 / 210);
-    max-height: calc(520px * 297 / 210 * 2);
+    min-height: auto;
+    aspect-ratio: 210 / 297;
   }
 
   /* promise slim banner (role="status" + text preserved — spec-pinned) */
@@ -722,4 +728,17 @@
   }
 }
 
+@media (max-width: 899px) {
+  .discovery .disc-main {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
 
+  .discovery .ask {
+    max-height: 60dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}

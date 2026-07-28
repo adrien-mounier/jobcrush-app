@@ -1,5 +1,15 @@
 # Lessons — jobcrush-app
 
+## Responsive sibling panels must not derive height from each other
+
+The discovery desktop layout made an A4-shaped CV set the shared row height, then stretched the
+question card to match. It looked aligned in one screenshot but became a huge empty panel after the
+first answer. On stacked screens, the new wrapper had no `flex`/`min-height: 0` contract, so growing
+question content pushed the dock below the fixed viewport. For stateful split screens, let the
+viewport own available height, give each sibling independent intrinsic height, and put overflow on
+the region whose content actually grows. Regression coverage must cross both state and viewport
+dimensions; a single before/after screenshot cannot prove a dynamic layout.
+
 ## After a domain move, add the new origin's Google OAuth redirect URI to the Google Console
 
 `WEB_URL` on the API drives the `redirect_uri` sent to Google (`${WEB_URL}/api/auth/google/callback`,

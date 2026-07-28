@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-07-26_
+_Last updated: 2026-07-28_
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
@@ -194,6 +194,9 @@ decide automatic placement, clarification, or an unknown result.
 UX/UI cleanup of the existing flow (see milestone above). Critique done 2026-07-19 (dual-agent
 `/impeccable critique`, 24/40; snapshot in `.impeccable/critique/`). Working through the fixes:
 
+- [x] **Discovery responsive-layout resilience** — removed A4-driven equal-height coupling and
+  restored flexible stacked-wrapper sizing. Geometry now covers every ask shape across phone,
+  tablet, and desktop rather than one post-answer screenshot.
 - [x] **Harden batch 1** — magic-link cross-browser session carry (P0), signup email-typo recovery,
       deck batch-persistence + friendly not-found, preview polling. api 160 / typecheck 7.
 - [x] **The ending** — the ready screen now renders as a document with a "✓ Verified · watermark
