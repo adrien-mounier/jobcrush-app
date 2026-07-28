@@ -26,6 +26,13 @@ import { authRoutes } from "./routes/auth.js";
 import { DevMailer, type Mailer } from "./mailer.js";
 import { createGuestbook, renderGuestbookHtml, type Guestbook } from "./guestbook.js";
 import type { JobRecord } from "./jobs.js";
+import {
+  InMemoryFamilyLearningStore,
+  type FamilyCandidateScreen,
+  type FamilyMatchNotifier,
+  type FamilyLearningStore,
+} from "./familyLearning.js";
+import { familyLearningRoutes } from "./routes/familyLearning.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -59,6 +66,11 @@ export interface BuildOptions {
   webUrl?: string;
   /** Google OAuth code→email exchange. Tests inject a fake; absent → the real Google endpoint. */
   googleEmail?: (code: string, redirectUri: string) => Promise<string | null>;
+  familyLearning?: FamilyLearningStore;
+  screenFamilyCandidate?: FamilyCandidateScreen;
+  familyLearningOperatorKey?: string;
+  familyLearningKnownFamilies?: Array<{ familyId: string; version: number }>;
+  notifyFamilyMatch?: FamilyMatchNotifier;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */
@@ -94,8 +106,10 @@ export function buildServer(opts: BuildOptions = {}) {
   const auth = opts.auth ?? new InMemoryAuthStore();
   const mailer = opts.mailer ?? new DevMailer();
   const guestbook = opts.guestbook ?? createGuestbook(process.env.DATABASE_URL);
+  const familyLearning = opts.familyLearning ?? new InMemoryFamilyLearningStore();
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" }).withTypeProvider<ZodTypeProvider>();
   guestbook.init().catch((err) => app.log.error(err, "guestbook init failed"));
+  familyLearning.init().catch((err) => app.log.error(err, "family learning init failed"));
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.register(cookie);
@@ -269,6 +283,24 @@ export function buildServer(opts: BuildOptions = {}) {
     auditCv: opts.auditCv,
   }));
   app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail }));
+  app.register(
+    familyLearningRoutes({
+      store: familyLearning,
+      screen: opts.screenFamilyCandidate,
+      operatorKey: opts.familyLearningOperatorKey,
+      knownFamilies: opts.familyLearningKnownFamilies,
+      notify:
+        opts.notifyFamilyMatch ??
+        (async (attempt, { idempotencyKey }) => {
+          if (!mailer.live) throw new Error("family match notification provider unavailable");
+          const session = await sessions.getById(attempt.sessionId);
+          if (!session?.claimedByUserId) throw new Error("family learning session is unclaimed");
+          const user = await auth.getUserById(session.claimedByUserId);
+          if (!user) throw new Error("family learning user not found");
+          await mailer.sendFamilyReady(user.email, attempt.targetRole, idempotencyKey);
+        }),
+    }),
+  );
 
   // Job payloads sent to the client: the preview HTML travels only via GET /previews/:jobId
   // (in-app view), and jobs bound to a session are visible to that session alone.
@@ -338,5 +370,5 @@ export function buildServer(opts: BuildOptions = {}) {
     },
   );
 
-  return { app, store, sessions, blobs, uploads, claims, auth };
+  return { app, store, sessions, blobs, uploads, claims, auth, familyLearning };
 }

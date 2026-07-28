@@ -11,6 +11,10 @@ import { makeCvAuditor } from "./audit.js";
 import { sessionStoreFromEnv } from "./sessions.js";
 import { claimStoreFromEnv } from "./claims.js";
 import { authStoreFromEnv } from "./auth.js";
+import {
+  familyLearningStoreFromEnv,
+  makeFamilyCandidateScreen,
+} from "./familyLearning.js";
 import { mailerFromEnv } from "./mailer.js";
 import { runPurge } from "./purge.js";
 import { getPool } from "./db.js";
@@ -23,10 +27,12 @@ const blobs = storageFromEnv(process.env.UPLOAD_DIR ?? join(process.cwd(), "data
 const sessions = sessionStoreFromEnv(process.env.DATABASE_URL);
 const claims = claimStoreFromEnv(process.env.DATABASE_URL);
 const auth = authStoreFromEnv(process.env.DATABASE_URL);
+const familyLearning = familyLearningStoreFromEnv(process.env.DATABASE_URL);
 try {
   await sessions.init();
   await claims.init();
   await auth.init();
+  await familyLearning.init();
 } catch (err) {
   console.error("store init failed", err);
   process.exit(1);
@@ -36,6 +42,9 @@ const { app } = buildServer({
   sessions,
   claims,
   auth,
+  familyLearning,
+  screenFamilyCandidate: makeFamilyCandidateScreen(llm),
+  familyLearningOperatorKey: process.env.FAMILY_LEARNING_OPERATOR_KEY,
   mailer: mailerFromEnv(),
   webUrl: process.env.WEB_URL,
   blobs,

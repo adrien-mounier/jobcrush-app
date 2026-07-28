@@ -1,5 +1,9 @@
 # Lessons — jobcrush-app
 
+## Do not use pg-mem to prove PostgreSQL transaction rollback
+
+`pg-mem` exercises this repo's SQL shape well, but it did not roll back an `UPDATE` after a later injected audit insert failure even when the store used one checked-out client with `BEGIN`/`ROLLBACK`. A green pg-mem rollback assertion would therefore test the emulator, not production semantics. For mutation-plus-audit invariants, keep pg-mem for schema/query contracts and add a deterministic transaction-boundary fault harness (or a real `DATABASE_URL`-gated PostgreSQL integration) that distinguishes pending from committed state and proves rollback leaves the committed row unchanged.
+
 ## Cross-import corrections require stable semantic identity before UI work
 
 Generated claim IDs and normalized display text are not durable identities.

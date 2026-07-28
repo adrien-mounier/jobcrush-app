@@ -7,6 +7,11 @@ export interface Mailer {
   /** true when a real provider is wired. When false, the login link may be returned to the client. */
   readonly live: boolean;
   sendLoginLink(email: string, url: string): Promise<void>;
+  sendFamilyReady(
+    email: string,
+    targetRole: string,
+    idempotencyKey: string,
+  ): Promise<void>;
 }
 
 export class ResendMailer implements Mailer {
@@ -27,7 +32,24 @@ export class ResendMailer implements Mailer {
         text: `Sign in to JobCrush (this link expires in 15 minutes):\n\n${url}\n\nIf you didn't ask for this, you can ignore this email.`,
       }),
     });
-    if (!res.ok) throw new Error(`resend ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    if (!res.ok) throw new Error(`resend login-link delivery failed with status ${res.status}`);
+  }
+  async sendFamilyReady(email: string, targetRole: string, idempotencyKey: string) {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${this.apiKey}`,
+        "idempotency-key": idempotencyKey,
+      },
+      body: JSON.stringify({
+        from: this.from,
+        to: [email],
+        subject: `Credible ${targetRole} matches are ready`,
+        text: `JobCrush found credible matches for ${targetRole}. Return to JobCrush to review them.`,
+      }),
+    });
+    if (!res.ok) throw new Error(`resend family-ready delivery failed with status ${res.status}`);
   }
 }
 
@@ -36,6 +58,9 @@ export class DevMailer implements Mailer {
   readonly live = false;
   async sendLoginLink(email: string, url: string): Promise<void> {
     console.log(`[dev-mailer] login link for ${email}: ${url}`);
+  }
+  async sendFamilyReady(email: string, targetRole: string): Promise<void> {
+    console.log(`[dev-mailer] family matches ready for ${email}: ${targetRole}`);
   }
 }
 

@@ -2,6 +2,14 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 54) — unmapped-role family learning
+
+- Implemented [#62 Unmapped-role family learning and return lifecycle](https://github.com/adrien-mounier/jobcrush-app/issues/62) on top of landed #59 without borrowing its confirmed-family discovery floor.
+- Added privacy-minimized in-memory/PostgreSQL candidate and lifecycle stores, atomic exact deduplication, grounded semantic-equivalent/covered-family links, transactional audit events, and durable correction/resumption states.
+- Added strict LLM screening through the existing model seam, operator-key-only lifecycle progression, normal-auth account resolution, and idempotent Resend notification delivery that never marks a user notified before provider success.
+- Two-axis review ended Standards GO and Spec GO after concurrency, transaction, trust-boundary, production-wiring, grounding, and PII-error fixes. Independent QA GO: 404 tests passed + 5 skipped, focused #62 26/26, uncached typecheck 7/7, build 5/5.
+- **Next:** #62 removes one dependency from [#68 anonymous retention/consent](https://github.com/adrien-mounier/jobcrush-app/issues/68) and [#69 pilot observability](https://github.com/adrien-mounier/jobcrush-app/issues/69); re-query their remaining blockers before claiming.
+
 ## 2026-07-28 (session 53) — fixture-driven adaptive discovery
 
 - Implemented [#59 Fixture-driven adaptive discovery engine](https://github.com/adrien-mounier/jobcrush-app/issues/59) as a fixture-only Fastify seam driven by an exact confirmed immutable family-floor version; fixture data remains structurally unable to unlock production reward.
