@@ -329,6 +329,6 @@ describe("JC-13 mine step adapter", () => {
     const out = await step({ source: "paste", status: "ok", fullText: "cv", blocks: [], stats: { roles: 0, bullets: 0, chars: 2, pages: null } });
     expect(out.roles).toBe(claims.roles.length);
     expect(out.claims.length).toBe(claims.claims.length);
-    expect(out.doc.schemaVersion).toBe("0");
+    expect(out.doc.schemaVersion).toBe("1");
   });
 });

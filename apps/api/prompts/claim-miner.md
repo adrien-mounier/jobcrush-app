@@ -54,6 +54,13 @@ Rules — these mirror the claim-graph extraction discipline:
    `verbatim` wherever rule 2 allows it. (Rule 8's inventory claims are `verbatim`, so full
    coverage costs no budget.)
 
+Stable identity fields:
+- `semantic_key` is the fact's canonical meaning, not a paraphrase or claim id. Equivalent facts
+  MUST receive the same kebab-case key across wording changes and repeated sources.
+- For a single-valued fact that can conflict locally, set both `field_key` and `field_value`.
+  Also set `field_label` to concise human-readable copy for that field.
+- General achievements use null for all three. Never set only some of them.
+
 Output shape:
 
 Claim `id`s are ASCII kebab-case slugs: lowercase a-z, digits, hyphens only — transliterate
@@ -61,11 +68,15 @@ accented characters ("école" → "ecole").
 
 ```json
 {
-  "schemaVersion": "0",
+  "schemaVersion": "1",
   "roles": [{ "employer": "…", "title": "…", "dates_as_written": "…", "dates_missing": false }],
   "claims": [
     {
       "id": "kebab-slug",
+      "semantic_key": "stable-canonical-meaning",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null,
       "role": "…",
       "text": "…",
       "machine_touch": "verbatim|reworded|inferred",

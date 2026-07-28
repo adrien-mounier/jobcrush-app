@@ -4,11 +4,15 @@ import { buildMinerInput, extractJson, mineClaims } from "../src/miner.js";
 import type { LlmClient } from "../src/llm.js";
 
 const validDoc = {
-  schemaVersion: "0",
+  schemaVersion: "1",
   roles: [{ employer: "Acme", title: "PM", dates_as_written: "2020-2024", dates_missing: false }],
   claims: [
     {
       id: "acme-delivery",
+      semantic_key: "experience-acme-delivery",
+      field_key: null,
+      field_value: null,
+      field_label: null,
       role: "Acme — PM",
       text: "Delivered the migration on schedule",
       machine_touch: "verbatim",

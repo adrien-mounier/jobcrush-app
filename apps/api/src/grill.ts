@@ -105,6 +105,10 @@ export function answerToClaim(g: Gap, answer: string): CandidateClaim {
     g.type === "missing-dates" ? `${g.title} at ${g.employer}: ${answer}` : `${g.claimText} — ${answer}`;
   return {
     id: `grill-${slug(g.id)}`,
+    semantic_key: `grill-${slug(g.id)}`,
+    field_key: null,
+    field_value: null,
+    field_label: null,
     role: g.role,
     text,
     machine_touch: "verbatim", // the user typed it

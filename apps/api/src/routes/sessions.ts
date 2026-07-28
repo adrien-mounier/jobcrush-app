@@ -16,7 +16,30 @@ const sourceEntrySchema = z.discriminatedUnion("checkpoint", [
     .strict(),
 ]);
 
-export function sessionRoutes(sessions: SessionStore, limiter = new IpRateLimiter()) {
+const importProofSchema = z.object({
+  outcome: z.enum(["success", "partial", "failed", "no_useful_facts"]),
+  usefulFactCount: z.number().int().nonnegative(),
+  skippedQuestionCount: z.number().int().nonnegative(),
+  representativeFacts: z.array(
+    z.object({
+      id: z.string(),
+      text: z.string(),
+      provenance: z.literal("cv"),
+    }),
+  ).max(4),
+  conflict: z
+    .object({
+      fieldId: z.string(),
+      label: z.string(),
+      userResolvedValue: z.string().nullable(),
+    })
+    .nullable(),
+});
+
+export function sessionRoutes(
+  sessions: SessionStore,
+  limiter = new IpRateLimiter(),
+) {
   return async function plugin(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>();
 
@@ -104,6 +127,45 @@ export function sessionRoutes(sessions: SessionStore, limiter = new IpRateLimite
         }
         await sessions.setSourceEntry(req.session.id, req.body);
         return { sourceEntry: req.body };
+      },
+    );
+
+    app.put(
+      "/sessions/me/import-resolution",
+      {
+        schema: {
+          body: z.object({
+            fieldId: z.string().trim().min(1),
+            value: z.string().trim().min(1),
+          }).strict(),
+        },
+      },
+      async (req, reply) => {
+        if (!req.session) {
+          return reply
+            .status(401)
+            .send({ error: { code: "no_session", message: "no active session" } });
+        }
+        const proof = req.session.importProof;
+        if (!proof) {
+          return reply
+            .status(409)
+            .send({ error: { code: "import_not_ready", message: "CV import is not ready" } });
+        }
+        if (
+          !proof.representativeFacts.some((fact) => fact.id === req.body.fieldId) &&
+          proof.conflict?.fieldId !== req.body.fieldId
+        ) {
+          return reply
+            .status(404)
+            .send({ error: { code: "unknown_field", message: "unknown imported field" } });
+        }
+        const importProof = await sessions.resolveImport(
+          req.session.id,
+          req.body.fieldId,
+          req.body.value,
+        );
+        return { importProof: importProofSchema.parse(importProof) };
       },
     );
   };

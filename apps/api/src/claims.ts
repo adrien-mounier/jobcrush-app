@@ -202,6 +202,10 @@ const CLAIM_COLS =
 function toClaim(r: Record<string, unknown>): ClaimRecord {
   return {
     id: r.id as string,
+    semantic_key: r.id as string,
+    field_key: null,
+    field_value: null,
+    field_label: null,
     role: r.role as string,
     text: r.text as string,
     machine_touch: r.machine_touch as CandidateClaim["machine_touch"],

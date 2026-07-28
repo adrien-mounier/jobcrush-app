@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "0",
+  "schemaVersion": "1",
   "roles": [
     {
       "employer": "FPT Software",
@@ -35,7 +35,11 @@
       "classification": "Partially-Supported",
       "source_quote": "IT professional with experience in project coordination and delivery.",
       "needs_grill": true,
-      "grill_hint": "Unevidenced self-description; ask for specific projects/outcomes backing this summary."
+      "grill_hint": "Unevidenced self-description; ask for specific projects/outcomes backing this summary.",
+      "semantic_key": "profile-summary-it-professional",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "profile-hardworking",
@@ -45,7 +49,11 @@
       "classification": "Partially-Supported",
       "source_quote": "hard working",
       "needs_grill": true,
-      "grill_hint": "Unevidenced self-description; ask for concrete examples."
+      "grill_hint": "Unevidenced self-description; ask for concrete examples.",
+      "semantic_key": "profile-hardworking",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "profile-detail-oriented",
@@ -55,7 +63,11 @@
       "classification": "Partially-Supported",
       "source_quote": "detail oriented",
       "needs_grill": true,
-      "grill_hint": "Unevidenced self-description; ask for concrete examples."
+      "grill_hint": "Unevidenced self-description; ask for concrete examples.",
+      "semantic_key": "profile-detail-oriented",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "profile-good-communication",
@@ -65,7 +77,11 @@
       "classification": "Partially-Supported",
       "source_quote": "good communication",
       "needs_grill": true,
-      "grill_hint": "Unevidenced self-description; ask for concrete examples."
+      "grill_hint": "Unevidenced self-description; ask for concrete examples.",
+      "semantic_key": "profile-good-communication",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "fpt-role-title",
@@ -75,7 +91,11 @@
       "classification": "Verified",
       "source_quote": "FPT Software — Project Coordinator then Project Manager",
       "needs_grill": true,
-      "grill_hint": "No start/end dates given for this role; confirm employment timeline."
+      "grill_hint": "No start/end dates given for this role; confirm employment timeline.",
+      "semantic_key": "fpt-role-title",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "fpt-coordinate-offshore-teams",
@@ -85,7 +105,11 @@
       "classification": "Verified",
       "source_quote": "responsible for coordination of offshore teams for japanese clients",
       "needs_grill": true,
-      "grill_hint": "No metric on number of teams/clients coordinated."
+      "grill_hint": "No metric on number of teams/clients coordinated.",
+      "semantic_key": "fpt-coordinate-offshore-teams",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "fpt-managed-schedule-budget",
@@ -95,7 +119,11 @@
       "classification": "Verified",
       "source_quote": "managed schedule and budget for several projects",
       "needs_grill": true,
-      "grill_hint": "No specific project count or budget figures given."
+      "grill_hint": "No specific project count or budget figures given.",
+      "semantic_key": "fpt-managed-schedule-budget",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "fpt-work-with-qa-ba",
@@ -105,7 +133,11 @@
       "classification": "Verified",
       "source_quote": "working with QA and BA teams",
       "needs_grill": true,
-      "grill_hint": "No outcome described for this collaboration."
+      "grill_hint": "No outcome described for this collaboration.",
+      "semantic_key": "fpt-work-with-qa-ba",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "fpt-daily-standup",
@@ -115,7 +147,11 @@
       "classification": "Verified",
       "source_quote": "daily standup",
       "needs_grill": true,
-      "grill_hint": "Routine duty with no stated outcome."
+      "grill_hint": "Routine duty with no stated outcome.",
+      "semantic_key": "fpt-daily-standup",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "fpt-report-to-pmo",
@@ -125,7 +161,11 @@
       "classification": "Verified",
       "source_quote": "report to PMO",
       "needs_grill": true,
-      "grill_hint": "Routine duty with no stated outcome or frequency."
+      "grill_hint": "Routine duty with no stated outcome or frequency.",
+      "semantic_key": "fpt-report-to-pmo",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "fpt-improved-delivery-process",
@@ -135,7 +175,11 @@
       "classification": "Partially-Supported",
       "source_quote": "improved delivery process",
       "needs_grill": true,
-      "grill_hint": "No metric or specifics on what was improved or by how much."
+      "grill_hint": "No metric or specifics on what was improved or by how much.",
+      "semantic_key": "fpt-improved-delivery-process",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "fpt-customer-satisfaction-improved",
@@ -145,7 +189,11 @@
       "classification": "Partially-Supported",
       "source_quote": "customer satisfaction improved a lot after process change",
       "needs_grill": true,
-      "grill_hint": "Vague quantifier 'a lot'; no measured figure given."
+      "grill_hint": "Vague quantifier 'a lot'; no measured figure given.",
+      "semantic_key": "fpt-customer-satisfaction-improved",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "fpt-took-over-pm-ecommerce-migration",
@@ -155,7 +203,11 @@
       "classification": "Verified",
       "source_quote": "took over PM role for ecommerce migration project (team ~12) after previous PM left, 2023",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "fpt-took-over-pm-ecommerce-migration",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "viettel-role-title",
@@ -165,7 +217,11 @@
       "classification": "Verified",
       "source_quote": "Viettel IDC (2019-2021) - IT Support / Sysadmin",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "viettel-role-title",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "viettel-support-internal-users-tickets-sla",
@@ -175,7 +231,11 @@
       "classification": "Verified",
       "source_quote": "support internal users, tickets, SLA",
       "needs_grill": true,
-      "grill_hint": "No ticket volume or SLA performance figures given."
+      "grill_hint": "No ticket volume or SLA performance figures given.",
+      "semantic_key": "viettel-support-internal-users-tickets-sla",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "viettel-setup-monitoring-zabbix",
@@ -185,7 +245,11 @@
       "classification": "Verified",
       "source_quote": "setup monitoring for servers (zabbix)",
       "needs_grill": true,
-      "grill_hint": "No detail on number/scope of servers monitored."
+      "grill_hint": "No detail on number/scope of servers monitored.",
+      "semantic_key": "viettel-setup-monitoring-zabbix",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "viettel-helped-python-scripts",
@@ -195,7 +259,11 @@
       "classification": "Partially-Supported",
       "source_quote": "sometimes helped with small internal tools (python scripts)",
       "needs_grill": true,
-      "grill_hint": "Vague frequency/scope ('sometimes', 'small'); no example given."
+      "grill_hint": "Vague frequency/scope ('sometimes', 'small'); no example given.",
+      "semantic_key": "viettel-helped-python-scripts",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "freelance-role-title",
@@ -205,7 +273,11 @@
       "classification": "Verified",
       "source_quote": "freelance web projects (before 2019)",
       "needs_grill": true,
-      "grill_hint": "Date range is vague ('before 2019'); confirm actual timeframe."
+      "grill_hint": "Date range is vague ('before 2019'); confirm actual timeframe.",
+      "semantic_key": "freelance-role-title",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "freelance-built-websites-wordpress",
@@ -215,7 +287,11 @@
       "classification": "Verified",
       "source_quote": "built websites for small businesses with wordpress",
       "needs_grill": true,
-      "grill_hint": "No count of websites built or client outcomes given."
+      "grill_hint": "No count of websites built or client outcomes given.",
+      "semantic_key": "freelance-built-websites-wordpress",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "freelance-seo-work",
@@ -225,7 +301,11 @@
       "classification": "Partially-Supported",
       "source_quote": "some SEO work",
       "needs_grill": true,
-      "grill_hint": "Vague scope ('some'); no outcome or client results given."
+      "grill_hint": "Vague scope ('some'); no outcome or client results given.",
+      "semantic_key": "freelance-seo-work",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "education-engineer-degree",
@@ -235,7 +315,11 @@
       "classification": "Verified",
       "source_quote": "Danang University of Technology, engineer degree",
       "needs_grill": true,
-      "grill_hint": "No dates or field of study given for this degree."
+      "grill_hint": "No dates or field of study given for this degree.",
+      "semantic_key": "education-engineer-degree",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "skills-jira-confluence-msproject-excel",
@@ -245,7 +329,11 @@
       "classification": "Partially-Supported",
       "source_quote": "Jira, Confluence, MS Project, Excel",
       "needs_grill": true,
-      "grill_hint": "Skill list is self-asserted; no direct evidence of tool usage in experience bullets."
+      "grill_hint": "Skill list is self-asserted; no direct evidence of tool usage in experience bullets.",
+      "semantic_key": "skills-jira-confluence-msproject-excel",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "skills-python-basic",
@@ -255,7 +343,11 @@
       "classification": "Derived",
       "source_quote": "python (basic)",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "skills-python-basic",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "skills-agile-scrum",
@@ -265,7 +357,11 @@
       "classification": "Derived",
       "source_quote": "agile/scrum",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "skills-agile-scrum",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "skills-japanese-n3",
@@ -275,7 +371,11 @@
       "classification": "Derived",
       "source_quote": "Japanese N3",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "skills-japanese-n3",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "skills-english-good",
@@ -285,7 +385,11 @@
       "classification": "Partially-Supported",
       "source_quote": "English (good)",
       "needs_grill": true,
-      "grill_hint": "Self-assessed language level; no supporting evidence given."
+      "grill_hint": "Self-assessed language level; no supporting evidence given.",
+      "semantic_key": "skills-english-good",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "cert-psm1",
@@ -295,7 +399,11 @@
       "classification": "Verified",
       "source_quote": "PSM I (2022?)",
       "needs_grill": true,
-      "grill_hint": "Certification year is uncertain (marked with '?'); confirm exact date."
+      "grill_hint": "Certification year is uncertain (marked with '?'); confirm exact date.",
+      "semantic_key": "cert-psm1",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     }
   ],
   "parser_flags": [

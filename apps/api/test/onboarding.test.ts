@@ -8,6 +8,10 @@ import { isTerminal } from "../src/jobs.js";
 
 const claim = (over: Partial<CandidateClaim>): CandidateClaim => ({
   id: "acme-led-migration",
+  semantic_key: over.id ?? "acme-led-migration",
+  field_key: null,
+  field_value: null,
+  field_label: null,
   role: "Acme — PM",
   text: "Led the checkout replatform, delivered 2 months early.",
   machine_touch: "verbatim",

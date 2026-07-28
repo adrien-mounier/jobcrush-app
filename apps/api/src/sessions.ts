@@ -13,6 +13,36 @@ export type SourceEntry =
   | { checkpoint: "invited"; choice: null }
   | { checkpoint: "source_selected"; choice: "cv" | "questions" };
 
+export interface ImportProof {
+  outcome: "success" | "partial" | "failed" | "no_useful_facts";
+  usefulFactCount: number;
+  skippedQuestionCount: number;
+  representativeFacts: Array<{ id: string; text: string; provenance: "cv" }>;
+  conflict: null | { fieldId: string; label: string; userResolvedValue: string | null };
+}
+
+function resolutionMap(value: unknown): Record<string, string> {
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" ? parsed as Record<string, string> : {};
+    } catch {
+      return {};
+    }
+  }
+  return (value as Record<string, string> | null) ?? {};
+}
+
+function resolvedProof(proof: ImportProof, fieldId: string, value: string): ImportProof {
+  return {
+    ...proof,
+    representativeFacts: proof.representativeFacts.map((fact) =>
+      fact.id === fieldId ? { ...fact, text: value } : fact,
+    ),
+    conflict: proof.conflict?.fieldId === fieldId ? null : proof.conflict,
+  };
+}
+
 export interface SessionRecord {
   id: string;
   token: string;
@@ -37,6 +67,8 @@ export interface SessionRecord {
    *  ad to key it to, so raiseFactFloor is unconditional, unlike setTailorTarget's reset. */
   factFloor: number;
   sourceEntry: SourceEntry;
+  importProof: ImportProof | null;
+  importResolutions: Record<string, string>;
 }
 
 export interface SessionStore {
@@ -49,6 +81,9 @@ export interface SessionStore {
   setTargetTitles(id: string, titles: string[]): Promise<void>;
   setStage(id: string, stage: OnboardingStage): Promise<void>;
   setSourceEntry(id: string, sourceEntry: Exclude<SourceEntry, null>): Promise<void>;
+  setImportProof(id: string, proof: ImportProof): Promise<void>;
+  setImportResolution(id: string, fieldId: string, value: string): Promise<void>;
+  resolveImport(id: string, fieldId: string, value: string): Promise<ImportProof>;
   setTailorTarget(id: string, adId: string): Promise<void>;
   /** #23 drop: exit tailor back to the deck, clearing the target. Never touches claims. */
   clearTailorTarget(id: string): Promise<void>;
@@ -75,6 +110,8 @@ function newSession(): SessionRecord {
     tailorFloorAdId: null,
     factFloor: 0,
     sourceEntry: null,
+    importProof: null,
+    importResolutions: {},
   };
 }
 
@@ -117,6 +154,29 @@ export class InMemorySessionStore implements SessionStore {
   async setSourceEntry(id: string, sourceEntry: Exclude<SourceEntry, null>): Promise<void> {
     const s = this.byId.get(id);
     if (s) s.sourceEntry = sourceEntry;
+  }
+
+  async setImportProof(id: string, proof: ImportProof): Promise<void> {
+    const s = this.byId.get(id);
+    if (s) s.importProof = proof;
+  }
+
+  async setImportResolution(id: string, fieldId: string, value: string): Promise<void> {
+    const s = this.byId.get(id);
+    if (s) s.importResolutions = { ...s.importResolutions, [fieldId]: value };
+  }
+  async resolveImport(
+    id: string,
+    fieldId: string,
+    value: string,
+  ): Promise<ImportProof> {
+    const s = this.byId.get(id);
+    if (s?.importProof) {
+      s.importProof = resolvedProof(s.importProof, fieldId, value);
+      s.importResolutions = { ...s.importResolutions, [fieldId]: value };
+      return s.importProof;
+    }
+    throw new Error("import proof not ready");
   }
 
   async setTailorTarget(id: string, adId: string): Promise<void> {
@@ -203,15 +263,31 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     tailorFloorAdId: (r.tailor_floor_ad_id as string) ?? null,
     factFloor: (r.fact_floor as number) ?? 0,
     sourceEntry: (r.source_entry as SourceEntry) ?? null,
+    importProof: (r.import_proof as ImportProof) ?? null,
+    importResolutions: resolutionMap(r.import_resolutions),
   };
 }
 
 export class PgSessionStore implements SessionStore {
+  private resolutionWrites = new Map<string, Promise<unknown>>();
+
   constructor(private pool: Pool) {}
 
   async init(): Promise<void> {
     await this.pool.query(SESSIONS_TABLE);
     for (const alter of SESSIONS_ALTERS) await this.pool.query(alter);
+    await this.pool.query("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS import_proof jsonb");
+    await this.pool.query(
+      "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS import_resolutions jsonb NOT NULL DEFAULT '{}'",
+    );
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS session_import_resolutions (
+        session_id text NOT NULL,
+        field_id text NOT NULL,
+        value text NOT NULL,
+        PRIMARY KEY (session_id, field_id)
+      )
+    `);
   }
 
   async create(): Promise<SessionRecord> {
@@ -226,7 +302,16 @@ export class PgSessionStore implements SessionStore {
 
   private async one(column: "id" | "token", value: string): Promise<SessionRecord | null> {
     const { rows } = await this.pool.query(`SELECT * FROM sessions WHERE ${column} = $1`, [value]);
-    return rows[0] ? toSession(rows[0]) : null;
+    if (!rows[0]) return null;
+    const session = toSession(rows[0]);
+    const resolutions = await this.pool.query(
+      "SELECT field_id, value FROM session_import_resolutions WHERE session_id = $1",
+      [session.id],
+    );
+    session.importResolutions = Object.fromEntries(
+      resolutions.rows.map((row) => [row.field_id as string, row.value as string]),
+    );
+    return session;
   }
   getByToken(token: string) { return this.one("token", token); }
   getById(id: string) { return this.one("id", id); }
@@ -246,6 +331,73 @@ export class PgSessionStore implements SessionStore {
       JSON.stringify(sourceEntry),
     ]);
   }
+
+  async setImportProof(id: string, proof: ImportProof): Promise<void> {
+    await this.pool.query(`UPDATE sessions SET import_proof = $2 WHERE id = $1`, [
+      id,
+      JSON.stringify(proof),
+    ]);
+  }
+
+  async setImportResolution(id: string, fieldId: string, value: string): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO session_import_resolutions (session_id, field_id, value)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (session_id, field_id) DO UPDATE SET value = EXCLUDED.value`,
+      [id, fieldId, value],
+    );
+  }
+
+  async resolveImport(
+    id: string,
+    fieldId: string,
+    value: string,
+  ): Promise<ImportProof> {
+    const previous = this.resolutionWrites.get(id) ?? Promise.resolve();
+    const operation = previous.then(() => this.resolveImportNow(id, fieldId, value));
+    this.resolutionWrites.set(id, operation);
+    try {
+      return await operation;
+    } finally {
+      if (this.resolutionWrites.get(id) === operation) this.resolutionWrites.delete(id);
+    }
+  }
+
+  private async resolveImportNow(
+    id: string,
+    fieldId: string,
+    value: string,
+  ): Promise<ImportProof> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query(
+        "SELECT import_proof FROM sessions WHERE id = $1 FOR UPDATE",
+        [id],
+      );
+      const current = rows[0]?.import_proof as ImportProof | null;
+      if (!current) throw new Error("import proof not ready");
+      await client.query(
+        `INSERT INTO session_import_resolutions (session_id, field_id, value)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (session_id, field_id) DO UPDATE SET value = EXCLUDED.value`,
+        [id, fieldId, value],
+      );
+      const proof = resolvedProof(current, fieldId, value);
+      await client.query("UPDATE sessions SET import_proof = $2 WHERE id = $1", [
+        id,
+        JSON.stringify(proof),
+      ]);
+      await client.query("COMMIT");
+      return proof;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async setTailorTarget(id: string, adId: string): Promise<void> {
     // #31: tailor_floor_ad_id on the right of the CASE reads the PRE-update row (standard SQL: every
     // SET expression in one UPDATE sees the old row, not siblings' new values) — so this resets the

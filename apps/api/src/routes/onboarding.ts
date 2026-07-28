@@ -393,8 +393,12 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         let no = false;
         if (req.body.itemId === READER_ROLE_ITEM_ID) {
           // #18 AC6: the reader-only question has no floor item — the free-text answer IS the CV line.
-          claim = {
-            id: discoveryClaimId(req.body.itemId),
+        claim = {
+          id: discoveryClaimId(req.body.itemId),
+          semantic_key: discoveryClaimId(req.body.itemId),
+          field_key: null,
+          field_value: null,
+          field_label: null,
             role: "profile",
             text: freeTextLine(req.body.answer),
             machine_touch: "verbatim",
@@ -410,8 +414,12 @@ export function onboardingRoutes(deps: OnboardingDeps) {
             return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
 
           no = isNoAnswer(req.body.answer);
-          claim = {
-            id: discoveryClaimId(item.id),
+        claim = {
+          id: discoveryClaimId(item.id),
+          semantic_key: discoveryClaimId(item.id),
+          field_key: null,
+          field_value: null,
+          field_label: null,
             role: "profile",
             text: no ? `Not applicable — ${item.question}` : composeCvLine(item, req.body.answer),
             machine_touch: "verbatim", // the visitor's own answer
@@ -532,8 +540,12 @@ export function onboardingRoutes(deps: OnboardingDeps) {
             .send({ error: { code: "unknown_requirement", message: "no such requirement" } });
 
         const no = isNoAnswer(req.body.answer);
-        const claim: CandidateClaim = {
-          id: tailorClaimId(adReq.adId, requirement.id),
+      const claim: CandidateClaim = {
+        id: tailorClaimId(adReq.adId, requirement.id),
+        semantic_key: tailorClaimId(adReq.adId, requirement.id),
+        field_key: null,
+        field_value: null,
+        field_label: null,
           role: "profile",
           text: no
             ? `Not applicable — ${requirement.requirement}`

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "0",
+  "schemaVersion": "1",
   "roles": [
     {
       "employer": "CloudWorks India",
@@ -29,7 +29,11 @@
       "classification": "Verified",
       "source_quote": "migrated 40 apps to AWS",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "cloudworks-migrated-40-apps-aws",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "infracore-ran-oncall-payments",
@@ -39,7 +43,11 @@
       "classification": "Partially-Supported",
       "source_quote": "ran the on-call rotation for payments infra",
       "needs_grill": true,
-      "grill_hint": "No scope (team size, incident volume, SLA) or outcome metric given for the on-call rotation."
+      "grill_hint": "No scope (team size, incident volume, SLA) or outcome metric given for the on-call rotation.",
+      "semantic_key": "infracore-ran-oncall-payments",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "anna-university-btech-it",
@@ -49,7 +57,11 @@
       "classification": "Verified",
       "source_quote": "BTech Information Technology, Anna University",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "anna-university-btech-it",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "skill-aws",
@@ -59,7 +71,11 @@
       "classification": "Derived",
       "source_quote": "AWS, Terraform, Jira, MS Project, stakeholder reporting",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "skill-aws",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "skill-terraform",
@@ -69,7 +85,11 @@
       "classification": "Partially-Supported",
       "source_quote": "AWS, Terraform, Jira, MS Project, stakeholder reporting",
       "needs_grill": true,
-      "grill_hint": "Terraform listed as a skill but no role bullet demonstrates its use."
+      "grill_hint": "Terraform listed as a skill but no role bullet demonstrates its use.",
+      "semantic_key": "skill-terraform",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "skill-jira",
@@ -79,7 +99,11 @@
       "classification": "Partially-Supported",
       "source_quote": "AWS, Terraform, Jira, MS Project, stakeholder reporting",
       "needs_grill": true,
-      "grill_hint": "Jira listed as a skill but no role bullet demonstrates its use."
+      "grill_hint": "Jira listed as a skill but no role bullet demonstrates its use.",
+      "semantic_key": "skill-jira",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "skill-ms-project",
@@ -89,7 +113,11 @@
       "classification": "Partially-Supported",
       "source_quote": "AWS, Terraform, Jira, MS Project, stakeholder reporting",
       "needs_grill": true,
-      "grill_hint": "MS Project listed as a skill but no role bullet demonstrates its use."
+      "grill_hint": "MS Project listed as a skill but no role bullet demonstrates its use.",
+      "semantic_key": "skill-ms-project",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "skill-stakeholder-reporting",
@@ -99,7 +127,11 @@
       "classification": "Partially-Supported",
       "source_quote": "AWS, Terraform, Jira, MS Project, stakeholder reporting",
       "needs_grill": true,
-      "grill_hint": "Stakeholder reporting asserted as a skill with no supporting role/outcome evidence."
+      "grill_hint": "Stakeholder reporting asserted as a skill with no supporting role/outcome evidence.",
+      "semantic_key": "skill-stakeholder-reporting",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     }
   ],
   "parser_flags": [

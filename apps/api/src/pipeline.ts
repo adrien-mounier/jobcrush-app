@@ -5,6 +5,9 @@
 import type { JobStore } from "./jobs.js";
 import { buildRawCv, extractRawCv, type RawCv } from "./extract.js";
 import type { CvKind } from "./uploads.js";
+import { CandidateClaim } from "@jobcrush/contracts";
+import type { CandidateClaim as CandidateClaimType } from "@jobcrush/contracts";
+import type { ImportProof } from "./sessions.js";
 
 export type PipelineInput =
   | { type: "upload"; data: Buffer; kind: CvKind; key: string }
@@ -32,7 +35,16 @@ export interface VisitRecord {
 
 export interface PipelineDeps {
   /** JC-13 claim miner. Optional so the extract stage can ship/test on its own. */
-  mine?: (rawCv: RawCv) => Promise<{ claims: unknown[]; needsGrill: number; roles: number }>;
+  mine?: (rawCv: RawCv) => Promise<{
+    claims: unknown[];
+    needsGrill: number;
+    roles: number;
+    doc?: { parser_flags?: string[] };
+  }>;
+  persistImport?: (
+    proof: ImportProof,
+    claims: CandidateClaimType[],
+  ) => Promise<ImportProof>;
   /** JC-16 preview: mined claims + target titles (+ raw CV for header data) → watermarked HTML. */
   preview?: (
     minerOutput: unknown,
@@ -42,6 +54,66 @@ export interface PipelineDeps {
   /** Best-effort guestbook write; called once on any terminal state. Never throws into the run. */
   recordVisit?: (visit: VisitRecord) => Promise<void>;
 }
+
+const proofKey = (claim: CandidateClaimType) => claim.field_key ?? claim.semantic_key;
+
+export function buildImportProof(
+  claims: CandidateClaimType[],
+  parserFlags: string[] = [],
+): ImportProof {
+  const sourceSupported = claims.filter(
+    (claim) =>
+      claim.machine_touch !== "inferred" &&
+      claim.classification !== "Derived" &&
+      claim.source_quote.trim().length > 0,
+  );
+  const uniqueByFact = new Map<string, CandidateClaimType>();
+  for (const claim of sourceSupported) {
+    const key = claim.semantic_key;
+    if (!uniqueByFact.has(key)) uniqueByFact.set(key, claim);
+  }
+  const unique = [...uniqueByFact.values()];
+  const byField = new Map<string, CandidateClaimType[]>();
+  for (const claim of sourceSupported) {
+    if (claim.field_key) {
+      byField.set(claim.field_key, [...(byField.get(claim.field_key) ?? []), claim]);
+    }
+  }
+  const conflictEntry = [...byField].find(
+    ([, fieldClaims]) => new Set(fieldClaims.map((claim) => claim.field_value)).size > 1,
+  );
+  const conflictClaim = conflictEntry?.[1][0];
+  return {
+    outcome:
+      unique.length === 0
+        ? "no_useful_facts"
+        : parserFlags.length > 0
+          ? "partial"
+          : "success",
+    usefulFactCount: unique.length,
+    skippedQuestionCount: 0,
+    representativeFacts: unique.slice(0, 4).map((claim) => ({
+      id: proofKey(claim),
+      text: claim.text,
+      provenance: "cv" as const,
+    })),
+    conflict: conflictClaim
+      ? {
+          fieldId: conflictClaim.field_key!,
+          label: conflictClaim.field_label!,
+          userResolvedValue: null,
+        }
+      : null,
+  };
+}
+
+const failedImportProof = (): ImportProof => ({
+  outcome: "failed",
+  usefulFactCount: 0,
+  skippedQuestionCount: 0,
+  representativeFacts: [],
+  conflict: null,
+});
 
 export const UNPARSEABLE_ERROR = "unparseable_cv";
 
@@ -73,13 +145,22 @@ export async function runOnboardingJob(
           : buildRawCv("paste", input.text, null);
       await store.update(jobId, { progress: { rawCv } });
     }
-    if (rawCv.status === "unparseable") {
+      if (rawCv.status === "unparseable") {
       await appendFeed(
         store,
         jobId,
         "This looks like a scanned document with no selectable text — paste your CV text instead.",
       );
-      await store.update(jobId, { status: "failed", error: UNPARSEABLE_ERROR });
+        const importProof = deps.persistImport
+          ? await deps.persistImport(failedImportProof(), [])
+          : failedImportProof();
+        await store.update(jobId, {
+          status: "failed",
+          error: UNPARSEABLE_ERROR,
+          progress: {
+            importProof,
+          },
+        });
       return;
     }
     await appendFeed(
@@ -98,7 +179,23 @@ export async function runOnboardingJob(
         await appendFeed(store, jobId, "Mining your experience into individual claims…");
         const mined = await deps.mine(rawCv);
         miner = mined;
-        await store.update(jobId, { progress: { miner: mined } });
+        const importedClaims = mined.claims.flatMap((claim) => {
+          const parsed = CandidateClaim.safeParse(claim);
+          return parsed.success ? [parsed.data] : [];
+        });
+        if (importedClaims.length === 0) throw new Error("miner returned no valid claims");
+        const parserFlags = [
+          ...(mined.doc?.parser_flags ?? []),
+          ...(importedClaims.length < mined.claims.length ? ["invalid-miner-claim"] : []),
+        ];
+        let importProof = buildImportProof(importedClaims, parserFlags);
+        if (deps.persistImport) {
+          importProof = await deps.persistImport(
+            importProof,
+            importedClaims,
+          );
+        }
+        await store.update(jobId, { progress: { miner: mined, importProof } });
         await appendFeed(
           store,
           jobId,
@@ -133,6 +230,15 @@ export async function runOnboardingJob(
 
     await store.update(jobId, { status: "completed" });
   } catch (err) {
+    const current = await store.get(jobId);
+    if (!current?.progress.importProof) {
+      const importProof = deps.persistImport
+        ? await deps.persistImport(failedImportProof(), [])
+        : failedImportProof();
+      await store.update(jobId, {
+        progress: { importProof },
+      });
+    }
     await store.update(jobId, {
       status: "failed",
       error: err instanceof Error ? err.message : String(err),

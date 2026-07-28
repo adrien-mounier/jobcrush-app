@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "0",
+  "schemaVersion": "1",
   "roles": [
     {
       "employer": "Klarnify AB",
@@ -29,7 +29,11 @@
       "classification": "Derived",
       "source_quote": "Product Owner with 6 years in payments platforms.",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "profile-summary-6yrs-payments",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "profile-skill-product-roadmapping",
@@ -39,7 +43,11 @@
       "classification": "Partially-Supported",
       "source_quote": "Product Roadmapping",
       "needs_grill": true,
-      "grill_hint": "Skill is self-listed with no supporting example or outcome; ask for a specific roadmap artifact or decision."
+      "grill_hint": "Skill is self-listed with no supporting example or outcome; ask for a specific roadmap artifact or decision.",
+      "semantic_key": "profile-skill-product-roadmapping",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "profile-skill-stakeholder-management",
@@ -49,7 +57,11 @@
       "classification": "Partially-Supported",
       "source_quote": "Stakeholder Management",
       "needs_grill": true,
-      "grill_hint": "No role bullet evidences stakeholder management; ask for a concrete example (who, conflict, outcome)."
+      "grill_hint": "No role bullet evidences stakeholder management; ask for a concrete example (who, conflict, outcome).",
+      "semantic_key": "profile-skill-stakeholder-management",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "profile-skill-agile-methodologies",
@@ -59,7 +71,11 @@
       "classification": "Partially-Supported",
       "source_quote": "Agile Methodologies",
       "needs_grill": true,
-      "grill_hint": "No bullet describes agile ceremonies, frameworks used, or team cadence; ask for specifics."
+      "grill_hint": "No bullet describes agile ceremonies, frameworks used, or team cadence; ask for specifics.",
+      "semantic_key": "profile-skill-agile-methodologies",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "klarnify-title-dates",
@@ -69,7 +85,11 @@
       "classification": "Verified",
       "source_quote": "Product Owner\nJanuary 2022 - Present (3 years 7 months)",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "klarnify-title-dates",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "klarnify-onboarding-backlog-ownership",
@@ -79,7 +99,11 @@
       "classification": "Verified",
       "source_quote": "Owned the merchant onboarding backlog for 8 squads.",
       "needs_grill": true,
-      "grill_hint": "No outcome or metric given for backlog ownership; ask what results (throughput, merchant activation time, etc.) followed."
+      "grill_hint": "No outcome or metric given for backlog ownership; ask what results (throughput, merchant activation time, etc.) followed.",
+      "semantic_key": "klarnify-onboarding-backlog-ownership",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "paynordic-title-dates",
@@ -89,7 +113,11 @@
       "classification": "Verified",
       "source_quote": "Business Analyst\n2018 - 2021 (3 years)",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "paynordic-title-dates",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "paynordic-acceptance-criteria",
@@ -99,7 +127,11 @@
       "classification": "Verified",
       "source_quote": "Wrote acceptance criteria for the card-issuing API.",
       "needs_grill": true,
-      "grill_hint": "No metric or outcome tied to this deliverable; ask about scope (number of criteria, API adoption, defect rate)."
+      "grill_hint": "No metric or outcome tied to this deliverable; ask about scope (number of criteria, API adoption, defect rate).",
+      "semantic_key": "paynordic-acceptance-criteria",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "kth-bsc-computer-science",
@@ -109,7 +141,11 @@
       "classification": "Verified",
       "source_quote": "BSc, Computer Science (2014 - 2018)",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "kth-bsc-computer-science",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     }
   ],
   "parser_flags": [

@@ -3,13 +3,132 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { buildRawCv, extractRawCv, segment } from "../src/extract.js";
-import { runOnboardingJob, UNPARSEABLE_ERROR } from "../src/pipeline.js";
+import { buildImportProof, runOnboardingJob, UNPARSEABLE_ERROR } from "../src/pipeline.js";
 import { InMemoryJobStore } from "../src/jobs.js";
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const fx = (name: string) => readFile(join(fixtures, name));
 
 describe("JC-12 text extraction", () => {
+  it("merges equivalent source facts into one coverage unit and excludes inferences", () => {
+    const base = {
+      semantic_key: "experience-acme-delivery",
+      field_key: null,
+      field_value: null,
+      field_label: null,
+      role: "PM - Acme",
+      machine_touch: "verbatim" as const,
+      classification: "Verified" as const,
+      source_quote: "Led delivery",
+      needs_grill: false,
+      grill_hint: null,
+    };
+    const proof = buildImportProof([
+      { ...base, id: "a", text: "Led Acme delivery." },
+      { ...base, id: "b", text: "Led Acme delivery" },
+      {
+        ...base,
+        id: "c",
+        semantic_key: "inferred-communication",
+        text: "Likely strong communicator",
+        machine_touch: "inferred",
+        classification: "Partially-Supported",
+        needs_grill: true,
+        grill_hint: "Confirm communication evidence",
+      },
+    ]);
+
+    expect(proof).toMatchObject({
+      outcome: "success",
+      usefulFactCount: 1,
+      skippedQuestionCount: 0,
+      representativeFacts: [
+        { id: "experience-acme-delivery", text: "Led Acme delivery.", provenance: "cv" },
+      ],
+    });
+  });
+
+  it("isolates a structured field conflict and reports truthful partial retained facts", () => {
+    const base = {
+      role: "Acme",
+      machine_touch: "verbatim" as const,
+      classification: "Verified" as const,
+      source_quote: "Acme role",
+      needs_grill: false,
+      grill_hint: null,
+    };
+    const proof = buildImportProof(
+      [
+        {
+          ...base,
+          id: "location-bangkok",
+          semantic_key: "search-area-bangkok",
+          field_key: "search-area",
+          field_value: "Bangkok",
+          field_label: "Search area",
+          text: "Searching in Bangkok",
+        },
+        {
+          ...base,
+          id: "location-london",
+          semantic_key: "search-area-london",
+          field_key: "search-area",
+          field_value: "London",
+          field_label: "Search area",
+          text: "Searching in London",
+        },
+        {
+          ...base,
+          id: "skill-sql",
+          semantic_key: "skill-sql",
+          field_key: null,
+          field_value: null,
+          field_label: null,
+          text: "Used SQL",
+        },
+      ],
+      ["uncovered-section: education"],
+    );
+
+    expect(proof.outcome).toBe("partial");
+    expect(proof.usefulFactCount).toBe(3);
+    expect(proof.conflict).toEqual({
+      fieldId: "search-area",
+      label: "Search area",
+      userResolvedValue: null,
+    });
+    expect(proof.representativeFacts).toContainEqual({
+      id: "skill-sql",
+      text: "Used SQL",
+      provenance: "cv",
+    });
+  });
+
+  it("reports no_useful_facts when mining succeeds with only inferred evidence", () => {
+    const proof = buildImportProof([
+      {
+        id: "inferred-leadership",
+        semantic_key: "inferred-leadership",
+        field_key: null,
+        field_value: null,
+        field_label: null,
+        role: "profile",
+        text: "Likely a strong leader",
+        machine_touch: "inferred",
+        classification: "Partially-Supported",
+        source_quote: "worked with teams",
+        needs_grill: true,
+        grill_hint: "Confirm leadership scope",
+      },
+    ]);
+    expect(proof).toEqual({
+      outcome: "no_useful_facts",
+      usefulFactCount: 0,
+      skippedQuestionCount: 0,
+      representativeFacts: [],
+      conflict: null,
+    });
+  });
   it("clean 2-page PDF: sections found, roles and bullets counted", async () => {
     const raw = await extractRawCv(await fx("clean.pdf"), "pdf");
     expect(raw.status).toBe("ok");
@@ -76,6 +195,34 @@ describe("JC-12 text extraction", () => {
 });
 
 describe("JC-12 pipeline job (extract stage over the JC-9 machinery)", () => {
+  it("fails safely when every mined claim violates the complete contract", async () => {
+    const store = new InMemoryJobStore();
+    const job = await store.create("onboarding", "sess");
+    await runOnboardingJob(
+      store,
+      job.id,
+      { type: "paste", text: "Jane Doe\nProject Manager at Acme" },
+      [],
+      {
+        mine: async () => ({
+          claims: [{ id: "partial-only", text: "Missing required fields" }],
+          needsGrill: 0,
+          roles: 1,
+        }),
+      },
+    );
+    expect(await store.get(job.id)).toMatchObject({
+      status: "failed",
+      progress: {
+        importProof: {
+          outcome: "failed",
+          usefulFactCount: 0,
+          skippedQuestionCount: 0,
+          representativeFacts: [],
+        },
+      },
+    });
+  });
   it("upload input runs to completion with a humanized feed and a rawCv checkpoint", async () => {
     const store = new InMemoryJobStore();
     const job = await store.create("onboarding");

@@ -8,6 +8,10 @@ import type { ClaimRecord } from "../src/claims.js";
 
 const claim = (over: Partial<ClaimRecord>): ClaimRecord => ({
   id: "acme-led",
+  semantic_key: "acme-led",
+  field_key: null,
+  field_value: null,
+  field_label: null,
   role: "PM - Acme",
   text: "Led the replatform",
   machine_touch: "reworded",

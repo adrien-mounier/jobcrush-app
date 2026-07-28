@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "0",
+  "schemaVersion": "1",
   "roles": [
     {
       "employer": "Nordic Retail Group",
@@ -29,7 +29,11 @@
       "classification": "Verified",
       "source_quote": "Led the replatforming of the e-commerce checkout, delivered 2 months early",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "nrg-led-checkout-replatform",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "nrg-managed-budget",
@@ -39,7 +43,11 @@
       "classification": "Verified",
       "source_quote": "Managed a budget of EUR 1.2M across 3 vendor teams",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "nrg-managed-budget",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "nrg-steering-committee-reporting",
@@ -49,7 +57,11 @@
       "classification": "Verified",
       "source_quote": "Ran steering committee reporting for the CIO",
       "needs_grill": true,
-      "grill_hint": "No outcome or metric given for the steering committee reporting - ask what impact or decisions it drove."
+      "grill_hint": "No outcome or metric given for the steering committee reporting - ask what impact or decisions it drove.",
+      "semantic_key": "nrg-steering-committee-reporting",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "bsh-coordinated-squad-releases",
@@ -59,7 +71,11 @@
       "classification": "Verified",
       "source_quote": "Coordinated releases for 4 agile squads (approx. 30 engineers)",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "bsh-coordinated-squad-releases",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "bsh-raid-logging-escalations",
@@ -69,7 +85,11 @@
       "classification": "Verified",
       "source_quote": "Introduced RAID logging, cutting escalations by a third",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "bsh-raid-logging-escalations",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "edu-msc-mis-warsaw",
@@ -79,7 +99,11 @@
       "classification": "Verified",
       "source_quote": "MSc Management Information Systems - University of Warsaw, 2017",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "edu-msc-mis-warsaw",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "profile-skills-list",
@@ -89,7 +113,11 @@
       "classification": "Partially-Supported",
       "source_quote": "Jira, MS Project, Confluence, SQL basics, Power BI",
       "needs_grill": true,
-      "grill_hint": "Skills list is self-reported with no tied project evidence - ask for concrete examples of use."
+      "grill_hint": "Skills list is self-reported with no tied project evidence - ask for concrete examples of use.",
+      "semantic_key": "profile-skills-list",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "profile-prince2-cert",
@@ -99,7 +127,11 @@
       "classification": "Verified",
       "source_quote": "PRINCE2 Practitioner (2019)",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "profile-prince2-cert",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "profile-psm1-cert",
@@ -109,7 +141,11 @@
       "classification": "Verified",
       "source_quote": "PSM I (2020)",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "profile-psm1-cert",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "profile-language-polish",
@@ -119,7 +155,11 @@
       "classification": "Verified",
       "source_quote": "Polish (native)",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "profile-language-polish",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "profile-language-english",
@@ -129,7 +169,11 @@
       "classification": "Verified",
       "source_quote": "English (C1)",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "profile-language-english",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     },
     {
       "id": "profile-language-german",
@@ -139,7 +183,11 @@
       "classification": "Verified",
       "source_quote": "German (B1)",
       "needs_grill": false,
-      "grill_hint": null
+      "grill_hint": null,
+      "semantic_key": "profile-language-german",
+      "field_key": null,
+      "field_value": null,
+      "field_label": null
     }
   ],
   "parser_flags": [

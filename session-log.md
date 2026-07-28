@@ -2,6 +2,28 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 50) — provenance-aware CV import proof
+
+- Implemented [#56 CV import proof with provenance, corrections, and
+  recovery](https://github.com/adrien-mounier/jobcrush-app/issues/56) across the
+  existing anonymous source-entry flow—no parallel CV onboarding path.
+- Versioned CandidateClaims to v1 with oracle/Zod/JSON Schema parity, stable
+  semantic and field identities, human-readable field labels, and exhaustive
+  golden mutations. Equivalent source facts now merge once; inferred claims
+  earn no proof or matching credit.
+- Added durable import proof and atomic correction persistence across in-memory
+  and Postgres stores. Initial conflicts remain field-local, resolutions survive
+  changed-ID/text re-imports, readable facts survive parser warnings, and
+  failed/no-useful-facts states preserve retry and question-first recovery.
+- Extended the first-run UI with truthful facts/counts, exact `From your CV`
+  provenance, accessible correction/error states, 360px-safe layouts, and
+  terminal-state restoration without repeated focus or announcements.
+- Two-axis review ended GO with no findings. Independent QA GO: API 358 passed
+  + 5 skipped, contracts 19/19, typecheck green, forced uncached build green,
+  front-door Playwright 16/16, and human-paced mobile evidence 7/7.
+- **Next:** close #56 and continue the onboarding frontier with [#57 explicit
+  target role and search area](https://github.com/adrien-mounier/jobcrush-app/issues/57).
+
 ## 2026-07-28 (session 49) — full JobCard match breakdown
 
 - Implemented [#52 Deck card: full essential/desirable match

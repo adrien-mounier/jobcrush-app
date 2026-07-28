@@ -95,6 +95,39 @@ describe("JC-10 anonymous sessions", () => {
     });
   });
 
+  it("persists an import correction without changing unrelated facts", async () => {
+    const { app, sessions } = buildServer();
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = cookieOf(created);
+    const session = await sessions.getById(created.json().id);
+    await sessions.setImportProof(session!.id, {
+      outcome: "success",
+      usefulFactCount: 2,
+      skippedQuestionCount: 2,
+      representativeFacts: [
+        { id: "role-acme", text: "Led Acme delivery", provenance: "cv" },
+        { id: "skill-sql", text: "Used SQL", provenance: "cv" },
+      ],
+      conflict: null,
+    });
+
+    const corrected = await app.inject({
+      method: "PUT",
+      url: "/sessions/me/import-resolution",
+      headers: { cookie },
+      payload: { fieldId: "role-acme", value: "Led global Acme delivery" },
+    });
+
+    expect(corrected.statusCode).toBe(200);
+    expect(corrected.json().importProof.representativeFacts).toEqual([
+      { id: "role-acme", text: "Led global Acme delivery", provenance: "cv" },
+      { id: "skill-sql", text: "Used SQL", provenance: "cv" },
+    ]);
+    expect((await sessions.getById(session!.id))?.importResolutions).toEqual({
+      "role-acme": "Led global Acme delivery",
+    });
+  });
+
   it("requires a session before storing a source-entry checkpoint", async () => {
     const res = await appWithoutSession().inject({
       method: "PUT",

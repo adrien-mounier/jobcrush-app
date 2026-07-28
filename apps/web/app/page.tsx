@@ -4,9 +4,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./frontdoor.css";
 import {
   ensureSession,
-  getSourceEntry,
+  getSessionCheckpoint,
+  saveImportResolution,
   saveSourceEntry,
+  setStage,
   uploadCv,
+  type ImportProof,
   type JobSnapshot,
   type SourceEntry,
 } from "../lib/api";
@@ -20,8 +23,8 @@ const MAX_BYTES = 10 * 1024 * 1024;
 type Choice = "cv" | "questions";
 type CvState =
   | { phase: "idle" }
-  | { phase: "reading"; feed: string[] }
-  | { phase: "success" }
+  | { phase: "reading"; slow: boolean }
+  | { phase: "proof"; proof: ImportProof; restored?: boolean }
   | { phase: "error"; message: string };
 
 function typeInto(
@@ -48,6 +51,9 @@ export default function FrontDoor() {
   const sourceHeadingRef = useRef<HTMLHeadingElement>(null);
   const readyErrorRef = useRef<HTMLDivElement>(null);
   const choiceErrorRef = useRef<HTMLDivElement>(null);
+  const importHeadingRef = useRef<HTMLHeadingElement>(null);
+  const conflictInputRef = useRef<HTMLInputElement>(null);
+  const importErrorRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const openedFromInvitation = useRef(false);
@@ -65,6 +71,10 @@ export default function FrontDoor() {
   const [pendingChoice, setPendingChoice] = useState<Choice | null>(null);
   const [choiceError, setChoiceError] = useState<Choice | null>(null);
   const [cv, setCv] = useState<CvState>({ phase: "idle" });
+  const [conflictValue, setConflictValue] = useState("");
+  const [conflictError, setConflictError] = useState(false);
+  const [importAction, setImportAction] = useState<"saving" | "continuing" | null>(null);
+  const [importError, setImportError] = useState<"saving" | "continuing" | null>(null);
 
   const restore = async () => {
     setLoading(true);
@@ -73,13 +83,19 @@ export default function FrontDoor() {
     const slowTimer = setTimeout(() => setLoadSlow(true), 10_000);
     timers.current.push(slowTimer);
     try {
-      const entry = await getSourceEntry();
+      const session = await getSessionCheckpoint();
       clearTimeout(slowTimer);
-      if (entry) {
+      if (session?.sourceEntry || session?.importProof) {
         setView("source");
-        const choice = entry.checkpoint === "source_selected" ? entry.choice : null;
+        const choice = session.sourceEntry?.checkpoint === "source_selected"
+          ? session.sourceEntry.choice
+          : null;
         setConfirmedChoice(choice);
         setVisibleChoice(choice);
+        if (session.importProof) {
+          setConflictValue(session.importProof.conflict?.userResolvedValue ?? "");
+          setCv({ phase: "proof", proof: session.importProof, restored: true });
+        }
       } else {
         setView("invitation");
       }
@@ -170,12 +186,18 @@ export default function FrontDoor() {
       const snapshot = JSON.parse(event.data) as JobSnapshot;
       if (snapshot.status === "completed") {
         source.close();
-        setCv({ phase: "success" });
+        const proof = snapshot.progress.importProof;
+        setConflictValue(proof?.conflict?.userResolvedValue ?? "");
+        setCv(
+          proof
+            ? { phase: "proof", proof }
+            : { phase: "error", message: "We couldn’t read your CV." },
+        );
       } else if (snapshot.status === "failed") {
         source.close();
-        setCv({ phase: "error", message: "Something went wrong reading that CV." });
+        setCv({ phase: "error", message: "We couldn’t read your CV." });
       } else {
-        setCv({ phase: "reading", feed: snapshot.progress.feed ?? [] });
+        setCv((current) => ({ phase: "reading", slow: current.phase === "reading" && current.slow }));
       }
     };
   };
@@ -191,7 +213,11 @@ export default function FrontDoor() {
       setCv({ phase: "error", message: "That file is over 10 MB." });
       return;
     }
-    setCv({ phase: "reading", feed: [] });
+    setCv({ phase: "reading", slow: false });
+    const slowTimer = setTimeout(() => {
+      setCv((current) => current.phase === "reading" ? { phase: "reading", slow: true } : current);
+    }, 10_000);
+    timers.current.push(slowTimer);
     try {
       const { jobId } = await uploadCv(file);
       openJobStream(jobId);
@@ -199,6 +225,51 @@ export default function FrontDoor() {
       setCv({ phase: "error", message: "Couldn’t upload that — check your connection." });
     }
   };
+
+  useEffect(() => {
+    if (cv.phase !== "proof" && cv.phase !== "error") return;
+    if (cv.phase === "proof" && cv.restored) return;
+    importHeadingRef.current?.focus();
+  }, [cv]);
+
+  const continueToQuestions = async () => {
+    if (importAction) return;
+    setImportError(null);
+    setImportAction("continuing");
+    try {
+      await setStage("discovery");
+      window.location.assign("/discovery");
+    } catch {
+      setImportAction(null);
+      setImportError("continuing");
+      requestAnimationFrame(() => importErrorRef.current?.focus());
+    }
+  };
+
+  const saveConflict = async (proof: ImportProof) => {
+    if (!proof.conflict || importAction) return;
+    const value = conflictValue.trim();
+    if (!value) {
+      setConflictError(true);
+      conflictInputRef.current?.focus();
+      return;
+    }
+    setConflictError(false);
+    setImportError(null);
+    setImportAction("saving");
+    try {
+      const result = await saveImportResolution(proof.conflict.fieldId, value);
+      setCv({ phase: "proof", proof: result.importProof });
+      await setStage("discovery");
+      window.location.assign("/discovery");
+    } catch {
+      setImportAction(null);
+      setImportError("saving");
+      requestAnimationFrame(() => importErrorRef.current?.focus());
+    }
+  };
+
+  const retryCv = () => fileInputRef.current?.click();
 
   const choose = async (choice: Choice) => {
     if (pendingChoice) return;
@@ -275,11 +346,13 @@ export default function FrontDoor() {
       ) : (
         <section className="source-screen">
           <p className="wordmark">JobCrush</p>
-          <h1 id="source-heading" tabIndex={-1} ref={sourceHeadingRef}>
-            Can something you already have help?
-          </h1>
-          <p className="source-intro">A CV can skip questions you’ve already answered.</p>
-          <div className="source-actions" role="group" aria-labelledby="source-heading" data-testid="source-actions">
+          {cv.phase === "idle" ? (
+            <>
+              <h1 id="source-heading" tabIndex={-1} ref={sourceHeadingRef}>
+                Can something you already have help?
+              </h1>
+              <p className="source-intro">A CV can skip questions you’ve already answered.</p>
+              <div className="source-actions" role="group" aria-labelledby="source-heading" data-testid="source-actions">
             <SourceButton source="cv" title="Use my CV" subtitle="Upload PDF, Word, or text" selected={visibleChoice === "cv"} disabled={pendingChoice !== null} onClick={() => void choose("cv")} />
             <button type="button" className="source-action" data-source="linkedin" disabled aria-label="Use LinkedIn — Coming soon">
               <span className="source-tile">in</span>
@@ -287,11 +360,11 @@ export default function FrontDoor() {
               <span className="trailing">Coming soon</span>
             </button>
             <SourceButton source="questions" title="Start questions instead" subtitle="Begin without a document" selected={visibleChoice === "questions"} disabled={pendingChoice !== null} onClick={() => void choose("questions")} />
-          </div>
-          <p className="temporary">
-            No account needed. Your answers are temporary and expire after 7 days.
-          </p>
-          <div className="checkpoint" data-testid="source-checkpoint-status">
+              </div>
+              <p className="temporary">
+                No account needed. Your answers are temporary and expire after 7 days.
+              </p>
+              <div className="checkpoint" data-testid="source-checkpoint-status">
             {pendingChoice && <p role="status" aria-live="polite">Saving your choice…</p>}
             {choiceError && (
               <div role="alert" tabIndex={-1} ref={choiceErrorRef}>
@@ -299,10 +372,27 @@ export default function FrontDoor() {
                 <button type="button" onClick={() => void choose(choiceError)}>Try again</button>
               </div>
             )}
-            {cv.phase === "reading" && <p role="status">Reading your CV…</p>}
-            {cv.phase === "success" && <p role="status">CV read.</p>}
-            {cv.phase === "error" && <p role="alert">{cv.message}</p>}
-          </div>
+              </div>
+            </>
+          ) : (
+            <ImportPanel
+              cv={cv}
+              headingRef={importHeadingRef}
+              conflictInputRef={conflictInputRef}
+              importErrorRef={importErrorRef}
+              conflictValue={conflictValue}
+              conflictError={conflictError}
+              action={importAction}
+              importError={importError}
+              onConflictValue={(value) => {
+                setConflictValue(value);
+                setConflictError(false);
+              }}
+              onSave={(proof) => void saveConflict(proof)}
+              onContinue={() => void continueToQuestions()}
+              onRetry={retryCv}
+            />
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -317,6 +407,151 @@ export default function FrontDoor() {
         </section>
       )}
     </main>
+  );
+}
+
+function ImportPanel({
+  cv,
+  headingRef,
+  conflictInputRef,
+  importErrorRef,
+  conflictValue,
+  conflictError,
+  action,
+  importError,
+  onConflictValue,
+  onSave,
+  onContinue,
+  onRetry,
+}: {
+  cv: Exclude<CvState, { phase: "idle" }>;
+  headingRef: React.RefObject<HTMLHeadingElement | null>;
+  conflictInputRef: React.RefObject<HTMLInputElement | null>;
+  importErrorRef: React.RefObject<HTMLDivElement | null>;
+  conflictValue: string;
+  conflictError: boolean;
+  action: "saving" | "continuing" | null;
+  importError: "saving" | "continuing" | null;
+  onConflictValue: (value: string) => void;
+  onSave: (proof: ImportProof) => void;
+  onContinue: () => void;
+  onRetry: () => void;
+}) {
+  if (cv.phase === "reading") {
+    return (
+      <div className="import-status" role="status" aria-live="polite" aria-busy="true">
+        <h1>Reading your CV…</h1>
+        <p>{cv.slow ? "This is taking longer than usual. Your CV progress is safe." : "Finding useful facts so you don’t repeat yourself."}</p>
+      </div>
+    );
+  }
+
+  const proof = cv.phase === "proof" ? cv.proof : null;
+  const failed = cv.phase === "error" || proof?.outcome === "failed";
+  const noUsefulFacts = proof?.outcome === "no_useful_facts";
+  const partial = proof?.outcome === "partial";
+  const conflict = proof
+    && proof.outcome !== "failed"
+    && proof.outcome !== "no_useful_facts"
+    ? proof.conflict
+    : null;
+  const heading = failed
+    ? "We couldn’t read your CV"
+    : noUsefulFacts
+      ? "We couldn’t find useful facts"
+    : partial
+      ? "We read part of your CV"
+      : proof && proof.skippedQuestionCount === 0
+        ? "Your CV gave us useful facts"
+        : "Your CV saved you some questions";
+  const body = cv.phase === "error"
+    ? cv.message
+    : failed
+    ? "Your session is still here. Try your CV again, or continue without it."
+    : noUsefulFacts
+      ? "Try another CV, or continue with questions."
+    : partial
+      ? "The facts below are saved. We’ll ask only for missing information that matters."
+      : proof && proof.skippedQuestionCount === 0
+        ? "We’ll use them in the next step."
+        : "We found information we can use in the next step.";
+
+  return (
+    <>
+      <div className="import-status">
+        <h1 tabIndex={-1} ref={headingRef}>{heading}</h1>
+        <p role={failed && !(cv.phase === "proof" && cv.restored) ? "alert" : undefined}>{body}</p>
+      </div>
+      {proof && proof.outcome !== "failed" && proof.outcome !== "no_useful_facts" && (
+        <div className="import-proof">
+          <dl className="proof-metrics">
+            <div><dd>{proof.usefulFactCount}</dd><dt>{proof.usefulFactCount === 1 ? "useful fact found" : "useful facts found"}</dt></div>
+            <div><dd>{proof.skippedQuestionCount}</dd><dt>{proof.skippedQuestionCount === 1 ? "question skipped" : "questions skipped"}</dt></div>
+          </dl>
+          <ul className="proof-facts">
+            {proof.representativeFacts.map((fact) => (
+              <li key={fact.id}><span>From your CV</span>{fact.text}</li>
+            ))}
+          </ul>
+          {conflict && (
+            <div className="conflict">
+              <label htmlFor="import-conflict">{conflict.label}</label>
+              <input
+                id="import-conflict"
+                ref={conflictInputRef}
+                value={conflictValue}
+                onChange={(event) => onConflictValue(event.target.value)}
+                aria-describedby="conflict-helper"
+                aria-invalid={conflictError}
+              />
+              <p id="conflict-helper">Your answer will be used if you import this CV again.</p>
+              {conflictError && <p role="alert">Enter your answer, or choose Answer later.</p>}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="import-actions">
+        {failed || noUsefulFacts ? (
+          <>
+            <button type="button" className="primary" onClick={onRetry}>
+              {noUsefulFacts ? "Try another CV" : "Try again"}
+            </button>
+            <button type="button" onClick={onContinue} disabled={action === "continuing"}>
+              {action === "continuing" ? "Continuing…" : "Continue with questions"}
+            </button>
+          </>
+        ) : conflict ? (
+          <>
+            <button type="button" className="primary" onClick={() => onSave(proof!)} disabled={action === "saving"}>
+              {action === "saving" ? "Saving…" : "Save and continue"}
+            </button>
+            <button type="button" onClick={onContinue} disabled={action === "continuing"}>
+              {action === "continuing" ? "Continuing…" : "Answer later"}
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="primary" onClick={onContinue} disabled={action === "continuing"}>
+              {action === "continuing" ? "Continuing…" : "Ask me what’s missing"}
+            </button>
+            {partial && <button type="button" onClick={onRetry}>Try the CV again</button>}
+          </>
+        )}
+      </div>
+      {importError && (
+        <div className="async-error" role="alert" tabIndex={-1} ref={importErrorRef}>
+          {importError === "saving"
+            ? "We couldn’t save your answer."
+            : "We couldn’t continue right now."}{" "}
+          <button
+            type="button"
+            onClick={importError === "saving" && proof ? () => onSave(proof) : onContinue}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 

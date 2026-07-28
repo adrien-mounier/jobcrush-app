@@ -31,6 +31,8 @@ for (const [name, make] of sessionDrivers) {
       expect(s.tailorAdId).toBeNull();
       expect(s.tailorFloorPct).toBe(0);
       expect(s.sourceEntry).toBeNull();
+      expect(s.importProof).toBeNull();
+      expect(s.importResolutions).toEqual({});
       expect(await store.getByToken(s.token)).toMatchObject({
         id: s.id,
         token: s.token,
@@ -41,6 +43,101 @@ for (const [name, make] of sessionDrivers) {
       });
       expect(await store.getById(s.id)).toMatchObject({ id: s.id });
       expect(await store.getByToken("nope")).toBeNull();
+    });
+
+    it("persists import proof and user resolutions", async () => {
+      const s = await store.create();
+      const proof = {
+        outcome: "success" as const,
+        usefulFactCount: 2,
+        skippedQuestionCount: 2,
+        representativeFacts: [
+          { id: "role-acme", text: "Led Acme delivery", provenance: "cv" as const },
+        ],
+        conflict: null,
+      };
+      await store.setImportProof(s.id, proof);
+      await store.setImportResolution(s.id, "role-acme", "Led global Acme delivery");
+
+      expect(await store.getById(s.id)).toMatchObject({
+        importProof: proof,
+        importResolutions: { "role-acme": "Led global Acme delivery" },
+      });
+    });
+
+    it("persists and restores no_useful_facts terminal proof", async () => {
+      const s = await store.create();
+      const proof = {
+        outcome: "no_useful_facts" as const,
+        usefulFactCount: 0,
+        skippedQuestionCount: 0,
+        representativeFacts: [],
+        conflict: null,
+      };
+      await store.setImportProof(s.id, proof);
+      expect((await store.getById(s.id))?.importProof).toEqual(proof);
+    });
+
+    it("does not lose concurrent import resolutions", async () => {
+      const s = await store.create();
+      await Promise.all([
+        store.setImportResolution(s.id, "role-title", "Project Manager"),
+        store.setImportResolution(s.id, "search-area", "Bangkok"),
+      ]);
+      expect((await store.getById(s.id))?.importResolutions).toEqual({
+        "role-title": "Project Manager",
+        "search-area": "Bangkok",
+      });
+    });
+
+    it("persists a resolution and replacement proof as one store operation", async () => {
+      const s = await store.create();
+      const proof = {
+        outcome: "success" as const,
+        usefulFactCount: 1,
+        skippedQuestionCount: 1,
+        representativeFacts: [
+          { id: "role-title", text: "Programme Manager", provenance: "cv" as const },
+        ],
+        conflict: null,
+      };
+      await store.setImportProof(s.id, proof);
+      await store.resolveImport(s.id, "role-title", "Programme Manager");
+      expect(await store.getById(s.id)).toMatchObject({
+        importProof: proof,
+        importResolutions: { "role-title": "Programme Manager" },
+      });
+    });
+
+    it("merges concurrent proof overlays from current locked state", async () => {
+      const s = await store.create();
+      await store.setImportProof(s.id, {
+        outcome: "success",
+        usefulFactCount: 2,
+        skippedQuestionCount: 0,
+        representativeFacts: [
+          { id: "role-title", text: "PM", provenance: "cv" },
+          { id: "search-area", text: "London", provenance: "cv" },
+        ],
+        conflict: null,
+      });
+      await Promise.all([
+        store.resolveImport(s.id, "role-title", "Programme Manager"),
+        store.resolveImport(s.id, "search-area", "Bangkok"),
+      ]);
+      expect((await store.getById(s.id))?.importProof?.representativeFacts).toEqual([
+        { id: "role-title", text: "Programme Manager", provenance: "cv" },
+        { id: "search-area", text: "Bangkok", provenance: "cv" },
+      ]);
+    });
+
+    it("rolls back a resolution when no current proof can be replaced", async () => {
+      const s = await store.create();
+      await expect(store.resolveImport(s.id, "role-title", "Programme Manager")).rejects.toThrow(
+        /proof not ready/,
+      );
+      expect((await store.getById(s.id))?.importResolutions).toEqual({});
+      expect((await store.getById(s.id))?.importProof).toBeNull();
     });
 
     it("setSourceEntry persists last-write-wins", async () => {

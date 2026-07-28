@@ -1,5 +1,19 @@
 # Lessons — jobcrush-app
 
+## Cross-import corrections require stable semantic identity before UI work
+
+Generated claim IDs and normalized display text are not durable identities.
+They cannot safely merge semantic equivalents, distinguish a field-local
+conflict, or preserve a correction when the same CV is mined again with
+different wording. The honest seam is a versioned evidence contract: a stable
+semantic key for coverage, paired field key/value/label for single-valued
+conflicts, and user resolutions keyed to that identity.
+
+The same truthfulness rule applies to reward metrics. Before a validated family
+question floor exists, do not turn “useful facts found” into a fabricated
+“questions skipped” count. Return zero and use facts-only copy until the real
+question-coverage seam lands.
+
 ## Typed Fastify response schemas must include every status branch
 
 A Fastify route can pass its HTTP integration tests and still fail the repository

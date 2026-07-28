@@ -16,9 +16,18 @@ export const MinedRole = z.object({
 
 export const CandidateClaim = z
   .object({
-    id: z
+      id: z
       .string()
-      .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "claim id must be a kebab-case slug"),
+        .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "claim id must be a kebab-case slug"),
+      semantic_key: z
+        .string()
+        .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "semantic_key must be a kebab-case slug"),
+      field_key: z
+        .string()
+        .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "field_key must be a kebab-case slug")
+        .nullable(),
+      field_value: z.string().trim().min(1).nullable(),
+      field_label: z.string().trim().min(1).nullable(),
     role: z.string().min(1), // employer+title as written, or "profile"
     text: z.string().min(1),
     machine_touch: z.enum(MACHINE_TOUCH),
@@ -41,10 +50,17 @@ export const CandidateClaim = z
         message: `claim ${claim.id}: needs_grill without a grill_hint`,
       });
     }
+    const fieldParts = [claim.field_key, claim.field_value, claim.field_label];
+    if (!fieldParts.every((value) => value === null) && !fieldParts.every((value) => value !== null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `claim ${claim.id}: field_key, field_value, and field_label must all be null or non-empty`,
+      });
+    }
   });
 
 export const CandidateClaims = z.object({
-  schemaVersion: z.literal("0"),
+  schemaVersion: z.literal("1"),
   roles: z.array(MinedRole),
   claims: z.array(CandidateClaim).min(1),
   parser_flags: z.array(z.string()),

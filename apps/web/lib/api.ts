@@ -82,8 +82,32 @@ export interface JobSnapshot {
   progress: {
     feed?: string[];
     preview?: { postingTitle: string; postingCompany: string };
+    importProof?: ImportProof;
     [k: string]: unknown;
   };
+}
+
+export interface ImportProof {
+  outcome: "success" | "partial" | "failed" | "no_useful_facts";
+  usefulFactCount: number;
+  skippedQuestionCount: number;
+  representativeFacts: Array<{
+    id: string;
+    text: string;
+    provenance: "cv";
+  }>;
+  conflict: null | {
+    fieldId: string;
+    label: string;
+    userResolvedValue: string | null;
+  };
+}
+
+export function saveImportResolution(fieldId: string, value: string) {
+  return jfetch<{ importProof: ImportProof }>("/api/sessions/me/import-resolution", {
+    method: "PUT",
+    body: JSON.stringify({ fieldId, value }),
+  });
 }
 
 // --- S2 onboarding deck (JC-21/22/27/31) ---
@@ -366,11 +390,20 @@ export type SourceEntry =
   | { checkpoint: "invited"; choice: null }
   | { checkpoint: "source_selected"; choice: "cv" | "questions" };
 
-export async function getSourceEntry(): Promise<SourceEntry> {
+export interface SessionCheckpoint {
+  sourceEntry: SourceEntry;
+  importProof?: ImportProof;
+}
+
+export async function getSessionCheckpoint(): Promise<SessionCheckpoint | null> {
   const response = await fetch("/api/sessions/me");
   if (response.status === 401) return null;
   if (!response.ok) throw new Error("restore failed");
-  return ((await response.json()) as { sourceEntry: SourceEntry }).sourceEntry;
+  const session = (await response.json()) as SessionCheckpoint;
+  return {
+    sourceEntry: session.sourceEntry,
+    ...(session.importProof ? { importProof: session.importProof } : {}),
+  };
 }
 
 export function saveSourceEntry(sourceEntry: Exclude<SourceEntry, null>) {

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CandidateClaims v1",
+  "type": "object",
+  "required": ["schemaVersion", "roles", "claims", "parser_flags"],
+  "properties": {
+    "schemaVersion": { "const": "1" },
+    "roles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["employer", "title", "dates_as_written", "dates_missing"],
+        "properties": {
+          "employer": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "dates_as_written": { "type": "string" },
+          "dates_missing": { "type": "boolean" }
+        }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "semantic_key",
+          "field_key",
+          "field_value",
+          "field_label",
+          "role",
+          "text",
+          "machine_touch",
+          "classification",
+          "source_quote",
+          "needs_grill",
+          "grill_hint"
+        ],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+          "semantic_key": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+          "field_key": {
+            "anyOf": [
+              { "type": "null" },
+              { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+            ]
+          },
+          "field_value": {
+            "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1, "pattern": "\\S" }]
+          },
+          "field_label": {
+            "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1, "pattern": "\\S" }]
+          },
+          "role": { "type": "string", "minLength": 1 },
+          "text": { "type": "string", "minLength": 1 },
+          "machine_touch": { "enum": ["verbatim", "reworded", "inferred"] },
+          "classification": { "enum": ["Verified", "Derived", "Partially-Supported"] },
+          "source_quote": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "needs_grill": { "type": "boolean" },
+          "grill_hint": { "anyOf": [{ "type": "null" }, { "type": "string" }] }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "field_key": { "type": "null" } } },
+            "then": {
+              "properties": {
+                "field_value": { "type": "null" },
+                "field_label": { "type": "null" }
+              }
+            },
+            "else": {
+              "properties": {
+                "field_key": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+                "field_value": { "type": "string", "minLength": 1, "pattern": "\\S" },
+                "field_label": { "type": "string", "minLength": 1, "pattern": "\\S" }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "machine_touch": { "const": "inferred" } } },
+            "then": { "properties": { "needs_grill": { "const": true } } }
+          },
+          {
+            "if": { "properties": { "needs_grill": { "const": true } } },
+            "then": {
+              "properties": { "grill_hint": { "type": "string", "minLength": 1 } }
+            }
+          }
+        ]
+      }
+    },
+    "parser_flags": { "type": "array", "items": { "type": "string" } }
+  }
+}

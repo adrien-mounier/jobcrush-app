@@ -16,6 +16,18 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
 
+**2026-07-28 CV-import update:** [#56 CV import proof with provenance,
+corrections, and recovery](https://github.com/adrien-mounier/jobcrush-app/issues/56)
+is implemented and release-gated. CandidateClaims v1 now carries stable semantic
+and field identity, so equivalent CV evidence scores once, field-local conflicts
+stay isolated, and user resolutions survive re-imports. The first-run source
+screen shows durable useful-fact proof, honest partial/failure/no-useful-facts
+recovery, and restores terminal states after reload. Until #58/#59 provide a
+real family-question coverage seam, the questions-skipped count remains
+truthfully zero. Closing #56 leaves [#57 Collect explicit target role and search
+area](https://github.com/adrien-mounier/jobcrush-app/issues/57) as the next
+onboarding slice.
+
 **2026-07-28 deck follow-up:** [#52 Full essential/desirable match
 breakdown](https://github.com/adrien-mounier/jobcrush-app/issues/52) is implemented
 and release-gated. The versioned `JobCardV1` contract now carries

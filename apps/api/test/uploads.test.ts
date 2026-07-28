@@ -40,6 +40,144 @@ async function uploadFlow(
 }
 
 describe("JC-11 CV upload", () => {
+  it("persists a failed import proof on the session for reload", async () => {
+    const server = buildServer({
+      pipeline: { mine: async () => { throw new Error("miner unavailable"); } },
+    });
+    const cookie = await startSession(server.app);
+    const { complete } = await uploadFlow(server, cookie, TXT_BYTES, "cv.txt");
+    const jobId = complete.json().jobId;
+    let job = await server.app.inject({
+      method: "GET",
+      url: `/jobs/${jobId}`,
+      headers: { cookie },
+    });
+    while (job.json().status === "running") {
+      job = await server.app.inject({
+        method: "GET",
+        url: `/jobs/${jobId}`,
+        headers: { cookie },
+      });
+    }
+    const session = await server.app.inject({
+      method: "GET",
+      url: "/sessions/me",
+      headers: { cookie },
+    });
+    expect(session.json().importProof).toEqual({
+      outcome: "failed",
+      usefulFactCount: 0,
+      skippedQuestionCount: 0,
+      representativeFacts: [],
+      conflict: null,
+    });
+  });
+
+  it("keeps a stable correction through a real re-import and job GET snapshot", async () => {
+    let importNo = 0;
+    const server = buildServer({
+      pipeline: {
+        mine: async () => {
+          importNo += 1;
+          return {
+            claims: [
+              {
+                id: importNo === 1 ? "acme-pm" : "changed-title-id",
+                semantic_key: importNo === 1 ? "role-acme-pm" : "role-acme-project-lead",
+                field_key: "role-acme-title",
+                field_value: importNo === 1 ? "Project Manager" : "Project Lead",
+                field_label: "Role at Acme",
+                role: "Acme",
+                text: importNo === 1 ? "Project Manager at Acme" : "Project Lead, Acme",
+                machine_touch: "verbatim",
+                classification: "Verified",
+                source_quote: importNo === 1 ? "Project Manager" : "Project Lead",
+                needs_grill: false,
+                grill_hint: null,
+              },
+              {
+                id: importNo === 1 ? "sql-one" : "sql-new-id",
+                semantic_key: "skill-sql",
+                field_key: null,
+                field_value: null,
+                field_label: null,
+                role: "profile",
+                text: importNo === 1 ? "Used SQL" : "SQL experience",
+                machine_touch: "verbatim",
+                classification: "Verified",
+                source_quote: "SQL",
+                needs_grill: false,
+                grill_hint: null,
+              },
+            ],
+            needsGrill: 0,
+            roles: 1,
+            doc: { parser_flags: [] },
+          };
+        },
+      },
+    });
+    const cookie = await startSession(server.app);
+    const first = await uploadFlow(server, cookie, TXT_BYTES, "cv.txt");
+    const firstJobId = first.complete.json().jobId;
+    let firstJob = await server.app.inject({
+      method: "GET",
+      url: `/jobs/${firstJobId}`,
+      headers: { cookie },
+    });
+    while (firstJob.json().status === "running") {
+      firstJob = await server.app.inject({
+        method: "GET",
+        url: `/jobs/${firstJobId}`,
+        headers: { cookie },
+      });
+    }
+    expect(firstJob.json().progress.importProof.representativeFacts).toContainEqual({
+      id: "role-acme-title",
+      text: "Project Manager at Acme",
+      provenance: "cv",
+    });
+
+    const corrected = await server.app.inject({
+      method: "PUT",
+      url: "/sessions/me/import-resolution",
+      headers: { cookie },
+      payload: { fieldId: "role-acme-title", value: "Programme Manager" },
+    });
+    expect(corrected.statusCode).toBe(200);
+
+    const second = await uploadFlow(server, cookie, TXT_BYTES, "updated.txt");
+    const secondJobId = second.complete.json().jobId;
+    let secondJob = await server.app.inject({
+      method: "GET",
+      url: `/jobs/${secondJobId}`,
+      headers: { cookie },
+    });
+    while (secondJob.json().status === "running") {
+      secondJob = await server.app.inject({
+        method: "GET",
+        url: `/jobs/${secondJobId}`,
+        headers: { cookie },
+      });
+    }
+    expect(secondJob.json().progress.importProof).toMatchObject({
+      conflict: null,
+      representativeFacts: expect.arrayContaining([
+        { id: "role-acme-title", text: "Programme Manager", provenance: "cv" },
+        { id: "skill-sql", text: "SQL experience", provenance: "cv" },
+      ]),
+    });
+    expect(
+      (
+        await server.app.inject({
+          method: "GET",
+          url: "/sessions/me",
+          headers: { cookie },
+        })
+      ).statusCode,
+    ).toBe(200);
+  });
+
   it("requires a session", async () => {
     const { app } = buildServer();
     const res = await app.inject({ method: "POST", url: "/uploads", payload: { filename: "cv.pdf" } });

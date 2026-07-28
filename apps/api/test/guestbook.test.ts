@@ -4,6 +4,20 @@ import { runOnboardingJob, type VisitRecord } from "../src/pipeline.js";
 import { createGuestbook, renderGuestbookHtml } from "../src/guestbook.js";
 
 const paste = (text: string) => ({ type: "paste" as const, text });
+const minedClaim = (id: string) => ({
+  id,
+  semantic_key: id,
+  field_key: null,
+  field_value: null,
+  field_label: null,
+  role: "PM - Acme",
+  text: `Fact ${id}`,
+  machine_touch: "verbatim" as const,
+  classification: "Verified" as const,
+  source_quote: `Fact ${id}`,
+  needs_grill: false,
+  grill_hint: null,
+});
 
 describe("guestbook hook", () => {
   it("records a finished visit with mined counts, posting, and the step feed", async () => {
@@ -16,7 +30,11 @@ describe("guestbook hook", () => {
       paste("Jane Doe\nProject Manager 2020-2024\n- delivered a platform migration"),
       ["IT Project Manager"],
       {
-        mine: async () => ({ claims: [{}, {}, {}], needsGrill: 1, roles: 2 }),
+        mine: async () => ({
+          claims: [minedClaim("fact-a"), minedClaim("fact-b"), minedClaim("fact-c")],
+          needsGrill: 1,
+          roles: 2,
+        }),
         preview: async () => ({ html: "<p>x</p>", postingTitle: "PM", postingCompany: "Acme" }),
         recordVisit: async (v) => void visits.push(v),
       },
@@ -48,7 +66,7 @@ describe("guestbook hook", () => {
       { type: "upload", data: Buffer.from("Jane Doe\nPM 2020-2024\n- x"), kind: "txt", key: "r2-key-123" },
       [],
       {
-        mine: async () => ({ claims: [{}], needsGrill: 0, roles: 1 }),
+        mine: async () => ({ claims: [minedClaim("fact-a")], needsGrill: 0, roles: 1 }),
         preview: async () => ({ html: "<p>x</p>", postingTitle: "PM", postingCompany: "Acme" }),
         recordVisit: async (v) => void visits.push(v),
       },

@@ -207,7 +207,50 @@ export function buildServer(opts: BuildOptions = {}) {
       job.id,
       { type: "upload", data, kind: row.kind, key: row.id },
       session?.targetTitles ?? [],
-      pipelineDeps,
+      {
+        ...pipelineDeps,
+        persistImport: async (proof, importedClaims) => {
+          const current = await sessions.getById(row.sessionId);
+          const resolutions = current?.importResolutions ?? {};
+          const identity = (claim: (typeof importedClaims)[number]) =>
+            claim.field_key ?? claim.semantic_key;
+          const stableClaims = [
+            ...new Map(
+              importedClaims.map((claim) => [
+                identity(claim),
+                {
+                  ...claim,
+                  id: identity(claim),
+                  text: resolutions[identity(claim)] ?? claim.text,
+                  field_value:
+                    claim.field_key && resolutions[identity(claim)]
+                      ? resolutions[identity(claim)]!
+                      : claim.field_value,
+                },
+              ]),
+            ).values(),
+          ];
+          await claims.seed(row.sessionId, stableClaims);
+          for (const claim of stableClaims) {
+            if (resolutions[identity(claim)] !== undefined) {
+              await claims.add(row.sessionId, claim);
+            }
+          }
+          const resolvedProof = {
+            ...proof,
+            representativeFacts: proof.representativeFacts.map((fact) => ({
+              ...fact,
+              text: resolutions[fact.id] ?? fact.text,
+            })),
+            conflict:
+              proof.conflict && resolutions[proof.conflict.fieldId] === undefined
+                ? proof.conflict
+                : null,
+          };
+          await sessions.setImportProof(row.sessionId, resolvedProof);
+          return resolvedProof;
+        },
+      },
     );
     return { jobId: job.id };
   };

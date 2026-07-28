@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ClaimGraph, Inbox, JobCardV1 } from "../src/index.js";
+import Ajv2020 from "ajv/dist/2020.js";
+import { CandidateClaims, ClaimGraph, Inbox, JobCardV1 } from "../src/index.js";
+// @ts-expect-error — plain .mjs oracle, no types by design
+import { validateCandidateClaims } from "../oracle/validate_candidate_claims.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateGraph } from "../oracle/validate_graph.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
@@ -15,6 +18,92 @@ import { validateJobCardV1 } from "../oracle/validate_job_card_v1.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string) =>
   JSON.parse(readFileSync(join(here, "..", "fixtures", name), "utf8"));
+
+describe("CandidateClaims v1", () => {
+  const schema = JSON.parse(
+    readFileSync(join(here, "..", "oracle", "candidate_claims.schema.json"), "utf8"),
+  );
+  const validateSchema = new Ajv2020({ allErrors: true }).compile(schema);
+  const valid = {
+    schemaVersion: "1",
+    roles: [],
+    claims: [{
+      id: "acme-delivery",
+      semantic_key: "experience-acme-delivery",
+      field_key: null,
+      field_value: null,
+      field_label: null,
+      role: "PM - Acme",
+      text: "Led delivery",
+      machine_touch: "verbatim",
+      classification: "Verified",
+      source_quote: "Led delivery",
+      needs_grill: false,
+      grill_hint: null,
+    }],
+    parser_flags: [],
+  };
+
+  it("keeps oracle and zod aligned on stable identity and paired fields", () => {
+    expect(validateCandidateClaims(valid).ok).toBe(true);
+    expect(CandidateClaims.safeParse(valid).success).toBe(true);
+    expect(validateSchema(valid)).toBe(true);
+    for (const mutate of [
+      (doc: any) => { doc.schemaVersion = "0"; },
+      (doc: any) => { delete doc.claims[0].semantic_key; },
+      (doc: any) => { delete doc.claims[0].id; },
+      (doc: any) => { doc.claims[0].semantic_key = "Bad Key"; },
+      (doc: any) => { doc.claims[0].field_key = "role-title"; },
+      (doc: any) => {
+        doc.claims[0].field_key = null;
+        doc.claims[0].field_value = "PM";
+      },
+      (doc: any) => { doc.claims[0].field_label = "Role title"; },
+      (doc: any) => { doc.claims[0].id = "Bad ID"; },
+      (doc: any) => { doc.claims[0].role = ""; },
+      (doc: any) => { doc.claims[0].text = ""; },
+      (doc: any) => { doc.claims[0].machine_touch = "unknown"; },
+      (doc: any) => { doc.claims[0].classification = "Certified"; },
+      (doc: any) => { doc.claims[0].source_quote = ""; },
+      (doc: any) => { doc.claims[0].source_quote = "x".repeat(201); },
+      (doc: any) => { doc.claims[0].needs_grill = "yes"; },
+      (doc: any) => {
+        doc.claims[0].machine_touch = "inferred";
+        doc.claims[0].needs_grill = false;
+      },
+      (doc: any) => {
+        doc.claims[0].needs_grill = true;
+        doc.claims[0].grill_hint = null;
+      },
+      (doc: any) => { doc.claims = []; },
+      (doc: any) => { doc.parser_flags = [1]; },
+      (doc: any) => {
+        doc.claims[0].field_key = "role-title";
+        doc.claims[0].field_value = " ";
+        doc.claims[0].field_label = "Role title";
+      },
+      (doc: any) => {
+        doc.roles = [{ employer: "", title: "PM", dates_as_written: "", dates_missing: false }];
+      },
+      (doc: any) => {
+        doc.roles = [{ employer: "Acme", title: "", dates_as_written: "", dates_missing: false }];
+      },
+      (doc: any) => {
+        doc.roles = [{ employer: "Acme", title: "PM", dates_as_written: 2020, dates_missing: false }];
+      },
+      (doc: any) => {
+        doc.roles = [{ employer: "Acme", title: "PM", dates_as_written: "", dates_missing: "no" }];
+      },
+    ]) {
+      const doc = structuredClone(valid);
+      mutate(doc);
+      const oracle = validateCandidateClaims(doc).ok;
+      expect(CandidateClaims.safeParse(doc).success).toBe(oracle);
+      expect(validateSchema(doc)).toBe(oracle);
+      expect(oracle).toBe(false);
+    }
+  });
+});
 
 describe("Contract 1 — claim graph", () => {
   it("valid fixture passes both oracle and zod", () => {
