@@ -2,6 +2,16 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 47) — first-run onboarding implementation spec
+
+- Published [Source-assisted first-run onboarding to a credible job
+  reveal](https://github.com/adrien-mounier/jobcrush-app/issues/54) with the
+  `ready-for-agent` label from the completed Wayfinder map and normative design.
+- The PRD carries 73 user stories, existing Fastify HTTP and Playwright browser
+  seams, durable checkpoint/evidence contracts, explicit scope boundaries, and
+  ticket-shaped mitigations for the accepted pilot risks.
+- **Next:** run `/to-tickets` on the spec before implementation.
+
 ## 2026-07-28 (session 46) — decision-complete first-run onboarding design
 
 - Rewrote

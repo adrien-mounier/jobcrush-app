@@ -16,11 +16,12 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
 
-**Latest:** the
+**Latest:** the decision-complete
 [first-run onboarding revision map](https://github.com/adrien-mounier/jobcrush-app/issues/40)
-is decision-complete. Its decisions now form one normative
-[`onboarding-reward-design.md`](docs/onboarding-reward-design.md). The next
-lifecycle step is `/to-spec`; this supersedes the earlier frontier notes below.
+is now captured in the implementation-ready
+[source-assisted first-run onboarding spec](https://github.com/adrien-mounier/jobcrush-app/issues/54).
+The next lifecycle step is `/to-tickets`; this supersedes the earlier frontier
+notes below.
 
 **2026-07-28 update:** [Define cross-flow resilience, accessibility, validation](https://github.com/adrien-mounier/jobcrush-app/issues/46) is resolved. The onboarding revision now has explicit pilot gates for honest background waits, interruption recovery, temporary-data retention, match relevance, family classification and novelty detection, question efficiency, time to value, Important-gap comprehension, and manual evidence review. Formal keyboard-only, screen-reader, and reduced-motion compatibility is deferred beyond this effort. The unblocked frontier is now [Rewrite the onboarding reward design around the resolved flow](https://github.com/adrien-mounier/jobcrush-app/issues/47).
 
