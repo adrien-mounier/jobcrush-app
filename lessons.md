@@ -1,5 +1,22 @@
 # Lessons — jobcrush-app
 
+## Force clean gates when a new source discriminator crosses a generic seam
+
+Turbo's cached typecheck replayed green while production discovery passed a `production_research`
+floor into an engine still typed for `test_fixture`. Runtime tests were green, but a forced clean
+typecheck caught the invalid boundary. When a generic engine starts consuming a second validated
+contract variant, type its input to the smallest structural fields it actually uses and run an
+uncached typecheck; do not widen the source discriminator or cast the mismatch away.
+
+## Held-out placement examples validate a classifier; they are not the classifier
+
+The first live-wiring attempt recognized target roles by exact lookup in the publication's held-out
+evaluation cases. That leaks validation data into runtime policy, recognizes only research strings,
+and silently turns ambiguous examples into the wrong product path. Published evaluation artifacts
+authorize a floor only after a separate server-owned placement service confirms it. If that service
+does not exist in the current slice, fail closed honestly; never manufacture runtime coverage from
+the test corpus.
+
 ## A checked-in evaluation table is not reproducible until raw inputs generate it
 
 Recording target roles, thresholds, scores, and expected/observed outcomes in JSON can still be a self-authored all-pass matrix. For a production activation gate, check in the raw held-out inputs and pinned evaluator configuration, deterministically generate scores/outcomes plus a dataset hash, and make publication regenerate and exact-match that output before computing quality metrics. Validate identity fields such as case IDs as unique; otherwise a later map/join can silently corrupt an otherwise reproducible evaluation.

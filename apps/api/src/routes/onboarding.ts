@@ -53,13 +53,15 @@ import {
   confirmedFixtureFloorReference,
   fixtureDiscoveryClaimId,
 } from "../adaptiveDiscovery.js";
-import type { TestFixtureFamilyFloorStore } from "../familyFloors.js";
+import type { ProductionFamilyFloorStore, TestFixtureFamilyFloorStore } from "../familyFloors.js";
 
 export interface OnboardingDeps {
   claims: ClaimStore;
   store: JobStore;
   sessions: SessionStore;
   familyFloors: TestFixtureFamilyFloorStore;
+  productionFamilyFloors: ProductionFamilyFloorStore;
+  placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>;
   /** JC-24: LLM phrasing for grill questions. Absent → template phrasing (tests + the safe fallback). */
   phraseGrill?: GrillPhraser;
   /** S2 decision #6: LLM wording audit of the built root CV. Absent → the CV ships unaudited. */
@@ -136,6 +138,69 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       return adaptiveDiscoveryState(floor, claims, negatives);
     };
 
+    const calculateProductionState = async (
+      session: SessionRecord,
+      reference: { familyId: string; version: number },
+      reply: FastifyReply,
+    ) => {
+      const publication = eligibleProductionPublication(reference);
+      if (!publication) {
+        return reply.status(409).send({
+          error: { code: "production_floor_unavailable", message: "published family version required" },
+          rewardEligible: false,
+        });
+      }
+      const [claims, negatives] = await Promise.all([
+        deps.claims.list(session.id),
+        deps.claims.negatives(session.id),
+      ]);
+      const state = adaptiveDiscoveryState(publication.floor, claims, negatives);
+      const coveredItemIds = publication.floor.essentialItems
+        .filter((item) =>
+          state.positiveEvidence.some((evidence) => evidence.itemId === item.id) ||
+          negatives.some(
+            (claim) =>
+              claim.semantic_key === item.id ||
+              claim.id === fixtureDiscoveryClaimId(reference.familyId, reference.version, item.id),
+          ),
+        )
+        .map((item) => item.id);
+      const checkpoint =
+        coveredItemIds.length === publication.floor.essentialItems.length
+          ? ("essential_floor_covered" as const)
+          : ("family_confirmed" as const);
+      return { state, coveredItemIds, checkpoint };
+    };
+
+    const eligibleProductionPublication = (
+      reference: { familyId: string; version: number },
+    ) => {
+      const publication = deps.productionFamilyFloors.get(reference.familyId, reference.version);
+      return publication?.publicationStatus === "published" &&
+        publication.floor.source === "production_research" &&
+        publication.floor.productionRewardEligible
+        ? publication
+        : null;
+    };
+
+    const productionResponse = async (
+      session: SessionRecord,
+      reference: { familyId: string; version: number },
+      reply: FastifyReply,
+      persist: boolean,
+    ) => {
+      const calculated = await calculateProductionState(session, reference, reply);
+      if ("sent" in calculated) return calculated;
+      if (!persist) return { ...calculated.state, checkpoint: calculated.checkpoint };
+      const discovery = await deps.sessions.reconcileDiscoveryState(
+        session.id,
+        reference,
+        calculated.coveredItemIds,
+        calculated.checkpoint === "essential_floor_covered",
+      );
+      return { ...calculated.state, checkpoint: discovery.checkpoint };
+    };
+
     app.post(
       "/onboarding/discovery/fixture/evaluate",
       { schema: { body: z.object({ placement: FamilyPlacement }) } },
@@ -144,6 +209,126 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         return fixtureState(session.id, req.body.placement, reply);
       },
     );
+
+    app.post(
+      "/onboarding/discovery/production/evaluate",
+      {},
+      async (req, reply) => {
+        const session = requireSession(req);
+        const placement = await deps.placeFamily(session);
+        if (placement.outcome !== "confirmed") {
+          return reply.status(409).send({
+            error: { code: "placement_not_confirmed", message: "confirmed family placement required" },
+            rewardEligible: false,
+          });
+        }
+        if (
+          session.discovery.floor &&
+          (session.discovery.floor.familyId !== placement.family.familyId ||
+            session.discovery.floor.version !== placement.family.version)
+        ) {
+          return reply.status(409).send({
+            error: { code: "production_floor_already_pinned", message: "production family version already selected" },
+            rewardEligible: false,
+          });
+        }
+        return productionResponse(session, placement.family, reply, true);
+      },
+    );
+
+    app.get("/onboarding/discovery/production", async (req, reply) => {
+      const session = requireSession(req);
+      if (!session.discovery.floor) {
+        return reply.status(409).send({
+          error: { code: "production_discovery_not_started", message: "production discovery not started" },
+          rewardEligible: false,
+        });
+      }
+      // Resume re-derives coverage from authoritative claims and reconciles the durable snapshot.
+      // This is idempotent, but prevents a previously covered checkpoint surviving a correction.
+      return productionResponse(session, session.discovery.floor, reply, true);
+    });
+
+    app.post(
+      "/onboarding/discovery/production/answer",
+      {
+        schema: {
+          body: z.object({
+            itemId: z.string().min(1),
+            answer: z.string().trim().min(1),
+          }),
+        },
+      },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const reference = session.discovery.floor;
+        if (!reference) {
+          return reply.status(409).send({
+            error: { code: "production_discovery_not_started", message: "production discovery not started" },
+            rewardEligible: false,
+          });
+        }
+        const publication = eligibleProductionPublication(reference);
+        const item = publication?.floor.essentialItems.find(
+          (candidate) => candidate.id === req.body.itemId,
+        );
+        if (!publication) {
+          return reply.status(409).send({
+            error: { code: "production_floor_unavailable", message: "published family version required" },
+            rewardEligible: false,
+          });
+        }
+        if (!item) {
+          return reply.status(404).send({
+            error: { code: "production_item_not_found", message: "selected production item not found" },
+            rewardEligible: false,
+          });
+        }
+        const claim: CandidateClaim = {
+          id: fixtureDiscoveryClaimId(reference.familyId, reference.version, item.id),
+          semantic_key: item.id,
+          field_key: null,
+          field_value: null,
+          field_label: null,
+          role: "profile",
+          text: req.body.answer,
+          machine_touch: "verbatim",
+          classification: "Verified",
+          source_quote: req.body.answer.slice(0, 200),
+          needs_grill: false,
+          grill_hint: null,
+        };
+        if (isNoAnswer(req.body.answer)) await deps.claims.answerNegative(session.id, claim);
+        else await deps.claims.add(session.id, claim);
+        return productionResponse(session, reference, reply, true);
+      },
+    );
+
+    app.post("/onboarding/discovery/production/complete", async (req, reply) => {
+      const session = requireSession(req);
+      const reference = session.discovery.floor;
+      if (!reference) {
+        return reply.status(409).send({
+          error: { code: "essential_floor_not_covered", message: "essential family floor not covered" },
+          rewardEligible: false,
+        });
+      }
+      const calculated = await calculateProductionState(session, reference, reply);
+      if ("sent" in calculated) return calculated;
+      if (calculated.checkpoint !== "essential_floor_covered") {
+        return reply.status(409).send({
+          error: { code: "essential_floor_not_covered", message: "essential family floor not covered" },
+          rewardEligible: false,
+        });
+      }
+      if (!eligibleProductionPublication(reference)) {
+        return reply.status(409).send({
+          error: { code: "production_floor_unavailable", message: "published family version required" },
+          rewardEligible: false,
+        });
+      }
+      return { checkpoint: "essential_floor_covered", floor: reference };
+    });
 
     app.post(
       "/onboarding/discovery/fixture/answer",

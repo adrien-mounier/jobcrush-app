@@ -34,6 +34,11 @@ for (const [name, make] of sessionDrivers) {
       expect(s.importProof).toBeNull();
       expect(s.importResolutions).toEqual({});
       expect(s.intent).toEqual({ targetRole: null, searchArea: null });
+      expect(s.discovery).toEqual({
+        floor: null,
+        coveredItemIds: [],
+        checkpoint: null,
+      });
       expect(await store.getByToken(s.token)).toMatchObject({
         id: s.id,
         token: s.token,
@@ -175,6 +180,75 @@ for (const [name, make] of sessionDrivers) {
       expect((await store.getById(s.id))?.sourceEntry).toEqual({
         checkpoint: "source_selected",
         choice: "cv",
+      });
+    });
+
+    it("persists and restores the selected production floor and coverage checkpoint", async () => {
+      const s = await store.create();
+      await store.reconcileDiscoveryState(
+        s.id,
+        { familyId: "it-project-delivery", version: 1 },
+        ["end-to-end-delivery"],
+        false,
+      );
+      expect((await store.getById(s.id))?.discovery).toEqual({
+        floor: { familyId: "it-project-delivery", version: 1 },
+        coveredItemIds: ["end-to-end-delivery"],
+        checkpoint: "family_confirmed",
+      });
+
+      await store.reconcileDiscoveryState(
+        s.id,
+        { familyId: "it-project-delivery", version: 1 },
+        ["stakeholder-coordination"],
+        true,
+      );
+      expect((await store.getByToken(s.token))?.discovery).toEqual({
+        floor: { familyId: "it-project-delivery", version: 1 },
+        coveredItemIds: ["stakeholder-coordination"],
+        checkpoint: "essential_floor_covered",
+      });
+
+      await store.reconcileDiscoveryState(
+        s.id,
+        { familyId: "it-project-delivery", version: 1 },
+        [],
+        false,
+      );
+      expect((await store.getById(s.id))?.discovery).toEqual({
+        floor: { familyId: "it-project-delivery", version: 1 },
+        coveredItemIds: [],
+        checkpoint: "family_confirmed",
+      });
+
+      await Promise.all([
+        store.reconcileDiscoveryState(
+          s.id,
+          { familyId: "it-project-delivery", version: 1 },
+          ["end-to-end-delivery"],
+          false,
+        ),
+        store.reconcileDiscoveryState(
+          s.id,
+          { familyId: "it-project-delivery", version: 1 },
+          ["risk-dependency-control"],
+          true,
+        ),
+      ]);
+      const concurrent = (await store.getById(s.id))!.discovery;
+      expect(concurrent.floor).toEqual({ familyId: "it-project-delivery", version: 1 });
+      expect([
+        {
+          coveredItemIds: ["end-to-end-delivery"],
+          checkpoint: "family_confirmed",
+        },
+        {
+          coveredItemIds: ["risk-dependency-control"],
+          checkpoint: "essential_floor_covered",
+        },
+      ]).toContainEqual({
+        coveredItemIds: concurrent.coveredItemIds,
+        checkpoint: concurrent.checkpoint,
       });
     });
 

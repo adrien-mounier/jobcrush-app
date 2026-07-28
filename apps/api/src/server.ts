@@ -59,6 +59,7 @@ export interface BuildOptions {
   /** Deterministic, explicitly non-production floor catalog for #59 integration tests. */
   familyFloors?: TestFixtureFamilyFloorStore;
   productionFamilyFloors?: ProductionFamilyFloorStore;
+  placeFamily?: (session: Readonly<SessionRecord>) => Promise<import("@jobcrush/contracts").FamilyPlacement>;
   /** JC-24 grill question phrasing (LLM-backed in prod). Absent → deterministic template phrasing. */
   phraseGrill?: GrillPhraser;
   /** S2 decision #6 root-CV wording audit (LLM-backed in prod). Absent → the CV ships unaudited. */
@@ -110,6 +111,9 @@ export function buildServer(opts: BuildOptions = {}) {
   const familyFloors = opts.familyFloors ?? new TestFixtureFamilyFloorStore();
   const productionFamilyFloors =
     opts.productionFamilyFloors ?? initialProductionFamilyFloors();
+  const placeFamily =
+    opts.placeFamily ??
+    (async () => ({ schemaVersion: "1" as const, outcome: "unmapped" as const }));
   const auth = opts.auth ?? new InMemoryAuthStore();
   const mailer = opts.mailer ?? new DevMailer();
   const guestbook = opts.guestbook ?? createGuestbook(process.env.DATABASE_URL);
@@ -299,6 +303,8 @@ export function buildServer(opts: BuildOptions = {}) {
     store,
     sessions,
     familyFloors,
+    productionFamilyFloors,
+    placeFamily,
     phraseGrill: opts.phraseGrill,
     auditCv: opts.auditCv,
   }));

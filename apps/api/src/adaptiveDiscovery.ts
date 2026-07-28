@@ -1,6 +1,11 @@
 import type { FamilyFloorV1, FamilyPlacement } from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
 
+type AdaptiveDiscoveryFloor = Pick<
+  FamilyFloorV1,
+  "familyId" | "version" | "essentialItems"
+>;
+
 export const fixtureDiscoveryClaimId = (familyId: string, version: number, itemId: string) =>
   `fixture-discovery-${familyId}-${version}-${itemId}`;
 
@@ -20,19 +25,21 @@ export interface AdaptiveDiscoveryState {
 
 const supports = (
   claim: ClaimRecord,
-  floor: FamilyFloorV1,
+  floor: AdaptiveDiscoveryFloor,
   itemId: string,
 ): boolean =>
   claim.semantic_key === itemId ||
   claim.id === fixtureDiscoveryClaimId(floor.familyId, floor.version, itemId);
 
 export function adaptiveDiscoveryState(
-  floor: FamilyFloorV1,
+  floor: AdaptiveDiscoveryFloor,
   claims: ClaimRecord[],
   negatives: ClaimRecord[],
 ): AdaptiveDiscoveryState {
   const sourceSupported = claims.filter(
-    (claim) => claim.decision === "pending" || claim.decision === "confirmed",
+    (claim) =>
+      (claim.decision === "pending" || claim.decision === "confirmed") &&
+      claim.machine_touch !== "inferred",
   );
   const positiveEvidence = floor.essentialItems.flatMap((item) => {
     const correctionId = fixtureDiscoveryClaimId(floor.familyId, floor.version, item.id);

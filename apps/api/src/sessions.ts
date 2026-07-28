@@ -18,6 +18,64 @@ export interface SearchIntent {
   searchArea: string | null;
 }
 
+export interface ProductionDiscoveryState {
+  floor: { familyId: string; version: number } | null;
+  coveredItemIds: string[];
+  checkpoint: "family_confirmed" | "essential_floor_covered" | null;
+}
+
+function discoveryState(value: unknown): ProductionDiscoveryState {
+  if (typeof value === "string") {
+    try {
+      return discoveryState(JSON.parse(value));
+    } catch {
+      // Fall through to the safe empty state.
+    }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { floor: null, coveredItemIds: [], checkpoint: null };
+  }
+  const state = value as Record<string, unknown>;
+  const stateKeys = Object.keys(state).sort();
+  const floor = state.floor;
+  const floorRecord =
+    floor !== null && typeof floor === "object" && !Array.isArray(floor)
+      ? (floor as Record<string, unknown>)
+      : null;
+  const validFloor =
+    floorRecord !== null &&
+    Object.keys(floorRecord).sort().join(",") === "familyId,version" &&
+    typeof floorRecord.familyId === "string" &&
+    floorRecord.familyId.length > 0 &&
+    Number.isInteger(floorRecord.version) &&
+    (floorRecord.version as number) > 0;
+  const coveredItemIds = state.coveredItemIds;
+  const checkpoint = state.checkpoint;
+  const validCovered =
+    Array.isArray(coveredItemIds) &&
+    coveredItemIds.every((item) => typeof item === "string" && item.length > 0) &&
+    new Set(coveredItemIds).size === coveredItemIds.length;
+  const validCheckpoint =
+    checkpoint === null ||
+    checkpoint === "family_confirmed" ||
+    checkpoint === "essential_floor_covered";
+  const coherent =
+    (floor === null && checkpoint === null && validCovered && coveredItemIds.length === 0) ||
+    (validFloor && checkpoint !== null && validCovered);
+  if (
+    stateKeys.join(",") !== "checkpoint,coveredItemIds,floor" ||
+    !validCheckpoint ||
+    !coherent
+  ) {
+    return { floor: null, coveredItemIds: [], checkpoint: null };
+  }
+  return {
+    floor: floor as NonNullable<ProductionDiscoveryState["floor"]>,
+    coveredItemIds: coveredItemIds as string[],
+    checkpoint: checkpoint as NonNullable<ProductionDiscoveryState["checkpoint"]>,
+  };
+}
+
 export interface ImportProof {
   outcome: "success" | "partial" | "failed" | "no_useful_facts";
   usefulFactCount: number;
@@ -75,6 +133,7 @@ export interface SessionRecord {
   importProof: ImportProof | null;
   importResolutions: Record<string, string>;
   intent: SearchIntent;
+  discovery: ProductionDiscoveryState;
 }
 
 export interface SessionStore {
@@ -90,6 +149,12 @@ export interface SessionStore {
   setImportProof(id: string, proof: ImportProof): Promise<void>;
   setImportResolution(id: string, fieldId: string, value: string): Promise<void>;
   setIntent(id: string, intent: Partial<SearchIntent>): Promise<SearchIntent>;
+  reconcileDiscoveryState(
+    id: string,
+    floor: NonNullable<ProductionDiscoveryState["floor"]>,
+    coveredItemIds: string[],
+    complete: boolean,
+  ): Promise<ProductionDiscoveryState>;
   resolveImport(id: string, fieldId: string, value: string): Promise<ImportProof>;
   setTailorTarget(id: string, adId: string): Promise<void>;
   /** #23 drop: exit tailor back to the deck, clearing the target. Never touches claims. */
@@ -120,6 +185,7 @@ function newSession(): SessionRecord {
     importProof: null,
     importResolutions: {},
     intent: { targetRole: null, searchArea: null },
+    discovery: { floor: null, coveredItemIds: [], checkpoint: null },
   };
 }
 
@@ -182,6 +248,28 @@ export class InMemorySessionStore implements SessionStore {
       searchArea: intent.searchArea ?? s.intent.searchArea,
     };
     return s.intent;
+  }
+
+  async reconcileDiscoveryState(
+    id: string,
+    floor: NonNullable<ProductionDiscoveryState["floor"]>,
+    coveredItemIds: string[],
+    complete: boolean,
+  ): Promise<ProductionDiscoveryState> {
+    const s = this.byId.get(id);
+    if (!s) throw new Error("session not found");
+    if (
+      s.discovery.floor &&
+      (s.discovery.floor.familyId !== floor.familyId || s.discovery.floor.version !== floor.version)
+    ) {
+      throw new Error("production discovery floor already pinned");
+    }
+    s.discovery = {
+      floor: structuredClone(floor),
+      coveredItemIds: [...coveredItemIds],
+      checkpoint: complete ? "essential_floor_covered" : "family_confirmed",
+    };
+    return structuredClone(s.discovery);
   }
   async resolveImport(
     id: string,
@@ -249,7 +337,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   fact_floor         integer NOT NULL DEFAULT 0,
   source_entry       jsonb,
   target_role        text,
-  search_area        text
+  search_area        text,
+  production_discovery jsonb NOT NULL DEFAULT '{"floor":null,"coveredItemIds":[],"checkpoint":null}'
 )`;
 
 const SESSIONS_ALTERS = [
@@ -268,6 +357,8 @@ const SESSIONS_ALTERS = [
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS source_entry jsonb",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS target_role text",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS search_area text",
+  `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS production_discovery jsonb NOT NULL
+   DEFAULT '{"floor":null,"coveredItemIds":[],"checkpoint":null}'`,
 ];
 
 function toSession(r: Record<string, unknown>): SessionRecord {
@@ -291,6 +382,7 @@ function toSession(r: Record<string, unknown>): SessionRecord {
       targetRole: (r.target_role as string) ?? null,
       searchArea: (r.search_area as string) ?? null,
     },
+    discovery: discoveryState(r.production_discovery),
   };
 }
 
@@ -388,6 +480,46 @@ export class PgSessionStore implements SessionStore {
       targetRole: (rows[0].target_role as string) ?? null,
       searchArea: (rows[0].search_area as string) ?? null,
     };
+  }
+
+  async reconcileDiscoveryState(
+    id: string,
+    floor: NonNullable<ProductionDiscoveryState["floor"]>,
+    coveredItemIds: string[],
+    complete: boolean,
+  ): Promise<ProductionDiscoveryState> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query(
+        "SELECT production_discovery FROM sessions WHERE id = $1 FOR UPDATE",
+        [id],
+      );
+      if (!rows[0]) throw new Error("session not found");
+      const current = discoveryState(rows[0].production_discovery);
+      if (
+        current.floor &&
+        (current.floor.familyId !== floor.familyId || current.floor.version !== floor.version)
+      ) {
+        throw new Error("production discovery floor already pinned");
+      }
+      const discovery: ProductionDiscoveryState = {
+        floor,
+        coveredItemIds: [...coveredItemIds],
+        checkpoint: complete ? "essential_floor_covered" : "family_confirmed",
+      };
+      await client.query("UPDATE sessions SET production_discovery = $2 WHERE id = $1", [
+        id,
+        JSON.stringify(discovery),
+      ]);
+      await client.query("COMMIT");
+      return discovery;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async resolveImport(

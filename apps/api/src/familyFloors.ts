@@ -224,6 +224,11 @@ export class ProductionFamilyFloorStore {
     const version = this.activeVersions.get(familyId);
     return version === undefined ? null : this.publications.get(keyOf(familyId, version)) ?? null;
   }
+
+  get(familyId: string, version: number): ProductionFamilyPublicationValue | null {
+    return this.publications.get(keyOf(familyId, version)) ?? null;
+  }
+
 }
 
 export function initialProductionFamilyFloors(): ProductionFamilyFloorStore {

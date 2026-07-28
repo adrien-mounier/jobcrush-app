@@ -2,6 +2,16 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-29 (session 56) — validated production discovery
+
+- Implemented [#61 Activate production discovery only for validated family versions](https://github.com/adrien-mounier/jobcrush-app/issues/61) across the production-floor catalog, adaptive engine, HTTP transition gates, and both session-store drivers.
+- A server-authoritative confirmed placement pins one immutable published version. Current source-supported/reworded evidence and explicit negatives cover essential items once; inferred claims do not. Evaluate, answer, resume, and completion all reconcile current coverage truth.
+- Added fail-closed gates for client-manufactured placement, fixtures, provisional/missing publications, clarification/unmapped outcomes, malformed/forged persistence, stale completion, unknown items, and missing authentication. Rejected production answers leave claims, negatives, and session state unchanged.
+- PostgreSQL-compatible reconciliation uses a row lock and one transaction; both drivers preserve the pinned version while replacing coverage/checkpoint with one coherent current snapshot.
+- Two-axis review ended Standards clean and Spec clean after removing an invalid validation-data classifier shortcut and closing concurrency, stale-state, trust-boundary, and side-effect defects. Independent QA found and fixed an uncached TypeScript boundary failure and stale persisted resume state.
+- QA GO: 473 tests passed + 5 skipped with cache bypass, typecheck 7/7, build 5/5 with 12/12 pages, and live assembled HTTP coverage over in-memory and PostgreSQL-compatible compositions.
+- **Next:** closing #61 removes the production-discovery blocker from [#63 server-owned credible match reveal](https://github.com/adrien-mounier/jobcrush-app/issues/63); re-query its remaining dependency edges before claiming.
+
 ## 2026-07-29 (session 55) — initial production family floor
 
 - Implemented [#60 Validate and publish initial production family floors](https://github.com/adrien-mounier/jobcrush-app/issues/60) as a production-only publication catalog distinct from #58 fixtures.
