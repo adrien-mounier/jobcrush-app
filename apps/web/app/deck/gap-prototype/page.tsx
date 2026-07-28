@@ -19,7 +19,7 @@ const gaps = [
   "Manufacturing-sector delivery",
 ];
 
-function Header() {
+function Header({ showJobDescription = false }: { showJobDescription?: boolean }) {
   return (
     <>
       <header className="prototype-top">
@@ -36,6 +36,16 @@ function Header() {
           78<span>%</span>
         </div>
       </section>
+      {showJobDescription && (
+        <details className="job-description">
+          <summary>Read job description</summary>
+          <p>
+            Lead a multi-country SAP S/4HANA transformation across manufacturing
+            sites. Own delivery governance, vendors, budget, risks, and executive
+            reporting from discovery through rollout.
+          </p>
+        </details>
+      )}
     </>
   );
 }
@@ -103,7 +113,7 @@ function VariantB() {
 function VariantC() {
   return (
     <article className="card variant-c">
-      <Header />
+      <Header showJobDescription />
       <section className="compact-result">
         <div>
           <strong>7 of 9 essentials covered</strong>

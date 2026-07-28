@@ -61,6 +61,26 @@
   font: 21px "Cascadia Mono", monospace;
 }
 .score span { color: var(--muted); font-size: 11px; }
+.job-description {
+  margin: -2px 24px 20px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.job-description summary {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.job-description[open] summary { color: var(--ink); }
+.job-description p {
+  max-width: 640px;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
 .action {
   display: grid;
   grid-template-columns: minmax(180px, 260px) 1fr;
@@ -160,6 +180,6 @@
   .card { border-right: 0; border-left: 0; border-radius: 0; }
   .prototype-top, .job-heading, .action { padding-right: 16px; padding-left: 16px; }
   .ledger, .review-columns { grid-template-columns: 1fr; }
-  .match-summary, .gap-spotlight, .variant-a details, .truth-note, .compact-result, .review-panel { margin-right: 16px; margin-left: 16px; }
+  .match-summary, .gap-spotlight, .variant-a details, .truth-note, .compact-result, .review-panel, .job-description { margin-right: 16px; margin-left: 16px; }
   .action { grid-template-columns: 1fr; }
 }
