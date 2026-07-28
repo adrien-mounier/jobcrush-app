@@ -175,6 +175,7 @@ CREATE TABLE IF NOT EXISTS claims (
   seq            bigserial,
   session_id     text NOT NULL,
   id             text NOT NULL,
+  semantic_key   text,
   role           text NOT NULL,
   text           text NOT NULL,
   machine_touch  text NOT NULL,
@@ -190,6 +191,7 @@ CREATE TABLE IF NOT EXISTS claims (
 
 const CLAIMS_ALTERS = [
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS decision_seq bigint",
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS semantic_key text",
 ];
 
 // Insert columns only — `seq` is never listed (bigserial auto-assigns it). Every READ, by contrast,
@@ -197,12 +199,12 @@ const CLAIMS_ALTERS = [
 // make toClaim's `Number(undefined)` -> NaN, and a NaN comparator silently degrades a `.sort()` to
 // input order with no error (#28).
 const CLAIM_COLS =
-  "session_id, id, role, text, machine_touch, classification, source_quote, needs_grill, grill_hint, decision, origin";
+  "session_id, id, semantic_key, role, text, machine_touch, classification, source_quote, needs_grill, grill_hint, decision, origin";
 
 function toClaim(r: Record<string, unknown>): ClaimRecord {
   return {
     id: r.id as string,
-    semantic_key: r.id as string,
+    semantic_key: (r.semantic_key as string | null) ?? (r.id as string),
     field_key: null,
     field_value: null,
     field_label: null,
@@ -233,7 +235,7 @@ export class PgClaimStore implements ClaimStore {
   }
 
   private vals(sessionId: string, c: CandidateClaim, decision: ClaimDecision, origin: ClaimOrigin) {
-    return [sessionId, c.id, c.role, c.text, c.machine_touch, c.classification, c.source_quote,
+    return [sessionId, c.id, c.semantic_key, c.role, c.text, c.machine_touch, c.classification, c.source_quote,
       c.needs_grill, c.grill_hint, decision, origin];
   }
 
@@ -249,7 +251,7 @@ export class PgClaimStore implements ClaimStore {
   async seed(sessionId: string, claims: CandidateClaim[]): Promise<void> {
     for (const c of claims) {
       await this.pool.query(
-        `INSERT INTO claims (${CLAIM_COLS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        `INSERT INTO claims (${CLAIM_COLS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
          ON CONFLICT (session_id, id) DO NOTHING`,
         this.vals(sessionId, c, "pending", "mined"),
       );
@@ -295,8 +297,9 @@ export class PgClaimStore implements ClaimStore {
   async add(sessionId: string, claim: CandidateClaim): Promise<void> {
     const decisionSeq = await this.nextDecisionSeq(sessionId);
     await this.pool.query(
-      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        ON CONFLICT (session_id, id) DO UPDATE SET
+         semantic_key = EXCLUDED.semantic_key,
          role = EXCLUDED.role, text = EXCLUDED.text, machine_touch = EXCLUDED.machine_touch,
          classification = EXCLUDED.classification, source_quote = EXCLUDED.source_quote,
          needs_grill = EXCLUDED.needs_grill, grill_hint = EXCLUDED.grill_hint,
@@ -317,8 +320,9 @@ export class PgClaimStore implements ClaimStore {
   async answerNegative(sessionId: string, claim: CandidateClaim): Promise<void> {
     const decisionSeq = await this.nextDecisionSeq(sessionId);
     await this.pool.query(
-      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        ON CONFLICT (session_id, id) DO UPDATE SET
+         semantic_key = EXCLUDED.semantic_key,
          role = EXCLUDED.role, text = EXCLUDED.text, machine_touch = EXCLUDED.machine_touch,
          classification = EXCLUDED.classification, source_quote = EXCLUDED.source_quote,
          needs_grill = EXCLUDED.needs_grill, grill_hint = EXCLUDED.grill_hint,

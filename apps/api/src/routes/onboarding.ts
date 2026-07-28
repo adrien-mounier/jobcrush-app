@@ -8,7 +8,7 @@
 //     arithmetic (no LLM). The "state machine" is a single `stage` field on the session.
 //   - No claim tiering and no grill yet — every claim is a plain confirm. That intelligence is the
 //     next E3 pass; this slice exists to exercise the untouched spine end to end.
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import type { CandidateClaim, MinedRole, RequirementBand, AdRequirements } from "@jobcrush/contracts";
@@ -47,11 +47,19 @@ import {
   type LedgerLine,
   type TailorQuestion,
 } from "../tailor.js";
+import { FamilyPlacement } from "@jobcrush/contracts";
+import {
+  adaptiveDiscoveryState,
+  confirmedFixtureFloorReference,
+  fixtureDiscoveryClaimId,
+} from "../adaptiveDiscovery.js";
+import type { TestFixtureFamilyFloorStore } from "../familyFloors.js";
 
 export interface OnboardingDeps {
   claims: ClaimStore;
   store: JobStore;
   sessions: SessionStore;
+  familyFloors: TestFixtureFamilyFloorStore;
   /** JC-24: LLM phrasing for grill questions. Absent → template phrasing (tests + the safe fallback). */
   phraseGrill?: GrillPhraser;
   /** S2 decision #6: LLM wording audit of the built root CV. Absent → the CV ships unaudited. */
@@ -101,6 +109,84 @@ export const claimTier = (touch: CandidateClaim["machine_touch"]): DeckTier =>
 export function onboardingRoutes(deps: OnboardingDeps) {
   return async function plugin(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>();
+
+    const fixtureState = async (
+      sessionId: string,
+      placement: FamilyPlacement,
+      reply: FastifyReply,
+    ) => {
+      const reference = confirmedFixtureFloorReference(placement);
+      if (!reference) {
+        return reply.status(409).send({
+          error: { code: "placement_not_confirmed", message: "confirmed family placement required" },
+          rewardEligible: false,
+        });
+      }
+      const floor = deps.familyFloors.get(reference.familyId, reference.version);
+      if (!floor) {
+        return reply.status(404).send({
+          error: { code: "fixture_floor_not_found", message: "selected fixture floor not found" },
+          rewardEligible: false,
+        });
+      }
+      const [claims, negatives] = await Promise.all([
+        deps.claims.list(sessionId),
+        deps.claims.negatives(sessionId),
+      ]);
+      return adaptiveDiscoveryState(floor, claims, negatives);
+    };
+
+    app.post(
+      "/onboarding/discovery/fixture/evaluate",
+      { schema: { body: z.object({ placement: FamilyPlacement }) } },
+      async (req, reply) => {
+        const session = requireSession(req);
+        return fixtureState(session.id, req.body.placement, reply);
+      },
+    );
+
+    app.post(
+      "/onboarding/discovery/fixture/answer",
+      {
+        schema: {
+          body: z.object({
+            placement: FamilyPlacement,
+            itemId: z.string().min(1),
+            answer: z.string().trim().min(1),
+          }),
+        },
+      },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const reference = confirmedFixtureFloorReference(req.body.placement);
+        if (!reference) return fixtureState(session.id, req.body.placement, reply);
+        const floor = deps.familyFloors.get(reference.familyId, reference.version);
+        const item = floor?.essentialItems.find((candidate) => candidate.id === req.body.itemId);
+        if (!floor || !item) {
+          return reply.status(404).send({
+            error: { code: "fixture_item_not_found", message: "selected fixture item not found" },
+            rewardEligible: false,
+          });
+        }
+        const claim: CandidateClaim = {
+          id: fixtureDiscoveryClaimId(floor.familyId, floor.version, item.id),
+          semantic_key: item.id,
+          field_key: null,
+          field_value: null,
+          field_label: null,
+          role: "profile",
+          text: req.body.answer,
+          machine_touch: "verbatim",
+          classification: "Verified",
+          source_quote: req.body.answer.slice(0, 200),
+          needs_grill: false,
+          grill_hint: null,
+        };
+        if (isNoAnswer(req.body.answer)) await deps.claims.answerNegative(session.id, claim);
+        else await deps.claims.add(session.id, claim);
+        return fixtureState(session.id, req.body.placement, reply);
+      },
+    );
 
     // Open the deck: seed this session's claim store from its onboarding job's mined claims, once.
     // The client holds the jobId (same as GET /previews/:jobId); the job proves the mine finished.

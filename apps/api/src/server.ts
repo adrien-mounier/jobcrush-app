@@ -20,6 +20,7 @@ import { onboardingRoutes } from "./routes/onboarding.js";
 import { InMemoryClaimStore, type ClaimStore } from "./claims.js";
 import type { GrillPhraser } from "./grill.js";
 import type { CvAuditor } from "./audit.js";
+import { TestFixtureFamilyFloorStore } from "./familyFloors.js";
 import { InMemoryAuthStore, type AuthStore } from "./auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { DevMailer, type Mailer } from "./mailer.js";
@@ -44,6 +45,8 @@ export interface BuildOptions {
   guestbook?: Guestbook;
   /** JC-21 confirmed-claims store backing the onboarding deck. Postgres driver lands with JC-6/26. */
   claims?: ClaimStore;
+  /** Deterministic, explicitly non-production floor catalog for #59 integration tests. */
+  familyFloors?: TestFixtureFamilyFloorStore;
   /** JC-24 grill question phrasing (LLM-backed in prod). Absent → deterministic template phrasing. */
   phraseGrill?: GrillPhraser;
   /** S2 decision #6 root-CV wording audit (LLM-backed in prod). Absent → the CV ships unaudited. */
@@ -87,6 +90,7 @@ export function buildServer(opts: BuildOptions = {}) {
   const blobs = opts.blobs ?? new InMemoryBlobStorage();
   const uploads = opts.uploads ?? new InMemoryUploadStore();
   const claims = opts.claims ?? new InMemoryClaimStore();
+  const familyFloors = opts.familyFloors ?? new TestFixtureFamilyFloorStore();
   const auth = opts.auth ?? new InMemoryAuthStore();
   const mailer = opts.mailer ?? new DevMailer();
   const guestbook = opts.guestbook ?? createGuestbook(process.env.DATABASE_URL);
@@ -256,7 +260,14 @@ export function buildServer(opts: BuildOptions = {}) {
   };
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps }));
-  app.register(onboardingRoutes({ claims, store, sessions, phraseGrill: opts.phraseGrill, auditCv: opts.auditCv }));
+  app.register(onboardingRoutes({
+    claims,
+    store,
+    sessions,
+    familyFloors,
+    phraseGrill: opts.phraseGrill,
+    auditCv: opts.auditCv,
+  }));
   app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail }));
 
   // Job payloads sent to the client: the preview HTML travels only via GET /previews/:jobId

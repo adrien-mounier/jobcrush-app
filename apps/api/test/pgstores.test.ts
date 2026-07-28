@@ -314,6 +314,17 @@ for (const [name, make] of claimDrivers) {
       expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a", "c"]); // still seq order
     });
 
+    it("preserves semantic_key through seed and correction upserts (#59)", async () => {
+      await store.seed(sid, [claim({ id: "source-a", semantic_key: "requirement-one" })]);
+      expect((await store.list(sid))[0]?.semantic_key).toBe("requirement-one");
+
+      await store.add(sid, claim({ id: "source-a", semantic_key: "requirement-two" }));
+      expect((await store.confirmed(sid))[0]?.semantic_key).toBe("requirement-two");
+
+      await store.answerNegative(sid, claim({ id: "source-a", semantic_key: "requirement-three" }));
+      expect((await store.negatives(sid))[0]?.semantic_key).toBe("requirement-three");
+    });
+
     it("seed is idempotent — re-seeding never clobbers a decision", async () => {
       await store.seed(sid, [claim({ id: "a" })]);
       await store.confirm(sid, "a");

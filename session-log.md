@@ -2,6 +2,14 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 53) — fixture-driven adaptive discovery
+
+- Implemented [#59 Fixture-driven adaptive discovery engine](https://github.com/adrien-mounier/jobcrush-app/issues/59) as a fixture-only Fastify seam driven by an exact confirmed immutable family-floor version; fixture data remains structurally unable to unlock production reward.
+- Added variable-floor evaluation with imported and semantic-equivalent coverage, ranked next-question selection without a fixed cap, first-class explicit negatives, idempotent corrections, and coherent evidence/root-CV/progress responses.
+- Fixed PostgreSQL claim parity by safely migrating and round-tripping `semantic_key`, including legacy-row fallback and shared in-memory/Postgres correction coverage.
+- Two-axis review finished clean after the PostgreSQL must-fix. Independent QA GO: 402 tests passed + 5 skipped, typecheck 7/7, build 5/5, focused #59/store tests 69/69, live HTTP/session-isolation and old-schema migration checks green.
+- **Next:** #59 unblocks [#61 production discovery activation](https://github.com/adrien-mounier/jobcrush-app/issues/61) once [#60 production family-floor validation](https://github.com/adrien-mounier/jobcrush-app/issues/60) lands; #62 remains owned by its separate session.
+
 ## 2026-07-28 (session 52) — three-way family-floor contracts
 
 - Implemented [#58 Three-way family-floor contracts](https://github.com/adrien-mounier/jobcrush-app/issues/58) as the contract/store foundation for honest role placement.
