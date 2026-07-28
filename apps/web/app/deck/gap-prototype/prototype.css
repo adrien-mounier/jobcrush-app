@@ -1,0 +1,165 @@
+.gap-prototype {
+  --bg: #101419;
+  --panel: #171c23;
+  --panel-2: #1f262f;
+  --line: #303945;
+  --ink: #eef0f2;
+  --muted: #8d98a5;
+  --gold: #e8a33d;
+  min-height: 100vh;
+  padding: 28px 18px 120px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+
+.gap-prototype * { box-sizing: border-box; }
+.prototype-label {
+  max-width: 760px;
+  margin: 0 auto 14px;
+  color: var(--muted);
+  font: 11px/1.4 "Cascadia Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+}
+.card {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--panel);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, .32);
+}
+.prototype-top, .job-heading {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 24px;
+}
+.prototype-top { border-bottom: 1px solid var(--line); }
+.wordmark, .eyebrow {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+.count { margin-left: auto; color: var(--muted); font: 11px "Cascadia Mono", monospace; }
+.job-heading { align-items: flex-start; padding-top: 26px; }
+.job-heading > div:first-child { flex: 1; }
+.job-heading h1 { margin: 5px 0 5px; font-size: clamp(24px, 5vw, 34px); letter-spacing: -.035em; }
+.job-heading p { margin: 0; color: var(--muted); }
+.score {
+  display: grid;
+  place-items: center;
+  width: 70px;
+  height: 70px;
+  flex: 0 0 auto;
+  border: 3px solid var(--gold);
+  border-radius: 50%;
+  font: 21px "Cascadia Mono", monospace;
+}
+.score span { color: var(--muted); font-size: 11px; }
+.action {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) 1fr;
+  gap: 18px;
+  align-items: center;
+  padding: 20px 24px 24px;
+  border-top: 1px solid var(--line);
+}
+.action button {
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 22px;
+  background: var(--gold);
+  color: #201607;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+.action p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+.match-summary { margin: 0 24px; padding: 14px 18px; border-radius: 12px; background: var(--panel-2); }
+.match-summary p { margin: 0; }
+.gap-spotlight {
+  margin: 16px 24px;
+  padding: 20px;
+  border: 1px solid rgba(232, 163, 61, .42);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(232, 163, 61, .13), rgba(232, 163, 61, .03));
+}
+.gap-spotlight span { color: var(--gold); font: 700 11px "Cascadia Mono", monospace; text-transform: uppercase; }
+.gap-spotlight h2 { margin: 8px 0; font-size: 19px; }
+.gap-spotlight p { margin: 0; color: var(--muted); line-height: 1.5; }
+.variant-a details { margin: 0 24px 22px; padding: 0 4px; }
+.variant-a summary { color: var(--ink); cursor: pointer; }
+.variant-a h3 { margin: 18px 0 8px; color: var(--muted); font-size: 12px; text-transform: uppercase; }
+.variant-a ul { margin: 0; padding: 0; list-style: none; }
+.variant-a li { padding: 5px 0; color: var(--muted); }
+
+.ledger {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  padding: 4px 24px 20px;
+}
+.ledger section { padding: 18px; border-radius: 14px; background: var(--panel-2); }
+.ledger h2 { margin: 0 0 14px; font-size: 15px; }
+.ledger-row { display: flex; gap: 10px; margin: 0; padding: 10px 0; border-top: 1px solid var(--line); color: var(--muted); line-height: 1.4; }
+.ledger-row > span:first-child { color: var(--gold); font: 700 13px "Cascadia Mono", monospace; }
+.ledger-row.important { color: var(--ink); }
+.ledger-row.important strong { color: var(--gold); }
+.truth-note { margin: 0 24px 22px; padding: 13px 16px; border-left: 3px solid var(--gold); color: var(--muted); font-size: 13px; }
+
+.compact-result {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 24px 18px;
+  padding: 17px 18px;
+  border-radius: 14px;
+  background: var(--panel-2);
+}
+.compact-result div { flex: 1; }
+.compact-result p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.quality { padding: 5px 11px; border: 1px solid rgba(232, 163, 61, .45); border-radius: 999px; color: var(--gold); font-size: 11px; text-transform: uppercase; }
+.review-panel { margin: 0 24px 22px; padding: 22px; border: 1px solid var(--line); border-radius: 16px; }
+.review-panel h2 { max-width: 580px; margin: 7px 0 20px; font-size: 21px; line-height: 1.25; }
+.review-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.review-columns h3 { color: var(--muted); font-size: 12px; text-transform: uppercase; }
+.review-columns p { font-size: 14px; line-height: 1.45; }
+.important-copy { padding-left: 12px; border-left: 3px solid var(--gold); }
+.quiet { border: 0; padding: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; }
+
+.prototype-switcher {
+  position: fixed;
+  z-index: 1000;
+  left: 50%;
+  bottom: 24px;
+  display: grid;
+  grid-template-columns: 42px minmax(180px, auto) 42px;
+  align-items: center;
+  transform: translateX(-50%);
+  overflow: hidden;
+  border: 1px solid #697688;
+  border-radius: 999px;
+  background: #f6f7f8;
+  color: #15191e;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, .45);
+  font: 700 12px "Cascadia Mono", monospace;
+  text-align: center;
+}
+.prototype-switcher button { height: 42px; border: 0; background: #15191e; color: white; font: inherit; cursor: pointer; }
+.prototype-switcher span { padding: 0 14px; white-space: nowrap; }
+
+@media (max-width: 620px) {
+  .gap-prototype { padding: 0 0 110px; }
+  .prototype-label { padding: 12px 16px; margin: 0; }
+  .card { border-right: 0; border-left: 0; border-radius: 0; }
+  .prototype-top, .job-heading, .action { padding-right: 16px; padding-left: 16px; }
+  .ledger, .review-columns { grid-template-columns: 1fr; }
+  .match-summary, .gap-spotlight, .variant-a details, .truth-note, .compact-result, .review-panel { margin-right: 16px; margin-left: 16px; }
+  .action { grid-template-columns: 1fr; }
+}
