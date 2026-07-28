@@ -393,6 +393,7 @@ export type SourceEntry =
 export interface SessionCheckpoint {
   sourceEntry: SourceEntry;
   importProof?: ImportProof;
+  stage?: string;
 }
 
 export async function getSessionCheckpoint(): Promise<SessionCheckpoint | null> {
@@ -403,6 +404,7 @@ export async function getSessionCheckpoint(): Promise<SessionCheckpoint | null> 
   return {
     sourceEntry: session.sourceEntry,
     ...(session.importProof ? { importProof: session.importProof } : {}),
+    ...(session.stage ? { stage: session.stage } : {}),
   };
 }
 
@@ -410,6 +412,28 @@ export function saveSourceEntry(sourceEntry: Exclude<SourceEntry, null>) {
   return jfetch<{ sourceEntry: Exclude<SourceEntry, null> }>("/api/sessions/me/source-entry", {
     method: "PUT",
     body: JSON.stringify(sourceEntry),
+  });
+}
+
+export interface SearchIntent {
+  targetRole: string | null;
+  searchArea: string | null;
+}
+
+export interface IntentState {
+  intent: SearchIntent;
+  missing: Array<"targetRole" | "searchArea">;
+  checkpoint: "intent_needed" | "intent_known";
+}
+
+export function getIntent(): Promise<IntentState> {
+  return jfetch("/api/sessions/me/intent");
+}
+
+export function saveIntent(intent: Partial<Record<keyof SearchIntent, string>>): Promise<IntentState> {
+  return jfetch("/api/sessions/me/intent", {
+    method: "PUT",
+    body: JSON.stringify(intent),
   });
 }
 

@@ -16,6 +16,14 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
 
+**2026-07-28 explicit-intent update:** [#57 Collect explicit target role and search
+area](https://github.com/adrien-mounier/jobcrush-app/issues/57) is implemented and
+release-gated. The first-run flow now asks for target role and search area in one
+free-text checkpoint, requests only the missing field when one explicit value is
+already known, persists both values across reloads, and never promotes CV history
+or residence into future intent. The next onboarding slice is
+[#58 Ask the smallest useful family-backed question set](https://github.com/adrien-mounier/jobcrush-app/issues/58).
+
 **2026-07-28 CV-import update:** [#56 CV import proof with provenance,
 corrections, and recovery](https://github.com/adrien-mounier/jobcrush-app/issues/56)
 is implemented and release-gated. CandidateClaims v1 now carries stable semantic

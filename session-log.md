@@ -2,6 +2,15 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 51) — explicit target role and search area
+
+- Implemented [#57 Collect explicit target role and search area](https://github.com/adrien-mounier/jobcrush-app/issues/57) as the next durable first-run checkpoint after question-first or continued CV proof.
+- Added strict partial `GET`/`PUT /sessions/me/intent` HTTP contracts and atomic in-memory/Postgres persistence. One explicit field leaves only the other missing; CV history and residence remain non-intent.
+- Added accessible both-field and one-field forms, truthful saved confirmation, mobile-safe layout, retry/validation states, and authoritative reload restoration for question-first and CV paths.
+- Two-axis review ended GO after aligning store-driver merge semantics, proving the one-field case through public HTTP, and correcting CV-path restore/copy.
+- Independent fresh-stack QA GO: 4/4 serial Chromium journeys, 384 tests passed + 5 skipped, typecheck 7/7, build 5/5. The optional highlighted HTML wrapper hung before finalization; durable Playwright coverage passed and no product defect was found.
+- **Next:** continue the onboarding frontier with [#58 smallest useful family-backed question set](https://github.com/adrien-mounier/jobcrush-app/issues/58).
+
 ## 2026-07-28 (session 50) — provenance-aware CV import proof
 
 - Implemented [#56 CV import proof with provenance, corrections, and

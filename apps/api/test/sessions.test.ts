@@ -95,6 +95,136 @@ describe("JC-10 anonymous sessions", () => {
     });
   });
 
+  it("recovers both missing intent fields without match-like claims", async () => {
+    const { app } = buildServer();
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = cookieOf(created);
+    const response = await app.inject({
+      method: "GET",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      intent: { targetRole: null, searchArea: null },
+      missing: ["targetRole", "searchArea"],
+      checkpoint: "intent_needed",
+    });
+    expect(response.json()).not.toHaveProperty("jobCount");
+    expect(response.json()).not.toHaveProperty("matches");
+    expect(response.json()).not.toHaveProperty("family");
+  });
+
+  it("accepts both intent fields together, restores them, and merges a partial update", async () => {
+    const { app } = buildServer();
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = cookieOf(created);
+    const accepted = await app.inject({
+      method: "PUT",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+      payload: { targetRole: "  Programme Manager  ", searchArea: "  Bangkok  " },
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json()).toEqual({
+      intent: { targetRole: "Programme Manager", searchArea: "Bangkok" },
+      missing: [],
+      checkpoint: "intent_known",
+    });
+    const updated = await app.inject({
+      method: "PUT",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+      payload: { searchArea: "Remote in Thailand" },
+    });
+    expect(updated.json()).toEqual({
+      intent: { targetRole: "Programme Manager", searchArea: "Remote in Thailand" },
+      missing: [],
+      checkpoint: "intent_known",
+    });
+    const restored = await app.inject({
+      method: "GET",
+      url: "/sessions/me",
+      headers: { cookie },
+    });
+    expect(restored.json().intent).toEqual({
+      targetRole: "Programme Manager",
+      searchArea: "Remote in Thailand",
+    });
+  });
+
+  it("asks only for the missing field when explicit intent already has one value", async () => {
+    const { app } = buildServer();
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = cookieOf(created);
+    const accepted = await app.inject({
+      method: "PUT",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+      payload: { targetRole: "Delivery Lead" },
+    });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json().missing).toEqual(["searchArea"]);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+    });
+    expect(response.json()).toEqual({
+      intent: { targetRole: "Delivery Lead", searchArea: null },
+      missing: ["searchArea"],
+      checkpoint: "intent_needed",
+    });
+  });
+
+  it("does not promote imported history or residence into job-search intent", async () => {
+    const { app, sessions } = buildServer();
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = cookieOf(created);
+    await sessions.setImportProof(created.json().id, {
+      outcome: "success",
+      usefulFactCount: 2,
+      skippedQuestionCount: 2,
+      representativeFacts: [
+        { id: "role-title", text: "Worked as a Project Manager", provenance: "cv" },
+        { id: "residence", text: "Lives in Bangkok", provenance: "cv" },
+      ],
+      conflict: null,
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+    });
+    expect(response.json().intent).toEqual({ targetRole: null, searchArea: null });
+  });
+
+  it("requires a session and rejects invalid intent writes", async () => {
+    const { app } = buildServer();
+    const noSession = await app.inject({ method: "GET", url: "/sessions/me/intent" });
+    expect(noSession.statusCode).toBe(401);
+    expect(noSession.json()).toEqual({
+      error: { code: "no_session", message: "no active session" },
+    });
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = cookieOf(created);
+    for (const payload of [
+      {},
+      { targetRole: "" },
+      { searchArea: "   " },
+      { targetRole: "PM", extra: true },
+    ]) {
+      const invalid = await app.inject({
+        method: "PUT",
+        url: "/sessions/me/intent",
+        headers: { cookie },
+        payload,
+      });
+      expect(invalid.statusCode).toBe(400);
+    }
+  });
+
   it("persists an import correction without changing unrelated facts", async () => {
     const { app, sessions } = buildServer();
     const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });

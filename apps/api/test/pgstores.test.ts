@@ -33,6 +33,7 @@ for (const [name, make] of sessionDrivers) {
       expect(s.sourceEntry).toBeNull();
       expect(s.importProof).toBeNull();
       expect(s.importResolutions).toEqual({});
+      expect(s.intent).toEqual({ targetRole: null, searchArea: null });
       expect(await store.getByToken(s.token)).toMatchObject({
         id: s.id,
         token: s.token,
@@ -138,6 +139,29 @@ for (const [name, make] of sessionDrivers) {
       );
       expect((await store.getById(s.id))?.importResolutions).toEqual({});
       expect((await store.getById(s.id))?.importProof).toBeNull();
+    });
+
+    it("persists intent atomically and merges partial updates", async () => {
+      const s = await store.create();
+      const both = await store.setIntent(s.id, {
+        targetRole: "Programme Manager",
+        searchArea: "Bangkok",
+      });
+      expect(both).toEqual({ targetRole: "Programme Manager", searchArea: "Bangkok" });
+      expect((await store.getById(s.id))?.intent).toEqual(both);
+
+      const merged = await store.setIntent(s.id, { searchArea: "Remote in Thailand" });
+      expect(merged).toEqual({
+        targetRole: "Programme Manager",
+        searchArea: "Remote in Thailand",
+      });
+      expect((await store.getById(s.id))?.intent).toEqual(merged);
+
+      const preserved = await store.setIntent(s.id, { targetRole: undefined });
+      expect(preserved).toEqual({
+        targetRole: "Programme Manager",
+        searchArea: "Remote in Thailand",
+      });
     });
 
     it("setSourceEntry persists last-write-wins", async () => {

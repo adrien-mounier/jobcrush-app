@@ -9,13 +9,20 @@ async function stubSourceEntry(
   page: Page,
   initial: SourceEntry = null,
   importProof?: Record<string, unknown>,
+  stage?: string,
 ) {
   let sourceEntry = initial;
   const writes: unknown[] = [];
 
   await page.route("**/api/sessions/me", async (route) => {
     if (route.request().method() === "GET") {
-      await route.fulfill({ json: { sourceEntry, ...(importProof ? { importProof } : {}) } });
+      await route.fulfill({
+        json: {
+          sourceEntry,
+          ...(importProof ? { importProof } : {}),
+          ...(stage ? { stage } : {}),
+        },
+      });
       return;
     }
     await route.continue();
@@ -50,6 +57,41 @@ async function stubCvImport(
       body,
     });
   });
+}
+
+type IntentState = {
+  intent: { targetRole: string | null; searchArea: string | null };
+  missing: Array<"targetRole" | "searchArea">;
+  checkpoint: "intent_needed" | "intent_known";
+};
+
+async function stubIntent(page: Page, initial: IntentState, failFirstSave = false) {
+  let state = initial;
+  let saveAttempts = 0;
+  const writes: unknown[] = [];
+  await page.route("**/api/sessions/me/stage", async (route) => {
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.route("**/api/sessions/me/intent", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: state });
+      return;
+    }
+    saveAttempts += 1;
+    const body = route.request().postDataJSON() as Partial<IntentState["intent"]>;
+    writes.push(body);
+    if (failFirstSave && saveAttempts === 1) {
+      await route.fulfill({ status: 503, json: { error: { message: "unavailable" } } });
+      return;
+    }
+    state = {
+      intent: { ...state.intent, ...body },
+      missing: [],
+      checkpoint: "intent_known",
+    };
+    await route.fulfill({ json: state });
+  });
+  return { writes, getSaveAttempts: () => saveAttempts };
 }
 
 async function chooseCv(page: Page) {
@@ -89,13 +131,28 @@ test("reduced motion renders the complete stable invitation immediately", async 
 for (const choice of ["cv", "questions"] as const) {
   test(`${choice} choice persists and restores after reload`, async ({ page }) => {
     const writes = await stubSourceEntry(page, { checkpoint: "invited", choice: null });
+    if (choice === "questions") {
+      await stubIntent(page, {
+        intent: { targetRole: null, searchArea: null },
+        missing: ["targetRole", "searchArea"],
+        checkpoint: "intent_needed",
+      });
+    }
     await page.goto("/");
 
     const name = choice === "cv" ? "Use my CV" : "Start questions instead";
     await page.getByRole("button", { name: new RegExp(name) }).click();
-    await expect(page.locator(`[data-source="${choice}"]`)).toHaveAttribute("aria-pressed", "true");
+    if (choice === "cv") {
+      await expect(page.locator('[data-source="cv"]')).toHaveAttribute("aria-pressed", "true");
+    } else {
+      await expect(page.getByLabel("Target role")).toBeVisible();
+    }
     await page.reload();
-    await expect(page.locator(`[data-source="${choice}"]`)).toHaveAttribute("aria-pressed", "true");
+    if (choice === "cv") {
+      await expect(page.locator('[data-source="cv"]')).toHaveAttribute("aria-pressed", "true");
+    } else {
+      await expect(page.getByLabel("Target role")).toBeVisible();
+    }
     expect(writes).toEqual([{ checkpoint: "source_selected", choice }]);
   });
 }
@@ -418,6 +475,132 @@ test("reload restores terminal import failure without re-upload or duplicate ale
   await page.reload();
   await expect(heading).toBeVisible();
   await expect(heading).not.toBeFocused();
+});
+
+test("both missing intent fields save together without promoting history or residence", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await stubSourceEntry(page, { checkpoint: "invited", choice: null });
+  const intent = await stubIntent(page, {
+    intent: { targetRole: null, searchArea: null },
+    missing: ["targetRole", "searchArea"],
+    checkpoint: "intent_needed",
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /Start questions instead/ }).click();
+
+  await expect(page.getByRole("heading", {
+    name: "What kind of job are you going for, and where?",
+  })).toBeFocused();
+  await expect(page.getByText(
+    "Tell us what you want next. Your work history and where you live don’t decide this for you.",
+  )).toBeVisible();
+  await expect(page.getByLabel("Target role")).toHaveValue("");
+  await expect(page.getByLabel("Search area")).toHaveValue("");
+
+  await page.getByLabel("Target role").fill("Platform delivery lead");
+  await page.getByLabel("Search area").fill("Remote in Thailand");
+  await page.getByRole("button", { name: "Save and continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "Got it." })).toBeVisible();
+  await expect(page.getByText(
+    "We’ll look for Platform delivery lead in Remote in Thailand.",
+  )).toBeVisible();
+  await expect(page.getByText(/jobs? (found|matched|available)|\d+ jobs/i)).toHaveCount(0);
+  expect(intent.writes).toEqual([{
+    targetRole: "Platform delivery lead",
+    searchArea: "Remote in Thailand",
+  }]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
+});
+
+test("server-supported role asks only for search area and restores accepted intent", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "source_selected", choice: "questions" });
+  const intent = await stubIntent(page, {
+    intent: { targetRole: "Technical programme manager", searchArea: null },
+    missing: ["searchArea"],
+    checkpoint: "intent_needed",
+  });
+
+  await page.goto("/");
+  await expect(page.getByLabel("Target role")).toHaveCount(0);
+  await expect(page.getByText("Looking for Technical programme manager")).toBeVisible();
+  await page.getByLabel("Search area").fill("Bangkok");
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  expect(intent.writes).toEqual([{ searchArea: "Bangkok" }]);
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Got it." })).toBeVisible();
+  await expect(page.getByText(
+    "We’ll look for Technical programme manager in Bangkok.",
+  )).toBeVisible();
+  await expect(page.getByText("Saved.", { exact: true })).toHaveCount(0);
+});
+
+test("CV proof continuation reload restores durable intent instead of returning to proof", async ({ page }) => {
+  await stubSourceEntry(
+    page,
+    { checkpoint: "source_selected", choice: "cv" },
+    {
+      outcome: "success",
+      usefulFactCount: 2,
+      skippedQuestionCount: 1,
+      representativeFacts: [
+        { id: "fact-1", text: "Led regional delivery", provenance: "cv" },
+      ],
+      conflict: null,
+    },
+    "discovery",
+  );
+  await stubIntent(page, {
+    intent: {
+      targetRole: "Technical programme manager",
+      searchArea: "Remote in Thailand",
+    },
+    missing: [],
+    checkpoint: "intent_known",
+  });
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Got it." })).toBeVisible();
+  await expect(page.getByText(
+    "We’ll look for Technical programme manager in Remote in Thailand.",
+  )).toBeVisible();
+  await expect(page.getByText("Your CV saved you some questions")).toHaveCount(0);
+  await expect(page.getByText("Saved.", { exact: true })).toHaveCount(0);
+});
+
+test("server-supported area asks only for role; validation and retry retain exact values", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "source_selected", choice: "questions" });
+  const intent = await stubIntent(page, {
+    intent: { targetRole: null, searchArea: "Chiang Mai or remote" },
+    missing: ["targetRole"],
+    checkpoint: "intent_needed",
+  }, true);
+
+  await page.goto("/");
+  await expect(page.getByLabel("Search area")).toHaveCount(0);
+  await expect(page.getByText("Searching in Chiang Mai or remote")).toBeVisible();
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await expect(page.getByLabel("Target role")).toBeFocused();
+  await expect(page.getByText("Tell us the target role you want next.")).toBeVisible();
+  await expect(page.getByLabel("Target role")).toHaveAttribute("aria-invalid", "true");
+
+  await page.getByLabel("Target role").fill("  Portfolio coach  ");
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  const alert = page.getByRole("alert").filter({
+    hasText: "We couldn’t save that. Your answers are still here.",
+  });
+  await expect(alert).toBeFocused();
+  await expect(page.getByLabel("Target role")).toHaveValue("  Portfolio coach  ");
+  await alert.getByRole("button", { name: "Try again" }).click();
+
+  await expect(page.getByRole("heading", { name: "Got it." })).toBeVisible();
+  expect(intent.writes).toEqual([
+    { targetRole: "Portfolio coach" },
+    { targetRole: "Portfolio coach" },
+  ]);
+  expect(intent.getSaveAttempts()).toBe(2);
 });
 
 test("no useful facts is neutral, retryable, continuable, and durable across reload", async ({ page }) => {

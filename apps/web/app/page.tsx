@@ -4,12 +4,15 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./frontdoor.css";
 import {
   ensureSession,
+  getIntent,
   getSessionCheckpoint,
   saveImportResolution,
+  saveIntent,
   saveSourceEntry,
   setStage,
   uploadCv,
   type ImportProof,
+  type IntentState,
   type JobSnapshot,
   type SourceEntry,
 } from "../lib/api";
@@ -61,7 +64,7 @@ export default function FrontDoor() {
   const [loading, setLoading] = useState(true);
   const [loadSlow, setLoadSlow] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  const [view, setView] = useState<"invitation" | "source">("invitation");
+  const [view, setView] = useState<"invitation" | "source" | "intent">("invitation");
   const [caretLine, setCaretLine] = useState<"l1" | "l2" | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [readyBusy, setReadyBusy] = useState(false);
@@ -75,6 +78,25 @@ export default function FrontDoor() {
   const [conflictError, setConflictError] = useState(false);
   const [importAction, setImportAction] = useState<"saving" | "continuing" | null>(null);
   const [importError, setImportError] = useState<"saving" | "continuing" | null>(null);
+  const [intent, setIntent] = useState<IntentState | null>(null);
+  const [intentFresh, setIntentFresh] = useState(false);
+  const [intentLoadError, setIntentLoadError] = useState(false);
+
+  const openIntent = async (fresh: boolean) => {
+    setIntentLoadError(false);
+    setIntentFresh(fresh);
+    setView("intent");
+    try {
+      setIntent(await getIntent());
+    } catch {
+      setIntentLoadError(true);
+    }
+  };
+
+  const advanceToIntent = async (fresh: boolean) => {
+    await setStage("discovery");
+    await openIntent(fresh);
+  };
 
   const restore = async () => {
     setLoading(true);
@@ -92,9 +114,13 @@ export default function FrontDoor() {
           : null;
         setConfirmedChoice(choice);
         setVisibleChoice(choice);
-        if (session.importProof) {
+        if (session.stage === "discovery") {
+          await openIntent(false);
+        } else if (session.importProof) {
           setConflictValue(session.importProof.conflict?.userResolvedValue ?? "");
           setCv({ phase: "proof", proof: session.importProof, restored: true });
+        } else if (choice === "questions") {
+          await openIntent(false);
         }
       } else {
         setView("invitation");
@@ -237,8 +263,8 @@ export default function FrontDoor() {
     setImportError(null);
     setImportAction("continuing");
     try {
-      await setStage("discovery");
-      window.location.assign("/discovery");
+      await advanceToIntent(true);
+      setImportAction(null);
     } catch {
       setImportAction(null);
       setImportError("continuing");
@@ -260,8 +286,8 @@ export default function FrontDoor() {
     try {
       const result = await saveImportResolution(proof.conflict.fieldId, value);
       setCv({ phase: "proof", proof: result.importProof });
-      await setStage("discovery");
-      window.location.assign("/discovery");
+      await advanceToIntent(true);
+      setImportAction(null);
     } catch {
       setImportAction(null);
       setImportError("saving");
@@ -282,6 +308,7 @@ export default function FrontDoor() {
       setVisibleChoice(result.sourceEntry.choice);
       setPendingChoice(null);
       if (choice === "cv") fileInputRef.current?.click();
+      else await advanceToIntent(true);
     } catch {
       setVisibleChoice(confirmedChoice);
       setPendingChoice(null);
@@ -343,7 +370,7 @@ export default function FrontDoor() {
             )}
           </div>
         </div>
-      ) : (
+      ) : view === "source" ? (
         <section className="source-screen">
           <p className="wordmark">JobCrush</p>
           {cv.phase === "idle" ? (
@@ -405,8 +432,208 @@ export default function FrontDoor() {
             }}
           />
         </section>
+      ) : (
+        <IntentPanel
+          state={intent}
+          fresh={intentFresh}
+          loadError={intentLoadError}
+          onRetryLoad={() => void openIntent(intentFresh)}
+          onAccepted={setIntent}
+        />
       )}
     </main>
+  );
+}
+
+function IntentPanel({
+  state,
+  fresh,
+  loadError,
+  onRetryLoad,
+  onAccepted,
+}: {
+  state: IntentState | null;
+  fresh: boolean;
+  loadError: boolean;
+  onRetryLoad: () => void;
+  onAccepted: (state: IntentState) => void;
+}) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const roleRef = useRef<HTMLInputElement>(null);
+  const areaRef = useRef<HTMLInputElement>(null);
+  const [targetRole, setTargetRole] = useState("");
+  const [searchArea, setSearchArea] = useState("");
+  const [errors, setErrors] = useState<{ targetRole?: string; searchArea?: string }>({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+
+  useEffect(() => {
+    if (!state) return;
+    setTargetRole(state.intent.targetRole ?? "");
+    setSearchArea(state.intent.searchArea ?? "");
+    if (fresh) headingRef.current?.focus();
+  }, [fresh, state]);
+
+  if (loadError) {
+    return (
+      <section className="source-screen intent-screen">
+        <p className="wordmark">JobCrush</p>
+        <div className="async-error" role="alert" tabIndex={-1} ref={errorRef}>
+          We couldn’t restore what you want next.{" "}
+          <button type="button" onClick={onRetryLoad}>Try again</button>
+        </div>
+      </section>
+    );
+  }
+
+  if (!state) {
+    return (
+      <section className="source-screen intent-screen" aria-busy="true">
+        <p className="wordmark">JobCrush</p>
+        <p className="intent-live" aria-live="polite">Restoring what you want next…</p>
+      </section>
+    );
+  }
+
+  if (state.checkpoint === "intent_known") {
+    return (
+      <section className="source-screen intent-screen">
+        <p className="wordmark">JobCrush</p>
+        <h1 tabIndex={-1} ref={headingRef}>Got it.</h1>
+        <p className="source-intro intent-confirmation">
+          We’ll look for {state.intent.targetRole} in {state.intent.searchArea}.
+        </p>
+        <p className="intent-live" aria-live={fresh ? "polite" : "off"}>
+          {fresh ? "Saved." : ""}
+        </p>
+      </section>
+    );
+  }
+
+  const needsRole = state.missing.includes("targetRole");
+  const needsArea = state.missing.includes("searchArea");
+  const heading = needsRole && needsArea
+    ? "What kind of job are you going for, and where?"
+    : needsRole
+      ? "What kind of job are you going for?"
+      : "Where should JobCrush look?";
+  const intro = needsRole && needsArea
+    ? "Tell us what you want next. Your work history and where you live don’t decide this for you."
+    : needsRole
+      ? "Use the words you would use for the work you want next."
+      : "Tell us the area you want to search — it can be different from where you live.";
+
+  const submit = async () => {
+    const role = targetRole.trim();
+    const area = searchArea.trim();
+    const nextErrors = {
+      ...(needsRole && !role ? { targetRole: "Tell us the target role you want next." } : {}),
+      ...(needsArea && !area ? { searchArea: "Tell us where you want JobCrush to look." } : {}),
+    };
+    setErrors(nextErrors);
+    if (nextErrors.targetRole) {
+      roleRef.current?.focus();
+      return;
+    }
+    if (nextErrors.searchArea) {
+      areaRef.current?.focus();
+      return;
+    }
+    setSaveError(false);
+    setSaving(true);
+    try {
+      const accepted = await saveIntent({
+        ...(needsRole ? { targetRole: role } : {}),
+        ...(needsArea ? { searchArea: area } : {}),
+      });
+      onAccepted(accepted);
+    } catch {
+      setSaving(false);
+      setSaveError(true);
+      requestAnimationFrame(() => errorRef.current?.focus());
+    }
+  };
+
+  return (
+    <section className="source-screen intent-screen">
+      <p className="wordmark">JobCrush</p>
+      <form
+        aria-busy={saving}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <h1 tabIndex={-1} ref={headingRef}>{heading}</h1>
+        <p className="source-intro">{intro}</p>
+        {needsRole && !needsArea && state.intent.searchArea && (
+          <p className="intent-summary">Searching in {state.intent.searchArea}</p>
+        )}
+        {needsArea && !needsRole && state.intent.targetRole && (
+          <p className="intent-summary">Looking for {state.intent.targetRole}</p>
+        )}
+        <div className="intent-fields">
+          {needsRole && (
+            <div className="intent-field">
+              <label htmlFor="target-role">Target role</label>
+              <input
+                id="target-role"
+                ref={roleRef}
+                value={targetRole}
+                disabled={saving}
+                placeholder="e.g. Technical project manager"
+                autoComplete="organization-title"
+                aria-invalid={Boolean(errors.targetRole)}
+                aria-describedby={`target-role-helper${errors.targetRole ? " target-role-error" : ""}`}
+                onChange={(event) => setTargetRole(event.target.value)}
+              />
+              <p id="target-role-helper" className="intent-helper">
+                {needsArea
+                  ? "Use the words you would use for the work."
+                  : "Free text is fine — you don’t have to choose a standard title."}
+              </p>
+              {errors.targetRole && <p id="target-role-error" className="intent-validation" role="alert">{errors.targetRole}</p>}
+            </div>
+          )}
+          {needsArea && (
+            <div className="intent-field">
+              <label htmlFor="search-area">Search area</label>
+              <input
+                id="search-area"
+                ref={areaRef}
+                value={searchArea}
+                disabled={saving}
+                placeholder="e.g. Remote in Thailand, or Bangkok"
+                aria-invalid={Boolean(errors.searchArea)}
+                aria-describedby={`search-area-helper${errors.searchArea ? " search-area-error" : ""}`}
+                onChange={(event) => setSearchArea(event.target.value)}
+              />
+              <p id="search-area-helper" className="intent-helper">
+                A city, region, remote preference, or relocation area all work.
+              </p>
+              {errors.searchArea && <p id="search-area-error" className="intent-validation" role="alert">{errors.searchArea}</p>}
+            </div>
+          )}
+        </div>
+        <div className="import-actions">
+          <button type="submit" className="primary" disabled={saving}>
+            {saving ? "Saving…" : "Save and continue"}
+          </button>
+        </div>
+        <div className="intent-status">
+          <p className="intent-live" aria-live="polite">
+            {saving ? "Saving what you want next…" : ""}
+          </p>
+          {saveError && (
+            <div className="async-error" role="alert" tabIndex={-1} ref={errorRef}>
+              We couldn’t save that. Your answers are still here.{" "}
+              <button type="button" onClick={() => void submit()}>Try again</button>
+            </div>
+          )}
+        </div>
+      </form>
+    </section>
   );
 }
 

@@ -36,6 +36,34 @@ const importProofSchema = z.object({
     .nullable(),
 });
 
+const intentSchema = z.object({
+  targetRole: z.string().nullable(),
+  searchArea: z.string().nullable(),
+});
+
+const intentWriteSchema = z
+  .object({
+    targetRole: z.string().trim().min(1).optional(),
+    searchArea: z.string().trim().min(1).optional(),
+  })
+  .strict()
+  .refine((value) => value.targetRole !== undefined || value.searchArea !== undefined);
+
+const intentState = (intent: { targetRole: string | null; searchArea: string | null }) => {
+  const missing = (["targetRole", "searchArea"] as const).filter((field) => intent[field] === null);
+  return {
+    intent,
+    missing,
+    checkpoint: missing.length === 0 ? ("intent_known" as const) : ("intent_needed" as const),
+  };
+};
+
+const intentStateSchema = z.object({
+  intent: intentSchema,
+  missing: z.array(z.enum(["targetRole", "searchArea"])),
+  checkpoint: z.enum(["intent_needed", "intent_known"]),
+});
+
 export function sessionRoutes(
   sessions: SessionStore,
   limiter = new IpRateLimiter(),
@@ -71,13 +99,64 @@ export function sessionRoutes(
       },
     );
 
-    app.get("/sessions/me", async (req, reply) => {
+  app.get("/sessions/me", async (req, reply) => {
       if (!req.session) {
         return reply.status(401).send({ error: { code: "no_session", message: "no active session" } });
       }
       const { token: _token, ...safe } = req.session;
-      return safe;
-    });
+    return safe;
+  });
+
+  app.get(
+    "/sessions/me/intent",
+    {
+      schema: {
+        response: {
+          200: intentStateSchema,
+          401: z.object({
+            error: z.object({
+              code: z.literal("no_session"),
+              message: z.literal("no active session"),
+            }),
+          }),
+        },
+      },
+    },
+    async (req, reply) => {
+      if (!req.session) {
+        return reply
+          .status(401)
+          .send({ error: { code: "no_session", message: "no active session" } });
+      }
+      return intentState(req.session.intent);
+    },
+  );
+
+  app.put(
+    "/sessions/me/intent",
+    {
+      schema: {
+        body: intentWriteSchema,
+        response: {
+          200: intentStateSchema,
+          401: z.object({
+            error: z.object({
+              code: z.literal("no_session"),
+              message: z.literal("no active session"),
+            }),
+          }),
+        },
+      },
+    },
+    async (req, reply) => {
+      if (!req.session) {
+        return reply
+          .status(401)
+          .send({ error: { code: "no_session", message: "no active session" } });
+      }
+      return intentState(await sessions.setIntent(req.session.id, req.body));
+    },
+  );
 
     app.put(
       "/sessions/me/targets",

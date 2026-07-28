@@ -13,6 +13,11 @@ export type SourceEntry =
   | { checkpoint: "invited"; choice: null }
   | { checkpoint: "source_selected"; choice: "cv" | "questions" };
 
+export interface SearchIntent {
+  targetRole: string | null;
+  searchArea: string | null;
+}
+
 export interface ImportProof {
   outcome: "success" | "partial" | "failed" | "no_useful_facts";
   usefulFactCount: number;
@@ -69,6 +74,7 @@ export interface SessionRecord {
   sourceEntry: SourceEntry;
   importProof: ImportProof | null;
   importResolutions: Record<string, string>;
+  intent: SearchIntent;
 }
 
 export interface SessionStore {
@@ -83,6 +89,7 @@ export interface SessionStore {
   setSourceEntry(id: string, sourceEntry: Exclude<SourceEntry, null>): Promise<void>;
   setImportProof(id: string, proof: ImportProof): Promise<void>;
   setImportResolution(id: string, fieldId: string, value: string): Promise<void>;
+  setIntent(id: string, intent: Partial<SearchIntent>): Promise<SearchIntent>;
   resolveImport(id: string, fieldId: string, value: string): Promise<ImportProof>;
   setTailorTarget(id: string, adId: string): Promise<void>;
   /** #23 drop: exit tailor back to the deck, clearing the target. Never touches claims. */
@@ -112,6 +119,7 @@ function newSession(): SessionRecord {
     sourceEntry: null,
     importProof: null,
     importResolutions: {},
+    intent: { targetRole: null, searchArea: null },
   };
 }
 
@@ -164,6 +172,16 @@ export class InMemorySessionStore implements SessionStore {
   async setImportResolution(id: string, fieldId: string, value: string): Promise<void> {
     const s = this.byId.get(id);
     if (s) s.importResolutions = { ...s.importResolutions, [fieldId]: value };
+  }
+
+  async setIntent(id: string, intent: Partial<SearchIntent>): Promise<SearchIntent> {
+    const s = this.byId.get(id);
+    if (!s) throw new Error("session not found");
+    s.intent = {
+      targetRole: intent.targetRole ?? s.intent.targetRole,
+      searchArea: intent.searchArea ?? s.intent.searchArea,
+    };
+    return s.intent;
   }
   async resolveImport(
     id: string,
@@ -229,7 +247,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   tailor_floor_pct   integer NOT NULL DEFAULT 0,
   tailor_floor_ad_id text,
   fact_floor         integer NOT NULL DEFAULT 0,
-  source_entry       jsonb
+  source_entry       jsonb,
+  target_role        text,
+  search_area        text
 )`;
 
 const SESSIONS_ALTERS = [
@@ -246,6 +266,8 @@ const SESSIONS_ALTERS = [
   // existing row just starts at 0 and gets raised back up to its true peak on the very first read.
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS fact_floor integer NOT NULL DEFAULT 0",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS source_entry jsonb",
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS target_role text",
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS search_area text",
 ];
 
 function toSession(r: Record<string, unknown>): SessionRecord {
@@ -265,6 +287,10 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     sourceEntry: (r.source_entry as SourceEntry) ?? null,
     importProof: (r.import_proof as ImportProof) ?? null,
     importResolutions: resolutionMap(r.import_resolutions),
+    intent: {
+      targetRole: (r.target_role as string) ?? null,
+      searchArea: (r.search_area as string) ?? null,
+    },
   };
 }
 
@@ -346,6 +372,22 @@ export class PgSessionStore implements SessionStore {
        ON CONFLICT (session_id, field_id) DO UPDATE SET value = EXCLUDED.value`,
       [id, fieldId, value],
     );
+  }
+
+  async setIntent(id: string, intent: Partial<SearchIntent>): Promise<SearchIntent> {
+    const { rows } = await this.pool.query(
+      `UPDATE sessions
+       SET target_role = COALESCE($2, target_role),
+           search_area = COALESCE($3, search_area)
+       WHERE id = $1
+       RETURNING target_role, search_area`,
+      [id, intent.targetRole ?? null, intent.searchArea ?? null],
+    );
+    if (!rows[0]) throw new Error("session not found");
+    return {
+      targetRole: (rows[0].target_role as string) ?? null,
+      searchArea: (rows[0].search_area as string) ?? null,
+    };
   }
 
   async resolveImport(
