@@ -2,15 +2,34 @@
 
 ## Responsive sibling panels must not derive height from each other
 
-The discovery desktop layout made an A4-shaped CV set the shared row height, then stretched the
-question card to match. It looked aligned in one screenshot but became a huge empty panel after the
-first answer. On stacked screens, the new wrapper had no `flex`/`min-height: 0` contract, so growing
-question content pushed the dock below the fixed viewport. For stateful split screens, let the
-viewport own available height, give each sibling independent intrinsic height, and put overflow on
-the region whose content actually grows. Regression coverage must cross both state and viewport
-dimensions; a single before/after screenshot cannot prove a dynamic layout. An `aspect-ratio` on a
-sparse document is still a hidden height coupling even after sibling stretching is removed. Verify
-the owner's exact viewport and reject forced blank height explicitly before claiming the fix.
+This bug survived at least four sessions because each pass patched one visible symptom—centering,
+matching edges, A4 sizing, then stopping the ask from stretching—without challenging the page's
+underlying geometry. The desktop CV and question were still coupled through a shared header/main
+structure, and `aspect-ratio: 210 / 297` kept a sparse CV artificially huge even after equal-height
+stretching was removed. On stacked screens, the wrapper also lacked the `flex`/`min-height: 0`
+contract needed to keep a growing dock inside the fixed viewport.
+
+The false-completion signals were especially costly: typecheck and ordinary interaction tests were
+green; narrow geometry checks proved only that elements stayed inside the viewport and shared an
+edge; a 1440×900 screenshot looked less severe than the owner's 2048×1118 case. None of those checks
+asserted the thing the user actually disliked: a mostly empty CV consuming nearly the full screen
+and making the post-answer composition feel dropped and broken.
+
+For future responsive UI bugs:
+
+1. Reproduce the owner's exact state, viewport, and content density before editing.
+2. Translate the complaint into **negative visual invariants**—for this bug: no forced document
+   aspect ratio, no scrollbar on a sparse preview, no sparse panel consuming most of the viewport,
+   and no sibling's content determining another sibling's height.
+3. Fix the ownership model, not successive offsets: the viewport owns available height; independent
+   columns own their intrinsic content; overflow belongs only to the region that genuinely grows.
+4. Test the Cartesian product of meaningful states and representative viewports, including the
+   reported one—not merely one before/after transition.
+5. Inspect a rendered screenshot from the deployed SHA. CI, health checks, and DOM geometry are
+   necessary evidence, but they cannot replace comparing the actual composition with the user's
+   evidence.
+6. When the user says the improvement is not visible, treat that screenshot as a contradiction of
+   completion—not as a cache problem or a request for another cosmetic adjustment.
 
 ## After a domain move, add the new origin's Google OAuth redirect URI to the Google Console
 
