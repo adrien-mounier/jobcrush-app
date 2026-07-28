@@ -8,7 +8,9 @@ first answer. On stacked screens, the new wrapper had no `flex`/`min-height: 0` 
 question content pushed the dock below the fixed viewport. For stateful split screens, let the
 viewport own available height, give each sibling independent intrinsic height, and put overflow on
 the region whose content actually grows. Regression coverage must cross both state and viewport
-dimensions; a single before/after screenshot cannot prove a dynamic layout.
+dimensions; a single before/after screenshot cannot prove a dynamic layout. An `aspect-ratio` on a
+sparse document is still a hidden height coupling even after sibling stretching is removed. Verify
+the owner's exact viewport and reject forced blank height explicitly before claiming the fix.
 
 ## After a domain move, add the new origin's Google OAuth redirect URI to the Google Console
 

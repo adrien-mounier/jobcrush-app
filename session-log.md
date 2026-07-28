@@ -2,6 +2,18 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 44) — Corrective fix: remove discovery's forced blank CV page
+
+- Owner production screenshot at 2048×1118 disproved session 43's completion claim: the ask no
+  longer stretched, but the empty CV still rendered as an 864px A4 sheet with its own scrollbar,
+  and the shared header row still reserved dead space above it.
+- Replaced the split header/main grids with two independent semantic column stacks. Desktop CV and
+  ask content now size intrinsically; the CV only scrolls after real content exceeds the viewport.
+  Mobile/tablet preserve the progress → CV → dock reading order through responsive `display: contents`.
+- Regression geometry now rejects non-auto CV aspect ratios and oversized sparse previews, adds the
+  reported 2048×1118 viewport, and still covers every ask shape. Focused discovery suite: 7/7 green.
+- **Next:** continue the planned downstream discovery-to-Tailor journey audit from issue #45.
+
 ## 2026-07-28 (session 43) — Fix: discovery layout adapts across every question state
 
 - **Root cause:** the desktop A4 CV forced the shared row height and the ask card stretched to match

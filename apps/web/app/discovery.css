@@ -608,13 +608,9 @@
   }
 }
 
-/* ---------- #51 Discovery B — responsive two-column ----------
-   A flex-column root (no grid, so the main row isn't capped at the viewport): a header row
-   (divider left, session strip + promise right), then a main flex row with the CV sheet on the
-   left and the ask card on the right. The CV's A4 height drives the main row; the ask stretches to
-   match it (align-items: stretch) at any size — one page or two — so their top and bottom edges
-   stay aligned. The root scrolls (overflow-y: auto) when the A4 sheet is taller than the viewport.
-   Scoped to the loaded screen via :has(.band-cv); phone (≤ 640px) unchanged. */
+/* ---------- #51 Discovery B — shared desktop shell ----------
+   The fixed viewport supplies one bounded workspace; the independent content columns are defined
+   below. Stacked screens keep the original docked interaction model. */
 @media (min-width: 900px) {
   .discovery:has(.band-cv) {
     display: flex;
@@ -629,64 +625,6 @@
     z-index: 5;
     background: var(--hud-0);
   }
-  /* header row: divider (left) + disc-head (right). DOM order is disc-head then divider (for
-     mobile's stacked order), so row-reverse puts the divider on the left on desktop. */
-  .discovery:has(.band-cv) > .disc-header {
-    flex: 0 0 auto;
-    display: grid;
-    grid-template-columns: minmax(360px, 520px) minmax(340px, 1fr);
-    gap: clamp(20px, 2.5vw, 32px);
-    padding: 12px 0;
-  }
-  .discovery .disc-header > .disc-head {
-    grid-column: 2;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .discovery .disc-header > .divider {
-    grid-column: 1;
-    grid-row: 1;
-    max-width: 100%;
-    align-self: end;
-    padding-inline: 0;
-  }
-  /* main row: CV (left, drives the height) + ask (right, stretches to match) */
-  .discovery:has(.band-cv) > .disc-main {
-    flex: 1 1 auto;
-    min-height: 0;
-    display: grid;
-    grid-template-columns: minmax(360px, 520px) minmax(340px, 1fr);
-    gap: clamp(20px, 2.5vw, 32px);
-    align-items: start;
-    padding-bottom: 16px;
-  }
-  /* The CV column fills the left (the A4 sheet centred inside it) and drives the row's height;
-     the ask is a fixed 460px on the right and stretches to match the CV at any size — one page or
-     two — so their top and bottom edges stay aligned. */
-  .discovery .disc-main > .band-cv {
-    width: 100%;
-    max-width: 100%;
-    height: 100%;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: 0;
-  }
-  .discovery .disc-main > .ask {
-    width: 100%;
-    min-width: 0;
-    max-height: 100%;
-    align-self: start;
-    background: var(--hud-1);
-    border: 1px solid var(--hud-line);
-    border-radius: 14px;
-    padding: 18px;
-    margin: 0;
-    overflow-y: auto;
-    min-height: 0;
-  }
-
   /* session strip: countdown directly above the progress bar, shared left edge */
   .discovery .session-strip {
     display: flex;
@@ -699,17 +637,6 @@
   }
   .discovery .session-strip .rail {
     padding: 0;
-  }
-
-  /* CV: A4 sheet — min-height is one A4 page (drives the grid row's min-content, so the ask
-     stretches to match it), max-height is two pages. Content grows the sheet between them; the
-     ask tracks it via the shared grid row. aspect-ratio alone doesn't feed min-content, hence the
-     explicit min-height. */
-  .discovery:has(.band-cv) .cv {
-    width: 100%;
-    margin: 0;
-    min-height: auto;
-    aspect-ratio: 210 / 297;
   }
 
   /* promise slim banner (role="status" + text preserved — spec-pinned) */
@@ -729,16 +656,111 @@
 }
 
 @media (max-width: 899px) {
-  .discovery .disc-main {
+  .discovery .ask {
+    max-height: 60dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+/* ---------- Discovery columns: content, not sibling geometry, sets height ----------
+   The CV label/preview and progress/question stacks are independent. This removes both sources of
+   the post-answer drop: the shared header row and the forced blank A4 page. */
+@media (min-width: 900px) {
+  .discovery:has(.band-cv) > .disc-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(360px, 520px) minmax(340px, 1fr);
+    gap: clamp(20px, 2.5vw, 32px);
+    align-items: start;
+    padding: 12px 0 16px;
+  }
+
+  .discovery .cv-column,
+  .discovery .ask-column {
+    min-width: 0;
+    min-height: 0;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .discovery .cv-column > .divider {
+    min-height: 29px;
+    padding: 0;
+    align-items: end;
+  }
+
+  .discovery .cv-column > .band-cv {
+    flex: 0 1 auto;
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - 106px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0;
+  }
+
+  .discovery .ask-column > .disc-head {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .discovery .ask-column > .ask {
+    flex: 0 1 auto;
+    width: 100%;
+    min-width: 0;
+    max-height: calc(100dvh - 106px);
+    margin: 0;
+    padding: 18px;
+    overflow-y: auto;
+    background: var(--hud-1);
+    border: 1px solid var(--hud-line);
+    border-radius: 14px;
+  }
+
+  .discovery:has(.band-cv) .cv {
+    width: 100%;
+    min-height: 0;
+    margin: 0;
+    aspect-ratio: auto;
+  }
+
+  .discovery:has(.band-cv) .cv-gap {
+    height: 24px;
+  }
+}
+
+@media (max-width: 899px) {
+  .discovery .disc-layout {
     flex: 1 1 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
   }
 
+  .discovery .cv-column,
+  .discovery .ask-column {
+    display: contents;
+  }
+
+  .discovery .disc-head {
+    order: 1;
+  }
+
+  .discovery .divider {
+    order: 2;
+  }
+
+  .discovery .band-cv {
+    order: 3;
+  }
+
   .discovery .ask {
-    max-height: 60dvh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    order: 4;
   }
 }

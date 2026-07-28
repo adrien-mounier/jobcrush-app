@@ -196,7 +196,8 @@ UX/UI cleanup of the existing flow (see milestone above). Critique done 2026-07-
 
 - [x] **Discovery responsive-layout resilience** — removed A4-driven equal-height coupling and
   restored flexible stacked-wrapper sizing. Geometry now covers every ask shape across phone,
-  tablet, and desktop rather than one post-answer screenshot.
+  tablet, and desktop—including the owner's reported 2048×1118 viewport—rather than one post-answer
+  screenshot. Sparse CV previews are content-sized; A4 is no longer a screen-layout constraint.
 - [x] **Harden batch 1** — magic-link cross-browser session carry (P0), signup email-typo recovery,
       deck batch-persistence + friendly not-found, preview polling. api 160 / typecheck 7.
 - [x] **The ending** — the ready screen now renders as a document with a "✓ Verified · watermark

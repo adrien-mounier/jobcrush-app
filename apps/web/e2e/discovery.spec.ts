@@ -159,9 +159,15 @@ async function expectDiscoveryFitsViewport(page: Page) {
   const geometry = await page.locator(".discovery").evaluate((root) => {
     const ask = root.querySelector<HTMLElement>(".ask");
     const cv = root.querySelector<HTMLElement>(".band-cv");
+    const cvPaper = root.querySelector<HTMLElement>(".cv");
+    const cvColumn = root.querySelector<HTMLElement>(".cv-column");
+    const askColumn = root.querySelector<HTMLElement>(".ask-column");
     const rootRect = root.getBoundingClientRect();
     const askRect = ask?.getBoundingClientRect();
     const cvRect = cv?.getBoundingClientRect();
+    const cvPaperRect = cvPaper?.getBoundingClientRect();
+    const cvColumnRect = cvColumn?.getBoundingClientRect();
+    const askColumnRect = askColumn?.getBoundingClientRect();
     return {
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
@@ -171,6 +177,16 @@ async function expectDiscoveryFitsViewport(page: Page) {
         ? { top: askRect.top, right: askRect.right, bottom: askRect.bottom, height: askRect.height }
         : null,
       cv: cvRect ? { top: cvRect.top, right: cvRect.right, height: cvRect.height } : null,
+      cvPaper: cvPaperRect
+        ? {
+            height: cvPaperRect.height,
+            aspectRatio: getComputedStyle(cvPaper!).aspectRatio,
+          }
+        : null,
+      columns:
+        cvColumnRect && askColumnRect
+          ? { cvTop: cvColumnRect.top, askTop: askColumnRect.top }
+          : null,
     };
   });
 
@@ -180,13 +196,16 @@ async function expectDiscoveryFitsViewport(page: Page) {
   expect(geometry.root.bottom).toBeLessThanOrEqual(geometry.viewportHeight);
   expect(geometry.ask).not.toBeNull();
   expect(geometry.cv).not.toBeNull();
+  expect(geometry.cvPaper).not.toBeNull();
+  expect(geometry.columns).not.toBeNull();
   expect(geometry.ask!.right).toBeLessThanOrEqual(geometry.viewportWidth);
   expect(geometry.ask!.bottom).toBeLessThanOrEqual(geometry.viewportHeight);
   expect(geometry.cv!.right).toBeLessThanOrEqual(geometry.viewportWidth);
 
   if (geometry.viewportWidth >= 900) {
-    expect(Math.abs(geometry.ask!.top - geometry.cv!.top)).toBeLessThanOrEqual(1);
-    expect(geometry.ask!.height).toBeLessThan(geometry.cv!.height);
+    expect(Math.abs(geometry.columns!.askTop - geometry.columns!.cvTop)).toBeLessThanOrEqual(1);
+    expect(geometry.cvPaper!.aspectRatio).toBe("auto");
+    expect(geometry.cvPaper!.height).toBeLessThan(geometry.viewportHeight * 0.7);
   } else {
     expect(geometry.cv!.height).toBeGreaterThan(0);
   }
@@ -267,6 +286,7 @@ test("every discovery question state fits fluidly across phone, tablet and deskt
     { width: 390, height: 844 },
     { width: 768, height: 1024 },
     { width: 1440, height: 900 },
+    { width: 2048, height: 1118 },
   ]) {
     await page.setViewportSize(viewport);
 
@@ -278,6 +298,12 @@ test("every discovery question state fits fluidly across phone, tablet and deskt
       if (process.env.CAPTURE_DISCOVERY_LAYOUT && state === AFTER_ANSWER) {
         await page.screenshot({
           path: testInfo.outputPath(`after-answer-${viewport.width}x${viewport.height}.png`),
+          fullPage: true,
+        });
+      }
+      if (process.env.CAPTURE_DISCOVERY_LAYOUT && state === AFTER_START) {
+        await page.screenshot({
+          path: testInfo.outputPath(`after-start-${viewport.width}x${viewport.height}.png`),
           fullPage: true,
         });
       }
