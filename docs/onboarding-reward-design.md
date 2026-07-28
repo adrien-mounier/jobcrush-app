@@ -1,810 +1,355 @@
-# Onboarding reward structure — design decisions
+# First-run onboarding reward design
 
-_Grilling session 2026-07-22 → 2026-07-23. Locked decisions only; open questions at the end._
+_Decision-complete design, 2026-07-28. This is the current product account of the journey from the
+opening invitation through entry into Tailor. It replaces the earlier chronological decision log._
 
-This is **open question A** from [`docs/cv-quality-kickoff.md`](cv-quality-kickoff.md) — the grill's
-stopping rule and onboarding UX — answered. It is a **design, not built code**; nothing here has
-shipped.
+## Product promise
 
-The question it set out to answer:
+JobCrush turns what a person already knows and has done into credible job matches, then helps them
+tailor a truthful CV for one job.
 
-> What actually pulls a user through the onboarding questions?
+The first-run journey optimizes for the **least necessary effort before credible value**:
 
-Today the reward is early and free: upload a CV → watch the preview appear. That moment is what makes
-a stranger keep going, and everything hard (signup, deck, grill) comes after it. Three things put
-pressure on it: the **no-CV user is now fully in scope** and has nothing to render; **input order**
-(CV first vs job first) was open; and the journey now runs to **"first card seen"**, so two rewards
-compete — the preview (a CV) and the cards (jobs).
+1. credible matches before volume;
+2. only questions that materially improve matching or CV accuracy;
+3. clear progress and recoverable waits;
+4. no invented evidence and no fake certainty.
 
----
+The primary reward is not a generic CV preview. It is the first set of relevant, scored jobs and the
+knowledge of why they fit. The evolving root CV is the immediate feedback that makes the work toward
+that reward visible.
 
-## The shape — read this first _(amended 2026-07-23)_
+## The resolved journey
 
-Prototyping the onboarding screen ([wayfinder ticket #8](https://github.com/adrien-mounier/jobcrush-app/issues/8))
-showed there is no single onboarding screen. The journey is **three screens with three different
-jobs**, and that changed several decisions below. Where a section is amended, it says so.
+```text
+Invitation
+  → optional source assistance
+  → import proof, when a CV was provided
+  → recover target role and search area
+  → place the role in a job family
+      → known or clarified family: adaptive discovery
+      → unmapped role: save research candidate, offer account, pause
+  → confirm the essential family floor has been covered
+  → retrieve at least one credible live job
+      → none available: broaden search or wait for matches
+      → matches available: reveal the match count
+  → inline signup
+  → highest-ranked job card
+  → Tailor
+```
 
-| | Screen | On it | Not on it |
-|---|---|---|---|
-| **0** | **The front door** | The invitation, writing itself, then **Ready?**, then the CV shortcut | No questions — the first one is on the other side (§10.1) |
-| **1** | **Discovery** | The CV, writing itself, and the questions | **No cards — none exist yet** |
-| **2** | **The deck** | Swipeable job cards: the job, the score, the highlight bubble, where you fit and where you don't, the ad folded away last (§9.1) | No questions |
-| **3** | **Tailor** | Job + score on top, the CV below, questions aimed at *this* job | No countdown |
+This is one common onboarding process. A CV is a shortcut that answers questions; it does not create
+a separate flow. LinkedIn can later become another source in the same source-assistance step, but it
+does not create a second journey.
 
-Discovery runs until the **root CV** is good enough — it covers what the job family expects. (**§4 of
-`docs/cv-brain/tailoring-reasoning.md` is *not* that floor**, though this line used to say so — it is a
-discriminator, and the floor does not exist yet. See §6.2.) Then:
-*"3 jobs just matched you."* Swipe right on one and you land on Tailor.
+## 1. Invitation
 
-**Layout: split bands** — a fixed top band, the CV in the middle, questions docked at the bottom. Two
-rejected alternatives: the CV as a full-screen stage with a question sheet, and a sealed-deck stage
-showing face-down cards during discovery.
+Keep the existing centered opening:
 
-**Visual direction: ink and glass.** The shipped `packages/ui` tokens were rejected as not good
-enough — this starts from scratch. Deep charcoal chrome that recedes, the CV as **warm lit paper, the
-only bright object on screen**, because it is the thing being made. Marigold for anything earned, since
-the metaphor is already loot. Serif for the document — a serif typing itself reads as *written*, not
-*saved* — platform sans for the HUD, mono for counts.
+- a restrained, static JobCrush wordmark;
+- the fixed-width, no-jitter, letter-by-letter **“Answer questions. Collect jobs.”** animation;
+- **Ready?** as the transition;
+- tap to finish the animation and a reduced-motion fallback.
 
-**The loop that emerged from building it, not from planning:** the card's **weak fits become the
-tailor screen's questions**. Answer one and a grey `?` on the card in front of you flips to a gold `✓`.
-You repair the card you are looking at. It turns "where you don't fit" from a verdict into a to-do
-list.
+Remove the old CV footnote. Do not ask a question or create an account on this screen.
 
-## 1. One flow
+The invitation makes a compact promise. It does not explain the whole product or preview job cards
+that are not yet credible.
 
-Everyone walks the same road. **A CV is a shortcut that auto-answers questions, not a separate path.**
+## 2. Optional source assistance
 
-Two flows would be two products to design, build, and keep good — and the second always rots because
-it gets less traffic. And "I have a CV" is not a clean split anyway: half the people who have one have
-a bad, three-year-old one and need the same asking as someone with nothing.
+After **Ready?**, ask one calm question: whether an existing CV or LinkedIn profile can help.
 
-## 2. Cards are the payoff, the CV is the by-product
+- **Yes** progressively reveals source choices.
+- **No** exposes **Start questions instead**.
+- **CV** is active.
+- **LinkedIn** is disabled and labelled **Coming soon** until JobCrush has a permitted,
+  member-provided acquisition method. Do not collect a profile URL, request unrelated permissions,
+  or imply that a disabled input will be processed.
 
-A **card** = one job, Tinder-style. It carries a **match %**, and behind it sits a CV already tailored
-to that ad.
+All choices use the same card geometry and compact icon language. **Start questions instead** is a
+quieter fallback, with a muted outlined `Q` tile, so it remains first-class without looking like the
+expected choice after **Yes**. Put the temporary-data notice outside the action stack, anchored near
+the bottom.
 
-Nobody wakes up wanting a CV. A CV is a tool; people want a job. This fixes the meaning of every
-question in the middle: *"do you know C?"* reads as **unlocking jobs**, never as *polishing a
-document*. And it is true — the answers really do widen the search.
+No account is required. Anonymous onboarding data is temporary.
 
-## 3. Earn the cards, then reveal them fully
+## 3. CV import proves saved effort
 
-No grey teaser cards, no locked scores. **Questions uninterrupted → real, fully visible, scored
-cards.** No mid-flow soft capture in v1.
+Treat explicit statements in a user-provided CV, including defensible semantic equivalents, as
+**source-supported facts**. They can receive full first-match credit. This means “supported by
+information you provided,” not “independently certified by JobCrush.”
 
-> **Amended 2026-07-23.** This said "~5 questions". Discovery now runs until the root CV is good
-> enough — see *The shape*. The principle is untouched: work first, then cards that are fully visible
-> and already scored.
+After a useful import, show a compact proof:
 
-The alternative considered and rejected: show real-but-unscored cards immediately ("here are 12 jobs,
-answer 3 questions to see if you'd get them"). It gives the reward before the work, but the cards are
-what any job board shows — the risk is a stranger thinking *this is just Indeed* and leaving. The
-score is the thing Indeed cannot do, so the score is what we lead with.
+- useful facts found;
+- questions skipped;
+- three or four representative facts labelled **From your CV**;
+- any material ambiguity or conflict JobCrush still needs to ask about;
+- **Ask me what’s missing** as the continuation.
 
-**Reversal condition:** if v1 cards are not obviously better than a LinkedIn search within ten
-seconds, the wall moves *before* the reveal. **A promise beats disappointing proof.**
+Do not recreate the old confirmation deck here.
 
-> **Softened to a signal, not a gate — 2026-07-24.** This condition does **not** block building the
-> app, because **the app design is decoupled from CV-tailoring quality**, and the codebase is built
-> that way:
-> - Quality lives in **prompts** (`prompts/claim-miner.md`, `preview-tailor.md`) + `preview.ts`, behind
->   the `llm.ts` seam and a **versioned card contract**. `cv-quality-kickoff.md` §7 improves it by
->   *"changing a prompt and re-running the workbench"* — never by touching a screen. The posting-match
->   in `preview.ts` is already a placeholder for *"the real cluster engine, S3/JC-31"*, designed to be
->   swapped later with no UI change. So **average cards get better later without moving the machine.**
-> - The design is *built* for imperfect scores: §7 and §9.1 mean the card **never shows a bare
->   number** — it always shows the reasoning (the bubble, where you fit / don't). That stays honest
->   even when the score is only average. **Average is survivable; only *worse-than-a-job-board* is not**,
->   and that is a product-viability question, not a redesign.
-> - What quality still informs is **only where the wall sits** (§12), and even that is reversible after
->   launch: answers persist server-side from question 1, so the wall can move on real drop-off data,
->   not a pre-launch guess.
->
-> **Consequence:** build the flow now (`/to-spec` the design). Run the 20-ads × 3-CVs taste-test *in
-> parallel* — it is a go/no-go on whether cards are *bad*, and it sets the wall's opening position; it
-> is no longer a gate the build waits behind. Do keep it before pointing *real users* at the reveal:
-> a first impression cannot be re-taken, so a soft/limited launch covers the "bad, not average" case.
+Evidence rules:
 
-## 4. Three feedback speeds
+- equivalent facts from multiple sources merge and score once;
+- a JobCrush inference can choose a follow-up question but cannot score independently;
+- conflicts remain local to the disputed field;
+- a user correction overrides imported values and cannot be silently overwritten by re-import;
+- readable facts survive a partial import, and discovery asks only for missing material information;
+- total failure returns to the source step with **Try again** and **Continue with questions**;
+- before certified or exportable output, the assembled profile receives an aggregate review and
+  material conflicts are resolved individually.
 
-The design brief, stated plainly: build the Tinder loop — *tiny action → instant visible response →
-tiny action*. The user should want to answer one more question because something visibly takes form at
-each one.
+## 4. Recover job-search intent
 
-Games solved this with three speeds at once, not one — XP → level → loot. One meter alone goes stale
-in about six questions.
+Before family discovery, establish both:
 
-| Speed | What the user sees | When |
-|---|---|---|
-| **Instant** | A line **writes itself letter by letter** into the CV, and the card's % climbs | Every single answer |
-| **Slow** | The countdown bar advances | Every answer, toward the next drop |
-| **Rare** | Cards unlock — *"3 new jobs matched you"* | Every 5 answers |
+- **Target role** — what kind of work the person wants next;
+- **Search area** — where JobCrush should look.
 
-Build order, cheapest first: **bar → CV typing → unlock.**
+A past role or home address may suggest an answer but cannot establish future intent. If both are
+missing, ask one wide prompt such as:
 
-## 5. Endless, and always nearly there
+> What kind of job are you going for, and where?
 
-The bar **never reaches a finish line and never says "complete"**. It only ever measures the distance
-to the *next* drop.
+If a source explicitly establishes one, ask only for the other. Accept free text; do not force a
+closed job-title list. Suggestions may expose related roles in the same family, but must be labelled
+as the **same kind of job**, not exact title corrections.
 
-Both failure modes are real. LinkedIn's profile-strength meter never lets you finish, so people stop
-believing it. A bar that hits 100% says *done*, and the user stops answering permanently — but we
-always want more, because more answers means better matches next month.
+The answer should immediately write supported information into the root CV and enable an honest
+local-market promise once role and area are known. Never fabricate a live-job count while retrieval
+is pending.
 
-Games escape both: you never finish, yet you are always close to finishing, because the bar measures
-only the next step and each step hands you something real.
+## 5. Place the target role without forcing it
 
-**This is the stopping rule.** We never stop asking; the user stops whenever they want, and always
-leaves holding what they earned. Nothing is ever "incomplete" — they are simply mid-countdown.
+Classify the target role against reviewed job-family profiles. Retrieval may nominate candidates,
+but nearest-neighbour similarity alone never proves that a role belongs to the closest family.
 
-> **Amended 2026-07-23.** Discovery *does* complete — that is how you reach the deck. The rule
-> survives because **completion is a door, not a finish line**: hitting it opens the Tinder phase,
-> which is the actual product, so it never tells the user they are done. Past that door there is no
-> countdown at all: the tailor screen's line is *"Tell me more and this CV gets stronger for this
-> job"*, and the user stops whenever they want via the always-present *"I'm done — use this CV"*.
+Use a calibrated three-way outcome:
 
-## 6. Pacing _(rewritten 2026-07-23)_
+1. **Auto-place** only at high confidence.
+2. **Clarify** plausible ambiguity with a one-tap choice among a small number of families.
+3. **Mark unmapped** when support is below threshold.
 
-Originally: *5 questions → 3 cards, every time, no curve, no cap.* **Dead.** The three-screen split
-replaced it, because a fixed pace cannot serve two phases with different jobs.
+Related titles can share a family only when they share the same essential requirement floor.
+Project Manager, Program Manager, Delivery Manager, and IT Project Manager may share one family;
+Product Owner and Product Manager remain neighbouring but separate families.
 
-- **Discovery** is as long as the root CV needs. A user arriving with a good CV answers fewer
-  questions; one arriving with nothing answers more. **Where you start does not matter** (§11) — the
-  door is the same distance from wherever you are.
-- **Progress is shown as the CV's own sections filling** — professional summary / professional
-  experience / skills / education — not as a count of questions. The bars carry the section names, so
-  filling a bar and filling a section are one event shown twice. You are completing a page.
-- **The CV opens with that skeleton already visible and empty**, ruled. You see the shape of the thing
-  you are filling before you fill it. (The canonical section list is the core CV structure — its own
-  ticket; the four above are a stand-in.)
-- **A promise carries the middle**, since no cards exist yet: *"142 project manager jobs are open in
-  Paris right now."* Not proof, not a card — a reason to keep going, which is the same
-  promise-beats-disappointing-proof rule as §3's reversal condition.
-- **Tailoring** has no pace at all. It ends when the questions run out or when the user says stop.
+### Unmapped target role
 
-> **Amended 2026-07-23** ([#6](https://github.com/adrien-mounier/jobcrush-app/issues/6)): the empty
-> skeleton is **not ruled**. Dashed rules read as a form to fill in; blank space reads as a page not
-> written yet. Section headings only, then space.
+An unmapped role stays in the common journey but pauses before job reveal:
 
-### 6.1 The first question _(decided 2026-07-23, [#6](https://github.com/adrien-mounier/jobcrush-app/issues/6))_
+1. preserve the person’s inputs;
+2. retain a privacy-minimized **Family research candidate** even if they do not create an account;
+3. screen abuse, non-job intent, duplicates, and already-covered semantic equivalents;
+4. offer the normal Google or magic-link account mechanism with:
 
-**One free text box. No preset job options.** Built and pressed twice; both rounds killed a list.
+   > Create an account and we’ll notify you when your first matches are ready.
 
-**Why no list.** A closed list of job titles is wrong for most visitors, because at this point we know
-nothing about the field they are in. Worse, bolting a *"Something else"* escape onto it does not fix
-it: building the escape showed it only ever opens **the same free box** the boxless shapes lead with —
-reached two taps later, after the screen has told the user they are unusual. So there is no escape
-hatch to design. **The box is the question.** A model places whatever is typed into a family.
+Do not promise a completion time until operational evidence supports one.
 
-**The ask is wide, not narrow.** The placeholder is the teaching device — *"e.g. IT project manager in
-Paris, mostly ERP, I use Jira and MS Project"* — and every extra thing volunteered pays out its own
-line in its own section. One answer became three facts across two sections in the prototype.
+Retain only the original role wording, normalized interpretation, search country or area, screening
+rationale, timestamp, and duplicate or abuse indicators for anonymous learning. Exclude CV content,
+work history, contact details, and unrelated attributes.
 
-The decisive argument is not richness, it is §6's promise. It reads *"142 project manager jobs are open
-**in Paris** right now"*, and **nothing anywhere else in this flow asks where the user is.** A
-title-only question 1 leaves the promise with no city; the wide one gets it for free.
+Publish a reusable family only after validation against real postings and held-out evaluation.
+Resume signed-up users automatically, but notify them only after at least one credible matching job
+exists. If research rejects or cannot validate the family, return the user to the target-role
+question with their previous answer preserved and explain that confident matches are not ready.
 
-**Suggestions are the family, not near-spellings.** Type *nurse* and the whole nursing family appears
-under a label saying **same kind of job**. The label is load-bearing: without it, offering *other*
-titles reads as *"your words were not found"*. With it, the list is the net we cast — and it teaches
-the family mechanic before the copy explains it. The family stays visible as the answer grows into a
-sentence, so detail can be added without losing it. A title that matches nothing is accepted in
-silence — no "not found", because the model places it.
+## 6. Adaptive discovery
 
-Under the question, in words: *"I search the whole family, not just your words — say **project
-manager** and I'll also read IT project manager, programme manager, delivery manager."*
+For a known family, discovery asks the smallest set of questions needed to cover its ranked
+essential floor.
 
-**The promise fires immediately after question 1**, which is its earliest possible slot (§6) and now
-also its actual one: question 1 supplies both the family and the city. It arrives a beat late, because
-placing the family is a model call — that is fine, and §8.2 is not violated: the **typing** is instant
-because it is composed from the user's own words and never waits on the model.
+An item is covered by:
 
-**No name on the CV.** We do not know it here, and asking a stranger for it is a signup-shaped question
-that pays nothing back. §12 keeps account out of the flow until the wall, and Google OAuth hands the
-name over for free at that point. So the role line — written by question 1 — is the first line on the
-page.
+- a source-supported fact;
+- a user-resolved fact;
+- an explicit negative;
+- a defensible semantic equivalent.
 
-*The classifier that maps a typed answer to a family is a clustering + classification model, and its
-own effort. The prototype's hand list is a stand-in.* Prototype:
-`apps/web/prototypes/first-question.prototype.html`.
+“No” is a complete answer. Store it as a first-class, non-renderable negative so JobCrush does not
+ask again or imply the missing capability on a CV.
 
-### 6.2 When discovery stops, and what it asks _(decided 2026-07-23, [#6](https://github.com/adrien-mounier/jobcrush-app/issues/6))_
+Question order:
 
-**Discovery ends when the job family's floor is covered — not when the CV merely stands up as a
-document.** The rejected alternative was structural (a role, some experience, some skills, education,
-and you are through). It was tempting because it needs no research and could be built today, but it
-lets a user reach the deck with a CV nothing scores well against, and the score is the entire bet
-(§3).
+1. resolve only imported conflicts or ambiguities that affect matching or CV accuracy;
+2. ask the highest-ranked unanswered essential family item;
+3. ask triggered context only when an answer requires it;
+4. leave non-essential or job-specific open points for the relevant job card and Tailor.
 
-**Correction to a load-bearing assumption.** `docs/cv-brain/tailoring-reasoning.md` §4 was believed to
-hold a hand-written PM/PO/PdM version of the family floor. **It does not.** §4 is a *discriminator* —
-it tallies signals to decide whether the CV should speak Project Manager, Product Owner or Product
-Manager — and it opens with a **"shared baseline (ignore — too generic to discriminate)"** list:
-budget, user stories, stakeholder management, requirements gathering, agile familiarity. A
-discriminator and a floor are opposites: **a discriminator throws away what everyone has; a floor is
-made of it.** §4 discards "budget" precisely because every PM ad asks for it, and budget is exactly
-what a PM CV cannot be missing. So there is no floor yet — it is E5's offline monthly research
-(`cv-quality-kickoff.md` §8), and it does not exist.
+Use tappable options when the answer can be enumerated; use free text when it cannot. Each answer
+must produce immediate, truthful feedback by writing or updating a root-CV line and its section.
+Keep the CV as warm paper and the brightest object in the discovery interface; surrounding chrome
+recedes. Do not use fake completion percentages, recurring card drops, or an endless reward meter.
 
-Four rules make the gate work anyway, without inventing that research here.
+There is no **Show me jobs now** escape that trades a weak reveal for less discovery. The essential
+floor must be short and ranked enough to finish without coercion.
 
-**1. Covered means *asked*, not *satisfied*.** If the floor says *PMP certification* and the user has
-not got one, **"no" closes that gap as well as "yes" does** — we now know, and the claim graph records
-it. Requiring every item be satisfied would trap every junior or career-changing user in discovery
-permanently. Under §7, a "no" may never be presented as a failure.
+## 7. The credible reveal
 
-> **Amended 2026-07-24** ([#9](https://github.com/adrien-mounier/jobcrush-app/issues/9)). *"The claim
-> graph records it"* was an assertion, not a fact, and **nothing in the code makes it true today.**
-> Checked against the shipped S2 spine:
->
-> - `apps/api/src/graph.ts` hardcodes `renderable: true` on every node it builds and only ever passes
->   through `Verified` / `Derived` / `Partially-Supported`. It has **no path that emits a `Negative`
->   node** — and `MINEABLE_CLASSIFICATIONS` means the miner cannot emit one either.
-> - `claims.confirmed()` filters to `decision === "confirmed"`, so a **rejected claim is dropped, not
->   recorded as a negative fact**. "Rejected in the deck" and "the user answered no" are different
->   events and only the first exists.
-> - Worse, `detectGaps()` (`grill.ts`) re-derives gaps from the **confirmed** set on every run. A "no"
->   leaves the same hole it started with, so **the same question is detected again**. Re-asking is the
->   current behaviour by construction, not a bug to be found later.
->
-> So this rule now carries a **hard requirement on E5 / discovery**, not just a principle:
->
-> **A "no" must be persisted as a first-class negative claim (`classification: "Negative"`,
-> `renderable: false`), and an answered floor item must never be asked again — in this session or any
-> later one.** The contract already supports it: `claim_graph.schema.json` allows `Negative`, the
-> `gap-mandarin` fixture is one, and `gate.ts` already refuses to render a `renderable: false` node.
-> Only the write path is missing.
->
-> Re-asking a question someone already answered is the single fastest way to prove we were not
-> listening — which is the opposite of the whole product's claim.
+Discovery can reveal jobs only when all of these are true:
 
-**2. The floor is ranked, and the gate is its essential band — not the whole list, and not a count.**
-`cv-quality-kickoff.md` §8 already frames it as *"every basic/standard requirement the job family
-expects"*; those bands are the gate. Nice-to-have items fall through. This is what makes a competitive
-rule terminate without an arbitrary cap, and it needs no new machinery: §9 already has E5 producing a
-**ranked** requirement list per ad, so ranking the family floor is the same idea one level up.
+- target role and search area are explicit;
+- the role has a known, confirmed family;
+- the ranked essential family floor has been covered, including explicit negatives;
+- at least one relevant, real posting exists.
 
-**3. The items that fall through are not lost — they are the same queue as the card's weak fits.** §9
-already turns those into the tailor screen's questions. So the floor still gets finished; it gets
-finished **per job, with a card in front of the user**, which is where answering is most motivating
-anyway. Discovery is short because the gate is the top of the floor, not because we stopped caring.
+Then show:
 
-**4. There is no escape button out of discovery.** Considered and rejected: a *"show me jobs now"*
-exit competes with answering at exactly the moment we want answering, and hands out the weak deck as a
-*choice* — the disappointing-proof failure §3 warns about. Ranking is what keeps discovery short
-enough not to need one. (Note the asymmetry with §8.5: **tailoring** has an always-present exit
-because it has no gate; discovery has a gate instead.)
+> **N jobs just matched you.**
 
-#### What the floor must hand discovery — the contract for E5
+and **See them**.
 
-Each floor item, in rank order, must carry:
+This is the first rare reward. It is a plain statement backed by the current posting pool, not a
+locked or blurred teaser.
 
-| Field | Why |
+If no relevant posting exists, do not show a zero-job reveal. Offer two honest paths:
+
+- broaden the search area or adjust the target;
+- create an account to be notified when a credible match appears.
+
+Preserve all completed discovery work in either path.
+
+## 8. Late signup
+
+After **See them**, require signup before disclosing job detail. Keep the earned match count visible
+through the inline Google or magic-link wall; do not replace it with a blurred card.
+
+Successful authentication opens the highest-ranked real job directly. Signup claims the anonymous
+session and its evidence; it must not restart import or discovery.
+
+The unmapped-role and no-vacancy waits use the same account mechanism, with copy adapted to the
+specific promise. They are not separate onboarding systems.
+
+## 9. Ranked deck
+
+The first job card establishes value in this order:
+
+1. title, company, location, and match score;
+2. expandable **Read job description** using the source advert;
+3. compact match summary: requirements covered and a plain-language fit statement;
+4. a distinct **Why this match?** review layer;
+5. the highest-impact **Important gap**, when present;
+6. **Review all open points** for the remaining actionable ledger.
+
+An Important gap is concrete evidence the job appears to require but the person has not supplied.
+It does not make the application impossible and does not lock Tailor. The interface must make three
+things understandable:
+
+- what evidence is missing;
+- applying remains the user’s choice;
+- Tailor will strengthen supported evidence but will not invent the missing experience.
+
+Do not mix the full requirement ledger into the card header or hide the source job description
+behind JobCrush’s interpretation.
+
+## 10. Entry into Tailor
+
+Swiping right or choosing Tailor opens the selected job with its evidence state intact.
+
+The card’s weak fits and open points become Tailor’s most useful questions. Each answer may turn a
+grey open point into supported evidence and update the tailored CV. Keep an always-present exit such
+as **I’m done — use this CV** because tailoring has no discovery gate.
+
+Tailor may rephrase, reorder, select, and moderately strengthen presentation where the evidence
+supports it. It must not invent a fact, hide an Important gap, or imply that an unmet requirement is
+met.
+
+The journey covered by this document ends when the user has entered Tailor for a selected job.
+
+## 11. Waiting, failure, and resumption
+
+Every background operation shows an immediate, honest loop and a specific status such as
+**Reading your CV…** or **Looking for matching jobs…**. Never show a fake percentage.
+
+- After 10 seconds, say that processing is taking longer.
+- After 60 seconds, allow the user to leave safely and return later while work continues where
+  possible.
+- A retry never forces a repeated upload or discards completed answers.
+- A failure explains the problem and offers both **Try again** and a safe alternative.
+- Closing and reopening restores the last durable checkpoint.
+- Users can explicitly start over and delete temporary onboarding information.
+
+Ordinary anonymous, unfinished onboarding data expires after seven days. Consenting pilot data may
+be retained for up to one year for testing and model improvement; leaving the pilot stops
+experimental access but does not itself delete previously collected data. A deletion request
+removes identifiable data.
+
+## 12. Pilot release gates
+
+The first release is an invitation-only pilot. Pilot users knowingly test unfinished behavior and
+can report problems easily. Inspection of their CVs, answers, matches, and generated CVs requires
+clear consent.
+
+Hard pre-pilot gates:
+
+- privacy and retention behavior match the promises above;
+- every checkpoint resumes without lost work;
+- waits and failures are truthful and recoverable;
+- source provenance and explicit negatives survive the full journey;
+- generated CVs contain no unsupported factual substance.
+
+Measured pilot gates:
+
+| Outcome | Gate |
 |---|---|
-| **Rank band** (essential / standard / nice-to-have) | it *is* the gate — discovery covers the first bands |
-| **A question a lazy person answers in seconds** | discovery is the questions; an item that cannot be phrased as one is not usable |
-| **Its answer options** | questions are tappable by default (below), so the options ship with the item |
-| **The CV section it writes into** | every answer must know its section — the bars move because a section filled (§6) |
-| **Whether a "no" is fatal or fine** | so a "no" is recorded without ever being shown as a verdict (§7) |
-
-#### What a question looks like
-
-**Tappable options by default; free text only where the answer cannot be enumerated.** Question 1 is
-typed because a job title cannot be listed (§6.1); almost nothing after it has that problem — *biggest
-budget you have owned* is three ranges. Users are lazy and under-report, and §4's instant-feedback loop
-wants the tap-to-line latency as close to zero as possible.
-
-#### Employers and dates are triggered, never scheduled
-
-The floor produces achievements — *€2M budget*, *ERP migration*, *a team of 12*. **None of them can go
-on a real CV on their own.** `cv-brain/cv-authoring-rules.md` requires every experience entry to carry
-a bold **employer**, a **date line** and a **role title**, and forbids inventing any of them. So
-somebody has to be asked where they worked and when — and that question moves no score at all.
-
-**So it is never asked in advance.** The first time an achievement needs to land in Experience, it
-needs a home, and *that* is when we ask: *"nice — which job was that?"* One question, and the section
-unlocks. It turns the most form-like moment in the product into the container for something the user
-earned thirty seconds earlier.
-
-Rejected: asking it inside discovery as ordinary questions (longer and duller, before any card
-exists), and not asking it at all until the user applies (the CV on screen through discovery would be
-a pile of achievements with no employer, and the Experience bar could not honestly fill).
-
-Dates are still needed for ATS, so *"when was that?"* is unavoidable — rough (*2022–2024*) rather than
-exact. Someone with four jobs is asked four times, once per job, as achievements accumulate.
-
-#### What the bars measure now
-
-**Each bar is that section's share of the *gate*, not of the whole floor** — otherwise a bar could
-never fill, since the nice-to-have band is deliberately never reached in discovery. Because every floor
-item carries the section it writes into, the bars and the gate become the same object seen two ways:
-per-section, and in total. They can no longer disagree, which they would have if the bars kept
-measuring "the document looks full" while the gate measured "the family is covered".
-
-#### The upload path, under this rule
-
-A CV auto-answers floor items *and* supplies the employers and dates that item 4 above would otherwise
-trigger, so §11's "one jump" is naturally larger here — a good CV can clear most of the gate. It may
-never clear **all** of it: §11 requires the first question after an upload to be one **only a reader
-could ask**, and that fires regardless. A CV that skipped straight to the deck would be the
-"skipping to near-complete" §11 rejects.
-
-#### No longer blocked on the core CV structure
-
-This was expected to be blocked by the canonical section list (the map's fog). It is not: the design
-references *"the section this item writes into"* abstractly, and the floor contract carries the tag.
-Whatever the canonical list turns out to be, discovery is specified against it.
-
-## 7. One visible number
-
-Four numbers existed across this design and `cv-quality-kickoff.md`. The user sees **one**.
-
-| Number | About | Shown? |
-|---|---|---|
-| **Match %** on a card | the user vs *this job* | **Yes — the only number in the product** |
-| Profile level / strength | how much we know about the user | **No — killed** |
-| "Well made" | mechanical CV lint over `cv-brain` | No — workbench only |
-| "Aimed at this job" | model-panel judgement | No — workbench only |
-
-Why: **a number attached to a job and a number attached to a person are not the same object, even at
-identical maths.** *"This job: 34%"* is useful — skip that one. *"Your profile: 34%"* tells a human
-being, in their first minute, that they are poor. That is a closed tab, and it lands hardest on the
-user we just brought into scope: the one who arrived with nothing.
-
-So the bar carries **no digit** — no level count, no rank name. Its copy is a **countdown, not a
-score**:
-
-> **3 answers until your next jobs.**
-
-## 8. The video-game feeling lives in the collection
-
-Removing the level number does not remove the progression — it moves it onto things that only ever
-grow.
-
-- **The CV writes itself, letter by letter.** Every answer types a real line into a real CV, on
-  screen, while the user watches: *"Managed a €2M budget across 4 teams."*
-- **The profile fills up.** Everything the user has ever told us lands there and stays. It never
-  resets, it only grows. After 30 questions they can scroll a page of themselves that did not exist an
-  hour ago.
-- **The cards are loot.** Jobs you unlock stay unlocked. *"You have 12 jobs"* only ever goes up — and
-  that number is safe, because it counts things the user earned.
-- **The percentages climb.** You saw a job at 34%. You answer four more questions. It says 51%. Real,
-  visible progression that never grades the person, because the number stays attached to the job.
-
-That last one is also the **month-two answer**: a returning user's visit is meaningful because their
-old cards move. It requires **re-scoring existing cards when the profile changes** — genuine
-engineering, and it belongs in **S3 with E5**.
-
-### 8.1 The profile and the CV are two different objects
-
-They were one thing ("the document") for most of this session. They are not, and conflating them
-breaks the design.
-
-| | **The profile** | **The CV** |
-|---|---|---|
-| What | everything the user ever told us | a condensed selection of it |
-| Size | unbounded | bounded — 2 pages, and that is the point |
-| Rule | **accumulates**, never drops a fact | **selects**, aimed at one job |
-| Backend | the claim graph (S2, Postgres) | the rendered draft |
-
-A toy box and a school bag. The box keeps every toy forever; the bag holds a few, chosen for today.
-
-**Consequence to design for, not paper over:** a fact can land in the profile and *not* appear on the
-CV, because the CV is bounded and had to choose. The user will notice, and if we say nothing the
-typewriter looks broken. It needs an honest line — *"saved to your profile — it'll be used when a job
-asks for it."*
-
-### 8.2 The typewriter is a requirement, not a flourish
-
-**The line must be seen writing itself, letter by letter.** It is the *instant* speed of §4 — the only
-feedback that fires on every single answer — and the whole point is watching the CV take form under
-your own words. A line that simply appears, already complete, is a different and much weaker product:
-it reads as *data being saved*. The typing is what makes it read as *being written*.
-
-Two constraints that follow:
-
-- **The line must be available instantly.** The typing cannot wait on a model round-trip, or the
-  animation starts two seconds late and the causal link to the answer is broken. Compose it cheaply
-  and locally from the confirmed answer, let the polish pass rewrite it later — the same split §9 uses
-  for the match tick: **fast where it is felt, accurate where it matters.**
-- **A line, once written, is never silently rewritten on screen.** Same family of rule as the match %
-  never going down.
-- **The CV scrolls to the line, then types — in that order.** Smoothly, and it keeps following as the
-  line wraps onto a second row. Typing that happens below the fold is worse than no animation: the
-  user paid for a reward they never saw.
-
-### 8.3 Screen budget: what is visible and what is a badge
-
-Four things want the screen — the question, the CV, the profile, the cards — and a phone has room for
-about two. So one of them is hidden behind a signal.
-
-The game answer is **loot and inventory**: you kill something, the item *flies* into your bag, the bag
-count ticks up. The item is never shown in full; you open the bag when you are curious. The flight is
-the entire notification and it costs no layout.
-
-On every answer:
-
-- **The CV types its line, live, in place.** The star of the screen.
-- **The card's % climbs, and the card's contents update**, right beside it (§9) — on the tailor screen,
-  where a card exists.
-- **A chip flies into the profile badge**, which grows. That is the whole profile notification.
-- **Tap the badge** and the full profile opens as its own screen.
-
-**The badge is a pile that only ever gets taller, with the count beside it** — decided 2026-07-23
-([ticket #9](https://github.com/adrien-mounier/jobcrush-app/issues/9)). A bare number in a circle is
-meaningless: 24 what, out of what? So the count carries a unit — the word *facts* sits next to it for
-the first few answers, then collapses away, teaching once and then getting out of the way.
-
-Two shapes are banned. **Anything that fills** — a jar, a battery, a silhouette becoming solid — has a
-full state, so a half-full one reads as *you are 40% of a person*: §7's grade-on-a-person coming back
-through the side door. And **anything document-shaped**, because a page icon would compete with the CV
-already on screen. A pile has no capacity and looks like nothing else here, so it can only grow.
-
-Why this way round: the CV is what the user *cares* about seeing, because it is what an employer
-receives. A profile is a store, and stores are satisfying to **open**, not to watch. And the count
-climbing is a safe number under §7 — it counts things earned.
-
-**Naming: "your profile".** Deliberately boring, because a stranger must understand it with zero
-thinking — a name is a door handle, it should not be clever. Be interesting *inside* it instead:
-*"47 things you've told me."*
-
-**This screen gets maximum design effort.** The profile must not read as a list of text being
-scrolled — the target feeling is *my character is evolving*, and that lives in original animation and
-layout work, not in the data.
-
-> **The screen is decided — 2026-07-24** ([#9](https://github.com/adrien-mounier/jobcrush-app/issues/9)).
-> Prototype: `apps/web/prototypes/profile-screen.prototype.html`. Three shapes were built on the same
-> real claim-graph facts and pressed; the strata (profile-as-time) was dropped. **The screen carries
-> two views behind an in-screen icon toggle:**
->
-> - **Sorted** — the useful one. Facts grouped into domains, each led by its strongest fact at reading
->   size; the rest sit under it as chips. Opens on the domain you have most of. This is *what you are
->   made of*, and it answers §8.3's "not a list being scrolled".
-> - **Constellation** — the one worth screenshotting (Adrien's call: keep both, it may sell the app one
->   day). The claim graph drawn as light, on canvas, in the Obsidian/Logseq graph-view register —
->   bloom, depth, points that levitate, desktop hover that lights a node and its web. Deliberately
->   **marigold, not the violet every second-brain app uses**. Density becomes light, so telling us more
->   makes you brighter — and a glow has no full state, so it can never grade the person (§7).
->
-> **One colour law, both views** ([re-pointed 2026-07-24](https://github.com/adrien-mounier/jobcrush-app/issues/9)):
-> **gold = on your CV right now** (the thing an employer receives), **cool grey = saved to the profile,
-> waiting for a job that asks.** The *source* of a fact (you told me / read from your CV) is demoted to
-> neutral text — it is no longer a colour. This is the §8.1 honest line, made visual and always-on: the
-> reserve growing in grey is a positive, never a lack.
->
-> **The "no" is gone from this screen** — §7 generalised: a number on a job is information, on a person
-> a grade, and the same is true of a "no". A list of what you lack is an inventory of your gaps. The
-> "no" still lives in the claim graph and still works on the cards; it never reaches the profile. (This
-> surfaced a real backend gap — see §6.2's 2026-07-24 amendment: a "no" is *not* persisted today, and
-> correcting/revising a fact is unbuilt. Both are tracked on [the map](https://github.com/adrien-mounier/jobcrush-app/issues/5).)
->
-> **Badge:** one change to the §8.3 decision above — the layer count is now logarithmic, so the pile
-> keeps growing past 30 facts instead of drawing the same icon forever.
-
-### 8.4 The CV on screen follows the card
-
-Through discovery no cards exist, so there is nothing to aim at: the CV is the **root CV** (S2 already
-builds one). **On swipe-right the CV re-aims** at that job.
-
-Why it must follow the card rather than stay generic: the user answers, watches a line appear in the
-CV **for this job**, and sees **this job's %** jump right next to it. Cause and effect, one motion,
-one screen. A generic CV puts the line over here and the number over there, connected by nothing.
-
-The re-aim moment is itself worth designing — *the CV visibly turns to face the job.*
-
-Cost accepted: every job the user takes needs its own CV kept fresh.
-
-> **Amended 2026-07-23.** Was "when the first cards land, the CV re-aims at the card on top, and swaps
-> when the user swipes". The deck is now its own screen with no CV on it, so the re-aim happens once,
-> on the swipe that takes you into tailoring.
-
-### 8.5 Exits: two ways to stop, one place they land _(added 2026-07-23)_
-
-Tailoring has no countdown, so it needs an ending. Both routes to it are the same ending:
-
-- **The user stops.** A quiet *"I'm done — use this CV"* sits under the answers **from the very first
-  question**. Always available, never shouting. §5's rule — the user stops whenever they want.
-- **We stop.** When there is nothing left worth asking. The algorithm is its own ticket.
-
-Both land on: **Apply with this CV** (primary) or **Save it and come back later** (secondary), with a
-line saying what was achieved — *"you closed 2 of the 3 gaps this job asked about."*
-
-A third, deliberately quiet exit: **Drop this job**, small and grey, never competing with Apply. It
-must say what survives — *"everything you told me stays on your profile"* — because it does. You lose
-the job, never the work.
-
-*Where a saved application lives is out of scope here — it sits past this design's boundary.*
-
-## 9. The card on screen is alive
-
-The visible card **re-scores on every answer**. The user watches 34% → 41% → 51% tick up while they
-answer. Watching a number you care about move because of something you just said is the strongest
-feedback in the design — arguably stronger than the typed CV line.
-
-Doing that through a model on every answer would be slow and expensive. It does not have to be:
-
-- **The tick is a lookup, not a judgement.** When the user confirms "yes, €2M budget", we already know
-  which requirements that satisfies — E5 produces a **ranked requirement list per ad**, so the match
-  moves deterministically, instantly, for free.
-- **The honest model re-score runs in the background.**
-
-**Constraint: a visible number must never go down.** The cheap tick and the real re-score can
-disagree, so the cheap tick is always **conservative — it under-promises**.
-
-**The requirement list is also the question list.** The same ranked requirements that move the score
-are what the card shows as *where you don't fit yet* — and those are exactly what the tailor screen
-asks about. One artefact doing three jobs: it scores the match, it explains the gap, and it chooses the
-next question.
-
-> **Amended 2026-07-23.** Was "cards re-score" — three of them, at once, on a screen that also held
-> the CV. The deck/tailor split means only one card is ever live, which is both cheaper and clearer.
-
-### 9.1 What the card shows _(decided 2026-07-23, [#10](https://github.com/adrien-mounier/jobcrush-app/issues/10))_
-
-Three shapes were built on the same job and the same facts, and pressed on a phone: **the ad plus a
-number** (a job board with a score bolted on — deliberately the control §3 has to beat), **the
-verdict** (every ask paired with the user's own fact, the ad demoted), and **the scorecard** (the
-ranked requirement list in bands, no prose at all). The decided card takes the **first shape's two
-lists**, the **second's highlight**, and puts the ad **last**. Prototype:
-`apps/web/prototypes/job-card.prototype.html`.
-
-Top to bottom:
-
-- **Title, subtitle, score.** The job, then company · place · salary · working pattern, then the match
-  % in a ring. Still the only number on the card (§7).
-- **The highlight bubble**, directly under them and above everything else. Two clauses: **the user's
-  strongest fact against something this ad leads with**, and **the biggest thing still open**. This is
-  what stops the % ever appearing bare — a lone *61%* invites *"61% of what, and is that good?"*, and
-  a number nobody can audit is a grade. The bubble is the audit, in one sentence.
-- **Where you fit** — the user's own facts, in rank order. **Where you don't — yet** — the ad's asks,
-  in rank order. **Asked and closed** — see below.
-- **The ad itself, last and folded shut.** It is far longer in real life than in any sample, and it is
-  the one part of the card a job board already gives you. Leading with it spends the user's first ten
-  seconds on the part that is not ours.
-
-**The reveal shows nothing behind it.** *"3 jobs just matched you"* on a semi-opaque screen, one line,
-one button. A version that fanned the three cards out face-up — scored and sorted, so the number would
-read comparatively from first sight — was built and **rejected: it spends the reveal early and kills
-the mystery that carries the user through it.** Past the curtain the deck is **sorted by score**, so it
-always opens on the best match; the comparison happens as you swipe, not before you start.
-
-**Three mark states, and none of them is a cross.** A fit is a gold ✓. An open requirement is a grey
-`?`. A requirement the user has answered **no** to is a third state — a dim dot, its own quiet
-*asked and closed* group — because §6.2 rule 1 makes a "no" close a gap as well as a "yes" does, and
-§7 forbids ever showing it as a failure.
-
-**What a "no" pays.** It is the hard case and it is the common one: it moves the match % by zero, so
-§4's *every answer produces visible feedback* would break on exactly the answers users give most.
-What it hands back instead is that **the question goes away** — the item leaves *where you don't fit*,
-and the bubble stops naming it as the gap. So two things move on every answer and neither can ever
-embarrass anyone: **the match % only ever climbs, and the list of open things only ever shrinks.** The
-ledger line under the answers says which just happened (*+9% · SAP S/4HANA*, or *asked and closed · 1
-still open*) — a second number, deliberately, but one attached to the job's own list and only ever
-falling.
-
-**The bubble is derived, not frozen.** Its gap clause names the highest-ranked requirement still open,
-so closing that gap rewrites the sentence instead of leaving it stale.
-
-**The swipe.** Right is *I want this one* and lands on Tailor (§8.4's re-aim). Left is *Not for me* and
-brings the next card; the job goes, nothing the user said goes with it. **When the deck runs out it
-sends the user back to answering**, not to a dead end — *"142 project manager jobs are open in Paris. I
-scored the three closest. Tell me more and I'll widen the net."* That is §5's ladder with no top,
-and it is the moment the loop closes.
-
-## 10. The front door
-
-**Two entry points, rendered as one door.** The user is never asked to choose a path.
-
-- **Primary:** a big central invitation to *be interviewed* — worded so a stranger *wants* to
-  participate.
-- **Secondary, small, same screen:** *upload your CV to skip ahead.*
-
-### 10.1 The door: an invitation, and the way through it _(decided 2026-07-23, [#7](https://github.com/adrien-mounier/jobcrush-app/issues/7))_
-
-**The door is an invitation with a "Ready?" on it. It is not question 1.** The first question waits on
-the other side, on the discovery screen.
-
-> **This reverses the first resolution of the same ticket, taken earlier the same day.** That one made
-> the door *be* question 1, on the reasoning that a Start button is a tap returning nothing — the
-> inverse of §4's *tiny action → instant visible response*. Building five shapes and pressing them
-> showed the reasoning was too narrow: **the tap is only dead if it gives nothing back.** Here it buys
-> a designed moment, and a screen the invitation does not have to share.
-
-The decided screen, everything centred:
-
-> ## Answer questions. **Collect jobs.**
->
-> ### ( Ready? )
->
-> <sub>Already have a CV? **Upload it** and skip the questions it already answers.</sub>
-
-**It arrives in three beats, in this order:** the invitation writes itself letter by letter → **Ready?**
-fades up → the CV shortcut appears, last, at the bottom edge. The order is the argument: the main path
-is fully offered before the side door is mentioned at all.
-
-**Pressing Ready parts the invitation like a door** — "Answer questions." lifts away, "Collect jobs."
-drops away — and discovery arrives through the gap.
-
-#### Why a Ready screen beat the fused door
-
-- **The invitation gets the whole screen.** Nothing competes with it, which is what a first screen is for.
-- **"Ready?" asks for consent, and consent is not the same as an answer.** Agreeing to be interviewed
-  is a small promise, and people keep small promises. Tapping an answer commits you to nothing.
-- **The tap is not dead.** It buys the transition, which is a real thing to buy.
-
-#### The typing is a requirement, not an effect
-
-The line must be seen **writing itself**, for the same reason the CV must (§8.2). The door is the first
-time anyone sees this product move, and it moves the way the whole product moves. **It teaches the
-mechanic before explaining it** — so when the CV later writes itself under the user's own answers, they
-already know that language.
-
-#### Three things building it proved, which no amount of arguing would have
-
-- **Centred text that types itself jitters.** Every new letter re-centres the line, so it wobbles
-  left-right the whole way. Each line carries a **hidden copy of its finished text** to hold the width
-  open, and the letters fill that fixed box. Measured drift after the fix: 0.00px.
-- **The animation must be skippable.** It is ~1.5s before the button exists, which is a long time to
-  sit still on a first screen. A tap anywhere finishes it instantly, and `prefers-reduced-motion` skips
-  it outright. Nobody impatient is made to wait for the button to exist.
-- **The CV shortcut goes at the bottom edge, never under the button.** Directly beneath "Ready?" it
-  reads as the second of two choices — the fork §10 exists to forbid. At the bottom it is plainly a
-  footnote.
-
-#### The words, and what they may never say
-
-Four wordings were written and read on the real screen. **"Answer questions. Collect jobs."** won, and
-survived the change of shape unchanged. It is the only candidate whose headline **never mentions a
-CV** — questions in, jobs out — so the user §1 brought into scope, the one arriving with nothing, is
-never told they are missing something. It also names the loop the whole design is built on (§8: *the
-cards are loot*) in four words. Rejected: *"Which jobs would you actually get?"* (sharpest statement of
-the differentiator, but *"actually get"* can be heard as *"probably none"* — §7's grade-on-a-person
-through the side door), *"Let me ask you about your work"* (true to the interview framing, but names no
-payoff), *"You don't need a CV to start"* (best line for the no-CV user, but leads with the CV, which
-§2 says nobody wants).
-
-**Three things the door may never say**, each a consequence of a decision made elsewhere:
-
-- **No count and no duration.** §6 made discovery variable-length, so *"5 questions"* and *"takes two
-  minutes"* are promises we would be caught breaking.
-- **Nothing about account, price or signup.** §12 walls after the reveal — saying *"free"* invites
-  *why?*, and *"no signup"* plants the word.
-- **The skip-ahead says what it actually does** — it skips *the questions the CV answers*, not the
-  process. §11: a CV buys one jump, it does not end the game. *"Skip ahead"* alone would promise being
-  done.
-
-The screen is deliberately empty above the invitation. We know nothing about this person yet, so
-anything there would be generic marketing; §6's promise (*"142 project manager jobs are open in Paris
-right now"*) cannot fire until question 1 tells us the family, which now happens one screen later.
-
-#### Rejected shapes
-
-All four alternatives were built and pressed, not argued about — `apps/web/prototypes/front-door-options.prototype.html`
-holds them.
-
-| Shape | Why not |
-|---|---|
-| **The door is question 1** | The original resolution. Fewest taps, and the first tap really does buy the paper — but the invitation has to share its screen with a question, and nothing is ever consented to. |
-| **A button where the thumb is** | A large pulsing target mid-screen that grows into the panel the question arrives in. Genuinely good; lost because the headline sits up top and reads as chrome rather than as the invitation. |
-| **The door writes itself, then rewrites into the question** | Same typing idea carried through the threshold. Lost on time — the rewrite adds a second wait right after the first. |
-| **The paper is placed in front of you** | A blank sheet slides up and settles, then the question docks under it. Beautiful, but it spends the CV's arrival before the user has done anything to earn it. |
-
-## 11. A CV buys one jump, then the game continues
-
-Upload → a visible level-up moment (*"CV read."*) → questions resume.
-
-The alternatives both fail. **Skipping to near-complete** ends the game before it starts, and it
-treats a CV as a full profile — exactly what `cv-quality-kickoff.md` forbids, since users arrive
-under-reported and out of date. **Silently pre-filling with no payout** makes the user feel we ignored
-their file.
-
-What makes the jump land: **the first question after upload must be one only a reader could ask** —
-*"your CV mentions a migration project in 2024, what was your actual role on it?"* That single
-question proves we read the file better than any progress bar could.
-
-A good CV means fewer questions to a good match; a poor CV means more. **Where you start does not
-matter.** The more you answer, the better the profile, the better the tailoring, the better the real
-chance of matching — that is the product thesis, and the reason the ladder has no top.
-
-## 12. The wall
-
-**After the reveal, on the actions.** Questions uninterrupted → scored cards fully visible → an
-account is required to **save, apply, see the rest, or get alerts**.
-
-> **Decided 2026-07-24, [#22](https://github.com/adrien-mounier/jobcrush-app/issues/22).** The wall sits
-> at entering the deck — the reveal's "See them" — not at first Apply/Save. The *principle* is
-> untouched: reward first, wall on the actions. The exact moment stays reversible on real drop-off data.
-
-- **Google OAuth leads.** The magic link stays as a quiet secondary link, deliberately less visible so
-  people choose Google — firing an email at peak curiosity is the known-fragile path.
-- **Answers persist server-side from question 1.** Not localStorage: server-side is the only version
-  that tells us *where people quit*.
-- **Anonymous scoring rides the existing rate limiter.**
-
-This keeps the shape S2 proved — give the magic free, charge for keeping it — and puts the ask at the
-moment the user has just seen something worth keeping, which is the cheapest moment to ask for
-anything.
-
----
-
-## What this changes
-
-- **Input order is decided** (it was an open ticket): **job intent first**, CV as an accelerator on the
-  same screen. §10.
-- **The preview is no longer the hook.** The magic-mirror moment does not disappear — it becomes the
-  live-typing CV of §8.2, arriving line by line instead of all at once.
-- **The stopping rule is decided** (open question A): there is none *for the product*. Discovery has a
-  door (the root CV is covered); past it the user stops whenever they want. §5, §6, §8.5.
-- **S3/E5 gains requirements:** re-scoring existing cards when the profile changes, and the ranked
-  requirement list per ad doing triple duty — it scores the match, it renders as the card's *where you
-  don't fit yet*, and it chooses the tailor screen's next question. §9.
-- **E5 also owes the highlight bubble its two clauses** (§9.1): given an ad and a profile, name **the
-  user's strongest fact against something this ad leads with**. The gap clause is free — it is the
-  highest-ranked open requirement — but the hit clause is a judgement, and it is the sentence the whole
-  card's credibility rests on. **Its own build ticket**, not part of this design.
-- **The claim graph gets a face.** S2 built it as backend truth; §8.1 makes it a screen the user opens,
-  which means it needs a readable, human rendering it has never had.
-- **The root CV becomes a user-facing milestone.** S2 built it as a pipeline artefact; §6 makes
-  "the root CV is good enough" the gate that opens the deck.
-- **E5 gains a hard deliverable, and `tailoring-reasoning.md` §4 is not it.** §4 is a discriminator,
-  not a floor — see §6.2. The family floor E5 must produce is a **ranked** list whose items each carry
-  a question, its answer options, a CV section and whether a "no" is fatal. Discovery is the floor's
-  first consumer, so an item that cannot be phrased as a question a lazy person answers in seconds is
-  not a usable item.
-- **The existing design system is out.** `packages/ui/src/tokens.css` is not a constraint on this
-  work — see *The shape*.
-
-## Pending — runs in parallel with the build _(re-scoped 2026-07-24)_
-
-**Score 20 real job ads against 3 real CVs, print the 9 cards, look at them.** Half a day, no product
-code. This was framed as *before any product code*; it is **no longer a gate** — see §3's *softened to
-a signal* note. Build the flow now (`/to-spec`) and run this **alongside** it. What it decides: (1) a
-go/no-go on whether cards are *bad* (worse than a job board) rather than merely average — the design
-survives average, not bad; and (2) the wall's **opening** position (§12), which stays reversible after
-launch on real drop-off data. Improving *average → good* is later prompt/E5 work behind a stable
-contract, and never touches the machine.
-
-## Open
-
-Tracked as tickets on the wayfinder map
-[Onboarding journey: landing to first card](https://github.com/adrien-mounier/jobcrush-app/issues/5).
-
-- ~~**The onboarding screen itself**~~ — **done 2026-07-23**, see *The shape*
-  ([#8](https://github.com/adrien-mounier/jobcrush-app/issues/8)). Prototype:
-  `apps/web/prototypes/onboarding-screen.prototype.html`.
-- ~~**The front door — its words and its shape.**~~ — **done 2026-07-23**, see §10.1
-  ([#7](https://github.com/adrien-mounier/jobcrush-app/issues/7)). *"Answer questions. Collect jobs."*,
-  centred, writing itself, with **Ready?** arriving after it and the CV shortcut last.
-- ~~**What the discovery questions are, how they're chosen, and when we stop.**~~ — **done
-  2026-07-23**, see §6.1 and §6.2 ([#6](https://github.com/adrien-mounier/jobcrush-app/issues/6)).
-  One free box for question 1; the ranked family floor supplies the rest and its essential band is the
-  gate; employers and dates are triggered by a reward, never scheduled. Prototype:
-  `apps/web/prototypes/first-question.prototype.html`.
-- ~~**The profile — badge and screen.**~~ — **done 2026-07-24**, see the §8.3 resolution block
-  ([#9](https://github.com/adrien-mounier/jobcrush-app/issues/9)). Two views behind an in-screen
-  toggle — **Sorted** (what you're made of) and **Constellation** (the claim graph as light); one
-  colour law, **gold = on your CV, grey = saved for later**; the "no" is off this screen. Prototype:
-  `apps/web/prototypes/profile-screen.prototype.html`.
-- ~~**The job card's contents** — what it shows and why it beats a job board.~~ — **done 2026-07-23**,
-  see §9.1 ([#10](https://github.com/adrien-mounier/jobcrush-app/issues/10)). The reveal hides the
-  deck; the card is title/score, then a highlight bubble, then where you fit and where you don't, with
-  the ad folded away last. Prototype: `apps/web/prototypes/job-card.prototype.html`.
-- ~~**How a user corrects a fact they got wrong.**~~ — **done 2026-07-24,
-  [#18](https://github.com/adrien-mounier/jobcrush-app/issues/18)**: in-flow correction — tap a done
-  CV line to re-ask, Esc / "Leave it as is" to cancel, bare-"no" undo one question past a "no";
-  re-answering is an idempotent upsert, so it does not violate §6.2's no-re-ask. Post-discovery
-  correction (editing a wrong fact from the deck or profile after discovery ends) is **out of scope**
-  for this map — sibling to the life-changes item below; a single future profile-editing effort can
-  hold both.
-- **Revising the profile later, as life changes.** Ruled **out of scope** for this design on
-  2026-07-24 and parked on the map: people get the certification, get the clearance, change sector,
-  and nothing lets a past answer be revised. It sits past "first card seen" and wants its own
-  wayfinder effort. Distinct from the month-two question, which is only about old cards re-scoring.
-- ~~**Where the wall sits now.**~~ — **done 2026-07-24, [#22](https://github.com/adrien-mounier/jobcrush-app/issues/22)**:
-  at the reveal, entering the deck. See §12.
-- **The core CV structure** — the canonical section list discovery renders empty. Belongs to the CV
-  brain / S2.75, not this design. **No longer blocks the discovery design** (§6.2): every floor item
-  carries the section it writes into, so discovery is specified against whatever that list turns out
-  to be. It still blocks *building* the screen.
-- **Where a saved application lives.** Ruled out of scope for this design; §8.5's exits assume it.
+| First-job relevance | Inspect the first 3 journeys; then at least 80% of 10 additional testers judge the first reveal genuinely relevant. |
+| Family auto-placement | At least 95% correct on comparable examples; otherwise clarify or mark unmapped. |
+| Novelty detection | Catch at least 90% of genuinely unfamiliar roles with no more than 5% familiar roles falsely marked unfamiliar. |
+| Necessary questions | Zero exact repeats; at least 90% gather new, materially necessary information. |
+| Source-assisted effort | A useful CV import reduces necessary questions by at least 30% versus starting from scratch. |
+| Time to value | At least 80% of 10 additional testers reach a first relevant reveal within 5 minutes of active interaction, excluding background wait. |
+| Important-gap comprehension | At least 90% understand the missing evidence, their agency to apply, and Tailor’s no-invention boundary. |
+
+Manually review every generated CV against its supporting evidence for the first three or four pilot
+users. Investigate any absurd or misleading match immediately.
+
+Formal keyboard-only, screen-reader, and reduced-motion validation beyond the invitation animation
+is deferred from this pilot milestone. Do not deliberately break ordinary browser or assistive
+behavior, but those formal gates belong to a later accessibility effort.
+
+## 13. State and implementation handoff
+
+The specification should model durable checkpoints rather than screens:
+
+```text
+invited
+source_selected
+source_processed
+intent_known
+family_confirmed | family_unmapped
+essential_floor_covered
+credible_matches_found | no_matches
+reward_revealed
+account_claimed
+job_opened
+tailor_entered
+```
+
+For each transition, the implementation spec must define:
+
+- required evidence and server-side gate;
+- durable data written;
+- pending, success, partial-failure, total-failure, retry, and resume behavior;
+- analytics needed for the pilot gates;
+- exact user-facing promise and retention consequence.
+
+The family-floor contract must provide, in ranked order, each item’s importance band, fast question,
+answer options, destination CV section, and whether a negative is fatal or acceptable. The job card
+contract must preserve source-advert access, coverage, Important gaps, and the complete open-point
+ledger.
+
+## Out of scope
+
+- implementing this design;
+- enabling LinkedIn acquisition before a permitted source exists;
+- defining the E5 clustering model or producing the family catalogue;
+- building the family-research operations console;
+- post-Tailor application submission;
+- formal accessibility certification for the pilot.
+
+Those are implementation or later-milestone concerns. This document supplies the coherent product
+decisions they must follow.

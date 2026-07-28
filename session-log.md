@@ -2,6 +2,21 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 46) — decision-complete first-run onboarding design
+
+- Rewrote
+  [`docs/onboarding-reward-design.md`](docs/onboarding-reward-design.md) around
+  one normative invitation → source assistance → adaptive discovery → credible
+  reveal → late signup → ranked deck → Tailor journey.
+- Reconciled imported evidence, explicit negatives, family placement,
+  privacy-minimized unmapped-role learning, no-vacancy handling, Important gaps,
+  truthful resumption, and invitation-only pilot gates.
+- Resolved [Rewrite the onboarding reward design around the resolved
+  flow](https://github.com/adrien-mounier/jobcrush-app/issues/47), completing the
+  [first-run onboarding revision
+  map](https://github.com/adrien-mounier/jobcrush-app/issues/40).
+- **Next:** run `/to-spec`, then `/to-tickets`, before implementation.
+
 ## 2026-07-28 (session 45) — Wayfinder: cross-flow resilience and pilot validation
 
 - Resolved [Define cross-flow resilience, accessibility, validation](https://github.com/adrien-mounier/jobcrush-app/issues/46) with an invitation-only pilot boundary, honest animated waiting states, 10-second delayed messaging, 60-second safe exit, checkpoint-complete interruption recovery, and failure paths that preserve work.
