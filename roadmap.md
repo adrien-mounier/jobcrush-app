@@ -16,6 +16,8 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
 
+**2026-07-28 update:** [Define cross-flow resilience, accessibility, validation](https://github.com/adrien-mounier/jobcrush-app/issues/46) is resolved. The onboarding revision now has explicit pilot gates for honest background waits, interruption recovery, temporary-data retention, match relevance, family classification and novelty detection, question efficiency, time to value, Important-gap comprehension, and manual evidence review. Formal keyboard-only, screen-reader, and reduced-motion compatibility is deferred beyond this effort. The unblocked frontier is now [Rewrite the onboarding reward design around the resolved flow](https://github.com/adrien-mounier/jobcrush-app/issues/47).
+
 The [first-run onboarding revision map](https://github.com/adrien-mounier/jobcrush-app/issues/40)
 has resolved the source-entry, imported-evidence, adaptive-discovery, and unmapped-role learning
 decisions. Unknown roles now pause before reveal, become screened and deduplicated learning

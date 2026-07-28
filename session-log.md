@@ -2,6 +2,13 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 45) — Wayfinder: cross-flow resilience and pilot validation
+
+- Resolved [Define cross-flow resilience, accessibility, validation](https://github.com/adrien-mounier/jobcrush-app/issues/46) with an invitation-only pilot boundary, honest animated waiting states, 10-second delayed messaging, 60-second safe exit, checkpoint-complete interruption recovery, and failure paths that preserve work.
+- Set measurable gates for first-job relevance, family classification and novelty detection, necessary-question rate, CV-assisted question reduction, time to reveal, and Important-gap comprehension. Every early pilot CV and first match receives manual evidence review under the existing CV-brain classification contract.
+- Settled retention: ordinary anonymous unfinished data expires after 7 days; consented pilot data may remain identifiable for up to one year for product and model improvement, with earlier deletion on explicit request.
+- Formal keyboard-only, screen-reader, and reduced-motion compatibility is explicitly out of scope for this revision. Updated the [Wayfinder map](https://github.com/adrien-mounier/jobcrush-app/issues/40); [Rewrite the onboarding reward design around the resolved flow](https://github.com/adrien-mounier/jobcrush-app/issues/47) is now unblocked.
+
 ## 2026-07-28 (session 44) — Corrective fix: remove discovery's forced blank CV page
 
 - Owner production screenshot at 2048×1118 disproved session 43's completion claim: the ask no
