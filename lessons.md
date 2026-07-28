@@ -1,5 +1,19 @@
 # Lessons — jobcrush-app
 
+## Typed Fastify response schemas must include every status branch
+
+A Fastify route can pass its HTTP integration tests and still fail the repository
+typecheck when its response schema declares only the success status. The
+`PUT /sessions/me/source-entry` handler already returned the correct fail-closed
+`401 no_session` envelope at runtime, but its typed schema declared only `200`.
+TypeScript therefore rejected `reply.status(401).send(...)` even though the behavior
+test passed.
+
+For every typed route, declare the exact schema for each status the handler sends
+(including authentication and validation branches), then run package typecheck in
+addition to route tests. HTTP tests prove runtime behavior; the response map proves
+the handler and public contract remain type-compatible.
+
 ## Responsive sibling panels must not derive height from each other
 
 This bug survived at least four sessions because each pass patched one visible symptom—centering,

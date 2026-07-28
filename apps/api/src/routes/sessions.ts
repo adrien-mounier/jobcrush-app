@@ -6,6 +6,16 @@ import { IpRateLimiter, type SessionStore } from "../sessions.js";
 
 export const SESSION_COOKIE = "jc_session";
 
+const sourceEntrySchema = z.discriminatedUnion("checkpoint", [
+  z.object({ checkpoint: z.literal("invited"), choice: z.null() }).strict(),
+  z
+    .object({
+      checkpoint: z.literal("source_selected"),
+      choice: z.enum(["cv", "questions"]),
+    })
+    .strict(),
+]);
+
 export function sessionRoutes(sessions: SessionStore, limiter = new IpRateLimiter()) {
   return async function plugin(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>();
@@ -69,6 +79,31 @@ export function sessionRoutes(sessions: SessionStore, limiter = new IpRateLimite
         }
         await sessions.setStage(req.session.id, req.body.stage);
         return { ok: true };
+      },
+    );
+
+    app.put(
+      "/sessions/me/source-entry",
+      {
+        schema: {
+          body: sourceEntrySchema,
+          response: {
+            200: z.object({ sourceEntry: sourceEntrySchema }),
+            401: z.object({
+              error: z.object({
+                code: z.literal("no_session"),
+                message: z.literal("no active session"),
+              }),
+            }),
+          },
+        },
+      },
+      async (req, reply) => {
+        if (!req.session) {
+          return reply.status(401).send({ error: { code: "no_session", message: "no active session" } });
+        }
+        await sessions.setSourceEntry(req.session.id, req.body);
+        return { sourceEntry: req.body };
       },
     );
   };

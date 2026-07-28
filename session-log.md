@@ -2,6 +2,22 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-07-28 (session 48) — persistent first-run source-entry spine
+
+- Implemented [#55 First-run invitation and persistent source-entry
+  spine](https://github.com/adrien-mounier/jobcrush-app/issues/55): the accepted
+  centered invitation now opens source assistance anonymously on `/`, with CV,
+  disabled/non-collecting LinkedIn, and question-first actions in one common flow.
+- Added a strict `SourceEntry` HTTP contract and last-write-wins persistence across
+  the in-memory and Postgres session stores. `invited`, `cv`, and `questions`
+  checkpoints restore after reload; malformed and LinkedIn writes fail closed.
+- Two-axis review passed after correcting exact recovery/privacy copy, short-viewport
+  scrolling, retry target size, and load/save rollback coverage. QA caught and fixed
+  a typed Fastify 401 response-schema omission before release.
+- Gates: API 339 passed + 5 todo; contracts 18/18; focused source-entry store/HTTP
+  tests 62/62; Chromium front-door journey 7/7; full typecheck 7/7; forced build 5/5.
+- **Next:** close #55 and continue from the newly unblocked #56/#57 frontier.
+
 ## 2026-07-28 (session 47) — first-run onboarding implementation spec
 
 - Published [Source-assisted first-run onboarding to a credible job

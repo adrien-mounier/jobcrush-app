@@ -1,51 +1,129 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-// #15 front door (screen 0). Deterministic and fast (no LLM, no upload) — the CV-shortcut
-// upload/mine flow reuses the same job-SSE pipeline exercised end-to-end, slowly and
-// non-deterministically, by onboarding.spec.ts, so it isn't repeated here.
-//
-// Assertions stay at what a visitor observes — copy present, Ready? actually clickable, the URL
-// change — never the typewriter's internal DOM. (Ready?/Upload it are `inert` and opacity:0 pre
-// reveal; Playwright's `toBeVisible()` does not consider opacity, so the reliable, black-box
-// signal is whether the button can actually be CLICKED — its own actionability wait respects
-// `pointer-events: none`, which is the real mechanism gating interaction here.)
+type SourceEntry =
+  | null
+  | { checkpoint: "invited"; choice: null }
+  | { checkpoint: "source_selected"; choice: "cv" | "questions" };
 
-test("front door: the invitation appears, then Ready? advances to /discovery", async ({ page }) => {
+async function stubSourceEntry(page: Page, initial: SourceEntry = null) {
+  let sourceEntry = initial;
+  const writes: unknown[] = [];
+
+  await page.route("**/api/sessions/me", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: { sourceEntry } });
+      return;
+    }
+    await route.continue();
+  });
+  await page.route("**/api/sessions/me/source-entry", async (route) => {
+    const body = route.request().postDataJSON();
+    writes.push(body);
+    sourceEntry = body;
+    await route.fulfill({ json: { sourceEntry } });
+  });
+
+  return writes;
+}
+
+test("Ready? opens source assistance at / without authentication", async ({ page }) => {
+  const writes = await stubSourceEntry(page);
   await page.goto("/");
-
-  await expect(page.locator("body")).toContainText("Answer questions.");
-  await expect(page.locator("body")).toContainText("Collect jobs.");
-
-  // Ready? becomes clickable once the invitation finishes typing (~1.57s per spec §5) —
-  // Playwright's own actionability wait (attached, stable, receives events, enabled) covers it.
-  await page.getByRole("button", { name: "Ready?" }).click({ timeout: 10_000 });
-  await expect(page).toHaveURL(/\/discovery/);
-});
-
-test("tap-to-finish: a tap while typing makes Ready? clickable immediately, not after the full type-out", async ({
-  page,
-}) => {
-  await page.goto("/");
-
-  // Tap well before the ~1.57s natural typing would finish on its own, away from any control —
-  // "anywhere" per spec §6.
-  await page.waitForTimeout(150);
   await page.mouse.click(10, 10);
 
-  // Budget sits above Ready?'s ~620ms reveal transform (so the tapped path lands) yet below the
-  // ~2.2s natural type-out+reveal — a pass is still real evidence the skip worked, not a wait.
-  await page.getByRole("button", { name: "Ready?" }).click({ timeout: 1500 });
-  await expect(page).toHaveURL(/\/discovery/);
+  await page.getByRole("button", { name: "Ready?" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "Can something you already have help?" })).toBeFocused();
+  await expect(page.getByTestId("source-actions")).toBeVisible();
+  expect(writes).toEqual([{ checkpoint: "invited", choice: null }]);
 });
 
-test("prefers-reduced-motion: the full invitation shows immediately and Ready? is clickable with no typing wait", async ({
-  page,
-}) => {
+test("reduced motion renders the complete stable invitation immediately", async ({ page }) => {
+  await stubSourceEntry(page);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
 
-  await expect(page.locator("body")).toContainText("Answer questions.");
-  await expect(page.locator("body")).toContainText("Collect jobs.");
-  await page.getByRole("button", { name: "Ready?" }).click({ timeout: 500 });
-  await expect(page).toHaveURL(/\/discovery/);
+  await expect(page.locator(".l1 .tx")).toHaveText("Answer questions.");
+  await expect(page.locator(".l2 .tx")).toHaveText("Collect jobs.");
+  await expect(page.locator(".caret")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Ready?" })).toBeEnabled();
+  await page.getByRole("button", { name: "Ready?" }).click();
+  await expect(page.getByTestId("front-door")).toHaveAttribute("data-view", "source");
+});
+
+for (const choice of ["cv", "questions"] as const) {
+  test(`${choice} choice persists and restores after reload`, async ({ page }) => {
+    const writes = await stubSourceEntry(page, { checkpoint: "invited", choice: null });
+    await page.goto("/");
+
+    const name = choice === "cv" ? "Use my CV" : "Start questions instead";
+    await page.getByRole("button", { name: new RegExp(name) }).click();
+    await expect(page.locator(`[data-source="${choice}"]`)).toHaveAttribute("aria-pressed", "true");
+    await page.reload();
+    await expect(page.locator(`[data-source="${choice}"]`)).toHaveAttribute("aria-pressed", "true");
+    expect(writes).toEqual([{ checkpoint: "source_selected", choice }]);
+  });
+}
+
+test("LinkedIn is disabled, says Coming soon, and cannot collect or persist data", async ({ page }) => {
+  const writes = await stubSourceEntry(page, { checkpoint: "invited", choice: null });
+  await page.goto("/");
+
+  const linkedIn = page.getByRole("button", { name: "Use LinkedIn — Coming soon" });
+  await expect(linkedIn).toBeDisabled();
+  await expect(linkedIn).toContainText("Coming soon");
+  await expect(page.locator('input[type="url"], input[name*="linkedin" i]')).toHaveCount(0);
+  await linkedIn.click({ force: true });
+  expect(writes).toEqual([]);
+});
+
+test("checkpoint load failure shows the exact alert and retries restoration", async ({ page }) => {
+  let attempts = 0;
+  await page.route("**/api/sessions/me", async (route) => {
+    attempts += 1;
+    if (attempts === 1) {
+      await route.fulfill({ status: 503, json: { error: { message: "unavailable" } } });
+      return;
+    }
+    await route.fulfill({
+      json: { sourceEntry: { checkpoint: "invited", choice: null } },
+    });
+  });
+
+  await page.goto("/");
+  const alert = page.locator(".async-error[role='alert']");
+  await expect(alert).toContainText("We couldn’t restore your progress.");
+  await alert.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByTestId("source-actions")).toBeVisible();
+  expect(attempts).toBe(2);
+});
+
+test("failed save restores the durable choice and retry persists the intended choice", async ({ page }) => {
+  let sourceEntry: SourceEntry = { checkpoint: "source_selected", choice: "cv" };
+  let saveAttempts = 0;
+  await page.route("**/api/sessions/me", async (route) => {
+    await route.fulfill({ json: { sourceEntry } });
+  });
+  await page.route("**/api/sessions/me/source-entry", async (route) => {
+    saveAttempts += 1;
+    if (saveAttempts === 1) {
+      await route.fulfill({ status: 503, json: { error: { message: "unavailable" } } });
+      return;
+    }
+    sourceEntry = route.request().postDataJSON();
+    await route.fulfill({ json: { sourceEntry } });
+  });
+
+  await page.goto("/");
+  await expect(page.locator('[data-source="cv"]')).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: /Start questions instead/ }).click();
+
+  const alert = page.getByTestId("source-checkpoint-status").getByRole("alert");
+  await expect(alert).toContainText("We couldn’t save that choice.");
+  await expect(page.locator('[data-source="cv"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-source="questions"]')).toHaveAttribute("aria-pressed", "false");
+
+  await alert.getByRole("button", { name: "Try again" }).click();
+  await expect(page.locator('[data-source="questions"]')).toHaveAttribute("aria-pressed", "true");
+  expect(saveAttempts).toBe(2);
 });

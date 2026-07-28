@@ -356,6 +356,25 @@ export interface ProfileState {
   domains: ProfileDomain[];
 }
 
+export type SourceEntry =
+  | null
+  | { checkpoint: "invited"; choice: null }
+  | { checkpoint: "source_selected"; choice: "cv" | "questions" };
+
+export async function getSourceEntry(): Promise<SourceEntry> {
+  const response = await fetch("/api/sessions/me");
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error("restore failed");
+  return ((await response.json()) as { sourceEntry: SourceEntry }).sourceEntry;
+}
+
+export function saveSourceEntry(sourceEntry: Exclude<SourceEntry, null>) {
+  return jfetch<{ sourceEntry: Exclude<SourceEntry, null> }>("/api/sessions/me/source-entry", {
+    method: "PUT",
+    body: JSON.stringify(sourceEntry),
+  });
+}
+
 export function getProfile(): Promise<ProfileState> {
   return jfetch("/api/profile");
 }

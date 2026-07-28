@@ -30,15 +30,31 @@ for (const [name, make] of sessionDrivers) {
       expect(s.stage).toBe("deck");
       expect(s.tailorAdId).toBeNull();
       expect(s.tailorFloorPct).toBe(0);
+      expect(s.sourceEntry).toBeNull();
       expect(await store.getByToken(s.token)).toMatchObject({
         id: s.id,
         token: s.token,
         stage: "deck",
         tailorAdId: null,
         tailorFloorPct: 0,
+        sourceEntry: null,
       });
       expect(await store.getById(s.id)).toMatchObject({ id: s.id });
       expect(await store.getByToken("nope")).toBeNull();
+    });
+
+    it("setSourceEntry persists last-write-wins", async () => {
+      const s = await store.create();
+      await store.setSourceEntry(s.id, { checkpoint: "invited", choice: null });
+      expect((await store.getById(s.id))?.sourceEntry).toEqual({
+        checkpoint: "invited",
+        choice: null,
+      });
+      await store.setSourceEntry(s.id, { checkpoint: "source_selected", choice: "cv" });
+      expect((await store.getById(s.id))?.sourceEntry).toEqual({
+        checkpoint: "source_selected",
+        choice: "cv",
+      });
     });
 
     it("setStage + setTargetTitles persist", async () => {

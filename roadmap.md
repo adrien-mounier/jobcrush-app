@@ -16,12 +16,23 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
 
+**2026-07-28 implementation update:** [#55 First-run invitation and persistent
+source-entry spine](https://github.com/adrien-mounier/jobcrush-app/issues/55) is
+implemented and release-gated. The existing centered invitation now opens anonymous
+source assistance on the same route; CV and question-first choices persist through
+reload in both in-memory and Postgres session stores; LinkedIn remains disabled and
+non-collecting. This establishes the durable onboarding state spine that the remaining
+#54 slices extend. Closing #55 unblocks [#56 CV import proof, provenance, corrections,
+and recovery](https://github.com/adrien-mounier/jobcrush-app/issues/56) and
+[#57 Collect explicit target role and search
+area](https://github.com/adrien-mounier/jobcrush-app/issues/57).
+
 **Latest:** the decision-complete
 [first-run onboarding revision map](https://github.com/adrien-mounier/jobcrush-app/issues/40)
 is now captured in the implementation-ready
 [source-assisted first-run onboarding spec](https://github.com/adrien-mounier/jobcrush-app/issues/54).
-The next lifecycle step is `/to-tickets`; this supersedes the earlier frontier
-notes below.
+The implementation ticket graph is published as #55–#69; #55 is the first landed
+vertical slice.
 
 **2026-07-28 update:** [Define cross-flow resilience, accessibility, validation](https://github.com/adrien-mounier/jobcrush-app/issues/46) is resolved. The onboarding revision now has explicit pilot gates for honest background waits, interruption recovery, temporary-data retention, match relevance, family classification and novelty detection, question efficiency, time to value, Important-gap comprehension, and manual evidence review. Formal keyboard-only, screen-reader, and reduced-motion compatibility is deferred beyond this effort. The unblocked frontier is now [Rewrite the onboarding reward design around the resolved flow](https://github.com/adrien-mounier/jobcrush-app/issues/47).
 

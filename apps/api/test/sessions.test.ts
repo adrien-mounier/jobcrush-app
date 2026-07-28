@@ -61,6 +61,72 @@ describe("JC-10 anonymous sessions", () => {
     expect(me.json().targetTitles).toEqual(["IT Project Manager", "Product Owner"]);
   });
 
+  it("persists and restores the anonymous source-entry checkpoint", async () => {
+    const { app } = buildServer();
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = cookieOf(created);
+    expect(
+      (await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } })).json().sourceEntry,
+    ).toBeNull();
+
+    const invited = await app.inject({
+      method: "PUT",
+      url: "/sessions/me/source-entry",
+      headers: { cookie },
+      payload: { checkpoint: "invited", choice: null },
+    });
+    expect(invited.statusCode).toBe(200);
+    expect(invited.json()).toEqual({ sourceEntry: { checkpoint: "invited", choice: null } });
+
+    const selected = await app.inject({
+      method: "PUT",
+      url: "/sessions/me/source-entry",
+      headers: { cookie },
+      payload: { checkpoint: "source_selected", choice: "questions" },
+    });
+    expect(selected.statusCode).toBe(200);
+    expect(selected.json()).toEqual({
+      sourceEntry: { checkpoint: "source_selected", choice: "questions" },
+    });
+    const restored = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(restored.json().sourceEntry).toEqual({
+      checkpoint: "source_selected",
+      choice: "questions",
+    });
+  });
+
+  it("requires a session before storing a source-entry checkpoint", async () => {
+    const res = await appWithoutSession().inject({
+      method: "PUT",
+      url: "/sessions/me/source-entry",
+      payload: { checkpoint: "invited", choice: null },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual({ error: { code: "no_session", message: "no active session" } });
+  });
+
+  it.each([
+    { checkpoint: "unknown", choice: null },
+    { checkpoint: "source_selected" },
+    { checkpoint: "source_selected", choice: null },
+    { checkpoint: "source_selected", choice: "linkedin" },
+    { checkpoint: "invited", choice: "cv" },
+    { checkpoint: "invited", choice: null, extra: true },
+  ])("rejects invalid source-entry shape without mutation: %j", async (payload) => {
+    const { app } = buildServer();
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = cookieOf(created);
+    const put = await app.inject({
+      method: "PUT",
+      url: "/sessions/me/source-entry",
+      headers: { cookie },
+      payload,
+    });
+    expect(put.statusCode).toBe(400);
+    const restored = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(restored.json().sourceEntry).toBeNull();
+  });
+
   // #15 front door → discovery handoff: the same anonymous-friendly seam as /targets above.
   it("advances the session to the discovery stage, persisted", async () => {
     const { app } = buildServer();
@@ -111,3 +177,7 @@ describe("JC-10 anonymous sessions", () => {
     expect(limiter.allow("b")).toBe(true); // separate IP unaffected
   });
 });
+
+function appWithoutSession() {
+  return buildServer().app;
+}

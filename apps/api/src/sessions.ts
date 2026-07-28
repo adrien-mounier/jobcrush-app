@@ -8,6 +8,10 @@ import { getPool, iso } from "./db.js";
 // Where a session sits in the onboarding loop; the client reads it on load to pick a screen.
 // front-door (screen 0) → discovery (#16) → deck → tailor (#21/#23) → grill (JC-24) → ready | loopback.
 export type OnboardingStage = "front-door" | "discovery" | "deck" | "tailor" | "grill" | "ready" | "loopback";
+export type SourceEntry =
+  | null
+  | { checkpoint: "invited"; choice: null }
+  | { checkpoint: "source_selected"; choice: "cv" | "questions" };
 
 export interface SessionRecord {
   id: string;
@@ -32,6 +36,7 @@ export interface SessionRecord {
    *  without the badge ever visibly shrinking. Session-wide (unlike tailorFloorPct) — there's no
    *  ad to key it to, so raiseFactFloor is unconditional, unlike setTailorTarget's reset. */
   factFloor: number;
+  sourceEntry: SourceEntry;
 }
 
 export interface SessionStore {
@@ -43,6 +48,7 @@ export interface SessionStore {
   touch(id: string): Promise<void>;
   setTargetTitles(id: string, titles: string[]): Promise<void>;
   setStage(id: string, stage: OnboardingStage): Promise<void>;
+  setSourceEntry(id: string, sourceEntry: Exclude<SourceEntry, null>): Promise<void>;
   setTailorTarget(id: string, adId: string): Promise<void>;
   /** #23 drop: exit tailor back to the deck, clearing the target. Never touches claims. */
   clearTailorTarget(id: string): Promise<void>;
@@ -68,6 +74,7 @@ function newSession(): SessionRecord {
     tailorFloorPct: 0,
     tailorFloorAdId: null,
     factFloor: 0,
+    sourceEntry: null,
   };
 }
 
@@ -105,6 +112,11 @@ export class InMemorySessionStore implements SessionStore {
   async setStage(id: string, stage: OnboardingStage): Promise<void> {
     const s = this.byId.get(id);
     if (s) s.stage = stage;
+  }
+
+  async setSourceEntry(id: string, sourceEntry: Exclude<SourceEntry, null>): Promise<void> {
+    const s = this.byId.get(id);
+    if (s) s.sourceEntry = sourceEntry;
   }
 
   async setTailorTarget(id: string, adId: string): Promise<void> {
@@ -156,7 +168,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   tailor_ad_id       text,
   tailor_floor_pct   integer NOT NULL DEFAULT 0,
   tailor_floor_ad_id text,
-  fact_floor         integer NOT NULL DEFAULT 0
+  fact_floor         integer NOT NULL DEFAULT 0,
+  source_entry       jsonb
 )`;
 
 const SESSIONS_ALTERS = [
@@ -172,6 +185,7 @@ const SESSIONS_ALTERS = [
   // #33: no backfill needed, unlike #31 above — fact_floor defaults to 0 and only ever rises, so an
   // existing row just starts at 0 and gets raised back up to its true peak on the very first read.
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS fact_floor integer NOT NULL DEFAULT 0",
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS source_entry jsonb",
 ];
 
 function toSession(r: Record<string, unknown>): SessionRecord {
@@ -188,6 +202,7 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     tailorFloorPct: (r.tailor_floor_pct as number) ?? 0,
     tailorFloorAdId: (r.tailor_floor_ad_id as string) ?? null,
     factFloor: (r.fact_floor as number) ?? 0,
+    sourceEntry: (r.source_entry as SourceEntry) ?? null,
   };
 }
 
@@ -224,6 +239,12 @@ export class PgSessionStore implements SessionStore {
   }
   async setStage(id: string, stage: OnboardingStage): Promise<void> {
     await this.pool.query(`UPDATE sessions SET stage = $2 WHERE id = $1`, [id, stage]);
+  }
+  async setSourceEntry(id: string, sourceEntry: Exclude<SourceEntry, null>): Promise<void> {
+    await this.pool.query(`UPDATE sessions SET source_entry = $2 WHERE id = $1`, [
+      id,
+      JSON.stringify(sourceEntry),
+    ]);
   }
   async setTailorTarget(id: string, adId: string): Promise<void> {
     // #31: tailor_floor_ad_id on the right of the CASE reads the PRE-update row (standard SQL: every
