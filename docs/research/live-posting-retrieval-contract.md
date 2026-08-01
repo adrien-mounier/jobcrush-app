@@ -115,155 +115,349 @@ have not been cross-checked against an independent source.
 
 ## 2. The provider-neutral contract
 
-Everything below is written to be implementable against **any** provider from §1, or against none
-(the curated-pool / provider-unavailable path). #63 must not invent policy beyond this.
+_Revised 2026-08-01, third pass. §1's own research is the reason this section changes: no regional
+incumbent board is reachable by API (checked directly — SEEK, JobStreet/JobsDB, Glints, Kalibrr,
+Wantedly all have no public read API), so regional coverage will always be assembled from more than one
+source. The previous draft's `PostingRetrievalResultV1` assumed exactly one provider answered per
+request, with `providerId` stapled onto both the posting and the outcome as a single string. That
+assumption breaks the moment a second provider exists — which is day one, since the curated pool sits
+alongside Techmap from launch. Nothing about fail-closed liveness, server-owned inputs, the forbidden-
+input list, intent-change invalidation, or the fixture pool's isolation from production changes below;
+they're preserved verbatim in substance, only renumbered where a new subsection was inserted ahead of
+them._
 
-### 2.1 Posting identity + display fields
+Everything below is written to be implementable against **any number** of providers from §1 (today:
+Techmap plus the curated pool; TheirStack or a UK/EU aggregator later), each with its own regional
+coverage, terms, and pricing. #63 must not invent policy beyond this.
+
+### 2.1 Posting identity — provider records vs. the canonical posting
+
+Two shapes, not one. A `ProviderPostingRecordV1` is one provider's raw view of a job; a `PostingV1` is
+the deduplicated, provider-independent posting #63 actually consumes. §2.4 defines how the first
+becomes the second.
 
 ```
-PostingV1 {
+ProviderPostingRecordV1 {
   schemaVersion: "1"
-  id: string            // "<providerId>:<providerPostingId>", e.g. "adzuna:123456789"
-  providerId: string     // "adzuna" | "curated-pool" | ... — never blank
+  providerId: string             // "techmap" | "curated-pool" | ... — never blank, keyed to §2.2's registry
+  providerPostingId: string      // opaque, exactly as given by that provider
   title: string
   company: string
   location: string
-  sourceUrl: string       // resolves to the original listing — parent spec story #52 requires this
-  excerpt: string         // maps 1:1 onto JobCardV1.adExcerpt (packages/contracts/src/jobCard.ts)
-  postedAt: string | null // provider-claimed post date, ISO 8601
-  capturedAt: string      // when JobCrush first retrieved this posting, ISO 8601
-  verifiedLiveAt: string  // last time liveness was positively re-confirmed, ISO 8601
-  expiresAt: string | null // provider-stated expiry, if any
-  attribution: { label: string; url: string } | null // required when the provider's ToS demands it (Adzuna does)
+  sourceUrl: string               // resolves to the original listing — parent spec story #52 requires this
+  excerpt: string
+  postedAt: string | null         // provider-claimed post date, ISO 8601
+  capturedAt: string              // when JobCrush first retrieved this record, ISO 8601
+  verifiedLiveAt: string          // last time liveness was positively re-confirmed, ISO 8601
+  expiresAt: string | null        // provider-stated expiry, if any
+  attribution: { label: string; url: string } | null  // THIS provider's own attribution requirement, if any
+}
+
+PostingV1 {                       // schemaVersion "2" — canonical, provider-independent, what #63 consumes
+  schemaVersion: "2"
+  id: string                       // "posting:<canonicalKey>" — stable regardless of which provider(s) currently see it
+  canonicalKey: string              // the dedup key itself (§2.4), kept for audit/debugging
+  title: string                     // from the highest-authorityRank contributing record (§2.4)
+  company: string
+  location: string
+  sourceUrl: string                 // the winning record's URL
+  excerpt: string
+  postedAt: string | null
+  capturedAt: string                 // earliest capturedAt across contributing records
+  verifiedLiveAt: string             // most recent verifiedLiveAt across contributing records
+  expiresAt: string | null           // earliest non-null expiresAt across contributing records (most conservative)
+  attribution: Array<{ label: string; url: string }>  // UNION of every contributing provider's requirement — all honored, not just the winner's
+  sources: Array<{ providerId: string; providerPostingId: string }>  // every provider record currently merged into this posting, min length 1
 }
 ```
 
-Fields are chosen to map directly onto the existing `JobCardV1` contract
-(`title→title`, `company→company`, `location→place`, `excerpt→adExcerpt`) so #63 does not need a
-second posting shape — it consumes `PostingV1` and produces `JobCardV1` the same way it already
-consumes fixture `Posting` + `AdRequirements` today. **`id` deliberately never reuses the fixture id
-scheme** (`sample-postings.json`'s `<date>_<company-slug>_<title-slug>`) — a provider-prefixed id keeps
-production and fixture postings visually distinguishable at every call site, defense against a future
-route accidentally mixing the two pools.
+Display fields still map directly onto `JobCardV1` (`title→title`, `company→company`, `location→place`,
+`excerpt→adExcerpt`) so #63 does not need a second card shape. **One real gap this revision surfaces:**
+`JobCardV1` (`packages/contracts/src/jobCard.ts`) has no attribution field today. If any active
+provider's policy sets `attributionRequired: true` (§2.2), `JobCardV1` needs a new field to render it —
+flagged in §3, not solved here, since §2's scope is the retrieval contract, not the card contract.
 
-### 2.2 Retrieval inputs — server-owned, explicitly enumerated
+`id` is intentionally never the old `<providerId>:<providerPostingId>` scheme — a canonical posting's
+identity must survive a provider dropping out or a second provider picking up the same job, so it's
+derived from the posting's own normalized content (§2.4), not from which provider happened to answer
+this time. It also never reuses the fixture id scheme (`sample-postings.json`'s
+`<date>_<company-slug>_<title-slug>`), keeping production and fixture postings visually distinguishable.
 
-Read from the session record (`SessionRecord`, `apps/api/src/sessions.ts`), never from the request
-body:
+### 2.2 The provider registry — policy as data, not code
+
+Every provider's terms, coverage, and cost are one row in a data table, not an `if (providerId === ...)`
+branch anywhere in route code:
+
+```
+PostingProviderPolicyV1 {
+  schemaVersion: "1"
+  providerId: string
+  regionsServed: string[]          // ISO 3166-1 alpha-2 codes this provider is authoritative for, e.g. ["HK","SG","VN","AU"]; "*" for the curated pool (serves whatever the operator has curated, anywhere)
+  authorityRank: number            // lower wins a field-value conflict when two records merge into one canonical posting (§2.4)
+  permitsStorage: boolean          // defaults false — silence in a provider's ToS is never read as permission
+  permitsMatching: boolean         // defaults false — same rule
+  attributionRequired: boolean
+  attributionTemplate: { label: string; url: string } | null
+  rateLimit: { perMinute: number | null; perDay: number | null; perMonth: number | null }
+  costModel:
+    | { kind: "perThousandPostings"; amountUsd: number }   // Techmap's shape
+    | { kind: "flatMonthlyTier"; amountUsd: number; includedUnits: number }  // TheirStack's shape
+    | { kind: "operatorHours" }                             // the curated pool — no vendor cost, tracked as hours not dollars
+  freshnessTtlHours: number         // this provider's own crawl/liveness guarantee
+}
+```
+
+**Enforcement, fail closed:** the registry the live system reads from contains only rows where
+`permitsStorage && permitsMatching` are both `true`. A provider whose terms are unconfirmed or
+restrictive (TheirStack today, per §1) may exist as a **documented candidate row** the owner can review,
+but the loader that builds the active registry filters it out — the exact same shape as
+`eligibleProductionPublication` filtering non-published family floors in `onboarding.ts`, or
+`ProductionFamilyFloorStore.publish()` refusing anything not reviewed. A future provider with stricter
+terms cannot be wired into production without someone explicitly flipping its two booleans to `true` in
+this table, which is the enforcement point this ticket's brief asked for.
+
+Lives at `apps/api/data/posting-providers.json`, zod-validated on load — same pattern as
+`sample-family-floors.json`/`sample-ad-requirements.json` (`e5stub.ts`). It is a new file under `data/`,
+so it needs `git add -f` (the directory is gitignored by default; `lessons.md` already documents this
+exact trap from #12's fixtures).
+
+### 2.3 Routing — search area to provider(s)
+
+```
+resolveSearchAreaToRegions(searchArea: string): string[]   // "Hong Kong" / "HK" / "Ho Chi Minh City" → ["HK"] / ["VN"], a small hand-built lookup table sized to the pilot's known cities — NOT a geocoding API call
+providersFor(regions: string[], registry: PostingProviderPolicyV1[]): PostingProviderPolicyV1[]
+  // registry rows whose regionsServed intersects `regions` (or is "*"), sorted by authorityRank ascending
+```
+
+Both are pure functions, unit-testable without a network call. `resolveSearchAreaToRegions` is new,
+unbuilt logic and a real gap (§2.11 notes it isn't geocoding infrastructure — a lookup table covering
+Hong Kong/Singapore/Vietnam/Australia and their major cities is enough at pilot scale).
+
+**If `providersFor(...)` returns empty** — a well-formed search area with no provider covering it —
+the outcome is `invalid_request` with `code: "search_area_not_covered"` (§2.7), **never** `empty_pool`.
+This is the distinction the brief asked for: a user in an uncovered city never received a real answer to
+"are there jobs here," so the honest response is "we don't search there yet," not "we looked and found
+nothing." The curated pool's `regionsServed: ["*"]` means it's always in the candidate list — if the
+operator has genuinely curated nothing for that area, the pool still legitimately returns zero, and the
+overall outcome degrades to a real `empty_pool`, not `search_area_not_covered`.
+
+### 2.4 Deduplication — the most important item
+
+**Canonical key:** `sha256(normalize(company) + "|" + normalize(location) + "|" + normalize(title))`,
+where `normalize` = lowercase, trim, collapse internal whitespace, strip a small fixed set of
+punctuation (commas, periods, parentheses). Two provider records that produce the same key merge into
+one `PostingV1`. On a conflict in a display field (title/company/location/sourceUrl text differs between
+merged records), **the record from the provider with the lower `authorityRank` wins** (§2.2); `sources`
+and `attribution` are always the union across every contributing record, never just the winner's.
+
+**How confident this is, stated plainly:** this catches exact-and-near-exact duplicates only — the same
+employer spelling, the same city string, the same job-title string across providers. It will **miss**:
+- the same job with different title wording ("Senior PM" vs. "Senior Project Manager"),
+- the same job with a company-name variant ("BNP Paribas" vs. "BNP Paribas Hong Kong Branch"),
+- the same job at different location granularity ("Hong Kong" vs. "Wan Chai, Hong Kong").
+
+Every miss above is a **false negative** (two `PostingV1`s where there's really one job) — the count can
+be a slight over-count. The rule is deliberately built to never produce a **false positive** (merging two
+genuinely different jobs): it only merges on an exact normalized match, so a missed merge just leaves an
+extra card, never silently drops a distinct one. An inflated "N jobs" count from an unmerged duplicate is
+a real defect against the reward's promise, but it's a smaller, more honest failure mode than a wrongful
+merge that quietly loses a job from the count — so this is the right direction to err in, not a
+compromise to fix later by tightening in the wrong direction.
+
+With exactly two sources active at launch (Techmap, automated; the curated pool, human-authored and
+already human-normalized), the practical collision rate is expected to be low. Re-evaluating toward a
+fuzzy/probabilistic matcher is explicitly deferred (§2.11) until production data shows the naive key is
+actually missing a material number of duplicates — not built speculatively now.
+
+Runs as a pure function, `dedupePostings(records: ProviderPostingRecordV1[]): PostingV1[]`, called once
+by `retrievePostings`'s real implementation after every eligible provider for the region has answered
+(or failed). Testable in isolation with fixture records — no network, no store.
+
+### 2.5 Retrieval inputs — server-owned, explicitly enumerated
+
+Unchanged in substance from the prior draft. Read from the session record (`SessionRecord`,
+`apps/api/src/sessions.ts`), never from the request body:
 
 | Input | Source | Required |
 |---|---|---|
 | Target role | `session.intent.targetRole` | yes, non-null |
-| Search area | `session.intent.searchArea` | yes, non-null |
+| Search area | `session.intent.searchArea`, resolved to region codes via §2.3's `resolveSearchAreaToRegions` | yes, non-null |
 | Confirmed published job family version | `session.discovery.floor` (must resolve via `ProductionFamilyFloorStore.get()` to a publication with `publicationStatus === "published"` — the same `eligibleProductionPublication` check `onboarding.ts` already applies) | yes |
 | Essential floor covered | `session.discovery.checkpoint === "essential_floor_covered"` | yes |
-| Source-supported evidence | Derived server-side from `claims.confirmed(sessionId)` — reduced to search keywords/requirement labels, never raw free text (privacy, §2.5) | used to build the provider query, not sent verbatim |
+| Source-supported evidence | Derived server-side from `claims.confirmed(sessionId)` — reduced to search keywords/requirement labels, never raw free text (privacy, §2.9) | used to build each provider's query, not sent verbatim |
 | Explicit negatives | `claims.negatives(sessionId)` | used as a server-side post-filter/suppressor, never a positive signal |
 
 **Forbidden inputs, explicitly:**
 - **System inference** — any claim with `decision !== "confirmed"` (pending/mined-but-unreviewed) must never reach the query or the relevance filter.
-- **Client assertions** — a request body cannot set `targetRole`, `searchArea`, or the family reference; the route reads only session state. (Same idiom as every other onboarding route — `requireSession`/`requireUser`, no client-supplied identity fields.)
+- **Client assertions** — a request body cannot set `targetRole`, `searchArea`, or the family reference; the route reads only session state.
 - **The family-research postings pool** (`sample-postings.json`) — must never be joined into a production retrieval result. It stays fixture-only, gated the same way `TestFixtureFamilyFloorStore` is isolated from `ProductionFamilyFloorStore` today (`apps/api/src/familyFloors.ts`) — mirror that split with a `TestFixturePostingProvider` that structurally cannot satisfy a production check.
 
-If any required input is absent (no role/area, family not published, floor not covered), the outcome
-is `invalid_request` (§2.4) — never a silent empty result.
+If any required input is absent, or `resolveSearchAreaToRegions`/`providersFor` yields no provider, the
+outcome is `invalid_request` (§2.7) — never a silent empty result.
 
-### 2.3 Live/freshness semantics — fail closed
+### 2.6 Live/freshness semantics — fail closed, now per provider
 
-- A posting counts toward the reveal only if `verifiedLiveAt` is within a **24-hour TTL** (small pilot
-  volume makes a short window affordable) **and** (`expiresAt` is null or in the future).
-- If the provider cannot be freshness-checked (timeout, rate-limited, 5xx), the posting is **not**
-  counted live. It is not silently dropped either — it becomes `stale_data` (§2.4), distinct from a
-  genuine empty pool.
-- Revalidation is a background refresh (mirrors `purge.ts`'s existing job shape), not a synchronous
-  network round-trip inside `/onboarding/cards` on every request. The synchronous route reads the last
-  refreshed snapshot; only the background job talks to the provider. This bounds latency and respects
-  rate limits (§2.6) by construction — one shared refresh serves every session searching the same
-  family/area, rather than one provider call per page load.
-- Every freshness check is logged with a timestamp for audit (pilot observability requirement,
-  parent-spec story #72).
+- A provider record counts toward the reveal only if `verifiedLiveAt` is within its **effective TTL**
+  — `min(24 hours, that provider's policy.freshnessTtlHours)` — **and** (`expiresAt` is null or in the
+  future). The 24-hour ceiling is a global maximum; a provider's own tighter guarantee can shorten it,
+  never lengthen it past 24h.
+- If a provider cannot be freshness-checked (timeout, rate-limited, 5xx), its records are **not** counted
+  live for this round. They are not silently dropped from the system either — this is exactly what makes
+  that provider's contribution to §2.7's `coverage.providersUnavailable`.
+- Revalidation is a background refresh per provider (mirrors `purge.ts`'s existing job shape), not a
+  synchronous network round-trip inside `/onboarding/cards`. Each provider's own rate limit and cost
+  model (§2.2) bounds how often its revalidation job runs; one shared refresh serves every session
+  searching an overlapping region, rather than one provider call per page load.
+- Every freshness check is logged with a timestamp and providerId for audit (pilot observability
+  requirement, parent-spec story #72).
 
-### 2.4 Four outcomes — never collapsed
+### 2.7 Outcomes — coverage makes partial availability honest, never collapsed
 
 ```
+Coverage {
+  providersQueried: string[]        // providers whose response was successfully used this round
+  providersUnavailable: string[]    // providers eligible for this region that failed/timed out/were rate-limited
+  complete: boolean                 // providersUnavailable.length === 0
+}
+
 PostingRetrievalResultV1 = discriminated union on "outcome":
 
-| { outcome: "relevant_postings", postings: PostingV1[] (non-empty), retrievedAt, providerId }
-| { outcome: "empty_pool", retrievedAt, providerId }                // genuinely queried, zero live matches
-| { outcome: "provider_unavailable", reason: string, retryable: boolean } // provider errored/timed out/rate-limited
-| { outcome: "stale_data", lastKnownFreshAt: string, retrievedAt: string } // cached postings exist, TTL exceeded, live re-check failed
-| { outcome: "invalid_request", code: string }                      // a required input (§2.2) is missing
+| { outcome: "relevant_postings", postings: PostingV1[] (non-empty, deduped per §2.4), coverage: Coverage, retrievedAt }
+| { outcome: "empty_pool", coverage: Coverage (coverage.complete MUST be true), retrievedAt }
+| { outcome: "provider_unavailable", coverage: Coverage, reason: string, retryable: boolean }
+| { outcome: "stale_data", lastKnownFreshAt: string, retrievedAt: string }
+| { outcome: "invalid_request", code: "missing_intent" | "family_not_published" | "floor_not_covered" | "search_area_not_covered" }
 ```
 
-`empty_pool` and `provider_unavailable` must never be presented identically to #63 — the parent spec
-(story #46) requires "broaden your search" for a genuine empty pool and a different, honest message
-for "we couldn't check right now." Collapsing these into one client-facing "no jobs" state is the exact
-dishonesty this ticket exists to prevent.
+**The assembly rule, stated precisely** (this is where partial availability becomes a qualifier on the
+existing outcomes rather than a sixth arm — adding a whole new top-level state would just multiply what
+#63 has to branch on without adding information beyond "how sure are we," which already belongs next to
+the count it qualifies):
 
-### 2.5 Persistence + intent-change invalidation
+1. If `providersFor(...)` is empty → `invalid_request` / `search_area_not_covered` (§2.3). No provider
+   was ever queried.
+2. Otherwise, query every eligible provider. Dedup whatever succeeded (§2.4) into `postings`.
+3. `postings.length > 0` → **always `relevant_postings`**, regardless of whether other eligible
+   providers failed. `coverage.complete` tells #63 whether this is the full regional sweep or a real,
+   partial count. **#63 must render these differently** — a complete count supports the plain "N jobs
+   just matched you"; an incomplete one must say something honest like "N jobs matched you so far — still
+   checking other sources," never the unqualified line, because a provider that hasn't answered yet
+   might add more.
+4. `postings.length === 0` and `coverage.complete === true` (every eligible provider was successfully
+   queried and none had anything) → `empty_pool`. This is the only path to `empty_pool` — **it is
+   structurally impossible to reach with an incomplete sweep.**
+5. `postings.length === 0` and `coverage.complete === false` (at least one eligible provider never
+   answered, so a genuine zero cannot be certified) → `provider_unavailable`, carrying the same
+   `coverage` so #63 can still say which providers *did* check clean, if any. This is deliberately the
+   more conservative choice: we would rather tell the user "we couldn't fully check" than risk the
+   zero-job reveal the parent spec (story #46) explicitly forbids.
 
-Add a `retrieval: RetrievalSnapshot | null` field to `SessionRecord`, following the same idiom as the
-existing `discovery: ProductionDiscoveryState` field — a parsed-or-safely-reset JSON column
-(`discoveryState()`'s pattern in `sessions.ts`), with a `reconcileRetrievalState`-style store method on
-both `InMemorySessionStore` and `PgSessionStore`.
+`empty_pool`, `provider_unavailable`, and an incomplete `relevant_postings` must never be presented
+identically to #63 — each needs its own honest copy, not a shared "no jobs" state.
 
-- Session-scoped, not a shared cross-session cache. At pilot volume this is the smallest correct
-  boundary; a shared posting cache is a real future optimization (avoid re-querying the provider per
-  overlapping search) but is out of scope here — flagged in §4 rather than invented now.
+### 2.8 Persistence + intent-change invalidation
+
+Unchanged in substance. Add a `retrieval: RetrievalSnapshot | null` field to `SessionRecord`, following
+the same idiom as the existing `discovery: ProductionDiscoveryState` field — a parsed-or-safely-reset
+JSON column (`discoveryState()`'s pattern in `sessions.ts`), with a `reconcileRetrievalState`-style store
+method on both `InMemorySessionStore` and `PgSessionStore`. `RetrievalSnapshot` is simply the last
+`PostingRetrievalResultV1` plus its request fingerprint — multi-provider dedup and coverage don't change
+this shape, only what's inside the snapshot's `postings`/`coverage` fields.
+
+- Session-scoped, not a shared cross-session cache — still the smallest correct boundary at pilot
+  volume; a shared posting cache across sessions searching the same region is a real future
+  optimization, deferred (§2.11).
 - **Invalidation on intent change:** any call to `sessions.setIntent()` that actually changes
-  `targetRole` or `searchArea` must clear `session.retrieval` (forcing a fresh retrieval on next read).
-  It must **not** touch `claims` (confirmed/negative evidence), `session.discovery` (floor pin,
-  coverage checkpoint), or anything else — exactly AC6's "invalidates retrieval-dependent state only."
+  `targetRole` or `searchArea` must clear `session.retrieval` (forcing a fresh retrieval, including a
+  fresh region resolution and provider routing, on next read). It must **not** touch `claims`
+  (confirmed/negative evidence), `session.discovery` (floor pin, coverage checkpoint), or anything else.
 - Family placement (`session.discovery.floor`) is pinned once via `reconcileDiscoveryState`'s existing
-  guard and does not change on intent edits at this layer; if a role edit is large enough to warrant
-  re-placement, that is a discovery-layer decision (#58/#61's territory), not this contract's.
+  guard and does not change on intent edits at this layer.
 
-### 2.6 Privacy, rate-limit, retry, cost — stated rules
+### 2.9 Cost, rate-limit, retry, privacy — per provider, read from §2.2's registry
 
-- **Privacy:** never send raw CV text or full claim text to a third-party provider. Reduce confirmed
-  evidence to the minimal structured query (role keywords, location) before it leaves the server — the
-  same privacy-minimization discipline #62 already applies to family-research candidates.
-- **Rate limit:** the server enforces an internal budget strictly below the provider's documented
-  ceiling (e.g., Adzuna's 25/min · 250/day · 2,500/month), on the same fixed-window idiom as
-  `IpRateLimiter` (`sessions.ts`). Exceeding the internal budget is `provider_unavailable`
-  (`retryable: true`), never a silent skip of the freshness check.
-- **Retry:** bounded (1–2 attempts, backoff), idempotent — consistent with the parent spec's
-  "background jobs must be idempotent and resume from the last successful checkpoint" rule.
-- **Cost:** every provider call increments an observable counter (pilot observability, story #72). The
-  actual dollar ceiling per pilot is an **owner decision** (§5) — this contract only requires that cost
-  be measured, not that a number be picked here.
+- **Privacy:** never send raw CV text or full claim text to any provider. Reduce confirmed evidence to
+  the minimal structured query (role keywords, region) before it leaves the server, for every provider
+  queried — the same privacy-minimization discipline #62 already applies to family-research candidates.
+- **Rate limit:** the server enforces one internal budget **per providerId**, each strictly below that
+  provider's `policy.rateLimit` (§2.2) — e.g. Techmap's pay-as-you-go ceiling is effectively unbounded
+  but its cost model still needs a spend cap; a stricter future provider's per-minute/day/month numbers
+  live in its own row. Same fixed-window idiom as `IpRateLimiter` (`sessions.ts`), one tracker instance
+  per provider. Exceeding a provider's internal budget marks that provider unavailable for this round
+  (contributing to `coverage.providersUnavailable`, §2.7) — it does not fail the whole request if other
+  providers still answer.
+- **Retry:** bounded (1–2 attempts, backoff), idempotent, per provider — one provider's retry never
+  blocks or delays another's.
+- **Cost:** every provider call increments an observable counter **keyed by providerId**, using that
+  provider's own `costModel` (§2.2) to convert calls into an estimated spend (pilot observability, story
+  #72). The actual dollar ceiling per pilot, per provider, is an **owner decision** (§5); this contract
+  only requires that cost be measured per provider, not that a combined number be picked here — different
+  providers have genuinely different cost shapes (per-record vs. flat-tier vs. operator-hours), and
+  normalizing them into one unit is explicitly deferred (§2.11) rather than built speculatively.
 
-### 2.7 Seams + testing
+### 2.10 Seams + testing
 
-- **New injectable seam**, mirroring `placeFamily`'s exact pattern in `apps/api/src/server.ts`
-  (`opts.placeFamily ?? (async () => ({ outcome: "unmapped" }))`):
+- **The public seam stays a single function**, mirroring `placeFamily`'s exact pattern in
+  `apps/api/src/server.ts` (`opts.placeFamily ?? (async () => ({ outcome: "unmapped" }))`):
   `retrievePostings?: (input: RetrievalRequest) => Promise<PostingRetrievalResultV1>` on
-  `BuildOptions`/`OnboardingDeps`. **The default fallback must fail closed to `provider_unavailable`**
-  — never fabricate postings and never fall back to `sample-postings.json`, which is out of scope as a
-  production feed by this ticket's own terms.
-- **Deterministic fake driver** for HTTP integration tests: a `TestFixturePostingProvider`, named and
-  shaped like `TestFixtureFamilyFloorStore` — returns pinned canned results per test case and is
-  structurally incapable of satisfying a production check (same non-production guard pattern).
+  `BuildOptions`/`OnboardingDeps`. The multi-provider fan-out, dedup, and coverage assembly (§2.3–2.7)
+  are the real implementation's internal composition — `/onboarding/cards` still calls one function and
+  gets one result, exactly as before. **The default fallback must fail closed to `provider_unavailable`**
+  — never fabricate postings and never fall back to `sample-postings.json`.
+- **Deterministic fake driver:** `TestFixturePostingProvider`, named and shaped like
+  `TestFixtureFamilyFloorStore` — returns pinned canned `ProviderPostingRecordV1[]` per test case,
+  **including cases with records from two different fake providerIds** so dedup (§2.4) and partial
+  coverage (§2.7) are directly testable, and is structurally incapable of satisfying a production check.
+- **New pure-function unit tests**, no store or network involved: `dedupePostings` (merge, conflict
+  precedence, attribution/sources union), `resolveSearchAreaToRegions` (known cities, unknown city →
+  empty), `providersFor` (region match, authority-rank ordering, curated-pool wildcard).
 - **Both session-store drivers:** extend the existing pg-mem dual-driver pattern
   (`apps/api/test/pgstores.test.ts`, `sessions.test.ts`) with cases for the new `retrieval` column —
-  same `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval jsonb` idiom as `production_discovery`,
-  same parse-or-reset-to-safe-default parser guarding against malformed/forged JSON.
+  same `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval jsonb` idiom as `production_discovery`.
 - **Real-provider staging smoke test:** one small `.mjs` script gated behind an env var (mirrors
-  `apps/web/e2e/r2-cors-preflight.mjs`'s one-shot pattern), hitting the actual chosen provider with one
-  known-good query and asserting a 200 + at least one parseable posting. Run manually against staging
-  after any provider-integration change; never inside the default `pnpm test` gate.
-- **Gap, stated explicitly (per the brief's instruction not to invent a seam that doesn't exist):**
-  there is currently **no posting-cache/store seam of any kind** in this codebase — `loadPostings()` is
-  a pure fixture read with no store behind it. Everything in §2.5–2.7 describing a `retrieval` session
-  field and a `retrievePostings` dependency is new construction, not a reuse of an existing seam.
+  `apps/web/e2e/r2-cors-preflight.mjs`'s one-shot pattern), hitting the actual chosen provider(s) with one
+  known-good query per provider and asserting a 200 + at least one parseable record. Never inside the
+  default `pnpm test` gate.
+- **Gap, stated explicitly:** there is currently **no posting-cache/store seam, provider registry, or
+  dedup function of any kind** in this codebase — `loadPostings()` is a pure fixture read with no store
+  behind it. Everything in §2.1–2.10 is new construction, not a reuse of an existing seam.
 
-### 2.8 Contract versioning
+### 2.11 Deliberately deferred
 
-Add `PostingV1` and `PostingRetrievalResultV1` as new zod schemas under `packages/contracts/src/`
-(e.g. `postingRetrieval.ts`), with a matching `.mjs` oracle validator under `packages/contracts/oracle/`
-— same discipline as `JobCardV1`/`FamilyFloorV1`/`FamilyPlacement` (`schemaVersion` literal, `.strict()`
-objects, golden-tested against the oracle). The oracle remains authoritative on any future disagreement
-between the port and the validator, per this repo's standing rule.
+Recorded here so each is a decision, not an omission. None of these change §2's contract shape if added
+later — that's the test for what belongs on this list rather than being built now:
+
+- **A shared cross-session posting cache.** Session-scoped persistence (§2.8) is the smallest correct
+  boundary at pilot volume; avoiding redundant provider calls across overlapping searches is a real
+  optimization for later, not a pilot-blocking need.
+- **A fuzzy/probabilistic dedup matcher.** §2.4's naive normalized-key match is a deliberate floor, not a
+  placeholder — build a smarter matcher only once production data shows the naive rule is actually
+  missing a material number of duplicates.
+- **Per-posting (rather than per-response) staleness/coverage granularity.** `coverage` today qualifies
+  a whole retrieval result, not each individual posting's own provider mix. With two sources at launch
+  this is adequate; if a third provider makes response-level coverage too coarse, `Coverage` is already
+  a reusable sub-type — no contract-shape change is needed to attach it per-posting later.
+- **A cost-normalization engine** that converts every provider's native pricing shape (per-record, flat
+  tier, operator-hours) into one comparable unit. §2.9 requires cost to be measured per provider in its
+  own native shape; building a combined-spend forecaster is separate work with no bearing on retrieval
+  correctness.
+- **Any capability-negotiation layer, plugin loader, or provider marketplace.** Wiring a new provider
+  means adding one row to §2.2's data file and one driver function — not a dynamic registration system.
+  Exactly one real provider (Techmap) plus the curated pool exist at launch; this list exists so that
+  fact is a recorded choice, not a gap nobody decided on.
+- **Automatic geocoding for `resolveSearchAreaToRegions`.** A hand-built lookup table covering the
+  pilot's known cities (§2.3) is enough; a geocoding API integration is unwarranted at this scale.
+
+### 2.12 Contract versioning
+
+`PostingV1` and `PostingRetrievalResultV1` bump to **schemaVersion "2"** — this revision is a breaking
+change to both (canonical vs. provider-record split, `sources`/`canonicalKey`/`attribution`-as-array on
+`PostingV1`; `coverage` and a narrowed `invalid_request.code` on the result union), not an additive one,
+so per this repo's rule it's versioned, not silently mutated. `ProviderPostingRecordV1` and
+`PostingProviderPolicyV1` are new "1" schemas. All four live under `packages/contracts/src/` (e.g.
+`postingRetrieval.ts`), each with a matching `.mjs` oracle validator under `packages/contracts/oracle/`
+— same discipline as `JobCardV1`/`FamilyFloorV1`/`FamilyPlacement`. The oracle remains authoritative on
+any future disagreement between the port and the validator.
 
 ---
 
@@ -273,18 +467,28 @@ between the port and the validator, per this repo's standing rule.
 fixtures with no live-status concept. Draft clarification text for the orchestrator to post on #63
 (not posted by this session — git/issue edits are the orchestrator's):
 
-> **Repaired scope, consuming #85's contract:**
+> **Repaired scope, consuming #85's contract (updated for multi-provider — the outcome union now carries
+> `coverage`, not a single `providerId`):**
 > `/onboarding/cards` must stop reading `loadPostings()`/`sample-postings.json` for the production
-> path. It now calls the injected `retrievePostings` seam (§2.7 of
-> `docs/research/live-posting-retrieval-contract.md`) with the server-owned inputs from §2.2, and
-> branches on the four `PostingRetrievalResultV1` outcomes (§2.4):
-> - `relevant_postings` → build `JobCardV1`s from the returned `PostingV1[]` (§2.1's field mapping) and
->   proceed to "N jobs just matched you" (AC1).
-> - `empty_pool` → the honest broaden-or-notify path (parent spec story #46), never a bare zero-job
->   reveal.
-> - `provider_unavailable` / `stale_data` → a distinct honest waiting/error state, not folded into
->   `empty_pool` (AC3).
-> - `invalid_request` → the existing 409 pattern this route family already uses.
+> path. It now calls the injected `retrievePostings` seam (§2.10 of
+> `docs/research/live-posting-retrieval-contract.md`) with the server-owned inputs from §2.5, and
+> branches on the `PostingRetrievalResultV1` outcomes (§2.7):
+> - `relevant_postings` with `coverage.complete === true` → build `JobCardV1`s from the returned
+>   `PostingV1[]` (§2.1's field mapping) and proceed to the plain "N jobs just matched you" (AC1).
+> - `relevant_postings` with `coverage.complete === false` → same card-building, but the reveal copy
+>   must say the count is provisional ("N jobs matched you so far — still checking other sources"), not
+>   the unqualified line — a real but incomplete sweep is a materially weaker claim than a full one.
+> - `empty_pool` → the honest broaden-or-notify path (parent spec story #46). This outcome is only ever
+>   reachable when `coverage.complete === true` (§2.7's assembly rule), so #63 never has to second-guess
+>   whether a shown "zero" might still be partial.
+> - `provider_unavailable` → a distinct honest waiting/error state, not folded into `empty_pool` (AC3).
+>   If `coverage.providersQueried` is non-empty, this is a partial outage (some sources checked clean,
+>   at least one didn't) rather than a total one — #63 may use that distinction in copy, but must not
+>   present either shape as a zero-job reveal.
+> - `stale_data` → unchanged, a distinct honest state from both of the above.
+> - `invalid_request` with `code: "search_area_not_covered"` → its own honest message ("we don't search
+>   this area yet"), distinct from every other `invalid_request` code and from `empty_pool` — the user
+>   never received a real answer, so "no jobs found" would be dishonest.
 >
 > **A gap #85 does not close, and #63 must not paper over:** a live posting alone doesn't produce a
 > scored `JobCardV1` — `matchPct`/`breakdown`/`fit`/`dontYet` need a per-posting `AdRequirements` list
@@ -301,8 +505,8 @@ fixtures with no live-status concept. Draft clarification text for the orchestra
 
 ## 4. Gaps found (not owner decisions — technical facts)
 
-- No posting-cache/store seam exists today (§2.7). This ticket specifies its shape; nothing like it is
-  being reused.
+- No posting-cache/store seam, provider registry, or dedup function exists today (§2.10). This ticket
+  specifies their shape; nothing like them is being reused.
 - No `AdRequirements`-generation path exists for a posting outside the two hand-authored fixture files
   — the E5 gap above. This is the single largest practical blocker #63 will hit that this contract does
   not resolve.
@@ -319,9 +523,9 @@ fixtures with no live-status concept. Draft clarification text for the orchestra
 ## 5. Decisions that need the product owner
 
 - **Pick the provider strategy** (§1) — Techmap, TheirStack, or the zero-risk curated-pool fallback.
-- **Set a real dollar cost ceiling** for provider calls at pilot volume and at 10x (§2.6) — §1 gives a
-  real, cheap pay-as-you-go price for Techmap and a real tiered price for TheirStack; this contract
-  requires cost to be *measured* in production, not what the ceiling should be.
+- **Set a real dollar cost ceiling** for provider calls at pilot volume and at 10x, per provider (§2.9)
+  — §1 gives a real, cheap pay-as-you-go price for Techmap and a real tiered price for TheirStack; this
+  contract requires cost to be *measured* per provider in production, not what the ceiling should be.
 - **Decide who owns AdRequirements-generation for a live posting** (§3's gap) — fold into #63, or spin
   a new ticket ahead of it.
 - **Before committing to TheirStack:** confirm in writing that storage + matching/scoring of retrieved
