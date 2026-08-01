@@ -68,6 +68,57 @@ Sources: [Techmap/jobdatafeeds FAQ](https://jobdatafeeds.com/faq), [Techmap coun
 unattended in this environment. The Techmap regional volumes above are the vendor's own published
 dashboard numbers, not a query I ran — labelled as such, not presented as independently observed.
 
+### Measured, not vendor-published — probe run 2026-08-01
+
+Run against Techmap's live API on a free RapidAPI BASIC key (owner-provisioned). Throwaway script,
+scratch dir, not in the repo. **Every number below was observed, not quoted from a vendor page.**
+The API's `count` defaults to a **single day**'s new postings; the day sampled was 2026-07-30.
+
+| Country | All new postings, that day | `"project manager"` | `"programme manager"` | `"delivery manager"` |
+|---|---|---|---|---|
+| Hong Kong | 2,390 | **34** | 1 | 3 |
+| Singapore | 2,128 | **21** | 0 | 0 |
+| Vietnam | 2,153 | **13** | 0 | 0 |
+| Australia | 6,805 | **70** | 1 | 5 |
+
+**Finding 1 — Techmap's published volume is honest.** Extrapolating the measured day to a month
+gives Hong Kong ~72k, Singapore ~64k, Vietnam ~65k, Australia ~204k, against their published 67k /
+77k / 42k / 214k. Same order of magnitude on every market, two of them near-exact. Their country
+dashboard can be trusted, which is a meaningful trust signal for a vendor we're picking largely on
+its own claims.
+
+**Finding 2 — and this is the product-relevant one: title matching is nowhere near sufficient.**
+The first ten Hong Kong `"project manager"` results:
+
+```
+Project Manager (Power Station, E&M Maintenance Services) | CLPe Solutions
+Project Manager (Digital Transformation)                  | Fides Solutions
+Contract Project Manager                                  | CLTS HK
+Project Manager / Project Coordinator                     | Ngai To Construction
+Project Manager / Business Analyst / Project Officer (PMO) | Seamatch Asia
+Project Manager / Assistant Project Manager               | Lemon Design & Build
+Project Manager                                           | Dermaglow
+Project Manager                                           | CITIC Telecom CPC
+Project Manager                                           | The Hong Kong Girl Guides Association
+IT Project Manager - POS/Payment/RMS                      | Allworth Consultants
+```
+
+Roughly **three to four of ten** are IT/digital project delivery. The rest are construction,
+building services, and one youth charity. So the honest relevant volume for the published
+`it-project-delivery` floor is nearer **10–13 new postings/day in Hong Kong**, not 34 — still
+workable, but a third of the headline.
+
+This is direct evidence for #86: separating IT project delivery from construction project management
+**is** the per-ad understanding engine's job, and no amount of provider-side title filtering
+substitutes for it. A title filter alone would show a Hong Kong user a building-site role and call it
+a match.
+
+**Finding 3 — vocabulary is regional.** "Programme manager" and "delivery manager" are effectively
+absent in Hong Kong, Singapore and Vietnam (0–3 postings/day combined), and only marginally present
+in Australia. In these markets the term is "project manager". Discovery's target-role question and
+the family floor's title synonyms must be built on APAC vocabulary, not the British/Australian
+variants the previous UK/EU framing would have assumed.
+
 ### Recommendation
 
 **Techmap (jobdatafeeds.com Jobs API), with TheirStack as the credible alternative if per-source
