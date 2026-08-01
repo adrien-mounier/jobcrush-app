@@ -119,6 +119,53 @@ in Australia. In these markets the term is "project manager". Discovery's target
 the family floor's title synonyms must be built on APAC vocabulary, not the British/Australian
 variants the previous UK/EU framing would have assumed.
 
+### Which countries Techmap actually serves — measured 2026-08-01, feeds the §2.2 registry
+
+Every country below was queried directly. Same single day (2026-07-30), same method. `PM/day` is
+`title:"project manager"`; apply the ~3–4-in-10 IT-relevance ratio from the sample above to get
+genuinely relevant volume.
+
+| Tier | Country | All postings/day | PM/day | ~Relevant IT delivery/day |
+|---|---|---|---|---|
+| **1 — launch** | Australia | 6,805 | 70 | ~25 |
+| | Hong Kong | 2,390 | 34 | ~12 |
+| | Singapore | 2,128 | 21 | ~7 |
+| | Malaysia | 3,040 | 21 | ~7 |
+| | New Zealand | 1,774 | 18 | ~6 |
+| | Vietnam | 2,153 | 13 | ~5 |
+| **2 — thin but real** | Indonesia | 1,593 | 7 | ~2–3 |
+| | Philippines | 569 | 3 | ~1 |
+| | Thailand | 311 | 2 | <1 |
+| **3 — covered, wrong language** | Japan | 17,796 | 11 | see note |
+| | China | 8,009 | 12 | see note |
+| **4 — not usable** | Taiwan | 187 | 1 | — |
+| | Myanmar | 82 | — | — |
+| | South Korea | 77 | — | — |
+| | Cambodia | 56 | — | — |
+| | Macau | 29 | — | — |
+| | Laos | 19 | — | — |
+| | Brunei | 1 | — | — |
+
+**Tier 3 is the interesting row.** Japan is Techmap's *largest* market in this region — 17,796
+postings a day, more than double Australia — yet only 11 match `"project manager"`. China is the same
+shape. That is not thin coverage; it is **coverage we cannot read**. Those postings are in Japanese
+and Chinese. Serving Japan or China means the target-role vocabulary, the family floor's title
+synonyms, and per-ad understanding all have to work in-language. That is a real market with real
+depth waiting behind a language barrier — a strategic option, and a substantial piece of work. Not a
+gap in Techmap.
+
+**South Korea is genuinely absent** (77 postings/day nationwide), consistent with §1's finding that
+Saramin and JobKorea dominate there and neither is reachable. Korea needs its own provider or it
+doesn't launch.
+
+**Recommended launch set for the SE-Asia cluster: Hong Kong, Singapore, Malaysia, Vietnam** — plus
+**Australia and New Zealand**, which come free on the same source and are the deepest markets
+available. That is roughly **60 relevant IT-delivery postings a day across the set**, ample for an
+invitation-only pilot and honest enough to promise. Indonesia, the Philippines and Thailand are
+switched on as tier-2 with the empty-pool path expected to fire more often. Everything in tier 4 is
+left out of the registry until a provider covers it — per §2.3, a search area with no provider must
+be told so honestly, never shown a false empty pool.
+
 ### Recommendation
 
 **Techmap (jobdatafeeds.com Jobs API), with TheirStack as the credible alternative if per-source
