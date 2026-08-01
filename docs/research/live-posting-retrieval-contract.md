@@ -15,73 +15,73 @@ refused to build against them. This document defines what has to replace them.
 
 ## 1. Provider shortlist — the owner's decision
 
-**Recommendation: start the pilot on Adzuna, with one unresolved legal step that must close before
-launch — Adzuna's default API access is contractually a 14-day trial for any commercial organisation;
-continued production use needs a written commercial agreement whose price Adzuna does not publish.**
-Its free-tier limits (2,500 calls/month) are plenty for an invitation-only pilot's raw call volume, it
-already provides the UK government's own job-search backend (`Find a job`, run by DWP since 2018 —
-[Adzuna's announcement](https://www.adzuna.co.uk/blog/adzuna-renews-contract-to-run-uk-governments-find-a-job-service/)),
-and its coverage of UK/EU IT-project-delivery roles is exactly the mix already visible in the
-family-floor research pool. The blocker is not technical, it's a phone call: email Adzuna, confirm
-what "written consent" for ongoing matching/aggregation costs, and get it in writing before the pilot
-runs past day 14 of API use.
+_Revised 2026-08-01 after owner rejection of the first draft. Adzuna is now excluded — its self-serve
+access is contractually a 14-day trial for any commercial org with an unpublished price beyond that,
+which fails the owner's explicit "no trial" instruction. Reed, Jooble, EURES, Arbeitnow, and
+Greenhouse/Lever are dropped from the primary comparison, not because they're bad, but because none of
+them clears the bar of "a real number and a real answer on terms today" — each is noted with its
+one-line disqualifying reason at the end of this section instead of padding a table with "unknown."_
 
-**Runner-up: JSearch (RapidAPI / OpenWeb Ninja).** Self-serve, published pricing, no sales process —
-sign up with a card, pay by volume. It aggregates Google for Jobs (which itself re-indexes Indeed,
-LinkedIn, Glassdoor), so it inherits scraping-chain legal risk one level removed rather than
-eliminating it, and costs more per call than Adzuna's stated free ceiling. Pick this over Adzuna if
-the 14-day-trial legal step can't close before the pilot needs to start.
+Three options below are each usable **today, without a sales call**, each with a **published, budgetable
+monthly price**, and each answered concretely on where its inventory comes from and whether LinkedIn-
+and Indeed-posted jobs are in it.
 
-**What would change the answer:** if the pilot needs continental-EU breadth (not just UK) from day
-one, EURES is the natural target — 31-country coverage, free, government-run — but I could not verify
-a self-serve public API registration path in the time available (see gap below); resolving that would
-make EURES the front-runner for EU-wide coverage specifically. If legal can't get Adzuna's written
-consent quickly, the honest zero-risk fallback is **no provider yet** — a manually curated, manually
-re-verified posting pool, the same discipline #60 already used to source the four research postings,
-just run continuously instead of once. It costs operator time, not API fees, and carries no vendor ToS
-risk at all.
+### The three options, real numbers first
 
-### Comparison
+| | **JSearch** (RapidAPI / OpenWeb Ninja) | **SerpApi — Google Jobs API** | **Curated manual pool** (no vendor) |
+|---|---|---|---|
+| **Monthly cost @ pilot volume** (~200–1,000 lookups/mo, an invitation-only handful of users) | **$0–$25/mo** — free tier is 200 req/mo (hard cap, not time-limited); Pro tier is $25/mo for 10,000 req/mo | **$0–$25/mo** — free tier is 250 searches/mo (usage-based, not time-limited); Starter tier is $25/mo for 1,000 searches/mo | **$0 cash.** Est. 3–5 operator-hours/week to source and re-verify ~15–20 live postings (same discipline #60 used for the four research postings, run continuously) |
+| **Monthly cost @ 10x** (~2,000–10,000 lookups/mo) | **$25–$75/mo** — Pro (10k) or Ultra ($75/mo, 50k req/mo) | **$75–$150/mo** — Developer ($75/mo, 5,000 searches) or Production ($150/mo, 15,000 searches) | Scales with operator hours, not cash — roughly linear, no vendor ceiling |
+| **Available today, no sales call?** | Yes — card-on-file RapidAPI signup | Yes — card-on-file SerpApi signup | Yes — no vendor at all |
+| **Where the inventory comes from** | "LinkedIn, Indeed, Glassdoor, ZipRecruiter, and All Public Job Sites via Google for Jobs," per the provider's own page ([openwebninja.com/api/jsearch](https://www.openwebninja.com/api/jsearch)) — an aggregator of aggregators; no direct ATS/employer feeds | Google's own "Jobs" search feature, which ingests employer/board-submitted `schema.org/JobPosting` markup; each result carries a `via` field naming its source site | Operator-sourced directly from employer/board postings, one at a time, same method as the existing research pool |
+| **LinkedIn jobs present?** | **Yes** — named explicitly by the provider | **Yes** — SerpApi's own docs show `"via": "LinkedIn"` as an observed source value | **Yes/no by operator choice** — whatever the operator includes |
+| **Indeed jobs present?** | **Yes** — named explicitly by the provider | **Yes** — SerpApi's own docs list Indeed among `apply_options` sources | **Yes/no by operator choice** |
+| **Persistent storage + scoring permitted?** | **Not publicly determinable** — no ToS clause on storage/matching found on OpenWeb Ninja's site in the time available | **Not publicly determinable** — no ToS clause on storage/matching found; see [serpapi.com/legal](https://serpapi.com/legal) before commit | Yes, unambiguously — no third-party terms apply |
+| **Observed live UK/EU IT-project-delivery count** | **Not measured** — requires a paid API key I don't have access to provision in this environment | **Not measured** — same reason | **Not measured** — no pool exists yet; would be as good as the last manual check |
 
-| Provider | Pilot-volume cost | 10x cost | Terms permit storage + matching? | Freshness/liveness signal | EU/UK IT-PM coverage | Rate limit | Exit cost |
-|---|---|---|---|---|---|---|---|
-| **Adzuna** | $0 up to 2,500 calls/mo, but only as a **14-day trial** for any commercial org — sustained use needs a written agreement, price unpublished | Unknown — must be quoted | Display + limited aggregation permitted with attribution; **"ongoing work or research" aggregation needs written consent** ([ToS](https://developer.adzuna.com/docs/terms_of_service)) | No explicit `live` flag; must infer from repeated presence in search results | Strong — UK/AU/DE/FR/etc, covers the PM/delivery family already researched | 25/min, 250/day, 1,000/wk, 2,500/mo by default | Must delete all stored Adzuna data + insertion codes on termination (contractual) |
-| **Reed** | Unpublished; likely $0 but ToS bars "commercial exploitation... without permission" ([policies](https://www.reed.co.uk/policies)) | Unknown — must be quoted | Unclear for a matching product; needs direct written permission | Explicit `Expiration Date` field per listing — best freshness signal found | UK-only | Undocumented | Unclear — no published data-removal clause found |
-| **Jooble** | Unpublished consumer-API pricing | Unknown | Unclear — only partner (job-poster) pricing is public, not reader-API terms | `updated` timestamp per posting, no freshness guarantee stated | Broad international, unverified EU/UK depth | Undocumented | Unclear |
-| **JSearch (RapidAPI)** | Free tier ~200 req/mo, paid plans scale from low tens to low hundreds $/mo (RapidAPI marketplace pricing, ~30% over the underlying OpenWeb Ninja price) | Same tiering, higher bracket — a real, quotable number | Standard commercial marketplace terms, no sales process; **inherits Indeed/LinkedIn/Glassdoor scraping-chain risk one step removed** | Aggregates from Google for Jobs; no first-party liveness guarantee | Broad — reflects whatever Google for Jobs indexes | Marketplace-tier-defined | Cancel subscription; no contractual removal clause found |
-| **Greenhouse/Lever Job Board APIs** | $0, public, unauthenticated | $0 | Explicitly intended for public consumption of a named employer's own postings | Best possible — it's the employer's own live board | Poor breadth without hand-picking employer boards; strongest per-posting truth once picked | Undocumented soft throttle | None — public endpoint |
-| **EURES** | Unverified — no self-serve public API registration path found | Unverified | Unverified — government open-data portal, likely permissive, but unconfirmed | Verified vacancies (national employment services), strong in principle | Best possible on paper — 31 countries, ~2M postings | Unverified | Unverified |
-| **Arbeitnow** | $0, no auth | $0 | No explicit ToS clause found covering a matching product — thin terms, same risk class as Reed/Jooble | Posting date only, no expiry field | Skews German/remote-tech; weak general EU/UK breadth | Generous, undocumented | None — public endpoint |
-| **No provider — curated manual pool** | $0 cash; recurring operator time to source + re-verify | Scales linearly with operator time, not $ | No third-party ToS risk at all | As good as the last manual check — no automation | Whatever the operator curates | N/A | None |
+Sources: [JSearch on OpenWeb Ninja](https://www.openwebninja.com/api/jsearch) (pricing table + named
+sources), [SerpApi pricing](https://serpapi.com/pricing), [SerpApi Google Jobs API](https://serpapi.com/google-jobs-api)
+(`via`/`apply_options` source fields), [SerpApi legal](https://serpapi.com/legal).
 
-**Provider whose terms would actually prohibit what JobCrush does, named plainly: none is an outright
-ban, but Adzuna is the one where the written text is closest to one.** Its ToS says data "may not be
-used in its original format or in aggregation... to deliver any ongoing work or research... without
-written consent," and separately caps any commercial/government/academic use at a 14-day trial absent
-a signed agreement. A product that persists postings and scores them against a user's evidence on an
-ongoing basis is squarely inside "ongoing work." Treat this as a hard go/no-go gate before launch, not
-paperwork to tidy up after.
+**One real, observed data point for calibration (not one of the three options above):** I queried
+Arbeitnow's free, no-auth job board API live (`arbeitnow.com/api/job-board-api`) — a generalist
+EU/remote board, not shortlisted here — and found **0 postings matching IT-project-delivery titles**
+("project manager", "programme manager", "delivery manager", "IT project") in the ~275 most recent
+live postings scanned across its first pages. That's real evidence that a small generalist free board
+has too little depth for this specific role class; it's why the shortlist favours aggregators that
+pull from Indeed/LinkedIn at real scale over another free-tier generalist board, even though I
+couldn't get an authenticated count from JSearch or SerpApi to compare directly.
 
-Sources: [Adzuna Terms of Service](https://developer.adzuna.com/docs/terms_of_service),
-[Adzuna overview](https://developer.adzuna.com/overview),
-[Adzuna × DWP "Find a job"](https://www.adzuna.co.uk/blog/adzuna-renews-contract-to-run-uk-governments-find-a-job-service/),
-[Reed for Developers](https://www.reed.co.uk/developers/Jobseeker),
-[Reed policies](https://www.reed.co.uk/policies),
-[Jooble REST API docs](https://help.jooble.org/en/support/solutions/articles/60001448238-rest-api-documentation),
-[JSearch on OpenWeb Ninja](https://www.openwebninja.com/api/jsearch),
-[JSearch cost breakdown](https://jobspipe.dev/blog/jsearch-api-direct),
-[Greenhouse API overview](https://support.greenhouse.io/hc/en-us/articles/10568627186203-Greenhouse-API-overview),
-[EURES portal](https://eures.europa.eu/index_en),
-[Arbeitnow API](https://www.arbeitnow.com/blog/job-board-api),
-[Indeed Publisher Program status (closed since 2022, XML feeds retiring through 2026)](https://www.jobboardly.com/blog/indeed-affiliate-program),
-[LinkedIn API Terms of Use — no public read API, scraping contractually prohibited](https://www.linkedin.com/legal/l/api-terms-of-use).
+### Recommendation
 
-**Indeed and LinkedIn are not in the table because they're not options for this pilot.** Indeed's
-Publisher API and XML feed are both retired (closed to new publishers since 2022, feeds sunsetting
-through 2026); any access now requires a multi-month partner sales process. LinkedIn has no self-serve
-read API for job search at all, and its ToS contractually prohibits scraping regardless of the
-technical feasibility (LinkedIn has won breach-of-contract suits over exactly this). Neither belongs on
-a "realistically available for an invitation-only pilot" shortlist.
+**JSearch, with SerpApi as the closest substitutable alternative — same $0/$25/$75/$150 price ladder,
+same explicit LinkedIn+Indeed coverage, purpose-built job-search filters (date posted, employment
+type, remote) that a general SERP scraper doesn't offer as cleanly.** Both meet the owner's "no trial,
+real published price, available today" bar; JSearch is the pick because it's a job-search product
+first, not a general search-engine wrapper repurposed for jobs. Start on JSearch's free/Pro tier;
+SerpApi is the fallback if JSearch's per-source attribution or coverage proves thinner in practice.
+**The curated manual pool is not a placeholder to discard — it's the only option with zero legal
+uncertainty**, and is the right choice if the storage/matching ToS gap below doesn't resolve cleanly
+for either vendor.
+
+**What I could not determine, stated plainly:**
+- Whether JSearch's or SerpApi's terms permit persistent storage and matching/scoring of postings
+  against user evidence — the specific ongoing use this product needs — is not addressed in either
+  provider's public documentation found in the time available. This must be confirmed (an email or a
+  careful read of [serpapi.com/legal](https://serpapi.com/legal) and OpenWeb Ninja's terms) before
+  either is wired into production, even though neither requires a sales call to start.
+- Real live-posting counts for UK/EU IT-project-delivery roles on JSearch or SerpApi specifically —
+  both require a funded API key to query, which I could not provision in this environment. This should
+  be the first thing done with a trial-free-tier key before committing further engineering time.
+
+**Providers dropped from the primary comparison, one line each:** Adzuna — excluded per the owner's
+no-trial instruction (self-serve access is contractually a 14-day trial; sustained use needs an
+unpublished, quoted commercial price). Reed/Jooble — no published API pricing or commercial-use terms
+found for the reader API specifically. EURES — no verifiable self-serve public API registration path
+found. Greenhouse/Lever — free and public, but only cover employers already on that ATS, so they answer
+a different question (per-employer truth) than "search a market for open roles." Arbeitnow — free,
+real, queried live above, but too shallow for this specific role class and carries the same thin,
+unaddressed ToS as Reed/Jooble on matching/storage use.
 
 ---
 
@@ -284,17 +284,19 @@ fixtures with no live-status concept. Draft clarification text for the orchestra
   not outbound queries). Needs a direct inquiry to the European Commission's EURES team before it can
   be treated as pilot-ready.
 - Reed's and Jooble's terms of business do not, in their public documentation, address matching/scoring
-  use at all — silence, not permission. Both need a direct written confirmation before use, same as
-  Adzuna's stronger explicit clause.
+  use at all — silence, not permission. Both need a direct written confirmation before use.
+- Neither JSearch's nor SerpApi's public documentation addresses persistent storage or matching/scoring
+  use either (§1) — this is not publicly determinable from either provider's site and must be confirmed
+  directly before either is wired into production.
 
 ## 5. Decisions that need the product owner
 
-- **Pick the provider strategy** (§1) — Adzuna (pending its written-consent step), JSearch, or the
-  zero-risk curated-pool fallback while a provider relationship is arranged.
-- **Set a real dollar cost ceiling** for provider calls at pilot volume and at 10x (§2.6) — this
-  contract requires cost to be *measured*, not what the ceiling should be.
+- **Pick the provider strategy** (§1) — JSearch, SerpApi, or the zero-risk curated-pool fallback.
+- **Set a real dollar cost ceiling** for provider calls at pilot volume and at 10x (§2.6) — §1 gives
+  real published price ladders for JSearch and SerpApi; this contract requires cost to be *measured*
+  in production, not what the ceiling should be.
 - **Decide who owns AdRequirements-generation for a live posting** (§3's gap) — fold into #63, or spin
   a new ticket ahead of it.
-- **If Adzuna is chosen:** authorize contacting Adzuna for written commercial-use consent before the
-  pilot runs past its 14-day trial window — this is a business step, not an engineering one, and it's
-  on the pilot's critical path.
+- **Before committing to JSearch or SerpApi:** confirm in writing (email or a direct ToS read) that
+  storage + matching/scoring of retrieved postings is permitted — §1 flags this as not publicly
+  determinable from either provider's public documentation today.
