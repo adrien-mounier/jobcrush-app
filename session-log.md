@@ -2,6 +2,17 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-01 (session 57b) — Techmap chosen, coverage measured, E5 filed
+
+- **Closed:** [#85](https://github.com/adrien-mounier/jobcrush-app/issues/85) (retrieval contract + provider pick), [#53](https://github.com/adrien-mounier/jobcrush-app/issues/53) (R2 presigned PUT, shipped 2026-07-27).
+- **Filed:** spec [#86](https://github.com/adrien-mounier/jobcrush-app/issues/86) + tickets [#87–#91](https://github.com/adrien-mounier/jobcrush-app/issues/87) (E5 per-ad engine, **fresh design not a port** — owner decision); [#92](https://github.com/adrien-mounier/jobcrush-app/issues/92) cross-provider duplicate rate; [#93](https://github.com/adrien-mounier/jobcrush-app/issues/93) Japan/China in-language; [#94](https://github.com/adrien-mounier/jobcrush-app/issues/94) Korea needs its own provider. **#89 blocks #63.**
+- **Provider decision (owner):** **Techmap** for the SE-Asia cluster — $1/1,000 postings, and the only provider across three research rounds whose terms *explicitly* permit storing postings for candidate matching. Launch set **HK, SG, MY, VN, AU, NZ** (~60 relevant IT-delivery postings/day, measured). Tier-2 thin: ID, PH, TH.
+- **Contract is multi-provider (schemaVersion 2)** per the owner's per-country-provider principle: canonical posting over per-provider records, provider registry as data with storage/matching permission defaulting to `false` (an unconfirmed provider structurally cannot activate), search-area routing, and `coverage` as a qualifier so a zero is only ever an empty pool when every provider answered.
+- **Measured, not vendor-published** (free RapidAPI BASIC key, 18 markets, day sampled 2026-07-30): Techmap's published volumes check out. **Only 3–4 of 10 HK `"project manager"` postings are IT/digital delivery** — the rest construction, building services, one youth charity. **"Programme manager"/"delivery manager" are near-absent in HK/SG/VN** — APAC vocabulary is "project manager". **Japan is Techmap's deepest market here (17,796/day, 2x Australia) but unreadable in English**; Korea is genuinely uncovered (77/day).
+- **Two process failures, both self-inflicted, both now fixed durably:** (1) E5 was named in `roadmap.md` and `CLAUDE.md` as the next slice but never filed, so a tracker-only frontier query missed it and #63 was sequenced as buildable — now filed as #86–#91. (2) Two research rounds were briefed against a UK/EU market that `apps/api/data/sample-postings.json` (HK/VN/AU, zero UK/EU) already contradicted — market decision now written into `roadmap.md`. Lesson recorded: **reconcile the tracker against the roadmap's stated next slice before claiming a frontier; check the repo's own data before asserting market context.**
+- **Commits:** `1029f06`, `55dee73`, `a1cd81e`, `930820e`, `deef5de`, `e976744`, `0db3517`, `77196f9`, `a525553`. Gates green on every push.
+- **Next:** #86 needs a design pass (`/grill-with-docs` → `/to-spec`) before its children are agent-grabbable. Nothing is `ready-for-agent` until then.
+
 ## 2026-08-01 (session 57) — live-posting source: contract specified, vendor pick pending
 
 - **Tickets:** [#85 live-posting retrieval contract](https://github.com/adrien-mounier/jobcrush-app/issues/85) (claimed, **left open** pending the owner's provider pick); [#53 R2 CORS + presigned PUT](https://github.com/adrien-mounier/jobcrush-app/issues/53) **closed** (shipped `46c6abd` on 2026-07-27; temp admin R2 token confirmed deleted 2026-08-01).

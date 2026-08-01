@@ -736,3 +736,48 @@ slice — they are not duplicate coverage of the `.spec.ts` files, which stub `G
 drivers ride the **live** backend (the anon→account magic-link merge has no other regression test). They are
 inert to both gates: `.mjs` matches neither Playwright's default `*.@(spec|test).*` glob nor tsconfig's
 `**/*.ts` include.
+
+## The tracker is not the whole memory — reconcile it against the roadmap before claiming a frontier
+
+**Session 57, 2026-08-01.** A frontier query built purely from GitHub issues showed a clean
+seven-ticket dependency chain (#63 → … → #69) and no blockers. It was wrong. The **E5 per-ad
+engine** — the thing #63 actually needs to put a number on a job — was named in `roadmap.md` as
+`JC-33/34/35` and in `CLAUDE.md` as *"S3 (the hunt) is the next slice — E5 cluster engine first"*,
+but had **never been filed as issues**. Invisible to `gh issue list`, so invisible to the plan. It
+surfaced only when a sub-agent read `e5stub.ts`'s header comment — the slow, expensive path to a
+fact that was on page one of the project's own instructions and already loaded into context.
+
+**Do this:** start a frontier check from `roadmap.md`'s stated *next* slice and use the tracker to
+verify it, not the reverse. A gap between the two is a finding to report immediately. And when work
+is named in the roadmap but has no issue, **file it** — an unfiled plan item is an invisible one,
+and the next session will re-derive it or step over it.
+
+## Check the repo's own data before asserting market or domain context
+
+**Same session.** Two full rounds of provider research were briefed against *"UK and EU"* — an
+assumption invented by the orchestrator, never stated by the owner, and contradicted by data
+already committed: `apps/api/data/sample-postings.json`, the corpus backing the published
+`it-project-delivery` floor, is 16 postings from Hong Kong, Vietnam, Sydney and APAC-wide, with
+**zero UK or EU**. The wrong assumption was passed into sub-agent briefs as a *requirement*, so the
+error propagated with authority and produced two obsolete shortlists (Adzuna, then JSearch/SerpApi
+— none of which names a single SE/East Asian board as a source).
+
+**Do this:** before asserting market, geography, or domain context in a brief, open the data the
+repo already has. A fixture corpus, a seed file, or a golden test is a statement about the domain.
+Injecting an unchecked assumption into a sub-agent brief is worse than holding it yourself — the
+agent has no way to know it wasn't verified.
+
+## Job titles do not identify the job — measured, not theorised
+
+**Same session, from a live probe of Techmap's API.** Of the first ten Hong Kong postings matching
+`title:"project manager"`, only **three or four** were IT/digital delivery. The rest: a power-station
+maintenance role, two construction firms, an interior design & build firm, a skincare company, and
+the Hong Kong Girl Guides Association. Real relevant volume is roughly **a third** of any
+title-filtered headline count.
+
+No provider-side filter fixes this — it is exactly what per-ad understanding (#86) exists to do.
+Quote this when anyone proposes shipping a match count off a title search.
+
+Related: **role vocabulary is regional.** "Programme manager" and "delivery manager" are near-absent
+in Hong Kong, Singapore and Vietnam (0–3/day combined vs. dozens of "project manager"). Family-floor
+synonyms and discovery's role question must be built on the market's own words.
