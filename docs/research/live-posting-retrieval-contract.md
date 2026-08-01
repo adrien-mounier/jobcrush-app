@@ -15,73 +15,101 @@ refused to build against them. This document defines what has to replace them.
 
 ## 1. Provider shortlist — the owner's decision
 
-_Revised 2026-08-01 after owner rejection of the first draft. Adzuna is now excluded — its self-serve
-access is contractually a 14-day trial for any commercial org with an unpublished price beyond that,
-which fails the owner's explicit "no trial" instruction. Reed, Jooble, EURES, Arbeitnow, and
-Greenhouse/Lever are dropped from the primary comparison, not because they're bad, but because none of
-them clears the bar of "a real number and a real answer on terms today" — each is noted with its
-one-line disqualifying reason at the end of this section instead of padding a table with "unknown."_
+_Revised 2026-08-01, second pass. The first two drafts assumed UK/EU as the target geography — that was
+the coordinator's mistake, not mine, but it invalidated both prior rounds' recommendations. The actual
+target is **South-East Asia and East Asia first, plus Australia**; UK/EU/US come later. This is
+confirmed by the product owner directly and independently by the data already in this repo: the 17
+postings backing #60's published `it-project-delivery` family floor
+(`apps/api/data/sample-postings.json`) are Hong Kong, Vietnam, Australia, and one APAC-wide listing —
+**zero UK, zero EU.** Coverage in-region is now the primary selection criterion, ahead of price, per
+the coordinator's explicit instruction. JSearch and SerpApi (the prior round's pair) are dropped from
+the primary three below — not because their pricing changed, but because neither vendor's own
+documentation names a single South-East/East Asian job board as a source; both are Google-for-Jobs /
+LinkedIn-Indeed-Glassdoor aggregators built around US/UK-centric structured-data coverage. They remain
+usable as a UK/EU/US option later; they are not evaluated further here._
 
-Three options below are each usable **today, without a sales call**, each with a **published, budgetable
-monthly price**, and each answered concretely on where its inventory comes from and whether LinkedIn-
-and Indeed-posted jobs are in it.
+### Do the regional incumbents offer a read API at all? No — checked directly.
+
+- **SEEK** (owns Australia; via JobStreet/JobsDB now also owns Hong Kong, Singapore, Malaysia,
+  Indonesia, Philippines, Thailand — JobStreet and JobsDB were consolidated onto SEEK's own platform in
+  Q4 2023/Jan 2024). SEEK's own developer portal states its API is for **advertisers and recruitment-
+  software partners only** — job posting, application export, and ad-performance endpoints, gated
+  behind an approval form. There is no job-search/read endpoint for a third party to query.
+  ([developer.seek.com](https://developer.seek.com/), [migration guide](https://developer.seek.com/migration-guides/jobstreet-and-jobsdb-uplift))
+- **Glints** (Singapore/Indonesia): no public developer API found; third-party tools access it only by
+  reverse-engineering an undocumented internal API.
+- **Kalibrr** (Philippines/Indonesia): same — undocumented internal API only, no public docs.
+- **Wantedly** (Japan): no evidence of a public API found at all.
+
+None of the four regional incumbents are reachable through an official read API. Any provider that
+claims regional coverage is necessarily re-aggregating these markets from job boards, ATS/career-page
+crawling, or (for the licensed-data vendors below) direct data-partner relationships — not from a
+SEEK/JobStreet/Glints/Kalibrr/Wantedly API, because none exists.
 
 ### The three options, real numbers first
 
-| | **JSearch** (RapidAPI / OpenWeb Ninja) | **SerpApi — Google Jobs API** | **Curated manual pool** (no vendor) |
+| | **Techmap / jobdatafeeds.com Jobs API** | **TheirStack** | **Curated manual pool** (no vendor) |
 |---|---|---|---|
-| **Monthly cost @ pilot volume** (~200–1,000 lookups/mo, an invitation-only handful of users) | **$0–$25/mo** — free tier is 200 req/mo (hard cap, not time-limited); Pro tier is $25/mo for 10,000 req/mo | **$0–$25/mo** — free tier is 250 searches/mo (usage-based, not time-limited); Starter tier is $25/mo for 1,000 searches/mo | **$0 cash.** Est. 3–5 operator-hours/week to source and re-verify ~15–20 live postings (same discipline #60 used for the four research postings, run continuously) |
-| **Monthly cost @ 10x** (~2,000–10,000 lookups/mo) | **$25–$75/mo** — Pro (10k) or Ultra ($75/mo, 50k req/mo) | **$75–$150/mo** — Developer ($75/mo, 5,000 searches) or Production ($150/mo, 15,000 searches) | Scales with operator hours, not cash — roughly linear, no vendor ceiling |
-| **Available today, no sales call?** | Yes — card-on-file RapidAPI signup | Yes — card-on-file SerpApi signup | Yes — no vendor at all |
-| **Where the inventory comes from** | "LinkedIn, Indeed, Glassdoor, ZipRecruiter, and All Public Job Sites via Google for Jobs," per the provider's own page ([openwebninja.com/api/jsearch](https://www.openwebninja.com/api/jsearch)) — an aggregator of aggregators; no direct ATS/employer feeds | Google's own "Jobs" search feature, which ingests employer/board-submitted `schema.org/JobPosting` markup; each result carries a `via` field naming its source site | Operator-sourced directly from employer/board postings, one at a time, same method as the existing research pool |
-| **LinkedIn jobs present?** | **Yes** — named explicitly by the provider | **Yes** — SerpApi's own docs show `"via": "LinkedIn"` as an observed source value | **Yes/no by operator choice** — whatever the operator includes |
-| **Indeed jobs present?** | **Yes** — named explicitly by the provider | **Yes** — SerpApi's own docs list Indeed among `apply_options` sources | **Yes/no by operator choice** |
-| **Persistent storage + scoring permitted?** | **Not publicly determinable** — no ToS clause on storage/matching found on OpenWeb Ninja's site in the time available | **Not publicly determinable** — no ToS clause on storage/matching found; see [serpapi.com/legal](https://serpapi.com/legal) before commit | Yes, unambiguously — no third-party terms apply |
-| **Observed live UK/EU IT-project-delivery count** | **Not measured** — requires a paid API key I don't have access to provision in this environment | **Not measured** — same reason | **Not measured** — no pool exists yet; would be as good as the last manual check |
+| **Monthly cost @ pilot volume** | **$0–~$50/mo** — free tier 1,000 jobs/mo, then pay-as-you-go **$1 per 1,000 job postings**, no card required for the free tier | **$59/mo** minimum paid tier (1,500 API credits); no usable free tier for production volume (free plan is 50 *company* credits, not job-posting credits) | **$0 cash.** Est. 3–5 operator-hours/week to source and re-verify ~15–20 live postings (same discipline #60 used) |
+| **Monthly cost @ 10x** | Still pay-as-you-go, ~$1/1,000 postings — scales linearly, no tier jump | **$100–$169/mo** (5,000–10,000 credits) | Scales with operator hours, not cash |
+| **Available today, no sales call?** | Yes — self-serve, Jobs API + RapidAPI listing | Yes — self-serve signup | Yes — no vendor at all |
+| **Where the inventory comes from** | "127+ portals" — job boards, aggregators, employment offices, **and direct company ATS career-page crawling**, scraped ≥2×/day ([jobdatafeeds.com/faq](https://jobdatafeeds.com/faq)) | Explicitly named: "Indeed... **JobStreet**... Naukri... Kalibrr... JobKorea... Saramin" among 352k+ sources — job boards, ATS platforms (Greenhouse/Lever/Workday/etc.), and career pages ([theirstack.com/en/job-posting-api](https://theirstack.com/en/job-posting-api)) | Operator-sourced directly, same method as the existing research pool |
+| **SEEK/JobStreet/JobsDB reachable through it?** | **Not confirmed** — Techmap does not name individual portals on its public pages; "127+ sources" is unitemized | **Yes for JobStreet specifically** — named on TheirStack's own page as a source. JobsDB/SEEK-branded specifically not separately named (JobStreet and JobsDB are now the same underlying platform, so this likely covers both, but that inference isn't confirmed by TheirStack's own text) | N/A — operator can include SEEK/JobStreet postings by hand, same as the existing 17-posting research pool already does |
+| **Published/observed regional volume** | **Real, provider-published stats** (their own country dashboard, not an authenticated query I ran): Hong Kong **67,089** new postings/mo, Singapore **77,247**/mo, Vietnam **41,705**/mo, Australia **213,814**/mo, from 32/51/34/61 sources respectively (2026-06 snapshot) — [jobdatafeeds.com/data/countries](https://jobdatafeeds.com/data/countries) | **Not measured** — no per-country counts published on the pages I could reach without signing up; would need a funded account to query | **Not measured** — no pool exists yet |
+| **Persistent storage + matching/scoring permitted?** | **Yes, explicitly.** FAQ: "You may store job postings in your own database for internal processing, AI enrichment, **candidate matching**, analytics, and public display" — only reselling the raw postings is barred. ([jobdatafeeds.com/faq](https://jobdatafeeds.com/faq)) | **Not publicly determinable** in the time available — no equivalent explicit clause found on TheirStack's public pages | Yes, unambiguously — no third-party terms apply |
 
-Sources: [JSearch on OpenWeb Ninja](https://www.openwebninja.com/api/jsearch) (pricing table + named
-sources), [SerpApi pricing](https://serpapi.com/pricing), [SerpApi Google Jobs API](https://serpapi.com/google-jobs-api)
-(`via`/`apply_options` source fields), [SerpApi legal](https://serpapi.com/legal).
+Sources: [Techmap/jobdatafeeds FAQ](https://jobdatafeeds.com/faq), [Techmap country data explorer](https://jobdatafeeds.com/data/countries),
+[Techmap pricing](https://jobdatafeeds.com/pricing), [TheirStack Job Postings API](https://theirstack.com/en/job-posting-api),
+[TheirStack pricing](https://theirstack.com/en/pricing), [SEEK Developer portal](https://developer.seek.com/),
+[SEEK/JobStreet/JobsDB migration guide](https://developer.seek.com/migration-guides/jobstreet-and-jobsdb-uplift).
 
-**One real, observed data point for calibration (not one of the three options above):** I queried
-Arbeitnow's free, no-auth job board API live (`arbeitnow.com/api/job-board-api`) — a generalist
-EU/remote board, not shortlisted here — and found **0 postings matching IT-project-delivery titles**
-("project manager", "programme manager", "delivery manager", "IT project") in the ~275 most recent
-live postings scanned across its first pages. That's real evidence that a small generalist free board
-has too little depth for this specific role class; it's why the shortlist favours aggregators that
-pull from Indeed/LinkedIn at real scale over another free-tier generalist board, even though I
-couldn't get an authenticated count from JSearch or SerpApi to compare directly.
+**I could not query either vendor's live API myself** — both free tiers still require account signup
+(and TheirStack's free tier doesn't cover job-posting credits at all), which I can't complete
+unattended in this environment. The Techmap regional volumes above are the vendor's own published
+dashboard numbers, not a query I ran — labelled as such, not presented as independently observed.
 
 ### Recommendation
 
-**JSearch, with SerpApi as the closest substitutable alternative — same $0/$25/$75/$150 price ladder,
-same explicit LinkedIn+Indeed coverage, purpose-built job-search filters (date posted, employment
-type, remote) that a general SERP scraper doesn't offer as cleanly.** Both meet the owner's "no trial,
-real published price, available today" bar; JSearch is the pick because it's a job-search product
-first, not a general search-engine wrapper repurposed for jobs. Start on JSearch's free/Pro tier;
-SerpApi is the fallback if JSearch's per-source attribution or coverage proves thinner in practice.
-**The curated manual pool is not a placeholder to discard — it's the only option with zero legal
-uncertainty**, and is the right choice if the storage/matching ToS gap below doesn't resolve cleanly
-for either vendor.
+**Techmap (jobdatafeeds.com Jobs API), with TheirStack as the credible alternative if per-source
+attribution to a named regional board (JobStreet) matters more than price.** Techmap wins on three
+concrete points: it publishes real per-country volume for exactly the four cities in scope (HK/SG/VN/AU,
+tens of thousands of postings a month each, dozens of sources per country); its FAQ is the only one of
+any provider checked across all three research rounds that explicitly names "candidate matching" as a
+permitted use, closing the single biggest legal gap flagged in both prior rounds; and its pay-as-you-go
+$1/1,000 pricing with a free 1,000/mo tier is the cheapest credible path to real volume. Its one
+disadvantage against TheirStack is that it doesn't name SEEK/JobStreet by name as a source, so regional-
+incumbent coverage is inferred from volume, not confirmed by name. If that distinction matters enough to
+the owner to justify TheirStack's higher price floor ($59/mo minimum vs. Techmap's ~$0 start), TheirStack
+is the one to pick instead — but its storage/matching permission still needs direct confirmation before
+committing, unlike Techmap's.
+
+**Adzuna, revisited for this geography:** still excluded on trial terms (unchanged from the last round),
+but worth one line on whether the geography would have mattered anyway — it wouldn't have solved the
+core problem. Adzuna's core supported markets include Australia (and possibly Singapore via a broader,
+less-clear "area served" list), but **no evidence of Hong Kong or Vietnam coverage** was found. Even
+without the trial-terms exclusion, Adzuna would have covered at most one of the four in-scope cities.
 
 **What I could not determine, stated plainly:**
-- Whether JSearch's or SerpApi's terms permit persistent storage and matching/scoring of postings
-  against user evidence — the specific ongoing use this product needs — is not addressed in either
-  provider's public documentation found in the time available. This must be confirmed (an email or a
-  careful read of [serpapi.com/legal](https://serpapi.com/legal) and OpenWeb Ninja's terms) before
-  either is wired into production, even though neither requires a sales call to start.
-- Real live-posting counts for UK/EU IT-project-delivery roles on JSearch or SerpApi specifically —
-  both require a funded API key to query, which I could not provision in this environment. This should
-  be the first thing done with a trial-free-tier key before committing further engineering time.
+- Whether TheirStack's terms permit persistent storage + matching/scoring — not addressed in the public
+  pages checked; needs direct confirmation before it's a real option, not just a promising one.
+- Real observed (queried, not vendor-published) posting counts for HK/SG/VN/AU on either Techmap or
+  TheirStack — both require a funded/signed-up account I could not provision here. This should be the
+  first thing an implementer does with a real key before committing further engineering time.
+- Whether Techmap's "127+ sources" specifically include SEEK/JobStreet/JobsDB by name, or reach the same
+  postings only indirectly (via employer career-page crawling, which would reach the same jobs without
+  going through SEEK's platform at all).
+- Coresignal, Bright Data, and LinkUp were checked and are **not** in the primary three: Coresignal
+  ($49/mo self-serve start) and Bright Data ($0.75–$2.50/1k records, real published pricing) are both
+  legitimate self-serve options but neither publishes APAC-specific coverage detail, so they don't clear
+  this round's "demonstrable regional coverage" bar the way Techmap's country dashboard does. LinkUp
+  publishes no pricing at all and requires a demo/contract — it fails the "no sales call" bar outright
+  and was dropped without further checking.
 
-**Providers dropped from the primary comparison, one line each:** Adzuna — excluded per the owner's
-no-trial instruction (self-serve access is contractually a 14-day trial; sustained use needs an
-unpublished, quoted commercial price). Reed/Jooble — no published API pricing or commercial-use terms
-found for the reader API specifically. EURES — no verifiable self-serve public API registration path
-found. Greenhouse/Lever — free and public, but only cover employers already on that ATS, so they answer
-a different question (per-employer truth) than "search a market for open roles." Arbeitnow — free,
-real, queried live above, but too shallow for this specific role class and carries the same thin,
-unaddressed ToS as Reed/Jooble on matching/storage use.
+**Treat this shortlist as a strong lead, not a closed decision** — per the coordinator's framing, the
+original vendor list came from comparison sites with a ranking interest, and the two picked here were
+promoted only after their own primary documentation (FAQ, pricing page, country dashboard) was read
+directly. The regional-volume and matching-permission claims are sourced to Techmap's own pages; they
+have not been cross-checked against an independent source.
 
 ---
 
@@ -278,25 +306,27 @@ fixtures with no live-status concept. Draft clarification text for the orchestra
 - No `AdRequirements`-generation path exists for a posting outside the two hand-authored fixture files
   — the E5 gap above. This is the single largest practical blocker #63 will hit that this contract does
   not resolve.
-- EURES's self-serve public API registration flow could not be verified from public documentation in
-  the time available — third-party scraper wrappers exist (implying either an undocumented registration
-  process or that EURES's public API is intended for *inbound* feeds from national employment services,
-  not outbound queries). Needs a direct inquiry to the European Commission's EURES team before it can
-  be treated as pilot-ready.
-- Reed's and Jooble's terms of business do not, in their public documentation, address matching/scoring
-  use at all — silence, not permission. Both need a direct written confirmation before use.
-- Neither JSearch's nor SerpApi's public documentation addresses persistent storage or matching/scoring
-  use either (§1) — this is not publicly determinable from either provider's site and must be confirmed
-  directly before either is wired into production.
+- None of the four regional incumbent boards (SEEK, JobStreet/JobsDB, Glints, Kalibrr, Wantedly) expose
+  a public read API — confirmed directly against each (§1). Any provider's regional coverage is
+  necessarily indirect (crawling, ATS integration, or a data partnership), never a first-party feed
+  from the board itself.
+- TheirStack's public documentation does not address persistent storage or matching/scoring use (§1) —
+  not publicly determinable from the pages checked, unlike Techmap's explicit FAQ clause.
+- Neither Techmap's nor TheirStack's regional posting counts were independently queried — Techmap's
+  HK/SG/VN/AU numbers are the vendor's own published dashboard stats (§1), not a live API call I made;
+  TheirStack's regional depth is not measured at all.
 
 ## 5. Decisions that need the product owner
 
-- **Pick the provider strategy** (§1) — JSearch, SerpApi, or the zero-risk curated-pool fallback.
-- **Set a real dollar cost ceiling** for provider calls at pilot volume and at 10x (§2.6) — §1 gives
-  real published price ladders for JSearch and SerpApi; this contract requires cost to be *measured*
-  in production, not what the ceiling should be.
+- **Pick the provider strategy** (§1) — Techmap, TheirStack, or the zero-risk curated-pool fallback.
+- **Set a real dollar cost ceiling** for provider calls at pilot volume and at 10x (§2.6) — §1 gives a
+  real, cheap pay-as-you-go price for Techmap and a real tiered price for TheirStack; this contract
+  requires cost to be *measured* in production, not what the ceiling should be.
 - **Decide who owns AdRequirements-generation for a live posting** (§3's gap) — fold into #63, or spin
   a new ticket ahead of it.
-- **Before committing to JSearch or SerpApi:** confirm in writing (email or a direct ToS read) that
-  storage + matching/scoring of retrieved postings is permitted — §1 flags this as not publicly
-  determinable from either provider's public documentation today.
+- **Before committing to TheirStack:** confirm in writing that storage + matching/scoring of retrieved
+  postings is permitted — §1 flags this as not publicly determinable from TheirStack's public
+  documentation today (Techmap's FAQ already states this explicitly, so this step is Techmap-optional).
+- **Run one real, signed-up query** against Techmap's and/or TheirStack's actual API for Hong Kong,
+  Singapore, Vietnam, and Australia IT-project-delivery roles before committing engineering time — §1's
+  regional volumes are vendor-published, not independently observed.
