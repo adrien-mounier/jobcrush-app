@@ -217,7 +217,8 @@ Newest first. One entry per working session. Ticket + commit refs so the plan st
   `InMemoryBlobStorage`). Not self-healing; re-run the one-shot if the bucket is ever recreated.
 - **Status:** CORS set on bucket + verified by read-back; pushed `46c6abd` + deployed to staging;
   CORS preflight + real PDF/DOCX/TXT PUT to R2 all verified live on jobcrush.org (204 / 200 +
-  `Access-Control-Allow-Origin: https://jobcrush.org`); temp admin R2 token pending owner deletion.
+  `Access-Control-Allow-Origin: https://jobcrush.org`); temp admin R2 token deleted by the owner
+  (confirmed 2026-08-01). **#53 closed 2026-08-01.**
 - **Commits:** `46c6abd`. Lesson updated in `lessons.md`.
 
 ## 2026-07-26 (session 39) — Wayfinder: reconciled + closed onboarding map #40
