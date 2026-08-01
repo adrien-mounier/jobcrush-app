@@ -2,6 +2,16 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-01 (session 57) — live-posting source: contract specified, vendor pick pending
+
+- **Tickets:** [#85 live-posting retrieval contract](https://github.com/adrien-mounier/jobcrush-app/issues/85) (claimed, **left open** pending the owner's provider pick); [#53 R2 CORS + presigned PUT](https://github.com/adrien-mounier/jobcrush-app/issues/53) **closed** (shipped `46c6abd` on 2026-07-27; temp admin R2 token confirmed deleted 2026-08-01).
+- **Frontier finding:** the whole remaining onboarding chain (#63 → #64 → #65 → #66, #63 → #67 → #68, all → #69) is a near-straight line gated on #85 alone. No other buildable ticket exists — #51 awaits an owner eyeball on staging, #32 is an owner infra task.
+- **Delivered:** `docs/research/live-posting-retrieval-contract.md` (`55dee73`) — costed provider shortlist verified against live vendor docs (Adzuna, Reed, Jooble, JSearch, Greenhouse/Lever, EURES, Arbeitnow, curated-manual-pool), plus the provider-neutral request/posting/result/error contract: fail-closed liveness, four never-collapsed outcomes (empty pool / provider unavailable / stale data / invalid request), server-owned retrieval inputs with an explicit forbidden list, intent-change invalidation scoped to retrieval state only, and the seams/testing plan.
+- **Recommendation (owner's call, not taken):** Adzuna, gated on a **hard legal step** — its ToS caps commercial API use at a 14-day trial absent a written agreement, and bars aggregation "to deliver any ongoing work" without written consent, which is arguably what a persistent matching product is. Runner-up JSearch (self-serve pricing, but inherits scraping-chain risk). Zero-ToS-risk fallback: curated manual pool. Indeed and LinkedIn are not options at all (Publisher API retired; no self-serve read API + contractual scraping ban).
+- **The bigger finding, verified against the code:** even with a provider, #63 cannot compute a match score. `matchPct`/`breakdown`/`fit`/`dontYet` need per-posting `AdRequirements`, which exist only as a hand-authored fixture (`apps/api/data/sample-ad-requirements.json` via `apps/api/src/e5stub.ts`, whose own header states it stubs the real cluster engine). Generating them for a live posting is **E5's** job. `CLAUDE.md` already sequences S3 as "E5 cluster engine first" — #63 as written skips it. Posted as a clarification on #63; #63 is now additionally blocked on that ordering decision.
+- **Open owner decisions:** provider strategy; a real $ ceiling at pilot volume and 10x; whether E5 lands as its own ticket ahead of #63 or folds into it; if Adzuna, authorize contacting them for written consent.
+- **Commits:** `1029f06` (#53 record), `55dee73` (the contract). Gates green both pushes.
+
 ## 2026-07-29 (session 56) — validated production discovery
 
 - Implemented [#61 Activate production discovery only for validated family versions](https://github.com/adrien-mounier/jobcrush-app/issues/61) across the production-floor catalog, adaptive engine, HTTP transition gates, and both session-store drivers.
