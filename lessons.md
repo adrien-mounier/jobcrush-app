@@ -1,6 +1,26 @@
 # Lessons — jobcrush-app
 
-## Force clean gates when a new source discriminator crosses a generic seam
+## A rename that feeds a computed number needs the number pinned, not its type
+
+`expect.any(Number)` and shape-only `{met, total}` assertions pass through *any* value-mapping
+error. #102 unified three band vocabularies specifically to delete a hand-written mapping whose
+failure mode is "reports a plausible wrong percentage, crashes nothing" — and the route suite
+would have stayed green through exactly that failure, because it only ever asserted that a
+percentage *was a number*. Removing a translation removes the risk; it does not install the
+detector. When an enum rename or a mapping change flows into a derived figure, add a
+characterization test pinning the **exact** derived values, and say in the comment which future
+ticket is expected to re-baseline them — otherwise the next author reads a hard-coded number as
+brittleness and loosens it back.
+
+## A missing `.mjs` named export is invisible under vitest and fatal under `node`
+
+`validate_ad_requirements_v1.mjs` imported `readJsonArg` from `_lib.mjs`, which never exported it.
+Under plain `node` that is a link-time `SyntaxError` before a line runs; under vitest's SSR
+transform the missing binding merely becomes `undefined`, so the golden tests passed over a module
+that could not execute. Two of the pre-existing oracles had the same defect and nobody noticed for
+months. Since the repo rule is that the `.mjs` oracles **are** the contract spec, a spec that only
+runs inside the test runner is not a spec — run every oracle standalone (`node validate_x.mjs
+fixture.json`, checking the exit code) at least once when touching one.
 
 Turbo's cached typecheck replayed green while production discovery passed a `production_research`
 floor into an engine still typed for `test_fixture`. Runtime tests were green, but a forced clean

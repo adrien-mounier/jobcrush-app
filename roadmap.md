@@ -298,7 +298,11 @@ superseded). Chain: **#102 contract v1 + #103 language gate → #104 read an unc
 deck → #105 meaning-aware judging → #106 eligibility asked once → #107 withdrawal → {#108 bubble,
 #109 re-score} → #110 measurement gate → #111 retire the guards**. The family-floor half shipped as
 #58–#62; the per-ad half is #86's scope. Ad-text input verified 2026-08-02 — full advert available.
-**Start at #102 + #103** (both unblocked, build sequentially — adjacent card-build code).
+✅ **#102 done 2026-08-02 (`d7712a5`)** — the v1 requirement contract and every consumer on it, band
+vocabulary unified on `essential`/`standard`/`nice-to-have` via a *shared* `RankBand` object rather
+than three equal copies. User-invisible, proven by diffing the old scorer against the live migrated
+API (8 cards byte-identical) plus a live browser drive. **Next: #103** (language gate), then **#104,
+the tracer bullet where the deck goes 8 → 16 and the chain first pays off visibly.**
 
 Then S3, the hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6
 feed + hunt (JC-36…40), then E7 swipe + prepared apply (JC-41/42/43). Per-ticket ACs are in the
