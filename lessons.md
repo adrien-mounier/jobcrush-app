@@ -860,3 +860,33 @@ structured-field trio. In-memory spread the object and returned `undefined`; Pos
 invisible until a test asserted on a field the helper didn't set. Two drivers behind one interface
 drift wherever a test fixture is loose; normalise in the driver rather than tightening the fixture,
 or the contract test stops testing the thing it exists for.
+
+## A quality bar that ignores context will fail the thing that is working
+
+The spike bar counted "strong CV scored under 40" as an undersell, full stop. It never asked whether
+the advert was in the candidate's field — so the engine correctly scoring an IT project manager low
+on a business-analysis role was recorded as a defect, and the metric reported 5/8 failures on a
+scorer that had just fixed every rank inversion. The criterion was penalising the family-fit feature
+for doing its job. When one part of a system exists to reject inputs, every downstream quality metric
+has to be scoped by that rejection, or it reads correct behaviour as regression.
+
+## Pin the definition of any classification whose false positive is destructive
+
+Asking a model for `"blocking": <bool>` with no definition made it classify "Drive regular, clear
+communication with all stakeholders" as blocking — 4 blocking requirements on one advert. The same
+prompt *with* a definition ("only a hard gate like a language, right to work, or a legally required
+licence; years of experience is NOT blocking") produced 1 across eight adverts. Undefined, the label
+collapses into the nearest familiar concept — here, "must-have". That is fine for a label that only
+sorts a list, and unacceptable for one wired to a destructive action: blocking withdraws the posting
+entirely, so the loose reading silently deletes jobs the user could have got. Treat the definition as
+part of the contract, regression-test the boundary case, and count how often the label fires — a
+sudden rise is a prompt regression that otherwise surfaces only as things quietly disappearing.
+
+## Verify the suspicious number before believing the summary statistic
+
+The spike's headline said the strong CV was undersold on 5 of 8 adverts. Hand-checking the one
+in-family case (a 26 on a Basel III regulatory-reporting role) showed the score was right — the
+candidate genuinely lacked every domain requirement, and the OLD scorer's higher 39 was the wrong
+answer, built on the words "project", "manage" and "stakeholders". The aggregate said "regression";
+the per-requirement verdicts said "correctly penalising domain mismatch, which the previous scorer
+could not see at all". Ten minutes on one row changed the conclusion drawn from the whole table.
