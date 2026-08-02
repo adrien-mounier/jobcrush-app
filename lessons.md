@@ -1,5 +1,41 @@
 # Lessons — jobcrush-app
 
+## If the design rests on a seam, a test that never crosses that seam proves nothing
+
+#118's whole value is knowing *which visitor* spent the money. Attribution rode request-scoped
+`AsyncLocalStorage`, established in Fastify's `onRequest` hook with `enterWith` — called after an
+`await`. That does not survive the hook-to-handler transition, so every ledger row would have recorded
+a null visitor: `costForVisitor` returning 0 forever, `scrubVisitor` with nothing to scrub, the ticket's
+central question unanswerable. The unit tests were thorough and all passed, because they set the
+visitor and ran the meter **in one unbroken async context** — they exercised the mechanism and never
+the seam. Two independent reviewers caught it by reading; no test would have.
+
+The general form: when a property only holds *across* a boundary — an HTTP request, a process, a
+worker hand-off, a transaction — the test has to cross that boundary, even when the unit underneath is
+fully covered. Ambient/implicit context (`AsyncLocalStorage`, thread-locals, request-scoped DI) is the
+sharpest case, because the failure is silent and plausible: you get a valid-looking row with a null
+where the answer should be. The fix is cheap and worth making a habit: **revert the fix and watch the
+new test fail.** A test you haven't seen fail for the right reason is a test you haven't verified. In
+Fastify specifically, the callback-form hook calling `storage.run(value, done)` as its last synchronous
+action is the shape that works; a plain async hook with `enterWith` after an await is the shape that
+silently doesn't.
+
+## Your in-process database substitute can hide a real data-corruption bug
+
+A malformed `LLM_PRICING_JSON` override produced a `NaN` cost. **pg-mem rejected the insert; real
+Postgres accepted it** — and once one `NaN` lands in a `double precision` column, every `SUM` over that
+table is `NaN` forever. The suite runs on pg-mem, so it never saw the failure mode that matters. QA
+only found it by standing up a real Postgres 16 in Docker and asking the database directly for
+non-finite rows.
+
+pg-mem is right for the fast store tests and should stay. But it is a *substitute*, and substitutes
+agree with the real thing on the happy path and diverge exactly at the edges — invalid values, type
+coercion, constraint and overflow behaviour. So: for anything that writes a **numeric or otherwise
+corruptible value that later aggregates**, verify the hostile cases against a real engine at least
+once before shipping. Cheap heuristic for when it's worth the container — ask whether a single bad row
+can poison every future read. Here it could, and the price of finding out in production would have been
+a cost figure that silently stopped being a number.
+
 ## A test case that also lives in the prompt is a case the model has been handed the answer to
 
 #105's five regression rows — the measured failures the whole slice exists to fix — were checked in

@@ -2,6 +2,48 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-03 (session 65) — `/orchestrate-team #118`: what a visitor costs stops being a hand calculation
+
+- **[#118](https://github.com/adrien-mounier/jobcrush-app/issues/118) closed, `fd45c8d`.** Every model
+  call in the API records one durable row at the `llm.ts` seam — visitor pseudonym, stage, model,
+  tokens, computed cost, timestamp — across all seven spending stages (advert reading, judging, claim
+  mining, preview/tailor, grill, CV audit, family screen). Replaces the two in-memory token counters
+  that reset on every deploy and covered only the cheap half of the bill. New: `usageLedgerStore.ts`,
+  `llmMeter.ts`, `llmPricing.ts`, `llmVisitorContext.ts`. Gate 680 api + 29 contracts green.
+- **Metering by wrapping, with the stage fixed at construction, is what made this a small diff.**
+  `main.ts` hands each pipeline step an already-metered client, so no call site had to remember to
+  record and no signature had to grow a context parameter. `complete()` reaches into
+  `inner.completeWithUsage` directly rather than through the wrapper's own instrumented method, so
+  whichever entry point a caller uses the call is recorded exactly once. `adReader`/`judge` keep their
+  own per-row cost records for other tickets' ACs — the ledger is a separate table and doesn't
+  double-count them.
+- 🐛 **The headline feature shipped broken in round one and every test passed.**
+  `AsyncLocalStorage.enterWith` was called after `await sessions.getByToken(token)` in the async
+  `onRequest` hook — it does not survive Fastify's hook-to-handler transition, so every row would have
+  recorded a null visitor, `costForVisitor` would return 0 forever, and `scrubVisitor` would have had
+  nothing to scrub. The unit test passed because it set the visitor and ran the meter in one unbroken
+  async context, never crossing the HTTP seam the whole design rests on. Fixed with a callback-form
+  hook calling `runWithVisitor(id, done)` as its last synchronous action; proved by reverting the fix
+  and watching the new HTTP-seam test fail. See `lessons.md`.
+- 🐛 **A mistyped rate override wrote `NaN` into the money column, permanently.** `{"claude-sonnet-5":
+  {"inputPerMillionUsd":3}}` — one key missing — parses as valid JSON, merges, and every cost after it
+  is a non-number with no log and no counter. **pg-mem rejected that insert while real Postgres
+  accepted it**, which is exactly why the suite never saw it; QA only found it by driving a real
+  Postgres 16 in Docker. Now validated at config load *and* at computation, with a rejection counter.
+  Follow-on hunt found `LLM_PRICING_JSON=null` crashing the API at boot and a negative rate running the
+  total backwards — both closed in the same round.
+- **Retention is the owner's call, recorded on the ticket, not a silent engineering default.** Ledger
+  rows retained indefinitely; every content-bearing row keeps purging on today's schedule; a purged
+  visitor survives as a pseudonym with nothing behind it. The privacy boundary is the row *shape* — no
+  column can hold CV text, answers, advert text or model prose — proven by test on both drivers rather
+  than by filtering.
+- ⚠️ **Carried:** per-visitor cost is first-toucher-billed (cached advert reads and judgements mean a
+  warm visitor records nothing for those stages) — the figure is "what this visitor caused us to spend
+  fresh", **not** their share of what they consumed, and that distinction matters the moment it's used
+  to price anything. Also: in-flight writes lost on shutdown; a throwing call records nothing;
+  `main.ts`'s wiring is convention, not types. No display surface — that's the ops dashboard ticket,
+  now unblocked along with #117.
+
 ## 2026-08-02 (session 64) — `/orchestrate-team #105`: the number stops rewarding vocabulary and starts meaning something
 
 - **[#105](https://github.com/adrien-mounier/jobcrush-app/issues/105) closed, `8b0bc7c`.** The card's match %, covered/uncovered breakdown, "where you fit" and "not yet" list now derive from a per-requirement **graded verdict** (0..1 + supporting fact id + reason) produced in one model call per (advert, candidate), replacing token-overlap coverage on those surfaces. New: `apps/api/src/judge.ts`, `judgedScore.ts`, `judgementStore.ts`, `prompts/card-judge.md`. Gate 627 api + 29 contracts green.

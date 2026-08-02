@@ -337,6 +337,22 @@ budget because concurrency waves could otherwise push the route past the web pro
 return no deck at all; and judgements key on the user's own fact set, so they **never warm across
 users** — every new visitor pays a cold deck. Filed as
 [#117](https://github.com/adrien-mounier/jobcrush-app/issues/117).
+✅ **#118 done 2026-08-03 (`fd45c8d`)** — every model call in the API now records one durable ledger
+row (visitor pseudonym, stage, model, tokens, computed cost, timestamp) at the `llm.ts` seam, across
+all **seven** spending stages, replacing the two in-memory token counters that reset on every deploy.
+Rates are configuration (`LLM_PRICING_JSON`), cost is computed at write time so a re-price never
+rewrites history, and an unmeasurable driver records null tokens/cost with `measured:false` — unknown,
+never estimated. Retention per the owner's decision on the ticket: ledger rows retained indefinitely,
+every content-bearing row purging on today's schedule, so a purged visitor survives as a pseudonym
+with nothing behind it; `scrubVisitor` keeps the money and drops the id for #68's deletion request
+(no caller yet — `purge.ts`'s header says so). Restart survival verified against a real Postgres 16,
+not just pg-mem. ⚠️ **Carried limits:** per-visitor cost is **first-toucher-billed** — advert reads and
+judgements are cached and shared, so a warm visitor records nothing for those stages and their figure
+is "what they caused us to spend fresh", not their share of what they consumed (this matters for any
+pricing decision taken off it); in-flight writes are lost on shutdown (no SIGTERM handler); a call that
+throws records nothing, so a client-side timeout on a request the provider served under-reports; and
+`main.ts`'s wiring is guarded by convention, not by types, so a future stage wired with the raw client
+would spend unmetered without failing a test. **Unblocks the ops dashboard and #117.**
 **Next: #106, eligibility asked once in discovery — the last input the judge is missing.**
 
 Then S3, the hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6
