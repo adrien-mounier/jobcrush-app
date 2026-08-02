@@ -810,3 +810,23 @@ prior session's research pass, and #93 covered the same in-language ground as th
 created. Listing the recent range first would have surfaced the overlap before creating it (the two
 are now cross-linked: #93 owns the *decision*, #95 the *architecture*). A number coming back higher
 than expected is a signal, not a formality.
+
+## The payload you want may not be in any top-level field
+
+Probing Techmap for advert text, a scan of top-level fields found nothing longer than `title` — the
+honest-looking conclusion was "this provider returns no description". Wrong: the full 2,700-character
+advert was inside `jsonLD`, a nested schema.org/JobPosting object the string scan skipped because it
+is not a string. One more look before reporting turned "the engine is capped by its input" into "the
+input is fine, and here are three structured fields we were about to pay a model to infer"
+(`applicantLocationRequirements`, `validThrough`, `skills`). When a response looks like it is missing
+the thing you need, enumerate nested objects before concluding — and for job data specifically,
+check `jsonLD` first, since schema.org markup is where aggregators park the full text.
+
+## Record the endpoint, not just the finding
+
+Session 57b's probe produced trustworthy measurements and wrote up the numbers, but not the URL,
+headers, or path it called. Reproducing it cost two wrong guesses: the path is case-sensitive
+(`/api/v2/jobs/search` works, `/api/v2/Jobs/Search` 404s), and the BASIC plan rate-limits **per
+second**, so firing eight probes at once returns 429s that a naive check reads as "endpoint exists".
+A measurement nobody can re-run is a claim, not evidence. Write down the exact call and keep the
+script.

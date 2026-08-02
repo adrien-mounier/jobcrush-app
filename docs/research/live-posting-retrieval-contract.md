@@ -632,3 +632,69 @@ fixtures with no live-status concept. Draft clarification text for the orchestra
 - **Run one real, signed-up query** against Techmap's and/or TheirStack's actual API for Hong Kong,
   Singapore, Vietnam, and Australia IT-project-delivery roles before committing engineering time — §1's
   regional volumes are vendor-published, not independently observed.
+
+---
+
+## 6. Advert text: measured 2026-08-02 — full text confirmed
+
+**The question this answers** (raised by #86's design pass, gating #88): does the provider return the
+**full advert** or a truncated snippet? Neither `sample-postings.json` nor §2.1's `PostingV1` says —
+both carry a single `excerpt` field. If it were a snippet, requirement-extraction quality would be
+capped and no model choice would recover it.
+
+**Reproducible, unlike the §1 probe.** Endpoint recorded this time:
+
+```
+GET https://daily-international-job-postings.p.rapidapi.com/api/v2/jobs/search
+    ?countryCode=hk&page=0&size=3&title=project%20manager
+    headers: x-rapidapi-key, x-rapidapi-host
+```
+
+Self-describes as **Techmap.io Job Posting API v2.6**. Note the path is **lowercase**;
+`/api/v2/Jobs/Search` returns `"Endpoint does not exist"`. The BASIC plan rate-limits **per second**,
+so burst probing returns 429s that look like hits — space calls ~2.5s apart.
+
+### Finding 1 — the advert text is complete, and it is not where you would look
+
+No top-level field carries advert text; the longest top-level string is `title`. The full advert is
+in **`jsonLD.description`** (schema.org/JobPosting).
+
+| | Posting 1 | Posting 2 | Posting 3 |
+|---|---|---|---|
+| `jsonLD.description` | 2,714 chars | 2,493 | 1,712 |
+| Truncation marker | none | none | none |
+| Ends mid-sentence | no | no | no |
+| HTML markup | none — plain text | none | none |
+| Responsibilities / Requirements / Qualifications present | yes | yes | yes |
+
+Text arrives with section headings already marked (`**Responsibilities:**`, `**Requirements:**`), so
+no HTML stripping is needed. `resultSizeInBytes` was 41,733 for 10 postings (~4.2 KB each).
+
+**Consequence: #88 is unblocked and #86's design stands.** ~2,700 chars ≈ ~700 tokens, inside the
+per-advert cost estimate. The fixtures' 2,200-char `excerpt` is representative of real advert length.
+
+### Finding 2 — three structured fields we were about to pay a model to infer
+
+`jsonLD` also carries `identifier`, `validThrough`, `employmentType`, `salaryCurrency`, `industry`,
+`url`, `skills`, `hiringOrganization`, `jobLocation`, `datePosted`, `applicantLocationRequirements`.
+
+- **`applicantLocationRequirements`** — a work-eligibility signal, free and structured. Relevant to
+  #86 decision 3 (blocking requirements) and #96.
+- **`validThrough`** — provider-stated expiry, which §2.6's freshness semantics can use directly.
+- **`skills`** — a structured list rather than prose.
+
+§2.1's `ProviderPostingRecordV1` should carry these rather than discarding them into `excerpt`.
+
+### Finding 3 — title search relevance, re-confirmed accidentally
+
+The three adverts a Hong Kong `"project manager"` search returned were a **dentistry faculty research
+assistant**, a **pharmaceutical key account manager**, and a **retail banking manager**. Zero IT
+delivery roles in the sample. This independently reproduces §1's Finding 2 and is the case #86
+decision 1 (posting family fit) exists to handle.
+
+Also noted: `totalCount` was **509** for this query against §1's measured ~34/day, so the two count
+different things — §1's is a single day's new postings, this is cumulative. Don't compare them.
+
+**Caveat:** three postings, one country, one query. Decisive for the question asked — the field
+exists, is populated, is full-length and clean — but not a systematic sample of advert length across
+markets.
