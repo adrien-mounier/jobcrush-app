@@ -1,5 +1,46 @@
 # Lessons — jobcrush-app
 
+## A guard needs a test that it can be *passed*, not only that it fires
+
+#104 enforces the blocking definition in code as well as in the prompt: a requirement the model calls
+`blocking` is down-classified unless it carries a hard-gate eligibility dimension. The prompt,
+written separately, told the model that field was optional and that "most requirements are NOT
+eligibility dimensions" — so nothing would ever have satisfied the guard. Blocking would have been
+**unreachable**, the operator's blocking-rate counter would have read 0 forever, and 0 reads as
+"the prompt is behaving". Every test written pointed the same way (a capability gets clamped);
+none asked whether a genuine hard gate survives. When you add a clamp, a filter, or a validator,
+write the test for the value that must get **through** it first — the failing-input tests will pass
+even when the guard is stuck shut.
+
+## A second store driver only tests what both drivers actually do
+
+#104's Postgres driver validated a stored row against the current schema on read; the in-memory
+driver didn't. So a contract bump — the exact case the stored `version` field exists for — would
+have thrown out of every read on staging, been swallowed by a route-level catch, and silently
+emptied the deck, while the store-contract test stayed green because both drivers run against the
+*same* schema at test time. A shared contract test proves the drivers agree on the cases it
+exercises; it says nothing about a driver doing extra work the other doesn't. Grep the two
+implementations for asymmetric work (parsing, coercion, defaulting) before trusting the contract
+test to cover a migration.
+
+## Count failures where the alarm can see them, and only where they belong
+
+Two ways the same alarm went wrong in one slice. The failure counter was incremented by fixture
+parse errors, which feed the numerator but never the denominator — one malformed fixture would pin
+the rate at 100% with zero model calls made, pointing the operator at the wrong subsystem. And the
+store reads that could fail hardest (a database outage removing every uncurated advert from every
+deck) sat outside the try, so they counted nothing at all and the rate stayed at a healthy 0%.
+When a counter exists to make a silent failure loud, check both directions: what can move it that
+shouldn't, and what should move it that can't reach it.
+
+## Derive a cache-invalidation version from the thing it versions
+
+A hand-maintained `PROMPT_VERSION` constant is a bug waiting for the first person who edits the
+prompt and forgets — and the symptom is invisible: every advert keeps being served from a stale
+cache. Hash the prompt text **actually sent to the model** (after stripping the human-facing header
+comment) and the version maintains itself: a comment edit costs nothing, a real wording change
+re-reads the pool. Keep the contract half explicit, since that one is a deliberate decision.
+
 ## A filter test is only real if the thing it excludes would otherwise be included
 
 #103's headline AC — a non-English advert stays in the pool and never becomes a card — is trivially
