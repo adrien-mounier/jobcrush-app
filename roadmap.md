@@ -316,7 +316,28 @@ design. Three never-folded counters on `GET /ops/counters` (`language_skipped`,
 test scores 0.03 on an ATS bullet-list advert and 0.00 on a skills blob, so those formats label `und`
 and are hidden from everyone once a real feed lands. Invisible against the 16-advert fixture corpus —
 which is exactly why it must be tuned against real provider text, not the fixtures again.
-**Next: #104, the tracer bullet where the deck goes 8 → 16 and the chain first pays off visibly.**
+✅ **#104 done 2026-08-02 (`fb68dcd`)** — one model call per advert produces its requirement list *and*
+its family verdict, persisted by `adId` and shared by every session. Deck 8 → 15 (not 16: the Hays
+posting carries a hand-authored Chinese requirement set and is never re-read). ✅ **#115 done
+2026-08-02 (`3b83de0`)** — staging's 42.9% read-failure rate was the deck's own 15s deadline, not the
+model; failures now carry a class and are retrievable behind `OPS_KEY`.
+✅ **#105 done 2026-08-02 (`8b0bc7c`)** — the card's number, breakdown, "where you fit" and "not yet"
+list now come from a meaning-aware judgement instead of token overlap. Persisted per (advert,
+confirmed-fact fingerprint, requirement-id set, judge version), so unchanged facts are never re-judged
+and the number is pinned once stored; purge sweeps by **disuse**, not age, so an active viewer's card
+is never re-rolled under them. Model is configuration (`JUDGE_MODEL`); per-card cost recorded, tokens
+null rather than estimated. Judge is an optional dep like `readAd`, so every pre-#105 path runs the
+old tick byte-for-byte — #111 owns re-baselining. ⚠️ **The five regression rows are worked examples
+inside `card-judge.md` and therefore certify nothing on their own** — a hold-out set in an unrelated
+domain is what `judge.live.test.ts` grades a real model against, and it still needs an API key to run.
+⚠️ **Carried limits:** a judging failure falls back to the old scorer and is counted, so a card's
+*first* view can show a number that changes later (fallback cards now rank below judged ones, so the
+deck can't lead with the card we understand least); the deck's judging phase runs under one shared 8s
+budget because concurrency waves could otherwise push the route past the web proxy's 30s deadline and
+return no deck at all; and judgements key on the user's own fact set, so they **never warm across
+users** — every new visitor pays a cold deck. Filed as
+[#117](https://github.com/adrien-mounier/jobcrush-app/issues/117).
+**Next: #106, eligibility asked once in discovery — the last input the judge is missing.**
 
 Then S3, the hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6
 feed + hunt (JC-36…40), then E7 swipe + prepared apply (JC-41/42/43). Per-ticket ACs are in the

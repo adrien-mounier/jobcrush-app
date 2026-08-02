@@ -1,5 +1,37 @@
 # Lessons — jobcrush-app
 
+## A test case that also lives in the prompt is a case the model has been handed the answer to
+
+#105's five regression rows — the measured failures the whole slice exists to fix — were checked in
+as a fixture *and* written into `card-judge.md` as worked examples, one of them with its target band
+spelled out. Both decisions were individually right: the prompt needs concrete examples to steer on,
+and the rows needed to stop being prose in a markdown table. Together they made the only test that
+could certify judgement quality an open-book exam, and it would have passed. The damage wasn't local:
+slice 9's whole purpose is choosing a model on measured evidence, and it would have inherited a green
+these rows never earned.
+
+Nothing about the code was wrong, so no code review would have found it — it needs someone comparing
+the *test data* against the *prompt text* and asking whether the model has seen this before. Do that
+comparison whenever a prompt and a fixture describe the same examples. Keep the worked examples in the
+prompt (they earn their place) and certify against a **hold-out set in a different domain**, with the
+contaminated rows kept but labelled as proving nothing on their own. The general form: when the thing
+under test is a model's judgement, the fixture is only evidence if the model hasn't read it.
+
+## The safety net you add for one property can quietly break another
+
+Three times in one slice, a correct fix re-introduced the failure the slice existed to remove.
+Purging judgement rows by age — a genuine privacy requirement — silently re-judges a stable card for
+a returning user who changed nothing, which is the unexplained-drop failure the ticket was written to
+kill. A concurrency cap added to stop a rate-limit burst turned one 15s deadline into three sequential
+waves and pushed the deck past the web proxy's 30s budget, so the main screen returned nothing at all.
+And falling back to the old scorer to avoid dropping cards let the *over-scoring* old numbers outrank
+honest ones, so the deck led with the card we understood least.
+
+Each was found by asking "what does this guard do on the path it wasn't written for?" — the returning
+user, the cold cache, the mixed list. When you add a guard, name the property it protects, then name
+the property most likely to be in tension with it and check that one explicitly. In a slice whose
+whole point is a stability guarantee, every new mechanism is a candidate for breaking it.
+
 ## A rate whose numerator feeds its own denominator can never cross its threshold
 
 #115 split timeouts out of the read-failure counter, then added a timeout alarm rating
