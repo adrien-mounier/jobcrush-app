@@ -17,6 +17,8 @@ import type { CandidateClaims } from "@jobcrush/contracts";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
 import type { RawCv } from "./extract.js";
+import { detectLanguage, languageEligible, SERVED_LANGUAGES } from "./language.js";
+import { incrementCounter } from "./counters.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -27,20 +29,58 @@ export interface Posting {
   location: string;
   keywords: string[];
   excerpt: string;
+  // #103: labelled at ingest (here, the pool's one entry point), local + deterministic, no model
+  // call — so this keeps working unchanged once live retrieval (#99-#101) replaces this fixture.
+  // A BCP-47 primary subtag ("en", "zh", ...) or "und" — see language.ts's detectLanguage doc.
+  language: string;
 }
+
+// Fixture shape on disk: no language field (#86 decision 2 — the label is DERIVED at load, never
+// hand-authored into the JSON, so a real provider feed gets labelled by the same code path).
+type RawPosting = Omit<Posting, "language">;
 
 let cachedPostings: Posting[] | null = null;
 export function loadPostings(): Posting[] {
   if (!cachedPostings) {
-    cachedPostings = JSON.parse(
+    const raw = JSON.parse(
       readFileSync(join(here, "..", "data", "sample-postings.json"), "utf8"),
-    ) as Posting[];
+    ) as RawPosting[];
+    // Counted once per posting HERE, at ingest — never at read time — so the counters can't inflate
+    // with every deck request (#86 AC). The cache guard above makes this run exactly once per
+    // process lifetime, same as the language label itself. "und" is counted separately from a real
+    // non-served-language skip (#103 code review finding 3): a terse-but-genuinely-English excerpt
+    // that can't be judged is a different operational signal from a confirmed Chinese/Japanese/...
+    // advert, and folding them together would let slice 3's alarm miss the former as a "benign skip."
+    cachedPostings = raw.map((p) => {
+      const language = detectLanguage(p.excerpt);
+      if (language === "und") incrementCounter("postings.language_undetermined");
+      else if (!languageEligible(language, SERVED_LANGUAGES)) incrementCounter("postings.language_skipped");
+      return { ...p, language };
+    });
   }
   return cachedPostings;
 }
 
-/** Title-keyword match: most overlapping keywords wins; ties go to the earlier posting. */
-export function matchPosting(targetTitles: string[], postings = loadPostings()): Posting {
+/**
+ * Postings a reader with `languages` may see — the ONE application of the language gate to the pool
+ * (#86 AC4), reused by every caller rather than re-filtered ad hoc: session-scoped routes
+ * (routes/onboarding.ts) pass a session's own readingLanguages(); pre-session paths (matchPosting
+ * below) pass SERVED_LANGUAGES, since the pre-signup magic-mirror preview still picks and shows a
+ * real advert and burns a real LLM call (#103 code review finding 1) even though there's no session
+ * yet to read a list from. Lives beside loadPostings so slice 3's reader can reuse it without
+ * importing a routes module.
+ */
+export function eligiblePostings(languages: string[], postings = loadPostings()): Posting[] {
+  return postings.filter((p) => languageEligible(p.language, languages));
+}
+
+/** Title-keyword match: most overlapping keywords wins; ties go to the earlier posting. Defaults to
+ *  the served-language pool (#103 code review finding 1/2) — this path has no session, so it can't
+ *  ask a user's own languages and instead uses what the product currently serves. */
+export function matchPosting(
+  targetTitles: string[],
+  postings = eligiblePostings(SERVED_LANGUAGES),
+): Posting {
   const targetWords = new Set(
     targetTitles
       .join(" ")

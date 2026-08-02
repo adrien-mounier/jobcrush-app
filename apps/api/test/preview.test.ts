@@ -6,6 +6,8 @@ import { CandidateClaims } from "@jobcrush/contracts";
 import { buildServer } from "../src/server.js";
 import {
   conservationIssues,
+  eligiblePostings,
+  loadPostings,
   matchPosting,
   makePreviewStep,
   renderPreviewHtml,
@@ -74,6 +76,19 @@ describe("JC-16 posting match + render", () => {
   it("falls back to the first posting when nothing matches", () => {
     const p = matchPosting(["Zookeeper"]);
     expect(p).toBeTruthy();
+  });
+
+  // #103 code review finding 1: this pre-signup path has no session, so it defaults to
+  // eligiblePostings(SERVED_LANGUAGES) rather than the raw, unfiltered pool — a non-English posting
+  // must never be picked here either, even by an empty-target-title fallback that would otherwise
+  // just take postings[0].
+  it("never matches a non-English posting, even by keyword or by the no-match fallback (#103)", () => {
+    const zh = loadPostings().find((p) => p.language === "zh");
+    expect(zh).toBeDefined();
+    expect(matchPosting(["IT Project Manager"]).id).not.toBe(zh!.id);
+    expect(matchPosting(["Zookeeper"]).id).not.toBe(zh!.id);
+    expect(eligiblePostings(["en"]).some((p) => p.id === zh!.id)).toBe(false);
+    expect(eligiblePostings(["en", "zh"]).some((p) => p.id === zh!.id)).toBe(true);
   });
 
   it("burns the watermark into the rendered document itself", () => {

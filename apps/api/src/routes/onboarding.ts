@@ -22,7 +22,8 @@ import { runGate } from "../gate.js";
 import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
 import { loadFamilyFloor, listAdRequirements, loadAdRequirements } from "../e5stub.js";
-import { loadPostings, type Posting } from "../preview.js";
+import { eligiblePostings, type Posting } from "../preview.js";
+import { readingLanguages, languageEligible } from "../language.js";
 import { matchBreakdown, matchTick, uncoveredRequirements, pickHitClause, pickOpenClause, NOTHING_OPEN_CLAUSE } from "../matchtick.js";
 import {
   composeCvLine,
@@ -96,6 +97,12 @@ async function withFactFloor(sessions: SessionStore, session: SessionRecord, com
   await sessions.raiseFactFloor(session.id, computed);
   return Math.max(computed, session.factFloor);
 }
+
+// #103 (E5 slice 2): the pool-application half of the gate (eligiblePostings) lives beside
+// loadPostings in preview.ts, not here — #103 code review finding 6, so slice 3's reader can reuse
+// it without importing a routes module. Every route below composes readingLanguages(session) with
+// eligiblePostings, and — for a card's requirement set — languageEligible(adReq.language, ...)
+// directly (#103 code review finding 5): no other "=== 'en'" check exists anywhere in this file.
 
 // The deck's tiering policy (JC-22, kickoff decision #3). A claim copied verbatim from the CV
 // batch-approves as part of its section; anything the machine reworded or inferred gets an individual
@@ -723,8 +730,16 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     app.get("/onboarding/cards", async (req) => {
       const session = requireSession(req);
       const [confirmed, negatives] = await discoveryReads(session.id);
-      const postings = loadPostings();
+      const langs = readingLanguages(session);
+      // #103: postings this session's languages can't read never become cards — they stay in the
+      // pool, unread and unshown, not deleted. Gated on BOTH the posting's own detected language
+      // AND, separately, its requirement set's stated language (#103 code review finding 5) — a
+      // posting whose excerpt reads English but whose requirements were produced in another
+      // language must not render foreign bullets into an English-gated card. Same predicate, two
+      // fields, never a second rule.
+      const postings = eligiblePostings(langs);
       const cardCandidates = listAdRequirements()
+        .filter((adReq) => languageEligible(adReq.language, langs))
         .map((adReq) => {
           const posting = postings.find((p) => p.id === adReq.adId);
           return posting
@@ -743,9 +758,15 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       { schema: { params: z.object({ adId: z.string() }) } },
       async (req, reply) => {
         const session = requireUser(req);
-        const postingIds = new Set(loadPostings().map((p) => p.id));
+        // #103: an ad this session's languages can't read isn't a valid want target either, even if
+        // guessed directly by id — same dual gate (posting AND requirement-set language) as the deck.
+        const langs = readingLanguages(session);
+        const postingIds = new Set(eligiblePostings(langs).map((p) => p.id));
         const knownCard = listAdRequirements().some(
-          (adReq) => adReq.adId === req.params.adId && postingIds.has(adReq.adId),
+          (adReq) =>
+            adReq.adId === req.params.adId &&
+            postingIds.has(adReq.adId) &&
+            languageEligible(adReq.language, langs),
         );
         if (!knownCard)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
@@ -769,7 +790,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         return reply
           .status(409)
           .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-      const target = tailorTarget(adId);
+      const target = tailorTarget(session, adId);
       if (!target)
         return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
       const { posting, adReq } = target;
@@ -800,7 +821,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           return reply
             .status(409)
             .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-        const target = tailorTarget(adId);
+        const target = tailorTarget(session, adId);
         if (!target)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
         const { posting, adReq } = target;
@@ -968,11 +989,20 @@ interface TailorState {
  *  pair that validated it at /onboarding/cards/:adId/want time (these are explicitly stubs awaiting
  *  E5, liable to be edited/reordered) — so a miss here is reachable, not impossible, and must fail
  *  closed with the same 404 that route already uses for an unknown card id. */
-function tailorTarget(adId: string): { posting: Posting; adReq: AdRequirementsV1 } | null {
-  const posting = loadPostings().find((p) => p.id === adId);
+function tailorTarget(
+  session: Pick<SessionRecord, "id">,
+  adId: string,
+): { posting: Posting; adReq: AdRequirementsV1 } | null {
+  // #103: same dual gate as the deck and /want — a persisted tailorAdId for a posting (or a
+  // requirement set) this session's languages can no longer read (or never could) fails closed with
+  // the existing "unknown card" 404.
+  const langs = readingLanguages(session);
+  const posting = eligiblePostings(langs).find((p) => p.id === adId);
   if (!posting) return null;
   try {
-    return { posting, adReq: loadAdRequirements(adId) };
+    const adReq = loadAdRequirements(adId);
+    if (!languageEligible(adReq.language, langs)) return null;
+    return { posting, adReq };
   } catch {
     return null;
   }

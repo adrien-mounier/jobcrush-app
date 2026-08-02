@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import { orderCardsForReveal } from "../src/routes/onboarding.js";
 import { buildServer } from "../src/server.js";
 import { listAdRequirements } from "../src/e5stub.js";
+import { loadPostings } from "../src/preview.js";
+import { languageEligible } from "../src/language.js";
 
 async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
   const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });
@@ -78,10 +80,25 @@ describe("#19 GET /onboarding/cards", () => {
     const res = await get(app, cookie, "/onboarding/cards");
     expect(res.statusCode).toBe(200);
     const body = res.json() as { cards: JobCard[] };
-    const allRequirements = listAdRequirements();
+    // #103 (and code-review fold-in): derive the expected set through the real production
+    // predicate — languageEligible against each entry's POSTING language (detected at ingest, not
+    // the fixture's own hand-authored string) and its requirement set's OWN language field — rather
+    // than a hardcoded `=== "en"` the test would silently drift from production. A stubbed
+    // requirement set exists for a non-English posting AND for a mismatched-language posting (both
+    // added to prove the gate); neither may resolve to a card.
+    const allPostings = loadPostings();
+    const readerLangs = ["en"]; // readingLanguages()'s default for this anonymous session
+    const allRequirements = listAdRequirements().filter((ad) => {
+      const posting = allPostings.find((p) => p.id === ad.adId);
+      return (
+        !!posting &&
+        languageEligible(posting.language, readerLangs) &&
+        languageEligible(ad.language, readerLangs)
+      );
+    });
     expect(body.cards.map((card) => card.adId).sort()).toEqual(
       allRequirements.map((ad) => ad.adId).sort(),
-    ); // every requirement set resolves to a real posting and reaches the HTTP deck
+    ); // every ENGLISH requirement set resolves to a real posting and reaches the HTTP deck
     expect(body.cards[1]).toBeDefined(); // passing the reveal card cannot exhaust the deck
     const curatedIds = new Set(
       allRequirements
@@ -312,6 +329,39 @@ describe("#19 GET /onboarding/cards", () => {
     // askedClosed is session-wide, not ad-scoped: every recorded "no" lands on every card, exactly as
     // it already did for discovery negatives (#19). Unchanged by #29 — pinned so it stays deliberate.
     expect(otherAfter.askedClosed.length).toBe(otherBefore.askedClosed.length + 1);
+  });
+
+  // #103 (E5 slice 2): the AC this whole ticket hinges on, proven at the HTTP seam rather than by
+  // inspection — a non-English posting (with a requirement set that WOULD join into a card without
+  // the language gate, same as any English one) is retained and labelled in the pool, and never
+  // reaches the deck for a default English-only session.
+  it("retains a non-English posting in the pool, labelled, and never surfaces it as a card", async () => {
+    const zh = loadPostings().find((p) => p.id === "2026-07-10_huaxin-tech-shenzhen_it-xiangmu-jingli");
+    expect(zh).toBeDefined(); // present in the pool
+    expect(zh!.language).toBe("zh"); // labelled at ingest
+
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const res = await get(app, cookie, "/onboarding/cards");
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).not.toContain(zh!.id); // absent from the deck
+  });
+
+  // #103 code review finding 5: the posting's own excerpt reads English (so posting.language is
+  // "en" and it passes THAT half of the gate), but its stubbed requirement set is deliberately
+  // declared language "zh" — proving the deck also checks the requirement set's OWN language field,
+  // not just the posting's, so foreign-language bullets can never render into an English-gated card.
+  it("holds back a card whose posting reads English but whose requirement set is declared a different language", async () => {
+    const adId = "2026-07-01_hays_senior-front-office-project-manager-top-tier-investment";
+    const posting = loadPostings().find((p) => p.id === adId);
+    expect(posting!.language).toBe("en"); // the posting itself passes the posting-language gate
+
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const res = await get(app, cookie, "/onboarding/cards");
+    const body = res.json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).not.toContain(adId); // still held back on the ad's own language
   });
 });
 

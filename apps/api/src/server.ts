@@ -37,6 +37,7 @@ import {
   type FamilyLearningStore,
 } from "./familyLearning.js";
 import { familyLearningRoutes } from "./routes/familyLearning.js";
+import { readCounters } from "./counters.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -155,6 +156,10 @@ export function buildServer(opts: BuildOptions = {}) {
     sha: process.env.BUILD_SHA ?? "dev",
     env: process.env.APP_ENV ?? "local",
   }));
+
+  // #103: numbers only, no PII — same "always open" idiom as /healthz and the guestbook scoreboard.
+  // In-process, reset-on-restart (counters.ts's known, documented limit for this slice).
+  app.get("/ops/counters", async () => readCounters());
   app.get(
     "/family-floors/:familyId/active",
     { schema: { params: z.object({ familyId: z.string().min(1) }) } },

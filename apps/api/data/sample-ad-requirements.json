@@ -483,5 +483,53 @@
         "sourceSpan": "Experience working with remote teams and stakeholders across different time zones."
       }
     ]
+  },
+  {
+    "schemaVersion": "1",
+    "adId": "2026-07-10_huaxin-tech-shenzhen_it-xiangmu-jingli",
+    "curated": false,
+    "language": "zh",
+    "familyFit": { "family": "IT Project Manager", "confidence": 0.85 },
+    "requirements": [
+      {
+        "id": "end-to-end-project-management",
+        "band": "essential",
+        "requirement": "负责端到端的项目管理，从立项到交付全流程负责",
+        "cvSection": "experience",
+        "sourceSpan": "负责端到端的项目管理，从立项到交付全流程负责"
+      },
+      {
+        "id": "coordinate-business-technical-stakeholders-zh",
+        "band": "essential",
+        "requirement": "协调业务部门与技术团队之间的沟通，确保需求准确落地",
+        "cvSection": "experience",
+        "sourceSpan": "协调业务部门与技术团队之间的沟通，确保需求准确落地"
+      },
+      {
+        "id": "years-experience-5plus",
+        "band": "nice-to-have",
+        "requirement": "5年以上IT项目管理经验",
+        "comparable": { "op": ">=", "value": 5 },
+        "eligibilityDimension": "years-experience",
+        "sourceSpan": "5年以上IT项目管理经验"
+      }
+    ]
+  },
+  {
+    "schemaVersion": "1",
+    "adId": "2026-07-01_hays_senior-front-office-project-manager-top-tier-investment",
+    "curated": false,
+    "language": "zh",
+    "familyFit": { "family": "IT Project Manager", "confidence": 0.6 },
+    "requirements": [
+      {
+        "id": "years-experience-8plus-hays",
+        "band": "essential",
+        "requirement": "8年以上银行业务运营/项目管理经验",
+        "comparable": { "op": ">=", "value": 8 },
+        "eligibilityDimension": "years-experience",
+        "sourceSpan": "8+ years of operations BA/ PM experience at a top bank"
+      }
+    ]
   }
 ]
