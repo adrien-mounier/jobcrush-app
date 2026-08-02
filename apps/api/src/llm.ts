@@ -5,17 +5,54 @@ import { spawn } from "node:child_process";
 
 export interface LlmClient {
   complete(prompt: string, opts?: { maxTokens?: number }): Promise<string>;
+  /** Model identity, when the driver has one — used for per-call cost attribution (#104's
+   *  per-advert cost tracking). Optional so a test fake need not declare it. */
+  model?: string;
+  /** Additive companion to complete(): same call, but also surfaces token usage when the driver can
+   *  report it. Optional — only AnthropicLlm implements it (the Anthropic API's response carries a
+   *  `usage` block; the CLI driver has no such data). complete()'s signature and every existing
+   *  caller are untouched; a caller that wants cost (adReader.ts) uses this when present and falls
+   *  back to complete() otherwise, storing null token counts rather than estimating them. */
+  completeWithUsage?(
+    prompt: string,
+    opts?: { maxTokens?: number },
+  ): Promise<{ text: string; usage: { inputTokens: number; outputTokens: number } }>;
 }
 
 export const DEFAULT_MODEL = "claude-sonnet-5";
 
+// The CLI driver reports its short alias ("sonnet") as .model while AnthropicLlm reports the full
+// API id ("claude-sonnet-5") — same model, two strings, which would silently split one model's cost
+// records across two rows on /ops/counters (#104 review, "also fix, cheap"). Canonicalize the one
+// alias actually in use today (ClaudeCliLlm's own default); an unrecognized name passes through
+// unchanged rather than guessing at aliases nothing in this repo exercises yet.
+const MODEL_ALIASES: Record<string, string> = { sonnet: DEFAULT_MODEL };
+
+export function canonicalModelName(model: string): string {
+  return MODEL_ALIASES[model] ?? model;
+}
+
 export class AnthropicLlm implements LlmClient {
   constructor(
     private apiKey: string,
-    private model: string = DEFAULT_MODEL,
+    public readonly model: string = DEFAULT_MODEL,
   ) {}
 
   async complete(prompt: string, opts: { maxTokens?: number } = {}): Promise<string> {
+    return (await this.request(prompt, opts)).text;
+  }
+
+  async completeWithUsage(
+    prompt: string,
+    opts: { maxTokens?: number } = {},
+  ): Promise<{ text: string; usage: { inputTokens: number; outputTokens: number } }> {
+    return this.request(prompt, opts);
+  }
+
+  private async request(
+    prompt: string,
+    opts: { maxTokens?: number },
+  ): Promise<{ text: string; usage: { inputTokens: number; outputTokens: number } }> {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -41,18 +78,25 @@ export class AnthropicLlm implements LlmClient {
       }),
     });
     if (!res.ok) throw new Error(`anthropic api ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    const body = (await res.json()) as { content: Array<{ type: string; text?: string }> };
-    return body.content
+    const body = (await res.json()) as {
+      content: Array<{ type: string; text?: string }>;
+      usage?: { input_tokens?: number; output_tokens?: number };
+    };
+    const text = body.content
       .filter((b) => b.type === "text")
       .map((b) => b.text ?? "")
       .join("");
+    return {
+      text,
+      usage: { inputTokens: body.usage?.input_tokens ?? 0, outputTokens: body.usage?.output_tokens ?? 0 },
+    };
   }
 }
 
 /** Local-dev driver: shells to the Claude Code CLI (same pattern as spine/dailyDriver.mjs). */
 export class ClaudeCliLlm implements LlmClient {
   constructor(
-    private model: string = "sonnet",
+    public readonly model: string = "sonnet",
     private command: string = process.env.JOBCRUSH_CLAUDE ??
       (process.platform === "win32" ? "claude.cmd" : "claude"),
     private timeoutMs: number = 10 * 60 * 1000,

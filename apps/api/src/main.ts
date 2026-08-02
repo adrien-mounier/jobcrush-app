@@ -12,6 +12,9 @@ import { sessionStoreFromEnv } from "./sessions.js";
 import { claimStoreFromEnv } from "./claims.js";
 import { authStoreFromEnv } from "./auth.js";
 import { eligibilityStoreFromEnv } from "./eligibility.js";
+import { adRequirementsStoreFromEnv } from "./adRequirementsStore.js";
+import { makeAdReader } from "./adReader.js";
+import { knownFamilies } from "./e5stub.js";
 import {
   familyLearningStoreFromEnv,
   makeFamilyCandidateScreen,
@@ -33,12 +36,15 @@ const familyLearning = familyLearningStoreFromEnv(process.env.DATABASE_URL);
 // questions, #89 reads them while scoring. Deliberately not threaded through buildServer yet —
 // there is nothing to inject it into until those land.
 const eligibility = eligibilityStoreFromEnv(process.env.DATABASE_URL);
+// #104: the shared, persisted ad-requirements read cache — wired the same way as eligibility above.
+const adRequirements = adRequirementsStoreFromEnv(process.env.DATABASE_URL);
 try {
   await sessions.init();
   await claims.init();
   await auth.init();
   await familyLearning.init();
   await eligibility.init();
+  await adRequirements.init();
 } catch (err) {
   console.error("store init failed", err);
   process.exit(1);
@@ -57,6 +63,9 @@ const { app } = buildServer({
   pipeline: { mine: makeMineStep(llm), preview: makePreviewStep(llm) },
   phraseGrill: makeGrillPhraser(llm),
   auditCv: makeCvAuditor(llm),
+  // #104: real reads only in production — never a buildServer default, so every test that doesn't
+  // wire its own fake stays exactly at today's fixture-only behaviour.
+  readAd: makeAdReader(llm, adRequirements, knownFamilies()),
 });
 
 // JC-20 purge: sweep unclaimed anonymous sessions/claims + spent tokens on boot and every 6h

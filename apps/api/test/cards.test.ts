@@ -3,11 +3,16 @@
 // the response the frontend is pinned against, not handler internals: card shape, score-sorted
 // order, and that a recorded "no" lands in askedClosed (never re-asked, never a gap).
 import { describe, expect, it } from "vitest";
-import { orderCardsForReveal } from "../src/routes/onboarding.js";
+import type { AdRequirementsV1 } from "@jobcrush/contracts";
+import { orderCardsForReveal, withReadTimeout } from "../src/routes/onboarding.js";
 import { buildServer } from "../src/server.js";
-import { listAdRequirements } from "../src/e5stub.js";
-import { loadPostings } from "../src/preview.js";
+import { listAdRequirements, loadAdRequirements } from "../src/e5stub.js";
+import { loadPostings, type Posting } from "../src/preview.js";
 import { languageEligible } from "../src/language.js";
+import { makeAdReader } from "../src/adReader.js";
+import { InMemoryAdRequirementsStore } from "../src/adRequirementsStore.js";
+import { readCounters } from "../src/counters.js";
+import type { LlmClient } from "../src/llm.js";
 
 async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
   const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });
@@ -405,5 +410,179 @@ describe("#21 POST /onboarding/cards/:adId/want", () => {
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     expect(me.json().stage).toBe("deck");
     expect(me.json().tailorAdId).toBeNull();
+  });
+});
+
+// #104 (E5 slice 3) — the tracer bullet: a posting nobody hand-curated becomes a card. Driven
+// entirely through the HTTP boundary with fakes injected at OnboardingDeps.readAd — the pinned
+// primary seam — rather than reaching into resolveAdRequirements or adReader.ts directly.
+describe("#104 GET /onboarding/cards — reading uncached adverts", () => {
+  const stubRequirements = (adId: string): AdRequirementsV1 => ({
+    schemaVersion: "1",
+    adId,
+    curated: false,
+    language: "en",
+    familyFit: { family: "IT Project Manager", confidence: 0.6 },
+    requirements: [
+      {
+        id: "own-a-budget",
+        band: "essential",
+        kind: "ordinary",
+        requirement: "Own a project budget",
+        sourceSpan: "budget",
+      },
+    ],
+  });
+
+  // Every posting WITHOUT a hand-authored fixture — the population this slice makes readable.
+  const uncachedEnglishPostings = () =>
+    loadPostings()
+      .filter((p) => p.language === "en")
+      .filter((p) => {
+        try {
+          loadAdRequirements(p.id);
+          return false;
+        } catch {
+          return true;
+        }
+      });
+
+  it("adds a card for every posting with no hand-authored fixture once a reader is wired (the demoable 8→15 growth)", async () => {
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> => stubRequirements(posting.id);
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const res = await get(app, cookie, "/onboarding/cards");
+    const body = res.json() as { cards: JobCard[] };
+
+    // The same fixture-first-else-reader predicate resolveAdRequirements uses: with a reader always
+    // answering, every English posting resolves to a card.
+    const expectedIds = loadPostings()
+      .filter((p) => p.language === "en")
+      .filter((p) => {
+        try {
+          return languageEligible(loadAdRequirements(p.id).language, ["en"]);
+        } catch {
+          return true; // no fixture -> the fake reader supplies a valid English entry
+        }
+      })
+      .map((p) => p.id);
+    expect(body.cards.map((c) => c.adId).sort()).toEqual(expectedIds.sort());
+    // Exactly 15, not the ticket's demo figure of 16 — coordinator decision: of the 16 English
+    // postings, `2026-07-01_hays_…` DOES have a hand-authored requirement set, deliberately built
+    // by #103 to prove the dual language gate, and that fixture is declared Chinese. Reading it
+    // live anyway would regress a shipped safety rule just to make a demo number match. A hard
+    // number here (not toBeGreaterThan) fails if a card silently vanishes.
+    expect(body.cards.length).toBe(15);
+
+    const previouslyUnfixtured = uncachedEnglishPostings()[0]!;
+    const newCard = body.cards.find((c) => c.adId === previouslyUnfixtured.id);
+    expect(newCard).toBeDefined();
+    expect(newCard!.dontYet.map((r) => r.requirement)).toContain("Own a project budget"); // a real list, not an empty stub
+  });
+
+  it("a second deck request, and a different session, make no additional read call for an already-read advert", async () => {
+    const store = new InMemoryAdRequirementsStore();
+    const calls: string[] = [];
+    const llm: LlmClient = {
+      async complete(prompt: string) {
+        calls.push(prompt);
+        return JSON.stringify({
+          language: "en",
+          familyFit: { family: "IT Project Manager", confidence: 0.6 },
+          requirements: [
+            {
+              id: "own-a-budget",
+              band: "essential",
+              kind: "ordinary",
+              requirement: "Own a project budget",
+              sourceSpan: "budget",
+            },
+          ],
+        });
+      },
+    };
+    const { app } = buildServer({ readAd: makeAdReader(llm, store, ["IT Project Manager"]) });
+
+    const cookie1 = await anonSession(app);
+    await get(app, cookie1, "/onboarding/cards");
+    const firstCallCount = calls.length;
+    expect(firstCallCount).toBeGreaterThan(0); // sanity: there really were unfixtured postings to read
+
+    await get(app, cookie1, "/onboarding/cards"); // same session, requested again
+    const cookie2 = await anonSession(app); // a genuinely different session/user
+    await get(app, cookie2, "/onboarding/cards");
+
+    expect(calls.length).toBe(firstCallCount); // requirements are shared, never re-derived on read
+  });
+
+  it("a model response that fails validation drops only that advert; the rest of the deck survives, and the failure is counted", async () => {
+    const [failing, surviving] = uncachedEnglishPostings();
+    const store = new InMemoryAdRequirementsStore();
+    const llm: LlmClient = {
+      async complete(prompt: string) {
+        if (prompt.includes(failing!.excerpt.slice(0, 60))) return "not valid json"; // fails both attempts
+        return JSON.stringify({
+          language: "en",
+          familyFit: { family: "IT Project Manager", confidence: 0.6 },
+          requirements: [
+            {
+              id: "own-a-budget",
+              band: "essential",
+              kind: "ordinary",
+              requirement: "Own a project budget",
+              sourceSpan: "budget",
+            },
+          ],
+        });
+      },
+    };
+    const before = readCounters()["postings.read_failed"];
+    const { app } = buildServer({ readAd: makeAdReader(llm, store, ["IT Project Manager"]) });
+    const cookie = await anonSession(app);
+    const res = await get(app, cookie, "/onboarding/cards");
+    const body = res.json() as { cards: JobCard[] };
+
+    expect(body.cards.map((c) => c.adId)).not.toContain(failing!.id); // no card, no fabricated number
+    expect(body.cards.map((c) => c.adId)).toContain(surviving!.id); // the rest of the deck survives
+    expect(readCounters()["postings.read_failed"]).toBe(before + 1); // and the failure is counted
+  });
+
+  // Pre-#104, tailorTarget()/loadAdRequirements() threw for anything not in the fixture set, which
+  // would 500 on every newly-readable job the deck could now show — the shared resolveAdRequirements
+  // fixes this at every call site, proven here end to end: want → tailor, never a 500.
+  it("a newly-read advert (no fixture) can be wanted and tailored without a 500", async () => {
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> => stubRequirements(posting.id);
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    await signIn(app, cookie, "newly-read-tailor@example.com");
+    const uncached = uncachedEnglishPostings()[0]!;
+
+    const wantRes = await post(app, cookie, `/onboarding/cards/${uncached.id}/want`);
+    expect(wantRes.statusCode).toBe(200);
+
+    const tailorRes = await get(app, cookie, "/onboarding/tailor");
+    expect(tailorRes.statusCode).toBe(200);
+    expect((tailorRes.json() as { card: JobCard }).card.adId).toBe(uncached.id);
+  });
+});
+
+// #104 review finding 10: an injected reader has no timeout of its own, and the deck route awaits
+// every posting's resolution before responding — one hung provider call would hang the app's main
+// screen indefinitely. Tested directly against withReadTimeout's own short-ms seam (a real 15s wait
+// has no place in this suite); resolveAdRequirements's use of it (drop + count on any rejection) is
+// already proven by the "drops only that advert" HTTP test above, since a timeout's eventual effect
+// on that call site is identical to any other rejection.
+describe("#104 withReadTimeout", () => {
+  it("rejects a hung promise after the given ms, without waiting for it to ever settle", async () => {
+    const hung = new Promise(() => {}); // never resolves or rejects
+    await expect(withReadTimeout(hung, 20)).rejects.toThrow(/timed out/);
+  });
+
+  it("resolves normally when the promise settles before the deadline", async () => {
+    await expect(withReadTimeout(Promise.resolve("ok"), 1000)).resolves.toBe("ok");
+  });
+
+  it("propagates the original rejection when the promise fails before the deadline (not a timeout error)", async () => {
+    await expect(withReadTimeout(Promise.reject(new Error("boom")), 1000)).rejects.toThrow("boom");
   });
 });

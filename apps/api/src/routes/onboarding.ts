@@ -21,9 +21,10 @@ import { renderRootCv, SECTIONS } from "../rootcv.js";
 import { runGate } from "../gate.js";
 import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
-import { loadFamilyFloor, listAdRequirements, loadAdRequirements } from "../e5stub.js";
+import { loadFamilyFloor, loadAdRequirements } from "../e5stub.js";
 import { eligiblePostings, type Posting } from "../preview.js";
 import { readingLanguages, languageEligible } from "../language.js";
+import { incrementCounter } from "../counters.js";
 import { matchBreakdown, matchTick, uncoveredRequirements, pickHitClause, pickOpenClause, NOTHING_OPEN_CLAUSE } from "../matchtick.js";
 import {
   composeCvLine,
@@ -67,6 +68,9 @@ export interface OnboardingDeps {
   phraseGrill?: GrillPhraser;
   /** S2 decision #6: LLM wording audit of the built root CV. Absent → the CV ships unaudited. */
   auditCv?: CvAuditor;
+  /** #104: reads an advert nobody hand-curated. Absent → today's fixture-only behaviour (every
+   *  pre-#104 test stays valid; no route here ever makes a live call unless main.ts wires this). */
+  readAd?: (posting: Posting) => Promise<AdRequirementsV1 | null>;
 }
 
 /** The miner stores its full doc (incl. per-role date flags) under progress.miner.doc. */
@@ -731,22 +735,30 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       const session = requireSession(req);
       const [confirmed, negatives] = await discoveryReads(session.id);
       const langs = readingLanguages(session);
-      // #103: postings this session's languages can't read never become cards — they stay in the
-      // pool, unread and unshown, not deleted. Gated on BOTH the posting's own detected language
-      // AND, separately, its requirement set's stated language (#103 code review finding 5) — a
-      // posting whose excerpt reads English but whose requirements were produced in another
-      // language must not render foreign bullets into an English-gated card. Same predicate, two
-      // fields, never a second rule.
       const postings = eligiblePostings(langs);
-      const cardCandidates = listAdRequirements()
-        .filter((adReq) => languageEligible(adReq.language, langs))
-        .map((adReq) => {
-          const posting = postings.find((p) => p.id === adReq.adId);
-          return posting
-            ? { card: buildJobCard(posting, adReq, confirmed, negatives), curated: adReq.curated }
-            : null;
-        })
-        .filter((entry): entry is { card: JobCard; curated: boolean } => entry !== null);
+      // #104: every eligible posting gets a requirement set now, not only the hand-curated ones —
+      // resolveAdRequirements is fixture-first, reader-second, so the demo-8-cards-to-16 growth is
+      // exactly this loop widening from "the fixture set" to "every posting the session can read".
+      // Reads run in parallel: an uncached posting's model call is the only slow step and none of
+      // them depend on another posting's result. Judgment call: this fan-out is unbounded — fine at
+      // this fixture pool's size (17 postings), but live retrieval (#99-#101) will need a
+      // concurrency cap before the pool grows past a handful of never-before-seen adverts per request.
+      const resolved = await Promise.all(
+        postings.map(async (posting) => {
+          const adReq = await resolveAdRequirements(posting.id, deps.readAd, posting);
+          // Same dual gate as before #104: the posting's own language (already true via
+          // eligiblePostings) AND, separately, the requirement set's OWN stated language (#103 code
+          // review finding 5) — unchanged by widening the source from "fixtures only" to
+          // "fixture or freshly read".
+          return adReq && languageEligible(adReq.language, langs) ? { posting, adReq } : null;
+        }),
+      );
+      const cardCandidates = resolved
+        .filter((entry): entry is { posting: Posting; adReq: AdRequirementsV1 } => entry !== null)
+        .map((entry) => ({
+          card: buildJobCard(entry.posting, entry.adReq, confirmed, negatives),
+          curated: entry.adReq.curated,
+        }));
       const cards = orderCardsForReveal(cardCandidates);
       // #22: authed tells the client whether the account wall at the reveal applies — false only
       // for a still-anonymous session, so a returning (claimed) visitor is never re-walled.
@@ -761,13 +773,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         // #103: an ad this session's languages can't read isn't a valid want target either, even if
         // guessed directly by id — same dual gate (posting AND requirement-set language) as the deck.
         const langs = readingLanguages(session);
-        const postingIds = new Set(eligiblePostings(langs).map((p) => p.id));
-        const knownCard = listAdRequirements().some(
-          (adReq) =>
-            adReq.adId === req.params.adId &&
-            postingIds.has(adReq.adId) &&
-            languageEligible(adReq.language, langs),
-        );
+        const posting = eligiblePostings(langs).find((p) => p.id === req.params.adId);
+        const adReq = posting ? await resolveAdRequirements(posting.id, deps.readAd, posting) : null;
+        const knownCard = !!adReq && languageEligible(adReq.language, langs);
         if (!knownCard)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
 
@@ -790,7 +798,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         return reply
           .status(409)
           .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-      const target = tailorTarget(session, adId);
+      const target = await tailorTarget(session, adId, deps.readAd);
       if (!target)
         return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
       const { posting, adReq } = target;
@@ -821,7 +829,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           return reply
             .status(409)
             .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-        const target = tailorTarget(session, adId);
+        const target = await tailorTarget(session, adId, deps.readAd);
         if (!target)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
         const { posting, adReq } = target;
@@ -932,6 +940,55 @@ export function orderCardsForReveal<T extends { matchPct: number }>(
   return scoreSorted.map((entry) => entry.card);
 }
 
+// #104 review finding 10: an injected reader has no timeout of its own (a real provider call could
+// hang indefinitely), and the deck route awaits every posting's resolution before responding — one
+// hung advert would hang the app's main screen for everyone hitting it, not just the one card.
+// Exported so the race itself is directly testable with a short ms value; a real 15s wait has no
+// place in this suite.
+const READ_TIMEOUT_MS = 15_000;
+export function withReadTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`ad read timed out after ${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+/** #104: the ONE place a posting's requirements resolve — fixture first (hand-curated, pinned),
+ *  else the injected reader. Used by the deck, /want, and tailorTarget so a card the user can see
+ *  is always resolvable the same way everywhere, never a 404/500 for a job the deck itself just
+ *  rendered because a different call site resolved it differently. `readAd` absent (no dep wired)
+ *  or the read itself failing both fall through to "no requirements for this posting" rather than
+ *  throwing — a route 500 is worse than one missing card. A read that hangs past READ_TIMEOUT_MS is
+ *  treated exactly like any other unreadable advert: dropped and counted here (makeAdReader's own
+ *  internal failures are already counted inside adReader.ts; this timeout is the one failure mode
+ *  that never reaches makeAdReader's own try/catch at all, since it never settles). */
+async function resolveAdRequirements(
+  adId: string,
+  readAd: OnboardingDeps["readAd"],
+  posting: Posting,
+): Promise<AdRequirementsV1 | null> {
+  try {
+    return loadAdRequirements(adId);
+  } catch {
+    if (!readAd) return null;
+    try {
+      return await withReadTimeout(readAd(posting), READ_TIMEOUT_MS);
+    } catch {
+      incrementCounter("postings.read_failed");
+      return null;
+    }
+  }
+}
+
 /** Pure composition, no LLM: matchtick.ts scores + ranks, this just shapes the pinned JobCard.
  *  #29: the negative-filter lives HERE, not in the tailor assembly. A requirement answered "no" while
  *  tailoring is asked-and-closed on every surface that renders this ad — spec #37, "the list of open
@@ -989,23 +1046,23 @@ interface TailorState {
  *  pair that validated it at /onboarding/cards/:adId/want time (these are explicitly stubs awaiting
  *  E5, liable to be edited/reordered) — so a miss here is reachable, not impossible, and must fail
  *  closed with the same 404 that route already uses for an unknown card id. */
-function tailorTarget(
+async function tailorTarget(
   session: Pick<SessionRecord, "id">,
   adId: string,
-): { posting: Posting; adReq: AdRequirementsV1 } | null {
+  readAd: OnboardingDeps["readAd"],
+): Promise<{ posting: Posting; adReq: AdRequirementsV1 } | null> {
   // #103: same dual gate as the deck and /want — a persisted tailorAdId for a posting (or a
   // requirement set) this session's languages can no longer read (or never could) fails closed with
   // the existing "unknown card" 404.
   const langs = readingLanguages(session);
   const posting = eligiblePostings(langs).find((p) => p.id === adId);
   if (!posting) return null;
-  try {
-    const adReq = loadAdRequirements(adId);
-    if (!languageEligible(adReq.language, langs)) return null;
-    return { posting, adReq };
-  } catch {
-    return null;
-  }
+  // #104: a card the user can already see must be tailorable — fixture-or-reader via the same
+  // shared resolver as the deck, so a newly-read (not hand-curated) advert doesn't 404 here just
+  // because it never had a fixture.
+  const adReq = await resolveAdRequirements(adId, readAd, posting);
+  if (!adReq || !languageEligible(adReq.language, langs)) return null;
+  return { posting, adReq };
 }
 
 /** Pure composition of TailorState — same split as buildJobCard: matchtick.ts + tailor.ts score/rank,

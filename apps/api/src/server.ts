@@ -37,7 +37,9 @@ import {
   type FamilyLearningStore,
 } from "./familyLearning.js";
 import { familyLearningRoutes } from "./routes/familyLearning.js";
-import { readCounters } from "./counters.js";
+import { readCounters, readFailureAlarm } from "./counters.js";
+import type { Posting } from "./preview.js";
+import type { AdRequirementsV1 } from "@jobcrush/contracts";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -78,6 +80,9 @@ export interface BuildOptions {
   familyLearningOperatorKey?: string;
   familyLearningKnownFamilies?: Array<{ familyId: string; version: number }>;
   notifyFamilyMatch?: FamilyMatchNotifier;
+  /** #104: reads an advert nobody hand-curated (fixture-only when absent — every pre-#104 test
+   *  stays valid, and nothing here ever makes a live call unless main.ts wires the real reader). */
+  readAd?: (posting: Posting) => Promise<AdRequirementsV1 | null>;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */
@@ -158,8 +163,17 @@ export function buildServer(opts: BuildOptions = {}) {
   }));
 
   // #103: numbers only, no PII — same "always open" idiom as /healthz and the guestbook scoreboard.
-  // In-process, reset-on-restart (counters.ts's known, documented limit for this slice).
-  app.get("/ops/counters", async () => readCounters());
+  // In-process, reset-on-restart (counters.ts's known, documented limit for this slice). #104 adds
+  // the read-failure alarm's firing state + current rate, both encoded as plain numbers (firing as
+  // 0/1, rate as parts-per-mille) to keep this route's "numbers only" property intact.
+  app.get("/ops/counters", async () => {
+    const alarm = readFailureAlarm();
+    return {
+      ...readCounters(),
+      "adReader.read_failure_rate_per_mille": Math.round(alarm.rate * 1000),
+      "adReader.read_failure_alarm_firing": alarm.firing ? 1 : 0,
+    };
+  });
   app.get(
     "/family-floors/:familyId/active",
     { schema: { params: z.object({ familyId: z.string().min(1) }) } },
@@ -312,6 +326,7 @@ export function buildServer(opts: BuildOptions = {}) {
     placeFamily,
     phraseGrill: opts.phraseGrill,
     auditCv: opts.auditCv,
+    readAd: opts.readAd,
   }));
   app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail }));
   app.register(

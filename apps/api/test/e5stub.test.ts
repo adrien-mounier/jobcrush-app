@@ -2,8 +2,15 @@
 // return value), never internals. The E5 boundary is the pinned fixture, not a third test
 // seam, so these lean on the schemas (packages/contracts/test/stubSchemas.test.ts) for shape.
 import { describe, expect, it } from "vitest";
-import { listAdRequirements, loadFamilyFloor, loadAdRequirements } from "../src/e5stub.js";
+import {
+  knownFamilies,
+  listAdRequirements,
+  loadFamilyFloor,
+  loadAdRequirements,
+  parseAdRequirementsList,
+} from "../src/e5stub.js";
 import { matchTick, type ScoredFact } from "../src/matchtick.js";
+import { readCounters } from "../src/counters.js";
 
 const NEW_CURATED_AD_IDS = [
   "2026-06-30_schneider-electric_senior-project-manager",
@@ -66,6 +73,25 @@ describe("E5 stub providers (#12)", () => {
     expect(all.length).toBeGreaterThan(3);
     expect(all.every((ad) => typeof ad.curated === "boolean")).toBe(true);
     expect(all.filter((ad) => ad.curated).length).toBeGreaterThan(3);
+  });
+
+  it("knownFamilies returns every family name from the stubbed floors", () => {
+    expect(knownFamilies()).toEqual(["IT Project Manager"]);
+  });
+
+  // #104 carry-forward from the #102 review: listAdRequirements() used to map(parse) across every
+  // advert, so one unparseable entry threw out of the .map() and took the WHOLE list down. Fixed to
+  // drop only the broken entry — proven here at parseAdRequirementsList's own seam (a plain array in,
+  // an array out), never touching the real on-disk fixture the other tests in this file depend on.
+  it("parseAdRequirementsList drops an unparseable entry instead of taking the whole list down (#102 carry-forward), counted on its OWN counter (#104 review finding 6)", () => {
+    const before = readCounters()["postings.fixture_invalid"];
+    const failedBefore = readCounters()["postings.read_failed"];
+    const good = loadAdRequirements("2026-07-05_manulife_senior-it-project-manager-delivery-manager");
+    const bad = { ...good, requirements: [] }; // min(1) violation — fails AdRequirementsV1
+    const result = parseAdRequirementsList([good, bad]);
+    expect(result.map((r) => r.adId)).toEqual([good.adId]);
+    expect(readCounters()["postings.fixture_invalid"]).toBe(before + 1);
+    expect(readCounters()["postings.read_failed"]).toBe(failedBefore); // never poisons the alarm's numerator
   });
 
   it("scores every new curated set as a varied, believable strong fit", () => {
