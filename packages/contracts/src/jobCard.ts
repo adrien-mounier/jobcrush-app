@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RequirementBand } from "./adRequirements.js";
+import { RankBand } from "./familyFloor.js";
 
 const Count = z.number().int().nonnegative();
 const BandBreakdown = z.object({ met: Count, total: Count }).superRefine((value, ctx) => {
@@ -20,8 +20,11 @@ export const JobCardV1 = z.object({
   breakdown: z.object({ essential: BandBreakdown, desirable: BandBreakdown }),
   bubble: z.object({ hit: z.string(), open: z.string() }),
   fit: z.array(z.object({ id: z.string(), text: z.string() })),
+  // band: the SAME RankBand used by AdRequirementV1.band and FloorItem.rankBand (#86 decision, #102) —
+  // not rendered by the web app (jobcard.tsx renders only .requirement), so carrying the unified
+  // vocabulary here is invisible on screen.
   dontYet: z.array(
-    z.object({ id: z.string(), band: RequirementBand, requirement: z.string() }),
+    z.object({ id: z.string(), band: RankBand, requirement: z.string() }),
   ),
   askedClosed: z.array(z.object({ id: z.string(), text: z.string() })),
   adExcerpt: z.string(),

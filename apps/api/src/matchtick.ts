@@ -1,8 +1,8 @@
 // #19 the reveal + the job card (screen 2a) — the instant match tick: a deterministic, IO-free
-// score against an ad's ranked requirements (e5stub.ts's AdRequirements). Prior art: preview.ts's
+// score against an ad's ranked requirements (e5stub.ts's AdRequirementsV1). Prior art: preview.ts's
 // matchPosting (title/keyword token overlap, no LLM). The E5 boundary is the pinned fixture; this
 // file is pure arithmetic over it, so it needs no store, no network, no LLM.
-import type { AdRequirement, AdRequirements } from "@jobcrush/contracts";
+import type { AdRequirementV1, AdRequirementsV1 } from "@jobcrush/contracts";
 
 /** Anything with CV-line-shaped text — a confirmed claim, a negative claim, or a plain fixture in
  *  tests. Deliberately looser than ClaimRecord: matchTick only ever reads `.text`. */
@@ -52,10 +52,15 @@ function overlapCount(a: Set<string>, b: Set<string>): number {
   return n;
 }
 
-/** Band weights for the instant tick — "must" counts 3x a "nice", "should" 2x. Fixed, not
- *  learned: the whole tick is a cheap stand-in for E5's real scoring (S3/JC-31). Exported: #23's
- *  ledger derivation needs the same weights to compute each answer's "+N%" share. */
-export const BAND_WEIGHT: Record<AdRequirement["band"], number> = { must: 3, should: 2, nice: 1 };
+/** Band weights for the instant tick — "essential" counts 3x a "nice-to-have", "standard" 2x. Fixed,
+ *  not learned: the whole tick is a cheap stand-in for E5's real scoring (S3/JC-31). Same weights as
+ *  before #102's rename, just re-keyed to the unified vocabulary. Exported: #23's ledger derivation
+ *  needs the same weights to compute each answer's "+N%" share. */
+export const BAND_WEIGHT: Record<AdRequirementV1["band"], number> = {
+  essential: 3,
+  standard: 2,
+  "nice-to-have": 1,
+};
 export interface MatchBreakdown {
   essential: { met: number; total: number };
   desirable: { met: number; total: number };
@@ -90,7 +95,7 @@ function bestClauseFit(clauseTokens: Set<string>, facts: Set<string>[]): number 
 }
 
 /** Clause fits combine by meaningful-token weight; different clauses may use different facts. */
-function requirementFit(requirement: AdRequirement, facts: Set<string>[]): number {
+function requirementFit(requirement: AdRequirementV1, facts: Set<string>[]): number {
   const clauses = requirementClauses(requirement.requirement);
   const totalTokens = clauses.reduce((sum, tokens) => sum + tokens.size, 0);
   const weightedFit = clauses.reduce(
@@ -102,7 +107,7 @@ function requirementFit(requirement: AdRequirement, facts: Set<string>[]): numbe
 
 export function matchBreakdown(
   confirmedFacts: ScoredFact[],
-  adRequirements: AdRequirements,
+  adRequirements: AdRequirementsV1,
 ): MatchBreakdown {
   const facts = factTokenSets(confirmedFacts);
   const breakdown: MatchBreakdown = {
@@ -110,7 +115,11 @@ export function matchBreakdown(
     desirable: { met: 0, total: 0 },
   };
   for (const requirement of adRequirements.requirements) {
-    const band = requirement.band === "must" ? breakdown.essential : breakdown.desirable;
+    // #102's one sanctioned, remarked exception to "no hand-written translation": JobCardV1.breakdown
+    // keeps its two-bucket essential/desirable shape for display (AC5 — displayed copy doesn't change
+    // unless the owner asks), while the contract now ranks in three bands. standard + nice-to-have
+    // roll up into "desirable" here, on purpose, in exactly this one place.
+    const band = requirement.band === "essential" ? breakdown.essential : breakdown.desirable;
     band.total += 1;
     if (requirementFit(requirement, facts) === 1) band.met += 1;
   }
@@ -121,7 +130,7 @@ export function matchBreakdown(
  *  tokens they share with this ad, so irrelevant filler cannot manufacture breadth. Each distinct
  *  relevant signature contributes only its strongest single-fact requirement fit; facts never pool
  *  to close a clause. The ad-size denominator makes the bonus diminish naturally. */
-function evidenceBreadth(facts: Set<string>[], requirements: AdRequirement[]): number {
+function evidenceBreadth(facts: Set<string>[], requirements: AdRequirementV1[]): number {
   const relevantTokens = new Set(
     requirements.flatMap((requirement) =>
       requirementClauses(requirement.requirement).flatMap((clause) => [...clause]),
@@ -149,7 +158,7 @@ function evidenceBreadth(facts: Set<string>[], requirements: AdRequirement[]): n
 
 /** Compatibility seam for one coherent evidence set. Production scoring instead selects the best
  *  individual confirmed fact independently for each non-trivial clause. */
-export function requirementCovered(requirement: AdRequirement, factTokens: Set<string>): boolean {
+export function requirementCovered(requirement: AdRequirementV1, factTokens: Set<string>): boolean {
   return requirementFit(requirement, [factTokens]) === 1;
 }
 
@@ -166,7 +175,7 @@ export function requirementCovered(requirement: AdRequirement, factTokens: Set<s
  * Conservative by construction: adding a confirmed fact can only preserve or improve each clause's
  * best fit, so the score is monotonic non-decreasing in the fact set.
  */
-export function matchTick(confirmedFacts: ScoredFact[], adRequirements: AdRequirements): number {
+export function matchTick(confirmedFacts: ScoredFact[], adRequirements: AdRequirementsV1): number {
   const facts = factTokenSets(confirmedFacts);
   let total = 0;
   let fit = 0;
@@ -189,21 +198,21 @@ export function matchTick(confirmedFacts: ScoredFact[], adRequirements: AdRequir
  *  the card's "Where you don't — yet" list. */
 export function uncoveredRequirements(
   confirmedFacts: ScoredFact[],
-  adRequirements: AdRequirements,
-): AdRequirement[] {
+  adRequirements: AdRequirementsV1,
+): AdRequirementV1[] {
   const facts = factTokenSets(confirmedFacts);
   return adRequirements.requirements.filter(
     (requirement) => requirementFit(requirement, facts) < 1,
   );
 }
 
-/** The strongest single fact toward the ad's top "must" requirement (falls back to the top-ranked
+/** The strongest single fact toward the ad's top "essential" requirement (falls back to the top-ranked
  *  fact, then a generic line) — the deterministic, cheap "hit" half of the card's bubble. Clause
  *  *generation* is E5/S3 scope; picking among facts the visitor already gave is not. */
-export function pickHitClause(confirmedFacts: ScoredFact[], adRequirements: AdRequirements): string {
-  const topMust = adRequirements.requirements.find((r) => r.band === "must");
-  if (topMust) {
-    const reqTokens = tokenize(topMust.requirement);
+export function pickHitClause(confirmedFacts: ScoredFact[], adRequirements: AdRequirementsV1): string {
+  const topEssential = adRequirements.requirements.find((r) => r.band === "essential");
+  if (topEssential) {
+    const reqTokens = tokenize(topEssential.requirement);
     const match = confirmedFacts.find((f) => overlapCount(tokenize(f.text), reqTokens) > 0);
     if (match) return match.text;
   }
@@ -216,7 +225,7 @@ export const NOTHING_OPEN_CLAUSE = "You're covering everything we can see so far
 
 /** The biggest open gap — the top-ranked uncovered requirement's own text — the "open" half of
  *  the card's bubble. */
-export function pickOpenClause(confirmedFacts: ScoredFact[], adRequirements: AdRequirements): string {
+export function pickOpenClause(confirmedFacts: ScoredFact[], adRequirements: AdRequirementsV1): string {
   const [top] = uncoveredRequirements(confirmedFacts, adRequirements);
   return top?.requirement ?? NOTHING_OPEN_CLAUSE;
 }

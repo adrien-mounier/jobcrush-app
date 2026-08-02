@@ -47,12 +47,14 @@ describe("E5 stub providers (#12)", () => {
     const reqs = loadAdRequirements(
       "2026-07-05_manulife_senior-it-project-manager-delivery-manager",
     );
-    expect(reqs.schemaVersion).toBe("0");
+    // #102: the fixture loader reads AdRequirementsV1 now — v0's schemaVersion "0" and its
+    // must/should/nice vocabulary are retired from every real fixture.
+    expect(reqs.schemaVersion).toBe("1");
     expect(reqs.adId).toBe("2026-07-05_manulife_senior-it-project-manager-delivery-manager");
     expect(reqs.requirements.length).toBeGreaterThan(0);
-    expect(reqs.requirements.every((r) => ["must", "should", "nice"].includes(r.band))).toBe(
-      true,
-    );
+    expect(
+      reqs.requirements.every((r) => ["essential", "standard", "nice-to-have"].includes(r.band)),
+    ).toBe(true);
   });
 
   it("loadAdRequirements throws on an unknown adId", () => {

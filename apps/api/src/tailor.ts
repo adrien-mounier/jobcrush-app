@@ -2,7 +2,7 @@
 // template, the composed CV line, and the ledger derivation. Same split as discovery.ts: this module
 // holds pure helpers; the route (routes/onboarding.ts, alongside buildJobCard) does the I/O and
 // assembles these into TailorState.
-import type { AdRequirement, AdRequirements } from "@jobcrush/contracts";
+import type { AdRequirementV1, AdRequirementsV1 } from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
 import { BAND_WEIGHT, uncoveredRequirements } from "./matchtick.js";
 import { freeTextLine, type DiscoveryCvLine } from "./discovery.js";
@@ -35,13 +35,13 @@ const isBareYes = (answer: string) => /^yes[.!]?$/i.test(answer.trim());
  *  requirement's own words, so matchTick's token-overlap coverage check fires and the tick actually
  *  moves — the AC1 hinge. Free text is the visitor's own words, verbatim (freeTextLine) — it may or may
  *  not cover the requirement, same as any other free-text fact. */
-export function composeTailorLine(requirement: AdRequirement, answer: string): string {
+export function composeTailorLine(requirement: AdRequirementV1, answer: string): string {
   return freeTextLine(isBareYes(answer) ? requirement.requirement : answer);
 }
 
 /** The next question over an ad requirement — deterministic template, tap-first (prior art: grill.ts's
  *  templateQuestion). No LLM call: E5 owns real phrasing (spec §Out of Scope). */
-export function tailorQuestion(req: AdRequirement): TailorQuestion {
+export function tailorQuestion(req: AdRequirementV1): TailorQuestion {
   return {
     requirementId: req.id,
     question: `This job wants: "${req.requirement}." Does that describe you?`,
@@ -64,7 +64,7 @@ const answered = (
  *  leaves it uncovered forever but excluded here, so it never resurfaces (only a correction reopens
  *  it, same as discovery). Empty ⇒ the ending (TailorState.done). */
 export function tailorQuestions(
-  adReq: AdRequirements,
+  adReq: AdRequirementsV1,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
 ): TailorQuestion[] {
@@ -75,10 +75,10 @@ export function tailorQuestions(
 
 /** B2: this ad's tailor-confirmed answers, as CV lines — without this, an answer that raises the score
  *  never reaches "the CV below" (ticket #23's own framing) or survives "I'm done — use this CV".
- *  cvSection comes from the requirement's own AdRequirement.cvSection (the E5 contract makes it
+ *  cvSection comes from the requirement's own AdRequirementV1.cvSection (the E5 contract makes it
  *  optional for the handful of requirements that don't carry one; falls back to "experience", the
  *  overwhelmingly common case in the stub — see sample-ad-requirements.json). */
-export function tailorCvLines(adReq: AdRequirements, confirmed: ClaimRecord[]): DiscoveryCvLine[] {
+export function tailorCvLines(adReq: AdRequirementsV1, confirmed: ClaimRecord[]): DiscoveryCvLine[] {
   return adReq.requirements.flatMap((req) => {
     const claim = confirmed.find((c) => c.id === tailorClaimId(adReq.adId, req.id));
     return claim ? [{ itemId: claim.id, section: req.cvSection ?? "experience", text: claim.text }] : [];
@@ -90,7 +90,7 @@ export function tailorCvLines(adReq: AdRequirements, confirmed: ClaimRecord[]): 
  *  (shared with #19's card deck via buildJobCard) has no negative-awareness by design — it only knows
  *  the ad/coverage relationship — so tailor subtracts this set on top, in its own assembly and ledger,
  *  rather than changing the shared primitive (#19's deck payload must stay byte-identical). */
-export function negativeRequirementIds(adReq: AdRequirements, negatives: ClaimRecord[]): Set<string> {
+export function negativeRequirementIds(adReq: AdRequirementsV1, negatives: ClaimRecord[]): Set<string> {
   const negativeClaimIds = new Set(negatives.map((c) => c.id));
   return new Set(
     adReq.requirements.filter((r) => negativeClaimIds.has(tailorClaimId(adReq.adId, r.id))).map((r) => r.id),
@@ -111,7 +111,7 @@ export function negativeRequirementIds(adReq: AdRequirements, negatives: ClaimRe
  *  — a "no" closes the QUESTION (never re-asked) but not the GAP (still uncovered), so the ending's
  *  "closed 2 of 3" can be less than "asked 3". */
 export function buildTailorLedger(
-  adReq: AdRequirements,
+  adReq: AdRequirementsV1,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
 ): { ledger: LedgerLine[]; closedGaps: { asked: number; closed: number } } {

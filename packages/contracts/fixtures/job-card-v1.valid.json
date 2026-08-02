@@ -13,7 +13,7 @@
   },
   "bubble": { "hit": "Led delivery.", "open": "Own budgets." },
   "fit": [{ "id": "fact-1", "text": "Led delivery." }],
-  "dontYet": [{ "id": "budget", "band": "must", "requirement": "Own budgets." }],
+  "dontYet": [{ "id": "budget", "band": "essential", "requirement": "Own budgets." }],
   "askedClosed": [],
   "adExcerpt": "Lead project delivery."
 }

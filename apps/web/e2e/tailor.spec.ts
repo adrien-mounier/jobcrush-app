@@ -25,8 +25,8 @@ const CARD_FIRST: JobCard = {
   },
   fit: [{ id: "budget", text: "€2M, across 4 teams" }],
   dontYet: [
-    { id: "sap", band: "must", requirement: "Their SAP version" },
-    { id: "public", band: "should", requirement: "Public-sector delivery" },
+    { id: "sap", band: "essential", requirement: "Their SAP version" },
+    { id: "public", band: "standard", requirement: "Public-sector delivery" },
   ],
   askedClosed: [],
   adExcerpt: "Lead the replacement of a legacy finance platform across four European sites.",
@@ -71,7 +71,7 @@ const STATE_AFTER_SAP: TailorState = {
     },
     bubble: { hit: CARD_FIRST.bubble.hit, open: "The gap is public-sector delivery." },
     fit: [...CARD_FIRST.fit, { id: SAP_CLAIM_ID, text: "Ran an S/4HANA project, through cutover" }],
-    dontYet: [{ id: "public", band: "should", requirement: "Public-sector delivery" }],
+    dontYet: [{ id: "public", band: "standard", requirement: "Public-sector delivery" }],
   },
   questions: [
     {

@@ -10,7 +10,9 @@ import {
   oneOf,
 } from "./_lib.mjs";
 
-const REQUIREMENT_BANDS = ["must", "should", "nice"];
+// #102: unified with AdRequirementV1.band and FloorItem.rankBand — one band vocabulary, no
+// hand-written translation at this contract boundary.
+const REQUIREMENT_BANDS = ["essential", "standard", "nice-to-have"];
 
 export function validateJobCardV1(card) {
   const e = new Errors();
@@ -72,7 +74,7 @@ function validateRequirementArray(e, value) {
     e.require(isString(requirement.id), `${at}.id must be a string`);
     e.require(
       oneOf(requirement.band, REQUIREMENT_BANDS),
-      `${at}.band must be must, should, or nice`,
+      `${at}.band must be essential, standard, or nice-to-have`,
     );
     e.require(isString(requirement.requirement), `${at}.requirement must be a string`);
   });

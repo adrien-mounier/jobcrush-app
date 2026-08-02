@@ -179,7 +179,7 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
     },
     bubble: { hit: "hit", open: "open" },
     fit: [],
-    dontYet: [{ id: "sap", band: "must", requirement: "SAP" }],
+    dontYet: [{ id: "sap", band: "essential", requirement: "SAP" }],
     askedClosed: [],
     adExcerpt: "excerpt",
   };

@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import {
+  AdRequirementsV1,
   CandidateClaims,
   ClaimGraph,
   FamilyFloorV1,
@@ -25,6 +26,8 @@ import { validateJobCardV1 } from "../oracle/validate_job_card_v1.mjs";
 import { validateFamilyFloorV1 } from "../oracle/validate_family_floor_v1.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateFamilyPlacement } from "../oracle/validate_family_placement.mjs";
+// @ts-expect-error — plain .mjs oracle, no types by design
+import { validateAdRequirementsV1 } from "../oracle/validate_ad_requirements_v1.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string) =>
@@ -113,6 +116,80 @@ describe("Family floor v1", () => {
       expect(FamilyFloorV1.safeParse(value).success).toBe(oracle);
       expect(oracle).toBe(false);
     }
+  });
+});
+
+describe("Ad requirements v1 (#102)", () => {
+  const valid = fixture("ad-requirements-v1.valid.json");
+
+  it("validates band, kind, comparable, eligibility dimension, and provenance", () => {
+    expect(validateAdRequirementsV1(valid).ok).toBe(true);
+    expect(AdRequirementsV1.safeParse(valid).success).toBe(true);
+  });
+
+  it("keeps oracle and zod aligned for every required structural invariant", () => {
+    const mutations: Array<(value: any) => void> = [
+      (value) => (value.schemaVersion = "0"),
+      (value) => delete value.adId,
+      (value) => (value.language = ""),
+      (value) => delete value.familyFit,
+      (value) => (value.familyFit.confidence = 1.5),
+      (value) => (value.requirements = []),
+      (value) => delete value.requirements[0].requirement,
+      (value) => (value.requirements[0].band = "must"), // the retired v0 vocabulary
+      (value) => (value.requirements[0].kind = "mandatory"),
+      (value) => delete value.requirements[0].sourceSpan,
+      (value) => (value.requirements[1].id = value.requirements[0].id), // duplicate id
+      (value) => (value.requirements[2].comparable.op = "~"),
+      (value) => (value.requirements[2].comparable.value = "8"),
+      (value) => (value.requirements[2].eligibilityDimension = "citizenship"),
+      (value) => (value.requirements[0].unknownField = true),
+    ];
+    for (const mutate of mutations) {
+      const value = structuredClone(valid);
+      mutate(value);
+      const oracle = validateAdRequirementsV1(value).ok;
+      expect(AdRequirementsV1.safeParse(value).success).toBe(oracle);
+      expect(oracle).toBe(false);
+    }
+  });
+
+  // Regression, from #86's own measured failure: an essential-band CAPABILITY requirement must be
+  // representable as ordinary, never forced into blocking — "communicate with stakeholders" is the
+  // spec's own example of a requirement that was misclassified blocking when the definition was loose.
+  it("an essential-band capability requirement represents as ordinary, never forced blocking", () => {
+    const stakeholderComms = valid.requirements.find(
+      (r: { id: string }) => r.id === "drive-stakeholder-communication",
+    );
+    expect(stakeholderComms.band).toBe("essential");
+    expect(stakeholderComms.kind).toBe("ordinary");
+    expect(validateAdRequirementsV1(valid).ok).toBe(true);
+  });
+
+  // Regression: a vague advert phrase ("Mandarin an advantage") must be representable as ordinary
+  // WITHOUT the contract forcing a blocking/not-blocking guess — omitting `kind` entirely defaults to
+  // "ordinary" in both oracle and zod, so silence is the safe reading, not an error.
+  it("a vague requirement omits kind entirely and still validates, defaulting to ordinary", () => {
+    const vague = structuredClone(valid);
+    vague.requirements = [
+      {
+        id: "mandarin-advantage",
+        band: "nice-to-have",
+        requirement: "Mandarin an advantage",
+        sourceSpan: "Mandarin an advantage",
+      },
+    ];
+    expect(validateAdRequirementsV1(vague).ok).toBe(true);
+    const parsed = AdRequirementsV1.parse(vague);
+    expect(parsed.requirements[0]!.kind).toBe("ordinary");
+  });
+
+  // Regression: "8+ years" carries a value five can be compared against, not only a sentence.
+  it("a years bar carries a comparable value, not only prose", () => {
+    const yearsBar = valid.requirements.find((r: { id: string }) => r.id === "it-experience-years");
+    expect(yearsBar.comparable).toEqual({ op: ">=", value: 8 });
+    expect(5 >= yearsBar.comparable.value).toBe(false);
+    expect(9 >= yearsBar.comparable.value).toBe(true);
   });
 });
 

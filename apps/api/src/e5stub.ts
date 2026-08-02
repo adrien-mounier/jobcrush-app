@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { FamilyFloor, AdRequirements } from "@jobcrush/contracts";
+import { FamilyFloor, AdRequirementsV1 } from "@jobcrush/contracts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -26,25 +26,26 @@ export function loadFamilyFloor(family: string): FamilyFloor {
   return FamilyFloor.parse(found);
 }
 
-let cachedAdRequirements: AdRequirements[] | null = null;
-function loadAllAdRequirements(): AdRequirements[] {
+let cachedAdRequirements: AdRequirementsV1[] | null = null;
+function loadAllAdRequirements(): AdRequirementsV1[] {
   if (!cachedAdRequirements) {
     cachedAdRequirements = JSON.parse(
       readFileSync(join(here, "..", "data", "sample-ad-requirements.json"), "utf8"),
-    ) as AdRequirements[];
+    ) as AdRequirementsV1[];
   }
   return cachedAdRequirements;
 }
 
-/** Finds the stubbed requirements for `adId` and validates them against the AdRequirements schema. */
-export function loadAdRequirements(adId: string): AdRequirements {
+/** Finds the stubbed requirements for `adId` and validates them against the AdRequirementsV1 schema
+ *  (#102: the whole app reads v1 now). */
+export function loadAdRequirements(adId: string): AdRequirementsV1 {
   const found = loadAllAdRequirements().find((r) => r.adId === adId);
   if (!found) throw new Error(`no ad requirements stubbed for adId: ${adId}`);
-  return AdRequirements.parse(found);
+  return AdRequirementsV1.parse(found);
 }
 
-/** Every stubbed ad's requirements, each validated against the AdRequirements schema. #19's card
+/** Every stubbed ad's requirements, each validated against the AdRequirementsV1 schema. #19's card
  *  deck joins these against sample-postings.json by adId to find its scorable candidate cards. */
-export function listAdRequirements(): AdRequirements[] {
-  return loadAllAdRequirements().map((r) => AdRequirements.parse(r));
+export function listAdRequirements(): AdRequirementsV1[] {
+  return loadAllAdRequirements().map((r) => AdRequirementsV1.parse(r));
 }

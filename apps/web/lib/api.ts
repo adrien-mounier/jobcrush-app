@@ -257,7 +257,9 @@ export interface CardFact {
 
 export interface CardRequirement {
   id: string;
-  band: "must" | "should" | "nice";
+  // #102: unified band vocabulary (was "must" | "should" | "nice") — not rendered anywhere in this
+  // app (jobcard.tsx renders only .requirement), so the rename here is type-only.
+  band: "essential" | "standard" | "nice-to-have";
   requirement: string;
 }
 

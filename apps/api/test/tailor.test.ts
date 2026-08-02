@@ -3,7 +3,7 @@
 // AC1 hinge), the ledger derivation, and the route behaviors — re-score never decreases, never-re-ask,
 // the ledger, done, and drop losing the job but never a claim.
 import { describe, expect, it } from "vitest";
-import type { AdRequirement, AdRequirements, CandidateClaim } from "@jobcrush/contracts";
+import type { AdRequirementV1, AdRequirementsV1, CandidateClaim } from "@jobcrush/contracts";
 import { buildServer } from "../src/server.js";
 import type { ClaimRecord } from "../src/claims.js";
 import { loadAdRequirements } from "../src/e5stub.js";
@@ -18,17 +18,34 @@ import {
   tailorQuestions,
 } from "../src/tailor.js";
 
-const AD: AdRequirements = {
-  schemaVersion: "0",
+const AD: AdRequirementsV1 = {
+  schemaVersion: "1",
   adId: "test-ad",
   curated: true,
+  language: "en",
+  familyFit: { family: "IT Project Manager", confidence: 0.9 },
   requirements: [
-    { id: "own-budget", band: "must", requirement: "Own a project budget with vendor oversight" },
-    { id: "lead-team", band: "must", requirement: "Lead a cross-functional delivery team" },
-    { id: "certification", band: "nice", requirement: "Hold a project management certification" },
+    {
+      id: "own-budget",
+      band: "essential",
+      requirement: "Own a project budget with vendor oversight",
+      sourceSpan: "Own a project budget with vendor oversight",
+    },
+    {
+      id: "lead-team",
+      band: "essential",
+      requirement: "Lead a cross-functional delivery team",
+      sourceSpan: "Lead a cross-functional delivery team",
+    },
+    {
+      id: "certification",
+      band: "nice-to-have",
+      requirement: "Hold a project management certification",
+      sourceSpan: "Hold a project management certification",
+    },
   ],
 };
-const [OWN_BUDGET, LEAD_TEAM, CERTIFICATION] = AD.requirements as [AdRequirement, AdRequirement, AdRequirement];
+const [OWN_BUDGET, LEAD_TEAM, CERTIFICATION] = AD.requirements as [AdRequirementV1, AdRequirementV1, AdRequirementV1];
 
 // #28: buildTailorLedger reads answer order off ClaimRecord.seq — a module-level counter so calls
 // made earlier in a test (JS evaluates arguments left-to-right) land with a lower seq, same as the
@@ -36,7 +53,7 @@ const [OWN_BUDGET, LEAD_TEAM, CERTIFICATION] = AD.requirements as [AdRequirement
 let seqCounter = 0;
 const claimFor = (
   adId: string,
-  req: AdRequirement,
+  req: AdRequirementV1,
   answer: string,
   decision: "confirmed" | "negative",
 ): ClaimRecord => ({
@@ -52,8 +69,8 @@ const claimFor = (
   origin: "user-authored",
   seq: ++seqCounter,
 });
-const yesClaim = (req: AdRequirement) => claimFor(AD.adId, req, "Yes", "confirmed");
-const noClaim = (req: AdRequirement) => claimFor(AD.adId, req, "No", "negative");
+const yesClaim = (req: AdRequirementV1) => claimFor(AD.adId, req, "Yes", "confirmed");
+const noClaim = (req: AdRequirementV1) => claimFor(AD.adId, req, "No", "negative");
 
 describe("#23 composeTailorLine", () => {
   // D3: a bullet, not a sentence — no "I " prefix (was producing "I experience driving digital
@@ -249,7 +266,7 @@ describe("#23 tailorCvLines — B2: a confirmed tailor answer becomes a CV line"
   });
 
   it("uses the requirement's own cvSection when the ad carries one", () => {
-    const skillReq: AdRequirement = { ...OWN_BUDGET, cvSection: "skills" };
+    const skillReq: AdRequirementV1 = { ...OWN_BUDGET, cvSection: "skills" };
     const lines = tailorCvLines({ ...AD, requirements: [skillReq] }, [yesClaim(skillReq)]);
     expect(lines[0]!.section).toBe("skills");
   });
@@ -290,7 +307,7 @@ async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string
 
 const ROLE = "IT project manager in Paris";
 const VALID_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
-const minedClaimFor = (req: AdRequirement): CandidateClaim => ({
+const minedClaimFor = (req: AdRequirementV1): CandidateClaim => ({
   id: `mined-${req.id}`,
   role: "profile",
   text: `${req.requirement}.`,

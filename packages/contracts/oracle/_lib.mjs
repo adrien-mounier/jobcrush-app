@@ -13,6 +13,21 @@ export function readJson(path) {
   return JSON.parse(raw);
 }
 
+// Read+parse the JSON file path given as the first CLI argument (argv[2]) — the convenience wrapper
+// validators reach for in their CLI entry point when they take exactly one file argument. Was
+// imported by validate_family_floor_v1.mjs and validate_family_placement.mjs without ever being
+// defined here; a standalone `node <validator>.mjs <fixture>` run threw SyntaxError on the missing
+// export (only vitest's transform masked it, as `undefined`). Same argv[2] convention already used
+// inline by validate_card.mjs/validate_graph.mjs/validate_proposal.mjs — this just names it once.
+export function readJsonArg() {
+  const path = process.argv[2];
+  if (!path) {
+    console.error("usage: node <validator>.mjs <path-to-json>");
+    process.exit(2);
+  }
+  return readJson(path);
+}
+
 // ---- format predicates ----
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/; // lenient on the timezone tail

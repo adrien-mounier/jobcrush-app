@@ -2,12 +2,23 @@
 // (pg-mem is an in-process Postgres, so the real SQL is exercised without a live DB).
 import { beforeEach, describe, expect, it } from "vitest";
 import { newDb } from "pg-mem";
+import { EligibilityDimension } from "@jobcrush/contracts";
 import {
   ANY_FAMILY,
+  ELIGIBILITY_DIMENSIONS,
   InMemoryEligibilityStore,
   PgEligibilityStore,
   type EligibilityStore,
 } from "../src/eligibility.js";
+
+// #102 must-fix: packages/contracts/src/adRequirements.ts's EligibilityDimension duplicates this
+// store's vocabulary rather than importing it (apps/api depends on @jobcrush/contracts, never the
+// reverse). Nothing else keeps the two lists in sync, so a sixth dimension added here without a
+// matching contract update would make loadAdRequirements() throw on any advert tagged with it —
+// silently killing those cards with no message naming the cause. This is the drift guard.
+it("the eligibility store's dimensions and the contract's EligibilityDimension stay identical (#102)", () => {
+  expect([...EligibilityDimension.options].sort()).toEqual([...ELIGIBILITY_DIMENSIONS].sort());
+});
 
 function pgPool() {
   const { Pool } = newDb().adapters.createPg();

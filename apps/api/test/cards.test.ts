@@ -167,7 +167,10 @@ describe("#19 GET /onboarding/cards", () => {
       expect(Array.isArray(card.dontYet)).toBe(true);
       expect(Array.isArray(card.askedClosed)).toBe(true);
       for (const req of card.dontYet) {
-        expect(["must", "should", "nice"]).toContain(req.band);
+        // #102: unified band vocabulary — dontYet[].band is not rendered by the web app, so carrying
+        // the new names here is invisible on screen (still only asserting "one of the three legal
+        // band values", unchanged in intent).
+        expect(["essential", "standard", "nice-to-have"]).toContain(req.band);
       }
     }
 
@@ -188,6 +191,72 @@ describe("#19 GET /onboarding/cards", () => {
       expect(card.askedClosed.map((f) => f.id)).toContain("discovery-stakeholder-reporting");
       expect(card.fit.map((f) => f.id)).not.toContain("discovery-stakeholder-reporting");
     }
+  });
+
+  // #102 QA follow-up: every assertion above is shape-only (matchPct: expect.any(Number)), so a
+  // mis-mapped band would silently shift every percentage and this whole file would still pass —
+  // exactly the failure #86's owner named as the reason for unifying the vocabulary: "A mistranslated
+  // band does not crash anything. It quietly reports the wrong match percentage, and no test and no
+  // reader can tell by looking." Removing the translation removed the risk; this pins the detector.
+  //
+  // A characterization test, not a spec: the exact numbers below are measured from an actual run of
+  // this deck against these discovery answers, not derived from the scoring rules. Slice 4 replaces
+  // the scorer and is EXPECTED to move them on purpose — that forced, conscious re-baseline is the
+  // point of this test, not a maintenance cost to avoid.
+  it("characterization: pins the exact matchPct and breakdown per card for the known fixture deck", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: "budget-accountability",
+      answer: "Yes, over $1M",
+    });
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: "cross-functional-leadership",
+      answer: "Yes, multiple teams",
+    });
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: "stakeholder-reporting",
+      answer: "No",
+    });
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    const byAdId = Object.fromEntries(
+      body.cards.map((c) => [c.adId, { matchPct: c.matchPct, breakdown: c.breakdown }]),
+    );
+    expect(byAdId).toEqual({
+      "2026-06-30_schneider-electric_senior-project-manager": {
+        matchPct: 54,
+        breakdown: { essential: { met: 1, total: 3 }, desirable: { met: 1, total: 4 } },
+      },
+      "2026-07-01_transunion_senior-project-manager-6-months-contract": {
+        matchPct: 35,
+        breakdown: { essential: { met: 0, total: 4 }, desirable: { met: 0, total: 4 } },
+      },
+      "2026-07-05_computershare-hong-kong_business-readiness-senior-project-manager-9-month-contract": {
+        matchPct: 42,
+        breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 1, total: 5 } },
+      },
+      "2026-07-05_endava-vietnam_senior-project-manager": {
+        matchPct: 29,
+        breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 4 } },
+      },
+      "2026-07-05_hire-feed_project-manager-remote": {
+        matchPct: 49,
+        breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 4 } },
+      },
+      "2026-07-05_manulife_senior-it-project-manager-delivery-manager": {
+        matchPct: 33,
+        breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 5 } },
+      },
+      "2026-07-05_synpulse_business-analyst-project-manager-wealth-management-data": {
+        matchPct: 26,
+        breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 5 } },
+      },
+      "2026-07-09_luvo-talent_senior-project-manager": {
+        matchPct: 26,
+        breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 4 } },
+      },
+    });
   });
 
   // #29: a requirement declined while tailoring an ad must be asked-and-closed on that ad's DECK card

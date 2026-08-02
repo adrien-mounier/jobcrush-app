@@ -2,7 +2,7 @@
 // properties the spec calls out: deterministic, and conservative (never decreases as the
 // confirmed fact set only grows).
 import { describe, expect, it } from "vitest";
-import type { AdRequirements } from "@jobcrush/contracts";
+import type { AdRequirementsV1 } from "@jobcrush/contracts";
 import {
   matchBreakdown,
   matchTick,
@@ -17,14 +17,31 @@ import {
   TASTE_TEST_CVS,
 } from "./fixtures/matchtick-taste-test.js";
 
-const AD: AdRequirements = {
-  schemaVersion: "0",
+const AD: AdRequirementsV1 = {
+  schemaVersion: "1",
   adId: "test-ad",
   curated: true,
+  language: "en",
+  familyFit: { family: "IT Project Manager", confidence: 0.9 },
   requirements: [
-    { id: "own-budget", band: "must", requirement: "Own a project budget with vendor oversight" },
-    { id: "lead-team", band: "must", requirement: "Lead a cross-functional delivery team" },
-    { id: "certification", band: "nice", requirement: "Hold a project management certification" },
+    {
+      id: "own-budget",
+      band: "essential",
+      requirement: "Own a project budget with vendor oversight",
+      sourceSpan: "Own a project budget with vendor oversight",
+    },
+    {
+      id: "lead-team",
+      band: "essential",
+      requirement: "Lead a cross-functional delivery team",
+      sourceSpan: "Lead a cross-functional delivery team",
+    },
+    {
+      id: "certification",
+      band: "nice-to-have",
+      requirement: "Hold a project management certification",
+      sourceSpan: "Hold a project management certification",
+    },
   ],
 };
 
@@ -80,15 +97,19 @@ describe("#19 matchTick", () => {
   });
 
   it("rewards independent relevant evidence without combining facts to close a clause", () => {
-    const requirement: AdRequirements = {
-      schemaVersion: "0",
+    const requirement: AdRequirementsV1 = {
+      schemaVersion: "1",
       adId: "breadth",
       curated: false,
+      language: "en",
+      familyFit: { family: "IT Project Manager", confidence: 0.9 },
       requirements: [
         {
           id: "commercial-ownership",
-          band: "must",
+          band: "essential",
           requirement:
+            "Own enterprise project budget with external vendor contract governance oversight",
+          sourceSpan:
             "Own enterprise project budget with external vendor contract governance oversight",
         },
       ],
@@ -108,15 +129,19 @@ describe("#19 matchTick", () => {
   });
 
   it("ignores filler differences when deduplicating the same relevant evidence", () => {
-    const requirement: AdRequirements = {
-      schemaVersion: "0",
+    const requirement: AdRequirementsV1 = {
+      schemaVersion: "1",
       adId: "near-duplicate-breadth",
       curated: false,
+      language: "en",
+      familyFit: { family: "IT Project Manager", confidence: 0.9 },
       requirements: [
         {
           id: "commercial-ownership",
-          band: "must",
+          band: "essential",
           requirement:
+            "Own enterprise project budget with external vendor contract governance oversight",
+          sourceSpan:
             "Own enterprise project budget with external vendor contract governance oversight",
         },
       ],
@@ -133,15 +158,18 @@ describe("#19 matchTick", () => {
   });
 
   it("does not combine stray words from unrelated facts into the same fit as one coherent fact", () => {
-    const requirement: AdRequirements = {
-      schemaVersion: "0",
+    const requirement: AdRequirementsV1 = {
+      schemaVersion: "1",
       adId: "split-evidence",
       curated: false,
+      language: "en",
+      familyFit: { family: "IT Project Manager", confidence: 0.9 },
       requirements: [
         {
           id: "budget-vendor",
-          band: "must",
+          band: "essential",
           requirement: "Own project budget with vendor oversight",
+          sourceSpan: "Own project budget with vendor oversight",
         },
       ],
     };
@@ -158,15 +186,18 @@ describe("#19 matchTick", () => {
   });
 
   it("allows separate coherent facts to support separate clauses of one requirement", () => {
-    const requirement: AdRequirements = {
-      schemaVersion: "0",
+    const requirement: AdRequirementsV1 = {
+      schemaVersion: "1",
       adId: "clause-evidence",
       curated: false,
+      language: "en",
+      familyFit: { family: "IT Project Manager", confidence: 0.9 },
       requirements: [
         {
           id: "budget-and-vendors",
-          band: "must",
+          band: "essential",
           requirement: "Own project budget and lead vendor contract negotiations",
+          sourceSpan: "Own project budget and lead vendor contract negotiations",
         },
       ],
     };
@@ -186,15 +217,18 @@ describe("#19 matchTick", () => {
   });
 
   it("does not promote one-word preposition fragments into independently coverable clauses", () => {
-    const requirement: AdRequirements = {
-      schemaVersion: "0",
+    const requirement: AdRequirementsV1 = {
+      schemaVersion: "1",
       adId: "preposition-fragments",
       curated: false,
+      language: "en",
+      familyFit: { family: "IT Project Manager", confidence: 0.9 },
       requirements: [
         {
           id: "delivery-lifecycle",
-          band: "must",
+          band: "essential",
           requirement: "Lead delivery from initiation to completion",
+          sourceSpan: "Lead delivery from initiation to completion",
         },
       ],
     };
@@ -214,7 +248,7 @@ describe("#19 matchTick", () => {
   it("never reports 100 for a one-requirement ad while still listing that requirement as open", () => {
     for (const facts of [NONE, ONE, TWO, THREE]) {
       for (const requirement of AD.requirements) {
-        const oneRequirementAd: AdRequirements = {
+        const oneRequirementAd: AdRequirementsV1 = {
           ...AD,
           requirements: [requirement],
         };

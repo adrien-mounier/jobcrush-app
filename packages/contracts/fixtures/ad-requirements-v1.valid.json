@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1",
+  "adId": "2026-07-05_endava-vietnam_senior-project-manager",
+  "curated": true,
+  "language": "en",
+  "familyFit": { "family": "IT Project Manager", "confidence": 0.95 },
+  "requirements": [
+    {
+      "id": "lead-agile-delivery",
+      "band": "essential",
+      "kind": "ordinary",
+      "requirement": "Lead the delivery of Agile projects from initiation to completion",
+      "cvSection": "experience",
+      "sourceSpan": "you'll lead the delivery of Agile projects, ensuring strong alignment between business goals, technical teams, and client expectations"
+    },
+    {
+      "id": "drive-stakeholder-communication",
+      "band": "essential",
+      "kind": "ordinary",
+      "requirement": "Drive regular, clear communication with all stakeholders",
+      "cvSection": "experience",
+      "sourceSpan": "Manage client expectations, engagement, and stakeholder relationships effectively."
+    },
+    {
+      "id": "it-experience-years",
+      "band": "nice-to-have",
+      "requirement": "8+ years of IT experience including 5+ years as a Project Manager",
+      "comparable": { "op": ">=", "value": 8 },
+      "eligibilityDimension": "years-experience",
+      "sourceSpan": "8+ years of IT experience, including 5+ years in Project Manager role."
+    },
+    {
+      "id": "english-fluency",
+      "band": "essential",
+      "kind": "blocking",
+      "requirement": "Excellent English communication skills",
+      "eligibilityDimension": "language",
+      "sourceSpan": "Excellent English communication skills."
+    }
+  ]
+}

@@ -11,7 +11,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import type { CandidateClaim, MinedRole, RequirementBand, AdRequirements } from "@jobcrush/contracts";
+import type { CandidateClaim, MinedRole, RankBand, AdRequirementsV1 } from "@jobcrush/contracts";
 import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore, ClaimRecord } from "../claims.js";
 import type { JobStore } from "../jobs.js";
@@ -717,7 +717,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // --- #19 the reveal + the job card (screen 2a): instant-tick, score-sorted card deck --------
     // Rides the anonymous session like discovery (requireSession, not requireUser — the wall is
     // after the reveal). Meaningful once session.stage === "deck", but never gated server-side:
-    // the client decides when to show it. Cards = every posting with a stubbed AdRequirements
+    // the client decides when to show it. Cards = every posting with a stubbed AdRequirementsV1
     // entry (the E5 boundary, e5stub.ts), joined by adId and scored by matchtick.ts against this
     // session's confirmed/negative claims — no LLM, no IO beyond the two fixture loads.
     app.get("/onboarding/cards", async (req) => {
@@ -878,7 +878,7 @@ interface CardFact {
 }
 interface CardRequirement {
   id: string;
-  band: RequirementBand;
+  band: RankBand;
   requirement: string;
 }
 interface JobCard {
@@ -920,7 +920,7 @@ export function orderCardsForReveal<T extends { matchPct: number }>(
  *  is empty (tailorClaimId is scoped by adId), so those cards are unchanged. */
 function buildJobCard(
   posting: Posting,
-  adReq: AdRequirements,
+  adReq: AdRequirementsV1,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
 ): JobCard {
@@ -968,7 +968,7 @@ interface TailorState {
  *  pair that validated it at /onboarding/cards/:adId/want time (these are explicitly stubs awaiting
  *  E5, liable to be edited/reordered) — so a miss here is reachable, not impossible, and must fail
  *  closed with the same 404 that route already uses for an unknown card id. */
-function tailorTarget(adId: string): { posting: Posting; adReq: AdRequirements } | null {
+function tailorTarget(adId: string): { posting: Posting; adReq: AdRequirementsV1 } | null {
   const posting = loadPostings().find((p) => p.id === adId);
   if (!posting) return null;
   try {
@@ -982,7 +982,7 @@ function tailorTarget(adId: string): { posting: Posting; adReq: AdRequirements }
  *  this shapes the pinned response. matchPct obeys the monotonic floor (AC1): never the raw tick alone. */
 function buildTailorState(
   posting: Posting,
-  adReq: AdRequirements,
+  adReq: AdRequirementsV1,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
   role: string | null,
