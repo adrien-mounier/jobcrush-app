@@ -830,3 +830,33 @@ headers, or path it called. Reproducing it cost two wrong guesses: the path is c
 second**, so firing eight probes at once returns 429s that a naive check reads as "endpoint exists".
 A measurement nobody can re-run is a claim, not evidence. Write down the exact call and keep the
 script.
+
+## "Mirror the JD's terms" and "restate the JD's sentences" are opposite rules
+
+Reading `tailor.ts`, a tapped "Yes" restating the requirement verbatim looked like one defect. It is
+two rules that happen to touch the same line. **Carrying the advert's hard terms is required**: ATS
+keyword-matches, so if the advert says SAP and the candidate has SAP, the literal token must appear
+in the CV — `docs/cv-brain/research/2026-05-03_it-pm-cv-best-practices.md` says *"mirror JD
+terminology exactly; embed keywords in bullets, not keyword clouds"*. **Restating the advert's whole
+sentence is the defect**, and only because it exists to make an internal token counter fire. The test
+that separates them: *who is this copying for?* The employer's ATS (keep it) or our own detector
+(kill it). Removing the detector must not remove the keyword rule — they look identical in a diff and
+one of them is load-bearing for whether anyone gets an interview.
+
+## A nullable column in a composite primary key stops enforcing uniqueness
+
+Scoping eligibility facts by job family, the obvious shape was `family_id text` nullable, NULL for
+facts that apply regardless of role. In Postgres two NULLs are never equal, so `PRIMARY KEY
+(session_id, dimension, family_id)` would enforce uniqueness on every family-scoped row and silently
+stop enforcing it on exactly the global ones — the rows most likely to be written twice. Use a
+non-null sentinel (`'*'`, matching the "serves anywhere" convention already in the provider
+registry) instead of a nullable key column.
+
+## Driver-parity tests only pay off if the fixture is as sloppy as production isn't
+
+The claims store-contract test builds claims by hand, so its helper omitted the nullable
+structured-field trio. In-memory spread the object and returned `undefined`; Postgres returned
+`null`. Production never hits it — zod requires the fields present — but the divergence was real and
+invisible until a test asserted on a field the helper didn't set. Two drivers behind one interface
+drift wherever a test fixture is loose; normalise in the driver rather than tightening the fixture,
+or the contract test stops testing the thing it exists for.

@@ -11,6 +11,7 @@ import { makeCvAuditor } from "./audit.js";
 import { sessionStoreFromEnv } from "./sessions.js";
 import { claimStoreFromEnv } from "./claims.js";
 import { authStoreFromEnv } from "./auth.js";
+import { eligibilityStoreFromEnv } from "./eligibility.js";
 import {
   familyLearningStoreFromEnv,
   makeFamilyCandidateScreen,
@@ -28,11 +29,16 @@ const sessions = sessionStoreFromEnv(process.env.DATABASE_URL);
 const claims = claimStoreFromEnv(process.env.DATABASE_URL);
 const auth = authStoreFromEnv(process.env.DATABASE_URL);
 const familyLearning = familyLearningStoreFromEnv(process.env.DATABASE_URL);
+// #86 decisions 4 + 5. Init'd here so the table exists ahead of its consumers: #96 asks the
+// questions, #89 reads them while scoring. Deliberately not threaded through buildServer yet —
+// there is nothing to inject it into until those land.
+const eligibility = eligibilityStoreFromEnv(process.env.DATABASE_URL);
 try {
   await sessions.init();
   await claims.init();
   await auth.init();
   await familyLearning.init();
+  await eligibility.init();
 } catch (err) {
   console.error("store init failed", err);
   process.exit(1);

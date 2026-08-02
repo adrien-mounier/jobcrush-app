@@ -51,6 +51,18 @@ export interface ClaimStore {
   reopen(sessionId: string, id: string): Promise<void>;
 }
 
+/** The nullable trio must be present-and-null, never absent. Postgres reads them back as `null`
+ *  (toClaim); a spread of a source object that simply omits them yields `undefined`, so the two
+ *  drivers would disagree on a field typed `string | null`. Production input is zod-parsed and
+ *  always carries them, so this only bites on hand-built claims — which is exactly what the
+ *  store-contract test builds. Normalise once, here, rather than at each construction site. */
+const withFields = (c: CandidateClaim) => ({
+  ...c,
+  field_key: c.field_key ?? null,
+  field_value: c.field_value ?? null,
+  field_label: c.field_label ?? null,
+});
+
 export class InMemoryClaimStore implements ClaimStore {
   private bySession = new Map<string, Map<string, ClaimRecord>>();
   // #28: per-session seq counter — mirrors PgClaimStore's bigserial (a single always-increasing
@@ -90,7 +102,8 @@ export class InMemoryClaimStore implements ClaimStore {
     // Idempotent: never clobber an existing claim's decision on re-seed (matches PgClaimStore's
     // ON CONFLICT DO NOTHING — the store-contract test pins the two drivers together).
     for (const c of claims) {
-      if (!m.has(c.id)) m.set(c.id, { ...c, decision: "pending", origin: "mined", seq: this.nextSeq(sessionId) });
+      if (!m.has(c.id))
+        m.set(c.id, { ...withFields(c), decision: "pending", origin: "mined", seq: this.nextSeq(sessionId) });
     }
   }
 
@@ -136,7 +149,7 @@ export class InMemoryClaimStore implements ClaimStore {
     const existing = m.get(claim.id);
     const seq = existing?.seq ?? this.nextSeq(sessionId);
     m.set(claim.id, {
-      ...claim,
+      ...withFields(claim),
       decision: "confirmed",
       origin: "user-authored",
       seq,
@@ -153,7 +166,7 @@ export class InMemoryClaimStore implements ClaimStore {
     const existing = m.get(claim.id);
     const seq = existing?.seq ?? this.nextSeq(sessionId);
     m.set(claim.id, {
-      ...claim,
+      ...withFields(claim),
       decision: "negative",
       origin: "user-authored",
       seq,
@@ -186,28 +199,41 @@ CREATE TABLE IF NOT EXISTS claims (
   decision       text NOT NULL,
   origin         text NOT NULL,
   decision_seq   bigint,
+  field_key      text,
+  field_value    text,
+  field_label    text,
   PRIMARY KEY (session_id, id)
 )`;
 
 const CLAIMS_ALTERS = [
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS decision_seq bigint",
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS semantic_key text",
+  // The structured-field trio is load-bearing, not decoration: pipeline.ts keys local conflict
+  // detection on field_key (proofKey/byField/fieldId) and server.ts resolves import identity by it,
+  // and claim-miner.md instructs the miner to emit it for any single-valued fact that can conflict.
+  // Until these columns existed the Pg store silently dropped all three on write and hardcoded them
+  // to null on read — so structured facts worked in memory and vanished in production.
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS field_key text",
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS field_value text",
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS field_label text",
 ];
 
 // Insert columns only — `seq` is never listed (bigserial auto-assigns it). Every READ, by contrast,
 // must include `seq`: all five below are `SELECT *`, but a future projected read that drops it would
 // make toClaim's `Number(undefined)` -> NaN, and a NaN comparator silently degrades a `.sort()` to
 // input order with no error (#28).
+// The structured-field trio is appended last so every existing positional placeholder keeps its
+// index; only $13–$15 are new, and decision_seq moves to $16 where callers pass it.
 const CLAIM_COLS =
-  "session_id, id, semantic_key, role, text, machine_touch, classification, source_quote, needs_grill, grill_hint, decision, origin";
+  "session_id, id, semantic_key, role, text, machine_touch, classification, source_quote, needs_grill, grill_hint, decision, origin, field_key, field_value, field_label";
 
 function toClaim(r: Record<string, unknown>): ClaimRecord {
   return {
     id: r.id as string,
     semantic_key: (r.semantic_key as string | null) ?? (r.id as string),
-    field_key: null,
-    field_value: null,
-    field_label: null,
+    field_key: (r.field_key as string | null) ?? null,
+    field_value: (r.field_value as string | null) ?? null,
+    field_label: (r.field_label as string | null) ?? null,
     role: r.role as string,
     text: r.text as string,
     machine_touch: r.machine_touch as CandidateClaim["machine_touch"],
@@ -236,7 +262,7 @@ export class PgClaimStore implements ClaimStore {
 
   private vals(sessionId: string, c: CandidateClaim, decision: ClaimDecision, origin: ClaimOrigin) {
     return [sessionId, c.id, c.semantic_key, c.role, c.text, c.machine_touch, c.classification, c.source_quote,
-      c.needs_grill, c.grill_hint, decision, origin];
+      c.needs_grill, c.grill_hint, decision, origin, c.field_key, c.field_value, c.field_label];
   }
 
   private async nextDecisionSeq(sessionId: string): Promise<number> {
@@ -251,7 +277,7 @@ export class PgClaimStore implements ClaimStore {
   async seed(sessionId: string, claims: CandidateClaim[]): Promise<void> {
     for (const c of claims) {
       await this.pool.query(
-        `INSERT INTO claims (${CLAIM_COLS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        `INSERT INTO claims (${CLAIM_COLS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
          ON CONFLICT (session_id, id) DO NOTHING`,
         this.vals(sessionId, c, "pending", "mined"),
       );
@@ -297,13 +323,15 @@ export class PgClaimStore implements ClaimStore {
   async add(sessionId: string, claim: CandidateClaim): Promise<void> {
     const decisionSeq = await this.nextDecisionSeq(sessionId);
     await this.pool.query(
-      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        ON CONFLICT (session_id, id) DO UPDATE SET
          semantic_key = EXCLUDED.semantic_key,
          role = EXCLUDED.role, text = EXCLUDED.text, machine_touch = EXCLUDED.machine_touch,
          classification = EXCLUDED.classification, source_quote = EXCLUDED.source_quote,
          needs_grill = EXCLUDED.needs_grill, grill_hint = EXCLUDED.grill_hint,
          decision = EXCLUDED.decision, origin = EXCLUDED.origin,
+         field_key = EXCLUDED.field_key, field_value = EXCLUDED.field_value,
+         field_label = EXCLUDED.field_label,
          decision_seq = COALESCE(claims.decision_seq, EXCLUDED.decision_seq)`,
       [...this.vals(sessionId, claim, "confirmed", "user-authored"), decisionSeq],
     );
@@ -320,13 +348,15 @@ export class PgClaimStore implements ClaimStore {
   async answerNegative(sessionId: string, claim: CandidateClaim): Promise<void> {
     const decisionSeq = await this.nextDecisionSeq(sessionId);
     await this.pool.query(
-      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      `INSERT INTO claims (${CLAIM_COLS}, decision_seq) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        ON CONFLICT (session_id, id) DO UPDATE SET
          semantic_key = EXCLUDED.semantic_key,
          role = EXCLUDED.role, text = EXCLUDED.text, machine_touch = EXCLUDED.machine_touch,
          classification = EXCLUDED.classification, source_quote = EXCLUDED.source_quote,
          needs_grill = EXCLUDED.needs_grill, grill_hint = EXCLUDED.grill_hint,
          decision = EXCLUDED.decision, origin = EXCLUDED.origin,
+         field_key = EXCLUDED.field_key, field_value = EXCLUDED.field_value,
+         field_label = EXCLUDED.field_label,
          decision_seq = COALESCE(claims.decision_seq, EXCLUDED.decision_seq)`,
       [...this.vals(sessionId, claim, "negative", "user-authored"), decisionSeq],
     );

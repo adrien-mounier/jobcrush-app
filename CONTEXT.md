@@ -89,7 +89,8 @@ _Avoid_: Important gap, hard filter, knockout
 **Eligibility fact**:
 A fact about the user that adverts test as a gate rather than as evidence of capability — right to
 work, language fluency, length of experience, a mandatory certification. It does not vary by advert,
-so it is asked once and reused across every posting.
+so it is asked once and reused across every posting. Some are scoped to a job family and meaningless
+without one: length of experience is always experience *in* a family, never a career total.
 _Avoid_: Screening answer, source-supported fact
 
 **Posting family fit**:

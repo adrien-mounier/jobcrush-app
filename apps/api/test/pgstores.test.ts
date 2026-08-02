@@ -399,6 +399,35 @@ for (const [name, make] of claimDrivers) {
       expect((await store.negatives(sid))[0]?.semantic_key).toBe("requirement-three");
     });
 
+    it("preserves the structured-field trio through seed and both upsert paths (#86)", async () => {
+      // pipeline.ts keys local conflict detection on field_key and server.ts resolves import
+      // identity by it, but the Pg store dropped all three on write and hardcoded them to null on
+      // read — so structured facts worked in-memory and vanished in production. In-memory passed
+      // because it spreads the whole claim; only the real SQL exercised here catches it.
+      const structured = {
+        field_key: "years-experience",
+        field_value: "8",
+        field_label: "Years in IT project delivery",
+      };
+
+      await store.seed(sid, [claim({ id: "yrs", ...structured })]);
+      expect((await store.list(sid))[0]).toMatchObject(structured);
+
+      await store.add(sid, claim({ id: "yrs", ...structured, field_value: "9" }));
+      expect((await store.confirmed(sid))[0]).toMatchObject({ ...structured, field_value: "9" });
+
+      await store.answerNegative(sid, claim({ id: "yrs", ...structured, field_value: "10" }));
+      expect((await store.negatives(sid))[0]).toMatchObject({ ...structured, field_value: "10" });
+    });
+
+    it("a claim with no structured field round-trips as null, not undefined", async () => {
+      await store.seed(sid, [claim({ id: "plain" })]);
+      const [row] = await store.list(sid);
+      expect(row.field_key).toBeNull();
+      expect(row.field_value).toBeNull();
+      expect(row.field_label).toBeNull();
+    });
+
     it("seed is idempotent — re-seeding never clobbers a decision", async () => {
       await store.seed(sid, [claim({ id: "a" })]);
       await store.confirm(sid, "a");
