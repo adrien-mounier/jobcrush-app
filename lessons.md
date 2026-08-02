@@ -1,5 +1,36 @@
 # Lessons — jobcrush-app
 
+## A rate whose numerator feeds its own denominator can never cross its threshold
+
+#115 split timeouts out of the read-failure counter, then added a timeout alarm rating
+`timed_out / (timed_out + read_succeeded)`. But an overrunning read is never cancelled — it finishes
+in the background and increments `read_succeeded` **itself**. So every timeout eventually contributed
+one to each side, the rate asymptoted to exactly 0.5 from below, and the threshold was 0.5 with a
+strict `>`. The alarm was mathematically incapable of firing in the only scenario it was added for,
+and it read as "not firing" — indistinguishable from healthy. It survived one code review and was
+caught only because the arithmetic was worked through by hand against the *self-healing* behaviour
+the rest of the fix depends on.
+
+When you add a rate alarm, write down what its numerator and denominator count in one sentence each,
+then ask whether one event can increment both. If it can, the rate has a ceiling — compute it, and
+compare it to the threshold before shipping. Here the fix was the **denominator, not the threshold**:
+count the outcome at the decision point (`read_in_time` vs `read_timed_out`, both at the deadline
+site) rather than mixing a decision-point count with a completion count from a different population.
+
+## A reproduction that fails to reproduce is a result, not a dead end
+
+#115's ticket ranked four candidate causes for a 43% advert-read failure rate, led by strict-schema
+rejection. Driving all seven adverts through the real path produced ten reads, ten successes, zero
+retries — and *that* was the finding: the failure was a 15s deadline against a 15–27s task, a
+subsystem the hypothesis list never mentioned. The timings in the "successful" run were the evidence,
+not the successes.
+
+Log per-attempt wall time even when you expect to be diagnosing content, and treat a non-reproduction
+as data about *where* the fault isn't. Also: the harness fell back to the CLI driver with no API key
+available, so absolute timings didn't transfer — but the disconfirmation did. Be explicit about which
+half of a result survives the environment difference, because the two halves have very different
+strengths.
+
 ## A guard needs a test that it can be *passed*, not only that it fires
 
 #104 enforces the blocking definition in code as well as in the prompt: a requirement the model calls
