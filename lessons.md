@@ -890,3 +890,16 @@ candidate genuinely lacked every domain requirement, and the OLD scorer's higher
 answer, built on the words "project", "manage" and "stakeholders". The aggregate said "regression";
 the per-requirement verdicts said "correctly penalising domain mismatch, which the previous scorer
 could not see at all". Ten minutes on one row changed the conclusion drawn from the whole table.
+
+## A closed decision ticket is not a filed implementation — check, don't infer
+
+#85 researched the retrieval contract, picked a provider, and closed. Its body referred to "#85 and
+its implementation tickets", and #86's spec repeated that phrase — so two documents asserted the
+build work existed and neither had checked. It did not exist, and the engine that reads job adverts
+was scheduled ahead of anything that fetches them. This is the second instance in two days (the E5
+gap on 2026-08-01 was the first), and the earlier lesson — reconcile the tracker against the roadmap
+— did not catch it, because the false claim was inside a ticket rather than a roadmap line. **When a
+research or decision ticket closes, the same session files the implementation tickets or writes down
+that it deliberately did not.** Treat any phrase of the form "…and its implementation tickets" as an
+unverified claim: `gh issue list --search` costs seconds, and the failure mode is a frontier query
+that reports work as buildable when its prerequisite was never created.
