@@ -40,8 +40,9 @@ import { familyLearningRoutes } from "./routes/familyLearning.js";
 import { readCounters, readFailureAlarm, readTimeoutAlarm, recentReadFailuresList } from "./counters.js";
 import type { Posting } from "./preview.js";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
-import type { JudgeFn } from "./judge.js";
+import type { JudgeFn, JudgePeekFn } from "./judge.js";
 import { runWithVisitor } from "./llmVisitorContext.js";
+import { InMemoryUsageLedgerStore, type UsageLedgerStore } from "./usageLedgerStore.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -88,6 +89,14 @@ export interface BuildOptions {
   /** #105: meaning-aware judging (deterministic tick when absent — every pre-#105 test stays valid,
    *  and nothing here ever makes a live judging call unless main.ts wires the real judge). */
   judge?: JudgeFn;
+  /** #117 must-fix 1: a cache-only companion to `judge` (judge.ts's makeJudgePeek) — structurally
+   *  incapable of spending, since it never receives an LlmClient. Absent → every card is treated as
+   *  "not yet resolved for free" (every pre-must-fix-1 test stays valid). */
+  judgePeek?: JudgePeekFn;
+  /** #118's durable usage ledger, read by /ops/spend below (#117 AC4/AC8). Absent (every test that
+   *  doesn't wire one, local dev with no DATABASE_URL) defaults to a fresh, empty in-memory ledger —
+   *  never throws, just reports zero spend. */
+  usageLedger?: UsageLedgerStore;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */
@@ -129,6 +138,7 @@ export function buildServer(opts: BuildOptions = {}) {
   const mailer = opts.mailer ?? new DevMailer();
   const guestbook = opts.guestbook ?? createGuestbook(process.env.DATABASE_URL);
   const familyLearning = opts.familyLearning ?? new InMemoryFamilyLearningStore();
+  const usageLedger = opts.usageLedger ?? new InMemoryUsageLedgerStore();
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" }).withTypeProvider<ZodTypeProvider>();
   guestbook.init().catch((err) => app.log.error(err, "guestbook init failed"));
   familyLearning.init().catch((err) => app.log.error(err, "family learning init failed"));
@@ -214,6 +224,56 @@ export function buildServer(opts: BuildOptions = {}) {
         error: { code: "forbidden", message: "set OPS_KEY and pass ?key=… to read failure detail" },
       });
     return { entries: recentReadFailuresList() };
+  });
+  // #117 AC4/AC6/AC8 — the ONE place cost-per-visitor and the deck's cold-fallback rate are reported
+  // TOGETHER, from the same run — the ticket's own closing AC. Same OPS_KEY gate as /ops/read-failures
+  // above, not the always-open /ops/counters below: ?visitorId= ties a dollar figure to a session
+  // pseudonym, which is exactly the class of visitor-linked detail OPS_KEY/GUESTBOOK_KEY exist to
+  // keep off an open URL, even though the figure itself is "just a number" (same reasoning
+  // /ops/read-failures's own doc already gives for CAN-carry-sensitive-detail routes).
+  app.get("/ops/spend", async (req, reply) => {
+    if (!opsKeyOk(req))
+      return reply.status(403).send({
+        error: { code: "forbidden", message: "set OPS_KEY and pass ?key=… to read spend detail" },
+      });
+    // Same "no schema, plain query cast" idiom as opsKeyOk's own ?key= read just above (and
+    // /ops/read-failures's route) — a declared zod querystring schema would silently STRIP ?key=
+    // (not part of this route's own declared shape) before opsKeyOk ever saw it.
+    const visitorId = (req.query as { visitorId?: string }).visitorId;
+    const [totalCostUsd, costByStage] = await Promise.all([
+      usageLedger.totalCostUsd(),
+      usageLedger.costByStage(),
+    ]);
+    const visitorCostUsd = visitorId ? await usageLedger.costForVisitor(visitorId) : null;
+    const counters = readCounters();
+    const judged = counters["deck.cards_judged"];
+    const pending = counters["deck.cards_pending"];
+    const unscored = counters["deck.cards_unscored"];
+    const estimated = counters["deck.cards_estimated"];
+    const totalCards = judged + pending + unscored + estimated;
+    return {
+      totalCostUsd,
+      costByStage,
+      visitorCostUsd,
+      deck: {
+        cardsJudged: judged,
+        cardsPending: pending,
+        cardsUnscored: unscored,
+        cardsEstimated: estimated,
+        judgeBoundHit: counters["deck.judge_bound_hit"],
+        // #117 AC6/must-fix D (coordinator review) — must be comparable against the owner's staging
+        // measurement (9 of 15 cards falling back on a cold deck), which asked "of every card on the
+        // deck, how many carry no honest judged number?" pending / (judged + pending) alone undercounts
+        // this badly: on the expected cold-deck shape (~8 judged, ~7 unscored, ~0 pending) that ratio
+        // reads ≈0% while roughly half the deck carries no number at all. The denominator is now
+        // EVERY card rendered (all four states); the numerator is every card WITHOUT an honest judged
+        // number — pending AND unscored, both. `estimated` is counted in the denominator (it is still
+        // a card on the deck) but deliberately not in the numerator: that state only ever means "no
+        // judge wired at all", a different regime from a judge-wired deck's fallback rate, and folding
+        // it into "no number" here would conflate a deployment fact with a judging outcome.
+        fallbackRatePerMille: totalCards > 0 ? Math.round(((pending + unscored) / totalCards) * 1000) : 0,
+      },
+    };
   });
   app.get(
     "/family-floors/:familyId/active",
@@ -369,6 +429,7 @@ export function buildServer(opts: BuildOptions = {}) {
     auditCv: opts.auditCv,
     readAd: opts.readAd,
     judge: opts.judge,
+    judgePeek: opts.judgePeek,
   }));
   app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail }));
   app.register(
@@ -458,5 +519,5 @@ export function buildServer(opts: BuildOptions = {}) {
     },
   );
 
-  return { app, store, sessions, blobs, uploads, claims, auth, familyLearning };
+  return { app, store, sessions, blobs, uploads, claims, auth, familyLearning, usageLedger };
 }

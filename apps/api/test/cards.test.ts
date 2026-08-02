@@ -54,14 +54,14 @@ interface JobCard {
 
 describe("#19 GET /onboarding/cards", () => {
   it("promotes one highest-scoring curated opener, then score-sorts every remaining card", () => {
-    // judged: true uniformly — every entry in the SAME group, so the new judged/fallback grouping
-    // (#105 review round 4) is a no-op here and this test stays exactly what it always was: proof the
-    // curated-opener promotion works, untouched by that review.
+    // scored: "judged" uniformly — every entry in the SAME group, so the judged/estimated/pending
+    // grouping (#105 review round 4, extended by #117) is a no-op here and this test stays exactly
+    // what it always was: proof the curated-opener promotion works, untouched by that review.
     const ordered = orderCardsForReveal([
-      { card: { adId: "curated-low", matchPct: 70 }, curated: true, judged: true },
-      { card: { adId: "wide-best", matchPct: 99 }, curated: false, judged: true },
-      { card: { adId: "curated-high", matchPct: 80 }, curated: true, judged: true },
-      { card: { adId: "wide-second", matchPct: 90 }, curated: false, judged: true },
+      { card: { adId: "curated-low", matchPct: 70, scored: "judged" as const }, curated: true },
+      { card: { adId: "wide-best", matchPct: 99, scored: "judged" as const }, curated: false },
+      { card: { adId: "curated-high", matchPct: 80, scored: "judged" as const }, curated: true },
+      { card: { adId: "wide-second", matchPct: 90, scored: "judged" as const }, curated: false },
     ]);
     expect(ordered.map((card) => card.adId)).toEqual([
       "curated-high",
@@ -74,38 +74,54 @@ describe("#19 GET /onboarding/cards", () => {
   // #105 review round 4: the ordering fix itself — a card scored by a real judgement and one that
   // fell back to the deterministic tick are not comparable (different scorers, and the fallback
   // scorer measurably over-scores), so mixing them in one score-sorted list put the over-scored
-  // fallback card ahead of an honestly-judged one.
-  it("ranks a judged card above a higher-scoring fallback card — different scorers are not comparable", () => {
+  // fallback card ahead of an honestly-judged one. #117 no longer calls this state "fallback" (that
+  // number is only ever shown when no judge is wired at all — see "estimated" below), but the
+  // grouping property is identical.
+  it("ranks a judged card above a higher-scoring estimated card — different scorers are not comparable", () => {
     const ordered = orderCardsForReveal([
-      { card: { adId: "fallback-high", matchPct: 90 }, curated: false, judged: false },
-      { card: { adId: "judged-low", matchPct: 40 }, curated: false, judged: true },
+      { card: { adId: "estimated-high", matchPct: 90, scored: "estimated" as const }, curated: false },
+      { card: { adId: "judged-low", matchPct: 40, scored: "judged" as const }, curated: false },
     ]);
-    expect(ordered.map((card) => card.adId)).toEqual(["judged-low", "fallback-high"]);
+    expect(ordered.map((card) => card.adId)).toEqual(["judged-low", "estimated-high"]);
   });
 
-  it("preserves score order WITHIN each group (judged first, then fallback)", () => {
+  it("preserves score order WITHIN each group (judged, then estimated, then pending)", () => {
     const ordered = orderCardsForReveal([
-      { card: { adId: "judged-low", matchPct: 20 }, curated: false, judged: true },
-      { card: { adId: "fallback-high", matchPct: 95 }, curated: false, judged: false },
-      { card: { adId: "judged-high", matchPct: 80 }, curated: false, judged: true },
-      { card: { adId: "fallback-low", matchPct: 10 }, curated: false, judged: false },
+      { card: { adId: "judged-low", matchPct: 20, scored: "judged" as const }, curated: false },
+      { card: { adId: "estimated-high", matchPct: 95, scored: "estimated" as const }, curated: false },
+      { card: { adId: "judged-high", matchPct: 80, scored: "judged" as const }, curated: false },
+      { card: { adId: "estimated-low", matchPct: 10, scored: "estimated" as const }, curated: false },
+      { card: { adId: "pending-only", matchPct: null, scored: "pending" as const }, curated: false },
     ]);
     expect(ordered.map((card) => card.adId)).toEqual([
       "judged-high",
       "judged-low",
-      "fallback-high",
-      "fallback-low",
+      "estimated-high",
+      "estimated-low",
+      "pending-only",
     ]);
   });
 
-  it("the curated opener still wins over a judged card, even a lower-scoring curated fallback card", () => {
+  it("the curated opener still wins over a judged card, even a lower-scoring curated estimated card", () => {
     const ordered = orderCardsForReveal([
-      { card: { adId: "judged-high", matchPct: 90 }, curated: false, judged: true },
-      { card: { adId: "curated-fallback", matchPct: 50 }, curated: true, judged: false },
+      { card: { adId: "judged-high", matchPct: 90, scored: "judged" as const }, curated: false },
+      { card: { adId: "curated-estimated", matchPct: 50, scored: "estimated" as const }, curated: true },
     ]);
     // The curated-opener rule (untouched by this review) still promotes the curated card to the
-    // front regardless of the new judged/fallback grouping.
-    expect(ordered.map((card) => card.adId)).toEqual(["curated-fallback", "judged-high"]);
+    // front regardless of the grouping.
+    expect(ordered.map((card) => card.adId)).toEqual(["curated-estimated", "judged-high"]);
+  });
+
+  // #117: a curated card is the deck's usual opener regardless of score — but a PENDING one has no
+  // verdict at all yet, and promoting it would put the deck's headline card in front claiming no
+  // number, exactly the lie AC5 forbids. Of the two options the ticket allows (judge it inside the
+  // bound, or leave it unpromoted), routes/onboarding.ts picks the simpler one: leave it unpromoted.
+  it("does not promote a curated card that is still pending — the opener needs a real number", () => {
+    const ordered = orderCardsForReveal([
+      { card: { adId: "judged-mid", matchPct: 60, scored: "judged" as const }, curated: false },
+      { card: { adId: "curated-pending", matchPct: null, scored: "pending" as const }, curated: true },
+    ]);
+    expect(ordered.map((card) => card.adId)).toEqual(["judged-mid", "curated-pending"]);
   });
 
   it("rides the anonymous session (no wall) and mirrors the session's own persisted stage", async () => {

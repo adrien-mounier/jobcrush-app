@@ -246,9 +246,12 @@ export function answerDiscovery(itemId: string, answer: string): Promise<Discove
 }
 
 // --- #19 the reveal + the job card (screen 2a) ---
-// GET /onboarding/cards returns every card already sorted by matchPct desc (best first); the
-// bubble's two clauses, the fit/dontYet/askedClosed lists, and their rank order are all composed
-// server-side (matchtick.ts) — this client only renders the shape as-is, never re-derives it.
+// #117: GET /onboarding/cards returns every card already correctly ordered — judged first, then
+// estimated, then pending, score-sorted within each group, curated-opener promotion applied. A
+// client re-sort would both fail to type-check (matchPct is null on a pending card) and destroy
+// that order — deck/page.tsx renders `cards` as-is for exactly that reason. The bubble's two
+// clauses, the fit/dontYet/askedClosed lists, and their rank order are all composed server-side
+// (matchtick.ts) — this client only renders the shape as-is, never re-derives it.
 
 export interface CardFact {
   id: string;
@@ -263,7 +266,13 @@ export interface CardRequirement {
   requirement: string;
 }
 
-export interface JobCard {
+export interface MatchBreakdown {
+  essential: { met: number; total: number };
+  desirable: { met: number; total: number };
+}
+
+// #117: fields every card shape carries, scored or not.
+interface JobCardCommon {
   schemaVersion: "1";
   adId: string;
   title: string;
@@ -271,17 +280,48 @@ export interface JobCard {
   place: string;
   salary: string | null;
   pattern: string | null;
-  matchPct: number;
-  breakdown: {
-    essential: { met: number; total: number };
-    desirable: { met: number; total: number };
-  };
-  bubble: { hit: string; open: string };
   fit: CardFact[];
   dontYet: CardRequirement[];
   askedClosed: CardFact[];
   adExcerpt: string;
 }
+
+// A real score: either judged against the candidate's evidence, or — only when scoring is switched
+// off entirely (local dev without a key, every existing test) — the deterministic fallback scorer.
+// The two render identically; `scored` is a QA/e2e hook (`data-scored`) only, never a UI affordance.
+export interface ScoredJobCard extends JobCardCommon {
+  scored: "judged" | "estimated";
+  matchPct: number;
+  breakdown: MatchBreakdown;
+  bubble: { hit: string; open: string };
+}
+
+// #117: cost bounds judging to the first N cards server-side; the rest arrive with no number yet
+// and fill in via the client's poll (deck/page.tsx). Never render 0 or omit the number silently —
+// jobcard.tsx's PendingRing em dash is the only honest way to say "not yet".
+export interface PendingJobCard extends JobCardCommon {
+  scored: "pending";
+  matchPct: null;
+  breakdown: null;
+  bubble: null;
+}
+
+// #117b (addendum §11): we have not bought a score for this job and will not until the visitor
+// shows interest — distinct from `pending`, which IS coming, just not yet. Same null shape as
+// `pending`. Never polled, never flips to gaveUp (deck/page.tsx's applyMerge only ever swaps a
+// locally-`pending` slot, so an `unscored` card is structurally outside that machinery, not just
+// by convention). Swiping right judges it on demand (see deck/page.tsx's §11.7 handoff fix).
+export interface UnscoredJobCard extends JobCardCommon {
+  scored: "unscored";
+  matchPct: null;
+  breakdown: null;
+  bubble: null;
+}
+
+// A discriminated union on `scored`, not four nullable fields on one interface: narrowing on
+// `card.scored` (or on `card.breakdown`/`card.matchPct` being non-null) then gives real non-null
+// types for the other fields too, with no `!`/`as` anywhere that reads a card.
+export type JobCard = ScoredJobCard | PendingJobCard | UnscoredJobCard;
 
 export interface CardsResponse {
   stage: string;
@@ -289,6 +329,9 @@ export interface CardsResponse {
   // #22: true once the session is claimed (signed in) — false only for a still-anonymous visitor.
   // Gates the account wall at the reveal: authed ? straight to the deck : the wall.
   authed: boolean;
+  // #117: how many cards in `cards` are still `scored === "pending"`. The client's only use of this
+  // number is as the poll's start/stop condition — it is deliberately never rendered (design §6).
+  pendingCount: number;
 }
 
 export function getCards(): Promise<CardsResponse> {
@@ -305,9 +348,14 @@ export function wantCard(adId: string): Promise<WantCardResult> {
 }
 
 // --- #23 tailor (screen 3): re-score, the live card, and the exits ---
-// Every field below is server-composed (matchtick.ts) — matchPct never decreases, the fit/dontYet/
-// askedClosed lists carry a requirement between them (the ?->check flip), and ledger/bubble text is
-// rendered verbatim, never re-derived here. cvLines is the same shape discovery already sends.
+// Every field below is server-composed (matchtick.ts). Within one session matchPct only rises as
+// requirements close (§8) — a separate invariant from #117's judged/estimated swap, which CAN move
+// a card's number either way between two page views. The two never collide: /deck's want flow
+// judges an advert on demand before a tailor target opens (its own full budget, #117's design §0
+// trap 2), so `card` below is always ScoredJobCard, never the deck's PendingJobCard variant. The
+// fit/dontYet/askedClosed lists carry a requirement between them (the ?->check flip), and
+// ledger/bubble text is rendered verbatim, never re-derived here. cvLines is the same shape
+// discovery already sends.
 
 export interface TailorQuestion {
   requirementId: string;
@@ -321,7 +369,11 @@ export interface TailorLedgerEntry {
 }
 
 export interface TailorState {
-  card: JobCard;
+  // #117: narrowed to the scored variant, not the full JobCard union — see the comment block above.
+  // This is the "discriminated union on scored" the ticket asked for: it lets every existing use of
+  // `tailor.card.matchPct` etc. in this file keep type-checking as a plain number, with no `!`/`as`,
+  // because the type itself states the invariant instead of the caller assuming it card-by-card.
+  card: ScoredJobCard;
   questions: TailorQuestion[]; // empty ⇒ the ending
   ledger: TailorLedgerEntry[];
   cvLines: DiscoveryCvLine[];

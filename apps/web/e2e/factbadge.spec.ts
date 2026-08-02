@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { CvSection, DiscoveryState, JobCard, ProfileState, TailorState } from "../lib/api";
+import type { CvSection, DiscoveryState, ProfileState, ScoredJobCard, TailorState } from "../lib/api";
 
 // #17 the profile badge — "a pile that only grows". Route-mocked exactly as discovery.spec.ts /
 // tailor.spec.ts already do; fixtures kept faithful to the real DiscoveryState/TailorState shape
@@ -164,7 +164,9 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
   await page.emulateMedia({ reducedMotion: "reduce" });
   await stubSession(page);
 
-  const card: JobCard = {
+  // #117: ScoredJobCard, not the JobCard union — this feeds TailorState.card, which is never the
+  // deck's pending variant (see lib/api.ts's TailorState comment).
+  const card: ScoredJobCard = {
     schemaVersion: "1",
     adId: "ad-1",
     title: "Senior IT Project Manager",
@@ -172,6 +174,7 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
     place: "Paris",
     salary: null,
     pattern: null,
+    scored: "judged",
     matchPct: 61,
     breakdown: {
       essential: { met: 0, total: 1 },

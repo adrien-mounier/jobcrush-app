@@ -15,7 +15,7 @@ import { eligibilityStoreFromEnv } from "./eligibility.js";
 import { adRequirementsStoreFromEnv } from "./adRequirementsStore.js";
 import { makeAdReader } from "./adReader.js";
 import { judgementStoreFromEnv } from "./judgementStore.js";
-import { makeJudge } from "./judge.js";
+import { makeJudge, makeJudgePeek } from "./judge.js";
 import { knownFamilies } from "./e5stub.js";
 import {
   familyLearningStoreFromEnv,
@@ -96,6 +96,12 @@ const { app } = buildServer({
   // stays exactly at today's deterministic-tick behaviour. judgeLlm, not llm: JUDGE_MODEL can name a
   // different model than mine/preview/grill/audit/adReader use, with no code change.
   judge: makeJudge(metered("judging", judgeLlm), judgements),
+  // #117 must-fix 1: the SAME judgements store, wired cache-only — a stored judgement (an earlier
+  // visit, a tailored ad, another visitor's identical facts) resolves for free on the deck without
+  // ever competing for DECK_JUDGE_MAX_CARDS's paid-judging bound.
+  judgePeek: makeJudgePeek(judgements),
+  // #117 AC4/AC8: the same ledger every metered() client above writes into, read back by /ops/spend.
+  usageLedger,
 });
 
 // JC-20 purge: sweep unclaimed anonymous sessions/claims + spent tokens on boot and every 6h

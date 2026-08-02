@@ -122,6 +122,34 @@
 //     say why. This counter (paired with a console.error at the point of rejection) makes a bad rate
 //     change loud at boot instead.
 //
+// #117 adds SIX more:
+//   - judge.subset_reused: judgeOne (judge.ts's makeJudge) found a stored record for the SAME advert
+//     whose recorded fact set is a SUBSET of the visitor's current one and reused its already-passing
+//     verdicts — either avoiding a model call entirely (every requirement was already met) or paying
+//     for only the still-open requirements in one smaller call. This is what makes AC2 ("unchanged
+//     verdicts are not re-purchased as the fact set grows") a number instead of an inference.
+//   - deck.cards_judged / deck.cards_pending / deck.cards_unscored / deck.cards_estimated: the deck
+//     route's own card provenance tally — one increment per rendered card, all four mutually
+//     exclusive and exhaustive. Must-fix 2 (coordinator review) split what was one "pending" state
+//     into two with opposite futures: `pending` is a card a PAID attempt was made for this request
+//     that missed the shared budget — genuinely in flight, will self-heal into the store on a later
+//     request. `unscored` is a card DECK_JUDGE_MAX_CARDS's bound never even attempted — nothing
+//     coming unless a later request's own bound happens to select it. pending / (judged + pending) is
+//     the cold-deck fallback rate AC6 asks to be measured — see /ops/spend (server.ts), which reports
+//     it alongside cost per visitor from the same run; `unscored` is deliberately excluded from that
+//     ratio (it isn't a fallback, it's a cost decision). `estimated` only ever rises when no judge is
+//     wired at all (local dev with no key, every pre-#105 test) or from the tailor surface's own
+//     always-estimated-on-fallback state; a rise here in a deployed environment with a judge
+//     configured means the judge dependency silently stopped being wired — worth an operator's
+//     attention on its own terms.
+//   - deck.judge_bound_hit: this request's ELIGIBLE candidate pool was larger than
+//     DECK_JUDGE_MAX_CARDS — the paid set (routes/onboarding.ts, must-fix A: ranked over EVERY
+//     candidate, not just the still-unresolved ones, so it's a stable, pure function of the fact set
+//     rather than something a repeat poll can grow) could not cover the whole pool. A rising rate
+//     here is expected and healthy on a growing pool (it is the cost control doing its job); it
+//     exists so an operator can see how often the bound is the limiting factor, distinct from
+//     deck.cards_unscored's raw per-card count.
+//
 // In-process and reset-on-restart. That's an accepted limit for this slice, not an oversight: there
 // is no persisted metrics store yet, and standing one up before anything needs history would be the
 // speculative abstraction this repo avoids (#86 decision 4 makes the same call for user languages).
@@ -149,6 +177,12 @@ const counts = {
   "judge.fallback_timeout": 0,
   "usageLedger.write_failed": 0,
   "usageLedger.pricing_override_rejected": 0,
+  "judge.subset_reused": 0,
+  "deck.cards_judged": 0,
+  "deck.cards_pending": 0,
+  "deck.cards_unscored": 0,
+  "deck.cards_estimated": 0,
+  "deck.judge_bound_hit": 0,
 };
 
 export type CounterName = keyof typeof counts;

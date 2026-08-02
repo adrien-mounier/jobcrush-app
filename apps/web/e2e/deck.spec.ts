@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { CardsResponse, CvSection, DiscoveryState, JobCard } from "../lib/api";
+import type { CardsResponse, CvSection, DiscoveryState, JobCard, ScoredJobCard } from "../lib/api";
 
 // #19 the reveal + the job card (screen 2a), end to end over the real API. GET /onboarding/cards
 // and the whole discovery answer pipeline for a known role are deterministic, non-LLM (matchtick.ts
@@ -16,7 +16,11 @@ const ROLE = "IT project manager in Paris";
 
 const RAIL_ZERO: Record<CvSection, number> = { summary: 0, experience: 0, skills: 0, education: 0 };
 
-const CARD_BASE: JobCard = {
+// #117: ScoredJobCard, not the JobCard union — these fixtures stub the network response directly,
+// so nothing here rides the real fallback-scorer path; "judged" is simply a normal already-scored
+// card for these tests. Typed as the concrete variant (not JobCard) so the `card()` helper below can
+// override matchPct without TS having to reason about a spread of an unresolved union.
+const CARD_BASE: ScoredJobCard = {
   schemaVersion: "1",
   adId: "ad-1",
   title: "IT Project Manager",
@@ -24,6 +28,7 @@ const CARD_BASE: JobCard = {
   place: "Paris",
   salary: null,
   pattern: null,
+  scored: "judged",
   matchPct: 82,
   breakdown: {
     essential: { met: 2, total: 3 },
@@ -36,7 +41,7 @@ const CARD_BASE: JobCard = {
   adExcerpt: "excerpt",
 };
 
-function card(adId: string, title: string, matchPct: number): JobCard {
+function card(adId: string, title: string, matchPct: number): ScoredJobCard {
   return { ...CARD_BASE, adId, title, matchPct };
 }
 
@@ -47,7 +52,7 @@ async function stubSession(page: Page) {
 }
 
 async function stubCards(page: Page, cards: JobCard[]) {
-  const body: CardsResponse = { stage: "deck", cards, authed: true };
+  const body: CardsResponse = { stage: "deck", cards, authed: true, pendingCount: 0 };
   await page.route("**/api/onboarding/cards", async (route) => {
     await route.fulfill({ json: body });
   });

@@ -13,6 +13,7 @@ import {
   readTimeoutAlarm,
   resetCountersForTest,
 } from "../src/counters.js";
+import { InMemoryUsageLedgerStore } from "../src/usageLedgerStore.js";
 
 describe("#103 posting-pool counters", () => {
   it("counts the fixture's one non-English posting as a skip exactly once, no matter how many times the pool is read, and never as undetermined or a failure", () => {
@@ -61,7 +62,94 @@ describe("#103 posting-pool counters", () => {
       // #118 — see counters.ts's own header for what these mean.
       "usageLedger.write_failed": 0,
       "usageLedger.pricing_override_rejected": 0,
+      // #117 — see counters.ts's own header for what these mean.
+      "judge.subset_reused": 0,
+      "deck.cards_judged": 0,
+      "deck.cards_pending": 0,
+      "deck.cards_unscored": 0,
+      "deck.cards_estimated": 0,
+      "deck.judge_bound_hit": 0,
     });
+  });
+});
+
+// #117 AC4/AC6/AC8 — /ops/spend: cost per visitor and the deck's fallback rate, together, from one
+// run. Same OPS_KEY gate as /ops/read-failures — proven directly rather than assumed.
+describe("#117 GET /ops/spend", () => {
+  const OPS_KEY = "test-ops-key-117-spend";
+
+  it("refuses without OPS_KEY set, and refuses without the right ?key= once it is", async () => {
+    const { app } = buildServer();
+    const noKeyAtAll = await app.inject({ method: "GET", url: "/ops/spend" });
+    expect(noKeyAtAll.statusCode).toBe(403);
+
+    const previous = process.env.OPS_KEY;
+    process.env.OPS_KEY = OPS_KEY;
+    try {
+      const wrongKey = await app.inject({ method: "GET", url: "/ops/spend?key=nope" });
+      expect(wrongKey.statusCode).toBe(403);
+    } finally {
+      if (previous === undefined) delete process.env.OPS_KEY;
+      else process.env.OPS_KEY = previous;
+    }
+  });
+
+  it("reports total spend, spend by stage, spend for a given visitor, and the deck's provenance tally together", async () => {
+    const usageLedger = new InMemoryUsageLedgerStore();
+    await usageLedger.record({
+      visitorId: "visitor-1",
+      stage: "judging",
+      model: "claude-sonnet-5",
+      inputTokens: 1000,
+      outputTokens: 200,
+      measured: true,
+      costUsd: 0.05,
+      at: new Date().toISOString(),
+    });
+    resetCountersForTest();
+    incrementCounter("deck.cards_judged");
+    incrementCounter("deck.cards_judged");
+    incrementCounter("deck.cards_pending");
+    incrementCounter("deck.cards_unscored");
+    const { app } = buildServer({ usageLedger });
+    const previous = process.env.OPS_KEY;
+    process.env.OPS_KEY = OPS_KEY;
+    try {
+      const res = await app.inject({ method: "GET", url: `/ops/spend?key=${OPS_KEY}&visitorId=visitor-1` });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as {
+        totalCostUsd: number;
+        costByStage: Record<string, number>;
+        visitorCostUsd: number | null;
+        deck: { cardsJudged: number; cardsPending: number; cardsUnscored: number; fallbackRatePerMille: number };
+      };
+      expect(body.totalCostUsd).toBeCloseTo(0.05);
+      expect(body.costByStage.judging).toBeCloseTo(0.05);
+      expect(body.visitorCostUsd).toBeCloseTo(0.05);
+      expect(body.deck.cardsJudged).toBe(2);
+      expect(body.deck.cardsPending).toBe(1);
+      expect(body.deck.cardsUnscored).toBe(1);
+      // #117 must-fix D: denominator is EVERY card (judged+pending+unscored+estimated = 4);
+      // numerator is every card with no honest number (pending+unscored = 2) — (1+1)/4 = 50%.
+      expect(body.deck.fallbackRatePerMille).toBe(500);
+    } finally {
+      if (previous === undefined) delete process.env.OPS_KEY;
+      else process.env.OPS_KEY = previous;
+    }
+  });
+
+  it("omits visitorCostUsd (null) when no ?visitorId= is given", async () => {
+    const { app } = buildServer();
+    const previous = process.env.OPS_KEY;
+    process.env.OPS_KEY = OPS_KEY;
+    try {
+      const res = await app.inject({ method: "GET", url: `/ops/spend?key=${OPS_KEY}` });
+      expect(res.statusCode).toBe(200);
+      expect((res.json() as { visitorCostUsd: number | null }).visitorCostUsd).toBeNull();
+    } finally {
+      if (previous === undefined) delete process.env.OPS_KEY;
+      else process.env.OPS_KEY = previous;
+    }
   });
 });
 

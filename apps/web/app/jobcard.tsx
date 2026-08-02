@@ -14,6 +14,30 @@ const H2 = "Where you don't — yet";
 const H3 = "Asked and closed";
 const A1 = "Read the ad in full";
 
+// #117 the pending card's copy (design-117 §5). P3 ("Not scored yet") is retired by the §11
+// addendum — it collided with `unscored`'s own "Not scored": the give-up strip now keeps label P1
+// unconditionally ("it *is* still scoring, just slowly") and carries the difference in P4 + the
+// retry button, so "Not scored" is unambiguously the `unscored` state below.
+const P1 = "Still scoring";
+const P2 = "I'm checking this one against your facts. You'll see its number here in a few seconds.";
+const P4 = "Scoring this one is taking longer than usual.";
+const P5 = "Try again";
+const P6 = "Checking…";
+const P7 = "Not scored yet";
+
+// #117b (addendum §11) the `unscored` card's copy — a job whose score we deliberately haven't
+// bought yet, not one that's in flight. U1/U3 read as "Not scored" (no "yet") on purpose: nothing
+// is coming unless the visitor asks for it.
+const U1 = "Not scored";
+const U2 = "I scored the closest matches first. Want this one? I'll score it against your facts.";
+const U3 = "Not scored";
+
+// #117c (addendum §12) qualifying an `estimated` score — a real number from the old deterministic
+// scorer, not from judging. One quiet word, never a sentence: it names what the number is without
+// confessing why (no "judging failed", no tooltip). E2 is a template, not a plain string — the
+// aria-label needs the number in it — so it isn't a constant here.
+const E1 = "Estimate";
+
 function matchQuality(pct: number): { label: string; grade: "strong" | "partial" | "weak" } {
   if (pct >= 70) return { label: "Strong", grade: "strong" };
   if (pct >= 50) return { label: "Partial", grade: "partial" };
@@ -21,6 +45,10 @@ function matchQuality(pct: number): { label: string; grade: "strong" | "partial"
 }
 
 function MatchBreakdown({ card, pct }: { card: JobCard; pct?: number }) {
+  // #117: null on a pending card — nothing to render yet. This narrows `card` itself (breakdown is
+  // `MatchBreakdown` on one union member, `null` on the other), so `card.matchPct` below is a plain
+  // number, not `number | null` — no `!`/`as` needed.
+  if (!card.breakdown) return null;
   const { essential, desirable } = card.breakdown;
   const met = essential.met + desirable.met;
   const total = essential.total + desirable.total;
@@ -77,11 +105,23 @@ export function useReducedMotion() {
   return reduced;
 }
 
-export function ScoreRing({ pct, bumped }: { pct: number; bumped?: boolean }) {
+export function ScoreRing({
+  pct,
+  bumped,
+  estimated,
+}: {
+  pct: number;
+  bumped?: boolean;
+  estimated?: boolean; // #117c: the ring itself is untouched — this only changes the accessible name
+}) {
   const r = 28;
   const c = 2 * Math.PI * r;
+  // #117c §12.4: the qualifier rides in the number's own accessible name (E2) rather than a
+  // separate announcement — spoken every time the number is, including after a `bumped` re-score,
+  // with no extra machinery. The visible ".est" caption below is aria-hidden so it isn't read twice.
+  const label = estimated ? `${pct}% match, estimated` : `${pct}% match`;
   return (
-    <div className={`score lg${bumped ? " bumped" : ""}`} role="img" aria-label={`${pct}% match`}>
+    <div className={`score lg${bumped ? " bumped" : ""}`} role="img" aria-label={label}>
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <circle className="bg" cx={32} cy={32} r={r} />
         <circle className="fg" cx={32} cy={32} r={r} strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
@@ -90,6 +130,79 @@ export function ScoreRing({ pct, bumped }: { pct: number; bumped?: boolean }) {
         {pct}
         <span className="pct">%</span>
       </span>
+    </div>
+  );
+}
+
+// #117 the pending ring — same 64x64 footprint as ScoreRing, so the header never reflows when the
+// number lands. The em dash means "no value" (never render a digit, never 0); the moving arc means
+// "working"; on give-up the arc is dropped and only the dash + track remain (design-117 §2).
+export function PendingRing({ gaveUp }: { gaveUp?: boolean }) {
+  const r = 28;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className={`score lg pending${gaveUp ? " gaveup" : ""}`} role="img" aria-label={P7}>
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle className="bg" cx={32} cy={32} r={r} />
+        {!gaveUp && (
+          <circle className="spin" cx={32} cy={32} r={r} strokeDasharray={`${c * 0.22} ${c}`} />
+        )}
+      </svg>
+      <span className="n dash" aria-hidden="true">
+        —
+      </span>
+    </div>
+  );
+}
+
+// #117 the notice strip that replaces the highlight bubble on a pending card — same element, same
+// box metrics, so the swap on landing cannot shift the layout above it (design-117 §3).
+function PendingBubble({
+  gaveUp,
+  retrying,
+  onRetry,
+}: {
+  gaveUp?: boolean;
+  retrying?: boolean;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="bubble pending">
+      <p className="pend-l">{P1}</p>
+      <p>{gaveUp ? P4 : P2}</p>
+      {gaveUp && (
+        <button type="button" className="pend-retry" disabled={retrying} onClick={onRetry}>
+          {retrying ? P6 : P5}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// #117b the unscored ring — same 64x64 slot, completely static: no spinner, no gold-dim. Motion is
+// now reserved as the deck's "in flight" signal, so withholding it here is what makes `unscored`
+// read as settled rather than stalled (design §11.2/§11.5). `+` = "value available if you ask".
+export function UnscoredRing() {
+  const r = 28;
+  return (
+    <div className="score lg unscored" role="img" aria-label={U3}>
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle className="bg" cx={32} cy={32} r={r} />
+      </svg>
+      <span className="n plus" aria-hidden="true">
+        +
+      </span>
+    </div>
+  );
+}
+
+// #117b the unscored strip — same neutral box as PendingBubble, but no retry button, no spinner, no
+// promise: nothing is in flight, so there is nothing to try again (design §11.3).
+function UnscoredBubble() {
+  return (
+    <div className="bubble unscored">
+      <p className="pend-l">{U1}</p>
+      <p>{U2}</p>
     </div>
   );
 }
@@ -107,15 +220,31 @@ export function CardBody({
   pct,
   bumped,
   landedId,
+  gaveUp,
+  retrying,
+  onRetry,
 }: {
   card: JobCard;
   headingRef: RefObject<HTMLHeadingElement | null>;
   pct?: number; // #23: the live re-score tween value; defaults to the card's own matchPct
   bumped?: boolean; // #23: true for ~470ms right after an answer lands
   landedId?: string | null; // #23: the row id to flash gold-then-transparent
+  // #117: only meaningful while card.scored === "pending" — deck/page.tsx's poll state, threaded
+  // through unused by /tailor (whose card is always already scored, see lib/api.ts's TailorState).
+  gaveUp?: boolean; // the poll exhausted its attempts while this card was still pending
+  retrying?: boolean; // a manual retry fetch (onRetry) is in flight
+  onRetry?: () => void; // required whenever gaveUp can be true
 }) {
   const metaLine1 = [card.company, card.place].filter(Boolean).join(" · ");
   const metaLine2 = [card.salary, card.pattern].filter(Boolean).join(" · ");
+  // #117/#117b: fit/dontYet read as claims the judgement hasn't made — hidden for both states with
+  // no score, not just `pending`.
+  const isScored = card.scored === "judged" || card.scored === "estimated";
+  // #117b (design §11.6): unscored starts unfolded — it's the only substantive content that card
+  // will ever have — and then the visitor's own toggle sticks; nothing may force it shut again.
+  // Initial-only by design: this must NOT depend on `card.scored` on every render, or a card that
+  // later resolves to judged/estimated (pending -> landed) would snap shut under the visitor.
+  const [adOpen, setAdOpen] = useState(card.scored === "unscored");
   return (
     <>
       <div className="hd">
@@ -135,17 +264,45 @@ export function CardBody({
             </p>
           )}
         </div>
-        <ScoreRing pct={pct ?? card.matchPct} bumped={bumped} />
+        {card.scored === "pending" ? (
+          <PendingRing gaveUp={gaveUp} />
+        ) : card.scored === "unscored" ? (
+          <UnscoredRing />
+        ) : (
+          // #117c (addendum §12): shown on BOTH screens, unconditionally — it lives here in the
+          // shared CardBody specifically so suppressing it on the deck would cost a prop to show
+          // less honesty (§12.3). `.scoreslot` has one child on a judged card, so the extra wrapper
+          // is a zero-visual no-op there; `.hd`'s flex role that used to sit on `.score` moves to
+          // this wrapper (deck.css §12.1) only for this branch — pending/unscored keep `.score`
+          // as `.hd`'s direct child, unchanged.
+          <div className="scoreslot">
+            <ScoreRing pct={pct ?? card.matchPct} bumped={bumped} estimated={card.scored === "estimated"} />
+            {card.scored === "estimated" && (
+              <p className="est" aria-hidden="true">
+                {E1}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="bubble">
-        <p>
-          {card.bubble.hit} <span className="gap">{card.bubble.open}</span>
-        </p>
-      </div>
+      {card.scored === "pending" ? (
+        <PendingBubble gaveUp={gaveUp} retrying={retrying} onRetry={onRetry} />
+      ) : card.scored === "unscored" ? (
+        <UnscoredBubble />
+      ) : (
+        <div className="bubble">
+          <p>
+            {card.bubble.hit} <span className="gap">{card.bubble.open}</span>
+          </p>
+        </div>
+      )}
 
       <div className="flat">
-        {card.fit.length > 0 && (
+        {/* #117/#117b: omitted entirely on a pending or unscored card (design §1's render map) —
+            not rendered even if the server ever populated `fit` before judging, since "where you
+            fit" reads as a claim the judgement hasn't made yet. */}
+        {isScored && card.fit.length > 0 && (
           <>
             <h3>{H1}</h3>
             {card.fit.map((f) => (
@@ -158,8 +315,10 @@ export function CardBody({
             ))}
           </>
         )}
-        {/* Already server-ranked (uncoveredRequirements) — render in array order, no re-rank. */}
-        {card.dontYet.length > 0 && (
+        {/* Already server-ranked (uncoveredRequirements) — render in array order, no re-rank.
+            #117/#117b: dontYet is always [] while pending/unscored (the contract), so this is
+            belt-and-suspenders with the fit guard above, kept for the same reason. */}
+        {isScored && card.dontYet.length > 0 && (
           <>
             <h3>{H2}</h3>
             {card.dontYet.map((r) => (
@@ -191,7 +350,11 @@ export function CardBody({
 
       <MatchBreakdown card={card} pct={pct} />
 
-      <details className="ad">
+      {/* #117b design §11.6: controlled only so `unscored` can start open — a judged/estimated/
+          pending card gets adOpen=false at mount, same as the old uncontrolled default, and the
+          visitor's own toggle then drives it exactly as before. shouldIgnoreSwipeStart already
+          excludes `details.ad[open]` from starting a swipe (deck/page.tsx), unchanged. */}
+      <details className="ad" open={adOpen} onToggle={(e) => setAdOpen(e.currentTarget.open)}>
         <summary>{A1}</summary>
         <p>{card.adExcerpt}</p>
       </details>

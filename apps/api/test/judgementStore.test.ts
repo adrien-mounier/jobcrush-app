@@ -21,6 +21,7 @@ const record = (over: Partial<JudgementRecord> = {}): JudgementRecord => ({
   ],
   version: "card-judge/1+judge/1",
   cost: { model: "claude-sonnet-5", inputTokens: 900, outputTokens: 180, judgedAt: "2026-08-02T00:00:00.000Z" },
+  facts: [{ id: "fact-1", text: "Managed a $2M program budget with vendor oversight." }],
   ...over,
 });
 
@@ -86,8 +87,72 @@ for (const [name, make] of drivers) {
       await store.put("ad-1", "fp-1", record({ verdicts: [{ requirementId: "own-budget" } as never] }));
       await expect(store.get("ad-1", "fp-1")).resolves.toBeNull();
     });
+
+    // #117 AC2 — the subset-reuse lookup's own store contract, both drivers.
+    describe("findReuseCandidates", () => {
+      it("returns nothing for an adId with no stored records", async () => {
+        expect(await store.findReuseCandidates("ad-1", "card-judge/1+judge/1", 10)).toEqual([]);
+      });
+
+      it("finds a record for the same adId and version, with its facts intact", async () => {
+        await store.put("ad-1", "fp-1", record());
+        const found = await store.findReuseCandidates("ad-1", "card-judge/1+judge/1", 10);
+        expect(found).toHaveLength(1);
+        expect(found[0]).toEqual(record());
+      });
+
+      it("excludes records for a DIFFERENT adId", async () => {
+        await store.put("ad-2", "fp-1", record());
+        expect(await store.findReuseCandidates("ad-1", "card-judge/1+judge/1", 10)).toEqual([]);
+      });
+
+      it("excludes records at a DIFFERENT version — a stale row is never offered as reusable", async () => {
+        await store.put("ad-1", "fp-1", record({ version: "card-judge/0+judge/0" }));
+        expect(await store.findReuseCandidates("ad-1", "card-judge/1+judge/1", 10)).toEqual([]);
+      });
+
+      it("respects the limit — never returns more than `limit` candidates for a popular adId", async () => {
+        for (let i = 0; i < 5; i++) {
+          await store.put("ad-1", `fp-${i}`, record({ facts: [{ id: `fact-${i}`, text: `Evidence ${i}.` }] }));
+        }
+        const found = await store.findReuseCandidates("ad-1", "card-judge/1+judge/1", 2);
+        expect(found).toHaveLength(2);
+      });
+
+      // #117 must-fix E (coordinator review) — one interface, both drivers, IDENTICAL behaviour: a
+      // stored row the current schema rejects must never be offered as a reuse candidate by ONE
+      // driver while the other correctly excludes it. This test runs inside the shared drivers loop,
+      // so it exercises both.
+      it("excludes a stored row the CURRENT schema rejects, same as get() does", async () => {
+        await store.put("ad-1", "fp-1", record({ verdicts: [{ requirementId: "own-budget" } as never] }));
+        expect(await store.findReuseCandidates("ad-1", "card-judge/1+judge/1", 10)).toEqual([]);
+      });
+    });
   });
 }
+
+// #117 — a record with NO recorded fact set (a row written before this field existed, on a live
+// database that already had #105 rows before this ticket shipped) must never be offered as a reuse
+// candidate: an unknown fact set can't safely be treated as "a subset of anything" — see
+// CARD_JUDGEMENTS_ALTERS's own comment in judgementStore.ts. Exercised directly at the SQL level
+// (bypassing put(), which always supplies a real facts array) since that's the only way to construct
+// the exact row shape a pre-#117 database could actually contain.
+describe("PgJudgementStore — a legacy row with no recorded facts is excluded from reuse", () => {
+  it("is never returned by findReuseCandidates, even though it matches adId and version", async () => {
+    const pool = pgPool();
+    const store = new PgJudgementStore(pool);
+    await store.init();
+    await pool.query(
+      `INSERT INTO card_judgements (ad_id, facts_fingerprint, verdicts, version, cost, facts, judged_at, last_used_at)
+       VALUES ('ad-1', 'fp-legacy', $1, 'card-judge/1+judge/1', $2, NULL, now(), now())`,
+      [JSON.stringify(record().verdicts), JSON.stringify(record().cost)],
+    );
+    expect(await store.findReuseCandidates("ad-1", "card-judge/1+judge/1", 10)).toEqual([]);
+    // Sanity: the legacy row IS actually there, and get() still reads it fine (facts defaults to []
+    // for the exact-match path, which never consults it) — this isn't excluded by being unreadable.
+    expect(await store.get("ad-1", "fp-legacy")).not.toBeNull();
+  });
+});
 
 // #105 review round 2 — disuse-based purge (Postgres-only: last_used_at is a real column the
 // InMemory driver has no need to track, since in-memory data is wiped on restart and never purged).

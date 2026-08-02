@@ -1,12 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { JobCard, TailorState } from "../lib/api";
+import type { ScoredJobCard, TailorState } from "../lib/api";
 
 // #23 Tailor (screen 3): re-score, the live card, and the exits. Stubbed at the route layer exactly
 // like deck.spec.ts's screen 2b tests — GET/POST /api/onboarding/tailor* aren't necessarily wired
 // server-side yet (the ticket's own contract note), so every call is mocked and this rides straight
 // to /tailor (deck.spec.ts already covers the /deck -> tailorHandoff -> /tailor bridge itself).
 
-const CARD_FIRST: JobCard = {
+// #117: ScoredJobCard, not the JobCard union — TailorState.card is never the deck's pending variant.
+const CARD_FIRST: ScoredJobCard = {
   schemaVersion: "1",
   adId: "ad-1",
   title: "Senior IT Project Manager",
@@ -14,6 +15,7 @@ const CARD_FIRST: JobCard = {
   place: "Paris 15e",
   salary: null,
   pattern: null,
+  scored: "judged",
   matchPct: 61,
   breakdown: {
     essential: { met: 0, total: 1 },

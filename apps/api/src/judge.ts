@@ -140,6 +140,39 @@ export interface JudgeResult {
 // were spent, not because the true cost is unknown (contrast with adReader.ts's `null` for "unmeasured").
 const NO_FACTS_MODEL = "none";
 
+// #117 AC2 — the OTHER zero-model-call shortcut: every requirement was already met by a reused
+// subset judgement (see isFactSubset/makeJudge below), so there is genuinely nothing left to ask a
+// model. Named separately from NO_FACTS_MODEL because the two mean opposite things operationally —
+// this one fires on a WARM store with plenty of evidence, that one on a candidate with none at all —
+// and folding them into one cost-model string would make the two indistinguishable on inspection.
+const SUBSET_REUSE_MODEL = "reuse";
+
+// #117 AC2 — the subset-reuse lookup's own bound: at most this many of an adId's OTHER stored
+// fact-set records are considered when searching for a reusable one. Never unbounded: a popular
+// advert accumulates one row per DISTINCT fact set that's ever judged it, and this must stay a small,
+// fixed cost no matter how many rows accumulate over the advert's lifetime. 20 is generous for a
+// subset search — a visitor's own fact set only grows one answer at a time, so a reusable ancestor is
+// almost always among the most recently used rows for that ad — while staying a small constant rather
+// than scaling with traffic.
+const SUBSET_REUSE_CANDIDATE_LIMIT = 20;
+
+/** #117 AC2 — true when every (factId, text) pair in `subset` also appears, byte-identical, in
+ *  `superset`. Deliberately exact-PAIR matching, not "same ids" and not "same count": the subset's
+ *  stored verdicts were produced against this exact evidence, so reuse is safe only while that exact
+ *  evidence is still present. If a fact with the same id has since been EDITED (its text changed),
+ *  that id no longer matches by (id, text) and the whole candidate is rejected — a correction must
+ *  fall through to a full re-judge, never quietly reuse a verdict the corrected evidence never earned.
+ *
+ *  #117 must-fix B (coordinator review) — the pair key is JSON.stringify([id, text]), not a
+ *  `${id}:${text}` join: a `:` inside a real id or a fact's own free-text answer could otherwise make
+ *  two DIFFERENT (id, text) pairs collide onto the same joined string, letting a stored verdict be
+ *  reused against evidence the candidate does not actually have. Same class of bug just fixed one
+ *  file over in judgementStore.ts's key(); JSON-encoding the tuple has no such collision risk. */
+function isFactSubset(subset: JudgeFact[], superset: JudgeFact[]): boolean {
+  const supersetKeys = new Set(superset.map((f) => JSON.stringify([f.id, f.text])));
+  return subset.every((f) => supersetKeys.has(JSON.stringify([f.id, f.text])));
+}
+
 /**
  * Judges one advert's requirements against one candidate's confirmed facts in ONE model call.
  * Mirrors readAdvert's shape: extractJson, a zod gate plus the coverage backstop above, one retry
@@ -275,21 +308,76 @@ export function makeJudge(llm: LlmClient, store: JudgementStore): JudgeFn {
       return cached;
     }
 
-    let result: JudgeResult;
+    // #117 AC2 — superset reuse. An exact-fingerprint miss (above) doesn't mean nothing is reusable:
+    // the fact set may simply have GROWN since the last time this advert was judged. Look for a
+    // stored record for the SAME advert, at the CURRENT version, whose recorded fact set is a subset
+    // of `confirmed` — identical evidence, so every verdict that already cleared COVERAGE_THRESHOLD
+    // is still genuinely supported (adding evidence can only raise or hold a requirement's fit, never
+    // lower it — a requirement that was already met cannot have stopped being met). A reuse-lookup
+    // outage falls through to a full re-judge rather than blocking judging altogether — this is a
+    // cost optimization, not correctness, so its own failure is logged but not counted as
+    // judge.judge_failed (judging itself hasn't failed here, only a chance to save on it).
+    let reuse: JudgementRecord | null = null;
     try {
-      result = await judgeFacts(adReq, confirmed, llm);
+      const candidates = await store.findReuseCandidates(adReq.adId, judgeVersion(), SUBSET_REUSE_CANDIDATE_LIMIT);
+      reuse =
+        candidates.find(
+          (candidate) => coversAllRequirements(adReq, candidate.verdicts) && isFactSubset(candidate.facts, confirmed),
+        ) ?? null;
     } catch (err) {
-      incrementCounter("judge.judge_failed");
       console.error(
-        `[ops] judge failed (${err instanceof JudgeValidationError ? "model-output-invalid" : "model-call-error"}) for ${adReq.adId}: ${err instanceof Error ? err.message : String(err)}`,
+        `[ops] judge subset-reuse lookup failed for ${adReq.adId}: ${err instanceof Error ? err.message : String(err)}`,
       );
-      return null;
+    }
+    // ACCEPTED LIMIT (recorded, not fixed here): a kept verdict is never re-examined once it clears
+    // COVERAGE_THRESHOLD, so a newly ADDED fact that happens to CONTRADICT an already-met requirement
+    // (e.g. a later answer implies the candidate does not actually hold a certification an earlier
+    // fact claimed) can never lower that requirement's score — only an EDITED or REMOVED fact does,
+    // via isFactSubset's exact-pair match falling through to a full re-judge. This sits against #86's
+    // "a correction that genuinely lowers fit does lower the score", but the case is narrow: it needs
+    // a genuinely contradictory ADDITION, not a correction, and the ordinary edit/remove path already
+    // handles the general case. Fixing it would mean re-verifying every kept verdict on every subset
+    // hit — the very re-judging this ticket's AC2 exists to avoid — so it is left as a known,
+    // deliberate gap rather than addressed in this ticket.
+    const keepers = reuse ? reuse.verdicts.filter((v) => v.fit >= COVERAGE_THRESHOLD) : [];
+    const keptIds = new Set(keepers.map((v) => v.requirementId));
+    // Every requirement NOT already kept still needs a real verdict — on a full re-judge (no reuse
+    // found) that's simply every requirement, unchanged from before this ticket.
+    const stillOpen = reuse ? adReq.requirements.filter((r) => !keptIds.has(r.id)) : adReq.requirements;
+
+    let result: JudgeResult;
+    if (reuse && stillOpen.length === 0) {
+      // Every requirement was already met by the reused evidence — nothing left to ask a model.
+      incrementCounter("judge.subset_reused");
+      result = { verdicts: [], cost: { model: SUBSET_REUSE_MODEL, inputTokens: 0, outputTokens: 0 } };
+    } else {
+      // #117: judgeFacts's existing one-call-per-advert shape needs no redesign for a PARTIAL
+      // re-judge — a subset AdRequirementsV1 (the same advert, only the still-open requirements) is
+      // exactly the shape judgeFacts already accepts; it builds the prompt from `adReq.requirements`
+      // and verifies coverage against that same list, whatever its size.
+      const callAdReq: AdRequirementsV1 = reuse ? { ...adReq, requirements: stillOpen } : adReq;
+      try {
+        result = await judgeFacts(callAdReq, confirmed, llm);
+      } catch (err) {
+        incrementCounter("judge.judge_failed");
+        console.error(
+          `[ops] judge failed (${err instanceof JudgeValidationError ? "model-output-invalid" : "model-call-error"}) for ${adReq.adId}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return null;
+      }
+      if (reuse) incrementCounter("judge.subset_reused");
     }
 
+    // Kept verdicts (from the reused record, already proven still-supported) plus whatever this call
+    // just produced — together covering every one of adReq's CURRENT requirement ids exactly once,
+    // since keptIds and stillOpen are complementary partitions of the same list.
+    const verdicts = reuse ? [...keepers, ...result.verdicts] : result.verdicts;
+
     const record: JudgementRecord = {
-      verdicts: result.verdicts,
+      verdicts,
       version: judgeVersion(),
       cost: { ...result.cost, judgedAt: new Date().toISOString() },
+      facts: confirmed,
     };
     try {
       await store.put(adReq.adId, fingerprint, record);
@@ -310,5 +398,80 @@ export function makeJudge(llm: LlmClient, store: JudgementStore): JudgeFn {
     const promise = judgeOne(adReq, confirmed).finally(() => inFlight.delete(key));
     inFlight.set(key, promise);
     return promise;
+  };
+}
+
+export type JudgePeekFn = (adReq: AdRequirementsV1, confirmed: JudgeFact[]) => Promise<JudgementRecord | null>;
+
+/**
+ * #117 must-fix 1 — a CACHE-ONLY lookup, structurally incapable of spending: unlike makeJudge, this
+ * function never receives an LlmClient at all, so there is no model access to fall through to even
+ * by mistake. The deck route (routes/onboarding.ts) calls this for EVERY eligible card before
+ * deciding which of the still-unresolved ones are worth a real, paid judging attempt — the coordinator's
+ * correction to this ticket's original design: a stored judgement (from an earlier visit, from
+ * tailoring this exact card, or from another visitor with byte-identical facts) costs nothing to
+ * read, so DECK_JUDGE_MAX_CARDS's bound must gate fresh calls only, never a free cache hit.
+ *
+ * Returns a full, ready-to-use record in exactly two cases — an exact-fingerprint hit (identical to
+ * makeJudge's own first check), or a subset-reuse match whose kept verdicts (fit >= COVERAGE_THRESHOLD)
+ * ALREADY cover every one of the advert's current requirements, so nothing is left that would need a
+ * fresh call to complete. A subset match that leaves even one requirement still open returns null
+ * rather than a partial record: a caller reading a missing verdict as `fit ?? 0` would silently score
+ * an unasked requirement as failed — exactly the fabricated-number problem #117 exists to stop. A
+ * qualifying subset match is persisted under the CURRENT fingerprint before returning (the merge is
+ * free — no model call, mirroring makeJudge's own zero-call subset-reuse branch) so a later
+ * exact-fingerprint lookup, by this function or makeJudge, hits it directly next time.
+ *
+ * Never throws: a store failure returns null (the same "nothing free found" result as a genuine
+ * cache miss) rather than propagating — this function backs a UI decision (is this card free to show
+ * right now?), not a paid operation, so a storage hiccup must never be the reason a deck request 500s.
+ *
+ * Deliberately NOT refactored to share judgeOne's internal lookup above: the two functions have
+ * different failure policies (judgeOne counts+logs a store.get failure as judge.judge_failed and
+ * treats a reuse-lookup failure as a soft fall-through to a full re-judge; this function just returns
+ * null either way) and judgeOne is already tested end to end — duplicating this one small, contained
+ * lookup was judged lower-risk than reshaping working, verified code to share it.
+ */
+export function makeJudgePeek(store: JudgementStore): JudgePeekFn {
+  return async (adReq, confirmed) => {
+    try {
+      const fingerprint = judgementFingerprint(adReq, confirmed);
+      const cached = await store.get(adReq.adId, fingerprint);
+      if (cached && cached.version === judgeVersion() && coversAllRequirements(adReq, cached.verdicts)) {
+        return cached;
+      }
+
+      const candidates = await store.findReuseCandidates(adReq.adId, judgeVersion(), SUBSET_REUSE_CANDIDATE_LIMIT);
+      const reuse = candidates.find(
+        (candidate) => coversAllRequirements(adReq, candidate.verdicts) && isFactSubset(candidate.facts, confirmed),
+      );
+      if (!reuse) return null;
+
+      // Same accepted limit as judgeOne's own keepers computation above (makeJudge, this file): a
+      // kept verdict is never re-examined against newly ADDED (non-contradicting-check) evidence.
+      const keepers = reuse.verdicts.filter((v) => v.fit >= COVERAGE_THRESHOLD);
+      const keptIds = new Set(keepers.map((v) => v.requirementId));
+      const stillOpen = adReq.requirements.some((r) => !keptIds.has(r.id));
+      if (stillOpen) return null; // would need a paid call to complete — not free
+
+      const record: JudgementRecord = {
+        verdicts: keepers,
+        version: judgeVersion(),
+        cost: { model: SUBSET_REUSE_MODEL, inputTokens: 0, outputTokens: 0, judgedAt: new Date().toISOString() },
+        facts: confirmed,
+      };
+      try {
+        await store.put(adReq.adId, fingerprint, record);
+      } catch (err) {
+        // The free resolution is still valid THIS request even if persisting it failed — same
+        // "don't throw away a good result over a storage hiccup" tradeoff judgeOne's own put takes.
+        console.error(`[ops] judge peek store.put failed for ${adReq.adId}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      incrementCounter("judge.subset_reused");
+      return record;
+    } catch (err) {
+      console.error(`[ops] judge peek lookup failed for ${adReq.adId}: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
   };
 }

@@ -32,7 +32,7 @@ import {
   judgedPickHitClause,
   judgedUncoveredRequirements,
 } from "../judgedScore.js";
-import type { JudgeFact, JudgeFn } from "../judge.js";
+import type { JudgeFact, JudgeFn, JudgePeekFn } from "../judge.js";
 import type { JudgementRecord } from "../judgementStore.js";
 import {
   composeCvLine,
@@ -84,6 +84,14 @@ export interface OnboardingDeps {
    *  today's deterministic tick (matchTick/uncoveredRequirements), unchanged: every pre-#105 test
    *  stays valid, and no route here ever makes a live judging call unless main.ts wires this. */
   judge?: JudgeFn;
+  /** #117 must-fix 1: a CACHE-ONLY companion to `judge` — judge.ts's makeJudgePeek, structurally
+   *  incapable of spending (it never receives an LlmClient). The deck route calls this for EVERY
+   *  eligible card BEFORE deciding which still-unresolved ones are worth a fresh paid judging
+   *  attempt, so a stored judgement (an earlier visit, a tailored ad, another visitor's
+   *  byte-identical facts) costs nothing to read and never competes for DECK_JUDGE_MAX_CARDS's
+   *  bound. Absent → every card is treated as "not yet resolved for free", identical to the deck's
+   *  behaviour before this phase existed (every pre-#117-must-fix-1 test stays valid). */
+  judgePeek?: JudgePeekFn;
 }
 
 /** The miner stores its full doc (incl. per-role date flags) under progress.miner.doc. */
@@ -764,45 +772,124 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // #105 review round 4: that same concurrency cap creates WAVES (15 postings at a cap of 6 is
       // three), and each wave used to get its own fresh READ_TIMEOUT_MS allowance for judging — worst
       // case, wave-count × READ_TIMEOUT_MS, comfortably over the web proxy's 30s deadline, and getting
-      // WORSE as the pool grows. judgeDeadline is a single wall-clock budget for the WHOLE request's
-      // judging phase, computed once here and passed to every resolveJudgement call below — see
-      // DECK_JUDGE_BUDGET_MS's own comment for the number and why. Ad reads keep their own unchanged
-      // per-call READ_TIMEOUT_MS (they warm across every session that sees a given advert, so a cold
-      // read is the rare case this fix isn't targeting, not the routine one judging's per-session
-      // cache guarantees on every new visitor).
-      const judgeDeadline = Date.now() + DECK_JUDGE_BUDGET_MS;
-      const resolved = await mapWithConcurrency(postings, CARD_RESOLUTION_CONCURRENCY, async (posting) => {
+      // WORSE as the pool grows. judgeDeadline (computed below, AFTER the free peek phase — #117
+      // must-fix C) is a single wall-clock budget for the PAID judging phase, passed to every
+      // resolveJudgement call — see DECK_JUDGE_BUDGET_MS's own comment for the number and why. Ad
+      // reads keep their own unchanged per-call READ_TIMEOUT_MS (they warm across every session that
+      // sees a given advert, so a cold read is the rare case this fix isn't targeting, not the
+      // routine one judging's per-session cache guarantees on every new visitor).
+      // Phase 1, unchanged from before #117: resolve EVERY eligible posting's OWN requirements.
+      // Reading an advert is shared across every visitor who ever sees it (adRequirementsStore's own
+      // cache), so there is no cost reason to bound THIS step — only the per-session judging step
+      // below is capped.
+      const resolvedReqs = await mapWithConcurrency(postings, CARD_RESOLUTION_CONCURRENCY, async (posting) => {
         const adReq = await resolveAdRequirements(posting.id, deps.readAd, posting);
         // Same dual gate as before #104: the posting's own language (already true via
         // eligiblePostings) AND, separately, the requirement set's OWN stated language (#103 code
         // review finding 5) — unchanged by widening the source from "fixtures only" to
         // "fixture or freshly read".
         if (!adReq || !languageEligible(adReq.language, langs)) return null;
-        // #105: judging is a SECOND per-posting async step, resolved only once the ad's own
-        // requirements are known — absent deps.judge (or a failed/timed-out judgement) falls back
-        // to today's deterministic tick inside buildJobCard, never dropping the card.
-        const judgement = await resolveJudgement(adReq, confirmed, deps.judge, judgeDeadline);
-        return { posting, adReq, judgement };
+        return { posting, adReq };
       });
-      const cardCandidates = resolved
-        .filter(
-          (entry): entry is { posting: Posting; adReq: AdRequirementsV1; judgement: JudgementRecord | null } =>
-            entry !== null,
-        )
-        .map((entry) => ({
-          card: buildJobCard(entry.posting, entry.adReq, confirmed, negatives, entry.judgement),
-          curated: entry.adReq.curated,
-          // #105 review round 4: a card scored by a real judgement and one that fell back to the
-          // deterministic tick come from two different scorers whose numbers are not comparable —
-          // ranking them in one score-sorted list put an over-scoring fallback card (the one job we
-          // had NO real verdict for) ahead of honestly-judged ones. orderCardsForReveal groups on
-          // this before it sorts by score.
-          judged: entry.judgement !== null,
-        }));
+      const candidates = resolvedReqs.filter(
+        (entry): entry is { posting: Posting; adReq: AdRequirementsV1 } => entry !== null,
+      );
+
+      // #117 must-fix A (coordinator review, severe) — the PAID set is ranked over EVERY eligible
+      // candidate, not just whatever peek (below) fails to resolve for free. Ranking over "unresolved"
+      // was the bug: request 1 pays for the top 8, some land in the store; request 2's free peek
+      // resolves those, which — if the paid set were re-derived from "still unresolved" — frees up 8
+      // MORE slots for a fresh paid attempt, and a visitor who simply reloads the deck a few times
+      // walks the paid set down the entire pool, paying for all 15 by the third or fourth poll —
+      // exactly the ~$0.29 cold-deck spend this ticket exists to eliminate. Ranking over EVERY
+      // candidate makes the paid set a PURE FUNCTION of (this fact set, these requirement sets) alone:
+      // unchanged inputs always re-derive the IDENTICAL set, so once its members are stored, a repeat
+      // poll finds all of them cached and pays for nothing further — the poll converges instead of
+      // walking the pool. See DECK_JUDGE_MAX_CARDS's own comment for the bound; see the test
+      // "MF-A: repeated identical polls never pay for more than the bound" for the property this fixes.
+      //
+      // KNOWN WEAKNESS, accepted deliberately: matchTick is the very token-overlap scorer #86/#105
+      // exist to replace — it is blind to meaning (a candidate who "ran weekly steering meetings with
+      // the CFO" scores 0% against "coordinate business and technical stakeholders" on this same
+      // scorer, per #86's own Problem Statement). A genuinely strong match phrased in the candidate's
+      // own words can therefore rank low on vocabulary and never make the paid set. This is a CHEAP
+      // PRE-FILTER deciding what's worth paying to verify, not a verdict on the card itself — fixing
+      // the pre-filter's own blindness is out of scope here and belongs with family-fit ranking
+      // (#107), not this cost ticket.
+      const rankedAll = [...candidates].sort(
+        (a, b) => matchTick(confirmed, b.adReq) - matchTick(confirmed, a.adReq),
+      );
+      if (rankedAll.length > DECK_JUDGE_MAX_CARDS) incrementCounter("deck.judge_bound_hit");
+      const paidSet = new Set(rankedAll.slice(0, DECK_JUDGE_MAX_CARDS).map((entry) => entry.adReq.adId));
+
+      // #117 must-fix 1 — peek is UNBOUNDED and runs over EVERY candidate, in or out of the paid set:
+      // a stored judgement (an earlier visit, this exact ad tailored already, or another visitor with
+      // byte-identical facts) costs nothing to read, so it must resolve for free regardless of rank.
+      // deps.judgePeek (judge.ts's makeJudgePeek) is structurally incapable of spending, and absent
+      // (every pre-must-fix-1 test) simply means nothing resolves for free, identical to before this
+      // phase existed.
+      const peeked = await mapWithConcurrency(candidates, CARD_RESOLUTION_CONCURRENCY, async (entry) => {
+        const judgement = deps.judgePeek ? await deps.judgePeek(entry.adReq, confirmed) : null;
+        return { ...entry, judgement };
+      });
+
+      // #117 must-fix C — the paid budget starts AFTER the free peek phase, not before it. Peek is up
+      // to two store round-trips per candidate at CARD_RESOLUTION_CONCURRENCY; starting the deadline
+      // earlier (as before this fix) charged that free work against the PAID budget, so a slow store
+      // could exhaust judgeDeadline before a single paid call even began — every bounded card would
+      // then be paid for AND still render `pending` (resolveJudgement's own remainingMs already 0).
+      const judgeDeadline = Date.now() + DECK_JUDGE_BUDGET_MS;
+      // Whether a judge is wired at all is a per-DEPLOYMENT fact (deps.judge), not a per-card one —
+      // it decides whether an unresolved card claims the old deterministic number (today's
+      // `estimated` behaviour, byte-for-byte, when no judge exists to be honest about) or claims none
+      // at all (`pending`/`unscored`, once a judge is wired).
+      const judgeWired = !!deps.judge;
+
+      const resolved = await mapWithConcurrency(peeked, CARD_RESOLUTION_CONCURRENCY, async (entry) => {
+        if (entry.judgement) return { ...entry, attempted: false }; // resolved for free above
+        if (!paidSet.has(entry.adReq.adId)) {
+          // #117 must-fix 2: deliberately never bought this request — `unscored`, not `pending`.
+          return { ...entry, attempted: false };
+        }
+        // #105: judging is a SECOND per-posting async step, resolved only once the ad's own
+        // requirements are known — but now ONLY for a candidate the paid set selected. Absent
+        // deps.judge (or a failed/timed-out judgement) falls back per buildJobCard's own rule.
+        const judgement = await resolveJudgement(entry.adReq, confirmed, deps.judge, judgeDeadline);
+        return { ...entry, judgement, attempted: true };
+      });
+      const cardCandidates = resolved.map((entry) => ({
+        card: buildJobCard(
+          entry.posting,
+          entry.adReq,
+          confirmed,
+          negatives,
+          entry.judgement,
+          // #117 must-fix 2: a real paid attempt that missed the budget is `pending` (genuinely in
+          // flight, will self-heal into the store); one the bound never attempted at all is
+          // `unscored` (nothing coming unless a later request's own bound selects it).
+          !judgeWired ? "estimated" : entry.attempted ? "pending" : "unscored",
+        ),
+        curated: entry.adReq.curated,
+      }));
       const cards = orderCardsForReveal(cardCandidates);
+      // #117 AC3/AC8 — the deck's own card-provenance tally, observable on /ops/spend (server.ts)
+      // alongside cost per visitor from the SAME run. pendingCount also rides on the response itself
+      // so the client can decide what to do about a still-scoring deck without polling counters —
+      // must-fix 2: it counts ONLY genuinely in-flight (`pending`) cards, never `unscored` ones, so a
+      // client polling on it terminates instead of waiting forever on a card that was never bought.
+      let pendingCount = 0;
+      for (const card of cards) {
+        if (card.scored === "judged") incrementCounter("deck.cards_judged");
+        else if (card.scored === "estimated") incrementCounter("deck.cards_estimated");
+        else if (card.scored === "unscored") incrementCounter("deck.cards_unscored");
+        else {
+          incrementCounter("deck.cards_pending");
+          pendingCount++;
+        }
+      }
       // #22: authed tells the client whether the account wall at the reveal applies — false only
       // for a still-anonymous session, so a returning (claimed) visitor is never re-walled.
-      return { stage: session.stage, cards, authed: session.claimedByUserId !== null };
+      return { stage: session.stage, cards, pendingCount, authed: session.claimedByUserId !== null };
     });
 
     app.post(
@@ -960,6 +1047,35 @@ interface CardRequirement {
   band: RankBand;
   requirement: string;
 }
+// #117 — the provenance discriminator, pinned identically for the frontend (do not deviate).
+// `pending` and `unscored` were one state ("pending") until the coordinator's must-fix 2 review:
+// a card that missed the shared judging budget IS still coming (the underlying call keeps running
+// and self-heals into the store, same pattern as adReader.ts's read timeout — a later fetch resolves
+// it for free via makeJudgePeek), but a card the bound never even attempted has NOTHING coming
+// unless a later request happens to select it — collapsing the two meant the web deck's poll-while-
+// pendingCount-is-nonzero loop could spin forever on a card that was never going to resolve.
+//   - "judged": a real model verdict backed this card. matchPct/breakdown/bubble/dontYet are the
+//     judged relation's numbers, unchanged from #105.
+//   - "pending": a judge IS wired and a PAID judging attempt was made for this card THIS request,
+//     but it missed the shared budget (DECK_JUDGE_BUDGET_MS) before landing. It is genuinely in
+//     flight — the underlying call is still running and will persist when it completes — so a later
+//     fetch resolves it for free. Counts toward the deck response's `pendingCount`, the signal the
+//     client polls on.
+//   - "unscored": a judge IS wired but this card fell outside DECK_JUDGE_MAX_CARDS's bound — no
+//     judging attempt was made for it at all, deliberately, to cap spend. Nothing is "in flight" for
+//     it; it resolves only if a LATER request's own bound happens to select it (or another visitor's
+//     identical facts pay for it first). Does NOT count toward `pendingCount` — the client must not
+//     poll waiting for something that was never bought.
+//   Both "pending" and "unscored" claim NO number at all: matchPct/breakdown/bubble are null and
+//   dontYet is empty, rather than silently substituting the deterministic scorer's number (the exact
+//   lie AC5 exists to stop).
+//   - "estimated": the deterministic scorer (matchtick.ts) produced the number and this field says
+//     so. Emitted ONLY when no judge is wired at all (deps.judge absent — every pre-#105 test, local
+//     dev with no key) or by the tailor surface's own always-falls-back-to-estimated behaviour
+//     (buildTailorState, unchanged by this ticket). In this state matchPct/breakdown/bubble/dontYet
+//     are byte-for-byte what they were before #117.
+export type CardScoreProvenance = "judged" | "pending" | "unscored" | "estimated";
+
 interface JobCard {
   schemaVersion: "1";
   adId: string;
@@ -968,33 +1084,49 @@ interface JobCard {
   place: string;
   salary: string | null; // absent in the stub postings — always null for now
   pattern: string | null; // absent in the stub postings — always null for now
-  matchPct: number;
-  breakdown: ReturnType<typeof matchBreakdown>;
-  bubble: { hit: string; open: string };
+  scored: CardScoreProvenance;
+  matchPct: number | null; // null iff scored is "pending" or "unscored"
+  breakdown: ReturnType<typeof matchBreakdown> | null; // null iff scored is "pending" or "unscored"
+  bubble: { hit: string; open: string } | null; // null iff scored is "pending" or "unscored"
   fit: CardFact[];
-  dontYet: CardRequirement[];
+  dontYet: CardRequirement[]; // [] when pending or unscored
   askedClosed: CardFact[];
   adExcerpt: string;
 }
 
+// #117: judged > estimated > pending > unscored. Lower ranks first. Extends #105 review round 4's
+// judged-above-fallback grouping, then must-fix 2's pending/unscored split — a genuinely in-flight
+// card ranks ahead of one that was never even attempted, for the same reason judged ranks ahead of
+// either: they are not comparable states, and a flat score sort would treat them as if they were.
+const SCORE_TIER: Record<CardScoreProvenance, number> = { judged: 0, estimated: 1, pending: 2, unscored: 3 };
+
 /** Score-sort the deck, with two exceptions, applied in order:
- *  1. #105 review round 4 — a JUDGED card ranks as a GROUP above every card that fell back to the
- *     deterministic tick. The two numbers come from different scorers (one meaning-aware, one
- *     token-overlap, which measurably over-scores) and are not comparable, so mixing them into one
- *     score-sorted list is apples-to-oranges — a fallback card floating to the top puts the visitor's
- *     headline card on the ONE job the deck understands least. Score order is preserved WITHIN each
- *     group; this is a grouping ahead of the score sort, not a replacement for it.
- *  2. The curated-opener promotion (#19, untouched by this review — #111/slice 10 owns retiring it):
- *     its opener is still the best launch-safe card, operating on the grouped-then-scored list exactly
- *     as it always has on the plain score-sorted one. */
-export function orderCardsForReveal<T extends { matchPct: number }>(
-  entries: Array<{ card: T; curated: boolean; judged: boolean }>,
+ *  1. #105 review round 4, extended by #117 — cards group by provenance (SCORE_TIER's order) BEFORE
+ *     they're score-sorted within each group. Different provenances come from different scorers (or
+ *     none at all) and are not comparable, so mixing them into one flat score-sorted list is
+ *     apples-to-oranges — a fallback card floating to the top puts the visitor's headline card on the
+ *     ONE job the deck understands least, and a pending/unscored card has no score at all to be
+ *     sorted by (kept stable, per #117's own AC).
+ *  2. The curated-opener promotion (#19, untouched by #105's review — #111/slice 10 owns retiring
+ *     it): the opener is still the best launch-safe card, operating on the grouped-then-scored list
+ *     exactly as it always has — EXCEPT #117 adds one guard: a curated card with no verdict yet
+ *     (pending OR unscored) is never promoted. Promoting it would put the deck's headline card in
+ *     front with no number on it at all, exactly the lie AC5 forbids. Of the two options the ticket
+ *     allows for this case (judge the opener regardless of rank, counted inside the bound — or leave
+ *     it unpromoted), this picks the simpler one: leave it unpromoted, so it stays wherever the group
+ *     sort placed it (the back) rather than adding bound-selection logic that special-cases curated
+ *     ids. */
+export function orderCardsForReveal<T extends { matchPct: number | null; scored: CardScoreProvenance }>(
+  entries: Array<{ card: T; curated: boolean }>,
 ): T[] {
   const scoreSorted = [...entries].sort((a, b) => {
-    if (a.judged !== b.judged) return a.judged ? -1 : 1;
-    return b.card.matchPct - a.card.matchPct;
+    const tierDiff = SCORE_TIER[a.card.scored] - SCORE_TIER[b.card.scored];
+    if (tierDiff !== 0) return tierDiff;
+    return (b.card.matchPct ?? 0) - (a.card.matchPct ?? 0);
   });
-  const openerIndex = scoreSorted.findIndex((entry) => entry.curated);
+  const openerIndex = scoreSorted.findIndex(
+    (entry) => entry.curated && entry.card.scored !== "pending" && entry.card.scored !== "unscored",
+  );
   if (openerIndex > 0) {
     const [opener] = scoreSorted.splice(openerIndex, 1);
     scoreSorted.unshift(opener!);
@@ -1022,6 +1154,19 @@ const CARD_RESOLUTION_CONCURRENCY = 6;
 // `deadlineAt` param, so the total time this phase can spend is bounded by this one number regardless
 // of how many waves the concurrency cap creates or how large the posting pool grows.
 const DECK_JUDGE_BUDGET_MS = 8_000;
+
+// #117 AC1 — the stated bound: at most this many cards get a REAL judging attempt per deck request,
+// regardless of how large the posting pool grows. Staging measured 2026-08-02 (the trigger for this
+// ticket): a cold 15-posting deck made 15 judging calls at ≈$0.29/visitor, and every visitor who
+// reaches a cold deck pays that again. This constant is the fix — a visitor's cold-deck judging cost
+// is now bounded by DECK_JUDGE_MAX_CARDS calls, not by postings.length, and that bound is THIS single
+// named number, not an incidental side effect of CARD_RESOLUTION_CONCURRENCY or DECK_JUDGE_BUDGET_MS
+// above (both still apply on top, unchanged — this is IN ADDITION to them, not a replacement).
+// 8, not 15: materially cuts the flagship cold-deck cost while still leaving a real judged group for
+// orderCardsForReveal to lead the deck with. The owner may revise this number after reviewing the
+// cost/coverage tradeoff — it stays a single constant for exactly that reason; no logic anywhere is
+// hardcoded around the number 8 itself.
+export const DECK_JUDGE_MAX_CARDS = 8;
 
 /** A tiny concurrency limiter — no new dependency, not a redesign. Runs `fn` over `items` with at
  *  most `limit` in flight at once, preserving each result at its original index regardless of which
@@ -1190,26 +1335,51 @@ async function resolveJudgement(
  *  shared function rather than being duplicated in each. For an ad the visitor never tailored the set
  *  is empty (tailorClaimId is scoped by adId), so those cards are unchanged. This filter applies
  *  identically to a judged dontYet list — an explicit negative is answered-and-closed regardless of
- *  which relation produced the open list it's being filtered out of. */
+ *  which relation produced the open list it's being filtered out of.
+ *  #117 adds the `scored` provenance discriminator (CardScoreProvenance) and the `unresolvedScored`
+ *  param below: when `judgement` is null, the caller decides whether that means "pending" (a judge
+ *  IS wired and a paid attempt was made this request but missed the shared budget — genuinely in
+ *  flight, no number claimed), "unscored" (a judge is wired but the bound never attempted this card
+ *  at all — nothing claimed, nothing in flight either), or "estimated" (no judge wired at all, or
+ *  the tailor surface's own always-falls-back state — today's deterministic number, labelled
+ *  honestly). matchPct/breakdown/bubble are null for both "pending" and "unscored". */
 function buildJobCard(
   posting: Posting,
   adReq: AdRequirementsV1,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
   judgement: JudgementRecord | null,
+  // #117 — what to claim when `judgement` is null: "pending"/"unscored" from the deck route when a
+  // judge IS wired (must-fix 2's split — see CardScoreProvenance's own doc for which is which),
+  // "estimated" from the tailor surface always, and from the deck route too when no judge is wired
+  // at all.
+  unresolvedScored: "pending" | "unscored" | "estimated",
 ): JobCard {
   const negativeIds = negativeRequirementIds(adReq, negatives);
-  const dontYet = (judgement ? judgedUncoveredRequirements(judgement.verdicts, adReq) : uncoveredRequirements(confirmed, adReq))
-    .filter((r) => !negativeIds.has(r.id))
-    .map((r) => ({ id: r.id, band: r.band, requirement: r.requirement }));
-  return {
-    schemaVersion: "1",
+  const base = {
+    schemaVersion: "1" as const,
     adId: posting.id,
     title: posting.title,
     company: posting.company,
     place: posting.location,
     salary: null,
     pattern: null,
+    fit: confirmed.map((c) => ({ id: c.id, text: c.text })),
+    askedClosed: negatives.map((c) => ({ id: c.id, text: c.text })),
+    adExcerpt: posting.excerpt,
+  };
+  if (!judgement && (unresolvedScored === "pending" || unresolvedScored === "unscored")) {
+    // #117 AC5 — no number at all, rather than silently substituting the deterministic scorer's
+    // number (the exact lie this ticket exists to stop). dontYet is empty, not "every requirement" —
+    // an unscored/pending card has nothing yet to call an open gap either.
+    return { ...base, scored: unresolvedScored, matchPct: null, breakdown: null, bubble: null, dontYet: [] };
+  }
+  const dontYet = (judgement ? judgedUncoveredRequirements(judgement.verdicts, adReq) : uncoveredRequirements(confirmed, adReq))
+    .filter((r) => !negativeIds.has(r.id))
+    .map((r) => ({ id: r.id, band: r.band, requirement: r.requirement }));
+  return {
+    ...base,
+    scored: judgement ? "judged" : "estimated",
     matchPct: judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
     breakdown: judgement ? judgedBreakdown(judgement.verdicts, adReq) : matchBreakdown(confirmed, adReq),
     // #23 D1, now shared: pickOpenClause is negative-blind (it only knows the ad/coverage relation),
@@ -1219,10 +1389,7 @@ function buildJobCard(
       hit: judgement ? judgedPickHitClause(judgement.verdicts, adReq, confirmed) : pickHitClause(confirmed, adReq),
       open: dontYet[0]?.requirement ?? NOTHING_OPEN_CLAUSE,
     },
-    fit: confirmed.map((c) => ({ id: c.id, text: c.text })),
     dontYet,
-    askedClosed: negatives.map((c) => ({ id: c.id, text: c.text })),
-    adExcerpt: posting.excerpt,
   };
 }
 
@@ -1293,7 +1460,11 @@ function buildTailorState(
   // B1 (a "no" closes the gap too, spec #37/#38) and D1 (the bubble's gap clause rewrites with it)
   // are both buildJobCard's job as of #29 — the deck card needs the same guarantee, so the filter
   // moved into the shared function instead of being applied here on top.
-  const card = buildJobCard(posting, adReq, confirmed, negatives, judgement);
+  // #117 scope discipline: tailor ALWAYS falls back to "estimated", never "pending" — it judges one
+  // card on demand with a full budget (resolveJudgement's default deadline above), so there is no
+  // bound here to be excluded by; a failed/timed-out call still shows today's deterministic number,
+  // now labelled rather than silent.
+  const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated");
 
   // B2: "the CV below" must include tailor's own answers, not just discovery's — discoveryCvLines is
   // the narrow slice of discoveryState's work this needs (no railFill/essentialRemaining/questions

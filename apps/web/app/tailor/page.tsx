@@ -29,7 +29,11 @@ import {
 
 type Screen = "loading" | "error" | "flow" | "applied" | "saved";
 
-const T1 = "Opening this job…";
+// #117c (addendum §12.5): was "Opening this job…", written for a cache read. ~7 of 15 cards now
+// judge on demand here (§11), a genuinely cold call of several seconds — "Opening" promises an
+// instant action a multi-second wait would then contradict. Matches U4 (deck/page.tsx, §11.4) word
+// for word so the deck -> handoff -> tailor-loading sequence reads as one continuous statement.
+const T1 = "Scoring this job against your facts…";
 const T2 = "Couldn't open this job.";
 const T3 = "Try again";
 const T4 = "Answer and this card moves";

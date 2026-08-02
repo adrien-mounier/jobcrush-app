@@ -13,6 +13,7 @@ import {
   judgePrompt,
   judgeVersion,
   makeJudge,
+  makeJudgePeek,
   COVERAGE_THRESHOLD,
   JudgeValidationError,
   type JudgeFact,
@@ -91,6 +92,7 @@ function flakyStore(opts: { onGet?: boolean; onPut?: boolean }): JudgementStore 
       if (opts.onPut) throw new Error("store down");
       return inner.put(adId, fp, record);
     },
+    findReuseCandidates: (adId, version, limit) => inner.findReuseCandidates(adId, version, limit),
   };
 }
 
@@ -350,6 +352,106 @@ describe("#105 makeJudge — the shared, persisted, fingerprint- and version-awa
     expect(result?.verdicts).toHaveLength(2); // the paid judgement isn't thrown away over a storage outage
     expect(readCounters()["judge.judge_failed"]).toBe(before + 1);
   });
+
+  // #117 AC2 — superset reuse: a grown fact set re-purchases only the requirements still below the
+  // coverage bar, in ONE call, keeping every already-passing verdict from the smaller (subset) fact
+  // set it was originally judged against.
+  describe("#117 superset reuse", () => {
+    it("keeps a high-fit verdict and re-judges only the still-open requirement when the fact set grows", async () => {
+      const store = new InMemoryJudgementStore();
+      // First judgement: one fact, own-budget covered (0.9 >= COVERAGE_THRESHOLD), certification not.
+      const firstDoc = {
+        verdicts: [
+          { requirementId: "own-budget", fit: 0.9, supportingFactId: "fact-1", reason: "Close match." },
+          { requirementId: "certification", fit: 0, supportingFactId: null, reason: "No evidence." },
+        ],
+      };
+      // Second call (the re-judge): a NEW fact is added, so the caller now asks about BOTH
+      // requirements again, but only certification's verdict should come from a fresh call — this
+      // fake would fail validation if own-budget were re-asked for (it only answers certification).
+      const secondDoc = { verdicts: [{ requirementId: "certification", fit: 0.85, supportingFactId: "fact-2", reason: "PMP cert found." }] };
+      const llm = fakeLlm([JSON.stringify(firstDoc), JSON.stringify(secondDoc)]);
+      const judge = makeJudge(llm, store);
+
+      await judge(AD, FACTS); // FACTS = [fact-1] — the subset that will be reused
+      const grownFacts: JudgeFact[] = [...FACTS, { id: "fact-2", text: "PMP certified in 2022." }];
+      const result = await judge(AD, grownFacts);
+
+      expect(llm.calls).toHaveLength(2); // one for the original judgement, one for the re-judge
+      // The second (re-judge) call only asked about the still-open requirement — proving judgeFacts
+      // was called with a REDUCED requirement set, not the full advert.
+      expect(llm.calls[1]).toContain("id: certification");
+      expect(llm.calls[1]).not.toContain("id: own-budget");
+      expect(result?.verdicts.find((v) => v.requirementId === "own-budget")?.fit).toBe(0.9); // kept, not re-purchased
+      expect(result?.verdicts.find((v) => v.requirementId === "certification")?.fit).toBe(0.85); // freshly judged
+    });
+
+    it("spends NO model call when every requirement was already met by the reused evidence", async () => {
+      const store = new InMemoryJudgementStore();
+      const fullyCoveredDoc = {
+        verdicts: [
+          { requirementId: "own-budget", fit: 0.95, supportingFactId: "fact-1", reason: "Close match." },
+          { requirementId: "certification", fit: 0.9, supportingFactId: "fact-1", reason: "Also covered." },
+        ],
+      };
+      const llm = fakeLlm([JSON.stringify(fullyCoveredDoc)]);
+      const judge = makeJudge(llm, store);
+      await judge(AD, FACTS);
+      const grownFacts: JudgeFact[] = [...FACTS, { id: "fact-2", text: "An unrelated extra fact." }];
+      const result = await judge(AD, grownFacts);
+
+      expect(llm.calls).toHaveLength(1); // no second call — nothing left to ask about
+      expect(result?.verdicts.map((v) => v.fit)).toEqual([0.95, 0.9]); // both kept from the reused record
+    });
+
+    it("counts the reuse", async () => {
+      const store = new InMemoryJudgementStore();
+      const doc = { verdicts: [{ requirementId: "own-budget", fit: 0.9, supportingFactId: "fact-1", reason: "x" }, { requirementId: "certification", fit: 0.9, supportingFactId: "fact-1", reason: "x" }] };
+      const llm = fakeLlm([JSON.stringify(doc)]);
+      const judge = makeJudge(llm, store);
+      await judge(AD, FACTS);
+      const before = readCounters()["judge.subset_reused"];
+      await judge(AD, [...FACTS, { id: "fact-2", text: "extra" }]);
+      expect(readCounters()["judge.subset_reused"]).toBe(before + 1);
+    });
+
+    // #117: a correction (an existing fact's TEXT changes, same id) must fall through to a full
+    // re-judge — the stored record's evidence no longer matches, so its verdicts can't be trusted.
+    it("a removed or edited fact (not a pure addition) triggers a full re-judge, not a subset reuse", async () => {
+      const store = new InMemoryJudgementStore();
+      const llm = fakeLlm([JSON.stringify(validDoc), JSON.stringify(validDoc)]);
+      const judge = makeJudge(llm, store);
+      await judge(AD, FACTS);
+      const before = readCounters()["judge.subset_reused"];
+      const editedFacts: JudgeFact[] = [{ id: "fact-1", text: "Managed a $2M program budget, corrected." }];
+      await judge(AD, editedFacts);
+
+      expect(llm.calls).toHaveLength(2); // a real second call, not a reuse
+      expect(llm.calls[1]).toContain("id: own-budget"); // the FULL advert, not a reduced one
+      expect(llm.calls[1]).toContain("id: certification");
+      expect(readCounters()["judge.subset_reused"]).toBe(before); // never counted as a reuse
+    });
+
+    it("a reuse-lookup outage falls through to a full re-judge rather than blocking judging", async () => {
+      const store: JudgementStore = {
+        init: async () => {},
+        get: async () => null,
+        put: async (adId, fp, r) => {
+          void adId;
+          void fp;
+          void r;
+        },
+        findReuseCandidates: async () => {
+          throw new Error("reuse lookup down");
+        },
+      };
+      const llm = fakeLlm([JSON.stringify(validDoc)]);
+      const judge = makeJudge(llm, store);
+      const result = await judge(AD, FACTS);
+      expect(result?.verdicts).toHaveLength(2); // judging still worked
+      expect(llm.calls).toHaveLength(1);
+    });
+  });
 });
 
 // #105 review round 3, cheap fix: proves the model is configuration end to end — not just that
@@ -386,5 +488,85 @@ describe("#105 review round 3: JUDGE_MODEL reaches the judging call", () => {
       if (previousKey === undefined) delete process.env.ANTHROPIC_API_KEY;
       else process.env.ANTHROPIC_API_KEY = previousKey;
     }
+  });
+});
+
+// #117 must-fix 1 (coordinator review) — makeJudgePeek is the deck's cache-only companion to
+// makeJudge: it must resolve a card for free when a stored judgement already covers it, and return
+// null (never a partial, never a paid call) otherwise. The "never spends" guarantee is enforced
+// STRUCTURALLY, not just by test discipline: makeJudgePeek's own signature (judge.ts) takes only a
+// JudgementStore, never an LlmClient — there is no model-call path anywhere in this function for a
+// test to accidentally miss, so no fake LLM even appears in this describe block.
+describe("#117 must-fix 1: makeJudgePeek — cache-only, structurally incapable of spending", () => {
+  it("returns null when nothing is stored for this (adId, facts) — a genuine cache miss", async () => {
+    const store = new InMemoryJudgementStore();
+    const peek = makeJudgePeek(store);
+    expect(await peek(AD, FACTS)).toBeNull();
+  });
+
+  it("returns the exact-fingerprint record when one is already stored", async () => {
+    const store = new InMemoryJudgementStore();
+    const judge = makeJudge(fakeLlm([JSON.stringify(validDoc)]), store);
+    await judge(AD, FACTS); // seed the store the way a real judging call would
+
+    const peek = makeJudgePeek(store);
+    const result = await peek(AD, FACTS);
+    expect(result?.verdicts).toHaveLength(2);
+    expect(result?.verdicts.find((v) => v.requirementId === "own-budget")?.fit).toBe(0.9);
+  });
+
+  it("resolves for free via subset reuse when every requirement is already covered by kept verdicts, and persists the merge", async () => {
+    const store = new InMemoryJudgementStore();
+    const fullyCoveredDoc = {
+      verdicts: [
+        { requirementId: "own-budget", fit: 0.95, supportingFactId: "fact-1", reason: "Close match." },
+        { requirementId: "certification", fit: 0.9, supportingFactId: "fact-1", reason: "Also covered." },
+      ],
+    };
+    const judge = makeJudge(fakeLlm([JSON.stringify(fullyCoveredDoc)]), store);
+    await judge(AD, FACTS); // FACTS = the subset that will be reused
+
+    const grownFacts: JudgeFact[] = [...FACTS, { id: "fact-2", text: "An unrelated extra fact." }];
+    const peek = makeJudgePeek(store);
+    const result = await peek(AD, grownFacts);
+    expect(result?.verdicts.map((v) => v.fit)).toEqual([0.95, 0.9]);
+
+    // The free merge was persisted under the NEW fingerprint — a later exact-match lookup (by
+    // makeJudge OR another peek) hits it directly, with no further store traversal needed.
+    const stored = await store.get("ad-1", judgementFingerprint(AD, grownFacts));
+    expect(stored?.verdicts.map((v) => v.fit)).toEqual([0.95, 0.9]);
+  });
+
+  it("returns null — never a partial record — when a subset match leaves a requirement still open", async () => {
+    const store = new InMemoryJudgementStore();
+    // own-budget covered, certification not — one genuine gap remains.
+    const judge = makeJudge(fakeLlm([JSON.stringify(validDoc)]), store);
+    await judge(AD, FACTS);
+
+    const grownFacts: JudgeFact[] = [...FACTS, { id: "fact-2", text: "An unrelated extra fact." }];
+    const peek = makeJudgePeek(store);
+    // Completing this would need a real judging call for "certification" — peek has no model access
+    // and must not fabricate a partial answer, so it returns null and lets the caller decide whether
+    // a fresh paid call is worth it.
+    expect(await peek(AD, grownFacts)).toBeNull();
+  });
+
+  it("a stale stored version is not returned — the same version gate makeJudge itself applies", async () => {
+    const store = new InMemoryJudgementStore();
+    const fp = judgementFingerprint(AD, FACTS);
+    await store.put("ad-1", fp, {
+      verdicts: validDoc.verdicts,
+      version: "card-judge/0+judge/0", // stale
+      cost: { model: "sonnet", inputTokens: null, outputTokens: null, judgedAt: "2020-01-01T00:00:00.000Z" },
+      facts: FACTS,
+    });
+    const peek = makeJudgePeek(store);
+    expect(await peek(AD, FACTS)).toBeNull();
+  });
+
+  it("a store failure returns null rather than throwing — a peek backs a UI decision, not a paid operation", async () => {
+    const store = flakyStore({ onGet: true });
+    const peek = makeJudgePeek(store);
+    await expect(peek(AD, FACTS)).resolves.toBeNull();
   });
 });

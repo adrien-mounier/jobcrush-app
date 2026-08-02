@@ -15,6 +15,7 @@ const CARD = {
   place: "Paris",
   salary: null,
   pattern: null,
+  scored: "judged" as const,
   matchPct: 82,
   breakdown: {
     essential: { met: 2, total: 3 },
@@ -28,7 +29,7 @@ const CARD = {
 };
 
 async function stubCards(page: Page, authed: boolean) {
-  const body: CardsResponse = { stage: "deck", cards: [CARD], authed };
+  const body: CardsResponse = { stage: "deck", cards: [CARD], authed, pendingCount: 0 };
   await page.route("**/api/onboarding/cards", async (route) => {
     await route.fulfill({ json: body });
   });

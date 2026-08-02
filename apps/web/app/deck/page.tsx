@@ -24,7 +24,15 @@ import {
 import { useRouter } from "next/navigation";
 import "../deck.css";
 import { CardBody, useReducedMotion } from "../jobcard";
-import { ensureSession, getCards, requestLink, setStage, wantCard, type JobCard } from "../../lib/api";
+import {
+  ensureSession,
+  getCards,
+  requestLink,
+  setStage,
+  wantCard,
+  type JobCard,
+  type ScoredJobCard,
+} from "../../lib/api";
 
 type Screen = "loading" | "error" | "empty" | "reveal" | "wall" | "deck" | "tailorHandoff" | "loopback";
 type SwipeStatus = "idle" | "leaving-left" | "leaving-right" | "committing";
@@ -53,6 +61,11 @@ const SWIPE_MS = 340;
 const LOOPBACK_COPY = "I scored the three closest — tell me more and I'll widen the net";
 const WANT_UNKNOWN = "That job is no longer available. Pick another one.";
 const WANT_FAILED = "Couldn't start tailoring this job — try again.";
+const TAILORHANDOFF_DEFAULT = "Tell me more and this CV gets stronger for this job.";
+// #117b (addendum §11.7) U4 — the handoff sub-line on the `unscored` want path only, so a longer
+// wait (a genuinely cold judgement, not a cache hit) is telling the truth about itself.
+const U4 = "Scoring this one against your facts.";
+const TAILOR_MIN_HANDOFF_MS = 800;
 
 function sentBody(email: string): string {
   return `We sent a sign-in link to ${email}. It expires in 15 minutes.`;
@@ -69,6 +82,12 @@ function isUnknownCardError(error: unknown) {
     "code" in error &&
     (error as { code?: string }).code === "not_found"
   );
+}
+
+// #117: the poll (started by load(), see below) only makes sense while a pending card could still
+// be shown to the visitor — never on the load/error/empty/handoff/loopback screens.
+function isPollableScreen(screen: Screen): boolean {
+  return screen === "reveal" || screen === "wall" || screen === "deck";
 }
 
 export default function DeckPage() {
@@ -93,22 +112,189 @@ export default function DeckPage() {
   // router.push twice for the same handoff (discovery's own deckNavigatedRef precedent).
   const tailorNavigatedRef = useRef(false);
 
+  // #117: poll state for the still-pending cards. None of it is rendered directly (design §6:
+  // pendingCount stays internal) — `gaveUp`/`retrying` only ever reach whichever card is on screen,
+  // via CardBody's props, when that card is itself still pending.
+  const [gaveUp, setGaveUp] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [landingAdId, setLandingAdId] = useState<string | null>(null);
+  // #117b §11.7: which sub-line the handoff bridge shows — true only for the one want-attempt
+  // currently in flight on an `unscored` card, reset on every subsequent attempt so it never
+  // carries over from an earlier failed one.
+  const [unscoredHandoff, setUnscoredHandoff] = useState(false);
+  // Refs mirroring state that the poll's long-lived closures need to read fresh — kept as refs
+  // (rather than effect deps) specifically so the poll loop is never torn down and restarted by a
+  // render the poll itself caused (the "must not restart on every render" rule).
+  const screenRef = useRef<Screen>("loading");
+  const cardsRef = useRef<JobCard[]>([]);
+  const currentIndexRef = useRef(0);
+  const swipeStatusRef = useRef<SwipeStatus>("idle");
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // #117 Standards review: the timer ref alone is null WHILE a fetch is in flight (runPoll clears
+  // it before awaiting getCards()), so "is a cycle running" can't be read off it — this ref covers
+  // the whole cycle's lifetime, fetch included, and is the one thing both start paths must check.
+  const pollActiveRef = useRef(false);
+  const pollCancelledRef = useRef(false);
+  const pollAttemptRef = useRef(0);
+  const pollMaxRef = useRef(6);
+  const landingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // #117 a11y §8: announce a landed number once per adId, ever — never on an off-screen landing.
+  const announcedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    screenRef.current = screen;
+  }, [screen]);
+  useEffect(() => {
+    cardsRef.current = cards;
+  }, [cards]);
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+  useEffect(() => {
+    swipeStatusRef.current = swipeStatus;
+  }, [swipeStatus]);
+
+  // #117: stop the poll cleanly on unmount — CODING_STANDARDS' "effects clean up timers" rule,
+  // and the reason a page navigation can never fire a stray fetch into an unmounted deck.
+  useEffect(() => {
+    return () => {
+      pollCancelledRef.current = true;
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+      if (landingTimerRef.current) clearTimeout(landingTimerRef.current);
+    };
+  }, []);
+
+  // #117: the merge that must not disturb the visitor. Walks the CURRENT cards array (never a fresh
+  // array built from the server's response — that would reorder/replace under the visitor's feet):
+  // for each slot that is still locally pending, swap in the incoming card only if it has actually
+  // landed. currentIndex is never touched; no card is ever added or removed; an already-scored card
+  // is never rewritten even if the server sent it again. Bails out to the same `cards` reference
+  // (no setState at all) when nothing changed, so a poll that finds nothing new costs zero re-renders.
+  const applyMerge = useCallback((incoming: JobCard[]) => {
+    const byId = new Map(incoming.map((c) => [c.adId, c] as const));
+    let changed = false;
+    let landed: ScoredJobCard | null = null;
+    const next = cardsRef.current.map((c, i) => {
+      // #117b (addendum §11.1.2): a card is only ever a merge candidate while it is locally
+      // `pending` — an `unscored` card is structurally excluded here, never just by convention, so
+      // it can never be swapped in by this loop and never picks up a landing bump/announcement.
+      if (c.scored !== "pending") return c;
+      const updated = byId.get(c.adId);
+      if (!updated || updated.scored === "pending") return c;
+      changed = true;
+      // §11.10 edge case, corrected at review: pending -> unscored IS a real, valid transition —
+      // a card judged under one request's budget can simply fall outside a later request's bound.
+      // The data still merges above as usual either way; only a REAL score landing ever triggers
+      // the bump/announce, never a drop to unscored. Suppressed anyway when mid-swipe (design §4/§7).
+      if (
+        updated.scored !== "unscored" &&
+        i === currentIndexRef.current &&
+        swipeStatusRef.current === "idle"
+      ) {
+        landed = updated;
+      }
+      return updated;
+    });
+    if (!changed) return;
+    setCards(next);
+    if (landed) {
+      const card: ScoredJobCard = landed;
+      setLandingAdId(card.adId);
+      if (landingTimerRef.current) clearTimeout(landingTimerRef.current);
+      landingTimerRef.current = setTimeout(() => setLandingAdId(null), 640);
+      if (!announcedRef.current.has(card.adId)) {
+        announcedRef.current.add(card.adId);
+        setLiveMessage(`Scored: ${card.matchPct}% match.`);
+      }
+    }
+  }, []);
+
+  // #117: a recursive setTimeout chain, never setInterval — the next attempt is only scheduled
+  // after the previous one has fully resolved (success or a swallowed failure), which is what
+  // "never stack overlapping requests" means here. First delay 2000ms, then 3000ms; stops on
+  // pendingCount === 0, on reaching pollMaxRef attempts, or the moment screen leaves
+  // reveal|wall|deck (checked both before spending an attempt and again before scheduling the next).
+  // Standards review: every exit below clears pollActiveRef, not just the timer — a stray chain
+  // must not be able to outlive a screen change and block a later legitimate poll from starting.
+  const runPoll = useCallback(() => {
+    const delay = pollAttemptRef.current === 0 ? 2000 : 3000;
+    pollTimerRef.current = setTimeout(async () => {
+      pollTimerRef.current = null;
+      if (pollCancelledRef.current || !isPollableScreen(screenRef.current)) {
+        pollActiveRef.current = false;
+        return;
+      }
+      pollAttemptRef.current += 1;
+      try {
+        const res = await getCards();
+        if (pollCancelledRef.current) {
+          pollActiveRef.current = false;
+          return;
+        }
+        applyMerge(res.cards);
+        if (res.pendingCount === 0) {
+          pollActiveRef.current = false;
+          setGaveUp(false);
+          return;
+        }
+      } catch {
+        // Swallowed — never a deck-level error banner; the deck is already rendered. The attempt
+        // above still counted, so a run of failures still reaches the ceiling.
+      }
+      if (pollCancelledRef.current || !isPollableScreen(screenRef.current)) {
+        pollActiveRef.current = false;
+        return;
+      }
+      if (pollAttemptRef.current >= pollMaxRef.current) {
+        pollActiveRef.current = false;
+        setGaveUp(true);
+        return;
+      }
+      runPoll();
+    }, delay);
+  }, [applyMerge]);
+
+  const startPolling = useCallback(() => {
+    // Standards review: guard on pollActiveRef, not pollTimerRef — the timer ref is null for the
+    // whole duration of an in-flight fetch, so it under-detects a cycle that is very much running.
+    if (pollActiveRef.current) return;
+    pollActiveRef.current = true;
+    pollAttemptRef.current = 0;
+    pollMaxRef.current = 6;
+    runPoll();
+  }, [runPoll]);
+
   const load = useCallback(async () => {
     setScreen("loading");
     setCurrentIndex(0);
     setSwipeStatus("idle");
     setDeckError(null);
+    // #117: a fresh load starts a fresh poll cycle. Explicitly tear down anything still running
+    // from a previous load() (the error screen's "Try again" can re-run this) rather than only
+    // resetting the cancel flag — a stray timer left ticking would otherwise coexist with the new
+    // cycle once one starts (Standards review: a chain must not be able to outlive a screen change).
+    pollCancelledRef.current = false;
+    if (pollTimerRef.current) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    pollActiveRef.current = false;
     try {
       await ensureSession();
       const res = await getCards();
-      // AC2: the server already sorts by matchPct desc — re-sort defensively (pinned contract note).
-      const sorted = [...res.cards].sort((a, b) => b.matchPct - a.matchPct);
-      setCards(sorted);
+      // #117: the server now returns cards already correctly ordered — judged, then estimated, then
+      // pending, score-sorted within each group, curated-opener promotion applied. A client re-sort
+      // by matchPct both fails to type-check (matchPct is null on a pending card) and would destroy
+      // that order. Render the server's order as-is, always.
+      setCards(res.cards);
       setAuthed(res.authed);
-      if (sorted.length === 0) {
+      if (res.cards.length === 0) {
         setScreen("empty");
         return;
       }
+      // #117: start chasing the still-pending cards now, during the reveal/wall the visitor is
+      // about to spend a few seconds on — most visitors never see a pending card because of this.
+      if (res.pendingCount > 0) startPolling();
       // #22 §6: a failed/cancelled Google round-trip should return here as /deck?login=expired|error
       // — the reveal was already seen before the visitor left for Google, so land straight on the
       // wall with the matching error banner instead of re-showing "See them".
@@ -128,7 +314,34 @@ export default function DeckPage() {
       // E1 is fixed copy (design §2's copy table), not the raw fetch error.
       setScreen("error");
     }
-  }, []);
+  }, [startPolling]);
+
+  // #117: "Try again" on a card that gave up. One immediate fetch, then — if still pending — three
+  // more scheduled attempts via the same runPoll chain (a fresh 0..3 count, not a second 0..6 cold
+  // start: a nudge, not a second cold-start). A manual-fetch failure leaves `gaveUp` exactly as it
+  // was (still true), so the button just re-enables — design §7's "retry fails again" outcome.
+  const onCardRetry = useCallback(async () => {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      const res = await getCards();
+      applyMerge(res.cards);
+      setGaveUp(false);
+      // Standards review: this used to call runPoll() directly, bypassing startPolling's own
+      // "already scheduled" guard entirely — two chains could coexist if a poll cycle somehow
+      // hadn't finished yet. Same pollActiveRef guard as startPolling, not the timer ref.
+      if (res.pendingCount > 0 && !pollActiveRef.current) {
+        pollActiveRef.current = true;
+        pollAttemptRef.current = 0;
+        pollMaxRef.current = 3;
+        runPoll();
+      }
+    } catch {
+      // leave gaveUp untouched — see the comment above
+    } finally {
+      setRetrying(false);
+    }
+  }, [applyMerge, retrying, runPoll]);
 
   const waitForSwipe = useCallback(
     () => new Promise<void>((resolve) => setTimeout(resolve, reducedMotion ? 1 : SWIPE_MS)),
@@ -224,6 +437,10 @@ export default function DeckPage() {
   const onRight = useCallback(async () => {
     const card = cards[currentIndex];
     if (!card || swipeStatus !== "idle") return;
+    // #117b §11.7: an `unscored` card's want call now runs a full server-side judgement and can
+    // take several seconds — every other state's want call is still a cache hit / near-instant, as
+    // it always was. Only this one path needs the early handoff below.
+    const isUnscored = card.scored === "unscored";
     setDeckError(null);
     setSwipeStatus("leaving-right");
     const wanted = wantCard(card.adId).then(
@@ -232,18 +449,41 @@ export default function DeckPage() {
     );
     await waitForSwipe();
     setSwipeStatus("committing");
-    const result = await wanted;
-    if (result.ok) {
+    let result: Awaited<typeof wanted>;
+    if (isUnscored) {
+      // Enter the bridge NOW, before the result is known, so the visitor is never left on a blank
+      // deck with the card already gone. Pre-latch tailorNavigatedRef so the handoff effect's own
+      // 800ms timer can't navigate before `wanted` has actually settled — reset below on failure.
+      tailorNavigatedRef.current = true;
+      setUnscoredHandoff(true);
       setScreen("tailorHandoff");
+      const minWait = new Promise<void>((resolve) => setTimeout(resolve, TAILOR_MIN_HANDOFF_MS));
+      // The existing 800ms grace period becomes max(800ms, wantCard) — both must have happened.
+      [result] = await Promise.all([wanted, minWait]);
+    } else {
+      result = await wanted;
+    }
+    if (result.ok) {
+      if (isUnscored) {
+        router.push("/tailor"); // already latched above; the generic effect would be a no-op now
+      } else {
+        setScreen("tailorHandoff");
+      }
       return;
     }
 
+    if (isUnscored) {
+      // This attempt never actually navigated — restore both latches for whichever card is next.
+      tailorNavigatedRef.current = false;
+      setUnscoredHandoff(false);
+      setScreen("deck");
+    }
     const copy = isUnknownCardError(result.error) ? WANT_UNKNOWN : WANT_FAILED;
     focusYesAfterErrorRef.current = true;
     setDeckError(copy);
     setLiveMessage(copy);
     setSwipeStatus("idle");
-  }, [cards, currentIndex, swipeStatus, waitForSwipe]);
+  }, [cards, currentIndex, router, swipeStatus, waitForSwipe]);
 
   const n = cards.length;
   const currentCard = cards[currentIndex];
@@ -311,10 +551,14 @@ export default function DeckPage() {
                 key={`${currentCard.adId}-${currentIndex}`}
                 card={currentCard}
                 deckError={deckError}
+                gaveUp={gaveUp}
                 headingRef={cardHeadingRef}
+                landing={landingAdId === currentCard.adId}
                 onLeft={onLeft}
+                onRetry={onCardRetry}
                 onRight={onRight}
                 reducedMotion={reducedMotion}
+                retrying={retrying}
                 swipeStatus={swipeStatus}
                 yesButtonRef={yesButtonRef}
               />
@@ -328,7 +572,7 @@ export default function DeckPage() {
           <h1 className="big" tabIndex={-1} ref={tailorHeadingRef}>
             Tailoring this one
           </h1>
-          <p>Tell me more and this CV gets stronger for this job.</p>
+          <p>{unscoredHandoff ? U4 : TAILORHANDOFF_DEFAULT}</p>
         </div>
       )}
 
@@ -459,19 +703,27 @@ function shouldIgnoreSwipeStart(target: EventTarget) {
 function JobCardView({
   card,
   deckError,
+  gaveUp,
   headingRef,
+  landing,
   onLeft,
+  onRetry,
   onRight,
   reducedMotion,
+  retrying,
   swipeStatus,
   yesButtonRef,
 }: {
   card: JobCard;
   deckError: string | null;
+  gaveUp: boolean; // #117: only visible while this card is scored === "pending"
   headingRef: RefObject<HTMLHeadingElement | null>;
+  landing: boolean; // #117: true for 640ms right after this card's number lands while on screen
   onLeft: () => void;
+  onRetry: () => void; // #117: "Try again" on a gaveUp pending card
   onRight: () => void;
   reducedMotion: boolean;
+  retrying: boolean; // #117: onRetry's own fetch is in flight
   swipeStatus: SwipeStatus;
   yesButtonRef: RefObject<HTMLButtonElement | null>;
 }) {
@@ -486,6 +738,8 @@ function JobCardView({
     dragging ? "dragging" : "",
     swipeStatus === "leaving-left" ? "out-left" : "",
     swipeStatus === "leaving-right" ? "out-right" : "",
+    // #117: 640ms bump on the card the number just landed on, while it's on screen (design §4).
+    landing ? "landing" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -542,7 +796,12 @@ function JobCardView({
 
   return (
     <div
+      // #117: data-scored is a QA/e2e hook only (zero visual); aria-busy is real — a screen-reader
+      // user is told this card is still working, and the attribute disappears the moment it isn't
+      // (design §8), rather than sitting there permanently as aria-busy="false".
+      aria-busy={card.scored === "pending" ? true : undefined}
       className={cardClass}
+      data-scored={card.scored}
       onPointerCancel={releasePointer}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -556,7 +815,7 @@ function JobCardView({
         Not for me
       </span>
       <div className="jcbody">
-        <CardBody card={card} headingRef={headingRef} />
+        <CardBody card={card} gaveUp={gaveUp} headingRef={headingRef} onRetry={onRetry} retrying={retrying} />
       </div>
       {deckError && (
         <p className="deckerr" role="alert">
