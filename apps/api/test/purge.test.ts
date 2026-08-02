@@ -1,13 +1,16 @@
 // E2/JC-20 — purge deletes only unclaimed anonymous sessions/claims past the TTL, plus spent/expired
 // tokens and DISUSED judgement records (#105 — swept on last_used_at, not judged_at, so a stable
 // number an active user keeps looking at is never re-rolled just because time passed); claimed data
-// and fresh/active data survive. Verified against Postgres (pg-mem).
+// and fresh/active data survive. #118 adds the other half of that "survives" list: the usage ledger
+// is retained indefinitely regardless of TTL, so this same run must leave a ledger row for the purged
+// visitor untouched. Verified against Postgres (pg-mem).
 import { describe, expect, it } from "vitest";
 import { newDb } from "pg-mem";
 import { PgSessionStore } from "../src/sessions.js";
 import { PgClaimStore } from "../src/claims.js";
 import { PgAuthStore } from "../src/auth.js";
 import { PgJudgementStore } from "../src/judgementStore.js";
+import { PgUsageLedgerStore } from "../src/usageLedgerStore.js";
 import { runPurge } from "../src/purge.js";
 
 describe("JC-20 runPurge", () => {
@@ -18,6 +21,7 @@ describe("JC-20 runPurge", () => {
     await new PgClaimStore(pool).init();
     await new PgAuthStore(pool).init();
     await new PgJudgementStore(pool).init();
+    await new PgUsageLedgerStore(pool).init();
 
     const old = new Date(Date.now() - 30 * 86_400_000).toISOString();
     // stale + unclaimed → purged (and its claim)
@@ -63,6 +67,15 @@ describe("JC-20 runPurge", () => {
        VALUES ('ad-fresh', 'fp-fresh', $1, $2, $3, now(), now())`,
       [JSON.stringify(judgement.verdicts), judgement.version, cost(new Date().toISOString())],
     );
+    // #118: a usage-ledger row attributed to the SAME visitor as the stale, about-to-be-purged
+    // session — the property that matters is that this survives untouched. runPurge deletes the
+    // content-bearing session/claims for 'stale', but the owner's #118 decision is to retain spend
+    // indefinitely: the ledger is a different table this function must never reach into.
+    await pool.query(
+      `INSERT INTO llm_usage_ledger (visitor_id, stage, model, input_tokens, output_tokens, measured, cost_usd, created_at)
+       VALUES ('stale', 'judging', 'claude-sonnet-5', 900, 150, true, 0.0057, $1)`,
+      [old],
+    );
 
     const { sessions } = await runPurge(pool, 14);
     expect(sessions).toBe(1); // only 'stale' deleted
@@ -73,5 +86,12 @@ describe("JC-20 runPurge", () => {
     expect((await pool.query(`SELECT token_hash FROM login_tokens`)).rows.map((r) => r.token_hash)).toEqual(["h2"]);
     const survivingJudgements = (await pool.query(`SELECT ad_id FROM card_judgements ORDER BY ad_id`)).rows.map((r) => r.ad_id);
     expect(survivingJudgements).toEqual(["ad-active", "ad-fresh"]); // ad-cold gone; ad-active survives despite being judged just as long ago
+
+    // #118: the ledger row survives intact — same visitor id, same cost — even though the session it
+    // was attributed to is now gone. Content purged, spend retained; runPurge never touched this row.
+    const ledgerRows = (await pool.query(`SELECT visitor_id, cost_usd FROM llm_usage_ledger`)).rows;
+    expect(ledgerRows).toHaveLength(1);
+    expect(ledgerRows[0]!.visitor_id).toBe("stale");
+    expect(Number(ledgerRows[0]!.cost_usd)).toBeCloseTo(0.0057, 8);
   });
 });

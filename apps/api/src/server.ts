@@ -41,6 +41,7 @@ import { readCounters, readFailureAlarm, readTimeoutAlarm, recentReadFailuresLis
 import type { Posting } from "./preview.js";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
 import type { JudgeFn } from "./judge.js";
+import { runWithVisitor } from "./llmVisitorContext.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -149,15 +150,30 @@ export function buildServer(opts: BuildOptions = {}) {
   // Session resolution (JC-10): cookie first, bearer token as the non-browser fallback.
   // Every S1 route authorizes against the resolved session; nothing is global.
   app.decorateRequest("session", null);
-  app.addHook("onRequest", async (req) => {
-    const auth = req.headers.authorization;
-    const token = req.cookies?.[SESSION_COOKIE] ?? (auth?.startsWith("Bearer ") ? auth.slice(7) : null);
-    if (!token) return;
-    const session = await sessions.getByToken(token);
-    if (session) {
-      req.session = session;
-      await sessions.touch(session.id);
-    }
+  // #118: the (request, reply, done) callback form is deliberate, not stylistic — it's what lets this
+  // hook call runWithVisitor(visitorId, done) as its LAST synchronous action. done() then drives
+  // Fastify's own continuation (the rest of the hook chain, then the route handler, then everything
+  // the handler itself awaits) from INSIDE that AsyncLocalStorage scope, which is the only way the
+  // ambient visitor survives past this hook (see llmVisitorContext.ts's header for why the equivalent
+  // plain-async-hook + enterWith shape does not).
+  app.addHook("onRequest", (req, reply, done) => {
+    (async () => {
+      const auth = req.headers.authorization;
+      const token = req.cookies?.[SESSION_COOKIE] ?? (auth?.startsWith("Bearer ") ? auth.slice(7) : null);
+      if (!token) return null;
+      const session = await sessions.getByToken(token);
+      if (session) {
+        req.session = session;
+        await sessions.touch(session.id);
+      }
+      return session;
+    })()
+      .then((session) => {
+        // session.id doubles as the visitor pseudonym; no token, an unresolved token, or an error
+        // resolving one all record null, never a guess.
+        runWithVisitor(session?.id ?? null, done);
+      })
+      .catch(done);
   });
 
   app.get("/healthz", async () => ({

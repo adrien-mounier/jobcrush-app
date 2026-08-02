@@ -58,6 +58,9 @@ describe("#103 posting-pool counters", () => {
       "judge.cost_output_tokens_total": 0,
       "judge.fallback_used": 0,
       "judge.fallback_timeout": 0,
+      // #118 — see counters.ts's own header for what these mean.
+      "usageLedger.write_failed": 0,
+      "usageLedger.pricing_override_rejected": 0,
     });
   });
 });

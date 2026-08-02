@@ -104,6 +104,24 @@
 //     every card (provider slow/down) and a judge cleanly failing to produce a verdict are different
 //     operational signals, and folding them into one counter made them indistinguishable.
 //
+// #118 adds TWO more, namespaced usageLedger.* to stay visually distinct from every other prefix
+// here even though it shares this one flat counts object:
+//   - usageLedger.write_failed: a completed model call's ledger write raised (llmMeter.ts) — a
+//     Postgres blip, pool saturation, whatever — AFTER the call itself already succeeded and
+//     returned to its caller. Paired with the same console.error llmMeter.ts already logs, exactly
+//     the log-plus-counter convention adRequirementsStore.ts/judgementStore.ts's own write-failure
+//     paths use, so a metering outage is an OBSERVABLE signal on /ops/counters rather than only a
+//     log line nobody happens to be tailing.
+//   - usageLedger.pricing_override_rejected: an LLM_PRICING_JSON entry for one model failed
+//     validation (a missing rate, a non-numeric value, or a non-finite one — NaN/Infinity) and was
+//     dropped rather than merged; llmPricing.ts keeps that model's existing rate instead (its in-repo
+//     default, or no rate at all if it never had one). QA found the failure this exists to catch: a
+//     fat-fingered rate change is valid JSON, merges silently, and computeCostUsd then returns NaN —
+//     real Postgres accepts a NaN cost_usd (pg-mem doesn't, which is why the test suite alone never
+//     caught this), and totalCostUsd() returns NaN from that row onward, forever, with nothing to
+//     say why. This counter (paired with a console.error at the point of rejection) makes a bad rate
+//     change loud at boot instead.
+//
 // In-process and reset-on-restart. That's an accepted limit for this slice, not an oversight: there
 // is no persisted metrics store yet, and standing one up before anything needs history would be the
 // speculative abstraction this repo avoids (#86 decision 4 makes the same call for user languages).
@@ -129,6 +147,8 @@ const counts = {
   "judge.cost_output_tokens_total": 0,
   "judge.fallback_used": 0,
   "judge.fallback_timeout": 0,
+  "usageLedger.write_failed": 0,
+  "usageLedger.pricing_override_rejected": 0,
 };
 
 export type CounterName = keyof typeof counts;

@@ -4,6 +4,21 @@
 // purge there. The cutoff is computed in JS (no interval SQL) so it runs identically on Postgres and
 // pg-mem.
 //
+// #118 — the ACTUAL rule, stated truthfully so this header doesn't go stale the way a prior purge
+// header once did: content is purged, spend is not. `llm_usage_ledger` (usageLedgerStore.ts) rows are
+// retained INDEFINITELY and this function never touches that table — the owner's explicit decision on
+// #118 was to keep per-visitor spend history beyond this TTL, even for a visitor who never signed up,
+// in exchange for the narrowest possible payload on every row (no CV text, no answers, no advert or
+// requirement text, no model-written prose — just a pseudonymous visitor id, stage, model, token
+// counts, and a computed cost). A visitor's ledger rows therefore carry their id indefinitely, with
+// no TTL, unless and until something explicitly scrubs it.
+//
+// The MECHANISM for an explicit deletion request exists — usageLedgerStore.ts's scrubVisitor nulls
+// the visitor id on that visitor's rows and keeps the money — but nothing calls it yet. #68 ("start
+// over") is still open, and the HTTP route that would invoke scrubVisitor on a real deletion request
+// lands there, not here. Until #68 ships, this is a documented capability with no caller, not a live
+// deletion path.
+//
 // card_judgements carries CV-derived reason prose (a per-requirement verdict can paraphrase what a
 // visitor said about themselves) but has no session_id column to join against — it's keyed by
 // (adId, factsFingerprint), a property of the advert + fact set, not of any one session (see

@@ -24,12 +24,25 @@ import {
 import { mailerFromEnv } from "./mailer.js";
 import { runPurge } from "./purge.js";
 import { getPool } from "./db.js";
+import { usageLedgerStoreFromEnv } from "./usageLedgerStore.js";
+import { pricingTableFromEnv } from "./llmPricing.js";
+import { meterLlm } from "./llmMeter.js";
+import type { LlmClient } from "./llm.js";
+import type { LlmStage } from "./usageLedgerStore.js";
 
 const llm = llmFromEnv();
 // #105 AC: which model judges a card is configuration, never a code change — JUDGE_MODEL overrides
 // the default (llmFromEnv's own DEFAULT_MODEL) with no edit needed here when it's changed.
 const judgeLlm = llmFromEnv(process.env.JUDGE_MODEL);
 const blobs = storageFromEnv(process.env.UPLOAD_DIR ?? join(process.cwd(), "data", "uploads"));
+
+// #118: the durable, priced usage ledger — one metered client per spending stage, so a stage is
+// structurally hard to spend unmetered (main.ts hands every step an already-wrapped client, never
+// the raw driver). Both `llm` and `judgeLlm` above get wrapped once per stage they back, never
+// shared unwrapped past this point.
+const usageLedger = usageLedgerStoreFromEnv(process.env.DATABASE_URL);
+const llmPricing = pricingTableFromEnv(process.env);
+const metered = (stage: LlmStage, client: LlmClient): LlmClient => meterLlm(client, stage, usageLedger, llmPricing);
 
 // JC-6 persistence: Postgres when DATABASE_URL is set (survives restart — accounts + claim graph),
 // in-memory otherwise. Init (create tables) before serving; fail fast if the DB is unreachable.
@@ -54,6 +67,7 @@ try {
   await eligibility.init();
   await adRequirements.init();
   await judgements.init();
+  await usageLedger.init();
 } catch (err) {
   console.error("store init failed", err);
   process.exit(1);
@@ -64,21 +78,24 @@ const { app } = buildServer({
   claims,
   auth,
   familyLearning,
-  screenFamilyCandidate: makeFamilyCandidateScreen(llm),
+  screenFamilyCandidate: makeFamilyCandidateScreen(metered("family-screen", llm)),
   familyLearningOperatorKey: process.env.FAMILY_LEARNING_OPERATOR_KEY,
   mailer: mailerFromEnv(),
   webUrl: process.env.WEB_URL,
   blobs,
-  pipeline: { mine: makeMineStep(llm), preview: makePreviewStep(llm) },
-  phraseGrill: makeGrillPhraser(llm),
-  auditCv: makeCvAuditor(llm),
+  pipeline: {
+    mine: makeMineStep(metered("claim-mining", llm)),
+    preview: makePreviewStep(metered("preview-tailor", llm)),
+  },
+  phraseGrill: makeGrillPhraser(metered("grill", llm)),
+  auditCv: makeCvAuditor(metered("cv-audit", llm)),
   // #104: real reads only in production — never a buildServer default, so every test that doesn't
   // wire its own fake stays exactly at today's fixture-only behaviour.
-  readAd: makeAdReader(llm, adRequirements, knownFamilies()),
+  readAd: makeAdReader(metered("advert-reading", llm), adRequirements, knownFamilies()),
   // #105: same rule — real judging only in production; every test that doesn't wire its own fake
   // stays exactly at today's deterministic-tick behaviour. judgeLlm, not llm: JUDGE_MODEL can name a
   // different model than mine/preview/grill/audit/adReader use, with no code change.
-  judge: makeJudge(judgeLlm, judgements),
+  judge: makeJudge(metered("judging", judgeLlm), judgements),
 });
 
 // JC-20 purge: sweep unclaimed anonymous sessions/claims + spent tokens on boot and every 6h
