@@ -2,7 +2,7 @@
 // real request, driven through the real discovery flow (prior art: discovery.test.ts). Asserts
 // the response the frontend is pinned against, not handler internals: card shape, score-sorted
 // order, and that a recorded "no" lands in askedClosed (never re-asked, never a gap).
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
 import { orderCardsForReveal, withReadTimeout } from "../src/routes/onboarding.js";
 import { buildServer } from "../src/server.js";
@@ -413,40 +413,44 @@ describe("#21 POST /onboarding/cards/:adId/want", () => {
   });
 });
 
+// Every posting WITHOUT a hand-authored fixture — the population #104 makes readable. Module-scoped
+// (not local to the #104 describe below) so #115's tests can reuse it too, rather than
+// re-implementing the same fixture-first-else-reader predicate a second time.
+const uncachedEnglishPostings = () =>
+  loadPostings()
+    .filter((p) => p.language === "en")
+    .filter((p) => {
+      try {
+        loadAdRequirements(p.id);
+        return false;
+      } catch {
+        return true;
+      }
+    });
+
+// A minimal valid AdRequirementsV1 for any adId — module-scoped for the same reason as
+// uncachedEnglishPostings above (#115 review: don't re-implement a fixture that already exists).
+const stubRequirements = (adId: string): AdRequirementsV1 => ({
+  schemaVersion: "1",
+  adId,
+  curated: false,
+  language: "en",
+  familyFit: { family: "IT Project Manager", confidence: 0.6 },
+  requirements: [
+    {
+      id: "own-a-budget",
+      band: "essential",
+      kind: "ordinary",
+      requirement: "Own a project budget",
+      sourceSpan: "budget",
+    },
+  ],
+});
+
 // #104 (E5 slice 3) — the tracer bullet: a posting nobody hand-curated becomes a card. Driven
 // entirely through the HTTP boundary with fakes injected at OnboardingDeps.readAd — the pinned
 // primary seam — rather than reaching into resolveAdRequirements or adReader.ts directly.
 describe("#104 GET /onboarding/cards — reading uncached adverts", () => {
-  const stubRequirements = (adId: string): AdRequirementsV1 => ({
-    schemaVersion: "1",
-    adId,
-    curated: false,
-    language: "en",
-    familyFit: { family: "IT Project Manager", confidence: 0.6 },
-    requirements: [
-      {
-        id: "own-a-budget",
-        band: "essential",
-        kind: "ordinary",
-        requirement: "Own a project budget",
-        sourceSpan: "budget",
-      },
-    ],
-  });
-
-  // Every posting WITHOUT a hand-authored fixture — the population this slice makes readable.
-  const uncachedEnglishPostings = () =>
-    loadPostings()
-      .filter((p) => p.language === "en")
-      .filter((p) => {
-        try {
-          loadAdRequirements(p.id);
-          return false;
-        } catch {
-          return true;
-        }
-      });
-
   it("adds a card for every posting with no hand-authored fixture once a reader is wired (the demoable 8→15 growth)", async () => {
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> => stubRequirements(posting.id);
     const { app } = buildServer({ readAd });
@@ -584,5 +588,172 @@ describe("#104 withReadTimeout", () => {
 
   it("propagates the original rejection when the promise fails before the deadline (not a timeout error)", async () => {
     await expect(withReadTimeout(Promise.reject(new Error("boom")), 1000)).rejects.toThrow("boom");
+  });
+});
+
+// #115 — the confirmed cause of staging's read-failure spike: a read that legitimately takes longer
+// than the deck's own READ_TIMEOUT_MS (15s), not a validation/contract problem (measured: 10/10 real
+// reads succeeded with zero validation retries; the deadline, not the model, was the failure mode).
+// The owner's chosen fix keeps the 15s deadline exactly as it is and instead (a) stops counting a
+// timeout as a read failure, alarmed on its own terms, (b) relies on — and here pins — the fact that
+// the underlying read keeps running after the deadline fires and still persists, so the NEXT request
+// serves it from cache, and (c) makes the reason retrievable over HTTP, gated behind OPS_KEY since
+// it can carry raw-ish upstream error text. Driven at the HTTP boundary (spec #86's primary seam)
+// with fake timers standing in for the real 15s wait, same "a real 15s wait has no place in this
+// suite" reasoning as the block above — only setTimeout/clearTimeout are faked so Fastify's own
+// transport plumbing runs on real timers.
+describe("#115 a timed-out read is not a read failure", () => {
+  const validResponse = () =>
+    JSON.stringify({
+      language: "en",
+      familyFit: { family: "IT Project Manager", confidence: 0.6 },
+      requirements: [
+        {
+          id: "own-a-budget",
+          band: "essential",
+          kind: "ordinary",
+          requirement: "Own a project budget",
+          sourceSpan: "budget",
+        },
+      ],
+    });
+
+  const OPS_KEY = "test-ops-key-115";
+
+  // Polls rather than assuming a fixed number of microtask hops between resolving the underlying
+  // model call and store.put() actually landing (completeWithCost → extractJson/parse → store.put →
+  // the inFlight promise's .finally is several awaits deep, and that count is an implementation
+  // detail this test shouldn't pin) — a broken chain now times out this helper with a clear message
+  // instead of silently flaking on the exact hop count.
+  async function waitUntilStored(store: InMemoryAdRequirementsStore, adId: string, timeoutMs = 2000) {
+    const start = Date.now();
+    for (;;) {
+      const found = await store.get(adId);
+      if (found) return found;
+      if (Date.now() - start > timeoutMs) throw new Error(`waitUntilStored: ${adId} never landed in the store`);
+      await new Promise((r) => setTimeout(r, 5));
+    }
+  }
+
+  it("the deck responds without the slow card, does not miscount it as a read failure, counts and alarms it as a timeout separately, still persists the paid-for read, exposes the reason (gated) over HTTP, and later serves it from cache with no second model call", async () => {
+    const uncached = uncachedEnglishPostings()[0]!;
+
+    const store = new InMemoryAdRequirementsStore();
+    const calls: string[] = [];
+    let resolveSlow!: (text: string) => void;
+    const slow = new Promise<string>((resolve) => {
+      resolveSlow = resolve;
+    });
+    const llm: LlmClient = {
+      async complete(prompt: string) {
+        calls.push(prompt);
+        // Only THIS advert's call hangs — every other uncached posting must still resolve normally,
+        // or the whole deck (not just one card) would wait on the fake clock.
+        if (prompt.includes(uncached.excerpt.slice(0, 60))) return slow;
+        return validResponse();
+      },
+    };
+    const before = {
+      failed: readCounters()["postings.read_failed"],
+      timedOut: readCounters()["postings.read_timed_out"],
+    };
+    const { app } = buildServer({ readAd: makeAdReader(llm, store, ["IT Project Manager"]) });
+    const cookie = await anonSession(app);
+
+    let res!: Awaited<ReturnType<typeof get>>;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const resPromise = get(app, cookie, "/onboarding/cards");
+      await vi.advanceTimersByTimeAsync(15_000); // the real READ_TIMEOUT_MS, simulated rather than waited
+      res = await resPromise;
+    } finally {
+      vi.useRealTimers(); // always restore, even if an assertion above throws mid-block
+    }
+
+    expect(res.statusCode).toBe(200); // no 500 — the slow advert is dropped, not fatal
+    const body = res.json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).not.toContain(uncached.id);
+
+    expect(readCounters()["postings.read_failed"]).toBe(before.failed); // NOT counted as a read failure
+    expect(readCounters()["postings.read_timed_out"]).toBe(before.timedOut + 1); // counted as a timeout
+
+    // AC3, measured through the real HTTP-exposed derived numbers rather than raw counter diffs —
+    // the failure alarm must be completely unmoved by a timeout, and the new timeout alarm must
+    // reflect it: the other uncached postings in this same request settled in time (each counts as
+    // postings.read_in_time), so this is one timeout among several in-time deadline outcomes — a
+    // rate below the 60% threshold, not (only) a sample-size gate.
+    const previousOpsKey = process.env.OPS_KEY;
+    const countersRes = await app.inject({ method: "GET", url: "/ops/counters" });
+    const counters = countersRes.json() as Record<string, number>;
+    expect(counters["adReader.read_failure_alarm_firing"]).toBe(0);
+    expect(counters["adReader.read_timeout_rate_per_mille"]).toBeGreaterThan(0);
+    expect(counters["adReader.read_timeout_alarm_firing"]).toBe(0); // rate stays under the 60% threshold
+
+    // AC2's retrievability, at the HTTP boundary spec #86 requires — not via recentReadFailuresList()
+    // in-process. Gated: no key at all refuses; the right key returns the entry.
+    const noKeyRes = await app.inject({ method: "GET", url: "/ops/read-failures" });
+    expect(noKeyRes.statusCode).toBe(403);
+    process.env.OPS_KEY = OPS_KEY;
+    try {
+      const failuresRes = await app.inject({ method: "GET", url: `/ops/read-failures?key=${OPS_KEY}` });
+      expect(failuresRes.statusCode).toBe(200);
+      const entry = (failuresRes.json() as { entries: Array<{ adId: string; class: string }> }).entries
+        .filter((f) => f.adId === uncached.id)
+        .at(-1);
+      expect(entry?.class).toBe("timeout"); // the reason names the advert and the class
+
+      // Nothing cancels the underlying call — it keeps running after the deadline and still persists.
+      resolveSlow(validResponse());
+      await waitUntilStored(store, uncached.id);
+
+      const callsAfterFirstResolve = calls.length;
+      const res2 = await get(app, cookie, "/onboarding/cards"); // a later request, real timers
+      const body2 = res2.json() as { cards: JobCard[] };
+      expect(body2.cards.map((c) => c.adId)).toContain(uncached.id); // now served from cache
+      expect(calls.length).toBe(callsAfterFirstResolve); // no second model call
+    } finally {
+      if (previousOpsKey === undefined) delete process.env.OPS_KEY;
+      else process.env.OPS_KEY = previousOpsKey;
+    }
+  });
+
+  // #115 round 2 finding 2: the one failure class with no pin. The regression this guards against is
+  // a genuine rejection getting mis-sorted into the "timeout" bucket, which would MUTE a real failure
+  // behind the counter split's own "this is fine, it'll self-heal" framing — precisely the outcome
+  // this whole ticket exists to prevent. Same HTTP seam as the timeout test above.
+  it("a readAd rejection that is not the timeout race is classified reader-rejected, never folded into the timeout bucket", async () => {
+    const uncached = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> => {
+      if (posting.id === uncached.id) throw new Error("boom - not a timeout");
+      return stubRequirements(posting.id);
+    };
+    const before = {
+      failed: readCounters()["postings.read_failed"],
+      timedOut: readCounters()["postings.read_timed_out"],
+    };
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const res = await get(app, cookie, "/onboarding/cards");
+    expect(res.statusCode).toBe(200); // no 500
+    const body = res.json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).not.toContain(uncached.id);
+
+    expect(readCounters()["postings.read_failed"]).toBe(before.failed + 1); // a genuine failure...
+    expect(readCounters()["postings.read_timed_out"]).toBe(before.timedOut); // ...never miscounted as a timeout
+
+    const key = "test-ops-key-reader-rejected";
+    const previousOpsKey = process.env.OPS_KEY;
+    process.env.OPS_KEY = key;
+    try {
+      const failuresRes = await app.inject({ method: "GET", url: `/ops/read-failures?key=${key}` });
+      const entry = (failuresRes.json() as { entries: Array<{ adId: string; class: string; message: string }> }).entries
+        .filter((f) => f.adId === uncached.id)
+        .at(-1);
+      expect(entry?.class).toBe("reader-rejected");
+      expect(entry?.message).toContain("boom - not a timeout");
+    } finally {
+      if (previousOpsKey === undefined) delete process.env.OPS_KEY;
+      else process.env.OPS_KEY = previousOpsKey;
+    }
   });
 });

@@ -13,6 +13,35 @@
 //   - postings.read_failed: a model read could not be turned into a usable AdRequirementsV1 (or the
 //     store itself failed) — the read-failure alarm's numerator. Declared here since #103; #104
 //     (E5 slice 3, adReader.ts) is the first writer.
+//   - postings.read_timed_out: the deck's own READ_TIMEOUT_MS deadline (routes/onboarding.ts)
+//     elapsed before an uncached read finished — #115. Same shape of mistake #103 already drew a
+//     line against for language skips: a slow-but-eventually-successful read is not the same event
+//     as a read that produced nothing usable, and folding them into postings.read_failed would keep
+//     the read-failure alarm firing through ordinary cold-pool warm-up. Deliberately excluded from
+//     computeReadFailureAlarm's numerator AND denominator below.
+//   - postings.read_in_time: the SAME deadline site's other outcome — readAd(posting) settled before
+//     READ_TIMEOUT_MS elapsed, whatever it settled to (a real result OR a null already counted
+//     elsewhere as postings.read_failed — this counter is about promptness, not validity). Exists
+//     ONLY to give the timeout alarm below an honest denominator: read the mechanism precisely, not
+//     optimistically — nothing CANCELS an overrunning read, it keeps running past the deadline and,
+//     on success, increments adReader.read_succeeded and persists to the store ITSELF, on whatever
+//     LATER request's dime happens to trigger it, with no idea the original caller already gave up.
+//     adReader.read_succeeded therefore counts "a fresh read eventually worked", not "worked within
+//     THIS request's deadline" — using it as the timeout alarm's denominator (#115 review) let a
+//     sustained 100%-timeout incident asymptote to a 50% reported rate as those abandoned reads
+//     self-healed in the background, capping it just under a threshold tuned to that same 50% and
+//     making the alarm structurally unable to fire in the scenario it exists for. postings.read_in_time
+//     fixes this by counting the outcome AT the deadline instead of AFTER it, at the same call site
+//     as postings.read_timed_out. A cache hit still resolves through this same site (readAd(posting)
+//     settles near-instantly from the store) and correctly counts as in-time — it genuinely is a read
+//     the deck waited on and got back. None of this is persisted (this file's own accepted in-process
+//     limit), so a process restart while a read is still overrunning drops that attempt from both
+//     counters — it never becomes a counted timeout OR a counted in-time outcome, and simply
+//     vanishes. A real, visible symptom regardless (the deck actually returned one fewer card this
+//     request), so postings.read_timed_out is exposed on /ops/counters, alarmed on its own terms
+//     below (READ_TIMEOUT_ALARM — story 26 requires a systemic timeout spike to be as loud as a
+//     systemic validation-failure spike), and every occurrence is recorded in the recent-read-
+//     failures ring buffer below, class "timeout".
 //   - postings.fixture_invalid: a HAND-AUTHORED fixture failed to parse (e5stub.ts). Deliberately
 //     its own counter, not folded into postings.read_failed (#104 review finding 6): a broken
 //     fixture has nothing to do with the model, so it must not move the read-failure alarm's rate —
@@ -58,6 +87,8 @@ const counts = {
   "postings.language_skipped": 0,
   "postings.language_undetermined": 0,
   "postings.read_failed": 0,
+  "postings.read_timed_out": 0,
+  "postings.read_in_time": 0,
   "postings.fixture_invalid": 0,
   "adReader.read_succeeded": 0,
   "adReader.language_skipped": 0,
@@ -73,10 +104,14 @@ export type CounterName = keyof typeof counts;
 
 export function incrementCounter(name: CounterName): void {
   counts[name]++;
-  // The failure-rate alarm can only move on these two names; check on every touch rather than
-  // asking every call site to remember to (a rate an operator has to remember to poll for isn't
-  // an alarm — see checkReadFailureAlarm's doc below).
-  if (name === "postings.read_failed" || name === "adReader.read_succeeded") maybeLogAlarmTransition();
+  // postings.read_failed / adReader.read_succeeded can move the failure alarm; postings.read_timed_out
+  // can move the timeout alarm INTO firing. postings.read_in_time is deliberately not watched here —
+  // it only ever dilutes the timeout alarm's rate (moves it down), never crosses it into firing, so
+  // there is nothing to check on that touch. Check on every touch of a name that COULD flip firing,
+  // rather than asking every call site to remember to (a rate an operator has to remember to poll for
+  // isn't an alarm — see maybeLogAlarmTransitions's doc below).
+  if (name === "postings.read_failed" || name === "postings.read_timed_out" || name === "adReader.read_succeeded")
+    maybeLogAlarmTransitions();
 }
 
 /** Batch add — requirement/blocking counts arrive per advert as a batch (e.g. "this read produced
@@ -88,6 +123,78 @@ export function addToCounter(name: CounterName, n: number): void {
 /** A fresh snapshot, numbers only — safe to serialize straight onto an open ops route. */
 export function readCounters(): Record<CounterName, number> {
   return { ...counts };
+}
+
+// --- recent read failures (#115 AC2: a failure counter says THAT; this says WHY) ------------------
+// A count alone (postings.read_failed, postings.read_timed_out) tells an operator a read didn't
+// land, never why — the exact gap #115 was opened against, where every failure path was a bare
+// `catch {}` that destroyed the reason. This is the detail companion to those counters: same
+// in-process, reset-on-restart, no-persisted-store limits this file already accepts for the counts
+// above (module-level singleton; a restart is a clean slate, and that's fine — nothing here is an
+// audit trail). Bounded to a small fixed size so a bad advert (or a bad batch) can't grow this
+// unbounded in a long-running process; oldest entries fall off first.
+// "reader-rejected" is distinct from "model-call-error": model-call-error is adReader.ts's own
+// classification for a raw LLM-driver failure it caught directly. "reader-rejected" is
+// onboarding.ts's classification for readAd(posting) itself rejecting for some reason OTHER than
+// the timeout race — something the production reader (makeAdReader) never actually does, since
+// every internal failure there is already caught and turned into a null return before it would
+// reach this far. Kept as its own class, rather than reused as "model-call-error", because
+// onboarding.ts genuinely cannot see what kind of failure produced that rejection; calling it a
+// model-call-error would claim knowledge this call site doesn't have.
+export type ReadFailureClass =
+  | "timeout"
+  | "model-output-invalid"
+  | "model-call-error"
+  | "store-unavailable"
+  | "reader-rejected";
+
+export interface ReadFailureEntry {
+  adId: string;
+  class: ReadFailureClass;
+  message: string;
+  at: string; // ISO timestamp
+}
+
+// #115 review round 2: QA measured one fully-degraded deck request against today's 17-posting pool
+// consuming 7 of a 20-entry buffer — comfortable today, but a SECOND degraded request in the same
+// window would already start evicting the first's evidence. Sized to comfortably clear a single
+// fully-degraded request across the WHOLE pool (17), not just the uncached subset, with room to
+// spare for the pool growing somewhat before this needs revisiting again. Revisit if the pool grows
+// meaningfully past this (e.g. live retrieval, #99-#101).
+const READ_FAILURE_LOG_LIMIT = 40;
+// Matches the tightest bound this file's own call sites already use for a final, externally-facing
+// message (adReader.ts's `ad reader output failed validation twice: …` throw slices to 500) — not a
+// new number invented for this path. Applied uniformly HERE, at the point of record, rather than
+// trusting every call site to remember to truncate its own error before passing it in (#115 finding
+// 3: two of the four classes were passing raw driver/provider error text — a pg auth failure, an
+// internal hostname — through untruncated to an, at the time, ungated route).
+const READ_FAILURE_MESSAGE_LIMIT = 500;
+const recentReadFailures: ReadFailureEntry[] = [];
+
+/** Records one dropped read AND logs it, so the reason lands in Fly's logs even for an operator who
+ *  never hits the retrieval route below. Call alongside the matching incrementCounter call, not
+ *  instead of it — this is detail, the counter is still the number. A "timeout" class logs its own
+ *  wording rather than "failed" — the entire point of #115's counter split is that a timeout is not
+ *  a failure, and reusing that word here would reintroduce the exact confusion the split removed. */
+export function recordReadFailure(adId: string, cls: ReadFailureClass, message: string): void {
+  const bounded = message.slice(0, READ_FAILURE_MESSAGE_LIMIT);
+  const entry: ReadFailureEntry = { adId, class: cls, message: bounded, at: new Date().toISOString() };
+  recentReadFailures.push(entry);
+  if (recentReadFailures.length > READ_FAILURE_LOG_LIMIT) recentReadFailures.shift();
+  console.error(
+    cls === "timeout"
+      ? `[ops] ad read timed out (not counted as a failure — still running, will self-heal into the cache if it completes) for ${adId}: ${bounded}`
+      : `[ops] ad read failed (${cls}) for ${adId}: ${bounded}`,
+  );
+}
+
+/** A fresh snapshot, oldest first — adId + a message already bounded at the point of record above,
+ *  same "no secrets in error messages" discipline every call site follows. Gated behind OPS_KEY on
+ *  its HTTP route (server.ts) regardless — a truncated driver error can still name an internal host
+ *  or an auth-failure detail that has no business on an open URL, so truncation and gating are BOTH
+ *  applied, neither alone (#115 finding 3). */
+export function recentReadFailuresList(): ReadFailureEntry[] {
+  return [...recentReadFailures];
 }
 
 // --- the read-failure alarm (AC: "an alarm exists" on a rising read-failure rate) ----------------
@@ -119,12 +226,73 @@ export function readFailureAlarm(): ReadFailureAlarm {
   return computeReadFailureAlarm(counts["postings.read_failed"], counts["adReader.read_succeeded"]);
 }
 
-// Tracks whether the alarm was already firing, so the log line below fires once on the TRANSITION
-// into alarm state, not on every subsequent failure while it stays firing — spamming the log at
-// exactly the moment an operator needs to find the one line that matters would defeat the point.
-let alarmWasFiring = false;
+// --- the read-timeout alarm (#115: story 26 — "a systematic failure cannot remove a whole market
+// silently" — must hold for a systemic TIMEOUT spike exactly as it already holds for a systemic
+// validation-failure spike). Same shape as READ_FAILURE_ALARM above, deliberately a SEPARATE
+// threshold rather than folded into the one above — that is the whole point of #115's counter split,
+// and reusing one alarm for two different signals would silently re-couple what the split was for.
+//
+// The denominator is postings.read_in_time, NOT adReader.read_succeeded (#115 second review round):
+// read_succeeded counts a read's EVENTUAL success on whatever later request's dime triggered it, so
+// under a SUSTAINED 100%-timeout incident every abandoned read still self-heals into read_succeeded
+// a few seconds after its own timeout — the rate asymptotes toward 0.5 as timedOut and succeeded grow
+// in lockstep, and a threshold of 0.5 can structurally never be CROSSED by a value approaching it
+// from below. read_in_time is counted at the SAME deadline site as read_timed_out (resolveAdRequirements)
+// instead, so a total-degradation incident reads 100%, not 50%.
+//
+// Threshold re-derived against that fixed denominator, not tuned around the broken one: today's
+// measured warm-up (the ticket's own incident) was 3 timed out of 7 deadline-bound attempts ≈ 43% —
+// that must stay quiet, since it is the accepted ordinary shape of a cold pool, not a regression. 60%
+// sits comfortably above that measured baseline (headroom against ordinary variance) while still
+// catching a genuine "essentially everything is timing out" regression: on the confirmed cause here
+// (a provider-side throughput drop pushing EVERY uncached read over the deadline at once), the rate
+// heads toward 100%, not a scattered handful — so anything sustained past 60% is already a real
+// signal. minSamples matches READ_FAILURE_ALARM's for the same reason: below it, one slow advert
+// swings the rate wildly.
+export const READ_TIMEOUT_ALARM = {
+  threshold: 0.6,
+  minSamples: 5,
+} as const;
 
-function maybeLogAlarmTransition(): void {
+export interface ReadTimeoutAlarm {
+  firing: boolean;
+  rate: number; // timedOut / (timedOut + inTime); 0 when there have been no attempts yet
+  sampleSize: number;
+}
+
+/** Pure, same reason computeReadFailureAlarm is pure — exact-number testability without fighting
+ *  the shared counters singleton. */
+export function computeReadTimeoutAlarm(timedOut: number, inTime: number): ReadTimeoutAlarm {
+  const sampleSize = timedOut + inTime;
+  const rate = sampleSize > 0 ? timedOut / sampleSize : 0;
+  return { firing: sampleSize >= READ_TIMEOUT_ALARM.minSamples && rate > READ_TIMEOUT_ALARM.threshold, rate, sampleSize };
+}
+
+/** The timeout alarm's current state, straight off the live counters — what /ops/counters reports. */
+export function readTimeoutAlarm(): ReadTimeoutAlarm {
+  return computeReadTimeoutAlarm(counts["postings.read_timed_out"], counts["postings.read_in_time"]);
+}
+
+// Tracks whether each alarm was already firing, so its log line fires once on the TRANSITION into
+// alarm state, not on every subsequent failure while it stays firing — spamming the log at exactly
+// the moment an operator needs to find the one line that matters would defeat the point. Two
+// separate latches — the two alarms transition independently.
+//
+// #115 review: fixing the timeout alarm's denominator above also fixes, as a side effect, a latch
+// re-arm QA flagged — a self-healing read incrementing adReader.read_succeeded used to recompute
+// THIS alarm too (read_succeeded was its denominator), so a sustained incident's rate wobbled up and
+// down as abandoned reads landed one by one, potentially re-crossing the threshold and re-logging
+// per batch instead of once. Now that this alarm depends only on read_timed_out/read_in_time,
+// adReader.read_succeeded no longer moves it at all, so a self-heal can never perturb its firing
+// state. NOT fixed by this change, and not addressed in this pass: two concurrent requests racing
+// the SAME in-flight read (adReader.ts's makeAdReader inFlight map) each run their OWN independent
+// withReadTimeout against it, so one slow underlying read can still increment postings.read_timed_out
+// twice (once per waiting request) — a real over-count of "timed-out reads" vs "requests that timed
+// out waiting", left as a known limit.
+let alarmWasFiring = false;
+let timeoutAlarmWasFiring = false;
+
+function maybeLogAlarmTransitions(): void {
   const alarm = readFailureAlarm();
   if (alarm.firing && !alarmWasFiring) {
     console.error(
@@ -132,13 +300,23 @@ function maybeLogAlarmTransition(): void {
     );
   }
   alarmWasFiring = alarm.firing;
+
+  const timeoutAlarm = readTimeoutAlarm();
+  if (timeoutAlarm.firing && !timeoutAlarmWasFiring) {
+    console.error(
+      `[ops] adReader read-timeout alarm firing: ${(timeoutAlarm.rate * 100).toFixed(1)}% of ${timeoutAlarm.sampleSize} reads timed out`,
+    );
+  }
+  timeoutAlarmWasFiring = timeoutAlarm.firing;
 }
 
-/** Test-only: zeroes every counter and the alarm's latch. Never called by production code — it
+/** Test-only: zeroes every counter and both alarms' latches. Never called by production code — it
  *  exists because counts is a module-level singleton with no other reset, and the alarm/threshold
  *  tests need a clean slate to assert exact rates rather than depending on whatever else happened
  *  to run earlier in the same test file's shared module instance. */
 export function resetCountersForTest(): void {
   for (const key of Object.keys(counts) as CounterName[]) counts[key] = 0;
   alarmWasFiring = false;
+  timeoutAlarmWasFiring = false;
+  recentReadFailures.length = 0;
 }

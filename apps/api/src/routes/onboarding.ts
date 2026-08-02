@@ -24,7 +24,7 @@ import { auditRootCv, type CvAuditor } from "../audit.js";
 import { loadFamilyFloor, loadAdRequirements } from "../e5stub.js";
 import { eligiblePostings, type Posting } from "../preview.js";
 import { readingLanguages, languageEligible } from "../language.js";
-import { incrementCounter } from "../counters.js";
+import { incrementCounter, recordReadFailure } from "../counters.js";
 import { matchBreakdown, matchTick, uncoveredRequirements, pickHitClause, pickOpenClause, NOTHING_OPEN_CLAUSE } from "../matchtick.js";
 import {
   composeCvLine,
@@ -946,9 +946,21 @@ export function orderCardsForReveal<T extends { matchPct: number }>(
 // Exported so the race itself is directly testable with a short ms value; a real 15s wait has no
 // place in this suite.
 const READ_TIMEOUT_MS = 15_000;
+
+/** Distinguishes withReadTimeout's OWN manufactured rejection from whatever `promise` itself might
+ *  reject with (#115 AC2/#115 counter split) — resolveAdRequirements below tells a deadline from a
+ *  genuine read failure by `instanceof`, not by matching the error's message text. With the real
+ *  makeAdReader-built reader (adReader.ts), `promise` should never itself reject — every internal
+ *  failure there is already caught and turned into a null return — so in practice this is expected
+ *  to be the only way resolveAdRequirements's catch below fires. That is an expectation about
+ *  today's ONE production wiring, not a guarantee this type enforces: `readAd` is a plain function
+ *  type any implementation (a test fake, a future reader) can satisfy by rejecting, so the catch
+ *  below still handles that case rather than assuming it away. */
+export class ReadTimeoutError extends Error {}
+
 export function withReadTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`ad read timed out after ${ms}ms`)), ms);
+    const timer = setTimeout(() => reject(new ReadTimeoutError(`ad read timed out after ${ms}ms`)), ms);
     promise.then(
       (value) => {
         clearTimeout(timer);
@@ -968,9 +980,13 @@ export function withReadTimeout<T>(promise: Promise<T>, ms: number): Promise<T> 
  *  rendered because a different call site resolved it differently. `readAd` absent (no dep wired)
  *  or the read itself failing both fall through to "no requirements for this posting" rather than
  *  throwing — a route 500 is worse than one missing card. A read that hangs past READ_TIMEOUT_MS is
- *  treated exactly like any other unreadable advert: dropped and counted here (makeAdReader's own
- *  internal failures are already counted inside adReader.ts; this timeout is the one failure mode
- *  that never reaches makeAdReader's own try/catch at all, since it never settles). */
+ *  dropped for THIS request exactly like any other unreadable advert, but it is not counted as one
+ *  (#115): the underlying read (makeAdReader's own promise, still running — nothing here or in
+ *  withReadTimeout cancels it) keeps going after the deadline fires, still validates, and still
+ *  persists to the store on success, so the advert is cached for the next request. That is a slow
+ *  first read, not a failed one — postings.read_failed (the read-failure alarm's numerator) is
+ *  reserved for a read that produced nothing usable at all, same distinction #103 already drew for
+ *  language skips. See counters.ts's header for the full reasoning. */
 async function resolveAdRequirements(
   adId: string,
   readAd: OnboardingDeps["readAd"],
@@ -981,9 +997,25 @@ async function resolveAdRequirements(
   } catch {
     if (!readAd) return null;
     try {
-      return await withReadTimeout(readAd(posting), READ_TIMEOUT_MS);
-    } catch {
-      incrementCounter("postings.read_failed");
+      const result = await withReadTimeout(readAd(posting), READ_TIMEOUT_MS);
+      // Settled before the deadline — whatever it settled to (a real result, or a null already
+      // counted as postings.read_failed inside makeAdReader). This is the timeout alarm's OTHER
+      // half (counters.ts): a promptness signal, deliberately decoupled from validity.
+      incrementCounter("postings.read_in_time");
+      return result;
+    } catch (err) {
+      if (err instanceof ReadTimeoutError) {
+        incrementCounter("postings.read_timed_out");
+        recordReadFailure(adId, "timeout", err.message);
+      } else {
+        // Not the timeout — readAd itself rejected. The production reader never does this (see
+        // ReadTimeoutError's doc above), so this branch is untested territory for it; classified
+        // "reader-rejected" rather than "model-call-error" because this call site has no visibility
+        // into WHY a non-standard readAd implementation rejected, and "model-call-error" is
+        // adReader.ts's own claim about a specific, known cause this site cannot actually vouch for.
+        incrementCounter("postings.read_failed");
+        recordReadFailure(adId, "reader-rejected", err instanceof Error ? err.message : String(err));
+      }
       return null;
     }
   }

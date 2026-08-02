@@ -13,7 +13,7 @@ import {
   readAdvert,
 } from "../src/adReader.js";
 import { InMemoryAdRequirementsStore, type AdRequirementsStore } from "../src/adRequirementsStore.js";
-import { readCounters } from "../src/counters.js";
+import { readCounters, recentReadFailuresList } from "../src/counters.js";
 import type { LlmClient } from "../src/llm.js";
 import type { Posting } from "../src/preview.js";
 
@@ -385,7 +385,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
     expect((await store.get("ad-1"))?.version).toBe(adReaderVersion()); // the broken row is replaced
   });
 
-  it("a read that fails twice never throws out of makeAdReader — drops the card and counts the failure", async () => {
+  it("a read that fails twice never throws out of makeAdReader — drops the card, counts the failure, and records why", async () => {
     const before = readCounters()["postings.read_failed"];
     const store = new InMemoryAdRequirementsStore();
     const llm = fakeLlm(["not json", "still not json"]);
@@ -394,6 +394,31 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
     expect(result).toBeNull();
     expect(await store.get("ad-1")).toBeNull(); // nothing checkpointed for a failed read
     expect(readCounters()["postings.read_failed"]).toBe(before + 1);
+    // #115 AC2: the reason survives the bare catch — retrievable, naming the advert and the class.
+    const entry = recentReadFailuresList().filter((f) => f.adId === "ad-1").at(-1);
+    expect(entry?.class).toBe("model-output-invalid");
+    expect(entry?.message).toContain("failed validation twice");
+  });
+
+  // #115: a raw LLM-call failure (network/API error, never even reaching extractJson/zod) is a
+  // genuinely different operational signal from two bad-but-received answers — the provider call
+  // itself failed, not the prompt/contract. makeAdReader tells them apart by AdReadValidationError's
+  // instanceof, not by matching error text.
+  it("a raw LLM-call failure is recorded as a distinct class from an invalid model answer", async () => {
+    const before = readCounters()["postings.read_failed"];
+    const store = new InMemoryAdRequirementsStore();
+    const llm: LlmClient = {
+      async complete() {
+        throw new Error("network blip");
+      },
+    };
+    const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+    const result = await readAd(posting());
+    expect(result).toBeNull();
+    expect(readCounters()["postings.read_failed"]).toBe(before + 1);
+    const entry = recentReadFailuresList().filter((f) => f.adId === "ad-1").at(-1);
+    expect(entry?.class).toBe("model-call-error");
+    expect(entry?.message).toContain("network blip");
   });
 
   // #104 review finding 4: a store outage used to escape all the way to the route's blanket catch
@@ -408,6 +433,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
     expect(result).toBeNull();
     expect(llm.calls).toHaveLength(0);
     expect(readCounters()["postings.read_failed"]).toBe(before + 1);
+    expect(recentReadFailuresList().filter((f) => f.adId === "ad-1").at(-1)?.class).toBe("store-unavailable");
   });
 
   it("a store.put() outage still returns THIS request's freshly-paid-for result, but counts the failure", async () => {
@@ -418,5 +444,6 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
     const result = await readAd(posting());
     expect(result?.adId).toBe("ad-1"); // the paid read isn't thrown away over a storage outage
     expect(readCounters()["postings.read_failed"]).toBe(before + 1);
+    expect(recentReadFailuresList().filter((f) => f.adId === "ad-1").at(-1)?.class).toBe("store-unavailable");
   });
 });

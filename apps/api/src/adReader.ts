@@ -11,7 +11,7 @@ import { extractJson } from "./miner.js";
 import { canonicalModelName, type LlmClient } from "./llm.js";
 import type { Posting } from "./preview.js";
 import { languageEligible, SERVED_LANGUAGES } from "./language.js";
-import { addToCounter, incrementCounter } from "./counters.js";
+import { addToCounter, incrementCounter, recordReadFailure } from "./counters.js";
 import type { AdRequirementsRecord, AdRequirementsStore } from "./adRequirementsStore.js";
 
 const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts", "ad-reader.md");
@@ -114,6 +114,15 @@ export interface AdReadResult {
   cost: AdReadCost;
 }
 
+/** Thrown only for the "two bad answers in a row" case at the bottom of readAdvert's loop — a
+ *  distinct class from a raw LLM-call failure (network/API error), which readAdvert never catches
+ *  and lets propagate as whatever error the driver itself threw. makeAdReader's catch below tells
+ *  the two apart by `instanceof` rather than string-matching a message (#115 AC2: a failure records
+ *  a CLASS, and model-output-invalid vs model-call-error are genuinely different operational
+ *  signals — one says the prompt/contract is drifting, the other says the provider call itself
+ *  failed). */
+export class AdReadValidationError extends Error {}
+
 /**
  * Reads one advert. Returns null (no model call) when the posting's language isn't served — the
  * reader must never be handed a non-served-language advert (#103's gate), but this is
@@ -179,7 +188,7 @@ export async function readAdvert(
       lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
     }
   }
-  throw new Error(`ad reader output failed validation twice: ${lastError.slice(0, 500)}`);
+  throw new AdReadValidationError(`ad reader output failed validation twice: ${lastError.slice(0, 500)}`);
 }
 
 /**
@@ -208,12 +217,13 @@ export function makeAdReader(
     let cached: AdRequirementsRecord | null;
     try {
       cached = await store.get(posting.id);
-    } catch {
+    } catch (err) {
       // A store outage (or, before a contract bump was made version-safe, an unparseable old row)
       // must not vanish silently — count it the same as any other unreadable advert, and don't
       // blindly fall through to a paid model call that would just fail the same way on put() below
       // if the store itself is down (#104 review finding 4).
       incrementCounter("postings.read_failed");
+      recordReadFailure(posting.id, "store-unavailable", err instanceof Error ? err.message : String(err));
       return null;
     }
     if (cached && cached.version === adReaderVersion()) return cached.requirements;
@@ -221,8 +231,13 @@ export function makeAdReader(
     let result: AdReadResult | null;
     try {
       result = await readAdvert(posting, llm, knownFamilies);
-    } catch {
+    } catch (err) {
       incrementCounter("postings.read_failed");
+      recordReadFailure(
+        posting.id,
+        err instanceof AdReadValidationError ? "model-output-invalid" : "model-call-error",
+        err instanceof Error ? err.message : String(err),
+      );
       return null;
     }
     if (!result) return null; // language skip — already counted inside readAdvert
@@ -233,11 +248,12 @@ export function makeAdReader(
         version: adReaderVersion(),
         cost: { ...result.cost, readAt: new Date().toISOString() },
       });
-    } catch {
+    } catch (err) {
       // The read itself succeeded and was already paid for — a storage outage shouldn't throw away
       // a good result the caller can still use THIS request. It does mean the read won't be shared
       // (the next request re-reads), so count it the same as any other unreadable-advert outcome.
       incrementCounter("postings.read_failed");
+      recordReadFailure(posting.id, "store-unavailable", err instanceof Error ? err.message : String(err));
     }
     return result.requirements;
   };

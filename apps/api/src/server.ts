@@ -37,7 +37,7 @@ import {
   type FamilyLearningStore,
 } from "./familyLearning.js";
 import { familyLearningRoutes } from "./routes/familyLearning.js";
-import { readCounters, readFailureAlarm } from "./counters.js";
+import { readCounters, readFailureAlarm, readTimeoutAlarm, recentReadFailuresList } from "./counters.js";
 import type { Posting } from "./preview.js";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
 
@@ -168,11 +168,32 @@ export function buildServer(opts: BuildOptions = {}) {
   // 0/1, rate as parts-per-mille) to keep this route's "numbers only" property intact.
   app.get("/ops/counters", async () => {
     const alarm = readFailureAlarm();
+    const timeoutAlarm = readTimeoutAlarm();
     return {
       ...readCounters(),
       "adReader.read_failure_rate_per_mille": Math.round(alarm.rate * 1000),
       "adReader.read_failure_alarm_firing": alarm.firing ? 1 : 0,
+      "adReader.read_timeout_rate_per_mille": Math.round(timeoutAlarm.rate * 1000),
+      "adReader.read_timeout_alarm_firing": timeoutAlarm.firing ? 1 : 0,
     };
+  });
+  // #115: the WHY behind postings.read_failed / postings.read_timed_out. A separate route rather
+  // than folded into /ops/counters above, which deliberately promises "numbers only, no PII" — but
+  // unlike that route, this one CAN carry raw-ish upstream error text (a pg driver message, a
+  // provider error), which is exactly the class of thing GUESTBOOK_KEY already exists to keep off an
+  // open URL. Same contentKeyOk idiom, its own dedicated OPS_KEY rather than reusing GUESTBOOK_KEY —
+  // a leaked ops-diagnostics key should not also unlock CV content, or vice versa. With no key set,
+  // this refuses, same fail-closed default as the guestbook content routes.
+  const opsKeyOk = (req: FastifyRequest) => {
+    const key = process.env.OPS_KEY;
+    return !!key && (req.query as { key?: string }).key === key;
+  };
+  app.get("/ops/read-failures", async (req, reply) => {
+    if (!opsKeyOk(req))
+      return reply.status(403).send({
+        error: { code: "forbidden", message: "set OPS_KEY and pass ?key=… to read failure detail" },
+      });
+    return { entries: recentReadFailuresList() };
   });
   app.get(
     "/family-floors/:familyId/active",

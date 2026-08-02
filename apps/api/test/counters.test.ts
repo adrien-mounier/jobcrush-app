@@ -7,8 +7,10 @@ import { buildServer } from "../src/server.js";
 import { loadPostings } from "../src/preview.js";
 import {
   computeReadFailureAlarm,
+  computeReadTimeoutAlarm,
   incrementCounter,
   readCounters,
+  readTimeoutAlarm,
   resetCountersForTest,
 } from "../src/counters.js";
 
@@ -33,6 +35,7 @@ describe("#103 posting-pool counters", () => {
       "postings.language_skipped": 1,
       "postings.language_undetermined": 0,
       "postings.read_failed": 0,
+      "postings.read_timed_out": 0,
       "postings.fixture_invalid": 0,
       "adReader.read_succeeded": 0,
       "adReader.language_skipped": 0,
@@ -42,8 +45,11 @@ describe("#103 posting-pool counters", () => {
       "adReader.cost_reads_recorded": 0,
       "adReader.cost_input_tokens_total": 0,
       "adReader.cost_output_tokens_total": 0,
+      "postings.read_in_time": 0,
       "adReader.read_failure_rate_per_mille": 0,
       "adReader.read_failure_alarm_firing": 0,
+      "adReader.read_timeout_rate_per_mille": 0,
+      "adReader.read_timeout_alarm_firing": 0,
     });
   });
 });
@@ -88,5 +94,80 @@ describe("#104 the ad-reader read-failure alarm", () => {
     const body = res.json() as Record<string, number>;
     expect(body["adReader.read_failure_alarm_firing"]).toBe(1);
     expect(body["adReader.read_failure_rate_per_mille"]).toBe(600);
+  });
+});
+
+// #115 finding 1 — a systemic TIMEOUT spike must be as loud as a systemic validation-failure spike
+// (spec story 26), on its OWN threshold (60% — see READ_TIMEOUT_ALARM's comment in counters.ts) so
+// it isn't drowned out by, or confused with, the alarm above. Same shape of tests as "#104 the
+// ad-reader read-failure alarm", mirroring it 1:1 — denominator is postings.read_in_time, NOT
+// adReader.read_succeeded (round 2 of review: read_succeeded is a self-heal signal that arrives
+// AFTER the deadline, on whatever later request triggers it, and using it as the denominator made
+// the alarm asymptote toward its own threshold under a sustained incident instead of crossing it).
+describe("#115 the read-timeout alarm", () => {
+  it("stays not-firing below the minimum sample size, even at 100% timeouts", () => {
+    expect(computeReadTimeoutAlarm(4, 0).firing).toBe(false); // 4 samples < minSamples (5)
+  });
+
+  it("stays not-firing exactly at the threshold rate — only OVER it fires", () => {
+    expect(computeReadTimeoutAlarm(6, 4).firing).toBe(false); // 60% == threshold, not over
+  });
+
+  it("fires once both the sample size and the rate are crossed", () => {
+    const alarm = computeReadTimeoutAlarm(7, 3);
+    expect(alarm.firing).toBe(true); // 10 samples, 70% timed out
+    expect(alarm.rate).toBeCloseTo(0.7);
+    expect(alarm.sampleSize).toBe(10);
+  });
+
+  it("logs once on the transition into firing, not again while it stays firing, and independently of the failure alarm's own latch", () => {
+    resetCountersForTest();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (let i = 0; i < 3; i++) incrementCounter("postings.read_in_time"); // in time, never timed out
+    expect(spy).not.toHaveBeenCalled();
+    for (let i = 0; i < 7; i++) incrementCounter("postings.read_timed_out"); // now 7/10 = 70% — fires
+    expect(spy).toHaveBeenCalledTimes(1);
+    incrementCounter("postings.read_timed_out"); // stays firing — must not log a second time
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+  // The regression this exists to prevent (#115 round 2): a self-healing read incrementing
+  // adReader.read_succeeded used to recompute and dilute THIS alarm's rate too. It must not anymore.
+  it("a self-heal (adReader.read_succeeded) never moves the timeout alarm's rate or firing state", () => {
+    resetCountersForTest();
+    for (let i = 0; i < 7; i++) incrementCounter("postings.read_timed_out");
+    for (let i = 0; i < 3; i++) incrementCounter("postings.read_in_time"); // 70% — firing
+    const before = readTimeoutAlarm();
+    expect(before.firing).toBe(true);
+    for (let i = 0; i < 50; i++) incrementCounter("adReader.read_succeeded"); // many self-heals land
+    const after = readTimeoutAlarm();
+    expect(after).toEqual(before); // completely unmoved
+  });
+
+  it("exposes firing + rate on /ops/counters, numbers only, without moving the read-failure alarm's own fields", async () => {
+    resetCountersForTest();
+    for (let i = 0; i < 3; i++) incrementCounter("postings.read_in_time");
+    for (let i = 0; i < 7; i++) incrementCounter("postings.read_timed_out");
+    const { app } = buildServer();
+    const res = await app.inject({ method: "GET", url: "/ops/counters" });
+    const body = res.json() as Record<string, number>;
+    expect(body["adReader.read_timeout_alarm_firing"]).toBe(1);
+    expect(body["adReader.read_timeout_rate_per_mille"]).toBe(700);
+    expect(body["adReader.read_failure_alarm_firing"]).toBe(0); // a timeout never moves this one
+    expect(body["adReader.read_failure_rate_per_mille"]).toBe(0);
+  });
+
+  // The exact incident this alarm was designed against, replayed at its own numbers (#115 round 2
+  // must-fix): total degradation reads 100% and fires; today's measured warm-up shape (3 timed out
+  // of 7 deadline-bound attempts) reads 43% and stays quiet.
+  it("total degradation (100% timed out) fires; the ticket's own measured warm-up shape (3/7 ≈ 43%) stays quiet", () => {
+    const totalDegradation = computeReadTimeoutAlarm(7, 0);
+    expect(totalDegradation.rate).toBe(1);
+    expect(totalDegradation.firing).toBe(true);
+
+    const measuredWarmup = computeReadTimeoutAlarm(3, 4);
+    expect(measuredWarmup.rate).toBeCloseTo(3 / 7);
+    expect(measuredWarmup.firing).toBe(false);
   });
 });
