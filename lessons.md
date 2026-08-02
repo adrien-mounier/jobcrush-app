@@ -1,5 +1,32 @@
 # Lessons — jobcrush-app
 
+## A per-request budget is not a per-visitor budget the moment the client is allowed to retry
+
+#117 caps paid judgements at 8 per deck request. The first implementation ranked the paid set over the
+cards the cache had **not** already resolved — which reads as obviously correct, and is, for exactly one
+request. The same slice added a client poll that re-fetches the deck while judgements are still landing.
+So poll 2 found round 1's cards cached, which *freed bound slots*, which bought the next 8; by poll 3 or
+4 the visitor had paid for all 15 adverts — **the precise cost the ticket existed to eliminate, with
+every "at most 8 per request" unit test still green.** The tests weren't weak; they asserted the
+property that was actually implemented. The property that mattered was one level up.
+
+The general form: **any budget, quota, rate limit or cap scoped to a single request is silently voided
+by anything that can issue more requests** — a poll, a retry, a refresh, a reconnect, a second tab. The
+budget has to be scoped to the thing you actually care about not over-spending (a visitor, a session, a
+fact set), or the request-level cap has to be *idempotent* — deriving the same answer every time so a
+repeat costs nothing new. The fix here was the second: rank the paid set over **every** candidate rather
+than the unresolved remainder, making it a pure function of (fact set, requirement sets). A poll then
+re-derives an identical set, finds it all cached, and spends nothing. Idempotence turned out to be
+cheaper and more robust than adding session state to count spend.
+
+Two process notes worth keeping. **The bug was invisible to the engineer who built both halves,
+because each half is correct alone** — it lives only in the interaction, which is exactly what the
+two-axis review is for; the Standards axis caught it by reading the diff against the client's retry
+behaviour, and the Spec axis (checking ACs) missed it entirely. And **a test written by the author of
+the fix is not independent evidence of the fix** — QA counting real model calls across 10 consecutive
+deck loads is what actually proved it, and that's the check worth demanding whenever the claim is
+"this now costs less".
+
 ## If the design rests on a seam, a test that never crosses that seam proves nothing
 
 #118's whole value is knowing *which visitor* spent the money. Attribution rode request-scoped

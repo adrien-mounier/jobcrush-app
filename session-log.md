@@ -2,6 +2,48 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-03 (session 66) — `/orchestrate-team #117`: the deck buys eight honest scores and stops inventing the other seven
+
+- **[#117](https://github.com/adrien-mounier/jobcrush-app/issues/117) shipped in `9b348af`, ticket
+  deliberately left OPEN.** A cold deck judged all ~15 adverts per visitor (~US$0.29, re-firing as the
+  fact set grew) and, whenever a judgement failed or missed the shared budget, showed the token-overlap
+  scorer's number as though it were the judged one — measured on staging, 9 of 15 first-view cards, all
+  nine changing on the second. Now: `DECK_JUDGE_MAX_CARDS = 8` bounds **paid** calls per visitor per
+  fact set; free cache reads are unbounded via a cache-only path that takes no `LlmClient` and so cannot
+  spend; `CardScoreProvenance` replaces the judged/fallback boolean with `judged`/`pending`/`unscored`/
+  `estimated`, with `matchPct`/`breakdown`/`bubble` **null** on the two unearned states — the response
+  cannot express a fake number. Superset reuse re-judges only still-unmet requirements when evidence has
+  only grown. Gate 712 api + 29 contracts green.
+- 🐛 **The near-miss: the cost saving was real in a snapshot and evaporated in the flow.** The first
+  implementation ranked the paid set over what the cache had **not** resolved. The web deck polls while
+  judgements arrive, so each poll found the previous round cached, which *freed bound slots*, which
+  bought the next batch — by the third or fourth poll the visitor had paid for all 15, the exact ~$0.29
+  the ticket exists to kill, **while every "at most 8 per request" unit test stayed green.** Caught by
+  the Standards review axis reading the diff against the client's retry behaviour; the Spec axis missed
+  it. Fixed by ranking the paid set over *every* candidate so it is a pure function of the fact set —
+  a poll re-derives the identical set, finds it cached, spends nothing. See `lessons.md`.
+- **Two goals in one ticket, with the cheap fix for one defeating the other — the ticket said so and it
+  was right.** Judging fewer cards cuts cost and, done naively, leaves *more* of the deck on the old
+  scorer. The resolution was to stop letting an unjudged card carry a number at all, which required a
+  fourth provenance state (`unscored`, nothing coming) distinct from `pending` (in flight, self-heals):
+  collapsing them left 7 cards spinning forever behind a "Try again" that could never succeed. That
+  collapse was an orchestrator error in the contract pinned to both engineers, found at integration.
+- **Design decisions that carried their weight.** Polling starts on the reveal/wall screens, not the
+  deck, so most visitors never see a card without a number. `unscored` copy frames the absence as
+  *ordering* ("I scored the closest matches first. Want this one? I'll score it against your facts.")
+  rather than economy — true, since the deck really is judged-first, and it never tells the visitor we
+  spent less on them. `Estimate` under the ring marks the deterministic number wherever it still shows.
+- **QA drove it live:** 8 paid calls across 10 consecutive deck loads (flat from the first), poll
+  terminates, **zero numbers moved** across reloads, 0 of 15 cards claiming an unearned number, returning
+  visitor gets a full 15-card deck for 0 new calls. E2E left at `apps/web/e2e/pending-unscored-card-journey.mjs`.
+- ⚠️ **Why it is not closed:** AC8 requires cost per visitor **and** cold-deck fallback rate reported
+  together from one real run. No local API key; the CLI fallback spends unmetered so cost reads $0. Needs
+  `OPS_KEY` on `jobcrush-api-staging` — `/ops/spend` 403s without it. Owner ask is on the ticket.
+- ⚠️ **Carried limit:** the cheap token scorer still picks *which* 8 adverts are worth paying to judge,
+  so a strong match in the candidate's own words can rank low on vocabulary and never get judged. Belongs
+  with family-fit ranking (#107). Also: a kept verdict is never re-checked against a later *added*
+  contradicting fact (edit/remove does trigger a full re-judge) — documented at both merge sites.
+
 ## 2026-08-03 (session 65) — `/orchestrate-team #118`: what a visitor costs stops being a hand calculation
 
 - **[#118](https://github.com/adrien-mounier/jobcrush-app/issues/118) closed, `fd45c8d`.** Every model

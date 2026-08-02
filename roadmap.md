@@ -353,6 +353,26 @@ pricing decision taken off it); in-flight writes are lost on shutdown (no SIGTER
 throws records nothing, so a client-side timeout on a request the provider served under-reports; and
 `main.ts`'s wiring is guarded by convention, not by types, so a future stage wired with the raw client
 would spend unmetered without failing a test. **Unblocks the ops dashboard and #117.**
+🟡 **#117 shipped 2026-08-03 (`9b348af`), ticket deliberately still OPEN** — the cold deck no longer
+buys a judgement for every advert and no longer shows the old scorer's number as though it were
+judged. `DECK_JUDGE_MAX_CARDS = 8` bounds **paid** calls per visitor per fact set; free cache reads are
+never bounded (a returning visitor gets a fully judged deck for nothing, via a cache-only path that
+takes no `LlmClient` and so cannot spend); `CardScoreProvenance` replaces the judged/fallback boolean
+with `judged` / `pending` / `unscored` / `estimated`, where `pending` and `unscored` carry
+`matchPct`/`breakdown`/`bubble` as **null** — the response cannot express a fake number. Superset reuse
+keeps verdicts at or above the coverage bar when evidence has only grown, re-judging only the still-
+unmet requirements. The web deck polls from the reveal screen, so most visitors never meet a card
+without a number. QA live: 8 paid calls across 10 consecutive deck loads, zero numbers moved, 0 of 15
+cards claiming an unearned number (was 9 of 15). 🐛 **The near-miss worth remembering:** the first
+implementation ranked the paid set over what the cache had *not* resolved, so each client poll freed
+bound slots and bought the next batch — the visitor paid for all 15 anyway while every "at most 8 per
+request" test stayed green. **A per-request bound is not a per-visitor bound once a client may retry**
+— #116 has the same shape. ⚠️ **Why it is still open:** AC6/AC8 require the cold-deck fallback rate and
+cost per visitor reported **together from one real run**, which needs `OPS_KEY` set on
+`jobcrush-api-staging` (`/ops/spend` 403s without it) — no local API key, and the CLI fallback spends
+unmetered so the cost half reads $0. ⚠️ **Carried limit:** the cheap token scorer still picks *which*
+8 adverts are worth paying to judge, so a strong match phrased in the candidate's own words can rank
+low on vocabulary and never get judged — belongs with family-fit ranking (#107), not here.
 **Next: #106, eligibility asked once in discovery — the last input the judge is missing.**
 
 Then S3, the hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6
