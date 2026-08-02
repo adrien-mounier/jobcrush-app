@@ -1,5 +1,38 @@
 # Lessons — jobcrush-app
 
+## A filter test is only real if the thing it excludes would otherwise be included
+
+#103's headline AC — a non-English advert stays in the pool and never becomes a card — is trivially
+satisfiable by a vacuous test. A card exists only where a posting **joins a requirement set by
+`adId`**, and today only 8 of 16 postings have one, so a new non-English posting with no requirement
+set would be absent from the deck for a reason that has nothing to do with the gate, and the test
+would stay green with the filter deleted. The fixture therefore had to be given a requirement set on
+purpose. Prove it empirically rather than by reading the code: re-run the real candidate pipeline
+with the filter widened (`["en","zh"]` → 10 candidates) and narrowed (`["en"]` → 8). Whenever you
+test that something is excluded, first establish it would have been included.
+
+## "The rule lives in one place" is a claim about every path, not the one you're looking at
+
+#103 put the language gate on the deck, on `/want`, and on the tailor target — and missed
+`matchPosting()`, which the pre-signup preview uses to pick an advert **and burn a real LLM call on
+it**. Unreachable today only by an accident of tie-breaking. Two habits catch this: grep for every
+caller of the underlying loader (not of the route), and note that a path with no session still needs
+the rule — which is why the product's *served* languages exist as a named constant separate from a
+*user's* languages. A single-entry-point claim is worth exactly as much as the search that backs it.
+
+## A heuristic tuned on curated fixtures is untested, not proven
+
+#103's English detector scores 0.181–0.329 on all 16 corpus adverts and looked solid. QA fed it
+realistic shapes the fixtures happen not to contain: an ATS bullet list scored **0.032**, a bare
+skills blob **0.000** — both labelled undetermined and therefore hidden from every user. The corpus
+was hand-picked prose; real feeds are not. Two rules follow. Never sign off a heuristic against the
+sample it was written beside — invent the adversarial inputs, or have QA do it. And when a heuristic
+has a "can't tell" bucket, **count it separately from its confident outcomes**: folding "we don't
+know" into "we know it's foreign" would have buried this behind a number that reads as routine.
+Relatedly, a single non-Latin character is not evidence of a non-English document — in an APAC
+market a company name or address in Chinese is normal in an English advert, so script detection has
+to be proportional, not first-match-wins.
+
 ## A rename that feeds a computed number needs the number pinned, not its type
 
 `expect.any(Number)` and shape-only `{met, total}` assertions pass through *any* value-mapping

@@ -301,8 +301,18 @@ deck → #105 meaning-aware judging → #106 eligibility asked once → #107 wit
 ✅ **#102 done 2026-08-02 (`d7712a5`)** — the v1 requirement contract and every consumer on it, band
 vocabulary unified on `essential`/`standard`/`nice-to-have` via a *shared* `RankBand` object rather
 than three equal copies. User-invisible, proven by diffing the old scorer against the live migrated
-API (8 cards byte-identical) plus a live browser drive. **Next: #103** (language gate), then **#104,
-the tracer bullet where the deck goes 8 → 16 and the chain first pays off visibly.**
+API (8 cards byte-identical) plus a live browser drive.
+✅ **#103 done 2026-08-02 (`f5a4c27`)** — every posting language-labelled at ingest, locally and
+deterministically; non-English kept, labelled and never surfaced; one rule (`apps/api/src/language.ts`)
+applied to the posting's language *and* its requirement set's, on the deck, `/want`, the tailor target
+and the pre-signup preview; reading languages are a **list** defaulted to `["en"]`, unpersisted by
+design. Three never-folded counters on `GET /ops/counters` (`language_skipped`,
+`language_undetermined`, `read_failed` — #104 is the failure counter's first writer). ⚠️ **Filed
+[#113](https://github.com/adrien-mounier/jobcrush-app/issues/113), blocked on #99–#101:** the English
+test scores 0.03 on an ATS bullet-list advert and 0.00 on a skills blob, so those formats label `und`
+and are hidden from everyone once a real feed lands. Invisible against the 16-advert fixture corpus —
+which is exactly why it must be tuned against real provider text, not the fixtures again.
+**Next: #104, the tracer bullet where the deck goes 8 → 16 and the chain first pays off visibly.**
 
 Then S3, the hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6
 feed + hunt (JC-36…40), then E7 swipe + prepared apply (JC-41/42/43). Per-ticket ACs are in the
