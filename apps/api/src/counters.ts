@@ -80,6 +80,30 @@
 //     fraction of reads have real cost data at all. total ÷ reads_recorded is the average cost per
 //     advert read.
 //
+// #105 (E5 slice 4) adds five more, namespaced judge.* — mirrors adReader.*'s own cost/success
+// convention, deliberately smaller: judging has no blocking-style code-level enforcement to observe,
+// and a judging failure never removes a card (it falls back to the deterministic tick), so there is
+// no read-failure-shaped alarm to compute here — only "did it work" and "how often did we fall back".
+//   - judge.judged_succeeded: a model call produced a valid, coverage-complete verdict set. Does NOT
+//     fire on a cache hit (same convention as adReader.read_succeeded) or on the zero-facts shortcut
+//     (judge.ts: no model call is made when there are no confirmed facts to judge).
+//   - judge.judge_failed: judgeOne (judge.ts's makeJudge) couldn't produce a usable record — two
+//     invalid model answers, a raw driver error, or a store outage on either side of the call.
+//   - judge.cost_reads_recorded / cost_input_tokens_total / cost_output_tokens_total: same unit-
+//     economics convention as adReader's — reads_recorded counts only judgements whose usage was
+//     actually measured (a driver with completeWithUsage); total ÷ reads_recorded is the average
+//     cost per judged card.
+//   - judge.fallback_used: routes/onboarding.ts's resolveJudgement fell back to the deterministic
+//     tick — a judge WAS wired but this card's judgement timed out or came back null. Deliberately
+//     does NOT fire when no judge is wired at all (deps.judge absent, e.g. every pre-#105 test) —
+//     that's a deployment/test configuration, not an operational fallback, same distinction
+//     postings.read_failed draws against deps.readAd being absent.
+//   - judge.fallback_timeout: a SUBSET of judge.fallback_used, counted additionally when the
+//     fallback was specifically the READ_TIMEOUT_MS deadline firing rather than a clean null — same
+//     split postings.read_timed_out already draws against postings.read_failed: a judge hanging on
+//     every card (provider slow/down) and a judge cleanly failing to produce a verdict are different
+//     operational signals, and folding them into one counter made them indistinguishable.
+//
 // In-process and reset-on-restart. That's an accepted limit for this slice, not an oversight: there
 // is no persisted metrics store yet, and standing one up before anything needs history would be the
 // speculative abstraction this repo avoids (#86 decision 4 makes the same call for user languages).
@@ -98,6 +122,13 @@ const counts = {
   "adReader.cost_reads_recorded": 0,
   "adReader.cost_input_tokens_total": 0,
   "adReader.cost_output_tokens_total": 0,
+  "judge.judged_succeeded": 0,
+  "judge.judge_failed": 0,
+  "judge.cost_reads_recorded": 0,
+  "judge.cost_input_tokens_total": 0,
+  "judge.cost_output_tokens_total": 0,
+  "judge.fallback_used": 0,
+  "judge.fallback_timeout": 0,
 };
 
 export type CounterName = keyof typeof counts;

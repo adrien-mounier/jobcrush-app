@@ -89,7 +89,9 @@ export interface AdReadCost {
   outputTokens: number | null;
 }
 
-async function completeWithCost(llm: LlmClient, input: string): Promise<{ text: string; cost: AdReadCost }> {
+/** Exported for judge.ts (#105) to reuse verbatim — same driver-cost-capture idiom, a different
+ *  domain (judging, not reading), nothing ad-reader-specific about the function itself. */
+export async function completeWithCost(llm: LlmClient, input: string): Promise<{ text: string; cost: AdReadCost }> {
   const model = canonicalModelName(llm.model ?? "unknown");
   if (llm.completeWithUsage) {
     const { text, usage } = await llm.completeWithUsage(input);
@@ -105,7 +107,7 @@ async function completeWithCost(llm: LlmClient, input: string): Promise<{ text: 
  *  unmeasured, the accumulated total must read as unmeasured too — a partial sum would look like a
  *  real measured number and understate the true spend (#104 review finding 5: a retried read that
  *  only kept the last attempt's usage silently dropped roughly half of what it actually spent). */
-function addNullable(a: number | null, b: number | null): number | null {
+export function addNullable(a: number | null, b: number | null): number | null {
   return a === null || b === null ? null : a + b;
 }
 

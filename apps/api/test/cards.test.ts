@@ -4,7 +4,7 @@
 // order, and that a recorded "no" lands in askedClosed (never re-asked, never a gap).
 import { describe, expect, it, vi } from "vitest";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
-import { orderCardsForReveal, withReadTimeout } from "../src/routes/onboarding.js";
+import { orderCardsForReveal, withReadTimeout, mapWithConcurrency } from "../src/routes/onboarding.js";
 import { buildServer } from "../src/server.js";
 import { listAdRequirements, loadAdRequirements } from "../src/e5stub.js";
 import { loadPostings, type Posting } from "../src/preview.js";
@@ -54,11 +54,14 @@ interface JobCard {
 
 describe("#19 GET /onboarding/cards", () => {
   it("promotes one highest-scoring curated opener, then score-sorts every remaining card", () => {
+    // judged: true uniformly — every entry in the SAME group, so the new judged/fallback grouping
+    // (#105 review round 4) is a no-op here and this test stays exactly what it always was: proof the
+    // curated-opener promotion works, untouched by that review.
     const ordered = orderCardsForReveal([
-      { card: { adId: "curated-low", matchPct: 70 }, curated: true },
-      { card: { adId: "wide-best", matchPct: 99 }, curated: false },
-      { card: { adId: "curated-high", matchPct: 80 }, curated: true },
-      { card: { adId: "wide-second", matchPct: 90 }, curated: false },
+      { card: { adId: "curated-low", matchPct: 70 }, curated: true, judged: true },
+      { card: { adId: "wide-best", matchPct: 99 }, curated: false, judged: true },
+      { card: { adId: "curated-high", matchPct: 80 }, curated: true, judged: true },
+      { card: { adId: "wide-second", matchPct: 90 }, curated: false, judged: true },
     ]);
     expect(ordered.map((card) => card.adId)).toEqual([
       "curated-high",
@@ -66,6 +69,43 @@ describe("#19 GET /onboarding/cards", () => {
       "wide-second",
       "curated-low",
     ]);
+  });
+
+  // #105 review round 4: the ordering fix itself — a card scored by a real judgement and one that
+  // fell back to the deterministic tick are not comparable (different scorers, and the fallback
+  // scorer measurably over-scores), so mixing them in one score-sorted list put the over-scored
+  // fallback card ahead of an honestly-judged one.
+  it("ranks a judged card above a higher-scoring fallback card — different scorers are not comparable", () => {
+    const ordered = orderCardsForReveal([
+      { card: { adId: "fallback-high", matchPct: 90 }, curated: false, judged: false },
+      { card: { adId: "judged-low", matchPct: 40 }, curated: false, judged: true },
+    ]);
+    expect(ordered.map((card) => card.adId)).toEqual(["judged-low", "fallback-high"]);
+  });
+
+  it("preserves score order WITHIN each group (judged first, then fallback)", () => {
+    const ordered = orderCardsForReveal([
+      { card: { adId: "judged-low", matchPct: 20 }, curated: false, judged: true },
+      { card: { adId: "fallback-high", matchPct: 95 }, curated: false, judged: false },
+      { card: { adId: "judged-high", matchPct: 80 }, curated: false, judged: true },
+      { card: { adId: "fallback-low", matchPct: 10 }, curated: false, judged: false },
+    ]);
+    expect(ordered.map((card) => card.adId)).toEqual([
+      "judged-high",
+      "judged-low",
+      "fallback-high",
+      "fallback-low",
+    ]);
+  });
+
+  it("the curated opener still wins over a judged card, even a lower-scoring curated fallback card", () => {
+    const ordered = orderCardsForReveal([
+      { card: { adId: "judged-high", matchPct: 90 }, curated: false, judged: true },
+      { card: { adId: "curated-fallback", matchPct: 50 }, curated: true, judged: false },
+    ]);
+    // The curated-opener rule (untouched by this review) still promotes the curated card to the
+    // front regardless of the new judged/fallback grouping.
+    expect(ordered.map((card) => card.adId)).toEqual(["curated-fallback", "judged-high"]);
   });
 
   it("rides the anonymous session (no wall) and mirrors the session's own persisted stage", async () => {
@@ -588,6 +628,54 @@ describe("#104 withReadTimeout", () => {
 
   it("propagates the original rejection when the promise fails before the deadline (not a timeout error)", async () => {
     await expect(withReadTimeout(Promise.reject(new Error("boom")), 1000)).rejects.toThrow("boom");
+  });
+});
+
+// #105 review round 3, cheap fix: QA read the worker-pool implementation and believed it correct —
+// this proves it, rather than leaving CARD_RESOLUTION_CONCURRENCY's bound as an unverified read. The
+// judgement cache is per-SESSION and never warms across users (unlike the ad-read cache), so an
+// uncapped fan-out turns concurrent visitors into a multiplied burst of model calls; this is the one
+// thing standing between that and a rate-limit storm.
+describe("#105 mapWithConcurrency", () => {
+  it("never runs more than `limit` callbacks in flight, and still resolves every item correctly", async () => {
+    const items = [0, 1, 2, 3, 4, 5];
+    const limit = 2;
+    let inFlight = 0;
+    let peak = 0;
+    const resolvers: Array<() => void> = [];
+
+    const promise = mapWithConcurrency(items, limit, async (n) => {
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise<void>((resolve) => resolvers.push(resolve));
+      inFlight--;
+      return n * 2;
+    });
+
+    // Proven SYNCHRONOUSLY, before a single microtask has run — not inferred from timing: calling
+    // mapWithConcurrency starts exactly `limit` workers immediately (each runs up to its own first
+    // `await` before control returns here), never all 6 items at once. This IS the concurrency cap.
+    expect(inFlight).toBe(limit);
+
+    // Drain one at a time; each release lets exactly one new worker start (peak must never climb
+    // past `limit` as later items begin), until every item has run.
+    let released = 0;
+    while (released < items.length) {
+      if (resolvers.length > 0) {
+        resolvers.shift()!();
+        released++;
+      }
+      await Promise.resolve();
+    }
+
+    const results = await promise;
+    expect(peak).toBeLessThanOrEqual(limit);
+    expect(results).toEqual(items.map((n) => n * 2)); // every item resolved, in its original order
+  });
+
+  it("never starts more workers than there are items", async () => {
+    const results = await mapWithConcurrency([1, 2], 10, async (n) => n * 10);
+    expect(results).toEqual([10, 20]);
   });
 });
 

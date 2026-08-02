@@ -133,8 +133,12 @@ export class ClaudeCliLlm implements LlmClient {
   }
 }
 
-/** Pick the driver from the environment: API key wins; CLI is the local fallback. */
-export function llmFromEnv(): LlmClient {
+/** Pick the driver from the environment: API key wins; CLI is the local fallback. `model`, when
+ *  given, overrides each driver's own default (#105 AC: which model does a task is configuration,
+ *  never a code change — e.g. main.ts's `llmFromEnv(process.env.JUDGE_MODEL)` for the card judge).
+ *  Omitted (every pre-#105 caller) preserves the exact old behavior: each driver class already
+ *  defaults its own `model` constructor param, so passing `undefined` through changes nothing. */
+export function llmFromEnv(model?: string): LlmClient {
   const key = process.env.ANTHROPIC_API_KEY;
-  return key ? new AnthropicLlm(key) : new ClaudeCliLlm();
+  return key ? new AnthropicLlm(key, model) : new ClaudeCliLlm(model);
 }

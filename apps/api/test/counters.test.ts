@@ -50,6 +50,14 @@ describe("#103 posting-pool counters", () => {
       "adReader.read_failure_alarm_firing": 0,
       "adReader.read_timeout_rate_per_mille": 0,
       "adReader.read_timeout_alarm_firing": 0,
+      // #105 (E5 slice 4) — see counters.ts's own header for what each one means.
+      "judge.judged_succeeded": 0,
+      "judge.judge_failed": 0,
+      "judge.cost_reads_recorded": 0,
+      "judge.cost_input_tokens_total": 0,
+      "judge.cost_output_tokens_total": 0,
+      "judge.fallback_used": 0,
+      "judge.fallback_timeout": 0,
     });
   });
 });

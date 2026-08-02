@@ -62,13 +62,20 @@ const answered = (
 /** The ad's ranked requirements, minus any this session already answered (yes or no) — #13's
  *  never-re-ask rule. A requirement stays a question until it's BOTH uncovered and unanswered; a "no"
  *  leaves it uncovered forever but excluded here, so it never resurfaces (only a correction reopens
- *  it, same as discovery). Empty ⇒ the ending (TailorState.done). */
+ *  it, same as discovery). Empty ⇒ the ending (TailorState.done).
+ *
+ *  `uncovered` defaults to the deterministic tick's own uncoveredRequirements (every pre-#105 caller,
+ *  unchanged) — #105 decision 1: when a judgement is available, routes/onboarding.ts passes
+ *  judgedScore.ts's judgedUncoveredRequirements instead, so a requirement the judge already considers
+ *  fully met is never re-asked as a tailor question just because the token-overlap tick alone
+ *  wouldn't have covered it. */
 export function tailorQuestions(
   adReq: AdRequirementsV1,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
+  uncovered: AdRequirementV1[] = uncoveredRequirements(confirmed, adReq),
 ): TailorQuestion[] {
-  return uncoveredRequirements(confirmed, adReq)
+  return uncovered
     .filter((req) => !answered(adReq.adId, req.id, confirmed, negatives))
     .map(tailorQuestion);
 }
