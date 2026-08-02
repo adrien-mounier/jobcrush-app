@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-07-29_
+_Last updated: 2026-08-02_
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
@@ -15,6 +15,8 @@ pipeline, for many users, on web and mobile. v0.1 scope is **prepared-apply** (t
 no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
+
+**2026-08-02 (later) `/to-tickets #86` — the nine horizontal children replaced by ten vertical slices, [#102–#111](https://github.com/adrien-mounier/jobcrush-app/issues/102).** The nine below were one layer each and none was demoable alone — the failure the tracer-bullet rule exists to prevent. All nine are **closed as superseded**, each with a comment naming its replacement, and every measured finding was carried forward **inline into the replacing ticket** before closing (the blocking-definition measurement, the provider probe facts, the five vocabulary-coincidence rows, the corrected family-scoped pass bar, the already-built eligibility storage, the ATS-keyword-vs-sentence distinction). The new chain: [#102](https://github.com/adrien-mounier/jobcrush-app/issues/102) contract v1 + [#103](https://github.com/adrien-mounier/jobcrush-app/issues/103) language gate → [#104](https://github.com/adrien-mounier/jobcrush-app/issues/104) **read an uncurated advert into the deck (the tracer bullet — 8 cards become 16)** → [#105](https://github.com/adrien-mounier/jobcrush-app/issues/105) meaning-aware judging → [#106](https://github.com/adrien-mounier/jobcrush-app/issues/106) eligibility asked once → [#107](https://github.com/adrien-mounier/jobcrush-app/issues/107) withdrawal + proportionate years → {[#108](https://github.com/adrien-mounier/jobcrush-app/issues/108) the bubble, [#109](https://github.com/adrien-mounier/jobcrush-app/issues/109) re-score + notify} → [#110](https://github.com/adrien-mounier/jobcrush-app/issues/110) measurement gate → [#111](https://github.com/adrien-mounier/jobcrush-app/issues/111) retire the guards. Blocking is wired as **GitHub native dependencies**, not prose; **[#105](https://github.com/adrien-mounier/jobcrush-app/issues/105) now blocks [#63](https://github.com/adrien-mounier/jobcrush-app/issues/63)** in #89's place. **Three decisions taken during the slicing:** (1) #104 ships cards carrying a knowingly-bad number until #105 lands — accepted deliberately, staging is not a pilot, and named in the ticket so nobody "fixes" it by surprise; (2) **there is no saved-jobs feature and #109 does not build one** — the deck is recomputed over the whole pool on every request, so the re-score set is *the adverts the user already has a stored score for*, **capped at the top N by existing score (start 20)**, because uncapped it means thousands of paid judgements per profile edit once live retrieval lands; (3) **owner decision: unify the three band vocabularies** in #102 rather than record why they differ — the divergence is accidental (the card build already squashes `must` → essential and everything else → desirable), and the hand-written mapping at each boundary is an unverified step whose failure reports a wrong percentage rather than crashing. User-facing card copy is explicitly *not* changed by that rename. Frontier is **#102 + #103**, both unblocked; build them sequentially, not in parallel — they touch adjacent card-build code.
 
 **2026-08-02 the provider integration was never filed — now it is.** [#85](https://github.com/adrien-mounier/jobcrush-app/issues/85) defined the retrieval contract and picked Techmap, then closed; **nobody filed the work to build it**, so #86's engine had nothing to read and [#63](https://github.com/adrien-mounier/jobcrush-app/issues/63) was blocked on a ticket that did not exist. Same failure shape as the E5 gap found the day before: a decision written into a doc and never turned into buildable work. Filed as [#99](https://github.com/adrien-mounier/jobcrush-app/issues/99) contracts + registry + dedup (pure, no I/O) → [#100](https://github.com/adrien-mounier/jobcrush-app/issues/100) Techmap client + posting store → [#101](https://github.com/adrien-mounier/jobcrush-app/issues/101) `retrievePostings`, the server-owned boundary #63 calls. **#101 now blocks #63.**
 
@@ -290,11 +292,13 @@ UX/UI cleanup of the existing flow (see milestone above). Critique done 2026-07-
       reduced-motion guard; **chip overflow** contained (long batch claims wrap in-card, no overflow).
 
 S2.5 done. Flow + deck re-screenshotted (desktop + mobile, 0px overflow throughout).
-Next: **S3 — the hunt** (E5 cluster engine, JC-33/34/35 — **#86, design pass done 2026-08-02, now
-nine children: #87 contract + #95 language gate → #88 read the ad + #96 eligibility facts → #89
-scoring → {#90 bubble, #91 re-scoring} → #97 measurement → #98 retire the scorer**; the family-floor
-half shipped as #58–#62, the per-ad half is #86's scope). Ad-text input verified 2026-08-02 — full
-advert available, #88 unblocked.
+Next: **S3 — the hunt** (E5 cluster engine, JC-33/34/35 — **#86, design pass + vertical re-slice done
+2026-08-02, now ten children #102–#111**; the nine earlier children #87–#91 / #95–#98 are closed as
+superseded). Chain: **#102 contract v1 + #103 language gate → #104 read an uncurated advert into the
+deck → #105 meaning-aware judging → #106 eligibility asked once → #107 withdrawal → {#108 bubble,
+#109 re-score} → #110 measurement gate → #111 retire the guards**. The family-floor half shipped as
+#58–#62; the per-ad half is #86's scope. Ad-text input verified 2026-08-02 — full advert available.
+**Start at #102 + #103** (both unblocked, build sequentially — adjacent card-build code).
 
 Then S3, the hunt: E5 cluster engine (JC-33/34/35) is the riskiest and the entry point, then E6
 feed + hunt (JC-36…40), then E7 swipe + prepared apply (JC-41/42/43). Per-ticket ACs are in the

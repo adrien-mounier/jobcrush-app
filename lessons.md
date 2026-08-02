@@ -925,3 +925,43 @@ handoff comment then had to carry what the spec body could not: which existing t
 which are already built, and which measured findings would be silently lost by regenerating from the
 spec alone. When work will continue in a session that cannot see this one, the durable artifact has
 to name the traps, not just the destination.
+
+**The receiving session's duty is the mirror of it: move the evidence before closing the ticket.**
+Re-slicing #86 replaced nine tickets, several carrying measurements that cost real effort — a
+prompt-wording experiment, a corrected pass bar, a set of regression rows. Closing them with a
+"superseded by #N" pointer would have been enough for navigation and useless for building: nobody
+opens a closed issue to find the reason a prompt is worded a particular way. Each finding was copied
+**inline into the replacing ticket first**, and only then were the originals closed. A pointer
+preserves the audit trail; only a copy preserves the working knowledge.
+
+## Find the tracer bullet by looking for the number that visibly changes
+
+Slicing #86 vertically was easy the moment the code was read rather than the spec: the corpus holds
+**16 postings and 8 hand-authored requirement sets**, so eight postings could not become cards at
+all. That made "read an advert nobody curated" a slice with an immediate, demoable landing — the deck
+goes from 8 cards to 16 — instead of an architectural milestone with nothing to show. A spec
+describes capabilities; the data shows where a capability first becomes visible. When a slice's demo
+is hard to state in one sentence, the seam is probably in the wrong place, and the fixtures usually
+know where the right one is.
+
+## One idea with three names is a wrong number waiting to happen
+
+The same notion of rank was spelled three ways across three contracts — `must`/`should`/`nice`,
+`essential`/`standard`/`nice-to-have`, `essential`/`desirable` — reconciled by a hand-written mapping
+at each boundary that no test checks. That class of defect never crashes: it reports a plausible
+wrong match percentage, and neither a reader nor a green suite can see it. **Test whether the
+divergence is meaningful or accidental by asking if the mapping carries information.** Here it did
+not — the card build already squashed `must` → essential and everything else → desirable, so the
+three vocabularies encoded one idea and nothing else. Accidental divergence gets unified; only a
+genuine difference in meaning earns separate names. Note the internal vocabulary and the words shown
+on screen are different decisions — unifying the first must not silently rewrite the second.
+
+## Cap a batch operation against the pool it will have, not the pool it has
+
+"Re-score the user's deck when their profile changes" is free today: the corpus is 16 fixture
+postings. Against a live provider pool it is thousands of paid model calls every time someone
+corrects a typo — the most expensive behaviour in the product, introduced by a sentence that looked
+harmless. The cap (top N by existing score) belongs in the ticket that introduces the batch, not in a
+later optimisation pass, because by then the cost is in production and the fix is a behaviour change
+rather than a constant. Whenever a per-item cost meets a set that is about to grow by two orders of
+magnitude, size the rule for the future set while it is still cheap to write down.
