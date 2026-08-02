@@ -78,3 +78,22 @@ A job requirement that the user's current evidence does not cover and that may m
 their chances. It must be explained on the job card but does not prevent truthful tailoring or an
 application.
 _Avoid_: Fatal mismatch, stretch match
+
+**Blocking requirement**:
+A requirement the user must meet for the job to be available to them at all. An unmet blocking
+requirement withdraws the posting from that user's deck entirely, however well they match otherwise.
+It is established only when the advert states the requirement as mandatory and the user has
+explicitly said they do not meet it; a vague advert or an unasked question never establishes one.
+_Avoid_: Important gap, hard filter, knockout
+
+**Eligibility fact**:
+A fact about the user that adverts test as a gate rather than as evidence of capability — right to
+work, language fluency, length of experience, a mandatory certification. It does not vary by advert,
+so it is asked once and reused across every posting.
+_Avoid_: Screening answer, source-supported fact
+
+**Posting family fit**:
+The judgement of whether a live posting belongs to a job family at all, carried with the posting
+alongside a confidence. Producing it is part of reading the advert; deciding what a weak verdict
+means for the feed is a separate decision that does not belong to the engine that produced it.
+_Avoid_: Relevance score, title match, family placement

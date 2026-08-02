@@ -781,3 +781,32 @@ Quote this when anyone proposes shipping a match count off a title search.
 Related: **role vocabulary is regional.** "Programme manager" and "delivery manager" are near-absent
 in Hong Kong, Singapore and Vietnam (0–3/day combined vs. dozens of "project manager"). Family-floor
 synonyms and discovery's role question must be built on the market's own words.
+
+## Fixtures authored alongside an algorithm cannot falsify it
+
+`sample-ad-requirements.json` made `matchtick.ts` look sound — the three hand-authored requirement
+sets were phrased in candidate-shaped vocabulary, so token overlap fired and scores were clean. The
+scorer's real behaviour (0% for a correct fit worded naturally, 100% for "wrote a blog post about
+X", 100% for a construction project against enterprise software, 100% for 3 years against "8+
+years") only appears on ad text nobody wrote with the algorithm in mind. `docs/card-quality-taste-test.md`
+found the same thing in July and named the cause: *"card quality is entirely a function of vocabulary
+alignment between ad text and confirmed facts."* When a fixture set and the code that consumes it
+were authored together, the fixtures encode the code's assumptions and prove nothing about them —
+adversarial inputs, or real-world data, are the only evidence. Corollary: a curated launch pool that
+makes a demo look good is a measurement hazard, not just a guardrail.
+
+## Demonstrate a defect by running the code; a table of real outputs ends the argument
+
+Arguing that a scorer is wrong takes paragraphs and invites debate. Running it — a throwaway vitest
+importing the real function, deleted straight after — produced a five-row table that settled it in
+one glance and became the spec's justification and #89's regression cases. Cheap, and the output is
+reusable as acceptance criteria in a way prose never is.
+
+## Check recent ticket numbers before filing; a collision means someone already filed adjacent work
+
+Four new E5 children were expected to land on #92–#95 and came back #95–#98. The three numbers in
+between were #92 dedup rate, #93 Japan/China in-language, #94 Korea provider — all filed by the
+prior session's research pass, and #93 covered the same in-language ground as the ticket just
+created. Listing the recent range first would have surfaced the overlap before creating it (the two
+are now cross-linked: #93 owns the *decision*, #95 the *architecture*). A number coming back higher
+than expected is a signal, not a formality.
