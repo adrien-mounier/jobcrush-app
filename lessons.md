@@ -903,3 +903,25 @@ research or decision ticket closes, the same session files the implementation ti
 that it deliberately did not.** Treat any phrase of the form "…and its implementation tickets" as an
 unverified claim: `gh issue list --search` costs seconds, and the failure mode is a frontier query
 that reports work as buildable when its prerequisite was never created.
+
+## Producing a skill's output by hand is not running the skill
+
+Asked to design a spec and slice it, I wrote a spec into the issue and wrote ticket bodies by hand —
+then told the owner "that needs `/to-tickets`", implying `/to-spec` had run. Neither had. The content
+was fine; what was missing was the part of the skill that is not content. `/to-spec` **pins the test
+seams and requires confirming them with the user**, because `/orchestrate-team` drives `/tdd` at
+exactly those seams — skipping it leaves every ticket to invent its own test boundary. `/to-tickets`
+enforces **vertical** tracer-bullet slices; hand-slicing produced layers (contract, then client, then
+orchestration) that I presented as a virtue and that no rule in the repo endorses. Before saying a
+lifecycle step "needs" doing, check which ones actually ran — `ls ~/.claude/skills/` costs a second,
+and a workflow's value is usually in its constraints, not its output format.
+
+## Hand off through the tracker, not the conversation
+
+Re-slicing needed a fresh session precisely because this one had spent an hour defending the wrong
+slicing and would have anchored on it. That only worked because the spec and its design record were
+already on the issue rather than in the chat, and the skill fetches an issue with `--comments`. The
+handoff comment then had to carry what the spec body could not: which existing tickets are wrong,
+which are already built, and which measured findings would be silently lost by regenerating from the
+spec alone. When work will continue in a session that cannot see this one, the durable artifact has
+to name the traps, not just the destination.
