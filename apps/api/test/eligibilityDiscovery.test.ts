@@ -70,9 +70,13 @@ describe("#106 eligibilityCandidates", () => {
     expect(workRights!.question).toBe("Can you already work where you're job-hunting, without visa sponsorship?");
   });
 
-  it("language is global and names English — the only language the corpus demands", () => {
+  // #107 (E5 slice 6, D2): language is scoped by the LANGUAGE NAME, not ANY_FAMILY — a blocking
+  // requirement's eligibilitySubject ("Mandarin") is looked up against this exact scope column
+  // (withdrawal.ts), so a second language answered at its own scope would never collide with this one.
+  it("language names English — the only language the corpus demands — and is scoped by that name, not ANY_FAMILY", () => {
     const language = candidates.find((q) => q.eligibility?.dimension === "language")!;
-    expect(language.eligibility).toMatchObject({ familyId: ANY_FAMILY, scopeLabel: null });
+    expect(language.eligibility).toMatchObject({ familyId: ELIGIBILITY_LANGUAGE, scopeLabel: null });
+    expect(language.itemId).not.toBe(candidates.find((q) => q.eligibility?.dimension === "work-rights")!.itemId);
     expect(language.question).toBe(`Can you work professionally in ${ELIGIBILITY_LANGUAGE}?`);
     expect(language.options).toEqual(["Yes — I work in it", "Some, but not for work", "No, I don't", DECLINE_OPTION]);
   });
@@ -123,10 +127,22 @@ describe("#106 unresolvedEligibilityQuestions — never re-asked", () => {
   });
 
   it("a stored eligibility fact (a real answer) also closes its question, with no claim involved", () => {
+    // #107 (D2): language's real scope is the language name (ELIGIBILITY_LANGUAGE), not ANY_FAMILY —
+    // a fact recorded at the wrong scope would never close this question (see the next test below).
+    const qs = unresolvedEligibilityQuestions(noFloorSession, ROLE, ANY_FAMILY, null, [], [], [], [
+      { dimension: "language", familyId: ELIGIBILITY_LANGUAGE },
+    ]);
+    expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["years-experience", "work-rights"]);
+  });
+
+  // #107 (D2) regression: a language fact recorded at the OLD ANY_FAMILY scope (a session that
+  // answered before this change) does NOT close the question — it reads as unknown and is asked
+  // once more, the accepted consequence #107's own report names.
+  it("a language fact recorded at the old ANY_FAMILY scope does not close the (now language-scoped) question", () => {
     const qs = unresolvedEligibilityQuestions(noFloorSession, ROLE, ANY_FAMILY, null, [], [], [], [
       { dimension: "language", familyId: ANY_FAMILY },
     ]);
-    expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["years-experience", "work-rights"]);
+    expect(qs.map((q) => q.eligibility?.dimension)).toContain("language");
   });
 
   it("a fact recorded for a DIFFERENT family does not close this family's years-experience question", () => {

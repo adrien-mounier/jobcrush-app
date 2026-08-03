@@ -4,7 +4,13 @@
 // staying answered-and-closed) lives in judgeCards.test.ts.
 import { describe, expect, it } from "vitest";
 import type { AdRequirementV1, AdRequirementsV1 } from "@jobcrush/contracts";
-import { judgedBreakdown, judgedMatchTick, judgedPickHitClause, judgedUncoveredRequirements } from "../src/judgedScore.js";
+import {
+  applyYearsShortfall,
+  judgedBreakdown,
+  judgedMatchTick,
+  judgedPickHitClause,
+  judgedUncoveredRequirements,
+} from "../src/judgedScore.js";
 import { COVERAGE_THRESHOLD, type JudgeFact, type JudgeVerdict } from "../src/judge.js";
 
 const AD: AdRequirementsV1 = {
@@ -151,5 +157,126 @@ describe("#105 judgedPickHitClause", () => {
   it("falls back to the generic line with no facts at all", () => {
     const verdicts = [verdict("own-budget", 0, null), verdict("lead-team", 0), verdict("certification", 0)];
     expect(judgedPickHitClause(verdicts, AD, [])).toBe("Let's find your strongest fit.");
+  });
+});
+
+// #107 (E5 slice 6, D5) — the years shortfall counts proportionately, on the JUDGED path only.
+describe("#107 applyYearsShortfall", () => {
+  const yearsReq: AdRequirementV1 = {
+    id: "years-bar",
+    band: "nice-to-have",
+    eligibilityDimension: "years-experience",
+    comparable: { op: ">=", value: 8 },
+    requirement: "8+ years of IT experience",
+    sourceSpan: "8+ years of IT experience",
+  };
+  const adWithYears: AdRequirementsV1 = { ...AD, requirements: [...AD.requirements, yearsReq] };
+
+  it("leaves every verdict untouched when userYears is null (never asked) — an unknown is never a penalty", () => {
+    const verdicts = [verdict("own-budget", 1), verdict("lead-team", 1), verdict("certification", 1), verdict("years-bar", 0.5)];
+    expect(applyYearsShortfall(verdicts, adWithYears, null)).toEqual(verdicts);
+  });
+
+  // code-review M2: ATTENUATES the model's own fit (modelFit * min(1, years/bar)), never replaces
+  // it — 0.8 (not 1) as the base fit here is what proves multiplication, not a straight replace: a
+  // replace would give 0.5 regardless of the base; attenuation gives 0.8 * 0.5 = 0.4.
+  it("multiplies the model's own fit by min(1, userYears/bar) — attenuates, never replaces", () => {
+    const verdicts = [verdict("years-bar", 0.8)];
+    const [adjusted] = applyYearsShortfall(verdicts, adWithYears, 4);
+    expect(adjusted!.fit).toBeCloseTo(0.4); // 0.8 * (4/8)
+  });
+
+  // AC4's own case: 5 years and 9 years never score identically for the same non-zero model fit.
+  it("5 years and 9 years never score identically, for the same non-zero model fit — neither is zero", () => {
+    const modestFit = [verdict("years-bar", 0.3)]; // a real, non-zero judged read
+    const five = applyYearsShortfall(modestFit, adWithYears, 5)[0]!.fit;
+    const nine = applyYearsShortfall(modestFit, adWithYears, 9)[0]!.fit;
+    expect(five).toBeGreaterThan(0);
+    expect(nine).toBeGreaterThan(0);
+    expect(five).not.toBe(nine);
+    expect(five).toBeLessThan(nine);
+  });
+
+  // code-review M2's central fix: the OLD "replace" rule turned a judge's honest low fit into 1.0 for
+  // anyone at or over the bar — INFLATION. The corrected rule multiplies by at most 1, so a fit at or
+  // over the bar is left EXACTLY as the model scored it, never raised.
+  it("leaves the model's own fit EXACTLY unmodified at or over the bar — never inflates a low judged score", () => {
+    const lowJudgedFit = [verdict("years-bar", 0.2)]; // the judge scored this low on its own merits
+    const nine = applyYearsShortfall(lowJudgedFit, adWithYears, 9)[0]!.fit; // >= bar (8)
+    const ten = applyYearsShortfall(lowJudgedFit, adWithYears, 10)[0]!.fit; // further over the bar
+    expect(nine).toBe(0.2);
+    expect(ten).toBe(0.2);
+  });
+
+  it("a bar of exactly 0 leaves the verdict untouched — never divides by zero", () => {
+    const zeroBarReq: AdRequirementV1 = {
+      id: "years-zero-bar",
+      band: "nice-to-have",
+      eligibilityDimension: "years-experience",
+      comparable: { op: ">=", value: 0 },
+      requirement: "Any amount of experience",
+      sourceSpan: "any amount of experience",
+    };
+    const adWithZeroBar: AdRequirementsV1 = { ...AD, requirements: [...AD.requirements, zeroBarReq] };
+    const verdicts = [verdict("years-zero-bar", 0.5)];
+    expect(applyYearsShortfall(verdicts, adWithZeroBar, 5)).toEqual(verdicts);
+  });
+
+  // A negative comparable.value is impossible in practice, but the oracle's `isNumber` never rules it
+  // out — the multiplier must clamp to [0,1] rather than trust `years/negativeBar` (itself negative)
+  // to stay in range, or `fit` could go negative and render as a negative matchPct.
+  it("a negative bar never sends the fit negative — the multiplier clamps at 0", () => {
+    const negativeBarReq: AdRequirementV1 = {
+      ...yearsReq,
+      id: "years-negative-bar",
+      comparable: { op: ">=", value: -5 },
+    };
+    const adWithNegativeBar: AdRequirementsV1 = { ...AD, requirements: [...AD.requirements, negativeBarReq] };
+    const [adjusted] = applyYearsShortfall([verdict("years-negative-bar", 0.9)], adWithNegativeBar, 5);
+    expect(adjusted!.fit).toBe(0);
+  });
+
+  it("zero years fully zeroes the fit (a 0 multiplier), regardless of the model's own fit", () => {
+    const [adjusted] = applyYearsShortfall([verdict("years-bar", 0.9)], adWithYears, 0);
+    expect(adjusted!.fit).toBe(0);
+  });
+
+  it("leaves a non-years-experience requirement's verdict untouched", () => {
+    const verdicts = [verdict("own-budget", 0.4)];
+    expect(applyYearsShortfall(verdicts, adWithYears, 5)).toEqual(verdicts);
+  });
+
+  it("leaves a years-experience requirement with a '<=' or '==' bar untouched — no MINIMUM demand to score a shortfall against", () => {
+    const lteReq: AdRequirementV1 = {
+      id: "years-lte",
+      band: "nice-to-have",
+      eligibilityDimension: "years-experience",
+      comparable: { op: "<=", value: 3 },
+      requirement: "No more than 3 years (a junior-band role)",
+      sourceSpan: "no more than 3 years",
+    };
+    const adWithLte: AdRequirementsV1 = { ...AD, requirements: [...AD.requirements, lteReq] };
+    const verdicts = [verdict("years-lte", 0.7)];
+    expect(applyYearsShortfall(verdicts, adWithLte, 5)).toEqual(verdicts);
+  });
+
+  it("leaves a years-experience requirement with no comparable bar at all untouched", () => {
+    const noBarReq: AdRequirementV1 = {
+      id: "years-no-bar",
+      band: "nice-to-have",
+      eligibilityDimension: "years-experience",
+      requirement: "Some IT experience",
+      sourceSpan: "some IT experience",
+    };
+    const adNoBar: AdRequirementsV1 = { ...AD, requirements: [...AD.requirements, noBarReq] };
+    const verdicts = [verdict("years-no-bar", 0.3)];
+    expect(applyYearsShortfall(verdicts, adNoBar, 5)).toEqual(verdicts);
+  });
+
+  it("leaves reason and supportingFactId untouched — only fit changes", () => {
+    const verdicts = [verdict("years-bar", 0.9, "some-fact")];
+    const [adjusted] = applyYearsShortfall(verdicts, adWithYears, 4);
+    expect(adjusted!.supportingFactId).toBe("some-fact");
+    expect(adjusted!.reason).toBe("test reason");
   });
 });

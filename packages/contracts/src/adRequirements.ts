@@ -74,6 +74,16 @@ export const AdRequirementV1 = z
     // Set only when this requirement is really an eligibility gate in disguise (a years bar, a
     // language, a licence) — profile-level, asked once, reused rather than asked per advert.
     eligibilityDimension: EligibilityDimension.optional(),
+    // #107 (E5 slice 6, D1) — additive v1 extension, not a v2: every already-stored v1 payload still
+    // validates unchanged, and no existing field's meaning changes. The concrete thing an eligibility
+    // gate is actually about, in the advert's own words ("Mandarin", "English", "PMP") — set ONLY
+    // when eligibilityDimension is "language" or "certification". Not set for "work-rights" (the
+    // fact is global — there is no subject to name) and not set for "years-experience"/"degree"
+    // (never blocking, so never given a subject to resolve at all). Without this, a Mandarin
+    // requirement has no way to avoid being matched against a user's ENGLISH eligibility answer —
+    // silently deleting a winnable job, the exact failure #86 names as the worst this engine can
+    // make. Consumed by apps/api/src/withdrawal.ts.
+    eligibilitySubject: z.string().min(1).optional(),
     // The advert's own words this requirement was drawn from, so it can be shown to be the advert's
     // and not the model's — the provenance pin. A literal excerpt (this codebase's existing
     // source_quote convention), not a character span: reliable for a model to produce, and directly

@@ -26,9 +26,12 @@ export const ELIGIBILITY_ITEM_PREFIX = "eligibility-";
 export const isEligibilityItemId = (itemId: string): boolean => itemId.startsWith(ELIGIBILITY_ITEM_PREFIX);
 
 // The one language the corpus actually demands (both language-citing postings name English
-// specifically) — see the derivation doc's "language is a list, not a value" note. The store's
-// (session, dimension, family) key can hold only one language fact; a second put() would overwrite
-// this one, not add to it. Not fixed here — flagged in the implementing engineer's report.
+// specifically) — see the derivation doc's "language is a list, not a value" note. #107 (E5 slice 6,
+// D2) scopes the store's (session, dimension, family) key by the LANGUAGE NAME now (FAMILY_SCOPED
+// above), so a different language answered at its own scope would no longer collide with this one —
+// but the live discovery flow below only ever asks about English; nothing here builds a question for
+// a second language. A session that already answered English at the OLD scope (ANY_FAMILY, before
+// #107) simply reads as unknown again and gets asked once more — accepted pre-launch, not migrated.
 export const ELIGIBILITY_LANGUAGE = "English";
 
 // Step 1 derivation (docs/research/eligibility-dimensions-from-the-corpus.md): years-experience (6/17)
@@ -38,11 +41,17 @@ export const ELIGIBILITY_LANGUAGE = "English";
 // block order.
 const ASK_DIMENSIONS: readonly EligibilityDimension[] = ["years-experience", "work-rights", "language"];
 
-// Only years-experience is family-scoped today (CONTEXT.md: "length of experience is always
-// experience in a family, never a career total" — the only dimension called out this way). The other
-// two hold regardless of role, so they use the store's ANY_FAMILY (passed in by callers — see
+// years-experience is family-scoped (CONTEXT.md: "length of experience is always experience in a
+// family, never a career total"). #107 (E5 slice 6, D2) adds language: the store's familyId column
+// is a free-text SCOPE, not only a job family, and for language that scope is the language name
+// itself (ELIGIBILITY_LANGUAGE, "English") rather than ANY_FAMILY — a blocking requirement's
+// eligibilitySubject ("Mandarin") is looked up against exactly this same column (withdrawal.ts), so
+// two different languages must never collide into one fact the way a single ANY_FAMILY value would.
+// Reuses this SAME FAMILY_SCOPED/itemId mechanism rather than inventing a parallel one (#107's own
+// instruction). work-rights alone still holds regardless of role — right to work doesn't vary by
+// subject — so it keeps using the store's ANY_FAMILY (passed in by callers — see
 // eligibilityCandidates) and a null scopeLabel.
-const FAMILY_SCOPED: ReadonlySet<EligibilityDimension> = new Set(["years-experience"]);
+const FAMILY_SCOPED: ReadonlySet<EligibilityDimension> = new Set(["years-experience", "language"]);
 
 // --- years-experience bands (UI design spec §2 — pinned, do not change without the spec) ---
 const YEARS_OPTIONS = ["Under 3 years", "3–4 years", "5–7 years", "8–10 years", "More than 10 years"] as const;
@@ -158,13 +167,15 @@ function buildQuestion(
       eligibility: { dimension, familyId: anyFamily, scopeLabel: null, declineOption: DECLINE_OPTION },
     };
   }
-  // dimension === "language"
+  // dimension === "language" — #107 (D2): scoped by the language name itself (ELIGIBILITY_LANGUAGE),
+  // not anyFamily — see FAMILY_SCOPED's own doc for why. `anyFamily` stays unused on this branch;
+  // work-rights (above) is the only remaining caller of it.
   return {
-    itemId: itemId(dimension, anyFamily),
+    itemId: itemId(dimension, ELIGIBILITY_LANGUAGE),
     question: `Can you work professionally in ${ELIGIBILITY_LANGUAGE}?`,
     options: [LANGUAGE_YES, LANGUAGE_SOME, LANGUAGE_NO, DECLINE_OPTION],
     cvSection: "skills",
-    eligibility: { dimension, familyId: anyFamily, scopeLabel: null, declineOption: DECLINE_OPTION },
+    eligibility: { dimension, familyId: ELIGIBILITY_LANGUAGE, scopeLabel: null, declineOption: DECLINE_OPTION },
   };
 }
 

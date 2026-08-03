@@ -144,6 +144,8 @@ describe("Ad requirements v1 (#102)", () => {
       (value) => (value.requirements[2].comparable.value = "8"),
       (value) => (value.requirements[2].eligibilityDimension = "citizenship"),
       (value) => (value.requirements[0].unknownField = true),
+      // #107 (E5 slice 6, D1): eligibilitySubject must be a non-empty string when present.
+      (value) => (value.requirements[3].eligibilitySubject = ""),
     ];
     for (const mutate of mutations) {
       const value = structuredClone(valid);
@@ -190,6 +192,22 @@ describe("Ad requirements v1 (#102)", () => {
     expect(yearsBar.comparable).toEqual({ op: ">=", value: 8 });
     expect(5 >= yearsBar.comparable.value).toBe(false);
     expect(9 >= yearsBar.comparable.value).toBe(true);
+  });
+
+  // Regression, #107 (E5 slice 6): eligibilitySubject is what lets a blocking language/certification
+  // requirement avoid being matched against the wrong subject — "Mandarin" is not "English", and
+  // without a subject there is no way to tell them apart at the withdrawal check (apps/api/src/
+  // withdrawal.ts). An additive v1 field: omitting it (every pre-#107 payload) still validates.
+  it("a blocking language requirement carries the advert's own subject, not just the dimension", () => {
+    const englishFluency = valid.requirements.find((r: { id: string }) => r.id === "english-fluency");
+    expect(englishFluency.kind).toBe("blocking");
+    expect(englishFluency.eligibilityDimension).toBe("language");
+    expect(englishFluency.eligibilitySubject).toBe("English");
+
+    const withoutSubject = structuredClone(valid);
+    delete withoutSubject.requirements[3].eligibilitySubject;
+    expect(validateAdRequirementsV1(withoutSubject).ok).toBe(true); // still a valid v1 payload
+    expect(AdRequirementsV1.safeParse(withoutSubject).success).toBe(true);
   });
 });
 

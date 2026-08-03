@@ -19,7 +19,10 @@ const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts
 // The contract half of the version is hand-bumped — packages/contracts isn't something this file
 // can hash (a different repo boundary), and hand-versioning it is the existing house convention
 // there. Bump this by hand whenever AdRequirementsV1 changes what a valid answer looks like.
-const PROMPT_CONTRACT_VERSION = "adreq/1";
+// #107 (E5 slice 6, D1) bumped 1 -> 2: the prompt now requires eligibilitySubject on a blocking
+// language/certification requirement, so a stored row read under the OLD prompt (which never asked
+// for one) must be treated as stale and re-read, not silently reused with an absent subject.
+const PROMPT_CONTRACT_VERSION = "adreq/2";
 
 let cachedPrompt: string | null = null;
 export function adReaderPrompt(): string {
@@ -61,19 +64,35 @@ export function buildAdReaderInput(posting: Posting, knownFamilies: string[]): s
 // or a degree preference is never a reason to withdraw a job outright, whatever the advert's wording.
 const HARD_GATE_DIMENSIONS = new Set<EligibilityDimension>(["work-rights", "language", "certification"]);
 
+// #107 (E5 slice 6, D1): the SECOND thing a blocking language/certification requirement must carry —
+// a hard-gate dimension alone says WHICH KIND of gate this is, not WHICH language or certification.
+// Without a subject, "blocking" on "language" would be matched against whatever the visitor answered
+// for ANY language once slice 6's withdrawal predicate (withdrawal.ts) acts on it — Mandarin matched
+// against an English answer, silently deleting a winnable job (#86's own "worst failure" case).
+// work-rights is excluded: the fact is global, so it never carries (or needs) a subject.
+const SUBJECT_REQUIRED_DIMENSIONS = new Set<EligibilityDimension>(["language", "certification"]);
+
 /** Enforces the blocking definition in code, not only in the prompt: a `kind: "blocking"`
  *  requirement that doesn't carry a hard-gate eligibilityDimension is down-classified to
- *  "ordinary" and counted. ad-reader.md's prompt now makes this a hard rule too (every `blocking`
- *  requirement MUST set one of the three hard-gate dimensions, or it isn't blocking) — this is the
- *  mechanical backstop behind that rule, not a substitute for it, the same way this repo enforces
- *  its CV rules with conservationIssues() rather than trusting the prompt alone. A blocking miss
- *  withdraws a winnable job entirely once slice 6 acts on it, so the safe direction is enforced
- *  twice: once in the words the model reads, once in the code nothing can talk it out of. */
+ *  "ordinary" and counted — and (#107, D1) so is a blocking `language`/`certification` requirement
+ *  that carries a hard-gate dimension but NO `eligibilitySubject` (see SUBJECT_REQUIRED_DIMENSIONS's
+ *  own doc for why). ad-reader.md's prompt now makes both a hard rule too (every `blocking`
+ *  requirement MUST set one of the three hard-gate dimensions, and a blocking language/certification
+ *  one MUST also set a subject) — this is the mechanical backstop behind those rules, not a
+ *  substitute for them, the same way this repo enforces its CV rules with conservationIssues()
+ *  rather than trusting the prompt alone. A blocking miss withdraws a winnable job entirely once
+ *  slice 6 acts on it, so the safe direction is enforced twice: once in the words the model reads,
+ *  once in the code nothing can talk it out of. */
 function clampBlocking(parsed: AdRequirementsV1): AdRequirementsV1 {
   let clamped = 0;
   const requirements = parsed.requirements.map((r) => {
-    const isHardGate = r.eligibilityDimension !== undefined && HARD_GATE_DIMENSIONS.has(r.eligibilityDimension);
-    if (r.kind === "blocking" && !isHardGate) {
+    // T3 (code review): `dimension` re-checked against `undefined` inline in EACH boolean below,
+    // rather than computed once and reused behind a `!` assertion — TS narrows it within its own
+    // `&&` chain, so a later edit that loosens either guard is a compile error, not a runtime one.
+    const dimension = r.eligibilityDimension;
+    const isHardGate = dimension !== undefined && HARD_GATE_DIMENSIONS.has(dimension);
+    const missingSubject = dimension !== undefined && SUBJECT_REQUIRED_DIMENSIONS.has(dimension) && !r.eligibilitySubject;
+    if (r.kind === "blocking" && (!isHardGate || missingSubject)) {
       clamped++;
       return { ...r, kind: "ordinary" as const };
     }

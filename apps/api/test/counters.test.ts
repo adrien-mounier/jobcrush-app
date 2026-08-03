@@ -69,6 +69,8 @@ describe("#103 posting-pool counters", () => {
       "deck.cards_unscored": 0,
       "deck.cards_estimated": 0,
       "deck.judge_bound_hit": 0,
+      // #107 — see counters.ts's own header for what this means.
+      "deck.cards_withdrawn": 0,
     });
   });
 });

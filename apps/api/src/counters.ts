@@ -150,6 +150,17 @@
 //     exists so an operator can see how often the bound is the limiting factor, distinct from
 //     deck.cards_unscored's raw per-card count.
 //
+// #107 (E5 slice 6, D6/AC6) adds ONE more:
+//   - deck.cards_withdrawn: one increment per candidate the deck route (routes/onboarding.ts) removed
+//     via withdrawal.ts's findWithdrawingRequirement, BEFORE ranking/peek/judging ever saw it — a
+//     genuinely blocking requirement the visitor explicitly said "no" to. This is the AC6 number: a
+//     silently-shrinking deck would otherwise look identical to an honestly-scored one, and this
+//     counter is what turns over-firing (the withdrawal predicate matching too eagerly) into
+//     something an operator can see rather than jobs quietly disappearing. Sits alongside
+//     adReader.requirements_blocking (the advert-side rate, unchanged by this ticket) as the other
+//     half of the same story: how many requirements are stated blocking, and how many postings that
+//     actually cost a session its card.
+//
 // In-process and reset-on-restart. That's an accepted limit for this slice, not an oversight: there
 // is no persisted metrics store yet, and standing one up before anything needs history would be the
 // speculative abstraction this repo avoids (#86 decision 4 makes the same call for user languages).
@@ -183,6 +194,7 @@ const counts = {
   "deck.cards_unscored": 0,
   "deck.cards_estimated": 0,
   "deck.judge_bound_hit": 0,
+  "deck.cards_withdrawn": 0,
 };
 
 export type CounterName = keyof typeof counts;

@@ -58,7 +58,17 @@ export function validateAdRequirementsV1(value) {
     exactKeys(
       e,
       req,
-      ["id", "band", "kind", "requirement", "cvSection", "comparable", "eligibilityDimension", "sourceSpan"],
+      [
+        "id",
+        "band",
+        "kind",
+        "requirement",
+        "cvSection",
+        "comparable",
+        "eligibilityDimension",
+        "eligibilitySubject",
+        "sourceSpan",
+      ],
       at,
     );
     e.require(isNonEmptyString(req.id), `${at}.id must be a non-empty string`);
@@ -77,6 +87,15 @@ export function validateAdRequirementsV1(value) {
     e.require(
       req.eligibilityDimension === undefined || oneOf(req.eligibilityDimension, ELIGIBILITY_DIMENSIONS),
       `${at}.eligibilityDimension is invalid`,
+    );
+    // #107 (E5 slice 6, D1) — additive v1 field: the concrete subject a language/certification gate
+    // is about ("Mandarin", "PMP"). Optional at the CONTRACT level for every dimension — the reader's
+    // own code-level clamp (apps/api/src/adReader.ts's clampBlocking) is what actually requires it on
+    // a blocking language/certification requirement; the contract just accepts a non-empty string or
+    // nothing.
+    e.require(
+      req.eligibilitySubject === undefined || isNonEmptyString(req.eligibilitySubject),
+      `${at}.eligibilitySubject must be a non-empty string`,
     );
     if (req.comparable !== undefined) {
       const c = req.comparable;

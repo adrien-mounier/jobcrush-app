@@ -119,6 +119,12 @@ describe("#104 adReader prompt plumbing", () => {
     expect(prompt).toContain(
       'Every `blocking` requirement MUST also set `eligibilityDimension` to `"work-rights"`,',
     );
+    // #107 (E5 slice 6, D1): a hard-gate dimension alone isn't enough for language/certification —
+    // this wording is what tells the model to also name the SUBJECT ("Mandarin", not just
+    // "language"). adReader.ts's clampBlocking is the mechanical backstop behind it.
+    expect(prompt).toContain(
+      'A `blocking` requirement whose `eligibilityDimension` is `"language"` or `"certification"`',
+    );
   });
 });
 
@@ -214,9 +220,10 @@ describe("#104 readAdvert", () => {
     expect(readCounters()["adReader.blocking_clamped"]).toBe(before);
   });
 
-  // #104 review finding 1's proof: a genuine hard gate, correctly tagged, must survive as blocking
-  // — the clamp only catches a blocking claim with NO hard-gate dimension behind it, never a real one.
-  it("a genuine hard gate (fluent Cantonese, mandatory, eligibilityDimension: language) survives as blocking", async () => {
+  // #104 review finding 1's proof: a genuine hard gate, correctly tagged AND scoped, must survive as
+  // blocking — the clamp only catches a blocking claim with no hard-gate dimension, or (#107, D1) no
+  // subject, behind it.
+  it("a genuine hard gate (fluent Cantonese, mandatory, eligibilityDimension: language, eligibilitySubject: Cantonese) survives as blocking", async () => {
     const doc = {
       ...validDoc,
       requirements: [
@@ -226,7 +233,55 @@ describe("#104 readAdvert", () => {
           kind: "blocking",
           requirement: "Fluent Cantonese required",
           eligibilityDimension: "language",
+          eligibilitySubject: "Cantonese",
           sourceSpan: "Fluent Cantonese is required for this role",
+        },
+      ],
+    };
+    const llm = fakeLlm([JSON.stringify(doc)]);
+    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    expect(result?.requirements.requirements[0]?.kind).toBe("blocking");
+    expect(result?.requirements.requirements[0]?.eligibilitySubject).toBe("Cantonese");
+  });
+
+  // #107 (E5 slice 6, D1) — the ticket's own central safety rule: a hard-gate dimension alone isn't
+  // enough for language/certification. Without a SUBJECT there is no way to tell this gate apart
+  // from any other one on the same dimension, so it clamps to ordinary exactly like a missing
+  // eligibilityDimension does.
+  it("clamps a blocking language requirement with a hard-gate dimension but NO eligibilitySubject", async () => {
+    const before = readCounters()["adReader.blocking_clamped"];
+    const doc = {
+      ...validDoc,
+      requirements: [
+        {
+          id: "fluent-mandarin",
+          band: "essential",
+          kind: "blocking",
+          requirement: "Fluent Mandarin required",
+          eligibilityDimension: "language",
+          sourceSpan: "Fluent Mandarin is required for this role",
+        },
+      ],
+    };
+    const llm = fakeLlm([JSON.stringify(doc)]);
+    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    expect(result?.requirements.requirements[0]?.kind).toBe("ordinary");
+    expect(readCounters()["adReader.blocking_clamped"]).toBe(before + 1);
+  });
+
+  // work-rights carries no subject by design (the fact is global, not scoped to a subject) — must
+  // NOT be clamped for lacking eligibilitySubject the way language/certification are.
+  it("a blocking work-rights requirement survives without an eligibilitySubject — it has none by design", async () => {
+    const doc = {
+      ...validDoc,
+      requirements: [
+        {
+          id: "visa-sponsorship",
+          band: "essential",
+          kind: "blocking",
+          requirement: "Right to work required, no visa sponsorship",
+          eligibilityDimension: "work-rights",
+          sourceSpan: "must have the right to work without sponsorship",
         },
       ],
     };

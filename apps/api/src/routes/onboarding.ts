@@ -36,6 +36,7 @@ import { readingLanguages, languageEligible } from "../language.js";
 import { incrementCounter, recordReadFailure } from "../counters.js";
 import { matchBreakdown, matchTick, uncoveredRequirements, pickHitClause, pickOpenClause, NOTHING_OPEN_CLAUSE } from "../matchtick.js";
 import {
+  applyYearsShortfall,
   judgedBreakdown,
   judgedMatchTick,
   judgedPickHitClause,
@@ -43,6 +44,7 @@ import {
 } from "../judgedScore.js";
 import type { JudgeFact, JudgeFn, JudgePeekFn } from "../judge.js";
 import type { JudgementRecord } from "../judgementStore.js";
+import { findWithdrawingRequirement } from "../withdrawal.js";
 import {
   composeCvLine,
   discoveryClaimId,
@@ -915,7 +917,14 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // session's confirmed/negative claims — no LLM, no IO beyond the two fixture loads.
     app.get("/onboarding/cards", async (req) => {
       const session = requireSession(req);
-      const [confirmed, negatives] = await discoveryReads(session.id);
+      const [confirmed, negatives, , facts] = await discoveryReads(session.id);
+      // #107 (E5 slice 6, D5): the SAME (dimension, familyId) scope eligibilityDiscovery.ts's
+      // years-experience question WRITES a real answer at — see resolveUserYears's own doc for why a
+      // mismatched scope would silently do nothing. Reads `facts` (already fetched above by
+      // discoveryReads) rather than a second store call — T1 (code review): one eligibility read per
+      // request, not one per thing that needs it.
+      const role = session.targetTitles[0] ?? null;
+      const userYears = resolveUserYears(facts, session, role);
       const langs = readingLanguages(session);
       const postings = eligiblePostings(langs);
       // #104: every eligible posting gets a requirement set now, not only the hand-curated ones —
@@ -956,6 +965,20 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         (entry): entry is { posting: Posting; adReq: AdRequirementsV1 } => entry !== null,
       );
 
+      // #107 (E5 slice 6, D3/D4) — withdraw a posting from THIS session's deck BEFORE it costs
+      // anything: right after requirements resolve, before ranking, the free peek, or a paid judging
+      // attempt ever sees it. Matches AC1's "the posting does not appear... whatever its score" and
+      // the AC that a withdrawn card must never cost a model call. findWithdrawingRequirement
+      // (withdrawal.ts) is pure — it only reads `facts`, this session's ALREADY-READ eligibility
+      // facts (discoveryReads above), against each candidate's own requirement set; no IO of its own.
+      // deck.cards_withdrawn (counters.ts) is AC6's own number: over-firing shows up as a rising
+      // count an operator can see, not as jobs quietly disappearing.
+      const openCandidates = candidates.filter((entry) => {
+        if (!findWithdrawingRequirement(entry.adReq, facts)) return true;
+        incrementCounter("deck.cards_withdrawn");
+        return false;
+      });
+
       // #117 must-fix A (coordinator review, severe) — the PAID set is ranked over EVERY eligible
       // candidate, not just whatever peek (below) fails to resolve for free. Ranking over "unresolved"
       // was the bug: request 1 pays for the top 8, some land in the store; request 2's free peek
@@ -981,7 +1004,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // never sets it), so a test can construct a "pool exceeds the ceiling" scenario against the
       // REAL posting pool instead of adding synthetic entries to product data (#117 review).
       const judgeMaxCards = deps.judgeMaxCards ?? DECK_JUDGE_MAX_CARDS;
-      const rankedAll = [...candidates].sort(
+      const rankedAll = [...openCandidates].sort(
         (a, b) => matchTick(confirmed, b.adReq) - matchTick(confirmed, a.adReq),
       );
       if (rankedAll.length > judgeMaxCards) incrementCounter("deck.judge_bound_hit");
@@ -993,7 +1016,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // deps.judgePeek (judge.ts's makeJudgePeek) is structurally incapable of spending, and absent
       // (every pre-must-fix-1 test) simply means nothing resolves for free, identical to before this
       // phase existed.
-      const peeked = await mapWithConcurrency(candidates, CARD_RESOLUTION_CONCURRENCY, async (entry) => {
+      const peeked = await mapWithConcurrency(openCandidates, CARD_RESOLUTION_CONCURRENCY, async (entry) => {
         const judgement = deps.judgePeek ? await deps.judgePeek(entry.adReq, confirmed) : null;
         return { ...entry, judgement };
       });
@@ -1028,7 +1051,10 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           entry.adReq,
           confirmed,
           negatives,
-          entry.judgement,
+          // #107 (D5): the years-experience shortfall, applied at read time — see withYearsShortfall's
+          // own doc. A no-op pass-through when there's no judgement or the visitor's years were never
+          // asked, so every pre-#107 case is byte-for-byte unchanged.
+          withYearsShortfall(entry.judgement, entry.adReq, userYears),
           // #117 must-fix 2: a real paid attempt that missed the budget is `pending` (genuinely in
           // flight, will self-heal into the store); one the bound never attempted at all is
           // `unscored` (nothing coming unless a later request's own bound selects it).
@@ -1067,8 +1093,15 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const langs = readingLanguages(session);
         const posting = eligiblePostings(langs).find((p) => p.id === req.params.adId);
         const adReq = posting ? await resolveAdRequirements(posting.id, deps.readAd, posting) : null;
-        const knownCard = !!adReq && languageEligible(adReq.language, langs);
-        if (!knownCard)
+        // T3 (code review): guard on `adReq` itself, not a derived boolean, so TS narrows it to
+        // non-null below without a `!` assertion — a later edit to this guard is then a compile
+        // error if it stops guaranteeing that, not a runtime one.
+        if (!adReq || !languageEligible(adReq.language, langs))
+          return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
+        // #107 (D4): a withdrawn ad is not a valid want target either — same 404 shape as an unknown
+        // card, so a session can never distinguish "never existed" from "genuinely can't take it".
+        const facts = await deps.eligibility.list(session.id);
+        if (findWithdrawingRequirement(adReq, facts))
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
 
         await deps.sessions.setTailorTarget(session.id, req.params.adId);
@@ -1094,14 +1127,28 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       if (!target)
         return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
       const { posting, adReq } = target;
-      const [confirmed, negatives] = await discoveryReads(session.id);
-      const judgement = await resolveJudgement(adReq, confirmed, deps.judge);
+      const [confirmed, negatives, , facts] = await discoveryReads(session.id);
+      // #107 (M3, code review): a target that has since become withdrawn behaves EXACTLY like no
+      // target at all — no rejection message, no error screen (the ticket's own UX intent: "It does
+      // not appear as a greyed-out card, a 'you can't apply' state, or a rejection message"). Clearing
+      // it here means a reload doesn't keep landing back on the same dead target.
+      if (findWithdrawingRequirement(adReq, facts)) {
+        await deps.sessions.clearTailorTarget(session.id);
+        return reply
+          .status(409)
+          .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
+      }
+      const role = session.targetTitles[0] ?? null;
+      const rawJudgement = await resolveJudgement(adReq, confirmed, deps.judge);
+      // #107 (D5): the years-experience shortfall, applied at read time — see applyYearsShortfall's
+      // own doc (judgedScore.ts). Reads `facts` already fetched above — T1: one eligibility read.
+      const judgement = withYearsShortfall(rawJudgement, adReq, resolveUserYears(facts, session, role));
       const state = buildTailorState(
         posting,
         adReq,
         confirmed,
         negatives,
-        session.targetTitles[0] ?? null,
+        role,
         session.tailorFloorPct,
         judgement,
       );
@@ -1153,11 +1200,25 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         if (no) await deps.claims.answerNegative(session.id, claim);
         else await deps.claims.add(session.id, claim);
 
-        const [confirmed, negatives] = await discoveryReads(session.id);
+        const [confirmed, negatives, , facts] = await discoveryReads(session.id);
+        // #107 (M3, code review): a target that has become withdrawn (this answer's own claim is
+        // still recorded — harmless, tied to this ad's own claim id) behaves EXACTLY like no target
+        // at all from here on: no rejection message, nothing further asserted about a job the visitor
+        // can no longer take. Cleared so a reload doesn't keep landing back on the same dead target.
+        if (findWithdrawingRequirement(adReq, facts)) {
+          await deps.sessions.clearTailorTarget(session.id);
+          return reply
+            .status(409)
+            .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
+        }
+        const role = session.targetTitles[0] ?? null;
         // #105 decision 7: the floor is raised from the HONEST number when a judgement is available
         // — the answer just added changed the fact set, so this is a fresh (adId, fingerprint), never
         // a cache hit reusing a stale judgement. Falls back to matchTick when no judge is wired.
-        const judgement = await resolveJudgement(adReq, confirmed, deps.judge);
+        const rawJudgement = await resolveJudgement(adReq, confirmed, deps.judge);
+        // #107 (D5): the years-experience shortfall, applied at read time — see applyYearsShortfall's
+        // own doc (judgedScore.ts). Reads `facts` already fetched above — T1: one eligibility read.
+        const judgement = withYearsShortfall(rawJudgement, adReq, resolveUserYears(facts, session, role));
         await deps.sessions.raiseTailorFloor(
           session.id,
           judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
@@ -1167,7 +1228,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           adReq,
           confirmed,
           negatives,
-          session.targetTitles[0] ?? null,
+          role,
           session.tailorFloorPct,
           judgement,
         );
@@ -1506,6 +1567,47 @@ async function resolveJudgement(
   }
 }
 
+/** #107 (E5 slice 6, D5) — the ONE place userYears is READ, at the SAME (dimension, familyId) scope
+ *  eligibilityDiscovery.ts's years-experience question WRITES a real answer at
+ *  (resolveEligibilityFamilyScope(session, role)). A mismatched scope would silently find nothing and
+ *  the whole feature would do nothing — this is the single call site every route below goes through
+ *  so that can't happen.
+ *
+ *  Reads `facts` — whatever the caller already fetched via discoveryReads — rather than its own
+ *  eligibility.numeric() store call. Code review T1: the tailor path was making THREE serialised
+ *  eligibility-store reads per request (tailorTarget's own list, discoveryReads' list, and this
+ *  function's own numeric() call) for data discoveryReads had already fetched once. Pure now, no IO
+ *  of its own — the same "facts is whatever the caller already read, never fetched here" contract
+ *  withdrawal.ts's own findWithdrawingRequirement is held to.
+ *
+ *  null before Q1 (no role yet, so nothing could have been asked) and whenever the visitor genuinely
+ *  was never asked (no matching fact, or one that fails to parse as a number) both read the same way
+ *  to the caller: "leave the judged verdict untouched" (applyYearsShortfall's own null handling). */
+function resolveUserYears(
+  facts: readonly EligibilityFact[],
+  session: Pick<SessionRecord, "discovery">,
+  role: string | null,
+): number | null {
+  if (!role) return null;
+  const familyId = resolveEligibilityFamilyScope(session, role).familyId;
+  const fact = facts.find((f) => f.dimension === "years-experience" && f.familyId === familyId);
+  if (!fact) return null;
+  const years = Number(fact.value);
+  return Number.isFinite(years) ? years : null;
+}
+
+/** #107 (D5) — applies judgedScore.ts's applyYearsShortfall (see its own doc for the attenuation
+ *  rule and why it can only ever lower a score) on top of whatever resolveJudgement returned, at READ
+ *  TIME only; never persisted. A plain pass-through when there's nothing to adjust. */
+function withYearsShortfall(
+  judgement: JudgementRecord | null,
+  adReq: AdRequirementsV1,
+  userYears: number | null,
+): JudgementRecord | null {
+  if (!judgement || userYears === null) return judgement;
+  return { ...judgement, verdicts: applyYearsShortfall(judgement.verdicts, adReq, userYears) };
+}
+
 /** Pure composition, no LLM: matchtick.ts (or, when a judgement is available, judgedScore.ts) scores
  *  + ranks, this just shapes the pinned JobCard. #105 decision 1: matchPct/breakdown/dontYet/bubble.hit
  *  all switch to the judged relation together when `judgement` is present, falling back to today's
@@ -1622,6 +1724,12 @@ async function tailorTarget(
   if (!adReq || !languageEligible(adReq.language, langs)) return null;
   return { posting, adReq };
 }
+// #107 (D4/M3, code review): withdrawal is checked by the two callers below (GET /onboarding/tailor,
+// POST /onboarding/tailor/answer) instead of here — a target that was resolvable but has since
+// become withdrawn must behave EXACTLY like no target at all (M3), which needs deps.sessions to
+// clear the persisted target, not just a null return this function has no session-mutation access
+// to. Both callers already read this session's eligibility facts via discoveryReads (T1: one read,
+// not tailorTarget's own extra eligibility.list() call), so the check costs nothing extra there.
 
 /** Pure composition of TailorState — same split as buildJobCard: matchtick.ts (or judgedScore.ts,
  *  when `judgement` is available — #105 decision 1) + tailor.ts score/rank, this shapes the pinned

@@ -14,6 +14,7 @@ import { InMemoryAdRequirementsStore } from "../src/adRequirementsStore.js";
 import { readCounters } from "../src/counters.js";
 import type { LlmClient } from "../src/llm.js";
 import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
+import { ANY_FAMILY } from "../src/eligibility.js";
 
 async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
   const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });
@@ -45,6 +46,7 @@ interface JobCard {
   place: string;
   salary: string | null;
   pattern: string | null;
+  scored: string;
   matchPct: number;
   bubble: { hit: string; open: string };
   fit: Array<{ id: string; text: string }>;
@@ -884,5 +886,341 @@ describe("#115 a timed-out read is not a read failure", () => {
       if (previousOpsKey === undefined) delete process.env.OPS_KEY;
       else process.env.OPS_KEY = previousOpsKey;
     }
+  });
+});
+
+// --- #107 (E5 slice 6) — a job you genuinely cannot take leaves your deck --------------------------
+// Every AC driven through the pinned HTTP boundary (spec #86's primary seam) — AC5 is explicit that a
+// withdrawal must be observed as the card's ABSENCE from the deck through the API, never an internal
+// predicate. findWithdrawingRequirement has its own direct unit tests too (withdrawal.test.ts), in
+// ADDITION to these, never instead of them.
+//
+// Module-scoped (T4, code review): shared by every #107 describe below, not redefined per block.
+const mandarinBlocking = (adId: string): AdRequirementsV1 => ({
+  schemaVersion: "1",
+  adId,
+  curated: false,
+  language: "en",
+  familyFit: { family: "IT Project Manager", confidence: 0.6 },
+  requirements: [
+    {
+      id: "mandarin-required",
+      band: "essential",
+      kind: "blocking",
+      requirement: "Fluent Mandarin required",
+      eligibilityDimension: "language",
+      eligibilitySubject: "Mandarin",
+      sourceSpan: "Fluent Mandarin is required for this role",
+    },
+  ],
+});
+
+const mandarinAdvantage = (adId: string): AdRequirementsV1 => ({
+  ...mandarinBlocking(adId),
+  requirements: [
+    {
+      id: "mandarin-advantage",
+      band: "nice-to-have",
+      kind: "ordinary",
+      requirement: "Mandarin an advantage",
+      sourceSpan: "Mandarin an advantage",
+    },
+  ],
+});
+
+const sessionId = async (app: ReturnType<typeof buildServer>["app"], cookie: string): Promise<string> => {
+  const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+  return me.json().id as string;
+};
+
+describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
+  it("AC1: a posting explicitly requiring fluent Mandarin does not appear for a user who explicitly said they don't speak it, whatever its score", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const sid = await sessionId(app, cookie);
+    await eligibility.put(sid, {
+      dimension: "language",
+      familyId: "Mandarin",
+      value: "none",
+      label: "Professional fluency in Mandarin",
+    });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).not.toContain(target.id); // AC5: absence, through the API
+  });
+
+  it("AC2: 'Mandarin an advantage' (ordinary) still appears for the same user who said no to Mandarin", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinAdvantage(posting.id) : stubRequirements(posting.id);
+    const { app, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const sid = await sessionId(app, cookie);
+    await eligibility.put(sid, {
+      dimension: "language",
+      familyId: "Mandarin",
+      value: "none",
+      label: "Professional fluency in Mandarin",
+    });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).toContain(target.id);
+  });
+
+  it("AC3: a posting explicitly requiring fluent Mandarin appears — the requirement open, not silently met — for a user never asked about Mandarin", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app } = buildServer({ readAd }); // no eligibility answer recorded at all — never asked
+
+    const cookie = await anonSession(app);
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    const card = body.cards.find((c) => c.adId === target.id);
+    expect(card).toBeDefined(); // appears
+    expect(card!.dontYet.map((r) => r.id)).toContain("mandarin-required"); // open, not asserted met
+  });
+
+  // "conversational" ("Some, but not for work") is not "I don't speak it" — the spec's own second
+  // regression case, at the boundary (withdrawal.test.ts also pins it as a direct unit).
+  it("regression: 'Some, but not for work' (conversational) does not withdraw the posting", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const sid = await sessionId(app, cookie);
+    await eligibility.put(sid, {
+      dimension: "language",
+      familyId: "Mandarin",
+      value: "conversational",
+      label: "Professional fluency in Mandarin",
+    });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).toContain(target.id);
+  });
+
+  // Regression from #86's own testing decisions: a `must`-band CAPABILITY requirement never
+  // classifies blocking in the first place (adReader.ts's clampBlocking) — so an ordinary
+  // requirement can never withdraw a posting, however explicitly it's answered.
+  it("regression: an ordinary (non-blocking) requirement never withdraws a posting, however it's answered", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const ordinaryOnly = (adId: string): AdRequirementsV1 => ({
+      ...mandarinBlocking(adId),
+      requirements: [{ ...mandarinBlocking(adId).requirements[0]!, kind: "ordinary" }],
+    });
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? ordinaryOnly(posting.id) : stubRequirements(posting.id);
+    const { app, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const sid = await sessionId(app, cookie);
+    await eligibility.put(sid, {
+      dimension: "language",
+      familyId: "Mandarin",
+      value: "none",
+      label: "Professional fluency in Mandarin",
+    });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).toContain(target.id);
+  });
+
+  // M1 (code review): work-rights must never withdraw — the discovery answer is stored globally
+  // (ANY_FAMILY) while the QUESTION is city-scoped, so there is no visitor-location fact to tell a
+  // "can't work in Hong Kong" answer apart from a job in Australia (see withdrawal.ts's scopeFor).
+  // Pinned here, not only as a withdrawal.test.ts unit, because #86's Testing Decisions make the API
+  // boundary the primary seam precisely to rule out "asserts an internal predicate returned false" —
+  // and this guards the spec's own named worst case, a winnable job silently vanishing. If a
+  // work-rights scope is ever re-enabled, this is the test that would have to be edited to allow it;
+  // the unit test alone would not stop it.
+  it("a posting with a blocking work-rights requirement still appears for a user who answered 'needs sponsorship'", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const workRightsBlocking = (adId: string): AdRequirementsV1 => ({
+      schemaVersion: "1",
+      adId,
+      curated: false,
+      language: "en",
+      familyFit: { family: "IT Project Manager", confidence: 0.6 },
+      requirements: [
+        {
+          id: "work-rights-required",
+          band: "essential",
+          kind: "blocking",
+          requirement: "Right to work required, no visa sponsorship",
+          eligibilityDimension: "work-rights",
+          sourceSpan: "must already have the right to work without sponsorship",
+        },
+      ],
+    });
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? workRightsBlocking(posting.id) : stubRequirements(posting.id);
+    const { app, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const sid = await sessionId(app, cookie);
+    await eligibility.put(sid, {
+      dimension: "work-rights",
+      familyId: ANY_FAMILY,
+      value: "needs-sponsorship",
+      label: "Right to work without sponsorship",
+    });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).toContain(target.id);
+  });
+
+  it("AC6: a withdrawal is observable — deck.cards_withdrawn rises by exactly one per withdrawn card", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const sid = await sessionId(app, cookie);
+    await eligibility.put(sid, {
+      dimension: "language",
+      familyId: "Mandarin",
+      value: "none",
+      label: "Professional fluency in Mandarin",
+    });
+
+    const before = readCounters()["deck.cards_withdrawn"];
+    await get(app, cookie, "/onboarding/cards");
+    expect(readCounters()["deck.cards_withdrawn"]).toBe(before + 1);
+  });
+
+  it("a withdrawn card never triggers a paid judging call, even when a judge is wired — it must never cost a model call", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const judgedIds: string[] = [];
+    const judge = async (adReq: AdRequirementsV1) => {
+      judgedIds.push(adReq.adId);
+      return null;
+    };
+    const { app, eligibility } = buildServer({ readAd, judge, judgeMaxCards: 999 });
+    const cookie = await anonSession(app);
+    const sid = await sessionId(app, cookie);
+    await eligibility.put(sid, {
+      dimension: "language",
+      familyId: "Mandarin",
+      value: "none",
+      label: "Professional fluency in Mandarin",
+    });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).not.toContain(target.id);
+    expect(judgedIds).not.toContain(target.id);
+  });
+});
+
+// #107 (E5 slice 6, D4) — withdrawal holds on every surface that renders an advert, not only the deck.
+describe("#107 D4 — withdrawal on every surface that renders an advert", () => {
+  it("a withdrawn ad is not a valid /want target — same 404 shape as an unknown card", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    await signIn(app, cookie, "withdrawn-want@example.com");
+    const sid = await sessionId(app, cookie);
+    await eligibility.put(sid, {
+      dimension: "language",
+      familyId: "Mandarin",
+      value: "none",
+      label: "Professional fluency in Mandarin",
+    });
+
+    const res = await post(app, cookie, `/onboarding/cards/${target.id}/want`);
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: { code: "not_found", message: "unknown card" } });
+  });
+
+  // code-review M3: a PERSISTED tailor target that becomes withdrawn must be SILENT — no rejection
+  // message, no error screen (the ticket's own UX intent) — and must not keep repeating on reload, so
+  // the target is cleared. "Behaves exactly like no target at all" means the SAME response GET/POST
+  // already give when session.tailorAdId is null: 409 no_tailor_target, never a 404.
+  it("a withdrawn tailor target behaves exactly like no target at all — cleared, not a rejection (M3)", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app, sessions, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    await signIn(app, cookie, "withdrawn-tailor@example.com");
+    const sid = await sessionId(app, cookie);
+    // tailorAdId is persisted session state that can predate a withdrawal (e.g. wanted, then the
+    // Mandarin answer landed later) — set directly, exercising this gate on its own terms rather than
+    // relying on /want's earlier (still-404) check to have kept this state from ever existing.
+    await sessions.setTailorTarget(sid, target.id);
+    await eligibility.put(sid, {
+      dimension: "language",
+      familyId: "Mandarin",
+      value: "none",
+      label: "Professional fluency in Mandarin",
+    });
+    const noTargetShape = { error: { code: "no_tailor_target", message: "no job being tailored" } };
+
+    const getRes = await get(app, cookie, "/onboarding/tailor");
+    expect(getRes.statusCode).toBe(409);
+    expect(getRes.json()).toEqual(noTargetShape);
+    // Cleared, not just silenced for this one response — a reload must not keep landing on it.
+    const meAfterGet = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(meAfterGet.json().tailorAdId).toBeNull();
+
+    await sessions.setTailorTarget(sid, target.id); // re-persist to prove POST clears it independently
+    const answerRes = await post(app, cookie, "/onboarding/tailor/answer", {
+      requirementId: "mandarin-required",
+      answer: "Yes",
+    });
+    expect(answerRes.statusCode).toBe(409);
+    expect(answerRes.json()).toEqual(noTargetShape);
+    const meAfterPost = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(meAfterPost.json().tailorAdId).toBeNull();
+  });
+});
+
+// #107 (E5 slice 6, D5) — a years-experience shortfall counts, proportionately, on the JUDGED path.
+describe("#107 D5 — the years shortfall (AC4)", () => {
+  it("AC4: 5 years against an 8+ bar scores lower than 9 years would — neither zero nor identical, and the job stays either way", async () => {
+    const fakeJudge = async (adReq: AdRequirementsV1) => ({
+      verdicts: adReq.requirements.map((r) => ({
+        requirementId: r.id,
+        fit: 1,
+        supportingFactId: null,
+        reason: "fake — every requirement fully met except the years bar, which #107 replaces",
+      })),
+      version: "test",
+      cost: { model: "fake", inputTokens: 0, outputTokens: 0, judgedAt: new Date().toISOString() },
+      facts: [],
+    });
+
+    const scoreFor = async (years: string): Promise<number> => {
+      const { app, eligibility } = buildServer({ judge: fakeJudge, judgeMaxCards: 999 });
+      const cookie = await anonSession(app);
+      const start = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json() as {
+        questions: Array<{ eligibility?: { dimension: string; familyId: string } }>;
+      };
+      const yearsQuestion = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+      const sid = await sessionId(app, cookie);
+      await eligibility.put(sid, {
+        dimension: "years-experience",
+        familyId: yearsQuestion.eligibility!.familyId,
+        value: years,
+        label: "Years in IT project delivery",
+      });
+
+      const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+      const card = body.cards.find((c) => c.adId === VALID_AD_ID)!;
+      expect(card.scored).toBe("judged"); // proves this ran the JUDGED path, not the deterministic one
+      return card.matchPct;
+    };
+
+    const five = await scoreFor("5");
+    const nine = await scoreFor("9");
+    expect(five).toBeGreaterThan(0);
+    expect(nine).toBeGreaterThan(0);
+    expect(five).not.toBe(nine);
+    expect(five).toBeLessThan(nine);
   });
 });
