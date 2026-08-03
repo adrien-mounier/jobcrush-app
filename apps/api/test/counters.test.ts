@@ -46,6 +46,9 @@ describe("#103 posting-pool counters", () => {
       "adReader.cost_reads_recorded": 0,
       "adReader.cost_input_tokens_total": 0,
       "adReader.cost_output_tokens_total": 0,
+      // #114 — see counters.ts's own header for what these mean.
+      "adReader.read_suppressed": 0,
+      "adReader.read_suppression_lifted": 0,
       "postings.read_in_time": 0,
       "adReader.read_failure_rate_per_mille": 0,
       "adReader.read_failure_alarm_firing": 0,

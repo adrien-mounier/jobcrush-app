@@ -3,14 +3,18 @@
 // boundary the ticket's testing decisions call out as "where the test double is injected" — never a
 // live call. HTTP-level deck behaviour (growth, no-second-call, drop-on-failure) lives in
 // cards.test.ts, driven through the real /onboarding routes.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AdRequirementsV1 } from "@jobcrush/contracts";
 import {
   adReaderPrompt,
   adReaderVersion,
   buildAdReaderInput,
+  computeSuppressionBackoffMs,
+  isSuppressionActive,
   makeAdReader,
   readAdvert,
+  SUPPRESSION_BASE_MS,
+  SUPPRESSION_MAX_MS,
 } from "../src/adReader.js";
 import { InMemoryAdRequirementsStore, type AdRequirementsStore } from "../src/adRequirementsStore.js";
 import { readCounters, recentReadFailuresList } from "../src/counters.js";
@@ -500,5 +504,177 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
     expect(result?.adId).toBe("ad-1"); // the paid read isn't thrown away over a storage outage
     expect(readCounters()["postings.read_failed"]).toBe(before + 1);
     expect(recentReadFailuresList().filter((f) => f.adId === "ad-1").at(-1)?.class).toBe("store-unavailable");
+  });
+
+  // #114 — the negative cache: an advert that failed readAdvert must not be re-attempted at full
+  // cost on the very next request for it.
+  describe("#114 makeAdReader — the negative cache", () => {
+    it("suppresses the next attempt right after a failure — no second model call, and adReader.read_suppressed moves, without re-counting postings.read_failed", async () => {
+      const before = {
+        suppressed: readCounters()["adReader.read_suppressed"],
+        failed: readCounters()["postings.read_failed"],
+      };
+      const store = new InMemoryAdRequirementsStore();
+      const llm = fakeLlm(["not json", "still not json"]);
+      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      const first = await readAd(posting());
+      expect(first).toBeNull();
+      expect(llm.calls).toHaveLength(2); // the two-attempt readAdvert loop
+      const second = await readAd(posting());
+      expect(second).toBeNull();
+      expect(llm.calls).toHaveLength(2); // no further model call — suppressed
+      expect(readCounters()["adReader.read_suppressed"]).toBe(before.suppressed + 1);
+      expect(readCounters()["postings.read_failed"]).toBe(before.failed + 1); // NOT re-incremented
+    });
+
+    it("a raw LLM-call failure is also negatively cached, the same as a validation failure", async () => {
+      const store = new InMemoryAdRequirementsStore();
+      let callCount = 0;
+      const llm: LlmClient = {
+        async complete() {
+          callCount++;
+          throw new Error("network blip");
+        },
+      };
+      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      await readAd(posting());
+      expect(callCount).toBe(1);
+      await readAd(posting());
+      expect(callCount).toBe(1); // suppressed — no second call
+    });
+
+    it("does NOT negatively cache a store.get() outage — no model call was made, so nothing to suppress", async () => {
+      const before = readCounters()["adReader.read_suppressed"];
+      const store = flakyStore({ onGet: true });
+      const llm = fakeLlm([JSON.stringify(validDoc), JSON.stringify(validDoc)]);
+      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      await readAd(posting()); // store.get() throws before any model call
+      expect(llm.calls).toHaveLength(0);
+      await readAd(posting()); // still a store outage — never suppressed, so this attempts again too
+      expect(llm.calls).toHaveLength(0);
+      expect(readCounters()["adReader.read_suppressed"]).toBe(before); // the suppression path never fires
+    });
+
+    it("retries exactly once after the backoff window passes — not suppressed forever, not a stampede", async () => {
+      const store = new InMemoryAdRequirementsStore();
+      const llm = fakeLlm(["not json", "still not json", JSON.stringify(validDoc)]);
+      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      const start = Date.now();
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(start);
+      try {
+        await readAd(posting()); // fails, suppressed for SUPPRESSION_BASE_MS
+        expect(llm.calls).toHaveLength(2);
+        nowSpy.mockReturnValue(start + SUPPRESSION_BASE_MS - 1);
+        await readAd(posting()); // still within the backoff window
+        expect(llm.calls).toHaveLength(2);
+        nowSpy.mockReturnValue(start + SUPPRESSION_BASE_MS + 1);
+        const result = await readAd(posting()); // backoff has elapsed — exactly one retry
+        expect(llm.calls).toHaveLength(3);
+        expect(result?.adId).toBe("ad-1"); // this attempt actually succeeded
+        // A second immediate call must not retry AGAIN — the successful read is now cached in the
+        // store (the ordinary version-match path), so this never even reaches the negative cache.
+        await readAd(posting());
+        expect(llm.calls).toHaveLength(3);
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+
+    it("escalates the backoff on a second consecutive failure rather than resetting it", async () => {
+      const store = new InMemoryAdRequirementsStore();
+      const llm = fakeLlm(["nope", "nope", "nope", "nope"]);
+      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      const start = Date.now();
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(start);
+      try {
+        await readAd(posting()); // 1st failure -> backoff = SUPPRESSION_BASE_MS
+        expect(llm.calls).toHaveLength(2);
+        nowSpy.mockReturnValue(start + SUPPRESSION_BASE_MS + 1);
+        await readAd(posting()); // retried, fails again -> backoff escalates to 2x base
+        expect(llm.calls).toHaveLength(4);
+        // Only ONE base interval further — if the backoff had reset instead of escalated, this
+        // would already be past it and would fire a third attempt.
+        nowSpy.mockReturnValue(start + SUPPRESSION_BASE_MS + 1 + SUPPRESSION_BASE_MS + 1);
+        const stillSuppressed = await readAd(posting());
+        expect(stillSuppressed).toBeNull();
+        expect(llm.calls).toHaveLength(4); // no new call — the doubled interval hasn't elapsed yet
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+
+    it("counts adReader.read_suppression_lifted exactly once when the backoff expires and the retry is attempted, not on every suppressed request", async () => {
+      const before = readCounters()["adReader.read_suppression_lifted"];
+      const store = new InMemoryAdRequirementsStore();
+      const llm = fakeLlm(["nope", "nope", JSON.stringify(validDoc)]);
+      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      const start = Date.now();
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(start);
+      try {
+        await readAd(posting());
+        await readAd(posting()); // still suppressed — must not count as "lifted"
+        expect(readCounters()["adReader.read_suppression_lifted"]).toBe(before);
+        nowSpy.mockReturnValue(start + SUPPRESSION_BASE_MS + 1);
+        await readAd(posting()); // backoff elapsed — lifted, then retried
+        expect(readCounters()["adReader.read_suppression_lifted"]).toBe(before + 1);
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+
+    // #114 review must-fix 4: a genuine success used to leave its suppression entry lingering. If
+    // store.put then failed (the read succeeded but wasn't persisted), the NEXT request would find
+    // that stale entry, spuriously count it as "lifted" again, and — had it failed instead of
+    // succeeded — would have resumed escalating failureCount from a number a real success already
+    // disproved. Fixed by deleting the entry the moment readAdvert succeeds, before store.put even
+    // runs.
+    it("clears the suppression entry on a genuine success, so a subsequent store.put failure does not resurrect it as a stale 'lift'", async () => {
+      const store = flakyStore({ onPut: true });
+      const llm = fakeLlm(["nope", "nope", JSON.stringify(validDoc), JSON.stringify(validDoc)]);
+      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      const start = Date.now();
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(start);
+      try {
+        await readAd(posting()); // fails twice — suppressed
+        nowSpy.mockReturnValue(start + SUPPRESSION_BASE_MS + 1); // backoff elapsed
+        const beforeLifted = readCounters()["adReader.read_suppression_lifted"];
+        const beforeSuppressed = readCounters()["adReader.read_suppressed"];
+        const first = await readAd(posting()); // retried, SUCCEEDS, but store.put throws
+        expect(first?.adId).toBe("ad-1"); // the paid read still comes back — a storage outage, not a read failure
+        expect(readCounters()["adReader.read_suppression_lifted"]).toBe(beforeLifted + 1); // lifted exactly once, for this retry
+
+        // A second request, at the SAME mocked "now" — well within what would have been the OLD
+        // backoff window had the stale entry survived — must be a plain cache-miss retry, not a
+        // "lift" and not a suppression: the entry was deleted the moment the read above succeeded.
+        const second = await readAd(posting());
+        expect(second?.adId).toBe("ad-1");
+        expect(readCounters()["adReader.read_suppression_lifted"]).toBe(beforeLifted + 1); // NOT incremented again
+        expect(readCounters()["adReader.read_suppressed"]).toBe(beforeSuppressed); // never suppressed either
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("#114 computeSuppressionBackoffMs / isSuppressionActive — pure, exact-input tested", () => {
+    it("doubles on each consecutive failure and caps at SUPPRESSION_MAX_MS", () => {
+      expect(computeSuppressionBackoffMs(1)).toBe(SUPPRESSION_BASE_MS);
+      expect(computeSuppressionBackoffMs(2)).toBe(SUPPRESSION_BASE_MS * 2);
+      expect(computeSuppressionBackoffMs(3)).toBe(SUPPRESSION_BASE_MS * 4);
+      const manyFailures = computeSuppressionBackoffMs(20);
+      expect(manyFailures).toBe(SUPPRESSION_MAX_MS); // never exceeds the hard cap
+    });
+
+    // #114 review: the version check is defense-in-depth, not the live AC4 guarantee (see
+    // isSuppressionActive's own doc) — adReaderVersion() can't move within a running process today,
+    // so this asserts the LOGIC is correct as code, not that production ever exercises this branch.
+    // AC4's actual operative guarantee is the expired-retryAt case just below: SUPPRESSION_MAX_MS
+    // caps the backoff, so every suppressed advert is retried within the hour regardless of version.
+    it("is active only when the version matches AND the retry deadline hasn't passed", () => {
+      const entry = { version: "v1", retryAt: 1_000, failureCount: 1 };
+      expect(isSuppressionActive(entry, "v1", 999)).toBe(true); // before the deadline, same version
+      expect(isSuppressionActive(entry, "v1", 1_000)).toBe(false); // AC3: exactly at the deadline, expired
+      expect(isSuppressionActive(entry, "v2", 999)).toBe(false); // defense-in-depth: a version mismatch also lifts it
+    });
   });
 });

@@ -34,7 +34,15 @@
 //     fixes this by counting the outcome AT the deadline instead of AFTER it, at the same call site
 //     as postings.read_timed_out. A cache hit still resolves through this same site (readAd(posting)
 //     settles near-instantly from the store) and correctly counts as in-time — it genuinely is a read
-//     the deck waited on and got back. None of this is persisted (this file's own accepted in-process
+//     the deck waited on and got back. #114: a SUPPRESSED read (adReader.ts's negative cache
+//     returning null without a model call) resolves through this exact same site just as fast as a
+//     cache hit does, and is ALSO counted in-time — correctly, in the sense that the deck really did
+//     get an answer promptly, but it means a pool with a few permanently-broken adverts warmed into
+//     the negative cache dilutes this counter (and therefore the timeout alarm's denominator) with
+//     free no-ops that were never actually at risk of timing out. Same class of honest limit as
+//     adReader.read_suppressed's own note below on the read-failure alarm — recorded here rather
+//     than left for an operator to notice the denominator growing faster than real traffic explains.
+//     None of this is persisted (this file's own accepted in-process
 //     limit), so a process restart while a read is still overrunning drops that attempt from both
 //     counters — it never becomes a counted timeout OR a counted in-time outcome, and simply
 //     vanishes. A real, visible symptom regardless (the deck actually returned one fewer card this
@@ -46,11 +54,22 @@
 //     its own counter, not folded into postings.read_failed (#104 review finding 6): a broken
 //     fixture has nothing to do with the model, so it must not move the read-failure alarm's rate —
 //     one malformed fixture would otherwise pin the alarm at 100% with zero model calls made and
-//     point an operator straight at the wrong system. Counted once per bad fixture at load
-//     (e5stub.ts caches listAdRequirements()'s parsed result), matching the "counted once" property
-//     the other ingest-time counters already have — parseAdRequirementsList itself is a plain pure
-//     function and increments on every call; it's listAdRequirements()'s cache that makes production
-//     usage count-once.
+//     point an operator straight at the wrong system. Counted once per bad fixture, at the fixture
+//     INDEX's build time (e5stub.ts's buildFixtureIndex, shared by loadAdRequirements,
+//     lookupAdRequirements, and listAdRequirements — #114 unified what used to be two independent
+//     counting paths: listAdRequirements's own cache counted once, but the module also exported a
+//     separate parseAdRequirementsList that counted on every call if driven directly, with nothing
+//     stopping both running on the same request. #114 review deleted parseAdRequirementsList
+//     outright rather than leaving it test-only-and-unused — a second implementation that could
+//     still move this counter was the exact "two independent counting paths" hazard this ticket
+//     exists to remove; the index is now the ONLY thing that ever increments it). #114 also gave
+//     this counter its first PRODUCTION caller: before it,
+//     resolveAdRequirements (routes/onboarding.ts) told "no fixture" and "a fixture that failed to
+//     parse" apart with a bare try/catch, so a corrupt hand-curated entry looked identical to a
+//     missing one, fell through to a paid model read, and this counter — despite existing since
+//     #104 — could never move outside a test. resolveAdRequirements now asks e5stub.ts's
+//     lookupAdRequirements for a found/missing/invalid answer instead, and "invalid" drops the card
+//     with NO model call, exactly like "found" and "missing" already did for their own outcomes.
 //
 // #104 (E5 slice 3) adds nine more, namespaced adReader.* to stay visually distinct from the
 // ingest-time postings.* counters above even though they share this one flat counts object and one
@@ -161,6 +180,40 @@
 //     half of the same story: how many requirements are stated blocking, and how many postings that
 //     actually cost a session its card.
 //
+// #114 (E5 slice hazard cleanup) adds TWO more, namespaced adReader.* even though they describe the
+// negative CACHE (makeAdReader's own bounded backoff, adReader.ts) rather than a read itself — kept
+// in this prefix because they're the same reader's own bookkeeping and every other adReader.* number
+// already lives here:
+//   - adReader.read_suppressed: a request for an advert whose read already failed recently was
+//     answered with null WITHOUT a model call — the negative cache hit. This is the AC's headline
+//     number: "the number of reads saved by [the retry policy] is observable, so the policy can be
+//     judged rather than assumed." Deliberately does NOT increment postings.read_failed a second
+//     time — that counter was already moved once, on the ORIGINAL failure that created the
+//     suppression entry. A suppression is a free no-op, not a new failed read, and re-counting it
+//     would inflate the read-failure alarm's numerator with events that cost nothing. This
+//     necessarily DAMPS the read-failure alarm's rate on both sides of its ratio once a pool has a
+//     few permanently-broken adverts warmed into the negative cache (failed AND succeeded both
+//     undercount slightly, since a suppressed request never reaches either branch) — the alarm still
+//     fires on a genuinely systemic outage, because the FIRST failure per advert per backoff window
+//     is always counted before any suppression can exist, but a reader watching read_failed climb
+//     during a partial, adverts-that-can-never-parse-shaped incident will see it climb more slowly
+//     than the true failure rate. Said explicitly here rather than left for an operator to work out
+//     mid-incident.
+//   - adReader.read_suppression_lifted: a PREVIOUSLY suppressed advert was allowed through again —
+//     either its backoff window expired (the retry is bounded, never permanent — SUPPRESSION_MAX_MS
+//     in adReader.ts is the operative guarantee here) or adReaderVersion() moved since the failure
+//     was recorded. Review correction: adReaderVersion() is a memoised hash of a fixed on-disk
+//     prompt file plus a hand-bumped constant, so it CANNOT change within a running process — a real
+//     prompt/contract bump only takes effect via a redeploy, which restarts the process and empties
+//     this in-memory negative cache anyway, making the version comparison unreachable in production
+//     today. It stays in the entry as defense-in-depth for a future where the version COULD move at
+//     runtime, not as the live mechanism preventing permanent invisibility — that job belongs to the
+//     backoff cap alone. One counter for both triggers regardless, since the operator-relevant fact
+//     is identical either way ("the negative cache let this advert be retried"). Paired with
+//     read_suppressed as the honest denominator the AC asks for — suppressed reads against attempts
+//     that were actually let through (fresh, or lifted) is how rarely the policy is retrying an
+//     advert that turns out to still be broken.
+//
 // In-process and reset-on-restart. That's an accepted limit for this slice, not an oversight: there
 // is no persisted metrics store yet, and standing one up before anything needs history would be the
 // speculative abstraction this repo avoids (#86 decision 4 makes the same call for user languages).
@@ -179,6 +232,8 @@ const counts = {
   "adReader.cost_reads_recorded": 0,
   "adReader.cost_input_tokens_total": 0,
   "adReader.cost_output_tokens_total": 0,
+  "adReader.read_suppressed": 0,
+  "adReader.read_suppression_lifted": 0,
   "judge.judged_succeeded": 0,
   "judge.judge_failed": 0,
   "judge.cost_reads_recorded": 0,

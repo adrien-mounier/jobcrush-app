@@ -135,6 +135,68 @@ export interface AdReadResult {
   cost: AdReadCost;
 }
 
+// #114: a negative cache with a bounded, escalating backoff — only for the readAdvert THROW path
+// below (the one that actually costs up to two model calls per attempt). A store outage, a
+// store.put failure after a successful read, and the free language-skip null are all deliberately
+// excluded from this cache — see makeAdReader's own doc for why each one is excluded on its own
+// terms; none of them are "an advert the model cannot parse", the one thing this cache exists to
+// stop paying for repeatedly.
+export interface SuppressionEntry {
+  // The adReaderVersion() this failure was recorded under. Compared on lookup as defense-in-depth
+  // against a future where the version COULD move within a running process — see isSuppressionActive's
+  // own doc for why it is NOT the live mechanism preventing a fixed advert from staying invisible
+  // forever; that job belongs to retryAt/SUPPRESSION_MAX_MS below.
+  version: string;
+  retryAt: number; // epoch ms — before this, a request for this adId is suppressed
+  failureCount: number; // consecutive failures at THIS version — drives the backoff exponent
+}
+
+// Base + cap chosen so a TRANSIENT failure (a single bad model answer, a network blip — the common
+// case; see AdReadValidationError's own doc on how rare two-bad-answers-in-a-row is meant to be)
+// still retries within a couple of minutes rather than making a visitor watch a card stay missing
+// for an hour, while an advert the model can NEVER parse converges toward rare retries instead of a
+// flat cadence forever (doubling: 2, 4, 8, 16, 32, capped at 60 minutes). Exported so tests can
+// compute exact expected offsets instead of duplicating these numbers as separate literals.
+export const SUPPRESSION_BASE_MS = 2 * 60_000;
+export const SUPPRESSION_MAX_MS = 60 * 60_000;
+// Bounds the negative cache's size the same way counters.ts bounds its recent-read-failures ring
+// buffer — a live feed (#99-#101) could otherwise grow this Map unboundedly across a long-running
+// process. Generous headroom over today's 17-posting fixture pool.
+const SUPPRESSION_MAX_ENTRIES = 500;
+
+/** Pure — escalating backoff for the Nth consecutive failure at the same version, base × 2^(n−1)
+ *  capped at SUPPRESSION_MAX_MS. Exported and tested directly for the same reason
+ *  computeReadFailureAlarm (counters.ts) is pure: exact-number testability without needing a live
+ *  makeAdReader closure. */
+export function computeSuppressionBackoffMs(failureCount: number): number {
+  return Math.min(SUPPRESSION_BASE_MS * 2 ** (failureCount - 1), SUPPRESSION_MAX_MS);
+}
+
+/** Pure — whether an existing suppression entry still applies right now, against the reader's
+ *  CURRENT version. Either an expired retryAt or a version mismatch means "stale" — the entry no
+ *  longer suppresses, whatever its failureCount.
+ *
+ *  The OPERATIVE guarantee against AC4 ("a previously-failing advert is retried after a
+ *  prompt/contract bump, never left permanently invisible") is the expired-retryAt half alone,
+ *  because SUPPRESSION_MAX_MS caps the backoff — every suppressed advert is retried again within
+ *  the hour regardless of whether the version ever changes. Review correction: the version-mismatch
+ *  half is NOT a live guard in production today. adReaderVersion() is a memoised hash of a fixed
+ *  on-disk prompt file plus a hand-bumped constant — it cannot change within a running process. A
+ *  real prompt/contract bump only takes effect through a redeploy, and a redeploy restarts the
+ *  process, which empties this whole in-memory negativeCache (a fresh Map, module-scoped inside
+ *  makeAdReader) anyway — so by the time a NEW version is actually running, there is no stale entry
+ *  left for it to rescue; the cache starts cold. The version field and comparison stay here as
+ *  defense-in-depth for a future where the version genuinely could move within a live process (e.g.
+ *  a hot-reloadable prompt), not because today's production path can ever exercise that branch.
+ *
+ *  Takes `currentVersion`/`now` explicitly, the same "pure, exact-input testable" shape counters.ts's
+ *  own alarm functions use, rather than reaching for adReaderVersion()/Date.now() itself — this is
+ *  what makes the (currently unreachable) version-mismatch branch provably correct as CODE even
+ *  though no live seam exists to exercise it end-to-end from a test. */
+export function isSuppressionActive(entry: SuppressionEntry, currentVersion: string, now: number): boolean {
+  return entry.version === currentVersion && now < entry.retryAt;
+}
+
 /** Thrown only for the "two bad answers in a row" case at the bottom of readAdvert's loop — a
  *  distinct class from a raw LLM-call failure (network/API error), which readAdvert never catches
  *  and lets propagate as whatever error the driver itself threw. makeAdReader's catch below tells
@@ -223,6 +285,11 @@ export async function readAdvert(
  * Never throws: a failed read (model, or the store itself) is dropped (no card, no fabricated
  * number) and counted, exactly as the ticket's "an advert that cannot be read produces no card" AC
  * requires.
+ *
+ * #114: a readAdvert failure is ALSO remembered in a bounded, escalating-backoff negative cache (see
+ * SuppressionEntry above), so an advert the model can't parse doesn't cost up to two model calls on
+ * every single request for it — only a store outage / store.put failure / language-skip null are
+ * excluded from that cache; see readOne's own comments at each of those sites for why.
  */
 export function makeAdReader(
   llm: LlmClient,
@@ -234,6 +301,32 @@ export function makeAdReader(
   // sequentially. Keyed by adId, cleared once the read settles either way (#104 review finding 7).
   const inFlight = new Map<string, Promise<AdRequirementsV1 | null>>();
 
+  // #114: the negative cache — an adId that recently failed readAdvert maps to when it may next be
+  // retried. Checked/written only around the readAdvert call below; see SuppressionEntry's own doc
+  // for exactly which failure paths this does and does not cover.
+  const negativeCache = new Map<string, SuppressionEntry>();
+
+  function recordSuppression(adId: string): void {
+    const existing = negativeCache.get(adId);
+    // A failure at a DIFFERENT version than the last one recorded starts the backoff over at 1 —
+    // the previous failure count was measured against a prompt/contract that no longer applies, so
+    // it says nothing about how likely THIS version is to keep failing.
+    const failureCount = existing && existing.version === adReaderVersion() ? existing.failureCount + 1 : 1;
+    negativeCache.set(adId, {
+      version: adReaderVersion(),
+      retryAt: Date.now() + computeSuppressionBackoffMs(failureCount),
+      failureCount,
+    });
+    // Bounded the same way counters.ts bounds its recent-read-failures ring buffer. Map iteration
+    // order is insertion order, and .set() on an already-present key does not move it, so this is a
+    // simple FIFO eviction (oldest entry falls off first) — good enough for a safety-net cap, not
+    // meant to be precise LRU.
+    if (negativeCache.size > SUPPRESSION_MAX_ENTRIES) {
+      const oldestKey = negativeCache.keys().next().value;
+      if (oldestKey !== undefined) negativeCache.delete(oldestKey);
+    }
+  }
+
   const readOne = async (posting: Posting): Promise<AdRequirementsV1 | null> => {
     let cached: AdRequirementsRecord | null;
     try {
@@ -242,12 +335,32 @@ export function makeAdReader(
       // A store outage (or, before a contract bump was made version-safe, an unparseable old row)
       // must not vanish silently — count it the same as any other unreadable advert, and don't
       // blindly fall through to a paid model call that would just fail the same way on put() below
-      // if the store itself is down (#104 review finding 4).
+      // if the store itself is down (#104 review finding 4). Deliberately NOT negatively cached — no
+      // model call happened, so suppressing the NEXT attempt would only delay recovery from what
+      // might be a momentary store blip, saving nothing.
       incrementCounter("postings.read_failed");
       recordReadFailure(posting.id, "store-unavailable", err instanceof Error ? err.message : String(err));
       return null;
     }
     if (cached && cached.version === adReaderVersion()) return cached.requirements;
+
+    const suppressed = negativeCache.get(posting.id);
+    if (suppressed) {
+      if (isSuppressionActive(suppressed, adReaderVersion(), Date.now())) {
+        incrementCounter("adReader.read_suppressed");
+        return null;
+      }
+      // Stale — the backoff window passed, which is the operative guarantee against a permanently
+      // -broken advert going silent forever (SUPPRESSION_MAX_MS bounds it). A stale VERSION mismatch
+      // is handled by the exact same branch below defense-in-depth (see isSuppressionActive's own
+      // doc for why that half is unreachable in production today). Either way this advert gets
+      // exactly one more attempt below. Deliberately NOT deleted here (only overwritten by
+      // recordSuppression on a fresh failure, or explicitly deleted below on a genuine success) —
+      // recordSuppression's own failureCount logic needs the PRIOR entry still present to tell
+      // "still failing at the same version, escalate the backoff" apart from "version moved, start
+      // the backoff over".
+      incrementCounter("adReader.read_suppression_lifted");
+    }
 
     let result: AdReadResult | null;
     try {
@@ -259,9 +372,19 @@ export function makeAdReader(
         err instanceof AdReadValidationError ? "model-output-invalid" : "model-call-error",
         err instanceof Error ? err.message : String(err),
       );
+      recordSuppression(posting.id);
       return null;
     }
-    if (!result) return null; // language skip — already counted inside readAdvert
+    if (!result) return null; // language skip — already counted inside readAdvert; never suppressed
+    // (no model call was made, so there is nothing a negative cache entry would save)
+
+    // #114 review must-fix 4: a genuine success must clear any lingering suppression entry for this
+    // adId right now, not leave it to go stale on its own. Left in place, a SUBSEQUENT store.put
+    // failure below (a real but different failure mode — see its own comment) would otherwise find
+    // the entry still sitting there on the NEXT request: read_suppression_lifted would fire again
+    // for a "suppression" that was never re-armed, and if that next attempt failed, recordSuppression
+    // would resume escalating failureCount from a number a real success already disproved.
+    negativeCache.delete(posting.id);
 
     try {
       await store.put(posting.id, {

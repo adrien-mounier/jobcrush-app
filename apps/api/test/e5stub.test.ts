@@ -7,7 +7,8 @@ import {
   listAdRequirements,
   loadFamilyFloor,
   loadAdRequirements,
-  parseAdRequirementsList,
+  lookupAdRequirements,
+  withFixtureOverrideForTest,
 } from "../src/e5stub.js";
 import { matchTick, type ScoredFact } from "../src/matchtick.js";
 import { readCounters } from "../src/counters.js";
@@ -81,17 +82,128 @@ describe("E5 stub providers (#12)", () => {
 
   // #104 carry-forward from the #102 review: listAdRequirements() used to map(parse) across every
   // advert, so one unparseable entry threw out of the .map() and took the WHOLE list down. Fixed to
-  // drop only the broken entry — proven here at parseAdRequirementsList's own seam (a plain array in,
-  // an array out), never touching the real on-disk fixture the other tests in this file depend on.
-  it("parseAdRequirementsList drops an unparseable entry instead of taking the whole list down (#102 carry-forward), counted on its OWN counter (#104 review finding 6)", () => {
-    const before = readCounters()["postings.fixture_invalid"];
-    const failedBefore = readCounters()["postings.read_failed"];
+  // drop only the broken entry. #114 review: this used to be proven against a separate
+  // parseAdRequirementsList helper's own seam instead of listAdRequirements itself — a second
+  // implementation nothing in production called, deleted outright (see e5stub.ts's own doc). Proven
+  // here against the REAL function production runs instead, via withFixtureOverrideForTest so the
+  // shipped fixture file stays untouched.
+  it("listAdRequirements drops an unparseable entry instead of taking the whole list down (#102 carry-forward), counted on its OWN counter (#104 review finding 6)", async () => {
     const good = loadAdRequirements("2026-07-05_manulife_senior-it-project-manager-delivery-manager");
-    const bad = { ...good, requirements: [] }; // min(1) violation — fails AdRequirementsV1
-    const result = parseAdRequirementsList([good, bad]);
-    expect(result.map((r) => r.adId)).toEqual([good.adId]);
-    expect(readCounters()["postings.fixture_invalid"]).toBe(before + 1);
-    expect(readCounters()["postings.read_failed"]).toBe(failedBefore); // never poisons the alarm's numerator
+    const bad = { ...good, adId: "broken-fixture-for-102-carry-forward", requirements: [] }; // min(1) violation
+    await withFixtureOverrideForTest(
+      (real) => [...real, bad],
+      async () => {
+        const before = readCounters()["postings.fixture_invalid"];
+        const failedBefore = readCounters()["postings.read_failed"];
+        const result = listAdRequirements();
+        expect(result.map((r) => r.adId)).toContain(good.adId);
+        expect(result.map((r) => r.adId)).not.toContain(bad.adId);
+        expect(readCounters()["postings.fixture_invalid"]).toBe(before + 1);
+        expect(readCounters()["postings.read_failed"]).toBe(failedBefore); // never poisons the alarm's numerator
+      },
+    );
+  });
+
+  // #114: lookupAdRequirements is the three-way answer resolveAdRequirements (routes/onboarding.ts)
+  // needs — proven here at its own seam (a plain adId in, a status out), never touching the real
+  // on-disk fixture the rest of this file depends on.
+  describe("#114 lookupAdRequirements — found / missing / invalid", () => {
+    it("reports 'found' for a real curated adId, same requirements loadAdRequirements returns", () => {
+      const adId = "2026-07-05_manulife_senior-it-project-manager-delivery-manager";
+      const result = lookupAdRequirements(adId);
+      expect(result).toEqual({ status: "found", requirements: loadAdRequirements(adId) });
+    });
+
+    it("reports 'missing' for an adId nobody ever curated", () => {
+      expect(lookupAdRequirements("not-a-real-ad-id")).toEqual({ status: "missing" });
+    });
+
+    it("reports 'invalid', not 'missing', for a curated adId whose entry fails validation — counted once, at index build, not on the lookup", async () => {
+      const target = "corrupt-fixture-for-114";
+      const good = loadAdRequirements("2026-07-05_manulife_senior-it-project-manager-delivery-manager");
+      const corrupted = { ...good, adId: target, requirements: [] }; // min(1) violation
+      await withFixtureOverrideForTest(
+        (real) => [...real, corrupted],
+        async () => {
+          const before = readCounters()["postings.fixture_invalid"];
+          // The FIRST lookup already sees "invalid" — the index (and its one-time count) was built
+          // as soon as anything touched it, not lazily deferred to this call.
+          expect(lookupAdRequirements(target)).toEqual({ status: "invalid" });
+          expect(readCounters()["postings.fixture_invalid"]).toBe(before + 1);
+          // A second lookup for the SAME adId must not count it again (#104 review finding 6's
+          // "counted once" property, now enforced by the shared index rather than a per-call cache).
+          lookupAdRequirements(target);
+          expect(readCounters()["postings.fixture_invalid"]).toBe(before + 1);
+        },
+      );
+    });
+
+    it("still counts a broken fixture whose OWN adId is missing/unreadable, even though no lookup can ever find it", async () => {
+      await withFixtureOverrideForTest(
+        (real) => [...real, { schemaVersion: "1", curated: false, requirements: [] }], // no adId at all
+        async () => {
+          const before = readCounters()["postings.fixture_invalid"];
+          // Nothing can look this one up by id — it has none — but building the index still counts
+          // it once, the same as any other broken fixture (buildFixtureIndex's own doc).
+          lookupAdRequirements("anything"); // triggers a lazy index build if one hasn't happened yet
+          expect(readCounters()["postings.fixture_invalid"]).toBe(before + 1);
+        },
+      );
+    });
+
+    it("restores the real fixture set once the override ends", async () => {
+      const realAdId = "2026-07-05_manulife_senior-it-project-manager-delivery-manager";
+      await withFixtureOverrideForTest(
+        () => [{ schemaVersion: "1", adId: "only-this-one", curated: false, requirements: [] }],
+        async () => {
+          expect(lookupAdRequirements(realAdId)).toEqual({ status: "missing" }); // real fixture shadowed
+        },
+      );
+      expect(lookupAdRequirements(realAdId).status).toBe("found"); // back to normal
+    });
+
+    // #114 review must-fix 3: the first version of buildFixtureIndex just called index.set() in a
+    // loop, so array order silently decided a duplicate adId's outcome (last entry wins) — a broken
+    // copy-pasted duplicate AFTER a good one would shadow it and drop a resolvable card with no
+    // signal beyond a counter bump. #86 names exactly that ("a winnable job silently disappears") as
+    // this engine's worst failure, so it's pinned here at the lookup seam rather than left implicit.
+    describe("duplicate adIds — a valid entry always wins over an invalid one", () => {
+      const dup = "duplicate-adid-for-114";
+      const good = () =>
+        ({ ...loadAdRequirements("2026-07-05_manulife_senior-it-project-manager-delivery-manager"), adId: dup });
+      const bad = () => ({ ...good(), requirements: [] }); // min(1) violation
+
+      it("a good entry AFTER a broken duplicate still resolves — the broken one does not shadow it", async () => {
+        await withFixtureOverrideForTest(
+          (real) => [...real, bad(), good()],
+          async () => {
+            expect(lookupAdRequirements(dup)).toEqual({ status: "found", requirements: good() });
+          },
+        );
+      });
+
+      it("a good entry BEFORE a broken duplicate still resolves — order doesn't matter either way", async () => {
+        await withFixtureOverrideForTest(
+          (real) => [...real, good(), bad()],
+          async () => {
+            expect(lookupAdRequirements(dup)).toEqual({ status: "found", requirements: good() });
+          },
+        );
+      });
+
+      it("two broken duplicates still report 'invalid', never crash, and count once EACH at index build", async () => {
+        await withFixtureOverrideForTest(
+          (real) => [...real, bad(), bad()],
+          async () => {
+            const before = readCounters()["postings.fixture_invalid"];
+            expect(lookupAdRequirements(dup)).toEqual({ status: "invalid" });
+            // Each broken entry in the raw file is still its own parse failure — counted per entry,
+            // same as any other pair of unrelated bad fixtures, just sharing an id.
+            expect(readCounters()["postings.fixture_invalid"]).toBe(before + 2);
+          },
+        );
+      });
+    });
   });
 
   it("scores every new curated set as a varied, believable strong fit", () => {

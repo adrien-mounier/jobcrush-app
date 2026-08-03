@@ -21,7 +21,7 @@ import { renderRootCv, SECTIONS } from "../rootcv.js";
 import { runGate } from "../gate.js";
 import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
-import { loadFamilyFloor, loadAdRequirements } from "../e5stub.js";
+import { loadFamilyFloor, lookupAdRequirements } from "../e5stub.js";
 import { eligiblePostings, type Posting } from "../preview.js";
 import { ANY_FAMILY, type EligibilityFact, type EligibilityStore } from "../eligibility.js";
 import {
@@ -1487,38 +1487,46 @@ export function withReadTimeout<T>(promise: Promise<T>, ms: number): Promise<T> 
  *  persists to the store on success, so the advert is cached for the next request. That is a slow
  *  first read, not a failed one — postings.read_failed (the read-failure alarm's numerator) is
  *  reserved for a read that produced nothing usable at all, same distinction #103 already drew for
- *  language skips. See counters.ts's header for the full reasoning. */
+ *  language skips. See counters.ts's header for the full reasoning.
+ *
+ *  #114: fixture resolution is a three-way lookupAdRequirements (e5stub.ts) now, not a bare
+ *  try/catch around loadAdRequirements — a curated fixture that fails validation ("invalid") is no
+ *  longer indistinguishable from an adId nobody ever curated ("missing"). "Invalid" drops the card
+ *  and makes NO model call: the advert was already hand-curated, so re-deriving it from the model
+ *  would be paying to redo work someone already did wrong, not work nobody did. Already counted
+ *  (postings.fixture_invalid, e5stub.ts's buildFixtureIndex) once at index build, not counted again
+ *  here. */
 async function resolveAdRequirements(
   adId: string,
   readAd: OnboardingDeps["readAd"],
   posting: Posting,
 ): Promise<AdRequirementsV1 | null> {
+  const lookup = lookupAdRequirements(adId);
+  if (lookup.status === "found") return lookup.requirements;
+  if (lookup.status === "invalid") return null; // no fallback to the reader — see doc above
+  // status === "missing" — unchanged fall-through to the injected reader.
+  if (!readAd) return null;
   try {
-    return loadAdRequirements(adId);
-  } catch {
-    if (!readAd) return null;
-    try {
-      const result = await withReadTimeout(readAd(posting), READ_TIMEOUT_MS);
-      // Settled before the deadline — whatever it settled to (a real result, or a null already
-      // counted as postings.read_failed inside makeAdReader). This is the timeout alarm's OTHER
-      // half (counters.ts): a promptness signal, deliberately decoupled from validity.
-      incrementCounter("postings.read_in_time");
-      return result;
-    } catch (err) {
-      if (err instanceof ReadTimeoutError) {
-        incrementCounter("postings.read_timed_out");
-        recordReadFailure(adId, "timeout", err.message);
-      } else {
-        // Not the timeout — readAd itself rejected. The production reader never does this (see
-        // ReadTimeoutError's doc above), so this branch is untested territory for it; classified
-        // "reader-rejected" rather than "model-call-error" because this call site has no visibility
-        // into WHY a non-standard readAd implementation rejected, and "model-call-error" is
-        // adReader.ts's own claim about a specific, known cause this site cannot actually vouch for.
-        incrementCounter("postings.read_failed");
-        recordReadFailure(adId, "reader-rejected", err instanceof Error ? err.message : String(err));
-      }
-      return null;
+    const result = await withReadTimeout(readAd(posting), READ_TIMEOUT_MS);
+    // Settled before the deadline — whatever it settled to (a real result, or a null already
+    // counted as postings.read_failed inside makeAdReader). This is the timeout alarm's OTHER
+    // half (counters.ts): a promptness signal, deliberately decoupled from validity.
+    incrementCounter("postings.read_in_time");
+    return result;
+  } catch (err) {
+    if (err instanceof ReadTimeoutError) {
+      incrementCounter("postings.read_timed_out");
+      recordReadFailure(adId, "timeout", err.message);
+    } else {
+      // Not the timeout — readAd itself rejected. The production reader never does this (see
+      // ReadTimeoutError's doc above), so this branch is untested territory for it; classified
+      // "reader-rejected" rather than "model-call-error" because this call site has no visibility
+      // into WHY a non-standard readAd implementation rejected, and "model-call-error" is
+      // adReader.ts's own claim about a specific, known cause this site cannot actually vouch for.
+      incrementCounter("postings.read_failed");
+      recordReadFailure(adId, "reader-rejected", err instanceof Error ? err.message : String(err));
     }
+    return null;
   }
 }
 
