@@ -2,6 +2,53 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-04 (session 69) — `/orchestrate-team #99`: the retrieval contract finally exists in code
+
+- **[#99](https://github.com/adrien-mounier/jobcrush-app/issues/99) shipped in `7086ec5`, closed.**
+  The first of the three slices closing the gap #85 left open (contract decided, implementation never
+  filed). Pure slice — four shapes in both the `.mjs` oracle and the zod port, a provider registry as
+  data, and `dedupePostings`. No routes, no network, no store; that is #100/#101. Gates green on the
+  combined tree (865 tests: 39 contracts, 826 api), CI green, deployed.
+- 🔑 **A posting's identity is now derived from its content, and both validators check the derivation.**
+  `PostingV1.id` is `posting:<canonicalKey>` where `canonicalKey` is verified to genuinely be the
+  sha256 of the normalized `company|location|title` — not merely typed as a string, which is how the
+  shipped fixture initially passed both validators with a key that was *not* its own hash. Identity
+  therefore survives a provider dropping out or a second provider picking the same job up.
+- 🚨 **The port and the oracle had already drifted, and the golden tests were not looking.** Only the
+  result union was compared; `ProviderPostingRecordV1` and `PostingProviderPolicyV1` were exported and
+  never run against their ports — so `authorityRank: Infinity` was accepted by zod and rejected by the
+  oracle. Per the repo rule the port was wrong (`z.number()` admits `Infinity`, `_lib.mjs`'s `isNumber`
+  does not). **The lesson is the coverage gap, not the missing `.finite()`**: a shape that is ported
+  but not golden-tested is not actually governed by the oracle. All four are compared now.
+- 🐛 **Two different jobs could merge through an unescaped delimiter.** `normalize` stripped `,.()` but
+  not `|` — the character joining the three key fields — so `{company:"HSBC|Hong Kong",
+  location:"Singapore"}` and `{company:"HSBC", location:"Hong Kong|Singapore"}` produced the same key
+  and one posting. Found by QA's dedup attack, not by any test we wrote. `|` is now stripped in both
+  implementations. Distinct from the *accepted* limitation below: this one was a forgeable boundary,
+  which is a whole class deleted rather than a tradeoff.
+- 🐛 **The "deterministic" tie-break silently never ran.** Unregistered providers get rank `+Infinity`,
+  and `Infinity - Infinity` is `NaN`, so the comparator returned `NaN` and bailed before reaching the
+  providerId tie-break — leaving the winner an accident of input order while a code comment asserted
+  the opposite. Caught by reading the comparator, not by a failing test.
+- ⚠️ **Accepted and pinned by test: two genuinely different jobs sharing an identical company +
+  location + title still merge.** Inherent to a content-derived key — adding `sourceUrl` or a provider
+  discriminator would stop cross-provider dedup working at all, which is the entire point of the
+  function. The contract doc's claim that the rule "never silently drops a distinct one" was overstated
+  and is now qualified. [#92](https://github.com/adrien-mounier/jobcrush-app/issues/92) exists to
+  measure how often it actually bites.
+- **The "known gap" resolved by recording, not building.** `JobCardV1` still has no attribution field,
+  so activation requires `!attributionRequired` alongside the two permission booleans: a provider whose
+  attribution we cannot render must not go live. Recorded in §2.2 with the consequence stated —
+  flipping a live provider's flag removes it from the active registry immediately, with no other code
+  change. Chosen over versioning the card contract on a need no launch provider has confirmed.
+- **Carried to #100/#101** (on the ticket): fail-closed lives in the loader, so `dedupePostings` will
+  happily process a provider permitting neither storage nor matching if the boundary bypasses
+  `loadActivePostingProviders()`; `Coverage` truthfulness is unverifiable from the schema; and
+  `packages/contracts` is no longer isomorphic (it computes sha256 via `node:crypto`), harmless today
+  because nothing bundles it for the browser.
+- **Process note:** ran in an isolated worktree alongside two concurrent sessions. #114 landed on
+  `main` mid-gate; zero file overlap, clean rebase, re-gated against the new main before pushing.
+
 ## 2026-08-03 (session 68) — `/orchestrate-team #107`: a job you genuinely cannot take leaves your deck
 
 - **[#107](https://github.com/adrien-mounier/jobcrush-app/issues/107) shipped in `e62a455`, closed.**

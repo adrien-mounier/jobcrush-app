@@ -1,5 +1,43 @@
 # Lessons — jobcrush-app
 
+## A shape that is ported but not golden-tested is not actually governed by the oracle
+
+The repo rule says the `.mjs` oracle is the contract spec and the zod port is wrong on any
+disagreement. That rule only has force where a **golden test actually compares them**. #99 shipped four
+new shapes and golden-tested only the outer result union; the other two were written, exported, and
+never run against their ports — and had already drifted, because `z.number()` accepts `Infinity` while
+`_lib.mjs`'s `isNumber` requires `Number.isFinite`. Nothing was red. Two independent reviewers found it
+by reading, not by a failing test.
+
+The trap is that writing both artefacts *feels* like satisfying the rule. It isn't: an untested port
+is a second, silently diverging spec. **Adding a shape to `packages/contracts/src` means adding it to
+the mutation list in `golden.test.ts` in the same change** — and the mutation list must assert both
+`zod.success === oracle.ok` *and* that the mutated value is actually rejected, or a vacuous test passes
+while comparing two validators that both accept everything.
+
+Where zod and the hand-written oracle predictably disagree, worth checking every time: `z.number()`
+admits `Infinity`/`-0` where `isNumber` does not; `.default()` makes a key optional in the port, so the
+oracle must treat absent-vs-present identically; and `.strict()` has to be matched by an explicit
+unknown-key check on the oracle side. A differential fuzzer over the pair is cheap and worth it — QA's
+found no further disagreement across 43,510 generated inputs, which is the evidence that made the
+alignment believable rather than asserted.
+
+## A derived identifier that is only *typed* as a string is not derived
+
+Related, same slice. `PostingV1.id` is specified as `posting:<canonicalKey>` with `canonicalKey` being
+a sha256 of normalized content. Both validators initially checked only the string relation between the
+two fields — so the shipped fixture passed with a `canonicalKey` that was **not** the hash of its own
+content, and nothing noticed. If a contract says a field is derived, the validator has to recompute the
+derivation; otherwise the field is decorative and the invariant lives only in the one function that
+happens to build it correctly today.
+
+The related failure to check when a key is built by joining fields: **the delimiter must be impossible
+to forge from field content.** `sha256(company + "|" + location + "|" + title)` merged two genuinely
+different jobs because `normalize` stripped `,.()` but not `|`. Either strip the delimiter during
+normalization (what #99 did) or length-prefix the parts — but do not assume real-world employer and
+title strings won't contain your separator, because job titles like `"Project Manager | Fintech"` are
+ordinary.
+
 ## Two facts that share a name do not share a granularity — and matching them deletes silently
 
 This repo has now hit the same trap twice. #106 tried to join a provider's `applicantLocationRequirements`
