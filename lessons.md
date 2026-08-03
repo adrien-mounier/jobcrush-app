@@ -1,5 +1,31 @@
 # Lessons — jobcrush-app
 
+## A test that hardcodes a calendar date against a freshness window is a bomb with a fuse, not a flaky test
+
+`judgementStore.test.ts`'s "already fresh" case seeded `last_used_at` from a fixed
+`2026-08-02T00:00:00Z` and asserted the store performed no redundant write. That is true only while
+wall-clock now is inside `TOUCH_STALE_AFTER_MS`'s 24h window of that literal date. The suite was green
+at 02:23 on 2026-08-03 and **deterministically red by 10:57 the same day** — same code, same commit,
+no edit in between. It reads as flakiness and is the opposite: it will now fail on every run, forever.
+
+Worth knowing because of how it presents: a green baseline at session start is not evidence the suite
+will still be green at session end, and "the tests were passing this morning" is not proof you broke
+something. If a failure's expected value is a literal date in the past, look at the clock before you
+look at the diff. Seed relative to `now()` when the assertion is about freshness.
+
+## A keyword count is not a measurement — read the sentence
+
+#106's ticket recorded "2 of 16 adverts state a work-authorisation requirement", and the whole question
+set was to be derived from counts like it. Both hits were the word *sponsor* meaning the **executive who
+backs a project** ("the project sponsor", "stakeholders, sponsors, and management") — not visa
+sponsorship. The real count is **0**. The same corpus has a twin: searching `fluen` for "fluent" matches
+inside **Confluence**, a tool named in several adverts' tooling lists.
+
+Both traps survive a plausible-looking regex and produce a number nobody re-checks, because a number in
+a ticket reads as measured. When a derivation is load-bearing — here it decided which questions every
+visitor is asked — read the surrounding sentence for every hit, and record the false positives in the
+doc so the next person's regex doesn't quietly restore the wrong answer.
+
 ## A per-request budget is not a per-visitor budget the moment the client is allowed to retry
 
 #117 caps paid judgements at 8 per deck request. The first implementation ranked the paid set over the

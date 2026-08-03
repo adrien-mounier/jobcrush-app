@@ -2,6 +2,48 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-03 (session 67) — `/orchestrate-team #106`: the three questions JobCrush asks once, and never again
+
+- **[#106](https://github.com/adrien-mounier/jobcrush-app/issues/106) shipped in `56110d1`, closed.**
+  Discovery now asks three eligibility questions inside the existing conversation — years in the
+  pinned family, work rights, English — reused on every advert, never re-asked per job. Three
+  distinguishable states, which is the whole point: an explicit "no" is a stored value, a decline
+  (`Ask me later`) records the ask and stores nothing so the fact reads back **unknown**, and
+  retracting an answer to a decline **erases** the stored value. Question set derived from the
+  17-advert APAC corpus and recorded in `docs/research/eligibility-dimensions-from-the-corpus.md`.
+  Gate 753 api + 29 contracts green; QA GO on a live browser drive, 48/48 assertions, 164 screenshots.
+- 🔍 **The ticket's own measurement was wrong, and the doc now says so.** #106's body cited "2 work
+  authorisation" across the corpus. Re-derivation found **0/17**: both hits were the word *sponsor* in
+  its **project-sponsor** sense ("the project sponsor", "stakeholders, sponsors, and management"). The
+  language count had a twin trap — a naive `fluen` search matches inside **Confluence**. Owner signed
+  off asking `work-rights` anyway (spec #86 story 7 promises it; #107 depends on it) as an explicit,
+  recorded deviation from "a dimension nobody asks for is not asked".
+- 🐛 **Three defects worth remembering, all caught before the commit.** (1) Review: every eligibility
+  answer, *including affirmative ones*, was persisted through the claims store's `negative` path — and
+  `buildClaimGraph` stamps those `classification: "Negative"`, which the oracle defines as a
+  **confirmed gap Tailor must never assert**. "Yes, I work in English" would have entered the audited
+  root-CV graph as a fact the visitor does **not** have. (2) QA: a declined question permanently
+  inflated the fact badge on three surfaces — `/profile`, tailor, and `buildJobCard`'s `fit`/
+  `askedClosed`, i.e. it showed on **every card in the deck** — latched forever by #33's monotonic
+  fact floor. (3) The funnel silently grew from ~3 pre-deck questions to **11**: eligibility was
+  appended after the *whole* standard band while the deck gate waited on it, so the standard band —
+  previously reachable only via the deck-exhausted loopback — became mandatory. Now ordered between
+  essential and standard; the deck opens after **six**.
+- **AC5 not met, deliberately, and carried forward.** "Prefer a provider's structured work-eligibility
+  signal to asking the user." The seam built for it was **deleted in review**: the provider's
+  `applicantLocationRequirements` is a *location list* while the asked value is
+  `eligible`/`needs-sponsorship` — disjoint spaces that need a visitor-location fact this codebase
+  does not have. Recorded on [#99](https://github.com/adrien-mounier/jobcrush-app/issues/99).
+- **Follow-up filed:** [#120](https://github.com/adrien-mounier/jobcrush-app/issues/120) — an
+  eligibility answer is correctable only in the moment; the *last* one loses its fix window to the
+  deck handoff in 800ms. `/profile` is read-only, so a durable editor is its own ticket.
+- ⚠️ **`56110d1` is committed but NOT pushed.** `main` is red on a pre-existing time-bomb test
+  (`judgementStore.test.ts`, "does NOT write on a read when last_used_at is already fresh") that
+  hardcodes `2026-08-02T00:00:00Z` against a 24h freshness window — it went red mid-session as the
+  wall clock passed 2026-08-03T00:00Z, with nothing to do with this work. The fix exists only in a
+  concurrent session's uncommitted #117 work, so pushing `56110d1` alone would land a red CI and a
+  broken auto-deploy. Push once that lands.
+
 ## 2026-08-03 (session 66) — `/orchestrate-team #117`: the deck buys eight honest scores and stops inventing the other seven
 
 - **[#117](https://github.com/adrien-mounier/jobcrush-app/issues/117) shipped in `9b348af`, ticket
