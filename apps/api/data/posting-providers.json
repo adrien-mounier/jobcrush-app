@@ -1,0 +1,41 @@
+[
+  {
+    "schemaVersion": "1",
+    "providerId": "curated-pool",
+    "regionsServed": ["*"],
+    "authorityRank": 0,
+    "permitsStorage": true,
+    "permitsMatching": true,
+    "attributionRequired": false,
+    "attributionTemplate": null,
+    "rateLimit": { "perMinute": null, "perDay": null, "perMonth": null },
+    "costModel": { "kind": "operatorHours" },
+    "freshnessTtlHours": 24
+  },
+  {
+    "schemaVersion": "1",
+    "providerId": "techmap",
+    "regionsServed": ["HK", "SG", "VN", "AU"],
+    "authorityRank": 1,
+    "permitsStorage": true,
+    "permitsMatching": true,
+    "attributionRequired": false,
+    "attributionTemplate": null,
+    "rateLimit": { "perMinute": 24, "perDay": null, "perMonth": 1000 },
+    "costModel": { "kind": "perThousandPostings", "amountUsd": 1 },
+    "freshnessTtlHours": 24
+  },
+  {
+    "schemaVersion": "1",
+    "providerId": "theirstack",
+    "regionsServed": ["HK", "SG", "VN", "AU"],
+    "authorityRank": 2,
+    "permitsStorage": false,
+    "permitsMatching": false,
+    "attributionRequired": true,
+    "attributionTemplate": null,
+    "rateLimit": { "perMinute": null, "perDay": null, "perMonth": 1500 },
+    "costModel": { "kind": "flatMonthlyTier", "amountUsd": 59, "includedUnits": 1500 },
+    "freshnessTtlHours": 24
+  }
+]

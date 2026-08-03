@@ -13,6 +13,9 @@ import {
   FamilyPlacement,
   Inbox,
   JobCardV1,
+  PostingProviderPolicyV1,
+  PostingRetrievalResultV1,
+  ProviderPostingRecordV1,
 } from "../src/index.js";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateCandidateClaims } from "../oracle/validate_candidate_claims.mjs";
@@ -28,6 +31,8 @@ import { validateFamilyFloorV1 } from "../oracle/validate_family_floor_v1.mjs";
 import { validateFamilyPlacement } from "../oracle/validate_family_placement.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateAdRequirementsV1 } from "../oracle/validate_ad_requirements_v1.mjs";
+// @ts-expect-error — plain .mjs oracle, no types by design
+import { validatePostingRetrievalResultV1, validateProviderPostingRecordV1, validatePostingProviderPolicyV1 } from "../oracle/validate_posting_retrieval_v1.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string) =>
@@ -400,5 +405,205 @@ describe("JobCard v1", () => {
       expect(JobCardV1.safeParse(card).success).toBe(validateJobCardV1(card).ok);
       expect(validateJobCardV1(card).ok).toBe(false);
     }
+  });
+});
+
+describe("Posting retrieval v1 (#99)", () => {
+  const valid = fixture("posting-retrieval-v1.valid.json");
+
+  it("valid fixture passes oracle and zod", () => {
+    expect(validatePostingRetrievalResultV1(valid).ok).toBe(true);
+    expect(PostingRetrievalResultV1.safeParse(valid).success).toBe(true);
+  });
+
+  it("keeps oracle and zod aligned for every required structural invariant", () => {
+    const mutations: Array<(value: any) => void> = [
+      // top-level schemaVersion is pinned to "2" on every arm
+      (value) => (value.schemaVersion = "1"),
+      // unknown/extra keys rejected — same mechanism as the ad-requirements oracle
+      (value) => (value.unknownField = true),
+      (value) => (value.postings[0].unknownField = true),
+      // PostingV1.id must equal "posting:" + canonicalKey — enforce the derivation
+      (value) => (value.postings[0].id = "posting:not-the-real-key"),
+      // PostingV1 carries schemaVersion "2", not "1"
+      (value) => (value.postings[0].schemaVersion = "1"),
+      // PostingV1.sources has min length 1
+      (value) => (value.postings[0].sources = []),
+      // canonicalKey must actually BE sha256(normalize(company)+"|"+normalize(location)+"|"
+      // +normalize(title)) — not just any non-empty string that happens to match `id`. Keep id and
+      // canonicalKey consistent with EACH OTHER here so only the hash-derivation check fires, not
+      // the separate id-derivation one.
+      (value) => {
+        const fakeKey = "0".repeat(64);
+        value.postings[0].canonicalKey = fakeKey;
+        value.postings[0].id = `posting:${fakeKey}`;
+      },
+      // relevant_postings requires postings non-empty
+      (value) => (value.postings = []),
+      // coverage.complete === (providersUnavailable.length === 0) — an inconsistent pair is invalid
+      (value) => {
+        value.coverage.complete = true;
+        value.coverage.providersUnavailable = ["techmap"];
+      },
+      // empty_pool requires coverage.complete === true — an empty result while a provider was
+      // unavailable is not an empty pool. coverage is internally CONSISTENT here (complete=false
+      // matches a non-empty providersUnavailable), so only the outcome-level rule can catch this.
+      (value) => {
+        value.outcome = "empty_pool";
+        delete value.postings;
+        value.coverage.complete = false;
+        value.coverage.providersUnavailable = ["techmap"];
+      },
+      // invalid_request.code must be one of exactly the four named codes
+      (value) => {
+        value.outcome = "invalid_request";
+        delete value.postings;
+        delete value.coverage;
+        delete value.retrievedAt;
+        value.code = "not_a_real_code";
+      },
+      // empty_pool requires at least one provider to have been queried — a well-formed empty sweep
+      // with zero providers asked (and none unavailable) is search_area_not_covered, not empty_pool.
+      (value) => {
+        value.outcome = "empty_pool";
+        delete value.postings;
+        value.coverage = { providersQueried: [], providersUnavailable: [], complete: true };
+      },
+    ];
+    for (const mutate of mutations) {
+      const value = structuredClone(valid);
+      mutate(value);
+      const oracle = validatePostingRetrievalResultV1(value).ok;
+      expect(PostingRetrievalResultV1.safeParse(value).success, `zod/oracle disagree after ${mutate.toString()}`).toBe(oracle);
+      expect(oracle).toBe(false);
+    }
+  });
+
+  it("accepts every named invalid_request code", () => {
+    for (const code of [
+      "missing_intent",
+      "family_not_published",
+      "floor_not_covered",
+      "search_area_not_covered",
+    ]) {
+      const invalidRequest = { schemaVersion: "2", outcome: "invalid_request", code };
+      expect(validatePostingRetrievalResultV1(invalidRequest).ok).toBe(true);
+      expect(PostingRetrievalResultV1.safeParse(invalidRequest).success).toBe(true);
+    }
+  });
+
+  it("empty_pool with a fully complete coverage sweep validates in both", () => {
+    const emptyPool = {
+      schemaVersion: "2",
+      outcome: "empty_pool",
+      coverage: { providersQueried: ["curated-pool"], providersUnavailable: [], complete: true },
+      retrievedAt: "2026-08-01T09:05:00Z",
+    };
+    expect(validatePostingRetrievalResultV1(emptyPool).ok).toBe(true);
+    expect(PostingRetrievalResultV1.safeParse(emptyPool).success).toBe(true);
+  });
+});
+
+describe("ProviderPostingRecordV1 (#99)", () => {
+  const valid = {
+    schemaVersion: "1",
+    providerId: "curated-pool",
+    providerPostingId: "curated-001",
+    title: "Senior Project Manager",
+    company: "BNP Paribas",
+    location: "Hong Kong",
+    sourceUrl: "https://example.com/jobs/senior-project-manager",
+    excerpt: "Lead delivery of a portfolio of technology programs across APAC.",
+    postedAt: "2026-07-28T00:00:00Z",
+    capturedAt: "2026-07-29T09:00:00Z",
+    verifiedLiveAt: "2026-08-01T09:00:00Z",
+    expiresAt: "2026-09-01T00:00:00Z",
+    attribution: null,
+    applicantLocationRequirements: ["Hong Kong"],
+    skills: ["Agile delivery"],
+  };
+
+  it("valid record passes oracle and zod", () => {
+    expect(validateProviderPostingRecordV1(valid).ok).toBe(true);
+    expect(ProviderPostingRecordV1.safeParse(valid).success).toBe(true);
+  });
+
+  it("keeps oracle and zod aligned for every required structural invariant", () => {
+    const mutations: Array<(value: any) => void> = [
+      (value) => (value.schemaVersion = "2"),
+      (value) => delete value.providerId,
+      (value) => (value.title = ""),
+      (value) => (value.postedAt = ""), // non-empty string or null, not an empty string
+      (value) => (value.attribution = { label: "via X" }), // missing url
+      (value) => (value.applicantLocationRequirements = ["Hong Kong", 1]),
+      (value) => (value.skills = "Agile delivery"), // must be an array
+      (value) => (value.unknownField = true),
+    ];
+    for (const mutate of mutations) {
+      const value = structuredClone(valid);
+      mutate(value);
+      const oracle = validateProviderPostingRecordV1(value).ok;
+      expect(ProviderPostingRecordV1.safeParse(value).success, `zod/oracle disagree after ${mutate.toString()}`).toBe(oracle);
+      expect(oracle).toBe(false);
+    }
+  });
+});
+
+describe("PostingProviderPolicyV1 (#99)", () => {
+  const valid = {
+    schemaVersion: "1",
+    providerId: "curated-pool",
+    regionsServed: ["*"],
+    authorityRank: 0,
+    permitsStorage: true,
+    permitsMatching: true,
+    attributionRequired: false,
+    attributionTemplate: null,
+    rateLimit: { perMinute: null, perDay: null, perMonth: null },
+    costModel: { kind: "operatorHours" },
+    freshnessTtlHours: 24,
+  };
+
+  it("valid policy passes oracle and zod", () => {
+    expect(validatePostingProviderPolicyV1(valid).ok).toBe(true);
+    expect(PostingProviderPolicyV1.safeParse(valid).success).toBe(true);
+  });
+
+  it("keeps oracle and zod aligned for every required structural invariant, including Infinity regression", () => {
+    const mutations: Array<(value: any) => void> = [
+      (value) => (value.schemaVersion = "2"),
+      (value) => (value.regionsServed = []),
+      // Regression: the oracle's isNumber requires Number.isFinite; a bare z.number() would have
+      // silently accepted Infinity where the oracle rejects it. Every numeric field, checked.
+      (value) => (value.authorityRank = Infinity),
+      (value) => (value.freshnessTtlHours = Infinity),
+      (value) => (value.rateLimit.perMinute = Infinity),
+      (value) => {
+        value.costModel = { kind: "perThousandPostings", amountUsd: Infinity };
+      },
+      (value) => {
+        value.costModel = { kind: "flatMonthlyTier", amountUsd: 59, includedUnits: Infinity };
+      },
+      (value) => (value.costModel = { kind: "not-a-real-kind" }),
+      (value) => (value.attributionTemplate = { label: "x" }), // missing url
+      (value) => (value.unknownField = true),
+    ];
+    for (const mutate of mutations) {
+      const value = structuredClone(valid);
+      mutate(value);
+      const oracle = validatePostingProviderPolicyV1(value).ok;
+      expect(PostingProviderPolicyV1.safeParse(value).success, `zod/oracle disagree after ${mutate.toString()}`).toBe(oracle);
+      expect(oracle).toBe(false);
+    }
+  });
+
+  it("permitsStorage/permitsMatching default to false when absent, in both oracle and zod", () => {
+    const { permitsStorage, permitsMatching, ...withoutDefaults } = valid;
+    const rowWithBooleansFalse = { ...valid, permitsStorage: false, permitsMatching: false };
+    expect(validatePostingProviderPolicyV1(withoutDefaults).ok).toBe(true);
+    const parsed = PostingProviderPolicyV1.parse(withoutDefaults);
+    expect(parsed.permitsStorage).toBe(false);
+    expect(parsed.permitsMatching).toBe(false);
+    expect(validatePostingProviderPolicyV1(rowWithBooleansFalse).ok).toBe(true);
   });
 });

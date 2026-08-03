@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "2",
+  "outcome": "relevant_postings",
+  "postings": [
+    {
+      "schemaVersion": "2",
+      "id": "posting:550d0cbf089e53a46249f4b7a22c9b363168e6189214b4fd5c4edb73523704f3",
+      "canonicalKey": "550d0cbf089e53a46249f4b7a22c9b363168e6189214b4fd5c4edb73523704f3",
+      "title": "Senior Project Manager",
+      "company": "BNP Paribas",
+      "location": "Hong Kong",
+      "sourceUrl": "https://jobdatafeeds.com/jobs/senior-project-manager-bnp-paribas",
+      "excerpt": "Lead delivery of a portfolio of technology programs across APAC.",
+      "postedAt": "2026-07-28T00:00:00Z",
+      "capturedAt": "2026-07-29T09:00:00Z",
+      "verifiedLiveAt": "2026-08-01T09:00:00Z",
+      "expiresAt": "2026-09-01T00:00:00Z",
+      "attribution": [{ "label": "via Techmap", "url": "https://jobdatafeeds.com" }],
+      "sources": [
+        { "providerId": "curated-pool", "providerPostingId": "curated-001" },
+        { "providerId": "techmap", "providerPostingId": "tm-778812" }
+      ],
+      "applicantLocationRequirements": ["Hong Kong"],
+      "skills": ["Agile delivery", "Stakeholder management"]
+    }
+  ],
+  "coverage": {
+    "providersQueried": ["curated-pool", "techmap"],
+    "providersUnavailable": [],
+    "complete": true
+  },
+  "retrievedAt": "2026-08-01T09:05:00Z"
+}

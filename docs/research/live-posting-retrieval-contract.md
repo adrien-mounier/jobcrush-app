@@ -249,6 +249,8 @@ ProviderPostingRecordV1 {
   verifiedLiveAt: string          // last time liveness was positively re-confirmed, ISO 8601
   expiresAt: string | null        // provider-stated expiry, if any
   attribution: { label: string; url: string } | null  // THIS provider's own attribution requirement, if any
+  applicantLocationRequirements: string[]  // this provider's own work-eligibility signal (§6) — carried structured, never flattened into excerpt
+  skills: string[]                // this provider's own structured skills list (§6) — same reason
 }
 
 PostingV1 {                       // schemaVersion "2" — canonical, provider-independent, what #63 consumes
@@ -266,8 +268,17 @@ PostingV1 {                       // schemaVersion "2" — canonical, provider-i
   expiresAt: string | null           // earliest non-null expiresAt across contributing records (most conservative)
   attribution: Array<{ label: string; url: string }>  // UNION of every contributing provider's requirement — all honored, not just the winner's
   sources: Array<{ providerId: string; providerPostingId: string }>  // every provider record currently merged into this posting, min length 1
+  applicantLocationRequirements: string[]  // resolved by the SAME authorityRank-winner rule as title/company/location — NOT a union
+  skills: string[]                        // same rule
 }
 ```
+
+`applicantLocationRequirements` and `skills` deliberately do NOT follow `attribution`/`sources`'s union
+rule. A permissive union of every contributing provider's claimed eligibility locations must never
+silently become a gating input (carry-forward of #106's comment): unioning would let a posting look
+eligible in a region no single provider actually vouches for, quietly widening a fact that #96 later
+uses to decide whether a user can even take the job. `attribution`/`sources` are safe to union because
+widening them only adds disclosure, never a claim about the user's own eligibility.
 
 Display fields still map directly onto `JobCardV1` (`title→title`, `company→company`, `location→place`,
 `excerpt→adExcerpt`) so #63 does not need a second card shape. **One real gap this revision surfaces:**
@@ -306,13 +317,24 @@ PostingProviderPolicyV1 {
 ```
 
 **Enforcement, fail closed:** the registry the live system reads from contains only rows where
-`permitsStorage && permitsMatching` are both `true`. A provider whose terms are unconfirmed or
-restrictive (TheirStack today, per §1) may exist as a **documented candidate row** the owner can review,
-but the loader that builds the active registry filters it out — the exact same shape as
-`eligibleProductionPublication` filtering non-published family floors in `onboarding.ts`, or
+`permitsStorage && permitsMatching && !attributionRequired` all hold. A provider whose terms are
+unconfirmed or restrictive (TheirStack today, per §1) may exist as a **documented candidate row** the
+owner can review, but the loader that builds the active registry filters it out — the exact same shape
+as `eligibleProductionPublication` filtering non-published family floors in `onboarding.ts`, or
 `ProductionFamilyFloorStore.publish()` refusing anything not reviewed. A future provider with stricter
-terms cannot be wired into production without someone explicitly flipping its two booleans to `true` in
-this table, which is the enforcement point this ticket's brief asked for.
+terms cannot be wired into production without someone explicitly flipping its booleans in this table,
+which is the enforcement point this ticket's brief asked for.
+
+**Why the third clause (`!attributionRequired`) exists, recorded here rather than left as an
+implementation accident:** `JobCardV1` (`packages/contracts/src/jobCard.ts`) has no attribution field
+today (§2.1's own gap note). A provider whose policy sets `attributionRequired: true` cannot have its
+attribution rendered anywhere in the product — activating it anyway would mean silently breaking that
+provider's terms on every card shown. So `attributionRequired` gates activation exactly like the two
+permission booleans do, not just as a future nice-to-have. The direct consequence, stated plainly so
+it isn't rediscovered by surprise: **flipping any active provider's `attributionRequired` to `true` in
+this file removes it from the active registry immediately**, with no other code change, until either
+`JobCardV1` grows an attribution field (closing the gap) or the flag is reverted. This is #99's own
+"known gap — resolve or record" item, resolved here by recording it, not by building the card field.
 
 Lives at `apps/api/data/posting-providers.json`, zod-validated on load — same pattern as
 `sample-family-floors.json`/`sample-ad-requirements.json` (`e5stub.ts`). It is a new file under `data/`,
@@ -343,10 +365,14 @@ overall outcome degrades to a real `empty_pool`, not `search_area_not_covered`.
 
 **Canonical key:** `sha256(normalize(company) + "|" + normalize(location) + "|" + normalize(title))`,
 where `normalize` = lowercase, trim, collapse internal whitespace, strip a small fixed set of
-punctuation (commas, periods, parentheses). Two provider records that produce the same key merge into
-one `PostingV1`. On a conflict in a display field (title/company/location/sourceUrl text differs between
-merged records), **the record from the provider with the lower `authorityRank` wins** (§2.2); `sources`
-and `attribution` are always the union across every contributing record, never just the winner's.
+punctuation (commas, periods, parentheses, **and `|` itself**). `|` is stripped precisely because it's
+the triple's own field delimiter — leaving it in a field's content would let it forge a fake field
+boundary (e.g. company `"HSBC|Hong Kong"` + location `"Singapore"` producing the same joined string as
+company `"HSBC"` + location `"Hong Kong|Singapore"`), silently merging two distinct jobs. Two provider
+records that produce the same key merge into one `PostingV1`. On a conflict in a display field
+(title/company/location/sourceUrl text differs between merged records), **the record from the provider
+with the lower `authorityRank` wins** (§2.2); `sources` and `attribution` are always the union across
+every contributing record, never just the winner's.
 
 **How confident this is, stated plainly:** this catches exact-and-near-exact duplicates only — the same
 employer spelling, the same city string, the same job-title string across providers. It will **miss**:
