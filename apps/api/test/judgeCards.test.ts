@@ -420,7 +420,7 @@ describe("#105 review round 4: the deck has ONE shared judging budget, not per-w
   //
   // #117 (coordinator review) — the REAL ~15-advert pool (data/sample-postings.json) is live product
   // data, not a fixture, and must never be inflated with synthetic entries just to make a test's pool
-  // bigger than DECK_JUDGE_MAX_CARDS (20 as of this ticket). Instead, OnboardingDeps.judgeMaxCards
+  // bigger than DECK_JUDGE_MAX_CARDS (8 as of this ticket). Instead, OnboardingDeps.judgeMaxCards
   // overrides the ceiling for this one test — deliberately set far below the real pool size so the
   // SAME production bound-selection code (routes/onboarding.ts) genuinely has to bind, exercising
   // "the pool exceeds the ceiling" branch for real rather than leaving it vacuously passing.

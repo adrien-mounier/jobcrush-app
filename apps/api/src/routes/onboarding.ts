@@ -1326,26 +1326,37 @@ const DECK_JUDGE_BUDGET_MS = 8_000;
 // retrieval) will grow the pool well past today's ~15 adverts, and a bound that scaled with the pool
 // would stop being a bound at all.
 //
-// Owner decision, 2026-08-03, after the live staging measurement: raised from 8 to 20. At 8, the
-// staging run showed cost per visitor drop to $0.1394 (from $0.29) but the fallback rate stayed flat
-// at 9 of 15 — 7 cards were `unscored` by design (bound-excluded) and 2 more overran the shared
-// DECK_JUDGE_BUDGET_MS. The owner chose to spend the money instead: every job in today's deck should
-// carry a real score, not a "Not scored" placeholder. 20 is deliberately ABOVE today's ~15-advert
-// pool so that, at today's size, EVERY eligible card gets a paid attempt and `unscored` is
-// unreachable in practice — this restores cold-visitor cost to roughly the original $0.29 the ticket
-// was opened to reduce, made knowingly, with the measured numbers in front of the owner. The bound
-// still exists, and is still THIS single named constant, not an incidental side effect of
-// CARD_RESOLUTION_CONCURRENCY or DECK_JUDGE_BUDGET_MS (both still apply on top, unchanged): it is
-// provisioned for the live-retrieval future, not for today's pool. It only starts binding once the
-// pool grows past 20, which is exactly when a cost control is needed — `unscored`'s state, ranking
-// tier, and card shape are untouched and still exercised by tests (buildJobCard/orderCardsForReveal
-// unit coverage, and OnboardingDeps.judgeMaxCards's override exercising the real bound-selection code
-// against the genuine posting pool at a lower ceiling — see that field's own doc: product data,
-// data/sample-postings.json, is the live job pool and must never carry synthetic entries just to
-// make a pool exceed this number), even though no REAL deck request reaches `unscored` at current
-// pool sizes. No logic anywhere is hardcoded around either 8 or 20 — changing this one constant is
-// still the whole review surface for a future revision.
-export const DECK_JUDGE_MAX_CARDS = 20;
+// 8, chosen by measurement rather than by argument. THREE live staging runs settled it, and the third
+// is the one worth remembering — raising this number makes the first deck WORSE, not better:
+//
+//   cap        cost/visitor   judged on first view   fallback rate   unearned numbers
+//   (pre-#117) $0.29          6 of 15                9/15 (60%)      9 of 15
+//   8          $0.1394        6 of 15                9/15 (60%)      0 of 15
+//   20         $0.2985        3 of 15                12/15 (80%)     0 of 15
+//
+// At 20 nothing is bound-excluded (`judgeBoundHit` 0, `unscored` unreachable), so all ~15 adverts get
+// a paid call — and 12 of them were still IN FLIGHT when DECK_JUDGE_BUDGET_MS expired. CARD_RESOLUTION_
+// CONCURRENCY (6) turns 15 calls into three waves sharing ONE 8s wall, so later waves get almost no
+// time and fewer finish. Buying more judgements moves a card from "never scored" to "not scored yet";
+// it cannot move it to "scored in time". Paying 114% more bought HALF the first-view scores.
+//
+// The lesson this constant exists to carry: **the first-view score count is governed by
+// DECK_JUDGE_BUDGET_MS against per-call latency, not by this bound.** Do not reach for this number to
+// fix a deck that looks empty — it is the wrong lever and it moves the wrong way. The right fix is to
+// stop scoring the whole deck up front and score just ahead of the visitor as they swipe (#121), which
+// also retires the token-overlap pre-filter that currently picks WHICH cards are worth paying for.
+//
+// The bound is still a fixed number and must never be derived from the pool size — AC1 is explicit,
+// and #99-#101 (live retrieval) will grow the pool well past today's ~15 adverts. At 8 it genuinely
+// binds today, so `unscored` is reachable on a real cold deck and the honesty guarantee it carries
+// (a card that claims no number rather than an unearned one) is exercised in production, not only in
+// tests. CARD_RESOLUTION_CONCURRENCY and DECK_JUDGE_BUDGET_MS both still apply on top, unchanged.
+//
+// No logic anywhere is hardcoded around this value — changing this one constant is the whole review
+// surface for a future revision, and OnboardingDeps.judgeMaxCards overrides it for tests that need a
+// pool larger than the ceiling. See that field's own doc: data/sample-postings.json is the LIVE job
+// pool, not a fixture, and must never carry synthetic entries just to make a pool exceed this number.
+export const DECK_JUDGE_MAX_CARDS = 8;
 
 /** A tiny concurrency limiter — no new dependency, not a redesign. Runs `fn` over `items` with at
  *  most `limit` in flight at once, preserving each result at its original index regardless of which
