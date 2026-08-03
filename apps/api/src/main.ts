@@ -50,9 +50,8 @@ const sessions = sessionStoreFromEnv(process.env.DATABASE_URL);
 const claims = claimStoreFromEnv(process.env.DATABASE_URL);
 const auth = authStoreFromEnv(process.env.DATABASE_URL);
 const familyLearning = familyLearningStoreFromEnv(process.env.DATABASE_URL);
-// #86 decisions 4 + 5. Init'd here so the table exists ahead of its consumers: #96 asks the
-// questions, #89 reads them while scoring. Deliberately not threaded through buildServer yet —
-// there is nothing to inject it into until those land.
+// #86 decisions 4 + 5. #106 asks the questions (threaded through buildServer below); #89 reads them
+// while scoring, still to land.
 const eligibility = eligibilityStoreFromEnv(process.env.DATABASE_URL);
 // #104: the shared, persisted ad-requirements read cache — wired the same way as eligibility above.
 const adRequirements = adRequirementsStoreFromEnv(process.env.DATABASE_URL);
@@ -76,6 +75,7 @@ try {
 const { app } = buildServer({
   sessions,
   claims,
+  eligibility,
   auth,
   familyLearning,
   screenFamilyCandidate: makeFamilyCandidateScreen(metered("family-screen", llm)),

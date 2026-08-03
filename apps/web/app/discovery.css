@@ -368,6 +368,12 @@
     opacity 140ms ease,
     transform 90ms ease;
 }
+/* #106: the "not answering" option — a real answer, but never competing with the real ones.
+   --hud-mute on transparent is this screen's existing secondary treatment (.sub/.notice/.countdown). */
+.discovery .opt.quiet {
+  background: transparent;
+  color: var(--hud-mute);
+}
 .discovery .opt:hover:not(:disabled) {
   background: #262f3a;
   border-color: #3b4653;

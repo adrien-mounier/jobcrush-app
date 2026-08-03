@@ -18,6 +18,7 @@ import { runOnboardingJob, type PipelineDeps } from "./pipeline.js";
 import { cvRoutes } from "./routes/cv.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
 import { InMemoryClaimStore, type ClaimStore } from "./claims.js";
+import { InMemoryEligibilityStore, type EligibilityStore } from "./eligibility.js";
 import type { GrillPhraser } from "./grill.js";
 import type { CvAuditor } from "./audit.js";
 import {
@@ -62,6 +63,8 @@ export interface BuildOptions {
   guestbook?: Guestbook;
   /** JC-21 confirmed-claims store backing the onboarding deck. Postgres driver lands with JC-6/26. */
   claims?: ClaimStore;
+  /** #106: the eligibility-fact store (#86 decisions 4+5) backing discovery's eligibility questions. */
+  eligibility?: EligibilityStore;
   /** Deterministic, explicitly non-production floor catalog for #59 integration tests. */
   familyFloors?: TestFixtureFamilyFloorStore;
   productionFamilyFloors?: ProductionFamilyFloorStore;
@@ -128,6 +131,7 @@ export function buildServer(opts: BuildOptions = {}) {
   const blobs = opts.blobs ?? new InMemoryBlobStorage();
   const uploads = opts.uploads ?? new InMemoryUploadStore();
   const claims = opts.claims ?? new InMemoryClaimStore();
+  const eligibility = opts.eligibility ?? new InMemoryEligibilityStore();
   const familyFloors = opts.familyFloors ?? new TestFixtureFamilyFloorStore();
   const productionFamilyFloors =
     opts.productionFamilyFloors ?? initialProductionFamilyFloors();
@@ -422,6 +426,7 @@ export function buildServer(opts: BuildOptions = {}) {
     claims,
     store,
     sessions,
+    eligibility,
     familyFloors,
     productionFamilyFloors,
     placeFamily,
@@ -519,5 +524,5 @@ export function buildServer(opts: BuildOptions = {}) {
     },
   );
 
-  return { app, store, sessions, blobs, uploads, claims, auth, familyLearning, usageLedger };
+  return { app, store, sessions, blobs, uploads, claims, eligibility, auth, familyLearning, usageLedger };
 }

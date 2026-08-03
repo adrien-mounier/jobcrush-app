@@ -23,6 +23,15 @@ import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "
 import { auditRootCv, type CvAuditor } from "../audit.js";
 import { loadFamilyFloor, loadAdRequirements } from "../e5stub.js";
 import { eligiblePostings, type Posting } from "../preview.js";
+import { ANY_FAMILY, type EligibilityFact, type EligibilityStore } from "../eligibility.js";
+import {
+  eligibilityCandidates,
+  excludingEligibility,
+  isEligibilityItemId,
+  mapEligibilityAnswer,
+  resolveEligibilityFamilyScope,
+  unresolvedEligibilityQuestions,
+} from "../eligibilityDiscovery.js";
 import { readingLanguages, languageEligible } from "../language.js";
 import { incrementCounter, recordReadFailure } from "../counters.js";
 import { matchBreakdown, matchTick, uncoveredRequirements, pickHitClause, pickOpenClause, NOTHING_OPEN_CLAUSE } from "../matchtick.js";
@@ -42,10 +51,12 @@ import {
   factCount,
   freeTextLine,
   isNoAnswer,
+  parseCity,
   READER_ROLE_ITEM_ID,
   readerQuestion,
   resolveFamily,
   type DiscoveryCvLine,
+  type DiscoveryState,
 } from "../discovery.js";
 import {
   buildTailorLedger,
@@ -69,6 +80,9 @@ export interface OnboardingDeps {
   claims: ClaimStore;
   store: JobStore;
   sessions: SessionStore;
+  /** #106: the eligibility-fact store (#86 decisions 4+5, apps/api/src/eligibility.ts) — asked once in
+   *  discovery, reused across every posting. */
+  eligibility: EligibilityStore;
   familyFloors: TestFixtureFamilyFloorStore;
   productionFamilyFloors: ProductionFamilyFloorStore;
   placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>;
@@ -577,7 +591,12 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       );
       const confirmed = facts.filter((c) => c.decision === "confirmed");
       const negatives = await deps.claims.negatives(session.id);
-      const profileFactCount = await withFactFloor(deps.sessions, session, factCount(confirmed, negatives));
+      // #106 code-review D1 (2026-08-03, round 3): a decline is a refusal, not a recorded fact.
+      const profileFactCount = await withFactFloor(
+        deps.sessions,
+        session,
+        factCount(excludingEligibility(confirmed), excludingEligibility(negatives)),
+      );
       const rootCv = renderRootCv(buildClaimGraph(confirmed));
       const goldIds = new Set(rootCv.trace.entries.flatMap((e) => e.nodeIds));
 
@@ -610,15 +629,129 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // so every response is `discoveryState(...)` and GET resumes with no client state.
 
     // Third element (rejected) is #35's addition: no new store method — filter the existing list()
-    // rather than add a ClaimStore.rejected(). Kept in this one Promise.all (not a separate serialized
-    // read) so a Pg-backed read still fires all three queries in parallel; callers that don't need it
-    // (cards, tailor) just destructure the first two.
+    // rather than add a ClaimStore.rejected(). Fourth element (facts) is #106's: the session's stored
+    // eligibility facts, read the same way for the same reason — kept in this one Promise.all (not a
+    // separate serialized read) so a Pg-backed read still fires every query in parallel; callers that
+    // don't need the extras (cards, tailor) just destructure the first two.
     const discoveryReads = (sessionId: string) =>
       Promise.all([
         deps.claims.confirmed(sessionId),
         deps.claims.negatives(sessionId),
         deps.claims.list(sessionId).then((all) => all.filter((c) => c.decision === "rejected")),
+        deps.eligibility.list(sessionId),
       ]);
+
+    // #106: eligibility questions layered onto discoveryState()'s pure floor-only output, mirroring
+    // the reader-only-question pattern just below rather than touching discoveryState() itself — so
+    // essentialRemaining/railFill's floor-only meaning needs no new carve-out there. Code-review
+    // must-fix 2 (round 2): these are appended UNCONDITIONALLY (never gated on the essential band),
+    // and — round 3's funnel-regression fix — inserted right after the essential band and BEFORE the
+    // standard one, never after it. discoveryState() only ever gates `stage` on the essential band
+    // (below); the standard band has always been optional/loopback-reachable, never required to reach
+    // the deck. Putting eligibility after the WHOLE floor (round 2's shape) meant the ask dock — which
+    // only ever renders questions[0], one at a time, with no skip — forced a visitor through all 5
+    // standard items just to REACH the 3 eligibility ones that actually gate the deck, tripling the
+    // pre-deck question count nobody asked for. Standard items are moved after eligibility instead;
+    // everything else (essential items, the reader-only question, in whatever relative order
+    // discoveryState()/the GET route already established) stays exactly where it was — only the
+    // standard-band entries move.
+    const applyEligibility = (
+      session: SessionRecord,
+      role: string,
+      state: DiscoveryState,
+      confirmed: ClaimRecord[],
+      negatives: ClaimRecord[],
+      rejected: ClaimRecord[],
+      facts: EligibilityFact[],
+    ) => {
+      const eligQuestions = unresolvedEligibilityQuestions(
+        session,
+        role,
+        ANY_FAMILY,
+        state.city,
+        confirmed,
+        negatives,
+        rejected,
+        facts,
+      );
+      const { family } = resolveFamily(role);
+      const standardIds = new Set(
+        loadFamilyFloor(family).items.filter((i) => i.rankBand === "standard").map((i) => i.id),
+      );
+      const leading = state.questions.filter((q) => !standardIds.has(q.itemId));
+      const standard = state.questions.filter((q) => standardIds.has(q.itemId));
+      state.questions = [...leading, ...eligQuestions, ...standard];
+      if (eligQuestions.length > 0) state.stage = "discovery";
+    };
+
+    // #106: an eligibility answer's own write path. Code-review must-fix 1: a REAL answer (of any
+    // kind, including a "no"-shaped one like "Not yet — I'd need sponsorship") never touches the
+    // claims store — graph.ts's buildClaimGraph renders every claim in its first argument
+    // unconditionally, and stamps every claim in its `negatives` option classification "Negative",
+    // which the contract oracle (packages/contracts/oracle/validate_graph.mjs) defines as a CONFIRMED
+    // GAP Tailor must never assert. Either path would misrepresent a real answer. A real answer
+    // therefore lives ONLY in the eligibility store (put()); "already answered" is read back from
+    // THAT store (this route's own `facts`), never from a claim. Only a DECLINE still writes a
+    // claims-store record (answerNegative — "asked and closed, no fact"), reusing the one persistence
+    // this repo already has for that state. Must-fix 5: correcting an answer TO a decline retracts
+    // any value a PRIOR real answer stored — eligibility.remove() runs unconditionally on a decline (a
+    // no-op if nothing was ever stored), so the dimension reads unknown again, never a retracted
+    // value. Must-fix 8: `city` is the visitor's REAL parsed city, not a placeholder — it's rebuilt
+    // into the question text a decline's claim records verbatim, so that record must match what the
+    // visitor was actually asked. Returns a reply already sent on failure, undefined on success —
+    // mirrors this file's other early-return route helpers (e.g. fixtureState above).
+    const answerEligibilityItem = async (
+      session: SessionRecord,
+      role: string,
+      itemId: string,
+      rawAnswer: string,
+      reply: FastifyReply,
+    ): Promise<FastifyReply | undefined> => {
+      const { familyId, scopeLabel } = resolveEligibilityFamilyScope(session, role);
+      const city = parseCity(role);
+      const question = eligibilityCandidates(familyId, ANY_FAMILY, scopeLabel, city).find(
+        (q) => q.itemId === itemId,
+      );
+      if (!question) {
+        return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
+      }
+      const ask = question.eligibility!;
+      const answer = rawAnswer.trim();
+
+      if (answer === ask.declineOption) {
+        await deps.eligibility.remove(session.id, ask.dimension, ask.familyId);
+        const claimId = discoveryClaimId(itemId);
+        await deps.claims.answerNegative(session.id, {
+          id: claimId,
+          semantic_key: claimId,
+          field_key: null,
+          field_value: null,
+          field_label: null,
+          role: "profile",
+          text: `Declined — ${question.question}`,
+          machine_touch: "verbatim",
+          classification: "Verified",
+          source_quote: answer.slice(0, 200),
+          needs_grill: false,
+          grill_hint: null,
+        });
+        return undefined;
+      }
+
+      const mapped = mapEligibilityAnswer(ask.dimension, scopeLabel, answer);
+      if (!mapped) {
+        return reply
+          .status(400)
+          .send({ error: { code: "invalid_answer", message: "unrecognized eligibility answer" } });
+      }
+      await deps.eligibility.put(session.id, {
+        dimension: ask.dimension,
+        familyId: ask.familyId,
+        value: mapped.value,
+        label: mapped.label,
+      });
+      return undefined;
+    };
 
     // Load / resume: rebuild the state from the store. Before Q1 (no role) → the empty skeleton state.
     // #18 AC6: an optional ?job= prepends the ONE reader-only question — over the uploaded CV's mined
@@ -629,8 +762,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       { schema: { querystring: z.object({ job: z.string().optional() }) } },
       async (req) => {
         const session = requireSession(req);
-        const [confirmed, negatives, rejected] = await discoveryReads(session.id);
-        const state = discoveryState(session.targetTitles[0] ?? null, confirmed, negatives, rejected);
+        const role = session.targetTitles[0] ?? null;
+        const [confirmed, negatives, rejected, facts] = await discoveryReads(session.id);
+        const state = discoveryState(role, confirmed, negatives, rejected);
 
         const jobId = req.query.job;
         // #35: a deck-rejected reader-role claim still closes the question — same never-re-ask rule
@@ -644,6 +778,10 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           const roles = job && job.sessionId === session.id ? minedRoles(job) : [];
           if (roles.length > 0) state.questions = [readerQuestion(roles[0]!), ...state.questions];
         }
+        if (role) applyEligibility(session, role, state, confirmed, negatives, rejected, facts);
+        // #106 must-fix 3: a decline is a refusal, not a recorded fact — strip it before it inflates
+        // the profile badge's "pile that only grows".
+        state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
@@ -669,8 +807,10 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const session = requireSession(req);
         await deps.sessions.setTargetTitles(session.id, [req.body.role]);
         await deps.sessions.setStage(session.id, "discovery");
-        const [confirmed, negatives, rejected] = await discoveryReads(session.id);
+        const [confirmed, negatives, rejected, facts] = await discoveryReads(session.id);
         const state = discoveryState(req.body.role, confirmed, negatives, rejected);
+        applyEligibility(session, req.body.role, state, confirmed, negatives, rejected, facts);
+        state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
@@ -692,55 +832,68 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         if (!role)
           return reply.status(409).send({ error: { code: "no_role", message: "answer question 1 first" } });
 
-        let claim: CandidateClaim;
-        let no = false;
-        if (req.body.itemId === READER_ROLE_ITEM_ID) {
-          // #18 AC6: the reader-only question has no floor item — the free-text answer IS the CV line.
-        claim = {
-          id: discoveryClaimId(req.body.itemId),
-          semantic_key: discoveryClaimId(req.body.itemId),
-          field_key: null,
-          field_value: null,
-          field_label: null,
-            role: "profile",
-            text: freeTextLine(req.body.answer),
-            machine_touch: "verbatim",
-            classification: "Verified",
-            source_quote: req.body.answer.slice(0, 200),
-            needs_grill: false,
-            grill_hint: null,
-          };
+        // #106: an eligibility item is a separate answer shape (see answerEligibilityItem's own doc
+        // comment above) — handled as its own path rather than forced through the shared claim/no
+        // branches below.
+        if (isEligibilityItemId(req.body.itemId)) {
+          const errorReply = await answerEligibilityItem(session, role, req.body.itemId, req.body.answer, reply);
+          if (errorReply) return errorReply;
         } else {
-          const { family } = resolveFamily(role);
-          const item = loadFamilyFloor(family).items.find((i) => i.id === req.body.itemId);
-          if (!item)
-            return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
+          let claim: CandidateClaim;
+          let no = false;
+          if (req.body.itemId === READER_ROLE_ITEM_ID) {
+            // #18 AC6: the reader-only question has no floor item — the free-text answer IS the CV line.
+            claim = {
+              id: discoveryClaimId(req.body.itemId),
+              semantic_key: discoveryClaimId(req.body.itemId),
+              field_key: null,
+              field_value: null,
+              field_label: null,
+              role: "profile",
+              text: freeTextLine(req.body.answer),
+              machine_touch: "verbatim",
+              classification: "Verified",
+              source_quote: req.body.answer.slice(0, 200),
+              needs_grill: false,
+              grill_hint: null,
+            };
+          } else {
+            const { family } = resolveFamily(role);
+            const item = loadFamilyFloor(family).items.find((i) => i.id === req.body.itemId);
+            if (!item)
+              return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
 
-          no = isNoAnswer(req.body.answer);
-        claim = {
-          id: discoveryClaimId(item.id),
-          semantic_key: discoveryClaimId(item.id),
-          field_key: null,
-          field_value: null,
-          field_label: null,
-            role: "profile",
-            text: no ? `Not applicable — ${item.question}` : composeCvLine(item, req.body.answer),
-            machine_touch: "verbatim", // the visitor's own answer
-            classification: "Verified", // user-authored, they vouch for it
-            source_quote: req.body.answer.slice(0, 200),
-            needs_grill: false,
-            grill_hint: null,
-          };
+            no = isNoAnswer(req.body.answer);
+            claim = {
+              id: discoveryClaimId(item.id),
+              semantic_key: discoveryClaimId(item.id),
+              field_key: null,
+              field_value: null,
+              field_label: null,
+              role: "profile",
+              text: no ? `Not applicable — ${item.question}` : composeCvLine(item, req.body.answer),
+              machine_touch: "verbatim", // the visitor's own answer
+              classification: "Verified", // user-authored, they vouch for it
+              source_quote: req.body.answer.slice(0, 200),
+              needs_grill: false,
+              grill_hint: null,
+            };
+          }
+          if (no) await deps.claims.answerNegative(session.id, claim);
+          else await deps.claims.add(session.id, claim);
         }
-        if (no) await deps.claims.answerNegative(session.id, claim);
-        else await deps.claims.add(session.id, claim);
 
-        const [confirmed, negatives, rejected] = await discoveryReads(session.id);
+        const [confirmed, negatives, rejected, facts] = await discoveryReads(session.id);
         const state = discoveryState(role, confirmed, negatives, rejected);
-        // #18 AC1: the essential band fully asked (yes or no) flips the session to the deck stage, so
-        // a reload lands there too. essentialRemaining never climbs back up (#35: a deck reject still
-        // counts as answered), so this never reverts.
-        if (state.essentialRemaining === 0) await deps.sessions.setStage(session.id, "deck");
+        applyEligibility(session, role, state, confirmed, negatives, rejected, facts);
+        // #18 AC1 / #106: the essential band fully asked AND every eligibility question closed flips
+        // the session to the deck stage, so a reload lands there too. Code-review must-fix 2: the
+        // full set of remaining floor + eligibility items is visible from the very first response
+        // (never gated on the essential band), so the combined countdown only ever counts down as
+        // items are answered — it can no longer jump back up the way withholding eligibility until
+        // essentialRemaining hit 0 once did.
+        if (state.stage === "deck") await deps.sessions.setStage(session.id, "deck");
+        state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
@@ -1364,8 +1517,13 @@ function buildJobCard(
     place: posting.location,
     salary: null,
     pattern: null,
-    fit: confirmed.map((c) => ({ id: c.id, text: c.text })),
-    askedClosed: negatives.map((c) => ({ id: c.id, text: c.text })),
+    // #106 code-review D1 (2026-08-03, round 3): unfiltered, this put every eligibility DECLINE on
+    // EVERY card in the deck as if it were that ad's own "asked and closed" gap — an eligibility
+    // decline has nothing to do with any one ad's requirements. `fit` needs the same guard for
+    // symmetry even though nothing eligibility-related is ever in `confirmed` today (must-fix 1: a
+    // real eligibility answer never enters the claims store at all).
+    fit: excludingEligibility(confirmed).map((c) => ({ id: c.id, text: c.text })),
+    askedClosed: excludingEligibility(negatives).map((c) => ({ id: c.id, text: c.text })),
     adExcerpt: posting.excerpt,
   };
   if (!judgement && (unresolvedScored === "pending" || unresolvedScored === "unscored")) {
@@ -1481,6 +1639,7 @@ function buildTailorState(
     cvLines,
     closedGaps,
     done: questions.length === 0,
-    factCount: factCount(confirmed, negatives),
+    // #106 code-review D1 (2026-08-03, round 3): a decline is a refusal, not a recorded fact.
+    factCount: factCount(excludingEligibility(confirmed), excludingEligibility(negatives)),
   };
 }

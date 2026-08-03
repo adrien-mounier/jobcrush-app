@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { CandidateClaim } from "@jobcrush/contracts";
 import { buildServer } from "../src/server.js";
 import { isTerminal } from "../src/jobs.js";
+import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
 
 const claim = (over: Partial<CandidateClaim>): CandidateClaim => ({
   id: "acme-led-migration",
@@ -172,6 +173,27 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     const res = await get(server.app, cookie, "/profile");
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ domains: [], factCount: 0 });
+  });
+
+  // #106 code-review D1 (2026-08-03, round 3): a decline used to write a claim /profile's factCount
+  // counted unfiltered — "9 things you've told me" while listing 7, permanently (the monotonic floor
+  // never lowers). /profile must apply the same eligibility exclusion the discovery routes already do.
+  it("a declined eligibility question does not inflate /profile's factCount (D1)", async () => {
+    const server = buildServer();
+    const cookie = await anonSession(server.app);
+    const start = (await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE })).json() as {
+      questions: Array<{ itemId: string; eligibility?: { dimension: string } }>;
+    };
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+
+    const before = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    await post(server.app, cookie, "/onboarding/discovery/answer", {
+      itemId: workRights.itemId,
+      answer: DECLINE_OPTION,
+    });
+    const after = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+
+    expect(after.factCount).toBe(before.factCount);
   });
 
   it("requires a session (401 with no cookie) but is reachable pre-wall (an unverified anonymous session is not rejected)", async () => {

@@ -11,7 +11,7 @@
 //   - discoveryState — rebuilds the whole DiscoveryState from the session's role + its recorded
 //     discovery answers (confirmed positives + negatives + #35's deck-rejected, all of which close a
 //     question), so GET /discovery resumes with no client state.
-import type { FloorItem, CvSection, MinedRole } from "@jobcrush/contracts";
+import type { FloorItem, CvSection, MinedRole, EligibilityDimension } from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
 import { loadFamilyFloor } from "./e5stub.js";
 
@@ -100,11 +100,22 @@ export function composeCvLine(item: FloorItem, answer: string): string {
 
 // --- the DiscoveryState the screen renders (the pinned contract shared with the web client) ---
 
+// #106: an eligibility question rides the SAME DiscoveryQuestion shape as a floor item — additive
+// only, so every existing floor question still serialises byte-identically. Present ⇔ this is an
+// eligibility question; see apps/api/src/eligibilityDiscovery.ts for how the field is populated and
+// docs/research/eligibility-dimensions-from-the-corpus.md for which dimensions are actually asked.
+export interface EligibilityAsk {
+  dimension: EligibilityDimension; // one of the store's five (apps/api/src/eligibility.ts)
+  familyId: string; // the pinned family id, or ANY_FAMILY ("*") for a dimension that holds regardless of role
+  scopeLabel: string | null; // the human scope for a family-scoped question; null when global
+  declineOption: string; // the exact option string meaning "not answering" — always options' last entry
+}
 export interface DiscoveryQuestion {
   itemId: string;
   question: string;
   options: string[];
   cvSection: CvSection;
+  eligibility?: EligibilityAsk; // present ⇔ this is an eligibility question, never a floor item
 }
 export interface DiscoveryCvLine {
   itemId: string; // "role" for the lead line, else the floor item id

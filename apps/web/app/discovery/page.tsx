@@ -27,6 +27,7 @@ import {
   type DiscoveryPromise,
   type DiscoveryQuestion,
   type DiscoveryState,
+  type EligibilityAsk,
 } from "../../lib/api";
 
 const CV_TYPE_SPEED = 26; // ms/char, design spec §2 (CV body — distinct from the door's 36ms headline)
@@ -63,6 +64,12 @@ const C19 = "That's all I need to ask.";
 const C20 = "Now I'll line these jobs up against everything you told me.";
 const C21 = "Changing your answer.";
 const C22 = "I scored the three closest — tell me more and I'll widen the net";
+// #106: eligibility questions at the tail of the floor loop (design spec §2 "Shared") — the
+// confirmation pair and the fix-button label for a declined answer. C16 ("Fix that?") is reused for
+// a real answer's fix button, unchanged.
+const C23 = "Locked in — I'll use that on every job, so I won't ask again.";
+const C24 = "No problem — I'll ask again when a job needs it.";
+const C26 = "Answer it now";
 
 // The promise's number renders in its own emphasized `.n` slot (matching
 // first-question.prototype.html, which the design spec builds against); this returns the rest of
@@ -77,6 +84,20 @@ function promiseTail(p: DiscoveryPromise): string {
 function promiseFamilyOnly(p: DiscoveryPromise): string {
   return p.city ? `There are ${p.family} jobs open in ${p.city} right now.` : `There are ${p.family} jobs open right now.`;
 }
+// #106: the countdown must read as one continuous meter across the floor questions and the
+// eligibility block that follows (design spec §6). The server includes eligibility questions in
+// `questions` from the start, ordered last (the ask dock only ever renders `questions[0]`, so they
+// still surface after the floor) — essentialRemaining counts floor items only, so it and eligLeft
+// each count down independently and monotonically. Summing them is what keeps the meter from
+// climbing back up the moment the floor finishes (a fallback/max of the two would do exactly that,
+// since eligLeft is already the true remaining count from the first render, not something that
+// only appears once essentialRemaining hits 0).
+function eligLeft(s: DiscoveryState): number {
+  return s.questions.filter((q) => q.eligibility).length;
+}
+function remaining(s: DiscoveryState): number {
+  return s.essentialRemaining + eligLeft(s);
+}
 function countdownCopy(n: number): string {
   return n === 1 ? "1 answer until your next jobs" : `${n} answers until your next jobs`;
 }
@@ -84,6 +105,22 @@ function countdownCopy(n: number): string {
 // C15 branch instead of the generic "saved to your profile" C13 one.
 function isNoAnswer(answer: string): boolean {
   return /^no[.!]?$/i.test(answer.trim());
+}
+// #106: the eligibility `.sub` clarifier — the wire contract carries `.q`/`options` fully worded
+// server-side but no clarifier field (EligibilityAsk in lib/api.ts), so this is the one piece of
+// eligibility copy the client still composes. years-experience is the only dimension whose sub
+// depends on the question's own data (scopeLabel, design spec §3). The asked set settled at
+// years-experience / work-rights / language only — certification/degree stay in the wire type for
+// forward-compat but the server never emits them, so there's no copy for them here to rot
+// unreachable; language is the plain fallback rather than its own `if` for the same reason.
+function eligibilitySub(elig: EligibilityAsk): string {
+  if (elig.dimension === "years-experience") {
+    return elig.scopeLabel
+      ? `Years in ${elig.scopeLabel} only — not your whole career.`
+      : "Years in that kind of work only — not your whole career.";
+  }
+  if (elig.dimension === "work-rights") return "Either answer is useful — it just changes which jobs I show you.";
+  return "Enough to run meetings and write in it."; // language
 }
 function highlightMatch(title: string, query: string): ReactNode {
   const idx = query ? title.toLowerCase().indexOf(query.toLowerCase()) : -1;
@@ -213,9 +250,14 @@ function DiscoveryScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
   const [liveMessage, setLiveMessage] = useState("");
-  // #18 in-flow correction (design-1b-spec §1) + the bare-"no" undo (§3).
+  // #18 in-flow correction (design-1b-spec §1) + the bare-"no" undo (§3), generalised by #106 to
+  // also cover an eligibility answer — both are "no CV line" outcomes that still need a persistent
+  // notice and a way back in (design spec §5.3/§5.4).
   const [correcting, setCorrecting] = useState<{ itemId: string } | null>(null);
-  const [lastNo, setLastNo] = useState<{ itemId: string } | null>(null);
+  // #106 code review: "eligibility or bare-no" is not stored as its own field — eligibilityFor(itemId)
+  // (via seenQuestionsRef) is already the one source of truth for that, so a second `kind` tag here
+  // would just be a cache of the same fact that could drift from it.
+  const [noticeSlot, setNoticeSlot] = useState<{ itemId: string; answer: string } | null>(null);
   // #24: an itemId to focus once its `.cv-line` button lands in the DOM as the real, enabled
   // control — set by a correction's resolution (commit or cancel) instead of calling .focus()
   // immediately, which can race a still-typing (aria-hidden) or still-disabled (picked) button.
@@ -257,10 +299,12 @@ function DiscoveryScreen() {
   // The only source of an answered item's question/options (once answered, it's gone from
   // `questions`) — a memory of what's been asked this load, not derived state (design-1b-spec §1:
   // "not recomputable from current props"). Populated fresh every render, below.
-  const seenQuestionsRef = useRef<Map<string, { question: string; options: string[] }>>(new Map());
+  const seenQuestionsRef = useRef<
+    Map<string, { question: string; options: string[]; eligibility?: EligibilityAsk }>
+  >(new Map());
   if (discovery) {
     for (const q of discovery.questions) {
-      seenQuestionsRef.current.set(q.itemId, { question: q.question, options: q.options });
+      seenQuestionsRef.current.set(q.itemId, { question: q.question, options: q.options, eligibility: q.eligibility });
     }
   }
 
@@ -360,9 +404,9 @@ function DiscoveryScreen() {
     const { itemId } = correcting;
     setCorrecting(null);
     setAskError(null);
-    if (lastNo?.itemId === itemId) setFocusFixNotice(true);
+    if (noticeSlot?.itemId === itemId) setFocusFixNotice(true);
     else setFocusLineId(itemId);
-  }, [correcting, lastNo]);
+  }, [correcting, noticeSlot]);
 
   useEffect(() => {
     if (!correcting) return;
@@ -384,7 +428,7 @@ function DiscoveryScreen() {
       typingRef.current = null;
       setTypingId(null);
       setDiscovery(t.fullNextState);
-      setLiveMessage(`${t.lineText} ${countdownCopy(t.fullNextState.essentialRemaining)}`);
+      setLiveMessage(`${t.lineText} ${countdownCopy(remaining(t.fullNextState))}`);
       if (t.focusAfter) setFocusLineId(t.focusAfter);
     });
     return () => {
@@ -402,7 +446,7 @@ function DiscoveryScreen() {
     typingRef.current = null;
     setTypingId(null);
     setDiscovery(t.fullNextState);
-    setLiveMessage(`${t.lineText} ${countdownCopy(t.fullNextState.essentialRemaining)}`);
+    setLiveMessage(`${t.lineText} ${countdownCopy(remaining(t.fullNextState))}`);
   }
 
   // Shared by Q1 submit, every floor answer, and a correction that turns a "no" into a positive
@@ -431,15 +475,23 @@ function DiscoveryScreen() {
 
     if (!newLine) {
       // No line to type, nothing to gate on — either a profile-only answer (design §4d/§8.1,
-      // C13) or a bare "no" (design-1b-spec §3: noted-and-closed, never a failure — C15).
+      // C13), a bare "no" (design-1b-spec §3: noted-and-closed, never a failure — C15), or #106's
+      // eligibility answer (checked first: it never produces a line either, and must never fall
+      // into the bare-"no" branch just because a future decline label happened to read like one).
       setDiscovery(next);
-      if (answeredItemId && rawAnswer && isNoAnswer(rawAnswer)) {
+      const elig = answeredItemId ? seenQuestionsRef.current.get(answeredItemId)?.eligibility : undefined;
+      if (answeredItemId && elig) {
+        const declined = rawAnswer === elig.declineOption;
         setNotice(null);
-        setLastNo({ itemId: answeredItemId });
-        setLiveMessage(`${C15} ${countdownCopy(next.essentialRemaining)}`);
+        setNoticeSlot({ itemId: answeredItemId, answer: rawAnswer });
+        setLiveMessage(`${declined ? C24 : C23} ${countdownCopy(remaining(next))}`);
+      } else if (answeredItemId && rawAnswer && isNoAnswer(rawAnswer)) {
+        setNotice(null);
+        setNoticeSlot({ itemId: answeredItemId, answer: rawAnswer });
+        setLiveMessage(`${C15} ${countdownCopy(remaining(next))}`);
       } else {
         setNotice(C13);
-        setLiveMessage(`${C13} ${countdownCopy(next.essentialRemaining)}`);
+        setLiveMessage(`${C13} ${countdownCopy(remaining(next))}`);
       }
       return;
     }
@@ -482,12 +534,29 @@ function DiscoveryScreen() {
       setTypingId(itemId);
     } else {
       setDiscovery(next);
-      setFocusLineId(itemId);
+      // #106: an eligibility correction never gets a line to focus — re-set the notice slot with
+      // the new answer and return focus to its fix button (design spec §5.4 point 3), the same
+      // mechanism the bare-"no" notice already uses.
+      const elig = eligibilityFor(itemId);
+      if (elig) {
+        const declined = rawAnswer === elig.declineOption;
+        setNoticeSlot({ itemId, answer: rawAnswer });
+        setLiveMessage(`${declined ? C24 : C23} ${countdownCopy(remaining(next))}`);
+        setFocusFixNotice(true);
+      } else {
+        setFocusLineId(itemId);
+      }
     }
   }
 
   function focusCvLineButton(itemId: string) {
     bandRef.current?.querySelector<HTMLElement>(`[data-item="${itemId}"]`)?.focus();
+  }
+
+  // #106: the only source of an answered eligibility item's dimension/declineOption once it has
+  // left `questions` — mirrors focusCvLineButton's itemId-keyed lookup just above.
+  function eligibilityFor(itemId: string): EligibilityAsk | undefined {
+    return seenQuestionsRef.current.get(itemId)?.eligibility;
   }
 
   // 1A entry (tap a written line) and 1B entry (tap "Fix that?" on a bare-no notice) both land
@@ -511,7 +580,9 @@ function DiscoveryScreen() {
       const hadLine = discovery?.cvLines.some((l) => l.itemId === itemId) ?? false;
       const hasLine = next.cvLines.some((l) => l.itemId === itemId);
       setCorrecting(null);
-      if (lastNo?.itemId === itemId) setLastNo(null);
+      // #106: an eligibility slot is replaced, not dropped, by applyCorrectionResult below — only
+      // clear it here for a bare-"no" item (design spec §5.4 point 4).
+      if (noticeSlot && noticeSlot.itemId === itemId && !eligibilityFor(itemId)) setNoticeSlot(null);
       if (!hadLine && hasLine) {
         // A no -> positive correction is a brand-new line — the normal floor-answer path, but
         // still a correction commit (#24 AC1: focus returns to it once typed).
@@ -547,7 +618,7 @@ function DiscoveryScreen() {
     setPicked({ itemId: item.itemId, answer });
     setAskError(null);
     setNotice(null);
-    setLastNo(null); // the undo reaches one question past a "no" (design-1b-spec §3), then clears
+    setNoticeSlot(null); // the undo reaches one question past a "no"/decline (design-1b-spec §3, #106), then clears
     try {
       applyAnswerResult(await answerDiscovery(item.itemId, answer), answer, item.itemId);
     } catch (e) {
@@ -669,21 +740,29 @@ function DiscoveryScreen() {
     return <p className="cv-role">{role.text}</p>;
   }
 
-  // Ask-dock notice slot (design-1b-spec §3): the bare-"no" undo takes precedence over the
-  // generic profile-saved notice — the two never truly coexist (answerFloor clears lastNo the
-  // instant a new answer starts, before that answer's own outcome is known).
+  // Ask-dock notice slot (design-1b-spec §3, generalised by #106): the bare-"no"/eligibility undo
+  // takes precedence over the generic profile-saved notice — the two never truly coexist
+  // (answerFloor clears noticeSlot the instant a new answer starts, before that answer's own
+  // outcome is known).
   function renderNotice() {
-    if (lastNo) {
+    if (noticeSlot) {
+      // #106: the same slot now backs both the bare-"no" notice (C15/C16, unchanged) and an
+      // eligibility answer's pair — C23/C16 for a real answer, C24/C26 for a decline (design
+      // spec §4/§5.3).
+      const elig = eligibilityFor(noticeSlot.itemId);
+      const declined = !!elig && noticeSlot.answer === elig.declineOption;
+      const line = !elig ? C15 : declined ? C24 : C23;
+      const fixLabel = !elig ? C16 : declined ? C26 : C16;
       return (
         <p className="notice">
-          {C15}{" "}
+          {line}{" "}
           <button
             type="button"
             disabled={!!picked}
-            onClick={() => enterCorrection(lastNo.itemId)}
+            onClick={() => enterCorrection(noticeSlot.itemId)}
             ref={fixNoticeButtonRef}
           >
-            {C16}
+            {fixLabel}
           </button>
         </p>
       );
@@ -699,7 +778,10 @@ function DiscoveryScreen() {
     const seen = seenQuestionsRef.current.get(correcting.itemId);
     if (!seen) return null; // shouldn't happen — the button/notice only target a seen item
     const isAnswering = picked?.itemId === correcting.itemId;
-    const isNoCorrection = lastNo?.itemId === correcting.itemId;
+    // #106: generalised from the old isNoCorrection/isNoAnswer regex match to a direct comparison
+    // against the slot's stored answer (design spec §5.4 point 2) — works for any eligibility
+    // answer, not just a "no"-shaped one, and pre-marks it as `.opt.picked` on entry.
+    const slotAnswer = noticeSlot && noticeSlot.itemId === correcting.itemId ? noticeSlot.answer : null;
 
     if (seen.options.length === 0) {
       return (
@@ -757,18 +839,22 @@ function DiscoveryScreen() {
         </p>
         <p className="sub">{C17}</p>
         <div className="opts" role="group" aria-labelledby="fix-q">
-          {seen.options.map((opt, i) => (
-            <button
-              key={opt}
-              ref={i === 0 ? setFirstControl : undefined}
-              type="button"
-              className={isNoCorrection && isNoAnswer(opt) ? "opt picked" : "opt"}
-              disabled={isAnswering}
-              onClick={() => commitCorrection(correcting.itemId, opt)}
-            >
-              {opt}
-            </button>
-          ))}
+          {seen.options.map((opt, i) => {
+            const quiet = seen.eligibility && opt === seen.eligibility.declineOption ? " quiet" : "";
+            const cls = opt === slotAnswer ? `opt${quiet} picked` : `opt${quiet}`;
+            return (
+              <button
+                key={opt}
+                ref={i === 0 ? setFirstControl : undefined}
+                type="button"
+                className={cls}
+                disabled={isAnswering}
+                onClick={() => commitCorrection(correcting.itemId, opt)}
+              >
+                {opt}
+              </button>
+            );
+          })}
         </div>
         <p className="notice">
           <button type="button" disabled={isAnswering} onClick={cancelCorrection}>
@@ -956,9 +1042,15 @@ function DiscoveryScreen() {
         <p className="q" id="ask-q">
           {item.question}
         </p>
-        <div className="opts" role="group" aria-labelledby="ask-q">
+        {/* #106: the clarifier this client composes for an eligibility ask — see eligibilitySub. */}
+        {item.eligibility && <p className="sub">{eligibilitySub(item.eligibility)}</p>}
+        <div className="opts" role="group" aria-labelledby="ask-q" data-elig={item.eligibility?.dimension}>
           {item.options.map((opt, i) => {
-            const cls = !isAnswering ? "opt" : opt === picked?.answer ? "opt picked" : "opt dim";
+            const state = !isAnswering ? "" : opt === picked?.answer ? " picked" : " dim";
+            // #106: the decline option reads as a real answer's full weight minus the emphasis —
+            // never dimmed/hidden/last-styled beyond source order (design spec §4/§9).
+            const quiet = item.eligibility && opt === item.eligibility.declineOption ? " quiet" : "";
+            const cls = `opt${quiet}${state}`;
             return (
               <button
                 key={opt}
@@ -973,7 +1065,9 @@ function DiscoveryScreen() {
             );
           })}
         </div>
-        {renderFreeText(item, isAnswering)}
+        {/* #106: tap-first by design — the numeric store rejects an uncomparable free-text string
+            at the write, so this box would offer an action that fails (design spec §5.1). */}
+        {!item.eligibility && renderFreeText(item, isAnswering)}
         {renderNotice()}
         {askError && (
           <p className="err" role="alert">
@@ -1047,8 +1141,8 @@ function DiscoveryScreen() {
             <div className="ask-column">
               <div className="disc-head">
                 <div className="session-strip">
-                  {discovery.role !== null && discovery.essentialRemaining > 0 && (
-                    <p className="countdown">{countdownCopy(discovery.essentialRemaining)}</p>
+                  {discovery.role !== null && remaining(discovery) > 0 && (
+                    <p className="countdown">{countdownCopy(remaining(discovery))}</p>
                   )}
 
                   <Rail
@@ -1056,7 +1150,9 @@ function DiscoveryScreen() {
                     activeSection={
                       discovery.stage === "deck" && !loopbackFromDeck
                         ? null
-                        : (discovery.questions[0]?.cvSection ?? null)
+                        : discovery.questions[0]?.eligibility
+                          ? null
+                          : (discovery.questions[0]?.cvSection ?? null)
                     }
                   />
                 </div>

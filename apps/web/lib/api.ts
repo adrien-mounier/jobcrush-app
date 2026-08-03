@@ -187,11 +187,23 @@ export function answerGrill(jobId: string, gapId: string, answer: string): Promi
 
 export type CvSection = "summary" | "experience" | "skills" | "education";
 
+// #106: an eligibility ask — a fact that doesn't vary by advert (years in the role, work rights,
+// language, a certification, a degree), asked once and reused across every posting (CONTEXT.md
+// "Eligibility fact"). `declineOption` is always the last entry of `options` — "not answering" is a
+// first-class, always-available choice, never a forced pick.
+export interface EligibilityAsk {
+  dimension: "years-experience" | "work-rights" | "language" | "certification" | "degree";
+  familyId: string; // the pinned family id, or "*" when the question holds regardless of role
+  scopeLabel: string | null; // e.g. "IT project delivery"; null when global
+  declineOption: string; // the exact option string meaning "not answering"
+}
+
 export interface DiscoveryQuestion {
   itemId: string;
   question: string;
-  options: string[]; // may be empty — a free-text floor item
+  options: string[]; // may be empty — a free-text floor item (never empty when `eligibility` is set)
   cvSection: CvSection;
+  eligibility?: EligibilityAsk; // present ⇔ this is an eligibility question, not a CV-line floor item
 }
 
 export interface DiscoveryCvLine {

@@ -36,6 +36,47 @@ const Q_HEADLINE = {
   cvSection: "summary" as const,
 };
 
+// #106: eligibility questions — asked at the tail of the floor loop, through the same ask dock.
+// Copy is verbatim from the #106 design spec's copy table (the contract the backend engineer
+// implements against too), so these fixtures double as a check that the client renders the wire
+// strings as-is rather than composing its own `.q`/options.
+const Q_ELIG_YEARS = {
+  itemId: "elig-years",
+  question: "How many years have you worked in IT project delivery?",
+  options: ["Under 3 years", "3–4 years", "5–7 years", "8–10 years", "More than 10 years", "Ask me later"],
+  cvSection: "experience" as const,
+  eligibility: {
+    dimension: "years-experience" as const,
+    familyId: "it-project-delivery",
+    scopeLabel: "IT project delivery",
+    declineOption: "Ask me later",
+  },
+};
+const Q_ELIG_WORK_RIGHTS = {
+  itemId: "elig-work-rights",
+  question: "Can you already work in Paris without visa sponsorship?",
+  options: ["Yes — no sponsorship needed", "Not yet — I'd need sponsorship", "Ask me later"],
+  cvSection: "experience" as const,
+  eligibility: {
+    dimension: "work-rights" as const,
+    familyId: "*",
+    scopeLabel: null,
+    declineOption: "Ask me later",
+  },
+};
+const Q_ELIG_CERT = {
+  itemId: "elig-cert",
+  question: "Do you hold PRINCE2?",
+  options: ["Yes, I hold it", "I'm working towards it", "No, I don't hold it", "Ask me later"],
+  cvSection: "skills" as const,
+  eligibility: {
+    dimension: "certification" as const,
+    familyId: "it-project-delivery",
+    scopeLabel: null,
+    declineOption: "Ask me later",
+  },
+};
+
 const BEFORE_START: DiscoveryState = {
   stage: "discovery",
   role: null,
@@ -111,6 +152,32 @@ const AFTER_ESSENTIAL_DONE: DiscoveryState = {
   factCount: 3,
 };
 
+// #106: the floor is fully answered (essentialRemaining: 0) and three eligibility items remain in
+// `questions` — essentialRemaining counts floor items only, so `remaining()` (design spec §6) sums
+// it with the eligibility items still present rather than falling back to one or the other.
+const AFTER_ELIG_START: DiscoveryState = {
+  ...AFTER_ANSWER,
+  questions: [Q_ELIG_YEARS, Q_ELIG_WORK_RIGHTS, Q_ELIG_CERT],
+  essentialRemaining: 0,
+};
+const AFTER_ELIG_YEARS_ANSWERED: DiscoveryState = {
+  ...AFTER_ELIG_START,
+  questions: [Q_ELIG_WORK_RIGHTS, Q_ELIG_CERT],
+  factCount: 3, // the badge still grows on an eligibility answer — no CV line, but the pile does (#17)
+};
+const AFTER_ELIG_WORK_RIGHTS_DECLINED: DiscoveryState = {
+  ...AFTER_ELIG_START,
+  questions: [Q_ELIG_CERT],
+  factCount: 4,
+};
+// #106: the last eligibility answer flips stage to "deck" exactly like the last floor answer does.
+const AFTER_ELIG_ALL_DONE: DiscoveryState = {
+  ...AFTER_ELIG_START,
+  stage: "deck",
+  questions: [],
+  factCount: 5,
+};
+
 // Mutated by the /start and /answer stubs below so a later GET (including one after a reload)
 // resumes from wherever the flow last landed.
 let current: DiscoveryState = BEFORE_START;
@@ -145,6 +212,14 @@ async function stubDiscovery(page: Page) {
       current = AFTER_ESSENTIAL_DONE;
     } else if (itemId === "budget" && /^no$/i.test(answer)) {
       current = AFTER_NO;
+    } else if (itemId === "elig-years") {
+      // #106: any answer (fresh or a correction) — state doesn't observably differ, since an
+      // eligibility item never produces a line either way (design spec §5.3).
+      current = AFTER_ELIG_YEARS_ANSWERED;
+    } else if (itemId === "elig-work-rights") {
+      current = AFTER_ELIG_WORK_RIGHTS_DECLINED;
+    } else if (itemId === "elig-cert") {
+      current = AFTER_ELIG_ALL_DONE;
     } else {
       current = AFTER_ANSWER;
     }
@@ -290,7 +365,18 @@ test("every discovery question state fits fluidly across phone, tablet and deskt
   ]) {
     await page.setViewportSize(viewport);
 
-    for (const state of [BEFORE_START, AFTER_START, AFTER_ANSWER, AFTER_NO, AFTER_FREE_TEXT]) {
+    for (const state of [
+      BEFORE_START,
+      AFTER_START,
+      AFTER_ANSWER,
+      AFTER_NO,
+      AFTER_FREE_TEXT,
+      // #106: the years question (6 options, one at 19 chars) and the work-rights question (the
+      // longest option, "Not yet — I'd need sponsorship") — the two eligibility fixtures the design
+      // spec calls out by name for the 360-ish px floor (§8).
+      AFTER_ELIG_START,
+      AFTER_ELIG_YEARS_ANSWERED,
+    ]) {
       current = state;
       await page.goto("/discovery");
       await expect(page.locator(".discovery .ask")).toBeVisible();
@@ -432,4 +518,111 @@ test("the essential band done: discovery navigates to the /deck reveal, announci
   await expect(heading).toBeVisible();
   await expect(heading).toBeFocused();
   await expect(page.locator('[aria-live="polite"]')).toHaveText("1 job just matched you");
+});
+
+// #106 eligibility questions: asked at the tail of the floor loop, through the same ask dock and
+// notice/fix machinery #18 already built for the bare-"no" answer.
+
+test("an eligibility question states its scope in the question itself, offers a first-class decline, and a real answer confirms without touching the CV", async ({
+  page,
+}) => {
+  current = AFTER_ELIG_START;
+  await stubDiscovery(page);
+
+  await page.goto("/discovery");
+
+  // The scope is tellable from the question alone (design spec §3) — not just a sub-line a user
+  // could skim past.
+  await expect(
+    page.getByText("How many years have you worked in IT project delivery?", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Years in IT project delivery only — not your whole career.")).toBeVisible();
+
+  // Tap-first: no free-text box on this question, and the decline is a real option, last in order.
+  const options = page.locator(".discovery .opts button");
+  await expect(options).toHaveCount(6);
+  await expect(options.last()).toHaveText("Ask me later");
+  await expect(page.locator(".discovery .freetext")).toHaveCount(0);
+
+  // Not a new rail segment — no section reads as "active" while an eligibility question is live.
+  await expect(page.locator(".rail-steps .step.active")).toHaveCount(0);
+
+  // The floor's finished CV is untouched underneath the block.
+  await expect(page.getByText("5 to 10 years of experience as a project manager.", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "5–7 years" }).click();
+
+  // A real answer reads exactly like any other — a locked-in confirmation, never a punishment —
+  // and still no CV line was added for it.
+  await expect(page.locator(".discovery .notice")).toContainText(
+    "Locked in — I'll use that on every job, so I won't ask again.",
+  );
+  await expect(page.getByRole("button", { name: "Fix that?" })).toBeVisible();
+  await expect(page.getByText("5 to 10 years of experience as a project manager.", { exact: true })).toBeVisible();
+  await expectDiscoveryFitsViewport(page);
+});
+
+test("declining an eligibility question is informative, never a failure, and stays correctable", async ({ page }) => {
+  current = AFTER_ELIG_YEARS_ANSWERED; // "elig-years" already answered; "elig-work-rights" is live
+  await stubDiscovery(page);
+
+  await page.goto("/discovery");
+  await page.getByRole("button", { name: "Ask me later", exact: true }).click();
+
+  await expect(page.locator(".discovery .notice")).toContainText("No problem — I'll ask again when a job needs it.");
+  const answerNow = page.getByRole("button", { name: "Answer it now" });
+  await expect(answerNow).toBeVisible();
+  await expect(page.locator(".err")).toHaveCount(0); // never rendered as an error
+  await expect(page.getByText("Do you hold PRINCE2?")).toBeVisible(); // the next question, undelayed
+  await expectDiscoveryFitsViewport(page);
+
+  // Declining is correctable exactly like a real answer (design spec §5.4) — Esc returns focus to
+  // its own fix button, since there is no CV line to return to.
+  await answerNow.click();
+  await expect(page.getByText("Change your answer.")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(answerNow).toBeFocused();
+});
+
+test("fixing an answered eligibility question re-opens it with the previous choice already picked", async ({
+  page,
+}) => {
+  current = AFTER_ELIG_START;
+  await stubDiscovery(page);
+
+  await page.goto("/discovery");
+  await page.getByRole("button", { name: "5–7 years" }).click();
+  const fixThat = page.getByRole("button", { name: "Fix that?" });
+  await expect(fixThat).toBeVisible();
+
+  await fixThat.click();
+  await expect(page.getByText("Change your answer.")).toBeVisible();
+  // design spec §5.4 point 2: the re-ask opens with the current answer already picked, not blank.
+  await expect(page.getByRole("button", { name: "5–7 years" })).toHaveClass(/picked/);
+
+  await page.keyboard.press("Escape");
+  await expect(fixThat).toBeFocused();
+
+  // Committing a different answer updates the notice and returns focus to the fix button, exactly
+  // like the bare-"no" correction flow (#24).
+  await fixThat.click();
+  await page.getByRole("button", { name: "More than 10 years" }).click();
+  await expect(page.locator(".discovery .notice")).toContainText(
+    "Locked in — I'll use that on every job, so I won't ask again.",
+  );
+  await expect(page.getByRole("button", { name: "Fix that?" })).toBeFocused();
+});
+
+test("the last eligibility answer hands off to the deck, same as the last floor question", async ({ page }) => {
+  current = AFTER_ELIG_WORK_RIGHTS_DECLINED; // only "elig-cert" left
+  await stubDiscovery(page);
+
+  await page.goto("/discovery");
+  await page.getByRole("button", { name: "Yes, I hold it" }).click();
+
+  await expect(page.getByText("That's all I need to ask.", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Now I'll line these jobs up against everything you told me.", { exact: true }),
+  ).toBeVisible();
+  await expectDiscoveryFitsViewport(page);
 });

@@ -17,6 +17,7 @@ import {
   tailorCvLines,
   tailorQuestions,
 } from "../src/tailor.js";
+import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
 
 const AD: AdRequirementsV1 = {
   schemaVersion: "1",
@@ -487,6 +488,24 @@ describe("#23 POST /onboarding/tailor/answer", () => {
 
     const afterNo = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })).json();
     expect(afterNo.factCount).toBe(afterYes.factCount); // a correction flips in place, doesn't grow or shrink
+  });
+
+  // #106 code-review D1 (2026-08-03, round 3): buildTailorState's own factCount is a SEPARATE
+  // emission point from /profile's — a decline used to inflate this one too, unfiltered.
+  it("a declined eligibility question does not inflate tailor's factCount (D1)", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    await reachTailor(app, cookie, "elig-decline-factcount@example.com");
+    const before = (await get(app, cookie, "/onboarding/tailor")).json();
+
+    const discovery = (await get(app, cookie, "/onboarding/discovery")).json();
+    const workRights = discovery.questions.find(
+      (q: { eligibility?: { dimension: string } }) => q.eligibility?.dimension === "work-rights",
+    )!;
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION });
+
+    const after = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(after.factCount).toBe(before.factCount);
   });
 
   // #33 — a claim rejected in the S2 review deck really does lower the raw confirmed+negatives count,

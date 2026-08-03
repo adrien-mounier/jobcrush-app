@@ -13,6 +13,7 @@ import { makeAdReader } from "../src/adReader.js";
 import { InMemoryAdRequirementsStore } from "../src/adRequirementsStore.js";
 import { readCounters } from "../src/counters.js";
 import type { LlmClient } from "../src/llm.js";
+import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
 
 async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
   const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });
@@ -215,7 +216,10 @@ describe("#19 GET /onboarding/cards", () => {
     const res = await get(app, cookie, "/onboarding/cards");
     expect(res.statusCode).toBe(200);
     const body = res.json() as { stage: string; cards: JobCard[] };
-    expect(body.stage).toBe("deck"); // essential band fully asked
+    // #106: stage no longer flips to deck on the essential band alone — three eligibility questions
+    // are now pending and none were answered here. /onboarding/cards itself is never gated on stage
+    // (comment a few lines below, unchanged), so this is a pure echo-of-session-state check.
+    expect(body.stage).toBe("discovery");
 
     expect(body.cards.length).toBeGreaterThanOrEqual(3);
 
@@ -268,6 +272,27 @@ describe("#19 GET /onboarding/cards", () => {
     for (const card of body.cards) {
       expect(card.askedClosed.map((f) => f.id)).toContain("discovery-stakeholder-reporting");
       expect(card.fit.map((f) => f.id)).not.toContain("discovery-stakeholder-reporting");
+    }
+  });
+
+  // #106 code-review D1 (2026-08-03, round 3): buildJobCard built askedClosed unfiltered from EVERY
+  // negative claim, so a declined eligibility question — which has nothing to do with any one ad's
+  // requirements — showed up on every single card in the deck as if it were that ad's own closed gap.
+  it("a declined eligibility question never shows up in any card's askedClosed (D1)", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const start = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const workRights = start.questions.find(
+      (q: { eligibility?: { dimension: string } }) => q.eligibility?.dimension === "work-rights",
+    )!;
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION });
+
+    const res = await get(app, cookie, "/onboarding/cards");
+    const body = res.json() as { cards: JobCard[] };
+    expect(body.cards.length).toBeGreaterThan(0);
+    for (const card of body.cards) {
+      expect(card.askedClosed.map((f) => f.id)).not.toContain(`discovery-${workRights.itemId}`);
+      expect(card.fit.map((f) => f.id)).not.toContain(`discovery-${workRights.itemId}`);
     }
   });
 

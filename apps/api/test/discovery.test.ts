@@ -2,6 +2,7 @@
 // primary seam: every server-decided behaviour observed through the route). Prior art:
 // onboarding.test.ts (real requests over the spine) and preview.test.ts (pure helpers).
 import { describe, expect, it } from "vitest";
+import { newDb } from "pg-mem";
 import type { FloorItem } from "@jobcrush/contracts";
 import { buildServer } from "../src/server.js";
 import type { ClaimRecord } from "../src/claims.js";
@@ -17,6 +18,8 @@ import {
   resolveFamily,
   type DiscoveryState,
 } from "../src/discovery.js";
+import { ANY_FAMILY, PgEligibilityStore, type EligibilityStore } from "../src/eligibility.js";
+import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
 
 const item = (over: Partial<FloorItem>): FloorItem => ({
   id: "x",
@@ -232,7 +235,9 @@ describe("#16 discovery routes", () => {
     expect(s.promise).toMatchObject({ family: "IT Project Manager", city: "Paris", count: 142 });
     expect(s.essentialRemaining).toBe(3); // 3 essential items in the stub floor
     expect(s.questions.map((q) => q.itemId)).not.toContain("headline-focus"); // nice-to-have not asked
-    expect(s.questions).toHaveLength(7); // 3 essential + 4 standard
+    // #106 code-review must-fix 2: the 3 eligibility questions are visible from Q1 too, appended
+    // after the 7 floor questions (never withheld until the essential band is covered).
+    expect(s.questions).toHaveLength(10); // 3 essential + 4 standard + 3 eligibility
     expect(s.cvLines[0]).toMatchObject({ itemId: "role", text: "IT project manager in Paris" });
   });
 
@@ -326,7 +331,9 @@ describe("#16 discovery routes", () => {
 
   // #18 AC1 — the gate: the last essential item answered flips stage to "deck", and it's PERSISTED
   // (a fresh GET, and the session's own stage, both read "deck" — not just the one response).
-  it("answering the last essential item flips stage to deck; a fresh GET and the session both persist it", async () => {
+  // #106: the essential band alone no longer flips it — three eligibility questions are also due; see
+  // the "#106 eligibility questions in discovery" describe block below for that gate on its own.
+  it("answering the last essential item flips stage to deck only once eligibility is also closed; a fresh GET and the session both persist it", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
@@ -344,7 +351,16 @@ describe("#16 discovery routes", () => {
     const last: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" })
     ).json();
-    expect(last.stage).toBe("deck");
+    expect(last.essentialRemaining).toBe(0);
+    expect(last.stage).toBe("discovery"); // #106: three eligibility questions are now pending
+    const eligibilityIds = last.questions.filter((q) => q.eligibility).map((q) => q.itemId);
+    expect(eligibilityIds).toHaveLength(3);
+
+    let final: DiscoveryState = last;
+    for (const itemId of eligibilityIds) {
+      final = (await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: DECLINE_OPTION })).json();
+    }
+    expect(final.stage).toBe("deck");
 
     const resumed: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
     expect(resumed.stage).toBe("deck");
@@ -488,8 +504,9 @@ describe("#16 discovery routes", () => {
     const before: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" })
     ).json();
-    expect(before.stage).toBe("deck"); // essential band fully asked
-    expect(before.essentialRemaining).toBe(0);
+    expect(before.essentialRemaining).toBe(0); // essential band fully asked
+    // #106: stage no longer flips to deck on the essential band alone — eligibility is now pending.
+    expect(before.stage).toBe("discovery");
     const railBefore = before.railFill.experience;
 
     // The reject route is post-wall (requireUser) — sign in, like #33's own route test does.
@@ -584,5 +601,356 @@ describe("#16 discovery routes", () => {
 
     const after: DiscoveryState = (await get(app, cookie, `/onboarding/discovery?job=${job.id}`)).json();
     expect(after.questions.map((q) => q.itemId)).not.toContain("reader-role");
+  });
+});
+
+// --- #106 eligibility questions in discovery ------------------------------------------------
+// Storage is eligibility.ts's (#86 decisions 4+5, already merged and tested — eligibility.test.ts).
+// This drives the SAME three live routes as "#16 discovery routes" above; the derivation (which
+// three dimensions, and why) is docs/research/eligibility-dimensions-from-the-corpus.md.
+//
+// 2026-08-03 code review folded in here: must-fix 1 (an affirmative answer must never reach the
+// claim graph as a confirmed-gap node), must-fix 2 (eligibility questions visible from Q1, never
+// withheld until the essential band is covered — the countdown must not climb back up), must-fix 3
+// (a decline must not inflate factCount), must-fix 5 (correcting to a decline must retract the
+// stored fact), must-fix 6 (the live years-experience scope must be a domain phrase, not the stub's
+// job title), must-fix 8 (a decline's recorded text must name the real city the visitor was asked
+// about).
+describe("#106 eligibility questions in discovery", () => {
+  it("an eligibility fact reads as unknown before it has ever been asked (#106 regression case)", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    expect(await eligibility.get(sid, "years-experience", years.eligibility!.familyId)).toBeNull();
+    expect(await eligibility.get(sid, "work-rights")).toBeNull();
+    expect(await eligibility.get(sid, "language")).toBeNull();
+  });
+
+  it("appears in questions from Q1, positioned right after the essential band and before the standard one (must-fix 2, corrected in round 3)", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    expect(start.essentialRemaining).toBe(3); // essential band completely untouched
+    expect(start.questions).toHaveLength(10); // 3 essential + 3 eligibility + 4 standard (untriggered)
+
+    // Round 2 put eligibility after the WHOLE floor (essential+standard) — a funnel regression (round
+    // 3): the ask dock renders questions[0] only, so a visitor had to clear the entire standard band
+    // just to REACH the eligibility questions that gate the deck. Round 3's fix: eligibility slots in
+    // between essential and standard, never after standard.
+    const eligDimensions = start.questions.map((q) => q.eligibility?.dimension ?? null);
+    expect(eligDimensions.slice(0, 3)).toEqual([null, null, null]); // the 3 essential items
+    expect(eligDimensions.slice(3, 6)).toEqual(["years-experience", "work-rights", "language"]);
+    expect(eligDimensions.slice(6)).toEqual([null, null, null, null]); // the 4 standard items, still last
+  });
+
+  // Code-review round 3, the regression QA flagged directly: pins the funnel length so this can't
+  // silently regress again. Before #106, a visitor cleared the essential band alone (~3 answers) and
+  // reached the deck; the standard band was always optional/loopback-reachable, never required.
+  it("reaches the deck after the essential band + eligibility questions, WITHOUT ever being asked the standard band (funnel regression)", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const eligIds = start.questions.filter((q) => q.eligibility).map((q) => q.itemId);
+    expect(eligIds).toHaveLength(3);
+
+    let state = start;
+    for (const itemId of eligIds) {
+      state = (await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: DECLINE_OPTION })).json();
+    }
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: "cross-functional-leadership",
+      answer: "Yes, one team",
+    });
+    const last: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" })
+    ).json();
+
+    expect(last.stage).toBe("deck"); // reached with only essential (3) + eligibility (3) = 6 answers
+    // None of the standard band's items were ever answered — they were never required.
+    const standardFloorIds = ["delivery-methodology", "pm-certification", "risk-register", "education-related-field"];
+    for (const itemId of standardFloorIds) {
+      expect(last.cvLines.some((l) => l.itemId === itemId)).toBe(false);
+    }
+  });
+
+  it("does not enter essentialRemaining or railFill — the floor-only meaning is unchanged", async () => {
+    const { app, claims } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    expect(start.questions.some((q) => q.eligibility)).toBe(true); // they ARE present in questions
+
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    const [confirmed, negatives] = await Promise.all([claims.confirmed(sid), claims.negatives(sid)]);
+    // Same underlying (empty) floor answers, computed WITHOUT the eligibility layer — must match
+    // exactly: three eligibility questions sitting in `questions` moved nothing.
+    const floorOnly = discoveryState(ROLE, confirmed, negatives, []);
+    expect(start.railFill).toEqual(floorOnly.railFill);
+    expect(start.essentialRemaining).toBe(floorOnly.essentialRemaining);
+  });
+
+  it("stage flips to deck only once BOTH bands are closed, regardless of which finishes first (must-fix 2)", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const eligIds = start.questions.filter((q) => q.eligibility).map((q) => q.itemId);
+    expect(eligIds).toHaveLength(3);
+
+    // Close every eligibility question FIRST, well before the essential band — legitimate under the
+    // fix (they're always visible), and exactly the ordering the old withholding gate would have
+    // broken the countdown on.
+    let state = start;
+    for (const itemId of eligIds) {
+      state = (await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: DECLINE_OPTION })).json();
+      expect(state.stage).toBe("discovery"); // essential band still fully open
+    }
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
+    const mid: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", {
+        itemId: "cross-functional-leadership",
+        answer: "Yes, one team",
+      })
+    ).json();
+    expect(mid.stage).toBe("discovery"); // one essential item still open
+
+    const last: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" })
+    ).json();
+    expect(last.stage).toBe("deck"); // both bands closed now, whichever order they closed in
+  });
+
+  it("a real value answer produces no CV line, closes the question, and lands in the eligibility store", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+
+    const answered: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "5–7 years" })
+    ).json();
+    expect(answered.cvLines.some((l) => l.itemId === years.itemId)).toBe(false); // #106 AC7
+    expect(answered.questions.map((q) => q.itemId)).not.toContain(years.itemId); // closed, never re-offered
+
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    const fact = await eligibility.get(sid, "years-experience", years.eligibility!.familyId);
+    expect(fact).toMatchObject({ value: "5" }); // #106: the band's lower bound, never a midpoint
+  });
+
+  // Code-review must-fix 1: the oracle (packages/contracts/oracle/validate_graph.mjs) defines a
+  // Negative-classified graph node as a CONFIRMED GAP Tailor must never assert. graph.ts's
+  // buildClaimGraph only ever sees claims.confirmed()/claims.negatives() as input (no other source) —
+  // so proving an affirmative answer is absent from BOTH buckets proves it is structurally impossible
+  // for it to reach the graph at all, renderable or not. Neither /onboarding/build's response nor any
+  // other route exposes the graph's raw node list, so the claims store — the graph's only input — is
+  // the strongest check available at the API boundary.
+  it("an affirmative eligibility answer never enters the claims store, so it can never reach the graph as a confirmed-gap node (must-fix 1)", async () => {
+    const { app, claims } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: workRights.itemId,
+      answer: "Yes — no sponsorship needed",
+    });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "5–7 years" });
+
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    const [confirmed, negatives] = await Promise.all([claims.confirmed(sid), claims.negatives(sid)]);
+    const allIds = [...confirmed, ...negatives].map((c) => c.id);
+    expect(allIds).not.toContain(discoveryClaimId(workRights.itemId));
+    expect(allIds).not.toContain(discoveryClaimId(years.itemId));
+  });
+
+  it("declining does not inflate factCount — a refusal is not a recorded fact (must-fix 3)", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+
+    const after: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION })
+    ).json();
+    expect(after.factCount).toBe(start.factCount);
+  });
+
+  it("declining stores NO fact — the dimension still reads as unknown, distinct from a real answer", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+
+    const answered: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION })
+    ).json();
+    expect(answered.questions.map((q) => q.itemId)).not.toContain(workRights.itemId); // closed — never re-asked
+    expect(answered.cvLines.some((l) => l.itemId === workRights.itemId)).toBe(false);
+
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    expect(await eligibility.get(sid, "work-rights")).toBeNull(); // unknown, never "does not have it"
+  });
+
+  it("an explicit negative answer IS a real value, stored through the existing store — distinct from a decline and from unknown", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: workRights.itemId,
+      answer: "Not yet — I'd need sponsorship",
+    });
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    expect(await eligibility.get(sid, "work-rights")).toMatchObject({ value: "needs-sponsorship" });
+  });
+
+  // Code-review must-fix 5: correcting TO a decline must retract a prior real answer's stored value —
+  // eligibility.remove() exists and was unused. Without this, slice 6 (#107) would withdraw jobs on
+  // an answer the visitor explicitly retracted, while the screen tells them nobody knows.
+  it("correcting a real answer TO a decline retracts the stored fact (must-fix 5)", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: workRights.itemId,
+      answer: "Not yet — I'd need sponsorship",
+    });
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    expect(await eligibility.get(sid, "work-rights")).toMatchObject({ value: "needs-sponsorship" }); // stored
+
+    const corrected: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION })
+    ).json();
+    expect(corrected.questions.map((q) => q.itemId)).not.toContain(workRights.itemId); // still closed
+    expect(await eligibility.get(sid, "work-rights")).toBeNull(); // retracted, not stale
+  });
+
+  it("re-answering an eligibility question corrects it, exactly like the existing idempotent upsert", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "Under 3 years" });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "More than 10 years" });
+
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    expect(await eligibility.numeric(sid, "years-experience", years.eligibility!.familyId)).toBe(10);
+  });
+
+  it("years-experience is scoped to the resolved family — the global scope stays empty", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+    expect(years.eligibility!.familyId).not.toBe(ANY_FAMILY);
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "5–7 years" });
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    expect(await eligibility.numeric(sid, "years-experience")).toBeNull(); // the global scope stays empty
+    expect(await eligibility.numeric(sid, "years-experience", years.eligibility!.familyId)).toBe(5);
+  });
+
+  // Code-review must-fix 6: a job title ("...worked in IT Project Manager?") is ungrammatical and
+  // misreads as the wrong thing — the ticket's central UX requirement is that the scope be tellable
+  // from the question alone, on the path that actually runs (the E5 stub — nothing pins a production
+  // floor via the live routes today).
+  it("the live path's years-experience question uses a domain phrase, not the stub's job title (must-fix 6)", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+    expect(years.question).toBe("How many years have you worked in IT project delivery?");
+    expect(years.eligibility!.scopeLabel).toBe("IT project delivery");
+    expect(years.question).not.toContain("IT Project Manager");
+  });
+
+  // Code-review must-fix 8: the decline's recorded text rebuilds the question, so it must reflect the
+  // CITY THE VISITOR WAS ACTUALLY ASKED ABOUT, not a generic placeholder.
+  it("a work-rights decline records the real city the visitor was asked about, not a placeholder (must-fix 8)", async () => {
+    const { app, claims } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json(); // ROLE names Paris
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    expect(workRights.question).toBe("Can you already work in Paris without visa sponsorship?");
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION });
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    const negatives = await claims.negatives(sid);
+    const declineClaim = negatives.find((c) => c.id === discoveryClaimId(workRights.itemId))!;
+    expect(declineClaim.text).toContain("Paris");
+    expect(declineClaim.text).not.toContain("where you're job-hunting"); // the generic fallback text
+  });
+
+  it("an unknown eligibility itemId is a 404", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const res = await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: "eligibility-not-a-real-dimension",
+      answer: "x",
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("an unrecognized answer for a known eligibility item is a 400, never a crash", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+    const res = await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "about 8 years" });
+    expect(res.statusCode).toBe(400);
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    // The store's own write-time guard (assertStorable) is never even reached with a bad value.
+    expect(await eligibility.get(sid, "years-experience", years.eligibility!.familyId)).toBeNull();
+  });
+
+  it("resumes identically on a fresh GET — the whole screen stays a pure function of persisted state", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+    const answered: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "5–7 years" })
+    ).json();
+
+    const resumed: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
+    expect(resumed.questions.map((q) => q.itemId)).toEqual(answered.questions.map((q) => q.itemId));
+    expect(resumed.stage).toBe(answered.stage);
+  });
+
+  // Store contract seam, both drivers (prior art: eligibility.test.ts) — proves THIS module's wiring
+  // (not just the store in isolation) is driver-agnostic, injecting the pg-mem-backed driver the same
+  // way eligibility.test.ts's own dual-driver loop does.
+  it("a structured fact survives a round trip through the Postgres driver too (pg-mem)", async () => {
+    const { Pool } = newDb().adapters.createPg();
+    const eligibility: EligibilityStore = new PgEligibilityStore(new Pool());
+    await eligibility.init();
+    const { app } = buildServer({ eligibility });
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "8–10 years" });
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    expect(await eligibility.numeric(sid, "years-experience", years.eligibility!.familyId)).toBe(8);
   });
 });
