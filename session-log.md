@@ -44,6 +44,41 @@ Newest first. One entry per working session. Ticket + commit refs so the plan st
   concurrent session's uncommitted #117 work, so pushing `56110d1` alone would land a red CI and a
   broken auto-deploy. Push once that lands.
 
+## 2026-08-03 (session 66b) — `#117` closed on measurement: three paid staging runs, and the cap that moved the wrong way
+
+- **[#117](https://github.com/adrien-mounier/jobcrush-app/issues/117) CLOSED** (`9b348af` → `c152dd9`),
+  with **AC6 formally unmet and recorded as unmeetable** rather than redefined to pass. Final state:
+  `DECK_JUDGE_MAX_CARDS = 8`. Unearned numbers on a cold deck **9 of 15 → 0 of 15**; cost per cold
+  visitor **$0.29 → $0.1394 (−52%)**; returning visitor **free**; no number moved in any run.
+- 🐛 **The experiment worth not repeating, and the reason the ticket closed unmet.** The owner raised
+  the cap 8 → 20 to stop 7 cards reading "Not scored". The paid run showed it made the first deck
+  **emptier** — 3 judged instead of 6 — and cost **114% more** ($0.2985 vs $0.1394). At 20 nothing is
+  bound-excluded, so all ~15 adverts get a paid call and **12 were still in flight** when the shared
+  `DECK_JUDGE_BUDGET_MS` (8s) expired; `CARD_RESOLUTION_CONCURRENCY` (6) turns 15 calls into three waves
+  sharing one wall, so later waves get almost no time. **The first-view score count is governed by the
+  in-request budget against per-call latency, not by the bound.** Reverted; the three-run table now
+  lives in the constant's own comment. AC6 cannot be satisfied by any cap — but the failure it guarded
+  against (a cost cut pushing more of the deck onto the old scorer) is structurally impossible now.
+- 🚨 **A test nearly put six invented job adverts in front of real visitors.** Raising the cap above the
+  pool size left the "bound holds when pool > ceiling" test with nothing to prove, so six
+  `synthetic-holdco` postings were appended to `data/sample-postings.json` — which is **not a fixture**
+  but the live pool `preview.ts` loads at runtime. Caught before it reached a commit. Fixed by making
+  the ceiling injectable (`OnboardingDeps/BuildOptions.judgeMaxCards`, unset in `main.ts`) so tests set
+  a ceiling of 3 against the real untouched pool. **Never move product data to satisfy a test.**
+- **Parallel-session note.** Another session shipped #106 concurrently. Their commits sat unpushed
+  because a dead test's fix lived in this session's working tree; committing here made the combined tree
+  green (753 api + 29 contracts, cache bypassed) and both went up together in one push.
+- **→ [#121](https://github.com/adrien-mounier/jobcrush-app/issues/121) filed**, deliberately **not**
+  `ready-for-agent` — wants a `/wayfinder` pass. Score just ahead of the visitor as they swipe instead
+  of scoring the whole deck up front: pays only for attention actually spent, and retires the
+  token-overlap pre-filter that currently decides *which* 8 adverts are worth judging. Open questions
+  are pacing ones (a fast swiper outrunning the scoring is worse than today's calm "Not scored").
+- **Infra:** `OPS_KEY` set on `jobcrush-api-staging` (owner-approved) so `/ops/spend` is readable;
+  recorded in `AI/Projects/SHARED_INFRA.md` alongside `GUESTBOOK_KEY` as the account's two operator-only
+  read-gates. Value is not written down anywhere — Fly cannot read secrets back.
+- **Spend this session: ~$0.44** across three measurement runs ($0.1394 + $0.2985, plus the earlier
+  fake-model run at $0).
+
 ## 2026-08-03 (session 66) — `/orchestrate-team #117`: the deck buys eight honest scores and stops inventing the other seven
 
 - **[#117](https://github.com/adrien-mounier/jobcrush-app/issues/117) shipped in `9b348af`, ticket

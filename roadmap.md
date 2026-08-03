@@ -355,7 +355,22 @@ pricing decision taken off it); in-flight writes are lost on shutdown (no SIGTER
 throws records nothing, so a client-side timeout on a request the provider served under-reports; and
 `main.ts`'s wiring is guarded by convention, not by types, so a future stage wired with the raw client
 would spend unmetered without failing a test. **Unblocks the ops dashboard and #117.**
-🟡 **#117 shipped 2026-08-03 (`9b348af`), ticket deliberately still OPEN** — the cold deck no longer
+✅ **#117 CLOSED 2026-08-03 (`9b348af` → `c152dd9`), AC6 formally unmet — see the end of this entry.**
+**Final shipped state: `DECK_JUDGE_MAX_CARDS = 8`.** Measured live on staging three times: unearned
+numbers on a cold deck went **9 of 15 → 0 of 15**, cost per cold visitor **$0.29 → $0.1394 (−52%)**, a
+returning visitor's deck is **free** (0 model calls), and no number moved between views in any run.
+⚠️ **The experiment not to repeat:** the owner raised the cap 8 → 20 to stop 7 cards saying "Not
+scored"; the paid run showed it made the first deck **emptier** (3 judged vs 6) and cost **114% more**
+($0.2985), because at 20 nothing is bound-excluded and 12 cards were still in flight when the shared 8s
+budget expired. **The first-view score count is governed by `DECK_JUDGE_BUDGET_MS` against per-call
+latency, not by the bound** — reverted in `c152dd9`, and the three-run table lives in the constant's own
+comment so nobody re-runs it. **AC6 ("fallback rate lower than 9-of-15") is unmeetable by any cap** and
+was closed unmet rather than redefined to pass; the failure it guarded against — a cheap cost cut
+pushing more of the deck onto the old scorer — cannot occur any more, which is what 0-of-15 means.
+**→ #121 (not `ready-for-agent`, wants a `/wayfinder` pass) carries the real fix:** score just ahead of
+the visitor as they swipe rather than scoring the whole deck up front, which also retires the
+token-overlap pre-filter that currently picks *which* 8 adverts are worth paying to judge.
+🟡 **(superseded, kept for the record) #117 shipped 2026-08-03 (`9b348af`)** — the cold deck no longer
 buys a judgement for every advert and no longer shows the old scorer's number as though it were
 judged. `DECK_JUDGE_MAX_CARDS = 8` bounds **paid** calls per visitor per fact set; free cache reads are
 never bounded (a returning visitor gets a fully judged deck for nothing, via a cache-only path that

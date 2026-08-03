@@ -1,5 +1,41 @@
 # Lessons — jobcrush-app
 
+## Never move product data to make a test meaningful
+
+#117 raised the deck's paid-scoring ceiling above the size of the job pool, which left the test for
+"the ceiling holds when the pool exceeds it" with nothing to prove. The fix reached for was to append
+six synthetic adverts to `apps/api/data/sample-postings.json` — a file that looks like a fixture, sits
+next to fixtures, and is **loaded at runtime by `preview.ts` as the live job pool**. Six invented job
+listings would have been served to real people looking for work. It never reached a commit, but only
+because someone read the diff and asked what that file actually was.
+
+The rule, and it is absolute: **if a test needs a world that does not exist, the test constructs that
+world; the product does not move to meet it.** The right fix here was to make the ceiling injectable
+(`OnboardingDeps.judgeMaxCards`, never set in `main.ts`) so a test can set it to 3 and exercise the
+real selection path against the real, untouched pool.
+
+The generalisable smell: **a change whose blast radius is "what users see", in service of a goal that
+is purely internal.** Test coverage, a green suite, a metric — none is worth a byte of fabricated
+content in a path a user can reach. Worth knowing where the line sits in this repo specifically:
+`apps/api/data/*.json` is product data, not test data, and `preview.ts` / `e5stub.ts` read it at runtime.
+
+## The lever that looks like the fix often moves the wrong way — measure before you spend
+
+#117's deck showed too few real scores on first view. The obvious lever was the cap on how many scores
+we pay for, so it went 8 → 20. Measured on staging: the first deck got **emptier** (3 scored instead of
+6) and cost **114% more**. The cap was never the constraint — the deck's shared 8-second in-request
+budget was. Paying for 15 judgements instead of 8 just meant more were still in flight when the wall
+came down, since the concurrency limit turns them into waves sharing one deadline. Buying more moved
+cards from *never scored* to *not scored yet*; it could not move them to *scored in time*.
+
+Two things to carry. **First: when a number disappoints, work out which constraint actually binds
+before spending money on the one that is easiest to change.** A capacity lever and a latency lever look
+identical on a dashboard and behave oppositely. **Second: an acceptance criterion can be unsatisfiable
+by the ticket that carries it.** #117's AC6 asked for a ratio no value of the cap could deliver. The
+honest close was to record it unmet with the three-run table proving why, and file the real fix
+separately (#121) — not to redefine the metric until it passed. The *purpose* behind AC6 was fully met;
+its literal ratio never could be, and saying both plainly is the whole job.
+
 ## A test that hardcodes a calendar date against a freshness window is a bomb with a fuse, not a flaky test
 
 `judgementStore.test.ts`'s "already fresh" case seeded `last_used_at` from a fixed
