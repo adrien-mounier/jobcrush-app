@@ -416,15 +416,23 @@ describe("#105 review round 4: the deck has ONE shared judging budget, not per-w
 
   // #117 AC1 regression: the bound must hold no matter how large the pool — proven here by counting
   // ACTUAL judging attempts (not just the fallback counter, which would also fire for a card that was
-  // never attempted at all if this test were wrong about that) against a pool of 15+ postings.
-  it("never attempts more than DECK_JUDGE_MAX_CARDS judging calls, however large the pool", async () => {
+  // never attempted at all if this test were wrong about that).
+  //
+  // #117 (coordinator review) — the REAL ~15-advert pool (data/sample-postings.json) is live product
+  // data, not a fixture, and must never be inflated with synthetic entries just to make a test's pool
+  // bigger than DECK_JUDGE_MAX_CARDS (20 as of this ticket). Instead, OnboardingDeps.judgeMaxCards
+  // overrides the ceiling for this one test — deliberately set far below the real pool size so the
+  // SAME production bound-selection code (routes/onboarding.ts) genuinely has to bind, exercising
+  // "the pool exceeds the ceiling" branch for real rather than leaving it vacuously passing.
+  it("never attempts more than the ceiling's judging calls, however large the pool", async () => {
+    const testCeiling = 3;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> => stubRequirements(posting.id);
     const attempted = new Set<string>();
     const countingJudge: JudgeFn = async (adReq) => {
       attempted.add(adReq.adId);
       return null; // fall back — this test only cares about HOW MANY were even attempted
     };
-    const { app } = buildServer({ readAd, judge: countingJudge });
+    const { app } = buildServer({ readAd, judge: countingJudge, judgeMaxCards: testCeiling });
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await post(app, cookie, "/onboarding/discovery/answer", {
@@ -434,15 +442,10 @@ describe("#105 review round 4: the deck has ONE shared judging budget, not per-w
 
     const res = await get(app, cookie, "/onboarding/cards");
     const body = res.json() as { cards: JobCard[]; pendingCount: number };
-    expect(body.cards.length).toBeGreaterThan(DECK_JUDGE_MAX_CARDS); // the pool really is bigger than the bound
-    expect(attempted.size).toBeLessThanOrEqual(DECK_JUDGE_MAX_CARDS); // the stated bound, never exceeded
-    expect(attempted.size).toBeGreaterThan(0); // sanity: judging really was attempted for some
-    // Coordinator review: this test alone only proves the bound is respected relative to WHATEVER
-    // DECK_JUDGE_MAX_CARDS happens to be — raising the constant to 100 would keep it green. Pin the
-    // owner's actually-decided number literally too, so a change to the constant fails this test
-    // loudly rather than silently: the pool (15) is bigger than 8, and peek is unwired (fresh store),
-    // so exactly 8 — not merely "at most 8" — should have been attempted.
-    expect(attempted.size).toBe(8);
+    expect(body.cards.length).toBeGreaterThan(testCeiling); // the real pool really is bigger than this ceiling
+    // Pin the exact count, not merely "at most" — peek is unwired (fresh store), so exactly
+    // testCeiling, not fewer, should have been attempted.
+    expect(attempted.size).toBe(testCeiling);
   });
 
   // #117 must-fix A (coordinator review, severe) — the paid set MUST be a pure function of (fact
@@ -454,6 +457,13 @@ describe("#105 review round 4: the deck has ONE shared judging budget, not per-w
   // exists to eliminate). Proven here with a REAL judge+peek pair (makeJudge/makeJudgePeek, not hand
   // -rolled fakes) so the free-resolution mechanics are exercised for real, not simulated.
   it("MF-A: repeating the same cold deck request never pays for more than the bound, in total, across every poll", async () => {
+    // #117 (coordinator review): the property is only OBSERVABLE when the candidate pool exceeds the
+    // ceiling, and product data (data/sample-postings.json) must never be inflated to make that true
+    // — OnboardingDeps.judgeMaxCards overrides the ceiling instead, well below the real ~15-advert
+    // pool, so the bug this test guards against (poll 1 buys the top N, poll 2's free peek frees up N
+    // MORE slots if the paid set is re-derived from the unresolved remainder, and so on) has real
+    // room to manifest against the genuine pool.
+    const testCeiling = 3;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> => stubRequirements(posting.id);
     const store = new InMemoryJudgementStore();
     let paidCalls = 0;
@@ -468,7 +478,12 @@ describe("#105 review round 4: the deck has ONE shared judging budget, not per-w
         });
       },
     };
-    const { app } = buildServer({ readAd, judge: makeJudge(llm, store), judgePeek: makeJudgePeek(store) });
+    const { app } = buildServer({
+      readAd,
+      judge: makeJudge(llm, store),
+      judgePeek: makeJudgePeek(store),
+      judgeMaxCards: testCeiling,
+    });
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await post(app, cookie, "/onboarding/discovery/answer", {
@@ -481,13 +496,13 @@ describe("#105 review round 4: the deck has ONE shared judging budget, not per-w
       const res = await get(app, cookie, "/onboarding/cards");
       expect(res.statusCode).toBe(200);
       // Bug's own signature: under the broken "rank the unresolved remainder" version, paidCalls
-      // after poll N is min(pool, (N+1) * DECK_JUDGE_MAX_CARDS) — i.e. it keeps climbing. The fix
-      // must hold this flat at (or under) the bound from the FIRST poll onward.
-      expect(paidCalls).toBeLessThanOrEqual(DECK_JUDGE_MAX_CARDS);
+      // after poll N is min(pool, (N+1) * testCeiling) — i.e. it keeps climbing. The fix must hold
+      // this flat at (or under) the ceiling from the FIRST poll onward.
+      expect(paidCalls).toBeLessThanOrEqual(testCeiling);
     }
-    // The bound was reached at least once (sanity: this scenario really does have more candidates
-    // than the bound) and never grew past it across all four polls.
-    expect(paidCalls).toBe(DECK_JUDGE_MAX_CARDS);
+    // The ceiling was reached at least once (sanity: this scenario really does have more candidates
+    // than the ceiling) and never grew past it across all four polls.
+    expect(paidCalls).toBe(testCeiling);
   });
 });
 

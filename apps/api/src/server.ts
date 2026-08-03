@@ -96,6 +96,11 @@ export interface BuildOptions {
    *  incapable of spending, since it never receives an LlmClient. Absent → every card is treated as
    *  "not yet resolved for free" (every pre-must-fix-1 test stays valid). */
   judgePeek?: JudgePeekFn;
+  /** #117 (coordinator review) — an override for DECK_JUDGE_MAX_CARDS, test-only in practice
+   *  (main.ts never sets it). Lets a test construct a "candidate pool exceeds the paid-judging
+   *  ceiling" scenario against the REAL posting pool rather than adding synthetic entries to
+   *  data/sample-postings.json, which is live product data, not a fixture. */
+  judgeMaxCards?: number;
   /** #118's durable usage ledger, read by /ops/spend below (#117 AC4/AC8). Absent (every test that
    *  doesn't wire one, local dev with no DATABASE_URL) defaults to a fresh, empty in-memory ledger —
    *  never throws, just reports zero spend. */
@@ -435,6 +440,7 @@ export function buildServer(opts: BuildOptions = {}) {
     readAd: opts.readAd,
     judge: opts.judge,
     judgePeek: opts.judgePeek,
+    judgeMaxCards: opts.judgeMaxCards,
   }));
   app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail }));
   app.register(

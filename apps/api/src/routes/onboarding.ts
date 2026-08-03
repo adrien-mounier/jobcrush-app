@@ -106,6 +106,14 @@ export interface OnboardingDeps {
    *  bound. Absent → every card is treated as "not yet resolved for free", identical to the deck's
    *  behaviour before this phase existed (every pre-#117-must-fix-1 test stays valid). */
   judgePeek?: JudgePeekFn;
+  /** #117 (coordinator review) — an override for DECK_JUDGE_MAX_CARDS. Exists so a test can
+   *  construct a "candidate pool exceeds the paid-judging ceiling" scenario against the REAL posting
+   *  pool (data/sample-postings.json IS the live job pool, not a fixture — synthetic entries there
+   *  would show fabricated listings to real visitors) rather than by inflating product data to fit a
+   *  test. Absent → DECK_JUDGE_MAX_CARDS, exactly as today; main.ts never sets this, so production
+   *  behaviour is unaffected. Also usable to tune the ceiling per deployment without a code change,
+   *  should the owner want that later. */
+  judgeMaxCards?: number;
 }
 
 /** The miner stores its full doc (incl. per-role date flags) under progress.miner.doc. */
@@ -969,11 +977,15 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // PRE-FILTER deciding what's worth paying to verify, not a verdict on the card itself — fixing
       // the pre-filter's own blindness is out of scope here and belongs with family-fit ranking
       // (#107), not this cost ticket.
+      // deps.judgeMaxCards overrides DECK_JUDGE_MAX_CARDS when set (test-only in practice — main.ts
+      // never sets it), so a test can construct a "pool exceeds the ceiling" scenario against the
+      // REAL posting pool instead of adding synthetic entries to product data (#117 review).
+      const judgeMaxCards = deps.judgeMaxCards ?? DECK_JUDGE_MAX_CARDS;
       const rankedAll = [...candidates].sort(
         (a, b) => matchTick(confirmed, b.adReq) - matchTick(confirmed, a.adReq),
       );
-      if (rankedAll.length > DECK_JUDGE_MAX_CARDS) incrementCounter("deck.judge_bound_hit");
-      const paidSet = new Set(rankedAll.slice(0, DECK_JUDGE_MAX_CARDS).map((entry) => entry.adReq.adId));
+      if (rankedAll.length > judgeMaxCards) incrementCounter("deck.judge_bound_hit");
+      const paidSet = new Set(rankedAll.slice(0, judgeMaxCards).map((entry) => entry.adReq.adId));
 
       // #117 must-fix 1 — peek is UNBOUNDED and runs over EVERY candidate, in or out of the paid set:
       // a stored judgement (an earlier visit, this exact ad tailored already, or another visitor with
@@ -1309,17 +1321,31 @@ const CARD_RESOLUTION_CONCURRENCY = 6;
 const DECK_JUDGE_BUDGET_MS = 8_000;
 
 // #117 AC1 — the stated bound: at most this many cards get a REAL judging attempt per deck request,
-// regardless of how large the posting pool grows. Staging measured 2026-08-02 (the trigger for this
-// ticket): a cold 15-posting deck made 15 judging calls at ≈$0.29/visitor, and every visitor who
-// reaches a cold deck pays that again. This constant is the fix — a visitor's cold-deck judging cost
-// is now bounded by DECK_JUDGE_MAX_CARDS calls, not by postings.length, and that bound is THIS single
-// named number, not an incidental side effect of CARD_RESOLUTION_CONCURRENCY or DECK_JUDGE_BUDGET_MS
-// above (both still apply on top, unchanged — this is IN ADDITION to them, not a replacement).
-// 8, not 15: materially cuts the flagship cold-deck cost while still leaving a real judged group for
-// orderCardsForReveal to lead the deck with. The owner may revise this number after reviewing the
-// cost/coverage tradeoff — it stays a single constant for exactly that reason; no logic anywhere is
-// hardcoded around the number 8 itself.
-export const DECK_JUDGE_MAX_CARDS = 8;
+// regardless of how large the posting pool grows. It is NOT the pool size and must never be derived
+// from it — AC1 is explicit that the bound has to be a fixed number, because #99-#101 (live
+// retrieval) will grow the pool well past today's ~15 adverts, and a bound that scaled with the pool
+// would stop being a bound at all.
+//
+// Owner decision, 2026-08-03, after the live staging measurement: raised from 8 to 20. At 8, the
+// staging run showed cost per visitor drop to $0.1394 (from $0.29) but the fallback rate stayed flat
+// at 9 of 15 — 7 cards were `unscored` by design (bound-excluded) and 2 more overran the shared
+// DECK_JUDGE_BUDGET_MS. The owner chose to spend the money instead: every job in today's deck should
+// carry a real score, not a "Not scored" placeholder. 20 is deliberately ABOVE today's ~15-advert
+// pool so that, at today's size, EVERY eligible card gets a paid attempt and `unscored` is
+// unreachable in practice — this restores cold-visitor cost to roughly the original $0.29 the ticket
+// was opened to reduce, made knowingly, with the measured numbers in front of the owner. The bound
+// still exists, and is still THIS single named constant, not an incidental side effect of
+// CARD_RESOLUTION_CONCURRENCY or DECK_JUDGE_BUDGET_MS (both still apply on top, unchanged): it is
+// provisioned for the live-retrieval future, not for today's pool. It only starts binding once the
+// pool grows past 20, which is exactly when a cost control is needed — `unscored`'s state, ranking
+// tier, and card shape are untouched and still exercised by tests (buildJobCard/orderCardsForReveal
+// unit coverage, and OnboardingDeps.judgeMaxCards's override exercising the real bound-selection code
+// against the genuine posting pool at a lower ceiling — see that field's own doc: product data,
+// data/sample-postings.json, is the live job pool and must never carry synthetic entries just to
+// make a pool exceed this number), even though no REAL deck request reaches `unscored` at current
+// pool sizes. No logic anywhere is hardcoded around either 8 or 20 — changing this one constant is
+// still the whole review surface for a future revision.
+export const DECK_JUDGE_MAX_CARDS = 20;
 
 /** A tiny concurrency limiter — no new dependency, not a redesign. Runs `fn` over `items` with at
  *  most `limit` in flight at once, preserving each result at its original index regardless of which

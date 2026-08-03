@@ -185,6 +185,14 @@ describe("PgJudgementStore — the disuse touch (last_used_at)", () => {
     const store = new PgJudgementStore(pool);
     await store.init();
     await store.put("ad-1", "fp-1", record());
+    // "Fresh" is deliberately set relative to NOW here, not left at put()'s own last_used_at (which
+    // put() seeds from record().cost.judgedAt — a fixed calendar date, "2026-08-02", that this test
+    // must not depend on: as wall-clock time carries the suite past TOUCH_STALE_AFTER_MS's 24h window
+    // from that fixed date, the row would go stale on its own and this assertion would flip from
+    // "unrelated" to failing — exactly what happened once this session ran past 2026-08-03T00:00Z).
+    await pool.query(
+      `UPDATE card_judgements SET last_used_at = now() WHERE ad_id = 'ad-1' AND facts_fingerprint = 'fp-1'`,
+    );
     const before = (
       await pool.query(`SELECT last_used_at FROM card_judgements WHERE ad_id = 'ad-1' AND facts_fingerprint = 'fp-1'`)
     ).rows[0].last_used_at as string;
