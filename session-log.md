@@ -2,6 +2,48 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-03 (session 68) — `/orchestrate-team #107`: a job you genuinely cannot take leaves your deck
+
+- **[#107](https://github.com/adrien-mounier/jobcrush-app/issues/107) shipped in `e62a455`, closed.**
+  An explicitly-**blocking** language requirement withdraws a posting from that visitor's deck
+  entirely — silently, on the deck, `/want` and the tailor target, and **before the paid judging set
+  is ranked**, so a withdrawn card never costs a model call. Both safety rules hold: only an explicit
+  advert ("Mandarin an advantage" withdraws nothing) and only an explicit user "no" (an unknown
+  always keeps the card). A **years shortfall** attenuates the judged fit by `min(1, years/bar)` —
+  5 years against "8+" scores below 9 years, neither at zero. Withdrawals counted on
+  `deck.cards_withdrawn`. Gate 788 api + 30 contracts green; QA GO on a live browser drive,
+  21/21 assertions, plus 32 adversarial probes.
+- 🔑 **Withdrawal needs a SUBJECT on both sides, which is most of the diff.** "language" alone is not
+  a comparable fact — matching a Mandarin demand against the visitor's English answer is exactly the
+  silent deletion #86 names as the worst failure here. So `AdRequirementV1` gains an **additive**
+  `eligibilitySubject` (deliberately not a v2: every stored v1 payload still validates, no existing
+  field changes meaning; oracle in lockstep, `PROMPT_CONTRACT_VERSION` bumped so the subjects reach
+  stored reads), the reader's clamp down-classifies any subject-less blocking language/certification
+  requirement, and **language facts are now scoped by the language** rather than globally. Absent on
+  either side = unknown = never withdraws.
+- 🚨 **Review caught the exact failure the slice exists to prevent, in the slice itself.** The first
+  build also withdrew on **work-rights**. The pool spans Australia, Hong Kong, Vietnam and China, and
+  discovery asks ONE city-scoped question then stores it globally — so an Australian job-hunting in
+  Hong Kong who needs sponsorship *there* would have had every right-to-work-demanding **Australian**
+  posting silently deleted. **work-rights now never withdraws**, the same conclusion #106's must-fix-7
+  reached from the other direction; resolvable once a visitor-location fact exists.
+- 🐛 **The years rule was wrong in two directions before review.** It **replaced** the judged fit
+  instead of attenuating it, so anyone over the bar had an honest 0.2 inflated to 1.0 on an advert the
+  model had correctly scored low; and it divided by a bar the contract permits to be `0` or negative,
+  yielding a `NaN` that slipped past the coverage guard and serialised `matchPct` as `null`, or a
+  negative percentage. Attenuation (`fit * min(1, years/bar)`, clamped, guarded) can only ever lower.
+- ⚠️ **Shipped correct and dormant, deliberately.** Discovery asks about English only, so nobody has
+  ever been asked about Mandarin — it reads unknown and the card stays. The engine is right; the
+  question set is what's missing. **Asking which languages a visitor works in is the next move** and is
+  what turns this feature on for a real user. Raised by the owner from their own scenario (Thailand,
+  English/French, hunting Taiwan/HK/Vietnam) — country never filters anything, so those jobs are safe.
+- **Follow-up filed:** [#122](https://github.com/adrien-mounier/jobcrush-app/issues/122) — an unasked
+  eligibility requirement still renders like a gap you failed rather than a question you haven't
+  answered. The ticket's own UX intent; needs a surface this slice doesn't have.
+- **Coverage gap carried:** `apps/api/data/sample-ad-requirements.json` carries **zero** blocking
+  requirements, so a withdrawal has never been seen in a browser — proven only at the API seam (the
+  spec's own primary one). Fixtures were deliberately not edited to manufacture one.
+
 ## 2026-08-03 (session 67) — `/orchestrate-team #106`: the three questions JobCrush asks once, and never again
 
 - **[#106](https://github.com/adrien-mounier/jobcrush-app/issues/106) shipped in `56110d1`, closed.**

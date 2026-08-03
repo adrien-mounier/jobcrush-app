@@ -1,5 +1,41 @@
 # Lessons — jobcrush-app
 
+## Two facts that share a name do not share a granularity — and matching them deletes silently
+
+This repo has now hit the same trap twice. #106 tried to join a provider's `applicantLocationRequirements`
+(*which countries this job accepts applicants from*) to the visitor's answer (*can I work in MY city
+without sponsorship*) and deleted the seam in review. #107 then wrote the withdrawal rule against that
+same `work-rights` answer — discovery asks **one city-scoped question** and stores it at the global
+scope — and would have silently removed every right-to-work-demanding **Australian** posting from an
+Australian job-hunting in Hong Kong. Both times the two values shared a dimension name, looked
+joinable, and were not: one is scoped to a city, the other to a country.
+
+The rule: **before matching a stored fact against a requirement, check that both sides name the same
+subject at the same granularity.** If either side cannot name it, refuse to match. The dangerous shape
+is a fallback to a *global* scope when the subject is unknown — that turns "I don't know what this is
+about" into "this applies to everything", which is precisely how a correct-looking rule deletes things
+it was never meant to touch. #107's fix is the pattern worth copying: `scopeFor()` returns `null`
+rather than `ANY_FAMILY`, and a null scope can never withdraw.
+
+The generalisable smell: **a lookup whose key is a category (`language`, `work-rights`) rather than a
+thing (`Mandarin`, `Hong Kong`).** A category key silently matches the wrong instance.
+
+## When a hard fact corrects a model's number, attenuate — never replace
+
+#107 needed a visitor's stated years to override a judged fit that was blind to digits. The obvious
+move — replace the fit with `years / bar` — is wrong in a way that only shows up in one direction:
+someone *over* the bar had a model's honest 0.2 on an out-of-family advert inflated to a perfect 1.0.
+A replacement has no direction. `fit * min(1, years/bar)` does: it can only ever lower, so being wrong
+about scope costs a slightly harsh score instead of a fabricated match.
+
+Also worth pinning: `min(modelFit, ratio)` looks like the safe version and isn't — whenever the model's
+fit is the smaller of the two, five years and nine years collapse to the *same* number, silently
+failing the very requirement the rule was written for. Multiplication keeps them distinct.
+
+And guard the divisor against what the *contract* permits, not what you expect: `comparable.value` is
+only `isNumber`, so `0` was reachable, and `0/0` yields a `NaN` that sails through a `< threshold`
+coverage guard and serialises a pinned-number field as `null`.
+
 ## Never move product data to make a test meaningful
 
 #117 raised the deck's paid-scoring ceiling above the size of the job pool, which left the test for
