@@ -70,6 +70,54 @@ sitting inside it that the original framing hid completely.
 claim is the highest-value one to check, because it is usually derived from a search for the **name**
 X rather than for the **capability** X — and the capability is often already there under another name.
 
+**Second instance, same map, 2026-08-04 — and this one had already hardened into an ADR.**
+[#135](https://github.com/adrien-mounier/jobcrush-app/issues/135) opened with *"the CV writer reads
+claims and nothing else… there is currently no route from a structured fact to a printed CV, for any
+element."* Two routes were already in production: `buildTailorInput()` sends the tailor a structured
+`Roles:` block alongside the claim sentences, and `answerToClaim()` already turns a grill answer into a
+visitor-authored claim. Two greps found it.
+
+What makes this worse than #126 is the propagation. The premise was written by an **earlier session of
+this same map**, then restated as fact in **ADR-0001's** closing section (*"The CV writer reads claims
+(sentences) only and cannot see structured facts at all"*) and in the map body. By the time it was
+checked it was asserted in three places and read as settled. Designing from it would have produced a
+bridge that already existed — and missed the real hole, which was that the existing bridge is **fed
+from the wrong end** (the miner's original read, not the corrected records).
+
+**So the check is not only for premises written by someone else.** A premise you or a sibling session
+wrote is *more* dangerous, because it accumulates citations instead of scrutiny. When a claim about
+what the system cannot do turns up in an ADR, that is not corroboration — ADRs copy premises, they do
+not test them.
+
+## A rule that forbids something the owner explicitly wants is drawn on the wrong axis
+
+Grilling [#135](https://github.com/adrien-mounier/jobcrush-app/issues/135), the first rule offered was
+*"a structured fact prints into a labelled compartment, never into prose"* — a rule about **where on
+the page** a fact lands. It looked well-grounded: it described what production already did, and it made
+honesty sound mechanical — *"a compartment cannot invent, it has nowhere to put a verb."*
+
+The owner's confusion killed it in two strokes.
+
+1. **The "mechanical" guarantee was asserted, not implemented.** Nothing stops the model writing prose
+   from a structured fact: it receives the `Roles:` block and the claim sentences **in the same
+   prompt**, and *"render only from the claims"* is a prompt instruction with no lint behind it for the
+   summary. A guarantee you describe as structural must be checked as structural — otherwise you are
+   selling a prompt as a constraint.
+2. **The rule forbade what the owner wanted, for no good reason.** A visitor typing *"I led a project
+   at HSBC"* should become a CV line. Under the compartment rule it could not — even though the
+   substance was the visitor's own, which is the honest case.
+
+The rule was not too strict. It was **measuring the wrong variable**. The right axis is **provenance** —
+where the substance came from — which permits exactly what the owner wanted (their typed words) and
+forbids exactly what is dishonest (the machine inventing precision), on both tracks. Page position
+turned out to be a *separate and independent* question, settled later as its own clause.
+
+**Generalises:** when a rule you have drafted forbids something the owner explicitly asks for, do not
+negotiate an exception to it. Check the axis. A clean-sounding rule that immediately starts growing an
+exception list is measuring the wrong variable, and it will keep producing exceptions forever. The
+tell in a grilling session is the owner saying *"I don't understand why"* about a consequence — twice
+here, that meant the rule was wrong, not that the explanation was.
+
 ## An output field with no rules is a latent bug waiting for its first consumer
 
 `claim-miner.md` tells the model to emit `roles: [{employer, title, dates_as_written, dates_missing}]`

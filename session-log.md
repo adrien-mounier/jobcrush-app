@@ -2,6 +2,64 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-04 (session 77) — How a structured fact reaches the printed CV: the bridge already existed, plugged into the wrong end
+
+_Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 4. Owner grilling in French, resolved as [#135](https://github.com/adrien-mounier/jobcrush-app/issues/135) → **[ADR-0002](docs/adr/0002-how-a-structured-fact-reaches-the-cv.md)**, five clauses. Map's fourth decision; #125 and #130 are now the frontier._
+
+- **🚨 The ticket's premise was wrong, and finding that out was most of the value.** #135 asserted the
+  CV writer *"cannot see a structured fact at all… no route from a structured fact to a printed CV, for
+  any element."* **Two routes already run in production:** `buildTailorInput()` (`preview.ts:153`) sends
+  the tailor a structured `Roles:` block alongside the claim sentences, and the `Draft` schema has
+  matching slots (`experience`, `certifications`, `education`, `additional`); and `answerToClaim()`
+  (`grill.ts:103`) already turns a grill answer into a visitor-authored Verified claim. So the ticket's
+  **option 3 (*facts never print*) was dead on arrival** — roles print today — and options 1 vs 2 were a
+  false dichotomy. The premise had already hardened into ADR-0001's closing section and the map body.
+- **⚠️ The real hole is plumbing, not design.** The CV writer receives neither corrections nor declared
+  facts: `tailorDraft()` is called once (`preview.ts:404`) with the mined claims document and nothing
+  else, and eligibility never touches `preview.ts` or `rootcv.ts` — verified. **A volunteered language
+  cannot reach the CV in any position today.** The largest build item is feeding the `Roles:` block from
+  the stored **corrected** job records instead of the miner's original read — which is what actually
+  makes #128 §4's *"the tailored CV follows automatically"* true.
+- **🔑 The first rule I drafted was on the wrong axis, and the owner's confusion is what exposed it.**
+  I offered *"a fact prints in a compartment, never in prose"* — a rule about the **page**. It failed
+  twice: the "mechanical" guarantee was only a prompt instruction (the model gets the structured block
+  and the sentences in one prompt, and no lint checks the summary), and it **forbade what the owner
+  wanted** — a typed *"I led a project at HSBC"* becoming a CV line. Right axis: **provenance**. A
+  stored part may be reformatted and **computed** on; the visitor's **typed words** may be written up.
+  Inventing precision is forbidden on both. Filed in `lessons.md`.
+- **The five clauses.** Provenance decides the bridge · thin input gets the **finished line with its
+  holes visible and empty**, never a pre-filled draft to wave through · a sentence contradicting a
+  corrected fact is **held aside and questioned, never rewritten** (only the visitor knows what a number
+  in their own prose measured — "two years leading the team" inside "three and a half years at HSBC"
+  are both true) · a fact prints in the generic labelled line by default and **rises into the summary
+  when the advert tests it** · the conservation lint learns to see declared facts and **tells the
+  visitor** instead of warning a log nobody reads.
+- **⚠️ Today's lint fails silently, which makes ADR-0001 clause 4 unfalsifiable.** `tailorDraft()`
+  retries once then ships the lossy draft with a `console.warn` (`preview.ts:258-262`). Nobody is told —
+  so we cannot know whether *"it prints"* ever holds. Clause 5 changes it to ship-and-tell.
+- **#130 got materially cheaper.** The print gate costs ~nothing per element (the generic labelled line
+  takes anything, no template design), and **no element needs a renderable-sentence part** — an open
+  question on #135, answered *no*. The other three ADR-0001 readers are unchanged, so it is a discount,
+  not a reprieve.
+- **Owner call, recorded:** selling the profile is the product, not a bonus — but bounded to four moves
+  (choose, place, phrase strongly, **ask** for what is missing). A competitor that invents produces a
+  better-looking CV faster; accepted as a real commercial risk, because a line that collapses at
+  interview costs the visitor the job and costs us the visitor.
+- **Carried to the build ticket, not decided:** promoting several facts at once turns the 55-word
+  summary into a checklist that sells nothing. A CV-*writing* rule — home is
+  `docs/cv-brain/cv-authoring-rules.md`, alongside the still-open coarse-date rendering rule.
+- **Impact sweep** (map standing requirement): commented on
+  [#125](https://github.com/adrien-mounier/jobcrush-app/issues/125) (unblocked; the compartment route
+  may **bypass the eligibility/claims wall entirely**, so its central problem may dissolve),
+  [#130](https://github.com/adrien-mounier/jobcrush-app/issues/130) (cheaper),
+  [#120](https://github.com/adrien-mounier/jobcrush-app/issues/120) (two new mandatory surfaces: the
+  held line + the visible failure),
+  [#86](https://github.com/adrien-mounier/jobcrush-app/issues/86) (the tailor is a **second consumer of
+  `ad_requirements`**, so a reader-version bump now has blast radius beyond the deck),
+  [#66](https://github.com/adrien-mounier/jobcrush-app/issues/66) (the tailor's authoring rule),
+  [#124](https://github.com/adrien-mounier/jobcrush-app/issues/124) (a preference — ADR-0002
+  explicitly does **not** apply).
+
 ## 2026-08-04 (session 76) — CV date formats: the rule was already right, the gap was what happens when the source is wrong
 
 _A research question about `YYYY - YYYY` vs `YYYY/MM - YYYY/MM` that found the existing rule correct, one contradiction in the tailor prompt, and one decision worth more than the format itself._
