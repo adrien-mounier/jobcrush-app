@@ -2,6 +2,64 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-04 (session 74) — `/wayfinder 126`: a job becomes a thing, and the label that was going to be lost got filed
+
+_One wayfinder ticket resolved. Nine decisions, one deliberate non-decision, and four findings that outlive the ticket._
+
+- **[#126](https://github.com/adrien-mounier/jobcrush-app/issues/126) closed** — the CV data-model
+  map's worked example. **A job is one title at one employer over a period, held as its own record
+  beside the sentences.** A promotion is two rows. A coarse date **stays coarse** and is **matched at
+  its widest, printed at its narrowest** (#128 §6's word-matches/evidence-prints rule, applied to one
+  fact with two honest readings of itself). Deleting a job **detaches** its sentences instead of
+  deleting them. A career totals as **calendar time actually worked** — overlaps merged, gaps
+  excluded, part-time counted fully. Every dated block carries a correctable ***is this work*** mark.
+  A job is recognised across re-uploads by **employer + overlapping period**, asking when ambiguous.
+  An unreadable history **never lowers a score, but the card says the bar wasn't tested**.
+- **The ticket's premise was wrong, and the correction shaped everything.** It opened with *"we do not
+  store dates. At all."* In fact **the reader already extracts employer, title and dates-as-written on
+  every upload** (`MinedRole`) — and then discards them: they live in `job.progress`, and `jobs.ts` has
+  an **in-memory driver only** while claims, sessions, eligibility, judgements and postings all have
+  Postgres ones. So the ticket was *"stop discarding what we already read, and make it measurable"* —
+  smaller in one direction, a live data loss in the other.
+- **⚠️ The owner deferred the kind-of-work/industry label against the recommendation**, to the
+  cluster-engine work as a whole. Safe, and verified so: `resolveFamily()` **ignores its input and
+  returns a constant**, so there is **one family in the entire system** and the three scoped numbers
+  (*5 years as a PM*, *8 years in banking*, *3 years in data science*) were never computable. **Cost
+  carried knowingly: this map delivers total experience only.** Upside: the label becomes #129's first
+  *live* test rather than the paper one the map planned.
+- **🚨 The deferral had nowhere to land — no open ticket owned the classifier.** The family *floors*
+  half was built (#58–#62), the per-ad half is #86, and the piece that decides *"this job title is
+  project management"* was a stand-in nobody owned. **This repo has recorded the identical failure
+  twice** (2026-08-01, 2026-08-02: *a decision written into a doc and never turned into buildable
+  work*). Filed as **[#134](https://github.com/adrien-mounier/jobcrush-app/issues/134)** rather than
+  deferred into a gap.
+- **The owner's own question produced the session's best finding.** Asked whether *"Lead agile
+  ceremonies"* is recorded anywhere as *agile experience*: **it is not.** The only label a claim carries
+  is `profile` or `experience`; there is **no skill entity anywhere**; a CV's own `Skills: Agile` line
+  is a *separate* claim with no link to the bullet — the system holds *agile* twice and cannot tell.
+  It counts only because the matcher finds the word. **That gives #130's `Skills` row the named driver
+  it was missing: a capability must outlive the job it was demonstrated in.**
+- **The CV reader's jobs list has no rules at all.** `roles` appears **once** in `claim-miner.md`, in
+  the output-shape example, with no rule about what belongs in it — and rules 6 and 8 **contradict each
+  other** on whether education blocks belong. Harmless while nothing does arithmetic on it; the moment
+  years are computed, an undescribed field becomes the input to the headline number and a three-year
+  degree reads as three years of work. Answered by §7's correctable *is this work* mark.
+- **Two of #126's own acceptance criteria were rewritten.** AC2's *scope* became a total (the scope was
+  deferred). **AC5 will not be met as written** — *"no usable history is not scored more generously"*
+  is only satisfiable by treating an unknown as zero, which converts our own parsing failures into
+  silent user harm and breaks a rule `withdrawal.ts`, `eligibility.ts` and #86 decision 3 all rest on.
+  Verified: `applyYearsShortfall` leaves a null years fact **completely untouched**, so silence scores
+  identically to a 10-year answer and **4× an honest 2-year one**. ⚠️ **The headline match percentage
+  stays generous when we do not know — carried, not solved.**
+- **Impact sweep run** (the map's standing requirement): #129 (unblocked; inherits two live test cases
+  and a second rulebook), #130, #131, #120, #122 (its thesis was decided for years — align the
+  wording), #124, #86, #108, #109 (its re-score trigger now has a concrete event list), #66, #54.
+  #110/#111 checked, no movement.
+- **Map [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) updated** — decision
+  recorded, *overlaps/gaps/part-time* graduated out of the fog (decided), *employer as an entity*
+  re-pointed at #129 as its first concrete test, the label added to **Out of scope**. **Frontier is now
+  the growth rule ([#129](https://github.com/adrien-mounier/jobcrush-app/issues/129)).**
+
 ## 2026-08-04 (session 73) — `/orchestrate-team #100`: the product can fetch real job adverts
 
 _One ticket, one commit. Three fix rounds — the defect count is the story._

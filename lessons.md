@@ -1,5 +1,61 @@
 # Lessons — jobcrush-app
 
+## Verify a ticket's "we don't have X at all" premise before you design around it
+
+[#126](https://github.com/adrien-mounier/jobcrush-app/issues/126) opened with *"we do not store dates.
+At all"* and a grep that backed it up (`claims.ts` and `packages/contracts/src/` have no `startDate`).
+The grep was right and the conclusion was wrong: **the CV reader already extracts employer, title and
+dates-as-written on every upload** — `MinedRole`, in the very contracts directory that was searched —
+and `grill.ts`, `discovery.ts` and `preview.ts` all consume it. What is actually true is narrower and
+more useful: the dates are never made *measurable*, and they are held in `job.progress`, which is
+**in-memory only** (`jobs.ts` has no Postgres driver, unlike claims/sessions/eligibility/judgements/
+postings).
+
+Designing from the stated premise would have produced a "build date storage" plan. Designing from the
+real one produced *"stop discarding what we already read"* — a smaller change with a **live data loss**
+sitting inside it that the original framing hid completely.
+
+**Generalises:** a ticket's premise is an assertion by its author, not a finding. A *"we have no X"*
+claim is the highest-value one to check, because it is usually derived from a search for the **name**
+X rather than for the **capability** X — and the capability is often already there under another name.
+
+## An output field with no rules is a latent bug waiting for its first consumer
+
+`claim-miner.md` tells the model to emit `roles: [{employer, title, dates_as_written, dates_missing}]`
+— and that field appears **exactly once in the whole prompt**, inside the output-shape example, with
+**no rule governing what belongs in it**. Worse, the two rules that touch the concept contradict each
+other: rule 6 says a `role` is *"which employment **or education** block the claim belongs to"*, rule 8
+says education entries are `role: "profile"`.
+
+This has been harmless for the field's entire life, because nothing does **arithmetic** on it — it is
+only counted, checked for missing dates, and rendered into the tailor prompt. All three tolerate a
+university appearing in the list. The moment years-of-experience is computed from it, an undescribed
+field becomes the input to the product's **headline number**, and a three-year degree makes someone
+read three years more experienced than they are — silently, with nothing failing.
+
+**Generalises:** in an LLM-facing prompt, an unspecified output field is not "flexible", it is
+undefined behaviour with a plausible-looking value. Grade the risk by what **consumes** it: display and
+counting hide the ambiguity indefinitely; the first consumer that *calculates* converts it into a wrong
+number nobody can see. Audit a prompt's field rules whenever a new consumer starts doing maths.
+
+## Deferring to "the X work" is only safe once X has a ticket — this repo has now been bitten three times
+
+An owner deferred the job-classification label to *"the cluster engine work as a whole"*. There was no
+cluster-engine classifier ticket: the family-floors half shipped (#58–#62), the per-ad half is #86, and
+the piece that decides *"this job title is project management"* was a `resolveFamily()` stub —
+**hardcoded to return the same constant for every input** — that nobody owned.
+
+The roadmap already records the identical failure twice: 2026-08-01 (*"the per-ad half of the cluster
+engine … had never been filed on the tracker, so a tracker-only frontier query could not see it"*) and
+2026-08-02 (*"#85 defined the retrieval contract and picked Techmap, then closed; nobody filed the work
+to build it"*). Each time the decision was real, recorded, and invisible to every query anyone ran
+afterwards.
+
+**Generalises:** *"defer it to X"* is only a decision if X is a **tracker object**. If X is a roadmap
+phrase, an epic name, or a doc section, the deferral is a deletion with a friendly face. Before
+accepting one, run the frontier query for X — and if it returns nothing, file it in the same breath as
+the deferral.
+
 ## A "did we get nothing?" check must be page-local — a whole-query total is the wrong denominator
 
 When a provider returns a page of items and **every one fails to parse**, that is a shape drift, not an
