@@ -103,6 +103,36 @@ _One ticket, one commit. Three fix rounds — the defect count is the story._
 - **First paid third-party dependency in this product.** Now in `docs/deploy.md`'s secret list and
   `AI/Projects/SHARED_INFRA.md`'s inventory; neither mentioned a posting provider before.
 - **Unblocks** #101 (and through it #63), and #113, which needed real provider text to tune against.
+- 🔑 **The owner set the key mid-session and the smoke ran — the AC moved from UNTESTED to FAILED, which is the point.**
+  Filed as [#133](https://github.com/adrien-mounier/jobcrush-app/issues/133). The request path is **proven**
+  (10 live HK records; host, lowercase-path landmine, headers, retry/timeout all confirmed;
+  `jsonLD.description` as the advert body confirmed, and `providerPostingId`/`sourceUrl`/`company`/
+  `location`/`excerpt` all passed *provenance*, not merely non-emptiness). Three assumptions were wrong:
+  (1) `applicantLocationRequirements` is a **bare string**, so `asStringArray` discards it on every record;
+  (2) ⚠️ **it is a timezone** (`"HKT Timezone"`), **not a work-eligibility signal** — a phrase wrong in
+  #99, #100 *and* the research doc §6, meaning Techmap supplies no work-eligibility field at all;
+  (3) `validThrough` arrives in **two formats on one page**.
+- **Owner decision on (2), 2026-08-04: keep expecting work-eligibility from the advert; providers differ
+  in shape and the system should be ready to receive it whenever it comes.** This *shrank* the ticket —
+  the free-text path already exists and runs: `work-rights` is one of the five `EligibilityDimension`
+  values the ad reader extracts, with a `sourceSpan` provenance pin. The provider field was only ever an
+  optimisation ("don't pay a model to re-derive what the provider already states"); with Techmap we pay.
+  #106's AC5 is a *preference* — record it as unavailable for this provider, **not** impossible. Standing
+  guardrail: never map the timezone into an eligibility-bearing field (the "permissive union must not
+  become a gating input" hazard `postingRetrieval.ts` already warns about for this exact field).
+  Unchanged: a detected work-rights requirement still **never withdraws** a posting (#107).
+- **#133 item 3 fixed same session (`3366465`) and verified against the live feed, not just tests.**
+  Both date fields are canonicalised at the Techmap ingest boundary to one ISO form. Measured on the
+  deployed build: 10 live postings, 2 dash-form + 8 ISO, **0 non-canonical outputs**; `"16-09-2026"` →
+  `2026-09-16`, previously read as **the year 16** and silently dropped by `dedupePostings`' lexicographic
+  `earliest`/`latest`. Dash form is day-first **unconditionally** (measured convention, never a
+  magnitude heuristic); unparseable → `null`, which means "no stated expiry" and errs toward showing a job
+  too long rather than deleting a live one. Schema deliberately **not** tightened — the invariant holds by
+  construction at the one site that builds these fields.
+- ⚠️ **Still open on #133:** item 1 (the dropped field — blocked on the owner decision about where a
+  timezone belongs) and item 4 (`size` is ignored; asked for 5, got 10, so per-call spend cannot be
+  reduced by asking for less — matters for #132 and #101's fan-out sizing). Live spend: **5 calls**, ~50
+  records, of 1000/month.
 
 ## 2026-08-04 (session 72) — `/wayfinder`: charted the CV data-model map, and settled the ticket that was waiting on it
 
