@@ -1,5 +1,34 @@
 # Lessons — jobcrush-app
 
+## GitHub's issue-dependency API is dead on this repo — sub-issues are not, and the difference matters for wayfinder
+
+`docs/agents/issue-tracker.md` tells `/wayfinder` to express blocking as GitHub's **native issue
+dependencies**, precisely because that renders the frontier *visually* in GitHub's own UI — a human can
+see what is takeable without opening the map. On this repo that endpoint does not work:
+`POST /issues/<n>/dependencies/blocked_by` returns **422 "Validation failed: Target issue has already
+been taken"** on every attempt, for a pair with no existing edge in either direction, no parent/child
+relationship, and an empty `blocked_by` list. Reproduced with `-F issue_id=`, with `--input` from a
+file, and after re-querying to confirm nothing was silently created. It is not a formatting problem and
+not idempotency — the edge never lands.
+
+**Sub-issue links work fine** (`POST /issues/<n>/sub_issues` with `sub_issue_id`), so a map can hold its
+children; only the *ordering* between them is unrepresentable.
+
+**Why this is more than an annoyance:** the fallback (`Blocked by: #n` as a body line) is *invisible in
+the issue list*. A wayfinder session picking "the first open unassigned child" will happily claim a
+ticket whose blocker is still open, because GitHub shows it as perfectly takeable. The route order has
+to be written into the map's Notes **and** the session has to read each child's body before claiming.
+If dependencies ever start working, wire the edges and delete the body lines — do not leave both, or
+they will disagree.
+
+## `gh issue comment --body @'...'@` silently shatters into 11 arguments on PowerShell
+
+A PowerShell here-string passed straight to `gh` as `--body` fails with `accepts 1 arg(s), received 11`
+— the shell splits it before `gh` ever sees it. This bit on the first attempt of every long comment.
+**Write the body to a file and use `--body-file`** (same for `gh issue create`/`edit --body-file`). Also
+avoid piping JSON into `gh api --input -`: PowerShell's pipe encoding produces `Problems parsing JSON
+(HTTP 400)`. Write the JSON to a file and pass the path.
+
 ## A cache invalidated by a build-time version is guarded by nothing — the redeploy already cleared it
 
 #114 added a negative cache so an unreadable advert stops costing two model calls on every deck

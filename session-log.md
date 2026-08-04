@@ -2,6 +2,43 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-04 (session 72) — `/wayfinder`: charted the CV data-model map, and settled the ticket that was waiting on it
+
+_Planning session. No code changed; the whole output is on the issue tracker._
+
+- **[#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) became the wayfinder map**, not a
+  ticket. It was an orphan carrying a `wayfinder:grilling` label with no parent, no children and no
+  dependencies — as were #126, #125 and #124 — so `/wayfinder #127` had nothing to work through. Its
+  original problem statement is preserved verbatim as the first comment; every existing cross-reference
+  to #127 still points somewhere valid.
+- **Destination:** the CV data model and its growth rule decided, **stress-tested on paper against a
+  second element**, ending with build tickets. Not code — the map hands off to `/to-tickets`.
+- **Four owner decisions taken while charting**, all recorded in the map's Notes: (1) the growth rule is
+  not trusted until a deliberately different second element is walked through it; (2) the map fixes
+  three promises — every fact **listable**, **traceable to the visitor's own words**, and **correctable
+  in a way that survives recalculation** — but *not* the correction screen; (3) **no cost ceiling,
+  accuracy wins**, flagged in the map as a real cash risk with no measured per-CV figure behind it;
+  (4) already-stored CVs are out of scope, staging data disposable.
+- **Route:** [Who says so? (#128)](https://github.com/adrien-mounier/jobcrush-app/issues/128) → [years
+  from a dated history (#126)](https://github.com/adrien-mounier/jobcrush-app/issues/126) → [the growth
+  rule (#129)](https://github.com/adrien-mounier/jobcrush-app/issues/129) → [a volunteered language, as
+  the stress test (#125)](https://github.com/adrien-mounier/jobcrush-app/issues/125) and [which
+  elements are in v1 (#130)](https://github.com/adrien-mounier/jobcrush-app/issues/130). #125 was
+  re-scoped from `wayfinder:task` to the map's stress test: if adding it turns into an argument rather
+  than a mechanical application of the rule, **#129 reopens** — and that is a success, not a setback.
+- **[#120](https://github.com/adrien-mounier/jobcrush-app/issues/120) settled** — the owner chose to
+  **wait for #127 entirely** rather than split the in-the-moment undo out. Body no longer reads
+  "awaiting owner confirmation"; the hard block is recorded. ⚠️ **The live harm is carried knowingly:**
+  since #123 (`ddc40ae`) a language mistap removes postings from the deck with no undo, permanently for
+  that session, and that stands until this map resolves and #120 is built.
+- 🔑 **An impact-sweep rule is written into the map**, at the owner's request, because wayfinder only
+  updates tickets *inside* a map and the exposed ones are mostly outside: #120, #124, #122, #86 + E5
+  slices #108–#111, #54, #66. No ticket here resolves until its decision has been reflected onto every
+  one of those it moves.
+- 🔑 **GitHub's issue-dependency API is broken on this repo** (422 on every edge), so blocking is body
+  text and is *invisible in the issue list* — a session can claim a blocked ticket without noticing.
+  Route order is written into the map's Notes as the compensating control. Generalised in `lessons.md`.
+
 ## 2026-08-04 (session 71) — `/orchestrate-team #114`: the broken fixture we paid to re-read, and the advert we re-read forever
 
 _Ran concurrently with sessions 69 (#99) and 70 (#123). Its commit landed **first** of the three —
