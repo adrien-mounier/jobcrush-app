@@ -1,5 +1,48 @@
 # Lessons — jobcrush-app
 
+## A "did we get nothing?" check must be page-local — a whole-query total is the wrong denominator
+
+When a provider returns a page of items and **every one fails to parse**, that is a shape drift, not an
+empty result — and the two must never collapse, because reporting a drift as "no jobs" tells a user with
+real matches there are none. The instinct is to compare against the envelope's own `totalCount`. **That
+is wrong in both directions**, and it survived two code-review axes on 2026-08-04 before QA caught it:
+
+- `totalCount` is the **whole query's** total, not the page's. `{totalCount: 50, result: []}` is an
+  ordinary empty page of a non-empty query — page 1 of a 15-result, size-20 search. Gating on
+  `totalCount > 0` false-fails it, and the failure only appears once someone paginates.
+- It leaves the real hole open whenever the field is **absent, `0`, or a non-numeric string** — exactly
+  the conditions a drifting vendor is likely to produce.
+
+The correct guard uses only what is in front of you: **`items.length > 0 && parsed.length === 0`**. Keep
+the vendor's total for the log line; never put it in the condition.
+
+Generalises: when distinguishing "genuinely nothing" from "we failed to read it", the denominator must
+be the thing you actually received, not a number the other side told you about.
+
+## An in-process budget over a window longer than your deploy cycle is false confidence
+
+This repo auto-deploys on every green push, restarting the API's single machine. A per-**month** spend
+counter held in process memory therefore resets several times a day and reports a spend far below the
+real one. On 2026-08-04 (#100, the first paid third-party service) the deliberate choice was to enforce
+per-second/minute/day in process, **leave per-month unenforced, and say so loudly in code** rather than
+ship a counter that looks like protection and isn't — with a follow-up ticket (#132) for a durable
+`(providerId, yearMonth) → count`.
+
+The rule: **a budget's window must be shorter than the process's lifetime, or the counter must be
+durable.** Anything else is worse than an honest absence, because it stops anyone from looking.
+
+## A smoke test that accepts a fallback value proves nothing
+
+A normaliser with sensible fallbacks (`jsonLD.identifier` → else top-level `id`) makes non-empty
+assertions worthless: the field is populated whether or not the path you care about exists. #100's first
+staging-smoke draft asserted "every field is non-empty" and would have passed while silently reading
+every value from the fallback. It must assert **provenance** — re-derive from the path under test and
+fail if the value doesn't match — and fail loudly when the fallback fires.
+
+Second half of the same lesson: don't hard-fail on fields that are **legitimately absent** (an advert
+with no stated expiry is ordinary). Sample several items and fail only if the field is empty across all
+of them, or the smoke cries wolf on its first real run and gets ignored.
+
 ## `gh api | ConvertFrom-Json | Select-Object` silently prints blank rows — it invents a confident "nothing is there"
 
 The worst kind of bug: a read that **fabricates a negative answer** instead of failing. In this shell,

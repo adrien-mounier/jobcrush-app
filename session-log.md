@@ -2,6 +2,50 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-04 (session 73) — `/orchestrate-team #100`: the product can fetch real job adverts
+
+_One ticket, one commit. Three fix rounds — the defect count is the story._
+
+- **[#100](https://github.com/adrien-mounier/jobcrush-app/issues/100) closed** (`9585308`). The Techmap
+  provider client + posting store: fetch → normalise → persist → price → language-tag. The advert body
+  comes from `jsonLD.description`; a scan of top-level strings concludes, wrongly, that this provider
+  returns no description at all. `validThrough` / `applicantLocationRequirements` / `skills` are carried
+  structured rather than re-derived by a paid model call. **Deciding what to fetch is #101** — that
+  boundary held; nothing here reaches a route.
+- 🔑 **The guard that took three rounds.** A 200 whose items *all* fail to normalise is a vendor shape
+  drift, not an empty result. The first fix gated it on the envelope's `totalCount` — **wrong in both
+  directions**, and neither review axis caught it; QA did. `totalCount` is the whole query's total, not
+  the page's, so it false-failed a genuinely empty *page* of a non-empty query (would have fired the
+  first time #101 paginated) while leaving the real hole open whenever `totalCount` was absent, `0`, or
+  a non-numeric string. Now page-local: `items.length > 0 && records.length === 0`. Telling a user with
+  real matches that there are none is the worst outcome this product has.
+- **Eleven defects across two review axes + QA**, all fixed and regression-tested. Beyond the above:
+  unenforced rate limits on a paid service, per-instance pacing that a second caller would defeat, a
+  provider factory that accepted any registry row, ingest counters inflating per fetch instead of per
+  posting, a store whose table was never created outside tests, and a fixture provider with no
+  structural guard.
+- **Contracts versioned in oracle + zod port + fixtures together:** `PostingProviderPolicyV1` 1→2
+  (`retry`, `timeoutMs`, `rateLimit.perSecond` — the BASIC plan limits per *second*, which the old
+  `perMinute/perDay/perMonth` shape could not express); `ProviderPostingRecordV1` 1→2 and `PostingV1`
+  2→3 (`language`, derived at ingest, resolved by the authority-rank winner rule rather than a union
+  since it **gates visibility** — this is where #95's retained-but-unread hook lands);
+  `PostingRetrievalResultV1` 2→3.
+- ⚠️ **`rateLimit.perMonth` is deliberately NOT enforced** — filed as
+  [#132](https://github.com/adrien-mounier/jobcrush-app/issues/132). perSecond/perMinute/perDay are, and
+  fail closed. A month-long counter in process memory resets on every deploy (this repo redeploys on
+  every green push), which is false confidence rather than protection. At the enforced 0.4 calls/sec a
+  refresh loop burns the 1000/month quota in ~42 minutes, then bills pay-as-you-go on the card shared
+  with `vitacairn`. Nothing loops today; **#101 is what makes it reachable.**
+- ⚠️ **The AC "one real staging smoke against Techmap" is UNTESTED, not passed.**
+  `TECHMAP_RAPIDAPI_KEY` is not on staging — owner action (`fly secrets set TECHMAP_RAPIDAPI_KEY=<key>
+  -a jobcrush-api-staging`). Every field *path* except `jsonLD.description` remains an assumption:
+  faithful to the 2026-08-02 measured probe, never confirmed against a live response. The smoke now
+  drives the real client end-to-end **and** re-derives the fallback-prone fields from raw `jsonLD`, so a
+  silently-fired fallback fails loudly — the call will be worth making.
+- **First paid third-party dependency in this product.** Now in `docs/deploy.md`'s secret list and
+  `AI/Projects/SHARED_INFRA.md`'s inventory; neither mentioned a posting provider before.
+- **Unblocks** #101 (and through it #63), and #113, which needed real provider text to tune against.
+
 ## 2026-08-04 (session 72) — `/wayfinder`: charted the CV data-model map, and settled the ticket that was waiting on it
 
 _Planning session. No code changed; the whole output is on the issue tracker._
