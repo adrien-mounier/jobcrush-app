@@ -15,6 +15,10 @@
 // already answers "has this been asked" via a non-null read. Only a DECLINE still writes a claims-store
 // record (answerNegative — "asked and closed, no fact"), reusing the one persistence this repo already
 // has for that state; it stores no eligibility-store value, which is the whole point of a decline.
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { z } from "zod";
 import type { EligibilityDimension } from "@jobcrush/contracts";
 import type { SessionRecord } from "./sessions.js";
 import type { ClaimRecord } from "./claims.js";
@@ -25,14 +29,96 @@ export const DECLINE_OPTION = "Ask me later";
 export const ELIGIBILITY_ITEM_PREFIX = "eligibility-";
 export const isEligibilityItemId = (itemId: string): boolean => itemId.startsWith(ELIGIBILITY_ITEM_PREFIX);
 
-// The one language the corpus actually demands (both language-citing postings name English
-// specifically) — see the derivation doc's "language is a list, not a value" note. #107 (E5 slice 6,
-// D2) scopes the store's (session, dimension, family) key by the LANGUAGE NAME now (FAMILY_SCOPED
-// above), so a different language answered at its own scope would no longer collide with this one —
-// but the live discovery flow below only ever asks about English; nothing here builds a question for
-// a second language. A session that already answered English at the OLD scope (ANY_FAMILY, before
-// #107) simply reads as unknown again and gets asked once more — accepted pre-launch, not migrated.
-export const ELIGIBILITY_LANGUAGE = "English";
+// #123 — the languages question, market-keyed, not a hardcoded list. Mirrors e5stub.ts's own
+// read+cache pattern (apps/api/data/*.json) rather than inventing a new one.
+//
+// Owner decision (2026-08-03), recorded here because the list this produces is NOT what the corpus
+// measures: docs/research/languages-from-the-corpus.md finds advert-STATED language demand across
+// the 17 real postings is ENGLISH ONLY (2/17, mandatory) — a strictly-measured list would contain
+// exactly one entry, English, and #107's withdrawal engine would stay dormant for every language but
+// a hypothetical non-English speaker. The per-market language sets below are instead grounded in the
+// corpus's MEASURED MARKET MIX (Hong Kong SAR 9, Australia 4, Vietnam 2, China 1 of 17 postings) —
+// which languages each market's jobs are plausibly worked in, NOT anything an advert states. This is
+// the owner's call, the same shape as #106's own work-rights exception, and must never be described
+// as corpus-derived when read back — only the MARKET COUNTS are measured; the LANGUAGES attached to
+// each market are a product judgment.
+//
+// Why market-keyed rather than a flat list: the owner's explicit requirement (2026-08-03, mid-build)
+// is that a new market (e.g. Laos) must be a DATA EDIT — one more entry in
+// apps/api/data/languages-by-market.json — never a code change here. This also leaves the shape #124
+// ("Where do you want to work?", open, unassigned) will need the day it lands a visitor's own target
+// market: narrowing the question from today's union of every market down to just one visitor's own
+// market(s) becomes a filter over this same per-market data, not a redesign of it. #124 itself is out
+// of scope here — nothing below reads a visitor's target market, because no such fact exists in this
+// codebase yet (confirmed in the research doc); no lookup accessor is exported for it either
+// (code-review: don't expose API surface only #124 would call — that ticket can add its own one-liner
+// over loadLanguageMarkets() when it actually needs one).
+const LanguageMarketSchema = z.object({
+  market: z.string().min(1),
+  languages: z.array(z.string().min(1)).min(1),
+});
+type LanguageMarket = z.infer<typeof LanguageMarketSchema>;
+
+const here = dirname(fileURLToPath(import.meta.url));
+
+let cachedLanguageMarkets: LanguageMarket[] | null = null;
+/** Code-review must-fix 4 (2026-08-04): this file is the owner's OWN hand-edit surface (they add
+ *  markets to it directly) — a typo must produce one clear, named error, never a raw TypeError that
+ *  500s every discovery request. Parses the top-level array shape AND every entry through
+ *  LanguageMarketSchema, and — unlike e5stub.ts's bare `.parse()` — names the OFFENDING entry (its
+ *  market name, or its index if the market name itself is what's malformed) in the thrown message. */
+function loadLanguageMarkets(): LanguageMarket[] {
+  if (!cachedLanguageMarkets) {
+    const path = join(here, "..", "data", "languages-by-market.json");
+    const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+    if (!Array.isArray(raw)) {
+      throw new Error(`${path}: expected a top-level array of market entries`);
+    }
+    cachedLanguageMarkets = raw.map((entry, index) => {
+      const parsed = LanguageMarketSchema.safeParse(entry);
+      if (parsed.success) return parsed.data;
+      const label =
+        entry && typeof entry === "object" && typeof (entry as { market?: unknown }).market === "string"
+          ? (entry as { market: string }).market
+          : `entry ${index}`;
+      throw new Error(`${path}: invalid market entry "${label}" (index ${index}): ${parsed.error.message}`);
+    });
+  }
+  return cachedLanguageMarkets;
+}
+
+let cachedLanguagesUnion: string[] | null = null;
+/** Every language the languages question asks about today: the deduped union of every market's
+ *  languages, in stable FIRST-DECLARED order (market order, then each market's own language order,
+ *  in apps/api/data/languages-by-market.json) — never re-sorted or alphabetized, so this is
+ *  deterministic across calls and across requests. With today's data file this comes out to exactly
+ *  `["English", "Mandarin", "Cantonese", "Vietnamese"]` — the owner-approved list — so nothing about
+ *  the pinned question contract below changes; only the SOURCE of that list does. Cached like
+ *  loadLanguageMarkets() itself (the file doesn't change at runtime; a deploy restarts the process). */
+export function languagesUnion(): readonly string[] {
+  if (!cachedLanguagesUnion) {
+    const seen = new Set<string>();
+    const union: string[] = [];
+    for (const m of loadLanguageMarkets()) {
+      for (const language of m.languages) {
+        if (seen.has(language)) continue;
+        seen.add(language);
+        union.push(language);
+      }
+    }
+    cachedLanguagesUnion = union;
+  }
+  return cachedLanguagesUnion;
+}
+
+// #123: the ONE fixed itemId for the (single, multi-select) languages question — deliberately
+// plural and distinct from the pre-#123 single-language itemId this module used to build
+// (`eligibility-language-English`), so a session that answered under the old shape reads as
+// unanswered under this one and is asked once, the same accepted-pre-launch consequence #107's own
+// D2 comment already recorded for a different scope-key change. Not built from itemId()/FAMILY_SCOPED
+// below — this question has no ONE family/language scope the way years-experience does; see
+// buildQuestion's own language branch.
+export const LANGUAGE_ITEM_ID = `${ELIGIBILITY_ITEM_PREFIX}languages`;
 
 // Step 1 derivation (docs/research/eligibility-dimensions-from-the-corpus.md): years-experience (6/17)
 // and work-rights (0/17, included as a deliberate, owner-approved deviation — see the doc) and
@@ -42,16 +128,19 @@ export const ELIGIBILITY_LANGUAGE = "English";
 const ASK_DIMENSIONS: readonly EligibilityDimension[] = ["years-experience", "work-rights", "language"];
 
 // years-experience is family-scoped (CONTEXT.md: "length of experience is always experience in a
-// family, never a career total"). #107 (E5 slice 6, D2) adds language: the store's familyId column
-// is a free-text SCOPE, not only a job family, and for language that scope is the language name
-// itself (ELIGIBILITY_LANGUAGE, "English") rather than ANY_FAMILY — a blocking requirement's
-// eligibilitySubject ("Mandarin") is looked up against exactly this same column (withdrawal.ts), so
-// two different languages must never collide into one fact the way a single ANY_FAMILY value would.
-// Reuses this SAME FAMILY_SCOPED/itemId mechanism rather than inventing a parallel one (#107's own
-// instruction). work-rights alone still holds regardless of role — right to work doesn't vary by
-// subject — so it keeps using the store's ANY_FAMILY (passed in by callers — see
-// eligibilityCandidates) and a null scopeLabel.
-const FAMILY_SCOPED: ReadonlySet<EligibilityDimension> = new Set(["years-experience", "language"]);
+// family, never a career total") — itemId()/FAMILY_SCOPED below exist for it. work-rights holds
+// regardless of role — right to work doesn't vary by subject — so it keeps using the store's
+// ANY_FAMILY (passed in by callers — see eligibilityCandidates) and a null scopeLabel.
+//
+// language is NOT in this set (#123 supersedes #107 D2's use of it): the store's familyId column is
+// still a free-text SCOPE for language, and a blocking requirement's eligibilitySubject ("Mandarin")
+// is still looked up against exactly that column (withdrawal.ts, unchanged) — but the QUESTION is now
+// one multi-select over every supported language (languagesUnion()), not one question per language,
+// so there is no single familyId for itemId() to build a per-language itemId from. buildQuestion's own
+// language branch below writes a fixed itemId (LANGUAGE_ITEM_ID) directly instead; the actual
+// per-language store writes happen in routes/onboarding.ts via languageFacts(), each at its own
+// language's scope, exactly like before — only the QUESTION shape and its itemId scheme changed.
+const FAMILY_SCOPED: ReadonlySet<EligibilityDimension> = new Set(["years-experience"]);
 
 // --- years-experience bands (UI design spec §2 — pinned, do not change without the spec) ---
 const YEARS_OPTIONS = ["Under 3 years", "3–4 years", "5–7 years", "8–10 years", "More than 10 years"] as const;
@@ -70,10 +159,30 @@ const YEARS_BAND_VALUES: Readonly<Record<string, number>> = {
 const WORK_RIGHTS_YES = "Yes — no sponsorship needed";
 const WORK_RIGHTS_NOT_YET = "Not yet — I'd need sponsorship";
 
-// --- language options (UI design spec §2) ---
-const LANGUAGE_YES = "Yes — I work in it";
-const LANGUAGE_SOME = "Some, but not for work";
-const LANGUAGE_NO = "No, I don't";
+// --- the languages question (#123 UI design spec — pinned copy, do not paraphrase) ---
+//
+// Code-review must-fix 1 (2026-08-04) — recorded here, not just inferred: a BINARY multi-select
+// (tick = professional, unticked = none) has no third option, so it can never write the store's
+// "conversational" value the way the old three-option single question could. That value is not
+// removed from the vocabulary (withdrawal.ts's isExplicitNo still honours it for any fact stored
+// before this change), but nothing built here can produce it going forward — the owner's sanctioned
+// trade for option (a) over option (b) (per-language yes/no/some), recorded in full in
+// docs/research/languages-from-the-corpus.md's "Decision taken" section. Its real risk: this
+// question's own bar ("Tick every one you could run a meeting in") reads as excluding a visitor with
+// solid-but-imperfect conversational fluency — ticking under that bar now records "professional" (a
+// stronger claim than warranted), but NOT ticking records an explicit "none", which #107 treats as a
+// real no and withdraws every mandatory-language posting. Mitigated below, deliberately, by ADDING to
+// (never softening) the pinned consequence sentence: an unsure visitor is told to tick, because #86's
+// rule is that never silently deleting a winnable job outranks precision — ticking can only ever keep
+// a job in the deck, never remove one. Owner correction (2026-08-04): the first added clause spelled
+// that reasoning out on-screen and QA flagged it as the longest thing on the screen, restating the
+// first sentence in mirror form; trimmed to a three-word nudge that keeps the decision without
+// re-arguing it — the reasoning stays recorded here and in the research doc, not on the visitor's screen.
+const LANGUAGES_QUESTION =
+  "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.";
+const LANGUAGES_CONSEQUENCE =
+  "A no takes jobs that require that language out of your deck. Tick every one you could run a meeting in." +
+  " Not sure? Tick it.";
 
 // Code-review must-fix 6 (2026-08-03): a years-experience question scoped by a JOB TITLE ("...worked
 // in IT Project Manager?") is ungrammatical and reads as the wrong thing — the ticket's central UX
@@ -167,15 +276,19 @@ function buildQuestion(
       eligibility: { dimension, familyId: anyFamily, scopeLabel: null, declineOption: DECLINE_OPTION },
     };
   }
-  // dimension === "language" — #107 (D2): scoped by the language name itself (ELIGIBILITY_LANGUAGE),
-  // not anyFamily — see FAMILY_SCOPED's own doc for why. `anyFamily` stays unused on this branch;
-  // work-rights (above) is the only remaining caller of it.
+  // dimension === "language" — #123 supersedes #107 D2's single-English question with ONE
+  // multi-select over every language in languagesUnion(). `familyId`/`scopeLabel` stay unused on this
+  // branch (this question has no ONE family/language scope); `anyFamily` is used only as a required
+  // placeholder for EligibilityAsk.familyId below — the route's real per-language writes (a full set
+  // of facts, one per languagesUnion() entry, via languageFacts()) never read this field back.
   return {
-    itemId: itemId(dimension, ELIGIBILITY_LANGUAGE),
-    question: `Can you work professionally in ${ELIGIBILITY_LANGUAGE}?`,
-    options: [LANGUAGE_YES, LANGUAGE_SOME, LANGUAGE_NO, DECLINE_OPTION],
+    itemId: LANGUAGE_ITEM_ID,
+    question: LANGUAGES_QUESTION,
+    consequence: LANGUAGES_CONSEQUENCE,
+    options: [...languagesUnion(), DECLINE_OPTION],
+    multiSelect: true,
     cvSection: "skills",
-    eligibility: { dimension, familyId: ELIGIBILITY_LANGUAGE, scopeLabel: null, declineOption: DECLINE_OPTION },
+    eligibility: { dimension, familyId: anyFamily, scopeLabel: null, declineOption: DECLINE_OPTION },
   };
 }
 
@@ -214,9 +327,34 @@ function claimsClosedEligibilityItemIds(
 /** itemIds already carrying a real, stored eligibility fact — `facts` is whatever
  *  eligibility.list(sessionId) returned. Each itemId is rebuilt from the FACT's own recorded
  *  dimension+familyId (not the session's currently-resolved family), so a fact stays correctly
- *  attributed even if the resolved family ever changed between the answer and this read. */
+ *  attributed even if the resolved family ever changed between the answer and this read.
+ *
+ *  #123: language is special-cased, not run through itemId() — one multi-select question now
+ *  produces up to languagesUnion().length facts (one per language), so no single fact's own
+ *  (dimension, familyId) maps back onto the ONE question itemId the way years-experience/work-rights
+ *  still do. The question is answered iff AT LEAST ONE language fact exists at all, at ANY scope.
+ *
+ *  Code-review must-fix 3 (2026-08-04) — stated honestly, not assumed: the write is NOT atomic.
+ *  routes/onboarding.ts writes languageFacts()'s N entries as N separately-awaited put() calls (and a
+ *  decline as N separately-awaited remove() calls), so a crash or store outage mid-loop CAN leave a
+ *  genuine partial-write state — some languages written, some not. "At least one fact exists" means a
+ *  partial write still closes the question early, with whichever languages never got written reading
+ *  unknown at their own scope. That is the SAFE failure direction (#86): unknown never withdraws
+ *  (withdrawal.ts), so a partial write can only ever leave MORE jobs in the deck than a completed
+ *  write would — it fails toward keeping a job, never toward silently deleting one. A stray fact at
+ *  the pre-#123 single-English scope also counts toward "at least one", so an old session that
+ *  answered under the superseded single-English question is not re-asked either — the same accepted
+ *  pre-launch outcome LANGUAGE_ITEM_ID's own doc records for the itemId change. */
 function factResolvedItemIds(facts: readonly { dimension: EligibilityDimension; familyId: string }[]): Set<string> {
-  return new Set(facts.map((f) => itemId(f.dimension, f.familyId)));
+  const ids = new Set<string>();
+  for (const f of facts) {
+    if (f.dimension === "language") {
+      ids.add(LANGUAGE_ITEM_ID);
+      continue;
+    }
+    ids.add(itemId(f.dimension, f.familyId));
+  }
+  return ids;
 }
 
 /** The eligibility questions this session still needs asked — #106's addition to
@@ -274,13 +412,45 @@ export function mapEligibilityAnswer(
     if (answer === WORK_RIGHTS_NOT_YET) return { value: "needs-sponsorship", label: "Right to work without sponsorship" };
     return null;
   }
-  if (dimension === "language") {
-    if (answer === LANGUAGE_YES) return { value: "professional", label: `Professional fluency in ${ELIGIBILITY_LANGUAGE}` };
-    if (answer === LANGUAGE_SOME) return { value: "conversational", label: `Professional fluency in ${ELIGIBILITY_LANGUAGE}` };
-    if (answer === LANGUAGE_NO) return { value: "none", label: `Professional fluency in ${ELIGIBILITY_LANGUAGE}` };
-    return null;
-  }
+  // #123: language no longer has a single-value real answer to map — the languages question is
+  // multi-select (LANGUAGE_ITEM_ID), and its real-answer path (routes/onboarding.ts) reads
+  // `answers: string[]` through languageFacts()/isValidLanguageSelection() below, never through this
+  // function. A language dimension therefore always falls through to null here, same as
+  // certification/degree (neither of which this module ever builds a question for either).
   return null;
+}
+
+export interface LanguageFactWrite {
+  /** The eligibility store's scope column — the language's own name. */
+  familyId: string;
+  value: "professional" | "none";
+  label: string;
+}
+
+/** #123 — every language fact one multi-select answer writes: ONE PER languagesUnion() ENTRY, not
+ *  only the ticked ones. This full-set write (never a delta) is what makes a correction work:
+ *  re-answering with Mandarin ticked flips its stored "none" back to "professional" in the same
+ *  call that leaves every other language's fact untouched (still written, to the same value it
+ *  already had) — there is no stale prior write left behind for anything to miss. `selected` need
+ *  not be pre-validated; callers check isValidLanguageSelection first so an unrecognized value never
+ *  reaches the store, but an unvalidated extra value here would simply be ignored (harmless, since
+ *  the return is built by mapping languagesUnion(), never `selected`, into the result). */
+export function languageFacts(selected: readonly string[]): LanguageFactWrite[] {
+  const chosen = new Set(selected);
+  return languagesUnion().map((language) => ({
+    familyId: language,
+    value: chosen.has(language) ? "professional" : "none",
+    label: `Professional fluency in ${language}`,
+  }));
+}
+
+/** True iff every element of `answers` is one of today's supported languages (languagesUnion()) —
+ *  anything else (a typo, a stray value, a language this data file doesn't know yet) is a 400 at the
+ *  route, never silently stored or silently dropped. An empty array is always valid — "I can't work
+ *  in any of these" is a real, legal answer (#123 AC: `answers: []` is legal). */
+export function isValidLanguageSelection(answers: readonly string[]): boolean {
+  const valid = new Set(languagesUnion());
+  return answers.every((a) => valid.has(a));
 }
 
 // --- code-review must-fix 7 (2026-08-03) -----------------------------------------------------

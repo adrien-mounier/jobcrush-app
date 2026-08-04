@@ -28,6 +28,8 @@ import {
   eligibilityCandidates,
   excludingEligibility,
   isEligibilityItemId,
+  isValidLanguageSelection,
+  languageFacts,
   mapEligibilityAnswer,
   resolveEligibilityFamilyScope,
   unresolvedEligibilityQuestions,
@@ -44,7 +46,7 @@ import {
 } from "../judgedScore.js";
 import type { JudgeFact, JudgeFn, JudgePeekFn } from "../judge.js";
 import type { JudgementRecord } from "../judgementStore.js";
-import { findWithdrawingRequirement } from "../withdrawal.js";
+import { findWithdrawingRequirement, normalizeScope } from "../withdrawal.js";
 import {
   composeCvLine,
   discoveryClaimId,
@@ -710,11 +712,16 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // into the question text a decline's claim records verbatim, so that record must match what the
     // visitor was actually asked. Returns a reply already sent on failure, undefined on success —
     // mirrors this file's other early-return route helpers (e.g. fixtureState above).
+    //
+    // #123: `body` replaces the old single `rawAnswer` string — the languages question is
+    // multi-select, so its real answer arrives as `answers: string[]`, never a single `answer`. Every
+    // other eligibility question (years-experience, work-rights) and every question's OWN decline
+    // still arrive as a single `answer`, exactly as before.
     const answerEligibilityItem = async (
       session: SessionRecord,
       role: string,
       itemId: string,
-      rawAnswer: string,
+      body: { answer?: string; answers?: string[] },
       reply: FastifyReply,
     ): Promise<FastifyReply | undefined> => {
       const { familyId, scopeLabel } = resolveEligibilityFamilyScope(session, role);
@@ -726,40 +733,90 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
       }
       const ask = question.eligibility!;
-      const answer = rawAnswer.trim();
 
-      if (answer === ask.declineOption) {
-        await deps.eligibility.remove(session.id, ask.dimension, ask.familyId);
-        const claimId = discoveryClaimId(itemId);
-        await deps.claims.answerNegative(session.id, {
-          id: claimId,
-          semantic_key: claimId,
-          field_key: null,
-          field_value: null,
-          field_label: null,
-          role: "profile",
-          text: `Declined — ${question.question}`,
-          machine_touch: "verbatim",
-          classification: "Verified",
-          source_quote: answer.slice(0, 200),
-          needs_grill: false,
-          grill_hint: null,
+      if (body.answer !== undefined) {
+        const answer = body.answer.trim();
+        if (answer === ask.declineOption) {
+          if (question.multiSelect) {
+            // #123: a decline on the (multi-select) languages question retracts EVERY language's
+            // stored fact, not just one scope — must-fix 5's rule, applied across the whole list, so
+            // a prior real answer is fully erased and every language reads as unknown again.
+            //
+            // Code-review must-fix 2 (2026-08-04): loops over languagesUnion() (TODAY's list), not
+            // whatever is actually stored — eligibility.remove() defaults its familyId to ANY_FAMILY,
+            // so it can't clear "every scope" in one call, and languages-by-market.json is the
+            // owner's own hand-edit surface (must-fix 4): the day a market is dropped or a language
+            // renamed there, a visitor who answered under the OLD list and then declines would keep a
+            // stale fact at a scope the union no longer contains — a decline that silently fails to
+            // fully retract. Reads what this SESSION actually has stored (list()) and removes each
+            // language-dimension fact by its own recorded scope instead, so a decline always fully
+            // retracts regardless of how the list has changed since the visitor answered.
+            const stored = await deps.eligibility.list(session.id);
+            for (const fact of stored) {
+              if (fact.dimension === ask.dimension) {
+                await deps.eligibility.remove(session.id, fact.dimension, fact.familyId);
+              }
+            }
+          } else {
+            await deps.eligibility.remove(session.id, ask.dimension, ask.familyId);
+          }
+          const claimId = discoveryClaimId(itemId);
+          await deps.claims.answerNegative(session.id, {
+            id: claimId,
+            semantic_key: claimId,
+            field_key: null,
+            field_value: null,
+            field_label: null,
+            role: "profile",
+            text: `Declined — ${question.question}`,
+            machine_touch: "verbatim",
+            classification: "Verified",
+            source_quote: answer.slice(0, 200),
+            needs_grill: false,
+            grill_hint: null,
+          });
+          return undefined;
+        }
+
+        // #123: a multi-select question only ever accepts a single `answer` for its decline (handled
+        // above) — a REAL response is always `answers`. Falling through to the single-value mapper
+        // below would be silently wrong (it knows nothing about this question's shape), so this is a
+        // 400, not a fall-through.
+        if (question.multiSelect) {
+          return reply
+            .status(400)
+            .send({ error: { code: "invalid_answer", message: "unrecognized eligibility answer" } });
+        }
+
+        const mapped = mapEligibilityAnswer(ask.dimension, scopeLabel, answer);
+        if (!mapped) {
+          return reply
+            .status(400)
+            .send({ error: { code: "invalid_answer", message: "unrecognized eligibility answer" } });
+        }
+        await deps.eligibility.put(session.id, {
+          dimension: ask.dimension,
+          familyId: ask.familyId,
+          value: mapped.value,
+          label: mapped.label,
         });
         return undefined;
       }
 
-      const mapped = mapEligibilityAnswer(ask.dimension, scopeLabel, answer);
-      if (!mapped) {
+      // #123: the multi-select real-answer path — `body.answers` (the route only reaches here once
+      // it has already checked exactly one of answer/answers is present). A single-select question
+      // never accepts this shape.
+      if (!question.multiSelect || !body.answers || !isValidLanguageSelection(body.answers)) {
         return reply
           .status(400)
           .send({ error: { code: "invalid_answer", message: "unrecognized eligibility answer" } });
       }
-      await deps.eligibility.put(session.id, {
-        dimension: ask.dimension,
-        familyId: ask.familyId,
-        value: mapped.value,
-        label: mapped.label,
-      });
+      // Write the FULL set on every answer — every language, not only the ticked ones (AC6: this is
+      // what makes a correction work — re-answering with Mandarin ticked flips its stored "none" back
+      // to "professional" in the same call, rather than leaving a stale "none" for nothing to revisit).
+      for (const write of languageFacts(body.answers)) {
+        await deps.eligibility.put(session.id, { dimension: ask.dimension, ...write });
+      }
       return undefined;
     };
 
@@ -835,20 +892,50 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // so a positive<->negative flip is automatic, whichever way the correction goes.
     app.post(
       "/onboarding/discovery/answer",
-      { schema: { body: z.object({ itemId: z.string(), answer: z.string().trim().min(1) }) } },
+      {
+        schema: {
+          body: z.object({
+            itemId: z.string(),
+            // #123: `answers` is new (the languages question's multi-select real answer) — every
+            // existing single-answer caller (floor items, the reader-only question, every other
+            // eligibility question, and every question's OWN decline) is unchanged and keeps sending
+            // `answer` alone. Exactly one of the two must be present — checked below, not by the
+            // schema, so the failure reuses this route's own `invalid_answer` error shape rather than
+            // a generic schema-validation one.
+            answer: z.string().trim().min(1).optional(),
+            answers: z.array(z.string()).optional(),
+          }),
+        },
+      },
       async (req, reply) => {
         const session = requireSession(req);
         const role = session.targetTitles[0] ?? null;
         if (!role)
           return reply.status(409).send({ error: { code: "no_role", message: "answer question 1 first" } });
 
+        const hasAnswer = req.body.answer !== undefined;
+        const hasAnswers = req.body.answers !== undefined;
+        if (hasAnswer === hasAnswers) {
+          return reply.status(400).send({
+            error: { code: "invalid_answer", message: "exactly one of answer or answers is required" },
+          });
+        }
+
         // #106: an eligibility item is a separate answer shape (see answerEligibilityItem's own doc
         // comment above) — handled as its own path rather than forced through the shared claim/no
         // branches below.
         if (isEligibilityItemId(req.body.itemId)) {
-          const errorReply = await answerEligibilityItem(session, role, req.body.itemId, req.body.answer, reply);
+          const errorReply = await answerEligibilityItem(session, role, req.body.itemId, req.body, reply);
           if (errorReply) return errorReply;
         } else {
+          // A floor item / the reader-only question predates `answers` entirely (#123) — neither ever
+          // accepts a multi-select shape, so this is the same single-`answer` flow as before.
+          const answer = req.body.answer;
+          if (answer === undefined) {
+            return reply
+              .status(400)
+              .send({ error: { code: "invalid_answer", message: "this item requires a single answer" } });
+          }
           let claim: CandidateClaim;
           let no = false;
           if (req.body.itemId === READER_ROLE_ITEM_ID) {
@@ -860,10 +947,10 @@ export function onboardingRoutes(deps: OnboardingDeps) {
               field_value: null,
               field_label: null,
               role: "profile",
-              text: freeTextLine(req.body.answer),
+              text: freeTextLine(answer),
               machine_touch: "verbatim",
               classification: "Verified",
-              source_quote: req.body.answer.slice(0, 200),
+              source_quote: answer.slice(0, 200),
               needs_grill: false,
               grill_hint: null,
             };
@@ -873,7 +960,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
             if (!item)
               return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
 
-            no = isNoAnswer(req.body.answer);
+            no = isNoAnswer(answer);
             claim = {
               id: discoveryClaimId(item.id),
               semantic_key: discoveryClaimId(item.id),
@@ -881,10 +968,10 @@ export function onboardingRoutes(deps: OnboardingDeps) {
               field_value: null,
               field_label: null,
               role: "profile",
-              text: no ? `Not applicable — ${item.question}` : composeCvLine(item, req.body.answer),
+              text: no ? `Not applicable — ${item.question}` : composeCvLine(item, answer),
               machine_touch: "verbatim", // the visitor's own answer
               classification: "Verified", // user-authored, they vouch for it
-              source_quote: req.body.answer.slice(0, 200),
+              source_quote: answer.slice(0, 200),
               needs_grill: false,
               grill_hint: null,
             };
@@ -973,9 +1060,38 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // facts (discoveryReads above), against each candidate's own requirement set; no IO of its own.
       // deck.cards_withdrawn (counters.ts) is AC6's own number: over-firing shows up as a rising
       // count an operator can see, not as jobs quietly disappearing.
+      //
+      // #123 (coordinator, 2026-08-04) — the reveal's "N jobs needed Mandarin" undo line needs the
+      // withdrawal COUNT, not just an operator metric (deck.cards_withdrawn is process-wide, not
+      // per-response, and names no language). Tallied HERE, inside the SAME filter pass that already
+      // decides a posting's fate — no second pass over `candidates`, no second eligibility read, and
+      // `withdrawal.ts` itself is untouched: this only ACCUMULATES what findWithdrawingRequirement
+      // already reports, never re-decides anything. Scoped to `candidates` (postings already past
+      // every OTHER exclusion — language-ineligible, unreadable advert) means a posting excluded for
+      // any other reason is never in this loop at all, so it can never be miscounted as a language
+      // withdrawal (the correctness trap: this must mean "cost you a job", not "excluded, for any
+      // reason, and also happened to have a language answer").
+      const withdrawnTotal = { count: 0 };
+      const withdrawnByLanguage = new Map<string, number>();
       const openCandidates = candidates.filter((entry) => {
-        if (!findWithdrawingRequirement(entry.adReq, facts)) return true;
+        const req = findWithdrawingRequirement(entry.adReq, facts);
+        if (!req) return true;
         incrementCounter("deck.cards_withdrawn");
+        withdrawnTotal.count++;
+        if (req.eligibilityDimension === "language" && req.eligibilitySubject) {
+          // Render-ready casing: the requirement's OWN eligibilitySubject is whatever the ad reader
+          // produced ("mandarin", " Mandarin "), not necessarily how the visitor's tick-box read. The
+          // matching fact's `familyId` is the STORE's own canonical scope — exactly what
+          // languageFacts() wrote from languagesUnion() — so it's the same word the visitor ticked.
+          // This re-derives the SAME (normalized) match findWithdrawingRequirement already made
+          // internally; `facts` is the identical array it was given, so the match always succeeds.
+          const normalizedSubject = normalizeScope(req.eligibilitySubject);
+          const matchingFact = facts.find(
+            (f) => f.dimension === "language" && normalizeScope(f.familyId) === normalizedSubject,
+          );
+          const language = matchingFact?.familyId ?? req.eligibilitySubject.trim();
+          withdrawnByLanguage.set(language, (withdrawnByLanguage.get(language) ?? 0) + 1);
+        }
         return false;
       });
 
@@ -1080,7 +1196,18 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       }
       // #22: authed tells the client whether the account wall at the reveal applies — false only
       // for a still-anonymous session, so a returning (claimed) visitor is never re-walled.
-      return { stage: session.stage, cards, pendingCount, authed: session.claimedByUserId !== null };
+      //
+      // #123: `withdrawn` — the reveal's undo line reads this. `byLanguage` names ONLY languages that
+      // actually caused a removal (a decline that removed nothing never appears), sorted desc by
+      // count then language name asc; empty (never omitted) when nothing was withdrawn, so the client
+      // can key "render no notice at all" off an unambiguous empty array rather than a missing field.
+      const withdrawn = {
+        total: withdrawnTotal.count,
+        byLanguage: [...withdrawnByLanguage.entries()]
+          .map(([language, count]) => ({ language, count }))
+          .sort((a, b) => b.count - a.count || a.language.localeCompare(b.language)),
+      };
+      return { stage: session.stage, cards, pendingCount, authed: session.claimedByUserId !== null, withdrawn };
     });
 
     app.post(

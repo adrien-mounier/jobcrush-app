@@ -18,6 +18,7 @@ import "../discovery.css";
 import { FactBadge, type FactChipFlight } from "../factbadge";
 import {
   answerDiscovery,
+  answerDiscoveryMulti,
   ensureSession,
   getDiscovery,
   lookupFamily,
@@ -106,13 +107,34 @@ function countdownCopy(n: number): string {
 function isNoAnswer(answer: string): boolean {
   return /^no[.!]?$/i.test(answer.trim());
 }
+// #123: joins a ticked-language list in `options` order for L3/L4 (design spec §6's join rule) —
+// sentence case, no quotes, no bold, and never an Oxford comma before "and".
+function joinList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+// #123: L3/L4 — the multi-select confirm's own "locked in" line, replacing C23 for this question
+// only (design spec §6 note: C23 never states a removal, and this is the one answer that removes
+// jobs).
+function multiSelectLockedIn(ticked: string[]): string {
+  return ticked.length === 0
+    ? "Locked in — none of those languages. Jobs that demand one are out of your deck."
+    : `Locked in — ${joinList(ticked)}. Jobs that demand anything else are out of your deck.`;
+}
 // #106: the eligibility `.sub` clarifier — the wire contract carries `.q`/`options` fully worded
 // server-side but no clarifier field (EligibilityAsk in lib/api.ts), so this is the one piece of
 // eligibility copy the client still composes. years-experience is the only dimension whose sub
-// depends on the question's own data (scopeLabel, design spec §3). The asked set settled at
-// years-experience / work-rights / language only — certification/degree stay in the wire type for
-// forward-compat but the server never emits them, so there's no copy for them here to rot
-// unreachable; language is the plain fallback rather than its own `if` for the same reason.
+// depends on the question's own data (scopeLabel, design spec §3).
+// #123 code review: language used to be the plain fallback here, but the server's languages
+// question now always carries `multiSelect: true` (apps/api/src/eligibilityDiscovery.ts's
+// buildQuestion) and renderAsk branches to renderMultiSelect — which renders `consequence`, not
+// `.sub` — before this function is ever called for it. So years-experience/work-rights are the
+// only two dimensions this function actually renders today; the fallback below is unreachable and
+// intentionally holds no dimension-specific copy (certification/degree are still declared on
+// EligibilityAsk for forward-compat, per the comment above, but the server has never emitted
+// either) — it exists only so the function type-checks against EligibilityAsk's full dimension
+// union.
 function eligibilitySub(elig: EligibilityAsk): string {
   if (elig.dimension === "years-experience") {
     return elig.scopeLabel
@@ -120,7 +142,7 @@ function eligibilitySub(elig: EligibilityAsk): string {
       : "Years in that kind of work only — not your whole career.";
   }
   if (elig.dimension === "work-rights") return "Either answer is useful — it just changes which jobs I show you.";
-  return "Enough to run meetings and write in it."; // language
+  return ""; // unreachable — see comment above
 }
 function highlightMatch(title: string, query: string): ReactNode {
   const idx = query ? title.toLowerCase().indexOf(query.toLowerCase()) : -1;
@@ -257,7 +279,12 @@ function DiscoveryScreen() {
   // #106 code review: "eligibility or bare-no" is not stored as its own field — eligibilityFor(itemId)
   // (via seenQuestionsRef) is already the one source of truth for that, so a second `kind` tag here
   // would just be a cache of the same fact that could drift from it.
-  const [noticeSlot, setNoticeSlot] = useState<{ itemId: string; answer: string } | null>(null);
+  // #123: `answers` is only ever populated for a multi-select confirm (never a decline, never a
+  // single-select answer) — renderNotice reads it to build L3/L4's `{list}`, and a correction
+  // re-entry reads it to pre-tick the previously confirmed languages (design spec §7 point 2).
+  const [noticeSlot, setNoticeSlot] = useState<{ itemId: string; answer: string; answers?: string[] } | null>(
+    null,
+  );
   // #24: an itemId to focus once its `.cv-line` button lands in the DOM as the real, enabled
   // control — set by a correction's resolution (commit or cancel) instead of calling .focus()
   // immediately, which can race a still-typing (aria-hidden) or still-disabled (picked) button.
@@ -300,13 +327,31 @@ function DiscoveryScreen() {
   // `questions`) — a memory of what's been asked this load, not derived state (design-1b-spec §1:
   // "not recomputable from current props"). Populated fresh every render, below.
   const seenQuestionsRef = useRef<
-    Map<string, { question: string; options: string[]; eligibility?: EligibilityAsk }>
+    Map<
+      string,
+      {
+        question: string;
+        options: string[];
+        eligibility?: EligibilityAsk;
+        multiSelect?: true;
+        consequence?: string;
+      }
+    >
   >(new Map());
   if (discovery) {
     for (const q of discovery.questions) {
-      seenQuestionsRef.current.set(q.itemId, { question: q.question, options: q.options, eligibility: q.eligibility });
+      seenQuestionsRef.current.set(q.itemId, {
+        question: q.question,
+        options: q.options,
+        eligibility: q.eligibility,
+        multiSelect: q.multiSelect,
+        consequence: q.consequence,
+      });
     }
   }
+  // #123: the ticked-language set for the one multi-select question — lives outside noticeSlot so
+  // a failed save keeps every tick exactly as the visitor left it (design spec §10 "in flight").
+  const [langSelected, setLangSelected] = useState<Set<string>>(new Set());
 
   const loadDiscovery = useCallback(async () => {
     setLoadError(null);
@@ -417,6 +462,26 @@ function DiscoveryScreen() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [correcting, cancelCorrection]);
 
+  // #123: entering the language question's correction pre-ticks whatever was last confirmed
+  // (design spec §7 point 2) — a prior decline pre-ticks nothing, since noticeSlot.answers is only
+  // ever set by a multi-select confirm. Never pre-tick anything on the very first ask.
+  useEffect(() => {
+    if (!correcting) return;
+    const seen = seenQuestionsRef.current.get(correcting.itemId);
+    if (!seen?.multiSelect) return;
+    const prior = noticeSlot?.itemId === correcting.itemId ? noticeSlot.answers : undefined;
+    setLangSelected(new Set(prior ?? []));
+  }, [correcting, noticeSlot]);
+
+  function toggleLang(name: string) {
+    setLangSelected((s) => {
+      const next = new Set(s);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
   // Fires the scroll+type sequence once the new (empty) line's span has actually mounted (it and
   // `typingId` land in the same render, from applyAnswerResult below).
   useEffect(() => {
@@ -461,6 +526,9 @@ function DiscoveryScreen() {
     rawAnswer: string,
     answeredItemId?: string,
     isCorrection?: boolean,
+    // #123: only ever populated for a multi-select confirm — carried into noticeSlot so a
+    // correction re-entry can pre-tick it, and read here to render L3/L4 instead of C23.
+    answersList?: string[],
   ) {
     finalizeInFlight();
     setFreeAnswer("");
@@ -479,12 +547,14 @@ function DiscoveryScreen() {
       // eligibility answer (checked first: it never produces a line either, and must never fall
       // into the bare-"no" branch just because a future decline label happened to read like one).
       setDiscovery(next);
-      const elig = answeredItemId ? seenQuestionsRef.current.get(answeredItemId)?.eligibility : undefined;
+      const seen = answeredItemId ? seenQuestionsRef.current.get(answeredItemId) : undefined;
+      const elig = seen?.eligibility;
       if (answeredItemId && elig) {
         const declined = rawAnswer === elig.declineOption;
+        const line = seen?.multiSelect && !declined ? multiSelectLockedIn(answersList ?? []) : declined ? C24 : C23;
         setNotice(null);
-        setNoticeSlot({ itemId: answeredItemId, answer: rawAnswer });
-        setLiveMessage(`${declined ? C24 : C23} ${countdownCopy(remaining(next))}`);
+        setNoticeSlot({ itemId: answeredItemId, answer: rawAnswer, ...(answersList ? { answers: answersList } : {}) });
+        setLiveMessage(`${line} ${countdownCopy(remaining(next))}`);
       } else if (answeredItemId && rawAnswer && isNoAnswer(rawAnswer)) {
         setNotice(null);
         setNoticeSlot({ itemId: answeredItemId, answer: rawAnswer });
@@ -515,7 +585,13 @@ function DiscoveryScreen() {
   // see (design-1b-spec §1A: "applyAnswerResult's new-line diff would miss it"). Re-types the line
   // in place when its text actually changed; a same-option re-pick (or a positive corrected away
   // to a "no", which isn't a flow this slice's spec designs a notice for) just syncs state quietly.
-  function applyCorrectionResult(itemId: string, next: DiscoveryState, rawAnswer: string) {
+  function applyCorrectionResult(
+    itemId: string,
+    next: DiscoveryState,
+    rawAnswer: string,
+    // #123: same purpose as applyAnswerResult's — only populated for a multi-select re-confirm.
+    answersList?: string[],
+  ) {
     finalizeInFlight();
     setFreeAnswer("");
     // #17: same unconditional attempt as applyAnswerResult — a correction is normally a zero-delta
@@ -540,8 +616,10 @@ function DiscoveryScreen() {
       const elig = eligibilityFor(itemId);
       if (elig) {
         const declined = rawAnswer === elig.declineOption;
-        setNoticeSlot({ itemId, answer: rawAnswer });
-        setLiveMessage(`${declined ? C24 : C23} ${countdownCopy(remaining(next))}`);
+        const multi = seenQuestionsRef.current.get(itemId)?.multiSelect;
+        const line = multi && !declined ? multiSelectLockedIn(answersList ?? []) : declined ? C24 : C23;
+        setNoticeSlot({ itemId, answer: rawAnswer, ...(answersList ? { answers: answersList } : {}) });
+        setLiveMessage(`${line} ${countdownCopy(remaining(next))}`);
         setFocusFixNotice(true);
       } else {
         setFocusLineId(itemId);
@@ -597,6 +675,25 @@ function DiscoveryScreen() {
     }
   }
 
+  // #123: the correction re-ask's commit for the multi-select question — mirrors commitCorrection,
+  // but this item never produces a CV line (it's an eligibility answer), so it always lands in
+  // applyCorrectionResult, never the no-to-positive branch commitCorrection has to distinguish.
+  async function commitMultiCorrection(itemId: string, answers: string[]) {
+    if (picked) return;
+    const label = answers.length > 0 ? joinList(answers) : "I can't work in any of these";
+    setPicked({ itemId, answer: label });
+    setAskError(null);
+    try {
+      const next = await answerDiscoveryMulti(itemId, answers);
+      setCorrecting(null);
+      applyCorrectionResult(itemId, next, label, answers);
+    } catch (e) {
+      setAskError(e instanceof Error ? e.message : "could not save that — try again");
+    } finally {
+      setPicked(null);
+    }
+  }
+
   async function submitRole(raw: string) {
     const role = raw.trim();
     if (q1Busy || role.length < 2) return;
@@ -621,6 +718,25 @@ function DiscoveryScreen() {
     setNoticeSlot(null); // the undo reaches one question past a "no"/decline (design-1b-spec §3, #106), then clears
     try {
       applyAnswerResult(await answerDiscovery(item.itemId, answer), answer, item.itemId);
+    } catch (e) {
+      setAskError(e instanceof Error ? e.message : "could not save that — try again");
+    } finally {
+      setPicked(null);
+    }
+  }
+
+  // #123: the language question's multi-select confirm — `answers` can legally be `[]` (the
+  // "I can't work in any of these" tap). The fly/notice label is the ticked list itself so it can
+  // never collide with the decline string, which travels its own path (answerFloor, unchanged).
+  async function answerMultiSelect(item: DiscoveryQuestion, answers: string[]) {
+    if (picked) return;
+    const label = answers.length > 0 ? joinList(answers) : "I can't work in any of these";
+    setPicked({ itemId: item.itemId, answer: label });
+    setAskError(null);
+    setNotice(null);
+    setNoticeSlot(null);
+    try {
+      applyAnswerResult(await answerDiscoveryMulti(item.itemId, answers), label, item.itemId, false, answers);
     } catch (e) {
       setAskError(e instanceof Error ? e.message : "could not save that — try again");
     } finally {
@@ -750,8 +866,11 @@ function DiscoveryScreen() {
       // eligibility answer's pair — C23/C16 for a real answer, C24/C26 for a decline (design
       // spec §4/§5.3).
       const elig = eligibilityFor(noticeSlot.itemId);
+      const multi = seenQuestionsRef.current.get(noticeSlot.itemId)?.multiSelect;
       const declined = !!elig && noticeSlot.answer === elig.declineOption;
-      const line = !elig ? C15 : declined ? C24 : C23;
+      // #123: L3/L4 replace C23 for the multi-select question only (design spec §6) — C23 never
+      // states a removal, and this is the one answer that removes jobs.
+      const line = !elig ? C15 : declined ? C24 : multi ? multiSelectLockedIn(noticeSlot.answers ?? []) : C23;
       const fixLabel = !elig ? C16 : declined ? C26 : C16;
       return (
         <p className="notice">
@@ -782,6 +901,28 @@ function DiscoveryScreen() {
     // against the slot's stored answer (design spec §5.4 point 2) — works for any eligibility
     // answer, not just a "no"-shaped one, and pre-marks it as `.opt.picked` on entry.
     const slotAnswer = noticeSlot && noticeSlot.itemId === correcting.itemId ? noticeSlot.answer : null;
+
+    // #123: the language question's correction re-ask — same fieldset, pre-ticked by the effect
+    // above (design spec §7). Checked before the free-text/options branches below since it has its
+    // own shape entirely.
+    if (seen.multiSelect && seen.eligibility) {
+      const elig = seen.eligibility;
+      return renderMultiSelect(
+        {
+          itemId: correcting.itemId,
+          question: seen.question,
+          options: seen.options,
+          eligibility: seen.eligibility,
+          consequence: seen.consequence,
+        },
+        {
+          isAnswering,
+          isCorrection: true,
+          onConfirm: (answers) => commitMultiCorrection(correcting.itemId, answers),
+          onDecline: () => commitCorrection(correcting.itemId, elig.declineOption),
+        },
+      );
+    }
 
     if (seen.options.length === 0) {
       return (
@@ -909,6 +1050,94 @@ function DiscoveryScreen() {
     );
   }
 
+  // #123: the language question's checkbox-group UI (design spec §1/§3/§4/§5) — shared by the
+  // normal ask and its correction re-ask via the onConfirm/onDecline callbacks, so this never needs
+  // to know which one it's in beyond the copy/notice differences `isCorrection` controls.
+  function renderMultiSelect(
+    q: { itemId: string; question: string; options: string[]; eligibility?: EligibilityAsk; consequence?: string },
+    opts: {
+      isAnswering: boolean;
+      isCorrection: boolean;
+      onConfirm: (answers: string[]) => void;
+      onDecline: () => void;
+    },
+  ) {
+    // options: N language names, then the decline string last (contract-pinned order).
+    const languages = q.options.slice(0, -1);
+    const decline = q.options[q.options.length - 1] ?? "";
+    const anyTicked = langSelected.size > 0;
+    const orderedTicked = languages.filter((name) => langSelected.has(name));
+    const confirmLabel = anyTicked ? "That's all of them" : "I can't work in any of these";
+    return (
+      <>
+        <fieldset className="elig-group" aria-describedby="lang-why">
+          <legend className="q">{q.question}</legend>
+          {opts.isCorrection && <p className="sub">{C17}</p>}
+          <p className="conseq" id="lang-why">
+            {q.consequence}
+          </p>
+          <div className="opts">
+            {languages.map((name, i) => {
+              const checked = langSelected.has(name);
+              return (
+                <label className="opt check" key={name}>
+                  <input
+                    type="checkbox"
+                    name="elig-language"
+                    ref={i === 0 ? setFirstControl : undefined}
+                    checked={checked}
+                    disabled={opts.isAnswering}
+                    onChange={() => toggleLang(name)}
+                  />
+                  <span className="lbl">{name}</span>
+                  <span className="state" aria-hidden="true">
+                    {checked ? "YES" : anyTicked ? "NO" : ""}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+        <div className="elig-actions">
+          <button
+            type="button"
+            className="go wide"
+            disabled={opts.isAnswering}
+            onClick={() => opts.onConfirm(orderedTicked)}
+          >
+            {confirmLabel}
+          </button>
+          <button
+            type="button"
+            className="opt quiet"
+            disabled={opts.isAnswering}
+            aria-label={`${decline} — nothing is removed from your deck`}
+            onClick={opts.onDecline}
+          >
+            <span className="lbl">{decline}</span>
+            <span className="state" aria-hidden="true">
+              NOTHING REMOVED
+            </span>
+          </button>
+        </div>
+        {opts.isCorrection ? (
+          <p className="notice">
+            <button type="button" disabled={opts.isAnswering} onClick={cancelCorrection}>
+              {C18}
+            </button>
+          </p>
+        ) : (
+          renderNotice()
+        )}
+        {askError && (
+          <p className="err" role="alert">
+            {askError}
+          </p>
+        )}
+      </>
+    );
+  }
+
   function renderAsk(d: DiscoveryState) {
     // Precedence (design-1b-spec §1): deck > correcting > the normal next-question below.
     // The exhausted-deck loopback is the exception: it must return to answering, not this handoff.
@@ -990,6 +1219,18 @@ function DiscoveryScreen() {
       );
     }
     const isAnswering = picked?.itemId === item.itemId;
+
+    // #123: the language question — its own checkbox-group UI, branching on `multiSelect` alone
+    // (the pinned contract's condition), never on dimension/itemId.
+    if (item.multiSelect && item.eligibility) {
+      const elig = item.eligibility;
+      return renderMultiSelect(item, {
+        isAnswering,
+        isCorrection: false,
+        onConfirm: (answers) => answerMultiSelect(item, answers),
+        onDecline: () => answerFloor(item, elig.declineOption),
+      });
+    }
 
     if (item.options.length === 0) {
       // A free-text floor item (e.g. headline-focus) — the design spec doesn't pin exact copy for

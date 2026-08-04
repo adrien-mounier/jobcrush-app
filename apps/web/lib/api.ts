@@ -204,6 +204,12 @@ export interface DiscoveryQuestion {
   options: string[]; // may be empty — a free-text floor item (never empty when `eligibility` is set)
   cvSection: CvSection;
   eligibility?: EligibilityAsk; // present ⇔ this is an eligibility question, not a CV-line floor item
+  // #123: the language question only. Typed locally (not yet added to the shared contract) — its
+  // presence is the client's branch into the checkbox-group UI (design spec §1).
+  multiSelect?: true;
+  // #123: the consequence of leaving an option unticked, stated in the question itself (AC5).
+  // Rendered at full ink weight, never muted like `.sub` — see eligibilitySub's exclusion below.
+  consequence?: string;
 }
 
 export interface DiscoveryCvLine {
@@ -254,6 +260,16 @@ export function answerDiscovery(itemId: string, answer: string): Promise<Discove
   return jfetch("/api/onboarding/discovery/answer", {
     method: "POST",
     body: JSON.stringify({ itemId, answer }),
+  });
+}
+
+// #123: the language question's multi-select confirm — same route, `answers` instead of `answer`.
+// `answers: []` is legal (the "I can't work in any of these" confirm); a decline still goes through
+// plain answerDiscovery with the declineOption string, never through here.
+export function answerDiscoveryMulti(itemId: string, answers: string[]): Promise<DiscoveryState> {
+  return jfetch("/api/onboarding/discovery/answer", {
+    method: "POST",
+    body: JSON.stringify({ itemId, answers }),
   });
 }
 
@@ -335,6 +351,16 @@ export interface UnscoredJobCard extends JobCardCommon {
 // types for the other fields too, with no `!`/`as` anywhere that reads a card.
 export type JobCard = ScoredJobCard | PendingJobCard | UnscoredJobCard;
 
+// #123 addendum (2026-08-04): what #107's withdrawal engine dropped on a language ground, so the
+// reveal can say so instead of silently shrinking the count. Typed locally (not yet on the shared
+// contract) — the backend is building this exact shape. `byLanguage` is desc by count, then name
+// asc, and names only languages that actually caused a removal — never the full unticked set.
+// `total: 0` with an empty `byLanguage` means nothing was withdrawn; render nothing for that case.
+export interface WithdrawnSummary {
+  total: number;
+  byLanguage: Array<{ language: string; count: number }>;
+}
+
 export interface CardsResponse {
   stage: string;
   cards: JobCard[];
@@ -344,6 +370,7 @@ export interface CardsResponse {
   // #117: how many cards in `cards` are still `scored === "pending"`. The client's only use of this
   // number is as the poll's start/stop condition — it is deliberately never rendered (design §6).
   pendingCount: number;
+  withdrawn?: WithdrawnSummary;
 }
 
 export function getCards(): Promise<CardsResponse> {

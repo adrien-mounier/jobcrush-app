@@ -954,3 +954,225 @@ describe("#106 eligibility questions in discovery", () => {
     expect(await eligibility.numeric(sid, "years-experience", years.eligibility!.familyId)).toBe(8);
   });
 });
+
+// --- #123 the languages question — a multi-select question that arms #107's withdrawal engine -----
+// Supersedes the old single-English question tested above (#106's "Can you work professionally in
+// English?"). Driven entirely through the same two seams spec #86 pins: the HTTP route and the store
+// contract — never a private function, never a branch assertion. AC-level withdrawal-through-the-deck
+// coverage (AC1-AC4, AC6) lives in cards.test.ts's own "#123" block, reusing #107's mandarinBlocking/
+// mandarinAdvantage fixtures; this block covers the question's shape and the answer route's own
+// write/decline/correction/validation behaviour.
+describe("#123 the languages question", () => {
+  const languageQuestion = (start: DiscoveryState) =>
+    start.questions.find((q) => q.eligibility?.dimension === "language")!;
+
+  it("is a multi-select over the pinned four-language list, with the pinned copy and itemId (AC5, AC7)", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const language = languageQuestion(start);
+
+    expect(language.itemId).toBe("eligibility-languages");
+    expect(language.multiSelect).toBe(true);
+    expect(language.question).toBe(
+      "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.",
+    );
+    // Code-review must-fix 1 (2026-08-04), trimmed by owner correction (2026-08-04): the pinned
+    // first sentence is intact; the second is an added, recorded deviation (see
+    // eligibilityDiscovery.ts's LANGUAGES_CONSEQUENCE doc) biasing an unsure visitor toward ticking,
+    // since a binary multi-select can no longer produce a "some, but not for work" answer. Trimmed to
+    // a three-word nudge after QA flagged the first draft as the longest thing on screen.
+    expect(language.consequence).toBe(
+      "A no takes jobs that require that language out of your deck. Tick every one you could run a meeting in." +
+        " Not sure? Tick it.",
+    );
+    expect(language.options).toEqual(["English", "Mandarin", "Cantonese", "Vietnamese", DECLINE_OPTION]);
+  });
+
+  it("the option order is stable across separate sessions — never re-sorted between requests", async () => {
+    const { app } = buildServer();
+    const cookieA = await anonSession(app);
+    const cookieB = await anonSession(app);
+    const startA: DiscoveryState = (await post(app, cookieA, "/onboarding/discovery/start", { role: ROLE })).json();
+    const startB: DiscoveryState = (await post(app, cookieB, "/onboarding/discovery/start", { role: ROLE })).json();
+    expect(languageQuestion(startA).options).toEqual(languageQuestion(startB).options);
+  });
+
+  it("AC1: a real multi-select answer stores more than one language, and writes the FULL list — every unticked language becomes an explicit 'no'", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "Cantonese"] });
+
+    expect(await eligibility.get(sid, "language", "English")).toMatchObject({ value: "professional" });
+    expect(await eligibility.get(sid, "language", "Cantonese")).toMatchObject({ value: "professional" });
+    expect(await eligibility.get(sid, "language", "Mandarin")).toMatchObject({ value: "none" });
+    expect(await eligibility.get(sid, "language", "Vietnamese")).toMatchObject({ value: "none" });
+  });
+
+  it("answers: [] is a legal answer — every language is stored as an explicit 'no', and the question closes", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+
+    const answered: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: [] })
+    ).json();
+    expect(answered.questions.some((q) => q.itemId === itemId)).toBe(false); // closed, never re-offered
+    expect(await eligibility.get(sid, "language", "English")).toMatchObject({ value: "none" });
+  });
+
+  it("a real answer never reaches the claims store (must-fix 1, unchanged by #123)", async () => {
+    const { app, claims } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] });
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    const [confirmed, negatives] = await Promise.all([claims.confirmed(sid), claims.negatives(sid)]);
+    expect([...confirmed, ...negatives].map((c) => c.id)).not.toContain(discoveryClaimId(itemId));
+  });
+
+  it("the question is answered iff at least one language fact exists — resumes closed on a fresh GET", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["Vietnamese"] });
+    const resumed: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
+    expect(resumed.questions.some((q) => q.itemId === itemId)).toBe(false);
+  });
+
+  it("AC6: re-answering corrects every language's stored value — a previously-'no' language flips to 'professional'", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] });
+    expect(await eligibility.get(sid, "language", "Mandarin")).toMatchObject({ value: "none" });
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "Mandarin"] });
+    expect(await eligibility.get(sid, "language", "Mandarin")).toMatchObject({ value: "professional" });
+  });
+
+  it("declining retracts every previously-stored language fact (must-fix 5, applied to the whole list)", async () => {
+    const { app, eligibility, claims } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "Mandarin"] });
+    expect(await eligibility.get(sid, "language", "Mandarin")).toMatchObject({ value: "professional" });
+
+    const declined: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: DECLINE_OPTION })
+    ).json();
+    expect(declined.questions.some((q) => q.itemId === itemId)).toBe(false); // still closed
+    for (const language of ["English", "Mandarin", "Cantonese", "Vietnamese"]) {
+      expect(await eligibility.get(sid, "language", language)).toBeNull(); // retracted, not stale
+    }
+    const negatives = await claims.negatives(sid);
+    expect(negatives.some((c) => c.id === discoveryClaimId(itemId))).toBe(true);
+  });
+
+  // Code-review must-fix 2 (2026-08-04): languages-by-market.json is the owner's own hand-edit
+  // surface (must-fix 4) and can shrink or rename entries. A decline must retract a fact stored at a
+  // scope TODAY's list no longer contains — looping languagesUnion() (the pre-fix bug) would silently
+  // leave it behind, since eligibility.remove() has no "clear every scope" call. Seeds a fact at a
+  // scope outside today's union directly (standing in for a market dropped/renamed since the visitor
+  // answered) to prove the decline path reads what's ACTUALLY stored, not today's list.
+  it("declining retracts a language fact even at a scope outside TODAY's supported list (must-fix 2)", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+
+    // A fact at a scope the CURRENT languages-by-market.json no longer lists — e.g. a market dropped
+    // or a language renamed after the visitor answered.
+    await eligibility.put(sid, { dimension: "language", familyId: "Lao", value: "professional", label: "x" });
+    expect(await eligibility.get(sid, "language", "Lao")).not.toBeNull();
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: DECLINE_OPTION });
+    expect(await eligibility.get(sid, "language", "Lao")).toBeNull(); // retracted, not left stale
+  });
+
+  it("an answers array containing a language outside the list is a 400 invalid_answer, never silently stored", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+
+    const res = await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["Klingon"] });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: { code: "invalid_answer" } });
+    expect(await eligibility.get(sid, "language", "English")).toBeNull(); // never partially written
+  });
+
+  it("a single free-text `answer` (not the decline string) sent to the multi-select question is a 400, never a silent fall-through", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+
+    const res = await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: "Yes" });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: { code: "invalid_answer" } });
+  });
+
+  it("sending both answer and answers, or neither, is a 400 invalid_answer", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+
+    const both = await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId,
+      answer: "English",
+      answers: ["English"],
+    });
+    expect(both.statusCode).toBe(400);
+    expect(both.json()).toMatchObject({ error: { code: "invalid_answer" } });
+
+    const neither = await post(app, cookie, "/onboarding/discovery/answer", { itemId });
+    expect(neither.statusCode).toBe(400);
+    expect(neither.json()).toMatchObject({ error: { code: "invalid_answer" } });
+  });
+
+  // The property that makes the language list safe to grow later (owner requirement, mid-build):
+  // a visitor who answered under TODAY's list has no fact for a language outside it, which reads as
+  // unknown — never a "no" — exactly like any other never-asked scope (withdrawal.ts's own rule).
+  it("a language outside today's supported list has no fact after a real answer — safe to grow the list later", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId,
+      answers: ["English", "Mandarin", "Cantonese", "Vietnamese"],
+    });
+    // "Lao" isn't in today's list — a future market addition — so no fact was ever written for it.
+    expect(await eligibility.get(sid, "language", "Lao")).toBeNull();
+  });
+});

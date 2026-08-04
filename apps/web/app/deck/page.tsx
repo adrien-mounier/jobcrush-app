@@ -32,6 +32,7 @@ import {
   wantCard,
   type JobCard,
   type ScoredJobCard,
+  type WithdrawnSummary,
 } from "../../lib/api";
 
 type Screen = "loading" | "error" | "empty" | "reveal" | "wall" | "deck" | "tailorHandoff" | "loopback";
@@ -75,6 +76,23 @@ function revealText(n: number): string {
   return n === 1 ? "1 job just matched you" : `${n} jobs just matched you`;
 }
 
+// #123 addendum (2026-08-04) — QA NO-GO fix: the languages question is always discovery's last
+// question, so confirming it used to fall straight into this reveal, past the notice area L3/L4
+// and "Fix that?" live in. A visitor was never told a job had been removed. L7 says so here instead.
+function joinLanguages(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+// L7 (addendum §A2) — only when something was actually removed; `null` means render nothing, no
+// reserved space (§A5). `{langList}` names only the languages that caused a removal, in the join
+// order §6 already established elsewhere on this screen's sibling copy.
+function withdrawnLine(w: WithdrawnSummary): string | null {
+  if (w.total <= 0 || w.byLanguage.length === 0) return null;
+  const langs = joinLanguages(w.byLanguage.map((l) => l.language));
+  return `${w.total} more needed ${langs} — I left ${w.total === 1 ? "it" : "them"} out.`;
+}
+
 function isUnknownCardError(error: unknown) {
   return (
     typeof error === "object" &&
@@ -98,6 +116,12 @@ export default function DeckPage() {
   const [swipeStatus, setSwipeStatus] = useState<SwipeStatus>("idle");
   const [deckError, setDeckError] = useState<string | null>(null);
   const [authed, setAuthed] = useState(false);
+  // #123 addendum: set once from the initial load — withdrawal is decided before scoring (the ad
+  // pool is filtered, not re-judged), so a later poll's applyMerge never needs to touch this.
+  const [withdrawn, setWithdrawn] = useState<WithdrawnSummary | null>(null);
+  // Declared here (not near the render below) because the reveal-entry effect further down needs
+  // it in its dependency array, and a `const` can't be read before its own declaration.
+  const withdrawalCopy = withdrawn ? withdrawnLine(withdrawn) : null;
   const [wallError, setWallError] = useState<string | null>(null);
   const [liveMessage, setLiveMessage] = useState("");
   const reducedMotion = useReducedMotion();
@@ -288,6 +312,7 @@ export default function DeckPage() {
       // that order. Render the server's order as-is, always.
       setCards(res.cards);
       setAuthed(res.authed);
+      setWithdrawn(res.withdrawn ?? null);
       if (res.cards.length === 0) {
         setScreen("empty");
         return;
@@ -358,8 +383,10 @@ export default function DeckPage() {
   useEffect(() => {
     if (screen !== "reveal") return;
     headingRef.current?.focus();
-    setLiveMessage(revealText(cards.length));
-  }, [screen, cards.length]);
+    // #123 addendum §A4 last bullet: the existing single announce absorbs L7 rather than adding a
+    // second one — one polite message, not two.
+    setLiveMessage(withdrawalCopy ? `${revealText(cards.length)} ${withdrawalCopy}` : revealText(cards.length));
+  }, [screen, cards.length, withdrawalCopy]);
 
   // #22 §5: one focus move + one announce into the wall. The .big reward heading stays mounted
   // (only the action slot below it swaps — §1), so it never re-fires; only the live text changes.
@@ -526,9 +553,19 @@ export default function DeckPage() {
               {n} {n === 1 ? "job" : "jobs"} just <em>matched you</em>
             </h1>
             {screen === "reveal" ? (
-              <button type="button" className="go" onClick={onSeeThem}>
-                See them
-              </button>
+              <>
+                <button type="button" className="go" onClick={onSeeThem}>
+                  See them
+                </button>
+                {/* #123 addendum §A1/§A5: below the CTA (provenance for the number), not above it
+                    (a caveat on the reward); nothing rendered — no reserved space — when k === 0.
+                    §A4's "Fix my languages" undo is NOT built here: it needs a way to reopen an
+                    already-answered eligibility question with its prior ticks restored, and no
+                    such route exists yet (verified — see the session report). Shipping a link to
+                    nowhere would be worse than the silent removal this fix exists to close, so
+                    this only lands the visibility half for now. */}
+                {withdrawalCopy && <p className="aside">{withdrawalCopy}</p>}
+              </>
             ) : (
               <WallPanel headingRef={wallHeadingRef} initialError={wallError} />
             )}

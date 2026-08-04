@@ -8,8 +8,19 @@ coverage/
 .next/
 *.tsbuildinfo
 data/
+# ...but apps/api/data holds SHIPPED corpus + config the API reads at runtime (sample-postings,
+# family floors, languages-by-market). Those were tracked before the blanket `data/` rule existed;
+# a NEW one added there is silently dropped by `git add -A` and the deploy 500s on ENOENT at read.
+# Re-included by name here (a negation cannot reach inside a directory git has already excluded,
+# so the directory itself must be un-excluded first). Uploads stay ignored — user content.
+!apps/api/data/
+apps/api/data/*
+!apps/api/data/*.json
+!apps/api/data/*.mjs
 next-env.d.ts
 scripts/s1-smoke-preview.html
 test-results/
 playwright-report/
 qa-results/
+
+graphify-out/

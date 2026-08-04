@@ -539,6 +539,101 @@
   color: var(--hud-ink);
 }
 
+/* ---------- #123 the language multi-select (design spec §8) ---------- */
+/* fieldset reset — a fieldset must not bring its own chrome or block flex children */
+.discovery .elig-group {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+/* the consequence line: part of the question, never a muted clarifier */
+.discovery .conseq {
+  margin: -4px 0 13px;
+  padding-left: 11px;
+  border-left: 2px solid var(--gold-dim);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--hud-ink);
+}
+
+/* a checkbox row: .opt supplies surface/border/radius/padding; this supplies the layout */
+.discovery .opt.check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+.discovery .opt.check input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  accent-color: var(--gold);
+  margin: 0;
+}
+.discovery .opt.check input:focus-visible {
+  outline: none; /* ring moves to the row */
+}
+.discovery .opt.check:has(input:focus-visible) {
+  outline: 2px solid var(--hud-ink);
+  outline-offset: 2px;
+}
+.discovery .opt.check:has(input:checked) {
+  border-color: var(--gold);
+  background: #262f3a;
+}
+.discovery .opt.check .lbl {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.discovery .opt.check .state,
+.discovery .elig-actions .opt.quiet .state {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hud-mute);
+}
+.discovery .opt.check:has(input:checked) .state {
+  color: var(--gold);
+}
+/* #123 code review: `.opt.check` is a <label> — `.discovery .opt:disabled` (above, ~L391) can only
+   ever match a real disabled control, never a label wrapping one, so a saving checkbox row showed
+   no feedback at all. Reuses .opt.dim's own opacity value and .opt:disabled's own cursor value
+   rather than inventing a second "saving" look. */
+.discovery .opt.check:has(input:disabled) {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* actions block */
+.discovery .elig-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.discovery .elig-actions .opt.quiet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ≤899px the ask dock already scrolls (max-height:60dvh). At |L|=6 the confirm can fall below the
+   dock's fold; pin it so the visitor never has to discover a scroll to finish the question. */
+@media (max-width: 899px) {
+  .discovery .elig-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--hud-1);
+    padding-top: 10px;
+    margin-top: 4px;
+  }
+}
+
 /* ---------- accessibility ---------- */
 /* The global :where(...) ring (globals.css) runs at specificity 0 against --jc-accent, which does
    not exist on this dark field — these scoped rules win and use --hud-ink for strong contrast

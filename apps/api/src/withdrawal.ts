@@ -50,8 +50,13 @@ function scopeFor(dimension: EligibilityDimension, subject: string | undefined):
 /** Trimmed + case-folded — code-review M4: a reader-produced eligibilitySubject ("english", "
  *  Mandarin ") must still match the store's canonical scope ("English") or this whole rule silently
  *  never fires. A safe direction on its own (never-withdraws is always the fail-safe outcome), but a
- *  needless no-op worth the one-line fix. */
-function normalizeScope(s: string): string {
+ *  needless no-op worth the one-line fix.
+ *
+ *  Exported (2026-08-04, no behaviour change) so routes/onboarding.ts's withdrawal-reporting tally
+ *  (the reveal's "N jobs needed Mandarin" line) can re-derive the SAME match this function's own
+ *  caller (findWithdrawingRequirement) already made, to recover the fact's exact canonical casing —
+ *  never a second predicate, never a re-decision of any posting's fate. */
+export function normalizeScope(s: string): string {
   return s.trim().toLowerCase();
 }
 
@@ -60,8 +65,14 @@ function normalizeScope(s: string): string {
  *  leaves the job in the deck. */
 function isExplicitNo(dimension: EligibilityDimension, value: string): boolean {
   if (dimension === "work-rights") return value === "needs-sponsorship";
-  // "conversational" ("Some, but not for work") is deliberately NOT a no — pinned here, not just in
-  // a test, because it is the spec's own second regression case: only "none" ("No, I don't") counts.
+  // "conversational" is deliberately NOT a no — the spec's own second regression case: a "some but
+  // not for work" fluency must never withdraw. #123 code-review must-fix 1 (2026-08-04): the
+  // languages question is now a binary multi-select (tick = professional, unticked = none) and has
+  // no option that WRITES "conversational" any more — the owner's sanctioned trade for that shape
+  // (docs/research/languages-from-the-corpus.md's "Decision taken" section, and the constant in
+  // eligibilityDiscovery.ts). This branch is NOT dead: a fact stored before #123, or by any future
+  // surface that reintroduces a three-way answer, still carries this value, and it must still never
+  // withdraw — retained on purpose, not orphaned.
   if (dimension === "language") return value === "none";
   // certification is wired through on purpose (D3: "don't special-case it away") even though no
   // product surface today ever WRITES a certification eligibility fact — see eligibilityDiscovery.ts's

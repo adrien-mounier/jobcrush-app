@@ -1,0 +1,6 @@
+[
+  { "market": "Hong Kong SAR", "languages": ["English", "Mandarin", "Cantonese"] },
+  { "market": "Australia", "languages": ["English"] },
+  { "market": "Vietnam", "languages": ["English", "Vietnamese"] },
+  { "market": "China", "languages": ["Mandarin", "English"] }
+]

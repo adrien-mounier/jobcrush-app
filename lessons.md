@@ -1,5 +1,46 @@
 # Lessons — jobcrush-app
 
+## The affordance that lives "after you answer" does not exist for the last question
+
+#123's designer specced a lock-in confirmation and a "Fix that?" undo into the ask dock's notice slot —
+the same slot #106 established and #120 already flags as reaching only one answer back. It rendered in
+**zero** runs. The languages question is *always last*, and answering the last question flips the
+session to the deck handoff, which replaces the notice area outright. So the affordance wasn't
+sometimes-missed; it was structurally unreachable, and only a live browser drive found it — every unit
+test passed, because the state it asserts is real, just never painted.
+
+**The general shape:** any affordance whose home is "the slot that appears after answering" is
+unreachable for the final item in the flow, because answering the final item *is* the transition away.
+Whenever a confirmation, an undo, or a "what just happened" line matters most on the last step — and it
+usually matters most there, because that step commits everything — it has to live on the **destination
+screen**, not the origin's notice slot. Check where the flow *goes*, not where the component sits.
+
+Corollary worth keeping: when the undo turned out to need real new capability (reopening an answered
+question with its prior answer intact), the right move was to **not wire the link** and say so. A dead
+"Fix my languages" would have re-opened the exact trust problem the fix existed to close.
+
+## A blanket `data/` ignore silently drops shipped runtime config — and the obvious fix is also wrong
+
+#123 added `apps/api/data/languages-by-market.json`, which the API reads at runtime. Every test passed;
+`git add -A` picked up nothing. The root `.gitignore` carries a repo-wide `data/` rule, and the existing
+files in that directory are only tracked because they predate it. A green local run proves nothing about
+what actually ships — the deploy would have 500'd on ENOENT at the first language question.
+
+Two traps, in order:
+
+1. **`git check-ignore -v` is a bad oracle here.** With `-v` it prints the matching pattern and exits 0
+   even when the match is a *negation* — i.e. when the file is **not** ignored. Use `git add --dry-run`,
+   or `git status --porcelain`, which answer the question you actually have: *would this ship?*
+2. **A negation cannot reach inside an excluded directory.** `data/` then `!apps/api/data/*.json` looks
+   right and is a no-op — git never descends into the excluded directory to evaluate it. The first fix
+   here added `!apps/api/data/` to un-exclude the directory, which silently turned the block into a
+   **blanket un-ignore with a whitelist-shaped comment**: a stray `.md`, `.db` or scratch dump in that
+   folder would have been committed. Code review caught it. The working shape is un-exclude the
+   directory, **re-exclude its contents**, then whitelist by extension:
+   `data/` → `!apps/api/data/` → `apps/api/data/*` → `!apps/api/data/*.json`.
+
+Verify a `.gitignore` change by probing **both** directions — a file that must ship, and a file that must
+not — before trusting the comment you just wrote.
 ## A shape that is ported but not golden-tested is not actually governed by the oracle
 
 The repo rule says the `.mjs` oracle is the contract spec and the zod port is wrong on any

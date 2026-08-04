@@ -9,9 +9,12 @@ import { describe, expect, it } from "vitest";
 import { ANY_FAMILY } from "../src/eligibility.js";
 import {
   DECLINE_OPTION,
-  ELIGIBILITY_LANGUAGE,
+  LANGUAGE_ITEM_ID,
   eligibilityCandidates,
   isEligibilityItemId,
+  isValidLanguageSelection,
+  languageFacts,
+  languagesUnion,
   mapEligibilityAnswer,
   unresolvedEligibilityQuestions,
 } from "../src/eligibilityDiscovery.js";
@@ -70,15 +73,28 @@ describe("#106 eligibilityCandidates", () => {
     expect(workRights!.question).toBe("Can you already work where you're job-hunting, without visa sponsorship?");
   });
 
-  // #107 (E5 slice 6, D2): language is scoped by the LANGUAGE NAME, not ANY_FAMILY — a blocking
-  // requirement's eligibilitySubject ("Mandarin") is looked up against this exact scope column
-  // (withdrawal.ts), so a second language answered at its own scope would never collide with this one.
-  it("language names English — the only language the corpus demands — and is scoped by that name, not ANY_FAMILY", () => {
+  // #123: language is now ONE multi-select question over every supported language
+  // (languagesUnion()), superseding #107 D2's single-English question — the pinned UI design spec
+  // copy, exercised here rather than paraphrased.
+  it("language is a multi-select over languagesUnion(), with its own itemId, question, and consequence", () => {
     const language = candidates.find((q) => q.eligibility?.dimension === "language")!;
-    expect(language.eligibility).toMatchObject({ familyId: ELIGIBILITY_LANGUAGE, scopeLabel: null });
+    expect(language.itemId).toBe(LANGUAGE_ITEM_ID);
     expect(language.itemId).not.toBe(candidates.find((q) => q.eligibility?.dimension === "work-rights")!.itemId);
-    expect(language.question).toBe(`Can you work professionally in ${ELIGIBILITY_LANGUAGE}?`);
-    expect(language.options).toEqual(["Yes — I work in it", "Some, but not for work", "No, I don't", DECLINE_OPTION]);
+    expect(language.multiSelect).toBe(true);
+    expect(language.question).toBe(
+      "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.",
+    );
+    // Code-review must-fix 1 (2026-08-04), trimmed by owner correction (2026-08-04): the pinned
+    // first sentence stays intact; the second is an ADDED, recorded deviation from the design spec,
+    // biasing an unsure visitor toward ticking (a binary multi-select has no "some, but not for work"
+    // option any more — see the constant's own doc in eligibilityDiscovery.ts and docs/research/
+    // languages-from-the-corpus.md). Kept to a three-word nudge after QA flagged the first draft as
+    // the longest thing on screen.
+    expect(language.consequence).toBe(
+      "A no takes jobs that require that language out of your deck. Tick every one you could run a meeting in." +
+        " Not sure? Tick it.",
+    );
+    expect(language.options).toEqual([...languagesUnion(), DECLINE_OPTION]);
   });
 
   it("certification and degree are never built — both are already asked by the live floor", () => {
@@ -127,22 +143,23 @@ describe("#106 unresolvedEligibilityQuestions — never re-asked", () => {
   });
 
   it("a stored eligibility fact (a real answer) also closes its question, with no claim involved", () => {
-    // #107 (D2): language's real scope is the language name (ELIGIBILITY_LANGUAGE), not ANY_FAMILY —
-    // a fact recorded at the wrong scope would never close this question (see the next test below).
     const qs = unresolvedEligibilityQuestions(noFloorSession, ROLE, ANY_FAMILY, null, [], [], [], [
-      { dimension: "language", familyId: ELIGIBILITY_LANGUAGE },
+      { dimension: "language", familyId: "English" },
     ]);
     expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["years-experience", "work-rights"]);
   });
 
-  // #107 (D2) regression: a language fact recorded at the OLD ANY_FAMILY scope (a session that
-  // answered before this change) does NOT close the question — it reads as unknown and is asked
-  // once more, the accepted consequence #107's own report names.
-  it("a language fact recorded at the old ANY_FAMILY scope does not close the (now language-scoped) question", () => {
+  // #123: the languages question is answered iff AT LEAST ONE language fact exists, at ANY scope —
+  // unlike years-experience, there is no single scope for one question to match. This also means a
+  // STALE fact from the pre-#123 single-English question (recorded at the same "English" scope,
+  // since ELIGIBILITY_LANGUAGE was "English") closes the new question too — an old session is not
+  // re-asked, the same accepted-pre-launch outcome LANGUAGE_ITEM_ID's own doc records for the itemId
+  // change itself.
+  it("a language fact at ANY scope (including one recorded under a different language name) closes the one languages question", () => {
     const qs = unresolvedEligibilityQuestions(noFloorSession, ROLE, ANY_FAMILY, null, [], [], [], [
-      { dimension: "language", familyId: ANY_FAMILY },
+      { dimension: "language", familyId: "Mandarin" },
     ]);
-    expect(qs.map((q) => q.eligibility?.dimension)).toContain("language");
+    expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["years-experience", "work-rights"]);
   });
 
   it("a fact recorded for a DIFFERENT family does not close this family's years-experience question", () => {
@@ -178,27 +195,61 @@ describe("#106 mapEligibilityAnswer — the store's canonical value for a tapped
     });
   });
 
-  it("language: all three real options map to distinct canonical values", () => {
-    expect(mapEligibilityAnswer("language", scopeLabel, "Yes — I work in it")?.value).toBe("professional");
-    expect(mapEligibilityAnswer("language", scopeLabel, "Some, but not for work")?.value).toBe("conversational");
-    expect(mapEligibilityAnswer("language", scopeLabel, "No, I don't")?.value).toBe("none");
+  // #123: language no longer has a single-value real answer — the languages question is multi-select
+  // and its real answer is read through languageFacts()/isValidLanguageSelection() (see the #123
+  // describe block below), never through this function. It always falls through to null.
+  it("language always maps to null — its real answer no longer travels through this function", () => {
+    expect(mapEligibilityAnswer("language", scopeLabel, "Yes — I work in it")).toBeNull();
   });
 
   it("an unrecognized answer maps to null for every dimension — the route fails the write closed, not silently", () => {
     expect(mapEligibilityAnswer("years-experience", scopeLabel, "about 8 years")).toBeNull();
     expect(mapEligibilityAnswer("work-rights", scopeLabel, "Maybe")).toBeNull();
-    expect(mapEligibilityAnswer("language", scopeLabel, "Fluent")).toBeNull();
   });
 
   it("the decline option itself never maps to a value, on any dimension", () => {
     expect(mapEligibilityAnswer("years-experience", scopeLabel, DECLINE_OPTION)).toBeNull();
     expect(mapEligibilityAnswer("work-rights", scopeLabel, DECLINE_OPTION)).toBeNull();
-    expect(mapEligibilityAnswer("language", scopeLabel, DECLINE_OPTION)).toBeNull();
   });
 
-  it("no option label is a bare 'no' that isNoAnswer() would mis-route — every negative label is deliberately longer", () => {
+  it("no work-rights option label is a bare 'no' that isNoAnswer() would mis-route — every negative label is deliberately longer", () => {
     const bareNo = /^no[.!]?$/i;
     expect(bareNo.test("Not yet — I'd need sponsorship")).toBe(false);
-    expect(bareNo.test("No, I don't")).toBe(false);
+  });
+});
+
+// --- #123 — the languages question is market-keyed data, not a hardcoded list ------------------
+describe("#123 languagesUnion / languageFacts / isValidLanguageSelection", () => {
+  it("the union is the owner-approved four-language list, in stable declared order", () => {
+    expect(languagesUnion()).toEqual(["English", "Mandarin", "Cantonese", "Vietnamese"]);
+  });
+
+  it("is stable across calls — never re-sorted or shuffled between requests", () => {
+    expect(languagesUnion()).toEqual(languagesUnion());
+  });
+
+  it("languageFacts writes the FULL set every time — every language, not only the selected ones", () => {
+    const facts = languageFacts(["Mandarin"]);
+    expect(facts).toHaveLength(languagesUnion().length);
+    expect(facts.find((f) => f.familyId === "Mandarin")).toMatchObject({
+      value: "professional",
+      label: "Professional fluency in Mandarin",
+    });
+    expect(facts.find((f) => f.familyId === "English")).toMatchObject({ value: "none" });
+  });
+
+  it("languageFacts([]) legally marks every language 'none' — ticking nothing is a real answer, not an error", () => {
+    expect(languageFacts([]).every((f) => f.value === "none")).toBe(true);
+  });
+
+  it("isValidLanguageSelection accepts any subset of the list, including the empty selection", () => {
+    expect(isValidLanguageSelection([])).toBe(true);
+    expect(isValidLanguageSelection(["English"])).toBe(true);
+    expect(isValidLanguageSelection([...languagesUnion()])).toBe(true);
+  });
+
+  it("isValidLanguageSelection rejects anything outside the list", () => {
+    expect(isValidLanguageSelection(["Klingon"])).toBe(false);
+    expect(isValidLanguageSelection(["English", "Klingon"])).toBe(false);
   });
 });

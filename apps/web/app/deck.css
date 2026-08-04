@@ -140,6 +140,16 @@
   transform: scale(0.97);
 }
 
+/* #123 addendum §A3: the withdrawal footnote, below the CTA — provenance for the number, not a
+   caveat on it. Muted is correct here (it's the app's existing "quiet line" pattern, matching
+   .discovery .notice) — gold stays reserved for the reward. */
+.jobdeck .curtain .aside {
+  margin: 20px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--hud-mute);
+}
+
 /* ---------- the account wall at the reveal (#22) — swaps in for .curtain .go, never a new
    screen/redirect (design-22-wall.md §1). Gold stays reserved for the reward (.big em/.go/the
    score ring/the fit check); the wall's own affordance is a gold hover/focus border only. */

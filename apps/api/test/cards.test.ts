@@ -933,6 +933,16 @@ const sessionId = async (app: ReturnType<typeof buildServer>["app"], cookie: str
   return me.json().id as string;
 };
 
+// #123 — module-scoped (not local to one describe block) so both the "driven end to end" block and
+// the withdrawn.total/byLanguage reporting block below can start discovery and find the languages
+// question's itemId the same way, without each re-implementing the lookup.
+const languageItemId = async (app: ReturnType<typeof buildServer>["app"], cookie: string): Promise<string> => {
+  const start = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json() as {
+    questions: Array<{ itemId: string; eligibility?: { dimension: string } }>;
+  };
+  return start.questions.find((q) => q.eligibility?.dimension === "language")!.itemId;
+};
+
 describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
   it("AC1: a posting explicitly requiring fluent Mandarin does not appear for a user who explicitly said they don't speak it, whatever its score", async () => {
     const target = uncachedEnglishPostings()[0]!;
@@ -985,7 +995,16 @@ describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
 
   // "conversational" ("Some, but not for work") is not "I don't speak it" — the spec's own second
   // regression case, at the boundary (withdrawal.test.ts also pins it as a direct unit).
-  it("regression: 'Some, but not for work' (conversational) does not withdraw the posting", async () => {
+  //
+  // Code-review must-fix 1 (2026-08-04): #123's languages question is now a binary multi-select with
+  // no option that WRITES "conversational" any more — no live path through the answer route reaches
+  // this state today (see eligibilityDiscovery.ts's LANGUAGES_CONSEQUENCE doc and docs/research/
+  // languages-from-the-corpus.md's "Decision taken" section for the recorded trade). This test seeds
+  // the value directly at the store, not through the route, on purpose: it is NOT dead — it pins that
+  // a fact stored under the pre-#123 three-option question (or any future surface that reintroduces
+  // one) must still never withdraw. Kept live deliberately, annotated so it doesn't read as a stale
+  // leftover of a removed feature.
+  it("regression (legacy value, not reachable via the current UI): 'conversational', however stored, does not withdraw the posting", async () => {
     const target = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
       posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
@@ -1112,6 +1131,250 @@ describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     expect(body.cards.map((c) => c.adId)).not.toContain(target.id);
     expect(judgedIds).not.toContain(target.id);
+  });
+});
+
+// --- #123 — the languages question arms #107's engine with a REAL answer, not a seeded fact --------
+// Every #107 test above seeds the Mandarin fact directly via eligibility.put() — that proves the
+// withdrawal PREDICATE, but #123's whole point is the discovery question that actually WRITES that
+// fact from a visitor's own tap. Every case below goes through the real
+// /onboarding/discovery/start + /onboarding/discovery/answer routes, then GET /onboarding/cards —
+// reusing #107's own mandarinBlocking/mandarinAdvantage fixtures rather than re-authoring them.
+describe("#123 the languages question, driven end to end into #107's withdrawal engine", () => {
+  // Take-it-or-leave-it (code review, 2026-08-04): gave this a real deck assertion rather than
+  // dropping it — discovery.test.ts's own AC1 already pins the store-only shape, but a card deck
+  // is exactly what proves recording TWO languages does something a single-language answer couldn't:
+  // BOTH languages' blocking postings survive from the same one answer.
+  it("AC1: a visitor can record more than one language in one answer — both languages' blocking postings survive in the deck", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const cantoneseBlocking = (adId: string): AdRequirementsV1 => ({
+      ...mandarinBlocking(adId),
+      requirements: [
+        {
+          id: "cantonese-required",
+          band: "essential",
+          kind: "blocking",
+          requirement: "Fluent Cantonese required",
+          eligibilityDimension: "language",
+          eligibilitySubject: "Cantonese",
+          sourceSpan: "Fluent Cantonese is required",
+        },
+      ],
+    });
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? cantoneseBlocking(posting.id) : stubRequirements(posting.id);
+    const { app, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const itemId = await languageItemId(app, cookie);
+    const sid = await sessionId(app, cookie);
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "Cantonese"] });
+
+    expect(await eligibility.get(sid, "language", "English")).toMatchObject({ value: "professional" });
+    expect(await eligibility.get(sid, "language", "Cantonese")).toMatchObject({ value: "professional" });
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).toContain(target.id); // the Cantonese-blocking posting survives
+  });
+
+  it("AC2: a visitor who answers without ticking Mandarin never sees a posting that requires it — driven end to end through the real answer route", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const itemId = await languageItemId(app, cookie);
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] }); // Mandarin left unticked
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).not.toContain(target.id);
+  });
+
+  it("AC3: the same visitor still sees a posting where Mandarin is only 'an advantage'", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinAdvantage(posting.id) : stubRequirements(posting.id);
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const itemId = await languageItemId(app, cookie);
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).toContain(target.id);
+  });
+
+  it("AC4: a visitor who has not yet answered the languages question loses nothing on a language ground", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app } = buildServer({ readAd }); // discovery never started — the languages question never answered
+
+    const cookie = await anonSession(app);
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).toContain(target.id);
+  });
+
+  it("AC6: correcting the answer to include Mandarin brings the withdrawn posting back", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const itemId = await languageItemId(app, cookie);
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] });
+    const withdrawn = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(withdrawn.cards.map((c) => c.adId)).not.toContain(target.id);
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "Mandarin"] });
+    const corrected = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(corrected.cards.map((c) => c.adId)).toContain(target.id);
+  });
+
+  // Owner requirement (mid-build): the language list must be safe to grow (e.g. adding Laos later)
+  // without hurting a visitor who already answered under a shorter list. A requirement naming a
+  // language outside today's supported set has no fact to match against — unknown, never a "no" —
+  // exactly the same never-withdraws guarantee withdrawal.ts already gives any never-asked scope.
+  it("growing the language list later stays safe: a language outside today's list never withdraws, even after a real answer", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const laoBlocking = (adId: string): AdRequirementsV1 => ({
+      ...mandarinBlocking(adId),
+      requirements: [
+        {
+          id: "lao-required",
+          band: "essential",
+          kind: "blocking",
+          requirement: "Fluent Lao required",
+          eligibilityDimension: "language",
+          eligibilitySubject: "Lao", // not in today's supported list (apps/api/data/languages-by-market.json)
+          sourceSpan: "Fluent Lao is required",
+        },
+      ],
+    });
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? laoBlocking(posting.id) : stubRequirements(posting.id);
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const itemId = await languageItemId(app, cookie);
+    // A visitor who answered EVERY language in today's list — the fullest possible real answer
+    // before Lao is ever a supported market.
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId,
+      answers: ["English", "Mandarin", "Cantonese", "Vietnamese"],
+    });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).toContain(target.id);
+  });
+});
+
+interface WithdrawnSummary {
+  total: number;
+  byLanguage: Array<{ language: string; count: number }>;
+}
+
+// Coordinator request (2026-08-04): the reveal's undo line ("N jobs needed Mandarin — I left them
+// out") needs the server to REPORT what it silently dropped — a withdrawn posting was previously
+// just absent from `cards`, with no trace in the response body (deck.cards_withdrawn is a
+// process-wide operator counter, not part of this response). Tallied inside the SAME filter that
+// already decides openCandidates (routes/onboarding.ts) — no second pass, no second eligibility
+// read, and withdrawal.ts's own predicate is unchanged.
+describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the reveal's undo line", () => {
+  it("Mandarin causing exactly one removal is reported with the visitor's own tick-box casing", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const itemId = await languageItemId(app, cookie);
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] }); // Mandarin unticked
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as {
+      cards: JobCard[];
+      withdrawn: WithdrawnSummary;
+    };
+    expect(body.cards.map((c) => c.adId)).not.toContain(target.id); // the posting really is missing
+    expect(body.withdrawn).toEqual({ total: 1, byLanguage: [{ language: "Mandarin", count: 1 }] });
+  });
+
+  it("two different languages each removing one posting are both reported, sorted by count then name", async () => {
+    const [mandarinTarget, cantoneseTarget] = uncachedEnglishPostings();
+    const cantoneseBlocking = (adId: string): AdRequirementsV1 => ({
+      ...mandarinBlocking(adId),
+      requirements: [
+        {
+          id: "cantonese-required",
+          band: "essential",
+          kind: "blocking",
+          requirement: "Fluent Cantonese required",
+          eligibilityDimension: "language",
+          eligibilitySubject: "Cantonese",
+          sourceSpan: "Fluent Cantonese is required",
+        },
+      ],
+    });
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> => {
+      if (posting.id === mandarinTarget!.id) return mandarinBlocking(posting.id);
+      if (posting.id === cantoneseTarget!.id) return cantoneseBlocking(posting.id);
+      return stubRequirements(posting.id);
+    };
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const itemId = await languageItemId(app, cookie);
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] }); // neither ticked
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as {
+      cards: JobCard[];
+      withdrawn: WithdrawnSummary;
+    };
+    expect(body.cards.map((c) => c.adId)).not.toContain(mandarinTarget!.id);
+    expect(body.cards.map((c) => c.adId)).not.toContain(cantoneseTarget!.id);
+    expect(body.withdrawn).toEqual({
+      total: 2,
+      byLanguage: [
+        { language: "Cantonese", count: 1 }, // tied at count 1 — name ascending breaks the tie
+        { language: "Mandarin", count: 1 },
+      ],
+    });
+  });
+
+  it("nothing withdrawn reports an explicit empty summary, not an omitted field", async () => {
+    const { app } = buildServer(); // no readAd override — every posting keeps its ordinary fixture
+    const cookie = await anonSession(app);
+    const itemId = await languageItemId(app, cookie);
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId,
+      answers: ["English", "Mandarin", "Cantonese", "Vietnamese"], // every language ticked
+    });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { withdrawn: WithdrawnSummary };
+    expect(body.withdrawn).toEqual({ total: 0, byLanguage: [] });
+  });
+
+  // The trap the coordinator named explicitly: a posting excluded for a DIFFERENT reason (here, a
+  // failed advert read) must never be counted as a language withdrawal — the number must mean "cost
+  // you a job", not "absent from the deck for any reason at all while a language answer existed".
+  it("a posting excluded for an unrelated reason (a failed advert read) is never counted as a language withdrawal", async () => {
+    const [failedTarget, mandarinTarget] = uncachedEnglishPostings();
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> => {
+      if (posting.id === failedTarget!.id) return null; // unreadable advert — excluded for another reason
+      if (posting.id === mandarinTarget!.id) return mandarinBlocking(posting.id);
+      return stubRequirements(posting.id);
+    };
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const itemId = await languageItemId(app, cookie);
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as {
+      cards: JobCard[];
+      withdrawn: WithdrawnSummary;
+    };
+    expect(body.cards.map((c) => c.adId)).not.toContain(failedTarget!.id);
+    expect(body.cards.map((c) => c.adId)).not.toContain(mandarinTarget!.id);
+    // Only the Mandarin posting counts — the unreadable one was never a candidate to begin with.
+    expect(body.withdrawn).toEqual({ total: 1, byLanguage: [{ language: "Mandarin", count: 1 }] });
   });
 });
 

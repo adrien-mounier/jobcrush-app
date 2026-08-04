@@ -116,6 +116,15 @@ export interface DiscoveryQuestion {
   options: string[];
   cvSection: CvSection;
   eligibility?: EligibilityAsk; // present ⇔ this is an eligibility question, never a floor item
+  /** #123: present (always `true`) only on the languages question — a multi-select over `options`
+   *  (minus the trailing decline entry) rather than a single tap. Every other question omits this
+   *  field entirely, so byte-identical serialization holds for everything that isn't multi-select. */
+  multiSelect?: true;
+  /** #123: a line rendered between the stem and the options, at full weight — the UI design spec's
+   *  requirement that the consequence of leaving an option unticked is stated in the question itself,
+   *  never discovered later by a missing job. Present only alongside `multiSelect` today, but is its
+   *  own field (not folded into `question`) so a future single-select question could carry one too. */
+  consequence?: string;
 }
 export interface DiscoveryCvLine {
   itemId: string; // "role" for the lead line, else the floor item id

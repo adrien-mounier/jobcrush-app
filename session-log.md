@@ -2,6 +2,61 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-04 (session 70) — `/orchestrate-team #123`: the question that arms withdrawal, and tells you what it cost
+
+_Ran concurrently with session 69 (#99) below; rebased onto it. The two touched
+`apps/api/src/routes/onboarding.ts` and auto-merged cleanly — no shared logic._
+
+- **[#123](https://github.com/adrien-mounier/jobcrush-app/issues/123) shipped, closed.** Discovery now
+  asks **once**, as a multi-select, which languages the visitor works in professionally. Ticking stores
+  `professional`; **leaving one unticked stores an explicit `none`**, which is what #107's engine has
+  always needed and never had. Every language on the list is rewritten on **every** answer (never
+  deltas) — that full-set write is precisely what makes a correction restore the jobs it removed. The
+  old single-value English question (`ELIGIBILITY_LANGUAGE`) is **superseded and gone**, not kept
+  alongside. Gate 817 api green; QA GO on a live browser drive, 29 journey + 19 probe assertions.
+- 🔑 **The corpus could not ground the list, and saying so was the whole first hour.**
+  `docs/research/languages-from-the-corpus.md` re-derives language demand the way #106 derived
+  dimensions: of **17 real adverts, exactly 2 name a language and both name English**. Zero name
+  Mandarin, Cantonese, Vietnamese or anything else — verified three ways. So a strictly-measured list
+  is `{English}`, and the ticket's own driving scenario (Mandarin-mandatory jobs disappearing) **cannot
+  fire from it**. Owner decision 2026-08-04: extend to **English, Mandarin, Cantonese, Vietnamese**,
+  grounded in the corpus's *measured market mix* (HK 9, AU 4, VN 2, CN 1) rather than advert-stated
+  demand. The doc records that distinction explicitly and does **not** dress the three additions up as
+  corpus-derived.
+- 🔑 **Owner requirement mid-build: the list must survive new markets.** So it is not a constant but
+  **market-keyed data** (`apps/api/data/languages-by-market.json`), asked as the deduped union in a
+  stable order, zod-validated at load with the offending market named. Opening Laos is one JSON entry —
+  no code, no schema, no migration. And **growing the list is safe for anyone who already answered**:
+  they simply hold no fact for the new language, which reads unknown, and an unknown never withdraws.
+  Shaped market-first so **[#124](https://github.com/adrien-mounier/jobcrush-app/issues/124)** narrows
+  the question to a visitor's own markets as a *lookup*, not a redesign.
+- 🚨 **QA's NO-GO: the engine was right and the visitor was never told.** The languages question is
+  **always the last question**, so confirming it always triggers the deck handoff — which replaces the
+  notice slot the designer's lock-in line and "Fix that?" undo lived in. Both were unreachable in
+  **every** run (not just after reload, which is #120). A visitor ticked English, tapped confirm, and
+  jumped straight to "14 jobs just matched you", never told a job had been removed. Fixed by reporting
+  `withdrawn: { total, byLanguage }` on the cards response and rendering one quiet line **below** the
+  reveal's CTA — *"4 more needed Mandarin and Cantonese — I left them out."* Verified against reality,
+  not against itself: 15 → 11 on screen, server said 4, split 3/1.
+- ⚠️ **The undo did NOT ship, deliberately.** "Fix my languages" needs the app to reopen an
+  already-answered question with its prior ticks — capability that does not exist and is the substance
+  of **[#120](https://github.com/adrien-mounier/jobcrush-app/issues/120)**. Frontend flagged it rather
+  than wiring a dead link. QA ruled GO anyway, argued: *silence* was #86's named failure and silence is
+  gone; this is a **recovery** gap, not a **deception** gap. **A mis-tick is still permanent for the
+  session — #120 is the next thing.**
+- 🐛 **A shipped runtime config file was invisible to git.** `apps/api/data/*` is covered by a
+  repo-wide `data/` rule; every test passed locally and the deploy would have 500'd on ENOENT. Fixed as
+  a real whitelist, not a `git add -f`. The first fix was itself wrong — caught by review — see
+  `lessons.md`.
+- ⚠️ **The `conversational` tier is retired and it is a real trade.** A binary tick-list cannot express
+  "some, but not for work", so a visitor with conversational Mandarin who honestly doesn't tick it
+  loses Mandarin-mandatory jobs. Recorded, not silent; mitigated by *"Not sure? Tick it."* — ticking can
+  only ever keep a job. `withdrawal.ts` still honours a stored `conversational` so pre-#123 values
+  never withdraw.
+- **Follow-up filed: [#125](https://github.com/adrien-mounier/jobcrush-app/issues/125)** — owner decision
+  2026-08-04: a language a visitor *volunteers* (French, for the French companies across APAC) must
+  reach their **CV**, which means shaping a deliberate door in the #106 eligibility/claims wall. Shape
+  before building; the wall exists because connecting them produced false claims about the visitor.
 ## 2026-08-04 (session 69) — `/orchestrate-team #99`: the retrieval contract finally exists in code
 
 - **[#99](https://github.com/adrien-mounier/jobcrush-app/issues/99) shipped in `7086ec5`, closed.**
