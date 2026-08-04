@@ -2,6 +2,46 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-04 (session 76) — CV date formats: the rule was already right, the gap was what happens when the source is wrong
+
+_A research question about `YYYY - YYYY` vs `YYYY/MM - YYYY/MM` that found the existing rule correct, one contradiction in the tailor prompt, and one decision worth more than the format itself._
+
+- **The question was which date format a CV should use.** Researched via `/last30days` across Reddit,
+  Hacker News, GitHub and the web. Answer is settled and unanimous: **month + year, month-first**,
+  either `Month YYYY` or `MM/YYYY`. `MMM YYYY - MMM YYYY` parses cleanly across Workday, Greenhouse,
+  Lever, Ashby and iCIMS (~78% of the ATS market); Workday is the strict constraint and rejects
+  seasonal dates outright. Europass already mandates `Month/Year - Month/Year`, so month granularity
+  is the EU default rather than a US convention.
+- **Neither format the question offered was the right one.** `YYYY - YYYY` is the risky one —
+  recruiters read year-only as gap-concealment whether or not a gap exists, and the range still leaves
+  the missing months visible. `YYYY/MM` is **year-first**, which no parser or reader expects on a CV
+  whatever its merits as a sort key.
+- **🔑 My claim that the rule was unspecified was wrong, and checking first is the lesson.** I had
+  offered to write the rule up on the grounds that `cv-authoring-rules.md` did not carry it and
+  `preview-tailor.md` had no date constraint. Both were already there — `cv-authoring-rules.md:40`
+  ("Dates as MM/YYYY or Month YYYY") and `preview-tailor.md:60` (both forms plus "Present") — and both
+  already matched what the research found. The research changed **nothing** about the house format.
+- **🚨 The real gap was a contradiction in the tailor prompt.** Rule 12 said render dates as
+  `Month YYYY` or `MM/YYYY`; the output-shape comment said `"dates": "as written in the claims"`.
+  When a source CV carries year-only dates those two instructions disagree, and nothing decided which
+  wins — the model resolved it arbitrarily, run to run.
+- **⚠️ Decision: anti-fabrication outranks format compliance.** Reformatting a claim's dates is always
+  allowed (`Mar 2021—Jun 2024` → `March 2021 - June 2024`); **supplying precision the source lacks
+  never is** — a plausible month is still an invented fact, and rule 2 already forbade it. So a
+  year-only source renders exactly as `2021 - 2024` and raises a **fix-this item** asking the candidate
+  for the months. The product cannot fix a bad date format on the candidate's behalf; it can only
+  refuse to hide it.
+- **Landed:** `docs/cv-brain/cv-authoring-rules.md` — dates promoted to their own digest rule (the
+  auto-injected block), a full Dates section under Output Rules with the four prohibitions
+  (year-only, year-first, two-digit years, seasons) and the consistency requirement across roles,
+  certifications **and** education, plus a quality-checklist line.
+  `apps/api/prompts/preview-tailor.md` — rule 12 split, new **rule 13** carrying the full date
+  contract, and the output-shape comment rewritten to point at it. Gates green (921 tests, typecheck).
+- **Not done — flagged, not built:** there is **no mechanical enforcement**. `dates` is an unvalidated
+  free-text string in the Draft schema and `conservationIssues()` does not inspect it, so rule 13 is
+  prompt discipline only. A date-format lint in the mechanical gate is the obvious follow-up; it was
+  out of scope for a docs+prompt change and is not ticketed yet.
+
 ## 2026-08-04 (session 75) — `/wayfinder #129`: the growth rule, and the promise nobody was carrying
 
 _One wayfinder ticket resolved, the repo's first ADR written, two tickets filed, and one of my own arguments withdrawn mid-session because the owner was right._

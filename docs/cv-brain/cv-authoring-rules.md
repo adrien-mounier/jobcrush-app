@@ -37,8 +37,13 @@ A "CV file" is any `root_cv/**/*.md`, any `**/tailored_cv/**/*.md`, or any `cv_m
 - **Sub-groups** ("Key Deliveries" is the standard term): standalone italic line (`*Key
   Deliveries*`), never inline, never plain text. Use only when there are 2+ achievements; a single
   achievement is a normal bullet.
-- **Dates** as MM/YYYY or Month YYYY. Outcome-led bullets: action verb + scope + outcome (when the
-  source supports it). No responsibility-only or attendance bullets.
+- **Dates:** `Month YYYY` or `MM/YYYY`, month-first, and the SAME one of those two forms across the
+  whole CV including Education and Certifications. `Present` (capitalised) for a current role.
+  Never year-only (`2021 - 2024`), never year-first (`2024/03`), never two-digit years (`'24`),
+  never seasons (`Summer 2023`), never `Now` or `Current`. If the source CV states only years,
+  keep them exactly and raise a fix-this item asking for the months. Never infer a month.
+- **Outcome-led bullets:** action verb + scope + outcome (when the source supports it). No
+  responsibility-only or attendance bullets.
 - **No invented facts:** never invent dates, employers, titles, certifications, or metrics. Non-
   Verified / non-Derived claims must appear in the verification audit.
 - Full detail, ATS pitfalls, formatting standards, and the banned-word list are below.
@@ -52,8 +57,28 @@ Every tailored CV must prioritize relevance, concise recruiter-friendly language
 
 **ATS compliance** — read `/research_result/2026-05-03_ats-parsing-pitfalls.md` before any CV write. Hard constraints:
 - Single-column layout. No contact info in headers or footers. No pipe `|` separators (use dash or comma).
-- Standard fonts (Arial, Calibri, Roboto). Standard bullets (`•` or `-`). Dates as MM/YYYY or Month YYYY.
+- Standard fonts (Arial, Calibri, Roboto). Standard bullets (`•` or `-`). Dates per the Dates rule below.
 - Conventional section headings ("Work Experience", "Education", "Skills"). DOCX preferred; PDF must be text-based.
+
+**Dates** — full reference: `research/2026-05-03_ats-parsing-pitfalls.md`. Month granularity is not a
+style preference; it is what makes a CV parseable and what stops a recruiter reading concealment into
+the timeline.
+
+- **Two accepted forms, month-first:** `Month YYYY` (March 2021) or `MM/YYYY` (03/2021). Abbreviated
+  month names (`Mar 2021`) are acceptable inside the first form. Pick one form and apply it to every
+  role, certification, and education entry. Mixing the two within a document is itself a parse hazard,
+  and it is the single most common date defect.
+- **`Present`, capitalised,** for a current role. Not `Now`, `Current`, `Today`, or an open-ended dash.
+- **Never year-only** (`2021 - 2024`). Recruiters read year-only ranges as gap-concealment whether or
+  not a gap exists, and the range still leaves the missing months visible. It also defeats tenure
+  calculation and cannot order overlapping roles correctly.
+- **Never year-first** (`2024/03`, `2024-03`). No mainstream parser or reader expects that ordering on
+  a CV, whatever its merits as a sort key.
+- **Never two-digit years** (`'24`) — they break experience calculators — and never seasons
+  (`Summer 2023`), which the strictest parsers reject outright.
+- **When the source CV states only years, keep them exactly and raise a fix-this item** asking the
+  candidate for the months. Anti-fabrication outranks format compliance: a plausible month is still
+  an invented fact. Reformatting is always allowed; supplying missing precision never is.
 
 **Length and bullet density** — hard limits (source: `/context/research_notes/2026-05-03_it-pm-cv-best-practices.md`). These apply to every CV write AND every later edit:
 - Two pages maximum, single column.
@@ -96,6 +121,9 @@ Apply before finalizing any tailored CV:
 - [ ] Every non-Verified/non-Derived item appears in the audit with risk level and recommended action.
 - [ ] All High-risk audit items reviewed by the candidate before submission.
 - [ ] ATS compliance verified per `/research_result/2026-05-03_ats-parsing-pitfalls.md`.
+- [ ] One date form (`Month YYYY` or `MM/YYYY`) used across every role, certification, and education
+      entry; no year-only, year-first, or two-digit years; `Present` for the current role. Year-only
+      dates inherited from the source are preserved and raised as a fix-this item, never filled in.
 - [ ] Bullet caps respected (4-6 per role, max 8 for the current role, 3-4 for roles older than ~8 years), counting all bullet blocks under a role together; CV fits two pages.
 - [ ] Output filenames follow CLAUDE.md §9 conventions; no prior version overwritten.
 - [ ] Tailoring report saved with all decisions (kept/edited/removed/confirmed) recorded.

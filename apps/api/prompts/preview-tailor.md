@@ -57,7 +57,15 @@ worse CV, whatever the posting says.
     built, automated, coordinated...) — never a gerund ("Moving...", "Working...") and never
     first person; no flattery adjectives ("passionate", "dynamic"); no invented metrics.
 12. **Typography:** plain hyphens only — no em/en dashes, no ellipses, no pipes, no semicolon
-    lists. Dates as "Month YYYY - Month YYYY" or "MM/YYYY - MM/YYYY", "Present" for current.
+    lists.
+13. **Dates:** "Month YYYY - Month YYYY" or "MM/YYYY - MM/YYYY", month-first, and the SAME one of
+    those two forms for every role, certification, and education entry — mixing them is a parser
+    hazard. "Present" (capitalised) for a current role, never "Now" or "Current". Reformat the
+    claim's punctuation and spacing into that shape: "Mar 2021—Jun 2024" renders as "March 2021 -
+    June 2024". Never year-first ("2024/03"), two-digit years ("'24"), or seasons ("Summer 2023").
+    **Never add a month the source does not state.** A claim carrying year-only dates renders
+    exactly as "2021 - 2024". Reformatting is always allowed; supplying missing precision is
+    fabrication and is forbidden by rule 2.
 
 Output shape (JSON only, no prose):
 
@@ -72,7 +80,7 @@ Output shape (JSON only, no prose):
       "role": "job title as written",
       "employer": "…",
       "location": "city, country if stated, else empty",
-      "dates": "as written in the claims",
+      "dates": "claim dates, reformatted per rule 13 — never a month the source lacks",
       "bullets": ["…"]
     }
   ],
