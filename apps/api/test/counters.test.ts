@@ -74,6 +74,13 @@ describe("#103 posting-pool counters", () => {
       "deck.judge_bound_hit": 0,
       // #107 — see counters.ts's own header for what this means.
       "deck.cards_withdrawn": 0,
+      // #100 — see counters.ts's own header for what these mean.
+      "postings.techmap_calls_made": 0,
+      "postings.techmap_calls_failed": 0,
+      "postings.techmap_records_fetched": 0,
+      "postings.techmap_cost_usd_total": 0,
+      "postings.techmap_normalize_dropped": 0,
+      "postings.techmap_budget_exceeded": 0,
     });
   });
 });

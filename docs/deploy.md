@@ -1,5 +1,15 @@
 # JC-6 — infra bootstrap
 
+> **`TECHMAP_RAPIDAPI_KEY` — the first paid third-party dependency (#100).** Techmap's Jobs API
+> (jobdatafeeds.com, accessed via RapidAPI) is the live-posting provider (§1/§2 of
+> `docs/research/live-posting-retrieval-contract.md`). The key is read once by
+> `src/postingProvider.ts`'s `techmapProviderFromEnv` and never logged; without it, no live Techmap
+> client is constructed (the caller falls back to whatever it does with no provider wired — #101's
+> call, not this one). Enable it with:
+> `fly secrets set TECHMAP_RAPIDAPI_KEY=<key> -a jobcrush-api-staging`.
+> Also recorded in `SHARED_INFRA.md`'s inventory (the two-project shared account) — update both if
+> this key is rotated or a second environment is added.
+
 > **Keep the API at ONE machine** (`fly scale count 1 -a jobcrush-api-staging`) until the shared
 > session/job store lands (JC-9). Sessions, uploads, and jobs are in-memory per machine, so with 2+
 > machines Fly round-robins requests and a session created on one machine 401s on the next — an

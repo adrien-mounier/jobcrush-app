@@ -1,6 +1,6 @@
 [
   {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "providerId": "curated-pool",
     "regionsServed": ["*"],
     "authorityRank": 0,
@@ -8,12 +8,14 @@
     "permitsMatching": true,
     "attributionRequired": false,
     "attributionTemplate": null,
-    "rateLimit": { "perMinute": null, "perDay": null, "perMonth": null },
+    "rateLimit": { "perSecond": null, "perMinute": null, "perDay": null, "perMonth": null },
+    "retry": { "maxAttempts": 1, "backoffMs": 0 },
+    "timeoutMs": 5000,
     "costModel": { "kind": "operatorHours" },
     "freshnessTtlHours": 24
   },
   {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "providerId": "techmap",
     "regionsServed": ["HK", "SG", "VN", "AU"],
     "authorityRank": 1,
@@ -21,12 +23,14 @@
     "permitsMatching": true,
     "attributionRequired": false,
     "attributionTemplate": null,
-    "rateLimit": { "perMinute": 24, "perDay": null, "perMonth": 1000 },
+    "rateLimit": { "perSecond": 0.4, "perMinute": 24, "perDay": null, "perMonth": 1000 },
+    "retry": { "maxAttempts": 2, "backoffMs": 1000 },
+    "timeoutMs": 10000,
     "costModel": { "kind": "perThousandPostings", "amountUsd": 1 },
     "freshnessTtlHours": 24
   },
   {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "providerId": "theirstack",
     "regionsServed": ["HK", "SG", "VN", "AU"],
     "authorityRank": 2,
@@ -34,7 +38,9 @@
     "permitsMatching": false,
     "attributionRequired": true,
     "attributionTemplate": null,
-    "rateLimit": { "perMinute": null, "perDay": null, "perMonth": 1500 },
+    "rateLimit": { "perSecond": null, "perMinute": null, "perDay": null, "perMonth": 1500 },
+    "retry": { "maxAttempts": 2, "backoffMs": 1000 },
+    "timeoutMs": 10000,
     "costModel": { "kind": "flatMonthlyTier", "amountUsd": 59, "includedUnits": 1500 },
     "freshnessTtlHours": 24
   }

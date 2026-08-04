@@ -418,15 +418,17 @@ describe("Posting retrieval v1 (#99)", () => {
 
   it("keeps oracle and zod aligned for every required structural invariant", () => {
     const mutations: Array<(value: any) => void> = [
-      // top-level schemaVersion is pinned to "2" on every arm
+      // top-level schemaVersion is pinned to "3" (#100 review) on every arm, not "1" or its own prior "2"
       (value) => (value.schemaVersion = "1"),
+      (value) => (value.schemaVersion = "2"),
       // unknown/extra keys rejected — same mechanism as the ad-requirements oracle
       (value) => (value.unknownField = true),
       (value) => (value.postings[0].unknownField = true),
       // PostingV1.id must equal "posting:" + canonicalKey — enforce the derivation
       (value) => (value.postings[0].id = "posting:not-the-real-key"),
-      // PostingV1 carries schemaVersion "2", not "1"
+      // PostingV1 carries schemaVersion "3" (#100), not "1" or its own prior "2"
       (value) => (value.postings[0].schemaVersion = "1"),
+      (value) => (value.postings[0].schemaVersion = "2"),
       // PostingV1.sources has min length 1
       (value) => (value.postings[0].sources = []),
       // canonicalKey must actually BE sha256(normalize(company)+"|"+normalize(location)+"|"
@@ -438,6 +440,8 @@ describe("Posting retrieval v1 (#99)", () => {
         value.postings[0].canonicalKey = fakeKey;
         value.postings[0].id = `posting:${fakeKey}`;
       },
+      // PostingV1.language is required (#100)
+      (value) => delete value.postings[0].language,
       // relevant_postings requires postings non-empty
       (value) => (value.postings = []),
       // coverage.complete === (providersUnavailable.length === 0) — an inconsistent pair is invalid
@@ -486,7 +490,7 @@ describe("Posting retrieval v1 (#99)", () => {
       "floor_not_covered",
       "search_area_not_covered",
     ]) {
-      const invalidRequest = { schemaVersion: "2", outcome: "invalid_request", code };
+      const invalidRequest = { schemaVersion: "3", outcome: "invalid_request", code };
       expect(validatePostingRetrievalResultV1(invalidRequest).ok).toBe(true);
       expect(PostingRetrievalResultV1.safeParse(invalidRequest).success).toBe(true);
     }
@@ -494,7 +498,7 @@ describe("Posting retrieval v1 (#99)", () => {
 
   it("empty_pool with a fully complete coverage sweep validates in both", () => {
     const emptyPool = {
-      schemaVersion: "2",
+      schemaVersion: "3",
       outcome: "empty_pool",
       coverage: { providersQueried: ["curated-pool"], providersUnavailable: [], complete: true },
       retrievedAt: "2026-08-01T09:05:00Z",
@@ -504,9 +508,9 @@ describe("Posting retrieval v1 (#99)", () => {
   });
 });
 
-describe("ProviderPostingRecordV1 (#99)", () => {
+describe("ProviderPostingRecordV1 (#99, #100)", () => {
   const valid = {
-    schemaVersion: "1",
+    schemaVersion: "2",
     providerId: "curated-pool",
     providerPostingId: "curated-001",
     title: "Senior Project Manager",
@@ -521,6 +525,7 @@ describe("ProviderPostingRecordV1 (#99)", () => {
     attribution: null,
     applicantLocationRequirements: ["Hong Kong"],
     skills: ["Agile delivery"],
+    language: "en",
   };
 
   it("valid record passes oracle and zod", () => {
@@ -530,13 +535,15 @@ describe("ProviderPostingRecordV1 (#99)", () => {
 
   it("keeps oracle and zod aligned for every required structural invariant", () => {
     const mutations: Array<(value: any) => void> = [
-      (value) => (value.schemaVersion = "2"),
+      (value) => (value.schemaVersion = "1"),
       (value) => delete value.providerId,
       (value) => (value.title = ""),
       (value) => (value.postedAt = ""), // non-empty string or null, not an empty string
       (value) => (value.attribution = { label: "via X" }), // missing url
       (value) => (value.applicantLocationRequirements = ["Hong Kong", 1]),
       (value) => (value.skills = "Agile delivery"), // must be an array
+      (value) => delete value.language, // #100: required
+      (value) => (value.language = ""), // non-empty
       (value) => (value.unknownField = true),
     ];
     for (const mutate of mutations) {
@@ -549,9 +556,9 @@ describe("ProviderPostingRecordV1 (#99)", () => {
   });
 });
 
-describe("PostingProviderPolicyV1 (#99)", () => {
+describe("PostingProviderPolicyV1 (#99, #100)", () => {
   const valid = {
-    schemaVersion: "1",
+    schemaVersion: "2",
     providerId: "curated-pool",
     regionsServed: ["*"],
     authorityRank: 0,
@@ -559,7 +566,9 @@ describe("PostingProviderPolicyV1 (#99)", () => {
     permitsMatching: true,
     attributionRequired: false,
     attributionTemplate: null,
-    rateLimit: { perMinute: null, perDay: null, perMonth: null },
+    rateLimit: { perSecond: null, perMinute: null, perDay: null, perMonth: null },
+    retry: { maxAttempts: 1, backoffMs: 0 },
+    timeoutMs: 5000,
     costModel: { kind: "operatorHours" },
     freshnessTtlHours: 24,
   };
@@ -571,13 +580,14 @@ describe("PostingProviderPolicyV1 (#99)", () => {
 
   it("keeps oracle and zod aligned for every required structural invariant, including Infinity regression", () => {
     const mutations: Array<(value: any) => void> = [
-      (value) => (value.schemaVersion = "2"),
+      (value) => (value.schemaVersion = "1"),
       (value) => (value.regionsServed = []),
       // Regression: the oracle's isNumber requires Number.isFinite; a bare z.number() would have
       // silently accepted Infinity where the oracle rejects it. Every numeric field, checked.
       (value) => (value.authorityRank = Infinity),
       (value) => (value.freshnessTtlHours = Infinity),
       (value) => (value.rateLimit.perMinute = Infinity),
+      (value) => (value.rateLimit.perSecond = Infinity), // #100
       (value) => {
         value.costModel = { kind: "perThousandPostings", amountUsd: Infinity };
       },
@@ -586,6 +596,14 @@ describe("PostingProviderPolicyV1 (#99)", () => {
       },
       (value) => (value.costModel = { kind: "not-a-real-kind" }),
       (value) => (value.attributionTemplate = { label: "x" }), // missing url
+      // #100: retry is bounded to 1-2 total attempts, backoffMs non-negative, timeoutMs positive
+      (value) => (value.retry.maxAttempts = 3),
+      (value) => (value.retry.maxAttempts = 0),
+      (value) => (value.retry.backoffMs = -1),
+      (value) => delete value.retry,
+      (value) => (value.timeoutMs = 0),
+      (value) => (value.timeoutMs = Infinity),
+      (value) => delete value.timeoutMs,
       (value) => (value.unknownField = true),
     ];
     for (const mutate of mutations) {

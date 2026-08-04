@@ -41,7 +41,7 @@ const Attribution = z
 
 export const ProviderPostingRecordV1 = z
   .object({
-    schemaVersion: z.literal("1"),
+    schemaVersion: z.literal("2"), // #100 bumped 1->2: added `language` (breaking, see below)
     providerId: z.string().min(1), // "techmap" | "curated-pool" | ... — keyed to the §2.2 registry
     providerPostingId: z.string().min(1), // opaque, exactly as given by that provider
     title: z.string().min(1),
@@ -60,6 +60,11 @@ export const ProviderPostingRecordV1 = z
     // structured skills list the provider already gives us for free.
     applicantLocationRequirements: z.array(z.string()),
     skills: z.array(z.string()),
+    // #100: this record's OWN detected language (language.ts's detectLanguage, run on `excerpt`),
+    // derived HERE at ingest by whatever produced this record (the provider client is the pool's
+    // one entry point, same convention preview.ts's loadPostings() already follows for the fixture
+    // pool) — never taken from the provider, never hand-authored. A BCP-47 primary subtag or "und".
+    language: z.string().min(1),
   })
   .strict();
 
@@ -67,7 +72,8 @@ export type ProviderPostingRecordV1 = z.infer<typeof ProviderPostingRecordV1>;
 
 export const PostingV1 = z
   .object({
-    schemaVersion: z.literal("2"), // canonical, provider-independent, what #63 consumes
+    schemaVersion: z.literal("3"), // canonical, provider-independent, what #63 consumes
+    // #100 bumped 2->3: added `language` (breaking, see below)
     id: z.string().min(1), // "posting:<canonicalKey>" — enforced below, not just typed as a string
     canonicalKey: z.string().min(1), // the dedup key itself (§2.4), kept for audit/debugging
     title: z.string().min(1), // from the highest-authorityRank contributing record (§2.4)
@@ -97,6 +103,13 @@ export const PostingV1 = z
     // would let a posting look eligible in a region no single provider actually vouches for.
     applicantLocationRequirements: z.array(z.string()),
     skills: z.array(z.string()),
+    // #100: resolved by the SAME authorityRank-winner rule as title/company/location/
+    // applicantLocationRequirements/skills — NOT a union. Language is itself a gating input
+    // (language.ts's languageEligible), so a permissive union across contributing records (e.g. one
+    // provider says "en", another says "zh") could make a posting look eligible to a reader no
+    // single provider's own record actually supports — the same reasoning this file already gives
+    // for why applicantLocationRequirements/skills don't union either.
+    language: z.string().min(1),
   })
   .strict()
   .superRefine((posting, ctx) => {
@@ -144,15 +157,32 @@ export type PostingProviderCostModel = z.infer<typeof PostingProviderCostModel>;
 
 const RateLimit = z
   .object({
+    // #100: Techmap's BASIC plan rate-limits per SECOND, not representable by the three fields
+    // below alone (§6: burst requests return 429s that look like hits; measured-safe spacing was
+    // ~2.5s apart). Added as an explicit registry field, not derived from perMinute/60 — a naive
+    // derivation would be wrong both ways (some providers cap tighter per-second than a flat
+    // perMinute/60 would suggest; others have no per-second constraint at all despite a perMinute
+    // cap), and every other granularity here is already its own explicit field for the same reason.
+    perSecond: z.number().finite().nullable(),
     perMinute: z.number().finite().nullable(),
     perDay: z.number().finite().nullable(),
     perMonth: z.number().finite().nullable(),
   })
   .strict();
 
+// #100: §2.9 "bounded (1–2 attempts, backoff), idempotent, per provider". maxAttempts is the TOTAL
+// number of attempts (including the first), never open-ended — a provider whose real limit turns out
+// to need more retrying gets a new registry row value, not a code change.
+const RetryPolicy = z
+  .object({
+    maxAttempts: z.number().int().min(1).max(2),
+    backoffMs: z.number().finite().nonnegative(),
+  })
+  .strict();
+
 export const PostingProviderPolicyV1 = z
   .object({
-    schemaVersion: z.literal("1"),
+    schemaVersion: z.literal("2"), // #100 bumped 1->2: added `retry`, `timeoutMs`, `rateLimit.perSecond`
     providerId: z.string().min(1),
     // ISO 3166-1 alpha-2 codes this provider is authoritative for; "*" for the curated pool
     regionsServed: z.array(z.string().min(1)).min(1),
@@ -164,6 +194,11 @@ export const PostingProviderPolicyV1 = z
     attributionRequired: z.boolean(),
     attributionTemplate: Attribution.nullable(),
     rateLimit: RateLimit,
+    // #100: retry and timeout policy come from the registry, not from constants in the client
+    // (AC) — a provider's own transport characteristics are its own data, exactly like its rate
+    // limit and cost model already are.
+    retry: RetryPolicy,
+    timeoutMs: z.number().finite().positive(),
     costModel: PostingProviderCostModel,
     freshnessTtlHours: z.number().finite(), // this provider's own crawl/liveness guarantee
   })
@@ -196,11 +231,14 @@ export const InvalidRequestCode = z.enum([
 ]);
 
 // §2.7: coverage makes partial availability honest, never collapsed into a bare "no jobs" state.
+// #100 review (must-fix round): bumped 2->3 in step with PostingV1's own 2->3 bump — nothing external
+// consumes this envelope yet, so this is cheap now (a fixture/test update) and expensive to catch
+// later once something does.
 export const PostingRetrievalResultV1 = z
   .discriminatedUnion("outcome", [
     z
       .object({
-        schemaVersion: z.literal("2"),
+        schemaVersion: z.literal("3"),
         outcome: z.literal("relevant_postings"),
         postings: z.array(PostingV1).min(1),
         coverage: Coverage,
@@ -209,7 +247,7 @@ export const PostingRetrievalResultV1 = z
       .strict(),
     z
       .object({
-        schemaVersion: z.literal("2"),
+        schemaVersion: z.literal("3"),
         outcome: z.literal("empty_pool"),
         coverage: Coverage, // MUST have complete === true (enforced below) — see §2.7 rule 4
         retrievedAt: z.string().min(1),
@@ -217,7 +255,7 @@ export const PostingRetrievalResultV1 = z
       .strict(),
     z
       .object({
-        schemaVersion: z.literal("2"),
+        schemaVersion: z.literal("3"),
         outcome: z.literal("provider_unavailable"),
         coverage: Coverage,
         reason: z.string().min(1),
@@ -226,7 +264,7 @@ export const PostingRetrievalResultV1 = z
       .strict(),
     z
       .object({
-        schemaVersion: z.literal("2"),
+        schemaVersion: z.literal("3"),
         outcome: z.literal("stale_data"),
         lastKnownFreshAt: z.string().min(1),
         retrievedAt: z.string().min(1),
@@ -234,7 +272,7 @@ export const PostingRetrievalResultV1 = z
       .strict(),
     z
       .object({
-        schemaVersion: z.literal("2"),
+        schemaVersion: z.literal("3"),
         outcome: z.literal("invalid_request"),
         code: InvalidRequestCode,
       })

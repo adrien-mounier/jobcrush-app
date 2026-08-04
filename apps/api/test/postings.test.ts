@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import type { PostingProviderPolicyV1, ProviderPostingRecordV1 } from "@jobcrush/contracts";
 import {
+  computeProviderCostUsd,
   dedupePostings,
   loadActivePostingProviders,
   parseProviderPolicies,
@@ -15,7 +16,7 @@ function record(
     Pick<ProviderPostingRecordV1, "providerId" | "providerPostingId" | "title" | "company" | "location">,
 ): ProviderPostingRecordV1 {
   return {
-    schemaVersion: "1",
+    schemaVersion: "2",
     sourceUrl: `https://example.com/${overrides.providerId}/${overrides.providerPostingId}`,
     excerpt: "Full advert text.",
     postedAt: "2026-07-28T00:00:00Z",
@@ -25,6 +26,7 @@ function record(
     attribution: null,
     applicantLocationRequirements: [],
     skills: [],
+    language: "en",
     ...overrides,
   };
 }
@@ -33,7 +35,7 @@ function record(
 // known authorityRanks regardless of what the production data file happens to contain.
 const REGISTRY: PostingProviderPolicyV1[] = [
   {
-    schemaVersion: "1",
+    schemaVersion: "2",
     providerId: "curated-pool",
     regionsServed: ["*"],
     authorityRank: 0,
@@ -41,12 +43,14 @@ const REGISTRY: PostingProviderPolicyV1[] = [
     permitsMatching: true,
     attributionRequired: false,
     attributionTemplate: null,
-    rateLimit: { perMinute: null, perDay: null, perMonth: null },
+    rateLimit: { perSecond: null, perMinute: null, perDay: null, perMonth: null },
+    retry: { maxAttempts: 1, backoffMs: 0 },
+    timeoutMs: 5000,
     costModel: { kind: "operatorHours" },
     freshnessTtlHours: 24,
   },
   {
-    schemaVersion: "1",
+    schemaVersion: "2",
     providerId: "techmap",
     regionsServed: ["HK", "SG", "VN", "AU"],
     authorityRank: 1,
@@ -54,7 +58,9 @@ const REGISTRY: PostingProviderPolicyV1[] = [
     permitsMatching: true,
     attributionRequired: false,
     attributionTemplate: null,
-    rateLimit: { perMinute: 24, perDay: null, perMonth: 1000 },
+    rateLimit: { perSecond: 0.4, perMinute: 24, perDay: null, perMonth: 1000 },
+    retry: { maxAttempts: 2, backoffMs: 1000 },
+    timeoutMs: 10000,
     costModel: { kind: "perThousandPostings", amountUsd: 1 },
     freshnessTtlHours: 24,
   },
@@ -162,6 +168,24 @@ describe("dedupePostings (#99, §2.4)", () => {
     expect(posting!.sourceUrl).toBe("https://curated.example/1");
     expect(posting!.applicantLocationRequirements).toEqual(["Hong Kong"]);
     expect(posting!.skills).toEqual(["Stakeholder management"]);
+  });
+
+  // #100: language follows the SAME authorityRank-winner rule as applicantLocationRequirements/
+  // skills, NOT a union — a union would let a posting one provider detected as non-English look
+  // eligible under the OTHER provider's "en" label, which no single record actually supports.
+  it("language resolves by the authorityRank-winner rule, never a union of contributing records", () => {
+    const higherRankZh = record({
+      providerId: "techmap", providerPostingId: "tm-1",
+      title: "Senior Project Manager", company: "BNP Paribas", location: "Hong Kong",
+      language: "zh",
+    });
+    const lowerRankEn = record({
+      providerId: "curated-pool", providerPostingId: "c-1",
+      title: "Senior Project Manager", company: "BNP Paribas", location: "Hong Kong",
+      language: "en",
+    });
+    const [posting] = dedupePostings([higherRankZh, lowerRankEn], REGISTRY);
+    expect(posting!.language).toBe("en"); // curated-pool (authorityRank 0) wins over techmap (rank 1)
   });
 
   it("sources and attribution are the union across contributing records, never just the winner's", () => {
@@ -397,5 +421,18 @@ describe("posting-providers registry loader (#99, §2.2)", () => {
     const validRow = loadActivePostingProviders()[0]!;
     const brokenRow = { ...validRow, permitsStorage: "yes" }; // wrong type, not a valid boolean
     expect(() => parseProviderPolicies([validRow, brokenRow])).toThrow();
+  });
+});
+
+describe("computeProviderCostUsd (#100, §2.9)", () => {
+  it("perThousandPostings: real spend proportional to records actually returned", () => {
+    expect(computeProviderCostUsd({ kind: "perThousandPostings", amountUsd: 1 }, 1000)).toBe(1);
+    expect(computeProviderCostUsd({ kind: "perThousandPostings", amountUsd: 1 }, 500)).toBeCloseTo(0.5, 10);
+    expect(computeProviderCostUsd({ kind: "perThousandPostings", amountUsd: 1 }, 0)).toBe(0);
+  });
+
+  it("flatMonthlyTier and operatorHours have no per-call dollar cost — never an estimated fraction", () => {
+    expect(computeProviderCostUsd({ kind: "flatMonthlyTier", amountUsd: 59, includedUnits: 1500 }, 100)).toBe(0);
+    expect(computeProviderCostUsd({ kind: "operatorHours" }, 100)).toBe(0);
   });
 });

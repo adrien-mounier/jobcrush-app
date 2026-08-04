@@ -111,10 +111,11 @@ export function validateProviderPostingRecordV1(value) {
       "attribution",
       "applicantLocationRequirements",
       "skills",
+      "language",
     ],
     "record",
   );
-  e.require(value.schemaVersion === "1", 'schemaVersion must be "1"');
+  e.require(value.schemaVersion === "2", 'schemaVersion must be "2"');
   e.require(isNonEmptyString(value.providerId), "providerId must be a non-empty string");
   e.require(isNonEmptyString(value.providerPostingId), "providerPostingId must be a non-empty string");
   e.require(isNonEmptyString(value.title), "title must be a non-empty string");
@@ -132,6 +133,7 @@ export function validateProviderPostingRecordV1(value) {
     "applicantLocationRequirements must be a string[]",
   );
   e.require(isStringArray(value.skills), "skills must be a string[]");
+  e.require(isNonEmptyString(value.language), "language must be a non-empty string");
   return result(e);
 }
 
@@ -158,10 +160,11 @@ export function validatePostingV1(value) {
       "sources",
       "applicantLocationRequirements",
       "skills",
+      "language",
     ],
     "posting",
   );
-  e.require(value.schemaVersion === "2", 'schemaVersion must be "2"');
+  e.require(value.schemaVersion === "3", 'schemaVersion must be "3"');
   e.require(isNonEmptyString(value.id), "id must be a non-empty string");
   e.require(isNonEmptyString(value.canonicalKey), "canonicalKey must be a non-empty string");
   if (isNonEmptyString(value.id) && isNonEmptyString(value.canonicalKey)) {
@@ -200,6 +203,7 @@ export function validatePostingV1(value) {
     "applicantLocationRequirements must be a string[]",
   );
   e.require(isStringArray(value.skills), "skills must be a string[]");
+  e.require(isNonEmptyString(value.language), "language must be a non-empty string");
   return result(e);
 }
 
@@ -220,11 +224,25 @@ function validateCostModel(e, value, at) {
 
 function validateRateLimit(e, value, at) {
   if (!e.require(isObject(value), `${at} must be an object`)) return;
-  exactKeys(e, value, ["perMinute", "perDay", "perMonth"], at);
-  for (const field of ["perMinute", "perDay", "perMonth"]) {
+  exactKeys(e, value, ["perSecond", "perMinute", "perDay", "perMonth"], at);
+  for (const field of ["perSecond", "perMinute", "perDay", "perMonth"]) {
     const v = value[field];
     e.require(v === null || isNumber(v), `${at}.${field} must be a number or null`);
   }
+}
+
+function validateRetryPolicy(e, value, at) {
+  if (!e.require(isObject(value), `${at} must be an object`)) return;
+  exactKeys(e, value, ["maxAttempts", "backoffMs"], at);
+  e.require(
+    isNumber(value.maxAttempts) && Number.isInteger(value.maxAttempts) &&
+      value.maxAttempts >= 1 && value.maxAttempts <= 2,
+    `${at}.maxAttempts must be an integer, 1 or 2`,
+  );
+  e.require(
+    isNumber(value.backoffMs) && value.backoffMs >= 0,
+    `${at}.backoffMs must be a non-negative number`,
+  );
 }
 
 export function validatePostingProviderPolicyV1(value) {
@@ -243,12 +261,14 @@ export function validatePostingProviderPolicyV1(value) {
       "attributionRequired",
       "attributionTemplate",
       "rateLimit",
+      "retry",
+      "timeoutMs",
       "costModel",
       "freshnessTtlHours",
     ],
     "policy",
   );
-  e.require(value.schemaVersion === "1", 'schemaVersion must be "1"');
+  e.require(value.schemaVersion === "2", 'schemaVersion must be "2"');
   e.require(isNonEmptyString(value.providerId), "providerId must be a non-empty string");
   e.require(
     isArray(value.regionsServed) &&
@@ -266,6 +286,11 @@ export function validatePostingProviderPolicyV1(value) {
   e.require(isBool(value.attributionRequired), "attributionRequired must be a boolean");
   validateAttribution(e, value.attributionTemplate, "attributionTemplate");
   validateRateLimit(e, value.rateLimit, "rateLimit");
+  validateRetryPolicy(e, value.retry, "retry");
+  e.require(
+    isNumber(value.timeoutMs) && value.timeoutMs > 0,
+    "timeoutMs must be a positive number",
+  );
   validateCostModel(e, value.costModel, "costModel");
   e.require(isNumber(value.freshnessTtlHours), "freshnessTtlHours must be a number");
   return result(e);
@@ -291,7 +316,7 @@ function validateCoverage(e, value, at) {
 export function validatePostingRetrievalResultV1(value) {
   const e = new Errors();
   if (!e.require(isObject(value), "retrieval result must be an object")) return result(e);
-  e.require(value.schemaVersion === "2", 'schemaVersion must be "2"');
+  e.require(value.schemaVersion === "3", 'schemaVersion must be "3"');
   e.require(oneOf(value.outcome, OUTCOMES), "outcome is invalid");
 
   if (value.outcome === "relevant_postings") {

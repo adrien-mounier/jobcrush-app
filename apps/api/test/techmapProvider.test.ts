@@ -1,0 +1,519 @@
+// #100: behaviour tests for the Techmap provider client (postingProvider.ts) through its real seams
+// only — no network. normalizeTechmapItem is tested as a pure function against a fixture envelope
+// constructed faithful to §6 of docs/research/live-posting-retrieval-contract.md's measured field
+// list (schema.org/JobPosting jsonLD shape) — no real captured Techmap response was available in this
+// environment (no funded RapidAPI key here), so this is NOT a captured response; it should be checked
+// against a real one before the staging smoke script (scripts/techmap-smoke.mjs) is first run for
+// real. TechmapPostingProvider.fetch is exercised with an injected fetchImpl fake — no live call ever
+// runs in `pnpm test`.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PostingProviderPolicyV1 } from "@jobcrush/contracts";
+import {
+  FixedWindowBudget,
+  MinIntervalGate,
+  normalizeTechmapItem,
+  resetTechmapPacingForTest,
+  TechmapPostingProvider,
+  techmapProviderFromEnv,
+  TestFixturePostingProvider,
+} from "../src/postingProvider.js";
+import { readCounters, resetCountersForTest } from "../src/counters.js";
+
+// A realistic Techmap (jobdatafeeds.com Jobs API v2.6) result item, constructed faithful to §6's
+// measured field list: top-level `title`, and the FULL advert body + every structured field living
+// under `jsonLD` (schema.org/JobPosting), never any top-level "description"/"summary" field.
+function techmapItem(overrides: Record<string, unknown> = {}, jsonLDOverrides: Record<string, unknown> = {}) {
+  return {
+    title: "Senior Project Manager",
+    url: "https://jobdatafeeds.com/jobs/senior-project-manager-bnp-paribas",
+    ...overrides,
+    jsonLD: {
+      "@context": "https://schema.org/",
+      "@type": "JobPosting",
+      identifier: { "@type": "PropertyValue", name: "techmap", value: "tm-778812" },
+      title: "Senior Project Manager",
+      description:
+        "**Responsibilities:**\n- Lead delivery of a portfolio of technology programs across APAC.\n- Own stakeholder communication with regional business sponsors.\n\n**Requirements:**\n- 8+ years running IT project delivery.\n- Strong Agile delivery experience.\n\n**Qualifications:**\n- PMP or equivalent preferred.",
+      datePosted: "2026-07-28",
+      validThrough: "2026-09-01T00:00:00Z",
+      employmentType: "FULL_TIME",
+      hiringOrganization: { "@type": "Organization", name: "BNP Paribas" },
+      jobLocation: {
+        "@type": "Place",
+        address: { "@type": "PostalAddress", addressLocality: "Hong Kong", addressCountry: "HK" },
+      },
+      applicantLocationRequirements: [{ "@type": "Country", name: "Hong Kong" }],
+      skills: ["Agile delivery", "Stakeholder management"],
+      url: "https://jobdatafeeds.com/jobs/senior-project-manager-bnp-paribas",
+      ...jsonLDOverrides,
+    },
+  };
+}
+
+const TECHMAP_POLICY: PostingProviderPolicyV1 = {
+  schemaVersion: "2",
+  providerId: "techmap",
+  regionsServed: ["HK", "SG", "VN", "AU"],
+  authorityRank: 1,
+  permitsStorage: true,
+  permitsMatching: true,
+  attributionRequired: false,
+  attributionTemplate: null,
+  rateLimit: { perSecond: 0.4, perMinute: 24, perDay: null, perMonth: 1000 },
+  retry: { maxAttempts: 2, backoffMs: 1000 },
+  timeoutMs: 10000,
+  costModel: { kind: "perThousandPostings", amountUsd: 1 },
+  freshnessTtlHours: 24,
+};
+
+beforeEach(() => {
+  resetCountersForTest();
+  // #100 review MF4: the pacing gate + budgets are now shared PROCESS-WIDE per providerId, not per
+  // instance — without this reset, one test's injected fake clock (or consumed budget) would leak
+  // into the next test's fresh `new TechmapPostingProvider(...)`.
+  resetTechmapPacingForTest();
+});
+
+describe("normalizeTechmapItem (#100, §6)", () => {
+  it("maps jsonLD.description to excerpt whole (never truncated) and carries structured fields through, not flattened into excerpt", () => {
+    const record = normalizeTechmapItem(techmapItem(), "2026-08-04T00:00:00Z", TECHMAP_POLICY);
+    expect(record).not.toBeNull();
+    expect(record!.excerpt).toContain("Lead delivery of a portfolio");
+    expect(record!.excerpt).toContain("PMP or equivalent preferred");
+    expect(record!.applicantLocationRequirements).toEqual(["Hong Kong"]);
+    expect(record!.skills).toEqual(["Agile delivery", "Stakeholder management"]);
+    expect(record!.expiresAt).toBe("2026-09-01T00:00:00Z"); // jsonLD.validThrough -> expiresAt
+    expect(record!.postedAt).toBe("2026-07-28");
+    expect(record!.providerId).toBe("techmap");
+    expect(record!.providerPostingId).toBe("tm-778812");
+    expect(record!.company).toBe("BNP Paribas");
+    expect(record!.location).toBe("Hong Kong, HK");
+    expect(record!.capturedAt).toBe("2026-08-04T00:00:00Z");
+    expect(record!.verifiedLiveAt).toBe("2026-08-04T00:00:00Z");
+  });
+
+  it("pulls attribution from the policy's own attributionTemplate, never invents one", () => {
+    const withTemplate = normalizeTechmapItem(techmapItem(), "2026-08-04T00:00:00Z", {
+      ...TECHMAP_POLICY,
+      attributionTemplate: { label: "via Techmap", url: "https://jobdatafeeds.com" },
+    });
+    expect(withTemplate!.attribution).toEqual({ label: "via Techmap", url: "https://jobdatafeeds.com" });
+
+    const withoutTemplate = normalizeTechmapItem(techmapItem(), "2026-08-04T00:00:00Z", TECHMAP_POLICY);
+    expect(withoutTemplate!.attribution).toBeNull();
+  });
+
+  it("tags language at ingest, derived from the excerpt, never taken from the provider", () => {
+    const record = normalizeTechmapItem(techmapItem(), "2026-08-04T00:00:00Z", TECHMAP_POLICY);
+    expect(record!.language).toBe("en");
+  });
+
+  // #100 review MF6: normalizeTechmapItem no longer touches postings.language_skipped/undetermined
+  // (that used to inflate with every re-fetch of an already-known posting) — the count moved to
+  // postingStore.ts's upsert(), tested in pgstores.test.ts's PostingStore contract block. This test
+  // only proves retention + the language label; not the counter.
+  it("a non-English advert is RETAINED (not dropped), not filtered out at ingest", () => {
+    const chineseDescription = "**職責:**\n- 領導亞太地區的技術項目交付組合。\n- 負責與區域業務發起人的利益相關者溝通。";
+    const record = normalizeTechmapItem(
+      techmapItem({}, { description: chineseDescription }),
+      "2026-08-04T00:00:00Z",
+      TECHMAP_POLICY,
+    );
+    expect(record).not.toBeNull();
+    expect(record!.excerpt).toBe(chineseDescription); // retained in full, not withheld
+    expect(record!.language).toBe("zh");
+  });
+
+  it("an undeterminable excerpt is retained, tagged 'und'", () => {
+    const record = normalizeTechmapItem(
+      techmapItem({}, { description: "Manage delivery. Own stakeholders." }),
+      "2026-08-04T00:00:00Z",
+      TECHMAP_POLICY,
+    );
+    expect(record).not.toBeNull();
+    expect(record!.language).toBe("und");
+  });
+
+  it("returns null (skips, does not throw) when the advert body is genuinely missing", () => {
+    // jsonLD.description is the ONLY source of the advert body (§6) — no top-level fallback exists,
+    // so a missing description is unrecoverable and the item is skipped, not fabricated.
+    expect(normalizeTechmapItem(techmapItem({}, { description: undefined }), "now", TECHMAP_POLICY)).toBeNull();
+    expect(normalizeTechmapItem(null, "now", TECHMAP_POLICY)).toBeNull();
+    expect(normalizeTechmapItem("not an object", "now", TECHMAP_POLICY)).toBeNull();
+  });
+
+  it("falls back to the top-level field when the jsonLD equivalent is absent (e.g. sourceUrl)", () => {
+    // jsonLD.url is unset here; the top-level `url` techmapItem() always sets must be used instead.
+    const record = normalizeTechmapItem(techmapItem({}, { url: undefined }), "2026-08-04T00:00:00Z", TECHMAP_POLICY);
+    expect(record).not.toBeNull();
+    expect(record!.sourceUrl).toBe("https://jobdatafeeds.com/jobs/senior-project-manager-bnp-paribas");
+  });
+
+  it("accepts identifier/hiringOrganization/jobLocation given as bare strings, and skills/applicantLocationRequirements as plain string arrays", () => {
+    const record = normalizeTechmapItem(
+      techmapItem(
+        {},
+        {
+          identifier: "bare-id-1",
+          hiringOrganization: "Acme Corp",
+          jobLocation: "Singapore",
+          applicantLocationRequirements: ["Singapore"],
+          skills: ["Jira"],
+        },
+      ),
+      "2026-08-04T00:00:00Z",
+      TECHMAP_POLICY,
+    );
+    expect(record!.providerPostingId).toBe("bare-id-1");
+    expect(record!.company).toBe("Acme Corp");
+    expect(record!.location).toBe("Singapore");
+    expect(record!.applicantLocationRequirements).toEqual(["Singapore"]);
+    expect(record!.skills).toEqual(["Jira"]);
+  });
+});
+
+describe("MinIntervalGate (#100, §2.9)", () => {
+  it("never waits when minIntervalMs <= 0 (no per-second cap)", async () => {
+    const sleep = vi.fn(async () => {});
+    const gate = new MinIntervalGate(0, () => 0, sleep);
+    await gate.wait();
+    await gate.wait();
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("paces successive calls at least minIntervalMs apart, proven with a fake clock — no real delay", async () => {
+    const clock = { t: 0 };
+    const sleep = vi.fn(async (ms: number) => {
+      clock.t += ms;
+    });
+    const gate = new MinIntervalGate(2500, () => clock.t, sleep);
+
+    await gate.wait(); // first call: gate starts free, no wait
+    expect(sleep).not.toHaveBeenCalled();
+
+    await gate.wait(); // second call: must wait out the full interval
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(sleep).toHaveBeenNthCalledWith(1, 2500);
+
+    await gate.wait(); // third call: same again
+    expect(sleep).toHaveBeenCalledTimes(2);
+    expect(clock.t).toBe(5000); // two full intervals elapsed across three calls
+  });
+});
+
+describe("FixedWindowBudget (#100 review MF2, §2.9)", () => {
+  it("null limit means uncapped — always allows", () => {
+    const budget = new FixedWindowBudget(null, 60_000, () => 0);
+    for (let i = 0; i < 100; i++) expect(budget.allow()).toBe(true);
+  });
+
+  it("allows up to the limit within one window, then refuses", () => {
+    const budget = new FixedWindowBudget(3, 60_000, () => 0);
+    expect(budget.allow()).toBe(true);
+    expect(budget.allow()).toBe(true);
+    expect(budget.allow()).toBe(true);
+    expect(budget.allow()).toBe(false); // 4th call, same window
+  });
+
+  it("resets once the window elapses, proven with a fake clock — no real delay", () => {
+    const clock = { t: 0 };
+    const budget = new FixedWindowBudget(2, 60_000, () => clock.t);
+    expect(budget.allow()).toBe(true);
+    expect(budget.allow()).toBe(true);
+    expect(budget.allow()).toBe(false);
+    clock.t = 60_000; // exactly one window later
+    expect(budget.allow()).toBe(true); // fresh window, budget restored
+  });
+});
+
+describe("TechmapPostingProvider.fetch (#100, §2.9, §2.10)", () => {
+  function jsonResponse(status: number, body: unknown): Response {
+    return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  }
+
+  const noPacing: PostingProviderPolicyV1 = { ...TECHMAP_POLICY, rateLimit: { ...TECHMAP_POLICY.rateLimit, perSecond: null } };
+
+  it("requests the lowercase path with countryCode/page/size/title and the API key in x-rapidapi-key, never in the URL", async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      calls.push({ url: String(url), init: init! });
+      return jsonResponse(200, { result: [] });
+    });
+    const provider = new TechmapPostingProvider({ apiKey: "secret-key-123", policy: noPacing, fetchImpl });
+
+    await provider.fetch({ regionCode: "HK", queryKeywords: ["project", "manager"], page: 0, size: 3 });
+
+    expect(calls).toHaveLength(1);
+    const [{ url, init }] = calls;
+    expect(url).toContain("/api/v2/jobs/search");
+    expect(url).not.toContain("/Jobs/Search"); // §6: the path is lowercase
+    expect(url).toContain("countryCode=hk");
+    expect(url).toContain("page=0");
+    expect(url).toContain("size=3");
+    expect(url).toContain("title=project+manager");
+    expect(url).not.toContain("secret-key-123"); // the key never travels in the URL
+    const headers = init.headers as Record<string, string>;
+    expect(headers["x-rapidapi-key"]).toBe("secret-key-123");
+    expect(headers["x-rapidapi-host"]).toBe("daily-international-job-postings.p.rapidapi.com");
+  });
+
+  it("returns ok:true with normalized records on a well-formed 200", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [techmapItem()] }));
+    const provider = new TechmapPostingProvider({ apiKey: "k", policy: noPacing, fetchImpl });
+    const result = await provider.fetch({ regionCode: "HK", queryKeywords: ["project manager"] });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.records).toHaveLength(1);
+      expect(result.records[0]!.providerPostingId).toBe("tm-778812");
+    }
+  });
+
+  it("a genuine zero-result 200 is ok:true with an empty array — distinguishable from a failure", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [] }));
+    const provider = new TechmapPostingProvider({ apiKey: "k", policy: noPacing, fetchImpl });
+    const result = await provider.fetch({ regionCode: "TH", queryKeywords: ["project manager"] });
+    expect(result).toEqual({ ok: true, records: [] });
+  });
+
+  it("a 429 is retryable and retried up to policy.retry.maxAttempts, never surfacing as an empty result", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(429, { message: "Too Many Requests" }));
+    const provider = new TechmapPostingProvider({
+      apiKey: "k",
+      policy: { ...noPacing, retry: { maxAttempts: 2, backoffMs: 0 } },
+      fetchImpl,
+    });
+    const result = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.retryable).toBe(true);
+      expect(result.reason).toMatch(/429/);
+    }
+    expect(fetchImpl).toHaveBeenCalledTimes(2); // maxAttempts, not more
+    expect(readCounters()["postings.techmap_calls_made"]).toBe(2);
+    expect(readCounters()["postings.techmap_calls_failed"]).toBe(2);
+  });
+
+  it("a 401 is NOT retried — auth failures don't get a second attempt", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(401, { message: "Invalid API key" }));
+    const provider = new TechmapPostingProvider({
+      apiKey: "k",
+      policy: { ...noPacing, retry: { maxAttempts: 2, backoffMs: 0 } },
+      fetchImpl,
+    });
+    const result = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.retryable).toBe(false);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("a thrown network error is treated as retryable and never echoes request config (no API key) into the reason", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error("getaddrinfo ENOTFOUND daily-international-job-postings.p.rapidapi.com");
+    });
+    const provider = new TechmapPostingProvider({
+      apiKey: "super-secret-value",
+      policy: { ...noPacing, retry: { maxAttempts: 1, backoffMs: 0 } },
+      fetchImpl,
+    });
+    const result = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.retryable).toBe(true);
+      expect(result.reason).not.toContain("super-secret-value");
+    }
+  });
+
+  it("cost is computed from records actually returned via the policy's own costModel, and recorded", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [techmapItem(), techmapItem({ url: "https://x/2" }, { identifier: "tm-2" })] }));
+    const provider = new TechmapPostingProvider({ apiKey: "k", policy: noPacing, fetchImpl });
+    await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+    expect(readCounters()["postings.techmap_records_fetched"]).toBe(2);
+    expect(readCounters()["postings.techmap_cost_usd_total"]).toBeCloseTo((2 / 1000) * 1, 10);
+  });
+
+  it("paces attempts through the rate gate using the injected clock/sleep, not a real delay", async () => {
+    const clock = { t: 0 };
+    const sleep = vi.fn(async (ms: number) => {
+      clock.t += ms;
+    });
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [] }));
+    const provider = new TechmapPostingProvider({
+      apiKey: "k",
+      policy: { ...TECHMAP_POLICY, rateLimit: { ...TECHMAP_POLICY.rateLimit, perSecond: 0.4 } }, // 1 call/2500ms
+      fetchImpl,
+      now: () => clock.t,
+      sleep,
+    });
+    await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+    await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+    expect(sleep).toHaveBeenCalledWith(2500); // the second call waited out the full budget
+  });
+
+  // #100 review MF1 (QA D1 fix): a 200 where every item ON THIS PAGE fails to normalize must never
+  // surface as a genuine empty result. Gated on the PAGE-LOCAL items.length, never on the envelope's
+  // totalCount (the whole query's total, not this page's) — an earlier version gated on totalCount
+  // and was wrong both ways: false-failed a genuinely empty PAGE of a non-empty query, and left the
+  // real hole open whenever totalCount was absent/0/non-numeric. Every case below is deliberately
+  // indifferent to what totalCount says.
+  describe("MF1: page-local normalization failure vs. a genuine empty result (D1)", () => {
+    it("items present, all drop, totalCount ABSENT — still provider_unavailable, not empty", async () => {
+      const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [{ title: "x" }, { title: "y" }] }));
+      const provider = new TechmapPostingProvider({ apiKey: "k", policy: noPacing, fetchImpl });
+      const result = await provider.fetch({ regionCode: "HK", queryKeywords: ["project manager"] });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toMatch(/normalized 0 of 2 items/);
+        expect(result.retryable).toBe(false); // a shape drift isn't fixed by retrying
+      }
+      expect(readCounters()["postings.techmap_normalize_dropped"]).toBe(2);
+    });
+
+    it("items present, all drop, totalCount 0 — still provider_unavailable (the field lied or is stale)", async () => {
+      const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [{ title: "x" }], totalCount: 0 }));
+      const provider = new TechmapPostingProvider({ apiKey: "k", policy: noPacing, fetchImpl });
+      const result = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+      expect(result.ok).toBe(false);
+    });
+
+    it("items present, all drop, totalCount a STRING ('2') — still provider_unavailable, not silently treated as null", async () => {
+      const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [{ title: "x" }, { title: "y" }], totalCount: "2" }));
+      const provider = new TechmapPostingProvider({ apiKey: "k", policy: noPacing, fetchImpl });
+      const result = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toContain("totalCount=unknown"); // non-numeric -> not trusted, but still caught
+    });
+
+    it("EMPTY PAGE (zero items) of a non-empty query (totalCount > 0) is a genuine empty result, not a failure", async () => {
+      // The exact case an earlier totalCount-gated version got wrong: page 1 of a 15-result,
+      // size-20 search legitimately returns zero items on THIS page while totalCount is real.
+      const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [], totalCount: 15 }));
+      const provider = new TechmapPostingProvider({ apiKey: "k", policy: noPacing, fetchImpl });
+      expect(await provider.fetch({ regionCode: "HK", queryKeywords: [] })).toEqual({ ok: true, records: [] });
+    });
+
+    it("empty page with totalCount 0/absent is also a genuine empty result", async () => {
+      const zeroTotal = vi.fn(async () => jsonResponse(200, { result: [], totalCount: 0 }));
+      const providerZero = new TechmapPostingProvider({ apiKey: "k", policy: noPacing, fetchImpl: zeroTotal });
+      expect(await providerZero.fetch({ regionCode: "TH", queryKeywords: [] })).toEqual({ ok: true, records: [] });
+
+      const noTotalField = vi.fn(async () => jsonResponse(200, { result: [] }));
+      const providerNoTotal = new TechmapPostingProvider({ apiKey: "k", policy: noPacing, fetchImpl: noTotalField });
+      expect(await providerNoTotal.fetch({ regionCode: "TH", queryKeywords: [] })).toEqual({ ok: true, records: [] });
+    });
+
+    it("a PARTIAL drift (9 of 10 items normalize) still succeeds with the 9, and counts exactly 1 drop", async () => {
+      const items = Array.from({ length: 10 }, (_, i) =>
+        i === 9 ? { title: "broken, no jsonLD" } : techmapItem({ url: `https://x/${i}` }, { identifier: `tm-${i}` }),
+      );
+      const fetchImpl = vi.fn(async () => jsonResponse(200, { result: items, totalCount: 10 }));
+      const provider = new TechmapPostingProvider({ apiKey: "k", policy: noPacing, fetchImpl });
+      const result = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.records).toHaveLength(9);
+      expect(readCounters()["postings.techmap_normalize_dropped"]).toBe(1);
+    });
+  });
+
+  // #100 review MF2: perMinute/perDay are enforced in-process, failing closed rather than waited out.
+  describe("MF2: perMinute/perDay budgets fail closed, never wait", () => {
+    it("exceeding perMinute refuses the call BEFORE any HTTP request, without waiting", async () => {
+      const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [] }));
+      const policy: PostingProviderPolicyV1 = {
+        ...noPacing,
+        rateLimit: { ...noPacing.rateLimit, perMinute: 1 },
+        retry: { maxAttempts: 1, backoffMs: 0 },
+      };
+      const provider = new TechmapPostingProvider({ apiKey: "k", policy, fetchImpl });
+      const first = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+      expect(first.ok).toBe(true);
+
+      const second = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+      expect(second.ok).toBe(false);
+      if (!second.ok) expect(second.retryable).toBe(true);
+      expect(fetchImpl).toHaveBeenCalledTimes(1); // the second call never reached the network
+      expect(readCounters()["postings.techmap_calls_made"]).toBe(1); // budget-blocked ≠ a call made
+      expect(readCounters()["postings.techmap_budget_exceeded"]).toBe(1);
+    });
+
+    it("exceeding perDay refuses the call the same way perMinute does", async () => {
+      const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [] }));
+      const policy: PostingProviderPolicyV1 = {
+        ...noPacing,
+        rateLimit: { ...noPacing.rateLimit, perDay: 1 },
+        retry: { maxAttempts: 1, backoffMs: 0 },
+      };
+      const provider = new TechmapPostingProvider({ apiKey: "k", policy, fetchImpl });
+      await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+      const second = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+      expect(second.ok).toBe(false);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // #100 review MF4: the gate/budgets are shared PROCESS-WIDE per providerId, proven across TWO
+  // separate instances — otherwise two concurrent retrievals would each get their own tracker and
+  // burst through the vendor's cap together.
+  it("MF4: pacing is shared across two separate provider instances for the same providerId", async () => {
+    const clock = { t: 0 };
+    const sleep = vi.fn(async (ms: number) => {
+      clock.t += ms;
+    });
+    const paced: PostingProviderPolicyV1 = { ...TECHMAP_POLICY, rateLimit: { ...TECHMAP_POLICY.rateLimit, perSecond: 0.4 } };
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [] }));
+
+    const first = new TechmapPostingProvider({ apiKey: "k", policy: paced, fetchImpl, now: () => clock.t, sleep });
+    await first.fetch({ regionCode: "HK", queryKeywords: [] });
+    expect(sleep).not.toHaveBeenCalled(); // first instance's first call: gate starts free
+
+    // A BRAND NEW instance — if pacing were per-instance, this would also start "free" and fire
+    // immediately, exactly the burst the AC forbids.
+    const second = new TechmapPostingProvider({ apiKey: "k", policy: paced, fetchImpl, now: () => clock.t, sleep });
+    await second.fetch({ regionCode: "HK", queryKeywords: [] });
+    expect(sleep).toHaveBeenCalledWith(2500); // the SHARED gate makes it wait anyway
+  });
+});
+
+describe("techmapProviderFromEnv (#100 review MF5)", () => {
+  const previousKey = process.env.TECHMAP_RAPIDAPI_KEY;
+  afterEach(() => {
+    if (previousKey === undefined) delete process.env.TECHMAP_RAPIDAPI_KEY;
+    else process.env.TECHMAP_RAPIDAPI_KEY = previousKey;
+  });
+
+  it("fails closed — returns null — for a policy row whose providerId isn't techmap, even with a key set", () => {
+    process.env.TECHMAP_RAPIDAPI_KEY = "some-key";
+    const curatedPoolRow: PostingProviderPolicyV1 = { ...TECHMAP_POLICY, providerId: "curated-pool" };
+    expect(techmapProviderFromEnv(curatedPoolRow)).toBeNull();
+  });
+
+  it("returns null without TECHMAP_RAPIDAPI_KEY set, even for the real techmap row", () => {
+    delete process.env.TECHMAP_RAPIDAPI_KEY;
+    expect(techmapProviderFromEnv(TECHMAP_POLICY)).toBeNull();
+  });
+
+  it("constructs a real provider for the techmap row when the key is set", () => {
+    process.env.TECHMAP_RAPIDAPI_KEY = "some-key";
+    const provider = techmapProviderFromEnv(TECHMAP_POLICY);
+    expect(provider).not.toBeNull();
+    expect(provider?.providerId).toBe("techmap");
+  });
+});
+
+describe("TestFixturePostingProvider (#100, §2.10)", () => {
+  it("returns its canned result without any network call, structurally incapable of a live check", async () => {
+    const provider = new TestFixturePostingProvider("fixture-provider-a", {
+      ok: true,
+      records: [],
+    });
+    expect(provider.providerId).toBe("fixture-provider-a");
+    const result = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+    expect(result).toEqual({ ok: true, records: [] });
+  });
+
+  // #100 review MF9: the structural guard, same shape as TestFixtureFamilyFloorStore's
+  // canUnlockProductionDiscoveryReward.
+  it("canReachLiveProvider() is always false — structurally incapable, not merely configured off", () => {
+    const provider = new TestFixturePostingProvider("fixture-provider-a", { ok: true, records: [] });
+    expect(provider.canReachLiveProvider()).toBe(false);
+  });
+});

@@ -214,6 +214,32 @@
 //     that were actually let through (fresh, or lifted) is how rarely the policy is retrying an
 //     advert that turns out to still be broken.
 //
+// #100 (live-posting retrieval, §2.9 of docs/research/live-posting-retrieval-contract.md) adds FOUR
+// more, namespaced postings.techmap_* — the real-call cost/health counterpart to the fixture-pool
+// postings.* counters above, for the one real network provider client built so far
+// (postingProvider.ts's TechmapPostingProvider):
+//   - postings.techmap_calls_made / postings.techmap_calls_failed: one increment per HTTP attempt
+//     (including retries — a retried attempt counts again, since it really did cost another call
+//     against the vendor's rate limit), success/failure split. Together they're the observable
+//     signal behind the AC that a rate-limit/transport failure is measured, not just returned.
+//   - postings.techmap_records_fetched / postings.techmap_cost_usd_total: real measured totals —
+//     records actually returned, and the spend computed from them via the registry's own costModel
+//     (postings.ts's computeProviderCostUsd) — replacing #86's cost ESTIMATE with a number computed
+//     from what a call actually returned. Named per-provider (techmap_*) rather than keyed by a
+//     generic providerId, because exactly one real network provider exists today (§2.11 makes the
+//     same call for a cost-normalization engine) — revisit when a second one lands.
+// #100 review (must-fix round) adds TWO more, same techmap_* namespace:
+//   - postings.techmap_normalize_dropped: one item from a 200 response that did NOT become a
+//     ProviderPostingRecordV1 — either normalizeTechmapItem returned null (a required field genuinely
+//     missing) or threw (the contract's own zod .parse() rejected it). A steady trickle is expected
+//     background noise (a genuinely malformed advert); a sudden jump against a call that also reports
+//     a healthy totalCount is the same shape-drift signal postings.techmap_calls_failed's
+//     "normalized 0 records" case (postingProvider.ts) exists to catch, one level more granular.
+//   - postings.techmap_budget_exceeded: this client's OWN in-process per-minute/per-day call budget
+//     (FixedWindowBudget, postingProvider.ts) refused an attempt BEFORE any HTTP request was made —
+//     distinct from postings.techmap_calls_failed, which only counts a call that actually reached the
+//     vendor and got a 429/5xx/etc back. A rise here means our own conservative internal cap is the
+//     limiting factor, not the vendor's.
 // In-process and reset-on-restart. That's an accepted limit for this slice, not an oversight: there
 // is no persisted metrics store yet, and standing one up before anything needs history would be the
 // speculative abstraction this repo avoids (#86 decision 4 makes the same call for user languages).
@@ -250,6 +276,12 @@ const counts = {
   "deck.cards_estimated": 0,
   "deck.judge_bound_hit": 0,
   "deck.cards_withdrawn": 0,
+  "postings.techmap_calls_made": 0,
+  "postings.techmap_calls_failed": 0,
+  "postings.techmap_records_fetched": 0,
+  "postings.techmap_cost_usd_total": 0,
+  "postings.techmap_normalize_dropped": 0,
+  "postings.techmap_budget_exceeded": 0,
 };
 
 export type CounterName = keyof typeof counts;

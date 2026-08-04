@@ -25,6 +25,7 @@ import { mailerFromEnv } from "./mailer.js";
 import { runPurge } from "./purge.js";
 import { getPool } from "./db.js";
 import { usageLedgerStoreFromEnv } from "./usageLedgerStore.js";
+import { postingStoreFromEnv } from "./postingStore.js";
 import { pricingTableFromEnv } from "./llmPricing.js";
 import { meterLlm } from "./llmMeter.js";
 import type { LlmClient } from "./llm.js";
@@ -58,6 +59,11 @@ const adRequirements = adRequirementsStoreFromEnv(process.env.DATABASE_URL);
 // #105: the persisted judgement cache, keyed by (adId, factsFingerprint) rather than adId alone —
 // see judgementStore.ts's header for why this one isn't shared the way adRequirements is.
 const judgements = judgementStoreFromEnv(process.env.DATABASE_URL);
+// #100: the provider-posting store — table creation only, here. Nothing calls .upsert() yet (the
+// fetch->store wiring is #101's), but the table must exist before #101 needs it, same as every other
+// store's own init() below — a store this ticket adds is this ticket's job to boot, not the ticket
+// that first calls it.
+const postingStore = postingStoreFromEnv(process.env.DATABASE_URL);
 try {
   await sessions.init();
   await claims.init();
@@ -67,6 +73,7 @@ try {
   await adRequirements.init();
   await judgements.init();
   await usageLedger.init();
+  await postingStore.init();
 } catch (err) {
   console.error("store init failed", err);
   process.exit(1);

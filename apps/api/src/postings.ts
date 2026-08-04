@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import {
   canonicalKeyOf,
   PostingProviderPolicyV1,
+  type PostingProviderCostModel,
   type PostingProviderPolicyV1 as PostingProviderPolicyV1Value,
   type PostingV1 as PostingV1Value,
   type ProviderPostingRecordV1 as ProviderPostingRecordV1Value,
@@ -67,11 +68,15 @@ export function loadActivePostingProviders(): PostingProviderPolicyV1Value[] {
 
 // ---- dedupePostings (§2.4) ----
 
-function earliest(a: string, b: string): string {
+// Exported (#100) so postingStore.ts's upsert can apply the SAME §2.6 date semantics
+// (capturedAt = earliest seen, verifiedLiveAt = most recently confirmed) when a single provider's
+// re-fetch of an already-stored posting is merged — one implementation of "earliest wins"/"latest
+// wins", not a second copy that could drift from this one.
+export function earliest(a: string, b: string): string {
   // ISO 8601 UTC timestamps sort lexicographically the same as chronologically.
   return a <= b ? a : b;
 }
-function latest(a: string, b: string): string {
+export function latest(a: string, b: string): string {
   return a >= b ? a : b;
 }
 function earliestNonNull(a: string | null, b: string | null): string | null {
@@ -147,7 +152,7 @@ export function dedupePostings(
     }
 
     const posting: PostingV1Value = {
-      schemaVersion: "2",
+      schemaVersion: "3", // #100 bumped 2->3: added `language`
       id: `posting:${canonicalKey}`,
       canonicalKey,
       title: winner.title,
@@ -169,7 +174,28 @@ export function dedupePostings(
       // never silently become a gating input.
       applicantLocationRequirements: winner.applicantLocationRequirements,
       skills: winner.skills,
+      // #100: same winner-take-all rule, same reason — language is itself a gating input
+      // (language.ts's languageEligible), never a union of what each provider separately detected.
+      language: winner.language,
     };
     return posting;
   });
+}
+
+// ---- provider call cost accounting (#100, §2.9) ----
+
+/**
+ * The real, measured spend for ONE provider call that returned `recordCount` records, using that
+ * provider's own §2.2 costModel — replacing #86's estimates with a number computed from what a call
+ * actually returned, not a guess. Pure and unit-testable in isolation: no network, no counters, no
+ * store. `operatorHours` has no dollar cost by construction (the curated pool has no vendor) and
+ * always returns 0 — its real cost is operator time, tracked in hours elsewhere, never dollars.
+ * `flatMonthlyTier` returns 0 too: a flat-tier subscription's marginal per-call cost isn't a function
+ * of THIS call alone (it's already paid for up to `includedUnits`), so attributing a fraction of the
+ * flat fee to one call would be an estimate dressed up as a measurement — exactly what this function
+ * exists to avoid. Only `perThousandPostings` has a real, well-defined per-call cost.
+ */
+export function computeProviderCostUsd(costModel: PostingProviderCostModel, recordCount: number): number {
+  if (costModel.kind === "perThousandPostings") return (recordCount / 1000) * costModel.amountUsd;
+  return 0;
 }

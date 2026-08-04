@@ -3,9 +3,11 @@
 // in CI without a live DB). If the SQL is wrong, these fail here — before it reaches staging.
 import { beforeEach, describe, expect, it } from "vitest";
 import { newDb } from "pg-mem";
-import type { CandidateClaim } from "@jobcrush/contracts";
+import type { CandidateClaim, ProviderPostingRecordV1 } from "@jobcrush/contracts";
 import { InMemorySessionStore, PgSessionStore, type SessionStore } from "../src/sessions.js";
 import { InMemoryClaimStore, PgClaimStore, type ClaimStore } from "../src/claims.js";
+import { InMemoryPostingStore, PgPostingStore, type PostingStore } from "../src/postingStore.js";
+import { readCounters, resetCountersForTest } from "../src/counters.js";
 
 function pgPool() {
   const { Pool } = newDb().adapters.createPg();
@@ -519,6 +521,155 @@ for (const [name, make] of claimDrivers) {
         const after = (await store.confirmed(sid)).find((c) => c.id === "grill-1")!.seq;
         expect(after).toBe(before); // unchanged — the correction didn't move it to "just now"
       });
+    });
+  });
+}
+
+// #100 — the provider-posting store's re-fetch semantics (§2.6), proven on both drivers.
+function providerRecord(over: Partial<ProviderPostingRecordV1>): ProviderPostingRecordV1 {
+  return {
+    schemaVersion: "2",
+    providerId: "techmap",
+    providerPostingId: "tm-1",
+    title: "Senior Project Manager",
+    company: "BNP Paribas",
+    location: "Hong Kong",
+    sourceUrl: "https://jobdatafeeds.com/jobs/senior-project-manager",
+    excerpt: "Lead delivery of a portfolio of technology programs across APAC.",
+    postedAt: "2026-07-28T00:00:00Z",
+    capturedAt: "2026-07-29T09:00:00Z",
+    verifiedLiveAt: "2026-08-01T09:00:00Z",
+    expiresAt: "2026-09-01T00:00:00Z",
+    attribution: null,
+    applicantLocationRequirements: [],
+    skills: [],
+    language: "en",
+    ...over,
+  };
+}
+
+const postingDrivers: [string, () => PostingStore][] = [
+  ["in-memory", () => new InMemoryPostingStore()],
+  ["postgres (pg-mem)", () => new PgPostingStore(pgPool())],
+];
+
+for (const [name, make] of postingDrivers) {
+  describe(`PostingStore contract — ${name} (#100, §2.6)`, () => {
+    let store: PostingStore;
+    beforeEach(async () => {
+      store = make();
+      await store.init();
+      resetCountersForTest();
+    });
+
+    it("upsert then get round-trips; unknown key is null", async () => {
+      const record = providerRecord({});
+      await store.upsert(record);
+      expect(await store.get("techmap", "tm-1")).toMatchObject({
+        providerId: "techmap",
+        providerPostingId: "tm-1",
+        title: "Senior Project Manager",
+      });
+      expect(await store.get("techmap", "does-not-exist")).toBeNull();
+      expect(await store.get("curated-pool", "tm-1")).toBeNull(); // scoped by providerId too
+    });
+
+    it("re-fetching the SAME posting does not duplicate it — listByProvider stays length 1", async () => {
+      await store.upsert(providerRecord({}));
+      await store.upsert(providerRecord({ title: "Senior Project Manager (Updated)" }));
+      expect(await store.listByProvider("techmap")).toHaveLength(1);
+    });
+
+    it("§2.6: capturedAt is preserved as the EARLIEST across re-fetches; verifiedLiveAt advances to the LATEST", async () => {
+      await store.upsert(
+        providerRecord({ capturedAt: "2026-07-29T09:00:00Z", verifiedLiveAt: "2026-07-29T09:00:00Z" }),
+      );
+      const reFetched = await store.upsert(
+        providerRecord({
+          capturedAt: "2026-08-01T00:00:00Z", // a later "first captured" claim must NOT win
+          verifiedLiveAt: "2026-08-02T00:00:00Z", // a fresher liveness confirmation must win
+          title: "Senior Project Manager (Updated)",
+        }),
+      );
+      // Compared by INSTANT, not exact string: Postgres round-trips a timestamptz through
+      // Date#toISOString() (always carrying milliseconds, ".000Z"), while the in-memory driver
+      // preserves the input string verbatim — both are correct §2.6 semantics, they just format the
+      // same instant differently, and this proves the MERGE, not a driver's string formatting.
+      const sameInstant = (a: string, b: string) => new Date(a).getTime() === new Date(b).getTime();
+      expect(sameInstant(reFetched.capturedAt, "2026-07-29T09:00:00Z")).toBe(true);
+      expect(sameInstant(reFetched.verifiedLiveAt, "2026-08-02T00:00:00Z")).toBe(true);
+      expect(reFetched.title).toBe("Senior Project Manager (Updated)"); // every other field: fresh wins
+
+      const stored = await store.get("techmap", "tm-1");
+      expect(sameInstant(stored!.capturedAt, "2026-07-29T09:00:00Z")).toBe(true);
+      expect(sameInstant(stored!.verifiedLiveAt, "2026-08-02T00:00:00Z")).toBe(true);
+    });
+
+    it("§2.6: an out-of-order re-fetch (an EARLIER verifiedLiveAt arriving after a LATER one) still keeps the latest, never regresses", async () => {
+      await store.upsert(providerRecord({ verifiedLiveAt: "2026-08-05T00:00:00Z" }));
+      const result = await store.upsert(providerRecord({ verifiedLiveAt: "2026-08-01T00:00:00Z" }));
+      expect(new Date(result.verifiedLiveAt).getTime()).toBe(new Date("2026-08-05T00:00:00Z").getTime());
+    });
+
+    it("listByProvider is scoped — does not leak another provider's records", async () => {
+      await store.upsert(providerRecord({ providerId: "techmap", providerPostingId: "tm-1" }));
+      await store.upsert(providerRecord({ providerId: "curated-pool", providerPostingId: "c-1" }));
+      expect((await store.listByProvider("techmap")).map((r) => r.providerPostingId)).toEqual(["tm-1"]);
+      expect((await store.listByProvider("curated-pool")).map((r) => r.providerPostingId)).toEqual(["c-1"]);
+    });
+
+    // #100 review MF6: language counters move here — counted once, at the moment a posting is FIRST
+    // persisted, never per fetch/normalize call (which would inflate with every re-fetch).
+    describe("MF6: language counted once, at first persist, never on a re-fetch", () => {
+      it("a genuinely new non-served-language posting is counted exactly once, not on a re-fetch", async () => {
+        await store.upsert(providerRecord({ language: "zh" }));
+        expect(readCounters()["postings.language_skipped"]).toBe(1);
+        expect(readCounters()["postings.language_undetermined"]).toBe(0);
+
+        await store.upsert(providerRecord({ language: "zh", title: "Senior Project Manager (Updated)" }));
+        expect(readCounters()["postings.language_skipped"]).toBe(1); // unchanged — same posting, re-fetched
+      });
+
+      it("a genuinely new undetermined-language posting is counted exactly once, separately from a skip", async () => {
+        await store.upsert(providerRecord({ language: "und" }));
+        expect(readCounters()["postings.language_undetermined"]).toBe(1);
+        expect(readCounters()["postings.language_skipped"]).toBe(0);
+
+        await store.upsert(providerRecord({ language: "und" }));
+        expect(readCounters()["postings.language_undetermined"]).toBe(1); // unchanged on re-fetch
+      });
+
+      it("an 'en' posting increments neither counter, new or re-fetched", async () => {
+        await store.upsert(providerRecord({ language: "en" }));
+        await store.upsert(providerRecord({ language: "en" }));
+        expect(readCounters()["postings.language_skipped"]).toBe(0);
+        expect(readCounters()["postings.language_undetermined"]).toBe(0);
+      });
+
+      it("two DIFFERENT genuinely-new postings are counted twice, not folded into one", async () => {
+        await store.upsert(providerRecord({ providerPostingId: "tm-1", language: "zh" }));
+        await store.upsert(providerRecord({ providerPostingId: "tm-2", language: "zh" }));
+        expect(readCounters()["postings.language_skipped"]).toBe(2);
+      });
+    });
+
+    // #100 review MF8: listByProvider must re-validate against the CURRENT contract, same as get() —
+    // this was the one read path that didn't.
+    it("listByProvider excludes a stored row the CURRENT schema rejects, same as get() does", async () => {
+      await store.upsert(providerRecord({ providerId: "techmap", providerPostingId: "ok-1" }));
+      // Deliberately invalid: upsert() doesn't validate on write (same convention as
+      // adRequirementsStore.ts/judgementStore.ts's own put()), so a row missing required fields can
+      // land here the same way a row written under a PRIOR contract version could.
+      await store.upsert({
+        providerId: "techmap",
+        providerPostingId: "stale-1",
+        capturedAt: "2026-08-04T00:00:00Z",
+        verifiedLiveAt: "2026-08-04T00:00:00Z",
+      } as unknown as ProviderPostingRecordV1);
+
+      const listed = await store.listByProvider("techmap");
+      expect(listed.map((r) => r.providerPostingId)).toEqual(["ok-1"]);
+      expect(await store.get("techmap", "stale-1")).toBeNull();
     });
   });
 }
