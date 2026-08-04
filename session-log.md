@@ -2,6 +2,74 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-04 (session 71) — `/orchestrate-team #114`: the broken fixture we paid to re-read, and the advert we re-read forever
+
+_Ran concurrently with sessions 69 (#99) and 70 (#123). Its commit landed **first** of the three —
+`6c0a515`, a clean fast-forward onto `main` while both others were still building — which is why they
+each reference #114 landing mid-gate. Logged last, hence the higher session number; the docs update was
+deliberately deferred until the other two shipped, rather than racing three sessions into the same
+newest-first file at 3am._
+
+- **[#114](https://github.com/adrien-mounier/jobcrush-app/issues/114) shipped in `6c0a515`, closed.**
+  Both defects #104's QA pass filed, neither of which was ever wrong on screen — they were wrong on the
+  bill, and both stop being free the moment #99–#101 puts a real feed behind them.
+- **A corrupt curated fixture no longer buys a paid re-read.** `resolveAdRequirements` caught "malformed"
+  and "missing" from one `try`/`catch` and fell through to the model for both, so we paid to re-derive
+  what someone had already written by hand. The fixture set now parses **once** into a shared index
+  answering found/missing/invalid: invalid counts `postings.fixture_invalid`, logs its adId and reason
+  (bounded to 500 chars, per #115 finding 3), drops that one card, and makes **no model call**. Missing
+  falls through to the reader exactly as before. `postings.fixture_invalid` has a real production caller
+  again — it had none, so the counter #104 added for this hazard could never move.
+- **A permanently-unreadable advert no longer re-pays every request.** `makeAdReader` keeps a bounded
+  negative cache with escalating backoff (2 min doubling, capped 60 min), covering **only** the
+  `readAdvert` throw path — the one that actually costs up to two calls. A store outage, a `store.put`
+  failure after a good read, and the free language-skip null are each excluded on their own terms, with
+  the reason recorded at each site. Suppression never re-counts `postings.read_failed`, so the
+  read-failure alarm can't be pinned by events that cost nothing. Measured: a permanently broken advert
+  polled every 30s for a day costs **56 model calls instead of 5,762**.
+- 🔑 **The ticket's own safety AC named a mechanism that does not exist, and review caught it.** AC4
+  asked that a prompt/contract version bump retry a previously-failing advert. The suppression entry
+  carries that version and the comparison is correct — and it can never fire: `adReaderVersion()` is a
+  memoised file hash plus a hand-bumped constant, so it cannot change inside a running process, and the
+  redeploy that changes it restarts the process and empties this in-memory cache anyway. The developer
+  had reported AC4 "met at the unit level" and the unit test does pass — against a branch production
+  cannot reach. **The operative guarantee is the 60-minute cap**, and QA verified that independently
+  rather than accepting the claim: real `makeAdReader` driven over a 30-day simulated clock, backoff
+  recomputed from scratch for n=1..2000, **worst invisibility-after-fix 15 minutes even after a 20-day
+  continuous outage**, no constructible path over the hour. Field kept as defense-in-depth for a future
+  hot-reloadable prompt, documented as unreachable today. Generalised in `lessons.md`.
+- 🚨 **The index rewrite introduced a silent regression that review caught before it shipped.** Replacing
+  a `find()` lookup with a `Map` flipped duplicate-adId precedence from **first-wins to last-wins**, so a
+  copy-pasted *broken* duplicate would have shadowed a good earlier entry and deleted a resolvable card —
+  #86's named worst failure. Latent only because the file holds ten unique ids. Now explicit: a valid
+  entry beats an invalid one whatever the order; among same-validity duplicates the first wins.
+- **`parseAdRequirementsList` deleted, not left test-only.** Both review axes independently flagged it:
+  production-dead, yet still a *second* implementation incrementing the same counter — the exact "two
+  independent counting paths" hazard this ticket was raised about. AC2 explicitly offered removal. Its
+  one surviving proof (a broken entry must not take the list down, #102 carry-forward) moved onto the
+  index seam so it tests the code production actually runs.
+- **Proven at spec #86's pinned API boundary** (new `apps/api/test/adReadPolicy.test.ts`, LLM double
+  injected — no new seam), plus a **live process on port 3114**: one real fixture corrupted gave HTTP 200,
+  **14 cards not 15** (exactly one missing), zero model calls for that advert, `postings.fixture_invalid`
+  0 → 1 on `/ops/counters`; and with an invalid model key, request 1 took 968ms for 7 genuine failures
+  while request 2 took **2.8ms** with `adReader.read_suppressed` = 7 and `read_failed` correctly still 7.
+  Old vs new fixture logic byte-identical across all 17 postings; clean deck still 15 cards. Gate 808 api
+  green uncached, QA **GO**.
+- ⚠️ **Known limits, recorded in code.** An invalid fixture is never retried within a process's life — a
+  redeploy with a corrected file is the only fix, which is correct for repo-baked data (a retry would
+  re-read identical bytes) but needs revisiting if fixtures ever wrap live postings at #99–#101. And a
+  suppressed read settles instantly through `resolveAdRequirements`'s deadline, so it counts
+  `postings.read_in_time` and mildly dilutes the read-timeout alarm's denominator with free no-ops —
+  documented to the same standard as the read-failure damping, mechanism deliberately unchanged.
+- **FYI, pre-existing and not this ticket's:** QA noted `/ops/counters` is **ungated** (`OPS_KEY` gates
+  `/ops/read-failures` and `/ops/spend`, not this one). Harmless today — it serves integers only — but it
+  contradicts the assumption in #115's roadmap note. Also unchanged from #104: a read that *hangs* is
+  never suppressed, since the route's 15s timeout doesn't feed the negative cache; cost there stays
+  bounded by the pre-existing in-flight dedupe.
+- **Process note:** built in an isolated worktree with a one-fix-round review (nine findings across both
+  axes, seven must-fix) and no rework after QA. Branch point `51debbb` was still `origin/main` at landing
+  time, so this went in as a fast-forward with no rebase.
+
 ## 2026-08-04 (session 70) — `/orchestrate-team #123`: the question that arms withdrawal, and tells you what it cost
 
 _Ran concurrently with session 69 (#99) below; rebased onto it. The two touched

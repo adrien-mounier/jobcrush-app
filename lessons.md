@@ -1,5 +1,51 @@
 # Lessons — jobcrush-app
 
+## A cache invalidated by a build-time version is guarded by nothing — the redeploy already cleared it
+
+#114 added a negative cache so an unreadable advert stops costing two model calls on every deck
+request. Its entries carry the `adReaderVersion()` they failed under, and the ticket's own safety AC
+was written around that field: *"given a prompt or contract version bump, a previously-failing advert
+**is** retried — a negative cache must never make a fixed advert permanently invisible."* The code
+compares the versions, the comparison is correct, and it can **never fire**. `adReaderVersion()` is a
+memoised hash of a prompt file plus a hand-bumped constant, so it cannot change inside a running
+process; the only way to bump it is a redeploy, and a redeploy restarts the process, which empties
+the in-memory cache anyway. By the time a new version is running there is no stale entry left to
+rescue. The Spec reviewer found it by tracing the call path instead of trusting the comment; the
+developer had reported the AC "met at the unit level", and the unit test passes — it exercises a
+branch production cannot reach.
+
+**The general shape:** when an in-memory cache is keyed on a version that only changes at build or
+deploy time, the version check is decoration. The process lifetime is already a stricter invalidator
+than the key. Before writing that guard, ask what would have to happen for the two values to differ
+*within one process* — if the answer is "nothing can", the real guarantee has to come from somewhere
+else. Here it does: the backoff caps at 60 minutes, so nothing stays invisible longer than that, and
+QA confirmed it against a 30-day simulated clock (worst case after a fix: 15 minutes). The field was
+kept as defense-in-depth for a future hot-reloadable prompt, with a comment saying plainly that it is
+unreachable today.
+
+The wider trap is a ticket writing its own AC around a mechanism that turns out not to exist. An AC is
+a statement about *behaviour a user or operator can observe*; when it names an implementation instead,
+you can satisfy the words while the guarantee rests on something else entirely — and nobody notices
+until someone re-derives the call path. Restate the mechanism-shaped AC as the outcome it wanted
+("a fixed advert becomes visible again within X"), then check what actually delivers X.
+
+## Rewriting a `find()` lookup as a `Map` silently flips duplicate-key precedence
+
+Same slice, caught by the same review round. `loadAllAdRequirements().find(r => r.adId === adId)`
+returns the **first** matching entry; the replacement built a `Map` in a loop, and `map.set()` keeps
+the **last**. Both read as "look it up by id". Nothing in the diff looks like a behaviour change, no
+test moved, and the fixture file happens to hold ten unique ids so it was latent.
+
+It mattered here because the index also records *invalid* entries: a copy-pasted broken duplicate
+would have shadowed a good earlier one, turning a resolvable card into a dropped one — #86 names
+silently deleting a winnable job as this engine's worst failure. The fix is explicit precedence, not
+restored insertion order: a valid entry now beats an invalid one whatever the file order, and among
+same-validity duplicates the first wins.
+
+Whenever a linear scan becomes a keyed structure, duplicate handling is a decision you are now making
+whether or not you notice. Write down which one wins and why — the container silently picks for you
+otherwise.
+
 ## The affordance that lives "after you answer" does not exist for the last question
 
 #123's designer specced a lock-in confirmation and a "Fix that?" undo into the ask dock's notice slot —
