@@ -1,5 +1,89 @@
 # Lessons — jobcrush-app
 
+## "We can't change this later" is a claim about stored data — check that the data exists
+
+Map #127 carried #139 for four sessions as **"the map's only unfixable-later decision"**, and the label
+was load-bearing: it set the ticket's priority, its ordering, and how carefully it had to be worked.
+The reasoning was sound — ADR-0001 rule 2 forbids rewriting stored records, so a fact's shape must be
+settled when that fact is first shaped.
+
+**But the record it was unfixable about had never been built.** #126's job record does not exist:
+parsed employment blocks sit in an in-memory blob (`roles`, from the miner) and are discarded after one
+use, leaving only a count. Nothing was stored in the wrong shape, so every decision was still free —
+one `grep` away from being known, and nobody ran it across four sessions.
+
+Nothing was lost here; the decisions were worth taking carefully either way. The cost is the one that
+compounds: **an unchecked constraint sets priority for real.** #139 was worked ahead of tickets that
+were genuinely blocking, on the strength of a migration cost that did not yet exist.
+
+This is the sibling of the lesson below about a premise hardening across sessions — same mechanism, but
+about a *constraint* rather than a *fact*, which is harder to spot because a constraint sounds like
+caution rather than a claim.
+
+**Before pricing a change as expensive, check whether the thing you would be migrating has ever been
+written.** Found 2026-08-04 resolving #139.
+
+## When a decision has two sides, ask which side has evidence — the measured half hides the unmeasured one
+
+Map #127 spent four sessions shaping a CV data model. Every **advert-side** decision rested on a
+17-advert corpus with a research doc behind it (`docs/research/eligibility-dimensions-from-the-corpus.md`,
+`languages-from-the-corpus.md`). The **CV side** rested on **one synthetic 1,135-character document** —
+that was the entire `apps/api/test/eval/cvs/` corpus. Nobody noticed across four sessions, three of
+which produced ADRs.
+
+The rigour of the measured half is what hid it: the map *felt* evidence-based, because half of it was.
+
+The cost was real and compounded twice. Six real CVs overturned the live ticket's own table within the
+hour (it recorded education as having *"no driver named"*; education is on **6/6** CVs). Commissioned
+research then overturned the six-CV numbers within the day: Europass/Cedefop, **n=353,518 — 12% of real
+CVs have no work experience at all**, so *"work history 6/6"* was a sample-size artefact and any shape
+assuming one employment entry **breaks for one CV in eight, at ingestion**.
+
+**Ask which half of a decision carries evidence, not whether the decision carries evidence.** Found
+2026-08-04 grilling #130.
+
+## Before designing a test that excludes things, check its axis is the one that matters
+
+#130 asked for a named driver per element. The test proposed was *"what is broken today that structuring
+this fixes?"* — defensible, cheap, evenly applied, and it put **certifications out of v1** on frequency
+(1/6 CVs, 1/17 adverts). The owner overruled it on instinct, without an argument.
+
+The research then showed **why the test was wrong, not merely why the answer was**: certifications run
+~7% frequency *and* are one of the criteria employers **explicitly configure their systems to filter
+on**. **Low frequency, high consequence — frequency was never the axis that mattered.**
+
+A test can be consistent, cheap and evenly applied and still measure the wrong dimension. Its very
+consistency is what makes that hard to see from inside. Found 2026-08-04.
+
+## When a user reports a flaw, look for where the design chose it deliberately
+
+The owner hit a live bug: an approved *stretch* — a light finance-trading exposure, written for one
+banking advert, which **worked** (it won the interview and an offer) — kept appearing on later,
+unrelated adverts, and **displaced a genuine fact** he considered more relevant.
+
+Reading `JobCrush/contracts/enrichment_proposal.schema.md` found the cause **stated as a feature**:
+proposals are *"keyed to the claim graph, **not to any one offer** — so they persist across offers and
+dedup recurring asks."* Worse, the contract **records `originOffer` on the proposal and then discards
+it on approval**, when the claim becomes an ordinary graph node.
+
+**The information needed to prevent the leak was captured, and thrown away at the exact moment it
+started to matter.** The fix is un-choosing a trade-off whose cost was never priced — not adding a new
+mechanism. Read the contract before designing a repair. Found 2026-08-04, filed as #141.
+
+## A published benchmark may be measuring a harder task than the one you have
+
+Skills extraction was reported to the owner as near-hopeless, on a peer-reviewed **F1@5 = 0.72** (state
+of the art, five guesses allowed). The owner asked why an LLM could not simply read and judge it.
+
+He was right, and the number was misapplied: 0.72 is for placing a free-text phrase at the correct node
+in **ESCO's 13,890 labels** — a taxonomy-assignment task. Ours is *does this experience cover what this
+advert asks*, a judgement between two texts, which `judge.ts` and `familyLearning.ts` already perform.
+
+**The real constraint survived the correction and was a different one:** a skill judged fresh at scoring
+time is not **listable, traceable or correctable** — the map's three fixed promises. The question for
+skills was never *"can the machine understand it"* but *"what gets written down."* Check what a
+benchmark's task actually is before importing its pessimism. Found 2026-08-04.
+
 ## A binary "no" defined by a bar you chose is a silent deleter when the other side has no bar
 
 `#123` asks *"Which of these can you work in professionally? Tick every one you could run a meeting

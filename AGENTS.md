@@ -40,6 +40,29 @@ enforcement of **"tailor by emphasis, not amputation"**: rephrase/reorder/select
 a fact class the source CV had). Change the rules → update `docs/cv-brain/` too; it is the reference,
 not a copy to let rot.
 
+### The product proposes stretches — it does not police honesty
+
+**Owner philosophy, 2026-08-04** ([map #127](https://github.com/adrien-mounier/jobcrush-app/issues/127)
+decision 9). A CV is a **marketing document**. Stretching adjacent or aspirational experience is a
+normal part of getting hired, not lying. When a role wants a signal the candidate lacks, the product
+should **propose** it, **soften** it so it stays defensible, and attach a **prepared interview
+narrative**. Never refuse, never moralise, never add anti-lying guardrails.
+
+Read `prompts/claim-miner.md` rule 7 (*"Do not invent. Do not improve the candidate"*) in that light:
+it governs **reading a CV**, where the machine writes down what is there and nothing more. **It is not
+a product-wide honesty mandate and must not be extended into one.**
+
+**The one clause that is not a guardrail, because it is the owner's own:** *the machine never adds
+silently; the human owns every stretch.* A parser that quietly upgrades a title is not a stretch — the
+person never chose it, never saw it, and **cannot defend it at interview**, which defeats the narrative
+that makes stretching safe. **Visible proposal = the product. Silent drift = the bug.** An honest
+baseline is the *precondition* for confident stretching, not a limit on it.
+
+⚠️ **Two reconciliations are open, so don't assume either way:** ADR-0002 clause 2 and the miner rules
+are worded as blanket bans with no carve-out for an approved proposal (map #127, Not-yet-specified);
+and an approved stretch currently leaks onto adverts it was never made for
+([#141](https://github.com/adrien-mounier/jobcrush-app/issues/141)).
+
 ## Git workflow
 
 Solo repo, no branch protection. **Stay on `main`.** Don't create branches for ordinary work —

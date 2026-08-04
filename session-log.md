@@ -2,6 +2,215 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-04 (session 80) — The map's only unfixable-later decision, and it was still free when we took it
+
+_Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 5c, resolved as [#139](https://github.com/adrien-mounier/jobcrush-app/issues/139) with ten clauses, written up as **[ADR-0003](docs/adr/0003-the-shared-parts-organisation-date-level.md)** — the third ADR in this repo. Two fog patches graduated into [#143](https://github.com/adrien-mounier/jobcrush-app/issues/143) and [#144](https://github.com/adrien-mounier/jobcrush-app/issues/144). Impact sweep across nine tickets. Map frontier goes from one ticket to four. **Repo output: ADR-0003 plus the three project docs.**_
+
+- **✅ The urgency was real; the impossibility was not.** The map called this *"the only unfixable-later
+  decision"* — true prospectively, and false the day we took it: **#126's job record does not exist yet.**
+  Parsed employment blocks sit in an in-memory blob and are discarded after one use, so nothing was
+  stored in the wrong shape and every clause below was still free to choose. The constraint had hardened
+  across four sessions without anyone checking whether the data it described existed. Generalised in
+  `lessons.md`.
+- **🔑 An organisation is one kind of thing, and the role lives on the link.** Employer, school and
+  issuer alike. Evidence: **LinkedIn ran the two-type design at planetary scale and reversed it** (their
+  school URN still carries the *"Deprecated — use organisation"* tombstone; the certification issuer
+  field is literally named `company`), and Credential Engine's handbook shows one organisation holding
+  two roles at once — the case a type-per-role design cannot express. Accepted cost: nothing records
+  that Université de Nantes is a university, so *"is this a real university"* is unanswerable forever.
+- **🔑 The typed name is always stored; the organisation record is an *addition*.** A failed match loses
+  nothing — #130's *capture the maximum, compare where we can*, applied to organisations. ⭐ **Rebrands
+  then work with no extra machinery:** *Facebook* 2015–19 and *Meta* 2021–23 keep their own names while
+  pointing at one organisation, so the old job still prints what was true. That is the case owner
+  decision 6 creates and #138 found **no prior art for anywhere**.
+- **🔑 The registry was rejected on correctness, not cost — and that dissolved a question the map had
+  been carrying.** GLEIF/OpenCorporates genuinely hold parent/subsidiary/former-name links. But for a
+  CV, *HSBC Bank plc* and *HSBC Holdings plc* are usually the same employer and **legally are not**, so a
+  registry answers a different question: **the reading that matters is the one he would defend in an
+  interview, and only he knows it.** #138 said *"someone must decide which reading this product uses"* —
+  **nobody does; he decides, per case.** A registry stays addable later with no migration.
+- **Shared name pool, private answers.** One growing list of organisation names everyone points into;
+  *"these two are the same employer"* is stored on his record alone. The pool holds **names only** — the
+  person→employer link is the personal data, and it never leaves his own record. Matters because our
+  market is HK/SG.
+- **🔑 A date stores exactly what is known and marks how precise it is.** *2013* stays *2013*, **never
+  padded.** The argument in one case: padded to 1 Jan, *"Amundi, 2013–2015"* reads as 24 months; padded
+  to 31 Dec, 12 months; the truth is between 12 and 36 and **nobody knows which, including us an hour
+  later** — and that value feeds years-of-experience, the one number that gates jobs. Only stored
+  precision makes #126's *widest-when-matching, narrowest-when-printing* rule mean anything. ⚠️ The
+  instructive counter-example is **Europass/ELM**, which can only store a full timestamp and therefore
+  fabricates an instant for every historical fact.
+- **⭐ Owner amendment, narrowing #128: ask for the month only when it changes something.** A bar turns
+  on it (*4.8–5.2 years against a 5-year bar* → ask, and say why) or a gap might not be one
+  (*2013–2015* then *2016–2018*). Everything else shows as a **visible blank** on the CV line at no
+  question cost. ⚠️ **Accepted knowingly as the same silently-failing shape #128 rejected once** — taken
+  because here the failure is **visible, on his own CV**. The alternative was twelve questions before he
+  saw a single job.
+- **🔑 Three end states, not two:** still there · ended, we know when · **ended, we do not know when.**
+  *"Present"* is the one word on a CV that goes stale by itself, and a job added from 2003 whose end he
+  cannot remember produces the **same empty field** — two opposite meanings, one blank, and the
+  safest-looking reading (empty = ongoing) is the one that **silently inflates experience**.
+- **🔑 Every fact carries when we learned it and from whom, and a correction supersedes rather than
+  replaces.** The two things #138 found **no standard anywhere models**, both implied by owner decision
+  6. The forcing case: he corrects *Project Manager* → *Senior Project Manager*, then uploads a CV that
+  still says the old title because he never fixed the document. With the old value discarded we cannot
+  tell that from a real conflict, so we ask forever and **#128 §3's *"a correction sticks"* is false.**
+  Not really new — #126 detaches rather than deletes, ADR-0001 rule 3 keeps the sentence, rule 8 never
+  deletes on rollback; this makes *never destroy, only supersede* the rule rather than a shared habit.
+  **One deliberate exception written in: erasure on request really deletes** (HK PDPO, SG PDPA).
+- **⭐ Two of the four level cases collapsed into one shape — the outcome the ticket existed to find.**
+  #130's *"don't teach the machine that a Licence equals a bachelor, ask him once"* turned out to be
+  #125's language ladder wearing different rungs, so **one ladder** covers claimed capability including
+  **degree level**. 🚨 **Degree classification is stored verbatim and never compared, settled by our own
+  corpus: 0 of 17 adverts test it** — all four `degree` gates test **level and field**
+  (*"Bachelor's degree or above… in Business, IT, or related field"*) — and no standard surveyed ever
+  made classification comparable either.
+- **🔑 A stretch carries two independent labels, and both already existed.** Evidence grade (in the
+  enrichment contract) and mastery (the ladder). They cannot collapse because **all four squares of the
+  grid are real — including the owner's own case, a big stretch he was genuinely good at.** Answers the
+  *degré de maîtrise* half of #141; the leak is what remains there.
+- **Overlaps are normal** and never flagged — Kulpakorn studied at Chulalongkorn 2015–19 *and* Queensland
+  2017–18, nested. #126 already handles the only place it changes a number.
+- **🔑 One question was rejected outright, and the fault was mine, not the concept's.** Asked whether a
+  school is *"the same kind of thing"* as an employer, the owner replied *"I am lost in this question"* —
+  and he was right twice over: the example (certificates issued by companies people work for) was
+  **factually shaky**, and I had never said what actually goes in the organisation list, so it read as
+  though a *degree* and a *certificate* would be filed there. Reframed as **"one list or three?"** with
+  the degree/certificate shown as their own records pointing *at* an organisation, it resolved in one
+  exchange. **Simplifying would not have fixed it; checking the example did.**
+- **Two fog patches graduated.** [#143](https://github.com/adrien-mounier/jobcrush-app/issues/143) —
+  `cv-brain`'s *Month YYYY required* / *never invent a date* contradiction, **unresolvable until the
+  record could state what it did not know**, carrying ADR-0002's open weave-don't-list point in the same
+  pass. [#144](https://github.com/adrien-mounier/jobcrush-app/issues/144) — **capture versus render**,
+  flagged **twice** on the map as needing its own ticket, carrying **Singapore's Workplace Fairness Act
+  (~end-2027, SGD 50k/violation)** and the unresolved EU AI Act status.
+- **Impact sweep across #140/#141/#120/#122/#124/#86/#109/#54/#66**; #108/#110/#111 checked, no movement.
+  ⚠️ **#124 moved in the negative and that is the one worth reading:** the map expected the shape decided
+  here to govern target locations, but a location uses no organisation, no date and no level, and
+  ADR-0001 rule 5 makes it a *preference* — which ADR-0003 explicitly does not reach. 🚨 **One genuine
+  open edge surfaced there: does a preference carry when-we-learned-it?** A target location goes stale
+  exactly as *"Present"* does (he moved), but rule 5 gives preferences none of clause 7's machinery.
+  Decided by neither ADR.
+- **Map frontier goes from one ticket to four**, all independent:
+  [#140](https://github.com/adrien-mounier/jobcrush-app/issues/140) (each element's parts — now a
+  *mechanical application* of ADR-0003, and still the only place the growth rule can be genuinely
+  stress-tested, with **skills** the likely breaking point), #141, #143, #144. **#144 is the only one
+  with an external deadline, ~18 months out.** Build frontier unchanged: **#101** with **#132**, then
+  **#108**.
+
+## 2026-08-04 (session 79) — The question was dissolved, not answered; and the CV half of this map had no evidence under it at all
+
+_Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 5, resolved as [#130](https://github.com/adrien-mounier/jobcrush-app/issues/130). Four research jobs commissioned and landed, closing [#137](https://github.com/adrien-mounier/jobcrush-app/issues/137) + [#138](https://github.com/adrien-mounier/jobcrush-app/issues/138). Three new map children ([#139](https://github.com/adrien-mounier/jobcrush-app/issues/139), [#140](https://github.com/adrien-mounier/jobcrush-app/issues/140), [#141](https://github.com/adrien-mounier/jobcrush-app/issues/141)) and one standalone ([#142](https://github.com/adrien-mounier/jobcrush-app/issues/142)). **No commits — planning session; the four research docs are the only repo output.** Map frontier is now #139 alone._
+
+- **🔑 The owner replaced the ticket's question.** #130 asked *which* elements are in v1 with a named
+  driver for each. The answer: **capture the maximum a CV or an answer can give us — every element is
+  in**, and the per-element question becomes *what shape*, never *whether*. This **overruled the
+  session's own recommendation**, which had built a *"what is broken today"* driver test and used it to
+  put **education and certifications out**. The owner rejected the test itself: the information is
+  already in the document, and discarding it is a choice we would keep re-making. Generalised in
+  `lessons.md`.
+- **🔑 The clause-4 tension dissolved, by the owner applying an existing rule one level deeper.** The
+  worry was that ADR-0001 clause 4 (storable **and** comparable **and** printable before ship) blocks an
+  easy, useful capture behind a hard comparison. The owner's answer: **an entry we cannot classify is
+  stored anyway and simply not compared** — ADR-0001 rule 7 (*shown, never scored on, never withdraws*)
+  applied at the individual **entry** rather than the whole category. **Clause 4 is unchanged and does
+  not reopen.** It also answers #130's third required output: **accuracy governs comparison, never
+  capture** — no element is excluded on accuracy grounds.
+- **⭐ Two directions recorded that reach past this map.** *The CV is a starting point, not the record* —
+  JobCrush becomes the career record it can eventually replace, so shapes must serve facts arriving over
+  years from the person directly. And *ingestion is chunked, resumable and gamified* (**"today let's do
+  education"**, quit whenever, saved as left), which **dissolves the thirty-question risk rather than
+  accepting it**. Consequences: the **5-question grill cap is overruled** (`grill.ts` `DEFAULT_MAX`,
+  which #128 had already contradicted for dates); a **partially-ingested profile becomes the normal
+  state**, promoting #122 from edge case to most-users-most-of-the-time; and **chunk boundaries are
+  user-facing**, so the model's slicing must survive being read aloud. ✅ Deliberately **not** loosened:
+  the miner's ≤15 individual-review budget — it limits *rewording the person's sentences*, not questions.
+- **🚨 The finding that reframed the whole session: the CV side of this map had ONE synthetic
+  1,135-character CV as its entire evidence base**, while every advert-side decision carried a 17-advert
+  corpus. Unnoticed across four sessions and three ADRs — the rigour of the measured half hid the
+  unmeasured one. The owner supplied **six real CVs** (`data/cvs/`, gitignored), which **overturned the
+  ticket's own table within the hour**: it recorded education and certifications as *"No driver named"*;
+  **education is 6/6** (the most universal element on a CV) and **certifications 1/6** (the rarest).
+  Generalised in `lessons.md`.
+- **🚨 And the six CVs were themselves corrected within the day, by the research they prompted.**
+  Europass/Cedefop, **n=353,518 real CVs: 12% have no work experience at all** — so *"work history
+  6/6"* was a **sample-size artefact**, and any shape assuming one employment entry **breaks for one CV
+  in eight, at ingestion**. The **certifications conclusion reversed**: ~7% frequency confirmed, but
+  credentials are one of the criteria employers **explicitly configure their systems to filter on** —
+  **low frequency, high consequence, so frequency was never the right axis.** The owner's rule reached
+  the right answer before the evidence did.
+- **Four research jobs, all landed** — deep + `/last30days` for each question, per the owner's
+  instruction that every research job runs twice. Output: `docs/research/cv-elements-existing-data-standards.md`
+  (48KB), `cv-elements-what-cvs-contain-and-what-employers-screen.md` (42KB),
+  `last30days-career-data-standards.md` (40KB), `last30days-cv-content-and-screening.md` (50KB). All four
+  grade their evidence and state their gaps rather than filling them.
+- **🔑 The map's oldest open question got an empirical answer.** **LinkedIn ran both organisation designs
+  at planetary scale and then deprecated its school-specific type** in favour of one generic
+  organisation, with the role carried by where it attaches — and ships **entity ID *and* typed-in name
+  side by side**, the only design that survives a real CV. **And the HSBC-vs-`HSBC Holdings plc` worry
+  this map has carried since #126 §8 is the *easy* case**, solved by fuzzy matching. What no string
+  method reaches: **brand ≠ legal entity, subsidiary vs parent, and rebrands/acquisitions over time** —
+  and **only decision 6's decades-long record accumulates the last one**. The relationship graph must
+  come from a registry (GLEIF/OpenCorporates, mature) **or from the person**.
+- **🚨 Skills is the weakest field in every published breakdown, with numbers.** State of the art mapping
+  free text to ESCO's 13,890 labels is **F1@5 = 0.72 — with five guesses allowed**; per-field accuracy
+  is **0.75–0.85 for skills against 0.99+ for name/email**. **~30% of parse failures happen before any
+  model runs** (document conversion). ⚠️ **And LLM parsers *"normalize to a title or skill the candidate
+  never claimed"* — silent, plausible, upgrade-shaped fabrication.** ⚠️ **The owner corrected my use of
+  the 0.72** — it measures taxonomy assignment, not the two-text judgement we actually need, which
+  `judge.ts` and `familyLearning.ts` already do. The real constraint is different and survived:
+  **a skill judged fresh at scoring time is not listable, traceable or correctable.** In `lessons.md`.
+- **⭐ Owner philosophy accepted and integrated, now in the shared core of `CLAUDE.md` + `AGENTS.md`:**
+  *the CV is a marketing document — propose stretches, softened, with a prepared interview narrative;
+  never moralise, never add anti-lying guardrails.* Ported from cv-factory at the owner's instruction and
+  saved to project memory. **`claim-miner.md` rule 7 governs *reading a CV*, and is NOT a product-wide
+  honesty mandate.** ✅ Its own core clause is kept because it is the owner's: **the machine never adds
+  silently; the human owns every stretch** — which is precisely why the parser-flattery finding is a
+  **bug under this philosophy, not an early version of the feature**.
+- **🔑 The owner's live case became the session's best evidence, and it cuts both ways.** A
+  finance-trading stretch **worked exactly as designed** — proposed, approved, won the interview, handled
+  honestly in the room (*"not directly with the market trading department, but collaborated on specific
+  subjects"*), **offer made**. Then it **leaked**: it appeared on a later unrelated advert and
+  **displaced a genuine fact**. Cause found in `JobCrush/contracts/enrichment_proposal.schema.md`,
+  **stated as a feature**: proposals are *"keyed to the claim graph, **not to any one offer** — so they
+  persist across offers"*, and the contract **records `originOffer` then discards it on approval**. The
+  displacement half has its own mechanism **live in this repo**: `preview-tailor.md` imposes a hard
+  two-page / 8–12-skill budget, so a stretch competes with genuine facts on equal terms — and
+  ⚠️ **`conservationIssues()` cannot catch it**, since it counts fact *classes*, not swaps within one.
+  Filed as **#141** with the owner's ***degree de maîtrise*** proposal — **a fourth instance of #139's
+  level question** (language level, degree class, skill proficiency, distance-from-truth). In `lessons.md`.
+- **⚠️ Two dated legal obligations, both in our primary market.** **Singapore's Workplace Fairness Act**
+  — in force ~**end-2027**, **SGD 50,000 per violation** — puts the local convention of **photo + date of
+  birth + nationality** on a collision course with the law in ~**18 months**. And the **EU AI Act's**
+  high-risk obligations for CV screening were due **2 August 2026** with the deferral to Dec 2027 agreed
+  but **not published in the Official Journal** — so **which regime applies is genuinely unresolved as of
+  today**. This turns **capture-versus-render** from a principle into a dated obligation, and it was
+  **independently confirmed** from the other research: JSON Resume's own open complaint is that omitting
+  dates forces candidates to *"either include dates that enable age discrimination or remove valuable
+  experience entirely"*, with a proposed **`datePolicy: hidden | approximate | exact`**.
+- **⚠️ Nothing in the standards landscape is safe to depend on.** JSON Resume — the de facto default —
+  was **archived 2026-06-12**, has been pre-1.0 since **2020**, and publishes **out-of-band** (npm ahead
+  of repo HEAD). HR Open has the best idea found (**typed date granularity**: *a year* and *a year-month*
+  are different types) and **two repos, 18 stars, newest 2022**. **Europass already ships owner decision
+  6** — stored profile in, CVs out, in production. And **nobody has prior art on the living record**:
+  eight `CareerGraph` repos created in four weeks, **all at 0 stars**; **no standard surveyed models
+  supersession or when-we-learned-it**, so those are ours to design.
+- **⚠️ Two premise-level findings routed OUT of this map, to #86.** Recruiters **publicly dispute that
+  ATS auto-rejection happens at all** (*"We never configured it, and I wouldn't use it if we did"*; 68%
+  call it a viral myth) while vendors claim 75% rejection — irreconcilable, and the *"75%"* figure has
+  **no traceable source**. And **optimising for a high match score is now inverted**: LLM screeners
+  prefer LLM-written CVs, so *"I use it to eliminate the top ranked candidates and start looking at
+  resumes in the 80% match range."* Plus the month's biggest thread (HN, 1,032 pts): an open-sourced ATS
+  scoring **one unchanged CV at 90, then 74, then 88**.
+- **Impact sweep run** across #131 (re-blocked on #140 — it floated onto the frontier when #130 closed),
+  #120, #122, #86, #54, #124, plus #139/#140 for the research. **#142 captured as needing its own
+  wayfinder map** — the application-history screen, which is where the interview narrative would finally
+  have a home (**it has no surface in this product today**) and the only possible feedback loop.
+- **Context files:** the shared cores were already byte-identical; one **additive** section added to both
+  (`The product proposes stretches — it does not police honesty`). No contradictions.
+- **Next session:** `/wayfinder 139` — the shared parts. Unblocked, evidence-backed, and the map's only
+  decision that cannot be cheaply revised.
+
 ## 2026-08-04 (session 78) — The stress test the map ordered never ran, and what fired instead was a live job-deleting bug
 
 _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 6. Owner grilling in French, resolved as [#125](https://github.com/adrien-mounier/jobcrush-app/issues/125), six decisions. **No ADR** — the decisions re-shape an existing element and belong to #130. Map frontier is now #130 alone._
