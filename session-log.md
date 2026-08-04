@@ -2,6 +2,58 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-04 (session 78) — The stress test the map ordered never ran, and what fired instead was a live job-deleting bug
+
+_Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 6. Owner grilling in French, resolved as [#125](https://github.com/adrien-mounier/jobcrush-app/issues/125), six decisions. **No ADR** — the decisions re-shape an existing element and belong to #130. Map frontier is now #130 alone._
+
+- **Both ADRs held; neither reopens.** ADR-0002's walk was mechanical end to end: the visitor's own word
+  → provenance track 2 → the `Languages:` line in `additional[]` (exists, takes anything) → rises into
+  the summary when the advert names the dimension → verified by the lint. The one probe that could have
+  broken it came from the owner — *does an advert that mentions a language as a **plus** count as
+  "testing" it?* — and resolved **yes**, using a distinction the product already carries (`kind:
+  "blocking" | "ordinary"`). No contract change, no fresh argument.
+- **🚨 The map's designated stress test did not happen, and this is the finding to carry.** #125 was
+  chartered as *the deliberately different second element*. It is not one: **a volunteered language is
+  the same element as the market tick-list with a different origin** — same store row, same shape. So
+  ADR-0001 was barely exercised. **Nothing on this map has yet shown that adding a genuinely new kind of
+  fact is mechanical**, and #130 is the only place left to run that test. Generalised in `lessons.md`.
+- **🔑 What did fire came from the owner mid-session: a language has a level.** An advert wanting
+  *fluent English + basic Japanese* cannot be expressed — neither side holds a grade. That lands exactly
+  on ADR-0001's own recorded boundary (*shape is settled at first shaping; changing it later is a
+  migration this rule will not make cheap*). Language shipped **binary** in #123 two weeks ago and
+  nobody asked whether a level belonged in it. **Second confirmed instance after employer, which
+  confirms ADR-0001 rather than refuting it.** Cheap today only because staging data is disposable.
+- **🚨 A live job-deleting bug, found while walking the ticket.** `languageFacts()` writes `none` for
+  every unticked language and `withdrawal.ts` treats `none` as an absolute *"I don't speak this"* —
+  withdrawing every posting with a blocking requirement for it, **including postings that only wanted
+  conversational level**, since `AdRequirementV1` carries no level at all. A candidate with real B1
+  Japanese, asked at a run-a-meeting bar, honestly does not tick and loses the job she was qualified
+  for. Live on Mandarin, Cantonese, Vietnamese; held back only by the screen's *"Not sure? Tick it."*
+  nudge and by how rarely the corpus states a language bar (English only, 2/17). Recorded on #123 and
+  #120; fixed structurally by decision 3. Generalised in `lessons.md`.
+- **The six decisions.** A **type-ahead over a known list** for declaring a language (free text never
+  matches an advert's word, so the "plus" stays invisible on the one advert that wanted it), a word
+  outside the list **kept not refused** · a **level counting on both sides**, priced through ADR-0001
+  rule 6's existing lazy re-read · **the machine never settles her level alone** — an advert triggers
+  the question and explains why *that* advert cares, asked **once per language ever** · a **ladder of
+  concrete situations**, never CEFR codes · ⚠️ **owner override**: the question fires even on a
+  *mentioned-as-a-plus* language, not only a demanded one · **below the bar never withdraws** — only an
+  explicit `none` does.
+- **⚠️ ADR-0002's per-advert objection was tested and does not bite.** It rejected asking per advert
+  because *"twenty applications become twenty decisions."* Here the count is **bounded by the number of
+  distinct languages** — five or six in an APAC career — **not by applications**. Answered once, stored
+  on the profile, never re-asked. Build note: ask when she engages with a card, not at deck load.
+- **⚠️ Serving non-English adverts ruled out of scope for the map.** Declaring a language never widens
+  what she is *shown*; `readingLanguages()` stays English-only. Reasons in order: the shelf is near-empty
+  where we sell (French firms in HK/SG publish in English) · a foreign-language advert demands a CV in
+  that language and **nothing in the pipeline can write one** · and reading ADR-0001 clause 4's *"used
+  in matching"* to include the reading gate would make language unshippable for months. **That decision
+  is what makes the element shippable at all**, at the accepted cost that half a stored fact sleeps.
+- **Impact sweep** across **#130, #120, #122, #131, #123, #86, #124**; #54 and #66 checked, no movement
+  (nothing here touches the claim graph). #130 got materially heavier — it inherits language as an
+  element to re-shape, and the four already-answered languages must be re-asked. #122 got its central
+  mechanism decided from the other end. #120's live harm turned out not to need a mistap.
+
 ## 2026-08-04 (session 77) — How a structured fact reaches the printed CV: the bridge already existed, plugged into the wrong end
 
 _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 4. Owner grilling in French, resolved as [#135](https://github.com/adrien-mounier/jobcrush-app/issues/135) → **[ADR-0002](docs/adr/0002-how-a-structured-fact-reaches-the-cv.md)**, five clauses. Map's fourth decision; #125 and #130 are now the frontier._

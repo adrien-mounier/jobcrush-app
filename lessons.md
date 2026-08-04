@@ -1,5 +1,46 @@
 # Lessons — jobcrush-app
 
+## A binary "no" defined by a bar you chose is a silent deleter when the other side has no bar
+
+`#123` asks *"Which of these can you work in professionally? Tick every one you could run a meeting
+in"*, and `languageFacts()` writes `none` for every unticked language. `withdrawal.ts` then treats
+`none` as an absolute *"I don't speak this"* and withdraws every posting with a blocking requirement
+for that language.
+
+The two halves are individually reasonable and jointly wrong. The question's `none` means **"not at
+the run-a-meeting bar"**. The withdrawal's `none` means **"not at all"**. Nothing converts between
+them, because `AdRequirementV1` carries **no level for a language at all** — so an advert wanting
+*basic Japanese* and an advert wanting *native Japanese* are the same demand. A candidate with real
+B1 Japanese answers honestly, and loses the job she was qualified for, silently. Found 2026-08-04
+while grilling #125; live on Mandarin, Cantonese and Vietnamese, held back only by a *"Not sure?
+Tick it."* nudge on the screen.
+
+**The generalisation:** whenever you compress an answer to a boolean, the bar you compressed it at
+becomes invisible in the stored value — and any consumer is free to read your `false` at *its own*
+bar. That is safe only while both sides agree on the bar, which nothing enforces and nobody writes
+down. Before storing a boolean for anything graded, ask what the *consumer* will read the `false` as.
+If the two bars can differ, store the grade, not the boolean. The fix here is a ladder of concrete
+situations where **not answering reads unknown** and only an explicit bottom rung is a no — the same
+shape as this repo's standing rule that an unknown must never withdraw a card (#86 decision 3).
+
+## A second element that shares a shape is not a second element — the stress test confirms nothing
+
+Map #127 chartered #125 as its **stress test**: the deliberately different second element the growth
+rule (ADR-0001) had to be walked through, on the principle that a rule nobody has applied twice is an
+untested claim. The walk was mechanical, no argument — and that result was **worthless**, because a
+volunteered language is not a second element. It is the *same* element as the market tick-list, with a
+different origin: same store row, same shape, same dimension. The rule was never asked to do anything.
+
+The real test arrived by accident, from the owner's own domain knowledge: *a language has a level*.
+That is a shape change on a shipped element — precisely the case ADR-0001 already says it does not
+cover — and it fired the ADR's boundary clause on a second element after the employer case.
+
+**The generalisation:** when you pick a case to falsify a rule, check that the case actually exercises
+the mechanism the rule governs, not merely that it *sounds* different from the first one. "A language"
+and "a job" sound like different elements; as far as the growth rule is concerned, adding a language to
+an existing language store is nothing at all. The test to apply before spending a session: **name which
+clause of the rule this case can make fail.** If you cannot, the case is a demonstration, not a test.
+
 ## A single control byte makes a source file invisible to every search — and the failure is silent
 
 `apps/api/src/eligibility.ts` line 83 uses a **raw NUL byte** as a key separator inside a template
