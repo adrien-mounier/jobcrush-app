@@ -528,7 +528,7 @@ for (const [name, make] of claimDrivers) {
 // #100 — the provider-posting store's re-fetch semantics (§2.6), proven on both drivers.
 function providerRecord(over: Partial<ProviderPostingRecordV1>): ProviderPostingRecordV1 {
   return {
-    schemaVersion: "2",
+    schemaVersion: "3",
     providerId: "techmap",
     providerPostingId: "tm-1",
     title: "Senior Project Manager",
@@ -541,7 +541,6 @@ function providerRecord(over: Partial<ProviderPostingRecordV1>): ProviderPosting
     verifiedLiveAt: "2026-08-01T09:00:00Z",
     expiresAt: "2026-09-01T00:00:00Z",
     attribution: null,
-    applicantLocationRequirements: [],
     skills: [],
     language: "en",
     ...over,

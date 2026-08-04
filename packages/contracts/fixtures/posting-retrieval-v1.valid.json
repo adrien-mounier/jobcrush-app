@@ -1,9 +1,9 @@
 {
-  "schemaVersion": "3",
+  "schemaVersion": "4",
   "outcome": "relevant_postings",
   "postings": [
     {
-      "schemaVersion": "3",
+      "schemaVersion": "4",
       "id": "posting:550d0cbf089e53a46249f4b7a22c9b363168e6189214b4fd5c4edb73523704f3",
       "canonicalKey": "550d0cbf089e53a46249f4b7a22c9b363168e6189214b4fd5c4edb73523704f3",
       "title": "Senior Project Manager",
@@ -20,7 +20,6 @@
         { "providerId": "curated-pool", "providerPostingId": "curated-001" },
         { "providerId": "techmap", "providerPostingId": "tm-778812" }
       ],
-      "applicantLocationRequirements": ["Hong Kong"],
       "skills": ["Agile delivery", "Stakeholder management"],
       "language": "en"
     }

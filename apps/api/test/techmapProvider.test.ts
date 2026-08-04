@@ -14,6 +14,7 @@ import {
   MinIntervalGate,
   normalizeTechmapItem,
   resetTechmapPacingForTest,
+  TECHMAP_PAGE_SIZE,
   TechmapPostingProvider,
   techmapProviderFromEnv,
   TestFixturePostingProvider,
@@ -44,7 +45,6 @@ function techmapItem(overrides: Record<string, unknown> = {}, jsonLDOverrides: R
         "@type": "Place",
         address: { "@type": "PostalAddress", addressLocality: "Hong Kong", addressCountry: "HK" },
       },
-      applicantLocationRequirements: [{ "@type": "Country", name: "Hong Kong" }],
       skills: ["Agile delivery", "Stakeholder management"],
       url: "https://jobdatafeeds.com/jobs/senior-project-manager-bnp-paribas",
       ...jsonLDOverrides,
@@ -82,8 +82,8 @@ describe("normalizeTechmapItem (#100, §6)", () => {
     expect(record).not.toBeNull();
     expect(record!.excerpt).toContain("Lead delivery of a portfolio");
     expect(record!.excerpt).toContain("PMP or equivalent preferred");
-    expect(record!.applicantLocationRequirements).toEqual(["Hong Kong"]);
     expect(record!.skills).toEqual(["Agile delivery", "Stakeholder management"]);
+    expect(record).not.toHaveProperty("applicantLocationRequirements"); // #133: removed, not carried
     // #133 item 3: canonicalized, not verbatim — both already-ISO inputs land on the same
     // uniform ISO 8601 shape (YYYY-MM-DDTHH:mm:ss.sssZ), not a passthrough of whatever the
     // provider happened to send.
@@ -154,7 +154,7 @@ describe("normalizeTechmapItem (#100, §6)", () => {
     expect(record!.sourceUrl).toBe("https://jobdatafeeds.com/jobs/senior-project-manager-bnp-paribas");
   });
 
-  it("accepts identifier/hiringOrganization/jobLocation given as bare strings, and skills/applicantLocationRequirements as plain string arrays", () => {
+  it("accepts identifier/hiringOrganization/jobLocation given as bare strings, and skills as a plain string array", () => {
     const record = normalizeTechmapItem(
       techmapItem(
         {},
@@ -162,7 +162,6 @@ describe("normalizeTechmapItem (#100, §6)", () => {
           identifier: "bare-id-1",
           hiringOrganization: "Acme Corp",
           jobLocation: "Singapore",
-          applicantLocationRequirements: ["Singapore"],
           skills: ["Jira"],
         },
       ),
@@ -172,8 +171,21 @@ describe("normalizeTechmapItem (#100, §6)", () => {
     expect(record!.providerPostingId).toBe("bare-id-1");
     expect(record!.company).toBe("Acme Corp");
     expect(record!.location).toBe("Singapore");
-    expect(record!.applicantLocationRequirements).toEqual(["Singapore"]);
     expect(record!.skills).toEqual(["Jira"]);
+  });
+
+  // #133 item 1 (owner decision): jsonLD.applicantLocationRequirements is NEVER read, even when
+  // present — the live feed populates it with a bare timezone string ("HKT Timezone"), not
+  // eligibility data, and mapping it anywhere would be exactly the "permissive union must never
+  // silently become a gating input" hazard postingRetrieval.ts warns against for this field.
+  it("never reads jsonLD.applicantLocationRequirements, even when the provider sends it", () => {
+    const record = normalizeTechmapItem(
+      techmapItem({}, { applicantLocationRequirements: "HKT Timezone" }),
+      "2026-08-04T00:00:00Z",
+      TECHMAP_POLICY,
+    );
+    expect(record).not.toBeNull();
+    expect(record).not.toHaveProperty("applicantLocationRequirements");
   });
 });
 
@@ -335,7 +347,7 @@ describe("TechmapPostingProvider.fetch (#100, §2.9, §2.10)", () => {
     });
     const provider = new TechmapPostingProvider({ apiKey: "secret-key-123", policy: noPacing, fetchImpl });
 
-    await provider.fetch({ regionCode: "HK", queryKeywords: ["project", "manager"], page: 0, size: 3 });
+    await provider.fetch({ regionCode: "HK", queryKeywords: ["project", "manager"], page: 0 });
 
     expect(calls).toHaveLength(1);
     const [{ url, init }] = calls;
@@ -343,12 +355,33 @@ describe("TechmapPostingProvider.fetch (#100, §2.9, §2.10)", () => {
     expect(url).not.toContain("/Jobs/Search"); // §6: the path is lowercase
     expect(url).toContain("countryCode=hk");
     expect(url).toContain("page=0");
-    expect(url).toContain("size=3");
+    expect(url).toContain(`size=${TECHMAP_PAGE_SIZE}`);
     expect(url).toContain("title=project+manager");
     expect(url).not.toContain("secret-key-123"); // the key never travels in the URL
     const headers = init.headers as Record<string, string>;
     expect(headers["x-rapidapi-key"]).toBe("secret-key-123");
     expect(headers["x-rapidapi-host"]).toBe("daily-international-job-postings.p.rapidapi.com");
+  });
+
+  // #133 item 4: `size` is a fixed vendor constant (measured live on staging 2026-08-04: size=1,
+  // size=20, and size=50 ALL returned pageSize=10) — pinned here so a future change can't quietly
+  // reintroduce a made-up page size. `PostingProviderFetchInput` has no `size` field at all (a
+  // caller cannot even ask for a different one); only `page` varies the request.
+  it("MF-page-size: TECHMAP_PAGE_SIZE is the measured, fixed value (10), and every request sends exactly that", async () => {
+    expect(TECHMAP_PAGE_SIZE).toBe(10);
+
+    const urls: string[] = [];
+    const fetchImpl = vi.fn(async (url: string | URL) => {
+      urls.push(String(url));
+      return jsonResponse(200, { result: [] });
+    });
+    const provider = new TechmapPostingProvider({ apiKey: "k", policy: noPacing, fetchImpl });
+
+    await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+    await provider.fetch({ regionCode: "HK", queryKeywords: [], page: 1 });
+    await provider.fetch({ regionCode: "SG", queryKeywords: ["project manager"] });
+
+    for (const url of urls) expect(url).toContain("size=10");
   });
 
   it("returns ok:true with normalized records on a well-formed 200", async () => {

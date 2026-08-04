@@ -20,9 +20,13 @@
 //
 // #100 review S2/S3: sampled across SEVERAL items (not just the first), and split into two classes —
 // fields with a jsonLD path (providerPostingId/sourceUrl/company/location/excerpt) hard-fail on ANY
-// sampled item, because those must always resolve to a genuine value; skills/applicantLocationRequirements/
-// expiresAt have no fallback and are perfectly ordinary to be genuinely absent on any ONE advert, so
-// those only fail if EMPTY ACROSS EVERY sampled item — otherwise they're reported as a ratio.
+// sampled item, because those must always resolve to a genuine value; skills/expiresAt have no
+// fallback and are perfectly ordinary to be genuinely absent on any ONE advert, so those only fail
+// if EMPTY ACROSS EVERY sampled item — otherwise they're reported as a ratio.
+//
+// #133 item 1 (owner decision): jsonLD.applicantLocationRequirements is NEVER read or reported here
+// — the live feed populates it with a bare timezone string, not eligibility data, and the field was
+// removed from the contract entirely (postingProvider.ts's own comment on normalizeTechmapItem).
 //
 // Requires the API package BUILT first — this imports the compiled driver directly, the same way
 // this repo's own manual-run instructions already assume a build (root CLAUDE.md: "node
@@ -37,6 +41,7 @@ import {
   normalizeTechmapItem,
   TechmapPostingProvider,
   TECHMAP_HOST,
+  TECHMAP_PAGE_SIZE,
   TECHMAP_PATH,
 } from '../dist/postingProvider.js';
 
@@ -66,8 +71,10 @@ const policy = {
   freshnessTtlHours: 24,
 };
 
-const SAMPLE_SIZE = 5;
-const REQUEST = { regionCode: 'HK', queryKeywords: ['project', 'manager'], page: 0, size: SAMPLE_SIZE };
+// #133 item 4: no `size` field — the client no longer accepts one (Techmap ignores it and always
+// returns TECHMAP_PAGE_SIZE items per page; see postingProvider.ts's own comment). The sample is
+// therefore exactly one page's worth, whatever that measures to be.
+const REQUEST = { regionCode: 'HK', queryKeywords: ['project', 'manager'], page: 0 };
 
 async function main() {
   // Call 1: through the REAL client — proves the path/headers/retry/timeout handling itself works.
@@ -91,7 +98,7 @@ async function main() {
   const url = new URL(`https://${TECHMAP_HOST}${TECHMAP_PATH}`);
   url.searchParams.set('countryCode', 'hk');
   url.searchParams.set('page', '0');
-  url.searchParams.set('size', String(SAMPLE_SIZE));
+  url.searchParams.set('size', String(TECHMAP_PAGE_SIZE));
   url.searchParams.set('title', 'project manager');
   const res = await fetch(url.toString(), {
     headers: { 'x-rapidapi-key': apiKey, 'x-rapidapi-host': TECHMAP_HOST },
@@ -111,7 +118,7 @@ async function main() {
   }
 
   const hardFailures = [];
-  const optionalCounts = { skills: 0, applicantLocationRequirements: 0, expiresAt: 0 };
+  const optionalCounts = { skills: 0, expiresAt: 0 };
 
   items.forEach((rawItem, i) => {
     const jsonLD = rawItem && typeof rawItem === 'object' ? rawItem.jsonLD ?? {} : {};
@@ -152,10 +159,9 @@ async function main() {
       hardFailures.push(`item[${i}] excerpt: does not match jsonLD.description`);
     }
 
-    // No top-level fallback exists for these three, and it's ORDINARY for one advert to omit any of
-    // them — track how many of the sampled items carry each, don't fail per-item.
+    // No top-level fallback exists for these two, and it's ORDINARY for one advert to omit either —
+    // track how many of the sampled items carry each, don't fail per-item.
     if (record.skills.length > 0) optionalCounts.skills++;
-    if (record.applicantLocationRequirements.length > 0) optionalCounts.applicantLocationRequirements++;
     if (record.expiresAt) optionalCounts.expiresAt++;
   });
 
@@ -176,8 +182,6 @@ async function main() {
   console.log(`PASS: ${items.length} sampled items — required fields all traced to their real jsonLD/top-level source`);
   // eslint-disable-next-line no-console
   console.log(`  skills present on ${optionalCounts.skills}/${items.length} items`);
-  // eslint-disable-next-line no-console
-  console.log(`  applicantLocationRequirements present on ${optionalCounts.applicantLocationRequirements}/${items.length} items`);
   // eslint-disable-next-line no-console
   console.log(`  expiresAt present on ${optionalCounts.expiresAt}/${items.length} items`);
 }

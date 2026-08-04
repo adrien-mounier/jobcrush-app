@@ -41,7 +41,7 @@ const Attribution = z
 
 export const ProviderPostingRecordV1 = z
   .object({
-    schemaVersion: z.literal("2"), // #100 bumped 1->2: added `language` (breaking, see below)
+    schemaVersion: z.literal("3"), // #133 bumped 2->3: removed `applicantLocationRequirements` (breaking, see below)
     providerId: z.string().min(1), // "techmap" | "curated-pool" | ... — keyed to the §2.2 registry
     providerPostingId: z.string().min(1), // opaque, exactly as given by that provider
     title: z.string().min(1),
@@ -65,9 +65,9 @@ export const ProviderPostingRecordV1 = z
     // `validThrough` field is added, this IS it, renamed to the domain-neutral term.
     expiresAt: z.string().min(1).nullable(),
     attribution: Attribution.nullable(), // THIS provider's own attribution requirement, if any
-    // §6: carried structured, never flattened into `excerpt` — a work-eligibility signal and a
-    // structured skills list the provider already gives us for free.
-    applicantLocationRequirements: z.array(z.string()),
+    // §6: carried structured, never flattened into `excerpt` — a structured skills list the
+    // provider already gives us for free. (#133: `applicantLocationRequirements` was REMOVED, not
+    // kept empty — see PostingV1's own comment on this same removal for why.)
     skills: z.array(z.string()),
     // #100: this record's OWN detected language (language.ts's detectLanguage, run on `excerpt`),
     // derived HERE at ingest by whatever produced this record (the provider client is the pool's
@@ -81,8 +81,8 @@ export type ProviderPostingRecordV1 = z.infer<typeof ProviderPostingRecordV1>;
 
 export const PostingV1 = z
   .object({
-    schemaVersion: z.literal("3"), // canonical, provider-independent, what #63 consumes
-    // #100 bumped 2->3: added `language` (breaking, see below)
+    schemaVersion: z.literal("4"), // canonical, provider-independent, what #63 consumes
+    // #133 bumped 3->4: removed `applicantLocationRequirements` (breaking, see below)
     id: z.string().min(1), // "posting:<canonicalKey>" — enforced below, not just typed as a string
     canonicalKey: z.string().min(1), // the dedup key itself (§2.4), kept for audit/debugging
     title: z.string().min(1), // from the highest-authorityRank contributing record (§2.4)
@@ -107,17 +107,19 @@ export const PostingV1 = z
       )
       .min(1),
     // Resolved by the SAME authorityRank-winner rule as title/company/location/sourceUrl — NOT a
-    // union. A permissive union of eligibility locations must never silently become a gating input
-    // (carry-forward of #106's comment): a wider "any provider's claimed applicant location" set
-    // would let a posting look eligible in a region no single provider actually vouches for.
-    applicantLocationRequirements: z.array(z.string()),
+    // union (kept for `skills`; `applicantLocationRequirements` itself was REMOVED in #133, not kept
+    // empty — the live Techmap feed populated it with a bare timezone string, not eligibility data,
+    // and its only intended consumer, the AC5 provider-signal seam, was already deleted in review
+    // 2026-08-03 — see eligibilityDiscovery.ts's own comment on that deletion. A misnamed empty
+    // placeholder reads as "we have eligibility data" to the next person; a real work-eligibility
+    // field should be designed against a real provider's real data when one appears, not kept as a
+    // vestige of this one).
     skills: z.array(z.string()),
-    // #100: resolved by the SAME authorityRank-winner rule as title/company/location/
-    // applicantLocationRequirements/skills — NOT a union. Language is itself a gating input
-    // (language.ts's languageEligible), so a permissive union across contributing records (e.g. one
-    // provider says "en", another says "zh") could make a posting look eligible to a reader no
-    // single provider's own record actually supports — the same reasoning this file already gives
-    // for why applicantLocationRequirements/skills don't union either.
+    // #100: resolved by the SAME authorityRank-winner rule as title/company/location/skills — NOT a
+    // union. Language is itself a gating input (language.ts's languageEligible), so a permissive
+    // union across contributing records (e.g. one provider says "en", another says "zh") could make
+    // a posting look eligible to a reader no single provider's own record actually supports — the
+    // same reasoning this file already gives for why skills doesn't union either.
     language: z.string().min(1),
   })
   .strict()
@@ -240,14 +242,14 @@ export const InvalidRequestCode = z.enum([
 ]);
 
 // §2.7: coverage makes partial availability honest, never collapsed into a bare "no jobs" state.
-// #100 review (must-fix round): bumped 2->3 in step with PostingV1's own 2->3 bump — nothing external
-// consumes this envelope yet, so this is cheap now (a fixture/test update) and expensive to catch
-// later once something does.
+// #133 bumped 3->4 in step with PostingV1's own 3->4 bump (applicantLocationRequirements removed) —
+// nothing external consumes this envelope yet, so this is cheap now (a fixture/test update) and
+// expensive to catch later once something does.
 export const PostingRetrievalResultV1 = z
   .discriminatedUnion("outcome", [
     z
       .object({
-        schemaVersion: z.literal("3"),
+        schemaVersion: z.literal("4"),
         outcome: z.literal("relevant_postings"),
         postings: z.array(PostingV1).min(1),
         coverage: Coverage,
@@ -256,7 +258,7 @@ export const PostingRetrievalResultV1 = z
       .strict(),
     z
       .object({
-        schemaVersion: z.literal("3"),
+        schemaVersion: z.literal("4"),
         outcome: z.literal("empty_pool"),
         coverage: Coverage, // MUST have complete === true (enforced below) — see §2.7 rule 4
         retrievedAt: z.string().min(1),
@@ -264,7 +266,7 @@ export const PostingRetrievalResultV1 = z
       .strict(),
     z
       .object({
-        schemaVersion: z.literal("3"),
+        schemaVersion: z.literal("4"),
         outcome: z.literal("provider_unavailable"),
         coverage: Coverage,
         reason: z.string().min(1),
@@ -273,7 +275,7 @@ export const PostingRetrievalResultV1 = z
       .strict(),
     z
       .object({
-        schemaVersion: z.literal("3"),
+        schemaVersion: z.literal("4"),
         outcome: z.literal("stale_data"),
         lastKnownFreshAt: z.string().min(1),
         retrievedAt: z.string().min(1),
@@ -281,7 +283,7 @@ export const PostingRetrievalResultV1 = z
       .strict(),
     z
       .object({
-        schemaVersion: z.literal("3"),
+        schemaVersion: z.literal("4"),
         outcome: z.literal("invalid_request"),
         code: InvalidRequestCode,
       })

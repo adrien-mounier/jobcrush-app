@@ -418,17 +418,21 @@ describe("Posting retrieval v1 (#99)", () => {
 
   it("keeps oracle and zod aligned for every required structural invariant", () => {
     const mutations: Array<(value: any) => void> = [
-      // top-level schemaVersion is pinned to "3" (#100 review) on every arm, not "1" or its own prior "2"
+      // top-level schemaVersion is pinned to "4" (#133) on every arm, not any prior version
       (value) => (value.schemaVersion = "1"),
       (value) => (value.schemaVersion = "2"),
+      (value) => (value.schemaVersion = "3"),
       // unknown/extra keys rejected — same mechanism as the ad-requirements oracle
       (value) => (value.unknownField = true),
       (value) => (value.postings[0].unknownField = true),
+      // applicantLocationRequirements was REMOVED (#133) — reintroducing it is now an unknown key
+      (value) => (value.postings[0].applicantLocationRequirements = []),
       // PostingV1.id must equal "posting:" + canonicalKey — enforce the derivation
       (value) => (value.postings[0].id = "posting:not-the-real-key"),
-      // PostingV1 carries schemaVersion "3" (#100), not "1" or its own prior "2"
+      // PostingV1 carries schemaVersion "4" (#133), not any prior version
       (value) => (value.postings[0].schemaVersion = "1"),
       (value) => (value.postings[0].schemaVersion = "2"),
+      (value) => (value.postings[0].schemaVersion = "3"),
       // PostingV1.sources has min length 1
       (value) => (value.postings[0].sources = []),
       // canonicalKey must actually BE sha256(normalize(company)+"|"+normalize(location)+"|"
@@ -490,7 +494,7 @@ describe("Posting retrieval v1 (#99)", () => {
       "floor_not_covered",
       "search_area_not_covered",
     ]) {
-      const invalidRequest = { schemaVersion: "3", outcome: "invalid_request", code };
+      const invalidRequest = { schemaVersion: "4", outcome: "invalid_request", code };
       expect(validatePostingRetrievalResultV1(invalidRequest).ok).toBe(true);
       expect(PostingRetrievalResultV1.safeParse(invalidRequest).success).toBe(true);
     }
@@ -498,7 +502,7 @@ describe("Posting retrieval v1 (#99)", () => {
 
   it("empty_pool with a fully complete coverage sweep validates in both", () => {
     const emptyPool = {
-      schemaVersion: "3",
+      schemaVersion: "4",
       outcome: "empty_pool",
       coverage: { providersQueried: ["curated-pool"], providersUnavailable: [], complete: true },
       retrievedAt: "2026-08-01T09:05:00Z",
@@ -508,9 +512,9 @@ describe("Posting retrieval v1 (#99)", () => {
   });
 });
 
-describe("ProviderPostingRecordV1 (#99, #100)", () => {
+describe("ProviderPostingRecordV1 (#99, #100, #133)", () => {
   const valid = {
-    schemaVersion: "2",
+    schemaVersion: "3",
     providerId: "curated-pool",
     providerPostingId: "curated-001",
     title: "Senior Project Manager",
@@ -523,7 +527,6 @@ describe("ProviderPostingRecordV1 (#99, #100)", () => {
     verifiedLiveAt: "2026-08-01T09:00:00Z",
     expiresAt: "2026-09-01T00:00:00Z",
     attribution: null,
-    applicantLocationRequirements: ["Hong Kong"],
     skills: ["Agile delivery"],
     language: "en",
   };
@@ -536,11 +539,13 @@ describe("ProviderPostingRecordV1 (#99, #100)", () => {
   it("keeps oracle and zod aligned for every required structural invariant", () => {
     const mutations: Array<(value: any) => void> = [
       (value) => (value.schemaVersion = "1"),
+      (value) => (value.schemaVersion = "2"),
       (value) => delete value.providerId,
       (value) => (value.title = ""),
       (value) => (value.postedAt = ""), // non-empty string or null, not an empty string
       (value) => (value.attribution = { label: "via X" }), // missing url
-      (value) => (value.applicantLocationRequirements = ["Hong Kong", 1]),
+      // applicantLocationRequirements was REMOVED (#133) — reintroducing it is now an unknown key
+      (value) => (value.applicantLocationRequirements = ["Hong Kong"]),
       (value) => (value.skills = "Agile delivery"), // must be an array
       (value) => delete value.language, // #100: required
       (value) => (value.language = ""), // non-empty

@@ -109,13 +109,12 @@ export function validateProviderPostingRecordV1(value) {
       "verifiedLiveAt",
       "expiresAt",
       "attribution",
-      "applicantLocationRequirements",
       "skills",
       "language",
     ],
     "record",
   );
-  e.require(value.schemaVersion === "2", 'schemaVersion must be "2"');
+  e.require(value.schemaVersion === "3", 'schemaVersion must be "3"');
   e.require(isNonEmptyString(value.providerId), "providerId must be a non-empty string");
   e.require(isNonEmptyString(value.providerPostingId), "providerPostingId must be a non-empty string");
   e.require(isNonEmptyString(value.title), "title must be a non-empty string");
@@ -128,10 +127,6 @@ export function validateProviderPostingRecordV1(value) {
   e.require(isNonEmptyString(value.verifiedLiveAt), "verifiedLiveAt must be a non-empty string");
   e.require(isNonEmptyStringOrNull(value.expiresAt), "expiresAt must be a non-empty string or null");
   validateAttribution(e, value.attribution, "attribution");
-  e.require(
-    isStringArray(value.applicantLocationRequirements),
-    "applicantLocationRequirements must be a string[]",
-  );
   e.require(isStringArray(value.skills), "skills must be a string[]");
   e.require(isNonEmptyString(value.language), "language must be a non-empty string");
   return result(e);
@@ -158,13 +153,12 @@ export function validatePostingV1(value) {
       "expiresAt",
       "attribution",
       "sources",
-      "applicantLocationRequirements",
       "skills",
       "language",
     ],
     "posting",
   );
-  e.require(value.schemaVersion === "3", 'schemaVersion must be "3"');
+  e.require(value.schemaVersion === "4", 'schemaVersion must be "4"');
   e.require(isNonEmptyString(value.id), "id must be a non-empty string");
   e.require(isNonEmptyString(value.canonicalKey), "canonicalKey must be a non-empty string");
   if (isNonEmptyString(value.id) && isNonEmptyString(value.canonicalKey)) {
@@ -198,10 +192,6 @@ export function validatePostingV1(value) {
   e.require(isNonEmptyStringOrNull(value.expiresAt), "expiresAt must be a non-empty string or null");
   validateAttributionArray(e, value.attribution, "attribution");
   validateSources(e, value.sources, "sources");
-  e.require(
-    isStringArray(value.applicantLocationRequirements),
-    "applicantLocationRequirements must be a string[]",
-  );
   e.require(isStringArray(value.skills), "skills must be a string[]");
   e.require(isNonEmptyString(value.language), "language must be a non-empty string");
   return result(e);
@@ -316,7 +306,7 @@ function validateCoverage(e, value, at) {
 export function validatePostingRetrievalResultV1(value) {
   const e = new Errors();
   if (!e.require(isObject(value), "retrieval result must be an object")) return result(e);
-  e.require(value.schemaVersion === "3", 'schemaVersion must be "3"');
+  e.require(value.schemaVersion === "4", 'schemaVersion must be "4"');
   e.require(oneOf(value.outcome, OUTCOMES), "outcome is invalid");
 
   if (value.outcome === "relevant_postings") {

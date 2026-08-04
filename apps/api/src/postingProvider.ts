@@ -21,7 +21,11 @@ export interface PostingProviderFetchInput {
    *  confirmed evidence is reduced to keywords before it leaves the server, for every provider). */
   queryKeywords: string[];
   page?: number;
-  size?: number;
+  // #133 item 4: `size` deliberately REMOVED, not left as a no-op parameter. Measured live on
+  // staging 2026-08-04 (three calls, same query): size=1, size=20, and size=50 all returned
+  // pageSize=10, 10 items, totalCount=58 — Techmap's per-page count is a fixed vendor constant
+  // (TECHMAP_PAGE_SIZE below), never caller-configurable, so a `size` field would silently do
+  // nothing. Paging still works via `page`; only the per-page count is fixed.
 }
 
 export type PostingProviderFetchResult =
@@ -180,7 +184,14 @@ export function resetTechmapPacingForTest(): void {
 // returns "Endpoint does not exist").
 export const TECHMAP_HOST = "daily-international-job-postings.p.rapidapi.com";
 export const TECHMAP_PATH = "/api/v2/jobs/search";
-const DEFAULT_PAGE_SIZE = 20;
+// #133 item 4: NOT a default a caller can override — Techmap's own page size, measured live on
+// staging 2026-08-04. Three calls against the same query (HK "project manager"): size=1, size=20,
+// and size=50 ALL returned pageSize=10, 10 items, totalCount=58. `size` is not a floor — the vendor
+// ignores it entirely and always returns exactly 10. Owner's framing: 10 is our unit of retrieval
+// and of cost; anything wanting more pages more calls. Exported for the same reason
+// TECHMAP_HOST/TECHMAP_PATH are — so a test or the smoke script cites this constant rather than a
+// re-typed "10" that could silently drift from it.
+export const TECHMAP_PAGE_SIZE = 10;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
@@ -332,16 +343,25 @@ function extractEnvelope(body: unknown): { items: unknown[]; totalCount: number 
 /**
  * One Techmap result item -> ProviderPostingRecordV1, or null if a required field is genuinely
  * missing (skipped, not fabricated — §2.1's fields are all real vendor data). §6: the advert body is
- * jsonLD.description, NOT any top-level field; structured fields (applicantLocationRequirements,
- * skills, validThrough->expiresAt) are carried through rather than flattened into excerpt or
- * re-derived by a model. validThrough->expiresAt and datePosted->postedAt are run through
- * canonicalizeTechmapDate (#133 item 3) rather than stored verbatim — see that function's own
- * comment for why. `language` is detected HERE, at this ingest entry point, from the excerpt —
- * never taken from the provider (the ticket's language-gate requirement) — but is NOT counted here
- * (#100 review MF6): this function runs on EVERY fetch, including a re-fetch of an already-known
- * posting, so counting per-normalize would inflate postings.language_skipped/undetermined with every
- * refresh instead of once per genuinely new posting. The count moves to postingStore.ts's upsert(),
- * which is the one place that actually knows "is this posting new to us".
+ * jsonLD.description, NOT any top-level field; the structured `skills` list is carried through
+ * rather than flattened into excerpt or re-derived by a model. validThrough->expiresAt and
+ * datePosted->postedAt are run through canonicalizeTechmapDate (#133 item 3) rather than stored
+ * verbatim — see that function's own comment for why. `language` is detected HERE, at this ingest
+ * entry point, from the excerpt — never taken from the provider (the ticket's language-gate
+ * requirement) — but is NOT counted here (#100 review MF6): this function runs on EVERY fetch,
+ * including a re-fetch of an already-known posting, so counting per-normalize would inflate
+ * postings.language_skipped/undetermined with every refresh instead of once per genuinely new
+ * posting. The count moves to postingStore.ts's upsert(), which is the one place that actually
+ * knows "is this posting new to us".
+ *
+ * #133 item 1: `jsonLD.applicantLocationRequirements` is deliberately NEVER read. The live feed
+ * populates it with a bare timezone string ("HKT Timezone"), not work-eligibility data and not an
+ * array — mapping it into any eligibility-bearing field would be exactly the "a permissive union
+ * must never silently become a gating input" hazard postingRetrieval.ts already warns against for
+ * this field. Its only intended consumer (the AC5 provider-signal seam) was already deleted in
+ * review 2026-08-03 for an independent, still-valid reason (eligibilityDiscovery.ts's own comment
+ * on that deletion). Owner decision: removed from the contract entirely, not kept as an empty
+ * placeholder — a misnamed empty field reads as "we have eligibility data" to the next person.
  */
 export function normalizeTechmapItem(
   item: unknown,
@@ -363,7 +383,7 @@ export function normalizeTechmapItem(
   const language = detectLanguage(excerpt);
 
   return ProviderPostingRecordV1.parse({
-    schemaVersion: "2",
+    schemaVersion: "3",
     providerId: "techmap",
     providerPostingId,
     title,
@@ -379,7 +399,6 @@ export function normalizeTechmapItem(
     // pulled from the policy rather than hand-set here, so a future policy change (an
     // attributionTemplate added) is honored automatically with no code change at this call site.
     attribution: policy.attributionTemplate,
-    applicantLocationRequirements: asStringArray(jsonLD.applicantLocationRequirements),
     skills: asStringArray(jsonLD.skills),
     language,
   });
@@ -481,7 +500,7 @@ export class TechmapPostingProvider implements PostingProvider {
     const url = new URL(`https://${TECHMAP_HOST}${TECHMAP_PATH}`);
     url.searchParams.set("countryCode", input.regionCode.toLowerCase());
     url.searchParams.set("page", String(input.page ?? 0));
-    url.searchParams.set("size", String(input.size ?? DEFAULT_PAGE_SIZE));
+    url.searchParams.set("size", String(TECHMAP_PAGE_SIZE)); // #133 item 4: fixed, never caller-chosen
     if (input.queryKeywords.length > 0) url.searchParams.set("title", input.queryKeywords.join(" "));
 
     const res = await fetchImpl(url.toString(), {

@@ -152,7 +152,7 @@ export function dedupePostings(
     }
 
     const posting: PostingV1Value = {
-      schemaVersion: "3", // #100 bumped 2->3: added `language`
+      schemaVersion: "4", // #133 bumped 3->4: removed `applicantLocationRequirements`
       id: `posting:${canonicalKey}`,
       canonicalKey,
       title: winner.title,
@@ -169,10 +169,11 @@ export function dedupePostings(
       ),
       attribution: [...attributionByKey.values()],
       sources,
-      // Resolved by the SAME authorityRank-winner rule as title/company/location — NOT a union.
-      // See postingRetrieval.ts's own comment: a permissive union of eligibility locations must
-      // never silently become a gating input.
-      applicantLocationRequirements: winner.applicantLocationRequirements,
+      // #133: applicantLocationRequirements REMOVED (not carried, not unioned) — the live Techmap
+      // feed populated it with a bare timezone string, not eligibility data, and its only intended
+      // consumer was already deleted (eligibilityDiscovery.ts's #106 must-fix 7 comment). Resolved
+      // by the SAME authorityRank-winner rule as title/company/location — see postingRetrieval.ts's
+      // own comment on why skills doesn't union either.
       skills: winner.skills,
       // #100: same winner-take-all rule, same reason — language is itself a gating input
       // (language.ts's languageEligible), never a union of what each provider separately detected.

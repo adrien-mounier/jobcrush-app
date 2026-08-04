@@ -16,7 +16,7 @@ function record(
     Pick<ProviderPostingRecordV1, "providerId" | "providerPostingId" | "title" | "company" | "location">,
 ): ProviderPostingRecordV1 {
   return {
-    schemaVersion: "2",
+    schemaVersion: "3",
     sourceUrl: `https://example.com/${overrides.providerId}/${overrides.providerPostingId}`,
     excerpt: "Full advert text.",
     postedAt: "2026-07-28T00:00:00Z",
@@ -24,7 +24,6 @@ function record(
     verifiedLiveAt: "2026-08-01T09:00:00Z",
     expiresAt: "2026-09-01T00:00:00Z",
     attribution: null,
-    applicantLocationRequirements: [],
     skills: [],
     language: "en",
     ...overrides,
@@ -140,7 +139,7 @@ describe("dedupePostings (#99, §2.4)", () => {
     expect(dedupePostings([a, b], REGISTRY)).toHaveLength(1);
   });
 
-  it("conflict resolution: the lower-authorityRank record wins title/company/location/sourceUrl/applicantLocationRequirements/skills", () => {
+  it("conflict resolution: the lower-authorityRank record wins title/company/location/sourceUrl/skills", () => {
     // Title/company/location must still normalize to the SAME canonical key for these to merge at
     // all (a genuinely different title never merges — that's the whole point of §2.4's no-false-
     // positive rule). So the "conflict" here is a pure formatting variant of the same job: extra
@@ -151,7 +150,6 @@ describe("dedupePostings (#99, §2.4)", () => {
       company: "BNP Paribas",
       location: "Hong Kong",
       sourceUrl: "https://techmap.example/1",
-      applicantLocationRequirements: ["must already hold HK ID"],
       skills: ["Jira"],
     });
     const lowerRank = record({
@@ -160,19 +158,18 @@ describe("dedupePostings (#99, §2.4)", () => {
       company: "BNP Paribas",
       location: "Hong Kong",
       sourceUrl: "https://curated.example/1",
-      applicantLocationRequirements: ["Hong Kong"],
       skills: ["Stakeholder management"],
     });
     const [posting] = dedupePostings([higherRank, lowerRank], REGISTRY);
     expect(posting!.title).toBe("Senior Project Manager");
     expect(posting!.sourceUrl).toBe("https://curated.example/1");
-    expect(posting!.applicantLocationRequirements).toEqual(["Hong Kong"]);
     expect(posting!.skills).toEqual(["Stakeholder management"]);
+    expect(posting).not.toHaveProperty("applicantLocationRequirements"); // #133: removed, not carried
   });
 
-  // #100: language follows the SAME authorityRank-winner rule as applicantLocationRequirements/
-  // skills, NOT a union — a union would let a posting one provider detected as non-English look
-  // eligible under the OTHER provider's "en" label, which no single record actually supports.
+  // #100: language follows the SAME authorityRank-winner rule as skills, NOT a union — a union
+  // would let a posting one provider detected as non-English look eligible under the OTHER
+  // provider's "en" label, which no single record actually supports.
   it("language resolves by the authorityRank-winner rule, never a union of contributing records", () => {
     const higherRankZh = record({
       providerId: "techmap", providerPostingId: "tm-1",
