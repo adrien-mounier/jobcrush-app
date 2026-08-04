@@ -49,6 +49,15 @@ export const ProviderPostingRecordV1 = z
     location: z.string().min(1),
     sourceUrl: z.string().min(1), // resolves to the original listing (parent spec story #52)
     excerpt: z.string(),
+    // postedAt/expiresAt are typed loosely (non-empty string, not an ISO-format regex) ON PURPOSE
+    // (#133 item 3 decision): the "must be canonical ISO 8601" invariant is enforced by
+    // construction at the one place that ever CONSTRUCTS these fields from raw provider data —
+    // postingProvider.ts's canonicalizeTechmapDate, called for every provider record — not by this
+    // schema. Tightening to a regex-validated shape here would be a breaking contract change
+    // (schemaVersion bump, versioned in this port AND oracle/validate_posting_retrieval_v1.mjs,
+    // plus fixtures/golden tests across both — schemaVersion "2" was *just* bumped for #100), for a
+    // guarantee only the ingest site can actually provide (a schema can validate string shape, not
+    // that a date is real). Revisit if a second provider ever constructs these fields directly.
     postedAt: z.string().min(1).nullable(), // provider-claimed post date, ISO 8601
     capturedAt: z.string().min(1), // when JobCrush first retrieved this record, ISO 8601
     verifiedLiveAt: z.string().min(1), // last time liveness was positively re-confirmed, ISO 8601

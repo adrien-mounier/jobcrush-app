@@ -220,6 +220,88 @@ export function extractOrganizationName(value: unknown): string | null {
   const name = asRecord(value)?.name;
   return typeof name === "string" && name.length > 0 ? name : null;
 }
+// #133 item 3: jsonLD.validThrough/datePosted arrive in TWO different date shapes, mixed within
+// the SAME page (measured live on staging 2026-08-04, 10 postings, HK `project manager` query):
+// ISO ("2026-09-02", 5/10 postings) and Techmap's own dash form ("16-09-2026", 2/10 postings).
+// Storing either verbatim is the bug: dedupePostings' earliest/latest (postings.ts) compare
+// expiresAt LEXICOGRAPHICALLY on the assumption every value is ISO 8601 — "16-09-2026" sorts
+// before any "2026-…" string, so a DD-MM-YYYY expiry reads as having expired in the year "16" and
+// is silently dropped (#86's named worst failure). Both regexes are structurally disjoint (ISO
+// requires a 4-digit year first; the dash form requires a 2-digit group first), so there is no
+// shape a genuine value could match both.
+const TECHMAP_ISO_DATE_RE =
+  /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z)?$/;
+// Techmap's dash form is treated as DD-MM-YYYY UNCONDITIONALLY — that is what was measured
+// ("16-09-2026" is unambiguously day-first: 16 isn't a valid month). This is a fixed,
+// provider-specific convention, not a per-value guess: "05-09-2026" is genuinely ambiguous in
+// isolation (5 Sep or 9 May), but there is nothing to disambiguate once the provider's own format
+// is pinned — every dash-form value from Techmap reads day-first, always. Do NOT add a heuristic
+// that swaps the reading based on which number is >12; that reintroduces per-value guessing, which
+// is exactly the trap this rule exists to close.
+const TECHMAP_DASH_DATE_RE = /^(\d{2})-(\d{2})-(\d{4})$/;
+
+// UTC day-0-of-next-month, not a bare `new Date(y, m, d)` read back — immune to local-timezone/DST
+// rounding, and rejects impossible dates (month 13, day 32, Feb 30) rather than letting them
+// silently roll over into a different, plausible-looking date the way `new Date()` coercion does.
+function isValidCalendarDate(year: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12) return false;
+  if (day < 1) return false;
+  return day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function toCanonicalIso(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  ms: number,
+): string | null {
+  if (!isValidCalendarDate(year, month, day)) return null;
+  if (hour > 23 || minute > 59 || second > 59) return null;
+  const pad = (n: number, width: number) => String(n).padStart(width, "0");
+  return `${pad(year, 4)}-${pad(month, 2)}-${pad(day, 2)}T${pad(hour, 2)}:${pad(minute, 2)}:${pad(second, 2)}.${pad(ms, 3)}Z`;
+}
+
+/**
+ * Canonicalises a Techmap `validThrough`/`datePosted` value into ONE ISO 8601 form (always
+ * `YYYY-MM-DDTHH:mm:ss.sssZ`, so every emitted value is uniformly comparable — including against
+ * itself across the two accepted input shapes), or `null` if the value matches neither accepted
+ * shape. A `null` here is the SAFE direction, not a shortcoming to "fix" later: downstream, a null
+ * `expiresAt` reads as "no stated expiry" and the posting is never treated as expired — showing a
+ * job slightly too long beats silently deleting a live one (#86). Never widen this to attempt a
+ * best-effort guess on an unrecognized shape; that reintroduces the exact hazard this function
+ * exists to remove. Exported — see asNonEmptyString's comment (test/smoke reuse of the same logic
+ * the normalizer itself uses).
+ */
+export function canonicalizeTechmapDate(value: unknown): string | null {
+  const raw = asNonEmptyString(value);
+  if (!raw) return null;
+
+  const iso = raw.match(TECHMAP_ISO_DATE_RE);
+  if (iso) {
+    const [, year, month, day, hour, minute, second, frac] = iso;
+    return toCanonicalIso(
+      Number(year),
+      Number(month),
+      Number(day),
+      hour ? Number(hour) : 0,
+      minute ? Number(minute) : 0,
+      second ? Number(second) : 0,
+      frac ? Number(frac.padEnd(3, "0")) : 0,
+    );
+  }
+
+  const dash = raw.match(TECHMAP_DASH_DATE_RE);
+  if (dash) {
+    const [, day, month, year] = dash;
+    return toCanonicalIso(Number(year), Number(month), Number(day), 0, 0, 0, 0);
+  }
+
+  return null;
+}
+
 // jsonLD.jobLocation is a schema.org Place ({ address: { addressLocality, addressRegion,
 // addressCountry } }), sometimes an array of Places, or a bare string. Exported — see
 // asNonEmptyString's comment.
@@ -252,7 +334,9 @@ function extractEnvelope(body: unknown): { items: unknown[]; totalCount: number 
  * missing (skipped, not fabricated — §2.1's fields are all real vendor data). §6: the advert body is
  * jsonLD.description, NOT any top-level field; structured fields (applicantLocationRequirements,
  * skills, validThrough->expiresAt) are carried through rather than flattened into excerpt or
- * re-derived by a model. `language` is detected HERE, at this ingest entry point, from the excerpt —
+ * re-derived by a model. validThrough->expiresAt and datePosted->postedAt are run through
+ * canonicalizeTechmapDate (#133 item 3) rather than stored verbatim — see that function's own
+ * comment for why. `language` is detected HERE, at this ingest entry point, from the excerpt —
  * never taken from the provider (the ticket's language-gate requirement) — but is NOT counted here
  * (#100 review MF6): this function runs on EVERY fetch, including a re-fetch of an already-known
  * posting, so counting per-normalize would inflate postings.language_skipped/undetermined with every
@@ -287,10 +371,10 @@ export function normalizeTechmapItem(
     location,
     sourceUrl,
     excerpt,
-    postedAt: asNonEmptyString(jsonLD.datePosted),
+    postedAt: canonicalizeTechmapDate(jsonLD.datePosted),
     capturedAt: fetchedAt,
     verifiedLiveAt: fetchedAt,
-    expiresAt: asNonEmptyString(jsonLD.validThrough),
+    expiresAt: canonicalizeTechmapDate(jsonLD.validThrough),
     // Techmap's registry row has attributionRequired: false and attributionTemplate: null today —
     // pulled from the policy rather than hand-set here, so a future policy change (an
     // attributionTemplate added) is honored automatically with no code change at this call site.

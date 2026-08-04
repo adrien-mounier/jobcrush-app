@@ -9,6 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PostingProviderPolicyV1 } from "@jobcrush/contracts";
 import {
+  canonicalizeTechmapDate,
   FixedWindowBudget,
   MinIntervalGate,
   normalizeTechmapItem,
@@ -18,6 +19,7 @@ import {
   TestFixturePostingProvider,
 } from "../src/postingProvider.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
+import { dedupePostings } from "../src/postings.js";
 
 // A realistic Techmap (jobdatafeeds.com Jobs API v2.6) result item, constructed faithful to §6's
 // measured field list: top-level `title`, and the FULL advert body + every structured field living
@@ -82,8 +84,11 @@ describe("normalizeTechmapItem (#100, §6)", () => {
     expect(record!.excerpt).toContain("PMP or equivalent preferred");
     expect(record!.applicantLocationRequirements).toEqual(["Hong Kong"]);
     expect(record!.skills).toEqual(["Agile delivery", "Stakeholder management"]);
-    expect(record!.expiresAt).toBe("2026-09-01T00:00:00Z"); // jsonLD.validThrough -> expiresAt
-    expect(record!.postedAt).toBe("2026-07-28");
+    // #133 item 3: canonicalized, not verbatim — both already-ISO inputs land on the same
+    // uniform ISO 8601 shape (YYYY-MM-DDTHH:mm:ss.sssZ), not a passthrough of whatever the
+    // provider happened to send.
+    expect(record!.expiresAt).toBe("2026-09-01T00:00:00.000Z"); // jsonLD.validThrough -> expiresAt
+    expect(record!.postedAt).toBe("2026-07-28T00:00:00.000Z"); // jsonLD.datePosted -> postedAt
     expect(record!.providerId).toBe("techmap");
     expect(record!.providerPostingId).toBe("tm-778812");
     expect(record!.company).toBe("BNP Paribas");
@@ -169,6 +174,95 @@ describe("normalizeTechmapItem (#100, §6)", () => {
     expect(record!.location).toBe("Singapore");
     expect(record!.applicantLocationRequirements).toEqual(["Singapore"]);
     expect(record!.skills).toEqual(["Jira"]);
+  });
+});
+
+// #133 item 3: jsonLD.validThrough/datePosted arrive in two different date shapes MIXED WITHIN THE
+// SAME PAGE, measured live on staging 2026-08-04 (10 postings, HK `project manager` query):
+// ISO ("2026-09-02", 5/10) and Techmap's own dash form ("16-09-2026", 2/10). Stored verbatim, the
+// dash form sorts lexicographically BEFORE any ISO string, so dedupePostings' earliest/latest
+// (postings.ts) — which assume every expiresAt is already ISO 8601 — would read a live Sept-2026
+// posting as having expired in "the year 16" and silently drop it (#86's named worst failure).
+describe("canonicalizeTechmapDate (#133 item 3)", () => {
+  it("the two LIVE-MEASURED formats (staging, 2026-08-04): DD-MM-YYYY and short ISO", () => {
+    expect(canonicalizeTechmapDate("16-09-2026")).toBe("2026-09-16T00:00:00.000Z");
+    expect(canonicalizeTechmapDate("2026-09-02")).toBe("2026-09-02T00:00:00.000Z");
+  });
+
+  it("a full ISO 8601 timestamp is accepted and normalized to the uniform millisecond shape", () => {
+    expect(canonicalizeTechmapDate("2026-09-01T00:00:00Z")).toBe("2026-09-01T00:00:00.000Z");
+    expect(canonicalizeTechmapDate("2026-09-01T10:15:30.5Z")).toBe("2026-09-01T10:15:30.500Z");
+  });
+
+  it("Techmap's dash form is read DD-MM-YYYY unconditionally, never guessed per-value", () => {
+    // "05-09-2026" is genuinely ambiguous in isolation (5 Sep vs 9 May) — the point of the fixed
+    // provider rule is that there is nothing to guess: it always reads day-first for Techmap.
+    expect(canonicalizeTechmapDate("05-09-2026")).toBe("2026-09-05T00:00:00.000Z");
+  });
+
+  it("unparseable or impossible values emit null, never a guess and never the verbatim string", () => {
+    expect(canonicalizeTechmapDate("not-a-date")).toBeNull();
+    expect(canonicalizeTechmapDate("2026-13-45")).toBeNull(); // impossible month/day, not coerced
+    expect(canonicalizeTechmapDate("32-13-2026")).toBeNull(); // impossible day/month in dash form
+    expect(canonicalizeTechmapDate("30-02-2026")).toBeNull(); // Feb never has 30 days
+    expect(canonicalizeTechmapDate("")).toBeNull();
+    expect(canonicalizeTechmapDate(undefined)).toBeNull();
+    expect(canonicalizeTechmapDate(null)).toBeNull();
+    expect(canonicalizeTechmapDate(12345)).toBeNull(); // not a string at all
+  });
+
+  it("null propagates from normalizeTechmapItem — never the verbatim unparseable string", () => {
+    const record = normalizeTechmapItem(
+      techmapItem({}, { validThrough: "not-a-date", datePosted: "also-not-a-date" }),
+      "2026-08-04T00:00:00Z",
+      TECHMAP_POLICY,
+    );
+    expect(record!.expiresAt).toBeNull();
+    expect(record!.postedAt).toBeNull();
+  });
+
+  // The ordering bug itself, through the REAL seam (normalizeTechmapItem -> dedupePostings), not a
+  // private helper: two Techmap items for the SAME job, one using each measured date format, merged
+  // into one canonical posting. Before this fix, dedupePostings' earliest() compared the raw
+  // strings and would have picked "16-09-2026" as "earliest" (wrong — it sorts first lexically but
+  // means 16 Sept, the LATER of the two dates). After canonicalization, earliest() correctly picks
+  // the chronologically earlier 2 Sept expiry — proving neither posting is treated as expired on
+  // formatting grounds and the merge picks the right date, not the lexically-smallest raw string.
+  it("dedupePostings picks the chronologically correct earliest expiresAt across mixed source formats", () => {
+    const dashFormItem = techmapItem(
+      { url: "https://x/dash" },
+      { identifier: "tm-dash", validThrough: "16-09-2026" }, // -> 2026-09-16 (the LATER date)
+    );
+    const isoFormItem = techmapItem(
+      { url: "https://x/iso" },
+      { identifier: "tm-iso", validThrough: "2026-09-02" }, // -> 2026-09-02 (the EARLIER date)
+    );
+    const dashRecord = normalizeTechmapItem(dashFormItem, "2026-08-04T00:00:00Z", TECHMAP_POLICY)!;
+    const isoRecord = normalizeTechmapItem(isoFormItem, "2026-08-04T00:00:00Z", TECHMAP_POLICY)!;
+    expect(dashRecord.expiresAt).toBe("2026-09-16T00:00:00.000Z");
+    expect(isoRecord.expiresAt).toBe("2026-09-02T00:00:00.000Z");
+
+    const [posting] = dedupePostings([dashRecord, isoRecord], [
+      {
+        schemaVersion: "2",
+        providerId: "techmap",
+        regionsServed: ["HK"],
+        authorityRank: 1,
+        permitsStorage: true,
+        permitsMatching: true,
+        attributionRequired: false,
+        attributionTemplate: null,
+        rateLimit: { perSecond: null, perMinute: null, perDay: null, perMonth: null },
+        retry: { maxAttempts: 1, backoffMs: 0 },
+        timeoutMs: 5000,
+        costModel: { kind: "perThousandPostings", amountUsd: 1 },
+        freshnessTtlHours: 24,
+      },
+    ]);
+    // Correct: 2 Sept is chronologically earlier than 16 Sept. A lexicographic compare of the RAW
+    // strings ("16-09-2026" vs "2026-09-02") would have picked "16-09-2026" instead — this assertion
+    // is exactly the case that would fail without the fix.
+    expect(posting!.expiresAt).toBe("2026-09-02T00:00:00.000Z");
   });
 });
 
