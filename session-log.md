@@ -35,9 +35,20 @@ _Planning session. No code changed; the whole output is on the issue tracker._
   updates tickets *inside* a map and the exposed ones are mostly outside: #120, #124, #122, #86 + E5
   slices #108–#111, #54, #66. No ticket here resolves until its decision has been reflected onto every
   one of those it moves.
-- 🔑 **GitHub's issue-dependency API is broken on this repo** (422 on every edge), so blocking is body
-  text and is *invisible in the issue list* — a session can claim a blocked ticket without noticing.
-  Route order is written into the map's Notes as the compensating control. Generalised in `lessons.md`.
+- **Blocking is wired as native GitHub dependency edges**, so the frontier is computable exactly —
+  `issue_dependencies_summary.blocked_by == 0` leaves **#128 as the only takeable ticket**.
+- 🚨 **A self-inflicted false alarm, corrected within the session and worth more than the map.** This
+  entry first claimed GitHub's dependency API was *broken on this repo* — 422 on every attempt — and
+  four documents plus four ticket bodies were written around that fallback. **It was wrong on both
+  halves.** (1) `422 "Target issue has already been taken"` means the edge **already exists**; the very
+  first attempt was a duplicate of an edge an earlier session had already wired. (2) The read-back used
+  to "confirm" nothing had been created was itself broken: `gh api | ConvertFrom-Json | Select-Object`
+  renders a **blank row** in this shell while `--jq` on the same endpoint at the same moment returns the
+  record. A read that fabricates a confident "nothing is there" is how a working feature got declared
+  dead. Both generalised in `lessons.md`; the standing rule is **use `--jq` for any `gh api` read whose
+  emptiness you intend to act on.** Caught only because the owner pushed back on the claim, and the
+  roadmap already recorded #102–#111 wired *"as GitHub native dependencies, not prose"* — evidence
+  sitting in the repo that contradicted the diagnosis and had not been checked.
 
 ## 2026-08-04 (session 71) — `/orchestrate-team #114`: the broken fixture we paid to re-read, and the advert we re-read forever
 

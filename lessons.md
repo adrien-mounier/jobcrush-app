@@ -1,25 +1,44 @@
 # Lessons — jobcrush-app
 
-## GitHub's issue-dependency API is dead on this repo — sub-issues are not, and the difference matters for wayfinder
+## `gh api | ConvertFrom-Json | Select-Object` silently prints blank rows — it invents a confident "nothing is there"
 
-`docs/agents/issue-tracker.md` tells `/wayfinder` to express blocking as GitHub's **native issue
-dependencies**, precisely because that renders the frontier *visually* in GitHub's own UI — a human can
-see what is takeable without opening the map. On this repo that endpoint does not work:
-`POST /issues/<n>/dependencies/blocked_by` returns **422 "Validation failed: Target issue has already
-been taken"** on every attempt, for a pair with no existing edge in either direction, no parent/child
-relationship, and an empty `blocked_by` list. Reproduced with `-F issue_id=`, with `--input` from a
-file, and after re-querying to confirm nothing was silently created. It is not a formatting problem and
-not idempotency — the edge never lands.
+The worst kind of bug: a read that **fabricates a negative answer** instead of failing. In this shell,
 
-**Sub-issue links work fine** (`POST /issues/<n>/sub_issues` with `sub_issue_id`), so a map can hold its
-children; only the *ordering* between them is unrepresentable.
+```powershell
+gh api "repos/O/R/issues/120/dependencies/blocked_by" | ConvertFrom-Json |
+  Select-Object number, state, title | Format-Table -AutoSize | Out-String
+```
 
-**Why this is more than an annoyance:** the fallback (`Blocked by: #n` as a body line) is *invisible in
-the issue list*. A wayfinder session picking "the first open unassigned child" will happily claim a
-ticket whose blocker is still open, because GitHub shows it as perfectly takeable. The route order has
-to be written into the map's Notes **and** the session has to read each child's body before claiming.
-If dependencies ever start working, wire the edges and delete the body lines — do not leave both, or
-they will disagree.
+prints a header, a divider and an **empty row** — while `gh api "…" --jq '.[].number'` against the same
+endpoint at the same moment correctly returns `127`. The record exists; `Select-Object` resolved every
+named property to null and `Format-Table` rendered the blank line as if the collection were empty.
+Nothing errors, nothing warns, and the output reads exactly like "no results".
+
+This cost real damage on 2026-08-04: it was used to "confirm" that a dependency edge had not been
+created, which produced a wrong diagnosis (below), a fallback mechanism that wasn't needed, and four
+documents asserting a GitHub feature was broken when it was not.
+
+**Always use `--jq` for `gh api` reads whose *emptiness* you intend to act on.** `--jq` runs inside
+`gh`, on the real JSON, before PowerShell can mangle it. If you must post-process in PowerShell, print
+the raw body first and check it is non-empty — never let `Format-Table` be the thing that tells you a
+set is empty.
+
+## GitHub's `dependencies/blocked_by` 422 "Target issue has already been taken" means the edge ALREADY EXISTS
+
+Not "the write failed" — the opposite. `POST /issues/<n>/dependencies/blocked_by` rejects a **duplicate**
+with `422 Validation failed: Target issue has already been taken`, confirmed deliberately by re-posting
+an edge known to be present. The message names a Rails uniqueness validation and reads like a
+mysterious failure, so it is easy to mistake for the feature being unavailable — especially when paired
+with the blank-row read above.
+
+**Native issue dependencies work fine on this repo**, and `/wayfinder` should use them as
+`docs/agents/issue-tracker.md` says: they render the frontier visually in GitHub's own UI, and
+`issue_dependencies_summary.blocked_by` gives an exact "is this takeable" gate that no body-text
+convention can match. On a 422 from this endpoint, **read the current edges with `--jq` before
+concluding anything** — the usual answer is that the edge you wanted is already there, possibly wired
+by an earlier session.
+
+## `gh issue comment --body @'...'@` silently shatters into 11 arguments on PowerShell
 
 ## `gh issue comment --body @'...'@` silently shatters into 11 arguments on PowerShell
 
