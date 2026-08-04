@@ -2,6 +2,78 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-04 (session 75) — `/wayfinder #129`: the growth rule, and the promise nobody was carrying
+
+_One wayfinder ticket resolved, the repo's first ADR written, two tickets filed, and one of my own arguments withdrawn mid-session because the owner was right._
+
+- **[#129](https://github.com/adrien-mounier/jobcrush-app/issues/129) closed** — the CV data-model
+  map's growth rule, written up as **[ADR-0001](docs/adr/0001-growth-rule-for-structured-facts.md)**,
+  the **first ADR in this repo** (`docs/adr/` did not exist; `CLAUDE.md` said it would be created
+  lazily, and this created it). Eight clauses: **own shape per element** (no generic envelope, no open
+  key space) · **adding never rewrites what is stored** · **structuring a fact never removes its
+  sentence** · an element ships only when it can be stored+corrected, matched on, printed **and**
+  contract-validated — **all four** · **facts vs preferences**, sorted by *could an advert test this?*
+  · the advert-side dimension list stays **open**, priced at a **lazy re-read** of every already-read
+  advert · an unrecognised fact is **shown but never acted on and never withdraws a job** · a rollback
+  **never deletes** data.
+- **🔑 The owner caught a wrong argument and the correction is the more useful finding.** I built a
+  fork around a conservation risk — that adding a structured element could *amputate* a fact from the
+  printed CV — and the owner stopped and said they did not follow it. They were right not to: the map's
+  own Notes say structure sits **alongside** the text, and #126 §1 already decided sentences survive
+  independently. **Adding an element cannot amputate anything**; the sentence keeps printing. The whole
+  trilemma I had offered was built on the error and was withdrawn. What survives is sharper: the real
+  risk is a *builder* implementing an element by emitting a record **instead of** a sentence — which is
+  the failure this repo **has already had** (claim-miner v1 dropped an entire "Additional Skills"
+  block, recorded in its own prompt header). That is now clause 3, and it exists because the wrong
+  argument was challenged rather than accepted.
+- **🚨 #128 §4 made a promise nothing in the backlog was carrying — found by the owner asking "do we
+  have a ticket for that?"** It decided a correction lands on the fact and *"the tailored CV follows
+  automatically"*. The CV writer reads **claims — sentences — and nothing else**; it cannot see a
+  structured fact at all. **There is no fact→CV route for any element**, which made my own
+  ship-early recommendation incoherent (opt-in to a route that does not exist means never). Filed as
+  **[#135](https://github.com/adrien-mounier/jobcrush-app/issues/135)**, wired as a map child, blocked
+  by #129, and it now **blocks #125** whose AC4 needs exactly it. Clause 4 then made it a gate on every
+  element, so **#135 gates the whole map**.
+- **⚠️ Clause 4 was taken against the recommendation.** Two lighter release bars were offered
+  (*listable+correctable*, and *listable+correctable+the one job the element was added for*); the owner
+  chose the strictest — all four readers before ship. **Cost carried knowingly: the no-migration half
+  of "flexible enough to evolve" is kept in full, the cheap half is given up.** Adding an element is
+  now a multi-session project, which is why **[#130](https://github.com/adrien-mounier/jobcrush-app/issues/130)
+  is now the most consequential ticket left on the map**.
+- **🔑 The employer test returned a negative result — which is the entire point of having run it.** The
+  map had set it as the rule's first concrete test case. Walked through: clause 1 gives employer its
+  own shape, but **clause 2 does not hold** — existing job records hold an employer *name* (#126 §1),
+  so promoting it to an entity rewrites stored records. **The rule covers adding a new kind of fact, not
+  reshaping one that already exists.** Stated as an explicit boundary in the ADR rather than left to be
+  discovered later; the employer question graduated out of the map's fog into #130, because it cannot
+  be deferred cheaply.
+- **🔑 The real versioning cost is not where the ticket was looking.** The brief worried about the
+  oracle-governed claim graph. Checked: **the claim graph is never persisted** — `buildClaimGraph()`
+  rebuilds it from confirmed claims on every request, there is no graph table — so changing *its* shape
+  costs code in two places and **no stored data**. The genuine cost sits on the **ad-requirements**
+  contract: the five-dimension list is duplicated in `eligibility.ts`, `adRequirements.ts` and the
+  frozen `validate_ad_requirements_v1.mjs`, and every stored advert read carries its reader version, so
+  a sixth dimension **stales every already-read advert** and re-reads it at model cost. Policy chosen:
+  **lazy** — bulk re-read rejected because the per-advert figure has never been measured.
+- **🚨 A source file is invisible to every code search, and the failure is silent.**
+  `apps/api/src/eligibility.ts` uses a **raw NUL byte** as a key separator, which makes `grep` and
+  `ripgrep` treat it as binary and skip it. A repo-wide `CREATE TABLE` search returned twelve tables and
+  **omitted `eligibility_facts`** — the file holding the eligibility vocabulary #86/#96/#102/#129 all
+  rest on. The Read tool renders the NUL as whitespace, so reading the file does not reveal it. Filed
+  as **[#136](https://github.com/adrien-mounier/jobcrush-app/issues/136)**, not fixed (plan map);
+  generalised in `lessons.md`.
+- **Also settled from the brief:** the rule is **not** scoped to CV-derived facts — it holds for all
+  *facts* regardless of origin, while *preferences* get the lighter treatment, which makes
+  [#124](https://github.com/adrien-mounier/jobcrush-app/issues/124) (target locations) a **preference**
+  and materially **cheaper** than the map assumed. Soft edge flagged rather than hidden: *"remote only"*
+  sits on the line and is called a preference.
+- **Impact sweep run** across #130, #124, #122, #120, #86, #111, #66, #54, #131, #125 — all ten moved
+  and carry comments. **Map frontier is now #135 and #130**, both unblocked and unclaimed. Build
+  frontier unchanged: **#101** with **#132**, then **#108**.
+- ⚠️ **#125 remains ADR-0001's falsifier.** If applying the eight clauses to a volunteered language
+  turns into a fresh argument rather than a mechanical walk, the ADR is wrong and #129 reopens — a
+  success for the map, not a setback.
+
 ## 2026-08-04 (session 74) — `/wayfinder 126`: a job becomes a thing, and the label that was going to be lost got filed
 
 _One wayfinder ticket resolved. Nine decisions, one deliberate non-decision, and four findings that outlive the ticket._

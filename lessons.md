@@ -1,5 +1,28 @@
 # Lessons — jobcrush-app
 
+## A single control byte makes a source file invisible to every search — and the failure is silent
+
+`apps/api/src/eligibility.ts` line 83 uses a **raw NUL byte** as a key separator inside a template
+literal. It compiles, it runs, its tests pass, and the file reads normally — the Read tool renders the
+NUL as whitespace, so the source *appears* to use a space.
+
+But one NUL makes the file **binary** to `grep` and `ripgrep`, and therefore to the Grep tool,
+`/code-review`, and every agent that searches this repo. `grep` prints `Binary file ... matches` with
+no line numbers; ripgrep omits it from results **entirely**.
+
+Measured on 2026-08-04 while grilling #129: a repo-wide search for `CREATE TABLE IF NOT EXISTS` across
+`apps/api/src` returned twelve tables and **silently omitted `eligibility_facts`** — the only file
+declaring it is unsearchable. An earlier search for `ELIGIBILITY_DIMENSIONS` returned a bare
+`Binary file matches` line that is easy to skim past. This is the file holding the eligibility
+dimension vocabulary that #86, #96, #102, #129 and the ad-requirements contract all rest on. Filed as
+[#136](https://github.com/adrien-mounier/jobcrush-app/issues/136).
+
+**The generalisation, and it is the same family as the fabricated-emptiness lesson below:** a search
+that returns nothing is not evidence that nothing is there. Here the tool did not even fail loudly —
+it produced a shorter, plausible, wrong answer. When a search result will be *acted on* as an absence,
+confirm the file you expect is actually in the searched set. And never write a raw control byte into
+source: use the escape, so the separator is visible in the file and the file stays greppable.
+
 ## A field name is not a measurement — read the VALUE before designing on it
 
 Sibling of the lesson below, from the other direction: there, a *negative* premise went unchecked;
