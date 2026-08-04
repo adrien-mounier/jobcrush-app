@@ -125,6 +125,29 @@ _Ran concurrently with session 69 (#99) below; rebased onto it. The two touched
   2026-08-04: a language a visitor *volunteers* (French, for the French companies across APAC) must
   reach their **CV**, which means shaping a deliberate door in the #106 eligibility/claims wall. Shape
   before building; the wall exists because connecting them produced false claims about the visitor.
+- 🚧 **The post-ship conversation reshaped the plan more than the ticket did.** Four further owner
+  decisions, all after `ddc40ae` landed — see `roadmap.md` for the full form:
+  **[#126](https://github.com/adrien-mounier/jobcrush-app/issues/126)** years of experience should be
+  *computed from a dated history*, not asked (one number cannot answer *"8+ years IT including 5+ as a
+  PM"*) — blocked on the discovery that **nothing here stores a date at all**;
+  **[#127](https://github.com/adrien-mounier/jobcrush-app/issues/127)** model the whole CV as
+  structured, measurable data with an explicit evolution rule (`wayfinder:grilling`, owner driving the
+  design in a dedicated session; #126 reparented as its first slice, and the standing danger is that
+  *structuring is interpreting*); **#120 rewritten and blocked by #127** after the owner rejected
+  per-case correction screens as the wrong question; and **correction waits** rather than being
+  patched, since no pilot is near.
+- ⚠️ **Carried risk, stated plainly: there is no recovery from a discovery mistake today.** #106's
+  affordance never renders for the last question, #120 is deferred, and **explicit restart is unbuilt
+  ([#68](https://github.com/adrien-mounier/jobcrush-app/issues/68))**. A mistapped language removes jobs
+  for the life of that session. Accepted **only** because staging is not a pilot — **#68 is now a
+  precondition of letting the first real user in**, recorded on both #120 and #68.
+- 🔑 **Two orchestrator misses worth naming, both caught by checking rather than by trusting.** A dev
+  reported "no server change needed, the deck response already carries withdrawal reasons" — it does
+  not (withdrawn postings are filtered out at `onboarding.ts:1064`, leaving only an operator counter),
+  and building the reveal on that claim would have produced a line that never rendered or invented
+  numbers. And the orchestrator's own first `.gitignore` fix was a **blanket un-ignore wearing a
+  whitelist's comment**, which code review caught. Verify claims against the file; verify a
+  `.gitignore` in both directions.
 ## 2026-08-04 (session 69) — `/orchestrate-team #99`: the retrieval contract finally exists in code
 
 - **[#99](https://github.com/adrien-mounier/jobcrush-app/issues/99) shipped in `7086ec5`, closed.**
