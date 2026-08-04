@@ -235,8 +235,8 @@ the deduplicated, provider-independent posting #63 actually consumes. §2.4 defi
 becomes the second.
 
 ```
-ProviderPostingRecordV1 {
-  schemaVersion: "1"
+ProviderPostingRecordV1 {         // schemaVersion "3" as of #133
+  schemaVersion: "3"
   providerId: string             // "techmap" | "curated-pool" | ... — never blank, keyed to §2.2's registry
   providerPostingId: string      // opaque, exactly as given by that provider
   title: string
@@ -249,12 +249,15 @@ ProviderPostingRecordV1 {
   verifiedLiveAt: string          // last time liveness was positively re-confirmed, ISO 8601
   expiresAt: string | null        // provider-stated expiry, if any
   attribution: { label: string; url: string } | null  // THIS provider's own attribution requirement, if any
-  applicantLocationRequirements: string[]  // this provider's own work-eligibility signal (§6) — carried structured, never flattened into excerpt
-  skills: string[]                // this provider's own structured skills list (§6) — same reason
+  language: string                // BCP-47 primary subtag, DERIVED at ingest from the advert body — never provider-supplied
+  skills: string[]                // this provider's own structured skills list (§6) — carried structured, never flattened into excerpt
 }
+// ⚠️ `applicantLocationRequirements` was REMOVED in #133 (schemaVersion "3"). It was specified here as
+// a work-eligibility signal on the strength of the field's NAME; the live API returns "HKT Timezone".
+// See §6 Finding 2. Do not reinstate it under this name — both validators now reject it as an unknown key.
 
-PostingV1 {                       // schemaVersion "2" — canonical, provider-independent, what #63 consumes
-  schemaVersion: "2"
+PostingV1 {                       // schemaVersion "4" as of #133 — canonical, provider-independent, what #63 consumes
+  schemaVersion: "4"
   id: string                       // "posting:<canonicalKey>" — stable regardless of which provider(s) currently see it
   canonicalKey: string              // the dedup key itself (§2.4), kept for audit/debugging
   title: string                     // from the highest-authorityRank contributing record (§2.4)
@@ -268,17 +271,23 @@ PostingV1 {                       // schemaVersion "2" — canonical, provider-i
   expiresAt: string | null           // earliest non-null expiresAt across contributing records (most conservative)
   attribution: Array<{ label: string; url: string }>  // UNION of every contributing provider's requirement — all honored, not just the winner's
   sources: Array<{ providerId: string; providerPostingId: string }>  // every provider record currently merged into this posting, min length 1
-  applicantLocationRequirements: string[]  // resolved by the SAME authorityRank-winner rule as title/company/location — NOT a union
+  language: string                        // resolved by the winner rule — it GATES visibility, so never a union
   skills: string[]                        // same rule
 }
+// ⚠️ `applicantLocationRequirements` REMOVED here too in #133 — see the note above and §6 Finding 2.
 ```
 
-`applicantLocationRequirements` and `skills` deliberately do NOT follow `attribution`/`sources`'s union
-rule. A permissive union of every contributing provider's claimed eligibility locations must never
-silently become a gating input (carry-forward of #106's comment): unioning would let a posting look
-eligible in a region no single provider actually vouches for, quietly widening a fact that #96 later
-uses to decide whether a user can even take the job. `attribution`/`sources` are safe to union because
-widening them only adds disclosure, never a claim about the user's own eligibility.
+`skills` and `language` deliberately do NOT follow `attribution`/`sources`'s union rule. A permissive
+union must never silently become a gating input (carry-forward of #106's comment) — that reasoning was
+originally written about eligibility locations and **now applies to `language`**, which genuinely does
+gate what a user is shown. `attribution`/`sources` are safe to union because widening them only adds
+disclosure, never a claim about the user's own eligibility.
+
+**The eligibility half of that argument is now moot for a different reason:** the field it was written
+about is gone (#133), and Techmap supplies no work-eligibility data at all. Work-eligibility comes from
+the advert free text via the ad reader's `work-rights` dimension. The principle stands and should be
+applied to any future provider-supplied eligibility field — it is the reason such a field must never be
+unioned across providers.
 
 Display fields still map directly onto `JobCardV1` (`title→title`, `company→company`, `location→place`,
 `excerpt→adExcerpt`) so #63 does not need a second card shape. **One real gap this revision surfaces:**
@@ -704,10 +713,33 @@ per-advert cost estimate. The fixtures' 2,200-char `excerpt` is representative o
 `jsonLD` also carries `identifier`, `validThrough`, `employmentType`, `salaryCurrency`, `industry`,
 `url`, `skills`, `hiringOrganization`, `jobLocation`, `datePosted`, `applicantLocationRequirements`.
 
-- **`applicantLocationRequirements`** — a work-eligibility signal, free and structured. Relevant to
-  #86 decision 3 (blocking requirements) and #96.
+- ~~**`applicantLocationRequirements`** — a work-eligibility signal, free and structured. Relevant to
+  #86 decision 3 (blocking requirements) and #96.~~ ⚠️ **WRONG — corrected 2026-08-04 against the live
+  API (#133).** This claim was made from a field *name*, never from a value. The measured values are
+  **`"HKT Timezone"` / `"CST Timezone"`** — a working-hours overlap statement, not eligibility. It is
+  also a **bare string, not an array**, and present on only ~6 of 10 postings. **Techmap supplies no
+  work-eligibility field at all.** The field was **removed** from `ProviderPostingRecordV1` and
+  `PostingV1` in #133 rather than kept empty: nothing read it, and its only intended consumer (the
+  `providerWorkRightsSignal`/AC5 seam) had already been deleted in review on 2026-08-03 for a reason
+  that still stands — a job's accepted-applicant locations cannot resolve into "can *this* visitor work
+  in *their* city" without a visitor-location fact nothing collects. Work-eligibility continues to come
+  from the **advert free text**, where `work-rights` is one of the five `EligibilityDimension` values
+  the ad reader already extracts with a `sourceSpan` provenance pin. Owner decision 2026-08-04: keep
+  expecting eligibility from the advert, and design a provider-supplied field **when a provider that
+  actually offers one appears**, against its real data.
 - **`validThrough`** — provider-stated expiry, which §2.6's freshness semantics can use directly.
-- **`skills`** — a structured list rather than prose.
+  ⚠️ **Arrives in TWO formats on the same page** (measured 2026-08-04): `"2026-09-02"` (ISO) and
+  `"16-09-2026"` (DD-MM-YYYY). Stored verbatim it broke §2.6 and `dedupePostings`' lexicographic
+  ordering — a September expiry read as the year 16 and the posting was silently dropped. Canonicalised
+  at ingest in #133; the dash form is read day-first unconditionally (the measured provider convention,
+  never a per-value magnitude heuristic).
+- **`skills`** — a structured list rather than prose. Present on 7 of 10 measured postings; legitimately
+  absent on the rest, so absence is not a fault signal.
+- ⚠️ **`size` is ignored entirely** (measured 2026-08-04, three calls on one query): `size=1`, `size=20`
+  and `size=50` all returned `pageSize=10`, 10 items, `totalCount=58`. Not a floor — a fixed vendor page
+  size of 10. **Ten postings is the unit of retrieval and of cost**, so the 1000/month allowance is
+  100 calls' worth of fresh adverts. §2.9's per-provider budget and #132's spend cap must be sized
+  against that number, not against a caller-chosen page size.
 
 §2.1's `ProviderPostingRecordV1` should carry these rather than discarding them into `excerpt`.
 

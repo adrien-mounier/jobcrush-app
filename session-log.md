@@ -129,10 +129,28 @@ _One ticket, one commit. Three fix rounds — the defect count is the story._
   magnitude heuristic); unparseable → `null`, which means "no stated expiry" and errs toward showing a job
   too long rather than deleting a live one. Schema deliberately **not** tightened — the invariant holds by
   construction at the one site that builds these fields.
-- ⚠️ **Still open on #133:** item 1 (the dropped field — blocked on the owner decision about where a
-  timezone belongs) and item 4 (`size` is ignored; asked for 5, got 10, so per-call spend cannot be
-  reduced by asking for less — matters for #132 and #101's fan-out sizing). Live spend: **5 calls**, ~50
-  records, of 1000/month.
+- **#133 closed the same session — items 1 and 4 landed in `b03d599` after two owner decisions.**
+  **Item 1: the field was removed, not kept empty.** Nothing read it (verified across the whole repo),
+  and its only intended consumer — the `providerWorkRightsSignal`/AC5 seam — had already been deleted in
+  review on 2026-08-03. Owner's reasoning: a field named after the wrong concept had already misled three
+  documents, and "ready to receive eligibility whenever a provider offers it" is better served by
+  designing that field against a real provider's real data than by keeping a misnamed placeholder that
+  reads as *"we have eligibility data"*. `ProviderPostingRecordV1` 2→3, `PostingV1` 3→4,
+  `PostingRetrievalResultV1` 3→4 — oracle, port, fixtures and golden tests together; both validators now
+  reject the key as unknown. The timezone is **dropped, never remapped**.
+- 🔑 **Item 4: `size` is ignored entirely — it was never a floor.** Measured live, three calls on one
+  query: `size=1`, `size=20`, `size=50` all returned `pageSize=10`, 10 items, `totalCount=58`.
+  `DEFAULT_PAGE_SIZE = 20` was therefore a **fiction the code believed** — #101 would have sized its
+  fan-out and spend estimate against twice the adverts it will actually receive. Replaced by
+  `TECHMAP_PAGE_SIZE = 10` citing its measurement, and the `size` request field **deleted** rather than
+  left as a no-op (a knob that isn't connected is worse than no knob). ⚠️ **Ten adverts is the unit of
+  retrieval and of cost, so the 1000/month allowance is 100 calls' worth of fresh adverts** — the figure
+  #132's spend cap must be built against, and much tighter than "1000/month" sounds.
+- ✅ **The smoke now passes clean on staging** (`b03d599`): 10 records, every required field traced to its
+  real `jsonLD` source, `skills` 7/10 and `expiresAt` 10/10 reported as ratios rather than hard-failing
+  on legitimate absence. Corrections written back into `docs/research/live-posting-retrieval-contract.md`
+  §2.1 + §6, and onto #99, #100 and #96 — all three called the field a work-eligibility signal.
+  Live spend for the whole session: **~9 calls**, ~90 records, of 1000/month.
 
 ## 2026-08-04 (session 72) — `/wayfinder`: charted the CV data-model map, and settled the ticket that was waiting on it
 

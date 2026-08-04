@@ -1,5 +1,33 @@
 # Lessons — jobcrush-app
 
+## A field name is not a measurement — read the VALUE before designing on it
+
+Sibling of the lesson below, from the other direction: there, a *negative* premise went unchecked;
+here, a *positive* one did.
+
+The 2026-08-02 provider probe listed which `jsonLD` keys Techmap returns and stopped there.
+`applicantLocationRequirements` *sounds* like a work-eligibility signal, so it was written into #99,
+#100 **and** the research doc as *"a work-eligibility signal that feeds #86 decisions 3/4 and #96"* — a
+load-bearing claim in three documents, never once checked against an actual value.
+
+The first live call (2026-08-04) measured it: **`"HKT Timezone"`**. A working-hours overlap statement,
+not eligibility, not right-to-work. It was also a **bare string, not an array**, so `asStringArray`
+discarded it on every record — a field written empty on every posting from the day it shipped, feeding a
+consumer (`providerWorkRightsSignal`/AC5) that had already been deleted a day earlier for unrelated
+reasons. Nobody noticed, because nothing errored.
+
+Two rules:
+
+1. **A schema.org-style field name tells you the vendor's *intent*, not their data.** Any field a design
+   depends on must be read, not listed. "The key exists" is not evidence.
+2. **Design the shape against the real payload, or defer the field entirely.** The resolution was to
+   **remove** it rather than keep it empty: a field named after the wrong concept had already misled
+   three documents, and an empty placeholder reads to the next person as *"we have this data"*.
+
+Corollary measured in the same session: **`size` was ignored entirely** (asked 1, 20, 50 — always got
+10), while the code carried `DEFAULT_PAGE_SIZE = 20` and believed it. A constant nobody measured is a
+number that will be planned against.
+
 ## Verify a ticket's "we don't have X at all" premise before you design around it
 
 [#126](https://github.com/adrien-mounier/jobcrush-app/issues/126) opened with *"we do not store dates.
