@@ -63,7 +63,7 @@ _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) tic
   ADR-0003* and never exercised *adding a new kind of fact a year later*. **It should be claimed by the
   first element added after build — not by anything left on map #127.**
 
-**Map frontier after this session: four, all unblocked and independent** —
+**Map frontier after this session: five, all unblocked and independent** — including the new [#146](https://github.com/adrien-mounier/jobcrush-app/issues/146) (**walk personal projects through the growth rule**), added at the owner's go-ahead once it became clear the map's promised stress test had been scheduled twice and missed twice. Subject chosen because it is **real, not invented**: three entries on a CV in `data/cvs/`, modelled **nowhere** in the pipeline and therefore discarded today, and required anyway by #130's *capture the maximum*. It probes three decided rules from angles no element has — **no organisation**, possibly **no dates at all**, and probably **evidence *for* skills rather than a peer of them**, which makes it a **mention-site** that *composes* with an element rather than sitting beside one. **The map cannot honestly be called done before it runs.** The other four:
 [#131](https://github.com/adrien-mounier/jobcrush-app/issues/131) (computed vs asked, unblocked by this
 session), [#141](https://github.com/adrien-mounier/jobcrush-app/issues/141) (the stretch leak, which now
 has a mechanism), [#143](https://github.com/adrien-mounier/jobcrush-app/issues/143) and
