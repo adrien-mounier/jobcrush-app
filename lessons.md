@@ -1,5 +1,42 @@
 # Lessons — jobcrush-app
 
+## A claim copied into a third document starts looking like three sources
+
+Three documents said `certification` was a hard gate wired to withdraw jobs — *"the same half-wired
+shape that produced #125's live job-deleting bug"*: #140's ticket body, ADR-0003's consequences, and
+map #127. By the time it reached the third, it read as corroborated, and it was carried into an ADR on
+that basis.
+
+**It was false, and one `grep` disproved all three at once.** `withdrawal.ts:82` returns `false` for the
+dimension unconditionally, with a comment recording that as deliberate, and `ASK_DIMENSIONS` excludes
+it entirely. No certification fact can ever withdraw a posting. #125's bug was live because it had
+**both** an explicit-no mapping **and** a surface that wrote `none`; certification has neither half.
+
+The mechanism is worth naming because it is invisible from inside: **each document cited the previous
+one, so the claim gained apparent corroboration purely by being copied.** Nobody was careless — the
+first statement was a reasonable inference, and everyone after it was reading a source that already
+existed. A claim about running code, repeated across three artifacts, still has exactly one origin, and
+whether it is true is a property of the code and nothing else.
+
+The tell to watch for: **a claim about the codebase that no document attributes to a file and a line.**
+Every one of the three described behaviour; none of them cited where. That absence is cheap to notice
+and cheap to resolve, and it is what separates this from the sibling lesson above — there the
+constraint was unchecked once, here it was unchecked three times *and looked better each time*.
+
+## Research the repo depends on must be committed, not just written
+
+ADR-0003 lists `docs/research/cv-elements-existing-data-standards.md` under **Evidence**. That file had
+never been committed, so the link was dead on GitHub for anyone reading the ADR, and four research
+documents from #137 and #138 — two full research sessions, commissioned and paid for — existed on one
+laptop only.
+
+They were produced by background agents told (correctly) not to touch git, and then nobody made the
+commit. The gap is structural rather than anyone's oversight: **the agent that creates an artifact is
+the one told not to persist it, and the session that reads the artifact assumes it is already in the
+repo because a committed document links to it.**
+
+Worth checking whenever a decision cites evidence: `git status` the file the ADR points at.
+
 ## "We can't change this later" is a claim about stored data — check that the data exists
 
 Map #127 carried #139 for four sessions as **"the map's only unfixable-later decision"**, and the label

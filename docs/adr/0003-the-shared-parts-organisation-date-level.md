@@ -314,9 +314,16 @@ records would group. Owner decision 8's chunked, resumable ingestion is where it
 for language rungs is reused by degree level, and by skills if they get a level. It also means getting
 the ladder's shape wrong is now a multi-element mistake.
 
-**`certification` remains a hard gate with no guest list.** Nothing here fixes that — it is wired to
-withdraw jobs with nothing on the candidate side to check, the same half-wired shape that produced
-#125's live job-deleting bug. #140 owns it.
+**~~`certification` remains a hard gate with no guest list.~~** — ⚠️ **This paragraph was factually
+wrong and is corrected here, 2026-08-06, by [#140](https://github.com/adrien-mounier/jobcrush-app/issues/140)
+/ [ADR-0004](0004-each-elements-own-parts.md).** It claimed certification was *"wired to withdraw jobs…
+the same half-wired shape that produced #125's live job-deleting bug."* The code says otherwise:
+`withdrawal.ts:82` returns `false` for the dimension **unconditionally** (with a comment recording that
+as deliberate), and `eligibilityDiscovery.ts`'s `ASK_DIMENSIONS` excludes it, so nothing ever asks.
+**No certification fact can ever withdraw a posting.** #125's bug was live because it had *both* an
+explicit-no mapping *and* a surface that wrote `none`; certification has neither. The accurate
+statement is milder — a door with no guest list, and the bouncer told to wave everyone through:
+**safe by construction, not half-wired.** ADR-0004 clause 5 gives it its guest list.
 
 ## Alternatives rejected
 
@@ -347,3 +354,20 @@ fresh argument about what an organisation or a date is, this ADR is wrong and #1
 The stronger test is the one map #127 has been carrying unrun: **skills**. Clause 8 sends skills to
 ladder (a), and *"ask him once"* is not obviously survivable at forty skills. If it breaks there, the
 break is in ladder (a)'s trigger, not in its shape.
+
+## ✅ Verification result — both tests ran 2026-08-06 ([#140](https://github.com/adrien-mounier/jobcrush-app/issues/140) / [ADR-0004](0004-each-elements-own-parts.md))
+
+**Test 1 passed. This ADR does not reopen.** Shaping education required **no new decisions at all**,
+and no element turned into a fresh argument about what an organisation or a date is. The
+store-the-typed-words-always pattern (clauses 2–4) was decided here for organisations and then covered
+**skills, places and levels** without being stretched — four uses, no strain.
+
+**Test 2 broke, exactly as predicted, and exactly where predicted: the trigger, not the shape.**
+*Ask once each* costs 4 questions for languages, 1 for a degree and ≤5 for certifications — and **45
+for skills**. **Volume is the whole discriminator.** ADR-0004 clause 2 therefore never asks for a skill
+level, capturing one only when the CV already states it.
+
+**Recorded as a scope footnote rather than an amendment:** clause 8 is **asked-once** for languages,
+degree level and certifications, and **never-asked** for skills. The ladder itself is unchanged and in
+use by three elements; amending a sound clause to record a scope note is how a rule loses its
+authority.

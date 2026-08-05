@@ -2,6 +2,74 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-06 (session 81) — The shape held for five elements running, and the one thing that broke was the trigger, not the shape
+
+_Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 5d, resolved as [#140](https://github.com/adrien-mounier/jobcrush-app/issues/140) with nine clauses, written up as **[ADR-0004](docs/adr/0004-each-elements-own-parts.md)** — the fourth ADR in this repo. The ticket **grew its own research leg mid-session** ([#145](https://github.com/adrien-mounier/jobcrush-app/issues/145), deep + `/last30days`, resolved same-day). Impact sweep across seven tickets. **Repo output: ADR-0004, a correction to ADR-0003, six research files — four of which had never been committed at all.**_
+
+- **⭐ ADR-0003 passed the test it wrote for itself, and the margin was wide.** Its verification clause
+  said that if shaping education or certifications became *"a fresh argument about what an organisation
+  or a date is"*, it was wrong and #139 reopened. **Education required no new decisions whatsoever.**
+  One pattern — *store what the person typed, always; add a resolved value only when someone who
+  genuinely knows can supply it* — was decided once for organisations and then covered **skills, places
+  and levels**. Four uses, no strain.
+- **🔑 The one thing that broke was ADR-0003 clause 8's *trigger*, exactly where clause 8 said it would.**
+  *Ask once each* costs 4 questions for languages, 1 for a degree, ≤5 for certifications — and **45 for
+  skills**. **Volume is the whole discriminator**: the same rule, opposite verdicts, purely on count.
+  Recorded as a **scope footnote on ADR-0003, not an amendment** — the ladder's shape is sound and used
+  by three elements. **ADR-0001 is not implicated and does not reopen.**
+- **🔑 Skills came out *smaller* than four sessions of the map had feared.** No self-assessed level is
+  ever asked (r = .29 self-rating vs measured ability over >330,000 people; LinkedIn retired its
+  objective version; one major project stoplists the words as noise), and **no external taxonomy is
+  targeted** (mention-level ESCO linking is **23.55% top-1**; no employer consumes structured skills
+  anyway, so ours need only be comparable to our own adverts). The map had been bracing for a
+  forty-question form that now simply does not happen.
+- **⭐ The silent-upgrade problem turned out to be solved in production, and it hands us a test.**
+  Every normalised skill carries **the exact span of the document that produced it** (Textkernel ships
+  start/end positions; Alibaba's HR platform discards any field not findable in the source). That turns
+  owner decision 9's *the machine never adds silently* from a promise into something **checkable in
+  code**, and gives #141 its object: **a stretch is a skill with no span.**
+- **🚨 Two of the ticket's own premises were wrong, and one of them was wrong in three documents.**
+  `certification` is **not** a live job-deleting bug: `withdrawal.ts:82` returns `false` unconditionally
+  and `ASK_DIMENSIONS` excludes it, so no certification fact can ever withdraw a posting. #125's bug
+  needed **both** an explicit-no mapping and a surface that wrote `none`; certification has neither.
+  The ticket body, ADR-0003's consequences and the map all overstated it — **all three corrected.**
+- **🔑 Reading two real CVs in full corrected the evidence base again.** Remy carries **five**
+  certifications, not the one the ticket recorded — and his `PL 300 (Feb 2023)` is a Microsoft
+  *associate* credential that **expires annually** while three of his others never expire. **His CV
+  reads identically whether he renewed it three times or it lapsed in early 2024.** That single case
+  forced clause 5 (validity in three states, confirmed by the person). His JavaScript also appears
+  **three times in three spellings in one document**, making #86's *agile twice* problem intra-CV rather
+  than cross-source.
+- **🔑 Location was the one part of a job nobody had decided, and it was the last free moment.** Every
+  standard surveyed agrees a work entry carries it; both real CVs state it; Remy worked at **Amundi
+  Singapore then Amundi Paris**. Decided as words-plus-resolved-country because #126's job record still
+  does not exist — a month later it is a migration. [#124](https://github.com/adrien-mounier/jobcrush-app/issues/124)
+  inherits the shape rather than re-deriving it.
+- **🔑 *No jobs* and *unreadable CV* are now different states.** Europass/Cedefop, n=353,518: **12% of
+  real CVs have no work experience at all.** A successfully-read CV with no employment is a **confident
+  zero**; a failed read is **unknown**. The discriminator is whether the document parsed and produced
+  other content. **This closes #126's AC5**, which had been recorded as *will not be met as written* —
+  the criterion had conflated the two states.
+- **⚠️ The owner declined to choose without evidence, and it changed the answer.** Asked to pick a
+  skills granularity from three options, he commissioned research instead. Both halves agreed by
+  different routes — commercial parsers and the two largest live OSS projects, neither seeing the
+  other's sources — and the option we recommended turned out to be **cheaper than we had priced it**
+  (one record with two fields, not two records). The stated cost we had attached to it did not exist.
+- **⚠️ Four research files from #137 and #138 had never been committed.** ADR-0003 lists one of them as
+  its evidence, so that link was dead on GitHub, and the work existed on one laptop only. Now in the
+  repo. Generalised in `lessons.md`.
+- **⚠️ The map's growth-rule stress test is STILL unrun, and #140 did not run it either.** #125 was the
+  same element with a different origin; #140 shaped five elements as a *mechanical application of
+  ADR-0003* and never exercised *adding a new kind of fact a year later*. **It should be claimed by the
+  first element added after build — not by anything left on map #127.**
+
+**Map frontier after this session: four, all unblocked and independent** —
+[#131](https://github.com/adrien-mounier/jobcrush-app/issues/131) (computed vs asked, unblocked by this
+session), [#141](https://github.com/adrien-mounier/jobcrush-app/issues/141) (the stretch leak, which now
+has a mechanism), [#143](https://github.com/adrien-mounier/jobcrush-app/issues/143) and
+[#144](https://github.com/adrien-mounier/jobcrush-app/issues/144) (which now carries a second, differently
+shaped case: a fact that printed correctly last year and must not print now).
+
 ## 2026-08-04 (session 80) — The map's only unfixable-later decision, and it was still free when we took it
 
 _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 5c, resolved as [#139](https://github.com/adrien-mounier/jobcrush-app/issues/139) with ten clauses, written up as **[ADR-0003](docs/adr/0003-the-shared-parts-organisation-date-level.md)** — the third ADR in this repo. Two fog patches graduated into [#143](https://github.com/adrien-mounier/jobcrush-app/issues/143) and [#144](https://github.com/adrien-mounier/jobcrush-app/issues/144). Impact sweep across nine tickets. Map frontier goes from one ticket to four. **Repo output: ADR-0003 plus the three project docs.**_
