@@ -62,6 +62,14 @@ _`/wayfinder` on map [#127](https://github.com/adrien-mounier/jobcrush-app/issue
 - **🚨 What is NOT live.** Three code sites contradict the amended brain and were deliberately not touched
   (plan map): the schema's `max(8)` **and its `Math.min(6, sourceBullets)` floor** · `preview-tailor.md`
   rule 8's ladder and merge instruction · the stripped claim ids. **These are the first build tickets.**
+- **⚡ Two consequence tickets filed rather than left to `/to-tickets`.** Asked *"what ticket?"* about both
+  gaps this session had called "on the list", the honest answer was **neither existed** — both lived only as
+  prose inside a 139,000-character issue body. [#156](https://github.com/adrien-mounier/jobcrush-app/issues/156):
+  **two pages is the CV's only length rule and nothing has ever checked it**, and #153 loosened the rope on
+  the strength of it, so **nothing bounds a tailored CV's length at all** until it lands — a live gap, not a
+  pending one. [#157](https://github.com/adrien-mounier/jobcrush-app/issues/157): the **five** design-effort
+  promises, which sat in *Out of scope* — **the one section a reader does not check for work that still has to
+  happen** — and **three of the five are the same shape**, so they would have been designed three times.
 - **Map state:** #153 was added *after* the map had been called one ticket from done; with it closed,
   [#149](https://github.com/adrien-mounier/jobcrush-app/issues/149) is again the last open decision. The
   *"N more not shown"* control is the **fifth** requirement handed to the design effort.
