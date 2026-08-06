@@ -1,5 +1,52 @@
 # Lessons — jobcrush-app
 
+## "Every X asks for Y" is a measurable claim, and this repo has the X sitting in it
+
+`docs/cv-brain/tailoring-reasoning.md` §4 throws away an entire class of CV content — budget,
+stakeholder management, agile familiarity — on a stated justification: they are dropped *"precisely
+because every PM ad asks for it"*. The rule was ported, read once, misread once, re-clarified, and
+built on. **Nobody counted.**
+
+Counted against the seventeen real postings in `apps/api/data/sample-postings.json`: **budget appears
+in 7, Agile in 3** — and one of those three is motivational boilerplate rather than a requirement. The
+universal that justified the rule is false in our own corpus, and the corpus was in the repo the whole
+time.
+
+**The generalisable part: a justification phrased as a universal is a hypothesis wearing the clothes of
+a premise.** *Every*, *always*, *never*, *by definition* read as settled and pass review unchallenged,
+because arguing with them feels like arguing with a definition rather than with a measurement. The tell
+is that they are usually the *load-bearing* sentence — the one clause that makes the rest of the rule
+safe — which is exactly why nobody pokes at it.
+
+**The tell to reuse:** when a rule's justification contains *every* or *never* about the outside world,
+ask **what would count as a counterexample** and **whether the repo already holds enough data to look**.
+In a product built on a corpus, the answer to the second is usually yes. Counting took ten minutes and
+invalidated a premise two design sessions had rested on.
+
+## The schema tells you what the code can do; the CV brain tells you what it is supposed to do
+
+The owner asked whether a `Project Achievements` sub-heading would survive onto a tailored CV. Reading
+the `Draft` schema in `apps/api/src/preview.ts` gives a clean answer — a job holds a flat array of
+bullet strings, there is no sub-heading slot, so no. **That answer was wrong**, and it was delivered
+with confidence because the schema is unambiguous.
+
+`docs/cv-brain/cv-authoring-rules.md:37-39` had already specified the construct in full: sub-groups
+render as a standalone italic line, the canonical term is **"Key Deliveries"**, use only when there are
+2+ achievements, at most one per role, and it counts toward the bullet cap. The rules even anticipate
+the abuse. The renderer simply never implemented any of it, and **nothing anywhere records that gap** —
+so the schema reads as the complete truth.
+
+**The generalisable part: in this repo the code is downstream of a specification that lives in prose,
+and an unimplemented rule leaves no trace in the code.** Absence in the schema is therefore ambiguous
+between *"decided against"* and *"never built"*, and those two produce opposite answers to a design
+question. `CLAUDE.md` says `docs/cv-brain/` is *"what the pipeline must stay true to"*; a gap between
+them is a defect in the pipeline, not a decision.
+
+**The tell to reuse:** before answering *"can the product do X?"* from a schema, grep the CV brain for
+X. And when a rule turns out to be unimplemented, that is a **ticket**, not a footnote — a written rule
+with no implementation and no warning is worse than either having it or deleting it, because the next
+reader will cite it as live. (#155 is the one this produced.)
+
 ## A count over a corpus is not a distribution, and the ratio can be one document
 
 [#150](https://github.com/adrien-mounier/jobcrush-app/issues/150) opened with a number that looked

@@ -2,6 +2,63 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-06 (session 87) — Three of our own rules turned out to be unsourced, unmeasured, or unimplemented
+
+_Owner-commissioned research with no ticket, arising from the #150 conversation: **how should a role's 8-bullet budget be split between baseline expectations and achievements?** Output: [`docs/research/bullet-budget-floor-vs-achievement.md`](docs/research/bullet-budget-floor-vs-achievement.md) (933 lines) and **three tickets** — [#153](https://github.com/adrien-mounier/jobcrush-app/issues/153), [#154](https://github.com/adrien-mounier/jobcrush-app/issues/154), [#155](https://github.com/adrien-mounier/jobcrush-app/issues/155) — plus two lessons. No code changed._
+
+- **🔑 The owner's hypothesis survived, narrowed.** He proposed that a cartesian *"N baseline bullets,
+  M achievements"* rule is undesignable and that only model judgement can do it. **The allocation is
+  expressible as a rule** — a **coverage** rule (cover each requirement the advert states), which every
+  documented shipped product converges on and which our own per-requirement grader already computes.
+  What is irreducible is one level lower: **the classification**. Whether a given sentence is baseline
+  or differentiator **flips with the advert** — his mobile-banking bullets match nothing in one posting
+  in our sample set and are the strongest evidence in another. **He can have the rule; he cannot have
+  the ratio.**
+- **🚨 The justification for the whole floor/discriminator split is false in our own corpus.**
+  `tailoring-reasoning.md` §4 discards a content class *"precisely because every PM ad asks for it"*.
+  Counted against the 17 postings in `sample-postings.json`: **budget in 7, Agile in 3** — one of those
+  three being boilerplate motivation copy. **His own example (Agile) is required by two adverts in
+  seventeen.** ⚠️ Stored excerpts are truncated so these are lower bounds — but the claim had never been
+  measured at all, and the corpus was in the repo the whole time.
+- **🚨 The 8-bullet cap has no source → [#153](https://github.com/adrien-mounier/jobcrush-app/issues/153).**
+  `cv-authoring-rules.md:83` presents the limits as **hard** and cites a research file. That file says
+  **"aim for 4-6"**, carries **no citation of its own**, and its header records its method as *Gemini CLI
+  web research* informing **"framing and vocabulary only"**. The **8** and the "3-4 for older roles"
+  appear nowhere but our own rules and `preview.ts`. **No institution, standard, parser or professional
+  body publishes a per-role bullet cap anywhere.** Part of the allocation problem is self-inflicted.
+- **🚨 Two live rules contradict each other and no code arbitrates →
+  [#154](https://github.com/adrien-mounier/jobcrush-app/issues/154).** `preview-tailor.md` rule 8 orders
+  **merge, never drop**; `cv-authoring-rules.md:45` orders **every bullet action + scope + outcome, no
+  responsibility-only bullets**. Measured on the owner's own CV: four bullets → one, **514 characters →
+  172, two thirds of the words gone, every keyword kept, every outcome clause destroyed** — a compliant
+  rule-8 bullet that is exactly what rule 45 forbids. Nothing notices: `conservationIssues()` counts
+  **classes**, the judge sees a **flat list**, and nothing checks for an outcome at all. **This is
+  degrading real output now**, independent of every other question here.
+- **🚨 A fully specified rule has no implementation and no warning →
+  [#155](https://github.com/adrien-mounier/jobcrush-app/issues/155).** `cv-authoring-rules.md:37-39`
+  specifies sub-groups inside a role in detail — standalone italic line, canonical term **"Key
+  Deliveries"**, only when 2+ achievements, **at most one per role, counting toward the cap**, with an
+  explicit anti-abuse clause. **`Draft.experience[].bullets` is a flat `array(string)` with no
+  sub-heading slot**, so the renderer cannot emit it. ⚠️ **This corrected an answer given earlier in the
+  same conversation:** the owner was told his `Project Achievements` heading was an incidental default
+  and wanting it back was an open design preference. It was specified months ago. The wrong answer came
+  from reading the schema and not the CV brain. ✅ **ADR-0009 is undisturbed** — it decided the data
+  model; a sub-group is a rendering construct holding no facts.
+- **⚠️ Two "floors" in this repo wear one name.** `tailoring-reasoning.md` §4's **CV floor** is content
+  that must print; `onboarding-reward-design.md` §6's **discovery floor** is a question list satisfiable
+  by a *"No"* stored as explicitly **non-renderable**. Building the second gives you none of the first,
+  and the cross-reference between them (**§6.2**) **does not resolve — §6 has no subsections.**
+- **📌 The owner's own CV breaks both its own rules:** three pages against a two-page budget, and fifteen
+  bullets on one role against a cap of eight.
+- **Two lessons:** *"every X asks for Y" is a measurable claim, and this repo has the X sitting in it* ·
+  *the schema tells you what the code can do; the CV brain tells you what it is supposed to do*.
+- **Could not check** (recorded as unchecked, never as negative): Lightcast's per-occupation skill
+  ranking — **now contract-only, and the only source that would derive a floor from real adverts rather
+  than expert opinion** · LinkedIn's skills taxonomy (partner-restricted) · PMI CV guidance
+  (member-gated) · the Ladders eye-tracking PDF, Teal's help centre and one academic paper (all HTTP
+  403) · the European ICT Professional Role Profiles page (404) · Kickresume and Careerflow selection
+  logic (no documentation found).
+
 ## 2026-08-06 (session 86) — The ratio the design rested on was one CV from another country, and the hazard was the client, not the project
 
 _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) research ticket, resolved as [#150](https://github.com/adrien-mounier/jobcrush-app/issues/150) with nine clauses, written up as **[ADR-0009](docs/adr/0009-a-work-project-stays-a-bullet.md)** — the ninth ADR in this repo, and **the first whose decision is to build nothing**. Two research passes run in parallel (`/research` deep sources + `/last30days` recent movement). **Repo output: ADR-0009, a CLAUDE.md section, two research documents, two corrections to existing research, two lessons.** No code changed._
