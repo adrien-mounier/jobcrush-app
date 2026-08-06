@@ -1,5 +1,47 @@
 # Lessons — jobcrush-app
 
+## "X is impossible here" needs the full list of ways X could happen, not the first one you checked
+
+#146 spent **two rounds** of owner grilling on a fork built from one sentence: *a project can never
+satisfy ADR-0001 rule 4's "used in matching" gate, because no advert tests projects.* The evidence for
+it was real and verified — 0 of 17 adverts mention projects, no ATS anywhere filters on them, and the
+five eligibility dimensions have no slot for one.
+
+**All true, and the conclusion was still wrong.** This product has **two** matching mechanisms. Beside
+the eligibility gates that *withdraw* a posting sits the **judged score**, where an LLM grades each
+advert requirement against the visitor's confirmed sentences — and its headline rule is *"the
+candidate's own phrasing counts"*. Project paragraphs are already mined as claims, so a project already
+reached that grader. **The gate was met before the argument started.** The owner ended it by asking why
+a project could not just be a bullet.
+
+**The failure is not an unverified premise** — the premise was checked. It is an **incomplete
+enumeration**: one path was confirmed blocked and treated as the only path.
+
+**The tell:** the claim has the shape *"the system cannot do X"* and the evidence has the shape *"this
+component does not do X"*. Those are different claims. Before spending a decision on the first, list
+every component that could do X and check each — `grep` for the capability, not for the component you
+had in mind. **Two rounds of a human's time were spent on a fork that reading one more file dissolved.**
+
+## A container is not a fact, and the fact/preference sorting test has no answer for it
+
+ADR-0001 rule 5 sorts every new thing into a **fact** (an advert could test it) or a **preference** (it
+only narrows what you are shown). #146 forced a personal project through that test for two rounds and
+got no answer, because a project is **neither** — and the sorting test is not broken, it is simply not
+about this.
+
+**A container holds no fact of its own.** A project is a name with sentences hanging off it, exactly as
+a job is an employer-and-title with sentences hanging off it. Asking *"could an advert test this?"* of a
+container is asking what an advert makes of a bracket.
+
+**The tell, and it is cheap to apply:** if the new thing would hold **nothing but a name and the
+sentences beneath it**, it is a container. Shape it, print it, and skip the sorting test entirely. If it
+holds a value something could be compared against — a level, a date, a country, a credential — it is a
+fact and the test applies.
+
+**Why it cost so much here:** "is it a fact or a preference?" is a well-formed-sounding question, so
+nobody asks whether it is the right question. The two rounds produced a genuine hole in ADR-0001 — but
+a much smaller and more boring one than the "third kind of fact" the session went hunting for.
+
 ## An absence cannot fail the way a check can
 
 The obvious design for #141's stretch leak was: keep the stretch in the profile, mark it, and **filter
@@ -226,6 +268,22 @@ the mechanism the rule governs, not merely that it *sounds* different from the f
 and "a job" sound like different elements; as far as the growth rule is concerned, adding a language to
 an existing language store is nothing at all. The test to apply before spending a session: **name which
 clause of the rule this case can make fail.** If you cannot, the case is a demonstration, not a test.
+
+**Postscript, 2026-08-06 — it happened twice more, and the test was retired.** #140 shaped five
+elements and turned out to be a mechanical application of **ADR-0003**, not ADR-0001. #146 chose
+personal projects precisely *because* they looked structurally unlike everything else — no
+organisation, no dates — and they turned out to be a **container**, not a new kind of fact, so rule 3
+was satisfied before work began and rule 4's hardest gate was already met.
+
+**Three attempts, three misses, and the pattern in them is the finding:** every candidate that was
+cheap enough to walk on paper was cheap *because* it reused something already built. **A rule about the
+cost of extension cannot be tested by an extension chosen for being cheap to imagine.** The owner
+retired the paper test from the map's destination and moved it to the first element added after build.
+
+**The generalisation, stronger than the original:** if a rule prices *future* work, a paper walk can
+only ever confirm the cases you can already picture — which are the cheap ones. **Price it against
+something real, or accept that you are shipping it untested and say so out loud.** Retiring a
+verification you cannot perform beats performing a fourth one that proves nothing.
 
 ## A single control byte makes a source file invisible to every search — and the failure is silent
 

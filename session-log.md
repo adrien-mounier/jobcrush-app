@@ -2,6 +2,66 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-06 (session 83) — A project is a container, not a fact — and the map's own stress test missed for the third time and was retired
+
+_Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 8, resolved as [#146](https://github.com/adrien-mounier/jobcrush-app/issues/146) with ten clauses, written up as **[ADR-0006](docs/adr/0006-a-project-is-a-container-not-a-fact.md)** — the sixth ADR in this repo. Two research tickets commissioned and resolved mid-session ([#147](https://github.com/adrien-mounier/jobcrush-app/issues/147), [#148](https://github.com/adrien-mounier/jobcrush-app/issues/148), four agents, both halves each). Two tickets spun out ([#149](https://github.com/adrien-mounier/jobcrush-app/issues/149), [#150](https://github.com/adrien-mounier/jobcrush-app/issues/150)). **Repo output: ADR-0006, two scope notes written into ADR-0001, four research files, three lessons, the map's Destination amended.** Commits `150262d` (research) + this one._
+
+- **🔑 The headline: a project is a container, not a fact.** A named box holding ordinary sentences,
+  exactly parallel to a job — section → container → sentences. Its bullets are **ordinary claims, no new
+  sentence type**, which is the whole reason the element is cheap: ADR-0001 rule 3 (*structuring never
+  removes the sentence*) was satisfied before any work began, because the miner's rule 8 already mines
+  every section. The container holds **a name and an optional link, and no date**.
+- **🚨 The fifth premise correction on this map, and it dissolved two rounds of grilling.** The session
+  argued that a project could never satisfy rule 4's *used in matching* gate. The evidence was real —
+  0 of 17 adverts mention projects, no ATS filters on them. **But this product has two matching
+  mechanisms and the session looked at one.** Beside the eligibility gates sits the **judged score**
+  (`judge.ts` + `card-judge.md`), where an LLM grades each advert requirement against the visitor's
+  confirmed sentences, headline rule *"the candidate's own phrasing counts"*. Project paragraphs are
+  already claims, so **a project already reaches the grader today**. The owner ended the argument by
+  asking why a project could not just be a bullet. Generalised in `lessons.md`.
+- **⭐ Rule 4's four gates walked one at a time for the first time on this map**, producing its first
+  real cost number: **one small container, one new CV section, one contract change** — roughly one
+  session. ⚠️ **That contradicts ADR-0001's own universal framing** (*"adding an element is a
+  multi-session project"*), the sentence that made #130 the most consequential ticket on the map.
+  Recorded as a scope note in ADR-0001: **the cost is per-element.**
+- **🚨 The stress test missed for the third consecutive time, and the owner retired it.** #125 was the
+  same element with a different origin · #140 a mechanical application of ADR-0003 · #146 a container,
+  not a new kind of fact. **ADR-0004 predicted exactly this and was overruled** — #146 was created
+  against its advice. **Map #127's Destination is amended**: the paper stress test is dropped, on the
+  evidence that **no candidate remains** (everything genuinely a *fact* is already an element; awards,
+  publications and volunteering are containers like projects). The test transfers to the first element
+  added after build. **Accepted cost, stated plainly: we ship a growth rule nobody has stress-tested.**
+- **🔑 ADR-0001 does not reopen; it gains two scope notes, not amendments** — the precedent ADR-0004 set
+  for ADR-0003 clause 8, and both are now written into ADR-0001 itself: **rule 5 sorts facts from
+  preferences and a container is neither** (*the tell: nothing but a name and the sentences beneath it*)
+  · **rule 4's cost is per-element, not universal.**
+- **⭐ The research leg justified itself twice, the way #137 did.** Four agents, deep + `/last30days`
+  per question. **The corpus count overturned #146's own ticket**: nested-inside-a-job beats the
+  standalone section **~7:1** across our six CVs, so the session had been designing against the rarer
+  shape — and the nested ones are *richer* (client, dates, own bullets). **Two kinds, not one, with no
+  dissent in any source**: five shipping tools read at source level all split `projects` from
+  pointers — a GitHub profile is **contact detail**, and one tool's own docstring calls a personal
+  website a *"contact method… contact channel"*.
+- **🔑 The name is `Projects`** — *Personal* dropped, on in-window repo counts of **2,661 vs 25** and a
+  style guide that names and rejects the owner's exact heading (⚠️ single-sourced; the other agent found
+  that wiki blocked). 🚨 **`Portfolio` rejected outright**: a defined **PMI** term *and* a banking term,
+  and owner decision 8 has the section name **read aloud** during chunked ingestion.
+- **⚠️ The owner caught the session conflating two different things** — *"by definition a personal
+  project can't be part of a job."* Correct, and it produced [#150](https://github.com/adrien-mounier/jobcrush-app/issues/150):
+  a project done *for an employer* is the **7:1 more common** shape and needs its own answer.
+- **⭐ The owner's alert idea became [#149](https://github.com/adrien-mounier/jobcrush-app/issues/149)** —
+  flag anything unclassifiable, store it, tell a human. Found while checking it: `parser_flags` is real
+  and contractual and reaches `buildImportProof()`, where it is used **once** to mark an import
+  `partial` and **then discarded**. Nobody can look up what it said and no one is told. **He is not
+  asking for a new pipe; he is asking that what flows through it be kept.**
+- **⚠️ One record correction is owed and deliberately not taken.** #145's *"JSON Resume is fully dead"*
+  is repeated in ADR-0004's Liveness paragraph and in the map. All four runs split **2–2**; the
+  reconciliation is that the spec repos **are** archived while the destination monorepo **is** active
+  and thin, and the star figure is disputed (2.4k vs 4,719). **Raised with the owner, still open.**
+- **Frontier after this session: five, all unblocked** — #131, #143, #144, #149, #150. The map's own
+  verification is now **retired rather than pending**, so it can honestly be called done when these
+  five close.
+
 ## 2026-08-06 (session 82) — The leak was dissolved rather than policed, because an absence cannot fail the way a check can
 
 _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 5e, resolved as [#141](https://github.com/adrien-mounier/jobcrush-app/issues/141) with nine clauses, written up as **[ADR-0005](docs/adr/0005-a-stretch-belongs-to-its-advert.md)** — the fifth ADR in this repo. Impact sweep across #144, #142 and #86. **Repo output: ADR-0005, a new `CLAUDE.md`/`AGENTS.md` section, two lessons, one fog patch cleared.**_

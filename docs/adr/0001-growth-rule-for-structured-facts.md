@@ -57,6 +57,18 @@ Four readers, all four before ship:
 **Chosen against the recommendation.** The alternative — ship when listable and correctable, let the
 rest catch up — was offered and declined. Owner decision, taken with the cost stated below.
 
+> **Scope note, added 2026-08-06 by [ADR-0006](0006-a-project-is-a-container-not-a-fact.md) — a
+> footnote, not an amendment.** Two things this rule states more absolutely than it should:
+>
+> 1. **"Used in matching" is satisfied by *either* of this product's two matching mechanisms** — the
+>    eligibility gates that withdraw a posting, **or** the judged score, where an LLM grades each advert
+>    requirement against the visitor's confirmed sentences. #146 spent two rounds concluding a project
+>    could never satisfy this gate, having looked only at the first. Check both before concluding an
+>    element cannot match.
+> 2. **The *multi-session project* cost below is per-element, not universal.** Projects cost roughly one
+>    session, because the matching gate was already met and the sentences were already stored. Another
+>    element may well cost more. Price the element, don't quote the rule.
+
 ### 5. Two categories: facts and preferences
 
 - A **fact** is something an advert could test about the visitor — languages, years of experience,
@@ -77,6 +89,16 @@ salary* → the advert states a salary and the visitor filters on it; it tests n
 
 **Known soft edge:** *"remote only"* sits on the line. Called a **preference**. If a future advert
 genuinely gates on willingness to relocate, that is a new fact, not a reclassification of this one.
+
+> **Scope note, added 2026-08-06 by [ADR-0006](0006-a-project-is-a-container-not-a-fact.md) — a
+> footnote, not an amendment.** **This test sorts *facts* from *preferences*. A *container* is neither,
+> and does not go through it.** A container is a place to put sentences the product already holds — a
+> project groups its own bullets the way a job groups its own. It stores no fact of its own, so asking
+> *"could an advert test this?"* has no answer.
+>
+> **The tell:** if the new thing would hold nothing but a name and the sentences hanging off it, it is a
+> container. Shape it, print it, and skip this test. #146 spent two rounds forcing a project through
+> this sorting and got no answer, because the question was malformed.
 
 ### 6. New advert-side bars are allowed, at a stated price
 
@@ -188,6 +210,24 @@ brief applies to the ad-requirements contract (rule 6), not to the claim graph.
 
 ## Verification
 
+🚨 **The paper stress test was attempted three times, missed three times, and retired 2026-08-06.**
+Superseded by [ADR-0006](0006-a-project-is-a-container-not-a-fact.md) clause 10 and its Verification
+section, which is the normative record.
+
+| Attempt | Why it missed |
+|---|---|
+| [#125](https://github.com/adrien-mounier/jobcrush-app/issues/125) — a volunteered language | The **same element with a different origin**. Adding a *level* to an existing element changes a shape, which this rule explicitly does not cover. |
+| [#140](https://github.com/adrien-mounier/jobcrush-app/issues/140) — each element's own parts | A mechanical application of **ADR-0003**, not of this rule. All five elements were already on the v1 list. |
+| [#146](https://github.com/adrien-mounier/jobcrush-app/issues/146) — personal projects | **Not a new kind of fact at all** — a container. Rule 3 was satisfied before work began, and rule 4's hardest gate was already met. |
+
+**Retired on evidence, not convenience: no candidate remains.** Everything genuinely a *fact* is already
+an element, and every remaining candidate (awards, publications, volunteering, patents) is a **container**
+like projects. **The test transfers to the first element added after build**, where it becomes a live
+test — which this ADR's own employer case already showed is where the rule gives real answers.
+
+<details><summary>the original verification clause, kept for the record</summary>
+
 The stress test is [#125](https://github.com/adrien-mounier/jobcrush-app/issues/125) — adding a
 volunteered language. If applying this rule to it turns into a fresh argument rather than a mechanical
 walk, **this ADR is wrong and #129 reopens.** That outcome is a success for the map, not a setback.
+</details>

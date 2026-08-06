@@ -111,6 +111,49 @@ governs reading a CV). #128 §1 governs **facts**, and a proposal is not a fact 
 advert. **ADR-0002 clause 2 needs a scope note, not an amendment** — it governs thin input on the person's
 *own* material, not a stretch. Only that note's exact wording is still open.
 
+### A project is a container, not a fact
+
+**[ADR-0006](docs/adr/0006-a-project-is-a-container-not-a-fact.md), decided 2026-08-06 in
+[#146](https://github.com/adrien-mounier/jobcrush-app/issues/146) — decided, not yet built.**
+
+A **project** is a **named container holding ordinary sentences**, exactly parallel to a job:
+*section → container → sentences*. Its bullets are **ordinary claims — there is no new sentence type**,
+which is the whole reason the element is cheap. The container holds **a name and an optional link, and
+no date**; a date the person wrote stays inside their sentence, as their words.
+
+Ten clauses; the ADR is the normative home. The ones most likely to be broken by accident:
+
+- 🚨 **A project is never an employment entry, and never counts towards years of experience.** A project
+  title reaching `roles[]` or `Draft.experience` prints as **an employer the person never worked for** —
+  decision 9's *the machine never adds silently*, and #138's observed real-parser failure. Unpaid work is
+  kept out of the career total by #126's existing ***is this work?*** switch.
+- **The section is `Projects`** — *Personal* dropped. 🚨 **`Portfolio` is rejected outright for this
+  market**: a defined **PMI** term (a collection of projects and programmes) *and* a banking term, and
+  owner decision 8 has the section name **read aloud** during chunked ingestion.
+- **A link is not a project.** A GitHub profile, a personal website and a portfolio URL are **contact
+  detail** — five shipping tools split them from projects with no dissent. A link *belonging to one
+  project* is a field of that project.
+- **The tailor may drop a project, but `conservationIssues()` must learn to watch the section.** Today
+  projects are invisible to it: all three could vanish from a tailored CV and nothing would say a word.
+
+⚠️ **Two scope notes were written into [ADR-0001](docs/adr/0001-growth-rule-for-structured-facts.md)**,
+and both change how a future element is judged:
+
+- 🚨 **Rule 4's *used in matching* gate is satisfied by EITHER matching mechanism.** This product has
+  two — the eligibility gates that withdraw a posting, **and the judged score**, where an LLM grades
+  each advert requirement against the visitor's confirmed sentences (*"the candidate's own phrasing
+  counts"*). **#146 spent two rounds concluding a project could never match, having checked only the
+  first. Check both.**
+- **Rule 5 sorts *facts* from *preferences*; a container is neither** and skips the sorting test. **The
+  tell:** if the new thing holds nothing but a name and the sentences beneath it, it is a container.
+- **Rule 4's *"multi-session project"* cost is per-element, not universal.** Projects cost roughly one
+  session. Price the element; don't quote the rule.
+
+🚨 **The paper stress test is retired — do not stage a fourth attempt.** Map #127's destination promised
+the growth rule would be stress-tested on paper; three tries missed (#125 same element, #140 mechanical
+ADR-0003, #146 a container) and **no candidate remains**. **The test transfers to the first element added
+after build.** Accepted cost, stated plainly: **we ship a growth rule nobody has stress-tested.**
+
 ## Git workflow
 
 Solo repo, no branch protection. **Stay on `main`.** Don't create branches for ordinary work —
