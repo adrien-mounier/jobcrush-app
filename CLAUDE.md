@@ -58,6 +58,25 @@ person never chose it, never saw it, and **cannot defend it at interview**, whic
 that makes stretching safe. **Visible proposal = the product. Silent drift = the bug.** An honest
 baseline is the *precondition* for confident stretching, not a limit on it.
 
+**[ADR-0004](docs/adr/0004-each-elements-own-parts.md) clause 1a makes this checkable rather than merely
+stated — decided, not yet built.** Every structured fact must **point at its origin**, and a fact
+pointing at nothing is a **defect**, not a low-confidence result. *Machine-read* points at the **exact
+source words**; *the person said it* points at the **answer and the question that prompted it**;
+*corrected* points at the **superseded value**; *proposed and approved* points at the **proposal and its
+interview narrative**; *computed* points at the **facts underneath**. **This governs every element — a
+job, a title, a date, a degree, a location — not skills alone.**
+
+⭐ **Origin also decides reuse across adverts, which is the [#141](https://github.com/adrien-mounier/jobcrush-app/issues/141)
+boundary:** a fact the person **stated, corrected, or that we read from their CV** is theirs
+**permanently** and belongs on any tailored CV where it helps — **including a skill they gave in a grill
+answer, which is a real fact and not a leak.** Only a **proposed-and-approved stretch** carries the scope
+of the advert it was made for.
+
+⚠️ Two things not to get wrong: **nothing checks origins today** (this is a decided shape; the design map
+ends at build tickets, so never assume the check exists), and **a check that finds nothing must be
+distinguishable from one that did not run** — the failure mode observed three times in one month in the
+project this pattern came from.
+
 ⚠️ **Two reconciliations are open, so don't assume either way:** ADR-0002 clause 2 and the miner rules
 are worded as blanket bans with no carve-out for an approved proposal (map #127, Not-yet-specified);
 and an approved stretch currently leaks onto adverts it was never made for

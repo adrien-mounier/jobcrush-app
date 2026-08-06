@@ -35,14 +35,8 @@ match loses nothing.
 ADR-0001 rule 3 already keeps. The cost #140 originally attributed to this option (*"every skill
 exists twice; every screen must know which to show"*) was an artefact of framing and does not exist.
 
-**🚨 Every normalised skill carries the exact span of the document that produced it.** A normalised
-term that no span produced **cannot exist**, and is a **defect**, not a low-confidence result.
-
-This is the single most consequential clause in this ADR, because it converts owner decision 9's core
-clause — *the machine never adds silently; the human owns every stretch* — from a promise into a
-**mechanical test**, checkable in code the way `conservationIssues()` is. #138 observed real parsers
-*"normalizing to a title or skill the candidate never claimed"*; a span requirement makes that
-detectable rather than merely forbidden.
+**Every normalised skill must point at where it came from** — see clause 1a, which generalises this
+beyond skills.
 
 **Evidence:** Textkernel's live Skills API returns confidence (0–1), a tunable threshold (default
 0.5), and a `Matches` array with start/end positions. Alibaba's HR platform (240–300 résumés/minute)
@@ -52,7 +46,57 @@ runs the blunt form: discard any extracted record whose fields cannot be found i
 gate failed **three separate times in the 30 days before this decision** — once failing truthful CVs,
 once missing from 16 of 18 localized prompt files, once completely inert in five locales. Their words:
 *"it says `pass`, which is worse than saying nothing: it manufactures confidence."*
-**A span check that finds nothing must be distinguishable from one that did not run.**
+**An origin check that finds nothing must be distinguishable from one that did not run.**
+
+### 1a. 🚨 Every structured fact points at its origin, and "nowhere" is a defect
+
+> **AMENDED 2026-08-06, same day, by the owner.** This clause was first written as *"every normalised
+> skill carries the exact span of the **document** that produced it"* — **scoped to skills, and to
+> documents.** The owner caught both errors in one observation: *a skill can be present in your profile
+> and point at an answer you gave during the grill, then be reused in a tailored CV for a specific
+> advert* — and *this logic shouldn't be applicable only for skills, experience too.* The narrow
+> wording would have **flagged the visitor's own answer as a defect**, and it fails outright under owner
+> decision 6, where most facts eventually arrive **from the person, not from a parsed file.** The
+> generalised clause below is the binding one.
+
+**Every structured fact this product holds must point at its origin. A fact that points at nothing
+cannot exist, and is a *defect* — not a low-confidence result.**
+
+This applies to **every element**, not skills alone: a job, a title, a date, a degree, a certification,
+a language level, a location. Wherever the machine writes something down, it records what produced it.
+
+**The legitimate origins are the ones already decided** (#128's three, plus decision 9's fourth), and
+this clause adds only what each must point *at*:
+
+| Origin | Points at | Notes |
+|---|---|---|
+| **Machine-read** | the **exact source words** in the uploaded document | The strong form. A read term no source words produced is the failure #138 observed in real parsers. |
+| **The person said it** | the **answer**, and the question that prompted it | The owner's case. Substance is the visitor's, so ADR-0002 clause 1 lets it be written up into a real CV line. |
+| **The person corrected it** | the **superseded value** it replaced | ADR-0003 clause 7 — a correction supersedes, never replaces, so the thing it corrected is still there to point at. |
+| **Proposed and approved** | the **proposal**, its evidence grade, and its **interview narrative** | Decision 9's fourth state. The enrichment contract already makes a narrative-less proposal invalid. |
+| **Computed** | the **facts it was derived from** | #128 §4 — a derived value is a regenerable copy, never a second source of truth, so its origin is the facts underneath. |
+
+**Why this is the most consequential clause in this ADR.** It converts owner decision 9's core clause —
+*the machine never adds silently; the human owns every stretch* — from a promise into a **mechanical
+test**, checkable in code the way `conservationIssues()` is. #138 observed real parsers *"normalizing
+to a title or skill the candidate never claimed"*; requiring an origin makes that **detectable** rather
+than merely forbidden.
+
+**And it draws the line #141 needs.** Origin decides whether a fact may be **reused across adverts**:
+
+- A fact the person **stated, corrected, or that we read from their CV** is theirs, permanently, and
+  belongs on every tailored CV where it helps. **The owner's grill-answered skill is this case** — it is
+  a real fact about them, so reusing it for a specific advert is correct behaviour, not a leak.
+- A **proposed-and-approved stretch** was made for one advert and carries that advert's scope. Reusing
+  it elsewhere is the leak [#141](https://github.com/adrien-mounier/jobcrush-app/issues/141) exists to
+  stop.
+
+**So the answer to *"can this appear on this CV?"* is a property of the fact's origin, not of the
+element it belongs to** — which is ADR-0002's own axis (*provenance decides the route; the page does
+not*) applied one level further.
+
+⚠️ **Not yet built.** This is a decided shape, not running code. Nothing checks origins today, and the
+map ends at build tickets. A future session must not assume the check exists.
 
 ### 2. Skills carry no self-assessed level, and we never ask for one
 
@@ -261,17 +305,21 @@ the level question and the taxonomy target entirely.
 record still does not exist; mined roles sit in an in-memory blob discarded after one use. Every clause
 lands in the build ticket that creates that record for the first time.
 
-**Clause 1's span requirement is a new obligation on the miner**, not a new field: the reader must
-return, for every normalised skill, where in the document it came from. It also needs its own negative
-test — a check that cannot distinguish *found nothing* from *did not run* is the failure `career-ops`
-shipped three times in one month.
+**Clause 1a is a new obligation on every writer of facts, not a new field.** The reader must return the
+source words for anything it read; the grill must keep the answer and the question; a correction must
+keep what it superseded; a proposal must keep its narrative. It also needs its own **negative test** —
+a check that cannot distinguish *found nothing* from *did not run* is the failure `career-ops` shipped
+three times in one month.
 
 **Clause 5 hands an open question to [#144](https://github.com/adrien-mounier/jobcrush-app/issues/144):
 does an expired certification print?** We can now hold the fact that it lapsed; whether it reaches the
 page is *what we hold is not what we print*, which #144 owns.
 
-**Clause 1 hands a mechanism to [#141](https://github.com/adrien-mounier/jobcrush-app/issues/141): a
-stretch is a skill with no span.** The span test names the object #141 needs to scope. Prior art
+**Clause 1a hands [#141](https://github.com/adrien-mounier/jobcrush-app/issues/141) its boundary, and it
+is sharper than a mechanism: *origin decides whether a fact may be reused across adverts.* A fact the
+person stated, corrected, or that we read from their CV is theirs permanently and belongs on every CV
+where it helps — **including a skill they gave in a grill answer, which is a real fact and not a leak.**
+Only a **proposed-and-approved stretch** carries the scope of the advert it was made for. Prior art
 exists — `Resume-Matcher`'s `verify_skill_target_plan()` stamps four provenance states
 (`existing` / `jd_added` / `supported_by_resume` / `unsupported`) with a deterministic non-LLM verifier
 and shows additions in a **diff before save**. `career-ops` needs only three because it never

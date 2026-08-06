@@ -63,7 +63,31 @@ _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) tic
   ADR-0003* and never exercised *adding a new kind of fact a year later*. **It should be claimed by the
   first element added after build — not by anything left on map #127.**
 
-**Map frontier after this session: five, all unblocked and independent** — including the new [#146](https://github.com/adrien-mounier/jobcrush-app/issues/146) (**walk personal projects through the growth rule**), added at the owner's go-ahead once it became clear the map's promised stress test had been scheduled twice and missed twice. Subject chosen because it is **real, not invented**: three entries on a CV in `data/cvs/`, modelled **nowhere** in the pipeline and therefore discarded today, and required anyway by #130's *capture the maximum*. It probes three decided rules from angles no element has — **no organisation**, possibly **no dates at all**, and probably **evidence *for* skills rather than a peer of them**, which makes it a **mention-site** that *composes* with an element rather than sitting beside one. **The map cannot honestly be called done before it runs.** The other four:
+- **⚠️ ADR-0004 clause 1 was amended the same day, by the owner, and the amendment is the better rule.**
+  It was written as *“every normalised skill carries the exact span of the **document** that produced
+  it”* — **scoped to documents and to skills, and wrong on both counts.** A skill volunteered in a grill
+  answer has no span in any document, so the clause **would have flagged the visitor’s own answer as a
+  defect**; and under owner decision 6 most facts eventually arrive **from the person, not from a parsed
+  file**, so the narrow rule fails for the majority of facts in the target state. Now **clause 1a**:
+  *every structured fact points at its origin, and a fact pointing at nothing is a defect* — governing
+  every element, with a table of what each of the five origins must point at.
+- **⭐ The amendment gave #141 a boundary rather than only a mechanism.** *A stretch is a skill with no
+  span* is superseded by **origin decides whether a fact may be reused across adverts**: a fact the
+  person stated, corrected, or that we read from their CV is theirs **permanently** — including a
+  grill-answered skill, whose reuse on a tailored CV is **correct behaviour, not a leak** — while only a
+  **proposed-and-approved stretch** carries the scope of the advert it was made for. That explains *why*
+  the owner’s finance-trading stretch leaked while his genuine facts do not, which the span version
+  could not. It is ADR-0002’s axis (*provenance decides the route; the page does not*) applied one level
+  further, to scope.
+- **Context-file sync (`/close-session`): zero diffs to reconcile.** `CLAUDE.md` and `AGENTS.md` shared
+  blocks were already **byte-for-byte identical** — nothing additive, structural, or contradictory — and
+  the private zones differ correctly. The sync only checks the files *agree*, so accuracy was checked
+  separately: the CV-philosophy section was **stale**, still presenting *the machine never adds silently*
+  as a principle with no enforcement. Both cores now carry clause 1a, in its generalised form, with an
+  explicit **decided, not yet built** warning so a future session does not assume the check exists.
+- **Next session:** `/wayfinder 141` — **the stretch that leaks onto the wrong advert.** It is the owner's own live case (a finance-trading stretch that won an interview, then displaced a genuine fact on an unrelated advert), it was **already half-answered** by ADR-0003 clause 9 (two independent labels, both already existing), and this session handed it the missing half: **a stretch is a skill with no span**, plus shipped prior art (`Resume-Matcher`'s four-state provenance verifier + diff-before-save). Best-prepared ticket on the frontier.
+  ⚠️ **But [#146](https://github.com/adrien-mounier/jobcrush-app/issues/146) must run before the map can close** — it is the map's own verification, promised in the destination and missed twice. It blocks nothing, so it can go any time; it just cannot be skipped.
+- **Housekeeping the next session should still not sweep up:** the working tree carries the same pre-existing untracked files flagged in earlier sessions — six council reports + transcripts, `screenshots/`, `.claude/`, `.impeccable/`, `.tokensave/`, a web prototype, two e2e drivers, and `docs/research/hermes-agent-model-switching.md` (unrelated to this map). **None of it is this session's.** **Map frontier after this session: five, all unblocked and independent** — including the new [#146](https://github.com/adrien-mounier/jobcrush-app/issues/146) (**walk personal projects through the growth rule**), added at the owner's go-ahead once it became clear the map's promised stress test had been scheduled twice and missed twice. Subject chosen because it is **real, not invented**: three entries on a CV in `data/cvs/`, modelled **nowhere** in the pipeline and therefore discarded today, and required anyway by #130's *capture the maximum*. It probes three decided rules from angles no element has — **no organisation**, possibly **no dates at all**, and probably **evidence *for* skills rather than a peer of them**, which makes it a **mention-site** that *composes* with an element rather than sitting beside one. **The map cannot honestly be called done before it runs.** The other four:
 [#131](https://github.com/adrien-mounier/jobcrush-app/issues/131) (computed vs asked, unblocked by this
 session), [#141](https://github.com/adrien-mounier/jobcrush-app/issues/141) (the stretch leak, which now
 has a mechanism), [#143](https://github.com/adrien-mounier/jobcrush-app/issues/143) and
