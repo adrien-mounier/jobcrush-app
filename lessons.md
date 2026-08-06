@@ -1,5 +1,51 @@
 # Lessons — jobcrush-app
 
+## A regulation names a penalty, not a defendant — check who it binds before designing around it
+
+A whole ticket was built on Singapore's Workplace Fairness Act: *in force ~end-2027, **SGD 50,000 per
+violation**, on a collision course with the current CV convention in our primary market.* Every fact was
+true. It was carried on the map for two days as **the only ticket with an external deadline attached**,
+and it was written into the map body twice.
+
+**And the obligation points at employers.** They must strip age, date of birth, gender, race, religion,
+marital status and photograph from applications, and must not select on nationality. **Nothing stops a
+candidate writing any of it on their own document.** The fine was never ours and never theirs.
+
+**What that changed:** not the design — we still withhold — but *why*, and therefore *how hard*. A
+compliance deadline argues for a blanket rule, shipped by a date, with no override. A **CV-quality**
+finding argues for a default the person can reverse, shipped when it is ready. Same output, opposite
+posture, and the wrong posture had already made the ticket look urgent.
+
+**The check, and it costs one sentence:** before writing a regulation into a design, name **the party it
+binds** and **what happens to our user if they ignore it**. If the answer is *"a third party has to
+handle it"*, it is a quality argument, not a deadline.
+
+**And the tell that it went unchecked here:** the ticket's own text said *"puts the current Singaporean
+CV convention on a collision course with the law"* — a convention cannot collide with a law that does not
+address it. **A regulation summarised without a subject is a regulation nobody has read as applying to
+anyone.**
+
+## Before designing to preserve a fact's value, check whether another fact already delivers it
+
+The strongest argument against never printing nationality was that it proves the right to work — the
+single most valuable line on a Singapore CV for a foreigner, and **ADR-0002's own worked example**
+(*"authorised to work in Singapore"*). That argument made a market-conditional rule look necessary.
+
+**It was false, and one grep settled it.** `work-rights` is already an eligibility dimension: we already
+ask *"Can you already work in {city} without visa sponsorship?"*, already store the answer, and already
+withdraw jobs on it. **Nationality was never needed to say the useful thing** — a different, better,
+already-shipped fact says it, legally and precisely.
+
+**The general shape:** a fact's apparent value is often the value of something it *stands in for*. Before
+building machinery to preserve that value, look for the thing it proxies. If the product already holds
+it, the expensive design evaporates — and if it does not, you have found a better element than the one
+you were about to protect.
+
+⚠️ **This is the same class of error as #135's and #146's premise corrections** — three of this map's six
+were *"the code already does this"*, found by reading rather than reasoning. **The pattern is not bad
+luck; it is what happens when a design conversation runs longer than the last time anyone opened the
+file.**
+
 ## `archived: true` is not evidence of abandonment — read the description for a MOVED pointer
 
 This repo called JSON Resume dead **twice**, in two separate research passes, and wrote it into a

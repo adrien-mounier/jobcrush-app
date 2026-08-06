@@ -69,6 +69,21 @@ rest catch up — was offered and declined. Owner decision, taken with the cost 
 >    session, because the matching gate was already met and the sentences were already stored. Another
 >    element may well cost more. Price the element, don't quote the rule.
 
+> **Scope note, added 2026-08-06 by [ADR-0007](0007-what-prints-is-decided-per-application.md) — a
+> footnote, not an amendment.** **Some facts exist only to be printed or withheld, and can never satisfy
+> reader 2.** A date of birth, an age, a marital status, a race, a religion, a gender: no advert tests
+> them, and none ever will. They are **not preferences** — they narrow nothing, so rule 5 still calls
+> them facts. (Nationality is *not* in this group: an advert can test it, and the judged score grades it.)
+>
+> Such an element ships on **four** readers — stored and correctable · prints · contract-validated · **and
+> its country-page behaviour decided** (ADR-0007 clause 2). Reader 2 is **not waived, it is satisfied by
+> the absence being deliberate**: the element must *state* that no advert can test it, and that statement
+> is the thing reviewed. An element that merely has no matching use *yet* does not qualify — that is a
+> deferral, and reader 2 still gates it.
+>
+> ⚠️ **Discovered on the route, not staged.** This is not a fourth attempt at the retired paper stress
+> test; #144 walked into it while pricing how personal details would be recognised.
+
 ### 5. Two categories: facts and preferences
 
 - A **fact** is something an advert could test about the visitor — languages, years of experience,

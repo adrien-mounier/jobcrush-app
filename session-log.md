@@ -2,6 +2,66 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-06 (session 84) — What prints is decided per application — and the ticket's own legal premise pointed at the wrong party
+
+_Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 5g, resolved as [#144](https://github.com/adrien-mounier/jobcrush-app/issues/144) with eleven clauses, written up as **[ADR-0007](docs/adr/0007-what-prints-is-decided-per-application.md)** — the seventh ADR in this repo. One research ticket spun out and wired but **not fired** ([#151](https://github.com/adrien-mounier/jobcrush-app/issues/151)). **Repo output: ADR-0007, a third scope note written into ADR-0001, a CLAUDE.md section, two lessons, two map corrections in place.** Impact comments on #86 and #66._
+
+- **🔑 The headline: there is no unprintable fact.** Everything we hold may print; what exists is a
+  **withholding pass that runs per application** and may answer differently next time. **Render, never
+  capture** — #130's *capture the maximum* stands in full, and in fact widens, since the seven personal
+  details must become recognised facts before anything can act on them. Print by default; a per-market
+  **country page** holds a **strip-list of seven names** and 🚨 **never a market style guide**. **No page
+  means nothing is stripped.**
+- **🚨 The sixth premise correction on this map, and the first the owner supplied rather than the code.**
+  The ticket was built on Singapore's Workplace Fairness Act at *SGD 50,000 per violation*, ~18 months
+  out. **Those rules bind employers**: they must strip these from applications and must not select on
+  nationality. **Nothing stops the candidate writing any of it on her own document.** So the fine was
+  never our number, **#144 never had a deadline**, and it is a **CV-quality** decision. The map asserted
+  the deadline **twice**; both are corrected in place rather than deleted. Generalised in `lessons.md`.
+- **⭐ The owner's design beat the session's, on his own principle.** The session opened recommending a
+  fixed product-wide never-print list — cheap and unfailable. He proposed print-by-default with a market
+  pass, and the argument that settled it was **his**: *the machine never adds silently* has a mirror,
+  **the machine never removes silently**. A blanket list is the machine deciding invisibly that a fact of
+  the person's is unfit to print.
+- **🚨 Three live findings, all from reading the code before asking anything.** We are **currently
+  instructed to print nationality and told never to drop it** — `preview-tailor.md` rule 6, sitting inside
+  the *tailor by emphasis, not amputation* block, so as a **conservation** rule it forbids the withholding
+  pass from ever firing and must become a **default**. · **The legal, useful version already exists as a
+  different fact**: the `work-rights` dimension already asks *"can you work in {city} without
+  sponsorship?"*, so dropping nationality from the page costs the candidate nothing. · **A photograph
+  cannot print at all** — `renderPreviewHtml()` has no image slot and no photo is read from the upload,
+  so of Singapore's trio the photo is inert for us.
+- **⚡ ADR-0001 rule 4 gains a third scope note, discovered on the route rather than staged.** **Some facts
+  exist only to be printed or withheld and can never satisfy *used in matching*** — a date of birth, an
+  age, a marital status. **Not preferences either** (they narrow nothing), so rule 5 still calls them
+  facts. They ship on **four** readers, with reader 2 **satisfied by the absence being deliberate, not
+  waived**: the element must *state* that no advert can test it, and an element with merely no matching
+  use *yet* does not qualify. **Nationality is not in this group** — an advert tests it and the judged
+  score grades it, exactly as ADR-0006's scope note warned. ⚠️ **Not a fourth stress-test attempt**; the
+  retired test stays retired.
+- **✅ #141's hand-off answered with a NO.** It asked that *must-not-print* and *prints-only-here* be
+  shaped as one missing concept. They should **not** be unified: ADR-0005 put a stretch **beside** the
+  profile so there is nothing to filter, and a shared withholding pass re-introduces the check that
+  decision dissolved. **An absence cannot fail; a shared filter can.**
+- **🚨 The owner's own first proposal was overturned mid-session.** He put the country guess inside the
+  tailoring step. It moves to **advert read** — paid once per advert not once per CV, **visible on the
+  card and correctable**, and two CVs for one job can no longer resolve differently. ADR-0001 rule 6
+  already prices the advert-read change as a lazy re-read, so it is a known cost.
+- **⚠️ The sizing cuts both ways, and it should be known before anyone prices the build.** Four markets
+  from the posting provider's coverage — **Hong Kong, Singapore, Vietnam, Australia; zero UK, zero EU** —
+  so four pages, not forty. But **three of the four point the same way**, **Vietnam is the only expected
+  divergence**, and its distinctive convention is the **unrenderable photograph**. The knowledge base's
+  likelier real value is **regional vocabulary** (*"programme manager"* near-absent in HK/SG, from our own
+  research), which clause 2 puts out of scope. **"Marie in Paris" is not a customer** — the
+  French-convention scenario the session argued from describes a market we do not serve.
+- **Impact sweep:** **#86** — the advert read gains a market field **and must be able to answer "I don't
+  know"**, since ADR-0007 clause 3 makes an unknown market a permitted state, and the guess must be
+  **shown**, not just stored. **#66** — the tailor gains a withholding pass, and `conservationIssues()`
+  must be **told** about a deliberate withholding rather than left to discover it, since the two are
+  byte-identical. #120/#122/#124/#54 checked, no movement.
+- **Map state:** frontier is now **four decisions, all unblocked** — #149, #150, #143, #131 — plus #151
+  runnable in parallel. **No ticket on this map carries an external deadline any more.**
+
 ## 2026-08-06 (session 83) — A project is a container, not a fact — and the map's own stress test missed for the third time and was retired
 
 _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 8, resolved as [#146](https://github.com/adrien-mounier/jobcrush-app/issues/146) with ten clauses, written up as **[ADR-0006](docs/adr/0006-a-project-is-a-container-not-a-fact.md)** — the sixth ADR in this repo. Two research tickets commissioned and resolved mid-session ([#147](https://github.com/adrien-mounier/jobcrush-app/issues/147), [#148](https://github.com/adrien-mounier/jobcrush-app/issues/148), four agents, both halves each). Two tickets spun out ([#149](https://github.com/adrien-mounier/jobcrush-app/issues/149), [#150](https://github.com/adrien-mounier/jobcrush-app/issues/150)). **Repo output: ADR-0006, two scope notes written into ADR-0001, four research files, three lessons, the map's Destination amended.** Commits `150262d` (research) + this one._

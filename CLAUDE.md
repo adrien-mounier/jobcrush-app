@@ -154,6 +154,52 @@ the growth rule would be stress-tested on paper; three tries missed (#125 same e
 ADR-0003, #146 a container) and **no candidate remains**. **The test transfers to the first element added
 after build.** Accepted cost, stated plainly: **we ship a growth rule nobody has stress-tested.**
 
+### What prints is decided per application, not per fact
+
+**[ADR-0007](docs/adr/0007-what-prints-is-decided-per-application.md), decided 2026-08-06 in
+[#144](https://github.com/adrien-mounier/jobcrush-app/issues/144) — decided, not yet built.**
+
+**There is no unprintable fact.** Everything we hold may print; what exists is a **withholding pass that
+runs per application** and may answer differently next time. **This changes render, never capture** —
+#130's *capture the maximum* stands in full.
+
+Eleven clauses; the ADR is the normative home. The ones most likely to be broken by accident:
+
+- ⭐ **The machine never removes silently** — the mirror of decision 9's own clause. Every removal is
+  explained, and the person **puts it back for that one application**. A *standing* "always show this"
+  setting is the [ADR-0005](docs/adr/0005-a-stretch-belongs-to-its-advert.md) leak shape and was rejected.
+- **A country page is a strip-list, never a market style guide.** Seven names — date of birth · age ·
+  marital status · photograph · race · religion · gender. **No page means nothing is stripped**, so an
+  unresearched market prints everything. The pressure to add CV length, date format, tone and vocabulary
+  will arrive as an obvious improvement; that is clause 2's whole point.
+- **A withholding never touches the profile**, and every rendering **records which page answered**.
+  A withheld fact is **declared to `conservationIssues()`, never discovered by it** — otherwise a
+  deliberate withholding is byte-identical to the loss that lint exists to catch.
+- **An expired certification prints with its state shown**; the person chooses with the date, **without
+  the date**, or not at all. 🚨 **That option stands even on the advert demanding that certification** —
+  *propose, never police*; adding a guardrail there is what decision 9 rejected.
+- 🚨 **The stretch is deliberately NOT unified with this.** #141 asked that *must-not-print* and
+  *prints-only-here* be one mechanism; the answer is **no**. ADR-0005 put a stretch *beside* the profile
+  so there is nothing to filter — a shared withholding pass re-introduces the check it dissolved.
+
+⚠️ **ADR-0001 rule 4 gains a third scope note:** **some facts exist only to be printed or withheld and
+can never satisfy *used in matching*** (a date of birth, an age, a marital status). They are **not
+preferences** — they narrow nothing — so rule 5 still calls them facts. They ship on **four** readers,
+with reader 2 **satisfied by the absence being deliberate, not waived**: the element must *state* that no
+advert can test it. **Nationality is not in this group.** ⚠️ Discovered on the route, **not** a fourth
+stress-test attempt.
+
+🚨 **Two live prompt rules are wrong today.** `prompts/preview-tailor.md` rule 6 tells the tailor
+nationality must **never be dropped** — as a *conservation* rule it forbids the pass from ever firing and
+must become a **default**. And *"certifications are sacred… never drop, rename, or merge"* needs clause
+9's case: a state suffix is not a rename. ✅ **Nationality is never needed to say the useful thing** — the
+`work-rights` dimension already asks *"can you work in {city} without sponsorship?"*, and **a photograph
+cannot print at all** (the renderer has no image slot).
+
+⚠️ **Singapore's rules bind employers, not our user.** The often-repeated *SGD 50,000 deadline* was never
+ours; this is a **CV-quality** decision, not a compliance one. We serve **Hong Kong, Singapore, Vietnam,
+Australia** — zero UK, zero EU — and three of the four point the same way.
+
 ## Git workflow
 
 Solo repo, no branch protection. **Stay on `main`.** Don't create branches for ordinary work —
