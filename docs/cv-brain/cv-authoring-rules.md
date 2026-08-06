@@ -19,9 +19,9 @@ A "CV file" is any `root_cv/**/*.md`, any `**/tailored_cv/**/*.md`, or any `cv_m
 - **Length / density — the budget is the page, not the bullet.** 2 pages max, single column. The
   newest role gets **first call** on the page, each older role takes **less than the one before**,
   and **no single role exceeds 10 bullets**. First call is not a floor: a role with 4 good bullets
-  prints 4, never 10 padded ones. Count ALL bullet blocks under a role together: **if a sub-grouping
-  is used at all it counts toward the rope** and never evades it (whether sub-groupings survive is
-  #155, undecided). One to two lines per bullet (three absolute max).
+  prints 4, never 10 padded ones. **A role is one flat bullet list — never split into blocks**
+  ("Achievements" / "Key Deliveries" / etc.); a source CV that uses such a heading has all its
+  bullets counted together under that role. One to two lines per bullet (three absolute max).
 - **When a role has more to say than fits: choose, do not squish.** Print the bullets this advert
   wants, whole, with their outcomes intact; the rest do not print and the candidate is **told which**
   and may put any back **for that one application**. Merge only two bullets that genuinely say the
@@ -39,9 +39,9 @@ A "CV file" is any `root_cv/**/*.md`, any `**/tailored_cv/**/*.md`, or any `cv_m
 - **Education / Additional Information:** bold the key info. Education: `**Institution - Location**,
   year` then the degree (plain) on the next line. Additional Info: `**Nationality:** value`,
   `**Languages:** ...`, `**Certifications:** ...` (bold label, plain value).
-- **Sub-groups** ("Key Deliveries" is the standard term): standalone italic line (`*Key
-  Deliveries*`), never inline, never plain text. Use only when there are 2+ achievements; a single
-  achievement is a normal bullet.
+- **No sub-headings inside a role.** A role's bullets are one flat list. Never emit `*Key
+  Deliveries*`, `Achievements`, `Project Achievements` or any other label above part of a role's
+  bullets (deleted 2026-08-07, issue #155 — see *Length and bullet density*).
 - **Dates:** `Month YYYY` or `MM/YYYY`, month-first, and the SAME one of those two forms across the
   whole CV including Education and Certifications. `Present` (capitalised) for a current role.
   Never year-only (`2021 - 2024`), never year-first (`2024/03`), never two-digit years (`'24`),
@@ -205,18 +205,26 @@ AND every later edit.
   roles are unequal.
 - **First call is not a floor.** A role with 4 good bullets prints 4. Never pad to reach a number:
   a floor is what produced the merge damage below.
-- **Count all bullets under a role together.** Do not evade the rope by splitting one role into
-  several bullet blocks ("Achievements", "Key Deliveries", "AI Operations"). At most one short
-  sub-grouping per role, and it counts toward the rope.
-  ⚠️ **Whether a sub-grouping exists at all is [#155](https://github.com/adrien-mounier/jobcrush-app/issues/155),
-  open** — the construct is specified here in full and the renderer cannot emit one. **This clause is
-  neutral on that and must survive either way**, because it is the rope's anti-evasion guard: the
-  owner's own BRED role is *7 duty bullets + 8 under `Project Achievements` = 15*, which is exactly
-  how a role with a rope of 10 becomes a role with 20. ✅ Nothing here disturbs
-  [ADR-0009](../adr/0009-a-work-project-stays-a-bullet.md), which forbids a **named project
-  container** inside a job (name, client, project dates, a project's own bullet group) — a
-  *Key Deliveries* label holds no facts and names no project, and clause 6 routed it to presentation
-  deliberately.
+- **A role is one flat bullet list. No sub-headings inside a role** (decided 2026-08-07, issue #155).
+  All of a role's bullets count together toward the rope; a source CV that groups some of them under
+  a heading has them counted, and rendered, as one list.
+
+> 🚨 **The sub-group construct was deleted, deliberately — do not re-derive it.** This file used to
+> specify it in full (canonical term *"Key Deliveries"*, standalone italic line, 2+ achievements
+> only, one per role, counting toward the cap) and **the renderer has never been able to emit one**:
+> a role's bullets are a flat array of strings with no sub-heading slot, so the rule read as
+> normative and was silently dead. Three reasons it was deleted rather than built. **It is the
+> rope's evasion route** — the owner's own BRED role is *7 duty bullets + 8 under
+> `Project Achievements` = 15*, which is exactly how a role with a rope of 10 becomes a role with
+> 20. **Every parser surveyed reads a role as a flat bullet list**, and practitioners warn that
+> parsers infer structure from vertical whitespace, so a sub-heading risks being read as a section
+> break. And **#153 removed the pressure that made a second block attractive** — a role no longer has
+> to cram everything in, because what does not fit is now chosen away visibly rather than squeezed.
+> ⚠️ **The owner's own CV uses `Project Achievements` under all three roles.** Those bullets are
+> mined against their job and print as ordinary job bullets — nothing is lost at the sentence level;
+> only the grouping goes. ✅ Consistent with
+> [ADR-0009](../adr/0009-a-work-project-stays-a-bullet.md), which had already refused a **named
+> project container** inside a job; this closes the presentational half clause 6 routed away.
 - **Roles are thinned by relevance and by the page, never by a date threshold.** The old *"older than
   ~8 years: 3-4"* is withdrawn: the threshold was invented, and a fixed age cap silences the one role
   an advert most wants (applying to a bank, the bank on the CV is the oldest role). The only recency
@@ -280,7 +288,7 @@ the oldest into 1-2 bullets"*) folds into the spend ladder and stops being a sec
 - **Do not run two near-identical Skills and Core Competencies blocks.** Default to one categorized Skills section; only keep a separate Core Competencies snapshot if it genuinely differs (and is itself categorized, never a run-on).
 - **Bold the key info in EDUCATION and ADDITIONAL INFORMATION.** Education: `**Institution - Location**, year` then the degree (plain) on the next line. Additional Information: `**Nationality:** value`, `**Languages:** ...`, `**Certifications:** ...` — bold label, plain value.
 - Employer line bold; date line and italic role title (`*Role*`) each on their own line. First `##` is the centered role headline (the builder injects the "Professional Summary" heading after it).
-- **Project-achievement sub-groups** ("Key Deliveries" is the standard term, recruiter-recognized): write the label as a standalone italic line (`*Key Deliveries*`) so it renders as a muted-gray, indented italic sub-label that sits clearly below the employer and role title in the visual hierarchy. Never inline (`*Key delivery:* text...`) and never plain text — both render as ordinary body. Use a sub-group only when there are **2 or more** achievements; a single achievement is a normal bullet (no sub-group). The sub-group counts toward the role's rope (density limits above).
+- **No sub-headings inside a role** (deleted 2026-08-07, issue #155 — full reasoning under *Length and bullet density*). A role renders as the employer line, the role title line, and **one flat bullet list**. Never `*Key Deliveries*`, `Achievements`, `Project Achievements` or any other label above part of a role's bullets, in any form — italic line, inline prefix or plain text.
 - Bold only: name, section headings, employer, job title, skills category labels, education institutions, additional-info labels. Never bold whole sentences or bullet bodies.
 
 ---
@@ -320,6 +328,7 @@ Apply before finalizing any tailored CV:
       claims (`proven ability to`, `expertise in`, `strong in`, `results-driven`) and nothing already
       visible elsewhere on the page.
 - [ ] CV fits two pages. The newest role has the most bullets, each older role fewer than the one before, and no role exceeds 10 — counting all bullet blocks under a role together. No role padded to reach a number.
+- [ ] No role carries a sub-heading over part of its bullets (`Key Deliveries`, `Achievements`, `Project Achievements`). One flat list per role.
 - [ ] Where a role did not fit, bullets were **chosen**, not squished: no bullet merges more than two source points, and no merge dropped an outcome the source stated.
 - [ ] Output filenames follow CLAUDE.md §9 conventions; no prior version overwritten.
 - [ ] Tailoring report saved with all decisions (kept/edited/removed/confirmed) recorded.

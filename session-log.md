@@ -43,12 +43,22 @@ _`/wayfinder` on map [#127](https://github.com/adrien-mounier/jobcrush-app/issue
   `z.string()`, so **a merge, a silent drop and an invention are indistinguishable on every tailored CV
   today.** Decided: ids flow both ways. **Decision 4 does not work without it** — without ids, *"5 more
   aren't shown"* is uncomputable and choosing degenerates into the silent removal ADR-0007 clause 4 forbids.
-- **✅ A recollection checked rather than accepted.** Mid-session the owner believed sub-sections like
-  *Key Deliveries* had been ruled out. **Half right:** ADR-0009 killed the **named project container**
-  (name, client, project dates, a project's own bullet group); the plain presentational label is
-  [#155](https://github.com/adrien-mounier/jobcrush-app/issues/155), **open**, and clause 6 routed it there
-  deliberately. The anti-evasion clause was rewritten **neutral on #155** and is now load-bearing: his BRED
-  role is *7 duty + 8 under `Project Achievements` = 15*, which is how a rope of 10 becomes 20.
+- **✅ A recollection checked rather than accepted — and then acted on.** Mid-session the owner believed
+  sub-sections like *Key Deliveries* had been ruled out. **Half right:** ADR-0009 killed the **named project
+  container** (name, client, project dates, a project's own bullet group); the plain presentational label
+  was [#155](https://github.com/adrien-mounier/jobcrush-app/issues/155), still open, clause 6 having routed
+  it to the design effort deliberately. **He then decided it: delete.**
+- **🔑 [#155](https://github.com/adrien-mounier/jobcrush-app/issues/155) closed — the sub-heading inside a
+  role is deleted, not built.** Three reasons: **it is the rope's evasion route** (his BRED role is *7 duty
+  + 8 under `Project Achievements` = 15* — exactly how a rope of 10 becomes 20, and with no sub-headings the
+  anti-abuse clause stops being a rule to remember and becomes structurally unnecessary) · **every parser
+  reads a role as a flat list** and infers structure from vertical whitespace, so a sub-heading risks
+  reading as a section break · and **#153 removed the pressure that made a second block attractive**, since
+  what does not fit is now chosen away visibly rather than crammed in. ✅ **Nothing is lost at the sentence
+  level** — those bullets already mine against their job and print as ordinary job bullets; only the
+  grouping goes, and the `Project Achievements` vs `Key Deliveries` term mismatch dissolves with it.
+  ⚠️ **No code changed: the renderer never could emit one.** The ticket closed by the rules finally matching
+  the code, rather than by either moving.
 - **🚨 What is NOT live.** Three code sites contradict the amended brain and were deliberately not touched
   (plan map): the schema's `max(8)` **and its `Math.min(6, sourceBullets)` floor** · `preview-tailor.md`
   rule 8's ladder and merge instruction · the stripped claim ids. **These are the first build tickets.**
