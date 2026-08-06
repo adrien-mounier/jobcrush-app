@@ -196,9 +196,26 @@ must become a **default**. And *"certifications are sacred… never drop, rename
 `work-rights` dimension already asks *"can you work in {city} without sponsorship?"*, and **a photograph
 cannot print at all** (the renderer has no image slot).
 
-⚠️ **Singapore's rules bind employers, not our user.** The often-repeated *SGD 50,000 deadline* was never
-ours; this is a **CV-quality** decision, not a compliance one. We serve **Hong Kong, Singapore, Vietnam,
-Australia** — zero UK, zero EU — and three of the four point the same way.
+⚠️ **Singapore's rules bind employers, not our user.** This is a **CV-quality** decision, not a compliance
+one. 🚨 **Two things this repo wrote down and got wrong** (corrected 2026-08-06 by
+[#151](https://github.com/adrien-mounier/jobcrush-app/issues/151)): *"SGD 50,000 **per violation**"* — it is
+the **maximum civil penalty on a first court order against a corporate employer**, for **systemic or severe**
+contraventions, and **nothing on a CV triggers it** · and **the Act is the wrong instrument to cite for the
+field list** — *"date of birth"* and *"application form"* do not appear in the enacted text. **Cite the
+Tripartite Guidelines.**
+
+⚠️ **The country pages are researched and they barely differ** (`docs/research/market-strip-lists.md` +
+`last30days-` companion). We serve **Hong Kong, Singapore, Vietnam, Australia** — zero UK, zero EU. **Three
+strip all seven**, on three unrelated legal footings. **Vietnam is the only divergence: one certain cell
+(gender), one contested (date of birth — our two research halves disagreed; Labour Code Art 16(2) is a
+contract-stage duty, Art 8 governs recruitment), and the inert photograph.** ⚠️ **Marital status was expected
+to be a keep and is not.** **The design is unchanged; the build priority is not what it looked like.**
+
+⚠️ **Two open items ADR-0007 records but does not decide:** the **graduation year** is the most reliable age
+proxy on our CVs and is **not among the seven** — routed to [#143](https://github.com/adrien-mounier/jobcrush-app/issues/143),
+not to clause 2 · and this feature **must not be sold as handling discrimination signals**: the **name**
+carries most of that signal, and **de-identification is not evidence-backed** (Australia's own randomised
+trial found it did not promote diversity).
 
 ## Git workflow
 

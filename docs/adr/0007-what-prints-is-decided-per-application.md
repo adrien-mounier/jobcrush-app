@@ -11,8 +11,21 @@
 ## Context
 
 The map flagged *capture versus render* twice as needing its own ticket. It arrived carrying a legal
-driver — Singapore's Workplace Fairness Act, ~end-2027, SGD 50,000 per violation — and a working
+driver — Singapore's Workplace Fairness Act, ~end-2027, *"SGD 50,000 per violation"* — and a working
 assumption that a class of fact exists which we hold but may never print.
+
+> 🚨 **Both halves of that driver were wrong, and [#151](https://github.com/adrien-mounier/jobcrush-app/issues/151)'s
+> research found the second half after this ADR was written.**
+> **(a)** The obligation binds employers, not the candidate — the correction below, which is what this
+> ADR is built on.
+> **(b)** **The number is not a per-violation fine.** It is the **maximum civil penalty on a first court
+> order against a corporate employer**, for **systemic or severe** contraventions (the cited examples are
+> discriminatory dismissals), under a stated education-first enforcement posture. **Nothing about what
+> appears on a CV triggers it.**
+> **And the Act is the wrong instrument for the field list entirely:** *"date of birth"* and *"application
+> form"* do not appear in the enacted text. **Every field-level rule comes from the Tripartite Guidelines
+> on Fair Employment Practices, not from the Act.** Commencement changes how enforceable the guidelines
+> become; it does not change what is on the list. Cite the Guidelines.
 
 **The premise was wrong in the candidate's favour, and the owner corrected it.** Singapore's rules
 point at **employers**: they must strip age, date of birth, gender, race, religion, marital status and
@@ -220,19 +233,71 @@ alone.
 - The same file's *"Certifications are sacred… Never drop, rename, or merge them"* needs clause 9's
   case — a state suffix is not a rename.
 
-**The country pages do not exist and are the gating research.** Four markets, from our posting
-provider's coverage: **Hong Kong, Singapore, Vietnam, Australia — zero UK, zero EU.** Per the map's
-standing rule each runs twice (deep + `/last30days`). Filed as
-[#151](https://github.com/adrien-mounier/jobcrush-app/issues/151).
+**🚨 The country pages were researched the same day, and they barely differ. This is the number to know
+before anyone prices the build.** [#151](https://github.com/adrien-mounier/jobcrush-app/issues/151), both
+halves — [`market-strip-lists.md`](../research/market-strip-lists.md) and
+[`last30days-market-strip-lists.md`](../research/last30days-market-strip-lists.md).
 
-**The near-term payoff on personal details is roughly one market, and this should be known before
-anyone prices the build.** Australia and Hong Kong point the same way as Singapore. **Vietnam is the
-only divergence**, and its most distinctive convention is the photograph — which clause 6's context
-records as unrenderable. So the strip-lists will largely agree, and the knowledge base's first
-genuinely valuable content is likely **regional vocabulary**, already evidenced in our own research
-(*"programme manager"* and *"delivery manager"* are near-absent in Hong Kong and Singapore where
-*"project manager"* dominates). **That is not this ADR's scope** — clause 2 forbids it — but it is the
-reason the artifact is worth its cost, and the reason to expect a follow-on decision.
+**Singapore, Hong Kong and Australia strip all seven**, reaching the same verdict on three unrelated legal
+footings (Singapore: tripartite guidelines plus an uncommenced Act · Hong Kong: a statutory race code, and
+for age a **voluntary 2006 guideline with no legal effect** — there is **no Hong Kong age-discrimination
+law at all** · Australia: **state** don't-ask provisions, with a **patchier federal layer than expected** —
+the Racial Discrimination Act 1975 has no requests-for-information provision, and there is no federal
+religious discrimination Act).
+
+**Vietnam is the only divergence, and after both halves it is smaller and less certain than either half
+alone suggested:**
+
+- **photograph** — domestic 2026 career advice keeps it, both sources agreeing. **Inert for us**: no image
+  slot, nothing to render.
+- **date of birth** — 🚨 **our two research halves disagree.** The deep half keeps it on **Labour Code 2019
+  Article 16(2)**, which obliges an employee to give the employer *"full name, date of birth, gender,
+  residence, educational level…"* **on request, before an employment contract is concluded**. The
+  `/last30days` half found domestic 2026 advice **split** — CareerLink says omit the detailed date, JobsGO
+  still lists it as required. **Reconciled here: Article 16(2) governs the contract stage, not the
+  application stage** — recruitment is governed by Article 8's anti-discrimination rule, which is what the
+  Vietnamese advice itself cites. **So the keep is contested, and the build ticket must treat it as such.**
+- **gender** — kept on Article 16(2), with no domestic-convention evidence either way. The **only
+  uncontested divergence** of the seven.
+- **marital status** — the brief expected Vietnam to keep it. **It does not.** A discrimination ground in
+  Vietnamese law, absent from Article 16(2)'s list, and advised against by both a major recruiter's Vietnam
+  office and domestic career sites.
+
+**So four country pages buy, at most, one certain cell and one contested cell — on one market — and the
+inert photograph.** The design is unchanged; its **build priority is not what it looked like.** The
+knowledge base's likely real value is **regional vocabulary**, already evidenced in our own research
+(*"programme manager"* and *"delivery manager"* are near-absent in Hong Kong and Singapore where *"project
+manager"* dominates). **Out of this ADR's scope** — clause 2 forbids it — but it is the reason the artifact
+is worth its cost, and the reason to expect a follow-on decision.
+
+**Three traps the research found, recorded so a build ticket does not walk into them:**
+
+1. **Vietnam runs two different documents.** The *sơ yếu lý lịch* — a state form carrying three photographs,
+   ethnicity and religion — is a **personnel-file document, not a CV**, and Vietnamese guidance draws that
+   line explicitly. It is why those fields feel normal there; it is **not** evidence a Vietnamese CV carries
+   them.
+2. **Our own output channel argues against Vietnam's keeps.** We render an **English-language** CV against
+   aggregator-sourced adverts, and Vietnamese career advice is unanimous that English/foreign applications
+   drop the photo, date of birth, gender and marital status. **Whether our Vietnam coverage skews
+   English-language is a question about our own data**, and it should be answered before that page is built.
+3. **The regulator does not hand us the list.** Singapore's TAFEP pre-commencement guidance (18 May 2026)
+   names **NRIC and date of birth** for application forms — not photo, marital status, race, religion or
+   gender. The seven come from the Guidelines as a body, not from a regulator's published checklist.
+
+**⚠️ Open, and flagged to the owner rather than decided here: the most reliable age proxy on our CVs is not
+on the list.** The `/last30days` half found that the employer-side vendors building the mirror of this
+feature strip **surnames and graduation years** — neither in clause 2's seven. A graduation year is a *date
+on an education entry*, not a personal detail, so adding it is not a clause 2 change; but the *reason* for
+stripping a date of birth is undermined if the graduation year prints two lines below it. It sits between
+clause 2 and [#143](https://github.com/adrien-mounier/jobcrush-app/issues/143). **Not decided.**
+
+**⚠️ And what this feature must not be sold as.** It handles **seven declared fields**. It does not handle
+discrimination signals — peer-reviewed work (Wilson & Caliskan, AIES 2024, 3M+ comparisons) finds
+white-associated names preferred 85% of the time, and the name is not something we can or would strip.
+Relatedly, **de-identification is not evidence-backed as a fix**: Australia's own randomised government
+trial (BETA/PM&C, 2,100+ public servants, 15 agencies) found de-identification did **not** promote
+diversity, and women became *less* likely to be shortlisted. **This does not touch this ADR's case, which
+is CV quality** — but it removes a justification a build ticket might otherwise reach for.
 
 **Marie in Paris is not a customer.** The French-convention cost used to argue against a blanket rule
 does not exist in our served markets. The argument that survives is clause 1's principle, not that

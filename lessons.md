@@ -1,5 +1,45 @@
 # Lessons — jobcrush-app
 
+## When a market's convention is the finding, read it in that market's own language
+
+English-language sources agree that Vietnamese CVs carry a photograph, a date of birth and a marital
+status. Our deep-source research read the statute and reached a compatible answer. Both were describing
+Vietnam from outside.
+
+**The `/last30days` half read Vietnamese career sites in Vietnamese, and found something else.** CareerLink
+(27/5/2026) tells candidates to drop ethnicity and religion **completely**, omit the detailed date of birth,
+and give marital status only if the advert asks — citing Vietnam's own Labour Code. JobsGO, equally
+mainstream, still lists the date of birth as required. **Two major domestic career sites describing the same
+convention differently in the same year is a convention in motion, not a settled one** — and no
+English-language source said so.
+
+**The check:** when a decision turns on *what people in market X actually do*, at least one source must be
+in X's language and dated. An English description of a non-English market is a translation of someone else's
+observation, usually older than it looks.
+
+⚠️ **And do not read silence as agreement.** English-language social returned effectively **nothing** on
+Vietnamese CV convention. That is not corroboration of the English-language description — the domestic
+sources contradict it.
+
+## Two research passes disagreeing is worth more than one passing cleanly
+
+The two halves of the same research ticket returned **opposite answers on the only market that diverged**:
+one kept Vietnam's date of birth on a statutory duty, the other found domestic advice split and citing a
+different article of the same code.
+
+**Resolving it took one question — which moment does each rule govern?** The disclosure duty (Labour Code
+Art 16(2)) applies *before an employment contract is concluded*; the anti-discrimination rule (Art 8)
+governs *recruitment*. **A CV is a recruitment artifact**, so the statutory keep was weaker than it read.
+
+**The reusable part is the question, not the answer.** When two sources give a rule about "what an employer
+may ask", establish **at which stage** each one bites — advert, application, interview, offer, contract.
+Rules that look contradictory usually govern different moments, and a rule quoted without its stage is the
+most confidently-wrong kind of evidence.
+
+**And the cheap heuristic that came out of it:** run both halves even when the first looks conclusive. This
+map has now run six research legs; the two that changed a decision were both the *second* pass contradicting
+the first.
+
 ## A regulation names a penalty, not a defendant — check who it binds before designing around it
 
 A whole ticket was built on Singapore's Workplace Fairness Act: *in force ~end-2027, **SGD 50,000 per

@@ -59,8 +59,45 @@ _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) tic
   **shown**, not just stored. **#66** — the tailor gains a withholding pass, and `conservationIssues()`
   must be **told** about a deliberate withholding rather than left to discover it, since the two are
   byte-identical. #120/#122/#124/#54 checked, no movement.
-- **Map state:** frontier is now **four decisions, all unblocked** — #149, #150, #143, #131 — plus #151
-  runnable in parallel. **No ticket on this map carries an external deadline any more.**
+- **⚡ #151 was created, fired and resolved the same session** (deep + `/last30days`, two agents in
+  worktrees, two files in `docs/research/`). 🚨 **The headline is a number: four country pages buy at most
+  one certain cell and one contested cell, on one market.** Singapore, Hong Kong and Australia **strip all
+  seven** on **three unrelated legal footings** — Hong Kong has **no age-discrimination law at all** and two
+  rows rest on a **voluntary 2006 guideline with no legal effect**; Australia's real force is **state**
+  don't-ask provisions, the federal layer patchier than assumed (**no requests-for-information provision in
+  the Racial Discrimination Act**, **no federal religious discrimination Act**). **ADR-0007's design is
+  unchanged; its build priority is not what it looked like.**
+- **🚨 The two research halves contradicted each other on Vietnam, and reconciling them is the session's
+  second-best output.** Deep kept **date of birth + gender** on **Labour Code Art 16(2)** (an employee must
+  disclose them *on request, before a contract is concluded*); `/last30days` found **domestic 2026 advice
+  split** — CareerLink says omit the detailed date, JobsGO still lists it as required — **both citing Art 8**.
+  **Art 16(2) is a contract-stage duty; Art 8 governs recruitment, and a CV is a recruitment artifact.** So
+  the date of birth is **contested**, **gender is the only uncontested divergence**, and the **photograph is
+  inert**. ⚠️ **Marital status was expected to be a keep and is not** — a discrimination ground in Vietnamese
+  law, absent from Art 16(2), advised against by domestic sources. ⭐ **Two domestic sites describing the same
+  convention differently in the same year is itself the finding: it is in motion.**
+- **⚠️ Two corrections to this project's own written record, both applied.** *"SGD 50,000 **per violation**"*
+  is **wrong** — max civil penalty on a **first court order against a corporate employer** for **systemic or
+  severe** contraventions, **never triggered by a CV**. And **the Act is the wrong instrument for the field
+  list**: *"date of birth"* and *"application form"* are **absent from the enacted text**; every field-level
+  rule is the **Tripartite Guidelines'**. **We cited the wrong document twice on this map.**
+- **⚠️ Three traps recorded for the build ticket:** Vietnam runs **two documents**, and the *sơ yếu lý lịch*
+  (three photographs, ethnicity, religion) is a **personnel file, not a CV** — mistaking it would have been a
+  real bug · **our own English-language output argues against Vietnam's keeps**, so *"does our Vietnam
+  coverage skew English?"* is a question about **our own data** · **the regulator does not hand us the list**
+  (TAFEP's 18 May 2026 guidance names only **NRIC and date of birth** for application forms).
+- **⚠️ Two things ADR-0007 records and does NOT decide.** The **graduation year** is the most reliable age
+  proxy on our CVs and is **not among the seven** — three markets strip the date of birth while the education
+  dates print two lines below. It is a *date on an element*, not a personal detail, so it is **routed to #143,
+  not added to clause 2** (which would be the market-style-guide creep clause 2 forbids). And **this feature
+  must not be sold as handling discrimination signals**: the **name** carries most of it (white-associated
+  names preferred **85%** of the time, Wilson & Caliskan AIES 2024), and **de-identification is not
+  evidence-backed** — Australia's own randomised trial (BETA/PM&C, 2,100+ public servants, 15 agencies) found
+  it did **not** promote diversity, with women *less* likely to be shortlisted.
+- **Map state:** frontier is **four decisions, all unblocked** — #149, #150, #143, #131. **No ticket carries
+  an external deadline**, and **all six research legs are finished** (#137, #138, #145, #147, #148, #151), so
+  every remaining decision is takeable without further evidence. ⭐ **#150 is the only one whose cost rises if
+  it waits** — it is ADR-0001's employer case, free today only because #126's job record does not exist yet.
 
 ## 2026-08-06 (session 83) — A project is a container, not a fact — and the map's own stress test missed for the third time and was retired
 
