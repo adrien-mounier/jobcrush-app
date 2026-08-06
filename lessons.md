@@ -1,5 +1,33 @@
 # Lessons — jobcrush-app
 
+## `archived: true` is not evidence of abandonment — read the description for a MOVED pointer
+
+This repo called JSON Resume dead **twice**, in two separate research passes, and wrote it into a
+shipped ADR: *"fully dead (`resume-schema` **and** `resume-cli`, archived the same day; 27 of 32 org
+repos archived)"*. Every one of those facts was true.
+
+**And the conclusion was wrong.** Both archived repos carry a description reading **"MOVED to
+jsonresume/jsonresume.org"**, and that monorepo was pushed 2026-07-29 with the npm package published
+2026-07-22. A large project consolidating into a monorepo archives its old repos **as the last step of
+staying alive** — which looks identical, through the API, to a project that stopped.
+
+**Why it survived two passes:** `archived` is a boolean on the repo object, so it is the easiest signal
+to collect and the easiest to sort on. The MOVED pointer is free text in `description`, which nobody
+queries. **The cheap signal and the true signal live in different fields.**
+
+**The check, and it costs one request:** before calling a project dead, read the repo *description* and
+the package registry's *last publish date*. If either points somewhere, follow it before writing the
+verdict down.
+
+**And state liveness as two facts, not one** — *the old home is archived* and *the new home is active
+but thin* are both true here, and collapsing them into "dead" or "alive" loses the thing a reader needs.
+The honest verdict was **"not a live standard to adopt, but a design worth reading"** — which mattered,
+because it is the cleanest published proof of a split (projects vs links) this repo went on to adopt.
+
+⚠️ **Related trap, same session:** the two figures cited for the same repo's stars differed (2.4k vs
+4,719) across two agents. When two passes disagree on a number that should be fixed, at least one read
+the wrong object — say so rather than picking one.
+
 ## "X is impossible here" needs the full list of ways X could happen, not the first one you checked
 
 #146 spent **two rounds** of owner grilling on a fork built from one sentence: *a project can never

@@ -54,10 +54,18 @@ _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) tic
   and contractual and reaches `buildImportProof()`, where it is used **once** to mark an import
   `partial` and **then discarded**. Nobody can look up what it said and no one is told. **He is not
   asking for a new pipe; he is asking that what flows through it be kept.**
-- **⚠️ One record correction is owed and deliberately not taken.** #145's *"JSON Resume is fully dead"*
-  is repeated in ADR-0004's Liveness paragraph and in the map. All four runs split **2–2**; the
-  reconciliation is that the spec repos **are** archived while the destination monorepo **is** active
-  and thin, and the star figure is disputed (2.4k vs 4,719). **Raised with the owner, still open.**
+- **✅ One record correction, raised and then taken on the owner's instruction.** #145's *"JSON Resume is
+  fully dead"* (and #138's *"more dead"*) was **wrong**, and it is now corrected in place in ADR-0004's
+  Liveness paragraph and in the map's #138 and #145 entries. The archiving is real (`resume-schema` +
+  `resume-cli`, 2026-06-12, 27 of 32 org repos) but it was a **relocation**: both carry a `MOVED to
+  jsonresume/jsonresume.org` pointer to a monorepo that is **live** (pushed 2026-07-29, npm published
+  2026-07-22) though **thin** (one active org repo, 288★); the star figure is disputed (2.4k vs 4,719).
+  ⚠️ **The reusable lesson, since this repo got it wrong twice: `archived: true` is not evidence of
+  abandonment — read the repo description for a MOVED pointer.** Generalised in `lessons.md`.
+  **Nothing decided changes** — verified it was a citation and never a dependency: JSON Resume appears
+  in no `package.json`, no code, no contract and no prompt. **The owner's question was the right one**
+  (*"is this from our data model, or carried from the legacy repo?"* — neither), and the session had
+  framed a footnote as an open decision.
 - **Frontier after this session: five, all unblocked** — #131, #143, #144, #149, #150. The map's own
   verification is now **retired rather than pending**, so it can honestly be called done when these
   five close.

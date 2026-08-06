@@ -339,8 +339,20 @@ Assessments. Neither large OSS project records *which* job, so the precise form 
 **The claim graph is not persisted** (ADR-0001's favourable finding), so shaping skills costs code in
 the zod port and the `.mjs` oracle, and **no stored data**.
 
-**Liveness, for anything built on this:** JSON Resume is fully dead (`resume-schema` **and**
-`resume-cli`, 4,719★, archived the same day; 27 of 32 org repos archived). CareerGraph is now 37 repos,
+**Liveness, for anything built on this:** ~~JSON Resume is fully dead (`resume-schema` **and**
+`resume-cli`, 4,719★, archived the same day; 27 of 32 org repos archived).~~
+> 🚨 **CORRECTED 2026-08-06 by [ADR-0006](0006-a-project-is-a-container-not-a-fact.md)'s research —
+> *"fully dead"* was wrong. JSON Resume **relocated**; it did not die.** The archiving is real
+> (`resume-schema` and `resume-cli`, 2026-06-12, 27 of 32 org repos), **but both archived repos carry a
+> `MOVED to jsonresume/jsonresume.org` pointer**, and that monorepo is **live** — pushed 2026-07-29, npm
+> `@jsonresume/schema` published 2026-07-22. It is also **thin**: one active org repo, 288★. The star
+> figure above is disputed (2.4k vs 4,719).
+> **The accurate reading: not a live standard to adopt, but a design worth reading** — and per ADR-0006
+> it is the cleanest published proof that projects and links are two different things.
+> ⚠️ **The lesson, because this repo got it wrong twice: `archived: true` is not evidence of
+> abandonment. Read the repo description for a MOVED pointer before calling a project dead.**
+
+CareerGraph is now 37 repos,
 **all at 0 stars** — nobody has prior art on the living record. **HR Open moved**: a *Skills Proficiency
 Data API Schema* pre-released 21 Jan 2026, still a container with no named scale and no implementers —
 clause 2 stands, but **recheck in six months**.
