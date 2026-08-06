@@ -97,7 +97,7 @@ is before anything external.
 
 | CV | Role / market | Standalone projects section | Projects nested in another element |
 |---|---|---|---|
-| **Adrien Mounier** — Senior Project Manager, banking IT, Bangkok | IT-PM | **YES — `PERSONAL PROJECTS`, 3 entries** | Yes — an italic `Project Achievements` sub-block under **all three** jobs (8 / 3 / 2 bullets) |
+| **Adrien Mounier** — Senior Project Manager, banking IT, Bangkok | IT-PM | **YES — `PERSONAL PROJECTS`, 3 entries** | ⚠️ **Corrected** — an italic `Project Achievements` sub-block under **all three** jobs (8 / 3 / 2 bullets), but it is **a label over a second bullet list, not a set of named project entries** (see below, and [ADR-0009](../adr/0009-a-work-project-stays-a-bullet.md) clause 4). Counting it as a second nested case overstated the nested shape. |
 | **Thomas Chauviere** — Dessinateur / Chef de projet, façade engineering, CH+FR | Construction | No | **YES — a `Projets:` line or `Projet:` heading inside 8 of 8 jobs, ~19 named projects** |
 | **Giuliana Delre** — Purchasing Manager, food industry, Bangkok | Non-technical | No | Yes — one `Thesis` line under Education |
 | **Pierre Mounier** — Customer Success Specialist, Lisbon | Non-technical | No | No |
@@ -111,6 +111,20 @@ is before anything external.
 - No project element of any kind: **3 of 6** (Pierre, Kulpakorn, Remy).
 - **Total named project entries in the corpus: 3 standalone, ~21 nested.** The nested form outnumbers
   the standalone form roughly seven to one.
+
+⚠️ **Two corrections to the counts above, made by [#150](https://github.com/adrien-mounier/jobcrush-app/issues/150)
+and recorded in [ADR-0009](../adr/0009-a-work-project-stays-a-bullet.md) clauses 2–4. The counts are honest;
+the inference drawn from them was not.**
+
+1. **"2 of 6" should be 1 of 6.** Adrien's `Project Achievements` is a **label over a second bullet list**,
+   not a set of named project entries — the named projects live *inside* the bullets (see the fourth
+   micro-shape below). Thomas is the only CV with named project sub-entries.
+2. **The 7:1 ratio is one document, from another market and profession.** ~18 of the ~22 nested mentions are
+   Thomas Chauviere alone — façade engineering, France and Switzerland. Across the **five** CVs in our
+   actual market (banking / IT-PM), named project sub-entries carrying a client, dates and their own
+   bullets number **zero**. The ratio is real; reading it as *"the nested shape is what our users do"* is
+   not. Nor is the rich shape as common as it looks: **0 of 18** of Thomas's named projects carries a date
+   of its own, and **10 of 18** have no bullets at all.
 
 ### Anatomy of every entry
 

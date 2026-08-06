@@ -5,7 +5,7 @@
 - **Decided in:** [#146](https://github.com/adrien-mounier/jobcrush-app/issues/146) (owner grilling), under map [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127)
 - **Depends on:** [ADR-0001](0001-growth-rule-for-structured-facts.md) (the growth rule), [ADR-0002](0002-how-a-structured-fact-reaches-the-cv.md) (how a fact reaches the page), [ADR-0003](0003-the-shared-parts-organisation-date-level.md) (organisation, date, level), [ADR-0004](0004-each-elements-own-parts.md) (each element's own parts), [#126](https://github.com/adrien-mounier/jobcrush-app/issues/126) (a job is its own record)
 - **Evidence:** [`docs/research/personal-projects-on-a-cv.md`](../research/personal-projects-on-a-cv.md), [`docs/research/last30days-personal-projects-on-a-cv.md`](../research/last30days-personal-projects-on-a-cv.md), [`docs/research/projects-umbrella-section-naming.md`](../research/projects-umbrella-section-naming.md), [`docs/research/last30days-projects-umbrella-section-naming.md`](../research/last30days-projects-umbrella-section-naming.md) (all four commissioned mid-decision as [#147](https://github.com/adrien-mounier/jobcrush-app/issues/147) and [#148](https://github.com/adrien-mounier/jobcrush-app/issues/148)), six real CVs in `data/cvs/`, the 17-advert corpus
-- **Does not decide:** whether a project done *for an employer* gets a named entry inside the job ([#150](https://github.com/adrien-mounier/jobcrush-app/issues/150)); what happens to a part of a CV we cannot classify ([#149](https://github.com/adrien-mounier/jobcrush-app/issues/149)); whether an expired or sensitive fact prints ([#144](https://github.com/adrien-mounier/jobcrush-app/issues/144))
+- **Does not decide:** whether a project done *for an employer* gets a named entry inside the job ([#150](https://github.com/adrien-mounier/jobcrush-app/issues/150)) — **since decided by [ADR-0009](0009-a-work-project-stays-a-bullet.md): it stays a bullet**, and clause 5 below is extended there to cover a **client** as well as a project; what happens to a part of a CV we cannot classify ([#149](https://github.com/adrien-mounier/jobcrush-app/issues/149)); whether an expired or sensitive fact prints ([#144](https://github.com/adrien-mounier/jobcrush-app/issues/144))
 
 ## Context
 
@@ -203,6 +203,11 @@ ADR-0003 clause 8:
 **Not decided here, and now unblocked:** [#150](https://github.com/adrien-mounier/jobcrush-app/issues/150)
 (a project done for an employer — named entry inside the job, or just a bullet?), which is the **more
 common shape by ~7:1** in our own corpus and was conflated with this one until the owner separated them.
+
+⚠️ **Since decided by [ADR-0009](0009-a-work-project-stays-a-bullet.md): it stays a bullet, and nothing is
+built.** 🚨 **The ~7:1 in that sentence does not mean what it looks like** — ~18 of the ~22 nested mentions
+are **one CV from another market** (façade engineering), and across the five CVs in banking / IT-PM the
+count of named project sub-entries is **zero**. ADR-0009 clause 3 carries the recount.
 
 **Live consequences:**
 - **A project sentence has nowhere to say it belongs.** A claim's `role` is *"which employment/education

@@ -258,6 +258,50 @@ carries several unseen machine decisions including 🚨 ***is this work***, whic
 
 **Falsifiable check:** `years-experience` must never appear in `ASK_DIMENSIONS`.
 
+### A project done for an employer stays a bullet
+
+**[ADR-0009](docs/adr/0009-a-work-project-stays-a-bullet.md), decided 2026-08-06 in
+[#150](https://github.com/adrien-mounier/jobcrush-app/issues/150) — decided, and the decision is to build
+nothing.**
+
+A work project gets **no named container inside the job**: no name field, no client, no project dates, no
+nested bullet group. It is written the way our market already writes it — **inside the sentence**
+(`Chatbot FINDER: Coordinated development of…`, `a trading platform (Lao Forex Exchange)`, or as a suffix
+on the job title). This is the **first "build nothing" pass through ADR-0001 rule 4's gates**, and a
+refusal reached by walking the gates is the rule working, not a skip.
+
+Nine clauses; the ADR is the normative home. The ones most likely to be broken by accident:
+
+- 🚨 **A client line is never an employment entry — and no rule covers this today.** `ASSYTEM (client) -
+  02/2021 - 05/2021` is a **name plus a date range nested under an employer**, byte-for-byte an employment
+  block. ADR-0006 clause 5 forbids a *project* reaching `roles[]`; **nothing forbids a client**, and the
+  client is the one that looks exactly like a job. It is blocked today only by the accident that
+  `MinedRole.title` is `min(1)` and a client block has no title — **#126 rewrites that record.** This is
+  the one build consequence and it lands with #126.
+- **The project name must survive into the bullet.** It does today, but nothing *states* it, so a tailor
+  rewrite could drop `Chatbot FINDER:` as a redundant prefix — and **`conservationIssues()` counts fact
+  classes and would not catch it**, the same blind spot ADR-0005 records for a stretch swap.
+- 🚨 **Two corpus facts this repo wrote down and got wrong**, corrected in clauses 2–4: **0 of 18** of
+  Thomas Chauviere's named projects carries a date of its own and **10 of 18** have no bullets — the rich
+  shape #150 described exists **four times, in one job of one CV** · and the **7:1 ratio is one document
+  from another market** (façade engineering). Across the **five** CVs in banking / IT-PM the count is
+  **zero**. Also: Adrien's `Project Achievements` is a **label over a second bullet list**, not project
+  entries — `personal-projects-on-a-cv.md` carries the correction.
+- **Naming buys nothing in matching, checkably.** `buildJudgeInput()` hands the grader a flat `id`/`text`
+  list with **no employer, no job, no grouping** — the job container is already invisible to it. The
+  remaining gain is a tidier page, which #150's own Q3 pre-committed to the **design effort**.
+- ⚠️ **Decided before #126 deliberately.** Carving a container out of today's job bullets is **ADR-0001's
+  employer case**; it is free *only* because the job record does not exist yet. **Cheap today, a migration
+  after #126** — which is why it was recorded now rather than left on the ticket.
+
+⚠️ **Not a stress-test attempt.** ADR-0006 clause 10 retired the paper test; #150 proposes no new element
+at all. ✅ **#150's Q5 is closed:** the confidential-client convention (sanitise to *"a leading global
+bank"*, keep the engagement) is uniform with no dissent — it **removes an objection to building and
+supplies no reason to build**, and it makes the client hazard worse, not better.
+
+**Falsifiable checks:** `Draft.experience` holds no project or client slot · a work project's name lives
+**inside** a claim's text, never as a field beside it.
+
 ## Git workflow
 
 Solo repo, no branch protection. **Stay on `main`.** Don't create branches for ordinary work —

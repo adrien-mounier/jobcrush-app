@@ -1,5 +1,54 @@
 # Lessons — jobcrush-app
 
+## A count over a corpus is not a distribution, and the ratio can be one document
+
+[#150](https://github.com/adrien-mounier/jobcrush-app/issues/150) opened with a number that looked
+decisive: **~3 standalone project entries against ~21 nested inside jobs, about 7 to 1.** The count was
+honest and correctly measured. It was also, on inspection, **~18 of the ~22 from a single CV** — a façade
+draughtsman in France and Switzerland. Across the five CVs in the market this product actually serves, the
+same count is **zero**.
+
+The ratio survived a research pass, a ticket brief, an ADR's consequences section and two rounds of design
+argument before anyone asked which documents it came from. **Nothing about the number was wrong; the
+inference from it — *"this is the shape our users write"* — was never checked.**
+
+**The same read exposed a second version of the same error.** The ticket described those nested projects as
+carrying *"a client, dates and their own bullets"*. Read at source: **0 of 18 carry a date of their own**
+(the dates belong to a client block), **10 of 18 have no bullets at all**, and the rich shape exists **four
+times in the whole corpus**. We were within one ticket of building a date field for values no document
+contained.
+
+**The generalisable part: an aggregate over a small corpus hides its own concentration.** With six
+documents, one outlier *is* the statistic. The failure is not miscounting — it is treating a corpus-wide
+ratio as a per-user frequency when a single document can supply the entire numerator.
+
+**The tell to reuse:** before designing to a ratio, ask **how many documents produced it** and **how many
+of those are in the market you serve**. If the answer is *one* and *none*, the number is describing
+somebody else's users. And when a ticket summarises a source artifact, **re-read the artifact** — a summary
+is where a shape gets tidier than it really is.
+
+## When a rule forbids one shape from reaching a dangerous slot, check what else has that shape
+
+[ADR-0006](docs/adr/0006-a-project-is-a-container-not-a-fact.md) clause 5 exists to stop a **project name**
+becoming an employer the person never worked for — a real observed parser failure, taken seriously, written
+as a rule. The rule names projects, because projects were what the ticket was about.
+
+**The hazard sitting beside it was never named.** The same CV carries `ASSYTEM (client) - 02/2021 -
+05/2021` — a **name plus a date range nested under an employer**, which is byte-for-byte the shape of an
+employment block, and rather *more* job-like than a project title. Nothing anywhere forbids a client
+reaching the same slot. It is blocked today only by an accident: the contract requires a title, and a
+client block has none — so the fabrication fails validation rather than being caught by a rule, and the
+record it depends on is scheduled to be rewritten.
+
+**The generalisable part: a guardrail written during one investigation inherits that investigation's
+subject.** It protects the slot from the thing you were looking at, not from the slot's actual shape. The
+neighbour that shares the shape is invisible precisely because nobody was asking about it.
+
+**The tell to reuse:** when writing *"X must never become a Y"*, stop and ask **what a Y looks like
+structurally**, then scan the same source for anything else matching that description. And treat *"the
+contract happens to reject it"* as an unguarded case, not a guarded one — a shape that fails validation by
+luck is one schema change away from succeeding.
+
 ## A rule with two settings will invent a fallback, and the fallback is where the user gets hurt
 
 [#131](https://github.com/adrien-mounier/jobcrush-app/issues/131) inherited a one-line rule — *never ask

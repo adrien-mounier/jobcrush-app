@@ -2,6 +2,79 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-06 (session 86) — The ratio the design rested on was one CV from another country, and the hazard was the client, not the project
+
+_Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) research ticket, resolved as [#150](https://github.com/adrien-mounier/jobcrush-app/issues/150) with nine clauses, written up as **[ADR-0009](docs/adr/0009-a-work-project-stays-a-bullet.md)** — the ninth ADR in this repo, and **the first whose decision is to build nothing**. Two research passes run in parallel (`/research` deep sources + `/last30days` recent movement). **Repo output: ADR-0009, a CLAUDE.md section, two research documents, two corrections to existing research, two lessons.** No code changed._
+
+- **🔑 The headline: a project done for an employer stays a bullet.** No named container inside the job —
+  no name field, no client, no project dates, no nested bullet group. It is written the way our market
+  already writes it: **inside the sentence** (`Chatbot FINDER: Coordinated development of…`, `a trading
+  platform (Lao Forex Exchange)`, or as a suffix on the job title). The cheap answer #150 flagged as
+  legitimate is the one the evidence supports, and it is not close.
+- **🚨 Two corpus corrections are worth more than the answer.** The ticket described Thomas Chauviere's
+  nested projects as carrying *"a client, dates and their own bullets"*. Read at source, the three parts
+  attach to different things: **0 of 18** named projects carries a date of its own (dates belong to a
+  `(client)` block), **10 of 18** have no bullets at all, and the rich shape exists **four times in the
+  whole corpus**, all inside one job of one CV. **We were one ticket away from building a date field for
+  values no document contains.**
+- **🚨 The ~7:1 ratio is ~18 of ~22 from that same single CV** — façade engineering, France and
+  Switzerland. Across the **five** CVs in the market we serve (banking / IT-PM), named project sub-entries
+  with a client, dates and their own bullets number **zero**. The count was honest and correctly measured;
+  the inference *"this is the shape our users write"* was never checked, and it survived a research pass,
+  a ticket brief, an ADR's consequences section and two rounds of argument.
+- **🚨 The real hazard is the client, not the project, and no rule covers it.**
+  `ASSYTEM (client) - 02/2021 - 05/2021` is a **name plus a date range nested under an employer** —
+  byte-for-byte an employment block, and more job-like than a project title. ADR-0006 clause 5 forbids a
+  *project* reaching `roles[]`; **nothing forbids a client.** Blocked today only by the accident that
+  `MinedRole.title` is `z.string().min(1)` and a client block has no title, so the **contract** rejects the
+  fabrication rather than a rule catching it — and **#126 rewrites that record.** ADR-0009 clause 7 extends
+  ADR-0006 clause 5 to cover both; **this is the one build consequence and it lands with #126, not here.**
+- **✅ Naming buys nothing in matching, and it is checkable in our own code rather than argued.**
+  `buildJudgeInput()` (`apps/api/src/judge.ts:66-75`) hands the grader a flat list of `id` / `text` lines
+  with **no employer, no job, no dates, no grouping** — the job container is **already invisible** to the
+  matcher, so a container nested inside it cannot move a score. No ATS surveyed exposes a project as a
+  search or filter field; 16 of 17 adverts use the word *project* and every one means the job on offer.
+  The remaining gain is a tidier page and a nicer editing unit — **presentation, which #150's own Q3
+  pre-committed to the design effort.**
+- **✅ Q5 is closed, and it cuts the other way.** The confidential-client convention is uniform with no
+  dissent found: sanitise the client to a descriptor (*"a leading global bank"*, *"a medium-sized
+  commercial bank"*) and keep the engagement. So the banking/consulting case does **not** break a named
+  entry — but that **removes an objection to building and supplies no reason to build**, and it makes the
+  client hazard worse, since a descriptor line is one more name-plus-date-range under an employer.
+- **⚠️ Decided before [#126](https://github.com/adrien-mounier/jobcrush-app/issues/126) deliberately.**
+  Carving a named container out of today's job bullets is **ADR-0001's employer case** — its own stated
+  limit. It is free *right now* only because the job record does not exist yet. The miner's `role` is a
+  free string, so a project name could be written into it at zero contract cost; `MinedRole` requires
+  `employer` and `title`, the Draft has no project or client slot, and `conservationIssues()` watches
+  neither. **Cheap today, a migration after #126** — which is why it was recorded now rather than left on
+  the ticket.
+- **⚠️ Not a fourth stress-test attempt.** ADR-0006 clause 10 retired the paper test after three misses;
+  #150 proposes **no new element at all**. It did produce a **scope note on ADR-0001 rule 4**: the four
+  gates can be walked to a **refusal**, and a refusal reached by walking them is the rule working, not a
+  skip. ADR-0007 had to make the same disclaimer for the same reason.
+- **📉 The `/last30days` half came back thin, and it is labelled as such.** 28 Reddit threads carrying
+  22,763 upvotes across the résumé and jobs communities, and **not one** debating this question — every
+  ranked cluster scored zero and was demoted off-topic. Those subreddits' 30-day window is *roast-my-CV*
+  and layoff threads. **That silence is a finding** (a question nobody argues about has no moving answer,
+  so the deep half settles it) but it is **not agreement and not absence of the practice** — ADR-0006
+  already recorded the same asymmetry. X and YouTube were unavailable this run and the gap is named in the
+  document rather than hidden.
+- **Corrections landed in existing research:**
+  [`personal-projects-on-a-cv.md`](docs/research/personal-projects-on-a-cv.md) — Adrien's
+  `Project Achievements` is **a label over a second bullet list**, not a set of named project entries, so
+  the corpus table overstated the nested shape at source; plus a note on the 7:1 concentration.
+  [ADR-0006](docs/adr/0006-a-project-is-a-container-not-a-fact.md) — both its *does not decide* line and
+  its *now unblocked* paragraph now point at ADR-0009 and flag that its own ~7:1 does not mean what it
+  looks like.
+- **Two lessons:** *a count over a corpus is not a distribution, and the ratio can be one document* ·
+  *when a rule forbids one shape from reaching a dangerous slot, check what else has that shape*.
+- **Docs:** [`docs/research/work-projects-inside-a-job.md`](docs/research/work-projects-inside-a-job.md)
+  (deep sources, 909 lines, eight sources recorded as *unchecked* rather than negative — HR Open behind
+  registration, RChilli's helpdesk 403 for the second time, Workday and Oracle behind customer logins,
+  PMI member-gated) ·
+  [`docs/research/last30days-work-projects-inside-a-job.md`](docs/research/last30days-work-projects-inside-a-job.md)
+  (recent movement).
+
 ## 2026-08-06 (session 85) — Two settings could not hold three cases, and the fallback deleted the user's answer
 
 _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 5h, resolved as [#131](https://github.com/adrien-mounier/jobcrush-app/issues/131) with six clauses, written up as **[ADR-0008](docs/adr/0008-how-a-fact-arrives-read-worked-out-or-asked.md)** — the eighth ADR in this repo. **Repo output: ADR-0008, a CLAUDE.md section, one fog item materially enlarged, one new out-of-scope handoff, two lessons.** No code changed; this is a plan map._
