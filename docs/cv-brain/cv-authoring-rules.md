@@ -41,7 +41,21 @@ A "CV file" is any `root_cv/**/*.md`, any `**/tailored_cv/**/*.md`, or any `cv_m
   whole CV including Education and Certifications. `Present` (capitalised) for a current role.
   Never year-only (`2021 - 2024`), never year-first (`2024/03`), never two-digit years (`'24`),
   never seasons (`Summer 2023`), never `Now` or `Current`. If the source CV states only years,
-  keep them exactly and raise a fix-this item asking for the months. Never infer a month.
+  keep them exactly. Never infer a month.
+- **A role whose end is unknown prints its start alone** (`2003`), keeping its chronological place.
+  Never `Present` (that is a lie, not a formatting choice), never `Since 2003` or `From 2003`, and
+  never a role with no date line at all.
+- **A tailored CV never carries a date prompt.** Missing months are asked once, during ingestion, and
+  noted once on the master CV. The tailored CV prints the honest coarse date and says nothing.
+- **Summary — prints only when it earns its place.** It prints only if it carries a **concrete
+  achievement** (a named thing done, with a result or a number) **or a fact this advert tests**.
+  Otherwise the whole section is omitted, **heading included** — never an empty heading. Order:
+  achievement first, then context only if it is not already on the page, then the advert's tested
+  facts in one short closing clause that never displaces the achievement. **No word count.** Banned:
+  the identity opener (`Senior Project Manager with 7+ years of experience...`), capability claims
+  (`proven ability to`, `expertise in`, `strong in`, `comfortable bridging`, `results-driven`), and
+  restating the title, employer, dates or years already visible elsewhere on the page.
+- **Education years print exactly as held**, in every market. No age-proxy stripping.
 - **Outcome-led bullets:** action verb + scope + outcome (when the source supports it). No
   responsibility-only or attendance bullets.
 - **No invented facts:** never invent dates, employers, titles, certifications, or metrics. Non-
@@ -76,9 +90,87 @@ the timeline.
   a CV, whatever its merits as a sort key.
 - **Never two-digit years** (`'24`) — they break experience calculators — and never seasons
   (`Summer 2023`), which the strictest parsers reject outright.
-- **When the source CV states only years, keep them exactly and raise a fix-this item** asking the
-  candidate for the months. Anti-fabrication outranks format compliance: a plausible month is still
-  an invented fact. Reformatting is always allowed; supplying missing precision never is.
+- **When the source CV states only years, keep them exactly.** Anti-fabrication outranks format
+  compliance: a plausible month is still an invented fact. Reformatting is always allowed; supplying
+  missing precision never is.
+
+### Coarse and unknown dates (decided 2026-08-06, issue #143)
+
+The rules above say what a date may look like. These say what to do when we do not have one.
+
+**A job whose end we do not know prints its start alone — `2003` — and keeps its chronological
+place.** Not `Since 2003`, not `From 2003`, and never `Present`, which is a lie rather than a
+formatting choice. Not a dateless entry either: a role with no date line is a documented parsing
+hazard. This is [ADR-0003](../adr/0003-the-shared-parts-organisation-date-level.md) clause 6's third
+end state — *ended, we do not know when* — reaching the page for the first time.
+
+**That state is the one hole always worth a question**, because a job with an unknown end contributes
+**zero** to years of experience: a 22-year career reads as 19, and the missing three are why a
+"20+ years" advert never reaches the candidate. Ask it with the reason said out loud — *"this job is
+currently counting as zero years towards your total"* — because that is the sentence that makes
+someone answer.
+
+**A missing month is asked once, during ingestion, while the candidate is telling us about that job,
+and is never chased afterwards.** ADR-0003 clause 5's *do not ask* triggers (a bar turns on it, a gap
+might not be one) govern **going back to bother them later**, not the single pass where they are
+narrating their history anyway. **Never ask for dates with "roughly is fine"** — that phrasing
+manufactures the coarse dates these rules then have to handle.
+
+**When the candidate genuinely does not know**, the master CV carries **one** passive note — *"three
+roles are missing months"* — and **the tailored CV carries nothing at all**. Not a prompt on every
+tailored CV; not silence either. The tailored CV prints the honest coarse date.
+
+**Education years print exactly as we hold them, in every market.** A graduation year is a legible
+age proxy and that is accepted deliberately: the *"graduation years are a strong age proxy"* claim
+traces to a vendor blog whose own audit measured something else, and de-identification is not
+evidence-backed — Australia's randomised trial found it did not promote diversity. There is no
+age-proxy stripping rule and its absence is a decision, not an oversight.
+
+**Professional Summary** — full reference: `docs/research/cv-summary-structure-and-length.md` and its
+`last30days-` companion (issue #152). Decided 2026-08-06, issue #143.
+
+> 🚨 **The former `≤ 55 words` cap is deleted.** It had no source anywhere — it existed in the
+> tailoring prompt and in [ADR-0002](../adr/0002-how-a-structured-fact-reaches-the-cv.md) quoting that
+> prompt, and nothing derived it. **No rival number is sourced either**, including the 60–80 words
+> this file's own IT-PM research note asserts. The only peer-reviewed synthesis on CV length has a
+> whole section on the subject, one finding (*never exceed two pages*), and **no row for the
+> summary**. SEEK, which owns the job board in three of our four markets, publishes **four different
+> numbers, two of them on the same country's site.** The cap's real job — stopping the summary
+> becoming a checklist — is now done by the ordering rule below.
+
+- **It prints only when it earns its place.** A summary is written **only** if it carries a
+  **concrete achievement** — a named thing done, with a result or a number, drawn from the
+  candidate's own confirmed material — **or a fact the advert being applied to actually tests.**
+- **If neither exists, the whole section is omitted, heading included.** Never a `Professional
+  Summary` heading with nothing under it: that is not a missing summary, it is a broken CV.
+- **Order, and it is the rule that replaces the word cap:** the achievement first · one line of
+  context **only** if it says something the page does not already say · the advert's tested facts
+  compressed into **one short closing clause**, which may **never** displace the achievement.
+  Nothing else belongs in it.
+- **Banned outright:**
+  - **The identity opener** — `Senior Project Manager with 7+ years of experience...`. The title is
+    already the headline and the years are already in the experience section. Reviewers name this as
+    *the* defect, and both structures practitioners actually recommend work by deleting it.
+  - **Capability claims as content** — `proven ability to`, `expertise in`, `strong in`,
+    `comfortable bridging`, `results-driven`. Three of the five summaries in our own six-CV corpus
+    are built entirely from these, and the literature is consistent that accomplishment statements
+    beat capability claims.
+  - **Restating anything already visible** — title, employer, dates, years.
+- **When there is no achievement to draw on**, the slot shows the hole visible and empty
+  ([ADR-0002](../adr/0002-how-a-structured-fact-reaches-the-cv.md) clause 2) — `Led [which project?],
+  [what result?]` — which does **not** print. **Never pad a thin CV with a generic paragraph:** the
+  detectable failure is emptiness, not polish.
+- **Voice: no first-person pronouns**, as before — but recorded honestly as **convention, not
+  evidence**. 37% of 23,191 real summaries use *I / my / me*; third person (*he / she*) is under 1%
+  and is the actual error. We pick the pronoun-free majority style and stop asserting it is a rule.
+- **No per-market voice or structure**, even though SEEK tells Australian candidates to write in the
+  first person. [ADR-0007](../adr/0007-what-prints-is-decided-per-application.md) clause 2 already
+  rules that a country page is a strip-list, never a market style guide.
+
+⚠️ **Known and accepted:** the summary is **not** a decision signal in the strongest available
+evidence — 221 recruiters over 2,043 eye-tracked screenings advanced CVs on time spent in
+*Experience*, and the top block separated nothing. **No study anywhere measures callback rates for
+having a summary.** These rules make it honest and non-generic; they do not claim it wins interviews.
 
 **Length and bullet density** — hard limits (source: `/context/research_notes/2026-05-03_it-pm-cv-best-practices.md`). These apply to every CV write AND every later edit:
 - Two pages maximum, single column.
@@ -123,7 +215,16 @@ Apply before finalizing any tailored CV:
 - [ ] ATS compliance verified per `/research_result/2026-05-03_ats-parsing-pitfalls.md`.
 - [ ] One date form (`Month YYYY` or `MM/YYYY`) used across every role, certification, and education
       entry; no year-only, year-first, or two-digit years; `Present` for the current role. Year-only
-      dates inherited from the source are preserved and raised as a fix-this item, never filled in.
+      dates inherited from the source are preserved exactly, never filled in.
+- [ ] Any role whose end is unknown prints its start alone (`2003`) in its chronological place — never
+      `Present`, never `Since`/`From`, never a role with no date line.
+- [ ] No date prompt or placeholder appears anywhere on a tailored CV.
+- [ ] Education years print exactly as held.
+- [ ] The summary carries a concrete achievement or a fact the advert tests — otherwise the section is
+      absent entirely, heading included.
+- [ ] The summary opens with the achievement, not with an identity clause, and contains no capability
+      claims (`proven ability to`, `expertise in`, `strong in`, `results-driven`) and nothing already
+      visible elsewhere on the page.
 - [ ] Bullet caps respected (4-6 per role, max 8 for the current role, 3-4 for roles older than ~8 years), counting all bullet blocks under a role together; CV fits two pages.
 - [ ] Output filenames follow CLAUDE.md §9 conventions; no prior version overwritten.
 - [ ] Tailoring report saved with all decisions (kept/edited/removed/confirmed) recorded.

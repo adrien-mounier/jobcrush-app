@@ -44,6 +44,17 @@ The 2026 standard for a senior IT PM CV follows a "strategic value first" sequen
 
 ## 3. Professional Summary
 
+> 🚨 **SUPERSEDED for this project (2026-08-06, issue #143).** Both the **60–80 word** length below and
+> the **three-part identity / specialisation / quantified value** structure were researched properly in
+> [#152](https://github.com/adrien-mounier/jobcrush-app/issues/152) and **neither is evidence-backed**.
+> No sourced word cap for a CV summary exists anywhere. The three-part shape appears in no practitioner
+> advice, its *placement* claim was **tested and found null** (Bright & Hutton 2000), and *identity* is
+> the part reviewers name as the defect. **Do not apply this section.** The governing rules are in
+> `docs/cv-brain/cv-authoring-rules.md` → *Professional Summary*; the evidence is in
+> `docs/research/cv-summary-structure-and-length.md` and its `last30days-` companion.
+> ✅ **What survives from below:** *quantified value* (accomplishment beats capability claim) and the
+> no-filler line. Everything else is superseded.
+
 ### Structure
 
 Use a **3-part narrative** — not an "objective" statement. Objectives focus on what you want; summaries focus on what you deliver.

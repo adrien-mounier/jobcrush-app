@@ -1,5 +1,37 @@
 # Lessons — jobcrush-app
 
+## When a rule, an ADR and the running code all answer one question, there are three answers
+
+#143 asked what to do about a missing month. The project had **three live answers and did not know it**:
+#128 decided *every missing month is asked*; ADR-0003 clause 5 overruled that to *ask only when a bar or a
+suspected gap turns on it*; and `apps/api/src/grill.ts` does **neither** — it asks only when a role has no
+dates **at all**, and the question it asks says ***"Roughly is fine."***
+
+The two written answers were easy to find because both are documents and documents cite each other. **The
+third was invisible because nobody had written it down** — it is not a decision, it is what the code
+happens to do, and no artifact describes it. It was also the one that mattered most: *"roughly is fine"* is
+the product **manufacturing** the coarse dates the CV rules then spend three paragraphs handling.
+
+The sibling lesson below (*a claim copied into a third document*) is about a written claim that gained false
+corroboration. This is the inverse: **the code is a position in the argument, and it never files a brief.**
+Before reconciling two documents, read the code as a third party to the disagreement — not to check whether
+the documents are right, but because it may be saying something neither of them says.
+
+## A phrase that appears only in the rules is not a mechanism
+
+`cv-authoring-rules.md` says three separate times that a year-only date must *"raise a fix-this item asking
+for the months"*. #143 was about to design around that mechanism — where it should appear, whether it counts
+as asking, how it interacts with ADR-0003's blank.
+
+**`fix-this item` appears nowhere in the product.** The shipped review surface (`apps/api/src/audit.ts`) only
+ever comments on **bullets**; it has no route to a date and no place to put one. The rule has been written,
+cited and reasoned about for months, and has never once run.
+
+The cost of not checking is not a wrong decision — it is a decision **about nothing**, indistinguishable from
+a real one until someone tries to build it. **One `grep` for the noun separates a rule that runs from a rule
+that has only ever been read.** Same shape as *research the repo depends on must be committed*: the artifact
+exists, the wiring does not, and nothing complains.
+
 ## "Every X asks for Y" is a measurable claim, and this repo has the X sitting in it
 
 `docs/cv-brain/tailoring-reasoning.md` §4 throws away an entire class of CV content — budget,

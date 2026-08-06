@@ -2,6 +2,86 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-06 (session 88) — The contradiction was already fixed, and the number we were about to replace had no source
+
+_`/wayfinder` on map [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127). Resolved [#143](https://github.com/adrien-mounier/jobcrush-app/issues/143) (nine decisions, **no ADR**) and [#152](https://github.com/adrien-mounier/jobcrush-app/issues/152), a research ticket **created, fired and landed inside the same session**. Output: an amended [`cv-authoring-rules.md`](docs/cv-brain/cv-authoring-rules.md), a superseded banner on the IT-PM research note, two research documents, two lessons. Commits `9a3f2fc`, `9895108`, plus this session's doc commit. **No code changed.**_
+
+- **🔑 Dates — what prints when we only half-know.** A job whose end is unknown **prints its start alone
+  (`2003`)** in its chronological place: never `Present` (a lie, not a formatting choice), never
+  `Since`/`From`, never dateless (a documented parse hazard). This is **ADR-0003 clause 6's third end state
+  reaching the page for the first time.** 🚨 **And it is the one hole always worth asking about**, with the
+  reason said out loud, because an unknown end contributes **zero** to years of experience — **a 22-year
+  career reads as 19, and the missing three are why a `20+ years` advert never reaches her.**
+- **🚨 Three live answers to "do we ask for the month", and the third was invisible.** #128 said *every*
+  missing month is asked; ADR-0003 clause 5 overruled that to *only on a trigger*; and `grill.ts` does
+  **neither** — it asks only when a role has **no dates at all**, and the question says ***"Roughly is
+  fine."*** **The product was manufacturing the coarse dates the CV rules then spend three paragraphs
+  handling.** Resolved: asked **once during ingestion** while she is narrating that job, **never chased
+  afterwards** — ⚠️ **ADR-0003 clause 5 gains a scope note**, the third on this map.
+- **⚠️ `fix-this item` has never been built.** Three mentions in `cv-authoring-rules.md`, **none in the
+  product** — `audit.ts` only ever comments on bullets and has no route to a date. The session was about to
+  design around it. Now decided: **one passive note on the master CV, nothing on the tailored CV.**
+- **🚨 The graduation year: do nothing.** Owner, verbatim: *"I don't care if someone can guess the age with
+  just the date of the degree."* Education years print exactly as held, in every market — so **ADR-0007's
+  routed open item is DECLINED, not pending**, and must not be re-raised later as an oversight.
+- **🚨 The premise correction that reshaped the ticket.** #143 existed to fix a contradiction between
+  *Month YYYY required* and *never invent a date*. **It was already fixed** — the carve-out is written in all
+  three places the CV rules mention dates, and `preview-tailor.md` rule 13 **implements it verbatim**.
+  Seventh premise correction on this map.
+- **🚨 The 55-word summary cap has no source, and the owner caught it.** It lived in `preview-tailor.md`
+  rule 10 and in **ADR-0002 quoting that prompt**. The session was one step from replacing it with the
+  **60–80** our own research note asserts — a note whose header discloses its method as *Gemini CLI web
+  research* with **no primary citation**. ⚡ **He declined, and #152 ran both halves the same day.** *(Session
+  87 caught the identical shape in the same file for the 8-bullet cap — two independent sessions, one
+  source.)*
+- **🚨 What #152 found.** **No sourced word cap for a CV summary exists anywhere** — the one peer-reviewed
+  synthesis on CV length has a whole section, one finding (*never exceed two pages*), and **no row for the
+  summary**; **SEEK publishes four different numbers, two on the same country's site.** The **summary is not
+  a decision signal** (221 recruiters, 2,043 eye-tracked screenings: *Experience* predicted advancement, the
+  top block separated nothing) and **no study anywhere measures callback rates for having one.** The famous
+  *6 seconds* is a vendor's, **n=30, 2012, never re-measured**.
+- **🚨 The product-critical finding, and it is not about length.** AI detection is **human, not mechanical**,
+  and the summary is the named tell: *"what gives it away is never the polish, **it is the emptiness**… a
+  summary that would sit equally well on top of the other 99 CVs in the pile"* — with **none of ten ATS
+  platforms** detecting AI. **Nobody penalises a machine-assisted CV; they penalise a generic one**, which is
+  exactly what generating an identity clause from a role title produces. **This product generates the
+  summary, so that is our default failure mode.**
+- **🔑 The summary rule.** It prints **only** if it carries a **concrete achievement** or **a fact this
+  advert tests**; otherwise **the whole section is omitted, heading included**. **Order replaces the cap** —
+  achievement first · context only if not already on the page · the advert's tested facts in one short
+  closing clause that never displaces the achievement. **Banned:** the identity opener, capability claims
+  (*proven ability to*, *expertise in*, *strong in*, *results-driven*), and restating anything already
+  visible. ✅ **The cap's real job is replaced, not dropped** — #152 warned it was unsourced but **not idle**
+  (ADR-0002 used it as the pressure against a checklist), and an ordering rule carries that better.
+- **⭐ ADR-0002's weave-don't-list point is closed, and its premise was wrong too.** It feared promoted facts
+  crowding out the proof. Read against the six real CVs — which ADR-0002 itself instructed — **three of the
+  five summaries, including the owner's own, carry no concrete achievement at all** and are built entirely
+  from banned capability claims. **The proof was never there to crowd out, and a *weave, don't list* rule
+  would have caught none of them.**
+- **⚠️ Voice is convention, not evidence.** 37% of 23,191 real summaries use *I*; third person is **<1%** and
+  is the actual error. We keep the pronoun-free majority style and stop asserting it as a rule. **No
+  per-market voice** despite SEEK telling Australians to use the first person — **ADR-0007 clause 2 shuts
+  that door for free.**
+- **⚠️ Vietnam recorded, not actioned.** Both halves found it keeps the **career objective** as a core named
+  section, while *"the objective was replaced by the summary"* traces **only to firms selling CV-writing**.
+  Same shape as #151 — but **this one is text the renderer could act on.**
+- **⚠️ One requirement handed onward.** The layout when no summary prints (owner: *"it shouldn't feel like
+  visually there is a hole"*). **The rule half is decided** — section omitted, heading included — the look is
+  the design effort's. **Fourth named requirement now waiting on it**, alongside the correction screen, the
+  decline wording and the deck tiering.
+- **📌 Map status: one ticket left.** [#149](https://github.com/adrien-mounier/jobcrush-app/issues/149) —
+  *what happens to a part of a CV we cannot classify*. **When it closes the map is done and the next act is
+  `/to-tickets`.** All seven research legs have landed (#137, #138, #145, #147, #148, #151, #152).
+- **Build consequences recorded on #143**, not built: rule 10 replaced · rule 13 gains the unknown-end case ·
+  `"Roughly is fine."` deleted · the unknown-end question is new · the fix-this item must actually exist ·
+  the renderer must omit the summary heading rather than emit an empty block.
+- **Impact sweep posted** on [#66](https://github.com/adrien-mounier/jobcrush-app/issues/66) (the summary
+  rules it tailors into changed; *no summary* is now a normal outcome),
+  [#109](https://github.com/adrien-mounier/jobcrush-app/issues/109) (an answered **end date** can move years
+  of experience by years and is a re-score trigger; an answered **month** moves it by weeks and is not), and
+  [#54](https://github.com/adrien-mounier/jobcrush-app/issues/54) (loses *"roughly is fine"*, gains the
+  unknown-end question).
+
 ## 2026-08-06 (session 87) — Three of our own rules turned out to be unsourced, unmeasured, or unimplemented
 
 _Owner-commissioned research with no ticket, arising from the #150 conversation: **how should a role's 8-bullet budget be split between baseline expectations and achievements?** Output: [`docs/research/bullet-budget-floor-vs-achievement.md`](docs/research/bullet-budget-floor-vs-achievement.md) (933 lines) and **three tickets** — [#153](https://github.com/adrien-mounier/jobcrush-app/issues/153), [#154](https://github.com/adrien-mounier/jobcrush-app/issues/154), [#155](https://github.com/adrien-mounier/jobcrush-app/issues/155) — plus two lessons. No code changed._
