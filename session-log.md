@@ -2,6 +2,68 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-06 (session 82) — The leak was dissolved rather than policed, because an absence cannot fail the way a check can
+
+_Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 5e, resolved as [#141](https://github.com/adrien-mounier/jobcrush-app/issues/141) with nine clauses, written up as **[ADR-0005](docs/adr/0005-a-stretch-belongs-to-its-advert.md)** — the fifth ADR in this repo. Impact sweep across #144, #142 and #86. **Repo output: ADR-0005, a new `CLAUDE.md`/`AGENTS.md` section, two lessons, one fog patch cleared.**_
+
+- **🔑 The headline: a stretch is a fact about one *application*, not about the person.** The profile
+  holds only what is true and yours — stated, corrected, or read from your CV. Stretches live **beside**
+  it, attached to the advert they were approved for. A later advert's CV writer reads the profile, and
+  the stretch is not in it, **so there is nothing to filter and nothing to fail.**
+- **⭐ The rejected option is the more instructive one, and it decided two clauses.** Keeping the stretch
+  in the profile behind a **filter** was the obvious design. It was rejected on evidence already sitting
+  in ADR-0004: `career-ops`' gate failed three times in thirty days and still reported `pass`. **An
+  absence cannot fail the way a check can.** The same argument then decided *beside* over *inside with a
+  marked separation* — a separation is a convention every future reader must remember, which is a filter
+  in different clothes. Generalised in `lessons.md`.
+- **🔑 The owner's own addition was accepted, but only after the line it needed was drawn.** He asked for
+  a **stretch library**: past stretches with their narratives, consulted on a new advert so the system
+  can catch what it missed and improve a question it was about to ask cold. That is right — **but it may
+  propose and never add.** If a previously approved stretch can reach a CV without a fresh per-advert
+  approval, it *is* the leak with more machinery. ⚠️ **The pressure to break that will arrive as a
+  usability improvement** (twenty banking applications, twenty taps), not as a disagreement.
+- **🔑 The displacement mechanism had a hole nothing in the output would reveal.** The owner specified:
+  judge the stretch, then find the least-relevant bullet under that job, then propose the swap. Two steps
+  that **always find a victim** — nothing between them ever checks the stretch is *better than* what it
+  evicts, and asked *"is this relevant?"* in isolation a model says yes far too readily. Added as an
+  explicit third step, along with slot-matching (bullet↔bullet, skill↔skill, summary↔summary) and showing
+  **both lines in full**. Generalised in `lessons.md`.
+- **⚠️ `conservationIssues()` does not catch this, as the ticket said.** It protects fact *classes* by
+  counting them; a bullet-for-bullet swap is invisible to it. That makes the show-both-lines step
+  **load-bearing rather than cosmetic** — it is the only thing that surfaces a swap at all.
+- **🔑 A stretch never graduates; it is superseded.** Automatic promotion on any trigger (job won,
+  approved five times) is **the machine deciding a claim about the person became true** — the one clause
+  of owner decision 9 the owner named as his own. Instead, the person states the real fact, which is
+  already a legitimate origin under ADR-0004 clause 1a. Plus a prompt: *"you have used this three times —
+  is it now genuinely true?"* ⚠️ **One tap there converts an advert-scoped stretch into a permanent
+  general fact**, which is a large transition behind a small control.
+- **🔑 Wording is tuned when proposed, frozen when rendered.** The approved sentence prints verbatim,
+  because the interview narrative defends *that sentence* — re-wording it at render means rehearsing a
+  defence of a line that is not on the CV. Tuning relocates to proposal time rather than disappearing.
+- **✅ The premise was checked and the leak is NOT live in this repo.** `claimGraph.ts` defines
+  `origin: "source" | "enrichment"` and already refuses an enrichment node with no `narrative_ref`, but
+  **nothing writes one** — `graph.ts` stamps `origin: "source"` with a comment deferring stretches to S3,
+  and `apps/api/src` has no proposal code at all. The leak is in the **ported design**, so every clause
+  was still free to take.
+- **✅ A fog patch cleared that had been open since 2026-08-04.** *Reconciling owner decision 9 with the
+  rules written to forbid exactly that.* `claim-miner.md` rule 7 needs **no change** (it governs reading
+  a CV); #128 §1 governs **facts**, and a proposal is not a fact until approved for a named advert;
+  **ADR-0002 clause 2 needs a scope note, not an amendment** — it governs thin input on the person's
+  *own* material. Only that note's wording is still open.
+- **⚠️ The ported enrichment contract is now wrong in four places** — no `origin:enrichment` graph node ·
+  `originOffer` required **on approval** · decline carries a **scope** · an approval **records its
+  parent**. All land in build tickets, in the zod port **and** the `.mjs` oracle.
+- **⚠️ ADR-0002 has no concept of conditional printing.** It gains a third kind of passenger (written
+  once at proposal, frozen thereafter) and does not reopen — but #144 now owns **two** cases, not one:
+  *a fact that must not print* and *a fact that may print here and nowhere else*.
+- **Impact sweep:** #144 (a second case), #142 (finally has content, and is named as ADR-0005's own
+  verification test), #86 (**a stretch never reaches the match score**, by construction — the card tells
+  the truth about the record while the CV is the marketing document). #120/#124/#122/#54/#66 checked, no
+  movement.
+- **Map frontier: four, all verified unblocked and unclaimed** — [#146](https://github.com/adrien-mounier/jobcrush-app/issues/146)
+  (the map's own verification, still unrun), #143, #144, #131. **#131's route entry still reads "blocked
+  on 5" and that is stale.** Build frontier unchanged: **#101** with **#132**, then **#108**.
+
 ## 2026-08-06 (session 81) — The shape held for five elements running, and the one thing that broke was the trigger, not the shape
 
 _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 5d, resolved as [#140](https://github.com/adrien-mounier/jobcrush-app/issues/140) with nine clauses, written up as **[ADR-0004](docs/adr/0004-each-elements-own-parts.md)** — the fourth ADR in this repo. The ticket **grew its own research leg mid-session** ([#145](https://github.com/adrien-mounier/jobcrush-app/issues/145), deep + `/last30days`, resolved same-day). Impact sweep across seven tickets. **Repo output: ADR-0004, a correction to ADR-0003, six research files — four of which had never been committed at all.**_

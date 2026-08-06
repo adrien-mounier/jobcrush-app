@@ -1,5 +1,43 @@
 # Lessons — jobcrush-app
 
+## An absence cannot fail the way a check can
+
+The obvious design for #141's stretch leak was: keep the stretch in the profile, mark it, and **filter
+it out** on adverts it was not approved for. It was rejected, and the argument generalises well beyond
+stretches.
+
+**A filter is a thing that runs.** When it does not run — a code path that skips it, a locale it was
+never added to, a new reader that does not know about it — the filtered item is simply *present*, and
+nothing announces that anything went wrong. The evidence was already in this repo: `career-ops`'
+anti-fabrication gate failed three separate times in thirty days (once missing from 16 of 18 prompt
+files, once inert in five locales) and still reported `pass`. *"It manufactures confidence."*
+
+**Not storing the thing in that place at all has no failure mode**, because there is no step to skip.
+
+**The same argument then decided a second question one level down.** Given "stretches live somewhere
+else", the follow-up was *beside the profile* or *inside it with a marked separation*. A separation
+inside one store is a **convention**, enforced by every future reader remembering it — which is a filter
+again, wearing different clothes. *Beside* means the consumer physically cannot reach the thing.
+
+**The tell:** whenever a design says *"X is stored here, and everyone who reads here must skip X"*, ask
+what happens the day one reader forgets. If the answer is *"X leaks silently"*, the structural option is
+usually worth its cost — and the cost should be stated (here: *"everything we know about you"* and
+*"everything we have ever said about you"* became two different lists, on purpose).
+
+## Two steps that find the weakest item and then replace it will always find a victim
+
+ADR-0005 clause 4 judges whether a stretch is worth adding, then finds the least-relevant bullet to
+displace. Written as those two steps alone, it has a hole that is easy to miss and impossible to see in
+the output: **nothing ever compares the two.** Step 1 says *"this is relevant"* — asked in isolation, a
+model says yes far too readily — and step 2 dutifully produces the weakest existing item. A swap happens
+every time, including when the thing being evicted was better.
+
+**An implicit comparison does not happen.** If two ranked judgements are meant to settle a contest
+between their subjects, the contest has to be its own step, stated out loud.
+
+**The tell:** a pipeline where every stage returns a *winner within its own set*, and the final action
+depends on a comparison *across* the sets that no stage was asked to make.
+
 ## A rule written from one example quietly inherits that example's limits
 
 ADR-0004 clause 1 was written while shaping **skills**, from research about **parsed CVs**. The rule it

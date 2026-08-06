@@ -66,21 +66,50 @@ source words**; *the person said it* points at the **answer and the question tha
 interview narrative**; *computed* points at the **facts underneath**. **This governs every element — a
 job, a title, a date, a degree, a location — not skills alone.**
 
-⭐ **Origin also decides reuse across adverts, which is the [#141](https://github.com/adrien-mounier/jobcrush-app/issues/141)
-boundary:** a fact the person **stated, corrected, or that we read from their CV** is theirs
-**permanently** and belongs on any tailored CV where it helps — **including a skill they gave in a grill
-answer, which is a real fact and not a leak.** Only a **proposed-and-approved stretch** carries the scope
-of the advert it was made for.
+⭐ **Origin also decides reuse across adverts:** a fact the person **stated, corrected, or that we read
+from their CV** is theirs **permanently** and belongs on any tailored CV where it helps — **including a
+skill they gave in a grill answer, which is a real fact and not a leak.** Only a
+**proposed-and-approved stretch** carries the scope of the advert it was made for.
 
 ⚠️ Two things not to get wrong: **nothing checks origins today** (this is a decided shape; the design map
 ends at build tickets, so never assume the check exists), and **a check that finds nothing must be
 distinguishable from one that did not run** — the failure mode observed three times in one month in the
 project this pattern came from.
 
-⚠️ **Two reconciliations are open, so don't assume either way:** ADR-0002 clause 2 and the miner rules
-are worded as blanket bans with no carve-out for an approved proposal (map #127, Not-yet-specified);
-and an approved stretch currently leaks onto adverts it was never made for
-([#141](https://github.com/adrien-mounier/jobcrush-app/issues/141)).
+### A stretch belongs to its advert
+
+**[ADR-0005](docs/adr/0005-a-stretch-belongs-to-its-advert.md), decided 2026-08-06 in
+[#141](https://github.com/adrien-mounier/jobcrush-app/issues/141) — decided, not yet built.**
+
+**An approved stretch is a fact about one *application*, not about the person.** The profile holds only
+what is true and theirs; stretches live **beside** it, attached to the advert they were approved for. The
+leak is therefore **structurally impossible rather than policed** — a later advert's CV writer has nothing
+to filter and nothing to fail. This is why *beside* beat *inside with a marked separation*: a separation is
+a convention every future reader must remember, and **an absence cannot fail the way a check can.**
+
+Nine clauses; the ADR is the normative home. The ones most likely to be broken by accident:
+
+- **The stretch library proposes; it never adds.** A previously approved stretch reaching a CV without a
+  **fresh per-advert approval** reopens ADR-0005 by definition. The pressure to break this will arrive as
+  a usability improvement (twenty applications, twenty taps), not as a disagreement.
+- **Written once at proposal, frozen at render.** The interview narrative defends *that exact sentence* —
+  re-wording it on the way to the page means rehearsing a defence of a line that is not on the CV. Tuning
+  happens when a stretch is *proposed* for a new advert, never behind the person.
+- **A stretch never graduates into an ordinary fact.** It is **superseded** when the person states the
+  real thing. Any automatic promotion (job won, approved N times) is the machine deciding a claim became
+  true — the one clause of the marketing-document philosophy the owner named as his own.
+- **A stretch may displace a genuine fact, but never invisibly** — and `conservationIssues()` does **not**
+  catch this, because it counts fact *classes* and a bullet-for-bullet swap is invisible to it.
+
+⚠️ **The ported enrichment contract is now wrong in four places** — an approved stretch is **not** an
+`origin:enrichment` claim-graph node · `originOffer` is **required on approval** · a decline carries a
+**scope** (this advert, or never) · an approval **records its parent proposal**. Fix in the zod port
+**and** the `.mjs` oracle, per the repo rule that the oracle is the spec.
+
+✅ **The decision-9 reconciliation is settled.** `prompts/claim-miner.md` rule 7 needs **no change** (it
+governs reading a CV). #128 §1 governs **facts**, and a proposal is not a fact until approved for a named
+advert. **ADR-0002 clause 2 needs a scope note, not an amendment** — it governs thin input on the person's
+*own* material, not a stretch. Only that note's exact wording is still open.
 
 ## Git workflow
 
