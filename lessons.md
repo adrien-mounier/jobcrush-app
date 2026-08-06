@@ -1,5 +1,32 @@
 # Lessons — jobcrush-app
 
+## A rule written from one example quietly inherits that example's limits
+
+ADR-0004 clause 1 was written while shaping **skills**, from research about **parsed CVs**. The rule it
+produced: *every normalised skill carries the exact span of the **document** that produced it.*
+
+The reasoning behind it had nothing to do with skills or with documents — it was about the machine never
+writing down something the person did not claim. But the sentence encoded **both** the element it was
+discovered in and the input it was discovered from, as if they were part of the rule. Nobody chose those
+limits; they came along for free.
+
+**Both were wrong, and one was actively harmful.** A skill volunteered in a grill answer has no span in
+any document, so the rule as written **would have flagged the visitor's own answer as a defect** — the
+exact opposite of its intent. And it fails worse over time: owner decision 6 makes the CV a starting
+point rather than the record, so **most facts will eventually arrive from the person, not from a parsed
+file.** The rule would have been wrong for the majority of its subjects in the target state.
+
+The owner caught both in one sentence, by supplying a scenario the rule had never been tested against.
+
+**The tell:** a rule whose *statement* names a narrower thing than its *reasoning* does. The reasoning
+here said “the machine never adds silently”; the statement said “skill” and “document”. Whenever those
+two do not match in scope, the statement is probably carrying the accident of where it was found.
+
+**And the generalisation was not merely tidier — it answered a question the narrow version could not.**
+Once the rule became *every fact points at its origin*, origin turned out to decide **whether a fact may
+be reused across adverts**, which is exactly the boundary #141 needed. Widening a rule to its real scope
+can reveal that it was already answering a second question.
+
 ## A claim copied into a third document starts looking like three sources
 
 Three documents said `certification` was a hard gate wired to withdraw jobs — *"the same half-wired
