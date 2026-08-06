@@ -1,5 +1,58 @@
 # Lessons — jobcrush-app
 
+## Before rationing something, check the pipeline can see it
+
+#153 spent its whole brief on how to split a per-role bullet budget, and the research it commissioned
+recommended the fix every serious competitor uses: **stop capping bullets, cap the page.** The recommendation
+is correct and it is unfollowable here — **we have no page.** The tailored CV renders as a scrolling HTML
+document: no print stylesheet, no `@page`, no PDF export, no pagination, no page counter. The `pages` field
+in the codebase reads the *uploaded* PDF and never our own output. So the two-page rule that has sat in the
+prompt and the authoring rules the whole time **has never been checked by anything**, while the per-role cap
+beside it is enforced three times over, including as a hard schema rejection.
+
+That asymmetry — **a tight enforced constraint standing in for a loose unenforced one** — is what actually
+caused the damage, not the number. It is worth looking for by name: when two constraints are meant to work
+together and only one is real, the real one silently does the other's job, badly.
+
+The generalisation for a research brief: **a competitor's mechanism is a finding about their pipeline, not
+about ours.** Both products the research pointed at render to LaTeX/PDF and count pages for real. Check the
+seam exists here before adopting the rule that rests on it.
+
+## Nothing can check a rule about text the model rewrote, unless the rewrite carries its sources
+
+The owner asked what looked like a small clarifying question — *"merge only two bullets that genuinely
+overlap: how do we define that, is it just LLM judgment?"* Checked in code, the answer was worse than yes.
+`buildTailorInput()` sends the tailor `- [role] text` — **the claim ids exist on the object and are stripped
+on the way out** — and a printed bullet is `z.array(z.string())`. So the thread between what the person wrote
+and what prints is **cut at both ends**: the tailor is never told which sentence is which and could not say
+so if it wanted to.
+
+The consequence is not that one rule is unverifiable. It is that **a merge, a silent drop and an outright
+invention are byte-indistinguishable** on every tailored CV the product has ever produced — and *three*
+separate written rules (merge-never-drop, the conservation principle, supported-only rendering in #66) are
+all phrased as though someone were checking.
+
+The tell, reusable: **if a rule constrains how one text relates to another, and the second text carries no
+pointer to the first, the rule is decoration.** ADR-0004 clause 1a already says this for structured facts —
+*a fact pointing at nothing is a defect, not a low-confidence result.* The same test applies to rendered
+prose and nobody had applied it. ⚠️ And the honest ceiling: the model assigns those pointers, so tying the
+thread buys **checkable**, not **correct**.
+
+## Ladder the spend, not the cap
+
+Twice on map #127 a recency rule was written as per-item numbers (*newest 8, normal 4-6, old 3-4*; then the
+owner's *newest 10, next 9, next 8*). Both encode a true instinct — recent work deserves more room — and
+both break the same two ways: they **contradict the total budget** (10+9+8 = 27 against a ~24-bullet page)
+and they **need a new table for every list length** (six roles = 45 bullets, nearly four pages).
+
+Moving the ladder from the **cap** to the **spend** — *"the newest gets first call on the budget, each older
+one less, nothing over the guard rail"* — fixes both at once: it can never exceed the total because the total
+is the rule, and it holds for three roles or eight with no new number.
+
+Two riders learned with it. **A per-item cap set at the average is the worst possible number**, because it
+forbids exactly the unevenness that makes the artifact good. And **"should try to reach the maximum" is a
+floor**, not a target — every padding and squishing pathology on this map traces back to a floor.
+
 ## When a rule, an ADR and the running code all answer one question, there are three answers
 
 #143 asked what to do about a missing month. The project had **three live answers and did not know it**:

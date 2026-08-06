@@ -16,11 +16,16 @@ A "CV file" is any `root_cv/**/*.md`, any `**/tailored_cv/**/*.md`, or any `cv_m
 <!-- DIGEST:START -->
 ## Hard rules (auto-injected on every CV edit)
 
-- **Length / density:** 2 pages max, single column. Per role 4-6 bullets (current/most recent role
-  may reach 8 only if every bullet earns it; roles older than ~8 years: 3-4). Count ALL bullet
-  blocks under a role together; do not evade the cap by splitting into "Achievements" / "Key
-  Deliveries" / etc. At most one sub-grouping per role and it counts toward the cap. One to two
-  lines per bullet (three absolute max).
+- **Length / density — the budget is the page, not the bullet.** 2 pages max, single column. The
+  newest role gets **first call** on the page, each older role takes **less than the one before**,
+  and **no single role exceeds 10 bullets**. First call is not a floor: a role with 4 good bullets
+  prints 4, never 10 padded ones. Count ALL bullet blocks under a role together: **if a sub-grouping
+  is used at all it counts toward the rope** and never evades it (whether sub-groupings survive is
+  #155, undecided). One to two lines per bullet (three absolute max).
+- **When a role has more to say than fits: choose, do not squish.** Print the bullets this advert
+  wants, whole, with their outcomes intact; the rest do not print and the candidate is **told which**
+  and may put any back **for that one application**. Merge only two bullets that genuinely say the
+  same thing — **never as a way to make room**.
 - **Forbidden glyphs:** no em-dash (—), en-dash (–), ellipsis (…), pipe (|) outside markdown
   tables, or semicolons as list separators. Use plain commas, full stops, or line breaks.
 - **Section order is fixed** (from the root CV): Summary, Professional Experience, Personal
@@ -172,13 +177,102 @@ evidence — 221 recruiters over 2,043 eye-tracked screenings advanced CVs on ti
 *Experience*, and the top block separated nothing. **No study anywhere measures callback rates for
 having a summary.** These rules make it honest and non-generic; they do not claim it wins interviews.
 
-**Length and bullet density** — hard limits (source: `/context/research_notes/2026-05-03_it-pm-cv-best-practices.md`). These apply to every CV write AND every later edit:
-- Two pages maximum, single column.
-- Per role: **4 to 6 bullets**. The current/most recent role may reach **8** only if every bullet earns its place. Roles older than ~8 years: **3 to 4 bullets**.
-- **Count all bullets under a role together.** Do not evade the cap by splitting one role into several bullet blocks ("Achievements", "Key Deliveries", "AI Operations", etc.). At most one short sub-grouping per role, and it counts toward the cap.
-- One to two lines per bullet, three absolute maximum. Merge related points; quality over completeness.
-- Outcome-led: action verb + scope + outcome where the source supports it. No responsibility-only or attendance bullets.
+### Length and bullet density (decided 2026-08-07, issue #153)
+
+Full reference: `docs/research/bullet-budget-floor-vs-achievement.md`. These apply to every CV write
+AND every later edit.
+
+> 🚨 **The rule this replaces had no source.** It read *"per role 4-6 bullets; the current role may
+> reach 8; roles older than ~8 years 3-4"*, sourced to
+> `2026-05-03_it-pm-cv-best-practices.md`. Read at source, that file says one thing about counts —
+> *"aim for 4-6 bullets per role"* — with **no citation**, under its own header caveat that it
+> *"informs framing and vocabulary only"*. **The 8 and the 3-4 appear nowhere in it, and nowhere
+> outside our own rules and our own code.** Externally: **no institution, standard, parser vendor or
+> professional body publishes a per-role bullet cap at all** (Purdue OWL sets a minimum of three and
+> no maximum; Rezi, the only commercial product with a hard count, picks 3-6). It is a craft
+> convention and every product implementing one picks a different number.
+
+**The budget is the page. The per-role number is a guard rail, not a target.**
+
+- **Two pages maximum, single column.** This is the real constraint; per-role density falls out of it.
+- **The newest role gets first call on the page. Each older role takes less than the one before.**
+  A ladder of *spend*, never a table of caps — it holds for three roles and for eight without a new
+  number, and an advert can still overrule it when an older role is the relevant one.
+- **No single role exceeds 10 bullets.** ⚠️ **This 10 is our design opinion, recorded as one — not a
+  finding.** Its job is to stop one role eating the CV, nothing more. Measured on the owner's own CV,
+  two pages holds roughly **24 experience bullets**; across three roles that is ~8 each, so **8 was a
+  reasonable average and an unreasonable cap** — a rope sits above the average precisely because
+  roles are unequal.
+- **First call is not a floor.** A role with 4 good bullets prints 4. Never pad to reach a number:
+  a floor is what produced the merge damage below.
+- **Count all bullets under a role together.** Do not evade the rope by splitting one role into
+  several bullet blocks ("Achievements", "Key Deliveries", "AI Operations"). At most one short
+  sub-grouping per role, and it counts toward the rope.
+  ⚠️ **Whether a sub-grouping exists at all is [#155](https://github.com/adrien-mounier/jobcrush-app/issues/155),
+  open** — the construct is specified here in full and the renderer cannot emit one. **This clause is
+  neutral on that and must survive either way**, because it is the rope's anti-evasion guard: the
+  owner's own BRED role is *7 duty bullets + 8 under `Project Achievements` = 15*, which is exactly
+  how a role with a rope of 10 becomes a role with 20. ✅ Nothing here disturbs
+  [ADR-0009](../adr/0009-a-work-project-stays-a-bullet.md), which forbids a **named project
+  container** inside a job (name, client, project dates, a project's own bullet group) — a
+  *Key Deliveries* label holds no facts and names no project, and clause 6 routed it to presentation
+  deliberately.
+- **Roles are thinned by relevance and by the page, never by a date threshold.** The old *"older than
+  ~8 years: 3-4"* is withdrawn: the threshold was invented, and a fixed age cap silences the one role
+  an advert most wants (applying to a bank, the bank on the CV is the oldest role). The only recency
+  number in the cited research is *"condense or drop experience older than 15 years"* — a different
+  rule about a different thing, and not a bullet count.
+- One to two lines per bullet, three absolute maximum.
+- Outcome-led: action verb + scope + outcome where the source supports it. No responsibility-only or
+  attendance bullets.
 - When editing an existing CV, re-check these limits before saving the new version.
+
+**When a role has more to say than fits: choose, do not squish.**
+
+Print the bullets this advert wants, whole, with their outcomes intact. The rest do not print, the
+candidate is **told which**, and may put any back **for that one application** — never as a standing
+setting ([ADR-0007](../adr/0007-what-prints-is-decided-per-application.md) clause 4: the machine
+never removes silently, and a removal is reversible per application).
+
+**Merge only two bullets that genuinely say the same thing. Never as a way to make room.**
+
+> 🚨 **Why "merge, never drop" is withdrawn as the default.** Measured on the owner's own CV, four
+> source bullets merged into one went from **514 characters to 172 — two thirds of the words gone.**
+> Every keyword survived; **every outcome clause died** (*strengthening customer security*,
+> *improving customer autonomy and reducing support workload*, and two more), and three of four
+> ownership verbs collapsed into one. The merged sentence is **one verb, four scopes, zero
+> outcomes** — a scope list, the exact shape the outcome-led rule exists to prevent — and it passes
+> every gate we have: 1.7 rendered lines (legal), all keywords present (ATS-invisible; Jobscan
+> states outright that *"measurable results are not factored into the match rate"*), and
+> `conservationIssues()` counts bullets, not outcomes.
+>
+> The instruction existed because dropping a fact felt like lying. **ADR-0007 changed that**: there
+> is no unprintable fact, only a per-application choice the candidate sees and can reverse. Choosing
+> is now the honest option and squishing is not.
+
+**A printed bullet must carry the source claims it came from.**
+
+Every claim reaches the writer **with its id**; every printed bullet records **which ids it came
+from**. This is what makes the three rules above checkable rather than merely stated:
+
+- *"N more from this role aren't shown"* is computable — without it, choosing becomes a **silent**
+  removal, which ADR-0007 clause 4 forbids.
+- A merge is visible as a bullet carrying more than one id, instead of being discovered years later.
+- A bullet carrying **no** id is one the machine invented — the same shape
+  [ADR-0004](../adr/0004-each-elements-own-parts.md) clause 1a already requires of every structured
+  fact: *a fact pointing at nothing is a defect, not a low-confidence result.*
+
+⚠️ **Honest limit:** the writer assigns these ids and will sometimes assign them wrongly. This buys
+**checkable**, not **correct**.
+
+🚨 **Three code sites contradict this section today and none has been changed** (this was a decision
+pass, not a build): `apps/api/src/preview.ts` still hard-rejects an 11th bullet
+(`bullets: …max(8)`) and still enforces a **floor** of `Math.min(6, sourceBullets)` on the newest
+role · `apps/api/prompts/preview-tailor.md` rule 8 still states the 4-6 / 8 / 3-4 ladder and still
+instructs *"merge weak or overlapping bullets instead of dropping them"* · and `buildTailorInput()`
+**strips claim ids** before sending, so no printed bullet can carry one. **None of this section is
+live until those land.** Rule 4's separate recency rule (*"if there are more than 8 roles, compress
+the oldest into 1-2 bullets"*) folds into the spend ladder and stops being a second hidden rule.
 
 **Visual formatting and section design** — full reference: `/research_result/2026-06-09_cv-formatting-design-standards.md`. Apply on every CV write:
 - **Section order is fixed by the root CV** (Summary, Professional Experience, Personal Projects, Skills, Education, Additional Information). Never move Skills above Professional Experience (council-validated 2026-06-11).
@@ -186,7 +280,7 @@ having a summary.** These rules make it honest and non-generic; they do not clai
 - **Do not run two near-identical Skills and Core Competencies blocks.** Default to one categorized Skills section; only keep a separate Core Competencies snapshot if it genuinely differs (and is itself categorized, never a run-on).
 - **Bold the key info in EDUCATION and ADDITIONAL INFORMATION.** Education: `**Institution - Location**, year` then the degree (plain) on the next line. Additional Information: `**Nationality:** value`, `**Languages:** ...`, `**Certifications:** ...` — bold label, plain value.
 - Employer line bold; date line and italic role title (`*Role*`) each on their own line. First `##` is the centered role headline (the builder injects the "Professional Summary" heading after it).
-- **Project-achievement sub-groups** ("Key Deliveries" is the standard term, recruiter-recognized): write the label as a standalone italic line (`*Key Deliveries*`) so it renders as a muted-gray, indented italic sub-label that sits clearly below the employer and role title in the visual hierarchy. Never inline (`*Key delivery:* text...`) and never plain text — both render as ordinary body. Use a sub-group only when there are **2 or more** achievements; a single achievement is a normal bullet (no sub-group). The sub-group counts toward the role's bullet cap (density limits above).
+- **Project-achievement sub-groups** ("Key Deliveries" is the standard term, recruiter-recognized): write the label as a standalone italic line (`*Key Deliveries*`) so it renders as a muted-gray, indented italic sub-label that sits clearly below the employer and role title in the visual hierarchy. Never inline (`*Key delivery:* text...`) and never plain text — both render as ordinary body. Use a sub-group only when there are **2 or more** achievements; a single achievement is a normal bullet (no sub-group). The sub-group counts toward the role's rope (density limits above).
 - Bold only: name, section headings, employer, job title, skills category labels, education institutions, additional-info labels. Never bold whole sentences or bullet bodies.
 
 ---
@@ -225,7 +319,8 @@ Apply before finalizing any tailored CV:
 - [ ] The summary opens with the achievement, not with an identity clause, and contains no capability
       claims (`proven ability to`, `expertise in`, `strong in`, `results-driven`) and nothing already
       visible elsewhere on the page.
-- [ ] Bullet caps respected (4-6 per role, max 8 for the current role, 3-4 for roles older than ~8 years), counting all bullet blocks under a role together; CV fits two pages.
+- [ ] CV fits two pages. The newest role has the most bullets, each older role fewer than the one before, and no role exceeds 10 — counting all bullet blocks under a role together. No role padded to reach a number.
+- [ ] Where a role did not fit, bullets were **chosen**, not squished: no bullet merges more than two source points, and no merge dropped an outcome the source stated.
 - [ ] Output filenames follow CLAUDE.md §9 conventions; no prior version overwritten.
 - [ ] Tailoring report saved with all decisions (kept/edited/removed/confirmed) recorded.
 - [ ] User-confirmed additions persisted to `/context/`.

@@ -2,6 +2,60 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-07 (session 89) — The budget was never the bullet, and there is no page to make it
+
+_`/wayfinder` on map [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127). Resolved [#153](https://github.com/adrien-mounier/jobcrush-app/issues/153) — five decisions, **no ADR** (CV-writing rules; `cv-authoring-rules.md` is their normative home, the precedent #143 set). Output: a rewritten *Length and bullet density* section, impact comments on #154, #155 and #66. **No code changed — three code sites now knowingly contradict the CV brain.**_
+
+- **🔑 The budget is the page; the per-role number is a guard rail, and it is 10.** The ladder moved from
+  **caps** to **spend**: the newest role gets first call on the page, each older role takes less than the
+  one before, nothing exceeds 10 — and **first call is not a floor** (a role with 4 good bullets prints 4).
+- **🚨 The premise correction that reshaped the ticket before question one: there is no page.** The
+  research's own recommendation was *"make the budget the page, as the market's two biggest tailors do."*
+  **We cannot.** The tailored CV renders as a scrolling HTML page — **no print stylesheet, no `@page`, no
+  PDF export, no pagination, no page counter.** The `pages` field that exists reads the *uploaded* PDF,
+  never our output. So *"fits two pages"* has **never been checked by anything**, and we were paying the
+  full cost of a hard cap for none of the protection of a page limit. **Ninth premise correction on this map.**
+- **⭐ The owner reviewed the number and improved the rule.** He proposed *newest reaches the rope, second
+  rope-1, third rope-2, and it all holds in two sheets.* Run on his own CV: **10+9+8 = 27 against a
+  ~24-bullet budget — the two halves contradict each other on the first CV tested** — and **45 bullets at
+  six roles.** Minus-one-per-role decays far too slowly to ever meet a page limit and needs a new table per
+  career length; it also reintroduced a **floor**, the mechanism that caused the damage. **Right instinct,
+  wrong axis: ladder the *spend*, not the cap.** Holds for three roles and for eight with no new number.
+- **🚨 8 was a fine average and a terrible cap.** Two pages holds **~24 experience bullets** (measured off
+  his CV: 35 bullets over 3 pages); across 3 roles that is ~8 each. **A guard rail must sit above the
+  average** precisely because roles are unequal — a cap *at* the average forbids the newest role taking 12
+  while a 2011 role takes 3, which is the shape every good senior CV has. The 10 is **recorded as a design
+  opinion**: no institution, standard, parser vendor or professional body publishes a per-role cap at all.
+- **🚨 The recency ladder is withdrawn, threshold and all.** `4-6 / 8 / 3-4` and *"older than ~8 years"* are
+  gone. The case that killed it: **applying to a bank, the bank on his CV is his oldest role** — a fixed age
+  cap prints 3-4 bullets of the most relevant thing he has. *A nudge can be overruled by an advert; a number
+  cannot.* ⚠️ A **second, hidden** recency rule existed (`preview-tailor.md` rule 4 thins by **how many jobs
+  you have had**, rule 8 thinned by **age**); they had never been reconciled and both fold into the spend ladder.
+- **🚨 "Merge, never drop" is withdrawn as the default — measured, not argued.** Four of his source bullets
+  merged into one went **514 → 172 characters, two thirds of the words gone**: every keyword survived, **every
+  outcome clause died**, three of four ownership verbs collapsed into one. The result is one verb, four
+  scopes, zero outcomes — and it **passes every gate we have** (1.7 lines, ATS-invisible, and the
+  conservation lint counts bullets not outcomes). **ADR-0007 is what made choosing legal**; the instruction
+  predates it and existed because dropping used to read as amputation.
+- **⚡ A fifth decision grew from the owner's own question**, and it is the session's most reusable finding.
+  He asked how *"two bullets that genuinely overlap"* would be defined — *"is it just LLM judgment?"* It is,
+  and **nothing could check it**: `buildTailorInput()` **strips the claim ids** and a printed bullet is
+  `z.string()`, so **a merge, a silent drop and an invention are indistinguishable on every tailored CV
+  today.** Decided: ids flow both ways. **Decision 4 does not work without it** — without ids, *"5 more
+  aren't shown"* is uncomputable and choosing degenerates into the silent removal ADR-0007 clause 4 forbids.
+- **✅ A recollection checked rather than accepted.** Mid-session the owner believed sub-sections like
+  *Key Deliveries* had been ruled out. **Half right:** ADR-0009 killed the **named project container**
+  (name, client, project dates, a project's own bullet group); the plain presentational label is
+  [#155](https://github.com/adrien-mounier/jobcrush-app/issues/155), **open**, and clause 6 routed it there
+  deliberately. The anti-evasion clause was rewritten **neutral on #155** and is now load-bearing: his BRED
+  role is *7 duty + 8 under `Project Achievements` = 15*, which is how a rope of 10 becomes 20.
+- **🚨 What is NOT live.** Three code sites contradict the amended brain and were deliberately not touched
+  (plan map): the schema's `max(8)` **and its `Math.min(6, sourceBullets)` floor** · `preview-tailor.md`
+  rule 8's ladder and merge instruction · the stripped claim ids. **These are the first build tickets.**
+- **Map state:** #153 was added *after* the map had been called one ticket from done; with it closed,
+  [#149](https://github.com/adrien-mounier/jobcrush-app/issues/149) is again the last open decision. The
+  *"N more not shown"* control is the **fifth** requirement handed to the design effort.
+
 ## 2026-08-06 (session 88) — The contradiction was already fixed, and the number we were about to replace had no source
 
 _`/wayfinder` on map [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127). Resolved [#143](https://github.com/adrien-mounier/jobcrush-app/issues/143) (nine decisions, **no ADR**) and [#152](https://github.com/adrien-mounier/jobcrush-app/issues/152), a research ticket **created, fired and landed inside the same session**. Output: an amended [`cv-authoring-rules.md`](docs/cv-brain/cv-authoring-rules.md), a superseded banner on the IT-PM research note, two research documents, two lessons. Commits `9a3f2fc`, `9895108`, plus this session's doc commit. **No code changed.**_
