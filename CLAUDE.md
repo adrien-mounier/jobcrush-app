@@ -217,6 +217,47 @@ not to clause 2 · and this feature **must not be sold as handling discriminatio
 carries most of that signal, and **de-identification is not evidence-backed** (Australia's own randomised
 trial found it did not promote diversity).
 
+### A fact is read, worked out, or asked — and a worked-out value is never asked
+
+**[ADR-0008](docs/adr/0008-how-a-fact-arrives-read-worked-out-or-asked.md), decided 2026-08-06 in
+[#131](https://github.com/adrien-mounier/jobcrush-app/issues/131) — decided, not yet built.**
+
+A fact arrives one of **three** ways and **keeps that way permanently**: **read** (the words are in the
+person's document) · **worked out** (derived from facts we hold) · **asked** (the person supplied it). These
+are **ADR-0004 clause 1a's origins seen from the capture side — no new origin is added.** What is added: the
+arrival kind is a property of the **fact**, not something that varies per visitor.
+
+🚨 **The binding clause — *the Mei rule*: never ask for a value the machine will regenerate on its own.**
+A worked-out value is a regenerable copy (#128 §4) and the facts underneath always win, so the answer has
+**no chance of surviving**. **This is the correct scope of #128 §5** — *asked* and *computed* were never
+alternatives. A worked-out value is never asked **under any circumstance, including the one where we cannot
+work it out**; then we ask for the **missing parts underneath, never the answer on top**. The tell for a
+future element: **if a rebuild would overwrite the answer, the question is aimed one level too high.**
+
+Six clauses; the ADR is the normative home. The ones most likely to be broken by accident:
+
+- **A silence in the document is asked, and the answer outranks any later re-read** (#128 §3). This is
+  **not** a fallback — nothing regenerates a read fact, so her answer is permanent. ⚠️ **A silence is still
+  never an absence**: clause 4 makes it *askable*, not answerable by the machine.
+- **The five gated dimensions:** `years-experience` **worked out** (total never asked; missing *dates* are)
+  · `work-rights` **always asked** · `degree` + `certification` **read when stated, asked when silent**
+  · `language` **split**. 🚨 **Degrees and certifications are askable now and today are not** —
+  `ASK_DIMENSIONS` holds three, and `certification` is a **hard advert-side gate the visitor is never asked
+  about**, so the card reports the bar untested.
+- 🚨 **A level word on the CV does not settle the level.** *"Mandarin (fluent)"* is stored as a sentence,
+  not as a graded level — #125's scale is **concrete situations** (*can run a meeting in it*), which
+  "fluent" does not answer. Taking the adjective at face value grades her at a level she never chose.
+
+✅ **The failure #131's brief feared was already closed** by a decision taken *after* the brief was written:
+*"her CV is in English, so she is fluent"* points at nothing, and **ADR-0004 clause 1a calls that a defect**.
+
+⚠️ **ADR-0001 rule 4 gains a question:** a new element must state **how it arrives**. ⚠️ **Structured facts
+break the shipped confirm deck's tiering test** — it batches *verbatim* sentences, but one quoted line
+carries several unseen machine decisions including 🚨 ***is this work***, which moves the experience total.
+**The promise is in scope and taken; the tap count is interface and is out of scope on map #127.**
+
+**Falsifiable check:** `years-experience` must never appear in `ASK_DIMENSIONS`.
+
 ## Git workflow
 
 Solo repo, no branch protection. **Stay on `main`.** Don't create branches for ordinary work —

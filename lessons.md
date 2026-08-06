@@ -1,5 +1,47 @@
 # Lessons — jobcrush-app
 
+## A rule with two settings will invent a fallback, and the fallback is where the user gets hurt
+
+[#131](https://github.com/adrien-mounier/jobcrush-app/issues/131) inherited a one-line rule — *never ask
+for what you can compute* — and framed the answer as a switch: a fact is **computed**, or it is **asked**.
+The framing survived a ticket brief, a blocked-by wiring and two sessions of map edits before it was walked
+through a real person.
+
+**It fails on the first case where the computation cannot run.** Mei's middle position has no dates, so
+years of experience is uncomputable. The rule has exactly one move left — ask her — and her answer is
+**deleted by the next recalculation**, because the same map had already decided the total is a regenerable
+copy whose source facts always win. **The two-setting rule does not merely give a poor answer; it
+manufactures a question that was never going to count.**
+
+**The generalisable part: when a binary rule meets a case neither branch covers, it does not error — it
+silently picks the nearer branch.** That is worse than a gap, because the gap is invisible in review and
+only appears as a user losing something they typed. The fix was not a better fallback but a **third
+category** (*read* / *worked out* / *asked*) plus an absolute: **a worked-out value is never asked, under
+any circumstance, including the one where we cannot work it out.**
+
+**The tell to reuse:** ask what happens when the primary mechanism is unavailable. If the answer is *"then
+we do the other one"*, check whether the other one's output survives contact with the first one coming back.
+
+## A ticket can be half-resolved by a later ticket, and nothing tells you
+
+#131's stated danger was the machine asserting a fact from a document that merely implied it — *"her CV is
+written in English, so she is fluent in English"*. That was live and real when the ticket was written.
+
+**It was closed two days later by [#140](https://github.com/adrien-mounier/jobcrush-app/issues/140), which
+was about something else.** ADR-0004 clause 1a requires every structured fact to point at its origin and
+rules that one pointing at **nothing** is a **defect**. The English-fluency inference cites no words, no
+answer and no facts underneath — so it was already forbidden, mechanically, by a clause written for skills
+and generalised the same day.
+
+Nobody updated #131. Its brief still argued for a test that already existed, and a session that trusted the
+brief would have designed a second overlapping rule — **two tests for one question, drifting apart on the
+first element that stresses either.**
+
+**The habit this buys:** on a long map, re-read a ticket's *danger* against the ADRs written **after** the
+ticket, not just the ones it cites. On #127 this is now the **second** time a ticket's premise had decayed
+before it was worked ([#135](https://github.com/adrien-mounier/jobcrush-app/issues/135) found its brief's
+central claim false), and both times **finding it out was most of the ticket's value**.
+
 ## When a market's convention is the finding, read it in that market's own language
 
 English-language sources agree that Vietnamese CVs carry a photograph, a date of birth and a marital

@@ -2,6 +2,43 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-06 (session 85) — Two settings could not hold three cases, and the fallback deleted the user's answer
+
+_Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 5h, resolved as [#131](https://github.com/adrien-mounier/jobcrush-app/issues/131) with six clauses, written up as **[ADR-0008](docs/adr/0008-how-a-fact-arrives-read-worked-out-or-asked.md)** — the eighth ADR in this repo. **Repo output: ADR-0008, a CLAUDE.md section, one fog item materially enlarged, one new out-of-scope handoff, two lessons.** No code changed; this is a plan map._
+
+- **🔑 The headline: a fact arrives read, worked out, or asked, and keeps that way permanently.** These
+  are ADR-0004 clause 1a's origins seen from the capture side — **no new origin was added.** The binding
+  clause is *the Mei rule*: 🚨 **never ask for a value the machine will regenerate on its own.** When the
+  calculation cannot run, ask for the **missing parts underneath, never the answer on top.**
+- **🚨 The ticket's own framing was wrong, and correcting it was most of the value.** *"Computed or asked"*
+  is a switch with two settings, and two settings **force a fallback**: Mei's undated position makes the
+  total uncomputable, so the rule asks her for it, she says 10, the positions later sum to 8, and
+  **#128 §4 throws her answer away.** We would have asked a question that was never going to count. The
+  fix is not a better fallback — it is that a worked-out value is **never asked, in any circumstance**.
+- **✅ The failure the brief feared was already closed by a decision taken after the brief was written.**
+  #131 was created to stop *"her CV is in English, so she is fluent in English"*. That inference cites no
+  words, no answer and no facts underneath — and **ADR-0004 clause 1a already calls a fact pointing at
+  nothing a *defect*.** Roughly half the ticket had been resolved by a later ticket and nobody noticed.
+- **🚨 Live behaviour change: degrees and certifications become askable, and today they are not.**
+  `ASK_DIMENSIONS` holds three (`years-experience`, `work-rights`, `language`). `certification` is a
+  **hard gate on the advert side** the visitor is **never asked about** — so when an advert demands one,
+  we do not know, do not ask, and the card reports the bar untested. A build ticket must add the question.
+- **⚠️ The ticket made a fog item bigger, which is the opposite of what a resolution is supposed to do.**
+  *Which holes get a question versus a visible blank* now decides how long sign-up actually is: clause 4
+  makes **every silence in every element permitted to become a question**. Owner decision 8 (chunked,
+  resumable, gamified) is the stated absorber — **and nobody has tested that it absorbs.**
+- **⚠️ Structured facts break the shipped confirm deck's tiering test, and that is handed onward.** The
+  deck batches *verbatim* sentences and cards *machine-touched* ones, capped at ≤15 individual decisions.
+  But *Jan 2019 – Mar 2022 · Regional PM · Standard Chartered* is a quote **as a sentence** while, **as a
+  fact**, the machine chose a start, an end, a title, an employer and 🚨 ***whether this counts as work at
+  all*** — which moves her experience total. Applied naively the line batches and **nobody ever sees the
+  five decisions underneath.** The **promise** is in scope and already taken (ADR-0004 clause 1a); the
+  **tap count is interface** and joins the correction screen and the decline wording in Out of scope.
+- **Frontier now:** [#143](https://github.com/adrien-mounier/jobcrush-app/issues/143) (coarse dates on the
+  page), [#149](https://github.com/adrien-mounier/jobcrush-app/issues/149) (an unclassifiable CV part),
+  [#150](https://github.com/adrien-mounier/jobcrush-app/issues/150) (research, unfired — a project done
+  for an employer). All unblocked and unclaimed.
+
 ## 2026-08-06 (session 84) — What prints is decided per application — and the ticket's own legal premise pointed at the wrong party
 
 _Wayfinder [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127) ticket 5g, resolved as [#144](https://github.com/adrien-mounier/jobcrush-app/issues/144) with eleven clauses, written up as **[ADR-0007](docs/adr/0007-what-prints-is-decided-per-application.md)** — the seventh ADR in this repo. One research ticket spun out and wired but **not fired** ([#151](https://github.com/adrien-mounier/jobcrush-app/issues/151)). **Repo output: ADR-0007, a third scope note written into ADR-0001, a CLAUDE.md section, two lessons, two map corrections in place.** Impact comments on #86 and #66._
