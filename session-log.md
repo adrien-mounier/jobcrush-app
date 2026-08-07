@@ -2,6 +2,46 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-08 (session 93) — Design effort [#157](https://github.com/adrien-mounier/jobcrush-app/issues/157): **Design B decided** — "we changed what prints" (item 5 + ADR-0010's three)
+
+_Three prototype rounds with the owner live: a merge of a parallel-agent's own desktop attempt, a
+mobile build from scratch, and a desktop port of the mobile logic for a fair, matched comparison.
+Binding instructions on [#168](https://github.com/adrien-mounier/jobcrush-app/issues/168) and
+[#170](https://github.com/adrien-mounier/jobcrush-app/issues/170)._
+
+- **⭐ Design B ships two interaction models by platform, deliberately.** Desktop keeps every ask
+  as a **persistent list**, click to expand (`tailor-merged.prototype.html`); mobile turns only
+  the **interactive** asks into a **one-card-at-a-time deck**, the CV hidden behind a pull-up
+  sheet (`tailor-mobile-cards.prototype.html`). A third file ported the mobile logic to desktop
+  scale for a fair side-by-side (`tailor-desktop-deck.prototype.html`) and **lost on merits, not
+  on a defect** — kept as evidence of the alternative actually considered, not deleted.
+- **🚨 The finding that shrank Design B's own scope: two of its four requirements don't belong on
+  this screen.** Working the mobile build, the owner's own point-1 question ("shouldn't this be
+  settled before the job?") found that the translated/tidied line and the "did this get in by
+  mistake?" classification both belong at **Confirm** (#161, #163) — ADR-0010 clause 4's own
+  words, "shown beside the original **on the review screen**," and the review screen is Confirm,
+  not the tailor step. Pointer comments posted on both.
+- **The expired-certificate choice moves to her profile** — asked once when the expiry is
+  detected, standing, editable anytime, the one deliberate exception to "no standing setting" in
+  this whole effort, because ADR-0007 clause 9 never scoped it *per application* the way clause 4
+  explicitly does for the strip-list. Home not designed this session.
+- **What's actually left in the one control: two things.** The strip-list put-back and the
+  bullet-choice put-back ("N more from this role aren't shown"). Both fully prototyped on both
+  platforms, both owner-tested live (drag gestures, market flips, the full answer flow).
+- **⚠️ One gap found at closure, not at design: ADR-0010's own sanity-gate put-back was never
+  drawn as its own row in either prototype.** Recorded on #168/#170, not blocking — the pattern is
+  identical to the strip-list row already built.
+- **The ending is the one genuinely new mechanism.** Last card settles and fades (never sideways —
+  nothing here is a rejection), a pulse travels to the CV control, which glows once with a
+  2.6-second cue before reverting. Recombines chip-flight, bump and card-arrival at their own
+  established values; nothing new invented.
+- **A build lesson from porting the mobile shape to desktop scale.** A CV pull-up sheet that
+  animates its own `height` (rather than `transform`) needs `overflow: hidden` on its own box —
+  the mobile original never needed it because its box height never changed. Recorded in the
+  rejected file's own header.
+- **Next:** Design C — the scope of a "no" (items 2 + 6): the stretch decline's wording (#171) and
+  the profile mute list (#169).
+
 ## 2026-08-07 (session 92b) — Design effort [#157](https://github.com/adrien-mounier/jobcrush-app/issues/157): **Design A decided** — confirm & correct (items 3 + 4)
 
 _Same session, second design. Two prototype rounds with the owner live. **Round 1 offered three

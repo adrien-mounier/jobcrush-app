@@ -1,0 +1,984 @@
+<!-- PROTOTYPE — throwaway. Design effort #157, Design B ROUND 3: THE MERGE.
+     The owner ran a parallel agent (Desktop/tailor-parallel.prototype.html, outside the repo) and
+     dictated a merge of the two results (2026-08-07, live session). This file is that merge.
+
+     ══ WHAT THE OWNER TOOK FROM EACH ═══════════════════════════════════════
+     From the PARALLEL design:
+       - the left panel: "What this job asks for" — expandable ask rows with state dots,
+         proof bodies citing their source, and stretch offers (variant A)
+       - the ~2/3 : 1/3 column ratio
+       - the segmented progress meter (variant B) — moved INTO the asks header, small,
+         replacing the plain "5 of 8" text
+       - the advert-hero typography (large title) and the stated strip line with
+         "Show them anyway" (quiet, zero questions — matches owner point 1)
+     From ROUND 2 (tailor-cards / shape 2):
+       - the reward physics at shipped values: chip flight 720ms, dial tween 680ms,
+         bump 460ms, text materialize on the paper
+       - the answer bubble opening UNDER each ask — options, typed input, or offer
+       - the cream serif CV paper — now the ENTIRE right column, and PAGINATED (2 pages,
+         with auto-jump to the page where a change lands)
+     New placements the owner asked for:
+       - the % score sits NEXT TO THE JOB TITLE (the dial, small, with caption)
+       - the market/location control moves to the TOP BAR next to the profile pile —
+         its own pin icon; clicking changes the region and regenerates what depends on it
+     The open problem the owner named ("can't really solve immediately"):
+       - WHERE the two exits live. THIS FILE'S PROPOSAL: pinned under the CV paper — you
+         apply WITH the CV, so the button belongs to the thing it sends; always visible
+         (fast by default), with an honest status line above ("2 asks still to answer —
+         you can apply any time"). Alternative if rejected: a full-width bottom action bar.
+
+     ══ ROUND 3.1 — owner refinements on the merge (same session) ═══════════
+       1. Ratio: 2/3 read as too lopsided once built — the parallel file's own ratio (1.32fr:1fr,
+          ~57:43) is what read as "real A4" to the owner. Landed on 1.4fr:1fr (~58:42), the
+          midpoint of "between 1/2 and 2/3".
+       2. The progress meter re-sorts its dots (filled first, left to right) instead of mirroring
+          ASKS array order — a summary control reads as a loading bar, not a scatter plot. The
+          asks LIST below keeps the job's real order; only the small meter re-sorts.
+       3. The score dial is bigger (84px) and the hero row is centre-aligned so the dial's
+          vertical centre sits against the title/employer block, not pinned to its top.
+       4. The CV paper is fixed at true A4 proportions (640×905, this effort's own 640px "true
+          page width" convention from no-summary-layout.prototype.html) and scaled to fit the
+          column via CSS transform, recomputed on resize — a PDF at "fit width", never reflowed.
+
+     ══ ROUND 3.2 — a second pass of owner refinements ═══════════════════════
+       5. The expandable full job description is back, just under the hero (it shipped in round
+          2, then dropped in the merge — restored, tracked in state (S.descOpen) so it survives
+          a re-render caused by an unrelated action, same pattern as the ask rows.
+       6. Ratio set to the parallel file's literal value, 1.32fr:1fr — not an approximation.
+       7. Ask rows now sort "have this" first, "expired" next, "not yet" last (recomputed every
+          render, so answering a question visibly promotes its row — the meter already did this
+          in 3.1; the row list now matches it).
+       8. "What I changed for this advert" no longer has its own card fill — .changed-card and
+          .dec shared --hud-1, reading as a bubble inside a bubble. It now reuses .askshead
+          verbatim (a second title, structurally level with "What this job asks for"), and its
+          rows are plain bottom-bordered lines, matching the asks list's own rhythm. The
+          right-column "Changes" popover keeps its box — it floats over the CV, not a page
+          section, and needs the containment the left column no longer does.
+
+     ══ ROUND 3.3 — "Looks right" cut ═════════════════════════════════════════
+       Owner asked its purpose. Answer: none, mechanically — it never gated "Apply with this
+       CV" or anything else; its only effect was collapsing a section that already
+       self-documents (each row shows its own resolved state — "back on this CV — just this
+       one", a live count). Inherited from Design A's "one confirm may cover several" without
+       re-checking it against THIS screen's shape, where nothing needed a bulk-confirm because
+       nothing was ambiguous. Removed outright.
+
+     ══ THIS FILE IS THE ROUND 3 DESKTOP ANCHOR — owner-approved, kept as reference ══
+     Mobile counterpart: tailor-mobile-cards.prototype.html (same content model, one card at a
+     time, a pull-up CV sheet). Do not overwrite this file when iterating on mobile.
+
+     ══ TWO CORRECTIONS TO THE PARALLEL DESIGN, KEPT DELIBERATELY ═══════════
+       1. ADR-0005 physics: the parallel file increments the PROFILE pile when a stretch is
+          approved. Wrong by doctrine — a stretch belongs to its advert and never joins the
+          profile. Merged: a fact's chip flies to the profile pile; a stretch's chip flies to
+          the ADVERT title, and the pile never moves.
+       2. Region change: "regenerate the cards" regenerates what the market DECIDES (the strip
+          line, the Changes list) and re-deals the open ask — it never erases her answers.
+          Market changes render, never capture (ADR-0007 cl.8; round-2 finish review f.2).
+
+     Locked, unchanged: no standing setting · decline/skip is per-advert only ("never" wording
+     is Design C's) · declarations move no score · every removal declared and reversible "this
+     CV only" · undo everywhere · plain language · instrumentation never on her screen.
+
+     ⚠️ Not buildable before #158 lands claim-ids (the "3 lines" declaration needs them).
+
+     ══ VERDICT ══ owner-decided 2026-08-08 — CHOSEN for desktop.
+     Compared side by side against tailor-desktop-deck.prototype.html (the mobile card-deck +
+     pull-up-sheet logic, ported to the same desktop scale) after the mobile shape itself was
+     validated. The owner picked this file — the persistent list — for desktop, and the mobile
+     shape (tailor-mobile-cards.prototype.html) for mobile. **Design B ships two different
+     interaction models depending on platform, deliberately, not as an unresolved compromise:**
+     desktop keeps every ask visible and expandable in place; mobile answers one at a time and
+     keeps the CV hidden until pulled up. Both carry the identical rules, physics and copy —
+     only the shape of "one control instead of four" differs by screen size. Binding on #168 and
+     #170 for the desktop surface; see tailor-mobile-cards.prototype.html for the mobile surface.
+     Full binding instruction posted to #157, #168, #170.
+
+     Not production code. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JobCrush — the tailor step, merged (#157 Design B round 3)</title>
+
+<style>
+  :root {
+    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-line: #2b333d;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98; --gold: #e8a33d; --gold-dim: #a8762b;
+    --hud-mute-2: #8a95a2; /* NEW (round 2): AA for muted text on hud-2 */
+    --weak: #6f7d8c; --settled: #4d5865;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --paper: #f6f2ea; --paper-edge: #e2dacb; --ink: #16150f; --ink-mute: #6b6455;
+    --sw-h: 60px;
+  }
+  * { box-sizing: border-box; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.25) transparent; }
+  html, body { margin: 0; padding: 0; }
+  body { background: #e7e3dd; font-family: var(--sans); line-height: 1.5; padding: 20px 18px calc(var(--sw-h) + 26px); -webkit-font-smoothing: antialiased; }
+
+  .ask-brief { max-width: 1320px; margin: 0 auto 16px; background: #fffdf9; border: 1px solid #ded7cb; border-radius: 12px; padding: 16px 22px; color: #1f2328; }
+  .ask-brief h1 { margin: 0 0 6px; font-size: 18px; letter-spacing: -.01em; }
+  .ask-brief p { margin: 0 0 6px; font-size: 13.5px; color: #3c444d; }
+  .ask-brief p:last-child { margin-bottom: 0; }
+
+  /* ══ the app ══ */
+  .app { max-width: 1320px; margin: 0 auto; background: var(--hud-0); color: var(--hud-ink); border: 1px solid var(--hud-line); border-radius: 16px; overflow: hidden; box-shadow: 0 22px 60px -20px rgba(0,0,0,.6); }
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--hud-line); background: var(--hud-1); font-size: 13px; color: var(--hud-mute); }
+  .topbar b { color: var(--hud-ink); font-weight: 620; letter-spacing: -.01em; }
+  .topbar .spacer { flex: 1; }
+
+  /* the location control — owner: near the profile icon, its own pin */
+  .loc-wrap { position: relative; }
+  .loc { all: unset; display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; background: var(--hud-2); border: 1px solid var(--hud-line); color: var(--hud-ink); font-size: 12.5px; cursor: pointer; }
+  .loc:hover { border-color: #3b4653; }
+  .loc:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 2px; }
+  .loc svg { display: block; }
+  .loc-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 60; min-width: 200px; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 12px; padding: 6px; box-shadow: 0 16px 44px rgba(0,0,0,.55); }
+  .loc-menu .mi { all: unset; display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 11px; border-radius: 8px; font-size: 13px; color: var(--hud-ink); cursor: pointer; }
+  .loc-menu .mi:hover, .loc-menu .mi:focus-visible { background: var(--hud-2); }
+  .loc-menu .mi .chk { width: 14px; flex: 0 0 auto; color: var(--gold); }
+  .loc-menu .note { padding: 7px 11px 5px; font-size: 11px; color: var(--hud-mute-2); border-top: 1px solid var(--hud-line); margin-top: 5px; }
+
+  .prof { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; background: var(--hud-2); border: 1px solid var(--hud-line); color: var(--hud-ink); font-size: 12.5px; transition: transform 260ms cubic-bezier(.2,1.6,.4,1); }
+  .prof.bump { transform: scale(1.09); }
+  .prof svg { display: block; }
+  .prof .n { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* ══ columns — owner: the parallel file's own ratio, exactly ══ */
+  .cols { display: grid; grid-template-columns: 1.32fr 1fr; align-items: start; }
+  .col { padding: 20px 22px; min-width: 0; }
+  .col + .col { border-left: 1px solid var(--hud-line); }
+
+  /* ── the advert hero ── */
+  .posted { font-size: 12px; color: var(--hud-mute); }
+  /* owner: the score bigger and aligned WITH the title — centred against the title+employer
+     block rather than pinned to its top edge */
+  .hero { display: flex; align-items: center; gap: 20px; }
+  .hero .tt { flex: 1; min-width: 0; }
+  .jobtitle { font-size: 29px; line-height: 1.13; letter-spacing: -.022em; font-weight: 660; margin: 6px 0 5px; text-wrap: balance; }
+  .employer { font-size: 14px; color: var(--hud-ink); margin: 0; }
+  .employer .sep { color: var(--settled); margin: 0 7px; }
+
+  /* the job description, expandable, just under the title (owner) — round 2's own pattern */
+  .jobdesc { margin: 15px 0 0; border-top: 1px solid var(--hud-line); padding-top: 12px; }
+  .jobdesc summary { cursor: pointer; font-size: 12.5px; color: var(--hud-mute); list-style: none; display: inline-flex; align-items: center; gap: 7px; border-radius: 6px; padding: 2px 4px; }
+  .jobdesc summary::-webkit-details-marker { display: none; }
+  .jobdesc summary svg { flex: none; transition: transform 180ms ease; }
+  .jobdesc[open] summary svg { transform: rotate(90deg); }
+  .jobdesc summary:hover, .jobdesc summary:focus-visible { color: var(--hud-ink); }
+  .jobdesc summary:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 2px; }
+  .jobdesc p { margin: 10px 0 0; font-size: 13px; line-height: 1.6; color: var(--hud-mute-2); }
+  /* the % score, next to the title (owner) — bigger */
+  .scorebox { flex: 0 0 auto; text-align: center; }
+  .dial { position: relative; width: 84px; height: 84px; margin: 0 auto; }
+  .dial .num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .dial .num.bump { animation: jd-bump 460ms cubic-bezier(.2,1.5,.4,1); }
+  .scorebox .cap { margin: 6px 0 0; font-size: 11px; line-height: 1.35; color: var(--hud-mute); max-width: 128px; }
+
+  /* the stated strip line (parallel design, kept — quiet, zero questions) */
+  .stripline { margin: 16px 0 0; padding: 11px 13px; border-radius: 9px; background: var(--hud-1); border: 1px solid var(--hud-line); font-size: 12.8px; line-height: 1.5; color: var(--hud-mute-2); display: flex; gap: 10px; align-items: flex-start; }
+  .stripline b { color: var(--hud-ink); font-weight: 600; }
+  .stripline .lnk { margin-left: auto; flex: none; background: none; border: 0; padding: 2px 4px; color: var(--gold); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+  .ledger { min-height: 20px; margin: 10px 2px 0; font-size: 12.5px; color: var(--hud-mute-2); display: flex; align-items: baseline; gap: 8px; }
+  .ledger.gold { color: var(--gold); }
+  .ledger .undo { all: unset; cursor: pointer; color: var(--hud-mute); font-size: 11.5px; text-decoration: underline; text-underline-offset: 2px; padding: 2px; }
+  .ledger .undo:hover, .ledger .undo:focus-visible { color: var(--hud-ink); }
+
+  /* ── the asks (parallel design's panel, with round-2 bubbles under the rows) ── */
+  .askshead { display: flex; align-items: center; gap: 12px; margin: 22px 0 2px; padding-bottom: 9px; border-bottom: 1px solid var(--hud-line); }
+  .askshead h2 { font-size: 15px; font-weight: 620; margin: 0; letter-spacing: -.005em; }
+  /* the meter, moved here from the parallel B's right panel — small (owner) */
+  .meterbox { margin-left: auto; display: flex; align-items: center; gap: 9px; }
+  .meter { display: flex; gap: 3px; width: 108px; }
+  .meter i { height: 5px; flex: 1; border-radius: 3px; background: var(--hud-2); transition: background 420ms ease; }
+  .meter i.on { background: var(--gold); }
+  .meter i.half { background: var(--gold-dim); }
+  .meterbox .n { font-size: 12px; color: var(--hud-mute); font-family: var(--mono); white-space: nowrap; }
+  .meterbox .n b { color: var(--hud-ink); font-weight: 600; }
+
+  .ask { border-bottom: 1px solid rgba(43,51,61,.7); }
+  .ask-row { width: 100%; display: flex; gap: 12px; align-items: flex-start; text-align: left; background: none; border: 0; padding: 12px 6px 12px 2px; color: inherit; font: inherit; cursor: pointer; border-radius: 6px; }
+  .ask-row:hover { background: rgba(31,38,47,.6); }
+  .ask-row:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: -2px; }
+  .dot { flex: none; width: 15px; height: 15px; margin-top: 2px; }
+  .ask-txt { flex: 1; font-size: 14px; line-height: 1.45; }
+  .ask[data-state="open"] .ask-txt { color: var(--hud-mute-2); }
+  .ask.active .ask-txt { color: var(--hud-ink); }
+  .ask-tag { flex: none; font-size: 11.5px; color: var(--hud-mute); padding-top: 2px; }
+  .ask[data-state="yes"] .ask-tag, .ask[data-state="stretched"] .ask-tag { color: var(--gold); }
+  .chev { flex: none; width: 10px; margin-top: 5px; transition: transform 240ms ease; opacity: .55; }
+  .ask.open .chev { transform: rotate(90deg); }
+  .ask.active .ask-row { background: rgba(232,163,61,.07); }
+
+  .ask-body { display: none; padding: 0 6px 15px 29px; }
+  .ask.open .ask-body { display: block; animation: jd-dealin 340ms ease; }
+
+  .proof { font-size: 13.4px; line-height: 1.55; color: var(--hud-ink); padding: 10px 13px; border-radius: 8px; background: var(--hud-1); border: 1px solid var(--hud-line); }
+  .proof .src { display: block; margin-top: 7px; font-size: 11.5px; color: var(--hud-mute-2); }
+
+  /* the answer bubble (round 2) */
+  .bubble { padding: 13px 14px; border-radius: 10px; background: var(--hud-1); border: 1px solid rgba(232,163,61,.3); }
+  .bubble .q { margin: 0 0 11px; font-size: 13.5px; font-weight: 600; }
+  .opts { display: flex; flex-direction: column; gap: 7px; }
+  .opt { appearance: none; width: 100%; text-align: left; background: var(--hud-2); color: var(--hud-ink); border: 1px solid var(--hud-line); border-radius: 10px; padding: 11px 13px; font: inherit; font-size: 13.5px; cursor: pointer; transition: background 140ms ease, border-color 140ms ease, transform 90ms ease; }
+  .opt:hover { background: #262f3a; border-color: #3b4653; }
+  .opt:active { transform: scale(.985); }
+  .typed { display: flex; gap: 8px; }
+  .typed input { flex: 1; min-width: 0; background: var(--hud-2); border: 1px solid var(--hud-line); color: var(--hud-ink); border-radius: 10px; padding: 10px 13px; font: inherit; font-size: 13.5px; }
+  .typed input::placeholder { color: var(--hud-mute-2); }
+  .typed input:focus { outline: 2px solid var(--hud-ink); outline-offset: 1px; }
+  .err { margin: 8px 0 0; font-size: 12px; color: var(--gold); }
+  .btn { appearance: none; font: inherit; font-size: 13px; font-weight: 600; padding: 9px 14px; border-radius: 9px; border: 1px solid var(--hud-line); background: var(--hud-2); color: var(--hud-ink); cursor: pointer; transition: background 140ms ease, border-color 140ms ease, transform 90ms ease; }
+  .btn:hover { background: #262f3a; border-color: #3b4653; }
+  .btn:active { transform: scale(.985); }
+  .btn.gold { background: var(--gold); border-color: transparent; color: #1a1206; }
+  .btn.gold:hover { filter: brightness(1.06); }
+  .btn.quiet { background: transparent; border-color: transparent; font-weight: 500; color: var(--hud-mute); text-decoration: underline; text-underline-offset: 3px; }
+  .btn.quiet:hover { color: var(--hud-ink); background: transparent; }
+  :where(button, summary, input):focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 2px; }
+
+  /* the stretch offer (parallel body, round-2 buttons + doctrine) */
+  .offer .lead { font-size: 12.3px; color: var(--hud-mute-2); margin: 0 0 8px; }
+  .offer .line { margin: 0 0 10px; padding: 10px 12px; border-radius: 8px; background: var(--paper); border: 1px solid var(--paper-edge); font-family: var(--serif); font-size: 13.8px; line-height: 1.5; color: var(--ink); }
+  .offer .narr { font-size: 12.4px; line-height: 1.5; color: var(--hud-mute-2); margin: 0 0 11px; }
+  .offer .narr b { color: var(--hud-ink); font-weight: 600; }
+  .offer .row { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+  .offer .cost { font-size: 11.5px; color: var(--hud-mute-2); }
+  .taken { font-size: 12.6px; color: var(--gold); display: inline-flex; align-items: center; gap: 7px; }
+  .bubble .skiprow { margin-top: 11px; }
+
+  /* "What I changed" — owner: this read as a bubble containing a bubble (.changed-card and
+     .dec shared the same fill), and it should instead read as a SECOND TITLE, structurally
+     level with "What this job asks for". It reuses .askshead verbatim for the heading, and its
+     rows drop the card-in-card fill for the same plain, bottom-bordered rhythm the .ask rows
+     already use — chrome removed, not re-invented. */
+  .changed-scope { margin: 0 0 2px; font-size: 12.5px; color: var(--hud-mute-2); }
+  .dec { padding: 13px 2px 15px; border-bottom: 1px solid rgba(43,51,61,.7); }
+  .dec:last-of-type { border-bottom: 0; }
+  .dec .lb { margin: 0; font-size: 14px; font-weight: 600; }
+  .dec .why { margin: 4px 0 0; font-size: 12.5px; color: var(--hud-mute-2); line-height: 1.5; }
+  .dec .acts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; align-items: center; }
+  .dec .btn { font-size: 12.5px; padding: 8px 12px; }
+  .sub-lines .sl { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(43,51,61,.6); }
+  .sub-lines .sl p { margin: 0; flex: 1; font-family: var(--serif); font-size: 13.5px; line-height: 1.45; color: var(--hud-ink); }
+  .sub-lines .sl.on p { color: var(--gold); }
+  .dec-note { font-size: 12.5px; color: var(--gold); }
+
+  /* ── the right column: the paper, whole (owner) ── */
+  .chipbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; }
+  .pager { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--hud-mute); }
+  .pager .pg { all: unset; cursor: pointer; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--hud-line); color: var(--hud-mute); font-size: 12px; }
+  .pager .pg:hover { color: var(--hud-ink); }
+  .pager .pg.on { background: var(--hud-2); color: var(--hud-ink); border-color: #3b4653; font-weight: 600; }
+  .pager .pg:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 2px; }
+  .chip { appearance: none; font: inherit; display: inline-flex; align-items: center; font-size: 12px; color: var(--gold-dim); background: rgba(232,163,61,.09); border: 1px dashed rgba(168,118,43,.5); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  .chip:hover, .chip[aria-expanded="true"] { background: rgba(232,163,61,.2); border-color: var(--gold-dim); }
+  /* the right-column popover keeps a boxed look (it floats over the CV, not a page section) —
+     the plain bottom-bordered .dec below is scoped to the left column's "What I changed" only */
+  .chip-panel { margin: 0 0 12px; }
+  .chip-panel .dec { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 11px; padding: 11px 12px; border-bottom: 0; margin: 0 0 8px; }
+  .chip-panel .dec:last-of-type { margin-bottom: 0; }
+
+  /* the A4 page — true size (owner: "like a PDF at 100%, zoomed to fit"). PAGE_W/PAGE_H in the
+     script are 640×905 (210:297mm, this effort's own 640px "true page width" convention).
+     .page-frame holds the fluid column space; JS sets its height and scales #paper to fit,
+     so the layout never reflows — only the zoom level changes, exactly like a PDF viewer. */
+  .page-frame { position: relative; width: 100%; }
+  .cv {
+    position: absolute; top: 0; left: 0; width: 640px; height: 905px; transform-origin: top left;
+    overflow: hidden; padding: 34px 38px 40px; border-radius: 10px; border: 1px solid var(--paper-edge);
+    background: var(--paper); color: var(--ink); font-family: var(--serif);
+    box-shadow: 0 18px 44px -14px rgba(0,0,0,.75), 0 1px 0 rgba(255,255,255,.16) inset;
+  }
+  .cv::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5; background-image: radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px); background-size: 3px 3px; }
+  .cv .nm { font-size: 25px; font-weight: 600; letter-spacing: -.01em; margin: 0; }
+  .cv .ct { margin: 5px 0 0; font-family: var(--sans); font-size: 13.5px; color: var(--ink-mute); line-height: 1.6; }
+  .cv section { margin: 20px 0 0; }
+  .cv-sec { margin: 0 0 9px; font-family: var(--sans); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .14em; color: var(--ink-mute); }
+  .cv .role-h { margin: 0 0 5px; font-family: var(--sans); font-size: 15.5px; font-weight: 620; }
+  .cv .role-h span { font-weight: 400; color: var(--ink-mute); }
+  .cv-line { position: relative; margin: 0 0 9px; padding-left: 17px; font-size: 16px; line-height: 1.5; }
+  .cv-line::before { content: ""; position: absolute; left: 0; top: .64em; width: 6px; height: 6px; border-radius: 50%; background: var(--gold-dim); }
+  .cv .plain { margin: 0 0 8px; font-size: 16px; line-height: 1.5; }
+  .cv .settle { animation: tl-settle 640ms cubic-bezier(.2,1,.3,1); border-radius: 5px; }
+  .cv .mat span { opacity: 0; }
+  .cv .pageno { margin: 20px 0 0; text-align: center; font-family: var(--sans); font-size: 11px; color: var(--ink-mute); }
+
+  /* the exits — THE PROPOSAL: pinned under the paper, always reachable */
+  .exits { margin-top: 14px; }
+  .exits .status { margin: 0 0 9px; font-size: 12px; color: var(--hud-mute-2); text-align: center; }
+  .cta { appearance: none; display: block; width: 100%; text-align: center; font: inherit; font-size: 14.5px; font-weight: 600; padding: 12.5px 16px; border-radius: 12px; border: 1px solid transparent; background: var(--gold); color: #1a1206; cursor: pointer; margin-bottom: 8px; transition: filter 140ms ease, transform 90ms ease; }
+  .cta:hover { filter: brightness(1.06); }
+  .cta:active { transform: scale(.99); }
+  .cta.ghost { background: transparent; color: var(--hud-ink); border-color: var(--hud-line); font-weight: 500; }
+  .cta.ghost:hover { background: var(--hud-2); }
+
+  .fly { position: fixed; z-index: 90; display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600; color: #1a1206; background: var(--gold); border-radius: 999px; padding: 4px 10px; box-shadow: 0 6px 18px rgba(0,0,0,.4); transition: transform 720ms cubic-bezier(.4,.05,.3,1), opacity 720ms ease; }
+  .fly.stretch { background: var(--hud-1); color: var(--gold); border: 1px dashed var(--gold-dim); }
+
+  @keyframes jd-dealin { from { opacity: 0; transform: translateY(22px) scale(.96); } to { opacity: 1; transform: none; } }
+  @keyframes jd-bump { 0% { transform: none; } 40% { transform: scale(1.28); color: var(--gold); } 100% { transform: none; } }
+  @keyframes tl-settle { 0% { background: rgba(232,163,61,.2); } 100% { background: transparent; } }
+
+  .instr { max-width: 1320px; margin: 12px auto 0; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 8px; padding: 11px 15px; color: var(--hud-mute); font-family: var(--mono); font-size: 11.5px; line-height: 1.75; }
+  .instr b { color: var(--hud-ink); }
+  .instr .tag { color: var(--gold); font-family: var(--sans); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 10px; margin-right: 10px; }
+  .instr .warn { color: var(--gold); }
+  .instr hr { border: 0; border-top: 1px solid var(--hud-line); margin: 8px 0; }
+
+  .switcher { position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px; z-index: 70; height: var(--sw-h); display: flex; align-items: stretch; background: rgba(23,28,35,.94); backdrop-filter: blur(14px); border: 1px solid var(--hud-line); border-radius: 999px; box-shadow: 0 10px 34px rgba(0,0,0,.6); overflow: hidden; }
+  .switcher > * { border-right: 1px solid var(--hud-line); }
+  .switcher > *:last-child { border-right: 0; }
+  .switcher .vlabel { display: flex; flex-direction: column; justify-content: center; padding: 0 18px; color: var(--hud-ink); }
+  .switcher .vlabel .k { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+  .switcher .vlabel .n { font-size: 13px; margin-top: 2px; }
+  .switcher .tog { all: unset; display: flex; align-items: center; padding: 0 17px; cursor: pointer; color: var(--hud-ink); font-size: 13px; }
+  .switcher .tog:hover { background: rgba(232,163,61,.1); }
+  .switcher .tog:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: -3px; }
+
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+  @media (max-width: 980px) {
+    .cols { grid-template-columns: 1fr; }
+    .col + .col { border-left: 0; border-top: 1px solid var(--hud-line); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+
+<div class="ask-brief">
+  <h1>#157 · Design B round 3 — the merge</h1>
+  <p><strong>Your merge, built:</strong> the parallel design's asks panel · round 2's bubbles, animations and paper · the meter moved into the asks header · the score beside the title · the location control in the top bar (tap it — the region changes, the strip and Changes regenerate, <em>your answers stay</em>) · the paper is now paginated.</p>
+  <p><strong>Refinements, round 3.1:</strong> the meter's dots sort filled-first, left to right, instead of mirroring the asks list order · the score dial is bigger and centred against the title block · the CV is true A4 (640×905) and scales to the column width like a PDF at "fit width" — resize the browser to watch it.</p>
+  <p><strong>Refinements, round 3.2:</strong> the full job description is back, expandable, just under the title (state-tracked, so it survives answering other questions) · the column ratio is the parallel file's own value, 1.32fr:1fr, exactly · the ask rows sort have-this / expired / not-yet, and re-sort live as you answer · "What I changed for this advert" is now a second title, structurally level with "What this job asks for" — no more card-inside-a-card.</p>
+  <p><strong>The exits (your open problem) — my proposal:</strong> pinned under the CV. You apply <em>with</em> the CV, so the button belongs to the thing it sends — and it's always reachable, with an honest line above it while asks remain open. If it reads wrong, the fallback is a full-width bottom bar.</p>
+</div>
+
+<div class="app" id="app">
+  <div class="topbar">
+    <b>JobCrush</b>
+    <span class="spacer"></span>
+    <span class="loc-wrap">
+      <button class="loc" id="locBtn" aria-expanded="false" aria-label="Market for this advert">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path d="M7 13s4.6-4.1 4.6-7.4A4.6 4.6 0 0 0 7 1 4.6 4.6 0 0 0 2.4 5.6C2.4 8.9 7 13 7 13z" stroke="#e8a33d" stroke-width="1.3"/>
+          <circle cx="7" cy="5.6" r="1.7" stroke="#e8a33d" stroke-width="1.3"/>
+        </svg>
+        <span id="locName">Singapore</span>
+      </button>
+      <span id="locMenuSlot"></span>
+    </span>
+    <span class="prof" id="prof" title="What we hold about you">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <rect x="1.5" y="8.5" width="11" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
+        <rect x="3" y="4.6" width="8" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
+        <rect x="4.5" y=".7" width="5" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
+      </svg>
+      Profile · <span class="n" id="profN">34</span>
+    </span>
+  </div>
+
+  <div class="cols">
+    <div class="col" id="colJob"></div>
+    <div class="col" id="colCv"></div>
+  </div>
+</div>
+
+<div class="instr" id="instr"></div>
+
+<div class="switcher">
+  <div class="vlabel"><span class="k">Round 3</span><span class="n">The merge</span></div>
+  <button class="tog" id="reset" type="button">Reset</button>
+</div>
+
+<div class="sr" aria-live="polite" id="live"></div>
+
+<script>
+"use strict";
+/* Same case. Owner point 1 stands: translation, gate, certificate — settled upstream.
+   The PL-300 row states exactly that ("change this on your profile, not here"). */
+
+const MARKETS = {
+  sg: { name: "Singapore", strips: true },
+  hk: { name: "Hong Kong", strips: true },
+  none: { name: "APAC (Remote)", strips: false }, /* no page — nothing stripped, no strip line */
+};
+
+const UNPRINTED = [
+  "Ran the Hong Kong office's move to a new floor over one weekend, with no trading downtime.",
+  "Sat on the regional diversity committee and chaired its quarterly review.",
+  "Wrote the onboarding pack new joiners in the PMO still use.",
+];
+
+/* The eight asks — parallel design's model, with round-2's two questions folded in. */
+const ASKS = [
+  { id: "vendor", t: "Vendor selection and contract delivery", kind: "yes",
+    proof: "Ran vendor selection and contract negotiation for the Singapore core-banking refresh.",
+    src: "Your CV — Standard Chartered Bank, 2019–2022" },
+  { id: "budget", t: "Ownership of a programme budget above USD 10m", kind: "q-opts",
+    q: "Have you owned a project budget yourself?",
+    opts: [
+      { v: "y", t: "Yes — the budget was mine", score: 1, line: "Owned programme budgets to USD 12m.", led: "Budget ownership — added to your profile." },
+      { v: "s", t: "I managed the spend; my sponsor signed it", score: 1, line: "Managed programme spend to USD 12m with the sponsor.", led: "Shared budget oversight — added to your profile." },
+      { v: "n", t: "Not yet", score: 0, led: "Settled. This advert now knows where you stand." },
+    ] },
+  { id: "multi", t: "Delivery across multiple markets", kind: "yes",
+    proof: "Owned a USD 12m regional payments programme across six markets, delivered on budget.",
+    src: "Your CV — Standard Chartered Bank, 2019–2022" },
+  { id: "exco", t: "Reporting to executive committee level", kind: "yes",
+    proof: "Reported programme health to the regional exco every month for three years.",
+    src: "Your CV — Standard Chartered Bank, 2019–2022" },
+  { id: "mandarin", t: "Working Mandarin", kind: "yes",
+    proof: "Mandarin — you told us you can run a meeting in it.",
+    src: "You answered this when we asked" },
+  { id: "pl300", t: "PL-300 certification", kind: "part",
+    proof: "You passed it in Feb 2023; it expired Feb 2026. You chose to print it with the date.",
+    src: "Your CV — Certifications. Change this on your profile, not here." },
+  { id: "powerbi", t: "Power BI reporting", kind: "q-type",
+    q: "How many years have you used Power BI?" },
+  { id: "agile", t: "Agile delivery at scale", kind: "stretch",
+    offer: {
+      line: "Delivered the payments programme in eight-week increments with a distributed squad model.",
+      narr: "You ran increments and squads without calling it Agile. <b>Say that plainly in the room</b> — name the cadence and the squad split, not a framework you didn't use.",
+      cost: "This sentence goes on this CV only. If you apply somewhere else, we'll ask you again." } },
+];
+
+const COPY = {
+  scoreCap: "of what this advert asks for is answered",
+  strip: (m) => `${m} CVs don't usually carry a <b>date of birth</b> or <b>marital status</b>. Both are off this one.`,
+  stripBack: `Your <b>date of birth</b> and <b>marital status</b> are on this CV, because you asked. This CV only.`,
+  stripShow: "Show them anyway", stripHide: "Leave them off",
+  asksH: "What this job asks for",
+  tag: { yes: "you have this", part: "expired", open: "not yet", stretched: "added", settled: "answered" },
+  skip: "Skip for now",
+  useLine: "Propose it on this CV", notThis: "Not for this one",
+  offerLead: "You don't have this yet. Here's a line you could stand behind:",
+  takenNote: "Added to this CV",
+  qPowErr: "Type a number of years — or skip for now.",
+  chH: "What I changed for this advert",
+  chScope: "About this one CV. Your profile stays as it is.",
+  chLb: (n) => n ? `Standard Chartered Bank — ${n} line${n === 1 ? "" : "s"} not printed` : "Standard Chartered Bank — all 3 lines are on this CV",
+  chWhy: (n) => n ? `Your strongest lines for this advert are on the CV. These ${n} say things this advert doesn't ask about.` : "You put all 3 back — this CV only.",
+  see: "See the 3 lines", hide: "Hide them", putBack: "Put it back", undo: "Undo",
+  chip: (n) => n ? `Changes · ${n}` : "Changes",
+  ledStretch: "Stretch saved with this application — it never joins your profile.",
+  ledStretchOff: "Stretch removed from this application.",
+  ledBack: "Back on this CV — just this one.",
+  ledPow: (y) => `Power BI (${y} year${y === 1 ? "" : "s"}) — added to your profile.`,
+  ledPowN: "Settled. This advert now knows where you stand.",
+  ledMarket: (m) => `Changed — this advert is for ${m}. Your answers stay.`,
+  status: (n) => n === 0 ? "Everything is answered." : `${n} ask${n === 1 ? "" : "s"} still to answer — you can apply any time.`,
+  apply: "Apply with this CV", save: "Save it and come back later",
+  ledApply: "Ready. Nothing goes out until you press send.",
+  ledSave: "Saved. Pick it up whenever you want.",
+  pageAuto: "— moved to the page where it landed",
+};
+
+let S;
+function freshState() {
+  return {
+    market: "sg", open: {}, budget: null, powerbi: null, powErr: null, stretch: null,
+    stripBack: false, subBack: {}, showThree: false, chipOpen: false,
+    page: 1, profExtra: 0, shownScore: 0, ledger: null, lastUndo: null, locOpen: false,
+    descOpen: false, /* the WHOLE colJob is re-rendered on every action, so a plain <details>
+      would silently collapse the moment she answers anything else — tracked here like the
+      ask rows already are (S.open[id]) */
+  };
+}
+S = freshState();
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function askState(a) {
+  if (a.kind === "yes") return "yes";
+  if (a.kind === "part") return "part";
+  if (a.kind === "stretch") return S.stretch === "y" ? "stretched" : "open";
+  if (a.id === "budget") return S.budget == null ? "open" : S.budget === "n" ? "settled" : "yes";
+  if (a.id === "powerbi") return S.powerbi == null ? "open" : S.powerbi === 0 ? "settled" : "yes";
+  return "open";
+}
+function score() {
+  let solid = 0, part = 0;
+  ASKS.forEach((a) => { const s = askState(a); if (s === "yes" || s === "stretched") solid++; else if (s === "part") part++; });
+  return { solid, part, total: ASKS.length, pct: Math.round(((solid + part * 0.5) / ASKS.length) * 100) };
+}
+function openAsksCount() { return ASKS.filter((a) => askState(a) === "open").length; }
+/* Owner: the meter should read as a loading bar (filled left, empty right) — not mirror the
+   asks list's own order, where filled/half/empty are scattered. The row list below keeps the
+   job's real order; only this small summary control re-sorts its dots. */
+function meterDots() {
+  const RANK = { on: 0, half: 1, "": 2 };
+  const cls = ASKS.map((a) => { const s = askState(a); return s === "yes" || s === "stretched" ? "on" : s === "part" ? "half" : ""; });
+  cls.sort((a, b) => RANK[a] - RANK[b]);
+  return cls.map((c) => `<i class="${c}"></i>`).join("");
+}
+function changesCount() { return (MARKETS[S.market].strips && !S.stripBack ? 1 : 0) + (UNPRINTED.filter((_, i) => !S.subBack[i]).length ? 1 : 0); }
+/* the guided next: first open interactive ask */
+function nextOpenId() { const a = ASKS.find((x) => askState(x) === "open" && x.kind !== "yes" && x.kind !== "part"); return a ? a.id : null; }
+
+function dotSVG(s) {
+  if (s === "yes") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="7" fill="#e8a33d"></circle><path d="M4.3 7.7l2.2 2.2 4.2-4.4" stroke="#1a1206" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  if (s === "part") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="6.6" stroke="#a8762b" stroke-width="1.4" fill="none"></circle><path d="M7.5 1a6.5 6.5 0 010 13z" fill="#a8762b" opacity="0.35"></path></svg>';
+  if (s === "stretched") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><rect x="3.1" y="3.1" width="8.8" height="8.8" rx="2" transform="rotate(45 7.5 7.5)" stroke="#e8a33d" stroke-width="1.4" fill="none" stroke-dasharray="2.6 2.2"></rect></svg>';
+  if (s === "settled") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="5.6" fill="#4d5865"></circle></svg>';
+  return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="6.6" stroke="#8a97a6" stroke-width="1.2" fill="none" stroke-dasharray="2.6 2.4"></circle></svg>';
+}
+
+/* ══ bodies ══ */
+function askBody(a) {
+  const st = askState(a);
+  if (a.kind === "yes" || a.kind === "part")
+    return `<div class="proof">${esc(a.proof)}<span class="src">${esc(a.src)}</span></div>`;
+
+  if (a.kind === "q-opts") {
+    if (st !== "open") {
+      const picked = a.opts.find((o) => o.v === S.budget);
+      return `<div class="proof">${esc(picked.line || "Answered — not this one.")}<span class="src">You answered this here · <button class="btn quiet" data-act="budget-undo" type="button" style="font-size:11.5px;padding:0">${esc(COPY.undo)}</button></span></div>`;
+    }
+    return `<div class="bubble">
+      <p class="q">${esc(a.q)}</p>
+      <div class="opts">${a.opts.map((o) => `<button class="opt" data-act="budget" data-v="${o.v}" type="button">${esc(o.t)}</button>`).join("")}</div>
+      <div class="skiprow"><button class="btn quiet" data-act="skip" data-id="${a.id}" type="button">${esc(COPY.skip)}</button></div>
+    </div>`;
+  }
+
+  if (a.kind === "q-type") {
+    if (st !== "open") {
+      return `<div class="proof">${S.powerbi ? esc(`Power BI (${S.powerbi} year${S.powerbi === 1 ? "" : "s"}).`) : "Answered — not this one."}<span class="src">You answered this here · <button class="btn quiet" data-act="pow-undo" type="button" style="font-size:11.5px;padding:0">${esc(COPY.undo)}</button></span></div>`;
+    }
+    return `<div class="bubble">
+      <p class="q">${esc(a.q)}</p>
+      <form class="typed" data-act="pow-form">
+        <input id="powIn" inputmode="numeric" placeholder="e.g. 3" aria-label="${esc(a.q)}">
+        <button class="btn gold" type="submit">Add it</button>
+      </form>
+      ${S.powErr ? `<p class="err" role="alert">${esc(S.powErr)}</p>` : ""}
+      <div class="skiprow"><button class="btn quiet" data-act="skip" data-id="${a.id}" type="button">${esc(COPY.skip)}</button></div>
+    </div>`;
+  }
+
+  /* stretch */
+  if (S.stretch === "y") {
+    return `<div class="bubble offer">
+      <p class="lead">On this CV, because you approved it:</p>
+      <div class="line">${esc(a.offer.line)}</div>
+      <div class="row"><span class="taken"><svg width="13" height="13" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M3 8l3.2 3.2L12 4.6" stroke="#e8a33d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> ${esc(COPY.takenNote)}</span>
+      <button class="btn quiet" data-act="stretch-undo" type="button">${esc(COPY.undo)}</button></div>
+    </div>`;
+  }
+  return `<div class="bubble offer">
+    <p class="lead">${esc(COPY.offerLead)}</p>
+    <div class="line">${esc(a.offer.line)}</div>
+    <p class="narr">${a.offer.narr}</p>
+    <div class="row">
+      <button class="btn gold" data-act="stretch-yes" type="button">${esc(COPY.useLine)}</button>
+      <button class="btn" data-act="stretch-no" type="button">${esc(COPY.notThis)}</button>
+    </div>
+    <p class="cost" style="margin:10px 0 0">${esc(a.offer.cost)}</p>
+  </div>`;
+}
+
+/* withStrip=false for the "What I changed" card: the strip is already STATED beside the title,
+   so the card carries only the bullets. The chip panel keeps both — it is the full record. */
+function changesRows(withStrip = true) {
+  const nH = UNPRINTED.filter((_, i) => !S.subBack[i]).length;
+  const m = MARKETS[S.market];
+  let h = "";
+  if (withStrip && m.strips) {
+    h += `<div class="dec">
+      <p class="lb">Left off: date of birth · marital status</p>
+      <p class="why">CVs in ${esc(m.name)} don't usually carry these.</p>
+      <div class="acts">${S.stripBack
+        ? `<span class="dec-note">Back on this CV — just this one.</span><button class="btn quiet" data-act="strip-undo" type="button">${esc(COPY.undo)}</button>`
+        : `<button class="btn" data-act="strip-back" type="button">Put them back — this CV only</button>`}</div>
+    </div>`;
+  }
+  h += `<div class="dec">
+    <p class="lb">${esc(COPY.chLb(nH))}</p>
+    <p class="why">${esc(COPY.chWhy(nH))}</p>
+    ${S.showThree ? `<div class="sub-lines">${UNPRINTED.map((l, i) => `
+      <div class="sl ${S.subBack[i] ? "on" : ""}">
+        <p>${esc(l)}</p>
+        ${S.subBack[i]
+          ? `<button class="btn quiet" data-act="sub-undo" data-i="${i}" type="button">${esc(COPY.undo)}</button>`
+          : `<button class="btn" data-act="sub-back" data-i="${i}" type="button">${esc(COPY.putBack)}</button>`}
+      </div>`).join("")}</div>` : ""}
+    <div class="acts">
+      <button class="btn" data-act="three" type="button">${esc(S.showThree ? COPY.hide : COPY.see)}</button>
+      ${nH < 3 ? `<span class="dec-note">${3 - nH} back on this CV — just this one.</span>` : ""}
+    </div>
+  </div>`;
+  return h;
+}
+
+/* ══ render: left ══ */
+function renderJob() {
+  const m = MARKETS[S.market];
+  const sc = score();
+  const next = nextOpenId();
+  const pct = Math.round(S.shownScore);
+  const C = 2 * Math.PI * 34;
+
+  /* Owner: rows ordered "have this" first, "expired" next, "not yet" at the bottom — the same
+     re-sort the meter dots already do (round 3.1), now applied to the actual row list too.
+     Recomputed every render, so answering a question visibly promotes its row. "settled" (an
+     explicit "not yet" answer) sits with "open" (not yet answered at all) — neither is "have
+     this", which is the only distinction the owner named. */
+  const ROW_RANK = { yes: 0, stretched: 0, part: 1, settled: 2, open: 2 };
+  const orderedAsks = [...ASKS].sort((a, b) => ROW_RANK[askState(a)] - ROW_RANK[askState(b)]);
+  const asks = orderedAsks.map((a) => {
+    const st = askState(a);
+    const open = !!S.open[a.id];
+    return `<div class="ask ${open ? "open" : ""} ${a.id === next ? "active" : ""}" data-state="${st}">
+      <button class="ask-row" data-act="row" data-id="${a.id}" aria-expanded="${open}">
+        ${dotSVG(st)}<span class="ask-txt">${esc(a.t)}</span>
+        <span class="ask-tag">${esc(COPY.tag[st])}</span>
+        <svg class="chev" viewBox="0 0 10 14" fill="none" aria-hidden="true"><path d="M2.5 1.5L8 7l-5.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <div class="ask-body">${open ? askBody(a) : ""}</div>
+    </div>`;
+  }).join("");
+
+  /* A second title, structurally level with "What this job asks for" (owner) — .askshead
+     reused verbatim, no meter (a completion count doesn't apply to a change log). */
+  const changed = `
+    <div class="askshead" style="margin-top:26px">
+      <h2>${esc(COPY.chH)}</h2>
+    </div>
+    <p class="changed-scope">${esc(COPY.chScope)}</p>
+    ${changesRows(false)}`;
+
+  document.getElementById("colJob").innerHTML = `
+    <div class="posted">Posted 3 days ago</div>
+    <div class="hero">
+      <div class="tt">
+        <h1 class="jobtitle">Senior Project Manager</h1>
+        <p class="employer">DBS Bank <span class="sep">·</span> Singapore <span class="sep">·</span> Full time</p>
+      </div>
+      <div class="scorebox">
+        <div class="dial" role="img" aria-label="${pct} percent match">
+          <svg width="84" height="84" viewBox="0 0 84 84">
+            <circle cx="42" cy="42" r="34" fill="none" stroke="var(--hud-line)" stroke-width="6"/>
+            <circle cx="42" cy="42" r="34" fill="none" stroke="var(--gold)" stroke-width="6" stroke-linecap="round"
+              stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - pct / 100)).toFixed(1)}" transform="rotate(-90 42 42)"/>
+          </svg>
+          <div class="num" id="dialNum">${pct}%</div>
+        </div>
+        <p class="cap">${esc(COPY.scoreCap)}</p>
+      </div>
+    </div>
+    <details class="jobdesc" id="jobdesc" ${S.descOpen ? "open" : ""}>
+      <summary><svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2.5 1.5L7 5L2.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Read the full advert</summary>
+      <p>You will run vendor delivery for the regional payments platform: selection, contracting, and delivery through to handover, with full ownership of the programme budget.</p>
+      <p>You report to the regional exco monthly. Power BI is the house reporting standard. PL-300 is required; Mandarin is a strong plus for our Chinese-market vendors.</p>
+    </details>
+    ${m.strips ? `<div class="stripline">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true" style="margin-top:2px;flex:none">
+        <circle cx="7.5" cy="7.5" r="6.6" stroke="#8a95a2" stroke-width="1.1"/>
+        <path d="M7.5 4.2v4.1M7.5 10.4v.6" stroke="#8a95a2" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+      <span>${S.stripBack ? COPY.stripBack : COPY.strip(esc(m.name))}</span>
+      <button class="lnk" data-act="${S.stripBack ? "strip-undo" : "strip-back"}" type="button">${esc(S.stripBack ? COPY.stripHide : COPY.stripShow)}</button>
+    </div>` : ""}
+    <div class="ledger ${S.ledger?.gold ? "gold" : ""}" id="ledger">
+      ${S.ledger ? `<span>${esc(S.ledger.text)}</span>${S.lastUndo ? `<button class="undo" data-act="last-undo" type="button">${esc(COPY.undo)}</button>` : ""}` : ""}
+    </div>
+    <div class="askshead">
+      <h2>${esc(COPY.asksH)}</h2>
+      <span class="meterbox">
+        <span class="meter">${meterDots()}</span>
+        <span class="n"><b>${sc.solid}</b> of ${sc.total}</span>
+      </span>
+    </div>
+    <div id="asks">${asks}</div>
+    ${changed}`;
+}
+
+/* ══ render: right (the paper, whole, paginated) ══ */
+function pageOf(lineKey) {
+  return ["sum1", "stretchline", "sub0", "sub1", "sub2", "head"].includes(lineKey) ? 1 : 2;
+}
+
+/* Owner: "like a PDF at 100%, zoomed out to fit the screen but keeping its proportions." The
+   page is drawn at its true A4 size (PAGE_W×PAGE_H) and CSS-scaled to the column's width —
+   never reflowed, exactly this effort's own convention (no-summary-layout.prototype.html: "true
+   page width, scaled down, so line breaks and type proportions stay honest"). Recomputed on
+   every render and on window resize, so it tracks the column fluidly. */
+const PAGE_W = 640, PAGE_H = 905;
+function fitPage() {
+  const frame = document.getElementById("pageFrame");
+  const paper = document.getElementById("paper");
+  if (!frame || !paper) return;
+  const scale = frame.clientWidth / PAGE_W;
+  paper.style.transform = `scale(${scale})`;
+  frame.style.height = Math.round(PAGE_H * scale) + "px";
+}
+function renderCv() {
+  const m = MARKETS[S.market];
+  const bits = ["12 Orchard Road, Singapore", "+65 9123 4567", "remy@mail.com"];
+  if (!m.strips || S.stripBack) bits.push("Born 4 July 1978", "Married, 2 children");
+  bits.push("Singaporean");
+  const sums = ["Regional project manager with 9 years across banking programmes in Singapore and Hong Kong."];
+  if (S.budget === "y") sums.push("Owned programme budgets to USD 12m.");
+  if (S.budget === "s") sums.push("Managed programme spend to USD 12m with the sponsor.");
+  const bullets = [
+    "Owned a USD 12m regional payments programme across six markets, delivered on budget.",
+    "Ran vendor selection and contract negotiation for the Singapore core-banking refresh.",
+    "Cut release cycle time from six weeks to nine days with the platform team.",
+    "Reported programme health to the regional exco every month for three years.",
+  ];
+  const extra = [];
+  if (S.stretch === "y") extra.push({ t: ASKS.find((a) => a.id === "agile").offer.line, k: "stretchline" });
+  UNPRINTED.forEach((l, i) => { if (S.subBack[i]) extra.push({ t: l, k: "sub" + i }); });
+
+  const page1 = `
+    <p class="nm">Remy Tan</p>
+    <p class="ct" data-line="head">${esc(bits.join(" · "))}</p>
+    <section><h2 class="cv-sec">Summary</h2>${sums.map((t, i) => `<p class="plain" data-line="sum${i}">${esc(t)}</p>`).join("")}</section>
+    <section><h2 class="cv-sec">Experience</h2>
+      <p class="role-h">Standard Chartered Bank <span>· Regional Project Manager · 2019–2022</span></p>
+      ${bullets.map((b) => `<p class="cv-line">${esc(b)}</p>`).join("")}
+      ${extra.map((e) => `<p class="cv-line" data-line="${e.k}">${esc(e.t)}</p>`).join("")}
+    </section>
+    <p class="pageno">1 / 2</p>`;
+
+  const page2 = `
+    <section style="margin-top:0"><h2 class="cv-sec">Skills</h2>
+      <p class="plain">Delivery: Agile, PRINCE2, vendor and contract management</p>
+      <p class="plain" data-line="skills">Data: SQL, Excel${S.powerbi ? `, Power BI (${S.powerbi} year${S.powerbi === 1 ? "" : "s"})` : ""}</p>
+    </section>
+    <section><h2 class="cv-sec">Certifications</h2>
+      <p class="plain">PL-300 – Power BI Data Analyst Associate, Feb 2023 (expired)</p>
+      <p class="plain">PMP – Project Management Institute, 2017</p>
+    </section>
+    <section><h2 class="cv-sec">Education</h2>
+      <p class="plain">National University of Singapore — BBA, 2011</p>
+    </section>
+    <section><h2 class="cv-sec">Additional</h2>
+      <p class="plain">Languages: English (native), Mandarin, Malay</p>
+      <p class="plain">Driving licence: B (own vehicle)</p>
+    </section>
+    <p class="pageno">2 / 2</p>`;
+
+  const n = changesCount();
+  document.getElementById("colCv").innerHTML = `
+    <div class="chipbar">
+      <span class="pager" role="group" aria-label="CV pages">
+        <button class="pg ${S.page === 1 ? "on" : ""}" data-act="page" data-p="1" type="button">Page 1</button>
+        <button class="pg ${S.page === 2 ? "on" : ""}" data-act="page" data-p="2" type="button">Page 2</button>
+      </span>
+      <button class="chip" data-act="chip" aria-expanded="${S.chipOpen}" type="button">${esc(COPY.chip(n))}</button>
+    </div>
+    ${S.chipOpen ? `<div class="chip-panel">${changesRows()}</div>` : ""}
+    <div class="page-frame" id="pageFrame"><div class="cv" id="paper">${S.page === 1 ? page1 : page2}</div></div>
+    <div class="exits">
+      <p class="status">${esc(COPY.status(openAsksCount()))}</p>
+      <button class="cta" data-act="apply" type="button">${esc(COPY.apply)}</button>
+      <button class="cta ghost" data-act="save" type="button">${esc(COPY.save)}</button>
+    </div>`;
+}
+
+function renderTop() {
+  document.getElementById("locName").textContent = MARKETS[S.market].name;
+  document.getElementById("locBtn").setAttribute("aria-expanded", S.locOpen);
+  document.getElementById("profN").textContent = 34 + S.profExtra;
+  document.getElementById("locMenuSlot").innerHTML = S.locOpen ? `
+    <span class="loc-menu" role="menu">
+      ${Object.entries(MARKETS).map(([k, m]) => `
+        <button class="mi" role="menuitem" data-act="loc-pick" data-m="${k}" type="button">
+          <span class="chk">${k === S.market ? '<svg width="13" height="13" viewBox="0 0 15 15" fill="none" aria-hidden="true"><path d="M3 8l3.2 3.2L12 4.6" stroke="#e8a33d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ""}</span>
+          ${esc(m.name)}
+        </button>`).join("")}
+      <p class="note">Changing the market re-makes what it decides. Your answers stay.</p>
+    </span>` : "";
+}
+
+function render(fx = {}) {
+  renderTop(); renderJob(); renderCv(); fitPage();
+  if (fx.announce) document.getElementById("live").textContent = fx.announce;
+  if (fx.tween) tweenScore();
+  if (fx.mat) fx.mat.forEach((k) => materialize(k));
+  if (fx.settle) fx.settle.forEach((k) => { const el = document.querySelector(`[data-line="${k}"]`); if (el) el.classList.add("settle"); });
+  if (fx.fly && !REDUCED) flyChip(fx.fly); else if (fx.fly) bumpProf();
+  if (fx.focusIn) { const i = document.getElementById("powIn"); if (i) i.focus(); }
+  instrument(); wire();
+}
+
+/* ══ effects (round 2, shipped values) ══ */
+function tweenScore() {
+  const from = S.shownScore, to = score().pct;
+  if (from === to) return;
+  if (REDUCED) { S.shownScore = to; render({}); return; }
+  const t0 = performance.now();
+  (function fr(t) {
+    const p = Math.min(1, (t - t0) / 680);
+    S.shownScore = from + (to - from) * (1 - Math.pow(1 - p, 3));
+    const el = document.getElementById("dialNum");
+    if (el) el.textContent = Math.round(S.shownScore) + "%";
+    const arc = document.querySelector(".dial svg circle:last-of-type");
+    if (arc) { const C = 2 * Math.PI * 34; arc.setAttribute("stroke-dashoffset", (C * (1 - S.shownScore / 100)).toFixed(1)); }
+    if (p < 1) requestAnimationFrame(fr);
+    else { const e = document.getElementById("dialNum"); if (e) { e.classList.remove("bump"); void e.offsetWidth; e.classList.add("bump"); } }
+  })(t0);
+}
+function bumpProf() { const p = document.getElementById("prof"); p.classList.remove("bump"); void p.offsetWidth; p.classList.add("bump"); }
+function flyChip({ label, to, stretch }) {
+  const fromEl = document.getElementById("ledger");
+  const toEl = to === "profile" ? document.getElementById("prof") : document.querySelector(".jobtitle");
+  if (!fromEl || !toEl) return;
+  const a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
+  const chip = document.createElement("div");
+  chip.className = "fly" + (stretch ? " stretch" : "");
+  chip.textContent = label;
+  chip.style.left = a.left + 20 + "px"; chip.style.top = a.top + "px";
+  document.body.appendChild(chip);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    chip.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(.6)`;
+    chip.style.opacity = "0";
+  }));
+  setTimeout(() => { chip.remove(); if (to === "profile") bumpProf(); }, 740);
+}
+function materialize(key) {
+  /* auto-jump to the page the change landed on (owner: paginated paper) */
+  const pg = pageOf(key);
+  if (S.page !== pg) { S.page = pg; renderCv(); fitPage(); wire(); }
+  const el = document.querySelector(`[data-line="${key}"]`);
+  if (!el || REDUCED) return;
+  const text = el.textContent;
+  el.classList.add("mat");
+  el.innerHTML = text.split("").map((ch) => `<span>${esc(ch)}</span>`).join("");
+  const spans = el.querySelectorAll("span");
+  const step = Math.min(9, 650 / Math.max(1, spans.length));
+  spans.forEach((sp, i) => { sp.style.transition = "opacity 60ms linear"; setTimeout(() => { sp.style.opacity = 1; }, 40 + i * step); });
+  setTimeout(() => { el.classList.remove("mat"); el.textContent = text; }, 40 + spans.length * step + 120);
+}
+
+/* ══ actions ══ */
+function led(text, gold, undoFn) { S.ledger = { text, gold }; S.lastUndo = undoFn || null; }
+function openNext() { const n = nextOpenId(); if (n) S.open[n] = true; }
+
+const ACTIONS = {
+  row(el) { const id = el.dataset.id; S.open[id] = !S.open[id]; render({}); },
+  skip(el) { S.open[el.dataset.id] = false; S.powErr = null; openNext(); render({}); },
+
+  budget(el) {
+    const o = ASKS.find((a) => a.id === "budget").opts.find((x) => x.v === el.dataset.v);
+    S.budget = o.v;
+    const fact = o.score > 0;
+    if (fact) S.profExtra += 1;
+    led(o.led + (fact ? " +" : ""), fact, () => { if (fact) S.profExtra -= 1; S.budget = null; S.ledger = null; S.lastUndo = null; S.open.budget = true; });
+    S.open.budget = false; openNext();
+    render({ tween: true, announce: `${score().pct} percent. ${o.led}`, mat: fact ? ["sum1"] : [], fly: fact ? { label: "+1 fact", to: "profile" } : null });
+  },
+  "budget-undo"() { if (S.budget !== "n") S.profExtra -= 1; S.budget = null; S.open.budget = true; led(null); S.ledger = null; render({ tween: true }); },
+
+  "pow-form"(el, ev) {
+    ev.preventDefault();
+    const t = document.getElementById("powIn").value.trim(); const v = Number(t);
+    if (t === "" || !Number.isInteger(v) || v < 0) { S.powErr = COPY.qPowErr; render({ focusIn: true }); return; }
+    S.powErr = null; S.powerbi = v;
+    if (v === 0) {
+      led(COPY.ledPowN, false, () => { S.powerbi = null; S.ledger = null; S.lastUndo = null; S.open.powerbi = true; });
+      S.open.powerbi = false; openNext();
+      render({ announce: COPY.ledPowN });
+      return;
+    }
+    S.profExtra += 1;
+    led(COPY.ledPow(v), true, () => { S.powerbi = null; S.profExtra -= 1; S.ledger = null; S.lastUndo = null; S.open.powerbi = true; });
+    S.open.powerbi = false; openNext();
+    render({ tween: true, announce: `${score().pct} percent. ${COPY.ledPow(v)}`, mat: ["skills"], fly: { label: "+1 fact", to: "profile" } });
+  },
+  "pow-undo"() { if (S.powerbi) S.profExtra -= 1; S.powerbi = null; S.open.powerbi = true; S.ledger = null; render({ tween: true }); },
+
+  "stretch-yes"() {
+    S.stretch = "y";
+    led(COPY.ledStretch, true, () => ACTIONS["stretch-undo"]());
+    render({ tween: true, announce: `${score().pct} percent. ${COPY.ledStretch}`, mat: ["stretchline"], fly: { label: "stretch · this CV only", to: "advert", stretch: true } });
+  },
+  "stretch-no"() { S.stretch = "n"; S.open.agile = false; led("Noted — not for this one.", false, null); render({ announce: S.ledger.text }); },
+  "stretch-undo"() { S.stretch = null; S.open.agile = true; led(COPY.ledStretchOff, false, null); render({ tween: true, announce: COPY.ledStretchOff }); },
+
+  "strip-back"() { S.stripBack = true; led(COPY.ledBack, false, null); render({ settle: ["head"], announce: COPY.ledBack }); },
+  "strip-undo"() { S.stripBack = false; render({}); },
+  "sub-back"(el) { S.subBack[Number(el.dataset.i)] = true; led(COPY.ledBack, false, null); render({ settle: ["sub" + el.dataset.i], announce: COPY.ledBack }); },
+  "sub-undo"(el) { S.subBack[Number(el.dataset.i)] = false; render({}); },
+  three() { S.showThree = !S.showThree; render({}); },
+  chip() { S.chipOpen = !S.chipOpen; render({}); },
+  page(el) { S.page = Number(el.dataset.p); render({}); },
+
+  "loc-pick"(el) {
+    /* regenerates what the market decides; her answers survive (render, never capture) */
+    S.market = el.dataset.m; S.locOpen = false;
+    led(COPY.ledMarket(MARKETS[S.market].name), false, null);
+    render({ announce: S.ledger.text });
+  },
+  "last-undo"() { if (S.lastUndo) { S.lastUndo(); render({ tween: true }); } },
+  apply() { led(COPY.ledApply, true, null); render({ announce: COPY.ledApply }); },
+  save() { led(COPY.ledSave, false, null); render({ announce: COPY.ledSave }); },
+};
+
+const FOCUS_NEXT = { "sub-back": "sub-undo", "sub-undo": "sub-back", "strip-back": "strip-undo", "strip-undo": "strip-back", three: "three", chip: "chip" };
+function wire() {
+  const desc = document.getElementById("jobdesc");
+  if (desc && !desc.dataset.wired) {
+    desc.dataset.wired = "1";
+    desc.addEventListener("toggle", () => { S.descOpen = desc.open; });
+  }
+  document.querySelectorAll("[data-act]").forEach((el) => {
+    if (el.dataset.wired) return;
+    el.dataset.wired = "1";
+    const act = el.dataset.act;
+    if (act === "pow-form") { el.addEventListener("submit", (ev) => ACTIONS["pow-form"](el, ev)); return; }
+    el.addEventListener("click", () => {
+      ACTIONS[act](el);
+      const nx = FOCUS_NEXT[act];
+      if (nx) { const i = el.dataset.i; const q = i != null ? `[data-act="${nx}"][data-i="${i}"]` : `[data-act="${nx}"]`; const t = document.querySelector(q); if (t) t.focus(); }
+    });
+  });
+}
+
+document.getElementById("locBtn").addEventListener("click", () => { S.locOpen = !S.locOpen; render({}); });
+document.getElementById("reset").addEventListener("click", () => { S = freshState(); boot(); });
+addEventListener("keydown", (e) => {
+  if (e.target.matches("input")) return;
+  if (e.key === "Escape" && S.locOpen) { S.locOpen = false; render({}); }
+  if (e.key.toLowerCase() === "r") { S = freshState(); boot(); }
+});
+addEventListener("click", (e) => {
+  if (S.locOpen && !e.target.closest(".loc-wrap")) { S.locOpen = false; render({}); }
+}, true);
+
+/* the page re-fits on any viewport change — rAF-throttled so a drag-resize stays smooth */
+let resizeQueued = false;
+addEventListener("resize", () => {
+  if (resizeQueued) return;
+  resizeQueued = true;
+  requestAnimationFrame(() => { fitPage(); resizeQueued = false; });
+});
+
+function instrument() {
+  const sc = score();
+  document.getElementById("instr").innerHTML = `
+    <span class="tag">Instrument</span>
+    <b>Round 3 — the merge.</b> Parallel design's asks panel + ratio + meter + stated strip · round 2's bubbles, physics, paper. The exits are pinned under the paper — <b>this file's proposal</b> for the owner's open problem; fallback is a full-width bottom bar.
+    <hr>
+    asks: <b>${sc.solid}</b> solid · ${sc.part} partial · ${sc.total - sc.solid - sc.part} open &nbsp;·&nbsp; score ${sc.pct}% = (solid + ½·partial) / 8 — same formula as the parallel file, <span class="warn">weights are authored, not measured</span>
+    &nbsp;·&nbsp; market: <b>${MARKETS[S.market].name}</b>${MARKETS[S.market].strips ? "" : ' — <span class="warn">no page, nothing stripped, no strip line (cl.3)</span>'}
+    &nbsp;·&nbsp; changes: <b>${changesCount()}</b> · page: <b>${S.page}</b>
+    <hr>
+    <span class="warn">falsifiable here:</span>
+    (1) no control says "always" — every put-back and stretch is "this CV only";
+    (2) <b>ADR-0005 kept against the parallel file:</b> a fact bumps the Profile pile; the stretch chip flies to the ADVERT and the pile never moves on a stretch;
+    (3) changing the market regenerates the strip line + Changes and re-derives nothing else — <b>her answers survive</b> (render, never capture);
+    (4) the decline is "Not for this one" only — the "never" scope is Design C (#171);
+    (5) declarations move no score; the PL-300 row points at the profile ("change this on your profile, not here") — owner point 1 landed;
+    (6) a change lands on the page it belongs to — the paper auto-jumps, so a put-back is never invisible behind pagination.
+    <hr>
+    ⚠️ not buildable before #158 (claim-ids) · beats at shipped values: dealin 340ms · bump 460ms · settle 640ms · flight 720ms · tween 680ms · --hud-mute-2 is NEW (AA on hud-2)`;
+}
+
+function boot() { S.shownScore = score().pct; openNext(); render({}); }
+boot();
+</script>
