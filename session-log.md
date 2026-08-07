@@ -2,6 +2,42 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-07 (session 90) — The map's last decision: what we cannot classify is kept, printed faithfully, and reviewed by kind
+
+_`/wayfinder` on map [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127). Resolved
+[#149](https://github.com/adrien-mounier/jobcrush-app/issues/149) — the last open ticket on the map.
+Output: **[ADR-0010](docs/adr/0010-what-we-cannot-classify-is-kept-printed-and-reviewed-by-kind.md)**
+(normative), a CLAUDE.md section, three more design requirements on #157, and the map's Decisions-so-far
+entry. **The frontier is empty — the destination's final act (`/to-tickets`) is unblocked.**_
+
+- **⚡ The ticket's §5 measurement was done before any question was asked** — all six corpus CVs read
+  first-hand against every decided home. **2 of 6 CVs (the two French-style ones) carry homeless
+  content: 1-in-3, the ticket's own noise hypothetical exactly — but it is four recurring kinds**
+  (interests · travel · driving licence + vehicle · availability), **not a stream of novelties.** That
+  fact decided the first clause: **alerts are per kind, never per case** — first sighting alerts,
+  repeats attach and increment a count that doubles as the build-priority signal.
+- **⚠️ The `additional` default is an owner decision overruling the session's recommendation** of
+  withheld-until-reviewed: the CV is the person's marketing document, their content ships by default.
+  An **LLM sanity gate** removes only the obviously absurd (*"I like to play with water"*), and every
+  removal is **declared with one-tap put-back** — ADR-0007's existing machinery, not a new one.
+- **The words are faithfully corrected, never improved:** spelling / syntax / translation fixed
+  (`Titulaire permis B / Véhiculé` → `Driving licence: B (own vehicle)`), never strengthened or
+  summarised; beyond-cosmetic changes show the original beside them. The miner's verbatim test is the
+  ceiling: the person reads the line and says *"yes, that's what my CV says."*
+- **Review = four verdicts** (re-home into an existing element · bless the default ·
+  never-print-by-default · promote via the growth rule), **retroactive** — waiting CVs are re-read, a
+  person's answer outranks any re-read (ADR-0008) — and **a kind may wait indefinitely at its
+  default**, honestly: nothing waiting is hidden, so the queue cannot become a graveyard.
+- **✅ A premise correction on the route (tenth on this map):** the session claimed a date of birth in
+  an unclassified blob would bypass the strip list; **the owner caught it** — DOB and photograph are
+  ADR-0007's named facts and are handled when recognised. What survives is narrower — a strip name
+  hiding *inside* a blob the reader failed to classify — and the gate now flags the seven strip names
+  in homeless content (clause 6).
+- **The negative test is a clause, not a hope:** every upload records the classifier ran and what it
+  found — *found nothing* ≠ *did not run*, for the classifier and the gate both. Build detail verified
+  in the ticket: `parser_flags` flows to `buildImportProof()` **and is then discarded**; the build must
+  persist per-kind records.
+
 ## 2026-08-07 (session 89) — The budget was never the bullet, and there is no page to make it
 
 _`/wayfinder` on map [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127). Resolved [#153](https://github.com/adrien-mounier/jobcrush-app/issues/153) — five decisions, **no ADR** (CV-writing rules; `cv-authoring-rules.md` is their normative home, the precedent #143 set). Output: a rewritten *Length and bullet density* section, impact comments on #154, #155 and #66. **No code changed — three code sites now knowingly contradict the CV brain.**_

@@ -302,6 +302,45 @@ supplies no reason to build**, and it makes the client hazard worse, not better.
 **Falsifiable checks:** `Draft.experience` holds no project or client slot · a work project's name lives
 **inside** a claim's text, never as a field beside it.
 
+### What we cannot classify is kept, printed faithfully, and reviewed by kind
+
+**[ADR-0010](docs/adr/0010-what-we-cannot-classify-is-kept-printed-and-reviewed-by-kind.md), decided
+2026-08-07 in [#149](https://github.com/adrien-mounier/jobcrush-app/issues/149) — decided, not yet
+built. The last decision ticket on map #127.**
+
+A part of a CV with no decided home is **captured whole with an origin** (no new origin kind), grouped
+into a **machine-proposed, owner-curated kind**, and by default **prints as `additional` line(s),
+faithfully corrected** — spelling, syntax, translation; **never strengthened, summarised, or
+reworded**. The owner is **alerted per kind, never per case**; repeats attach and count, and the count
+is the build-priority signal. Measured baseline (2026-08-07, all six corpus CVs read first-hand):
+**2 of 6 CVs carry homeless content, four recurring kinds** — interests, travel, driving licence +
+vehicle, availability. The rate is 1-in-3 but it is a short head of repeats, not a stream of novelties.
+
+Nine clauses; the ADR is the normative home. The ones most likely to be broken by accident:
+
+- 🚨 **The `additional` default was an owner decision overruling the session's withheld-by-default
+  recommendation.** The person's content ships by default — do not quietly reintroduce a holding
+  pen. The LLM sanity gate removes **only the obviously absurd** (copy-paste accidents, manifest
+  nonsense) — never taste or judgment — and **every removal is declared with one-tap put-back**
+  (ADR-0007's machinery, not a new one). A silent gate call is the bug.
+- **Faithful correction has a hard ceiling.** The person must read the line and say *"yes, that's
+  what my CV says."* Translation is allowed and is also the risk case — this is content the machine
+  understands least — so any beyond-cosmetic change shows the original beside it.
+- 🚨 **The gate also flags the seven strip-list names found inside homeless content** so the
+  per-market withholding pass can treat them as recognised. Without this, a date of birth hiding in
+  an unclassified blob prints unscreened in a market that strips it — the withholding pass screens
+  recognised facts, not opaque text.
+- **Review has four verdicts** (re-home · bless the default · never-print-by-default · promote via
+  growth rule), **verdicts apply retroactively** (waiting CVs re-read; a person's answer outranks any
+  re-read, ADR-0008), and **a kind may wait indefinitely at its default** — honest and stated, not a
+  graveyard, because nothing waiting is lost or hidden.
+- 🚨 **The negative test is not optional:** every upload records that the classifier ran and what it
+  found — *found nothing* must be distinguishable from *did not run*, for the classifier and the gate
+  both. A silent loop looks exactly like a clean corpus.
+- ⚠️ **The plumbing half-exists:** `parser_flags` is contractual and reaches `buildImportProof()`,
+  **then is discarded**. The build must persist per-kind records and counts. Miner rule 8 is not
+  extended — *yields nothing* and *has no home* are different conditions and both stand.
+
 ## Git workflow
 
 Solo repo, no branch protection. **Stay on `main`.** Don't create branches for ordinary work —
