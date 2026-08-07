@@ -1,0 +1,425 @@
+<!-- PROTOTYPE — throwaway. Design effort #157, item 1: "the layout when no summary prints".
+     Owner, 2026-08-06 (raised in #143): "make sure the layout design looks good and well
+     arranged. It shouldn't feel like visually there is a hole."
+
+     THE QUESTION: a tailored CV where no summary prints — what holds the top of the page
+     so it reads as deliberate rather than damaged?
+
+     ALREADY DECIDED (not open here):
+       - cv-authoring-rules.md, Professional Summary: the summary prints only if it carries a
+         concrete achievement or a fact the advert tests. Otherwise the WHOLE section is
+         omitted, heading included. Never an empty heading.
+       - "Never pad a thin CV with a generic paragraph: the detectable failure is emptiness,
+         not polish." => no variant may fill the gap with CONTENT. Layout only.
+       - Single column, top-to-bottom, linear. Two-column layouts are the most frequent cause
+         of critical ATS failure (research/2026-05-03_ats-parsing-pitfalls.md). No sidebar,
+         no split header, no grid.
+       - No contact info in headers/footers. No pipe separators (dash or comma).
+       - Standard section headings.
+
+     So the design space is exactly four levers: vertical rhythm, alignment, type weight, and
+     how the first rule is drawn.
+
+     Base styling is lifted verbatim from the real renderer (apps/api/src/preview.ts:
+     Calibri, #1F4E79 accent, centred header, uppercase bordered section heads) so variants
+     are judged against the page that actually ships, not a fantasy.
+
+     Candidate is synthetic and deliberately THIN — duties, no numbers, no named achievement.
+     That is the person whose summary does not print. The "summary ON" state shows the same
+     page as if she had an achievement, purely so the shape can be compared.
+
+     VIEWS
+       - All three (default): A | B | C side by side, in the no-summary state — the case in
+         question. Pages render at true width (640px) and are scaled down, so line breaks and
+         type proportions stay honest rather than reflowing at a fake width.
+       - One variant: a single page full size, with a with/without-summary compare.
+
+     ══ VERDICT — owner, 2026-08-07 ══════════════════════════════════════════
+     VARIANT C ("one spine") WINS. Binding on #159.
+       Left-aligned header on the same axis as every heading and bullet; two lines (name, then
+       role + contact folded onto one line with dashes); work starts high; nothing fills the
+       space the summary left. Reason: with a centred header the full-width section rule
+       arrives with nothing connecting to it — the header floats above the page instead of
+       starting it, and THAT is what reads as damage, with or without a summary. One vertical
+       edge top to bottom makes a missing summary read as a shorter page, not a removed one.
+
+     OWNER NOTE — reserved space. C's compressed left-aligned header leaves the TOP-RIGHT
+     CORNER free. Keep it available for a candidate photograph later: the header stays a
+     single container whose internal layout could host an image without restructuring.
+     DO NOT BUILD THE SLOT. Constraints it would inherit, none optional:
+       - a photograph is on ADR-0007's strip-list and ALL FOUR markets we serve strip it
+         (market-strip-lists.md: HK/SG/VN strip, AU strip-inert) — it would be withheld by
+         default on every CV we render today;
+       - headshots are a named ATS pitfall (ats-parsing-pitfalls.md, Graphics row);
+       - an image beside text in the same horizontal band is a two-column region — the single
+         most frequent cause of critical ATS failure;
+       - renderPreviewHtml() has no image slot: this is new capability, not a style change.
+
+     STILL OPEN, not decided here: the bottom of the page. A thin CV ends ~2/3 down in all
+     three variants, with or without a summary. The top gap is ~20px; the bottom band is ~300px.
+     Item 1 as written covers only the top. Routed back to #157.
+
+     Not production code. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JobCrush — the page with no summary (#157 item 1)</title>
+
+<style>
+  :root {
+    /* prototype chrome — deliberately NOT the CV's palette, so it is obvious what is being judged */
+    --hud-0: #0d1116;
+    --hud-1: #151a21;
+    --hud-line: #29313b;
+    --hud-ink: #e8eaed;
+    --hud-mute: #7f8b98;
+    --gold: #e8a33d;
+    --gold-hi: #ffd9a0;
+
+    /* the real CV palette, from preview.ts */
+    --cv-navy: #1F4E79;
+    --cv-ink: #1d2126;
+    --cv-mute: #5A6675;
+    --cv-contact: #444;
+
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --sw-h: 68px;
+    --page-w: 640px;   /* true page width; miniatures are scaled from this, never reflowed */
+  }
+
+  * { box-sizing: border-box; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.22) transparent; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(140,150,160,.22); border-radius: 3px; }
+
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--hud-0);
+    color: var(--hud-ink);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 26px 20px calc(var(--sw-h) + 34px);
+  }
+
+  /* ── the question banner ───────────────────────────────────────────── */
+  .ask {
+    max-width: 1260px; margin: 0 auto 20px;
+    border: 1px solid var(--hud-line); border-left: 3px solid var(--gold);
+    background: linear-gradient(180deg, var(--hud-1), var(--hud-0));
+    border-radius: 3px; padding: 13px 17px;
+  }
+  .ask h1 {
+    margin: 0 0 5px; font-size: 12px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--gold); font-weight: 600;
+  }
+  .ask p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--hud-mute); }
+  .ask p strong { color: var(--hud-ink); font-weight: 600; }
+  .ask .rules { margin: 9px 0 0; font-size: 11.5px; color: #64707d; font-family: var(--mono); line-height: 1.6; }
+
+  /* ── the stage ─────────────────────────────────────────────────────── */
+  .stage { max-width: 1260px; margin: 0 auto; display: flex; gap: 22px; align-items: flex-start; }
+  .stage.solo { max-width: 1360px; justify-content: center; }
+
+  .sheetwrap { flex: 1 1 0; min-width: 0; }
+  .sheetlabel {
+    margin: 0 0 9px; text-align: center; line-height: 1.35;
+  }
+  .sheetlabel .k {
+    font-size: 10px; letter-spacing: .18em; text-transform: uppercase; font-weight: 700;
+    color: var(--gold); display: block;
+  }
+  .sheetlabel .n { font-size: 13px; color: var(--hud-ink); display: block; margin-top: 2px; }
+  .sheetlabel .s { font-size: 11px; color: var(--hud-mute); display: block; margin-top: 3px; font-family: var(--mono); }
+  .sheetlabel .s.off { color: var(--gold-hi); }
+
+  /* the paper. The page edge must be visible — "is there a hole at the top" is unanswerable
+     without seeing where the page starts. */
+  .minibox { background: #fff; box-shadow: 0 16px 42px rgba(0,0,0,.55); border-radius: 2px; overflow: hidden; }
+  .mini { width: var(--page-w); transform-origin: top left; }
+
+  /* ══ THE CV ITSELF — base styles verbatim from preview.ts ══════════════ */
+  .cv {
+    font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+    color: var(--cv-ink);
+    padding: 36px 44px;
+    line-height: 1.4;
+    font-size: 14px;
+    /* A4 proportion at 640px wide is ~905px tall. Held so the bottom of the page is visible —
+       a thin CV's white space below the last section is part of what is being judged. */
+    min-height: 905px;
+  }
+  .cv h1 { font-size: 26px; margin: 0; color: var(--cv-navy); text-align: center; }
+  .cv .headline { font-weight: bold; text-transform: uppercase; text-align: center; margin: 4px 0 0; font-size: 14px; }
+  .cv .contact { color: var(--cv-contact); font-size: 12px; margin: 4px 0 0; text-align: center; }
+  .cv h2 {
+    font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--cv-navy);
+    border-bottom: 1.5px solid var(--cv-navy); padding-bottom: 3px; margin: 20px 0 8px;
+  }
+  .cv .role { margin-bottom: 12px; }
+  .cv .role-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .cv .dates { color: var(--cv-mute); font-size: 12px; white-space: nowrap; }
+  .cv .role-title { font-style: italic; margin: 1px 0 2px; }
+  .cv ul { margin: 4px 0 0; padding-left: 18px; }
+  .cv li { margin-bottom: 2px; }
+  .cv .skill-group { margin: 0 0 8px; }
+  .cv .edu { margin: 0 0 6px; }
+  .cv p.summary { margin: 0; }
+
+  /* ══ VARIANT B — "the letterhead" ═════════════════════════════════════
+     Fill the space with STRUCTURE, not content. The header stops being three stranded
+     centred lines and becomes a closed block with its own hairline rule, so the navy
+     section rule is no longer the first hard line on the page. */
+  .cv.v-b { padding-top: 40px; }
+  .cv.v-b h1 { font-size: 29px; letter-spacing: .02em; font-weight: 700; }
+  .cv.v-b .headline { font-size: 12px; letter-spacing: .18em; color: var(--cv-navy); margin: 7px 0 0; font-weight: 600; }
+  .cv.v-b .contact { font-size: 11.5px; margin: 9px 0 0; }
+  .cv.v-b .letterhead { border-bottom: 1px solid rgba(31,78,121,.28); padding-bottom: 16px; margin-bottom: 4px; }
+  .cv.v-b h2 { margin: 24px 0 8px; }
+
+  /* ══ VARIANT C — "one spine" ══════════════════════════════════════════
+     The opposite bet: shrink the top until there is no space left to read as a hole.
+     Everything left-aligned onto the same axis as every heading and every bullet, header
+     compressed to two lines, work starts high. Also the more ATS-conventional shape. */
+  .cv.v-c { padding-top: 34px; }
+  .cv.v-c h1 { text-align: left; font-size: 23px; letter-spacing: .01em; }
+  .cv.v-c .headline {
+    text-align: left; font-size: 12.5px; text-transform: none; font-weight: normal;
+    color: var(--cv-contact); margin: 5px 0 0; letter-spacing: 0;
+  }
+  .cv.v-c .headline .role-word { font-weight: bold; text-transform: uppercase; letter-spacing: .06em; color: var(--cv-ink); }
+  .cv.v-c .contact { display: none; }  /* folded into the headline line — two lines total */
+  .cv.v-c h2 { margin: 18px 0 7px; }
+
+  /* ── the floating switcher ─────────────────────────────────────────── */
+  .switcher {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 50;
+    height: var(--sw-h); display: flex; align-items: stretch;
+    background: rgba(21,26,33,.93); backdrop-filter: blur(14px);
+    border: 1px solid var(--hud-line); border-radius: 999px;
+    box-shadow: 0 10px 34px rgba(0,0,0,.6);
+    font-family: var(--sans); overflow: hidden; max-width: calc(100vw - 32px);
+  }
+  .switcher button {
+    background: transparent; border: 0; color: var(--hud-ink); cursor: pointer;
+    font-family: inherit; font-size: 13px; padding: 0 16px; display: flex; align-items: center;
+    transition: background .12s;
+  }
+  .switcher button:hover { background: rgba(232,163,61,.12); }
+  .arrow { font-size: 19px !important; width: 46px; justify-content: center; color: var(--gold) !important; }
+  .arrow[disabled] { opacity: .22; cursor: default; }
+  .arrow[disabled]:hover { background: transparent; }
+  .vlabel {
+    display: flex; flex-direction: column; justify-content: center; padding: 0 18px;
+    min-width: 216px; border-left: 1px solid var(--hud-line); border-right: 1px solid var(--hud-line);
+  }
+  .vlabel .k { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+  .vlabel .n { font-size: 13.5px; color: var(--hud-ink); margin-top: 3px; }
+  .tog {
+    display: flex; flex-direction: column; justify-content: center; gap: 3px;
+    padding: 0 17px; cursor: pointer; border-right: 1px solid var(--hud-line); transition: background .12s;
+  }
+  .tog:hover { background: rgba(232,163,61,.09); }
+  .tog:last-child { border-right: 0; }
+  .tog .tk { font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--hud-mute); font-weight: 700; }
+  .tog .tv { font-size: 13px; color: var(--hud-ink); }
+  .tog[data-on="true"] .tv { color: var(--gold-hi); font-weight: 600; }
+
+  .hint {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--sw-h) + 22px);
+    font-size: 10.5px; color: #5a6672; font-family: var(--mono); z-index: 49; white-space: nowrap;
+  }
+
+  @media (max-width: 980px) {
+    .stage { flex-direction: column; align-items: stretch; }
+    .vlabel { min-width: 140px; }
+    .hint { display: none; }
+  }
+</style>
+
+<div class="ask">
+  <h1>#157 · item 1 — the page with no summary</h1>
+  <p>The summary prints only when it carries a concrete achievement or a fact the advert tests. When it does not, <strong>the whole section is omitted, heading included</strong>. The open question is whether the resulting page reads as <strong>deliberate</strong> or as <strong>damage</strong>.</p>
+  <p class="rules">locked: single column (two-column = top ATS failure) · no content may fill the gap ("never pad a thin CV") · no contact in header/footer · no pipe separators<br>open: vertical rhythm · alignment · type weight · how the first rule is drawn</p>
+</div>
+
+<div class="stage" id="stage"></div>
+
+<div class="hint">← → variant &nbsp;·&nbsp; G all three &nbsp;·&nbsp; S summary on/off</div>
+
+<div class="switcher">
+  <button class="arrow" id="prev" aria-label="previous variant">‹</button>
+  <div class="vlabel"><span class="k" id="vk">A · B · C</span><span class="n" id="vn">All three, side by side</span></div>
+  <button class="arrow" id="next" aria-label="next variant">›</button>
+  <div class="tog" id="togView"><span class="tk">View</span><span class="tv" id="tvView">all three</span></div>
+  <div class="tog" id="togSummary"><span class="tk">Summary</span><span class="tv" id="tvSummary">off</span></div>
+</div>
+
+<script>
+/* ── the candidate ──────────────────────────────────────────────────────
+   Synthetic and deliberately thin: duties, no numbers, no named achievement. This is
+   exactly the person whose summary does not print. Mei is the repo's standing worked
+   example (ADR-0008's "Mei rule"); Standard Chartered / Jan 2019 – Mar 2022 is the dated
+   line #157 item 3 uses as its own example. */
+const CV = {
+  name: "Mei-Ling Chan",
+  headline: "Project Manager",
+  contact: "Hong Kong — mei.chan@example.com — +852 5512 8840",
+  /* Shown only in the "summary ON" state, so the two shapes can be compared. Written to the
+     rule: achievement first, no identity opener, no capability claims, nothing restated. */
+  summary: "Delivered the regional payments platform upgrade across Hong Kong, Singapore and Taiwan, six months ahead of the original programme date.",
+  experience: [
+    {
+      employer: "Standard Chartered Bank, Hong Kong",
+      dates: "Jan 2019 – Mar 2022",
+      role: "Regional Project Manager",
+      bullets: [
+        "Coordinated delivery of regional payments platform upgrades across Hong Kong, Singapore and Taiwan.",
+        "Ran weekly steering meetings with business and technology stakeholders.",
+        "Maintained project plans, risk logs and status reporting for the programme office.",
+      ],
+    },
+    {
+      employer: "Hutchison Telecommunications, Hong Kong",
+      dates: "Aug 2016 – Dec 2018",
+      role: "Project Coordinator",
+      bullets: [
+        "Supported the rollout of a customer billing system across retail branches.",
+        "Prepared vendor documentation and tracked change requests through to sign-off.",
+      ],
+    },
+  ],
+  skills: [
+    { label: "Delivery", items: "Project planning, Stakeholder management, Risk and issue tracking, Vendor coordination" },
+    { label: "Tools", items: "MS Project, Jira, Confluence, Excel" },
+  ],
+  education: [{ institution: "The Hong Kong Polytechnic University", dates: "2016", detail: "BBA (Hons), Management" }],
+};
+
+const VARIANTS = [
+  { key: "A", name: "As shipped", cls: "", note: "centred header, nothing changed" },
+  { key: "B", name: "The letterhead", cls: "v-b", note: "header closed by its own hairline" },
+  { key: "C", name: "One spine", cls: "v-c", note: "left-aligned, top compressed to two lines" },
+];
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* The real renderer's rule: a section with no body prints nothing at all — no heading.
+   apps/api/src/preview.ts: `body ? <h2>title</h2>body : ""`. */
+const section = (title, body) => (body ? `<h2>${esc(title)}</h2>${body}` : "");
+
+function header(v) {
+  if (v.key === "C") {
+    /* two lines total: name, then role + contact folded onto one line. Dashes, never pipes. */
+    return `<h1>${esc(CV.name)}</h1>
+      <p class="headline"><span class="role-word">${esc(CV.headline)}</span> &nbsp;—&nbsp; ${esc(CV.contact)}</p>`;
+  }
+  const block = `<h1>${esc(CV.name)}</h1>
+    <p class="headline">${esc(CV.headline)}</p>
+    <p class="contact">${esc(CV.contact)}</p>`;
+  /* B closes the header with its own hairline rule so the navy section rule is not the
+     first hard line the eye meets. */
+  return v.key === "B" ? `<div class="letterhead">${block}</div>` : block;
+}
+
+function renderCv(v, withSummary) {
+  const experience = CV.experience
+    .map(
+      (e) =>
+        `<div class="role"><div class="role-head"><strong>${esc(e.employer)}</strong>` +
+        `<span class="dates">${esc(e.dates)}</span></div>` +
+        `<div class="role-title">${esc(e.role)}</div>` +
+        `<ul>${e.bullets.map((b) => `<li>${esc(b)}</li>`).join("")}</ul></div>`,
+    )
+    .join("");
+  const skills = CV.skills
+    .map((g) => `<p class="skill-group"><strong>${esc(g.label)}</strong><br>${esc(g.items)}</p>`)
+    .join("");
+  const education = CV.education
+    .map((e) => `<p class="edu"><strong>${esc(e.institution)}</strong>, ${esc(e.dates)}<br>${esc(e.detail)}</p>`)
+    .join("");
+
+  return `<div class="cv ${v.cls}">
+    ${header(v)}
+    ${section("Summary", withSummary ? `<p class="summary">${esc(CV.summary)}</p>` : "")}
+    ${section("Professional Experience", experience)}
+    ${section("Skills", skills)}
+    ${section("Education", education)}
+  </div>`;
+}
+
+/* ── state ─────────────────────────────────────────────────────────── */
+const params = new URLSearchParams(location.search);
+const rawV = (params.get("variant") || "all").toLowerCase();
+let all = rawV === "all";
+let vi = Math.max(0, VARIANTS.findIndex((v) => v.key === rawV.toUpperCase()));
+let summaryOn = params.get("summary") === "on";
+
+function sheet(v, withSummary) {
+  return `<div class="sheetwrap">
+    <p class="sheetlabel">
+      <span class="k">${v.key}</span>
+      <span class="n">${esc(v.name)}</span>
+      <span class="s ${withSummary ? "" : "off"}">${withSummary ? "with a summary" : "no summary — the case in question"}</span>
+    </p>
+    <div class="minibox"><div class="mini">${renderCv(v, withSummary)}</div></div>
+  </div>`;
+}
+
+/* Pages are laid out at their true 640px width and scaled down, never reflowed — a CV
+   squeezed to a narrow column lies about its line breaks, which is most of what is being
+   judged here. The box height is corrected after scaling so the sheets sit flush. */
+function fit() {
+  document.querySelectorAll(".minibox").forEach((box) => {
+    const mini = box.firstElementChild;
+    const s = box.clientWidth / 640;
+    mini.style.transform = `scale(${s})`;
+    box.style.height = mini.offsetHeight * s + "px";
+  });
+}
+
+function render() {
+  const stage = document.getElementById("stage");
+  stage.className = "stage" + (all ? "" : " solo");
+  stage.innerHTML = all
+    ? VARIANTS.map((v) => sheet(v, summaryOn)).join("")
+    /* one variant: show it both ways, so "does the without-version read as damage" is a
+       direct comparison rather than a memory test */
+    : sheet(VARIANTS[vi], true) + sheet(VARIANTS[vi], false);
+
+  const v = VARIANTS[vi];
+  document.getElementById("vk").textContent = all ? "A · B · C" : v.key;
+  document.getElementById("vn").textContent = all ? "All three, side by side" : v.name + " — " + v.note;
+  document.getElementById("tvView").textContent = all ? "all three" : "one variant";
+  document.getElementById("togView").dataset.on = String(all);
+  document.getElementById("tvSummary").textContent = all ? (summaryOn ? "on" : "off") : "both shown";
+  document.getElementById("togSummary").dataset.on = String(all && summaryOn);
+  document.getElementById("prev").disabled = all;
+  document.getElementById("next").disabled = all;
+
+  const q = new URLSearchParams({ variant: all ? "all" : v.key, summary: summaryOn ? "on" : "off" });
+  history.replaceState(null, "", "?" + q.toString());
+  requestAnimationFrame(fit);
+}
+
+const step = (d) => { if (all) return; vi = (vi + d + VARIANTS.length) % VARIANTS.length; render(); };
+document.getElementById("prev").onclick = () => step(-1);
+document.getElementById("next").onclick = () => step(1);
+document.getElementById("togView").onclick = () => { all = !all; render(); };
+document.getElementById("togSummary").onclick = () => {
+  if (!all) { all = true; render(); return; }   /* summary toggle only means something in gallery */
+  summaryOn = !summaryOn; render();
+};
+
+addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+  const k = e.key.toLowerCase();
+  if (e.key === "ArrowLeft") { if (all) { all = false; render(); } else step(-1); }
+  else if (e.key === "ArrowRight") { if (all) { all = false; render(); } else step(1); }
+  else if (k === "g") { all = true; render(); }
+  else if (k === "s") { if (!all) { all = true; } else { summaryOn = !summaryOn; } render(); }
+});
+
+addEventListener("resize", fit);
+render();
+</script>

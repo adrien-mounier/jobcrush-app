@@ -2,6 +2,50 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-07 (session 92) — Design effort [#157](https://github.com/adrien-mounier/jobcrush-app/issues/157) session 1: item 1 decided (the page with no summary)
+
+_First working session of the interactive design effort. Owner + designer, `/prototype` reacted to
+live, per the format decided on #157. **Item 1 closed; five designs scoped; two new register items.**_
+
+- **The register is bigger than it reads: six numbered, ten actual.** Four arrived after the register
+  was written — three in #157's own ADR-0010 comment, and the **chunked-ingestion experience** (#169),
+  named in the owner-decision comment but never numbered. They collapse into **five designs**, which is
+  the ticket's whole point (three of them are one control with four callers): **A** confirm & correct
+  (items 3+4 → #161, #163, #120) · **B** "we changed what prints" (item 5 + ADR-0010's three → #168,
+  #170) · **C** the scope of a "no" (items 2+6 → #171, #169) · **D** the page with a hole (item 1 →
+  #159) · **E** chunked ingestion (→ #169).
+- **⚠️ #159 was unguarded — done first for that reason.** It is on the build frontier, `ready-for-agent`,
+  and its body hands the layout to #157, but it is **not** among #157's native blockers (#161, #163,
+  #168, #169, #171). An agent could have shipped a page nobody looked at. Closed by deciding rather
+  than by adding a blocker.
+- **⭐ Item 1 decided: variant C, "one spine".** Header **left-aligned** onto the same axis as every
+  heading and bullet, compressed to **two lines** (name; role + contact folded on one, dashes not
+  pipes), work starts high, nothing fills the vacated space. **The real defect was never the missing
+  paragraph** — a *centred* header hands off to a *full-width* rule with nothing connecting them, so it
+  floats above the page instead of starting it, with or without a summary. One vertical edge top to
+  bottom makes a missing summary read as a **shorter page**, not a **removed section**. Rejected: A (as
+  shipped) · B (hairline under the header — reads striped, two rules within 25px). Binding instruction
+  on **#159**; primary source `apps/web/prototypes/no-summary-layout.prototype.html`.
+- **The finding worth reusing: this design space is tiny, and that is the answer.** Two-column tops are
+  the top cause of critical ATS failure · no contact in header/footer · no pipes · and **nothing may
+  fill the gap with content**, since the summary is absent exactly when there is no achievement and
+  *"never pad a thin CV"* is hard. Four levers remain: vertical rhythm, alignment, type weight, how the
+  first rule is drawn. Naming that up front is what made three variants enough.
+- **⭐ New register item — the reserved corner (owner).** C leaves the **top-right corner free**; keep it
+  available for a candidate **photograph** later, header as a single container, **#159 must not build the
+  slot**. 🚨 Recorded with its constraints because the note misleads without them: a photograph is on
+  ADR-0007's strip-list and **all four markets we serve strip it** (HK/SG/VN strip, AU inert) so it would
+  be **withheld by default on every CV we render today** · headshots are a named **ATS pitfall** · an
+  image beside text in one band is a **two-column region** · the renderer has **no image slot**. Room
+  reserved for a *capability*, not for something that will print.
+- **⚠️ New open item — the hole may be at the bottom.** Seeing all three as full pages: a thin CV (exactly
+  the CV whose summary does not print) **ends ~2/3 down the page, with or without a summary**. Top gap
+  ~20px; bottom band ~300px, barely moved by toggling the summary back on. Rules cap at two pages and set
+  **no minimum**, so nothing notices. Item 1 was scoped to the smaller of the two problems. Recorded on
+  #157; not decided; does not block #159.
+- **Next:** Design A (confirm & correct — items 3+4), the critical-path one, gating #161 and carrying
+  #120's live staging harm.
+
 ## 2026-08-07 (session 91) — Map #127's final act: `/to-tickets` — 14 build tickets, ADR-0011, and the design effort decided
 
 _`/to-tickets` on map [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127). Output:
