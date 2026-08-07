@@ -2,6 +2,49 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-07 (session 92b) — Design effort [#157](https://github.com/adrien-mounier/jobcrush-app/issues/157): **Design A decided** — confirm & correct (items 3 + 4)
+
+_Same session, second design. Two prototype rounds with the owner live. **Round 1 offered three
+shapes and the owner picked none of them**, naming a fourth: Tinder. Round 2 built it. Binding
+instructions on [#161](https://github.com/adrien-mounier/jobcrush-app/issues/161) (confirm flow) and
+[#163](https://github.com/adrien-mounier/jobcrush-app/issues/163) (correction surface)._
+
+- **⭐ The decision that unlocked it: "showing it is enough."** Every machine decision is **visible and
+  correctable**, but **one confirm may cover several**. The ≤15 budget limits **rewording her
+  sentences**, not taps — reading it as a tap cap is what made 30-decisions-vs-15 look unsolvable. Six
+  dated blocks = 30 machine decisions = **6 cards**. Recorded as an interpretation of #161's promise,
+  not assumed.
+- **The shape:** one dated block = one full card · **right = that's right, left = skip for now, tap =
+  correct** · panel on the right (checked N of M · experience confirmed · potential jobs matching ·
+  things you put right) · undo on everything · **register stays light**.
+- **🚨 Correcting is not a swipe, and that is not aesthetics.** The shipped job deck stamps **"Not for
+  me"** on the left — a rejection. Left could not mean *correct* without one gesture meaning two things
+  in one journey, and could not mean *discard* because that **is #120's live harm**. Confirm-only
+  horizontal dissolves the collision. Left = skip is ADR-0011 clause 4's own word, reused.
+- **🚨 Finding that rewrites a written ticket: #161's *"is this work?"* switch is aimed one level too
+  high.** Its promise holds; its **question** breaks ADR-0008's Mei rule — *if a rebuild would overwrite
+  the answer, the question is one level too high*, and counting is derived from **what the thing is**.
+  Ask the **kind** (a job · education · a project · a client · volunteering — the product's own
+  elements, #161/#166/#167/ADR-0009) and derive the counting. ⚠️ **The owner found this from the screen
+  and rejected the designer's worked example as false** (no LLM reads *"HK Polytechnic University, BBA
+  (Hons)"* as employment) — the bad example was hiding a real defect one level down.
+- **⭐ The swipe deck already ships — reused, not invented.** `apps/web/app/deck/page.tsx` + `deck.css`
+  carry 8px activation, axis lock, 90px commit, stamps, fly-outs, reduced motion; `factbadge.css`
+  carries the gold-chip reward beat. Copied at shipped values, so the build is cheaper than the shape
+  suggests.
+- **The reward pays for the doing, never for an answer.** Owner: *"any new info added, by any kind,
+  should feel like a reward."* Every finished card flies a chip carrying **her thing** (`+ Standard
+  Chartered`) to the checked counter; matching jobs bumps second, only when it moved; a skip celebrates
+  nothing. 🚨 An earlier draft fired only on "counts as work" — paying for one answer, the silent drift
+  decision 9 calls the bug.
+- **⚠️ Left open deliberately:** where a correction happens **later** (the deck answers *fix it now*, not
+  *come back in three months*). Recorded on #163 with the candidate — round 1's **career timeline**,
+  which lost as a first-pass shape (one confirm over thirty decisions reads as a rubber stamp) but is
+  stronger as a **revisit** surface. **Accepted residual:** *"I'm still there"* on an open-ended job is
+  farmable; a deliberate claim, so decision 9's *propose, never police* stands.
+- **Next:** Design B — "we changed what prints" (item 5 + ADR-0010's three), four requirements
+  collapsing into one control.
+
 ## 2026-08-07 (session 92) — Design effort [#157](https://github.com/adrien-mounier/jobcrush-app/issues/157) session 1: item 1 decided (the page with no summary)
 
 _First working session of the interactive design effort. Owner + designer, `/prototype` reacted to

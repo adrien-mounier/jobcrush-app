@@ -1,0 +1,698 @@
+<!-- PROTOTYPE — throwaway. Design effort #157, Design A: items 3 + 4 together.
+       item 3 — the confirm deck's tiering, when a "sentence" is really a structured fact
+       item 4 — the correction screen itself
+     They are one design: the surface that shows a machine read and the surface that fixes it
+     are the same frame revisited. #157 says these will otherwise be built three times.
+
+     THE QUESTION: when the machine has read facts out of someone's CV, what is ONE review
+     unit — and how do you fix one — without the tap count exploding?
+
+     THE TENSION, IN ONE NUMBER: the shipped deck tiers SENTENCES. A dated line
+     ("Jan 2019 – Mar 2022 · Regional Project Manager · Standard Chartered") is one verbatim
+     sentence, so today it BATCHES — and the five machine decisions under it (start, end,
+     title, employer, and whether this counts as work at all) are never seen. Six dated blocks
+     on a realistic CV x five decisions = 30. The deck's individual-review budget is 15.
+
+     WHAT IS ALREADY DECIDED (not open here):
+       - Every machine decision must be VISIBLE AND CORRECTABLE, including is-this-work
+         (#161 AC; ADR-0004 clause 1a). #157: "the design effort must decide the tiering; it
+         may not decide the promise away."
+       - The <=15 individual-review budget is explicitly NOT loosened (map #127 decision 7).
+         Read it precisely: it limits REWORDING THE PERSON'S SENTENCES, not questions. That is
+         the crack this design works in — "visible" and "individually confirmed" are not the
+         same requirement.
+       - A correction lands on the FACT, never on a derived value (map promise 2c).
+       - An unreadable history reads as a QUESTION, never a failure (#122).
+       - "The frame generalises, the editing controls do not" (owner's recorded limit) — so:
+         one correction frame, different controls per fact type.
+       - The person is told what a correction changes downstream, in plain words (#163 UX intent).
+       - #120 has LIVE HARM on staging today: a mistap removes jobs with no undo. Anything
+         designed here needs an undo.
+       - A client line is never an employment entry (ADR-0009 clause 1) — and nothing in code
+         forbids it today.
+
+     Styling uses the REAL shipped tokens (packages/ui/src/tokens.css) and the real deck's
+     card/chip/btn classes, because this is an adjustment to a shipped screen and must be
+     judged at real density. Prototype chrome is deliberately dark so it is obvious what is
+     being judged.
+
+     Data is a realistic MESSY CV: a clean job, a year-only job, a job with an unknown end
+     (#143's hole that zeroes a career), a nested client line (ADR-0009's hazard), and a degree
+     with dates (the is-this-work switch). Mei is the repo's standing worked example.
+
+     Not production code. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JobCrush — confirm & correct (#157 items 3+4)</title>
+
+<style>
+  /* ══ the real app tokens — packages/ui/src/tokens.css, verbatim ══ */
+  :root {
+    --jc-verified: #1a7f37;
+    --jc-derived: #0969da;
+    --jc-partial: #9a6700;
+    --jc-suggested: #8250df;
+    --jc-negative: #57606a;
+    --jc-danger: #cf222e;
+
+    --jc-bg: #faf9f7;
+    --jc-surface: #ffffff;
+    --jc-ink: #1f2328;
+    --jc-ink-muted: #59636e;
+    --jc-line: #d9d5cf;
+    --jc-accent: #0b6e5f;
+    --jc-accent-ink: #ffffff;
+
+    --jc-sp-xs: 4px;  --jc-sp-sm: 8px;  --jc-sp-md: 16px;
+    --jc-sp-lg: 24px; --jc-sp-xl: 40px;
+    --jc-radius-card: 12px;
+    --jc-radius-pill: 999px;
+    --jc-font: "Avenir Next", "Segoe UI Variable", Seravek, Corbel, source-sans-pro, sans-serif;
+
+    /* prototype chrome only — deliberately NOT app colours */
+    --hud-0: #0d1116; --hud-1: #151a21; --hud-line: #29313b;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98; --gold: #e8a33d; --gold-hi: #ffd9a0;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --sw-h: 66px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #e7e3dd;
+    color: var(--jc-ink); font-family: var(--jc-font); line-height: 1.5;
+    padding: 24px 18px calc(var(--sw-h) + 30px);
+  }
+
+  /* ── question banner ── */
+  .ask {
+    max-width: 1120px; margin: 0 auto 20px;
+    border: 1px solid var(--hud-line); border-left: 3px solid var(--gold);
+    background: linear-gradient(180deg, var(--hud-1), var(--hud-0));
+    border-radius: 3px; padding: 13px 17px; color: var(--hud-mute);
+  }
+  .ask h1 { margin: 0 0 5px; font-size: 12px; letter-spacing: .13em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
+  .ask p { margin: 0; font-size: 13.5px; line-height: 1.5; }
+  .ask p strong { color: var(--hud-ink); font-weight: 600; }
+  .ask .rules { margin: 9px 0 0; font-size: 11.5px; color: #64707d; font-family: var(--mono); line-height: 1.6; }
+
+  /* ── the phone-ish app frame ── */
+  .stage { max-width: 1120px; margin: 0 auto; display: flex; gap: 22px; align-items: flex-start; justify-content: center; }
+  .appcol { flex: 0 1 660px; min-width: 0; }
+  .app {
+    background: var(--jc-bg); border-radius: 14px; overflow: hidden;
+    box-shadow: 0 18px 46px rgba(0,0,0,.28); border: 1px solid #cfcac2;
+  }
+  .brandbar { border-bottom: 1px solid var(--jc-line); background: var(--jc-surface); }
+  .brandbar > div { padding: 13px var(--jc-sp-md); }
+  .brandbar a { font-size: 1.05rem; font-weight: 700; letter-spacing: -.02em; color: var(--jc-accent); text-decoration: none; }
+  main { max-width: 640px; margin: 0 auto; padding: var(--jc-sp-lg) var(--jc-sp-md) var(--jc-sp-xl); }
+
+  h1.screen { font-size: 1.7rem; letter-spacing: -.02em; margin: 0 0 var(--jc-sp-sm); }
+  p.lede { color: var(--jc-ink-muted); margin: 0 0 var(--jc-sp-lg); }
+  .card {
+    background: var(--jc-surface); border: 1px solid var(--jc-line);
+    border-radius: var(--jc-radius-card); padding: var(--jc-sp-lg); margin-bottom: var(--jc-sp-md);
+  }
+  .btn {
+    display: inline-block; background: var(--jc-accent); color: var(--jc-accent-ink);
+    border: none; border-radius: var(--jc-radius-pill); padding: 11px 24px;
+    font-size: .97rem; font-family: inherit; font-weight: 600; cursor: pointer;
+  }
+  .btn-secondary { background: transparent; color: var(--jc-accent); border: 1px solid var(--jc-line); }
+  .btn-sm { padding: 7px 16px; font-size: .87rem; }
+  .btn:disabled { opacity: .45; cursor: default; }
+
+  /* a machine decision the person can tap to fix. The dotted underline is the affordance —
+     it must read as "we decided this" without shouting. */
+  .dec {
+    border: 0; background: transparent; font: inherit; color: inherit; padding: 0 1px;
+    border-bottom: 1.5px dotted #9aa4ad; cursor: pointer; border-radius: 2px;
+  }
+  .dec:hover { background: #fdf3dd; border-bottom-color: var(--jc-partial); }
+  .dec.fixed { background: #e6f2ee; border-bottom: 1.5px solid var(--jc-accent); }
+  .dec.warn { border-bottom-color: var(--jc-partial); color: #7a5200; background: #fdf6e6; }
+
+  .quote { color: var(--jc-ink-muted); font-size: .85rem; margin: 10px 0 0; }
+  .badge {
+    display: inline-block; font-size: .7rem; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; padding: 3px 9px; border-radius: var(--jc-radius-pill);
+    background: #eef1f4; color: var(--jc-negative);
+  }
+  .badge[data-cls="work"] { background: #e6f2ee; color: var(--jc-accent); }
+  .badge[data-cls="notwork"] { background: #f2eef8; color: var(--jc-suggested); }
+  .badge[data-cls="ask"] { background: #fdf6e6; color: var(--jc-partial); }
+
+  .rowhead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .emp { font-weight: 700; }
+  .ttl { font-style: italic; color: var(--jc-ink); }
+  .dts { color: var(--jc-ink-muted); font-size: .9rem; white-space: nowrap; }
+  .acts { display: flex; gap: var(--jc-sp-sm); flex-wrap: wrap; margin-top: var(--jc-sp-md); }
+  .done { color: var(--jc-accent); font-weight: 600; font-size: .92rem; }
+  .linkbtn { background: none; border: 0; color: var(--jc-accent); cursor: pointer; padding: 0; font: inherit; text-decoration: underline; }
+
+  /* ══ VARIANT B — the read-back sentence ══ */
+  .readback { font-size: 1.06rem; line-height: 1.65; margin: 0; }
+
+  /* ══ VARIANT C — the career timeline ══ */
+  .tl { position: relative; padding-left: 118px; }
+  .tl::before { content: ""; position: absolute; left: 104px; top: 4px; bottom: 4px; width: 2px; background: var(--jc-line); }
+  .tlrow { position: relative; margin-bottom: 18px; }
+  .tlrow .rail { position: absolute; left: -118px; width: 100px; text-align: right; font-size: .82rem; color: var(--jc-ink-muted); line-height: 1.35; padding-top: 1px; }
+  .tlrow .dot { position: absolute; left: -20px; top: 6px; width: 11px; height: 11px; border-radius: 50%; background: var(--jc-accent); border: 2px solid var(--jc-bg); }
+  .tlrow[data-work="false"] .dot { background: var(--jc-suggested); }
+  .tlrow[data-open="true"] .dot { background: var(--jc-partial); }
+  .tlbody { background: var(--jc-surface); border: 1px solid var(--jc-line); border-radius: 10px; padding: 12px 14px; }
+  .tlrow[data-work="false"] .tlbody { background: #fbfaff; border-style: dashed; }
+  .tlrow[data-open="true"] .tlbody { border-color: #e2c684; background: #fffdf6; }
+  .gapnote { font-size: .8rem; color: var(--jc-ink-muted); margin: -8px 0 14px 0; font-style: italic; }
+
+  /* ══ the correction sheet — ONE frame, controls differ by fact type ══ */
+  .scrim { position: fixed; inset: 0; background: rgba(20,22,25,.42); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .sheet {
+    background: var(--jc-surface); border-radius: 16px; width: 100%; max-width: 460px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.35); padding: var(--jc-sp-lg); font-family: var(--jc-font);
+    max-height: 86vh; overflow: auto;
+  }
+  .sheet h3 { margin: 0 0 4px; font-size: 1.15rem; }
+  .sheet .sub { color: var(--jc-ink-muted); font-size: .88rem; margin: 0 0 var(--jc-sp-md); }
+  .sheet label { display: block; font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--jc-ink-muted); margin: 0 0 5px; }
+  .sheet input[type="text"], .sheet select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--jc-line); border-radius: 8px;
+    font: inherit; font-size: .97rem; background: #fff; color: var(--jc-ink);
+  }
+  .fieldrow { display: flex; gap: 10px; margin-bottom: var(--jc-sp-md); }
+  .fieldrow > div { flex: 1 1 0; min-width: 0; }
+  .choice { display: flex; flex-direction: column; gap: 8px; margin-bottom: var(--jc-sp-md); }
+  .choice button {
+    text-align: left; padding: 12px 14px; border: 1.5px solid var(--jc-line); background: #fff;
+    border-radius: 10px; font: inherit; cursor: pointer; color: var(--jc-ink);
+  }
+  .choice button[aria-pressed="true"] { border-color: var(--jc-accent); background: #eef7f4; }
+  .choice button strong { display: block; font-size: .97rem; }
+  .choice button span { display: block; font-size: .83rem; color: var(--jc-ink-muted); margin-top: 2px; }
+  /* #163: what this correction changes downstream, in plain words */
+  .consequence {
+    background: #eef7f4; border: 1px solid #bfded4; border-left: 3px solid var(--jc-accent);
+    border-radius: 8px; padding: 11px 13px; font-size: .89rem; margin-bottom: var(--jc-sp-md); color: #114f45;
+  }
+  .consequence.none { background: #f6f5f3; border-color: var(--jc-line); border-left-color: var(--jc-negative); color: var(--jc-ink-muted); }
+  .origin { font-size: .78rem; color: var(--jc-ink-muted); margin: 0 0 var(--jc-sp-md); font-style: italic; }
+
+  /* undo — #120's live harm */
+  .undo {
+    position: sticky; bottom: 8px; background: #1f2328; color: #fff; border-radius: 10px;
+    padding: 11px 15px; font-size: .88rem; display: flex; justify-content: space-between;
+    align-items: center; gap: 12px; margin-top: var(--jc-sp-md);
+  }
+  .undo button { background: none; border: 0; color: var(--gold-hi); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+  /* ── the tap meter: the whole point of the comparison ── */
+  .meter {
+    flex: 0 0 250px; position: sticky; top: 24px;
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 10px;
+    padding: 15px 16px; color: var(--hud-ink); font-family: var(--mono);
+  }
+  .meter h4 { margin: 0 0 11px; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); font-family: var(--jc-font); font-weight: 700; }
+  .meter .big { font-size: 34px; line-height: 1; color: var(--gold-hi); }
+  .meter .big small { font-size: 13px; color: var(--hud-mute); }
+  .meter .row { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--hud-mute); margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--hud-line); }
+  .meter .row b { color: var(--hud-ink); font-weight: 600; }
+  .meter .warnline { color: #f0a; }
+  .meter .note { font-size: 10.5px; color: #64707d; margin-top: 11px; line-height: 1.55; font-family: var(--jc-font); }
+  .bar { height: 5px; background: var(--hud-0); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--gold); }
+  .bar i.over { background: var(--jc-danger); }
+
+  /* ── floating switcher ── */
+  .switcher {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px; z-index: 70;
+    height: var(--sw-h); display: flex; align-items: stretch;
+    background: rgba(21,26,33,.94); backdrop-filter: blur(14px);
+    border: 1px solid var(--hud-line); border-radius: 999px;
+    box-shadow: 0 10px 34px rgba(0,0,0,.6); overflow: hidden; max-width: calc(100vw - 28px);
+    font-family: var(--jc-font);
+  }
+  .switcher button.nav { background: transparent; border: 0; color: var(--gold); cursor: pointer; font-size: 19px; width: 46px; display: flex; align-items: center; justify-content: center; }
+  .switcher button.nav:hover { background: rgba(232,163,61,.12); }
+  .vlabel { display: flex; flex-direction: column; justify-content: center; padding: 0 18px; min-width: 240px; border-left: 1px solid var(--hud-line); border-right: 1px solid var(--hud-line); color: var(--hud-ink); }
+  .vlabel .k { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+  .vlabel .n { font-size: 13.5px; margin-top: 3px; }
+  .tog { display: flex; align-items: center; padding: 0 17px; cursor: pointer; color: var(--hud-ink); font-size: 13px; }
+  .tog:hover { background: rgba(232,163,61,.09); }
+
+  .hint { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--sw-h) + 20px); font-size: 10.5px; color: #6b7784; font-family: var(--mono); z-index: 69; white-space: nowrap; }
+
+  @media (max-width: 1000px) {
+    .stage { flex-direction: column-reverse; align-items: stretch; }
+    .meter { position: static; flex: none; }
+    .hint { display: none; }
+  }
+</style>
+
+<div class="ask">
+  <h1>#157 · Design A — confirm &amp; correct (items 3 + 4)</h1>
+  <p>A dated line is <strong>one sentence but five machine decisions</strong>: start, end, title, employer, and <strong>whether it counts as work at all</strong> — which moves the years total and therefore which adverts she clears. The shipped deck batches verbatim lines, so today <strong>nobody ever sees them</strong>. Six dated blocks × five decisions = <strong>30</strong>, against a review budget of <strong>15</strong>.</p>
+  <p class="rules">locked: every decision visible AND correctable, is-this-work included · the ≤15 budget is not loosened — but it limits <em>rewording her sentences</em>, not questions · a fix lands on the fact, never a derived value · an unreadable history reads as a question · one frame, controls differ by type · say what a fix changes downstream · undo (#120 harm)<br>open: what one review unit IS · how many taps a clean CV costs · where the correction lives</p>
+</div>
+
+<div class="stage">
+  <div class="appcol">
+    <div class="app">
+      <div class="brandbar"><div><a href="#">JobCrush</a></div></div>
+      <main id="screen"></main>
+    </div>
+  </div>
+  <div class="meter" id="meter"></div>
+</div>
+
+<div id="sheetHost"></div>
+
+<div class="hint">← → variant &nbsp;·&nbsp; R reset &nbsp;·&nbsp; tap any dotted value to correct it</div>
+
+<div class="switcher">
+  <button class="nav" id="prev" aria-label="previous variant">‹</button>
+  <div class="vlabel"><span class="k" id="vk">A</span><span class="n" id="vn">The job card</span></div>
+  <button class="nav" id="next" aria-label="next variant">›</button>
+  <div class="tog" id="reset">Reset</div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   THE CV — deliberately messy, so every decision type appears once.
+   Mei is the repo's standing worked example (ADR-0008's "Mei rule").
+   ══════════════════════════════════════════════════════════════════════ */
+const SEED = [
+  {
+    id: "j1", kind: "job", employer: "Standard Chartered Bank", location: "Hong Kong",
+    title: "Regional Project Manager",
+    start: { y: 2019, m: 1, prec: "month" }, end: { y: 2022, m: 3, prec: "month", state: "ended" },
+    isWork: true, confident: true,
+    quote: "Regional Project Manager, Standard Chartered Bank, Hong Kong | Jan 2019 – Mar 2022",
+  },
+  {
+    id: "j2", kind: "client", employer: "ASSYSTEM", parentEmployer: "Standard Chartered Bank",
+    title: "", start: { y: 2021, m: 2, prec: "month" }, end: { y: 2021, m: 5, prec: "month", state: "ended" },
+    /* ADR-0009 clause 1: a client line is a name + a date range nested under an employer —
+       byte-for-byte an employment block, and NOTHING in code forbids it becoming one today. */
+    isWork: false, confident: false, isClient: true,
+    quote: "ASSYSTEM (client) - 02/2021 - 05/2021",
+  },
+  {
+    id: "j3", kind: "job", employer: "Freelance", location: "Hong Kong",
+    title: "Project Consultant",
+    start: { y: 2022, m: 6, prec: "month" }, end: { y: null, m: null, prec: null, state: "unknown" },
+    /* #143's always-asked hole: an unknown end zeroes years of a career. */
+    isWork: true, confident: false,
+    quote: "Project Consultant (freelance), 06/2022 –",
+  },
+  {
+    id: "j4", kind: "job", employer: "Hutchison Telecommunications", location: "Hong Kong",
+    title: "Project Coordinator",
+    start: { y: 2016, m: 8, prec: "month" }, end: { y: 2018, m: 12, prec: "month", state: "ended" },
+    isWork: true, confident: true,
+    quote: "Project Coordinator — Hutchison Telecommunications, Hong Kong, Aug 2016 – Dec 2018",
+  },
+  {
+    id: "j5", kind: "job", employer: "Cathay Pacific", location: "Hong Kong",
+    title: "Business Analyst",
+    /* year-only precision: the record must hold exactly what is known, never pad to months */
+    start: { y: 2015, m: null, prec: "year" }, end: { y: 2016, m: null, prec: "year", state: "ended" },
+    isWork: true, confident: true,
+    quote: "Business Analyst, Cathay Pacific, 2015 – 2016",
+  },
+  {
+    id: "j6", kind: "education", employer: "The Hong Kong Polytechnic University",
+    title: "BBA (Hons), Management",
+    start: { y: 2012, m: 9, prec: "month" }, end: { y: 2016, m: 6, prec: "month", state: "ended" },
+    /* the is-this-work switch: a dated block that must NOT reach the experience total */
+    isWork: false, confident: true,
+    quote: "The Hong Kong Polytechnic University, Sep 2012 – Jun 2016 — BBA (Hons), Management",
+  },
+];
+
+const clone = (o) => JSON.parse(JSON.stringify(o));
+let jobs = clone(SEED);
+let decided = {};        // id -> true once the person has accepted that block
+let taps = 0;            // every deliberate decision the person makes
+let corrections = 0;
+let lastUndo = null;     // #120: a mistap must be reversible
+let sheet = null;        // open correction sheet state
+
+const MONTHS = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MON3 = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const NOW = { y: 2026, m: 8 };
+
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ── how a date PRINTS: at its narrowest known precision, never padded ── */
+function fmtPoint(p, long) {
+  if (!p || p.y == null) return "";
+  if (p.prec === "year") return String(p.y);
+  return (long ? MONTHS[p.m] : MON3[p.m]) + " " + p.y;
+}
+function fmtEnd(j, long) {
+  if (j.end.state === "still") return "still there";
+  if (j.end.state === "unknown") return "end unknown";
+  return fmtPoint(j.end, long);
+}
+function fmtRange(j, long) { return fmtPoint(j.start, long) + " – " + fmtEnd(j, long); }
+
+/* ── the years total: what the is-this-work switch actually moves ── */
+function monthsOf(j) {
+  if (!j.isWork) return 0;
+  if (j.end.state === "unknown") return 0;          // #143: an unknown end zeroes it
+  const sm = j.start.prec === "year" ? 1 : j.start.m;
+  const s = j.start.y * 12 + sm;
+  const e = j.end.state === "still" ? NOW.y * 12 + NOW.m
+    : j.end.y * 12 + (j.end.prec === "year" ? 12 : j.end.m);
+  return Math.max(0, e - s);
+}
+const totalMonths = (list) => list.reduce((n, j) => n + monthsOf(j), 0);
+const yearsStr = (m) => (m / 12).toFixed(1).replace(/\.0$/, "") + " years";
+/* a stand-in for the eligibility gates: more years clears more adverts */
+const advertsFor = (m) => Math.min(12, Math.floor(m / 12) * 2 + 1);
+
+/* ══════════════════════════════════════════════════════════════════════
+   THE CORRECTION SHEET — one frame, controls differ by fact type.
+   Owner's recorded limit: "the frame generalises, the editing controls do not."
+   ══════════════════════════════════════════════════════════════════════ */
+function openSheet(jobId, field) { sheet = { jobId, field, draft: clone(jobs.find((j) => j.id === jobId)) }; render(); }
+function closeSheet() { sheet = null; render(); }
+
+function sheetConsequence() {
+  const before = totalMonths(jobs);
+  const after = totalMonths(jobs.map((j) => (j.id === sheet.jobId ? sheet.draft : j)));
+  const dm = after - before;
+  const da = advertsFor(after) - advertsFor(before);
+  if (dm === 0 && da === 0)
+    return `<div class="consequence none">This doesn't change your experience total or the adverts you clear.</div>`;
+  const bits = [];
+  if (dm !== 0) {
+    const mag = Math.abs(dm) >= 12 ? yearsStr(Math.abs(dm)) : Math.abs(dm) + (Math.abs(dm) === 1 ? " month" : " months");
+    bits.push(`${dm > 0 ? "adds" : "takes off"} <b>${mag}</b> — your total becomes <b>${yearsStr(after)}</b>`);
+  }
+  if (da !== 0) bits.push(`you'd clear <b>${Math.abs(da)} ${Math.abs(da) === 1 ? "advert" : "adverts"} ${da > 0 ? "more" : "fewer"}</b>`);
+  return `<div class="consequence">This ${bits.join(", and ")}.</div>`;
+}
+
+function sheetControls() {
+  const d = sheet.draft;
+  if (sheet.field === "work") {
+    return `
+      <div class="choice">
+        <button aria-pressed="${d.isWork}" onclick="setWork(true)">
+          <strong>Yes — count this as work</strong>
+          <span>It adds to your years of experience and to the adverts you clear.</span>
+        </button>
+        <button aria-pressed="${!d.isWork}" onclick="setWork(false)">
+          <strong>No — this isn't a job</strong>
+          <span>Study, a client engagement, or unpaid work. It stays on your CV; it just doesn't count towards the total.</span>
+        </button>
+      </div>`;
+  }
+  if (sheet.field === "dates") {
+    const yearOpts = (sel) => Array.from({ length: 22 }, (_, i) => 2008 + i)
+      .map((y) => `<option value="${y}"${y === sel ? " selected" : ""}>${y}</option>`).join("");
+    const monOpts = (sel, prec) => `<option value="">— month not stated —</option>` +
+      MON3.slice(1).map((m, i) => `<option value="${i + 1}"${prec !== "year" && i + 1 === sel ? " selected" : ""}>${m}</option>`).join("");
+    return `
+      <label>Started</label>
+      <div class="fieldrow">
+        <div><select onchange="setDate('start','m',this.value)">${monOpts(d.start.m, d.start.prec)}</select></div>
+        <div><select onchange="setDate('start','y',this.value)">${yearOpts(d.start.y)}</select></div>
+      </div>
+      <label>Ended</label>
+      <div class="choice">
+        <button aria-pressed="${d.end.state === "ended"}" onclick="setEndState('ended')"><strong>On a date</strong></button>
+        <button aria-pressed="${d.end.state === "still"}" onclick="setEndState('still')"><strong>I'm still there</strong></button>
+        <button aria-pressed="${d.end.state === "unknown"}" onclick="setEndState('unknown')">
+          <strong>I'm not sure</strong>
+          <span>We'll leave it open rather than guess — but it means this job adds nothing to your total.</span>
+        </button>
+      </div>
+      ${d.end.state === "ended" ? `<div class="fieldrow">
+        <div><select onchange="setDate('end','m',this.value)">${monOpts(d.end.m, d.end.prec)}</select></div>
+        <div><select onchange="setDate('end','y',this.value)">${yearOpts(d.end.y ?? 2022)}</select></div>
+      </div>` : ""}
+      <p class="origin">Leave the month blank if your CV only said a year — we'd rather hold what you know than invent a month.</p>`;
+  }
+  const label = sheet.field === "employer" ? "Employer" : "Job title";
+  const val = sheet.field === "employer" ? d.employer : d.title;
+  return `<label>${label}</label>
+    <input type="text" value="${esc(val)}" oninput="setText(this.value)" autofocus>
+    <p class="origin" style="margin-top:10px">Your CV said: “${esc(sheet.draft.quote)}”</p>`;
+}
+
+function renderSheet() {
+  const host = document.getElementById("sheetHost");
+  if (!sheet) { host.innerHTML = ""; return; }
+  const titles = {
+    work: "Does this count as work?",
+    dates: "When were you there?",
+    employer: "Who was the employer?",
+    title: "What was your title?",
+  };
+  const subs = {
+    work: "We decided this from how it was written. You decide it properly.",
+    dates: "We only store what you actually tell us — no invented months.",
+    employer: "This is what we read from your CV.",
+    title: "This is what we read from your CV.",
+  };
+  host.innerHTML = `<div class="scrim" onclick="if(event.target===this)closeSheet()">
+    <div class="sheet" role="dialog" aria-modal="true">
+      <h3>${titles[sheet.field]}</h3>
+      <p class="sub">${subs[sheet.field]}</p>
+      ${sheetControls()}
+      ${sheetConsequence()}
+      <div class="acts" style="margin-top:0">
+        <button class="btn" onclick="saveSheet()">Save</button>
+        <button class="btn btn-secondary" onclick="closeSheet()">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* sheet mutations — draft only; nothing lands until Save */
+window.setWork = (v) => { sheet.draft.isWork = v; render(); };
+window.setEndState = (s) => {
+  sheet.draft.end.state = s;
+  if (s === "ended" && sheet.draft.end.y == null) { sheet.draft.end.y = 2022; sheet.draft.end.m = 1; sheet.draft.end.prec = "month"; }
+  render();
+};
+window.setDate = (which, part, v) => {
+  const p = sheet.draft[which];
+  if (part === "m") { p.m = v ? Number(v) : null; p.prec = v ? "month" : "year"; }
+  else p.y = Number(v);
+  render();
+};
+window.setText = (v) => { if (sheet.field === "employer") sheet.draft.employer = v; else sheet.draft.title = v; };
+window.saveSheet = () => {
+  const before = clone(jobs);
+  jobs = jobs.map((j) => (j.id === sheet.jobId ? { ...sheet.draft, corrected: { ...(sheet.draft.corrected || {}), [sheet.field]: true } } : j));
+  taps++; corrections++;
+  lastUndo = { label: "Correction saved", jobs: before, taps: taps - 1, corrections: corrections - 1, decided: clone(decided) };
+  sheet = null; render();
+};
+window.closeSheet = closeSheet;
+
+/* ── accepting a block ── */
+window.accept = (id) => { const b = clone(decided); decided[id] = true; taps++; lastUndo = { label: "Confirmed", jobs: clone(jobs), taps: taps - 1, corrections, decided: b }; render(); };
+window.acceptAll = () => {
+  const b = clone(decided);
+  jobs.forEach((j) => { decided[j.id] = true; });
+  taps++;
+  lastUndo = { label: "Whole history confirmed", jobs: clone(jobs), taps: taps - 1, corrections, decided: b };
+  render();
+};
+window.reopen = (id) => { delete decided[id]; render(); };
+window.undo = () => { if (!lastUndo) return; jobs = lastUndo.jobs; taps = lastUndo.taps; corrections = lastUndo.corrections; decided = lastUndo.decided; lastUndo = null; render(); };
+window.openSheet = openSheet;
+
+/* ══════════════════════════════════════════════════════════════════════
+   VARIANT A — THE JOB CARD
+   One card per dated block. All five decisions are DISPLAYED; one button accepts
+   them together. Every part is individually tappable to fix. The bet: "visible and
+   correctable" was never the same requirement as "individually confirmed".
+   ══════════════════════════════════════════════════════════════════════ */
+function viewA() {
+  const rows = jobs.map((j) => {
+    const on = decided[j.id];
+    const workBadge = j.isWork
+      ? `<span class="badge" data-cls="work">Counts as work</span>`
+      : `<span class="badge" data-cls="notwork">Not work experience</span>`;
+    const openEnd = j.end.state === "unknown";
+    return `<div class="card">
+      <div class="rowhead">
+        <div>
+          <span class="emp"><button class="dec ${j.corrected?.employer ? "fixed" : ""}" onclick="openSheet('${j.id}','employer')">${esc(j.employer)}</button></span>
+          ${j.isClient ? `<span class="badge" data-cls="ask" style="margin-left:6px">Client, not an employer</span>` : ""}
+        </div>
+        <span class="dts"><button class="dec ${openEnd ? "warn" : ""} ${j.corrected?.dates ? "fixed" : ""}" onclick="openSheet('${j.id}','dates')">${esc(fmtRange(j))}</button></span>
+      </div>
+      <div class="ttl">${j.title
+        ? `<button class="dec ${j.corrected?.title ? "fixed" : ""}" onclick="openSheet('${j.id}','title')">${esc(j.title)}</button>`
+        : `<button class="dec warn" onclick="openSheet('${j.id}','title')">no title on your CV — add one?</button>`}</div>
+      <div style="margin-top:9px">
+        <button class="dec ${j.corrected?.work ? "fixed" : ""}" style="border:0" onclick="openSheet('${j.id}','work')">${workBadge}</button>
+      </div>
+      <p class="quote">From your CV: “${esc(j.quote)}”</p>
+      ${on
+        ? `<p class="done" style="margin:14px 0 0">✓ Confirmed · <button class="linkbtn" onclick="reopen('${j.id}')">change</button></p>`
+        : `<div class="acts"><button class="btn btn-sm" onclick="accept('${j.id}')">That's right</button></div>`}
+    </div>`;
+  }).join("");
+
+  const left = jobs.filter((j) => !decided[j.id]).length;
+  return `<h1 class="screen">Is this your work history?</h1>
+    <p class="lede">We read these from your CV. Anything underlined is something <em>we</em> decided — tap it to put it right. Confirm each one when it looks correct.</p>
+    ${rows}
+    ${undoBar()}
+    <button class="btn" style="margin-top:16px" ${left ? "disabled" : ""}>${left ? `${left} still to confirm` : "Continue"}</button>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   VARIANT B — THE READ-BACK
+   The machine says what it understood in one plain sentence and asks whether it got
+   it right. The five decisions live inside the sentence, not in fields. Yes / Not quite.
+   ══════════════════════════════════════════════════════════════════════ */
+function viewB() {
+  const rows = jobs.map((j) => {
+    const on = decided[j.id];
+    const D = (f, txt, cls) => `<button class="dec ${cls || ""} ${j.corrected?.[f] ? "fixed" : ""}" onclick="openSheet('${j.id}','${f}')">${esc(txt)}</button>`;
+    let s;
+    if (j.kind === "education") {
+      s = `You studied <b>${D("title", j.title)}</b> at <b>${D("employer", j.employer)}</b>, ${D("dates", fmtRange(j, true))}. We're <b>not</b> ${D("work", "counting this towards your experience", "")} — it's study, not a job.`;
+    } else if (j.isClient) {
+      s = `Your CV lists <b>${D("employer", j.employer)}</b> ${D("dates", fmtRange(j, true))} underneath Standard Chartered. We read that as <b>${D("work", "a client you worked for, not an employer", "warn")}</b> — so it isn't a separate job. Right?`;
+    } else if (j.end.state === "unknown") {
+      s = `You've been <b>${D("title", j.title)}</b> at <b>${D("employer", j.employer)}</b> since <b>${D("dates", fmtPoint(j.start, true))}</b> — and we <b>${D("dates", "couldn't tell when it ended", "warn")}</b>. Until we know, this job adds <b>nothing</b> to your experience total.`;
+    } else {
+      s = `You were <b>${D("title", j.title)}</b> at <b>${D("employer", j.employer)}</b> from <b>${D("dates", fmtPoint(j.start, true))}</b> to <b>${D("dates", fmtEnd(j, true))}</b>. We're ${D("work", "counting this towards your experience", "")}.`;
+    }
+    return `<div class="card">
+      <p class="readback">${s}</p>
+      <p class="quote">From your CV: “${esc(j.quote)}”</p>
+      ${on
+        ? `<p class="done" style="margin:14px 0 0">✓ Got it · <button class="linkbtn" onclick="reopen('${j.id}')">change</button></p>`
+        : `<div class="acts">
+             <button class="btn btn-sm" onclick="accept('${j.id}')">Yes, that's right</button>
+             <button class="btn btn-secondary btn-sm" onclick="openSheet('${j.id}','dates')">Not quite</button>
+           </div>`}
+    </div>`;
+  }).join("");
+
+  const left = jobs.filter((j) => !decided[j.id]).length;
+  return `<h1 class="screen">Let me read your career back to you</h1>
+    <p class="lede">This is what we understood. Tell us where we got it wrong — anything underlined can be corrected.</p>
+    ${rows}
+    ${undoBar()}
+    <button class="btn" style="margin-top:16px" ${left ? "disabled" : ""}>${left ? `${left} still to check` : "Continue"}</button>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   VARIANT C — THE CAREER TIMELINE
+   Not cards. The whole history on one canvas, corrected in place, confirmed once.
+   Gaps and overlaps become visible — which is what actually makes a years total
+   wrong — and an unknown end draws as an open bar, so #122's "reads as a question,
+   never a failure" falls out of the shape rather than being written into copy.
+   This is ALSO the correction screen (item 4): the same surface, revisited later.
+   ══════════════════════════════════════════════════════════════════════ */
+function viewC() {
+  const sorted = [...jobs].sort((a, b) => (b.start.y * 12 + (b.start.m || 1)) - (a.start.y * 12 + (a.start.m || 1)));
+  let prevStart = null;
+  const rows = sorted.map((j) => {
+    const openEnd = j.end.state === "unknown";
+    let gap = "";
+    if (prevStart != null) {
+      const endM = j.end.state === "still" ? NOW.y * 12 + NOW.m : (j.end.y || 0) * 12 + (j.end.prec === "year" ? 12 : j.end.m || 12);
+      const g = prevStart - endM;
+      if (g >= 4 && !openEnd) gap = `<p class="gapnote">${Math.round(g)} months unaccounted for here — that's fine, we just won't count it.</p>`;
+    }
+    prevStart = j.start.y * 12 + (j.start.m || 1);
+    const D = (f, txt, cls) => `<button class="dec ${cls || ""} ${j.corrected?.[f] ? "fixed" : ""}" onclick="openSheet('${j.id}','${f}')">${esc(txt)}</button>`;
+    return `${gap}<div class="tlrow" data-work="${j.isWork}" data-open="${openEnd}">
+      <div class="rail">${D("dates", fmtRange(j), openEnd ? "warn" : "")}</div>
+      <div class="dot"></div>
+      <div class="tlbody">
+        <div class="emp">${D("employer", j.employer)}${j.isClient ? ` <span class="badge" data-cls="ask">Client</span>` : ""}</div>
+        <div class="ttl" style="font-size:.95rem">${j.title ? D("title", j.title) : D("title", "no title on your CV", "warn")}</div>
+        <div style="margin-top:7px">${j.isWork
+          ? `<button class="dec" style="border:0" onclick="openSheet('${j.id}','work')"><span class="badge" data-cls="work">Counts as work</span></button>`
+          : `<button class="dec" style="border:0" onclick="openSheet('${j.id}','work')"><span class="badge" data-cls="notwork">Doesn't count</span></button>`}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const allOn = jobs.every((j) => decided[j.id]);
+  const tm = totalMonths(jobs);
+  return `<h1 class="screen">Your career, as we read it</h1>
+    <p class="lede">Everything we took from your CV, in one place. Tap anything underlined to put it right — then confirm the lot.</p>
+    <div class="card" style="padding:18px 20px 8px">
+      <div class="tl">${rows}</div>
+    </div>
+    <div class="card" style="background:#eef7f4;border-color:#bfded4">
+      <div class="rowhead"><span class="emp">Experience that counts</span><span class="emp">${yearsStr(tm)}</span></div>
+      <p class="quote" style="margin-top:6px">Study and client engagements are on your CV but don't add to this. One job has no end date, so it counts as nothing until you tell us.</p>
+    </div>
+    ${undoBar()}
+    ${allOn
+      ? `<p class="done">✓ Confirmed · <button class="linkbtn" onclick="jobs.forEach(j=>delete decided[j.id]);render()">change something</button></p>`
+      : `<button class="btn" style="margin-top:4px" onclick="acceptAll()">Yes, this is my history</button>`}`;
+}
+
+function undoBar() {
+  return lastUndo ? `<div class="undo"><span>${lastUndo.label}</span><button onclick="undo()">Undo</button></div>` : "";
+}
+
+/* ══════════════════════════════════════════════════════════════════════ */
+const VARIANTS = [
+  { key: "A", name: "The job card", view: viewA, note: "one card per job, five decisions shown, one tap accepts" },
+  { key: "B", name: "The read-back", view: viewB, note: "the machine says what it understood, in a sentence" },
+  { key: "C", name: "The career timeline", view: viewC, note: "whole history on one canvas, confirmed once" },
+];
+
+const params = new URLSearchParams(location.search);
+let vi = Math.max(0, VARIANTS.findIndex((v) => v.key === (params.get("variant") || "A").toUpperCase()));
+
+function renderMeter() {
+  const tm = totalMonths(jobs);
+  const over = taps > 15;
+  const pct = Math.min(100, (taps / 15) * 100);
+  document.getElementById("meter").innerHTML = `
+    <h4>Decisions asked of her</h4>
+    <div class="big">${taps}<small> / 15 budget</small></div>
+    <div class="bar"><i class="${over ? "over" : ""}" style="width:${pct}%"></i></div>
+    <div class="row"><span>naive tiering</span><b>30</b></div>
+    <div class="row"><span>blocks confirmed</span><b>${Object.keys(decided).length} / ${jobs.length}</b></div>
+    <div class="row"><span>corrections made</span><b>${corrections}</b></div>
+    <div class="row ${tm === 0 ? "warnline" : ""}"><span>experience total</span><b>${yearsStr(tm)}</b></div>
+    <div class="row"><span>adverts cleared</span><b>${advertsFor(tm)}</b></div>
+    <p class="note">Six dated blocks carry <b>30</b> machine decisions. The budget is 15 — but it limits <i>rewording her sentences</i>, not questions. Watch what each shape actually costs her.</p>`;
+}
+
+function render() {
+  document.getElementById("screen").innerHTML = VARIANTS[vi].view();
+  document.getElementById("vk").textContent = VARIANTS[vi].key;
+  document.getElementById("vn").textContent = VARIANTS[vi].name;
+  renderMeter();
+  renderSheet();
+  history.replaceState(null, "", "?variant=" + VARIANTS[vi].key);
+}
+
+function reset() { jobs = clone(SEED); decided = {}; taps = 0; corrections = 0; lastUndo = null; sheet = null; render(); }
+const step = (d) => { vi = (vi + d + VARIANTS.length) % VARIANTS.length; reset(); };
+
+document.getElementById("prev").onclick = () => step(-1);
+document.getElementById("next").onclick = () => step(1);
+document.getElementById("reset").onclick = reset;
+addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+  if (e.key === "ArrowLeft") step(-1);
+  else if (e.key === "ArrowRight") step(1);
+  else if (e.key.toLowerCase() === "r") reset();
+  else if (e.key === "Escape" && sheet) closeSheet();
+});
+
+render();
+</script>

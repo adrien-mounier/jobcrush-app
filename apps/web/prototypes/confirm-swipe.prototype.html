@@ -1,0 +1,713 @@
+<!-- PROTOTYPE — throwaway. Design effort #157, Design A (items 3 + 4), ROUND 2.
+     Round 1 (apps/web/prototypes/confirm-and-correct.prototype.html) put up three shapes — the
+     job card, the read-back, the career timeline. The owner picked none of them and named a
+     fourth: TINDER. One full card at a time; swipe or click; progression visible beside it.
+
+     OWNER DECISIONS TAKEN IN ROUND 1 (2026-08-07):
+       1. "Showing it is enough." Every machine decision must be VISIBLE and CORRECTABLE, but one
+          confirm may cover several. The <=15 budget limits REWORDING HER SENTENCES, not taps.
+          This is an interpretation of #161's promise — recorded as a decision, not assumed.
+       2. Tinder shape: one card, full screen, swipe or click, next.
+       3. Progression beside the card: experience total, corrections made. No internal jargon.
+          Placement delegated to the designer — DECIDED ROUND 2: the panel sits on the RIGHT.
+          It stays in peripheral vision while she works the card; a top strip pushes the card
+          down the page.
+       4. Matches STAY, rephrased as a live reward counter — owner: "+2 more potential jobs
+          matching your profile", with the same game-style animation as adding a fact to profile.
+
+     ROUND 2 DECISION — THE HORIZONTAL AXIS IS CONFIRM-ONLY:
+       The owner took the designer's recommendation over swipe-to-fix speed. Correcting is a TAP
+       on the card, never a swipe. This dissolves finding A below: the gesture that means
+       "reject" on the shipped job deck can no longer mean "correct" here, because correcting is
+       not a gesture at all. Left is now SKIP FOR NOW — which is ADR-0011 clause 4's own word
+       ("a skip means 'not now'"), reused rather than invented, and non-destructive by
+       definition. A skipped card returns to the end of the deck; nothing is ever discarded.
+
+     ══ WHAT ALREADY SHIPS, AND IS REUSED HERE RATHER THAN INVENTED ═══════════
+     The swipe deck is NOT a new pattern in this product. apps/web/app/deck/page.tsx +
+     deck.css ship a full one for job adverts:
+       - 8px activation, then an axis lock (|dx| must exceed |dy|) so a vertical scroll never
+         fires a swipe; pointer capture on the winning axis
+       - 90px commit threshold; stamp opacity ramps over 110px
+       - jd-out-left / jd-out-right, 340ms ease, translateX(±120%) rotate(∓9deg)
+       - jd-dealin on arrival; jd-bump (scale 1.28 + gold) on a number that just changed
+       - reduced motion respected app-wide (globals.css flattens every animation to 0.01ms)
+     The "fact added to profile" beat is factbadge.css: a fixed gold .factchip flies card →
+     badge over 720ms cubic-bezier(.4,.05,.3,1), the badge pulses, the number tweens and bumps.
+     Both are copied here at their shipped values, so what is judged is the DESIGN, not my
+     re-timing of an animation the product already has.
+
+     ══ THINGS THE SHAPE FORCED ══════════════════════════════════════════════
+       A. RESOLVED IN ROUND 2. The shipped job deck's left stamp reads "Not for me" — a
+          rejection — and left could not mean that here, because deleting a job on a mistap IS
+          #120's live harm. Making the horizontal axis confirm-only removes the collision
+          instead of managing it. Nothing on this screen is red, because nothing on this screen
+          destroys anything.
+       B. DECIDED — STAYS LIGHT. The shipped swipe deck is DARK (.jobdeck); today's confirm deck
+          is LIGHT (globals.css). Designer's call, owner's to reverse: keep them DIFFERENT on
+          purpose. The two decks share a gesture but do opposite jobs — a swipe on the job deck
+          THROWS AN ADVERT AWAY (fast, disposable, no consequence); a swipe here LOCKS IN A FACT
+          ABOUT HER LIFE (permanent, and it moves what she is eligible for). Identical palettes
+          would claim those are the same act. Same gestures, different register: this one is
+          your record, that one is the hunt. Also zero migration. D still toggles, for review.
+       C. RESOLVED IN ROUND 2 — and the owner's remark 1 is what resolved it. The old worry: the
+          matching-jobs counter rose only when she answered "yes, this counts as work", so the
+          screen paid for one ANSWER and taught it. ⚠️ The designer's worked example was FALSE
+          and the owner rejected it: no LLM reads "The Hong Kong Polytechnic University, BBA
+          (Hons)" as employment. But the objection uncovered a real defect one level down — the
+          QUESTION was wrong, not the reward — and fixing the question removed the incentive,
+          because there is no longer a wrong button sitting there paying out. Reclassifying a
+          degree as employment is now a deliberate claim, and deliberate claims are decision 9's
+          territory: propose, never police.
+          The reward change the owner then asked for stands on its own: EVERY card she finishes
+          fires the chip, whatever kind it was. Matching jobs bumps as a second beat only when
+          it actually moved.
+          ⚠️ RESIDUAL, accepted knowingly: the unknown-end job's "I'm still there" option still
+          maximises her total and is farmable. Same category — a deliberate claim about her own
+          current employment, not a nudge — so it stands under the same philosophy.
+
+     WHAT IS ALREADY DECIDED (not open here):
+       - Every machine decision visible and correctable, is-this-work included (#161 AC,
+         ADR-0004 clause 1a). #157: the tiering may be designed; the promise may not.
+       - A correction lands on the FACT, never a derived value (map promise 2c).
+       - An unreadable history reads as a QUESTION, never a failure (#122).
+       - "The frame generalises, the editing controls do not" — one card frame; the BACK of
+         the card carries controls that differ by fact type.
+       - A client line is never an employment entry (ADR-0009 clause 1).
+       - #163 binds us to say what a correction changes downstream, in plain words.
+       - Undo, because #120 is causing live harm on staging right now.
+
+     Designer instrumentation lives in the DARK strip below the app only — it is my
+     instrument, never her screen. Round 1 conflated the two and the owner caught it.
+
+     Not production code. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JobCrush — confirm by swipe (#157 items 3+4, round 2)</title>
+
+<style>
+  :root {
+    --jc-sp-xs: 4px; --jc-sp-sm: 8px; --jc-sp-md: 16px; --jc-sp-lg: 24px; --jc-sp-xl: 40px;
+    --jc-radius-pill: 999px;
+    --jc-font: "Avenir Next", "Segoe UI Variable", Seravek, Corbel, source-sans-pro, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --hud-0: #0d1116; --hud-1: #151a21; --hud-line: #29313b; --hud-ink: #e8eaed;
+    --hud-mute: #7f8b98; --gold: #e8a33d; --gold-hi: #ffd9a0;
+    --sw-h: 66px;
+  }
+
+  /* ══ REGISTER 1 — light: today's confirm deck (packages/ui/src/tokens.css, verbatim) ══ */
+  .app[data-reg="light"] {
+    --bg: #faf9f7; --surface: #ffffff; --ink: #1f2328; --ink-muted: #59636e; --line: #d9d5cf;
+    --accent: #0b6e5f; --accent-ink: #fff; --raise: #ffffff;
+    --yes: #0b6e5f; --yes-bg: #e6f2ee; --fix: #9a6700; --fix-bg: #fdf6e6;
+    --shadow: 0 10px 30px rgba(0,0,0,.12);
+  }
+  /* ══ REGISTER 2 — dark: the SHIPPED swipe deck (.jobdeck, deck.css --hud-*) ══ */
+  .app[data-reg="dark"] {
+    --bg: #0d1116; --surface: #1d242d; --ink: #e8eaed; --ink-muted: #7f8b98; --line: #29313b;
+    --accent: #e8a33d; --accent-ink: #1a1206; --raise: #151a21;
+    --yes: #4ea88a; --yes-bg: #172a25; --fix: #e8a33d; --fix-bg: #2a2113;
+    --shadow: 0 14px 34px rgba(0,0,0,.5);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #e7e3dd; font-family: var(--jc-font); line-height: 1.5;
+    padding: 20px 18px calc(var(--sw-h) + 26px);
+  }
+
+  .ask {
+    max-width: 1180px; margin: 0 auto 16px; border: 1px solid var(--hud-line);
+    border-left: 3px solid var(--gold); background: linear-gradient(180deg, var(--hud-1), var(--hud-0));
+    border-radius: 3px; padding: 12px 16px; color: var(--hud-mute);
+  }
+  .ask h1 { margin: 0 0 5px; font-size: 12px; letter-spacing: .13em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
+  .ask p { margin: 0 0 5px; font-size: 13.5px; }
+  .ask p:last-child { margin-bottom: 0; }
+  .ask strong { color: var(--hud-ink); font-weight: 600; }
+  .ask .rules { font-size: 11.5px; color: #64707d; font-family: var(--mono); line-height: 1.55; margin-top: 7px; }
+
+  .app {
+    max-width: 1180px; margin: 0 auto; background: var(--bg); color: var(--ink);
+    border-radius: 14px; overflow: hidden; box-shadow: 0 18px 46px rgba(0,0,0,.28);
+    border: 1px solid #cfcac2;
+  }
+  .brandbar { border-bottom: 1px solid var(--line); background: var(--raise); }
+  .brandbar > div { padding: 12px var(--jc-sp-md); }
+  .brandbar a { font-size: 1.05rem; font-weight: 700; letter-spacing: -.02em; color: var(--accent); text-decoration: none; }
+
+  .layout { display: flex; min-height: 640px; }
+  .layout.top { flex-direction: column; min-height: 700px; }
+
+  /* ══ THE PROGRESSION PANEL — customer-facing. Plain words only. ══ */
+  .prog { background: var(--raise); border-left: 1px solid var(--line); padding: var(--jc-sp-lg); flex: 0 0 268px; }
+  .layout.top .prog {
+    flex: none; border-left: 0; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: var(--jc-sp-xl); padding: 13px var(--jc-sp-lg); overflow-x: auto;
+  }
+  .prog h4 { margin: 0 0 var(--jc-sp-md); font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-muted); font-weight: 700; }
+  .layout.top .prog h4 { display: none; }
+  .stat { margin-bottom: var(--jc-sp-lg); }
+  .layout.top .stat { margin-bottom: 0; white-space: nowrap; }
+  .stat .v { font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; font-variant-numeric: tabular-nums; display: inline-block; }
+  .layout.top .stat .v { font-size: 1.15rem; }
+  .stat .l { font-size: .82rem; color: var(--ink-muted); }
+  .stat .v.growing { color: var(--accent); }
+  /* jd-bump, verbatim from deck.css — the number that just changed */
+  .stat .v.bump { animation: jd-bump 460ms cubic-bezier(.2,1.5,.4,1); }
+  @keyframes jd-bump { 0% { transform: none; } 40% { transform: scale(1.28); color: var(--gold); } 100% { transform: none; } }
+
+  .dots { display: flex; gap: 5px; margin-top: var(--jc-sp-sm); }
+  .dots i { height: 5px; border-radius: 3px; background: var(--line); flex: 1 1 0; max-width: 30px; transition: background .3s; }
+  .dots i[data-s="done"] { background: var(--yes); }
+  .dots i[data-s="fixed"] { background: var(--fix); }
+  .dots i[data-s="now"] { background: var(--ink); }
+  .layout.top .dots { min-width: 180px; margin-top: 0; }
+
+  /* ══ THE CARD AREA ══ */
+  .deckarea { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--jc-sp-lg); position: relative; }
+  .kicker { font-size: .85rem; color: var(--ink-muted); margin: 0 0 var(--jc-sp-md); text-align: center; }
+
+  .cardstack { position: relative; width: 100%; max-width: 500px; height: 460px; }
+  .peek { position: absolute; inset: 14px -6px -12px -6px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; opacity: .5; transform: scale(.965); }
+  .peek.two { inset: 26px -12px -22px -12px; opacity: .26; transform: scale(.93); }
+
+  .swipecard {
+    position: absolute; inset: 0; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 18px; box-shadow: var(--shadow); padding: var(--jc-sp-lg);
+    display: flex; flex-direction: column; touch-action: pan-y; cursor: grab; overflow: hidden;
+    animation: jd-dealin 300ms ease-out;
+  }
+  .swipecard.dragging { cursor: grabbing; transition: none; }
+  .swipecard.settling { transition: transform .22s cubic-bezier(.2,.8,.3,1); }
+  /* jd-out-left / jd-out-right, verbatim from deck.css */
+  .swipecard.out-left { animation: jd-out-left 340ms ease forwards; }
+  .swipecard.out-right { animation: jd-out-right 340ms ease forwards; }
+  @keyframes jd-dealin { from { opacity: 0; transform: translateY(22px) scale(.96); } to { opacity: 1; transform: none; } }
+  @keyframes jd-out-left { to { opacity: 0; transform: translateX(-120%) rotate(-9deg); } }
+  @keyframes jd-out-right { to { opacity: 0; transform: translateX(120%) rotate(9deg); } }
+  .swipecard.back { cursor: default; overflow-y: auto; animation: none; }
+
+  .stamp {
+    position: absolute; top: 24px; z-index: 3; padding: 7px 13px; border: 2.5px solid currentColor;
+    border-radius: 8px; font-size: 15px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase;
+    opacity: 0; pointer-events: none;
+  }
+  .stamp.yes { right: 22px; color: var(--yes); background: var(--yes-bg); transform: rotate(9deg); }
+  .stamp.fix { left: 22px; color: var(--fix); background: var(--fix-bg); transform: rotate(-9deg); }
+
+  .kindtag {
+    align-self: flex-start; font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink-muted); background: var(--bg); border: 1px solid var(--line);
+    padding: 4px 10px; border-radius: var(--jc-radius-pill); margin-bottom: var(--jc-sp-md);
+  }
+  .kindtag[data-k="ask"] { background: var(--fix-bg); color: var(--fix); border-color: var(--fix); }
+
+  .readback { font-size: 1.22rem; line-height: 1.52; margin: 0 0 auto; letter-spacing: -.01em; }
+  .dec { border: 0; background: transparent; font: inherit; color: inherit; padding: 0 1px; border-bottom: 2px dotted var(--ink-muted); cursor: pointer; border-radius: 2px; font-weight: 700; }
+  .dec:hover { background: var(--fix-bg); border-bottom-color: var(--fix); }
+  .dec.warn { border-bottom-color: var(--fix); color: var(--fix); }
+  .dec.fixed { background: var(--yes-bg); border-bottom: 2px solid var(--yes); }
+
+  .quote { color: var(--ink-muted); font-size: .84rem; margin: var(--jc-sp-md) 0 0; padding-top: var(--jc-sp-md); border-top: 1px solid var(--line); }
+
+  .swipehint { display: flex; align-items: center; justify-content: center; gap: var(--jc-sp-md); margin-top: var(--jc-sp-lg); }
+  .cbtn { border: 1.5px solid; background: var(--surface); border-radius: var(--jc-radius-pill); padding: 12px 22px; font: inherit; font-weight: 600; font-size: .95rem; cursor: pointer; }
+  .cbtn.yes { border-color: var(--yes); color: var(--yes); background: var(--yes-bg); }
+  .cbtn.fix { border-color: var(--fix); color: var(--fix); background: var(--fix-bg); }
+
+  /* ══ THE BACK — one frame, controls differ by fact type ══ */
+  .back { display: flex; flex-direction: column; height: 100%; }
+  .back h3 { margin: 0 0 var(--jc-sp-md); font-size: 1.1rem; }
+  .back label { display: block; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); margin: 0 0 5px; }
+  .back input[type="text"], .back select {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px;
+    font: inherit; font-size: .95rem; background: var(--bg); color: var(--ink);
+  }
+  .fgrp { margin-bottom: var(--jc-sp-md); }
+  .fieldrow { display: flex; gap: 9px; }
+  .fieldrow > div { flex: 1 1 0; min-width: 0; }
+  .choice { display: flex; flex-direction: column; gap: 7px; }
+  .choice button { text-align: left; padding: 10px 12px; border: 1.5px solid var(--line); background: var(--bg); border-radius: 9px; font: inherit; cursor: pointer; color: var(--ink); }
+  .choice button[aria-pressed="true"] { border-color: var(--yes); background: var(--yes-bg); }
+  .choice button strong { display: block; font-size: .93rem; }
+  .choice button span { display: block; font-size: .8rem; color: var(--ink-muted); margin-top: 2px; }
+  .consequence { background: var(--yes-bg); border: 1px solid var(--yes); border-left: 3px solid var(--yes); border-radius: 8px; padding: 10px 12px; font-size: .87rem; margin: var(--jc-sp-md) 0; color: var(--ink); }
+  .consequence.none { background: var(--bg); border-color: var(--line); color: var(--ink-muted); }
+  .backacts { display: flex; gap: var(--jc-sp-sm); margin-top: auto; padding-top: var(--jc-sp-md); }
+  .btn { background: var(--accent); color: var(--accent-ink); border: none; border-radius: var(--jc-radius-pill); padding: 11px 24px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn-secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+
+  .undo {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    background: #1f2328; color: #fff; border-radius: var(--jc-radius-pill); padding: 8px 9px 8px 18px;
+    font-size: .87rem; display: flex; align-items: center; gap: 14px; white-space: nowrap;
+    box-shadow: 0 8px 22px rgba(0,0,0,.3); z-index: 5;
+  }
+  .undo button { background: rgba(255,255,255,.14); border: 0; color: var(--gold-hi); font: inherit; font-weight: 700; cursor: pointer; border-radius: var(--jc-radius-pill); padding: 5px 14px; }
+
+  .done-screen { text-align: center; max-width: 430px; }
+  .done-screen h2 { font-size: 1.6rem; margin: 0 0 var(--jc-sp-sm); letter-spacing: -.02em; }
+
+  /* ══ the flying reward chip — factbadge.css .factchip, at its shipped values ══ */
+  .factchip {
+    position: fixed; z-index: 90; pointer-events: none; background: var(--gold); color: #1a1206;
+    font-family: var(--jc-font); font-size: 12px; font-weight: 650; padding: 6px 12px;
+    border-radius: 999px; white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.45);
+    transform: translate(-50%, -50%);
+    transition: transform 720ms cubic-bezier(.4,.05,.3,1), opacity 720ms ease;
+  }
+
+  /* ── designer instrumentation — dark, never mistakable for her screen ── */
+  .instr {
+    max-width: 1180px; margin: 12px auto 0; background: var(--hud-1); border: 1px solid var(--hud-line);
+    border-radius: 8px; padding: 10px 15px; color: var(--hud-mute); font-family: var(--mono);
+    font-size: 11.5px; display: flex; gap: 24px; flex-wrap: wrap; align-items: center;
+  }
+  .instr b { color: var(--hud-ink); }
+  .instr .tag { color: var(--gold); font-family: var(--jc-font); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 10px; }
+
+  .switcher {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px; z-index: 70; height: var(--sw-h);
+    display: flex; align-items: stretch; background: rgba(21,26,33,.94); backdrop-filter: blur(14px);
+    border: 1px solid var(--hud-line); border-radius: 999px; box-shadow: 0 10px 34px rgba(0,0,0,.6);
+    overflow: hidden; font-family: var(--jc-font);
+  }
+  .switcher .vlabel { display: flex; flex-direction: column; justify-content: center; padding: 0 20px; min-width: 200px; color: var(--hud-ink); border-right: 1px solid var(--hud-line); }
+  .switcher .vlabel .k { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+  .switcher .vlabel .n { font-size: 13.5px; margin-top: 3px; }
+  .switcher .tog { display: flex; align-items: center; padding: 0 17px; cursor: pointer; color: var(--hud-ink); font-size: 13px; border-right: 1px solid var(--hud-line); }
+  .switcher .tog:last-child { border-right: 0; }
+  .switcher .tog:hover { background: rgba(232,163,61,.1); }
+
+  .hint { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--sw-h) + 20px); font-size: 10.5px; color: #6b7784; font-family: var(--mono); z-index: 69; white-space: nowrap; }
+
+  @media (max-width: 900px) {
+    .layout { flex-direction: column-reverse; }
+    .prog { flex: none; border-left: 0; border-top: 1px solid var(--line); }
+    .hint { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* globals.css already flattens every animation app-wide; mirrored here so the prototype
+       is judged under the same rule the product ships. */
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+
+<div class="ask">
+  <h1>#157 · Design A — round 2: the swipe deck</h1>
+  <p>One block at a time. <strong>Right = that's right. Left = skip for now. Tap the card to correct it.</strong> The horizontal axis is confirm-only, so the gesture that means <em>reject</em> on the shipped job deck can never mean <em>correct</em> here. Nothing on this screen destroys anything — a skip returns to the end of the deck.</p>
+  <p><strong>Reusing what ships:</strong> the drag, axis lock, 90px threshold, stamps and fly-out are <code>deck.css</code>'s job deck at its own values; the gold chip → counter → number-bump is <code>factbadge.css</code>'s "fact added to profile" beat. "A skip means <em>not now</em>" is ADR-0011 clause 4's own word.</p>
+  <p><strong>The card no longer asks whether something "counts as work"</strong> — it states what the thing <em>is</em> and tells her what that means. Whether it counts is worked out from the kind, never asked: ADR-0008's Mei rule, <em>"ask for the parts underneath, never the answer on top"</em>. ⚠️ #161 words this as an <em>is-this-work switch</em>; the promise holds, the question is one level too high.</p>
+  <p class="rules">decided round 2: panel right · horizontal axis confirm-only, correcting is a tap · left = skip for now · the card asks the KIND, not the counting · every finished card fires the reward, whatever the answer<br>⚠️ open: the register (D toggles)</p>
+</div>
+
+<div class="app" id="app" data-reg="light">
+  <div class="brandbar"><div><a href="#">JobCrush</a></div></div>
+  <div class="layout" id="layout"></div>
+</div>
+
+<div class="instr" id="instr"></div>
+<div class="hint">drag right to confirm · drag left to skip · tap the card to correct &nbsp;·&nbsp; ← → E &nbsp;·&nbsp; D dark/light &nbsp;·&nbsp; R reset</div>
+
+<div class="switcher">
+  <div class="vlabel"><span class="k">Round 2</span><span class="n">The swipe deck</span></div>
+  <div class="tog" id="togReg">Register: light</div>
+  <div class="tog" id="reset">Reset</div>
+</div>
+
+<script>
+/* ══ the CV — deliberately messy, every decision type once ══ */
+const SEED = [
+  { id: "j1", kind: "job", employer: "Standard Chartered Bank", title: "Regional Project Manager",
+    start: { y: 2019, m: 1, prec: "month" }, end: { y: 2022, m: 3, prec: "month", state: "ended" },
+    quote: "Regional Project Manager, Standard Chartered Bank, Hong Kong | Jan 2019 – Mar 2022" },
+  /* ADR-0009 clause 1: a client line is a name + a date range nested under an employer —
+     byte-for-byte an employment block, and nothing in code forbids it becoming one today. */
+  { id: "j2", kind: "client", employer: "ASSYSTEM", title: "",
+    start: { y: 2021, m: 2, prec: "month" }, end: { y: 2021, m: 5, prec: "month", state: "ended" },
+    quote: "ASSYSTEM (client) - 02/2021 - 05/2021" },
+  /* #143's always-asked hole: an unknown end zeroes years of a career. Fixing this is the
+     single highest-value action on the deck — and the reward animation should show that. */
+  { id: "j3", kind: "job", employer: "Freelance", title: "Project Consultant",
+    start: { y: 2022, m: 6, prec: "month" }, end: { y: null, m: null, prec: null, state: "unknown" },
+    quote: "Project Consultant (freelance), 06/2022 –" },
+  { id: "j4", kind: "job", employer: "Hutchison Telecommunications", title: "Project Coordinator",
+    start: { y: 2016, m: 8, prec: "month" }, end: { y: 2018, m: 12, prec: "month", state: "ended" },
+    quote: "Project Coordinator — Hutchison Telecommunications, Hong Kong, Aug 2016 – Dec 2018" },
+  /* year-only precision: hold exactly what is known, never pad to months */
+  { id: "j5", kind: "job", employer: "Cathay Pacific", title: "Business Analyst",
+    start: { y: 2015, m: null, prec: "year" }, end: { y: 2016, m: null, prec: "year", state: "ended" },
+    quote: "Business Analyst, Cathay Pacific, 2015 – 2016" },
+  /* the is-this-work switch: a dated block that must NOT reach the experience total */
+  { id: "j6", kind: "education", employer: "The Hong Kong Polytechnic University", title: "BBA (Hons), Management",
+    start: { y: 2012, m: 9, prec: "month" }, end: { y: 2016, m: 6, prec: "month", state: "ended" },
+    quote: "The Hong Kong Polytechnic University, Sep 2012 – Jun 2016 — BBA (Hons), Management" },
+];
+
+const MONTHS = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MON3 = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const NOW = { y: 2026, m: 8 };
+
+/* ══ THE KIND — ROUND 2, owner remark 1 ═══════════════════════════════════
+   The card used to ask "does this count as work?". That is the ANSWER ON TOP, and ADR-0008's
+   Mei rule forbids asking for it: never ask for a value the machine will work out on its own;
+   ask for the parts underneath. The tell the ADR gives — "if a rebuild would overwrite the
+   answer, the question is aimed one level too high" — is exactly true of is-this-work, because
+   it is derived from what the thing IS.
+
+   ⚠️ #161 words this as an "is this work?" switch. Its PROMISE holds (correctable, and it is
+   what keeps a degree out of the total); its QUESTION is one level too high. Recorded against
+   the ticket, not decided away here.
+
+   The kinds are not invented: they are the product's own elements — jobs (#161), education
+   (#166), projects (#167), and ADR-0009's client, which is never an employment entry. */
+const KINDS = {
+  job:       { label: "A job",                   blurb: "Paid employment.",                                       counts: true,  said: "a job" },
+  education: { label: "Education",               blurb: "A degree, a diploma or a course.",                       counts: false, said: "your education" },
+  project:   { label: "A project",               blurb: "Something you built or ran outside a job.",              counts: false, said: "a project" },
+  client:    { label: "A client you worked for", blurb: "Named under an employer — not a job of its own.",        counts: false, said: "a client you worked for" },
+  volunteer: { label: "Volunteering",            blurb: "Unpaid work.",                                            counts: false, said: "volunteering" },
+};
+const counts = (j) => KINDS[j.kind].counts;
+
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* A QUEUE, not an index — because a skip must return the card to the end of the deck rather
+   than lose it. Nothing on this screen is ever discarded (#120). */
+let jobs, queue, status, taps, corrections, lastUndo, back, draft;
+let dark = false, leaving = null, bumpKey = null;
+
+function reset() {
+  jobs = clone(SEED); queue = jobs.map((j) => j.id); status = {}; taps = 0; corrections = 0;
+  lastUndo = null; back = false; draft = null; leaving = null; bumpKey = null;
+  render();
+}
+const current = () => jobs.find((j) => j.id === queue[0]);
+const checked = () => jobs.filter((j) => status[j.id] === "done" || status[j.id] === "fixed").length;
+
+const fmtPoint = (p, long) => !p || p.y == null ? "" : p.prec === "year" ? String(p.y) : (long ? MONTHS[p.m] : MON3[p.m]) + " " + p.y;
+const fmtEnd = (j, long) => j.end.state === "still" ? "still there" : j.end.state === "unknown" ? "end unknown" : fmtPoint(j.end, long);
+const fmtRange = (j, long) => fmtPoint(j.start, long) + " – " + fmtEnd(j, long);
+
+function monthsOf(j) {
+  if (!counts(j)) return 0;                  // derived from the KIND, never asked (ADR-0008)
+  if (j.end.state === "unknown") return 0;   // #143: an unknown end zeroes it
+  const s = j.start.y * 12 + (j.start.prec === "year" ? 1 : j.start.m);
+  const e = j.end.state === "still" ? NOW.y * 12 + NOW.m : j.end.y * 12 + (j.end.prec === "year" ? 12 : j.end.m);
+  return Math.max(0, e - s);
+}
+const yearsStr = (m) => m === 0 ? "none yet" : (m / 12).toFixed(1).replace(/\.0$/, "") + " years";
+const totalOf = (list) => list.reduce((n, j) => n + monthsOf(j), 0);
+/* the counter the owner asked for: potential jobs matching her profile. Grows with confirmed
+   experience — so the reward tracks the work she is actually doing. */
+const matchesFor = (m) => (m === 0 ? 0 : 3 + Math.floor(m / 4));
+const confirmedMonths = () => jobs.filter((j) => status[j.id]).reduce((n, j) => n + monthsOf(j), 0);
+
+/* ══ THE FRONT — what we understood, said back in plain words ══ */
+/* The card STATES the kind and TELLS her what that means. It never asks her to judge whether
+   something counts — that is worked out from the kind (owner remark 1 + ADR-0008). */
+function frontOf(j) {
+  const D = (f, txt, cls) => `<button class="dec ${cls || ""} ${j.corrected?.[f] ? "fixed" : ""}" onpointerdown="event.stopPropagation()" onclick="flip('${f}')">${esc(txt)}</button>`;
+  if (j.kind === "education")
+    return { tag: "From your education", k: "", s:
+      `You studied <b>${D("title", j.title)}</b> at <b>${D("employer", j.employer)}</b>, ${D("dates", fmtRange(j, true))}.<br><br>We've put this down as ${D("kind", "your education")} — so it doesn't add to your years of experience.` };
+  if (j.kind === "client")
+    return { tag: "We weren't sure about this one", k: "ask", s:
+      `Your CV lists <b>${D("employer", j.employer)}</b>, ${D("dates", fmtRange(j, true))}, underneath Standard Chartered.<br><br>We've put this down as ${D("kind", "a client you worked for", "warn")} rather than a job of its own. Have we got that right?` };
+  if (j.end.state === "unknown")
+    return { tag: "We weren't sure about this one", k: "ask", s:
+      `You've been <b>${D("title", j.title)}</b> at <b>${D("employer", j.employer)}</b> since <b>${D("dates", fmtPoint(j.start, true))}</b>.<br><br>We ${D("dates", "couldn't tell when it ended", "warn")} — so right now it adds <b>nothing</b> to your experience.` };
+  return { tag: "From your work history", k: "", s:
+    `You were <b>${D("title", j.title)}</b> at <b>${D("employer", j.employer)}</b>, from <b>${D("dates", fmtPoint(j.start, true))}</b> to <b>${D("dates", fmtEnd(j, true))}</b>.<br><br>We've put this down as ${D("kind", "a job")} — it adds to your years of experience.` };
+}
+
+/* ══ THE BACK — one frame, controls differ by fact type ══ */
+function consequenceHtml() {
+  const cur = totalOf(jobs), next = totalOf(jobs.map((j) => (j.id === draft.id ? draft : j)));
+  const dm = next - cur, dj = matchesFor(next) - matchesFor(cur);
+  if (!dm && !dj) return `<div class="consequence none">This doesn't change your experience total.</div>`;
+  const bits = [];
+  if (dm) { const a = Math.abs(dm); bits.push(`${dm > 0 ? "adds" : "takes off"} <b>${a >= 12 ? yearsStr(a) : a + (a === 1 ? " month" : " months")}</b>`); }
+  /* #163: say what a correction changes downstream, in plain words */
+  if (dj) bits.push(`<b>${Math.abs(dj)} more ${Math.abs(dj) === 1 ? "job" : "jobs"}</b> ${dj > 0 ? "start matching your profile" : "stop matching"}`);
+  return `<div class="consequence">This ${bits.join(", and ")}.</div>`;
+}
+
+function backHtml() {
+  const d = draft;
+  const yearOpts = (sel) => Array.from({ length: 22 }, (_, i) => 2008 + i).map((y) => `<option value="${y}"${y === sel ? " selected" : ""}>${y}</option>`).join("");
+  const monOpts = (sel, prec) => `<option value="">— no month —</option>` + MON3.slice(1).map((m, i) => `<option value="${i + 1}"${prec !== "year" && i + 1 === sel ? " selected" : ""}>${m}</option>`).join("");
+  return `<div class="back">
+    <h3>Put it right</h3>
+    <div class="fgrp"><label>${d.kind === "education" ? "Institution" : "Employer"}</label>
+      <input type="text" value="${esc(d.employer)}" oninput="setF('employer',this.value)"></div>
+    <div class="fgrp"><label>${d.kind === "education" ? "What you studied" : "Job title"}</label>
+      <input type="text" value="${esc(d.title)}" oninput="setF('title',this.value)" placeholder="${d.title ? "" : "your CV didn't say"}"></div>
+    <div class="fgrp"><label>Started</label><div class="fieldrow">
+      <div><select onchange="setD('start','m',this.value)">${monOpts(d.start.m, d.start.prec)}</select></div>
+      <div><select onchange="setD('start','y',this.value)">${yearOpts(d.start.y)}</select></div></div></div>
+    <div class="fgrp"><label>Ended</label><div class="choice">
+      <button aria-pressed="${d.end.state === "ended"}" onclick="setEnd('ended')"><strong>On a date</strong></button>
+      <button aria-pressed="${d.end.state === "still"}" onclick="setEnd('still')"><strong>I'm still there</strong></button>
+      <button aria-pressed="${d.end.state === "unknown"}" onclick="setEnd('unknown')"><strong>I'm not sure</strong><span>We'll leave it open rather than guess — but it means this adds nothing to your total.</span></button>
+    </div>${d.end.state === "ended" ? `<div class="fieldrow" style="margin-top:8px">
+      <div><select onchange="setD('end','m',this.value)">${monOpts(d.end.m, d.end.prec)}</select></div>
+      <div><select onchange="setD('end','y',this.value)">${yearOpts(d.end.y ?? 2022)}</select></div></div>` : ""}</div>
+    <div class="fgrp"><label>What is this?</label><div class="choice">
+      ${Object.entries(KINDS).map(([k, v]) => `
+      <button aria-pressed="${d.kind === k}" onclick="setKind('${k}')"><strong>${v.label}</strong><span>${v.blurb}</span></button>`).join("")}
+    </div>
+    <p class="quote" style="border:0;padding:0;margin-top:9px">Everything here stays on your CV. The kind only decides what adds to your <b>years of experience</b> — ${KINDS[d.kind].counts ? "and this one does" : "and this one doesn't"}.</p></div>
+    ${consequenceHtml()}
+    <div class="backacts">
+      <button class="btn" onclick="saveBack()">Save and continue</button>
+      <button class="btn btn-secondary" onclick="cancelBack()">Cancel</button>
+    </div>
+  </div>`;
+}
+
+/* ══ render ══ */
+function render() {
+  document.getElementById("app").dataset.reg = dark ? "dark" : "light";
+  const layout = document.getElementById("layout");
+  layout.className = "layout";       // panel right — decided round 2
+  const done = queue.length === 0;
+  const cm = confirmedMonths();
+  const matches = matchesFor(cm);
+  const skipped = jobs.filter((j) => status[j.id] === "skipped").length;
+
+  const panel = `<div class="prog">
+    <h4>Your progress</h4>
+    <div class="stat">
+      <div class="v ${bumpKey === "checked" ? "bump" : ""}" id="checkedNum">${checked()} of ${jobs.length}</div>
+      <div class="l">checked${skipped ? ` · ${skipped} to come back to` : ""}</div>
+      <div class="dots">${jobs.map((j) => `<i data-s="${status[j.id] === "fixed" ? "fixed" : status[j.id] === "done" ? "done" : j.id === queue[0] ? "now" : ""}"></i>`).join("")}</div>
+    </div>
+    <div class="stat"><div class="v ${cm ? "growing" : ""} ${bumpKey === "exp" ? "bump" : ""}">${yearsStr(cm)}</div><div class="l">experience confirmed</div></div>
+    <div class="stat"><div class="v ${matches ? "growing" : ""} ${bumpKey === "match" ? "bump" : ""}" id="matchNum">${matches}</div><div class="l">potential jobs matching your profile</div></div>
+    <div class="stat"><div class="v">${corrections}</div><div class="l">${corrections === 1 ? "thing you put right" : "things you put right"}</div></div>
+  </div>`;
+
+  let area;
+  if (done) {
+    area = `<div class="deckarea"><div class="done-screen">
+      <h2>That's your history straight.</h2>
+      <p class="kicker">${yearsStr(cm)} confirmed${corrections ? `, and you put ${corrections} thing${corrections === 1 ? "" : "s"} right` : ""}. <b>${matches} jobs</b> already match your profile. Everything here is now a fact about you — you won't be asked again.</p>
+      <button class="btn">Continue</button>
+    </div>${undoHtml()}</div>`;
+  } else {
+    const j = current(), f = frontOf(j);
+    area = `<div class="deckarea">
+      <p class="kicker">Right if we got it right · left to come back to it · <b>tap the card to put it right</b></p>
+      <div class="cardstack">
+        ${queue.length > 2 ? `<div class="peek two"></div>` : ""}
+        ${queue.length > 1 ? `<div class="peek"></div>` : ""}
+        <div class="swipecard ${back ? "back" : ""} ${leaving ? "out-" + leaving : ""}" id="card">
+          ${back ? backHtml() : `
+            <div class="stamp yes" id="stampYes">That's right</div>
+            <div class="stamp fix" id="stampFix">Skip for now</div>
+            <span class="kindtag" data-k="${f.k}">${f.tag}</span>
+            <p class="readback">${f.s}</p>
+            <p class="quote">From your CV: “${esc(j.quote)}”</p>`}
+        </div>
+      </div>
+      ${back ? "" : `<div class="swipehint">
+        <button class="cbtn fix" onclick="flip('')">✎ Put it right</button>
+        <button class="cbtn yes" onclick="confirmCard()">✓ That's right</button>
+      </div>`}
+      ${undoHtml()}
+    </div>`;
+  }
+
+  layout.innerHTML = area + panel;   // panel right — decided round 2
+  if (!done && !back && !leaving) wireDrag();
+  bumpKey = null;
+
+  document.getElementById("togReg").textContent = "Register: " + (dark ? "dark (shipped deck)" : "light (today)");
+  document.getElementById("instr").innerHTML =
+    `<span class="tag">designer only</span>
+     <span>decisions asked of her: <b>${taps}</b> / 15 budget</span>
+     <span>machine decisions on this CV: <b>${jobs.length * 5}</b></span>
+     <span>checked: <b>${checked()}/${jobs.length}</b></span>
+     <span>in the deck: <b>${queue.length}</b></span>
+     <span>corrections: <b>${corrections}</b></span>
+     <span>true total if all confirmed: <b>${yearsStr(totalOf(jobs))}</b></span>`;
+}
+
+const undoHtml = () => lastUndo ? `<div class="undo"><span>${lastUndo.label}</span><button onclick="undo()">Undo</button></div>` : "";
+
+/* ══ the reward beat — factbadge.css's flying chip, then jd-bump on the number ══
+   OWNER, ROUND 2: "any new info added, by any kind, should feel like a reward and trigger the
+   animation." So the chip fires on EVERY card she finishes, whatever kind it was — the reward
+   pays for the doing, never for one particular answer. Matching jobs is the second beat: it
+   bumps only when it actually moved, which is honest rather than motivating. */
+const bump = (id) => { const n = document.getElementById(id); if (n) { n.classList.remove("bump"); void n.offsetWidth; n.classList.add("bump"); } };
+
+function flyReward(text, fromRect, alsoMatches) {
+  const target = document.getElementById("checkedNum");
+  if (!target || !fromRect || REDUCED) { bumpKey = "checked"; if (alsoMatches) setTimeout(() => bump("matchNum"), 120); return; }
+  const b = target.getBoundingClientRect();
+  const chip = document.createElement("div");
+  chip.className = "factchip";
+  chip.textContent = text;
+  chip.style.left = fromRect.left + fromRect.width / 2 + "px";
+  chip.style.top = fromRect.top + fromRect.height / 2 + "px";
+  document.body.appendChild(chip);
+  requestAnimationFrame(() => {
+    chip.style.transform = `translate(${b.left + b.width / 2 - (fromRect.left + fromRect.width / 2)}px, ${b.top + b.height / 2 - (fromRect.top + fromRect.height / 2)}px) scale(.72)`;
+    chip.style.opacity = "0";
+  });
+  setTimeout(() => {
+    chip.remove();
+    bump("checkedNum");
+    if (alsoMatches) setTimeout(() => bump("matchNum"), 260);
+  }, 700);
+}
+/* the chip names HER thing, not ours — concrete beats a counter */
+const rewardText = (j) => {
+  const name = j.employer || KINDS[j.kind].label;
+  return "+ " + (name.length > 26 ? name.slice(0, 25) + "…" : name);
+};
+
+/* ══ swipe — the shipped job deck's mechanics, at its own values ══ */
+function wireDrag() {
+  const card = document.getElementById("card");
+  if (!card) return;
+  let drag = null;
+  card.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".dec, button")) return;   // tapping a value opens its control, never a drag
+    drag = { x0: e.clientX, y0: e.clientY, dx: 0, live: false };
+  });
+  card.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+    if (!drag.live) {
+      if (Math.abs(dx) < 8) return;                       // 8px activation
+      if (Math.abs(dx) <= Math.abs(dy)) { drag = null; return; }  // axis lock: vertical wins
+      drag.live = true; card.classList.add("dragging"); card.setPointerCapture(e.pointerId);
+    }
+    drag.dx = dx;
+    if (REDUCED) return;
+    card.style.transform = `translateX(${dx}px) rotate(${dx * 0.045}deg)`;
+    const o = Math.min(1, Math.abs(dx) / 110);            // stamp ramps over 110px
+    document.getElementById("stampYes").style.opacity = dx > 0 ? o : 0;
+    document.getElementById("stampFix").style.opacity = dx < 0 ? o : 0;
+  });
+  const release = () => {
+    if (!drag) return;
+    const d = drag; drag = null;
+    card.classList.remove("dragging");
+    /* never moved past the activation threshold → it was a TAP, and a tap is how you correct.
+       The horizontal axis is confirm-only (round 2), so correcting is not a gesture at all. */
+    if (!d.live) { flip(""); return; }
+    if (d.dx > 90) confirmCard();                          // 90px commit
+    else if (d.dx < -90) skipCard();
+    else {
+      card.classList.add("settling"); card.style.transform = "";
+      document.getElementById("stampYes").style.opacity = 0;
+      document.getElementById("stampFix").style.opacity = 0;
+      setTimeout(() => card.classList.remove("settling"), 240);
+    }
+  };
+  card.addEventListener("pointerup", release);
+  card.addEventListener("pointercancel", release);
+}
+
+/* ══ actions ══ */
+function advance(dir, label, mutate, opts = {}) {
+  const { countsAsDecision = true, reward = null } = opts;
+  const card = document.getElementById("card");
+  const rect = card ? card.getBoundingClientRect() : null;
+  const beforeMatches = matchesFor(confirmedMonths());
+  lastUndo = { label, queue: [...queue], status: clone(status), taps, corrections, jobs: clone(jobs) };
+  mutate();
+  if (countsAsDecision) taps++;
+  back = false; draft = null;
+  const gained = matchesFor(confirmedMonths()) - beforeMatches;
+
+  const finish = () => {
+    leaving = null; render();
+    if (reward) flyReward(reward, rect, gained > 0);
+  };
+  if (dir && card && !REDUCED) { leaving = dir; card.classList.add("out-" + dir); setTimeout(finish, 330); }
+  else finish();
+}
+
+window.confirmCard = () => {
+  const j = current();
+  advance("right", "Confirmed", () => {
+    status[j.id] = status[j.id] === "fixed" ? "fixed" : "done";
+    queue.shift();
+  }, { reward: rewardText(j) });
+};
+/* ADR-0011 clause 4: a skip means "not now". The card returns to the end of the deck — it is
+   never discarded, and it never counts as a decision she has made. */
+window.skipCard = () => {
+  const j = current();
+  advance("left", "Skipped — it'll come back", () => {
+    if (status[j.id] !== "done" && status[j.id] !== "fixed") status[j.id] = "skipped";
+    queue.push(queue.shift());
+  }, { countsAsDecision: false });   // nothing was added, so nothing is celebrated
+};
+window.flip = (field) => {
+  draft = clone(current()); back = true; render();
+  setTimeout(() => document.querySelector(".back input, .back select")?.focus(), 30);
+};
+window.cancelBack = () => { back = false; draft = null; render(); };
+window.saveBack = () => {
+  const o = current(), d = draft;
+  const changed = [];
+  if (o.employer !== d.employer) changed.push("employer");
+  if (o.title !== d.title) changed.push("title");
+  if (o.kind !== d.kind) changed.push("kind");
+  if (JSON.stringify(o.start) + JSON.stringify(o.end) !== JSON.stringify(d.start) + JSON.stringify(d.end)) changed.push("dates");
+  advance(null, "Saved your correction", () => {
+    const marks = {}; changed.forEach((f) => (marks[f] = true));
+    const at = jobs.findIndex((j) => j.id === o.id);
+    jobs[at] = { ...d, corrected: { ...(d.corrected || {}), ...marks } };
+    if (changed.length) corrections++;
+    status[o.id] = changed.length ? "fixed" : "done";
+    queue.shift();
+  }, { reward: rewardText(d) });
+};
+window.setF = (k, v) => { draft[k] = v; };
+window.setKind = (k) => { draft.kind = k; render(); };
+window.setEnd = (s) => {
+  draft.end.state = s;
+  if (s === "ended" && draft.end.y == null) { draft.end.y = 2026; draft.end.m = 8; draft.end.prec = "month"; }
+  render();
+};
+window.setD = (which, part, v) => {
+  const p = draft[which];
+  if (part === "m") { p.m = v ? Number(v) : null; p.prec = v ? "month" : "year"; }
+  else p.y = Number(v);
+  render();
+};
+window.undo = () => {
+  if (!lastUndo) return;
+  ({ taps, corrections } = lastUndo);
+  queue = lastUndo.queue; status = lastUndo.status; jobs = lastUndo.jobs;
+  lastUndo = null; back = false; draft = null; leaving = null; render();
+};
+
+document.getElementById("togReg").onclick = () => { dark = !dark; render(); };
+document.getElementById("reset").onclick = reset;
+addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA")) return;
+  const k = e.key.toLowerCase();
+  const live = !back && queue.length > 0;
+  if (e.key === "ArrowRight" && live) confirmCard();
+  else if (e.key === "ArrowLeft" && live) skipCard();
+  else if (k === "e" && live) flip("");
+  else if (k === "d") { dark = !dark; render(); }
+  else if (k === "r") reset();
+  else if (e.key === "Escape" && back) cancelBack();
+});
+
+reset();
+</script>
