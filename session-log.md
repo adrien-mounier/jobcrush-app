@@ -2,6 +2,44 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-07 (session 91) — Map #127's final act: `/to-tickets` — 14 build tickets, ADR-0011, and the design effort decided
+
+_`/to-tickets` on map [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127). Output:
+**build tickets [#158–#171](https://github.com/adrien-mounier/jobcrush-app/issues/158)** (14, all
+`ready-for-agent`, native dependencies wired),
+**[ADR-0011](docs/adr/0011-a-hole-is-asked-blank-or-advert-triggered.md)** (the map's last fog item,
+decided by owner grilling), and the **design-effort decision recorded on
+[#157](https://github.com/adrien-mounier/jobcrush-app/issues/157)**. The map is done._
+
+- **The breakdown:** frontier = #158 (bullet economy + printed bullets carry source claims — #153's
+  three code sites) · #159 (dates/summary/nationality rules — #143 + ADR-0007's prompt fix) · #160
+  (measure the structured-read cost). Foundation = **#161 (the job record — the worked example)**,
+  blocked by #160 + #157. Fan-out from #161: #162 years-worked-out · #163 corrections reach the CV ·
+  #164 skills · #165 language ladder · #166 degrees/certs askable · #167 Projects · #168 withholding
+  pass · #169 chunked ingestion. Then #170 homeless-content (after #168) and #171 stretch machinery
+  (after #158 + #163).
+- **⭐ ADR-0011 closed the question-vs-blank boundary, five owner decisions:** three channels sorted
+  by consequence (ask now only what moves a gate / the total / a tested level · presentation-only →
+  visible blank on the profile, never the tailored CV · advert-tested → asked when the advert
+  appears, reason aloud) · ingestion asks about **facts, never quality** — polish questions relocate
+  to the moment of application as permanent asked facts · chunks are **topic-bounded, no counts
+  announced**, most consequential first · **a skip means "not now"** — re-askable per new advert,
+  never twice per advert, and **"stop asking" cannot ship before the profile mute list exists**
+  (visible, one-tap-reversible; the owner caught the mistap-permanence hazard himself) · the
+  absorption bet is **instrumented** (per-topic completion, quit points, skip rates).
+- **⭐ The design effort is its own project (owner: option B, interactive).** #157 is its home: the
+  owner + the designer in a live session, `/prototype` examples at each design step. Wired as a
+  native blocker of the five screen-bearing tickets (#161, #163, #168, #169, #171) — **it sits on
+  the critical path** and can start immediately, in parallel with #158/#159/#160. The mute list
+  joined its register as item six.
+- **Sequencing decisions:** #160 (cost) deliberately blocks #161 so the owner sees the number before
+  the model build ships (his "no ceiling" stays a decision taken on a number) · #156/#157/#142/#134/
+  #154 deliberately not re-ticketed.
+- Codebase grounding verified before drafting: `buildTailorInput()` strips claim ids · `Draft` schema
+  `max(8)` + the lint's min-6 floor · `ASK_DIMENSIONS` still asks `years-experience` (ADR-0008's
+  falsifiable check currently fails) · "Roughly is fine." still in `grill.ts` · no jobs table in
+  Postgres · `parser_flags` discarded after `buildImportProof()`.
+
 ## 2026-08-07 (session 90) — The map's last decision: what we cannot classify is kept, printed faithfully, and reviewed by kind
 
 _`/wayfinder` on map [#127](https://github.com/adrien-mounier/jobcrush-app/issues/127). Resolved
