@@ -2,6 +2,36 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 (session 95) — Design E DECIDED (chunked ingestion): variant A "the narrated thread" — the #157 register is complete
+
+_Live working session with the owner, two prototype rounds. Binding instruction on
+[#169](https://github.com/adrien-mounier/jobcrush-app/issues/169); register closed on
+[#157](https://github.com/adrien-mounier/jobcrush-app/issues/157). Primary source
+`apps/web/prototypes/chunked-ingestion.prototype.html` (verdict in header)._
+
+- **Round 1: three shapes over one shared world** (Mei persona, real month-math — year-only dates
+  visibly cost her half her career, which is the game's honest sales pitch): A narrated thread,
+  B lamplight board, C level-up climb; full quit-and-return simulated in each; desktop = game left,
+  **master-CV paper right with holes as dotted blanks that fill in gold** as she answers.
+- **Owner ruling that reshaped the file: the game is the dark room.** Round 1 put E's question
+  surfaces in the light record register (extrapolating Design A's light confirm deck); the owner
+  called the E-B board→white-sheet jump "mixing up total different design identities". Everything
+  is Night Desk now; the paper is the room's one light material. ⚠️ **New open seam recorded on
+  #157:** sign-up would now cross light deck → dark game; whether the confirm deck follows is his
+  call.
+- **Round 2 fixed A's real flaw ("where does it end?")**: the plan said aloud ("Four short topics
+  are all I'll ever ask… Then I'm done."), the "Everything I'll ask" agenda with an explicit end
+  line, and a topics-only **fill** meter (per-topic slots in list order read as broken — owner
+  defect report). **The finale hands over to the shipped job deck** with the matching-jobs count
+  as headline and the ADR-0011 advert-triggered caveat said plainly. **A confirmed as built; B and
+  C rejected; no level ladder ships** (C's six wording ladders kept in the file as reference).
+- 🚨 **New owner rule, binding on all user-facing copy, all designs: plain international English**
+  — the launch markets are majority non-native speakers and the owner is the canary. Canonical
+  calls: "advert"→"job" · "hunt" never on her screen · "flick through"→"one by one". Recorded on
+  #169, in the prototype header, and in assistant memory.
+- Process note recorded for the owner: prototypes decide shape + rules; app chrome, pixel polish
+  and final microcopy are build-phase work under `DESIGN.md` + the binding instruction.
+
 ## 2026-08-08 (session 94) — Design C DECIDED (the scope of a "no"), and the design effort got its tooling
 
 _One prototype round for the design itself; most of the session was an owner-directed detour that

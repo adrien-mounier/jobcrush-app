@@ -1,0 +1,1417 @@
+<!-- PROTOTYPE — throwaway. Design effort #157, Design E ROUND 1: "chunked ingestion — the game."
+     The last design of the effort. Binds #169 (ingestion becomes chunked, resumable, rewarding).
+
+     ══ THE QUESTION ═════════════════════════════════════════════════════════
+     Sign-up questions stop being one burst and become a game she can leave at any moment:
+     topics read aloud ("let's do your job at Cathay Pacific"), everything saves, returning
+     resumes exactly where she left. WHAT THAT LOOKS LIKE — the shape of the game, the reward
+     framing, what quitting and coming back feel like — is the one thing no decision touched.
+     ADR-0011 explicitly left "the wording, layout, or reward design" to this effort.
+
+     ══ LOCKED — decided elsewhere, not open in this prototype ═══════════════
+       - NO TOTAL QUESTION COUNT, EVER, ANYWHERE (ADR-0011 c3; #137: announced length is the
+         abandonment driver). Progress reads as TOPICS DONE. Discipline held here: no numeral
+         about the future appears on her screen — no "2 questions left", no "1 topic to go"
+         with a number attached to questions. Backward-looking counts (her facts, her total)
+         are allowed — Design A already shows them.
+       - A chunk is bounded by its topic, never by a number. One question or five. Order:
+         most recent job → gated basics → older jobs (ADR-0011 c3).
+       - Only questions that change what the machine can do for her fire here: a gate, the
+         experience total, a tested level (ADR-0011 c1). No polish/quality questions (c2).
+         Presentation-only holes become visible blanks on the profile — not simulated here.
+       - Skip = "not now" (ADR-0011 c4). Answering closes permanently. Quitting is always
+         safe and shame-free (#169 UX intent). A partially-done profile is the NORMAL state.
+       - The permanent "stop asking" is Design C's DECIDED control, reused verbatim: quiet
+         ghost link on the card, inline confirm, "Just not now" carries the primary weight,
+         every stop → Undo toast + a mute-list row on the profile. The cost line states the
+         real consequence of THIS question plainly (C's rule applied per question: for a
+         gated fact "untested rather than answered", for a date "your total stays at the
+         shortest count"). Not re-decided here.
+       - Card anatomy, tap-to-correct, the reward beat = Design A, reused: EVERY finished
+         card fires the flying gold chip (factbadge.css, 720ms cubic-bezier(.4,.05,.3,1));
+         the total bumps (jd-bump, 460ms) ONLY when it actually moved. Deal-in 340ms.
+         All at shipped values — what is judged is the design, not a re-timing.
+       - The Still List Rule (Design B): nothing on any shell ever reorders. A board tile
+         changes state in place; the suggested-next marker moves, tiles never do.
+       - 🚨 REGISTER — OWNER RULING, 2026-08-09 (round 1 reaction, overruling this file's first
+         draft): THE GAME IS THE DARK ROOM, every E surface, answering included. The first
+         draft extended Design A's light confirm deck to E's question screens; the owner
+         called the result "mixing up total different design identities" (the E-B board →
+         white/green sheet jump). The one light material in the room is the PAPER — the
+         quoted CV line on a card, and the desktop master-CV page. NOTE THE SEAM this leaves:
+         Design A's shipped confirm deck is still light by its own decided round-1 finding B
+         ("designer's call, owner's to reverse") — whether that stands or follows E into the
+         dark is the owner's call, recorded as open, not resolved here.
+       - Chunk names are read aloud and must survive being read aloud (#127 decision 8's
+         constraint): "Your job at Cathay Pacific", "The basics", "Your education".
+       - 🚨 PLAIN INTERNATIONAL ENGLISH — OWNER RULE, 2026-08-09, binding on every user-facing
+         string in this design and carried to #169: the launch markets are majority non-native
+         English speakers, and the owner (fluent, non-native) is the canary. Concrete calls he
+         made: "advert" does not land — say "job" · "hunt" is too aggressive for her screen —
+         say the plain thing ("I show you the jobs") · idioms like "flick through" are out —
+         say "one by one" / "swipe through". The test for any string: a fluent non-native
+         reader understands it on first read, no dictionary, no culture. Internal vocabulary
+         (docs, tickets, code) is unaffected.
+
+     ══ WHAT THE VARIANTS DISAGREE ABOUT ═════════════════════════════════════
+     The SHAPE OF THE GAME — how the topics are held, what the reward is, and what
+     leaving/returning feels like. Same world, same questions, same card anatomy in all three:
+
+       A — THE NARRATED THREAD. No map, no menu. The machine is a companion proposing one
+           topic at a time in first person; she does it or leaves; finishing a topic is a
+           settled line and the chip. Return = the machine says where you were, aloud.
+           Progress = topic names, done, in a quiet list. The quietest shape; closest to
+           the shipped voice.
+       B — THE LAMPLIGHT BOARD. Her story laid out as one dark surface — every topic a
+           tile; her CV pre-lights what it already answered; answering lights the rest.
+           The reward IS the board filling with lamplight. She picks any tile, though a
+           quiet "start here" ring suggests the consequence order. Return = the board as
+           she left it; a half-done tile says "pick up where you left".
+       C — THE CLIMB. Explicit game framing: a profile-strength meter (segments = topics,
+           never questions), named levels in words (Getting started → Solid → Strong →
+           Sharp) — her CV alone starts her at Solid. Finishing a topic fills a segment;
+           crossing a threshold is a LEVEL-UP moment with a celebration beat and a line
+           saying what actually got stronger. Return = momentum ("one topic from Strong").
+           The loudest shape; tests how far "reward framing, level up" wants to go.
+
+     ══ SCOPE NOTES ══════════════════════════════════════════════════════════
+       - World: the confirm-swipe persona (Design A), continued. Cathay Pacific (current,
+         unknown end — #143's always-asked hole), Standard Chartered (complete on the CV),
+         Freelance year-only dates, Hutchison year-only end, PolyU BBA (read, no questions),
+         work rights (always asked, ADR-0008). Real month-math: unknown month counts
+         shortest, unknown end counts zero — so her total visibly pays as she answers.
+       - The mute list itself is Design C's decided surface, not re-drawn here; a stop logs
+         to the instrument strip and fires the decided Undo toast.
+       - Visible blanks on the profile (ADR-0011's second channel) are out of scope: this
+         prototype is the game, not the profile.
+       - Instrumentation (per-topic completion, quit points, skip rates — #169 AC) lives in
+         the dark chrome below the phone, never on her screen.
+
+     ══ DESKTOP ══════════════════════════════════════════════════════════════
+     The desktop treatment is the product's own split (Design B precedent: decide both
+     surfaces together): the game shell LEFT, and her MASTER CV as the paper RIGHT — with
+     every unanswered hole shown as a literal dotted blank on the page (ADR-0002 c2: a hole
+     is a visible blank on the profile view; it never prints on a tailored CV). Answering
+     fills the blank in place with a gold wash, and the reward chip flies ONTO THE PAGE —
+     the game made visible as the document completing itself. Same shells, same rules; the
+     frame is a window, not a fork. Toggle: ?frame=phone|desktop, the pill button, or F.
+
+     Switcher: ?variant=A|B|C, ← → keys, floating pill. Switching variants resets the world;
+     switching frames keeps it.
+     Instrument buttons: restart · answer for me · leave now · return +3 days · finish topic.
+
+     ══ VERDICT (owner, 2026-08-09): VARIANT A — "THE NARRATED THREAD" — AS BUILT ═══════════
+     Confirmed after two rounds of live reaction ("I confirm A as we made it"). B and C are
+     rejected as shapes; no level ladder ships (C's six wording ladders stay in this file as
+     reference material only). The decided shape, binding on #169:
+
+       1. THE DARK ROOM, EVERYWHERE (owner ruling 2026-08-09, overruling round 1's light
+          register). The paper (quoted CV line, desktop master-CV page) is the room's one
+          light material. Seam recorded as OPEN: Design A's shipped light confirm deck.
+       2. THE PLAN SAID ALOUD at first arrival: topic names in one breath, "Then I'm done."
+       3. THE FILL METER: topics done fill left→right whichever they were, white = where you
+          are, present on the home screen AND during a chunk (never per-topic slots — that
+          read as broken; owner defect report round 2). Topics only, never questions.
+       4. THE AGENDA ("Everything I'll ask"): every topic from day one — tick settled / ring
+          next / dot waiting / "your CV answered this" — still list, never reorders, closed
+          by "— and that's everything. No surprises after."
+       5. Each invitation names the remainder ("After this: … — then I'm done."); the last
+          says "This is the last one."
+       6. Question cards: Design A anatomy + Design C's stop door, reward chip on every
+          finished card at shipped values, total bumps only when it moved, gain line in gold
+          at the moment of change. Quit door on every screen; Saved beat; return resumes the
+          exact question.
+       7. THE FINALE hands over to the shipped job deck: "That's everything." + the
+          matching-jobs count as headline + gold "Show me the jobs" (in the build: navigate
+          to the existing deck route) + the ADR-0011 caveat said plainly ("If a job wants
+          something I haven't asked about, I'll ask you right then — and tell you why").
+          With skips left: "Anything you skipped stays open on your profile — never lost,
+          never nagged."
+       8. DESKTOP: game left, master-CV paper right, holes as dotted blanks that fill in
+          place with a gold wash; the chip flies onto the page. The frame is a window, not
+          a fork.
+       9. PLAIN INTERNATIONAL ENGLISH (locked-constraints entry above) binds every string.
+
+     App chrome (profile icon, navigation), final microcopy polish, and pixel spacing are
+     build-phase work under DESIGN.md + these rules — recorded per the owner's process
+     question, 2026-08-09.
+-->
+<!-- Without this, a phone lays the page out at ~980px and zooms out: the mobile
+     CSS never applies and the screens are judged at the wrong size. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JobCrush — Design E: chunked ingestion</title>
+
+<style>
+  :root {
+    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f;
+    --hud-line: #2b333d; --hud-ink: #e8eaed; --hud-mute: #7f8b98; --hud-mute-r: #8a95a2;
+    --reserve: #97aabc; --settled: #4d5865;
+
+    --paper: #f6f2ea; --paper-edge: #e2dacb; --paper-ink: #16150f; --paper-mute: #6b6455;
+
+    --day-0: #faf9f7; --day-1: #ffffff; --day-ink: #1f2328; --day-mute: #59636e; --day-line: #d9d5cf;
+    --teal: #0b6e5f;
+
+    --gold: #e8a33d; --gold-dim: #a8762b; --gold-light: #ffd9a0;
+
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+
+    --page: #0b0e12; --page-ink: #cfd5dc;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--page); color: var(--page-ink); font-family: var(--sans); padding: 26px 14px 90px; }
+
+  /* ── the ask, above the phone — designer chrome ── */
+  .ask-brief { max-width: 900px; margin: 0 auto 20px; color: #97aabc; font-size: 13.5px; line-height: 1.55; }
+  .ask-brief h1 { font-size: 17px; color: #e8eaed; margin: 0 0 6px; letter-spacing: -.01em; }
+  .ask-brief p { margin: 4px 0; }
+  .ask-brief b { color: #c3d0dc; font-weight: 620; }
+
+  /* ── the phone — a physical object; the one thing here that casts a shadow ── */
+  .phone {
+    width: 390px; max-width: 100%; height: 800px; margin: 0 auto; position: relative;
+    border-radius: 34px; border: 1px solid #262e38; background: var(--hud-0);
+    box-shadow: 0 30px 70px -20px rgba(0,0,0,.75), 0 0 0 8px #0e1114;
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .screen { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; scrollbar-width: thin; }
+  .screen.day { background: var(--day-0); color: var(--day-ink); }
+  .screen.night { background: var(--hud-0); color: var(--hud-ink); }
+
+  /* ══════════ shared: the question card — Design A anatomy, IN THE DARK ROOM ══════════
+     OWNER RULING (2026-08-09, this session): the game is the dark room. E's question surfaces
+     had shipped in the light record register (extending Design A's light confirm deck) and the
+     owner called it an identity break — "here you're mixing up total different design
+     identities." Every E surface is now the Night Desk; the one light material in the room is
+     the PAPER (the quoted CV line, and the desktop master-CV page), exactly as DESIGN.md says. */
+  .qwrap { padding: 18px 18px 30px; }
+  .qcard {
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 16px;
+    padding: 20px; animation: jd-dealin 340ms ease-out;
+  }
+  .qcard .quote {
+    font-family: var(--serif); font-size: 14.5px; line-height: 1.5; color: var(--paper-ink);
+    background: var(--paper); border: 1px solid var(--paper-edge); border-radius: 6px;
+    padding: 10px 12px; margin: 0 0 14px;
+  }
+  .qcard h2 { font-size: 18px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 8px; color: var(--hud-ink); }
+  .qcard .why { font-size: 13.5px; line-height: 1.5; color: var(--hud-mute-r); margin: 0 0 16px; }
+  .qcard .opts { display: flex; flex-direction: column; gap: 8px; }
+  .btn {
+    font: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer;
+    border-radius: 10px; padding: 12px 14px; border: 1px solid var(--hud-line);
+    background: var(--hud-2); color: var(--hud-ink); text-align: left;
+  }
+  .btn:hover { border-color: #3a4450; }
+  /* dark-room primary: Lamplight Gold, near-black ink — DESIGN.md button-primary, verbatim */
+  .btn.primary { background: var(--gold); border-color: var(--gold); color: #1a1206; }
+  .btn.primary:hover { background: var(--gold-light); border-color: var(--gold-light); }
+  .btn:focus-visible, .ghost:focus-visible, a:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 2px; }
+  .qcard .datesrow { display: flex; gap: 8px; margin-top: 4px; }
+  .qcard select {
+    font: inherit; font-size: 14px; padding: 10px 8px; border-radius: 10px;
+    border: 1px solid var(--hud-line); background: var(--hud-2); color: var(--hud-ink); flex: 1;
+  }
+  .ghost {
+    font: inherit; font-size: 13.5px; color: var(--hud-mute-r); background: none; border: none;
+    cursor: pointer; padding: 10px 4px; text-align: center; width: 100%;
+  }
+  .ghost:hover { color: var(--hud-ink); }
+  .stopline { text-align: center; margin-top: 2px; }
+  .stopline button {
+    font: inherit; font-size: 12.5px; color: var(--hud-mute); background: none; border: none;
+    cursor: pointer; text-decoration: underline; text-underline-offset: 3px; padding: 6px;
+  }
+  .stopline button:hover { color: var(--hud-mute-r); }
+
+  /* Design C's decided inline confirm — reused verbatim in structure */
+  .stopconfirm { background: var(--hud-2); border: 1px solid var(--hud-line); border-radius: 10px; padding: 14px; margin-top: 12px; animation: jd-dealin 340ms ease-out; }
+  .stopconfirm h3 { font-size: 14.5px; margin: 0 0 6px; color: var(--hud-ink); }
+  .stopconfirm p { font-size: 13px; color: var(--hud-mute-r); line-height: 1.5; margin: 0 0 12px; }
+  .stopconfirm .row { display: flex; gap: 8px; }
+  .stopconfirm .row .btn { flex: 1; text-align: center; font-size: 13.5px; padding: 10px; }
+
+  /* settled line after an answer — the moment a fact joins the record is gold's own job */
+  .gainline { font-size: 13px; color: var(--gold); font-weight: 600; margin: 12px 2px 0; animation: jd-dealin 340ms ease-out; }
+
+  /* the topic header inside a chunk */
+  .chunkhead { padding: 18px 18px 0; }
+  .chunkhead .topic { font-size: 15px; font-weight: 620; letter-spacing: -.005em; }
+  .chunkhead .sub { font-size: 12.5px; color: var(--day-mute); margin-top: 2px; }
+  .night .chunkhead .topic { color: var(--hud-ink); }
+  .night .chunkhead .sub { color: var(--hud-mute-r); }
+
+  /* the exit door — always present, always quiet, never a warning */
+  .doorline { text-align: center; padding: 4px 18px 20px; }
+  .doorline button { font: inherit; font-size: 13px; color: var(--day-mute); background: none; border: none; cursor: pointer; padding: 8px; }
+  .doorline button:hover { color: var(--day-ink); }
+  .night .doorline button { color: var(--hud-mute-r); }
+  .night .doorline button:hover { color: var(--hud-ink); }
+
+  /* ══════════ variant A — the narrated thread (dark room, owner ruling above) ══════════ */
+  .a-shell { padding: 26px 20px 30px; }
+  .a-voice { font-size: 20px; font-weight: 650; letter-spacing: -.015em; line-height: 1.3; margin: 0 0 6px; color: var(--hud-ink); }
+  .a-voicesub { font-size: 14px; color: var(--hud-mute-r); line-height: 1.55; margin: 0 0 22px; }
+  .a-invite {
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 16px; padding: 18px;
+    animation: jd-dealin 340ms ease-out;
+  }
+  .a-invite .t { font-size: 16.5px; font-weight: 650; letter-spacing: -.01em; color: var(--hud-ink); }
+  .a-invite .s { font-size: 13px; color: var(--hud-mute-r); margin: 3px 0 6px; }
+  .a-invite .w { font-size: 13.5px; color: var(--hud-ink); line-height: 1.5; margin: 8px 0 14px; }
+  .a-donelist { margin: 26px 0 0; }
+  .a-donelist .cap { font-size: 12px; color: var(--settled); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 8px; }
+  .a-done { display: flex; align-items: baseline; gap: 9px; padding: 7px 2px; font-size: 14px; color: var(--hud-mute-r); }
+  .a-done.new { animation: jd-dealin 340ms ease-out; }
+  .a-done .tick { color: var(--gold); font-weight: 700; }
+  .a-done.open .tick { color: transparent; }
+  .a-done .nm { color: var(--hud-ink); }
+  .a-done .st { font-size: 12px; color: var(--hud-mute); margin-left: auto; }
+  /* ROUND 2 (owner): A's flaw was "where does it end?" — the extent is now visible in A's own
+     medium: the plan said aloud at the start, a standing agenda with an explicit end line, and
+     the shipped per-topic dots (confirm-swipe's .dots, dark-room values) while she answers. */
+  .a-agenda .endline { font-size: 12.5px; color: var(--settled); margin-top: 10px; padding-left: 2px; font-style: italic; }
+  .a-ahead { font-size: 12.5px; color: var(--hud-mute-r); margin: 10px 0 0; }
+  .glyph { width: 12px; display: inline-flex; justify-content: center; align-self: center; }
+  .glyph.ring { color: var(--gold); }
+  .glyph.dot { color: var(--settled); }
+  .dots { display: flex; gap: 5px; margin-top: 10px; }
+  .dots i { height: 5px; border-radius: 3px; flex: 1 1 0; max-width: 30px; background: var(--hud-2); border: 1px solid var(--hud-line); }
+  .dots i[data-s="done"] { background: var(--gold); border-color: transparent; }
+  .dots i[data-s="now"] { background: var(--hud-ink); border-color: transparent; }
+  .dots i[data-s="open"] { background: var(--settled); border-color: transparent; }
+  /* the hunt handoff — a sketch of the shipped job deck's first moment, not a redesign of it */
+  .hunt { padding: 22px 20px 30px; }
+  .hunt-top { text-align: center; font-size: 12.5px; color: var(--hud-mute-r); margin-bottom: 14px; }
+  .huntcard {
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 18px; padding: 20px;
+    box-shadow: 0 16px 34px -12px rgba(0,0,0,.55); animation: jd-dealin 340ms ease-out;
+  }
+  .huntcard .hc-co { font-size: 13px; color: var(--hud-mute-r); }
+  .huntcard .hc-role { font-size: 19px; font-weight: 650; letter-spacing: -.012em; color: var(--hud-ink); margin: 3px 0 4px; }
+  .huntcard .hc-meta { font-size: 12.5px; color: var(--hud-mute-r); margin-bottom: 12px; }
+  .huntcard .hc-fit { font-size: 13.5px; color: var(--gold); line-height: 1.5; border-top: 1px solid var(--hud-line); padding-top: 12px; }
+  .a-topbar { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px 0; }
+  .a-badge {
+    display: inline-flex; align-items: center; gap: 7px; background: var(--hud-2);
+    border: 1px solid var(--hud-line); border-radius: 999px; padding: 5px 11px; font-size: 12.5px; color: var(--hud-mute-r);
+  }
+  .a-badge b { color: var(--hud-ink); font-size: 13px; }
+  .a-badge .coin { width: 15px; height: 15px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--gold-light), var(--gold) 60%, var(--gold-dim)); }
+  .a-total { font-size: 12.5px; color: var(--hud-mute-r); }
+  .a-total b { color: var(--hud-ink); font-size: 13px; }
+
+  /* ══════════ variant B — the lamplight board (dark room) ══════════ */
+  .b-shell { padding: 24px 18px 30px; }
+  .b-head h2 { font-size: 21px; font-weight: 660; letter-spacing: -.015em; margin: 0 0 4px; color: var(--hud-ink); }
+  .b-head p { font-size: 13.5px; color: var(--hud-mute-r); line-height: 1.5; margin: 0 0 18px; }
+  .b-stats { display: flex; gap: 14px; margin-bottom: 18px; }
+  .b-stat { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 12px; padding: 10px 14px; flex: 1; }
+  .b-stat .v { font-size: 17px; font-weight: 650; color: var(--hud-ink); }
+  .b-stat .l { font-size: 11.5px; color: var(--hud-mute-r); margin-top: 1px; }
+  .tile {
+    position: relative; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 16px;
+    padding: 15px 16px 15px 20px; margin-bottom: 10px; cursor: pointer; overflow: hidden;
+    transition: border-color .25s, background .4s;
+  }
+  .tile:hover { border-color: #3a4450; }
+  .tile .nm { font-size: 15px; font-weight: 620; color: var(--hud-ink); letter-spacing: -.005em; }
+  .tile .sub { font-size: 12.5px; color: var(--hud-mute-r); margin-top: 2px; }
+  .tile .state { font-size: 12.5px; margin-top: 8px; color: var(--reserve); }
+  .tile.lit { background: linear-gradient(100deg, rgba(232,163,61,.14), rgba(232,163,61,.03) 55%, transparent); border-color: rgba(232,163,61,.35); cursor: default; }
+  .tile.lit .state { color: var(--gold); }
+  .tile.lit:hover { border-color: rgba(232,163,61,.35); }
+  .tile.next { border-color: rgba(232,163,61,.55); box-shadow: 0 0 26px rgba(232,163,61,.12); }
+  .tile.next .state { color: var(--gold-light); }
+  .tile.open .state { color: var(--reserve); }
+  .tile.igniting { animation: b-ignite 700ms ease-out; }
+  @keyframes b-ignite {
+    0% { box-shadow: 0 0 0 rgba(232,163,61,0); }
+    35% { box-shadow: 0 0 46px rgba(232,163,61,.4); }
+    100% { box-shadow: 0 0 0 rgba(232,163,61,0); }
+  }
+  .b-cap { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--settled); margin: 16px 2px 8px; }
+
+  /* the sheet — her record rising over the room (B and C) */
+  .sheetveil { position: absolute; inset: 0; background: rgba(6,8,11,.55); animation: veil-in 260ms ease-out; z-index: 4; }
+  @keyframes veil-in { from { opacity: 0; } to { opacity: 1; } }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0; top: 12%; z-index: 5;
+    background: var(--hud-1); color: var(--hud-ink); border-radius: 22px 22px 0 0;
+    border-top: 1px solid var(--hud-line);
+    box-shadow: 0 -12px 36px -10px rgba(0,0,0,.6);
+    animation: sheet-up 340ms cubic-bezier(.2,.8,.3,1);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  @keyframes sheet-up { from { transform: translateY(6%); opacity: .6; } to { transform: none; opacity: 1; } }
+  .sheet .grab { width: 42px; height: 4px; border-radius: 2px; background: var(--hud-line); margin: 10px auto 0; flex: none; }
+  .sheet .qcard { background: var(--hud-2); }
+  .sheet .btn { background: var(--hud-1); }
+  .sheet .btn.primary { background: var(--gold); }
+  .sheet .qcard select, .sheet .stopconfirm { background: var(--hud-1); }
+  .sheet .inner { flex: 1; overflow-y: auto; }
+
+  /* ══════════ variant C — the climb (dark room) ══════════ */
+  .c-shell { padding: 26px 20px 30px; }
+  .c-level { text-align: center; margin: 8px 0 4px; }
+  .c-level .word { font-size: 30px; font-weight: 660; letter-spacing: -.02em; color: var(--hud-ink); }
+  .c-level .word.bump { animation: jd-bump 460ms cubic-bezier(.2,1.5,.4,1); }
+  .c-level .cap { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-mute-r); margin-bottom: 4px; }
+  .c-meter { display: flex; gap: 5px; margin: 16px 0 8px; }
+  .c-meter i {
+    height: 7px; border-radius: 4px; flex: 1; background: var(--hud-2); border: 1px solid var(--hud-line);
+    transition: background .5s, box-shadow .5s;
+  }
+  .c-meter i.f { background: linear-gradient(90deg, var(--gold-dim), var(--gold)); border-color: transparent; box-shadow: 0 0 12px rgba(232,163,61,.35); }
+  .c-sub { text-align: center; font-size: 13.5px; color: var(--hud-mute-r); line-height: 1.5; margin: 0 0 22px; }
+  .c-sub b { color: var(--hud-ink); font-weight: 620; }
+  .c-next {
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 16px; padding: 17px;
+    animation: jd-dealin 340ms ease-out;
+  }
+  .c-next .t { font-size: 16px; font-weight: 640; color: var(--hud-ink); letter-spacing: -.008em; }
+  .c-next .s { font-size: 12.5px; color: var(--hud-mute-r); margin: 3px 0 10px; }
+  .c-next .w { font-size: 13.5px; color: var(--hud-ink); opacity: .9; line-height: 1.5; margin-bottom: 14px; }
+  .c-donelist { margin-top: 22px; }
+  .c-done { display: flex; align-items: baseline; gap: 9px; padding: 6px 2px; font-size: 13.5px; color: var(--hud-mute-r); }
+  .c-done .tick { color: var(--gold); font-weight: 700; }
+  .c-done .nm { color: var(--hud-ink); }
+  .c-done .st { margin-left: auto; font-size: 12px; }
+  .c-total { text-align: center; font-size: 12.5px; color: var(--hud-mute-r); margin-top: 20px; }
+  .c-total b { color: var(--hud-ink); }
+
+  /* level-up overlay */
+  .lvlveil {
+    position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center;
+    background: rgba(6,8,11,.72); animation: veil-in 300ms ease-out;
+  }
+  .lvlcard {
+    background: var(--hud-1); border: 1px solid rgba(232,163,61,.5); border-radius: 20px;
+    padding: 30px 26px; text-align: center; width: 300px;
+    box-shadow: 0 0 60px rgba(232,163,61,.28), 0 16px 34px -12px rgba(0,0,0,.55);
+    animation: lvl-pop 520ms cubic-bezier(.2,1.5,.4,1);
+  }
+  @keyframes lvl-pop { 0% { transform: scale(.8); opacity: 0; } 100% { transform: none; opacity: 1; } }
+  .lvlcard .cap { font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+  .lvlcard .word { font-size: 34px; font-weight: 680; letter-spacing: -.02em; color: var(--hud-ink); margin: 8px 0 10px; }
+  .lvlcard p { font-size: 13.5px; color: var(--hud-mute-r); line-height: 1.55; margin: 0 0 18px; }
+  .lvlcard .btn { width: 100%; text-align: center; }
+
+  /* ══════════ shared: saved / away / welcome-back beats ══════════ */
+  .beat { padding: 60px 26px 0; text-align: center; animation: jd-dealin 340ms ease-out; }
+  .beat h2 { font-size: 22px; font-weight: 650; letter-spacing: -.015em; margin: 0 0 10px; }
+  .beat p { font-size: 14px; line-height: 1.55; margin: 0 auto 22px; max-width: 300px; }
+  .day .beat p { color: var(--day-mute); }
+  .night .beat p { color: var(--hud-mute-r); }
+  .beat .tickbig { width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;
+    background: var(--teal); color: #fff; font-size: 20px; font-weight: 700; }
+  .night .beat .tickbig { background: var(--gold); color: #1a1206; }
+  .away { position: absolute; inset: 0; z-index: 9; background: var(--page); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; }
+  .away .t { color: #5b6b7a; font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+  .away .d { color: #97aabc; font-size: 14px; }
+
+  /* ══════════ desktop frame — the product's own split: game left, her paper right ══════════ */
+  .desk {
+    width: min(1160px, 96vw); min-height: 780px; margin: 0 auto; position: relative;
+    border: 1px solid #262e38; border-radius: 18px; overflow: hidden;
+    display: grid; grid-template-columns: 1.32fr 1fr; gap: 0;
+    box-shadow: 0 30px 70px -20px rgba(0,0,0,.75);
+  }
+  .desk-left { position: relative; overflow-y: auto; overflow-x: hidden; max-height: 820px; scrollbar-width: thin; }
+  .desk-left .a-shell, .desk-left .b-shell, .desk-left .c-shell, .desk-left .qwrap,
+  .desk-left .chunkhead, .desk-left .a-topbar, .desk-left .beat { max-width: 560px; margin-left: auto; margin-right: auto; }
+  .desk-left.day { background: var(--day-0); color: var(--day-ink); }
+  .desk-left.night { background: var(--hud-0); color: var(--hud-ink); }
+  .desk-right { padding: 34px 34px 34px 6px; display: flex; flex-direction: column; }
+  .desk-right.day { background: var(--day-0); }
+  .desk-right.night { background: var(--hud-0); }
+  .desk-right .cap { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; margin: 0 0 10px 28px; }
+  .desk-right.day .cap { color: var(--day-mute); }
+  .desk-right.night .cap { color: var(--hud-mute); }
+  .paper-doc {
+    flex: 1; background: var(--paper); border: 1px solid var(--paper-edge); border-radius: 8px;
+    box-shadow: 0 -12px 36px -10px rgba(0,0,0,.6);
+    font-family: var(--serif); color: var(--paper-ink); padding: 34px 32px; line-height: 1.5;
+  }
+  .paper-doc h1 { font-size: 21px; font-weight: 600; letter-spacing: .01em; margin: 0 0 2px; }
+  .paper-doc .who { font-size: 13.5px; color: var(--paper-mute); margin: 0 0 4px; }
+  .paper-doc .rights { font-size: 13px; margin: 0 0 18px; }
+  .paper-doc h2 {
+    font-size: 12px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase;
+    border-bottom: 1px solid var(--rule, #d9d0bd); padding-bottom: 4px; margin: 18px 0 10px; color: var(--paper-ink);
+  }
+  .p-entry { margin-bottom: 12px; }
+  .p-entry .role { font-size: 14.5px; font-weight: 600; }
+  .p-entry .meta { font-size: 13px; color: var(--paper-mute); }
+  .slot {
+    display: inline-block; min-width: 34px; border-bottom: 1px dotted #a89e8a; height: .9em;
+    vertical-align: baseline; position: relative; top: -1px;
+  }
+  .pfill { border-radius: 3px; padding: 0 2px; margin: 0 -2px; }
+  .pfill.flash { animation: paper-flash 1.8s ease-out; }
+  @keyframes paper-flash { 0% { background: rgba(232,163,61,.5); } 100% { background: transparent; } }
+
+  /* the flying reward chip — factbadge.css .factchip, at its shipped values */
+  .factchip {
+    position: fixed; z-index: 90; pointer-events: none; background: var(--gold); color: #1a1206;
+    font-family: var(--sans); font-size: 12px; font-weight: 650; padding: 6px 12px;
+    border-radius: 999px; white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.45);
+    transform: translate(-50%, -50%);
+    transition: transform 720ms cubic-bezier(.4,.05,.3,1), opacity 720ms ease;
+  }
+  @keyframes jd-bump { 0% { transform: none; } 40% { transform: scale(1.28); color: var(--gold); } 100% { transform: none; } }
+  .bumpv { animation: jd-bump 460ms cubic-bezier(.2,1.5,.4,1); display: inline-block; }
+  @keyframes jd-dealin { from { opacity: 0; transform: translateY(22px) scale(.98); } to { opacity: 1; transform: none; } }
+
+  /* undo toast (Design C: every stop → undo, ~6s) */
+  .undo {
+    position: absolute; left: 14px; right: 14px; bottom: 16px; z-index: 20;
+    background: #1f262f; color: #e8eaed; border: 1px solid #2b333d; border-radius: 12px;
+    padding: 11px 14px; display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px; animation: jd-dealin 260ms ease-out; box-shadow: 0 16px 34px -12px rgba(0,0,0,.55);
+  }
+  .undo button { font: inherit; font-weight: 650; color: var(--gold); background: none; border: none; cursor: pointer; padding: 4px 6px; }
+
+  /* ── designer instrumentation — never her screen ── */
+  .instruments { max-width: 900px; margin: 18px auto 0; background: #14181d; color: #97aabc; border-radius: 12px; padding: 12px 16px; font-family: var(--mono); font-size: 11.5px; }
+  .instruments .tag { color: #5b6b7a; letter-spacing: .1em; text-transform: uppercase; font-size: 10px; }
+  .instruments .row { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; align-items: center; }
+  .instruments button { font: inherit; font-size: 11px; color: #c3d0dc; background: #1d232b; border: 1px solid #2b333d; border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+  .instruments button:hover { border-color: #3a4450; }
+  .instruments .state { margin-top: 6px; color: #7f8b98; white-space: pre-wrap; line-height: 1.5; }
+
+  /* ── switcher pill ── */
+  .switcher {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 50;
+    display: flex; align-items: center; gap: 4px; background: #101419; color: #e8eaed;
+    border: 1px solid #2b333d; border-radius: 999px; padding: 6px 8px;
+    box-shadow: 0 10px 28px -8px rgba(0,0,0,.5); font-size: 13px;
+  }
+  .switcher button { font: inherit; font-size: 15px; background: none; border: none; color: #97aabc; cursor: pointer; padding: 4px 10px; border-radius: 999px; }
+  .switcher button:hover { color: #fff; background: #1d232b; }
+  .switcher .lbl { padding: 0 8px; min-width: 250px; text-align: center; }
+  .switcher .lbl b { color: #e8a33d; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+
+<body>
+
+<div class="ask-brief">
+  <h1>Design E — chunked ingestion: the shape of the game</h1>
+  <p><b>The question:</b> sign-up questions become topics she can leave at any moment and resume exactly. What does the game look like — its shape, its reward, its welcome back?</p>
+  <p><b>Locked:</b> no question counts anywhere · topics bound chunks, most consequential first · skip = not now · quitting is safe and shame-free · the chip fires on every finished card · Design C's stop-asking control, verbatim.</p>
+  <p><b>The variants disagree about the shape:</b> <b>A</b> a narrated one-topic-at-a-time companion · <b>B</b> her story as a board that fills with lamplight · <b>C</b> an explicit climb with named levels.</p>
+</div>
+
+<div id="stage"></div>
+
+<div class="instruments">
+  <div class="tag">designer instrumentation — never on her screen</div>
+  <div class="row" id="inst-desc"></div>
+  <div class="row">
+    <button id="i-restart">restart world</button>
+    <button id="i-auto">answer for me</button>
+    <button id="i-leave">leave now</button>
+    <button id="i-return">return, 3 days later</button>
+    <button id="i-finish">finish everything</button>
+    <button id="i-ladder">C wording ▸</button>
+  </div>
+  <div class="state" id="inst-state"></div>
+</div>
+
+<div class="switcher" role="group" aria-label="Prototype variant switcher">
+  <button id="sw-prev" aria-label="Previous variant">‹</button>
+  <div class="lbl" id="sw-label"></div>
+  <button id="sw-next" aria-label="Next variant">›</button>
+  <button id="sw-frame" aria-label="Toggle phone or desktop frame" style="font-size:12px">desktop</button>
+</div>
+
+<script>
+/* ══════════════════ the world — Design A's persona, continued ══════════════════ */
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const NOW = { y: 2026, m: 8 };   /* prototype clock — a real build uses the server's */
+
+/* Topics in consequence order (ADR-0011 c3): most recent job → gated basics → older jobs.
+   scb + edu carry no askable holes — the CV answered them; they exist so the shells can
+   show the game STARTING mostly won. */
+const TOPICS = [
+  { id: "cathay", name: "Your job at Cathay Pacific", sub: "Business Analyst · since 2022",
+    why: "It's your most recent job — and right now it can't add to your years of experience.",
+    qs: [
+      { id: "cathay-end",
+        quote: "Business Analyst, Cathay Pacific — 2022 –",
+        ask: "Are you still at Cathay Pacific?",
+        why: "Your CV doesn't say when this ended — and until I know, this job adds nothing to your years of experience.",
+        kind: "still-or-ended",
+        stopTopic: "when your Cathay Pacific job ended",
+        stopCost: "I'll stop for good — and this job will keep adding nothing to your years of experience." },
+      { id: "cathay-start",
+        quote: "Business Analyst, Cathay Pacific — 2022 –",
+        ask: "Which month in 2022 did you start?",
+        why: "Your CV gives the year only, so I count from the latest it could be. The month gives you the full credit.",
+        kind: "month", year: 2022, chipFmt: (m) => "+ Started " + MONTHS[m - 1] + " 2022",
+        stopTopic: "the month you started at Cathay Pacific",
+        stopCost: "I'll stop for good — and your total will stay at the shortest count your CV allows." },
+    ] },
+  { id: "basics", name: "The basics", sub: "One thing jobs check first",
+    why: "One answer here, and I can tell you straight away which jobs are open to you.",
+    qs: [
+      { id: "work-rights",
+        quote: null,
+        ask: "Can you work in Hong Kong without a company sponsoring you?",
+        why: "Jobs check this before anything else. With an answer, I never have to guess.",
+        kind: "choice",
+        options: [ { label: "Yes — no sponsorship needed", value: "yes", chip: "+ Right to work: Hong Kong" },
+                   { label: "No — I'd need sponsorship", value: "no", chip: "+ Work rights: answered" } ],
+        stopTopic: "your right to work in Hong Kong",
+        stopCost: "I'll stop for every job, even ones that check it — those will show this as untested rather than answered." },
+    ] },
+  { id: "freelance", name: "Your freelance year", sub: "Project Consultant · 2017 – 2018",
+    why: "Your CV gives years only, so I count it at the shortest it could be.",
+    qs: [
+      { id: "freelance-months",
+        quote: "Project Consultant, Freelance — 2017 – 2018",
+        ask: "Which months did that run?",
+        why: "Years alone could mean two months or two years. I count the shortest until I know — the months give you the full credit.",
+        kind: "range", startYear: 2017, endYear: 2018,
+        stopTopic: "the months of your freelance year",
+        stopCost: "I'll stop for good — and your total will stay at the shortest count your CV allows." },
+    ] },
+  { id: "hutchison", name: "Your job at Hutchison", sub: "Project Coordinator · Mar 2015 – 2017",
+    why: "One missing month is quietly costing you credit here too.",
+    qs: [
+      { id: "hutch-end",
+        quote: "Project Coordinator, Hutchison Telecommunications — Mar 2015 – 2017",
+        ask: "Which month in 2017 did it end?",
+        why: "Your CV gives the end year only. I count to the earliest it could be until I know.",
+        kind: "month", year: 2017, chipFmt: (m) => "+ Ended " + MONTHS[m - 1] + " 2017",
+        stopTopic: "the month your Hutchison job ended",
+        stopCost: "I'll stop for good — and your total will stay at the shortest count your CV allows." },
+    ] },
+  { id: "scb", name: "Standard Chartered", sub: "Regional Project Manager · Jan 2019 – Mar 2022", preDone: true },
+  { id: "edu", name: "Your education", sub: "BBA (Hons), Hong Kong PolyU", preDone: true },
+];
+
+/* ── month math: unknown month counts shortest, unknown end counts zero — honest and cheap ── */
+function totalMonths(answers) {
+  let m = 38;                                     /* SCB: Jan 2019 – Mar 2022, complete on the CV */
+  const a = answers;
+  /* Cathay: nothing until the end is known (#143 — the silence zeroes it) */
+  if (a["cathay-end"]) {
+    const startM = a["cathay-start"] ? a["cathay-start"].m : 12;      /* unknown start month → Dec (shortest) */
+    if (a["cathay-end"].still) m += (NOW.y - 2022) * 12 + (NOW.m - startM);
+    else m += (a["cathay-end"].y - 2022) * 12 + (a["cathay-end"].m - startM);
+  }
+  /* Freelance 2017–2018: shortest = Dec 2017 – Jan 2018 = 2mo */
+  if (a["freelance-months"]) m += (2018 - 2017) * 12 + (a["freelance-months"].em - a["freelance-months"].sm) + 1;
+  else m += 2;
+  /* Hutchison Mar 2015 – 2017: shortest end = Jan 2017 = 23mo */
+  if (a["hutch-end"]) m += (2017 - 2015) * 12 + (a["hutch-end"].m - 3) + 1;
+  else m += 23;
+  return m;
+}
+const fmtTotal = (m) => Math.floor(m / 12) + " yrs" + (m % 12 ? " " + (m % 12) + " mo" : "");
+
+/* ══════════════════ state ══════════════════ */
+const VARIANTS = {
+  A: { name: "The narrated thread", desc: "one topic at a time, proposed aloud; progress is a quiet list of names" },
+  B: { name: "The lamplight board", desc: "her story as one dark surface; her CV pre-lights it; answering lights the rest" },
+  C: { name: "The climb", desc: "named levels in words; her CV starts her at Solid; a topic fills a segment" },
+};
+let variant = new URLSearchParams(location.search).get("variant")?.toUpperCase();
+if (!["A", "B", "C"].includes(variant)) variant = "A";
+let frame = new URLSearchParams(location.search).get("frame")?.toLowerCase();
+if (!["phone", "desktop"].includes(frame)) frame = "phone";
+
+let st;
+function reset() {
+  st = {
+    phase: "intro",           /* intro | invite (A/C home) | board (B home) | chunk | saved | away | back */
+    tIdx: 0, qIdx: 0,
+    sheetOpen: false,          /* B/C: chunk shown in the sheet */
+    answers: {}, skipped: {}, muted: {},
+    topicState: {},            /* id → "done" | "open" (passed with skips) | undefined */
+    cameBack: false,           /* welcome-back framing on the next home render */
+    mid: null,                 /* {t,q} — the exact question she left mid-chunk */
+    ignite: null, lvlUp: false, lvlSeen: 2, endedOpen: false, gain: null,
+    stopOpen: null, undoT: null, lastMuted: null,
+    log: [],
+  };
+  TOPICS.forEach(t => { if (t.preDone) st.topicState[t.id] = "done"; });
+  render();
+}
+
+/* helpers */
+const topic = () => TOPICS[st.tIdx];
+const q = () => topic().qs[st.qIdx];
+const esc = (s) => s == null ? "" : String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+/* one drawn icon, one stroke weight — never a unicode glyph standing in for it */
+const TICK = (px) => `<svg viewBox="0 0 16 16" width="${px}" height="${px}" aria-hidden="true" style="display:block"><path d="M2.8 8.6l3.3 3.3 7.1-8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const TICK_S = `<span class="tick" style="align-self:center">${TICK(11)}</span>`;
+const RING = `<span class="glyph ring"><svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" style="display:block"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/></svg></span>`;
+const DOT = `<span class="glyph dot"><svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" style="display:block"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg></span>`;
+const lc = (s) => s.charAt(0).toLowerCase() + s.slice(1);
+const NUMWORD = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
+const liveTopics = TOPICS.filter(t => !t.preDone);
+const doneCount = () => TOPICS.filter(t => st.topicState[t.id] === "done").length;
+const nextOpenTopic = (fromIdx) => {
+  for (let i = 0; i < TOPICS.length; i++) {
+    const t = TOPICS[(fromIdx + i) % TOPICS.length];
+    if (!t.preDone && st.topicState[t.id] !== "done" && st.topicState[t.id] !== "open") return TOPICS.indexOf(t);
+  }
+  return -1;
+};
+const allSettled = () => liveTopics.every(t => st.topicState[t.id] === "done" || st.topicState[t.id] === "open");
+
+/* ── C's levels — ROUND 2: the owner lowered the "never judged" guardrail here on purpose
+   ("the user is here to expect his CV to be upgraded, so he will accept to be judged at this
+   stage"). Six wording ladders, live-switchable from the instrument strip (or press W), so the
+   vocabulary can be judged by feel. Thresholds in topics done; her CV's two topics count. ── */
+const LADDERS = [
+  { key: "draft", name: "the draft ladder (judges the document)",
+    words: ["Rough draft", "Clean copy", "Convincing", "Interview-ready"],
+    gains: ["A recruiter can now see the two things they check first — your right to work and your real years.",
+            "Your dates carry full credit. Nothing on the page reads unfinished.",
+            "Every question only you could answer is settled. This CV walks into interviews."] },
+  { key: "candidate", name: "the candidate ladder (recruiter's-eye, bluntest)",
+    words: ["Hard to place", "In the running", "Strong candidate", "First pick"],
+    gains: ["A recruiter can place you now — rights and experience, answered.",
+            "Your record reads at full strength. You compete on everything you've done.",
+            "No gaps, no guesses. You're the easy yes."] },
+  { key: "market", name: "the market ladder (judges your position)",
+    words: ["Easy to miss", "On the radar", "Shortlist material", "In demand"],
+    gains: ["Jobs that check work rights and experience can finally find you.",
+            "Your whole career counts now — you outrank the you of yesterday.",
+            "Nothing left untested. You're the profile recruiters stop scrolling for."] },
+  { key: "blade", name: "the blade ladder (forging)",
+    words: ["Raw steel", "Forged", "Tempered", "Razor-sharp"],
+    gains: ["First strike: the basics recruiters test are in the metal.",
+            "Your dates hold their edge — not a year counted short.",
+            "Honed to the last answer. Nothing left to grind."] },
+  { key: "gem", name: "the gem ladder (polish)",
+    words: ["Uncut", "Cut", "Polished", "Brilliant"],
+    gains: ["The first facets catch the light — rights and years, visible.",
+            "Every date polished. Nothing dulls the stone.",
+            "Nothing left rough. It shines on its own."] },
+  { key: "form", name: "the form ladder (sports — first rung is harsh on HER, flagged)",
+    words: ["Out of shape", "Warming up", "Match-fit", "Peak form"],
+    gains: ["The basics are in — you're on the pitch.",
+            "Full credit for every season you've played.",
+            "Peak form. Every question answered, nothing held back."] },
+];
+let ladderIdx = Math.max(0, LADDERS.findIndex(l => l.key === new URLSearchParams(location.search).get("ladder")));
+const LEVELS_AT = [0, 2, 4, 6];
+const levelWord = (n) => { const w = LADDERS[ladderIdx].words; let out = w[0]; LEVELS_AT.forEach((at, i) => { if (n >= at) out = w[i]; }); return out; };
+const nextLevel = (n) => { for (let i = 0; i < LEVELS_AT.length; i++) if (LEVELS_AT[i] > n) return { at: LEVELS_AT[i], word: LADDERS[ladderIdx].words[i] }; return null; };
+const levelGain = (n) => { let idx = 0; LEVELS_AT.forEach((at, i) => { if (n >= at) idx = i; }); return LADDERS[ladderIdx].gains[Math.max(0, idx - 1)]; };
+const crossedAt = (n) => LEVELS_AT.includes(n);
+
+/* ══════════════════ the reward beat — shipped values ══════════════════ */
+function flyChip(text, f, targetSel) {
+  const target = document.querySelector(targetSel);
+  if (!f || !target) return;
+  const b = target.getBoundingClientRect();
+  const chip = document.createElement("div");
+  chip.className = "factchip"; chip.textContent = text;
+  chip.style.left = f.left + f.width / 2 + "px";
+  chip.style.top = f.top + f.height / 2 + "px";
+  document.body.appendChild(chip);
+  requestAnimationFrame(() => {
+    chip.style.transform = `translate(${b.left + b.width / 2 - (f.left + f.width / 2)}px, ${b.top + b.height / 2 - (f.top + f.height / 2)}px) scale(.72)`;
+    chip.style.opacity = "0";
+  });
+  /* re-query at landing: the render that follows an answer replaces the DOM node */
+  setTimeout(() => { chip.remove(); bump(document.querySelector(targetSel)); }, 730);
+}
+function bump(el) { if (!el) return; el.classList.remove("bumpv"); void el.offsetWidth; el.classList.add("bumpv"); }
+
+/* ══════════════════ answering ══════════════════ */
+function answerCurrent(value, chipText, fromEl) {
+  const cur = q(), curTopic = topic();
+  const before = totalMonths(st.answers);
+  st.answers[cur.id] = value;
+  delete st.skipped[cur.id];
+  const after = totalMonths(st.answers);
+  st.log.push("answered " + cur.id);
+  const gain = after - before;
+  st.gain = gain > 0 ? "+ " + fmtTotal(gain) + " to your total" : null;
+  if (frame === "desktop") st.flash = cur.id;
+
+  /* the chip launches from the pre-render control, lands on the post-render target:
+     desktop → the fact's own line on the paper; phone A → the profile badge;
+     phone B → the sheet's topic name mid-chunk, the tile at chunk end; phone C → the level word. */
+  const fromRect = fromEl ? fromEl.getBoundingClientRect() : null;
+  advanceQuestion();
+  const targetSel =
+    frame === "desktop" ? "#pl-" + cur.id
+    : variant === "A" ? "#a-facts"
+    : variant === "B" ? (st.phase === "chunk" ? ".chunkhead .topic" : "#tile-" + curTopic.id + " .nm")
+    : "#c-word";
+  if (fromRect) flyChip(chipText, fromRect, targetSel);
+}
+function skipCurrent() { st.skipped[q().id] = true; st.log.push("skipped " + q().id + " (not now)"); st.gain = null; advanceQuestion(); }
+function muteCurrent() {
+  const cur = q();
+  st.muted[cur.id] = true; st.lastMuted = cur;
+  st.log.push("muted " + cur.id + " → mute-list row (Design C surface)");
+  st.gain = null; st.stopOpen = null;
+  showUndo("Okay — I'll stop asking about " + cur.stopTopic + ".");
+  advanceQuestion();
+}
+function showUndo(label) {
+  st.undoT = { label };
+  clearTimeout(showUndo._t);
+  showUndo._t = setTimeout(() => { st.undoT = null; render(); }, 6000);
+}
+function undoMute() {
+  if (st.lastMuted) { delete st.muted[st.lastMuted.id]; st.log.push("undo mute " + st.lastMuted.id); st.lastMuted = null; }
+  st.undoT = null; render();
+}
+
+function advanceQuestion() {
+  const t = topic();
+  /* next unresolved question in this topic */
+  for (let i = st.qIdx + 1; i < t.qs.length; i++) {
+    if (!st.answers[t.qs[i].id] && !st.muted[t.qs[i].id] && !st.skipped[t.qs[i].id]) { st.qIdx = i; render(); return; }
+  }
+  /* topic finished: done if nothing skipped, open otherwise */
+  const openLeft = t.qs.some(x => st.skipped[x.id] && !st.answers[x.id] && !st.muted[x.id]);
+  st.topicState[t.id] = openLeft ? "open" : "done";
+  st.log.push("topic " + t.id + " → " + st.topicState[t.id]);
+  if (st.mid && TOPICS[st.mid.t].id === t.id) st.mid = null;
+  st.sheetOpen = false; st.stopOpen = null;
+  if (variant === "B") {
+    /* the board IS the chunk-end beat: the sheet drops and the tile ignites */
+    st.phase = "home"; st.ignite = t.id;
+    render();
+    setTimeout(() => { st.ignite = null; }, 900);
+  } else {
+    st.phase = "topicdone";
+    render();
+  }
+}
+
+/* mode: "fresh" first pass · "revisit" an open topic (skips present again) · "exact" resume mid-chunk */
+function goTopic(idx, mode) {
+  st.tIdx = idx;
+  const t = TOPICS[idx];
+  if (mode === "exact" && st.mid && TOPICS[st.mid.t].id === t.id) {
+    st.qIdx = st.mid.q; st.mid = null;
+  } else {
+    if (mode === "revisit") t.qs.forEach(x => delete st.skipped[x.id]);   /* she's back: "not now" has arrived */
+    st.qIdx = 0;
+    for (let i = 0; i < t.qs.length; i++) {
+      if (!st.answers[t.qs[i].id] && !st.muted[t.qs[i].id] && !st.skipped[t.qs[i].id]) { st.qIdx = i; break; }
+    }
+  }
+  st.phase = "chunk"; st.sheetOpen = true; st.stopOpen = null; st.gain = null; st.endedOpen = false;
+  render();
+}
+
+function leaveNow() {
+  if (st.phase === "chunk") st.mid = { t: st.tIdx, q: st.qIdx };
+  st.phase = "saved"; st.sheetOpen = false; st.stopOpen = null;
+  st.log.push("left" + (st.mid ? " MID-CHUNK (" + TOPICS[st.mid.t].id + "/" + TOPICS[st.mid.t].qs[st.mid.q].id + ")" : ""));
+  render();
+  setTimeout(() => { if (st.phase === "saved") { st.phase = "away"; render(); } }, 2600);
+}
+function comeBack() {
+  st.cameBack = true;
+  st.phase = st.mid ? "back" : "home";
+  if (st.mid) st.tIdx = st.mid.t;
+  st.log.push("returned after 3 days" + (st.mid ? " — resumes mid-chunk, same question" : ""));
+  render();
+}
+
+/* ══════════════════ renderers ══════════════════ */
+const stage = document.getElementById("stage");
+
+function render() {
+  const reg = "night";   /* owner ruling 2026-08-09: the game is the dark room, all variants */
+  let inner;
+  if (st.phase === "away") inner = awayHtml();
+  else {
+    inner = (variant === "A" ? renderA() : variant === "B" ? renderB() : renderC()) + undoHtml();
+  }
+  if (frame === "phone") {
+    stage.innerHTML = `<div class="phone"><div class="screen ${reg}" id="scr">${inner}</div></div>`;
+  } else {
+    stage.innerHTML = `
+      <div class="desk">
+        <div class="desk-left screen ${reg}" id="scr">${inner}</div>
+        <div class="desk-right ${reg}">
+          <div class="cap">Your profile — the page every CV starts from</div>
+          ${paperHtml()}
+        </div>
+      </div>`;
+    if (st.flash) setTimeout(() => { st.flash = null; }, 1900);
+  }
+  syncChrome();
+}
+
+/* ── the paper: her master CV forming; a hole is a visible blank that fills as she answers ── */
+function paperHtml() {
+  const a = st.answers;
+  const fill = (qid, text) => `<span class="pfill ${st.flash === qid ? "flash" : ""}" id="pl-${qid}">${esc(text)}</span>`;
+  const slot = () => `<span class="slot" aria-label="not answered yet"></span>`;
+  const mo3 = (m) => MONTHS[m - 1].slice(0, 3);
+
+  const cathayStart = a["cathay-start"] ? fill("cathay-start", mo3(a["cathay-start"].m) + " 2022") : slot() + " 2022";
+  const cathayEnd = a["cathay-end"]
+    ? fill("cathay-end", a["cathay-end"].still ? "Present" : mo3(a["cathay-end"].m) + " " + a["cathay-end"].y)
+    : slot();
+  const free = a["freelance-months"]
+    ? fill("freelance-months", mo3(a["freelance-months"].sm) + " 2017 – " + mo3(a["freelance-months"].em) + " 2018")
+    : slot() + " 2017 – " + slot() + " 2018";
+  const hutch = a["hutch-end"] ? "Mar 2015 – " + fill("hutch-end", mo3(a["hutch-end"].m) + " 2017") : "Mar 2015 – " + slot() + " 2017";
+  const rights = a["work-rights"]
+    ? fill("work-rights", a["work-rights"].v === "yes" ? "Right to work in Hong Kong — no sponsorship needed" : "Hong Kong — sponsorship required")
+    : `Right to work: ${slot()}`;
+
+  return `
+    <div class="paper-doc">
+      <h1>Mei Chan</h1>
+      <p class="who">Business Analyst · Hong Kong</p>
+      <p class="rights">${rights}</p>
+      <h2>Experience</h2>
+      <div class="p-entry"><div class="role">Business Analyst — Cathay Pacific</div>
+        <div class="meta">${cathayStart} – ${cathayEnd}</div></div>
+      <div class="p-entry"><div class="role">Regional Project Manager — Standard Chartered Bank</div>
+        <div class="meta">Jan 2019 – Mar 2022</div></div>
+      <div class="p-entry"><div class="role">Project Consultant — Freelance</div>
+        <div class="meta">${free}</div></div>
+      <div class="p-entry"><div class="role">Project Coordinator — Hutchison Telecommunications</div>
+        <div class="meta">${hutch}</div></div>
+      <h2>Education</h2>
+      <div class="p-entry"><div class="role">BBA (Hons), Management — The Hong Kong Polytechnic University</div></div>
+    </div>`;
+}
+
+const undoHtml = () => st.undoT ? `<div class="undo"><span>${esc(st.undoT.label)}</span><button onclick="undoMute()">Undo</button></div>` : "";
+const awayHtml = () => `<div class="away"><div class="t">three days pass</div><div class="d">she left. nothing was lost.</div></div>`;
+
+/* ── the question card — Design A anatomy, shared by all variants ── */
+function questionHtml() {
+  const cur = q(), t = topic();
+  let controls = "";
+  if (cur.kind === "still-or-ended") {
+    controls = `
+      <button class="btn primary" onclick="ansStill(this)">Yes — I'm still there</button>
+      <button class="btn" onclick="showEnded()">No — it ended</button>
+      ${st.endedOpen ? `
+        <div class="datesrow">
+          <select id="end-m">${MONTHS.map((m, i) => `<option value="${i + 1}" ${i === 4 ? "selected" : ""}>${m}</option>`).join("")}</select>
+          <select id="end-y">${[2023, 2024, 2025, 2026].map(y => `<option ${y === 2025 ? "selected" : ""}>${y}</option>`).join("")}</select>
+        </div>
+        <button class="btn primary" onclick="ansEnded(this)">Save the end date</button>` : ""}`;
+  } else if (cur.kind === "month") {
+    controls = `
+      <div class="datesrow">
+        <select id="one-m">${MONTHS.map((m, i) => `<option value="${i + 1}" ${i === 2 ? "selected" : ""}>${m}</option>`).join("")}</select>
+      </div>
+      <button class="btn primary" onclick="ansMonth(this)">Save — ${cur.year}</button>`;
+  } else if (cur.kind === "range") {
+    controls = `
+      <div class="datesrow">
+        <select id="r-sm">${MONTHS.map((m, i) => `<option value="${i + 1}" ${i === 5 ? "selected" : ""}>${m}</option>`).join("")}</select>
+        <select id="r-em">${MONTHS.map((m, i) => `<option value="${i + 1}" ${i === 7 ? "selected" : ""}>${m}</option>`).join("")}</select>
+      </div>
+      <button class="btn primary" onclick="ansRange(this)">Save — ${cur.startYear} to ${cur.endYear}</button>`;
+  } else if (cur.kind === "choice") {
+    controls = cur.options.map((o, i) =>
+      `<button class="btn ${i === 0 ? "primary" : ""}" onclick="ansChoice(${i}, this)">${esc(o.label)}</button>`).join("");
+  }
+
+  return `
+    <div class="chunkhead">
+      <div class="topic">${esc(t.name)}</div>
+      <div class="sub">${esc(t.sub)}</div>
+      ${variant === "A" ? aMeter(true) : ""}
+    </div>
+    <div class="qwrap">
+      <div class="qcard" key="${cur.id}">
+        ${cur.quote ? `<p class="quote">${esc(cur.quote)}</p>` : ""}
+        <h2>${esc(cur.ask)}</h2>
+        <p class="why">${esc(cur.why)}</p>
+        <div class="opts">${controls}</div>
+        <div style="margin-top:10px">
+          <button class="ghost" onclick="skipNow()">Not now</button>
+          <div class="stopline"><button onclick="openStop()">Stop asking about this</button></div>
+        </div>
+        ${st.stopOpen ? stopConfirmHtml(cur) : ""}
+      </div>
+      ${st.gain ? `<p class="gainline">${esc(st.gain)}</p>` : ""}
+    </div>
+    <div class="doorline"><button onclick="leaveNow()">I'm done for now — everything's saved</button></div>`;
+}
+
+/* the payoff in the hunt's currency — simulated here; the real number is Design A's shipped
+   matching-jobs counter, which was rising as she answered all along */
+const matchCount = () => 12 + Object.keys(st.answers).length * 3;
+
+function huntHtml() {
+  return `
+    <div class="hunt">
+      <div class="hunt-top">${matchCount()} matched today · swipe or tap</div>
+      <div class="huntcard">
+        <div class="hc-co">Standard Chartered Bank</div>
+        <div class="hc-role">Senior Business Analyst — Digital Banking</div>
+        <div class="hc-meta">Hong Kong · Full time</div>
+        <div class="hc-fit">Strong fit — it checks the right to work and the years you just confirmed.</div>
+      </div>
+      <div class="doorline" style="margin-top:16px"><button onclick="backFromHunt()">Back</button></div>
+    </div>`;
+}
+
+/* A's meter — a FILL, not per-topic slots (owner defect report, round 2): topics done fill
+   left→right whichever they were, the white dot is always "where you are now", and the meter
+   lives on the home screen AND in the chunk so it never pops in from nowhere. Which topics
+   they were is the agenda's job, not the meter's. */
+function aMeter(withNow) {
+  const n = doneCount();
+  return `<div class="dots" aria-hidden="true">${TOPICS.map((_, i) =>
+    `<i data-s="${i < n ? "done" : (withNow && i === n ? "now" : "wait")}"></i>`).join("")}</div>`;
+}
+
+/* Design C's decided inline confirm — structure verbatim, cost line per question */
+const stopConfirmHtml = (cur) => `
+  <div class="stopconfirm">
+    <h3>Stop asking about ${esc(cur.stopTopic)}?</h3>
+    <p>${esc(cur.stopCost)} It goes on your profile; one tap there and I'll ask again.</p>
+    <div class="row">
+      <button class="btn primary" onclick="closeStop()">Just not now</button>
+      <button class="btn" onclick="muteNow()">Stop asking</button>
+    </div>
+  </div>`;
+
+/* ── topic-done beat, per variant voice ── */
+function topicDoneHtml() {
+  const t = topic();
+  const openLeft = st.topicState[t.id] === "open";
+  const short = t.name.replace(/^Your (job at )?/, "");
+  const title = openLeft ? "Left open — that's fine" : short.charAt(0).toUpperCase() + short.slice(1) + " — settled";
+  const line = openLeft
+    ? "I'll keep what you skipped for another day. Nothing is lost."
+    : "Everything only you could tell me about this is now on your profile.";
+  return `
+    <div class="beat">
+      <div class="tickbig">${TICK(20)}</div>
+      <h2>${esc(title)}</h2>
+      <p>${esc(line)}</p>
+      <div style="max-width:280px;margin:0 auto;display:flex;flex-direction:column;gap:8px">
+        ${nextOpenTopic(st.tIdx + 1) >= 0
+          ? `<button class="btn primary" style="text-align:center" onclick="goNextTopic()">${esc(nextInviteLabel())}</button>`
+          : `<button class="btn primary" style="text-align:center" onclick="goHome()">See where you stand</button>`}
+        <button class="ghost" onclick="leaveNow()">I'm done for now — everything's saved</button>
+      </div>
+    </div>`;
+}
+const nextInviteLabel = () => {
+  const n = TOPICS[nextOpenTopic(st.tIdx + 1)];
+  return "Next: " + n.name.charAt(0).toLowerCase() + n.name.slice(1);
+};
+
+/* ══════════ VARIANT A — the narrated thread ══════════ */
+function renderA() {
+  const total = fmtTotal(totalMonths(st.answers));
+  const bar = `
+    <div class="a-topbar">
+      <span class="a-badge"><span class="coin"></span> <span id="a-facts">On your profile</span></span>
+      <span class="a-total">Experience: <b id="a-total">${total}</b></span>
+    </div>`;
+
+  if (st.phase === "chunk") return bar + questionHtml();
+  if (st.phase === "topicdone") return bar + topicDoneHtml();
+  if (st.phase === "saved") return bar + savedHtml();
+
+  /* intro / home / back — the machine speaks */
+  const nIdx = nextOpenTopic(st.phase === "back" ? st.tIdx : 0);
+  let voice, sub;
+  if (st.phase === "back") {
+    voice = "Welcome back.";
+    sub = "We were in the middle of " + topic().name.charAt(0).toLowerCase() + topic().name.slice(1) + ". Here it is, just as you left it.";
+  } else if (st.phase === "intro") {
+    voice = "Your CV did most of the work.";
+    const names = liveTopics.map(t => lc(t.name));
+    sub = `${NUMWORD[names.length]} short topics are all I'll ever ask — ${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}. Then I'm done. Leave whenever you like; everything is saved.`;
+  } else if (st.cameBack) {
+    voice = "Welcome back.";
+    sub = allSettled() ? "Everything you left is still here." : "We can pick up where we left off — or leave it for another day.";
+  } else {
+    voice = allSettled() ? "That's everything." : "Shall we keep going?";
+    sub = allSettled()
+      ? (liveTopics.some(t => st.topicState[t.id] === "open")
+          ? "Anything you skipped stays open on your profile — never lost, never nagged."
+          : "Every question only you could answer is settled.")
+      : "One topic at a time. Leave whenever you like.";
+  }
+  st.cameBack = false;
+
+  /* the finale — the game hands over to the hunt (the shipped job deck), in the hunt's own
+     currency: jobs matching now. ADR-0011's caveat said honestly: an advert may still ask. */
+  if (st.phase === "hunt") return bar + huntHtml();
+  let finale = "";
+  if (allSettled() && st.phase !== "back") {
+    finale = `
+      <div class="a-invite">
+        <div class="t">${matchCount()} jobs match your profile right now</div>
+        <div class="w">That's what your answers were for. Next, I show you the jobs one by one: keep the ones you like, and I'll tailor your CV for each one you pick.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn primary" style="text-align:center" onclick="goHunt()">Show me the jobs</button>
+        </div>
+        <div class="a-ahead">If a job wants something I haven't asked about, I'll ask you right then — and tell you why.</div>
+      </div>`;
+  }
+
+  let invite = "";
+  if (st.phase === "back") {
+    invite = `
+      <div class="a-invite">
+        <div class="t">${esc(topic().name)}</div>
+        <div class="s">${esc(topic().sub)}</div>
+        <div class="w">${esc(topic().why)}</div>
+        <button class="btn primary" style="width:100%;text-align:center" onclick="resumeMidChunk()">Continue where we left off</button>
+      </div>`;
+  } else if (nIdx >= 0) {
+    const n = TOPICS[nIdx];
+    const ahead = liveTopics.filter(t => t.id !== n.id && !st.topicState[t.id]);
+    invite = `
+      <div class="a-invite">
+        <div class="t">${esc(n.name)}</div>
+        <div class="s">${esc(n.sub)}</div>
+        <div class="w">${esc(n.why)}</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn primary" style="text-align:center" onclick="enterTopic(${nIdx})">Let's do it</button>
+          <button class="ghost" onclick="passTopic(${nIdx})">Not this one now</button>
+        </div>
+        <div class="a-ahead">${ahead.length
+          ? "After this: " + ahead.map(t => lc(t.name)).join(" · ") + " — then I'm done."
+          : "This is the last one — then I'm done asking."}</div>
+      </div>`;
+  }
+
+  /* the whole of it — every topic, begin to end, one still list that never reorders */
+  const agendaRows = TOPICS.map((t, i) => {
+    const s = st.topicState[t.id];
+    const isMid = st.mid && TOPICS[st.mid.t].id === t.id && s !== "done";
+    const isNext = !s && !isMid && i === nIdx && st.phase !== "back";
+    let g, label, cls = "";
+    if (s === "done") { g = TICK_S; label = t.preDone ? "your CV answered this" : "settled"; }
+    else if (s === "open") { g = TICK_S; label = "still open — come back anytime"; cls = "open"; }
+    else if (isMid) { g = RING; label = "mid-thought — we'll pick it up"; }
+    else if (isNext) { g = RING; label = "up next"; }
+    else { g = DOT; label = "waiting"; }
+    return `
+      <div class="a-done ${cls}">
+        ${g}<span class="nm">${esc(t.name)}</span>
+        <span class="st">${label}</span>
+      </div>`;
+  }).join("");
+
+  return bar + `
+    <div class="a-shell">
+      <h1 class="a-voice">${esc(voice)}</h1>
+      <p class="a-voicesub">${esc(sub)}</p>
+      <div style="margin:-8px 0 20px">${aMeter(false)}</div>
+      ${finale || invite}
+      <div class="a-donelist a-agenda"><div class="cap">Everything I'll ask</div>${agendaRows}
+        <div class="endline">— and that's everything. No surprises after.</div></div>
+      <div class="doorline" style="margin-top:18px"><button onclick="leaveNow()">I'm done for now</button></div>
+    </div>`;
+}
+
+/* ══════════ VARIANT B — the lamplight board ══════════ */
+function renderB() {
+  const total = fmtTotal(totalMonths(st.answers));
+  if (st.phase === "saved") return savedHtml();
+
+  const nIdx = nextOpenTopic(0);
+  let headline, subline;
+  if (st.phase === "intro") {
+    headline = "Your story so far";
+    subline = "Your CV lit the first lamps in this room. The rest only you can light — tap anywhere, leave whenever. Everything is saved.";
+  } else if (st.phase === "back" || st.cameBack) {
+    headline = "Welcome back";
+    subline = st.mid
+      ? "The board is just as you left it — one tile is mid-thought."
+      : "The board is just as you left it.";
+  } else if (allSettled()) {
+    headline = "The room is lit";
+    subline = "Anything left open stays on its tile — never lost, never nagged.";
+  } else {
+    headline = "Your story so far";
+    subline = "Tap any tile. The ring marks where I'd go next.";
+  }
+  st.cameBack = false;
+
+  const midId = st.mid ? TOPICS[st.mid.t].id : null;
+
+  const tiles = TOPICS.map((t, i) => {
+    const s = st.topicState[t.id];
+    const isMid = midId === t.id && s !== "done";
+    const lit = s === "done";
+    const isNext = !lit && !isMid && i === nIdx && !allSettled();
+    let stateLine, cls = "tile";
+    if (lit) { cls += " lit"; stateLine = t.preDone ? "Lit by your CV" : "Settled — " + (t.qs.length > 1 ? "your answers are on your profile" : "your answer is on your profile"); }
+    else if (isMid) { cls += " open"; stateLine = "Half done — continue where you left off"; }
+    else if (s === "open") { cls += " open"; stateLine = "Something's still open — come back anytime"; }
+    else if (isNext) { cls += " next"; stateLine = "Start here — it moves your total most"; }
+    else stateLine = "Waiting for you";
+    if (st.ignite === t.id) cls += " igniting";
+    const mode = isMid ? "'exact'" : s === "open" ? "'revisit'" : "'fresh'";
+    const click = lit ? "" : `onclick="tapTile(${i}, ${mode})" role="button" tabindex="0" onkeydown="if(event.key==='Enter')tapTile(${i}, ${mode})"`;
+    return `
+      <div class="${cls}" id="tile-${t.id}" ${click}>
+        <div class="nm">${esc(t.name)}</div>
+        <div class="sub">${esc(t.sub)}</div>
+        <div class="state">${esc(stateLine)}</div>
+      </div>`;
+  }).join("");
+
+  const sheet = st.sheetOpen ? `
+    <div class="sheetveil" onclick="leaveSheet()"></div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <div class="inner night">${st.phase === "topicdone" ? topicDoneHtml() : questionHtml()}</div>
+    </div>` : (st.phase === "topicdone" ? "" : "");
+
+  return `
+    <div class="b-shell">
+      <div class="b-head"><h2>${esc(headline)}</h2><p>${esc(subline)}</p></div>
+      <div class="b-stats">
+        <div class="b-stat"><div class="v" id="b-total">${total}</div><div class="l">years of experience</div></div>
+        <div class="b-stat"><div class="v">${doneCount()} of ${TOPICS.length}</div><div class="l">topics lit</div></div>
+      </div>
+      <div class="b-cap">Your career</div>
+      ${tiles}
+      <div class="doorline" style="margin-top:14px"><button onclick="leaveNow()">Done for now — everything's saved</button></div>
+    </div>
+    ${sheet}`;
+}
+
+/* ══════════ VARIANT C — the climb ══════════ */
+function renderC() {
+  const total = fmtTotal(totalMonths(st.answers));
+  if (st.phase === "saved") return savedHtml();
+  const n = doneCount();
+  const word = levelWord(n);
+  const nxt = nextLevel(n);
+
+  if (st.phase === "chunk" || st.phase === "topicdone") {
+    return `
+      <div class="c-shell" style="padding-bottom:0">
+        <div class="c-level"><div class="cap">Your profile</div><div class="word" id="c-word" style="font-size:22px">${esc(word)}</div></div>
+        <div class="c-meter">${TOPICS.map((t, i) => `<i class="${i < n ? "f" : ""}"></i>`).join("")}</div>
+      </div>
+      <div class="sheet" style="top:150px">
+        <div class="grab"></div>
+        <div class="inner night">${st.phase === "topicdone" ? (st.lvlUp ? "" : topicDoneHtml()) : questionHtml()}</div>
+      </div>
+      ${st.lvlUp ? lvlUpHtml() : ""}`;
+  }
+
+  let voice, subline;
+  if (st.phase === "intro") {
+    voice = null;
+    subline = `Your CV alone got you to <b>${esc(word)}</b>. Each topic you settle takes you higher — leave whenever you like, everything is saved.`;
+  } else if (st.phase === "back") {
+    voice = "Welcome back.";
+    subline = nxt ? `You're mid-topic — and <b>${esc(nxt.word)}</b> is close.` : "Everything is settled.";
+  } else if (st.cameBack) {
+    voice = "Welcome back.";
+    subline = nxt ? `You left at <b>${esc(word)}</b>. ${nxt.at - n === 1 ? "One topic" : "A couple of topics"} from <b>${esc(nxt.word)}</b>.` : "Everything is settled.";
+  } else {
+    voice = null;
+    subline = nxt ? `${nxt.at - n === 1 ? "One topic" : "A few topics"} from <b>${esc(nxt.word)}</b>.` : "As sharp as it gets — anything skipped stays open, never lost.";
+  }
+  st.cameBack = false;
+
+  const nIdx = nextOpenTopic(st.phase === "back" ? st.tIdx : 0);
+  let card = "";
+  if (st.phase === "back") {
+    card = `
+      <div class="c-next">
+        <div class="t">${esc(topic().name)}</div>
+        <div class="s">${esc(topic().sub)}</div>
+        <div class="w">We were in the middle of this one.</div>
+        <button class="btn primary" style="width:100%;text-align:center" onclick="resumeMidChunk()">Continue where you left off</button>
+      </div>`;
+  } else if (nIdx >= 0) {
+    const t = TOPICS[nIdx];
+    card = `
+      <div class="c-next">
+        <div class="t">${esc(t.name)}</div>
+        <div class="s">${esc(t.sub)}</div>
+        <div class="w">${esc(t.why)}</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn primary" style="text-align:center" onclick="enterTopic(${nIdx})">Take it on</button>
+          <button class="ghost" style="color:var(--hud-mute-r)" onclick="passTopic(${nIdx})">Not this one now</button>
+        </div>
+      </div>`;
+  }
+
+  const doneRows = TOPICS.filter(t => st.topicState[t.id]).map(t => `
+    <div class="c-done">${TICK_S}<span class="nm">${esc(t.name)}</span>
+    <span class="st">${t.preDone ? "your CV" : st.topicState[t.id] === "open" ? "still open" : "settled"}</span></div>`).join("");
+
+  return `
+    <div class="c-shell">
+      ${voice ? `<h2 style="text-align:center;font-size:20px;font-weight:650;margin:0 0 2px">${esc(voice)}</h2>` : ""}
+      <div class="c-level"><div class="cap">Your profile</div><div class="word" id="c-word">${esc(word)}</div></div>
+      <div class="c-meter">${TOPICS.map((t, i) => `<i class="${i < n ? "f" : ""}"></i>`).join("")}</div>
+      <p class="c-sub">${subline}</p>
+      ${card}
+      ${doneRows ? `<div class="c-donelist">${doneRows}</div>` : ""}
+      <div class="c-total">Experience on your profile: <b id="c-total">${total}</b></div>
+      <div class="doorline" style="margin-top:14px"><button onclick="leaveNow()">I'm done for now — everything's saved</button></div>
+    </div>
+    ${st.lvlUp ? lvlUpHtml() : ""}`;
+}
+
+function lvlUpHtml() {
+  const n = doneCount();
+  return `
+    <div class="lvlveil" onclick="dismissLvl()">
+      <div class="lvlcard">
+        <div class="cap">Your profile just got stronger</div>
+        <div class="word">${esc(levelWord(n))}</div>
+        <p>${esc(levelGain(n))}</p>
+        <button class="btn primary" onclick="dismissLvl()">Keep going</button>
+      </div>
+    </div>`;
+}
+
+/* ── saved beat (shared) ── */
+const savedHtml = () => `
+  <div class="beat">
+    <div class="tickbig">${TICK(20)}</div>
+    <h2>Saved.</h2>
+    <p>Everything you've told me is on your profile. Nothing to finish, nothing lost — come back whenever you like.</p>
+  </div>`;
+
+/* ══════════════════ interactions ══════════════════ */
+window.ansStill = (el) => { st.endedOpen = false; answerCurrent({ still: true }, "+ Still at Cathay Pacific", el); };
+window.showEnded = () => { st.endedOpen = true; render(); };
+window.ansEnded = (el) => {
+  const m = +document.getElementById("end-m").value, y = +document.getElementById("end-y").value;
+  st.endedOpen = false; answerCurrent({ still: false, m, y }, "+ Ended " + MONTHS[m - 1] + " " + y, el);
+};
+window.ansMonth = (el) => { const m = +document.getElementById("one-m").value; answerCurrent({ m }, q().chipFmt(m), el); };
+window.ansRange = (el) => {
+  const sm = +document.getElementById("r-sm").value, em = +document.getElementById("r-em").value;
+  answerCurrent({ sm, em }, "+ " + MONTHS[sm - 1].slice(0, 3) + " 2017 – " + MONTHS[em - 1].slice(0, 3) + " 2018", el);
+};
+window.ansChoice = (i, el) => { const o = q().options[i]; answerCurrent({ v: o.value }, o.chip, el); };
+window.skipNow = () => skipCurrent();
+window.openStop = () => { st.stopOpen = true; render(); };
+window.closeStop = () => { st.stopOpen = null; render(); };
+window.muteNow = () => muteCurrent();
+window.enterTopic = (i) => goTopic(i, "fresh");
+window.tapTile = (i, mode) => goTopic(i, mode);
+window.resumeMidChunk = () => { if (st.mid) goTopic(st.mid.t, "exact"); };
+window.passTopic = (i) => { st.topicState[TOPICS[i].id] = "open"; TOPICS[i].qs.forEach(x => { if (!st.answers[x.id] && !st.muted[x.id]) st.skipped[x.id] = true; }); st.log.push("passed topic " + TOPICS[i].id + " (not now)"); st.phase = "home"; render(); };
+window.leaveSheet = () => { if (st.phase === "chunk") st.mid = { t: st.tIdx, q: st.qIdx }; st.phase = "home"; st.sheetOpen = false; st.log.push("closed the sheet mid-chunk — board keeps it"); render(); };
+window.leaveNow = leaveNow;
+window.goHome = () => { st.phase = "home"; maybeLevelUp(); render(); };
+window.goNextTopic = () => {
+  const wasDone = doneCount();
+  if (variant === "C" && crossedLevel(wasDone)) { st.lvlUp = true; st.phase = "topicdone"; render(); return; }
+  const n = nextOpenTopic(st.tIdx + 1);
+  if (n >= 0) enterTopic(n, false); else { st.phase = "home"; render(); }
+};
+window.dismissLvl = () => {
+  st.lvlUp = false; st.lvlSeen = doneCount();
+  const n = nextOpenTopic(st.tIdx + 1);
+  if (n >= 0) { st.phase = "home"; render(); } else { st.phase = "home"; render(); }
+};
+window.undoMute = undoMute;
+window.goHunt = () => { st.phase = "hunt"; st.log.push("handoff → the shipped job deck (sketch only; the deck is not redesigned here)"); render(); };
+window.backFromHunt = () => { st.phase = "home"; render(); };
+
+function crossedLevel(n) { return crossedAt(n) && st.lvlSeen !== n; }
+function maybeLevelUp() {
+  if (variant === "C" && crossedLevel(doneCount())) { st.lvlUp = true; }
+}
+
+/* ══════════════════ instruments + switcher ══════════════════ */
+function syncChrome() {
+  document.getElementById("inst-desc").innerHTML =
+    `<b style="color:#e8a33d">E-${variant}</b>&nbsp; ${VARIANTS[variant].name} — ${VARIANTS[variant].desc}` +
+    (variant === "C" ? ` &nbsp;·&nbsp; wording: <b style="color:#c3d0dc">${LADDERS[ladderIdx].words.join(" → ")}</b> &nbsp;(${LADDERS[ladderIdx].name})` : "");
+  const answered = Object.keys(st.answers).length, skipped = Object.keys(st.skipped).filter(k => !st.answers[k]).length, muted = Object.keys(st.muted).length;
+  document.getElementById("inst-state").textContent =
+    `phase=${st.phase}${st.phase === "chunk" ? " topic=" + topic().id + " q=" + q().id : ""}` +
+    ` · answered=${answered} skipped=${skipped} muted=${muted} · topics done=${doneCount()}/${TOPICS.length}` +
+    ` · total=${fmtTotal(totalMonths(st.answers))}\n` +
+    `#169 funnel (never her screen): ${st.log.slice(-4).join("  →  ") || "—"}`;
+  document.getElementById("sw-label").innerHTML =
+    `<b>E-${variant}</b> — ${VARIANTS[variant].name}${frame === "desktop" ? " · desktop" : ""}`;
+  document.getElementById("sw-frame").textContent = frame === "phone" ? "desktop" : "phone";
+}
+
+function setVariant(v) {
+  variant = v;
+  const u = new URL(location); u.searchParams.set("variant", v); history.replaceState(null, "", u);
+  reset();
+}
+function setFrame(f) {
+  frame = f;
+  const u = new URL(location); u.searchParams.set("frame", f); history.replaceState(null, "", u);
+  render();   /* the world keeps — a frame is a window, not a reset */
+}
+const ORDER = ["A", "B", "C"];
+document.getElementById("sw-prev").onclick = () => setVariant(ORDER[(ORDER.indexOf(variant) + 2) % 3]);
+document.getElementById("sw-next").onclick = () => setVariant(ORDER[(ORDER.indexOf(variant) + 1) % 3]);
+document.getElementById("sw-frame").onclick = () => setFrame(frame === "phone" ? "desktop" : "phone");
+const cycleLadder = () => {
+  ladderIdx = (ladderIdx + 1) % LADDERS.length;
+  const u = new URL(location); u.searchParams.set("ladder", LADDERS[ladderIdx].key); history.replaceState(null, "", u);
+  render();
+};
+document.getElementById("i-ladder").onclick = cycleLadder;
+document.getElementById("i-restart").onclick = reset;
+document.getElementById("i-leave").onclick = leaveNow;
+document.getElementById("i-return").onclick = () => { if (st.phase === "away" || st.phase === "saved") comeBack(); };
+document.getElementById("i-auto").onclick = () => {
+  if (st.phase !== "chunk") { const n = nextOpenTopic(0); if (n >= 0) { enterTopic(n, false); return; } }
+  autoAnswer();
+};
+document.getElementById("i-finish").onclick = () => {
+  const guard = setInterval(() => {
+    if (st.phase === "chunk") autoAnswer();
+    else if (st.phase === "topicdone") { st.lvlSeen = doneCount(); st.lvlUp = false; const n = nextOpenTopic(st.tIdx + 1); if (n >= 0) enterTopic(n, false); else { st.phase = "home"; render(); clearInterval(guard); } }
+    else { const n = nextOpenTopic(0); if (n >= 0) enterTopic(n, false); else { clearInterval(guard); } }
+  }, 180);
+};
+function autoAnswer() {
+  const cur = q();
+  const el = document.querySelector(".qcard .btn");
+  if (cur.kind === "still-or-ended") window.ansStill(el);
+  else if (cur.kind === "month") { const s = document.getElementById("one-m"); if (s) window.ansMonth(el); }
+  else if (cur.kind === "range") window.ansRange(el);
+  else if (cur.kind === "choice") window.ansChoice(0, el);
+}
+
+addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA")) return;
+  if (e.key === "ArrowLeft") document.getElementById("sw-prev").click();
+  else if (e.key === "ArrowRight") document.getElementById("sw-next").click();
+  else if (e.key.toLowerCase() === "f") setFrame(frame === "phone" ? "desktop" : "phone");
+  else if (e.key.toLowerCase() === "w") cycleLadder();
+  else if (e.key.toLowerCase() === "r") reset();
+  else if (e.key === "Escape" && st.phase === "chunk") window.leaveSheet ? (variant === "A" ? leaveNow() : window.leaveSheet()) : leaveNow();
+});
+
+reset();
+</script>
+
+</body>
+</html>
