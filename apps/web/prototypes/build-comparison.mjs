@@ -21,6 +21,14 @@ const LIST = b64('tailor-merged.prototype.html');
 const DECK = b64('tailor-desktop-deck.prototype.html');
 const PHONE = b64('tailor-mobile-cards.prototype.html');
 
+/* A VISIBLE build stamp. Added after a round where the owner was reviewing a browser-cached copy
+   of this page and reporting, correctly for what he could see, that nothing had changed. There
+   was no way for either of us to tell which build was on screen. Now there is one, on the page,
+   in words: if the stamp is old, the page is old — hard-refresh. */
+const BUILD = new Date().toLocaleString('en-GB', {
+  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+}).replace(',', '');
+
 const page = String.raw`<title>JobCrush — which one feels better?</title>
 <style>
   /* ── Palette taken from the product itself: light is the paper the CV prints on, dark is the
@@ -130,6 +138,7 @@ const page = String.raw`<title>JobCrush — which one feels better?</title>
   .caption .what { font-size: 13px; color: var(--ink-2); }
   .caption .what b { color: var(--ink); font-weight: 620; }
   .caption .hint { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--ink-3); white-space: nowrap; }
+  .caption .build { font-family: var(--mono); font-size: 11px; color: var(--ink-3); white-space: nowrap; border-left: 1px solid var(--line); padding-left: 12px; }
   kbd {
     font-family: var(--mono); font-size: 10.5px; background: var(--ground); border: 1px solid var(--line);
     border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; color: var(--ink-2);
@@ -193,6 +202,7 @@ const page = String.raw`<title>JobCrush — which one feels better?</title>
 <div class="caption">
   <span class="what" id="what"></span>
   <span class="hint">press <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> to flip between them</span>
+  <span class="build" title="If this is older than you expect, your browser is showing a cached copy — hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on a Mac).">build ${BUILD}</span>
 </div>
 
 <div class="veil" id="veil">
@@ -229,10 +239,23 @@ const META = {
   phone: { label: "Phone",                   what: '<b>On a phone.</b> One question at a time, and your CV is tucked away at the bottom &mdash; drag or click the bar to pull it up.' },
 };
 
-/* The two desktop versions are offered in a RANDOM order each time this page is opened.
-   Whichever comes first tends to become the reference the other gets judged against, and this
-   page exists to collect an honest preference — so the running order is not ours to set. */
-const desktops = Math.random() < 0.5 ? ["list", "deck"] : ["deck", "list"];
+/* The two desktop versions are offered in a random order — whichever comes first tends to become
+   the reference the other gets judged against, and this page exists to collect an honest
+   preference, so the running order is not ours to set.
+   ⚠️ But it is drawn ONCE PER BROWSER and then remembered. Re-rolling on every load made the
+   options swap under the reviewer mid-session, which reads as a broken page rather than as
+   method — and it cost the owner a whole round of "did my change land?", because he could not
+   tell one reload from the next. Spread the order ACROSS people, never WITHIN one person. */
+const KEY = "jc157-order";
+let desktops;
+try {
+  const saved = localStorage.getItem(KEY);
+  desktops = saved === "list,deck" || saved === "deck,list" ? saved.split(",") : null;
+} catch (e) { desktops = null; }
+if (!desktops) {
+  desktops = Math.random() < 0.5 ? ["list", "deck"] : ["deck", "list"];
+  try { localStorage.setItem(KEY, desktops.join(",")); } catch (e) {}
+}
 const ORDER = [desktops[0], desktops[1], "phone"];
 
 /* Each prototype carries its own engineering chrome (a build brief, an instrument readout, a
