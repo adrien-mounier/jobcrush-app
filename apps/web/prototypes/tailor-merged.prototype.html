@@ -445,6 +445,25 @@ const ASKS = [
       cost: "This sentence goes on this CV only. If you apply somewhere else, we'll ask you again." } },
 ];
 
+
+/* 🚨 ROUND 3.5 — THE LIST IS GROUPED ONCE, THEN FROZEN FOREVER.
+   Owner, on seeing the advert's own order on screen: "the 'you have this' are not all grouped
+   together, I see one in the middle, I prefer them ordered separately."
+   He is right, and this reconciles cleanly with his round-3.4 instruction that an answered row
+   must not move. The two are not in conflict once you separate WHEN the order is decided from
+   WHETHER it changes:
+     • decided ONCE, from what we knew before she answered anything — the ones her CV already
+       proves, then the expired one, then the ones we still have to ask;
+     • then NEVER recomputed. Answering repaints a row where it stands.
+   That is why this is a module CONSTANT built from `kind` alone and not from live state: there
+   is no code path that could re-sort it, so no future edit can accidentally reintroduce the
+   shuffle. Both earlier attempts failed by being functions of state.
+   ⚠️ Accepted and stated: as she answers, the groups blur — an answered row turns gold down in
+   the "not yet" block, away from the other gold rows. That is the direct price of not moving
+   anything, which is the trade he already chose. It is stability, not tidiness. */
+const INITIAL_RANK = { yes: 0, part: 1 };
+const ORDERED = [...ASKS].sort((a, b) => (INITIAL_RANK[a.kind] ?? 2) - (INITIAL_RANK[b.kind] ?? 2));
+
 const COPY = {
   scoreCap: "of what this advert asks for is answered",
   strip: (m) => `${m} CVs don't usually carry a <b>date of birth</b> or <b>marital status</b>. Both are off this one.`,
@@ -632,7 +651,7 @@ function renderJob() {
      changes its own appearance says the same thing and asks nothing of her.
      ⚠️ The meter above still fills left to right — that is a PROGRESS bar and progress should
      read as progress. The rows are an inventory. Two jobs, two orderings, deliberately. */
-  const asks = ASKS.map((a) => {
+  const asks = ORDERED.map((a) => {
     const st = askState(a);
     const open = !!S.open[a.id];
     return `<div class="ask ${open ? "open" : ""} ${a.id === next ? "active" : ""}" data-state="${st}">
