@@ -2,6 +2,21 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 (session 96) — The sign-up seam is CLOSED: Confirm follows the question game into the Night Desk
+
+_One owner decision resolving the final open seam created by Design E; binding ruling posted on
+[#157](https://github.com/adrien-mounier/jobcrush-app/issues/157)._
+
+- **Owner decision: option 2. Repaint Confirm dark.** The light confirm deck followed immediately by
+  the dark question game was not an intentional two-mood handoff. Sign-up stays in one Night Desk
+  world from Confirm through the question game; the CV paper remains the room's one light material.
+- **Interaction decisions do not reopen.** One dated block per card, right to confirm, left to skip,
+  tap to correct, the right-hand progress panel, undo and reward beats all stand unchanged. Only the
+  register decision from Design A is superseded.
+- Primary evidence updated in `confirm-swipe.prototype.html` (dark is now the decided default; the
+  light version remains behind D as rejected comparison evidence),
+  `chunked-ingestion.prototype.html`, and `DESIGN.md`.
+
 ## 2026-08-09 (session 95) — Design E DECIDED (chunked ingestion): variant A "the narrated thread" — the #157 register is complete
 
 _Live working session with the owner, two prototype rounds. Binding instruction on

@@ -43,13 +43,11 @@
           #120's live harm. Making the horizontal axis confirm-only removes the collision
           instead of managing it. Nothing on this screen is red, because nothing on this screen
           destroys anything.
-       B. DECIDED — STAYS LIGHT. The shipped swipe deck is DARK (.jobdeck); today's confirm deck
-          is LIGHT (globals.css). Designer's call, owner's to reverse: keep them DIFFERENT on
-          purpose. The two decks share a gesture but do opposite jobs — a swipe on the job deck
-          THROWS AN ADVERT AWAY (fast, disposable, no consequence); a swipe here LOCKS IN A FACT
-          ABOUT HER LIFE (permanent, and it moves what she is eligible for). Identical palettes
-          would claim those are the same act. Same gestures, different register: this one is
-          your record, that one is the hunt. Also zero migration. D still toggles, for review.
+       B. SUPERSEDED BY OWNER, 2026-08-09 — THE CONFIRM DECK IS DARK. Design E made the next
+          screen in sign-up the Night Desk; the owner chose one continuous room rather than a
+          light → dark break mid-flow. The cards remain distinct by what they say and do, not by
+          moving the person into another visual identity. Paper is still the room's one light
+          material. D keeps the rejected light version available as comparison evidence only.
        C. RESOLVED IN ROUND 2 — and the owner's remark 1 is what resolved it. The old worry: the
           matching-jobs counter rose only when she answered "yes, this counts as work", so the
           screen paid for one ANSWER and taught it. ⚠️ The designer's worked example was FALSE
@@ -95,14 +93,14 @@
     --sw-h: 66px;
   }
 
-  /* ══ REGISTER 1 — light: today's confirm deck (packages/ui/src/tokens.css, verbatim) ══ */
+  /* ══ REJECTED COMPARISON — former light confirm deck (packages/ui/src/tokens.css) ══ */
   .app[data-reg="light"] {
     --bg: #faf9f7; --surface: #ffffff; --ink: #1f2328; --ink-muted: #59636e; --line: #d9d5cf;
     --accent: #0b6e5f; --accent-ink: #fff; --raise: #ffffff;
     --yes: #0b6e5f; --yes-bg: #e6f2ee; --fix: #9a6700; --fix-bg: #fdf6e6;
     --shadow: 0 10px 30px rgba(0,0,0,.12);
   }
-  /* ══ REGISTER 2 — dark: the SHIPPED swipe deck (.jobdeck, deck.css --hud-*) ══ */
+  /* ══ DECIDED REGISTER — Night Desk, continuous with the question game ══ */
   .app[data-reg="dark"] {
     --bg: #0d1116; --surface: #1d242d; --ink: #e8eaed; --ink-muted: #7f8b98; --line: #29313b;
     --accent: #e8a33d; --accent-ink: #1a1206; --raise: #151a21;
@@ -300,20 +298,20 @@
   <p>One block at a time. <strong>Right = that's right. Left = skip for now. Tap the card to correct it.</strong> The horizontal axis is confirm-only, so the gesture that means <em>reject</em> on the shipped job deck can never mean <em>correct</em> here. Nothing on this screen destroys anything — a skip returns to the end of the deck.</p>
   <p><strong>Reusing what ships:</strong> the drag, axis lock, 90px threshold, stamps and fly-out are <code>deck.css</code>'s job deck at its own values; the gold chip → counter → number-bump is <code>factbadge.css</code>'s "fact added to profile" beat. "A skip means <em>not now</em>" is ADR-0011 clause 4's own word.</p>
   <p><strong>The card no longer asks whether something "counts as work"</strong> — it states what the thing <em>is</em> and tells her what that means. Whether it counts is worked out from the kind, never asked: ADR-0008's Mei rule, <em>"ask for the parts underneath, never the answer on top"</em>. ⚠️ #161 words this as an <em>is-this-work switch</em>; the promise holds, the question is one level too high.</p>
-  <p class="rules">decided round 2: panel right · horizontal axis confirm-only, correcting is a tap · left = skip for now · the card asks the KIND, not the counting · every finished card fires the reward, whatever the answer<br>⚠️ open: the register (D toggles)</p>
+  <p class="rules">decided round 2: panel right · horizontal axis confirm-only, correcting is a tap · left = skip for now · the card asks the KIND, not the counting · every finished card fires the reward, whatever the answer<br>owner decision 2026-08-09: Night Desk register; D shows the rejected light comparison</p>
 </div>
 
-<div class="app" id="app" data-reg="light">
+<div class="app" id="app" data-reg="dark">
   <div class="brandbar"><div><a href="#">JobCrush</a></div></div>
   <div class="layout" id="layout"></div>
 </div>
 
 <div class="instr" id="instr"></div>
-<div class="hint">drag right to confirm · drag left to skip · tap the card to correct &nbsp;·&nbsp; ← → E &nbsp;·&nbsp; D dark/light &nbsp;·&nbsp; R reset</div>
+<div class="hint">drag right to confirm · drag left to skip · tap the card to correct &nbsp;·&nbsp; ← → E &nbsp;·&nbsp; D decided/rejected register &nbsp;·&nbsp; R reset</div>
 
 <div class="switcher">
   <div class="vlabel"><span class="k">Round 2</span><span class="n">The swipe deck</span></div>
-  <div class="tog" id="togReg">Register: light</div>
+  <div class="tog" id="togReg">Register: dark — decided</div>
   <div class="tog" id="reset">Reset</div>
 </div>
 
@@ -379,7 +377,7 @@ const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 /* A QUEUE, not an index — because a skip must return the card to the end of the deck rather
    than lose it. Nothing on this screen is ever discarded (#120). */
 let jobs, queue, status, taps, corrections, lastUndo, back, draft;
-let dark = false, leaving = null, bumpKey = null;
+let dark = true, leaving = null, bumpKey = null;
 
 function reset() {
   jobs = clone(SEED); queue = jobs.map((j) => j.id); status = {}; taps = 0; corrections = 0;
@@ -527,7 +525,7 @@ function render() {
   if (!done && !back && !leaving) wireDrag();
   bumpKey = null;
 
-  document.getElementById("togReg").textContent = "Register: " + (dark ? "dark (shipped deck)" : "light (today)");
+  document.getElementById("togReg").textContent = "Register: " + (dark ? "dark — decided" : "light — rejected");
   document.getElementById("instr").innerHTML =
     `<span class="tag">designer only</span>
      <span>decisions asked of her: <b>${taps}</b> / 15 budget</span>

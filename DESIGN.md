@@ -120,8 +120,11 @@ the incumbent confirmed). Documented here so new surfaces extend the room rather
 redecorating it.
 
 **Key Characteristics:**
-- Two grounds: the dark room (the game — decks, tailoring, profile) and a warm light
-  register (forms, sign-in, admin). The paper is a third material that lives in both.
+- Two grounds: the dark room (the game — confirm deck, question game, job decks,
+  tailoring, profile) and a warm light register (import, sign-in, settings, admin).
+  The paper is a third material that lives in both. Sign-up enters the dark room at
+  Confirm and stays there through the question game; there is no register change
+  between those back-to-back screens.
 - One accent. Gold is rationed and semantic, never decorative.
 - Quiet chrome: 1px lines, tonal layering, muted text; the content is the show.
 - The machine speaks in the first person, in short plain words (observed practice —
@@ -155,8 +158,9 @@ A charcoal room, one gold voice, warm paper, and a small semantic evidence palet
 ### Neutral — the light register
 - **Day Ground** (#faf9f7), **Day Surface** (#ffffff), **Day Ink** (#1f2328),
   **Day Muted** (#59636e), **Day Line** (#d9d5cf): the light app (import, sign-in,
-  settings-like surfaces). **Day Teal** (#0b6e5f) is this register's accent (wordmark,
-  links, confirm actions) — the one place the accent is not gold.
+  settings-like surfaces, but not the confirm deck). **Day Teal** (#0b6e5f) is this
+  register's accent (wordmark, links, confirm actions) — the one place the accent is
+  not gold.
 
 ### Semantic — evidence badges (light register, spec §5)
 - **Verified** (#1a7f37) · **Derived** (#0969da) · **Partial** (#9a6700) ·
