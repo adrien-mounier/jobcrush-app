@@ -53,6 +53,27 @@
      ⚠️ Scope note, not an omission: the location/market control from the desktop file is not on
      this screen — the owner's brief for "top of screen" didn't name it. Flagged, not decided.
 
+     ══ REVISION 3c (2026-08-08, owner) — THE PROGRESS BAR OPENS INTO THE EIGHT ASKS ══
+     Added to the desktop deck first, then here on the owner's own follow-up: "it makes me think
+     we need to add this same thing on the mobile version tho." He is right — the weakness is
+     the deck's, not the desktop's. A meter says HOW MANY asks are answered and never WHICH or
+     WHY, and on a phone that gap is worse, because there is no second column quietly carrying
+     the context.
+
+     🚨 THE BOUNDARY, IDENTICAL ON BOTH DECKS: the panel REPORTS and never ANSWERS. An ask with
+     evidence is a button that opens its evidence; AN UNANSWERED ASK IS NOT A BUTTON AT ALL; no
+     answer control, undo or put-back exists anywhere in it; and a closing line says where the
+     open ones actually get answered. Break that and the deck becomes the list design, and #157
+     loses the thing it is comparing.
+
+     ⚠️ THE ONE PHONE-SPECIFIC DECISION — the panel gets its own capped scroll (292px).
+     `.scroll` is `flex: 0 0 auto` and `.stage` is the child that shrinks, so eight rows in
+     normal flow would squeeze the active card to a sliver. An explicit max-height with its own
+     overflow makes the panel a self-contained scroll container with a DEFINITE height, which is
+     precisely the case that does NOT trip the `min-height: auto` trap that broke this file's
+     layout once already (see the .stage note below). Verified by driving a click on the card's
+     own buttons with the panel open — the exact regression that bit here before.
+
      ══ VERDICT ══ owner-decided 2026-08-08 — CHOSEN for mobile.
      First approved on sight ("really good, exactly what I imagined"), then confirmed as the
      final choice after its own logic was ported to desktop scale (tailor-desktop-deck.
@@ -140,13 +161,48 @@
   .jobdesc summary:hover, .jobdesc summary:focus-visible { color: var(--hud-ink); }
   .jobdesc p { margin: 9px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--hud-mute-2); }
 
-  .meterrow { display: flex; align-items: center; gap: 9px; margin: 13px 0 4px; }
+  /* The meter is the SUMMARY of the eight asks, so the eight asks are what it opens into —
+     owner: "expandable just under the progress bar because it's directly linked". Same control,
+     same words and same read-only boundary as tailor-desktop-deck.prototype.html. */
+  .meterrow {
+    appearance: none; width: 100%; font: inherit; text-align: left; background: none; cursor: pointer;
+    border: 0; color: inherit; display: flex; align-items: center; gap: 9px; margin: 13px 0 4px; padding: 2px 0;
+  }
   .meter { display: flex; gap: 3px; flex: 1; }
   .meter i { height: 5px; flex: 1; border-radius: 3px; background: var(--hud-2); }
   .meter i.on { background: var(--gold); }
   .meter i.half { background: var(--gold-dim); }
   .meterrow .n { font-size: 11.5px; color: var(--hud-mute); font-family: var(--mono); white-space: nowrap; }
   .meterrow .n b { color: var(--hud-ink); font-weight: 600; }
+  .mchev { flex: none; color: var(--hud-mute); transition: transform 240ms ease, color 140ms ease; }
+  .meterrow[aria-expanded="true"] .mchev { transform: rotate(90deg); color: var(--gold); }
+
+  /* ── the eight asks, read-only ────────────────────────────────────────────────
+     🚨 SAME BOUNDARY AS DESKTOP: this panel REPORTS, it never ANSWERS. A satisfied ask opens to
+     show its evidence; an unanswered one is not a button, because the cards are the only place
+     a question gets answered.
+     ⚠️ The phone-only part: this list gets its own capped scroll. The header is `flex: 0 0 auto`
+     and the deck below is the flex child that shrinks, so eight rows in normal flow would push
+     the active card down to a sliver. An explicit max-height with its own overflow keeps the
+     panel a self-contained scroll container with a DEFINITE height — which is exactly the case
+     that does not trip the min-height:auto trap that broke this file's layout once already. */
+  .asklist { margin: 2px 0 0; max-height: 292px; overflow-y: auto; overscroll-behavior: contain; animation: jd-dealin 240ms ease; }
+  .qrow { border-bottom: 1px solid rgba(43,51,61,.55); }
+  .qrow:last-of-type { border-bottom: 0; }
+  .qhead { width: 100%; display: flex; gap: 9px; align-items: flex-start; text-align: left; background: none; border: 0; padding: 9px 2px; color: inherit; font: inherit; border-radius: 6px; }
+  button.qhead { cursor: pointer; }
+  button.qhead:active { background: rgba(31,38,47,.6); }
+  .qhead .dot { flex: none; width: 14px; height: 14px; margin-top: 2px; }
+  .qhead .qt { flex: 1; font-size: 12.8px; line-height: 1.4; color: var(--hud-ink); }
+  .qrow[data-state="open"] .qt, .qrow[data-state="settled"] .qt { color: var(--hud-mute-2); }
+  .qhead .qtag { flex: none; font-size: 10.5px; color: var(--hud-mute); padding-top: 2px; }
+  .qrow[data-state="yes"] .qtag, .qrow[data-state="stretched"] .qtag { color: var(--gold); }
+  .qhead .qchev { flex: none; width: 8px; margin-top: 4px; opacity: .5; transition: transform 220ms ease; }
+  .qrow.open .qchev { transform: rotate(90deg); opacity: 1; }
+  .qbody { padding: 0 2px 11px 23px; animation: jd-dealin 240ms ease; }
+  .qproof { font-size: 12.3px; line-height: 1.5; color: var(--hud-ink); padding: 9px 11px; border-radius: 8px; background: var(--hud-1); border: 1px solid var(--hud-line); }
+  .qproof .qsrc { display: block; margin-top: 6px; font-size: 11px; color: var(--hud-mute-2); }
+  .asknote { margin: 9px 2px 2px; font-size: 11px; color: var(--hud-mute); }
 
   .ledger { min-height: 18px; margin: 9px 2px 0; font-size: 12px; color: var(--hud-mute-2); display: flex; align-items: baseline; gap: 8px; }
   .ledger.gold { color: var(--gold); }
@@ -277,8 +333,9 @@
 </style>
 
 <div class="ask-brief">
-  <h1>#157 · Design B round 3 — mobile deck</h1>
+  <h1>#157 · Design B round 3c — mobile deck</h1>
   <p>Same content and rules as the desktop merge: the same job, the same eight asks, the same physics (a fact flies to Profile, a stretch stays with the advert). Only the shape changes — one spine, one card at a time, and the CV lives as a sheet you pull up from the bottom.</p>
+  <p><strong>New in 3c (your note):</strong> the progress bar opens. Tap it and the eight things this advert asks for are listed underneath, marked <em>you have this</em> / <em>expired</em> / <em>not yet</em>, each satisfied one opening to show its evidence. <strong>It only reports</strong> — an unanswered ask isn't even tappable, because the cards are where answering happens. The list keeps its own scroll so it can never squeeze the card.</p>
   <p><strong>The creative ask — the ending.</strong> Tap through to the last card ("What I changed"), then tap Continue: the card settles down rather than sliding away, a soft pulse travels to the CV bar below and it glows once with a two-and-a-half-second cue ("Pull it up for one last look"), then the two exits arrive.</p>
   <p><strong>Try it:</strong> drag the bar at the bottom up, or just tap it — the CV rises. Drag or tap again to put it away.</p>
 </div>
@@ -319,7 +376,7 @@
 <div class="instr" id="instr"></div>
 
 <div class="switcher">
-  <div class="vlabel"><span class="k">Round 3</span><span class="n">Mobile deck</span></div>
+  <div class="vlabel"><span class="k">Round 3c</span><span class="n">Mobile deck</span></div>
   <button class="tog" id="reset" type="button">Reset</button>
 </div>
 
@@ -370,12 +427,33 @@ const COPY = {
   ledSave: "Saved. Pick it up whenever you want.",
   endH: "This CV is as strong as I can make it for this job.",
   pullCue: "Pull it up for one last look",
+  /* tag words copied verbatim from tailor-merged — same states, same nouns */
+  tag: { yes: "you have this", part: "expired", open: "not yet", stretched: "added", settled: "answered" },
+  askNote: "The ones still open come round in the cards.",
 };
 
+/* The eight asks. Titles, evidence and source lines are copied VERBATIM from
+   tailor-merged.prototype.html and are identical to tailor-desktop-deck.prototype.html — all
+   three surfaces must report the same facts in the same words. */
 const ASKS8 = [
-  { id: "vendor", kind: "yes" }, { id: "budget", kind: "interactive" }, { id: "multi", kind: "yes" },
-  { id: "exco", kind: "yes" }, { id: "mandarin", kind: "yes" }, { id: "pl300", kind: "part" },
-  { id: "powerbi", kind: "interactive" }, { id: "agile", kind: "interactive" },
+  { id: "vendor", kind: "yes", t: "Vendor selection and contract delivery",
+    proof: "Ran vendor selection and contract negotiation for the Singapore core-banking refresh.",
+    src: "Your CV — Standard Chartered Bank, 2019–2022" },
+  { id: "budget", kind: "interactive", t: "Ownership of a programme budget above USD 10m" },
+  { id: "multi", kind: "yes", t: "Delivery across multiple markets",
+    proof: "Owned a USD 12m regional payments programme across six markets, delivered on budget.",
+    src: "Your CV — Standard Chartered Bank, 2019–2022" },
+  { id: "exco", kind: "yes", t: "Reporting to executive committee level",
+    proof: "Reported programme health to the regional exco every month for three years.",
+    src: "Your CV — Standard Chartered Bank, 2019–2022" },
+  { id: "mandarin", kind: "yes", t: "Working Mandarin",
+    proof: "Mandarin — you told us you can run a meeting in it.",
+    src: "You answered this when we asked" },
+  { id: "pl300", kind: "part", t: "PL-300 certification",
+    proof: "You passed it in Feb 2023; it expired Feb 2026. You chose to print it with the date.",
+    src: "Your CV — Certifications. Change this on your profile, not here." },
+  { id: "powerbi", kind: "interactive", t: "Power BI reporting" },
+  { id: "agile", kind: "interactive", t: "Agile delivery at scale" },
 ];
 const BASE = 58;
 
@@ -387,6 +465,7 @@ function freshState() {
     stripBack: false, subBack: {}, showThree: false,
     profExtra: 0, shownScore: BASE, ledger: null, lastUndo: null, descOpen: false,
     sheetOpen: false, page: 1, sheetY: null, /* px translateY, computed on boot */
+    listOpen: false, openRows: {},
   };
 }
 S = freshState();
@@ -427,6 +506,63 @@ function meterDots() {
   cls.sort((a, b) => RANK[a] - RANK[b]);
   return cls.map((c) => `<i class="${c}"></i>`).join("");
 }
+/* ── the read-only ask panel ────────────────────────────────────────────────────
+   Ported unchanged from tailor-desktop-deck.prototype.html — same states, same evidence, same
+   read-only boundary. Only the type scale and the capped scroll are phone-specific. */
+function rowState(a) {
+  if (a.kind === "yes") return "yes";
+  if (a.kind === "part") return "part";
+  return askState8(a.id) || "open";
+}
+/* The three interactive asks cite HER OWN ANSWER rather than her CV — the same distinction
+   ADR-0004 clause 1a draws between a fact we read and a fact she supplied, said as a sentence. */
+function rowProof(a) {
+  if (a.proof) return { text: a.proof, src: a.src };
+  if (a.id === "budget") {
+    if (S.budget === "y") return { text: "Owned programme budgets to USD 12m.", src: "You answered this on the card." };
+    if (S.budget === "s") return { text: "Managed programme spend to USD 12m with the sponsor.", src: "You answered this on the card." };
+    if (S.budget === "n") return { text: "You said not yet. This advert now knows where you stand.", src: "You answered this on the card." };
+  }
+  if (a.id === "powerbi") {
+    if (S.powerbi) return { text: `Power BI (${S.powerbi} year${S.powerbi === 1 ? "" : "s"}).`, src: "You answered this on the card." };
+    if (S.powerbi === 0) return { text: "You said none yet. This advert now knows where you stand.", src: "You answered this on the card." };
+  }
+  if (a.id === "agile" && S.stretch === "y") {
+    return { text: COPY.sLine, src: "A stretch you approved — it stays with this application and never joins your profile." };
+  }
+  return null;
+}
+function dotSVG(s) {
+  if (s === "yes") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="7" fill="#e8a33d"></circle><path d="M4.3 7.7l2.2 2.2 4.2-4.4" stroke="#1a1206" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  if (s === "part") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="6.6" stroke="#a8762b" stroke-width="1.4" fill="none"></circle><path d="M7.5 1a6.5 6.5 0 010 13z" fill="#a8762b" opacity="0.35"></path></svg>';
+  if (s === "stretched") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><rect x="3.1" y="3.1" width="8.8" height="8.8" rx="2" transform="rotate(45 7.5 7.5)" stroke="#e8a33d" stroke-width="1.4" fill="none" stroke-dasharray="2.6 2.2"></rect></svg>';
+  if (s === "settled") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="5.6" fill="#4d5865"></circle></svg>';
+  return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="6.6" stroke="#8a97a6" stroke-width="1.2" fill="none" stroke-dasharray="2.6 2.4"></circle></svg>';
+}
+/* Same rank as meterDots(), so row N and dot N are the same ask. */
+const ROW_RANK = { yes: 0, stretched: 0, part: 1, settled: 2, open: 2 };
+function askListHtml() {
+  const rows = [...ASKS8]
+    .sort((a, b) => ROW_RANK[rowState(a)] - ROW_RANK[rowState(b)])
+    .map((a) => {
+      const st = rowState(a);
+      const pf = rowProof(a);
+      const open = !!S.openRows[a.id];
+      const inner = dotSVG(st)
+        + `<span class="qt">${esc(a.t)}</span>`
+        + `<span class="qtag">${esc(COPY.tag[st])}</span>`
+        + (pf ? '<svg class="qchev" viewBox="0 0 10 14" fill="none" aria-hidden="true"><path d="M2.5 1.5L8 7l-5.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' : "");
+      /* no evidence to show = not a control, so nothing here implies you could answer it here */
+      const head = pf
+        ? `<button class="qhead" data-act="qrow" data-id="${a.id}" aria-expanded="${open}" type="button">${inner}</button>`
+        : `<div class="qhead">${inner}</div>`;
+      return `<div class="qrow ${open ? "open" : ""}" data-state="${st}">${head}${
+        open && pf ? `<div class="qbody"><div class="qproof">${esc(pf.text)}<span class="qsrc">${esc(pf.src)}</span></div></div>` : ""}</div>`;
+    }).join("");
+  const stillOpen = ASKS8.filter((a) => rowState(a) === "open").length;
+  return `<div class="asklist">${rows}${stillOpen ? `<p class="asknote">${esc(COPY.askNote)}</p>` : ""}</div>`;
+}
+
 function changesCount() { return (MARKET.strips && !S.stripBack ? 1 : 0) + (UNPRINTED.filter((_, i) => !S.subBack[i]).length ? 1 : 0); }
 function openLeft() {
   let n = 0;
@@ -602,7 +738,12 @@ function renderHead() {
       <p>You will run vendor delivery for the regional payments platform: selection, contracting, and delivery through to handover, with full ownership of the programme budget.</p>
       <p>You report to the regional exco monthly. Power BI is the house reporting standard. PL-300 is required; Mandarin is a strong plus for our Chinese-market vendors.</p>
     </details>
-    <div class="meterrow"><span class="meter">${meterDots()}</span><span class="n"><b>${sc.solid}</b> of ${sc.total}</span></div>
+    <button class="meterrow" data-act="list" aria-expanded="${S.listOpen}" type="button">
+      <span class="meter">${meterDots()}</span>
+      <span class="n"><b>${sc.solid}</b> of ${sc.total}</span>
+      <svg class="mchev" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2.5 1.5L7 5L2.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    ${S.listOpen ? askListHtml() : ""}
     <div class="ledger ${S.ledger?.gold ? "gold" : ""}" id="ledger">
       ${S.ledger ? `<span>${esc(S.ledger.text)}</span>${S.lastUndo ? `<button class="undo" data-act="last-undo" type="button">${esc(COPY.undo)}</button>` : ""}` : ""}
     </div>`;
@@ -793,6 +934,8 @@ const ACTIONS = {
   "sub-back"(el) { S.subBack[Number(el.dataset.i)] = true; led(COPY.ledBack, false, null); render({ settle: ["sub" + el.dataset.i], announce: COPY.ledBack }); },
   "sub-undo"(el) { S.subBack[Number(el.dataset.i)] = false; render({}); },
   three() { S.showThree = !S.showThree; render({}); },
+  list() { S.listOpen = !S.listOpen; render({}); },
+  qrow(el) { const id = el.dataset.id; S.openRows[id] = !S.openRows[id]; render({}); },
   page(el) { S.page = Number(el.dataset.p); render({}); },
   "last-undo"() { if (S.lastUndo) { S.lastUndo(); S.deal = true; render({ tween: true }); } },
   apply() { led(COPY.ledApply, true, null); render({ announce: COPY.ledApply }); },

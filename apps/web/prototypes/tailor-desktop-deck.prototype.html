@@ -59,6 +59,39 @@
           carries a single gold line — there is no bar left to bump, and "pull it up for one last
           look" is meaningless when it never went away.
 
+     ══ REVISION 3c (2026-08-08, owner) — THE DECK GETS THE ONE THING THE LIST HAD ══════
+     Owner, after using 3b: "in the option 'desktop - one at a time' we miss the part of the
+     version 'desktop - a list' where we can see the list of 'you have this' already. Can you
+     integrate this list that would be expandable just under the progress bar because it's
+     directly linked."
+
+     He is right, and he named the deck's real weakness precisely. The meter said HOW MANY were
+     answered and never WHICH or WHY. In the list design that reassurance is free — the evidence
+     for every satisfied ask is on screen. In a deck it was simply gone.
+
+     The placement is his and it is the correct one: the eight-dot meter IS the summary of the
+     eight asks, so the eight asks are what it opens into. The whole meter row is now the
+     control; the bar and the count keep their exact former look.
+
+     🚨 THE LINE THAT KEEPS THIS FROM COLLAPSING THE COMPARISON. In the list design the list is
+     where you DO THE WORK — you click a row and answer it there. Here the panel REPORTS and
+     never ANSWERS:
+       - an ask with evidence is a button that opens its evidence;
+       - an unanswered ask is NOT A BUTTON AT ALL, because a dead control that opens nothing
+         would imply you could answer it here;
+       - no answer control, no undo, no put-back exists anywhere in the panel;
+       - a closing line says where the open ones actually get answered ("they come round in the
+         cards").
+     Delete that boundary and the deck becomes the list, and #157 loses the thing it is
+     comparing. ⚠️ Stated plainly for the record: this narrows the gap between the two desktop
+     options ON PURPOSE. The remaining difference is now exactly one thing — whether you work
+     down a list or get walked through one at a time with an overview available — which is a
+     cleaner question than the one 3b posed, not a smaller one.
+
+     Titles, evidence and source lines are copied VERBATIM from tailor-merged.prototype.html: a
+     wording difference between the two would be a difference the comparison would wrongly
+     measure. Row order uses the same rank as the meter dots, so row N is dot N.
+
      ⚠️ Not buildable before #158 lands claim-ids (the "3 lines not printed" card needs them).
      ⚠️ Scope note carried from the mobile file: the location/market control is not on this
      screen (not in the owner's top-of-screen brief); fixed to Singapore.
@@ -146,13 +179,46 @@
   .jobdesc summary:hover, .jobdesc summary:focus-visible { color: var(--hud-ink); }
   .jobdesc p { margin: 10px 0 0; font-size: 13px; line-height: 1.6; color: var(--hud-mute-2); }
 
-  .meterrow { display: flex; align-items: center; gap: 10px; margin: 16px 0 0; padding-top: 13px; border-top: 1px solid var(--hud-line); }
+  /* The meter is the SUMMARY of the eight asks, so the eight asks are what it opens into —
+     owner: "expandable just under the progress bar because it's directly linked". The whole row
+     is the control; the bar and the count keep their exact former look. */
+  .meterrow {
+    appearance: none; width: 100%; font: inherit; text-align: left; background: none; cursor: pointer;
+    display: flex; align-items: center; gap: 10px; margin: 16px 0 0; padding: 13px 4px 0 2px;
+    border: 0; border-top: 1px solid var(--hud-line); border-radius: 0 0 6px 6px; color: inherit;
+  }
+  .meterrow:hover .n b, .meterrow:hover .mchev { color: var(--gold); }
   .meter { display: flex; gap: 3px; flex: 1; max-width: 260px; }
   .meter i { height: 5px; flex: 1; border-radius: 3px; background: var(--hud-2); transition: background 420ms ease; }
   .meter i.on { background: var(--gold); }
   .meter i.half { background: var(--gold-dim); }
   .meterrow .n { font-size: 12px; color: var(--hud-mute); font-family: var(--mono); white-space: nowrap; }
-  .meterrow .n b { color: var(--hud-ink); font-weight: 600; }
+  .meterrow .n b { color: var(--hud-ink); font-weight: 600; transition: color 140ms ease; }
+  .mchev { flex: none; color: var(--hud-mute); transition: transform 240ms ease, color 140ms ease; }
+  .meterrow[aria-expanded="true"] .mchev { transform: rotate(90deg); color: var(--gold); }
+
+  /* ── the eight asks, read-only ────────────────────────────────────────────────
+     🚨 THE LINE THAT KEEPS THIS FROM BECOMING THE LIST DESIGN: this panel REPORTS, it never
+     ANSWERS. A satisfied ask opens to show its evidence; an unanswered one is not even a button,
+     because the deck is the only place a question gets answered. Erase that and the two desktop
+     options stop being two options. */
+  .asklist { margin: 4px 0 0; animation: jd-dealin 240ms ease; }
+  .qrow { border-bottom: 1px solid rgba(43,51,61,.55); }
+  .qrow:last-of-type { border-bottom: 0; }
+  .qhead { width: 100%; display: flex; gap: 11px; align-items: flex-start; text-align: left; background: none; border: 0; padding: 10px 4px 10px 2px; color: inherit; font: inherit; border-radius: 6px; }
+  button.qhead { cursor: pointer; }
+  button.qhead:hover { background: rgba(31,38,47,.55); }
+  .qhead .dot { flex: none; width: 15px; height: 15px; margin-top: 2px; }
+  .qhead .qt { flex: 1; font-size: 13.5px; line-height: 1.45; color: var(--hud-ink); }
+  .qrow[data-state="open"] .qt, .qrow[data-state="settled"] .qt { color: var(--hud-mute-2); }
+  .qhead .qtag { flex: none; font-size: 11.5px; color: var(--hud-mute); padding-top: 2px; }
+  .qrow[data-state="yes"] .qtag, .qrow[data-state="stretched"] .qtag { color: var(--gold); }
+  .qhead .qchev { flex: none; width: 9px; margin-top: 5px; opacity: .5; transition: transform 220ms ease; }
+  .qrow.open .qchev { transform: rotate(90deg); opacity: 1; }
+  .qbody { padding: 0 4px 12px 28px; animation: jd-dealin 240ms ease; }
+  .qproof { font-size: 13px; line-height: 1.55; color: var(--hud-ink); padding: 10px 12px; border-radius: 8px; background: var(--hud-1); border: 1px solid var(--hud-line); }
+  .qproof .qsrc { display: block; margin-top: 7px; font-size: 11.5px; color: var(--hud-mute-2); }
+  .asknote { margin: 10px 2px 2px; font-size: 11.5px; color: var(--hud-mute); }
 
   .ledger { min-height: 20px; margin: 10px 2px 0; font-size: 12.5px; color: var(--hud-mute-2); display: flex; align-items: baseline; gap: 8px; }
   .ledger.gold { color: var(--gold); }
@@ -302,9 +368,10 @@
 </style>
 
 <div class="ask-brief">
-  <h1>#157 · Design B round 3b — desktop deck, the CV beside it</h1>
+  <h1>#157 · Design B round 3c — desktop deck, the CV beside it</h1>
   <p>The same job, the same eight asks, the same physics as <code>tailor-merged.prototype.html</code> — but the OTHER interaction model: <strong>one card at a time</strong> instead of a persistent list. Everything else is now matched to the chosen desktop file exactly: same app width, same column ratio, same CV size. The single variable left is the one being judged.</p>
   <p><strong>What changed since you last saw this (your two notes):</strong> it is no longer a 640px window floating on a desktop — it fills the page like a real product · and the CV is no longer hidden behind a pull-up sheet, it sits on the right, always visible. The drag mechanic is gone entirely; it existed only because a phone has no room to show a question and a document at once.</p>
+  <p><strong>New in 3c (your note):</strong> the progress bar now opens. Click it and the eight things this advert asks for are listed underneath, marked <em>you have this</em> / <em>expired</em> / <em>not yet</em>, and each satisfied one opens to show the evidence — the same words the list version uses. <strong>It only reports.</strong> Nothing in it can be answered: an unanswered ask is not even clickable, because the cards are where answering happens.</p>
   <p><strong>The gain that came free:</strong> because the CV is always on screen, <em>you now watch each answer write itself onto your CV</em> — that effect existed in both earlier files but was hidden behind a closed sheet unless you happened to open it first.</p>
   <p><strong>The ending:</strong> answer the last card and press Continue — it settles downward rather than sliding away, a pulse travels to the CV, the page answers with one ring and a single line, then the two exits arrive.</p>
 </div>
@@ -335,7 +402,7 @@
 <div class="instr" id="instr"></div>
 
 <div class="switcher">
-  <div class="vlabel"><span class="k">Round 3b</span><span class="n">Desktop deck</span></div>
+  <div class="vlabel"><span class="k">Round 3c</span><span class="n">Desktop deck</span></div>
   <button class="tog" id="reset" type="button">Reset</button>
 </div>
 
@@ -387,12 +454,33 @@ const COPY = {
   ledSave: "Saved. Pick it up whenever you want.",
   endH: "This CV is as strong as I can make it for this job.",
   lastLook: "One last look before you send it",
+  /* tag words copied verbatim from tailor-merged — same states, same nouns */
+  tag: { yes: "you have this", part: "expired", open: "not yet", stretched: "added", settled: "answered" },
+  askNote: "The ones still open come round in the cards.",
 };
 
+/* The eight asks. Titles, evidence and sources are copied verbatim from
+   tailor-merged.prototype.html so the two desktop options report the same facts in the same
+   words — a wording difference here would be a difference the comparison would wrongly measure. */
 const ASKS8 = [
-  { id: "vendor", kind: "yes" }, { id: "budget", kind: "interactive" }, { id: "multi", kind: "yes" },
-  { id: "exco", kind: "yes" }, { id: "mandarin", kind: "yes" }, { id: "pl300", kind: "part" },
-  { id: "powerbi", kind: "interactive" }, { id: "agile", kind: "interactive" },
+  { id: "vendor", kind: "yes", t: "Vendor selection and contract delivery",
+    proof: "Ran vendor selection and contract negotiation for the Singapore core-banking refresh.",
+    src: "Your CV — Standard Chartered Bank, 2019–2022" },
+  { id: "budget", kind: "interactive", t: "Ownership of a programme budget above USD 10m" },
+  { id: "multi", kind: "yes", t: "Delivery across multiple markets",
+    proof: "Owned a USD 12m regional payments programme across six markets, delivered on budget.",
+    src: "Your CV — Standard Chartered Bank, 2019–2022" },
+  { id: "exco", kind: "yes", t: "Reporting to executive committee level",
+    proof: "Reported programme health to the regional exco every month for three years.",
+    src: "Your CV — Standard Chartered Bank, 2019–2022" },
+  { id: "mandarin", kind: "yes", t: "Working Mandarin",
+    proof: "Mandarin — you told us you can run a meeting in it.",
+    src: "You answered this when we asked" },
+  { id: "pl300", kind: "part", t: "PL-300 certification",
+    proof: "You passed it in Feb 2023; it expired Feb 2026. You chose to print it with the date.",
+    src: "Your CV — Certifications. Change this on your profile, not here." },
+  { id: "powerbi", kind: "interactive", t: "Power BI reporting" },
+  { id: "agile", kind: "interactive", t: "Agile delivery at scale" },
 ];
 const BASE = 58;
 
@@ -403,7 +491,7 @@ function freshState() {
     budget: null, powerbi: null, powErr: null, stretch: null,
     stripBack: false, subBack: {}, showThree: false,
     profExtra: 0, shownScore: BASE, ledger: null, lastUndo: null, descOpen: false,
-    page: 1,
+    page: 1, listOpen: false, openRows: {},
   };
 }
 S = freshState();
@@ -444,6 +532,65 @@ function meterDots() {
   cls.sort((a, b) => RANK[a] - RANK[b]);
   return cls.map((c) => `<i class="${c}"></i>`).join("");
 }
+/* ── the read-only ask panel ────────────────────────────────────────────────────
+   One state function for all eight, so the panel and the meter can never disagree. */
+function rowState(a) {
+  if (a.kind === "yes") return "yes";
+  if (a.kind === "part") return "part";
+  return askState8(a.id) || "open";
+}
+/* What a satisfied ask can show. The three interactive ones cite HER OWN ANSWER rather than her
+   CV — the same distinction ADR-0004 clause 1a draws between a fact we read and a fact she
+   supplied, surfaced here as a plain sentence rather than a label. */
+function rowProof(a) {
+  if (a.proof) return { text: a.proof, src: a.src };
+  if (a.id === "budget") {
+    if (S.budget === "y") return { text: "Owned programme budgets to USD 12m.", src: "You answered this on the card." };
+    if (S.budget === "s") return { text: "Managed programme spend to USD 12m with the sponsor.", src: "You answered this on the card." };
+    if (S.budget === "n") return { text: "You said not yet. This advert now knows where you stand.", src: "You answered this on the card." };
+  }
+  if (a.id === "powerbi") {
+    if (S.powerbi) return { text: `Power BI (${S.powerbi} year${S.powerbi === 1 ? "" : "s"}).`, src: "You answered this on the card." };
+    if (S.powerbi === 0) return { text: "You said none yet. This advert now knows where you stand.", src: "You answered this on the card." };
+  }
+  if (a.id === "agile" && S.stretch === "y") {
+    return { text: COPY.sLine, src: "A stretch you approved — it stays with this application and never joins your profile." };
+  }
+  return null;
+}
+function dotSVG(s) {
+  if (s === "yes") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="7" fill="#e8a33d"></circle><path d="M4.3 7.7l2.2 2.2 4.2-4.4" stroke="#1a1206" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  if (s === "part") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="6.6" stroke="#a8762b" stroke-width="1.4" fill="none"></circle><path d="M7.5 1a6.5 6.5 0 010 13z" fill="#a8762b" opacity="0.35"></path></svg>';
+  if (s === "stretched") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><rect x="3.1" y="3.1" width="8.8" height="8.8" rx="2" transform="rotate(45 7.5 7.5)" stroke="#e8a33d" stroke-width="1.4" fill="none" stroke-dasharray="2.6 2.2"></rect></svg>';
+  if (s === "settled") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="5.6" fill="#4d5865"></circle></svg>';
+  return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="6.6" stroke="#8a97a6" stroke-width="1.2" fill="none" stroke-dasharray="2.6 2.4"></circle></svg>';
+}
+/* Same rank as meterDots(), so row N and dot N are the same ask — the panel reads as the meter
+   pulled open rather than as a second, differently-ordered list. */
+const ROW_RANK = { yes: 0, stretched: 0, part: 1, settled: 2, open: 2 };
+function askListHtml() {
+  const rows = [...ASKS8]
+    .sort((a, b) => ROW_RANK[rowState(a)] - ROW_RANK[rowState(b)])
+    .map((a) => {
+      const st = rowState(a);
+      const pf = rowProof(a);
+      const open = !!S.openRows[a.id];
+      const inner = dotSVG(st)
+        + `<span class="qt">${esc(a.t)}</span>`
+        + `<span class="qtag">${esc(COPY.tag[st])}</span>`
+        + (pf ? '<svg class="qchev" viewBox="0 0 10 14" fill="none" aria-hidden="true"><path d="M2.5 1.5L8 7l-5.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' : "");
+      /* no evidence to show = not a control. An unanswered ask is answered on its card, never
+         here, and a dead button that opens nothing would say the opposite. */
+      const head = pf
+        ? `<button class="qhead" data-act="qrow" data-id="${a.id}" aria-expanded="${open}" type="button">${inner}</button>`
+        : `<div class="qhead">${inner}</div>`;
+      return `<div class="qrow ${open ? "open" : ""}" data-state="${st}">${head}${
+        open && pf ? `<div class="qbody"><div class="qproof">${esc(pf.text)}<span class="qsrc">${esc(pf.src)}</span></div></div>` : ""}</div>`;
+    }).join("");
+  const stillOpen = ASKS8.filter((a) => rowState(a) === "open").length;
+  return `<div class="asklist">${rows}${stillOpen ? `<p class="asknote">${esc(COPY.askNote)}</p>` : ""}</div>`;
+}
+
 function changesCount() { return (MARKET.strips && !S.stripBack ? 1 : 0) + (UNPRINTED.filter((_, i) => !S.subBack[i]).length ? 1 : 0); }
 function act() { return S.queue[S.idx] ?? null; }
 function pageOf(key) { return ["head", "sum1", "stretchline", "sub0", "sub1", "sub2"].includes(key) ? 1 : 2; }
@@ -616,7 +763,12 @@ function renderHead() {
       <p>You will run vendor delivery for the regional payments platform: selection, contracting, and delivery through to handover, with full ownership of the programme budget.</p>
       <p>You report to the regional exco monthly. Power BI is the house reporting standard. PL-300 is required; Mandarin is a strong plus for our Chinese-market vendors.</p>
     </details>
-    <div class="meterrow"><span class="meter">${meterDots()}</span><span class="n"><b>${sc.solid}</b> of ${sc.total} answered</span></div>
+    <button class="meterrow" data-act="list" aria-expanded="${S.listOpen}" type="button">
+      <span class="meter">${meterDots()}</span>
+      <span class="n"><b>${sc.solid}</b> of ${sc.total} answered</span>
+      <svg class="mchev" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2.5 1.5L7 5L2.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    ${S.listOpen ? askListHtml() : ""}
     <div class="ledger ${S.ledger?.gold ? "gold" : ""}" id="ledger">
       ${S.ledger ? `<span>${esc(S.ledger.text)}</span>${S.lastUndo ? `<button class="undo" data-act="last-undo" type="button">${esc(COPY.undo)}</button>` : ""}` : ""}
     </div>`;
@@ -822,6 +974,8 @@ const ACTIONS = {
   "sub-back"(el) { S.subBack[Number(el.dataset.i)] = true; led(COPY.ledBack, false, null); render({ settle: ["sub" + el.dataset.i], announce: COPY.ledBack }); },
   "sub-undo"(el) { S.subBack[Number(el.dataset.i)] = false; render({}); },
   three() { S.showThree = !S.showThree; render({}); },
+  list() { S.listOpen = !S.listOpen; render({}); },
+  qrow(el) { const id = el.dataset.id; S.openRows[id] = !S.openRows[id]; render({}); },
   page(el) { S.page = Number(el.dataset.p); render({}); },
   "last-undo"() { if (S.lastUndo) { S.lastUndo(); S.deal = true; render({ tween: true }); } },
   apply() { led(COPY.ledApply, true, null); render({ announce: COPY.ledApply }); },
@@ -860,7 +1014,7 @@ function instrument() {
     <span class="tag">Instrument</span>
     <b>Round 3b, desktop deck.</b> Identical logic to the validated mobile file; identical frame, ratio and CV size to tailor-merged. The asks are a deck: only the 3 interactive ones (budget, Power BI, the Agile stretch) are cards; the 5 "yes" + 1 "expired" never were decisions, so they never became cards — the meter carries them.
     <hr>
-    asks: <b>${sc.solid}</b> solid of ${sc.total} · deck position: <b>${S.queue[S.idx] ?? "—"}</b> · changes: <b>${n}</b> · CV page: <b>${S.page}</b>
+    asks: <b>${sc.solid}</b> solid of ${sc.total} · deck position: <b>${S.queue[S.idx] ?? "—"}</b> · changes: <b>${n}</b> · CV page: <b>${S.page}</b> · ask panel: <b>${S.listOpen ? "open" : "closed"}</b>
     <hr>
     <span class="warn">falsifiable here:</span>
     (1) a fact's chip flies to <b>Profile</b>; the stretch's chip flies to the <b>advert's stake line</b> and the profile count never moves on it;
@@ -868,7 +1022,10 @@ function instrument() {
     (3) an answer that lands on page 2 <b>turns the page</b> to show itself;
     (4) the decline is "Not for this one" only — no "never" scope;
     (5) undo covers the last scored action and every put-back;
-    (6) "Changes · N" beside the CV is a <b>label</b>; the put-backs live on the deck's own card, so one thing is changed in one place.
+    (6) "Changes · N" beside the CV is a <b>label</b>; the put-backs live on the deck's own card, so one thing is changed in one place;
+    (7) 🚨 <b>the ask panel REPORTS and never ANSWERS</b> — an ask with evidence is a button, an unanswered one is not a button at all, and no answer control exists anywhere in it. This is the line that keeps the deck from becoming the list;
+    (8) row N of the panel is dot N of the meter — one <b>rowState()</b>, one rank order, so the two can never disagree;
+    (9) the three interactive asks cite <b>"You answered this on the card"</b>, never the CV, and the approved stretch says out loud that it never joins the profile.
     <hr>
     ⚠️ location/market control is OUT of this build, matching the mobile file · not buildable before #158 (claim-ids) · reused verbatim from the validated mobile file: dealin 340ms · bump 460ms · settle 640ms · flight 720ms · tween 680ms · card-settle 380ms · pulse 520ms · paper-ring 950ms · cue 2600ms.`;
 }
