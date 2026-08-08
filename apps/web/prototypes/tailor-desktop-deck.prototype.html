@@ -7,57 +7,77 @@
      THE PURPOSE OF THIS FILE: a fair, direct comparison. tailor-merged.prototype.html (the round
      3 desktop anchor) is a PERSISTENT LIST — every ask visible at once, click a row to expand it.
      This file is the SAME content, SAME case, SAME rules, but the OTHER interaction model that
-     only existed on mobile until now: a CARD DECK (one ask at a time) and the CV as a collapsed
-     panel she pulls into view, not a column that's always there. Same job, same physics, two
-     philosophies — the owner judges which he prefers for the real desktop product.
+     only existed on mobile until now: a CARD DECK, one ask at a time. Same job, same physics,
+     two philosophies — the owner judges which he prefers for the real desktop product.
 
-     ══ WHAT IS IDENTICAL TO THE MOBILE FILE — the whole point ═══════════════
+     ══ REVISION 3b (2026-08-08, owner) — THE FRAME WAS THE PROBLEM, AND IT WAS MINE ══════
+     The owner's two corrections after living with revision 3a:
+       (a) "not at all at a computer ratio screen. It doesn't take all my screen at all, it looks
+           like tablet format" — 3a bounded the app to 640×820px on the argument that a single
+           focused question deserves a focused frame. On a real monitor that reads as a phone
+           emulator someone forgot to put a bezel on. He is right and the argument was wrong:
+           a bounded task frame is a legitimate pattern, but it must still SIT in a desktop page
+           that owns the screen, and 3a's did not.
+       (b) "this screen would be perfect on web browser screen if you keep it as it is and you
+           just add on the right the CV" — so the pull-up sheet is GONE. On a phone the sheet
+           existed because there is no room to show a question and a document at once. Desktop
+           has that room. Hiding the CV behind a drag gesture on a 1320px screen was porting a
+           constraint instead of porting an idea.
+
+     ⭐ WHY THIS MAKES THE COMPARISON HONEST FOR THE FIRST TIME. This file now matches
+     tailor-merged.prototype.html on EVERY axis except one: same 1320px app, same 1.32fr:1fr
+     column ratio (so the CV renders at pixel-identical size in both), same topbar, same CV type
+     scale, same exits. The single remaining difference is the thing actually being judged —
+     ONE ASK AT A TIME versus ALL ASKS VISIBLE. Revision 3a could not isolate that, because it
+     also changed the window size, the CV's visibility and the CV's scale at the same time.
+     🚨 That matters for the verdict below: the deck lost a comparison in which it was also
+     wearing a worse frame. Whether it loses THIS one is a genuinely open question.
+
+     ══ WHAT IS IDENTICAL TO THE VALIDATED MOBILE FILE — still the point ═══════
        - the state machine, the eight asks, the queue (budget → powerbi → stretch → changed →
          end), every COPY string, the scoring formula, askState()/meterDots() — copied verbatim,
          not re-derived, so a difference in behaviour would be a bug, not a redesign
        - the physics: a fact's chip flies to Profile; a stretch's chip flies to the advert's own
          stake line and the profile count never moves on it — ADR-0005 as physics
        - the CV: same true-A4 640×905 constants, same scale-to-fit-container technique
-       - the ending transition: card settles down (never sideways — nothing here is rejected), a
-         pulse travels to the CV bar, a two-and-a-half-second cue, then the two exits deal in
-       - the drag mechanic: identical pointer down/move/up code, the same 8px activation
-         threshold, snapping to the closer state on release — a mouse fires the same pointer
-         events a touch does, so nothing here needed to change to work with a cursor
+       - the ending ceremony: the last card settles DOWN and fades (never sideways — nothing here
+         is rejected), a pulse travels to the CV, the CV answers, a 2.6s cue, then the exits deal
+         in. Same eight motion values to the millisecond.
 
-     ══ WHAT ACTUALLY CHANGES FOR DESKTOP ═════════════════════════════════════
-       1. NO PHONE BEZEL. The frame is a plain rounded app panel (matching tailor-merged's own
-          .app treatment — 1px border, 16px radius) sized as a bounded "app window"
-          (640px × up to 820px) rather than a page that scrolls forever — a focused single task
-          keeps a focused frame, the same reasoning Typeform or Duolingo's lesson screen uses on
-          desktop: WIDE availability is not an invitation to stretch a single question across it.
-       2. THE CV RENDERS NEAR ITS TRUE SIZE. On the phone, the sheet's ~358px width scaled the
-          640px page down to ~56%. At 640px of desktop width the page renders at ~94% of its own
-          design size — legible as an actual document, not a miniature, which is the one place
-          desktop has real room the phone didn't.
-       3. The title and score dial are a little larger — the two elements carrying "desktop
-          presence" — everything else (card body, buttons, the CV's own type) is untouched from
-          the validated mobile sizes.
-       4. Copy: "tap" becomes "click" in the two places that named the gesture (the aria-label,
-          the explainer) — nothing in the product's own COPY strings ever said "tap" to begin
-          with, so nothing there needed changing.
+     ══ WHAT CHANGES BECAUSE THE CV IS NOW ALWAYS ON SCREEN ════════════════════
+       1. NO SHEET, NO DRAG. ~90 lines of pointer-drag, snap and height-animation code deleted
+          along with the bug they carried. The CV is simply there, in its own column, at ~84% of
+          true printed size — the same size tailor-merged renders it at.
+       2. ⭐ THE WRITE-ON EFFECT NOW ALWAYS PLAYS. Both earlier files guarded materialize() behind
+          "only if the sheet is open", which meant the single most persuasive moment in the whole
+          design — her answer appearing on her own CV, letter by letter — was invisible unless
+          she happened to have pulled the sheet up first. On desktop she watches every answer land
+          on the page. This is a real gain over BOTH prior files, not a port.
+       3. The page auto-flips. When an answer lands on page 2 (Power BI → Skills), the CV turns to
+          page 2 to show it. Behind a closed sheet that flip was a no-op nobody ever saw.
+       4. The ending pulse now travels from the settling card to the PAPER, which pulses once and
+          carries a single gold line — there is no bar left to bump, and "pull it up for one last
+          look" is meaningless when it never went away.
 
      ⚠️ Not buildable before #158 lands claim-ids (the "3 lines not printed" card needs them).
      ⚠️ Scope note carried from the mobile file: the location/market control is not on this
      screen (not in the owner's top-of-screen brief); fixed to Singapore.
 
-     ══ VERDICT ══ owner-decided 2026-08-08 — REJECTED for desktop.
-     The owner chose tailor-merged.prototype.html's persistent list for desktop instead, and
-     kept this file's own logic for mobile (tailor-mobile-cards.prototype.html). No reason was
-     recorded beyond the choice itself — this file did its job (a fair, working comparison,
-     bug-for-bug matched to the mobile original) and lost on merits, not on a defect. Kept, not
-     deleted, as evidence of the alternative actually considered: the card-deck + pull-up-sheet
-     model works on desktop too, it was simply not the one chosen. The compositor-vs-layout
-     finding recorded above (.cvsheet needs its own overflow:hidden once its height genuinely
-     varies) is still worth knowing if this shape is ever revisited.
+     ══ VERDICT ══ owner-decided 2026-08-08 — REJECTED for desktop, ON REVISION 3a.
+     The owner chose tailor-merged.prototype.html's persistent list for desktop and kept this
+     file's logic for mobile (tailor-mobile-cards.prototype.html). That decision stands and is
+     what #157/#168/#170 record.
+     🚨 BUT IT WAS TAKEN AGAINST REVISION 3a, WHICH WAS AT THE WRONG SCALE. Revision 3b (above)
+     was built at the owner's own instruction, afterwards, to be shown to outside reviewers
+     alongside the chosen design so their opinion can test the choice. If that feedback favours
+     the deck, the verdict is revisited on the evidence — it is not re-litigated here.
+     The compositor-vs-layout finding from 3a (a sheet that animates its own HEIGHT needs its own
+     overflow:hidden, which a transform-based one never does) is kept in the session record; the
+     sheet itself is gone from this file, so the note no longer applies to any live code here.
 
      Not production code. -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>JobCrush — the tailor step, desktop deck (#157 Design B round 3, desktop)</title>
+<title>JobCrush — the tailor step, desktop deck (#157 Design B round 3b, desktop)</title>
 
 <style>
   :root {
@@ -75,87 +95,86 @@
   html, body { margin: 0; padding: 0; }
   body { background: #e7e3dd; font-family: var(--sans); line-height: 1.5; padding: 20px 18px calc(var(--sw-h) + 26px); -webkit-font-smoothing: antialiased; }
 
-  .ask-brief { max-width: 900px; margin: 0 auto 18px; background: #fffdf9; border: 1px solid #ded7cb; border-radius: 12px; padding: 16px 20px; color: #1f2328; }
+  .ask-brief { max-width: 1320px; margin: 0 auto 16px; background: #fffdf9; border: 1px solid #ded7cb; border-radius: 12px; padding: 16px 22px; color: #1f2328; }
   .ask-brief h1 { margin: 0 0 6px; font-size: 18px; letter-spacing: -.01em; }
   .ask-brief p { margin: 0 0 6px; font-size: 13.5px; color: #3c444d; }
   .ask-brief p:last-child { margin-bottom: 0; }
 
-  .desk { display: flex; justify-content: center; }
-  /* the bounded app window — replaces the phone's bezel. Same reasoning as a focused dialog:
-     a single conversational task keeps a frame, not the full browser width. */
-  .app {
-    position: relative; width: min(640px, 94vw); height: min(820px, 88vh); overflow: hidden;
-    border-radius: 16px; border: 1px solid var(--hud-line); background: var(--hud-0); color: var(--hud-ink);
-    box-shadow: 0 22px 60px -20px rgba(0,0,0,.6);
-    display: flex; flex-direction: column;
-  }
+  /* ══ the app — full desktop width, matching tailor-merged EXACTLY so the only difference
+     between the two files is the interaction model itself (owner: 3a "looks like tablet
+     format"; it was 640px wide, which on a monitor reads as a phone emulator) ══ */
+  .app { max-width: 1320px; margin: 0 auto; background: var(--hud-0); color: var(--hud-ink); border: 1px solid var(--hud-line); border-radius: 16px; overflow: hidden; box-shadow: 0 22px 60px -20px rgba(0,0,0,.6); }
   .app :focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 2px; }
 
-  /* ── top utility bar: wordmark + profile stack ── */
-  .topbar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 13px 18px 9px; font-size: 13px; color: var(--hud-mute); }
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--hud-line); background: var(--hud-1); font-size: 13px; color: var(--hud-mute); }
   .topbar b { color: var(--hud-ink); font-weight: 620; letter-spacing: -.01em; }
   .topbar .spacer { flex: 1; }
-  .prof { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--hud-2); border: 1px solid var(--hud-line); font-size: 11.5px; color: var(--hud-ink); transition: transform 260ms cubic-bezier(.2,1.6,.4,1); }
+  .prof { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; background: var(--hud-2); border: 1px solid var(--hud-line); font-size: 12.5px; color: var(--hud-ink); transition: transform 260ms cubic-bezier(.2,1.6,.4,1); }
   .prof.bump { transform: scale(1.09); }
+  .prof svg { display: block; }
   .prof .n { font-weight: 700; font-variant-numeric: tabular-nums; }
 
-  /* ── the head (natural height, not scrollable) and the deck (its own scroll region) ──
-     Structure carried over unchanged from the mobile file, where nesting two flex+overflow
-     containers (a scrolling header wrapping a scrolling stage) broke overflow-y:auto's height
-     accounting — a flex item's default min-height:auto refuses to shrink below its content,
-     which silently defeats the ancestor's scroll math. The fix was structural there and stays
-     structural here: the deck is its own single-level scroll region, decoupled from the header. */
-  .scroll { flex: 0 0 auto; padding: 2px 18px 0; }
+  /* the parallel/merged file's own ratio, to the digit — the CV must render at pixel-identical
+     size in both prototypes or the comparison is measuring column width, not interaction model */
+  .cols { display: grid; grid-template-columns: 1.32fr 1fr; align-items: start; }
+  .col { padding: 20px 22px; min-width: 0; }
+  .col + .col { border-left: 1px solid var(--hud-line); }
 
-  .posted { font-size: 11.5px; color: var(--hud-mute); }
-  .hero { display: flex; align-items: center; gap: 16px; margin-top: 3px; }
+  /* ── left column: the advert head, then the deck ── */
+  .posted { font-size: 12px; color: var(--hud-mute); }
+  .hero { display: flex; align-items: center; gap: 20px; }
   .hero .tt { flex: 1; min-width: 0; }
-  .jobtitle { font-size: 25px; line-height: 1.15; letter-spacing: -.02em; font-weight: 660; margin: 5px 0 4px; text-wrap: balance; }
-  .employer { font-size: 13.5px; color: var(--hud-ink); margin: 0; }
-  .employer .sep { color: var(--settled); margin: 0 6px; }
+  .jobtitle { font-size: 29px; line-height: 1.13; letter-spacing: -.022em; font-weight: 660; margin: 6px 0 5px; text-wrap: balance; }
+  .employer { font-size: 14px; color: var(--hud-ink); margin: 0; }
+  .employer .sep { color: var(--settled); margin: 0 7px; }
 
-  .stake { display: none; align-items: center; gap: 6px; margin: 9px 0 0; font-size: 11.5px; color: var(--gold); }
+  .stake { display: none; align-items: center; gap: 7px; margin: 10px 0 0; font-size: 12.5px; color: var(--gold); }
   .stake.show { display: flex; }
-  .stake .x { all: unset; cursor: pointer; color: var(--hud-mute); font-size: 11px; text-decoration: underline; text-underline-offset: 2px; padding: 2px; }
+  .stake .x { all: unset; cursor: pointer; color: var(--hud-mute); font-size: 11.5px; text-decoration: underline; text-underline-offset: 2px; padding: 2px; }
 
-  .dial { position: relative; width: 78px; height: 78px; flex: 0 0 auto; }
-  .dial .num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .scorebox { flex: 0 0 auto; text-align: center; }
+  .dial { position: relative; width: 84px; height: 84px; margin: 0 auto; }
+  .dial .num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
   .dial .num.bump { animation: jd-bump 460ms cubic-bezier(.2,1.5,.4,1); }
+  .scorebox .cap { margin: 6px 0 0; font-size: 11px; line-height: 1.35; color: var(--hud-mute); max-width: 128px; }
 
-  .jobdesc { margin: 13px 0 0; border-top: 1px solid var(--hud-line); padding-top: 10px; }
-  .jobdesc summary { cursor: pointer; font-size: 12px; color: var(--hud-mute); list-style: none; display: inline-flex; align-items: center; gap: 6px; padding: 2px; }
+  .jobdesc { margin: 15px 0 0; border-top: 1px solid var(--hud-line); padding-top: 12px; }
+  .jobdesc summary { cursor: pointer; font-size: 12.5px; color: var(--hud-mute); list-style: none; display: inline-flex; align-items: center; gap: 7px; border-radius: 6px; padding: 2px 4px; }
   .jobdesc summary::-webkit-details-marker { display: none; }
   .jobdesc summary svg { flex: none; transition: transform 180ms ease; }
   .jobdesc[open] summary svg { transform: rotate(90deg); }
   .jobdesc summary:hover, .jobdesc summary:focus-visible { color: var(--hud-ink); }
-  .jobdesc p { margin: 9px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--hud-mute-2); }
+  .jobdesc p { margin: 10px 0 0; font-size: 13px; line-height: 1.6; color: var(--hud-mute-2); }
 
-  .meterrow { display: flex; align-items: center; gap: 9px; margin: 13px 0 4px; }
-  .meter { display: flex; gap: 3px; flex: 1; }
-  .meter i { height: 5px; flex: 1; border-radius: 3px; background: var(--hud-2); }
+  .meterrow { display: flex; align-items: center; gap: 10px; margin: 16px 0 0; padding-top: 13px; border-top: 1px solid var(--hud-line); }
+  .meter { display: flex; gap: 3px; flex: 1; max-width: 260px; }
+  .meter i { height: 5px; flex: 1; border-radius: 3px; background: var(--hud-2); transition: background 420ms ease; }
   .meter i.on { background: var(--gold); }
   .meter i.half { background: var(--gold-dim); }
-  .meterrow .n { font-size: 11.5px; color: var(--hud-mute); font-family: var(--mono); white-space: nowrap; }
+  .meterrow .n { font-size: 12px; color: var(--hud-mute); font-family: var(--mono); white-space: nowrap; }
   .meterrow .n b { color: var(--hud-ink); font-weight: 600; }
 
-  .ledger { min-height: 18px; margin: 9px 2px 0; font-size: 12px; color: var(--hud-mute-2); display: flex; align-items: baseline; gap: 8px; }
+  .ledger { min-height: 20px; margin: 10px 2px 0; font-size: 12.5px; color: var(--hud-mute-2); display: flex; align-items: baseline; gap: 8px; }
   .ledger.gold { color: var(--gold); }
-  .ledger .undo { all: unset; cursor: pointer; color: var(--hud-mute); font-size: 11px; text-decoration: underline; text-underline-offset: 2px; padding: 2px; }
+  .ledger .undo { all: unset; cursor: pointer; color: var(--hud-mute); font-size: 11.5px; text-decoration: underline; text-underline-offset: 2px; padding: 2px; }
+  .ledger .undo:hover, .ledger .undo:focus-visible { color: var(--hud-ink); }
 
-  /* ── the deck: one card at a time, top-aligned, its own scroll region ── */
-  .stage { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 22px 18px 108px; }
-  .meta { display: flex; justify-content: space-between; align-items: center; width: 100%; margin: 0 2px 8px; font-family: var(--mono); font-size: 9.5px; color: var(--hud-mute); text-transform: uppercase; letter-spacing: .08em; }
+  /* ── the deck: one card at a time. The column is wide; the CARD is not — a question read at
+     700px is a worse question. Capped to a comfortable measure and left-aligned on the same
+     spine as the advert title above it. ── */
+  .stage { margin-top: 22px; }
+  .stagewrap { width: 100%; max-width: 620px; }
+  .meta { display: flex; justify-content: space-between; align-items: center; width: 100%; margin: 0 2px 9px; font-family: var(--mono); font-size: 9.5px; color: var(--hud-mute); text-transform: uppercase; letter-spacing: .08em; }
   .meta b { color: var(--hud-ink); }
-  .meta .skip-link { all: unset; cursor: pointer; color: var(--hud-mute); font-family: var(--sans); font-size: 11.5px; text-decoration: underline; text-underline-offset: 2px; padding: 2px; }
-  .stagewrap { width: 100%; }
+  .meta .skip-link { all: unset; cursor: pointer; color: var(--hud-mute); font-family: var(--sans); font-size: 11.5px; text-transform: none; letter-spacing: 0; text-decoration: underline; text-underline-offset: 2px; padding: 2px; }
+  .meta .skip-link:hover { color: var(--hud-ink); }
 
-  .card { width: 100%; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 18px; padding: 20px 19px 18px; box-shadow: 0 16px 40px -18px rgba(0,0,0,.6); }
+  .card { width: 100%; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 18px; padding: 22px 21px 19px; box-shadow: 0 16px 40px -18px rgba(0,0,0,.6); }
   .card.dealin { animation: jd-dealin 340ms ease; }
   .card.leaving { animation: card-settle 380ms cubic-bezier(.3,0,.6,1) forwards; }
-  .card h3 { margin: 0 0 6px; font-size: 18px; font-weight: 620; letter-spacing: -.015em; line-height: 1.3; text-wrap: balance; }
-  .card .sub { margin: 0 0 13px; font-size: 13px; color: var(--hud-mute); line-height: 1.5; }
+  .card h3 { margin: 0 0 6px; font-size: 19px; font-weight: 620; letter-spacing: -.015em; line-height: 1.3; text-wrap: balance; }
+  .card .sub { margin: 0 0 14px; font-size: 13px; color: var(--hud-mute); line-height: 1.5; }
   .card .body { margin: 0 0 13px; font-size: 14px; line-height: 1.6; }
-  .card .maxh { max-height: 44vh; overflow-y: auto; margin: 0 -2px; padding: 0 2px; }
 
   .print-line { margin: 0 0 11px; padding: 12px 14px; border-radius: 10px; background: var(--paper); border: 1px solid var(--paper-edge); font-family: var(--serif); font-size: 14.5px; color: var(--ink); line-height: 1.5; }
   .print-note { margin: -3px 0 13px; font-size: 12px; color: var(--hud-mute); }
@@ -178,17 +197,18 @@
   .btn.quiet { background: transparent; border-color: transparent; font-weight: 500; color: var(--hud-mute); text-decoration: underline; text-underline-offset: 3px; }
   .btn.quiet:hover { color: var(--hud-ink); background: transparent; }
   .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
-  .skip { all: unset; display: inline-block; margin-top: 12px; cursor: pointer; font-size: 12px; color: var(--hud-mute); text-decoration: underline; text-underline-offset: 3px; padding: 2px; }
+  .skip { all: unset; display: inline-block; margin-top: 13px; cursor: pointer; font-size: 12px; color: var(--hud-mute); text-decoration: underline; text-underline-offset: 3px; padding: 2px; }
+  .skip:hover { color: var(--hud-ink); }
   :where(button, summary, input):focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 2px; }
 
-  .dec { padding: 12px 2px 14px; border-bottom: 1px solid rgba(43,51,61,.7); }
+  .dec { padding: 13px 2px 15px; border-bottom: 1px solid rgba(43,51,61,.7); }
   .dec:last-of-type { border-bottom: 0; padding-bottom: 2px; }
   .dec .lb { margin: 0; font-size: 14px; font-weight: 600; }
   .dec .why { margin: 4px 0 0; font-size: 12.5px; color: var(--hud-mute-2); line-height: 1.5; }
-  .dec .acts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; align-items: center; }
+  .dec .acts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; align-items: center; }
   .dec .btn { font-size: 12.5px; padding: 8px 12px; }
   .dec-note { font-size: 12.5px; color: var(--gold); }
-  .sub-lines .sl { display: flex; align-items: flex-start; gap: 9px; padding: 8px 0; border-top: 1px solid rgba(43,51,61,.6); }
+  .sub-lines .sl { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-top: 1px solid rgba(43,51,61,.6); }
   .sub-lines .sl p { margin: 0; flex: 1; font-family: var(--serif); font-size: 13.5px; line-height: 1.45; color: var(--hud-ink); }
   .sub-lines .sl.on p { color: var(--gold); }
 
@@ -198,47 +218,48 @@
   .cta.ghost { background: transparent; color: var(--hud-ink); border-color: var(--hud-line); font-weight: 500; }
   .cta.ghost:hover { background: var(--hud-2); }
 
-  /* ── the CV bottom sheet ── */
-  .cvsheet {
-    position: absolute; left: 0; right: 0; bottom: 0; z-index: 40; overflow: hidden;
-    background: var(--hud-1); border-top: 1px solid var(--hud-line); border-radius: 20px 20px 0 0;
-    box-shadow: 0 -14px 44px rgba(0,0,0,.55);
+  /* ── right column: the paper, whole and always there (owner: "just add on the right the CV") ── */
+  .chipbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; }
+  .pager { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--hud-mute); }
+  .pager .pg { all: unset; cursor: pointer; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--hud-line); color: var(--hud-mute); font-size: 12px; }
+  .pager .pg:hover { color: var(--hud-ink); }
+  .pager .pg.on { background: var(--hud-2); color: var(--hud-ink); border-color: #3b4653; font-weight: 600; }
+  .pager .pg:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 2px; }
+  /* a LABEL, not a control — the deck's "What I changed" card owns the put-backs, and a second
+     copy of them beside the CV would be two places to change one thing (carried from mobile,
+     where the sheet chip was also inert) */
+  .chip { display: inline-flex; align-items: center; font-size: 12px; color: var(--gold-dim); background: rgba(232,163,61,.09); border: 1px dashed rgba(168,118,43,.5); border-radius: 999px; padding: 4px 12px; }
+
+  /* true-A4 page, scaled to the column — this effort's own convention, identical constants and
+     identical technique to tailor-merged.prototype.html */
+  .page-frame { position: relative; width: 100%; }
+  .cv {
+    position: absolute; top: 0; left: 0; width: 640px; height: 905px; transform-origin: top left;
+    overflow: hidden; padding: 34px 38px 40px; border-radius: 10px; border: 1px solid var(--paper-edge);
+    background: var(--paper); color: var(--ink); font-family: var(--serif);
+    box-shadow: 0 18px 44px -14px rgba(0,0,0,.75), 0 1px 0 rgba(255,255,255,.16) inset;
   }
-  /* the height-based sheet needs THIS overflow:hidden, not just .app's outer one — its own box
-     is now the thing that grows/shrinks (peek 86px to full ~671px), so it must clip its own
-     children when short; the old transform-based sheet never needed this because its own
-     height was always the full 671px regardless of open/closed, so content never exceeded it. */
-  .sheetbar { padding: 9px 18px 13px; cursor: grab; user-select: none; }
-  .sheetbar:active { cursor: grabbing; }
-  .sheetbar .grab { width: 34px; height: 4px; border-radius: 2px; background: var(--hud-line); margin: 0 auto 10px; }
-  .sheetbar .row1 { display: flex; align-items: center; gap: 8px; }
-  .sheetbar .lbl { font-size: 13.5px; font-weight: 620; color: var(--hud-ink); flex: 1; transition: color 200ms ease; }
-  .sheetbar .lbl.cue { color: var(--gold); }
-  .sheetbar .chev { flex: none; transition: transform 260ms cubic-bezier(.2,.9,.3,1); color: var(--hud-mute); }
-  .cvsheet.open .sheetbar .chev { transform: rotate(180deg); }
-  .sheetbar .chg { flex: none; font-size: 11px; color: var(--gold-dim); background: rgba(232,163,61,.09); border: 1px dashed rgba(168,118,43,.5); border-radius: 999px; padding: 3px 9px; }
-  .cvsheet.pulse .sheetbar { animation: bar-pulse 950ms ease; border-radius: 20px 20px 0 0; }
-
-  .sheetpages { display: flex; gap: 4px; padding: 0 18px 10px; }
-  .sheetpages .pg { all: unset; cursor: pointer; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--hud-line); color: var(--hud-mute); font-size: 11.5px; }
-  .sheetpages .pg.on { background: var(--hud-2); color: var(--hud-ink); border-color: #3b4653; font-weight: 600; }
-
-  .sheetinner { padding: 0 18px 18px; overflow-y: auto; }
-  .cv { position: relative; overflow: hidden; width: 640px; height: 905px; transform-origin: top left; padding: 34px 38px 40px; border-radius: 10px; border: 1px solid var(--paper-edge); background: var(--paper); color: var(--ink); font-family: var(--serif); box-shadow: 0 10px 30px -12px rgba(0,0,0,.6); }
   .cv::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5; background-image: radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px); background-size: 3px 3px; }
-  .cv .nm { font-size: 22px; font-weight: 600; letter-spacing: -.01em; margin: 0; }
-  .cv .ct { margin: 5px 0 0; font-family: var(--sans); font-size: 12.5px; color: var(--ink-mute); line-height: 1.6; }
-  .cv section { margin: 18px 0 0; }
-  .cv-sec { margin: 0 0 8px; font-family: var(--sans); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .14em; color: var(--ink-mute); }
-  .cv .role-h { margin: 0 0 5px; font-family: var(--sans); font-size: 14px; font-weight: 620; }
+  .cv .nm { font-size: 25px; font-weight: 600; letter-spacing: -.01em; margin: 0; }
+  .cv .ct { margin: 5px 0 0; font-family: var(--sans); font-size: 13.5px; color: var(--ink-mute); line-height: 1.6; }
+  .cv section { margin: 20px 0 0; }
+  .cv-sec { margin: 0 0 9px; font-family: var(--sans); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .14em; color: var(--ink-mute); }
+  .cv .role-h { margin: 0 0 5px; font-family: var(--sans); font-size: 15.5px; font-weight: 620; }
   .cv .role-h span { font-weight: 400; color: var(--ink-mute); }
-  .cv-line { position: relative; margin: 0 0 8px; padding-left: 15px; font-size: 14.5px; line-height: 1.48; }
-  .cv-line::before { content: ""; position: absolute; left: 0; top: .62em; width: 5.5px; height: 5.5px; border-radius: 50%; background: var(--gold-dim); }
-  .cv .plain { margin: 0 0 7px; font-size: 14.5px; line-height: 1.48; }
+  .cv-line { position: relative; margin: 0 0 9px; padding-left: 17px; font-size: 16px; line-height: 1.5; }
+  .cv-line::before { content: ""; position: absolute; left: 0; top: .64em; width: 6px; height: 6px; border-radius: 50%; background: var(--gold-dim); }
+  .cv .plain { margin: 0 0 8px; font-size: 16px; line-height: 1.5; }
   .cv .settle { animation: tl-settle 640ms cubic-bezier(.2,1,.3,1); border-radius: 5px; }
-  .cv .pageno { margin: 18px 0 0; text-align: center; font-family: var(--sans); font-size: 10px; color: var(--ink-mute); }
+  .cv .pageno { margin: 20px 0 0; text-align: center; font-family: var(--sans); font-size: 11px; color: var(--ink-mute); }
 
-  .fly { position: fixed; z-index: 90; display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; color: #1a1206; background: var(--gold); border-radius: 999px; padding: 4px 10px; box-shadow: 0 6px 18px rgba(0,0,0,.4); transition: transform 720ms cubic-bezier(.4,.05,.3,1), opacity 720ms ease; }
+  /* the ending: the pulse lands HERE now (there is no bar left to bump) */
+  .page-frame.pulse .cv { animation: paper-pulse 950ms ease; }
+  .cvcue { position: absolute; z-index: 6; top: 18px; left: 50%; transform: translateX(-50%) translateY(-6px); opacity: 0; pointer-events: none; white-space: nowrap;
+           background: rgba(16,20,25,.93); color: var(--gold); border: 1px solid var(--gold-dim); border-radius: 999px; padding: 7px 15px; font-size: 12.5px; font-weight: 600;
+           box-shadow: 0 10px 26px rgba(0,0,0,.45); transition: opacity 260ms ease, transform 260ms cubic-bezier(.2,.9,.3,1); }
+  .cvcue.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .fly { position: fixed; z-index: 90; display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600; color: #1a1206; background: var(--gold); border-radius: 999px; padding: 4px 10px; box-shadow: 0 6px 18px rgba(0,0,0,.4); transition: transform 720ms cubic-bezier(.4,.05,.3,1), opacity 720ms ease; }
   .fly.stretch { background: var(--hud-1); color: var(--gold); border: 1px dashed var(--gold-dim); }
   .settlepulse { position: fixed; z-index: 88; width: 50px; height: 50px; border-radius: 50%; background: radial-gradient(circle, rgba(232,163,61,.55), rgba(232,163,61,0) 70%); pointer-events: none; transition: transform 520ms cubic-bezier(.3,.6,.3,1), opacity 520ms ease; }
 
@@ -246,10 +267,15 @@
   @keyframes jd-bump { 0% { transform: none; } 40% { transform: scale(1.28); color: var(--gold); } 100% { transform: none; } }
   @keyframes tl-settle { 0% { background: rgba(232,163,61,.2); } 100% { background: transparent; } }
   @keyframes card-settle { to { opacity: 0; transform: translateY(40px) scale(.95); filter: blur(2.5px); } }
-  @keyframes bar-pulse { 0% { box-shadow: 0 0 0 0 rgba(232,163,61,.55); } 45% { box-shadow: 0 0 0 9px rgba(232,163,61,0); } 100% { box-shadow: 0 0 0 0 rgba(232,163,61,0); } }
+  @keyframes paper-pulse {
+    0%   { box-shadow: 0 18px 44px -14px rgba(0,0,0,.75), 0 0 0 0 rgba(232,163,61,.55); }
+    45%  { box-shadow: 0 18px 44px -14px rgba(0,0,0,.75), 0 0 0 12px rgba(232,163,61,0); }
+    100% { box-shadow: 0 18px 44px -14px rgba(0,0,0,.75), 0 0 0 0 rgba(232,163,61,0); }
+  }
 
-  .instr { max-width: 900px; margin: 16px auto 0; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 8px; padding: 11px 15px; color: var(--hud-mute); font-family: var(--mono); font-size: 11.5px; line-height: 1.75; }
+  .instr { max-width: 1320px; margin: 12px auto 0; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 8px; padding: 11px 15px; color: var(--hud-mute); font-family: var(--mono); font-size: 11.5px; line-height: 1.75; }
   .instr b { color: var(--hud-ink); }
+  .instr .tag { color: var(--gold); font-family: var(--sans); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 10px; margin-right: 10px; }
   .instr .warn { color: var(--gold); }
   .instr hr { border: 0; border-top: 1px solid var(--hud-line); margin: 8px 0; }
 
@@ -261,60 +287,55 @@
   .switcher .vlabel .n { font-size: 13px; margin-top: 2px; }
   .switcher .tog { all: unset; display: flex; align-items: center; padding: 0 17px; cursor: pointer; color: var(--hud-ink); font-size: 13px; }
   .switcher .tog:hover { background: rgba(232,163,61,.1); }
+  .switcher .tog:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: -3px; }
 
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
+  @media (max-width: 980px) {
+    .cols { grid-template-columns: 1fr; }
+    .col + .col { border-left: 0; border-top: 1px solid var(--hud-line); }
+    .stagewrap { max-width: none; }
+  }
   @media (prefers-reduced-motion: reduce) {
     * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
-    .cvsheet { transition-duration: .01ms !important; }
   }
 </style>
 
 <div class="ask-brief">
-  <h1>#157 · Design B round 3 — desktop deck</h1>
-  <p>The same job, the same eight asks, the same physics as <code>tailor-merged.prototype.html</code> — but the OTHER interaction model: one card at a time instead of a persistent list, and the CV starts hidden, pulled into view rather than always sitting in its own column. This is the mobile build's exact logic, resized for a desktop browser — nothing about how it behaves changed, only the frame.</p>
-  <p><strong>The ending</strong> (unchanged from mobile): finish the last card and tap Continue — it settles down rather than sliding away, a pulse travels to the CV bar, a two-and-a-half-second cue invites a last look, then the two exits arrive.</p>
-  <p><strong>Try it:</strong> drag the bar at the bottom up, or click it — the CV rises, now close to its true printed size. Drag or click again to put it away.</p>
-  <p><strong>Compare against</strong> <code>tailor-merged.prototype.html</code> — same content, two philosophies: everything visible at once, or one thing at a time.</p>
+  <h1>#157 · Design B round 3b — desktop deck, the CV beside it</h1>
+  <p>The same job, the same eight asks, the same physics as <code>tailor-merged.prototype.html</code> — but the OTHER interaction model: <strong>one card at a time</strong> instead of a persistent list. Everything else is now matched to the chosen desktop file exactly: same app width, same column ratio, same CV size. The single variable left is the one being judged.</p>
+  <p><strong>What changed since you last saw this (your two notes):</strong> it is no longer a 640px window floating on a desktop — it fills the page like a real product · and the CV is no longer hidden behind a pull-up sheet, it sits on the right, always visible. The drag mechanic is gone entirely; it existed only because a phone has no room to show a question and a document at once.</p>
+  <p><strong>The gain that came free:</strong> because the CV is always on screen, <em>you now watch each answer write itself onto your CV</em> — that effect existed in both earlier files but was hidden behind a closed sheet unless you happened to open it first.</p>
+  <p><strong>The ending:</strong> answer the last card and press Continue — it settles downward rather than sliding away, a pulse travels to the CV, the page answers with one ring and a single line, then the two exits arrive.</p>
 </div>
 
-<div class="desk">
-  <div class="app" id="app">
-    <div class="topbar">
-      <b>JobCrush</b>
-      <span class="spacer"></span>
-      <span class="prof" id="prof">
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <rect x="1.5" y="8.5" width="11" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
-          <rect x="3" y="4.6" width="8" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
-          <rect x="4.5" y=".7" width="5" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
-        </svg>
-        Profile · <span class="n" id="profN">34</span>
-      </span>
-    </div>
+<div class="app" id="app">
+  <div class="topbar">
+    <b>JobCrush</b>
+    <span class="spacer"></span>
+    <span class="prof" id="prof" title="What we hold about you">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <rect x="1.5" y="8.5" width="11" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
+        <rect x="3" y="4.6" width="8" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
+        <rect x="4.5" y=".7" width="5" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
+      </svg>
+      Profile · <span class="n" id="profN">34</span>
+    </span>
+  </div>
 
-    <div class="scroll" id="scroll"></div>
-    <div class="stage" id="stage"></div>
-
-    <div class="cvsheet" id="cvsheet">
-      <div class="sheetbar" id="sheetbar" role="button" tabindex="0" aria-expanded="false" aria-label="Your CV for this advert, drag or click to open">
-        <div class="grab"></div>
-        <div class="row1">
-          <span class="lbl" id="sheetlabel">Your CV</span>
-          <svg class="chev" width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3 9l4-4 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span class="chg" id="sheetchip">Changes · 1</span>
-        </div>
-      </div>
-      <div class="sheetpages" id="sheetpages"></div>
-      <div class="sheetinner" id="sheetinner"></div>
+  <div class="cols">
+    <div class="col">
+      <div id="deckhead"></div>
+      <div class="stage" id="stage"></div>
     </div>
+    <div class="col" id="colCv"></div>
   </div>
 </div>
 
 <div class="instr" id="instr"></div>
 
 <div class="switcher">
-  <div class="vlabel"><span class="k">Round 3</span><span class="n">Desktop deck</span></div>
+  <div class="vlabel"><span class="k">Round 3b</span><span class="n">Desktop deck</span></div>
   <button class="tog" id="reset" type="button">Reset</button>
 </div>
 
@@ -365,7 +386,7 @@ const COPY = {
   ledApply: "Ready. Nothing goes out until you press send.",
   ledSave: "Saved. Pick it up whenever you want.",
   endH: "This CV is as strong as I can make it for this job.",
-  pullCue: "Pull it up for one last look",
+  lastLook: "One last look before you send it",
 };
 
 const ASKS8 = [
@@ -382,14 +403,14 @@ function freshState() {
     budget: null, powerbi: null, powErr: null, stretch: null,
     stripBack: false, subBack: {}, showThree: false,
     profExtra: 0, shownScore: BASE, ledger: null, lastUndo: null, descOpen: false,
-    sheetOpen: false, page: 1, sheetY: null, /* px translateY, computed on boot */
+    page: 1,
   };
 }
 S = freshState();
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const PAGE_W = 640, PAGE_H = 905, PEEK_H = 86;
+const PAGE_W = 640, PAGE_H = 905;
 
 function targetScore() {
   let n = BASE;
@@ -538,8 +559,8 @@ function cardHtml(id) {
   if (id === "changed") return `
     <div class="card ${deal}" id="activeCard">
       <h3>${esc(COPY.dH)}</h3><p class="sub">${esc(COPY.dSub)}</p>
-      <div class="maxh">${decRows()}</div>
-      <div class="row2" style="margin-top:12px"><button class="btn gold" data-act="finish" type="button">${esc(COPY.continue_)}</button></div>
+      <div>${decRows()}</div>
+      <div class="row2" style="margin-top:14px"><button class="btn gold" data-act="finish" type="button">${esc(COPY.continue_)}</button></div>
     </div>`;
   /* end */
   const closed = (S.budget && S.budget !== "n" ? 1 : 0) + (S.powerbi ? 1 : 0);
@@ -553,8 +574,8 @@ function cardHtml(id) {
     <div class="card ${deal}" id="activeCard">
       <h3>${esc(COPY.endH)}</h3>
       <p class="end-sum">${parts.length ? esc(parts.join(", ")).replace(/^./, (c) => c.toUpperCase()) + ". " : ""}${
-        n ? `I changed ${n} thing${n === 1 ? "" : "s"} — they're under <b>${esc(COPY.chip(n))}</b> below, with undo.`
-           : `Anything I changed earlier is back on this CV — <b>Changes</b> below keeps the record.`}</p>
+        n ? `I changed ${n} thing${n === 1 ? "" : "s"} — they're marked <b>${esc(COPY.chip(n))}</b> beside the CV, and the card before this one has the undo.`
+           : `Anything I changed earlier is back on this CV — <b>Changes</b> beside the CV keeps the record.`}</p>
       <button class="cta" data-act="apply" type="button">${esc(COPY.apply)}</button>
       <button class="cta ghost" data-act="save" type="button">${esc(COPY.save)}</button>
     </div>`;
@@ -566,25 +587,28 @@ function renderHead() {
   const C = 2 * Math.PI * 31;
   const sc = score8();
 
-  document.getElementById("scroll").innerHTML = `
+  document.getElementById("deckhead").innerHTML = `
     <div class="posted">Posted 3 days ago</div>
     <div class="hero">
       <div class="tt">
         <h1 class="jobtitle">Senior Project Manager</h1>
         <p class="employer">DBS Bank <span class="sep">·</span> Singapore <span class="sep">·</span> Full time</p>
         <span class="stake ${S.stretch === "y" ? "show" : ""}" id="stake">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="2" transform="rotate(45 8 8)" stroke="#e8a33d" stroke-width="1.4" stroke-dasharray="2.6 2.2"/></svg>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="2" transform="rotate(45 8 8)" stroke="#e8a33d" stroke-width="1.4" stroke-dasharray="2.6 2.2"/></svg>
           1 stretch with this application
           <button class="x" data-act="stretch-undo" type="button">undo</button>
         </span>
       </div>
-      <div class="dial" role="img" aria-label="${pct} percent match">
-        <svg width="78" height="78" viewBox="0 0 78 78">
-          <circle cx="39" cy="39" r="31" fill="none" stroke="var(--hud-line)" stroke-width="5.8"/>
-          <circle cx="39" cy="39" r="31" fill="none" stroke="var(--gold)" stroke-width="5.8" stroke-linecap="round"
-            stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - pct / 100)).toFixed(1)}" transform="rotate(-90 39 39)"/>
-        </svg>
-        <div class="num" id="dialNum">${pct}%</div>
+      <div class="scorebox">
+        <div class="dial" role="img" aria-label="${pct} percent match">
+          <svg width="84" height="84" viewBox="0 0 84 84">
+            <circle cx="42" cy="42" r="31" fill="none" stroke="var(--hud-line)" stroke-width="6.2"/>
+            <circle cx="42" cy="42" r="31" fill="none" stroke="var(--gold)" stroke-width="6.2" stroke-linecap="round"
+              stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - pct / 100)).toFixed(1)}" transform="rotate(-90 42 42)"/>
+          </svg>
+          <div class="num" id="dialNum">${pct}%</div>
+        </div>
+        <p class="cap">${esc(COPY.scoreCap)}</p>
       </div>
     </div>
     <details class="jobdesc" id="jobdesc" ${S.descOpen ? "open" : ""}>
@@ -592,7 +616,7 @@ function renderHead() {
       <p>You will run vendor delivery for the regional payments platform: selection, contracting, and delivery through to handover, with full ownership of the programme budget.</p>
       <p>You report to the regional exco monthly. Power BI is the house reporting standard. PL-300 is required; Mandarin is a strong plus for our Chinese-market vendors.</p>
     </details>
-    <div class="meterrow"><span class="meter">${meterDots()}</span><span class="n"><b>${sc.solid}</b> of ${sc.total}</span></div>
+    <div class="meterrow"><span class="meter">${meterDots()}</span><span class="n"><b>${sc.solid}</b> of ${sc.total} answered</span></div>
     <div class="ledger ${S.ledger?.gold ? "gold" : ""}" id="ledger">
       ${S.ledger ? `<span>${esc(S.ledger.text)}</span>${S.lastUndo ? `<button class="undo" data-act="last-undo" type="button">${esc(COPY.undo)}</button>` : ""}` : ""}
     </div>`;
@@ -610,36 +634,44 @@ function renderStage() {
     </div>`;
 }
 
-function renderSheet() {
+function renderCv() {
   const n = changesCount();
-  document.getElementById("sheetchip").textContent = COPY.chip(n);
-  document.getElementById("sheetbar").setAttribute("aria-expanded", S.sheetOpen);
-  document.getElementById("sheetpages").innerHTML = `
-    <button class="pg ${S.page === 1 ? "on" : ""}" data-act="page" data-p="1" type="button">Page 1</button>
-    <button class="pg ${S.page === 2 ? "on" : ""}" data-act="page" data-p="2" type="button">Page 2</button>`;
-  document.getElementById("sheetinner").innerHTML = `<div class="cv" id="paper">${cvHtml()}</div>`;
-  fitSheetPaper();
+  document.getElementById("colCv").innerHTML = `
+    <div class="chipbar">
+      <span class="pager" role="group" aria-label="CV pages">
+        <button class="pg ${S.page === 1 ? "on" : ""}" data-act="page" data-p="1" type="button">Page 1</button>
+        <button class="pg ${S.page === 2 ? "on" : ""}" data-act="page" data-p="2" type="button">Page 2</button>
+      </span>
+      <span class="chip">${esc(COPY.chip(n))}</span>
+    </div>
+    <div class="page-frame" id="pageFrame">
+      <div class="cv" id="paper">${cvHtml()}</div>
+      <div class="cvcue" id="cvcue">${esc(COPY.lastLook)}</div>
+    </div>`;
+  fitPage();
 }
-function fitSheetPaper() {
-  const inner = document.getElementById("sheetinner");
+/* the true-A4 page, CSS-scaled to whatever width the column happens to be — identical constants
+   and identical technique to tailor-merged.prototype.html, so the CV is the same size in both */
+function fitPage() {
+  const frame = document.getElementById("pageFrame");
   const paper = document.getElementById("paper");
-  if (!inner || !paper) return;
-  const w = inner.clientWidth;
-  const scale = w / PAGE_W;
+  if (!frame || !paper) return;
+  const scale = frame.clientWidth / PAGE_W;
   paper.style.transform = `scale(${scale})`;
-  inner.style.height = Math.round(PAGE_H * scale) + "px";
+  frame.style.height = Math.round(PAGE_H * scale) + "px";
 }
 
 function render(fx = {}) {
-  renderHead(); renderStage(); renderSheet();
+  renderHead(); renderStage(); renderCv();
   if (fx.announce) document.getElementById("live").textContent = fx.announce;
   if (fx.tween) tweenScore();
-  if (fx.mat && S.sheetOpen) fx.mat.forEach((k) => materialize(k));
-  if (fx.settle && S.sheetOpen) fx.settle.forEach((k) => { const el = document.querySelector(`[data-line="${k}"]`); if (el) el.classList.add("settle"); });
+  /* no sheetOpen guard any more — the CV is always on screen, so the write-on always plays */
+  if (fx.mat) fx.mat.forEach((k) => materialize(k));
+  if (fx.settle) fx.settle.forEach((k) => { const el = document.querySelector(`[data-line="${k}"]`); if (el) el.classList.add("settle"); });
   if (fx.fly && !REDUCED) flyChip(fx.fly); else if (fx.fly) bumpProf(fx.fly.to);
   if (fx.focusIn) { const i = document.getElementById("powIn"); if (i) i.focus(); }
   S.deal = false;
-  instrument(); wire(); wireSheetDrag();
+  instrument(); wire();
 }
 
 function tweenScore() {
@@ -680,7 +712,7 @@ function flyChip({ label, to, stretch }) {
 }
 function materialize(key) {
   const pg = pageOf(key);
-  if (S.page !== pg) { S.page = pg; renderSheet(); }
+  if (S.page !== pg) { S.page = pg; renderCv(); }
   const el = document.querySelector(`[data-line="${key}"]`);
   if (!el || REDUCED) return;
   const text = el.textContent;
@@ -691,41 +723,48 @@ function materialize(key) {
   setTimeout(() => { el.textContent = text; }, 40 + spans.length * step + 120);
 }
 
-/* ══ the ending transition — identical to the mobile file ══ */
+/* ══ the ending transition — same beats, same values, new destination ══
+   The mobile original sent the pulse to the CV's collapsed bar and asked her to pull it up.
+   There is no bar here and the CV never went away, so the pulse lands on the PAPER: it rings
+   once and carries one line for 2.6s. Same 380 / 520 / 950 / 2600ms as the validated file. */
 function settleThenEnd() {
   const cardEl = document.getElementById("activeCard");
   const rect = cardEl ? cardEl.getBoundingClientRect() : null;
   if (cardEl && !REDUCED) cardEl.classList.add("leaving");
   const DUR = REDUCED ? 0 : 380;
   setTimeout(() => {
-    if (rect) pulseToSheet(rect);
+    if (rect) pulseToPaper(rect);
     S.idx += 1; S.deal = true;
     render({});
   }, DUR);
 }
-function pulseToSheet(fromRect) {
-  const bar = document.getElementById("sheetbar");
-  if (!bar) return;
-  if (REDUCED) { bumpSheetBar(); return; }
-  const b = bar.getBoundingClientRect();
+function pulseToPaper(fromRect) {
+  const frame = document.getElementById("pageFrame");
+  if (!frame) return;
+  if (REDUCED) { ringPaper(); return; }
+  const b = frame.getBoundingClientRect();
   const dot = document.createElement("div");
   dot.className = "settlepulse";
   const fx = fromRect.left + fromRect.width / 2 - 25, fy = fromRect.top + fromRect.height / 2 - 25;
   dot.style.left = fx + "px"; dot.style.top = fy + "px";
   document.body.appendChild(dot);
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    dot.style.transform = `translate(${b.left + b.width / 2 - fx - 25}px, ${b.top + 14 - fy}px) scale(.15)`;
+    dot.style.transform = `translate(${b.left + b.width / 2 - fx - 25}px, ${b.top + Math.min(120, b.height / 2) - fy}px) scale(.15)`;
     dot.style.opacity = "0";
   }));
-  setTimeout(() => { dot.remove(); bumpSheetBar(); }, 540);
+  setTimeout(() => { dot.remove(); ringPaper(); }, 540);
 }
-function bumpSheetBar() {
-  const sheet = document.getElementById("cvsheet");
-  sheet.classList.remove("pulse"); void sheet.offsetWidth; sheet.classList.add("pulse");
-  setTimeout(() => sheet.classList.remove("pulse"), 950);
-  const lbl = document.getElementById("sheetlabel");
-  lbl.textContent = COPY.pullCue; lbl.classList.add("cue");
-  setTimeout(() => { lbl.textContent = "Your CV"; lbl.classList.remove("cue"); }, 2600);
+function ringPaper() {
+  const frame = document.getElementById("pageFrame");
+  const cue = document.getElementById("cvcue");
+  if (frame) {
+    frame.classList.remove("pulse"); void frame.offsetWidth; frame.classList.add("pulse");
+    setTimeout(() => frame.classList.remove("pulse"), 950);
+  }
+  if (cue) {
+    cue.classList.add("on");
+    setTimeout(() => { const c = document.getElementById("cvcue"); if (c) c.classList.remove("on"); }, 2600);
+  }
 }
 
 /* ══ actions ══ */
@@ -802,110 +841,41 @@ function wire() {
   if (desc && !desc.dataset.wired) { desc.dataset.wired = "1"; desc.addEventListener("toggle", () => { S.descOpen = desc.open; }); }
 }
 
-/* ══ the sheet: pointer drag + click, snapping open/closed ══
-   Animates HEIGHT, not transform (the mobile file's own approach). The first build here copied
-   mobile's translateY-on-a-fixed-height-box technique and hit a real bug: after the ending
-   transition specifically (a much taller card replaced by a much shorter one, in the same tick
-   the sheet's position gets reapplied), the sheet rendered open on screen while every piece of
-   JS state — computed transform, class list — read closed, and a byte-identical static
-   snapshot of that exact DOM, reloaded fresh with no live JS, rendered correctly every time.
-   That ruled out a wrong number; something about the live transition was leaving a stale paint.
-   Rebuilding on height instead of transform fixed it, but the FIRST rebuild attempt still
-   failed the same way, for a plain, findable reason: this rule's height now genuinely varies
-   (86 to ~671px) between peek and full, and .cvsheet had no overflow:hidden of its own — it had
-   only ever relied on .app's outer clip. Mobile never needed one because its sheet height is
-   constant (671px, always) and open/closed is pure translateY, so its content never exceeds its
-   own box regardless of state. Here, a short box with tall children that aren't clipped just
-   lets them spill out past it. Fixed, and confirmed against the exact repro (answer all three
-   questions, expand and put back a line on the declarations card, then Continue) seven times
-   running, headless and headed, before shipping this version.
-   Pointer events fire the same way for a mouse as for touch, so nothing about the gesture
-   itself needed to change for desktop. 8px activation before a drag counts as a drag (not a
-   click) — the shipped swipe deck's own threshold, reused rather than invented. */
-function sheetHeights() {
-  const app = document.getElementById("app");
-  const full = Math.round(app.clientHeight * 0.82);
-  return { full, peek: PEEK_H };
-}
-function applySheetHeight(px, animate) {
-  const sheet = document.getElementById("cvsheet");
-  sheet.style.transition = animate && !REDUCED ? "height 320ms cubic-bezier(.2,.9,.3,1)" : "none";
-  sheet.style.height = `${px}px`;
-}
-function openSheetTo(open, animate = true) {
-  const { full, peek } = sheetHeights();
-  S.sheetOpen = open; S.sheetY = open ? full : peek;
-  applySheetHeight(S.sheetY, animate);
-  document.getElementById("cvsheet").classList.toggle("open", open);
-  document.getElementById("sheetbar").setAttribute("aria-expanded", open);
-}
-let dragBound = false;
-function wireSheetDrag() {
-  const sheet = document.getElementById("cvsheet"), bar = document.getElementById("sheetbar");
-  if (S.sheetY == null) S.sheetY = sheetHeights().peek;
-  applySheetHeight(S.sheetY, false);
-  document.getElementById("cvsheet").classList.toggle("open", S.sheetOpen);
-
-  if (dragBound) return;
-  dragBound = true;
-  bar.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSheetTo(!S.sheetOpen); }
-  });
-  let dragging = false, moved = false, startY = 0, startHeight = 0;
-  bar.addEventListener("pointerdown", (e) => {
-    dragging = true; moved = false; startY = e.clientY; startHeight = S.sheetY;
-    bar.setPointerCapture(e.pointerId);
-    applySheetHeight(startHeight, false);
-  });
-  bar.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    const dy = e.clientY - startY; /* dragging UP (negative dy) grows the sheet */
-    if (Math.abs(dy) > 8) moved = true;
-    const { full, peek } = sheetHeights();
-    const next = Math.min(full, Math.max(peek, startHeight - dy));
-    S.sheetY = next;
-    applySheetHeight(next, false);
-  });
-  bar.addEventListener("pointerup", () => {
-    if (!dragging) return;
-    dragging = false;
-    const { full, peek } = sheetHeights();
-    if (!moved) { openSheetTo(!S.sheetOpen); return; }
-    openSheetTo(S.sheetY > (full + peek) / 2);
-  });
-}
-
 document.getElementById("reset").addEventListener("click", () => { S = freshState(); boot(); });
 addEventListener("keydown", (e) => {
   if (e.target.matches("input")) return;
   if (e.key.toLowerCase() === "r") { S = freshState(); boot(); }
 });
-addEventListener("resize", () => { fitSheetPaper(); wireSheetDrag(); });
+let resizeQueued = false;
+addEventListener("resize", () => {
+  if (resizeQueued) return;
+  resizeQueued = true;
+  requestAnimationFrame(() => { fitPage(); resizeQueued = false; });
+});
 
 function instrument() {
   const sc = score8();
   const n = changesCount();
   document.getElementById("instr").innerHTML = `
-    <span style="color:var(--gold);font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:10px;margin-right:10px">Instrument</span>
-    <b>Round 3, desktop deck.</b> Identical logic to the validated mobile file — only the frame changed (no bezel, 640px bounded app window, CV renders near true size). The asks are a deck: only the 3 interactive ones (budget, Power BI, the Agile stretch) are cards; the 5 "yes" + 1 "expired" never were decisions, so they never became cards. The meter carries them instead.
+    <span class="tag">Instrument</span>
+    <b>Round 3b, desktop deck.</b> Identical logic to the validated mobile file; identical frame, ratio and CV size to tailor-merged. The asks are a deck: only the 3 interactive ones (budget, Power BI, the Agile stretch) are cards; the 5 "yes" + 1 "expired" never were decisions, so they never became cards — the meter carries them.
     <hr>
-    asks: <b>${sc.solid}</b> solid of ${sc.total} · deck position: <b>${S.queue[S.idx] ?? "—"}</b> · changes: <b>${n}</b> · sheet: <b>${S.sheetOpen ? "open" : "peek"}</b>
+    asks: <b>${sc.solid}</b> solid of ${sc.total} · deck position: <b>${S.queue[S.idx] ?? "—"}</b> · changes: <b>${n}</b> · CV page: <b>${S.page}</b>
     <hr>
     <span class="warn">falsifiable here:</span>
-    (1) the sheet drag uses an 8px activation threshold — the shipped swipe deck's own value, not a new one, and it fires identically for a mouse;
-    (2) a fact's chip flies to <b>Profile</b>; the stretch's chip flies to the <b>advert's stake line</b> and the profile count never moves on it;
-    (3) materialize (the write-on effect) only plays if the sheet is <b>already open</b>;
+    (1) a fact's chip flies to <b>Profile</b>; the stretch's chip flies to the <b>advert's stake line</b> and the profile count never moves on it;
+    (2) the write-on effect plays on <b>every</b> scored answer — no visibility guard left, because the CV never hides;
+    (3) an answer that lands on page 2 <b>turns the page</b> to show itself;
     (4) the decline is "Not for this one" only — no "never" scope;
     (5) undo covers the last scored action and every put-back;
-    (6) the CV sheet renders at ~<b>${Math.round((640 / PAGE_W) * 100)}%</b> of the app's own content width — close to true printed size, the one thing desktop had room for that the phone didn't.
+    (6) "Changes · N" beside the CV is a <b>label</b>; the put-backs live on the deck's own card, so one thing is changed in one place.
     <hr>
-    ⚠️ location/market control is OUT of this build, matching the mobile file · not buildable before #158 (claim-ids) · reused verbatim from the validated mobile file: dealin 340ms · bump 460ms · settle 640ms · flight 720ms · tween 680ms · card-settle 380ms · sheet snap 320ms · bar-pulse 950ms · pull-cue 2600ms.`;
+    ⚠️ location/market control is OUT of this build, matching the mobile file · not buildable before #158 (claim-ids) · reused verbatim from the validated mobile file: dealin 340ms · bump 460ms · settle 640ms · flight 720ms · tween 680ms · card-settle 380ms · pulse 520ms · paper-ring 950ms · cue 2600ms.`;
 }
 
 function boot() {
   S.shownScore = BASE;
   render({});
-  requestAnimationFrame(() => { openSheetTo(false, false); });
 }
 boot();
 </script>
