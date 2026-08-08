@@ -45,7 +45,8 @@
           2, then dropped in the merge — restored, tracked in state (S.descOpen) so it survives
           a re-render caused by an unrelated action, same pattern as the ask rows.
        6. Ratio set to the parallel file's literal value, 1.32fr:1fr — not an approximation.
-       7. Ask rows now sort "have this" first, "expired" next, "not yet" last (recomputed every
+       7. 🚨 WITHDRAWN IN 3.4 — see the round-3.4 note in the render function. Ask rows used to
+         sort "have this" first, "expired" next, "not yet" last (recomputed every
           render, so answering a question visibly promotes its row — the meter already did this
           in 3.1; the row list now matches it).
        8. "What I changed for this advert" no longer has its own card fill — .changed-card and
@@ -621,14 +622,17 @@ function renderJob() {
   const pct = Math.round(S.shownScore);
   const C = 2 * Math.PI * 34;
 
-  /* Owner: rows ordered "have this" first, "expired" next, "not yet" at the bottom — the same
-     re-sort the meter dots already do (round 3.1), now applied to the actual row list too.
-     Recomputed every render, so answering a question visibly promotes its row. "settled" (an
-     explicit "not yet" answer) sits with "open" (not yet answered at all) — neither is "have
-     this", which is the only distinction the owner named. */
-  const ROW_RANK = { yes: 0, stretched: 0, part: 1, settled: 2, open: 2 };
-  const orderedAsks = [...ASKS].sort((a, b) => ROW_RANK[askState(a)] - ROW_RANK[askState(b)]);
-  const asks = orderedAsks.map((a) => {
+  /* 🚨 ROUND 3.4 — THE ROWS DO NOT MOVE. Reversing round 3.2's live re-sort, on the owner's own
+     reversal after using it: "the element of the list we answer should just stay where it is in
+     the list, period. So the design of the element changes (becomes 'you have this') and stays
+     where it is, it's less confusing."
+     He is right, and the reason is worth keeping: a list that reorders itself makes the person
+     re-find everything after every answer, and charges that cost for a benefit only we can see —
+     the ordering is by OUR state names, in an order she has no way to predict. A row that simply
+     changes its own appearance says the same thing and asks nothing of her.
+     ⚠️ The meter above still fills left to right — that is a PROGRESS bar and progress should
+     read as progress. The rows are an inventory. Two jobs, two orderings, deliberately. */
+  const asks = ASKS.map((a) => {
     const st = askState(a);
     const open = !!S.open[a.id];
     return `<div class="ask ${open ? "open" : ""} ${a.id === next ? "active" : ""}" data-state="${st}">

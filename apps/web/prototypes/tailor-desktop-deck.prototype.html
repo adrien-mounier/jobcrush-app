@@ -92,6 +92,32 @@
      wording difference between the two would be a difference the comparison would wrongly
      measure. Row order uses the same rank as the meter dots, so row N is dot N.
 
+
+     ══ REVISION 3.4 (2026-08-08, owner) — THE ROWS STOP MOVING, THE BAR GETS BIGGER ══
+     Two corrections, and the first is a reversal of my own two attempts:
+
+     (a) "It is still not working. Nevermind. It makes me think that the element of the list we
+         answer should just stay where it is in the list, period. So the design of the element
+         changes (becomes 'you have this') and stays where it is, it's less confusing."
+         ⚠️ He was still seeing it because the fix had gone into the two DECK files and NOT into
+         tailor-merged.prototype.html, which carries the same live re-sort from its own round 3.2.
+         All three now hold their rows still — a row changes its APPEARANCE, never its POSITION.
+         The reason outlives this screen: a list that reorders itself charges the person a re-find
+         on every answer, for a benefit only WE can see. The order is by our own state names, in a
+         sequence she cannot predict, so the movement carries no information she can read.
+         ⚠️ This supersedes round 3.2's own owner request to sort the rows. Recorded, not hidden:
+         the earlier instruction was tried, used, and reversed with a reason.
+
+     (b) "the progress bar could be way bigger, it's not enough represented we don't see it
+         enough" — it was a 5px hairline capped at 260px with a 12px mono count beside it. It now
+         takes the full column, doubles its height, and puts its count on its own line at reading
+         size, naming what it counts. It does NOT compete with the dial: that answers "how well do
+         I match", this answers "how much have I dealt with".
+
+     ⚠️ "row N is dot N" is deliberately NO LONGER TRUE and nothing should reintroduce it. The bar
+     fills left to right because it is a PROGRESS bar; the rows are an inventory in the advert's
+     own order. Two jobs, two orderings.
+
      ⚠️ Not buildable before #158 lands claim-ids (the "3 lines not printed" card needs them).
      ⚠️ Scope note carried from the mobile file: the location/market control is not on this
      screen (not in the owner's top-of-screen brief); fixed to Singapore.
@@ -182,20 +208,29 @@
   /* The meter is the SUMMARY of the eight asks, so the eight asks are what it opens into —
      owner: "expandable just under the progress bar because it's directly linked". The whole row
      is the control; the bar and the count keep their exact former look. */
+  /* ROUND 3.4 — owner: "the progress bar could be way bigger, it's not enough represented, we
+     don't see it enough." It was a 5px hairline capped at 260px with a mono count squeezed
+     beside it. On this design it is doing more work than that: when the panel is shut it is the
+     ONLY account of where she stands, so it now takes the full column, doubles its height, and
+     puts its count on its own line at reading size. It does NOT compete with the dial above —
+     that answers "how well do I match", this answers "how much have I dealt with", and they are
+     a different shape in a different place. */
   .meterrow {
     appearance: none; width: 100%; font: inherit; text-align: left; background: none; cursor: pointer;
-    display: flex; align-items: center; gap: 10px; margin: 16px 0 0; padding: 13px 4px 0 2px;
-    border: 0; border-top: 1px solid var(--hud-line); border-radius: 0 0 6px 6px; color: inherit;
+    display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+    margin: 18px 0 0; padding: 15px 2px 2px; border: 0; border-top: 1px solid var(--hud-line); color: inherit;
   }
-  .meterrow:hover .n b, .meterrow:hover .mchev { color: var(--gold); }
-  .meter { display: flex; gap: 3px; flex: 1; max-width: 260px; }
-  .meter i { height: 5px; flex: 1; border-radius: 3px; background: var(--hud-2); transition: background 420ms ease; }
-  .meter i.on { background: var(--gold); }
-  .meter i.half { background: var(--gold-dim); }
-  .meterrow .n { font-size: 12px; color: var(--hud-mute); font-family: var(--mono); white-space: nowrap; }
-  .meterrow .n b { color: var(--hud-ink); font-weight: 600; transition: color 140ms ease; }
+  .mtop { display: flex; align-items: baseline; gap: 9px; }
+  .mlabel { flex: 1; font-size: 13.5px; color: var(--hud-mute); }
+  .mlabel b { color: var(--hud-ink); font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; transition: color 140ms ease; }
+  .meterrow:hover .mlabel b, .meterrow:hover .mchev, .meterrow:hover .mmore { color: var(--gold); }
+  .mmore { flex: none; font-size: 12px; color: var(--hud-mute); transition: color 140ms ease; }
   .mchev { flex: none; color: var(--hud-mute); transition: transform 240ms ease, color 140ms ease; }
   .meterrow[aria-expanded="true"] .mchev { transform: rotate(90deg); color: var(--gold); }
+  .meter { display: flex; gap: 4px; width: 100%; }
+  .meter i { height: 10px; flex: 1; border-radius: 4px; background: var(--hud-2); transition: background 420ms ease; }
+  .meter i.on { background: var(--gold); }
+  .meter i.half { background: var(--gold-dim); }
 
   /* ── the eight asks, read-only ────────────────────────────────────────────────
      🚨 THE LINE THAT KEEPS THIS FROM BECOMING THE LIST DESIGN: this panel REPORTS, it never
@@ -492,11 +527,6 @@ function freshState() {
     stripBack: false, subBack: {}, showThree: false,
     profExtra: 0, shownScore: BASE, ledger: null, lastUndo: null, descOpen: false,
     page: 1, listOpen: false, openRows: {},
-    /* id → the order you answered it in. Sorting by state alone made a just-answered ask land
-       mid-group (owner: "it goes randomly in the middle of the list… I expect to see it coming
-       after them"), because a stable sort falls back to the ADVERT's order, which the person
-       has no reason to know. This is the tiebreak that makes the promotion legible. */
-    answeredAt: {}, answerSeq: 0,
   };
 }
 S = freshState();
@@ -522,8 +552,6 @@ function askState8(id) {
   if (id === "agile") return S.stretch === "y" ? "stretched" : S.stretch === "n" ? "settled" : "open";
   return null;
 }
-function markAnswered(id) { S.answerSeq += 1; S.answeredAt[id] = S.answerSeq; }
-function unmarkAnswered(id) { delete S.answeredAt[id]; }
 function score8() {
   let solid = 0;
   ASKS8.forEach((a) => {
@@ -532,14 +560,13 @@ function score8() {
   });
   return { solid, total: ASKS8.length, part: 1 };
 }
-/* The dots and the panel rows are now ONE ordered list, mapped twice. They used to sort
-   separately — the dots on their own rank, the rows on theirs — which is exactly the kind of
-   duplication that lets two views of the same eight things drift apart. */
+/* the bar fills left to right; the rows below never move. See the ROUND 3.4 note. */
 function meterDots() {
-  return askOrder().map((a) => {
-    const s = rowState(a);
-    return `<i class="${s === "yes" || s === "stretched" ? "on" : s === "part" ? "half" : ""}"></i>`;
-  }).join("");
+  const RANK = { on: 0, half: 1, "": 2 };
+  return ASKS8
+    .map((a) => { const s = rowState(a); return s === "yes" || s === "stretched" ? "on" : s === "part" ? "half" : ""; })
+    .sort((x, y) => RANK[x] - RANK[y])
+    .map((c) => `<i class="${c}"></i>`).join("");
 }
 /* ── the read-only ask panel ────────────────────────────────────────────────────
    One state function for all eight, so the panel and the meter can never disagree. */
@@ -575,20 +602,18 @@ function dotSVG(s) {
   if (s === "settled") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="5.6" fill="#4d5865"></circle></svg>';
   return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="6.6" stroke="#8a97a6" stroke-width="1.2" fill="none" stroke-dasharray="2.6 2.4"></circle></svg>';
 }
-/* THE one ordering, consumed by both the meter dots and the panel rows, so row N is dot N by
-   construction rather than by two functions agreeing.
-   Two keys, and the second is the one the owner asked for: within a group, an ask you have just
-   answered goes AFTER the ones that were already there. Ranking on state alone left a stable
-   sort to fall back on the ADVERT's own order, so answering the budget question dropped its row
-   into the middle of "you have this" — the promotion happened, and it looked like a shuffle. */
-const ROW_RANK = { yes: 0, stretched: 0, part: 1, settled: 2, open: 2 };
-function askOrder() {
-  return [...ASKS8].sort((a, b) => {
-    const r = ROW_RANK[rowState(a)] - ROW_RANK[rowState(b)];
-    if (r) return r;
-    return (S.answeredAt[a.id] || 0) - (S.answeredAt[b.id] || 0);
-  });
-}
+/* 🚨 ROUND 3.4 - THE ROWS DO NOT MOVE, and this replaces two earlier attempts at moving them
+   well. Owner, after using the second: "the element of the list we answer should just stay where
+   it is in the list, period. So the design of the element changes (becomes 'you have this') and
+   stays where it is, it's less confusing."
+   He is right, and the reason outlives this screen: a list that reorders itself charges the
+   person a re-find on every answer, for a benefit only WE can see - the order is by our own
+   state names, in a sequence she cannot predict. Sorting by "answered most recently" was a
+   better shuffle, not the absence of one. A row that just changes its own appearance says the
+   same thing and asks nothing of her.
+   ⚠️ The meter above still fills left to right. That is a PROGRESS bar and progress should read
+   as progress; the rows are an inventory. Two jobs, two orderings, on purpose - so "row N is
+   dot N" is deliberately NOT true any more, and nothing should reintroduce it. */
 /* which asks will actually still be dealt as cards — an ask can be "not yet" AND already behind
    you if you used "skip to the end", and the closing note must not promise otherwise */
 const QUEUE_ID = { budget: "budget", powerbi: "powerbi", agile: "stretch" };
@@ -600,7 +625,7 @@ function stillComing() {
   }).length;
 }
 function askListHtml() {
-  const rows = askOrder()
+  const rows = ASKS8
     .map((a) => {
       const st = rowState(a);
       const pf = rowProof(a);
@@ -793,9 +818,12 @@ function renderHead() {
       <p>You report to the regional exco monthly. Power BI is the house reporting standard. PL-300 is required; Mandarin is a strong plus for our Chinese-market vendors.</p>
     </details>
     <button class="meterrow" data-act="list" aria-expanded="${S.listOpen}" type="button">
+      <span class="mtop">
+        <span class="mlabel"><b>${sc.solid}</b> of ${sc.total} things this job asks for are answered</span>
+        <span class="mmore">${S.listOpen ? "hide them" : "see them"}</span>
+        <svg class="mchev" width="11" height="11" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2.5 1.5L7 5L2.5 8.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
       <span class="meter">${meterDots()}</span>
-      <span class="n"><b>${sc.solid}</b> of ${sc.total} answered</span>
-      <svg class="mchev" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2.5 1.5L7 5L2.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     ${S.listOpen ? askListHtml() : ""}
     <div class="ledger ${S.ledger?.gold ? "gold" : ""}" id="ledger">
@@ -956,11 +984,10 @@ const ACTIONS = {
   budget(el) {
     const v = el.dataset.v;
     S.budget = v;
-    markAnswered("budget");
     const fact = v !== "n";
     if (fact) S.profExtra += 1;
     led(v === "y" ? COPY.ledBudgetY : v === "s" ? COPY.ledBudgetS : COPY.ledBudgetN, fact,
-        () => { S.budget = null; unmarkAnswered("budget"); if (fact) S.profExtra -= 1; S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "budget"); S.ledger = null; S.lastUndo = null; });
+        () => { S.budget = null; if (fact) S.profExtra -= 1; S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "budget"); S.ledger = null; S.lastUndo = null; });
     advance();
     render({ tween: true, announce: `${targetScore()} percent. ${S.ledger.text}`, mat: fact ? ["sum1"] : [], fly: fact ? { label: "+1 fact", to: "profile" } : null });
   },
@@ -968,20 +995,18 @@ const ACTIONS = {
     const t = document.getElementById("powIn").value.trim(); const v = Number(t);
     if (t === "" || !Number.isInteger(v) || v < 0) { S.powErr = COPY.qPowErr; render({ focusIn: true }); return; }
     S.powErr = null; S.powerbi = v;
-    markAnswered("powerbi");
     if (v === 0) {
-      led(COPY.ledPowN, false, () => { S.powerbi = null; unmarkAnswered("powerbi"); S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "powerbi"); S.ledger = null; S.lastUndo = null; });
+      led(COPY.ledPowN, false, () => { S.powerbi = null; S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "powerbi"); S.ledger = null; S.lastUndo = null; });
       advance(); render({ announce: COPY.ledPowN }); return;
     }
     S.profExtra += 1;
-    led(COPY.ledPow(v), true, () => { S.powerbi = null; unmarkAnswered("powerbi"); S.profExtra -= 1; S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "powerbi"); S.ledger = null; S.lastUndo = null; });
+    led(COPY.ledPow(v), true, () => { S.powerbi = null; S.profExtra -= 1; S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "powerbi"); S.ledger = null; S.lastUndo = null; });
     advance();
     render({ tween: true, announce: `${targetScore()} percent. ${COPY.ledPow(v)}`, mat: ["skills"], fly: { label: "+1 fact", to: "profile" } });
   },
   stretch(el) {
     const v = el.dataset.v;
     S.stretch = v;
-    markAnswered("agile");
     if (v === "y") {
       led(COPY.ledStretch, true, () => ACTIONS["stretch-undo"]());
       advance();
@@ -990,7 +1015,6 @@ const ACTIONS = {
   },
   "stretch-undo"() {
     S.stretch = null;
-    unmarkAnswered("agile");
     if (!S.queue.includes("stretch")) { S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "stretch"); }
     led(COPY.ledStretchOff, false, null);
     render({ tween: true, announce: COPY.ledStretchOff });
@@ -1057,7 +1081,7 @@ function instrument() {
     (5) undo covers the last scored action and every put-back;
     (6) "Changes · N" beside the CV is a <b>label</b>; the put-backs live on the deck's own card, so one thing is changed in one place;
     (7) 🚨 <b>the ask panel REPORTS and never ANSWERS</b> — an ask with evidence is a button, an unanswered one is not a button at all, and no answer control exists anywhere in it. This is the line that keeps the deck from becoming the list;
-    (8) row N of the panel is dot N of the meter — one <b>rowState()</b>, one rank order, so the two can never disagree;
+    (8) 🚨 <b>answering never moves a row</b> — it changes its own look in place, in the advert's own order. The bar above still fills left to right, because that one IS progress. Two jobs, two orderings, on purpose;
     (9) the three interactive asks cite <b>"You answered this on the card"</b>, never the CV, and the approved stretch says out loud that it never joins the profile.
     <hr>
     ⚠️ location/market control is OUT of this build, matching the mobile file · not buildable before #158 (claim-ids) · reused verbatim from the validated mobile file: dealin 340ms · bump 460ms · settle 640ms · flight 720ms · tween 680ms · card-settle 380ms · pulse 520ms · paper-ring 950ms · cue 2600ms.`;
