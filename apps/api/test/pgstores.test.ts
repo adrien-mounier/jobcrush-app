@@ -617,6 +617,29 @@ for (const [name, make] of postingDrivers) {
       expect((await store.listByProvider("curated-pool")).map((r) => r.providerPostingId)).toEqual(["c-1"]);
     });
 
+    describe("#132 durable monthly provider-call budget", () => {
+      it("starts each calendar month at zero and keeps provider/month counts separate", async () => {
+        expect(await store.getMonthlyCallCount("techmap", "2026-08")).toBe(0);
+        expect(await store.reserveMonthlyCall("techmap", "2026-08", 2)).toBe(true);
+        expect(await store.reserveMonthlyCall("techmap", "2026-08", 2)).toBe(true);
+        expect(await store.reserveMonthlyCall("techmap", "2026-08", 2)).toBe(false);
+        expect(await store.getMonthlyCallCount("techmap", "2026-08")).toBe(2);
+
+        expect(await store.getMonthlyCallCount("techmap", "2026-09")).toBe(0);
+        expect(await store.reserveMonthlyCall("techmap", "2026-09", 2)).toBe(true);
+        expect(await store.getMonthlyCallCount("techmap", "2026-09")).toBe(1);
+        expect(await store.getMonthlyCallCount("curated-pool", "2026-08")).toBe(0);
+      });
+
+      it("atomically refuses concurrent reservations beyond the boundary", async () => {
+        const reservations = await Promise.all(
+          Array.from({ length: 10 }, () => store.reserveMonthlyCall("techmap", "2026-08", 3)),
+        );
+        expect(reservations.filter(Boolean)).toHaveLength(3);
+        expect(await store.getMonthlyCallCount("techmap", "2026-08")).toBe(3);
+      });
+    });
+
     // #100 review MF6: language counters move here — counted once, at the moment a posting is FIRST
     // persisted, never per fetch/normalize call (which would inflate with every re-fetch).
     describe("MF6: language counted once, at first persist, never on a re-fetch", () => {
@@ -672,3 +695,15 @@ for (const [name, make] of postingDrivers) {
     });
   });
 }
+
+it("#132 PgPostingStore preserves the month-to-date count across store reconstruction", async () => {
+  const pool = pgPool();
+  const beforeRestart = new PgPostingStore(pool);
+  await beforeRestart.init();
+  await beforeRestart.reserveMonthlyCall("techmap", "2026-08", 10);
+  await beforeRestart.reserveMonthlyCall("techmap", "2026-08", 10);
+
+  const afterRestart = new PgPostingStore(pool);
+  expect(await afterRestart.getMonthlyCallCount("techmap", "2026-08")).toBe(2);
+  expect(await afterRestart.reserveMonthlyCall("techmap", "2026-08", 2)).toBe(false);
+});

@@ -2,6 +2,16 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 (session 97) - Durable monthly provider spend cap (#132)
+
+_Orchestrated backend slice in an isolated worktree; one review-fix round, then QA GO._
+
+- The paid posting provider now reserves calls in a durable `(provider, UTC month)` counter before HTTP. Postgres performs the limit check and increment atomically, so restarts do not reset the allowance and concurrent callers cannot exceed it.
+- Missing, non-durable, or failed budget storage disables the paid path and reports a distinct operational signal. The live-provider smoke refuses to run without `DATABASE_URL`; in-memory storage remains available only for local contracts and deterministic tests.
+- Standards review found two release blockers: the smoke's silent in-memory fallback and short-window units being consumed when the durable check failed. Both were corrected; the re-review and Spec review had no must-fixes.
+- QA GO: focused provider/store/counter suite 160/160; full uncached suite 972 passed with 10 intentional skips; all typecheck and build tasks passed. Docker and local Postgres were unavailable, so real-server lock contention remains residual evidence; pg-mem exercised the shared SQL store contract.
+- Next in this session: #101, the server-owned live-posting retrieval boundary this cap protects.
+
 ## 2026-08-09 (session 96) — The sign-up seam is CLOSED: Confirm follows the question game into the Night Desk
 
 _One owner decision resolving the final open seam created by Design E; binding ruling posted on

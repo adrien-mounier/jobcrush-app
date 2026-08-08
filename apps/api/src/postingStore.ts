@@ -37,6 +37,7 @@ function countLanguageAtIngest(language: string): void {
 }
 
 export interface PostingStore {
+  readonly durable: boolean;
   init(): Promise<void>;
   /** Upsert one provider's raw record. Returns the STORED record, which is `record` verbatim on a
    *  first insert, or `record` with capturedAt/verifiedLiveAt resolved per §2.6 on a re-fetch. */
@@ -45,6 +46,10 @@ export interface PostingStore {
   /** Every record currently stored for one provider — the input a caller doing cross-provider dedup
    *  (postings.ts's dedupePostings) or #101's retrieval reads from. */
   listByProvider(providerId: string): Promise<ProviderPostingRecordV1Value[]>;
+  /** Atomically consumes one provider call in the named calendar month, but never increments past
+   *  `limit`. False means the month is already exhausted. */
+  reserveMonthlyCall(providerId: string, yearMonth: string, limit: number): Promise<boolean>;
+  getMonthlyCallCount(providerId: string, yearMonth: string): Promise<number>;
 }
 
 function keyOf(providerId: string, providerPostingId: string): string {
@@ -52,7 +57,9 @@ function keyOf(providerId: string, providerPostingId: string): string {
 }
 
 export class InMemoryPostingStore implements PostingStore {
+  readonly durable = false;
   private byKey = new Map<string, ProviderPostingRecordV1Value>();
+  private monthlyCalls = new Map<string, number>();
 
   async init(): Promise<void> {}
 
@@ -91,6 +98,19 @@ export class InMemoryPostingStore implements PostingStore {
     }
     return out;
   }
+
+  async reserveMonthlyCall(providerId: string, yearMonth: string, limit: number): Promise<boolean> {
+    if (limit <= 0) return false;
+    const key = keyOf(providerId, yearMonth);
+    const count = this.monthlyCalls.get(key) ?? 0;
+    if (count >= limit) return false;
+    this.monthlyCalls.set(key, count + 1);
+    return true;
+  }
+
+  async getMonthlyCallCount(providerId: string, yearMonth: string): Promise<number> {
+    return this.monthlyCalls.get(keyOf(providerId, yearMonth)) ?? 0;
+  }
 }
 
 const PROVIDER_POSTINGS_TABLE = `
@@ -101,6 +121,15 @@ CREATE TABLE IF NOT EXISTS provider_postings (
   captured_at          timestamptz NOT NULL,
   verified_live_at     timestamptz NOT NULL,
   PRIMARY KEY (provider_id, provider_posting_id)
+)`;
+
+const PROVIDER_MONTHLY_CALLS_TABLE = `
+CREATE TABLE IF NOT EXISTS provider_monthly_calls (
+  provider_id        text NOT NULL,
+  year_month         text NOT NULL,
+  call_count         integer NOT NULL,
+  reservation_allowed boolean NOT NULL,
+  PRIMARY KEY (provider_id, year_month)
 )`;
 
 /** jsonb columns come back as an object on real pg but as a string on pg-mem (used by the store
@@ -130,10 +159,12 @@ function rowToValidatedRecord(row: { record: unknown; captured_at: unknown; veri
 }
 
 export class PgPostingStore implements PostingStore {
+  readonly durable = true;
   constructor(private pool: Pool) {}
 
   async init(): Promise<void> {
     await this.pool.query(PROVIDER_POSTINGS_TABLE);
+    await this.pool.query(PROVIDER_MONTHLY_CALLS_TABLE);
   }
 
   async upsert(record: ProviderPostingRecordV1Value): Promise<ProviderPostingRecordV1Value> {
@@ -199,6 +230,34 @@ export class PgPostingStore implements PostingStore {
       }
     }
     return out;
+  }
+
+  async reserveMonthlyCall(providerId: string, yearMonth: string, limit: number): Promise<boolean> {
+    if (limit <= 0) return false;
+    // One database statement both decides and consumes the reservation. Both right-hand expressions
+    // read the pre-update row, so the returned flag belongs to this caller's attempt even when many
+    // callers contend for the same key; call_count itself is clamped at the limit.
+    const { rows } = await this.pool.query(
+      `INSERT INTO provider_monthly_calls
+         (provider_id, year_month, call_count, reservation_allowed)
+       VALUES ($1, $2, 1, true)
+       ON CONFLICT (provider_id, year_month) DO UPDATE SET
+         reservation_allowed = provider_monthly_calls.call_count < $3,
+         call_count = CASE WHEN provider_monthly_calls.call_count < $3
+                           THEN provider_monthly_calls.call_count + 1
+                           ELSE provider_monthly_calls.call_count END
+       RETURNING reservation_allowed`,
+      [providerId, yearMonth, limit],
+    );
+    return rows[0]?.reservation_allowed === true;
+  }
+
+  async getMonthlyCallCount(providerId: string, yearMonth: string): Promise<number> {
+    const { rows } = await this.pool.query(
+      `SELECT call_count FROM provider_monthly_calls WHERE provider_id = $1 AND year_month = $2`,
+      [providerId, yearMonth],
+    );
+    return Number(rows[0]?.call_count ?? 0);
   }
 }
 

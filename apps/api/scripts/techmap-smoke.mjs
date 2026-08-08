@@ -44,6 +44,7 @@ import {
   TECHMAP_PAGE_SIZE,
   TECHMAP_PATH,
 } from '../dist/postingProvider.js';
+import { postingStoreFromEnv } from '../dist/postingStore.js';
 
 const apiKey = process.env.TECHMAP_RAPIDAPI_KEY;
 
@@ -77,8 +78,16 @@ const policy = {
 const REQUEST = { regionCode: 'HK', queryKeywords: ['project', 'manager'], page: 0 };
 
 async function main() {
+  if (!process.env.DATABASE_URL) {
+    // eslint-disable-next-line no-console
+    console.error('FAIL: DATABASE_URL is required — a paid Techmap smoke must use the durable monthly budget store.');
+    process.exit(1);
+  }
+  const postingStore = postingStoreFromEnv(process.env.DATABASE_URL);
+  await postingStore.init();
+
   // Call 1: through the REAL client — proves the path/headers/retry/timeout handling itself works.
-  const provider = new TechmapPostingProvider({ apiKey, policy });
+  const provider = new TechmapPostingProvider({ apiKey, policy, monthlyBudgetStore: postingStore });
   const clientResult = await provider.fetch(REQUEST);
   if (!clientResult.ok) {
     // eslint-disable-next-line no-console
@@ -100,6 +109,13 @@ async function main() {
   url.searchParams.set('page', '0');
   url.searchParams.set('size', String(TECHMAP_PAGE_SIZE));
   url.searchParams.set('title', 'project manager');
+  const now = new Date();
+  const yearMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+  if (!(await postingStore.reserveMonthlyCall(policy.providerId, yearMonth, policy.rateLimit.perMonth))) {
+    // eslint-disable-next-line no-console
+    console.error(`FAIL: Techmap monthly call budget exhausted for ${yearMonth}; raw provenance call blocked`);
+    process.exit(1);
+  }
   const res = await fetch(url.toString(), {
     headers: { 'x-rapidapi-key': apiKey, 'x-rapidapi-host': TECHMAP_HOST },
   });

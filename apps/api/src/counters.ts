@@ -240,6 +240,9 @@
 //     distinct from postings.techmap_calls_failed, which only counts a call that actually reached the
 //     vendor and got a 429/5xx/etc back. A rise here means our own conservative internal cap is the
 //     limiting factor, not the vendor's.
+//   - postings.techmap_budget_store_unavailable: the durable per-month reservation could not run,
+//     so the client failed closed before HTTP. Kept separate from budget_exceeded so an operator can
+//     distinguish database failure from genuine quota exhaustion.
 // In-process and reset-on-restart. That's an accepted limit for this slice, not an oversight: there
 // is no persisted metrics store yet, and standing one up before anything needs history would be the
 // speculative abstraction this repo avoids (#86 decision 4 makes the same call for user languages).
@@ -282,6 +285,7 @@ const counts = {
   "postings.techmap_cost_usd_total": 0,
   "postings.techmap_normalize_dropped": 0,
   "postings.techmap_budget_exceeded": 0,
+  "postings.techmap_budget_store_unavailable": 0,
 };
 
 export type CounterName = keyof typeof counts;

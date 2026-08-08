@@ -21,6 +21,7 @@ import {
 } from "../src/postingProvider.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 import { dedupePostings } from "../src/postings.js";
+import { InMemoryPostingStore } from "../src/postingStore.js";
 
 // A realistic Techmap (jobdatafeeds.com Jobs API v2.6) result item, constructed faithful to §6's
 // measured field list: top-level `title`, and the FULL advert body + every structured field living
@@ -330,6 +331,25 @@ describe("FixedWindowBudget (#100 review MF2, §2.9)", () => {
     clock.t = 60_000; // exactly one window later
     expect(budget.allow()).toBe(true); // fresh window, budget restored
   });
+
+  it("release restores a reserved unit when no HTTP attempt follows", () => {
+    const budget = new FixedWindowBudget(1, 60_000, () => 0);
+    const reservation = budget.reserve();
+    expect(reservation).not.toBeNull();
+    expect(budget.allow()).toBe(false);
+    reservation!.release();
+    expect(budget.allow()).toBe(true);
+  });
+
+  it("releasing an expired reservation never removes a newer window's unit", () => {
+    const clock = { t: 0 };
+    const budget = new FixedWindowBudget(1, 60_000, () => clock.t);
+    const oldReservation = budget.reserve();
+    clock.t = 60_000;
+    expect(budget.reserve()).not.toBeNull();
+    oldReservation!.release();
+    expect(budget.allow()).toBe(false);
+  });
 });
 
 describe("TechmapPostingProvider.fetch (#100, §2.9, §2.10)", () => {
@@ -337,7 +357,10 @@ describe("TechmapPostingProvider.fetch (#100, §2.9, §2.10)", () => {
     return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   }
 
-  const noPacing: PostingProviderPolicyV1 = { ...TECHMAP_POLICY, rateLimit: { ...TECHMAP_POLICY.rateLimit, perSecond: null } };
+  const noPacing: PostingProviderPolicyV1 = {
+    ...TECHMAP_POLICY,
+    rateLimit: { ...TECHMAP_POLICY.rateLimit, perSecond: null, perMonth: null },
+  };
 
   it("requests the lowercase path with countryCode/page/size/title and the API key in x-rapidapi-key, never in the URL", async () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];
@@ -466,7 +489,7 @@ describe("TechmapPostingProvider.fetch (#100, §2.9, §2.10)", () => {
     const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [] }));
     const provider = new TechmapPostingProvider({
       apiKey: "k",
-      policy: { ...TECHMAP_POLICY, rateLimit: { ...TECHMAP_POLICY.rateLimit, perSecond: 0.4 } }, // 1 call/2500ms
+      policy: { ...TECHMAP_POLICY, rateLimit: { ...TECHMAP_POLICY.rateLimit, perSecond: 0.4, perMonth: null } }, // 1 call/2500ms
       fetchImpl,
       now: () => clock.t,
       sleep,
@@ -577,6 +600,131 @@ describe("TechmapPostingProvider.fetch (#100, §2.9, §2.10)", () => {
     });
   });
 
+  describe("#132 durable per-month budget", () => {
+    it("refuses an exhausted month before HTTP and returns the existing unavailable shape", async () => {
+      const store = new InMemoryPostingStore();
+      await store.init();
+      const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [] }));
+      const policy: PostingProviderPolicyV1 = {
+        ...noPacing,
+        rateLimit: { ...noPacing.rateLimit, perMonth: 1 },
+        retry: { maxAttempts: 1, backoffMs: 0 },
+      };
+      const provider = new TechmapPostingProvider({
+        apiKey: "k",
+        policy,
+        fetchImpl,
+        monthlyBudgetStore: {
+          durable: true,
+          reserveMonthlyCall: store.reserveMonthlyCall.bind(store),
+        },
+        now: () => Date.UTC(2026, 7, 9),
+      });
+
+      expect((await provider.fetch({ regionCode: "HK", queryKeywords: [] })).ok).toBe(true);
+      const exhausted = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+
+      expect(exhausted).toEqual({
+        ok: false,
+        reason: "techmap: internal per-month call budget exceeded for 2026-08",
+        retryable: true,
+      });
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(readCounters()["postings.techmap_budget_exceeded"]).toBe(1);
+      expect(readCounters()["postings.techmap_budget_store_unavailable"]).toBe(0);
+    });
+
+    it("fails closed before HTTP and signals store failure separately from exhaustion", async () => {
+      const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [] }));
+      const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const provider = new TechmapPostingProvider({
+        apiKey: "k",
+        policy: {
+          ...noPacing,
+          rateLimit: { ...noPacing.rateLimit, perMonth: 1 },
+          retry: { maxAttempts: 1, backoffMs: 0 },
+        },
+        fetchImpl,
+        monthlyBudgetStore: {
+          durable: true,
+          reserveMonthlyCall: async () => {
+            throw new Error("database offline");
+          },
+        },
+        now: () => Date.UTC(2026, 7, 9),
+      });
+
+      const result = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+
+      expect(result).toEqual({
+        ok: false,
+        reason: "techmap: monthly call budget store unavailable",
+        retryable: true,
+      });
+      expect(fetchImpl).not.toHaveBeenCalled();
+      expect(readCounters()["postings.techmap_budget_exceeded"]).toBe(0);
+      expect(readCounters()["postings.techmap_budget_store_unavailable"]).toBe(1);
+      expect(log).toHaveBeenCalledWith("[ops] techmap monthly call budget store unavailable; request blocked");
+      log.mockRestore();
+    });
+
+    it("refuses a non-durable monthly store before HTTP", async () => {
+      const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [] }));
+      const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const provider = new TechmapPostingProvider({
+        apiKey: "k",
+        policy: {
+          ...noPacing,
+          rateLimit: { ...noPacing.rateLimit, perMonth: 1 },
+          retry: { maxAttempts: 1, backoffMs: 0 },
+        },
+        fetchImpl,
+        monthlyBudgetStore: new InMemoryPostingStore(),
+      });
+
+      const result = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe("techmap: monthly call budget store unavailable");
+      expect(fetchImpl).not.toHaveBeenCalled();
+      log.mockRestore();
+    });
+
+    it("repeated store failures release short-window units so recovery still reaches HTTP", async () => {
+      let storeAvailable = false;
+      const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [] }));
+      const provider = new TechmapPostingProvider({
+        apiKey: "k",
+        policy: {
+          ...noPacing,
+          rateLimit: { ...noPacing.rateLimit, perMinute: 1, perDay: 1, perMonth: 10 },
+          retry: { maxAttempts: 1, backoffMs: 0 },
+        },
+        fetchImpl,
+        monthlyBudgetStore: {
+          durable: true,
+          reserveMonthlyCall: async () => {
+            if (!storeAvailable) throw new Error("database offline");
+            return true;
+          },
+        },
+      });
+      const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+      for (let i = 0; i < 3; i++) {
+        const failed = await provider.fetch({ regionCode: "HK", queryKeywords: [] });
+        expect(failed.ok).toBe(false);
+        if (!failed.ok) expect(failed.reason).toBe("techmap: monthly call budget store unavailable");
+      }
+      storeAvailable = true;
+      expect((await provider.fetch({ regionCode: "HK", queryKeywords: [] })).ok).toBe(true);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(readCounters()["postings.techmap_budget_store_unavailable"]).toBe(3);
+      expect(readCounters()["postings.techmap_budget_exceeded"]).toBe(0);
+      log.mockRestore();
+    });
+  });
+
   // #100 review MF4: the gate/budgets are shared PROCESS-WIDE per providerId, proven across TWO
   // separate instances — otherwise two concurrent retrievals would each get their own tracker and
   // burst through the vendor's cap together.
@@ -585,7 +733,10 @@ describe("TechmapPostingProvider.fetch (#100, §2.9, §2.10)", () => {
     const sleep = vi.fn(async (ms: number) => {
       clock.t += ms;
     });
-    const paced: PostingProviderPolicyV1 = { ...TECHMAP_POLICY, rateLimit: { ...TECHMAP_POLICY.rateLimit, perSecond: 0.4 } };
+    const paced: PostingProviderPolicyV1 = {
+      ...TECHMAP_POLICY,
+      rateLimit: { ...TECHMAP_POLICY.rateLimit, perSecond: 0.4, perMonth: null },
+    };
     const fetchImpl = vi.fn(async () => jsonResponse(200, { result: [] }));
 
     const first = new TechmapPostingProvider({ apiKey: "k", policy: paced, fetchImpl, now: () => clock.t, sleep });
@@ -602,6 +753,11 @@ describe("TechmapPostingProvider.fetch (#100, §2.9, §2.10)", () => {
 
 describe("techmapProviderFromEnv (#100 review MF5)", () => {
   const previousKey = process.env.TECHMAP_RAPIDAPI_KEY;
+  const monthlyBudgetStore = new InMemoryPostingStore();
+  const durableMonthlyBudgetStore = {
+    durable: true,
+    reserveMonthlyCall: monthlyBudgetStore.reserveMonthlyCall.bind(monthlyBudgetStore),
+  };
   afterEach(() => {
     if (previousKey === undefined) delete process.env.TECHMAP_RAPIDAPI_KEY;
     else process.env.TECHMAP_RAPIDAPI_KEY = previousKey;
@@ -610,19 +766,29 @@ describe("techmapProviderFromEnv (#100 review MF5)", () => {
   it("fails closed — returns null — for a policy row whose providerId isn't techmap, even with a key set", () => {
     process.env.TECHMAP_RAPIDAPI_KEY = "some-key";
     const curatedPoolRow: PostingProviderPolicyV1 = { ...TECHMAP_POLICY, providerId: "curated-pool" };
-    expect(techmapProviderFromEnv(curatedPoolRow)).toBeNull();
+    expect(techmapProviderFromEnv(curatedPoolRow, durableMonthlyBudgetStore)).toBeNull();
   });
 
   it("returns null without TECHMAP_RAPIDAPI_KEY set, even for the real techmap row", () => {
     delete process.env.TECHMAP_RAPIDAPI_KEY;
-    expect(techmapProviderFromEnv(TECHMAP_POLICY)).toBeNull();
+    expect(techmapProviderFromEnv(TECHMAP_POLICY, durableMonthlyBudgetStore)).toBeNull();
   });
 
   it("constructs a real provider for the techmap row when the key is set", () => {
     process.env.TECHMAP_RAPIDAPI_KEY = "some-key";
-    const provider = techmapProviderFromEnv(TECHMAP_POLICY);
+    const provider = techmapProviderFromEnv(TECHMAP_POLICY, durableMonthlyBudgetStore);
     expect(provider).not.toBeNull();
     expect(provider?.providerId).toBe("techmap");
+  });
+
+  it("refuses to construct a paid live provider with an in-memory monthly budget", () => {
+    process.env.TECHMAP_RAPIDAPI_KEY = "some-key";
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(techmapProviderFromEnv(TECHMAP_POLICY, monthlyBudgetStore)).toBeNull();
+    expect(log).toHaveBeenCalledWith(
+      "[ops] TECHMAP_RAPIDAPI_KEY is set without a durable monthly budget store; provider disabled",
+    );
+    log.mockRestore();
   });
 });
 

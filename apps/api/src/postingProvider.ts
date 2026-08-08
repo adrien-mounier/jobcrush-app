@@ -12,6 +12,7 @@ import { ProviderPostingRecordV1, type PostingProviderPolicyV1 as PostingProvide
 import { computeProviderCostUsd } from "./postings.js";
 import { detectLanguage } from "./language.js";
 import { addToCounter, incrementCounter } from "./counters.js";
+import type { PostingStore } from "./postingStore.js";
 
 export interface PostingProviderFetchInput {
   /** ISO 3166-1 alpha-2 region code, already resolved by the caller — resolving a search area to a
@@ -120,19 +121,32 @@ export class FixedWindowBudget {
     private readonly now: () => number = Date.now,
   ) {}
 
-  /** True (and consumes one unit) if this call is within budget for the current window. Must be
-   *  called once per attempt actually made — checking without consuming would let concurrent callers
-   *  all see "room" and all proceed. */
-  allow(): boolean {
-    if (this.limit === null) return true;
+  /** Reserves one unit for the current window. `release` rolls back a call that never became an HTTP
+   *  attempt; if the window rolled over while awaiting another dependency, the old reservation has
+   *  already expired and release is deliberately a no-op. */
+  reserve(): { release: () => void } | null {
+    if (this.limit === null) return { release: () => undefined };
     const current = this.now();
     if (current - this.windowStart >= this.windowMs) {
       this.windowStart = current;
       this.count = 0;
     }
-    if (this.count >= this.limit) return false;
+    if (this.count >= this.limit) return null;
+    const reservedWindowStart = this.windowStart;
     this.count += 1;
-    return true;
+    let active = true;
+    return {
+      release: () => {
+        if (!active) return;
+        active = false;
+        if (this.windowStart === reservedWindowStart && this.count > 0) this.count -= 1;
+      },
+    };
+  }
+
+  /** True (and consumes one unit) if this call is within budget for the current window. */
+  allow(): boolean {
+    return this.reserve() !== null;
   }
 }
 
@@ -411,12 +425,13 @@ export interface TechmapPostingProviderOptions {
   fetchImpl?: typeof fetch;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
+  monthlyBudgetStore?: Pick<PostingStore, "durable" | "reserveMonthlyCall">;
 }
 
 /**
  * The real Techmap (jobdatafeeds.com Jobs API v2.6, via RapidAPI) client. Rate limit, retry count/
  * backoff, and timeout all come from `policy` (§2.2's registry), never from constants here (AC).
- * Three limits are enforced in-process, all sourced from `policy.rateLimit`, all shared PROCESS-WIDE
+ * The short-window limits are enforced in-process, all sourced from `policy.rateLimit`, and shared PROCESS-WIDE
  * per providerId (#100 review MF4 — not per instance, since `techmapProviderFromEnv` mints a fresh
  * instance per call):
  *   - perSecond: paced by MinIntervalGate — every attempt, including retries, WAITS its turn. A
@@ -424,7 +439,8 @@ export interface TechmapPostingProviderOptions {
  *   - perMinute / perDay: enforced by FixedWindowBudget — exceeding either FAILS CLOSED immediately
  *     (provider_unavailable-shaped, retryable) rather than waiting, because waiting out a minute or a
  *     day on a request path is never acceptable (#100 review MF2).
- * perMonth is NOT enforced here — see techmapProviderFromEnv's and the registry's own note on why.
+ *   - perMonth: reserved atomically in PostingStore under `(providerId, UTC yearMonth)`, so deploys
+ *     and concurrent API processes cannot reset or race past the paid-provider ceiling.
  * The API key is read once at construction and never logged: HTTP errors below are turned into
  * `reason` strings built from the response status/body only, never from the request `init` (which is
  * the one place the key ever appears, in the `x-rapidapi-key` header).
@@ -441,17 +457,6 @@ export class TechmapPostingProvider implements PostingProvider {
     this.gate = sharedGate(this.providerId, minIntervalMs, opts.now, opts.sleep);
     this.perMinuteBudget = sharedBudget(`${this.providerId}:perMinute`, rateLimit.perMinute, 60_000, opts.now);
     this.perDayBudget = sharedBudget(`${this.providerId}:perDay`, rateLimit.perDay, 24 * 60 * 60_000, opts.now);
-    // NOT ENFORCED: rateLimit.perMonth (§2.9's "one internal budget per providerId" is otherwise
-    // complete for perSecond/perMinute/perDay above). #100 review MF2 — deliberate, not an oversight:
-    // this repo auto-deploys on every green push to `main` (CLAUDE.md), which restarts the API's
-    // single Fly machine and wipes any IN-PROCESS counter. A month-long window held only in process
-    // memory would reset on every deploy and give false confidence, not real protection — worse than
-    // an honestly-absent check. A real perMonth budget needs a DURABLE counter (postingStore.ts's
-    // Postgres driver is the natural place — a small `(providerId, yearMonth) -> count` table with an
-    // atomic increment-and-check) and is left for whoever wires the fetch->store call (#101), since
-    // building it un-exercised here would be speculative. Until then, postings.techmap_cost_usd_total
-    // (counters.ts) is the only guard against overrun — an operator watching real spend, not a limit
-    // enforced by this client.
   }
 
   async fetch(input: PostingProviderFetchInput): Promise<PostingProviderFetchResult> {
@@ -462,7 +467,11 @@ export class TechmapPostingProvider implements PostingProvider {
     for (let attempt = 1; attempt <= policy.retry.maxAttempts; attempt++) {
       if (attempt > 1 && policy.retry.backoffMs > 0) await sleep(policy.retry.backoffMs);
       await this.gate.wait(); // paced on EVERY attempt, including retries — a retry never bursts
-      if (!this.perMinuteBudget.allow() || !this.perDayBudget.allow()) {
+      const minuteReservation = this.perMinuteBudget.reserve();
+      const dayReservation = this.perDayBudget.reserve();
+      if (!minuteReservation || !dayReservation) {
+        minuteReservation?.release();
+        dayReservation?.release();
         // §2.9: exceeding our own internal budget marks the provider unavailable for THIS round —
         // never waited out, and never counted as a "call made" (no HTTP request happened).
         incrementCounter("postings.techmap_budget_exceeded");
@@ -471,6 +480,38 @@ export class TechmapPostingProvider implements PostingProvider {
           reason: "techmap: internal per-minute/per-day call budget exceeded for this window",
           retryable: true,
         };
+      }
+      const perMonth = policy.rateLimit.perMonth;
+      if (perMonth !== null) {
+        const current = new Date((this.opts.now ?? Date.now)());
+        const yearMonth = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}`;
+        const unavailable = () => {
+          minuteReservation.release();
+          dayReservation.release();
+          incrementCounter("postings.techmap_budget_store_unavailable");
+          console.error("[ops] techmap monthly call budget store unavailable; request blocked");
+          return { ok: false, reason: "techmap: monthly call budget store unavailable", retryable: true } as const;
+        };
+        if (this.opts.monthlyBudgetStore?.durable !== true) return unavailable();
+        try {
+          const allowed = await this.opts.monthlyBudgetStore.reserveMonthlyCall(
+            this.providerId,
+            yearMonth,
+            perMonth,
+          );
+          if (!allowed) {
+            minuteReservation.release();
+            dayReservation.release();
+            incrementCounter("postings.techmap_budget_exceeded");
+            return {
+              ok: false,
+              reason: `techmap: internal per-month call budget exceeded for ${yearMonth}`,
+              retryable: true,
+            };
+          }
+        } catch {
+          return unavailable();
+        }
       }
       incrementCounter("postings.techmap_calls_made");
       let outcome: PostingProviderFetchResult;
@@ -579,8 +620,15 @@ export class TechmapPostingProvider implements PostingProvider {
  *  UNPACED (that row's rateLimit.perSecond is null) straight into Techmap's real 429 wall, with
  *  retry/cost accounting from the WRONG policy (e.g. curated-pool's operatorHours cost model, which
  *  would record $0 forever for real HTTP calls). */
-export function techmapProviderFromEnv(policy: PostingProviderPolicyV1Value): PostingProvider | null {
+export function techmapProviderFromEnv(
+  policy: PostingProviderPolicyV1Value,
+  monthlyBudgetStore: Pick<PostingStore, "durable" | "reserveMonthlyCall">,
+): PostingProvider | null {
   if (policy.providerId !== "techmap") return null;
   const apiKey = process.env.TECHMAP_RAPIDAPI_KEY;
-  return apiKey ? new TechmapPostingProvider({ apiKey, policy }) : null;
+  if (apiKey && !monthlyBudgetStore.durable) {
+    console.error("[ops] TECHMAP_RAPIDAPI_KEY is set without a durable monthly budget store; provider disabled");
+    return null;
+  }
+  return apiKey ? new TechmapPostingProvider({ apiKey, policy, monthlyBudgetStore }) : null;
 }

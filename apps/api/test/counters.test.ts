@@ -81,6 +81,7 @@ describe("#103 posting-pool counters", () => {
       "postings.techmap_cost_usd_total": 0,
       "postings.techmap_normalize_dropped": 0,
       "postings.techmap_budget_exceeded": 0,
+      "postings.techmap_budget_store_unavailable": 0,
     });
   });
 });
