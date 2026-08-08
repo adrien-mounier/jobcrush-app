@@ -466,6 +466,11 @@ function freshState() {
     profExtra: 0, shownScore: BASE, ledger: null, lastUndo: null, descOpen: false,
     sheetOpen: false, page: 1, sheetY: null, /* px translateY, computed on boot */
     listOpen: false, openRows: {},
+    /* id -> the order you answered it in. Sorting by state alone made a just-answered ask land
+       mid-group (owner: "it goes randomly in the middle of the list... I expect to see it coming
+       after them"), because a stable sort falls back to the ADVERT's order, which the person
+       has no reason to know. This is the tiebreak that makes the promotion legible. */
+    answeredAt: {}, answerSeq: 0,
   };
 }
 S = freshState();
@@ -484,9 +489,15 @@ function targetScore() {
 function askState8(id) {
   if (id === "budget") return S.budget == null ? "open" : S.budget === "n" ? "settled" : "yes";
   if (id === "powerbi") return S.powerbi == null ? "open" : S.powerbi === 0 ? "settled" : "yes";
-  if (id === "agile") return S.stretch === "y" ? "stretched" : "open";
+  /* a DECLINED stretch is settled, not open - it was answered and never comes back. Before the
+     ask panel existed nothing showed the difference; now a row reading "not yet" under a note
+     promising it comes round in the cards would be a plain lie. Score and meter are unaffected:
+     both count only "yes"/"stretched". */
+  if (id === "agile") return S.stretch === "y" ? "stretched" : S.stretch === "n" ? "settled" : "open";
   return null;
 }
+function markAnswered(id) { S.answerSeq += 1; S.answeredAt[id] = S.answerSeq; }
+function unmarkAnswered(id) { delete S.answeredAt[id]; }
 function score8() {
   let solid = 0;
   ASKS8.forEach((a) => {
@@ -495,16 +506,14 @@ function score8() {
   });
   return { solid, total: ASKS8.length, part: 1 };
 }
+/* The dots and the panel rows are now ONE ordered list, mapped twice. They used to sort
+   separately - the dots on their own rank, the rows on theirs - which is exactly the kind of
+   duplication that lets two views of the same eight things drift apart. */
 function meterDots() {
-  const RANK = { on: 0, half: 1, "": 2 };
-  const cls = ASKS8.map((a) => {
-    if (a.kind === "yes") return "on";
-    if (a.kind === "part") return "half";
-    const s = askState8(a.id);
-    return s === "yes" || s === "stretched" ? "on" : "";
-  });
-  cls.sort((a, b) => RANK[a] - RANK[b]);
-  return cls.map((c) => `<i class="${c}"></i>`).join("");
+  return askOrder().map((a) => {
+    const s = rowState(a);
+    return `<i class="${s === "yes" || s === "stretched" ? "on" : s === "part" ? "half" : ""}"></i>`;
+  }).join("");
 }
 /* ── the read-only ask panel ────────────────────────────────────────────────────
    Ported unchanged from tailor-desktop-deck.prototype.html — same states, same evidence, same
@@ -527,8 +536,9 @@ function rowProof(a) {
     if (S.powerbi) return { text: `Power BI (${S.powerbi} year${S.powerbi === 1 ? "" : "s"}).`, src: "You answered this on the card." };
     if (S.powerbi === 0) return { text: "You said none yet. This advert now knows where you stand.", src: "You answered this on the card." };
   }
-  if (a.id === "agile" && S.stretch === "y") {
-    return { text: COPY.sLine, src: "A stretch you approved — it stays with this application and never joins your profile." };
+  if (a.id === "agile") {
+    if (S.stretch === "y") return { text: COPY.sLine, src: "A stretch you approved — it stays with this application and never joins your profile." };
+    if (S.stretch === "n") return { text: "You said not for this one.", src: "You answered this on the card. It can still be offered on a different advert." };
   }
   return null;
 }
@@ -539,11 +549,32 @@ function dotSVG(s) {
   if (s === "settled") return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="5.6" fill="#4d5865"></circle></svg>';
   return '<svg class="dot" viewBox="0 0 15 15" aria-hidden="true"><circle cx="7.5" cy="7.5" r="6.6" stroke="#8a97a6" stroke-width="1.2" fill="none" stroke-dasharray="2.6 2.4"></circle></svg>';
 }
-/* Same rank as meterDots(), so row N and dot N are the same ask. */
+/* THE one ordering, consumed by both the meter dots and the panel rows, so row N is dot N by
+   construction rather than by two functions agreeing.
+   Two keys, and the second is the one the owner asked for: within a group, an ask you have just
+   answered goes AFTER the ones that were already there. Ranking on state alone left a stable
+   sort to fall back on the ADVERT's own order, so answering the budget question dropped its row
+   into the middle of "you have this" - the promotion happened, and it looked like a shuffle. */
 const ROW_RANK = { yes: 0, stretched: 0, part: 1, settled: 2, open: 2 };
+function askOrder() {
+  return [...ASKS8].sort((a, b) => {
+    const r = ROW_RANK[rowState(a)] - ROW_RANK[rowState(b)];
+    if (r) return r;
+    return (S.answeredAt[a.id] || 0) - (S.answeredAt[b.id] || 0);
+  });
+}
+/* which asks will actually still be dealt as cards - an ask can be "not yet" AND already behind
+   you if you used "skip to the end", and the closing note must not promise otherwise */
+const QUEUE_ID = { budget: "budget", powerbi: "powerbi", agile: "stretch" };
+function stillComing() {
+  return ASKS8.filter((a) => {
+    if (rowState(a) !== "open") return false;
+    const i = S.queue.indexOf(QUEUE_ID[a.id]);
+    return i >= 0 && i >= S.idx;
+  }).length;
+}
 function askListHtml() {
-  const rows = [...ASKS8]
-    .sort((a, b) => ROW_RANK[rowState(a)] - ROW_RANK[rowState(b)])
+  const rows = askOrder()
     .map((a) => {
       const st = rowState(a);
       const pf = rowProof(a);
@@ -559,8 +590,7 @@ function askListHtml() {
       return `<div class="qrow ${open ? "open" : ""}" data-state="${st}">${head}${
         open && pf ? `<div class="qbody"><div class="qproof">${esc(pf.text)}<span class="qsrc">${esc(pf.src)}</span></div></div>` : ""}</div>`;
     }).join("");
-  const stillOpen = ASKS8.filter((a) => rowState(a) === "open").length;
-  return `<div class="asklist">${rows}${stillOpen ? `<p class="asknote">${esc(COPY.askNote)}</p>` : ""}</div>`;
+  return `<div class="asklist">${rows}${stillComing() ? `<p class="asknote">${esc(COPY.askNote)}</p>` : ""}</div>`;
 }
 
 function changesCount() { return (MARKET.strips && !S.stripBack ? 1 : 0) + (UNPRINTED.filter((_, i) => !S.subBack[i]).length ? 1 : 0); }
@@ -887,10 +917,11 @@ const ACTIONS = {
   budget(el) {
     const v = el.dataset.v;
     S.budget = v;
+    markAnswered("budget");
     const fact = v !== "n";
     if (fact) S.profExtra += 1;
     led(v === "y" ? COPY.ledBudgetY : v === "s" ? COPY.ledBudgetS : COPY.ledBudgetN, fact,
-        () => { S.budget = null; if (fact) S.profExtra -= 1; S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "budget"); S.ledger = null; S.lastUndo = null; });
+        () => { S.budget = null; unmarkAnswered("budget"); if (fact) S.profExtra -= 1; S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "budget"); S.ledger = null; S.lastUndo = null; });
     advance();
     render({ tween: true, announce: `${targetScore()} percent. ${S.ledger.text}`, mat: fact ? ["sum1"] : [], fly: fact ? { label: "+1 fact", to: "profile" } : null });
   },
@@ -898,18 +929,20 @@ const ACTIONS = {
     const t = document.getElementById("powIn").value.trim(); const v = Number(t);
     if (t === "" || !Number.isInteger(v) || v < 0) { S.powErr = COPY.qPowErr; render({ focusIn: true }); return; }
     S.powErr = null; S.powerbi = v;
+    markAnswered("powerbi");
     if (v === 0) {
-      led(COPY.ledPowN, false, () => { S.powerbi = null; S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "powerbi"); S.ledger = null; S.lastUndo = null; });
+      led(COPY.ledPowN, false, () => { S.powerbi = null; unmarkAnswered("powerbi"); S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "powerbi"); S.ledger = null; S.lastUndo = null; });
       advance(); render({ announce: COPY.ledPowN }); return;
     }
     S.profExtra += 1;
-    led(COPY.ledPow(v), true, () => { S.powerbi = null; S.profExtra -= 1; S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "powerbi"); S.ledger = null; S.lastUndo = null; });
+    led(COPY.ledPow(v), true, () => { S.powerbi = null; unmarkAnswered("powerbi"); S.profExtra -= 1; S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "powerbi"); S.ledger = null; S.lastUndo = null; });
     advance();
     render({ tween: true, announce: `${targetScore()} percent. ${COPY.ledPow(v)}`, mat: ["skills"], fly: { label: "+1 fact", to: "profile" } });
   },
   stretch(el) {
     const v = el.dataset.v;
     S.stretch = v;
+    markAnswered("agile");
     if (v === "y") {
       led(COPY.ledStretch, true, () => ACTIONS["stretch-undo"]());
       advance();
@@ -918,6 +951,7 @@ const ACTIONS = {
   },
   "stretch-undo"() {
     S.stretch = null;
+    unmarkAnswered("agile");
     if (!S.queue.includes("stretch")) { S.idx = S.queue.indexOf("changed"); S.queue.splice(S.idx, 0, "stretch"); }
     led(COPY.ledStretchOff, false, null);
     render({ tween: true, announce: COPY.ledStretchOff });
