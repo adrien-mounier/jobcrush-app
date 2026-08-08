@@ -1,0 +1,622 @@
+<!-- PROTOTYPE — throwaway. Issue #48: desktop layout direction for the onboarding HUD screens.
+     Per-screen decisions (refined round):
+       Front door → A (centred column, render fix).
+       Discovery  → B (wide two-column): question block on top under the answers strip, a permanent
+                    free-text box, redesigned promise + progress stepper.
+       Deck       → A (centred card) with the score breakdown + "Strong" match-quality indicator
+                    integrated into the card.
+       Tailor     → B (wide two-column), redesigned: question input directly under the job-title
+                    card, a real gold "Done — show my CV" CTA at the bottom of the left column.
+     A/B toggle still flips each screen for comparison. Not production code. Tokens copied 1:1
+     from frontdoor.css / discovery.css / deck.css / tailor.css. Content mocked in-memory. -->
+<!DOCTYPE html>
+<html lang="en" data-variant="A" data-screen="frontdoor">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>JobCrush — desktop layout: refined (prototype)</title>
+    <style>
+      :root {
+        --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-line: #2b333d;
+        --hud-ink: #e8eaed; --hud-mute: #7f8b98;
+        --gold: #e8a33d; --gold-dim: #a8762b; --weak: #6f7d8c; --settled: #4d5865;
+        --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+        --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+        --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+        --paper: #f6f2ea; --paper-edge: #e2dacb; --ink: #16150f; --ink-mute: #6b6455; --rule: #d9d0bd;
+        --gold-glow: rgba(232, 163, 61, 0.22);
+        --desk-col: 560px; --desk-wide: 1120px;
+        --col-left: 460px;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; background: var(--hud-0); color: var(--hud-ink); font-family: var(--sans); }
+      body { min-height: 100vh; }
+
+      /* ---- prototype chrome ---- */
+      .proto-tabs { position: fixed; top: 0; left: 0; right: 0; z-index: 200; display: flex; gap: 6px; padding: 8px 12px;
+        background: rgba(9,12,16,0.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--hud-line); font-family: var(--mono); font-size: 11px; }
+      .proto-tabs .label { color: var(--hud-mute); padding: 6px 8px; letter-spacing: 0.08em; text-transform: uppercase; }
+      .proto-tabs button { appearance: none; border: 1px solid var(--hud-line); background: var(--hud-2); color: var(--hud-ink);
+        font: inherit; font-size: 11px; padding: 6px 11px; border-radius: 999px; cursor: pointer; }
+      .proto-tabs button[aria-pressed="true"] { background: var(--gold); color: #1a1206; border-color: var(--gold); }
+      .proto-tabs .spacer { flex: 1; } .proto-tabs .hint { color: var(--hud-mute); padding: 6px 8px; }
+      .proto-switcher { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+        background: #1b1b1b; color: #fff; border: 1px solid #444; border-radius: 999px; box-shadow: 0 8px 24px -8px rgba(0,0,0,0.7); font-family: var(--sans); font-size: 13px; }
+      .proto-switcher button { appearance: none; border: none; background: #333; color: #fff; font: inherit; font-weight: 700; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
+      .proto-switcher button:hover { background: #444; }
+      .proto-switcher .vlabel { min-width: 230px; text-align: center; font-weight: 600; }
+      .proto-switcher .vname { color: #999; font-weight: 400; font-size: 11px; display: block; }
+
+      .stage { position: fixed; inset: 0; overflow: hidden; }
+      /* .stage .screen (0,2,0) outranks .hud (0,1,0) so inactive screens stay hidden; the
+         active-screen rule below (0,3,1) outranks both and unhides the current one. */
+      .stage .screen { display: none; }
+      html[data-screen="frontdoor"] .screen[data-screen="frontdoor"],
+      html[data-screen="discovery"] .screen[data-screen="discovery"],
+      html[data-screen="deck"]      .screen[data-screen="deck"],
+      html[data-screen="tailor"]    .screen[data-screen="tailor"] { display: flex; flex-direction: column; }
+      .grow-wrap { display: flex; flex: 1 1 0; min-height: 0; }
+
+      .hud { position: fixed; inset: 0; z-index: 100; overflow: hidden; background: var(--hud-0); color: var(--hud-ink); font-family: var(--sans); display: flex; flex-direction: column; }
+
+      /* ---- shared topbar / countdown ---- */
+      .topbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; flex: 0 0 auto; }
+      .wordmark { font-size: 12.5px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--hud-mute); }
+      .badge { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--gold);
+        background: rgba(232,163,61,0.1); border: 1px solid rgba(232,163,61,0.32); border-radius: 999px; padding: 5px 11px; }
+      .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+      .countdown { flex: 0 0 auto; margin: 0; padding: 0 16px 10px; font-family: var(--mono); font-size: 11px; color: var(--hud-mute); }
+
+      /* ---- refined progress stepper (replaces the chunky 4-bar rail) ---- */
+      .session-strip { flex: 0 0 auto; display: flex; align-items: center; gap: 16px; padding: 4px 16px 14px; }
+      .session-strip .ss-count { font-family: var(--mono); font-size: 11px; color: var(--hud-mute); white-space: nowrap; }
+      .prog { flex: 1; display: flex; align-items: center; gap: 0; }
+      .prog-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; position: relative; }
+      .prog-step::before { content: ""; position: absolute; top: 5px; left: 0; width: 100%; height: 2px; background: var(--hud-2); }
+      .prog-step:first-child::before { left: 50%; width: 50%; }
+      .prog-step:last-child::before { width: 50%; }
+      .prog-step.done::before, .prog-step.active::before { background: var(--gold-dim); }
+      .prog-step .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--hud-2); border: 2px solid var(--hud-line); position: relative; z-index: 1; transition: all 200ms ease; }
+      .prog-step.done .dot { background: var(--gold); border-color: var(--gold); }
+      .prog-step.active .dot { background: var(--hud-0); border-color: var(--gold); box-shadow: 0 0 0 4px rgba(232,163,61,0.18); }
+      .prog-step .lbl { font-family: var(--mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--hud-mute); white-space: nowrap; }
+      .prog-step.done .lbl { color: var(--hud-ink); }
+      .prog-step.active .lbl { color: var(--gold); }
+      .prog-step.done .lbl::after { content: " ✓"; color: var(--gold); }
+      .ss-pct { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--hud-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+      /* ---- refined promise (slim stat banner) ---- */
+      .promise-v2 { display: flex; align-items: baseline; gap: 13px; padding: 11px 15px; border-radius: 12px;
+        border: 1px solid rgba(232,163,61,0.28); background: linear-gradient(135deg, rgba(232,163,61,0.10), rgba(232,163,61,0.02)); }
+      .promise-v2 .n { font-family: var(--mono); font-size: 23px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1; }
+      .promise-v2 .txt { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--hud-ink); }
+      .promise-v2 .txt .mute { color: var(--hud-mute); }
+
+      .divider { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; padding: 0 16px 9px; font-family: var(--mono); font-size: 10px; color: var(--hud-mute); text-transform: uppercase; letter-spacing: 0.1em; }
+      .divider::after { content: ""; flex: 1; height: 1px; background: var(--hud-line); }
+      .band-cv { flex: 1 1 0; overflow-y: auto; min-height: 0; padding: 0 16px 12px; }
+      .cv { position: relative; overflow: hidden; min-height: 100%; padding: 22px 22px 28px; border-radius: 12px; border: 1px solid var(--paper-edge); background: var(--paper); color: var(--ink); font-family: var(--serif);
+        box-shadow: 0 18px 44px -14px rgba(0,0,0,0.75), 0 1px 0 rgba(255,255,255,0.16) inset; }
+      .cv::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.5; background-image: radial-gradient(rgba(0,0,0,0.035) 1px, transparent 1px); background-size: 3px 3px; }
+      .cv-role { min-height: 20px; margin: 0 0 20px; font-family: var(--sans); font-size: 15px; font-weight: 600; color: var(--ink); }
+      .cv-sec { margin: 0 0 8px; font-family: var(--sans); font-size: 9.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-mute); }
+      .cv-line { position: relative; margin: 0 0 9px; padding-left: 14px; font-size: 14.5px; line-height: 1.5; }
+      .cv-line::before { content: ""; position: absolute; left: 0; top: 0.62em; width: 5px; height: 5px; border-radius: 50%; background: var(--gold-dim); }
+
+      .ask { flex: 0 0 auto; padding: 15px 16px calc(15px + env(safe-area-inset-bottom)); background: var(--hud-1); border-top: 1px solid var(--hud-line); }
+      .ask-inner { max-width: var(--desk-col); margin-inline: auto; }
+      .ask .q { display: block; margin: 0 0 13px; font-size: 16.5px; font-weight: 550; line-height: 1.35; letter-spacing: -0.01em; text-wrap: balance; color: var(--hud-ink); }
+      .ask .sub { margin: -7px 0 12px; font-size: 12.5px; line-height: 1.45; color: var(--hud-mute); }
+      .opts { display: flex; flex-direction: column; gap: 7px; }
+      .opt { appearance: none; width: 100%; text-align: left; background: var(--hud-2); color: var(--hud-ink); border: 1px solid var(--hud-line); border-radius: 11px; padding: 12.5px 15px; font: inherit; font-size: 14.5px; cursor: pointer; transition: border-color 140ms ease, background 140ms ease; }
+      .opt:hover { background: #262f3a; border-color: #3b4653; }
+
+      /* permanent free-text answer box (discovery) — always available, LLM-treated */
+      .freetext { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--hud-line); }
+      .freetext .ft-label { margin: 0 0 8px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hud-mute); }
+      .field { display: flex; gap: 8px; }
+      .field textarea { flex: 1; min-width: 0; appearance: none; background: var(--hud-2); color: var(--hud-ink); border: 1px solid var(--hud-line); border-radius: 11px; padding: 12.5px 15px; font: inherit; font-size: 14.5px; line-height: 1.45; resize: none; height: 60px; transition: border-color 160ms ease; }
+      .field textarea:focus, .field textarea:focus-visible { outline: none; border-color: var(--gold); }
+      .field textarea::placeholder { color: #5d6874; }
+      .go { appearance: none; border: none; border-radius: 11px; padding: 0 18px; font: inherit; font-size: 15px; font-weight: 650; color: #1a1206; background: var(--gold); cursor: pointer; transition: transform 90ms ease; }
+      .go:active { transform: scale(0.97); }
+      .go.wide { width: 100%; padding: 14px; margin-top: 8px; }
+
+      /* ============================================================= */
+      /* FRONT DOOR                                                     */
+      /* ============================================================= */
+      .frontdoor .invite { position: absolute; inset: 0; display: grid; place-items: center; padding: 0 26px; text-align: center; }
+      .frontdoor .stack { display: flex; flex-direction: column; align-items: center; }
+      .frontdoor .h { display: flex; flex-direction: column; align-items: center; font-size: 30px; line-height: 1.14; font-weight: 680; letter-spacing: -0.028em; margin: 0; text-wrap: balance; }
+      .frontdoor .h .g { color: var(--gold); }
+      .frontdoor .ready { appearance: none; border: none; font: inherit; cursor: pointer; background: var(--gold); color: #1a1206; font-weight: 680; border-radius: 999px; margin-top: 30px; padding: 15px 38px; font-size: 16px; box-shadow: 0 14px 34px -12px rgba(232,163,61,0.55); }
+      .frontdoor .footnote { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 30px 36px; font-size: 12.5px; color: var(--hud-mute); text-align: center; }
+      .frontdoor .footnote .upload { color: var(--hud-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+      .frontdoor-split { display: flex; align-items: center; justify-content: center; gap: 64px; width: 100%; max-width: var(--desk-wide); margin: 0 auto; padding: 0 40px; }
+      .frontdoor-split .pitch { flex: 0 0 460px; text-align: left; }
+      .frontdoor-split .pitch .h { align-items: flex-start; font-size: 44px; line-height: 1.08; }
+      .frontdoor-split .pitch .ready { margin-top: 36px; }
+      .frontdoor-split .pitch .lede { margin: 22px 0 0; font-size: 15px; line-height: 1.55; color: var(--hud-mute); max-width: 420px; }
+      .frontdoor-split .preview { flex: 0 0 380px; }
+      .frontdoor-split .preview .pv-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hud-mute); margin-bottom: 10px; }
+      .frontdoor-split .preview .pv-card { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 14px; padding: 18px; }
+      .frontdoor-split .preview .pv-card .pvr { display: flex; gap: 9px; padding: 7px 0; font-size: 13px; color: var(--hud-ink); border-bottom: 1px dashed var(--hud-line); }
+      .frontdoor-split .preview .pv-card .pvr:last-child { border-bottom: none; }
+      .frontdoor-split .preview .pv-card .mk { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font-size: 9px; background: rgba(232,163,61,0.18); color: var(--gold); border: 1px solid rgba(232,163,61,0.4); }
+      .frontdoor-split .preview .pv-card .mk.weak { background: rgba(111,125,140,0.16); color: var(--weak); border-color: rgba(111,125,140,0.35); }
+
+      /* ============================================================= */
+      /* Variant A — centred column (discovery/deck/tailor)             */
+      /* ============================================================= */
+      html[data-variant="A"] .hud[data-variant="A"] .topbar,
+      html[data-variant="A"] .hud[data-variant="A"] .countdown,
+      html[data-variant="A"] .hud[data-variant="A"] .session-strip,
+      html[data-variant="A"] .hud[data-variant="A"] .divider,
+      html[data-variant="A"] .hud[data-variant="A"] .band-cv,
+      html[data-variant="A"] .hud[data-variant="A"] .promise-v2,
+      html[data-variant="A"] .hud[data-variant="A"] .deckcount,
+      html[data-variant="A"] .hud[data-variant="A"] .deck,
+      html[data-variant="A"] .hud[data-variant="A"] .live-wrap {
+        max-width: var(--desk-col); margin-inline: auto;
+      }
+      html[data-variant="A"] .hud[data-variant="A"] .ask { padding-inline: max(16px, calc((100% - var(--desk-col)) / 2)); }
+
+      /* ============================================================= */
+      /* Variant B — wide two-column                                    */
+      /* ============================================================= */
+      .hud[data-variant="B"] .desk-wide { width: 100%; max-width: var(--desk-wide); margin: 0 auto; flex: 1 1 0; display: flex; flex-direction: row; min-height: 0; }
+      .hud[data-variant="B"] .two-col { display: flex; gap: 0; flex: 1 1 0; min-height: 0; }
+      .hud[data-variant="B"] .two-col > .col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+      .hud[data-variant="B"] .two-col > .col + .col { border-left: 1px solid var(--hud-line); }
+      .hud[data-variant="B"] .col-head { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hud-mute); padding: 14px 22px 8px; flex: 0 0 auto; }
+
+      /* discovery B: question on top of the right column, CV on the left */
+      .discovery[data-variant="B"] .band-cv { flex: 1 1 0; padding: 0 22px 16px; }
+      .discovery[data-variant="B"] .right-panel { flex: 1 1 0; overflow-y: auto; padding: 0 22px 22px; display: flex; flex-direction: column; gap: 16px; }
+      .discovery[data-variant="B"] .ask-card { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 14px; padding: 18px; }
+      .discovery[data-variant="B"] .ask-card .q { font-size: 19px; font-weight: 600; line-height: 1.3; letter-spacing: -0.015em; margin: 0 0 6px; text-wrap: balance; color: var(--hud-ink); }
+      .discovery[data-variant="B"] .ask-card .sub { margin: 0 0 14px; font-size: 12.5px; line-height: 1.45; color: var(--hud-mute); }
+      .discovery[data-variant="B"] .ask-card .opt { margin-bottom: 7px; }
+      .discovery[data-variant="B"] .ask-card .opt:last-of-type { margin-bottom: 0; }
+
+      /* deck B (comparison only) */
+      .deck-screen[data-variant="B"] .deck { flex: 1 1 0; padding: 4px 22px 16px; min-height: 0; }
+      .detail-aside { flex: 1 1 0; overflow-y: auto; padding: 18px 22px; }
+      .detail-aside h3 { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--hud-mute); margin: 0 0 10px; }
+      .detail-aside .stat { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px dashed var(--hud-line); font-size: 13.5px; }
+      .detail-aside .stat .v { color: var(--gold); font-family: var(--mono); }
+
+      /* ---- deck card (shared A and B) ---- */
+      .jobcard { position: relative; height: 100%; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 18px; display: flex; flex-direction: column; overflow: hidden; }
+      .jobcard .jcbody { flex: 1; overflow-y: auto; padding: 20px 20px 8px; min-height: 0; }
+      .jobcard .jcfoot { flex: 0 0 auto; display: flex; gap: 10px; padding: 13px 14px 14px; border-top: 1px solid var(--hud-line); background: var(--hud-1); }
+      .jobcard .hd { display: flex; gap: 13px; align-items: flex-start; }
+      .jobcard .hd .t { flex: 1; min-width: 0; }
+      .jobcard h2 { font-size: 19px; font-weight: 620; letter-spacing: -0.015em; margin: 0 0 4px; line-height: 1.25; text-wrap: balance; }
+      .jobcard .co { font-size: 12.5px; color: var(--hud-mute); margin: 0; line-height: 1.45; }
+      .score { position: relative; flex: 0 0 auto; display: grid; place-items: center; width: 64px; height: 64px; }
+      .score svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+      .score .bg { fill: none; stroke: rgba(255,255,255,0.12); stroke-width: 3.5; }
+      .score .fg { fill: none; stroke: var(--gold); stroke-width: 3.5; stroke-linecap: round; }
+      .score .n { font-family: var(--mono); font-size: 18px; font-weight: 600; color: var(--hud-ink); }
+      .score .n .pct { font-size: 8px; color: var(--hud-mute); }
+      .bubble { margin: 16px 0 2px; padding: 14px 15px; border-radius: 13px; background: linear-gradient(135deg, rgba(232,163,61,0.12), rgba(232,163,61,0.04)); border: 1px solid rgba(232,163,61,0.3); }
+      .bubble p { margin: 0; font-size: 13px; line-height: 1.5; }
+      .bubble p .mute { color: var(--hud-mute); }
+      .flat { margin-top: 16px; display: flex; flex-direction: column; gap: 7px; }
+      .flat h3 { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--hud-mute); margin: 10px 0 2px; }
+      .row { display: flex; gap: 9px; font-size: 13.5px; line-height: 1.4; align-items: flex-start; padding: 1px 0; }
+      .mk { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font-size: 9px; margin-top: 2px; line-height: 1; }
+      .fit .mk { background: rgba(232,163,61,0.18); color: var(--gold); border: 1px solid rgba(232,163,61,0.4); }
+      .open .mk { background: rgba(111,125,140,0.16); color: var(--weak); border: 1px solid rgba(111,125,140,0.35); }
+      .open { color: var(--hud-mute); }
+      .sw { appearance: none; flex: 1; min-height: 48px; border: 1px solid var(--hud-line); border-radius: 999px; padding: 12px 14px; background: var(--hud-2); color: var(--hud-mute); font: inherit; font-size: 14.5px; font-weight: 620; cursor: pointer; }
+      .sw.yes { flex: 1.6; background: var(--gold); border-color: var(--gold); color: #1a1206; }
+
+      /* ---- match breakdown inside the deck card (A) ---- */
+      .breakdown { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--hud-line); }
+      .breakdown .bd-title { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--hud-mute); margin: 0 0 12px; }
+      .bd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .bd-cell { background: var(--hud-2); border: 1px solid var(--hud-line); border-radius: 11px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
+      .bd-cell .bd-n { font-family: var(--mono); font-size: 19px; font-weight: 600; color: var(--hud-ink); font-variant-numeric: tabular-nums; line-height: 1; }
+      .bd-cell .bd-n.gold { color: var(--gold); }
+      .bd-cell .bd-l { font-size: 11px; color: var(--hud-mute); }
+      .bd-cell .bd-pill { align-self: flex-start; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold);
+        background: rgba(232,163,61,0.12); border: 1px solid rgba(232,163,61,0.4); border-radius: 999px; padding: 3px 10px; line-height: 1.4; }
+      .bd-cell .bd-pill::before { content: "▲ "; font-size: 8px; }
+
+      /* ---- tailor (live card shared) ---- */
+      .live-card { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 18px; padding: 20px; }
+      .live-card h2 { font-size: 19px; font-weight: 620; letter-spacing: -0.015em; margin: 0 0 4px; line-height: 1.25; text-wrap: balance; }
+      .live-card .co { font-size: 12.5px; color: var(--hud-mute); margin: 0 0 14px; }
+      .live-card .why { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--gold); margin: 0 0 6px; }
+      .live-card .why-body { font-size: 13px; line-height: 1.5; color: var(--hud-ink); margin: 0; }
+      .live-card .ledger { font-family: var(--mono); font-size: 10.5px; color: var(--gold); margin: 14px 0 0; text-align: right; }
+
+      /* tailor B — redesigned: live card, then question input directly below, CTA at bottom */
+      .tailor-screen[data-variant="B"] .left-col { flex: 0 0 var(--col-left); display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--hud-line); }
+      .tailor-screen[data-variant="B"] .right-col { flex: 1 1 0; display: flex; flex-direction: column; min-height: 0; }
+      .tailor-screen[data-variant="B"] .t-scroll { flex: 1 1 0; overflow-y: auto; padding: 16px 22px; display: flex; flex-direction: column; gap: 14px; }
+      .tailor-screen[data-variant="B"] .ask-card { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 14px; padding: 18px; }
+      .tailor-screen[data-variant="B"] .ask-card .q { font-size: 17px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; margin: 0 0 6px; text-wrap: balance; color: var(--hud-ink); }
+      .tailor-screen[data-variant="B"] .ask-card .sub { margin: 0 0 14px; font-size: 12.5px; line-height: 1.45; color: var(--hud-mute); }
+      .tailor-screen[data-variant="B"] .ask-card .field textarea { height: 72px; }
+      /* CTA bar pinned to the bottom of the left column — a real gold call-to-action */
+      .tailor-screen[data-variant="B"] .t-cta-bar { flex: 0 0 auto; padding: 14px 22px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid var(--hud-line); background: var(--hud-1); display: flex; flex-direction: column; gap: 10px; }
+      .t-back { appearance: none; background: none; border: none; font: inherit; font-size: 12.5px; color: var(--hud-mute); cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 3px; align-self: flex-start; }
+      .t-back:hover { color: var(--hud-ink); }
+      .t-done { appearance: none; border: none; border-radius: 12px; padding: 16px; font: inherit; font-size: 15.5px; font-weight: 660; background: var(--gold); color: #1a1206; cursor: pointer;
+        box-shadow: 0 12px 28px -10px rgba(232,163,61,0.5); transition: transform 90ms ease; width: 100%; }
+      .t-done:active { transform: scale(0.985); }
+      .tailor-screen[data-variant="B"] .right-col .band-cv { flex: 1 1 0; padding: 0 22px 16px; }
+
+      .curtain { flex: 1; display: grid; place-items: center; text-align: center; padding: 32px; background: rgba(9,12,16,0.9); backdrop-filter: blur(8px); }
+      .curtain .big { font-size: 27px; font-weight: 680; letter-spacing: -0.02em; margin: 0 0 26px; line-height: 1.25; text-wrap: balance; }
+      .curtain .big em { font-style: normal; color: var(--gold); }
+
+      @media (max-width: 640px) { .proto-switcher, .proto-tabs { display: none; } }
+    </style>
+  </head>
+  <body>
+    <nav class="proto-tabs" aria-label="Prototype screen">
+      <span class="label">Screen</span>
+      <button data-screen="frontdoor" aria-pressed="true">Front door</button>
+      <button data-screen="discovery" aria-pressed="false">Discovery</button>
+      <button data-screen="deck" aria-pressed="false">Deck</button>
+      <button data-screen="tailor" aria-pressed="false">Tailor</button>
+      <span class="spacer"></span>
+      <span class="hint">← / → to flip A vs B</span>
+    </nav>
+
+    <div class="proto-switcher" role="group" aria-label="Layout variant">
+      <button id="prev" aria-label="Previous variant">‹</button>
+      <span class="vlabel"><span id="vkey">A</span><span class="vname" id="vname">Centred column — render fix</span></span>
+      <button id="next" aria-label="Next variant">›</button>
+    </div>
+
+    <div class="stage">
+      <!-- ============ FRONT DOOR ============ -->
+      <section class="screen hud frontdoor" data-screen="frontdoor">
+        <div class="invite">
+          <div class="variant-A-stack" data-show="A">
+            <div class="stack">
+              <p class="h"><span>Answer questions.</span><span class="g">Collect jobs.</span></p>
+              <button class="ready">Ready?</button>
+            </div>
+          </div>
+          <div class="frontdoor-split" data-show="B" hidden>
+            <div class="pitch">
+              <p class="h"><span>Answer questions.</span><span class="g">Collect jobs.</span></p>
+              <p class="lede">Upload a CV or answer a few questions. JobCrush writes a tailored draft for every job you swipe — ATS-aware, in your voice, never invented.</p>
+              <button class="ready">Ready?</button>
+            </div>
+            <div class="preview">
+              <div class="pv-label">What you'll get</div>
+              <div class="pv-card">
+                <div class="pvr"><span class="mk">✓</span> A CV tailored to a live job posting</div>
+                <div class="pvr"><span class="mk">✓</span> A fit score against every requirement</div>
+                <div class="pvr"><span class="mk">✓</span> The gaps the job asks for and you don't yet have</div>
+                <div class="pvr"><span class="mk weak">?</span> Questions that turn into CV lines as you answer</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footnote">
+          <p data-show="A">Already have a CV? <span class="upload">Upload it</span> and skip the questions it already answers.</p>
+          <p data-show="B" hidden>Already have a CV? <span class="upload">Upload it</span> and skip the questions it already answers.</p>
+        </div>
+      </section>
+
+      <!-- ============ DISCOVERY ============ -->
+      <section class="screen hud discovery" data-screen="discovery" data-variant="A">
+        <div class="topbar">
+          <span class="wordmark">JobCrush</span>
+          <span class="badge">12 facts</span>
+        </div>
+
+        <!-- A: centred single column -->
+        <div data-show="A">
+          <div class="session-strip">
+            <span class="ss-count">2 answers until your next jobs</span>
+            <div class="prog">
+              <div class="prog-step done"><span class="dot"></span><span class="lbl">Summary</span></div>
+              <div class="prog-step active"><span class="dot"></span><span class="lbl">Experience</span></div>
+              <div class="prog-step"><span class="dot"></span><span class="lbl">Skills</span></div>
+              <div class="prog-step"><span class="dot"></span><span class="lbl">Education</span></div>
+            </div>
+            <span class="ss-pct">48%</span>
+          </div>
+          <div style="padding:0 16px 12px;">
+            <div class="promise-v2"><span class="n">418</span><p class="txt">IT project manager jobs open in Paris right now. <span class="mute">Keep going and I'll score them against you.</span></p></div>
+          </div>
+          <div class="divider">your CV</div>
+          <div class="band-cv">
+            <div class="cv">
+              <p class="cv-role">IT Project Manager — Paris</p>
+              <p class="cv-sec">EXPERIENCE</p>
+              <p class="cv-line">Led a 9-person team delivering a €2.4M ERP rollout on Jira and MS Project.</p>
+              <p class="cv-line">Cut release cycle from 6 weeks to 2 by introducing fortnightly demos.</p>
+              <p class="cv-sec">SKILLS</p>
+              <p class="cv-line">Jira, MS Project, ERP (SAP), stakeholder reporting, risk registers.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- B: two columns — CV left, question on top of the right panel -->
+        <div class="desk-wide two-col" data-show="B" hidden>
+          <div class="col">
+            <div class="col-head">Your CV — written as you answer</div>
+            <div class="band-cv">
+              <div class="cv">
+                <p class="cv-role">IT Project Manager — Paris</p>
+                <p class="cv-sec">EXPERIENCE</p>
+                <p class="cv-line">Led a 9-person team delivering a €2.4M ERP rollout on Jira and MS Project.</p>
+                <p class="cv-line">Cut release cycle from 6 weeks to 2 by introducing fortnightly demos.</p>
+                <p class="cv-line">Owned the programme risk register across 3 vendors and 40+ stakeholders.</p>
+                <p class="cv-sec">SKILLS</p>
+                <p class="cv-line">Jira, MS Project, ERP (SAP), stakeholder reporting, risk registers.</p>
+                <p class="cv-sec">EDUCATION</p>
+                <p class="cv-line">MSc Project Management — École Polytechnique, 2018.</p>
+              </div>
+            </div>
+          </div>
+          <div class="col right-panel">
+            <!-- session strip + question on top, under the answers count -->
+            <div class="session-strip" style="padding:4px 0 14px;">
+              <span class="ss-count">2 answers until your next jobs</span>
+              <div class="prog">
+                <div class="prog-step done"><span class="dot"></span><span class="lbl">Summary</span></div>
+                <div class="prog-step active"><span class="dot"></span><span class="lbl">Experience</span></div>
+                <div class="prog-step"><span class="dot"></span><span class="lbl">Skills</span></div>
+                <div class="prog-step"><span class="dot"></span><span class="lbl">Education</span></div>
+              </div>
+              <span class="ss-pct">48%</span>
+            </div>
+            <div class="ask-card">
+              <p class="q">Which methodology are you most fluent in?</p>
+              <p class="sub">I'll score jobs against the one you lean into.</p>
+              <div class="opts">
+                <button class="opt">Agile / Scrum</button>
+                <button class="opt">Waterfall / PRINCE2</button>
+                <button class="opt">Hybrid — both, depending on the programme</button>
+                <button class="opt">SAFe / scaled agile</button>
+              </div>
+              <div class="freetext">
+                <p class="ft-label">Or type your own answer — we'll read it</p>
+                <div class="field"><textarea placeholder="Anything else worth knowing about how you work?"></textarea><button class="go">Send</button></div>
+              </div>
+            </div>
+            <div class="promise-v2"><span class="n">418</span><p class="txt">IT project manager jobs open in Paris right now. <span class="mute">Keep going and I'll score them against you.</span></p></div>
+          </div>
+        </div>
+
+        <!-- A ask band (full-bleed, centred content) -->
+        <div class="ask" data-show="A">
+          <div class="ask-inner">
+            <p class="q">Which methodology are you most fluent in?</p>
+            <p class="sub">I'll score jobs against the one you lean into.</p>
+            <div class="opts">
+              <button class="opt">Agile / Scrum</button>
+              <button class="opt">Waterfall / PRINCE2</button>
+              <button class="opt">Hybrid — both, depending on the programme</button>
+              <button class="opt">SAFe / scaled agile</button>
+            </div>
+            <div class="freetext">
+              <p class="ft-label">Or type your own answer — we'll read it</p>
+              <div class="field"><textarea placeholder="Anything else worth knowing about how you work?"></textarea><button class="go">Send</button></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ DECK ============ -->
+      <section class="screen hud deck-screen" data-screen="deck" data-variant="A">
+        <div class="topbar">
+          <span class="wordmark">JobCrush</span>
+          <span class="badge">12 facts</span>
+        </div>
+        <p class="deckcount" style="font-family:var(--mono);font-size:10.5px;color:var(--hud-mute);text-align:center;padding:0 16px 9px;">3 jobs lined up</p>
+
+        <!-- A: centred single card with breakdown integrated -->
+        <div class="grow-wrap" data-show="A">
+          <div class="deck" style="flex:1 1 0;padding:4px 16px 16px;min-height:0;">
+            <div class="jobcard">
+              <div class="jcbody">
+                <div class="hd">
+                  <div class="t">
+                    <h2>IT Project Manager — ERP rollout</h2>
+                    <p class="co">Sopra Steria · Paris · €55–70k · Hybrid</p>
+                  </div>
+                  <div class="score">
+                    <svg width="64" height="64" viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="28"/><circle class="fg" cx="32" cy="32" r="28" stroke-dasharray="176" stroke-dashoffset="44"/></svg>
+                    <span class="n">75<span class="pct">%</span></span>
+                  </div>
+                </div>
+                <div class="bubble"><p><strong>Why this fits:</strong> your ERP + Jira background maps onto the rollout's core ask. <span class="mute">The gaps are budget ownership and SAP S/4 migrations.</span></p></div>
+                <div class="flat">
+                  <h3>Fits</h3>
+                  <div class="row fit"><span class="mk">✓</span> ERP programme delivery</div>
+                  <div class="row fit"><span class="mk">✓</span> Jira + MS Project</div>
+                  <h3>Where you don't yet</h3>
+                  <div class="row open"><span class="mk">?</span> Budget ownership > €3M</div>
+                  <div class="row open"><span class="mk">?</span> SAP S/4 migration specifically</div>
+                </div>
+                <div class="breakdown">
+                  <p class="bd-title">Match breakdown</p>
+                  <div class="bd-grid">
+                    <div class="bd-cell"><span class="bd-n">7/9</span><span class="bd-l">Requirements met</span></div>
+                    <div class="bd-cell"><span class="bd-n gold">4/4</span><span class="bd-l">Essential met</span></div>
+                    <div class="bd-cell"><span class="bd-n">3/5</span><span class="bd-l">Desirable met</span></div>
+                    <div class="bd-cell"><span class="bd-pill">Strong</span><span class="bd-l">Match quality</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="jcfoot">
+                <button class="sw">Not for me</button>
+                <button class="sw yes">I'd take it</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- B: card left, detail/queue right (comparison only — A is the chosen direction) -->
+        <div class="desk-wide two-col" data-show="B" hidden>
+          <div class="col">
+            <div class="col-head">The job</div>
+            <div class="deck" style="flex:1 1 0;padding:4px 22px 16px;min-height:0;">
+              <div class="jobcard">
+                <div class="jcbody">
+                  <div class="hd">
+                    <div class="t"><h2>IT Project Manager — ERP rollout</h2><p class="co">Sopra Steria · Paris · €55–70k · Hybrid</p></div>
+                    <div class="score"><svg width="64" height="64" viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="28"/><circle class="fg" cx="32" cy="32" r="28" stroke-dasharray="176" stroke-dashoffset="44"/></svg><span class="n">75<span class="pct">%</span></span></div>
+                  </div>
+                  <div class="bubble"><p><strong>Why this fits:</strong> your ERP + Jira background maps onto the rollout's core ask.</p></div>
+                  <div class="flat">
+                    <h3>Fits</h3><div class="row fit"><span class="mk">✓</span> ERP programme delivery</div><div class="row fit"><span class="mk">✓</span> Jira + MS Project</div>
+                    <h3>Where you don't yet</h3><div class="row open"><span class="mk">?</span> Budget ownership > €3M</div><div class="row open"><span class="mk">?</span> SAP S/4 migration specifically</div>
+                  </div>
+                </div>
+                <div class="jcfoot"><button class="sw">Not for me</button><button class="sw yes">I'd take it</button></div>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="col-head">Score breakdown & queue</div>
+            <div class="detail-aside">
+              <h3>How the 75% breaks down</h3>
+              <div class="stat"><span>Requirements met</span><span class="v">7 / 9</span></div>
+              <div class="stat"><span>Essential met</span><span class="v">4 / 4</span></div>
+              <div class="stat"><span>Desirable met</span><span class="v">3 / 5</span></div>
+              <div class="stat"><span>Match quality</span><span class="v">Strong</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ TAILOR ============ -->
+      <section class="screen hud tailor-screen" data-screen="tailor" data-variant="A">
+        <div class="topbar">
+          <span class="wordmark">JobCrush</span>
+          <span class="badge">12 facts</span>
+        </div>
+
+        <!-- A: centred single column (live card stacked over CV) -->
+        <div data-show="A">
+          <div class="live-wrap" style="padding:0 16px 12px;flex:1 1 0;overflow-y:auto;min-height:0;">
+            <div class="live-card">
+              <h2>IT Project Manager — ERP rollout</h2>
+              <p class="co">Sopra Steria · 75% fit</p>
+              <div style="display:flex;align-items:center;gap:14px;margin:6px 0 10px;">
+                <div class="score"><svg width="64" height="64" viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="28"/><circle class="fg" cx="32" cy="32" r="28" stroke-dasharray="176" stroke-dashoffset="44"/></svg><span class="n">75<span class="pct">%</span></span></div>
+                <div><p class="why">Tailoring: emphasise ERP budget scope</p><p class="why-body">You've delivered €2.4M rollouts — this job asks for €3M+. Reframe the SAP migration support as adjacent.</p></div>
+              </div>
+              <p class="ledger">+1 requirement · 75% → 78%</p>
+            </div>
+          </div>
+        </div>
+        <div class="ask" data-show="A">
+          <div class="ask-inner">
+            <p class="q">Have you owned a budget over €3M?</p>
+            <p class="sub">This job asks for it. A "yes" with a one-line example raises your score.</p>
+            <div class="field"><textarea placeholder="e.g. Yes — I owned the €3.6M middleware migration in 2023."></textarea><button class="go">Continue</button></div>
+          </div>
+        </div>
+
+        <!-- B: redesigned — left: live card + question input directly below + CTA bar; right: CV -->
+        <div class="desk-wide two-col" data-show="B" hidden>
+          <div class="col left-col">
+            <div class="t-scroll">
+              <div class="live-card">
+                <h2>IT Project Manager — ERP rollout</h2>
+                <p class="co">Sopra Steria · 75% fit</p>
+                <div style="display:flex;align-items:center;gap:14px;margin:6px 0 10px;">
+                  <div class="score"><svg width="64" height="64" viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="28"/><circle class="fg" cx="32" cy="32" r="28" stroke-dasharray="176" stroke-dashoffset="44"/></svg><span class="n">75<span class="pct">%</span></span></div>
+                  <div><p class="why">Tailoring: emphasise ERP budget scope</p><p class="why-body">You've delivered €2.4M rollouts — this job asks for €3M+. Reframe the SAP migration support as adjacent.</p></div>
+                </div>
+                <p class="ledger">+1 requirement · 75% → 78%</p>
+              </div>
+              <!-- question input directly below the job-title card -->
+              <div class="ask-card">
+                <p class="q">Have you owned a budget over €3M?</p>
+                <p class="sub">This job asks for it. A "yes" with a one-line example raises your score.</p>
+                <div class="field"><textarea placeholder="e.g. Yes — I owned the €3.6M middleware migration in 2023."></textarea><button class="go">Continue</button></div>
+              </div>
+            </div>
+            <!-- CTA pinned to the bottom of the left column -->
+            <div class="t-cta-bar">
+              <button class="t-back">Back to deck</button>
+              <button class="t-done">Done — show my CV</button>
+            </div>
+          </div>
+          <div class="col right-col">
+            <div class="col-head">Your tailored CV</div>
+            <div class="band-cv">
+              <div class="cv">
+                <p class="cv-role">IT Project Manager — Paris</p>
+                <p class="cv-sec">EXPERIENCE</p>
+                <p class="cv-line">Led a 9-person team delivering a €2.4M ERP rollout on Jira and MS Project.</p>
+                <p class="cv-line">Cut release cycle from 6 weeks to 2 by introducing fortnightly demos.</p>
+                <p class="cv-line">Owned the programme risk register across 3 vendors and 40+ stakeholders.</p>
+                <p class="cv-sec">SKILLS</p>
+                <p class="cv-line">Jira, MS Project, ERP (SAP), stakeholder reporting, risk registers.</p>
+                <p class="cv-sec">EDUCATION</p>
+                <p class="cv-line">MSc Project Management — École Polytechnique, 2018.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const VARIANTS = {
+        A: { key: "A", name: "Centred column — render fix" },
+        B: { key: "B", name: "Wide two-column — uses the desktop width" },
+      };
+      const ORDER = ["A", "B"];
+      const root = document.documentElement;
+      const vkeyEl = document.getElementById("vkey");
+      const vnameEl = document.getElementById("vname");
+
+      function applyVariant(v) {
+        root.setAttribute("data-variant", v);
+        document.querySelectorAll(".hud").forEach((el) => el.setAttribute("data-variant", v));
+        // inline display (not [hidden]) so blocks with their own display rule hide correctly.
+        document.querySelectorAll("[data-show]").forEach((el) => {
+          el.style.display = el.getAttribute("data-show") === v ? "" : "none";
+        });
+        vkeyEl.textContent = VARIANTS[v].key;
+        vnameEl.textContent = VARIANTS[v].name;
+        const u = new URL(location.href); u.searchParams.set("variant", v); history.replaceState({}, "", u);
+      }
+      function applyScreen(s) {
+        root.setAttribute("data-screen", s);
+        document.querySelectorAll(".proto-tabs button[data-screen]").forEach((b) => {
+          b.setAttribute("aria-pressed", b.getAttribute("data-screen") === s ? "true" : "false");
+        });
+        const u = new URL(location.href); u.searchParams.set("screen", s); history.replaceState({}, "", u);
+      }
+      function cycle(dir) {
+        const cur = root.getAttribute("data-variant");
+        const next = ORDER[(ORDER.indexOf(cur) + dir + ORDER.length) % ORDER.length];
+        applyVariant(next);
+      }
+      document.getElementById("prev").addEventListener("click", () => cycle(-1));
+      document.getElementById("next").addEventListener("click", () => cycle(1));
+      document.querySelectorAll(".proto-tabs button[data-screen]").forEach((b) => {
+        b.addEventListener("click", () => applyScreen(b.getAttribute("data-screen")));
+      });
+      document.addEventListener("keydown", (e) => {
+        const t = e.target;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        if (e.key === "ArrowLeft") cycle(-1);
+        if (e.key === "ArrowRight") cycle(1);
+      });
+      const params = new URLSearchParams(location.search);
+      const v = params.get("variant") === "B" ? "B" : "A";
+      const s = ["frontdoor", "discovery", "deck", "tailor"].includes(params.get("screen")) ? params.get("screen") : "frontdoor";
+      applyVariant(v);
+      applyScreen(s);
+    </script>
+  </body>
+</html>

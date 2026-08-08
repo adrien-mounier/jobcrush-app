@@ -1,0 +1,1096 @@
+<!-- PROTOTYPE — throwaway. Design effort #157, Design B ROUND 2: the tailor step, remixed.
+     Supersedes round 1's A/B/C question (what-changed.prototype.html) BEFORE a verdict — the owner
+     restructured the surface instead of picking a variant. Each round-1 variant donates an organ:
+       A's confirm-is-the-exit-tap  -> the ending card
+       B's place-matters            -> the "Changes" chip pinned on the CV
+       C's count-is-an-announcement -> why the declaration is a full card; the chip is re-access only
+
+     ══ OWNER DECISIONS, POINT 1 (2026-08-07, this session) — RECORDED, POSTED WHEN B CLOSES ═══
+     Settled BEFORE tailor (moved out of this screen entirely):
+       - the tidied/translated line (ADR-0010 cl.4's "review screen" = the confirm deck — round 1
+         had it in the wrong room)
+       - the sanity-gate keep-or-junk question (about her CV, not any advert -> confirm deck)
+       - the expired-certification display choice (with date / without / off): asked once when the
+         expiry is learned; standing; changeable anytime from the profile; never re-asked per advert.
+         ADR-0007 cl.9 gains a scope note (WHERE the choice lives), nothing else bends.
+     Stays at tailor, quiet (cannot move, by decided architecture):
+       - the market strip (depends on WHICH advert's market; a standing "never show it" is the leak
+         ADR-0005/0007 reject) — zero questions asked, one declaration row + put-back
+       - the chosen bullets ("3 more aren't shown") — this IS tailoring. One declaration row.
+     Net: the tailor declares exactly two things. Round 1 was messy because it carried three other
+     rooms' furniture.
+
+     ══ THE QUESTION THIS ROUND ═════════════════════════════════════════════
+     The owner's direction: web-first (two buttons, no swipe) · the advert is the protagonist,
+     Tinder-style — the profile you are trying to win · keep the advert-vs-CV split · everything
+     the machine wants from her arrives as ONE CARD AT A TIME (click or type) · reward beats:
+     match % that climbs, profile badge fed by flying chips, text that writes itself onto the CV.
+
+     ══ DIRECTION CONTRACT ══════════════════════════════════════════════════
+     THESIS: the advert interrogates the CV, one card at a time; the refused default is the
+       form-panel screen where every decision is visible at once.
+     OWN-WORLD: the shipped ink-and-glass HUD (deck.css tokens) around the shipped cream paper
+       (tailor.css) — gold is the only currency, spent on facts won and stretches staked.
+     STORY: she reads what the advert wants, answers one thing at a time, watches the CV grow and
+       the match climb, reviews what the machine changed, and leaves by "Apply with this CV".
+     FIRST VIEWPORT: advert hero left (title, dial, graded asks) · one card centre · CV paper
+       right, chip "Changes" pinned above it. Primary action = the card's own answer.
+     FORM: card-dock conversation, owner-specified; variant 2 deals the card onto the advert itself.
+     FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review,
+       the verdict, and DESIGN.md.
+
+     ══ REUSED AT SHIPPED VALUES (never re-timed) ═══════════════════════════
+       deck.css      --hud-* tokens · jd-dealin 22px/scale(.96) · jd-bump 1.28/gold 460ms
+       tailor.css    paper tokens · tl-settle 640ms · SCORE_TWEEN 680ms · .opt buttons
+       factbadge.css chip flight 720ms cubic-bezier(.4,.05,.3,1) · fb-arrive 380ms
+     NEW at prototype values (nothing ships an equivalent): the match dial (SVG ring), the text
+     materialize (per-char, ≤650ms, flattened under reduced motion).
+
+     ══ LOCKED, NOT OPEN HERE ═══════════════════════════════════════════════
+       - No standing setting; put-backs are "this CV only" (ADR-0007 cl.4, ADR-0005).
+       - The stretch decline says "Not for this one" ONLY — the "never" scope wording is Design C's
+         (#171), deliberately absent here.
+       - A stretch NEVER lands on the profile badge. Fact chips fly RIGHT to the profile; a stretch
+         chip stays WITH THE ADVERT (ADR-0005 drawn as physics, not written as a rule).
+       - Declarations move no score. Score moves only when a fact or stretch lands.
+       - No page for a market => nothing stripped => the strip row simply does not exist (cl.3).
+       - Every removal is declared (the card) and re-accessible (the chip) — never a bare count.
+       - Undo everywhere (#120): last scored action, put-backs, and the stretch are reversible.
+       - WCAG 2.2 AA is pass/fail: contrast, keyboard, visible focus, reduced motion (PRODUCT.md).
+       - Plain language — the visitor may read English as a second or third language.
+
+     ══ VARIANTS ════════════════════════════════════════════════════════════
+       1 — THE DOCK.   Three zones: advert hero (left, sticky) · card dock (centre, cards always
+           arrive in the same place — motor memory, calm) · CV paper (right).
+       2 — ON THE ADVERT. Two zones: the card is dealt INTO the advert panel, directly beneath the
+           requirement it answers — cause visibly touching effect; busier motion, wider CV.
+
+     Designer instrumentation lives in the DARK strip below the app only — never her screen.
+
+     ══ VERDICT ═════════════════════════════════════════════════════════════
+     (appended when the owner decides)
+
+     Not production code. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JobCrush — the tailor step, one card at a time (#157 Design B round 2)</title>
+
+<style>
+  :root {
+    /* deck.css:6-19 verbatim */
+    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-line: #2b333d;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98; --gold: #e8a33d; --gold-dim: #a8762b;
+    /* NEW, not in deck.css: --hud-mute fails WCAG AA on --hud-2 (4.39:1). One step lighter for
+       text that sits on hud-2 surfaces. Flagged for the build ticket. */
+    --hud-mute-2: #8a95a2;
+    --weak: #6f7d8c; --settled: #4d5865;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    /* tailor.css:7-14 verbatim */
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --paper: #f6f2ea; --paper-edge: #e2dacb; --ink: #16150f; --ink-mute: #6b6455;
+    --sw-h: 66px;
+  }
+
+  * { box-sizing: border-box; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.25) transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #e7e3dd; font-family: var(--sans); line-height: 1.5;
+    padding: 20px 18px calc(var(--sw-h) + 26px); -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── the explainer — deliberately not the app ── */
+  .ask { max-width: 1320px; margin: 0 auto 16px; background: #fffdf9; border: 1px solid #ded7cb; border-radius: 12px; padding: 18px 22px; color: #1f2328; }
+  .ask h1 { margin: 0 0 8px; font-size: 19px; letter-spacing: -.01em; }
+  .ask p { margin: 0 0 8px; font-size: 14px; color: #3c444d; }
+  .ask p:last-child { margin-bottom: 0; }
+  .ask .rules { margin-top: 12px; padding-top: 10px; border-top: 1px solid #ece5d9; font-family: var(--mono); font-size: 11.5px; color: #6b6455; line-height: 1.7; }
+
+  /* ══ the app ══ */
+  .app {
+    max-width: 1320px; margin: 0 auto; background: var(--hud-0); color: var(--hud-ink);
+    border: 1px solid var(--hud-line); border-radius: 16px; overflow: hidden;
+    box-shadow: 0 22px 60px -20px rgba(0,0,0,.6);
+  }
+  .brandbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 11px 18px; border-bottom: 1px solid var(--hud-line); background: var(--hud-1);
+    font-size: 13px; color: var(--hud-mute);
+  }
+  .brandbar b { color: var(--hud-ink); font-weight: 620; letter-spacing: -.01em; }
+
+  /* profile badge — factbadge's landing pad */
+  .prof {
+    display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+    background: var(--hud-2); border: 1px solid var(--hud-line); color: var(--hud-ink); font-size: 12.5px;
+  }
+  .prof svg { display: block; }
+  .prof .n { font-weight: 700; font-variant-numeric: tabular-nums; display: inline-block; }
+  .prof .n.bump { animation: jd-bump 460ms cubic-bezier(.2,1.5,.4,1); }
+
+  .cols { display: grid; gap: 0; align-items: start; }
+  .app[data-variant="1"] .cols { grid-template-columns: 350px minmax(0,1fr) 400px; }
+  .app[data-variant="2"] .cols { grid-template-columns: minmax(0,1.55fr) minmax(0,1fr); }
+  .col { padding: 18px; min-width: 0; }
+  .col + .col { border-left: 1px solid var(--hud-line); }
+
+  .divider {
+    display: flex; align-items: center; gap: 9px; padding: 0 0 11px;
+    font-family: var(--mono); font-size: 10px; color: var(--hud-mute);
+    text-transform: uppercase; letter-spacing: .1em;
+  }
+  .divider::after { content: ""; flex: 1; height: 1px; background: var(--hud-line); }
+  .divider .step { margin-left: auto; letter-spacing: .06em; }
+  .divider .step b { color: var(--hud-ink); font-weight: 600; }
+  .divider::after { order: 1; }
+  .divider .step { order: 2; margin-left: 0; }
+
+  /* ══ the advert hero ══ */
+  .advert {
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 14px;
+    padding: 17px 18px 15px; box-shadow: 0 14px 34px -18px rgba(0,0,0,.55);
+  }
+  .advert .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+  .advert h2 { margin: 0 0 3px; font-size: 20px; font-weight: 640; letter-spacing: -.018em; line-height: 1.22; }
+  .advert .co { margin: 0; font-size: 13px; color: var(--hud-mute); }
+  .advert .stake {
+    display: none; margin: 9px 0 0; font-size: 12px; color: var(--gold);
+    align-items: center; gap: 6px;
+  }
+  .advert .stake.show { display: inline-flex; }
+  .advert .stake .x { all: unset; cursor: pointer; color: var(--hud-mute); font-size: 11.5px; text-decoration: underline; text-underline-offset: 2px; padding: 2px; }
+  .advert .stake .x:hover, .advert .stake .x:focus-visible { color: var(--hud-ink); }
+
+  /* the dial — customer-facing match %, the shipped tailor's own number given a face */
+  .dial { position: relative; width: 62px; height: 62px; flex: 0 0 auto; }
+  .dial svg { display: block; }
+  .dial .num {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+  }
+  .dial .num.bump { animation: jd-bump 460ms cubic-bezier(.2,1.5,.4,1); }
+
+  /* graded requirements */
+  .reqs { margin: 13px 0 0; display: flex; flex-direction: column; }
+  .req {
+    display: flex; align-items: center; gap: 10px; padding: 7.5px 9px; border-radius: 9px;
+    font-size: 13.5px; color: var(--hud-ink);
+  }
+  .req .st { flex: 0 0 auto; display: grid; place-items: center; width: 16px; height: 16px; }
+  .req .t { flex: 1; min-width: 0; }
+  .req .word { font-size: 11px; color: var(--hud-mute); flex: 0 0 auto; }
+  .req[data-state="open"] .t { color: var(--hud-mute); }
+  .req.active { background: rgba(232,163,61,.1); outline: 1px solid rgba(232,163,61,.28); }
+  .req.active .t { color: var(--hud-ink); }
+
+  .advert details { margin: 13px 0 0; border-top: 1px solid var(--hud-line); padding-top: 11px; }
+  .advert summary {
+    cursor: pointer; font-size: 12.5px; color: var(--hud-mute); list-style: none;
+    display: inline-flex; align-items: center; gap: 7px; border-radius: 6px; padding: 2px 4px;
+  }
+  .advert summary::-webkit-details-marker { display: none; }
+  .advert summary svg { transition: transform 180ms ease; }
+  .advert details[open] summary svg { transform: rotate(90deg); }
+  .advert summary:hover { color: var(--hud-ink); }
+  .advert details p { margin: 9px 0 0; font-size: 13px; color: var(--hud-mute); line-height: 1.55; }
+  .advert .mkt { margin: 13px 0 0; padding-top: 11px; border-top: 1px solid var(--hud-line); font-size: 12px; color: var(--hud-mute); }
+  .advert .mkt b { color: var(--hud-ink); font-weight: 600; }
+  .advert .mkt button { all: unset; cursor: pointer; color: var(--gold); border-bottom: 1px solid rgba(232,163,61,.35); padding-bottom: 1px; }
+  .advert .mkt button:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 2px; border-radius: 3px; }
+
+  /* the ledger — one line, spoken at the moment of the change */
+  .ledger { min-height: 20px; margin: 12px 2px 0; font-size: 12.5px; color: var(--hud-mute); display: flex; align-items: baseline; gap: 8px; }
+  .ledger.gold { color: var(--gold); }
+  .ledger .undo { all: unset; cursor: pointer; color: var(--hud-mute); font-size: 11.5px; text-decoration: underline; text-underline-offset: 2px; padding: 2px; }
+  .ledger .undo:hover, .ledger .undo:focus-visible { color: var(--hud-ink); }
+
+  /* ══ the card ══ */
+  .dock { min-width: 0; }
+  .card {
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 16px;
+    padding: 20px 20px 18px; box-shadow: 0 16px 40px -18px rgba(0,0,0,.6);
+  }
+  .card.dealin { animation: jd-dealin 340ms ease; }
+  .card h3 { margin: 0 0 6px; font-size: 17.5px; font-weight: 620; letter-spacing: -.015em; line-height: 1.3; text-wrap: balance; }
+  .card .sub { margin: 0 0 14px; font-size: 13px; color: var(--hud-mute); line-height: 1.5; }
+  .card .body { margin: 0 0 14px; font-size: 14px; color: var(--hud-ink); line-height: 1.55; }
+
+  /* the sentence that would print — paper-toned, so "this lands on the document" is legible */
+  .print-line {
+    margin: 0 0 12px; padding: 12px 14px; border-radius: 10px;
+    background: var(--paper); border: 1px solid var(--paper-edge);
+    font-family: var(--serif); font-size: 14.5px; color: var(--ink); line-height: 1.45;
+  }
+  .print-note { margin: -4px 0 14px; font-size: 12px; color: var(--hud-mute); }
+
+  /* .opt — tailor.css:186-220 verbatim */
+  .opts { display: flex; flex-direction: column; gap: 7px; }
+  .opt {
+    appearance: none; width: 100%; text-align: left; background: var(--hud-2); color: var(--hud-ink);
+    border: 1px solid var(--hud-line); border-radius: 11px; padding: 12.5px 15px; font: inherit;
+    font-size: 14.5px; cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease, opacity 140ms ease, transform 90ms ease;
+  }
+  .opt:hover { background: #262f3a; border-color: #3b4653; }
+  .opt:active { transform: scale(.985); }
+
+  .typed { display: flex; gap: 8px; }
+  .typed input {
+    flex: 1; min-width: 0; background: var(--hud-2); border: 1px solid var(--hud-line); color: var(--hud-ink);
+    border-radius: 11px; padding: 12px 15px; font: inherit; font-size: 14.5px;
+  }
+  .typed input::placeholder { color: var(--hud-mute-2); }
+  .err { margin: 9px 0 0; font-size: 12.5px; color: var(--gold); }
+  .typed input:focus { outline: 2px solid var(--hud-ink); outline-offset: 1px; border-color: var(--hud-line); }
+
+  .btn {
+    appearance: none; font: inherit; font-size: 13.5px; font-weight: 600; padding: 11px 16px; border-radius: 10px;
+    border: 1px solid var(--hud-line); background: var(--hud-2); color: var(--hud-ink); cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease, transform 90ms ease;
+  }
+  .btn:hover { background: #262f3a; border-color: #3b4653; }
+  .btn:active { transform: scale(.985); }
+  .btn.gold { background: var(--gold); border-color: transparent; color: #1a1206; }
+  .btn.gold:hover { background: var(--gold); filter: brightness(1.06); }
+  .btn.quiet { background: transparent; font-weight: 500; }
+  .card .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .skip {
+    all: unset; display: inline-block; margin-top: 13px; cursor: pointer; font-size: 12.5px;
+    color: var(--hud-mute); text-decoration: underline; text-underline-offset: 3px; padding: 2px;
+  }
+  .skip:hover, .skip:focus-visible { color: var(--hud-ink); }
+  :where(button, summary, input, .opt):focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 2px; }
+
+  /* declaration rows inside the "what I changed" card */
+  .dec { border: 1px solid var(--hud-line); border-radius: 11px; background: var(--hud-2); padding: 12px 13px; margin: 0 0 8px; }
+  .dec .lb { margin: 0; font-size: 13.5px; font-weight: 600; }
+  .dec .why { margin: 4px 0 0; font-size: 12.5px; color: var(--hud-mute-2); line-height: 1.5; }
+  .dec .acts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; align-items: center; }
+  .dec .done-note { font-size: 12.5px; color: var(--gold); }
+  .dec .btn { font-size: 12.5px; padding: 8px 12px; }
+  .sub-lines { margin: 9px 0 0; display: flex; flex-direction: column; gap: 0; }
+  .sub-lines .sl { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(43,51,61,.6); }
+  .sub-lines .sl p { margin: 0; flex: 1; font-family: var(--serif); font-size: 13.5px; line-height: 1.45; color: var(--hud-ink); }
+  .sub-lines .sl.on p { color: var(--gold); }
+  .sub-lines .sl .btn { flex: 0 0 auto; }
+
+  /* the ending */
+  .card .end-sum { margin: 0 0 16px; font-size: 13.5px; color: var(--hud-mute); line-height: 1.55; }
+  .cta {
+    appearance: none; display: block; width: 100%; text-align: center; font: inherit; font-size: 15px;
+    font-weight: 600; padding: 13.5px 16px; border-radius: 12px; border: 1px solid transparent;
+    background: var(--gold); color: #1a1206; cursor: pointer; margin-bottom: 9px;
+    transition: filter 140ms ease, transform 90ms ease;
+  }
+  .cta:hover { filter: brightness(1.06); }
+  .cta:active { transform: scale(.99); }
+  .cta.ghost { background: transparent; color: var(--hud-ink); border-color: var(--hud-line); font-weight: 500; }
+  .cta.ghost:hover { background: var(--hud-2); }
+
+  .finish-early { text-align: center; margin-top: 12px; }
+
+  /* ══ the CV column ══ */
+  .chipbar { display: flex; justify-content: flex-end; margin: 0 0 10px; }
+  .chip {
+    appearance: none; font: inherit; display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; color: var(--gold-dim); background: rgba(232,163,61,.09);
+    border: 1px dashed rgba(168,118,43,.5); border-radius: 999px; padding: 4px 12px; cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .chip:hover { background: rgba(232,163,61,.2); border-color: var(--gold-dim); }
+  .chip[aria-expanded="true"] { background: rgba(232,163,61,.2); border-color: var(--gold-dim); }
+  .chip-panel { margin: 0 0 12px; }
+  .chip-panel .dec { background: var(--hud-1); }
+
+  .cv {
+    position: relative; overflow: hidden; padding: 22px 22px 26px; border-radius: 10px;
+    border: 1px solid var(--paper-edge); background: var(--paper); color: var(--ink); font-family: var(--serif);
+    box-shadow: 0 18px 44px -14px rgba(0,0,0,.75), 0 1px 0 rgba(255,255,255,.16) inset;
+  }
+  .cv::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background-image: radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px); background-size: 3px 3px;
+  }
+  .cv .nm { font-size: 20px; font-weight: 600; letter-spacing: -.01em; margin: 0; }
+  .cv .ct { margin: 4px 0 0; font-family: var(--sans); font-size: 11.5px; color: var(--ink-mute); line-height: 1.55; }
+  .cv section { margin: 17px 0 0; }
+  .cv-sec {
+    margin: 0 0 8px; font-family: var(--sans); font-size: 9.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .14em; color: var(--ink-mute);
+  }
+  .cv .role-h { margin: 0 0 5px; font-family: var(--sans); font-size: 13px; font-weight: 620; }
+  .cv .role-h span { font-weight: 400; color: var(--ink-mute); }
+  .cv-line { position: relative; margin: 0 0 8px; padding-left: 14px; font-size: 14px; line-height: 1.45; }
+  .cv-line::before {
+    content: ""; position: absolute; left: 0; top: .62em; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--gold-dim);
+  }
+  .cv .plain { margin: 0 0 7px; font-size: 14px; line-height: 1.45; }
+  .cv .settle { animation: tl-settle 640ms cubic-bezier(.2,1,.3,1); border-radius: 5px; }
+  .cv .mat span { opacity: 0; }
+  .cv .mat.done span { opacity: 1; }
+
+  /* ══ variant 2 — the card lands on the advert ══ */
+  .inline-slot { margin: 6px 0 8px; }
+  .inline-slot .card { border-color: rgba(232,163,61,.3); }
+  .app[data-variant="2"] .dock-tail { margin-top: 14px; }
+  .dock-meta {
+    display: flex; justify-content: space-between; align-items: center; margin: 8px 4px 0;
+    font-family: var(--mono); font-size: 10px; color: var(--hud-mute);
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+  .dock-meta b { color: var(--hud-ink); font-weight: 600; }
+  .dock-meta .skip { margin-top: 0; text-transform: none; letter-spacing: 0; font-family: var(--sans); }
+
+  /* flight chip — factbadge.css values */
+  .fly {
+    position: fixed; z-index: 90; display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: #1a1206; background: var(--gold);
+    border-radius: 999px; padding: 4px 11px; box-shadow: 0 6px 18px rgba(0,0,0,.4);
+    transition: transform 720ms cubic-bezier(.4,.05,.3,1), opacity 720ms ease;
+  }
+  .fly.stretch { background: var(--hud-1); color: var(--gold); border: 1px dashed var(--gold-dim); }
+
+  @keyframes jd-dealin { from { opacity: 0; transform: translateY(22px) scale(.96); } to { opacity: 1; transform: none; } }
+  @keyframes jd-bump { 0% { transform: none; } 40% { transform: scale(1.28); color: var(--gold); } 100% { transform: none; } }
+  @keyframes tl-settle { 0% { background: rgba(232,163,61,.2); } 100% { background: transparent; } }
+
+  /* ── designer instrumentation — never her screen ── */
+  .instr {
+    max-width: 1320px; margin: 12px auto 0; background: var(--hud-1); border: 1px solid var(--hud-line);
+    border-radius: 8px; padding: 11px 15px; color: var(--hud-mute); font-family: var(--mono);
+    font-size: 11.5px; line-height: 1.75;
+  }
+  .instr b { color: var(--hud-ink); }
+  .instr .tag { color: var(--gold); font-family: var(--sans); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 10px; margin-right: 10px; }
+  .instr .warn { color: var(--gold); }
+  .instr hr { border: 0; border-top: 1px solid var(--hud-line); margin: 8px 0; }
+
+  .switcher {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px; z-index: 70; height: var(--sw-h);
+    display: flex; align-items: stretch; background: rgba(23,28,35,.94); backdrop-filter: blur(14px);
+    border: 1px solid var(--hud-line); border-radius: 999px; box-shadow: 0 10px 34px rgba(0,0,0,.6);
+    overflow: hidden; font-family: var(--sans);
+  }
+  .switcher > * { border-right: 1px solid var(--hud-line); }
+  .switcher > *:last-child { border-right: 0; }
+  .switcher .vlabel { display: flex; flex-direction: column; justify-content: center; padding: 0 18px; min-width: 172px; color: var(--hud-ink); }
+  .switcher .vlabel .k { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+  .switcher .vlabel .n { font-size: 13.5px; margin-top: 3px; }
+  .switcher .tog { all: unset; display: flex; align-items: center; padding: 0 17px; cursor: pointer; color: var(--hud-ink); font-size: 13px; }
+  .switcher .tog:hover { background: rgba(232,163,61,.1); }
+  .switcher .tog:focus-visible { outline: 2px solid var(--hud-ink); outline-offset: -3px; }
+  .switcher .vbtn { padding: 0 16px; font-weight: 650; color: var(--hud-mute); }
+  .switcher .vbtn.on { color: #1a1206; background: var(--gold); }
+
+  .hint {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--sw-h) + 20px);
+    font-size: 10.5px; color: #6b7784; font-family: var(--mono); z-index: 69; white-space: nowrap;
+  }
+
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+  @media (max-width: 1140px) {
+    .app[data-variant="1"] .cols { grid-template-columns: minmax(0,1fr) 380px; }
+    .app[data-variant="1"] .col.advert-col { grid-column: 1 / -1; border-left: 0; border-bottom: 1px solid var(--hud-line); }
+  }
+  @media (max-width: 860px) {
+    .cols, .app[data-variant="1"] .cols, .app[data-variant="2"] .cols { grid-template-columns: 1fr; }
+    .col + .col { border-left: 0; border-top: 1px solid var(--hud-line); }
+    .app[data-variant="1"] .col.advert-col { border-bottom: 0; }
+    .hint { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* globals.css flattens every animation app-wide; mirrored so the prototype is judged under
+       the product's own rule. The materialize + flight are also skipped in JS. */
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+
+<div class="ask">
+  <h1>#157 · Design B round 2 — the tailor step, one card at a time</h1>
+  <p><strong>Your direction, built:</strong> the advert is the protagonist; the CV is the living result; everything the machine wants from her arrives as <strong>one card at a time</strong> — click or type, next. The exits are the two buttons. Point 1 is applied: the translation, the nonsense block and the certificate choice are <strong>settled before this screen</strong> and appear only as quiet, finished lines on the paper.</p>
+  <p><strong>Two shapes to react to.</strong> <strong>1 — The dock:</strong> cards always arrive in the same centre spot (calm, motor memory). <strong>2 — On the advert:</strong> the card is dealt into the advert itself, beneath the requirement it answers (cause visibly touches effect). Same cards, same words, same reward beats.</p>
+  <p><strong>One rule made visible:</strong> answer a fact and the gold chip flies <em>right</em>, to your profile — yours forever. Approve a stretch and the chip stays <em>with the advert</em> — it never joins the profile. That is the stretch doctrine drawn as physics.</p>
+  <p class="rules">locked: no standing setting · decline says "Not for this one" only (the "never" wording is Design C's) · declarations move no score · no market page ⇒ no strip row exists · every removal is a card first, the Changes chip is re-access · undo on the last action, the put-backs, and the stretch<br>⚠️ open, for the owner: variant 1 or 2 · does the stretch card belong in the deck or behind a "see a stretch" invitation · strip declaration as a card row (current) or chip-only</p>
+</div>
+
+<div class="app" id="app" data-variant="1">
+  <div class="brandbar">
+    <div><b>JobCrush</b></div>
+    <div class="prof" id="prof" aria-label="Your profile">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <rect x="1.5" y="8.5" width="11" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
+        <rect x="3" y="4.6" width="8" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
+        <rect x="4.5" y=".7" width="5" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
+      </svg>
+      Profile · <span class="n" id="profN">34</span>
+    </div>
+  </div>
+  <div class="cols" id="cols"></div>
+</div>
+
+<div class="instr" id="instr"></div>
+<div class="hint">click 1 · 2 below to switch shape &nbsp;·&nbsp; M market &nbsp;·&nbsp; R reset</div>
+
+<div class="switcher">
+  <div class="vlabel"><span class="k" id="swK">Shape 1</span><span class="n" id="swN">The dock</span></div>
+  <button class="tog vbtn" data-v="1" type="button">1</button>
+  <button class="tog vbtn" data-v="2" type="button">2</button>
+  <button class="tog" id="togMkt" type="button">Market: Singapore</button>
+  <button class="tog" id="reset" type="button">Reset</button>
+</div>
+
+<div class="sr" aria-live="polite" id="live"></div>
+
+<script>
+/* ══ CASE. Remy Tan against a Singapore advert. Owner point 1 applied: the translated licence,
+   the gate call and the certificate display were settled at confirm — they render as finished
+   lines and never appear on this screen. ══ */
+
+const MARKETS = {
+  sg:   { name: "Singapore", strips: true },
+  none: { name: "APAC (Remote)", strips: false }, /* cl.3 — no page, nothing stripped, no row */
+};
+
+const REQS = [
+  { id: "vendor",  label: "Vendor delivery, end to end" },
+  { id: "budget",  label: "Owning the project budget" },
+  { id: "powerbi", label: "Power BI reporting" },
+  { id: "stake",   label: "Regional stakeholder management", fixed: "fit" },
+  { id: "pl300",   label: "PL-300 certification", fixed: "fit" },
+  { id: "mandarin", label: "Mandarin", fixed: "fit" },
+];
+
+const BASE_SCORE = 58;
+const UNPRINTED = [
+  "Ran the Hong Kong office's move to a new floor over one weekend, with no trading downtime.",
+  "Sat on the regional diversity committee and chaired its quarterly review.",
+  "Wrote the onboarding pack new joiners in the PMO still use.",
+];
+
+/* ══ COPY — every sentence she reads, in one place. Plain language: the visitor may read
+   English as a second or third language. ══ */
+const COPY = {
+  zoneAdvert: "The advert", zoneTailor: "Tailoring", zoneCv: "Your CV for this advert",
+  readFull: "Read the full advert",
+  marketLine: (m) => `This advert is for <b>${m}</b> — `,
+  marketChange: "change",
+  marketMoved: (m) => `Changed — this advert is for ${m}. Your answers stay.`,
+  stake: (n) => `${n} stretch${n > 1 ? "es" : ""} with this application`,
+  stakeUndo: "undo",
+  skip: "Skip for now",
+  finishEarly: "I'm done — skip to the end",
+  qBudgetH: "Have you owned a project budget yourself?",
+  qBudgetSub: "This advert asks for budget ownership.",
+  qBudgetY: "Yes — the budget was mine",
+  qBudgetS: "I managed the spend; my sponsor signed it",
+  qBudgetN: "Not yet",
+  qPowH: "How many years have you used Power BI?",
+  qPowSub: "This advert asks for Power BI reporting.",
+  qPowPh: "e.g. 3",
+  qPowGo: "Add it",
+  qPowErr: "Type a number of years — or skip for now.",
+  sH: "A stretch: vendor delivery, end to end",
+  sBody: "This advert wants someone who has run vendor delivery from selection to handover. You ran vendor selection and contracts at Standard Chartered — close, and worth a careful reach.",
+  sLine: "Led vendor selection through to delivery handover for the core-banking refresh.",
+  sNote: "Worded so you can stand behind it. A two-line interview story is saved with it.",
+  sYes: "Propose it on this CV",
+  sNo: "Not for this one",
+  dH: "What I changed for this advert",
+  dSub: "Everything here is about this one CV. Your profile stays as it is.",
+  dStripLb: "Left off: date of birth · marital status",
+  dStripWhy: "CVs in Singapore don't usually carry these.",
+  dStripBtn: "Put them back — this CV only",
+  dStripDone: "Back on this CV — just this one.",
+  dBulLb: (n) => n ? `Standard Chartered Bank — ${n} line${n === 1 ? "" : "s"} not printed` : "Standard Chartered Bank — all 3 lines are on this CV",
+  dBulWhy: (n) => n ? `Your strongest lines for this advert are on the CV. These ${n} say things this advert doesn't ask about.` : "You put all 3 back — this CV only.",
+  dBulSee: "See the 3 lines",
+  dBulHide: "Hide them",
+  putBack: "Put it back",
+  undo: "Undo",
+  dOk: "Looks right",
+  endH: "This CV is as strong as I can make it for this advert.",
+  chip: (n) => n ? `Changes · ${n}` : "Changes",
+  ledPowN: "Settled. This advert now knows where you stand.",
+  apply: "Apply with this CV",
+  save: "Save it and come back later",
+  ledBudgetY: "Budget ownership — added to your profile.",
+  ledBudgetS: "Shared budget oversight — added to your profile.",
+  ledBudgetN: "Settled. This advert now knows where you stand.",
+  ledPow: (y) => `Power BI (${y} year${y === 1 ? "" : "s"}) — added to your profile.`,
+  ledStretch: "Stretch saved with this application — it never joins your profile.",
+  ledStretchOff: "Stretch removed from this application.",
+  ledBack: "Back on this CV — just this one.",
+};
+
+/* ══ STATE ══ */
+let S;
+function freshState() {
+  return {
+    variant: "1", market: "sg",
+    queue: ["budget", "powerbi", "stretch", "changed", "end"], idx: 0,
+    budget: null, powerbi: null, stretch: null, powErr: null,
+    back: false, subBack: {}, showThree: false, chipOpen: false,
+    profExtra: 0, score: BASE_SCORE, shownScore: BASE_SCORE,
+    ledger: null, lastUndo: null, deal: false,
+  };
+}
+S = freshState();
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function targetScore() {
+  let n = BASE_SCORE;
+  if (S.budget === "y") n += 9; else if (S.budget === "s") n += 6;
+  if (S.powerbi) n += 7;
+  if (S.stretch === "y") n += 8;
+  return n;
+}
+function reqState(id) {
+  const r = REQS.find((x) => x.id === id);
+  if (r.fixed) return r.fixed;
+  if (id === "vendor") return S.stretch === "y" ? "stretched" : "open";
+  if (id === "budget") return S.budget == null ? "open" : S.budget === "n" ? "settled" : "fit";
+  if (id === "powerbi") return S.powerbi == null ? "open" : S.powerbi === 0 ? "settled" : "fit";
+  return "open";
+}
+const STATE_WORD = { fit: "you fit", open: "to answer", settled: "answered", stretched: "stretched" };
+function stateMark(st) {
+  if (st === "fit") return `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.4" fill="#e8a33d"/><path d="M5.6 8.2l1.7 1.7 3.1-3.6" stroke="#1a1206" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  if (st === "stretched") return `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="2" transform="rotate(45 8 8)" stroke="#e8a33d" stroke-width="1.4" stroke-dasharray="2.6 2.2"/></svg>`;
+  if (st === "settled") return `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.4" fill="#4d5865"/></svg>`;
+  return `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="4.9" stroke="#6f7d8c" stroke-width="1.4"/></svg>`;
+}
+
+const CARD_FOR_REQ = { budget: "budget", powerbi: "powerbi", vendor: "stretch" };
+function activeCard() { return S.queue[S.idx] ?? null; }
+function changesCount() { return (MARKETS[S.market].strips && !S.back ? 1 : 0) + (UNPRINTED.filter((_, i) => !S.subBack[i]).length ? 1 : 0); }
+
+/* ══ RENDER ══ */
+function dial() {
+  const pct = Math.round(S.shownScore);
+  const C = 2 * Math.PI * 26;
+  const off = C * (1 - pct / 100);
+  return `
+  <div class="dial" role="img" aria-label="${pct} percent match">
+    <svg width="62" height="62" viewBox="0 0 62 62">
+      <circle cx="31" cy="31" r="26" fill="none" stroke="var(--hud-line)" stroke-width="5"/>
+      <circle cx="31" cy="31" r="26" fill="none" stroke="var(--gold)" stroke-width="5" stroke-linecap="round"
+        stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 31 31)"/>
+    </svg>
+    <div class="num" id="dialNum">${pct}%</div>
+  </div>`;
+}
+
+function advertPanel() {
+  const m = MARKETS[S.market];
+  const act = activeCard();
+  const stakes = S.stretch === "y" ? 1 : 0;
+  const reqRows = REQS.map((r) => {
+    const st = reqState(r.id);
+    const isActive = CARD_FOR_REQ[r.id] === act;
+    const inline = S.variant === "2" && isActive ? `<div class="inline-slot">${cardHtml(act)}${dockMeta(act)}</div>` : "";
+    return `
+      <div class="req ${isActive ? "active" : ""}" data-state="${st}">
+        <span class="st">${stateMark(st)}</span>
+        <span class="t">${esc(r.label)}</span>
+        <span class="word">${STATE_WORD[st]}</span>
+      </div>${inline}`;
+  }).join("");
+
+  return `
+  <div class="advert" id="advert">
+    <div class="top">
+      <div>
+        <h2>Senior Project Manager</h2>
+        <p class="co">DBS Bank · Singapore · posted 3 days ago</p>
+        <span class="stake ${stakes ? "show" : ""}" id="stake">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="2" transform="rotate(45 8 8)" stroke="#e8a33d" stroke-width="1.4" stroke-dasharray="2.6 2.2"/></svg>
+          ${esc(COPY.stake(stakes || 1))}
+          ${stakes ? `<button class="x" data-act="stretch-undo" type="button">${esc(COPY.stakeUndo)}</button>` : ""}
+        </span>
+      </div>
+      ${dial()}
+    </div>
+    <div class="reqs">${reqRows}</div>
+    <details>
+      <summary><svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M3 1.5L7 5L3 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>${esc(COPY.readFull)}</summary>
+      <p>You will run vendor delivery for the regional payments platform: selection, contracting, and delivery through to handover, with full ownership of the programme budget.</p>
+      <p>You report to the regional exco monthly. Power BI is the house reporting standard. PL-300 is required; Mandarin is a strong plus for our Chinese-market vendors.</p>
+    </details>
+    <p class="mkt">${COPY.marketLine(esc(m.name))}<button data-act="market" type="button">${esc(COPY.marketChange)}</button></p>
+    <div class="ledger ${S.ledger?.gold ? "gold" : ""}" id="ledger">
+      ${S.ledger ? `<span>${esc(S.ledger.text)}${S.ledger.delta ? ` +${S.ledger.delta}` : ""}</span>${S.lastUndo ? `<button class="undo" data-act="last-undo" type="button">${esc(COPY.undo)}</button>` : ""}` : ""}
+    </div>
+  </div>`;
+}
+
+function decRows(inChip) {
+  const m = MARKETS[S.market];
+  const nHidden = UNPRINTED.filter((_, i) => !S.subBack[i]).length;
+  let h = "";
+  if (m.strips) {
+    h += `
+    <div class="dec">
+      <p class="lb">${esc(COPY.dStripLb)}</p>
+      <p class="why">${esc(COPY.dStripWhy)}</p>
+      <div class="acts">
+        ${S.back
+          ? `<span class="done-note">${esc(COPY.dStripDone)}</span><button class="btn quiet" data-act="strip-undo" type="button">${esc(COPY.undo)}</button>`
+          : `<button class="btn" data-act="strip-back" type="button">${esc(COPY.dStripBtn)}</button>`}
+      </div>
+    </div>`;
+  }
+  h += `
+    <div class="dec">
+      <p class="lb">${esc(COPY.dBulLb(nHidden))}</p>
+      <p class="why">${esc(COPY.dBulWhy(nHidden))}</p>
+      ${S.showThree ? `<div class="sub-lines">${UNPRINTED.map((l, i) => `
+        <div class="sl ${S.subBack[i] ? "on" : ""}">
+          <p>${esc(l)}</p>
+          ${S.subBack[i]
+            ? `<button class="btn quiet" data-act="sub-undo" data-i="${i}" type="button">${esc(COPY.undo)}</button>`
+            : `<button class="btn" data-act="sub-back" data-i="${i}" type="button">${esc(COPY.putBack)}</button>`}
+        </div>`).join("")}</div>` : ""}
+      <div class="acts">
+        <button class="btn" data-act="three" type="button">${esc(S.showThree ? COPY.dBulHide : COPY.dBulSee)}</button>
+        ${nHidden < 3 ? `<span class="done-note">${3 - nHidden} back on this CV — just this one.</span>` : ""}
+      </div>
+    </div>`;
+  return h;
+}
+
+function cardHtml(id) {
+  const deal = S.deal ? "dealin" : "";
+  if (id === "budget") return `
+    <div class="card ${deal}" data-card="budget">
+      <h3>${esc(COPY.qBudgetH)}</h3>
+      <p class="sub">${esc(COPY.qBudgetSub)}</p>
+      <div class="opts">
+        <button class="opt" data-act="budget" data-v="y" type="button">${esc(COPY.qBudgetY)}</button>
+        <button class="opt" data-act="budget" data-v="s" type="button">${esc(COPY.qBudgetS)}</button>
+        <button class="opt" data-act="budget" data-v="n" type="button">${esc(COPY.qBudgetN)}</button>
+      </div>
+      <button class="skip" data-act="skip" type="button">${esc(COPY.skip)}</button>
+    </div>`;
+  if (id === "powerbi") return `
+    <div class="card ${deal}" data-card="powerbi">
+      <h3>${esc(COPY.qPowH)}</h3>
+      <p class="sub">${esc(COPY.qPowSub)}</p>
+      <form class="typed" data-act="pow-form">
+        <input id="powIn" inputmode="numeric" placeholder="${esc(COPY.qPowPh)}" aria-label="${esc(COPY.qPowH)}">
+        <button class="btn gold" type="submit">${esc(COPY.qPowGo)}</button>
+      </form>
+      ${S.powErr ? `<p class="err" role="alert">${esc(S.powErr)}</p>` : ""}
+      <button class="skip" data-act="skip" type="button">${esc(COPY.skip)}</button>
+    </div>`;
+  if (id === "stretch") return `
+    <div class="card ${deal}" data-card="stretch">
+      <h3>${esc(COPY.sH)}</h3>
+      <p class="body">${esc(COPY.sBody)}</p>
+      <div class="print-line">${esc(COPY.sLine)}</div>
+      <p class="print-note">${esc(COPY.sNote)}</p>
+      <div class="row2">
+        <button class="btn gold" data-act="stretch" data-v="y" type="button">${esc(COPY.sYes)}</button>
+        <button class="btn" data-act="stretch" data-v="n" type="button">${esc(COPY.sNo)}</button>
+      </div>
+      <button class="skip" data-act="skip" type="button">${esc(COPY.skip)}</button>
+    </div>`;
+  if (id === "changed") return `
+    <div class="card ${deal}" data-card="changed">
+      <h3>${esc(COPY.dH)}</h3>
+      <p class="sub">${esc(COPY.dSub)}</p>
+      ${decRows(false)}
+      <div class="row2" style="margin-top:12px">
+        <button class="btn gold" data-act="d-ok" type="button">${esc(COPY.dOk)}</button>
+      </div>
+    </div>`;
+  /* end */
+  const closed = (S.budget && S.budget !== "n" ? 1 : 0) + (S.powerbi ? 1 : 0);
+  const settled = (S.budget === "n" ? 1 : 0) + (S.powerbi === 0 ? 1 : 0);
+  const parts = [];
+  if (closed) parts.push(`you closed ${closed} gap${closed > 1 ? "s" : ""}`);
+  if (settled) parts.push(`${settled} ${settled > 1 ? "are" : "is"} answered and settled`);
+  if (S.stretch === "y") parts.push("1 stretch is saved with this application");
+  const n = changesCount();
+  const sum = `${parts.length ? parts.join(", ").replace(/^./, (c) => c.toUpperCase()) + ". " : ""}${
+    n
+      ? `I changed ${n} thing${n === 1 ? "" : "s"} — they're under <b>${esc(COPY.chip(n))}</b> on your CV, with undo.`
+      : `Anything I changed earlier is back on this CV — <b>Changes</b> on your CV keeps the record, with undo.`
+  }`;
+  return `
+    <div class="card ${deal}" data-card="end">
+      <h3>${esc(COPY.endH)}</h3>
+      <p class="end-sum">${sum}</p>
+      <button class="cta" data-act="apply" type="button">${esc(COPY.apply)}</button>
+      <button class="cta ghost" data-act="save" type="button">${esc(COPY.save)}</button>
+    </div>`;
+}
+
+/* v2 parity with v1's divider-step + finish-early: same words, same escape (finish reviewer f.1) */
+function dockMeta(act) {
+  if (!act || act === "end") return "";
+  const step = Math.min(S.idx + 1, S.queue.length - 1);
+  return `<div class="dock-meta"><span>${step} <b>of ${S.queue.length - 1}</b></span>${
+    act !== "changed" ? `<button class="skip" data-act="early" type="button">${esc(COPY.finishEarly)}</button>` : ""
+  }</div>`;
+}
+
+function dockPanel() {
+  const act = activeCard();
+  const step = Math.min(S.idx + 1, S.queue.length - 1);
+  const inAdvert = S.variant === "2" && CARD_FOR_REQ[REQS.find((r) => CARD_FOR_REQ[r.id] === act)?.id] === act;
+  const stepLine = act && act !== "end" ? `<span class="step">${step} <b>of ${S.queue.length - 1}</b></span>` : "";
+  const body = act
+    ? (inAdvert ? `` : cardHtml(act))
+    : "";
+  const early = act && act !== "end" && act !== "changed"
+    ? `<div class="finish-early"><button class="skip" data-act="early" type="button">${esc(COPY.finishEarly)}</button></div>` : "";
+  return `<p class="divider">${esc(COPY.zoneTailor)}${stepLine}</p><div class="dock" id="dock">${body}${body ? early : ""}</div>`;
+}
+
+function cvPanel() {
+  const m = MARKETS[S.market];
+  const bits = ["12 Orchard Road, Singapore", "+65 9123 4567", "remy@mail.com"];
+  if (!m.strips || S.back) { bits.push("Born 4 July 1978", "Married, 2 children"); }
+  bits.push("Singaporean");
+
+  const sumLines = ["Regional project manager with 9 years across banking programmes in Singapore and Hong Kong."];
+  if (S.budget === "y") sumLines.push("Owned programme budgets to USD 12m.");
+  if (S.budget === "s") sumLines.push("Managed programme spend to USD 12m with the sponsor.");
+
+  const bullets = [
+    "Owned a USD 12m regional payments programme across six markets, delivered on budget.",
+    "Ran vendor selection and contract negotiation for the Singapore core-banking refresh.",
+    "Cut release cycle time from six weeks to nine days with the platform team.",
+    "Reported programme health to the regional exco every month for three years.",
+  ];
+  const extra = [];
+  if (S.stretch === "y") extra.push({ t: COPY.sLine, k: "stretchline" });
+  UNPRINTED.forEach((l, i) => { if (S.subBack[i]) extra.push({ t: l, k: "sub" + i }); });
+
+  const skillsData = "Data: SQL, Excel" + (S.powerbi ? `, Power BI (${S.powerbi} year${S.powerbi === 1 ? "" : "s"})` : "");
+  const n = changesCount();
+
+  return `
+  <p class="divider">${esc(COPY.zoneCv)}</p>
+  <div class="chipbar">
+    <button class="chip" data-act="chip" aria-expanded="${S.chipOpen}" type="button">${esc(COPY.chip(n))}</button>
+  </div>
+  ${S.chipOpen ? `<div class="chip-panel">${decRows(true)}</div>` : ""}
+  <div class="cv" id="paper">
+    <p class="nm">Remy Tan</p>
+    <p class="ct" data-line="head">${esc(bits.join(" · "))}</p>
+    <section>
+      <h2 class="cv-sec">Summary</h2>
+      ${sumLines.map((t, i) => `<p class="plain" data-line="sum${i}">${esc(t)}</p>`).join("")}
+    </section>
+    <section>
+      <h2 class="cv-sec">Experience</h2>
+      <p class="role-h">Standard Chartered Bank <span>· Regional Project Manager · 2019–2022</span></p>
+      ${bullets.map((b) => `<p class="cv-line">${esc(b)}</p>`).join("")}
+      ${extra.map((e) => `<p class="cv-line" data-line="${e.k}">${esc(e.t)}</p>`).join("")}
+    </section>
+    <section>
+      <h2 class="cv-sec">Skills</h2>
+      <p class="plain">Delivery: Agile, PRINCE2, vendor and contract management</p>
+      <p class="plain" data-line="skills">${esc(skillsData)}</p>
+    </section>
+    <section>
+      <h2 class="cv-sec">Certifications</h2>
+      <p class="plain">PL-300 – Power BI Data Analyst Associate, Feb 2023 (expired)</p>
+      <p class="plain">PMP – Project Management Institute, 2017</p>
+    </section>
+    <section>
+      <h2 class="cv-sec">Additional</h2>
+      <p class="plain">Languages: English (native), Mandarin, Malay</p>
+      <p class="plain">Driving licence: B (own vehicle)</p>
+    </section>
+  </div>`;
+}
+
+function render(effects = {}) {
+  const cols = document.getElementById("cols");
+  if (S.variant === "1") {
+    cols.innerHTML = `
+      <div class="col advert-col"><p class="divider">${esc(COPY.zoneAdvert)}</p>${advertPanel()}</div>
+      <div class="col">${dockPanel()}</div>
+      <div class="col">${cvPanel()}</div>`;
+  } else {
+    const act = activeCard();
+    const tail = act === "changed" || act === "end" ? `<div class="dock-tail">${cardHtml(act)}${dockMeta(act)}</div>` : "";
+    cols.innerHTML = `
+      <div class="col"><p class="divider">${esc(COPY.zoneAdvert)}</p>${advertPanel()}${tail}</div>
+      <div class="col">${cvPanel()}</div>`;
+  }
+  document.getElementById("swK").textContent = "Shape " + S.variant;
+  document.getElementById("swN").textContent = S.variant === "1" ? "The dock" : "On the advert";
+  document.getElementById("togMkt").textContent = "Market: " + MARKETS[S.market].name;
+  document.getElementById("profN").textContent = 34 + S.profExtra;
+  document.querySelectorAll(".vbtn").forEach((el) => el.classList.toggle("on", el.dataset.v === S.variant));
+  S.deal = false;
+  runEffects(effects);
+  instrument();
+  wire();
+}
+
+/* ══ EFFECTS — the one authored moment: chip flies, score climbs, the line writes itself ══ */
+function runEffects(fx) {
+  if (fx.announce) document.getElementById("live").textContent = fx.announce;
+  if (fx.tween) tweenScore();
+  if (fx.mat) fx.mat.forEach((k) => materialize(k));
+  if (fx.settle) fx.settle.forEach((k) => {
+    const el = document.querySelector(`[data-line="${k}"]`);
+    if (el) el.classList.add("settle");
+  });
+  if (fx.fly && !REDUCED) flyChip(fx.fly);
+  else if (fx.fly) bumpTarget(fx.fly.to);
+  if (fx.focusCard) {
+    const c = document.querySelector(".card");
+    if (c) { c.setAttribute("tabindex", "-1"); c.focus({ preventScroll: false }); }
+  }
+}
+
+function tweenScore() {
+  const from = S.shownScore, to = targetScore();
+  if (from === to) return;
+  const numEl = () => document.getElementById("dialNum");
+  if (REDUCED) { S.shownScore = to; const el = numEl(); if (el) el.textContent = to + "%"; redrawDial(); return; }
+  const t0 = performance.now();
+  const DUR = 680; /* SCORE_TWEEN_MS, tailor/page.tsx */
+  function frame(t) {
+    const p = Math.min(1, (t - t0) / DUR);
+    const eased = 1 - Math.pow(1 - p, 3);
+    S.shownScore = from + (to - from) * eased;
+    const el = numEl();
+    if (el) el.textContent = Math.round(S.shownScore) + "%";
+    redrawDial();
+    if (p < 1) requestAnimationFrame(frame);
+    else { S.shownScore = to; const e2 = numEl(); if (e2) { e2.classList.remove("bump"); void e2.offsetWidth; e2.classList.add("bump"); } }
+  }
+  requestAnimationFrame(frame);
+}
+function redrawDial() {
+  const arc = document.querySelector(".dial svg circle:last-of-type");
+  if (!arc) return;
+  const C = 2 * Math.PI * 26;
+  arc.setAttribute("stroke-dashoffset", (C * (1 - S.shownScore / 100)).toFixed(1));
+}
+
+function materialize(key) {
+  const el = document.querySelector(`[data-line="${key}"]`);
+  if (!el) return;
+  if (REDUCED) return;
+  const text = el.textContent;
+  el.classList.add("mat");
+  el.innerHTML = text.split("").map((ch) => `<span>${esc(ch)}</span>`).join("");
+  const spans = el.querySelectorAll("span");
+  const step = Math.min(9, 650 / Math.max(1, spans.length));
+  spans.forEach((sp, i) => { sp.style.transition = "opacity 60ms linear"; setTimeout(() => { sp.style.opacity = 1; }, 40 + i * step); });
+  setTimeout(() => { el.classList.add("done"); el.textContent = text; }, 40 + spans.length * step + 120);
+}
+
+function bumpTarget(to) {
+  const el = to === "profile" ? document.getElementById("profN") : document.getElementById("stake");
+  if (!el) return;
+  el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump");
+}
+function flyChip({ label, to, stretch }) {
+  const fromEl = document.querySelector(".ledger") || document.getElementById("advert");
+  const toEl = to === "profile" ? document.getElementById("prof") : document.getElementById("stake");
+  if (!fromEl || !toEl) return;
+  const a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
+  const chip = document.createElement("div");
+  chip.className = "fly" + (stretch ? " stretch" : "");
+  chip.textContent = label;
+  chip.style.left = a.left + 20 + "px"; chip.style.top = a.top + "px";
+  document.body.appendChild(chip);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    chip.style.transform = `translate(${b.left - a.left - 20 + b.width / 2 - 40}px, ${b.top - a.top}px) scale(.6)`;
+    chip.style.opacity = "0";
+  }));
+  setTimeout(() => { chip.remove(); bumpTarget(to); }, 740); /* factbadge flight 720ms */
+}
+
+/* ══ ACTIONS ══ */
+function advance() { S.idx += 1; S.deal = true; }
+function led(text, delta, gold, undoFn) { S.ledger = { text, delta, gold }; S.lastUndo = undoFn || null; }
+
+const ACTIONS = {
+  budget(v) {
+    S.budget = v;
+    const fact = v !== "n";
+    if (fact) S.profExtra += 1;
+    led(v === "y" ? COPY.ledBudgetY : v === "s" ? COPY.ledBudgetS : COPY.ledBudgetN,
+        v === "y" ? 9 : v === "s" ? 6 : 0, fact,
+        () => { S.budget = null; if (fact) S.profExtra -= 1; S.queue.splice(S.idx = Math.min(S.idx, S.queue.indexOf("changed")), 0, "budget"); S.ledger = null; S.lastUndo = null; });
+    advance();
+    render({
+      tween: true, announce: `${targetScore()} percent match. ${S.ledger.text}`,
+      mat: fact ? ["sum1"] : [],
+      fly: fact ? { label: "+1 fact", to: "profile" } : null,
+      focusCard: true,
+    });
+  },
+  powerbi(raw) {
+    const t = String(raw).trim();
+    const v = Number(t);
+    if (t === "" || !Number.isInteger(v) || v < 0) {
+      /* the error names the problem and the recovery (finish reviewer f.7) */
+      S.powErr = COPY.qPowErr;
+      render({});
+      const input = document.getElementById("powIn");
+      if (input) input.focus();
+      return;
+    }
+    S.powErr = null;
+    S.powerbi = v;
+    if (v === 0) {
+      /* zero years = the "Not yet" answer: settled, honest, no fact and no score */
+      led(COPY.ledPowN, 0, false,
+          () => { S.powerbi = null; S.queue.splice(S.idx = Math.min(S.idx, S.queue.indexOf("changed")), 0, "powerbi"); S.ledger = null; S.lastUndo = null; });
+      advance();
+      render({ announce: S.ledger.text, focusCard: true });
+      return;
+    }
+    S.profExtra += 1;
+    led(COPY.ledPow(v), 7, true,
+        () => { S.powerbi = null; S.profExtra -= 1; S.queue.splice(S.idx = Math.min(S.idx, S.queue.indexOf("changed")), 0, "powerbi"); S.ledger = null; S.lastUndo = null; });
+    advance();
+    render({ tween: true, announce: `${targetScore()} percent match. ${S.ledger.text}`, mat: ["skills"], fly: { label: "+1 fact", to: "profile" }, focusCard: true });
+  },
+  stretch(v) {
+    S.stretch = v;
+    if (v === "y") {
+      led(COPY.ledStretch, 8, true, () => ACTIONS["stretch-undo"]());
+      advance();
+      render({ tween: true, announce: `${targetScore()} percent match. ${S.ledger.text}`, mat: ["stretchline"], fly: { label: "stretch", to: "stake", stretch: true }, focusCard: true });
+    } else {
+      led("Noted — not for this one.", 0, false, null);
+      advance();
+      render({ announce: S.ledger.text, focusCard: true });
+    }
+  },
+  "stretch-undo"() {
+    S.stretch = null;
+    const at = Math.min(S.queue.indexOf("changed"), S.idx);
+    if (!S.queue.includes("stretch")) S.queue.splice(at, 0, "stretch");
+    S.idx = Math.min(S.idx, S.queue.indexOf("stretch"));
+    led(COPY.ledStretchOff, 0, false, null);
+    render({ tween: true, announce: S.ledger.text, focusCard: true });
+  },
+  "d-ok"() { advance(); render({ focusCard: true, announce: COPY.endH }); },
+  skip() {
+    const id = S.queue[S.idx];
+    S.powErr = null;
+    S.queue.splice(S.idx, 1);
+    S.queue.splice(S.queue.indexOf("changed"), 0, id);
+    S.deal = true;
+    render({ focusCard: true });
+  },
+  early() { S.idx = S.queue.indexOf("changed"); S.deal = true; render({ focusCard: true }); },
+  "strip-back"() { S.back = true; led(COPY.ledBack, 0, false, () => { S.back = false; S.ledger = null; }); render({ mat: [], settle: ["head"], announce: COPY.ledBack }); },
+  "strip-undo"() { S.back = false; render({}); },
+  "sub-back"(i) { S.subBack[i] = true; render({ settle: ["sub" + i], announce: COPY.ledBack }); },
+  "sub-undo"(i) { S.subBack[i] = false; render({}); },
+  three() { S.showThree = !S.showThree; render({}); },
+  chip() { S.chipOpen = !S.chipOpen; render({}); },
+  "last-undo"() { if (S.lastUndo) { S.lastUndo(); S.deal = true; render({ tween: true }); } },
+  apply() { led("Ready. Nothing goes out until you press send.", 0, true, null); render({ announce: S.ledger.text }); },
+  save() { led("Saved. Pick it up whenever you want.", 0, false, null); render({ announce: S.ledger.text }); },
+};
+
+/* Changing the market changes RENDER, never capture: her answers, the stretch, the put-backs and
+   the score all survive the flip (finish reviewer f.2, ADR-0007 cl.8). Only the strip row and the
+   letterhead react. */
+function flipMarket() {
+  S.market = S.market === "sg" ? "none" : "sg";
+  led(COPY.marketMoved(MARKETS[S.market].name), 0, false, null);
+  render({ announce: S.ledger.text });
+}
+ACTIONS.market = flipMarket;
+
+/* ══ WIRE ══ */
+/* After a full re-render, keyboard focus must land on the control that replaced the one just
+   pressed — otherwise every put-back/undo/toggle restarts Tab from the top (finish reviewer f.4). */
+const FOCUS_NEXT = {
+  "sub-back": "sub-undo", "sub-undo": "sub-back",
+  "strip-back": "strip-undo", "strip-undo": "strip-back",
+  three: "three", chip: "chip", market: "market",
+};
+function refocus(act, i) {
+  const next = FOCUS_NEXT[act];
+  if (!next) return;
+  const el = document.querySelector(i != null ? `[data-act="${next}"][data-i="${i}"]` : `[data-act="${next}"]`);
+  if (el) el.focus();
+}
+function wire() {
+  document.querySelectorAll("[data-act]").forEach((el) => {
+    const act = el.dataset.act;
+    if (act === "pow-form") {
+      el.addEventListener("submit", (e) => {
+        e.preventDefault();
+        ACTIONS.powerbi(document.getElementById("powIn").value);
+      });
+      return;
+    }
+    el.addEventListener("click", () => {
+      const i = el.dataset.i != null ? Number(el.dataset.i) : null;
+      if (act === "budget" || act === "stretch") ACTIONS[act](el.dataset.v);
+      else if (act === "sub-back" || act === "sub-undo") ACTIONS[act](i);
+      else ACTIONS[act]();
+      refocus(act, i);
+    });
+  });
+}
+
+function setVariant(v) {
+  S.variant = v;
+  const u = new URL(location.href); u.searchParams.set("v", v); history.replaceState(null, "", u);
+  render({});
+}
+document.querySelectorAll(".vbtn").forEach((el) => el.addEventListener("click", () => setVariant(el.dataset.v)));
+document.getElementById("togMkt").addEventListener("click", flipMarket);
+document.getElementById("reset").addEventListener("click", () => { const v = S.variant; S = freshState(); S.variant = v; render({}); });
+addEventListener("keydown", (e) => {
+  if (e.target.matches("input")) return;
+  if (e.key === "1" || e.key === "2") setVariant(e.key);
+  else if (e.key.toLowerCase() === "m") flipMarket();
+  else if (e.key.toLowerCase() === "r") { const v = S.variant; S = freshState(); S.variant = v; render({}); }
+});
+
+/* ══ INSTRUMENT — designer's strip, never her screen ══ */
+function instrument() {
+  const claims = {
+    "1": "<b>Shape 1 — the dock.</b> Cards always arrive in the same place: motor memory, calm reading, the advert and the CV never move. The trade: the card floats between cause (advert) and effect (CV).",
+    "2": "<b>Shape 2 — on the advert.</b> The card is dealt directly beneath the requirement it answers — cause visibly touches effect, maximum Tinder. The trade: the advert panel reflows on every card, and the CV column carries more width.",
+  };
+  const n = changesCount();
+  document.getElementById("instr").innerHTML = `
+    <span class="tag">Instrument</span> ${claims[S.variant]}
+    <hr>
+    settled BEFORE this screen (owner pt.1): translated licence · gate keep · certificate display — all render as finished lines, zero cards
+    &nbsp;·&nbsp; deck: <b>${S.queue.length - 1}</b> cards (2 questions, 1 stretch, 1 declaration) &nbsp;·&nbsp; declarations on this CV: <b>${n}</b>
+    &nbsp;·&nbsp; market: <b>${MARKETS[S.market].name}</b>${MARKETS[S.market].strips ? "" : ' — <span class="warn">no page, nothing stripped, no strip row exists (cl.3)</span>'}
+    <hr>
+    <span class="warn">falsifiable here:</span>
+    (1) nothing says "always" / "from now on" — every put-back is "this CV only";
+    (2) a fact chip flies to <b>Profile</b>; the stretch chip stays <b>on the advert</b> and the profile count never moves on a stretch — ADR-0005 as physics;
+    (3) declarations move no score;
+    (4) the decline is "<b>Not for this one</b>" only — the "never" scope is Design C (#171), deliberately absent;
+    (5) flip the market (M): the strip row and its letterhead effect vanish together — and <b>her answers, stretch and put-backs all survive</b> (market changes render, never capture);
+    (6) undo: last scored action (ledger), each put-back, and the stretch (on the advert tag).
+    <hr>
+    ⚠️ prototype may be built only after #158 lands claim-ids (the "3 lines" row needs them) · reward beats at shipped values: dealin 340ms · bump 460ms · settle 640ms · flight 720ms · tween 680ms · materialize is NEW (≤650ms, flattened under reduced motion) · <b>--hud-mute-2 #8a95a2 is NEW</b> — shipped --hud-mute fails WCAG AA on --hud-2 (4.39:1), build ticket must carry the fix`;
+}
+
+const v0 = new URL(location.href).searchParams.get("v");
+if (v0 === "2") S.variant = "2";
+render({});
+</script>
+
+</body>
+</html>

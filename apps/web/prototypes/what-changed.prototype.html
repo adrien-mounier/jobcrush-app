@@ -1,0 +1,978 @@
+<!-- PROTOTYPE — throwaway. Design effort #157, Design B: "we changed what prints".
+     Binding on #168 (the withholding pass) and #170 (unclassifiable content).
+
+     THE QUESTION: the machine changed what prints. How does she see that, and put it back
+     FOR THIS ONE APPLICATION, in ONE control rather than four?
+
+     ══ THE FIVE CALLERS THAT MUST COLLAPSE INTO ONE CONTROL ═════════════════
+       1. STRIP-LIST      a country page removed a date of birth / marital status.  ADR-0007 cl.2+4
+       2. CHOSEN BULLETS  "3 more from this role aren't shown."                     #153 dec.4+5
+       3. SANITY GATE     homeless content withheld as an obvious mistake.          ADR-0010 cl.5
+       4. TIDIED          a homeless line corrected/translated — original beside.   ADR-0010 cl.4
+       5. EXPIRED CERT    a state suffix ADDED; she chooses how it prints.          ADR-0007 cl.9
+     ⚠️ 5 is in #168's acceptance criteria but is NOT in the kickoff's list of four. Included
+        deliberately: if the control cannot carry it, #168 needs a SECOND control — which is the
+        exact failure ("four requirements become four controls") this effort exists to prevent.
+        Flagged for the owner as a scope question, not assumed.
+
+     ══ TWO VERBS, NOT ONE ═══════════════════════════════════════════════════
+     Callers 1-3 are REMOVED (put it back). Callers 4-5 are CHANGED (is this still yours?).
+     They need different controls on the same row frame — which is this effort's own precedent:
+     Design A, "the frame generalises, the editing controls do not."
+
+     ══ LOCKED BEFORE DRAWING — not open here ════════════════════════════════
+       - NO STANDING SETTING. Per-application only. ADR-0007 cl.4 + ADR-0005. The pressure
+         arrives as a usability improvement (twenty applications, twenty taps), never as a
+         disagreement. The single most likely thing to be broken by accident here.
+       - THE STRETCH IS NOT IN THIS CONTROL. ADR-0007 cl.11: #141 asked that must-not-print and
+         prints-only-here be one mechanism; the answer was NO. A stretch sits BESIDE the profile
+         so there is nothing to filter. Design C's territory, not this one.
+       - Nothing removed silently (ADR-0007 cl.4) · a withholding never touches the profile (cl.5).
+       - The explanation NAMES THE MARKET PAGE that answered (#168 UX intent, ADR-0007 cl.10).
+         NO PAGE MEANS NOTHING IS STRIPPED (cl.3) — and therefore nothing on her screen. A market
+         with no page produces an EMPTY "left off" group, never the words "no page for this market".
+       - Faithful correction's ceiling: she reads the line and says "yes, that's what my CV says"
+         (ADR-0010 cl.4). Beyond-cosmetic — translation especially — shows the original.
+       - Tone: convention, NOT compliance. Never clinical, never accusatory (#168 UX intent). This
+         is a CV-QUALITY feature; the Singapore obligation binds employers, not her.
+       - "Showing it is enough" (owner, Design A): every machine decision visible and correctable,
+         but ONE CONFIRM MAY COVER SEVERAL.
+       - Undo everywhere (#120 is causing live harm on staging).
+       - Every removal is DECLARED to conservationIssues(), never discovered by it — so this list
+         is read off a declared record, never reverse-engineered from a diff.
+
+     ══ WHAT ALREADY SHIPS, AND IS REUSED HERE RATHER THAN INVENTED ══════════
+     /tailor ships this whole screen already (apps/web/app/tailor/page.tsx + tailor.css, loaded
+     over deck.css):
+       - the dark HUD register (--hud-* from deck.css:6-13, verbatim)
+       - the CV paper (.tailor .cv — #f6f2ea over a dotted grain, serif, tailor.css:91-155, verbatim)
+       - the option buttons (.tailor .opt, tailor.css:186-220, verbatim)
+       - the ENDING BLOCK: "This CV is as strong as I can make it for this job." -> "Apply with
+         this CV" / "Save it and come back later" (page.tsx T13/T15/T16)
+       - tl-settle (640ms) — the beat a line already makes when it lands on the paper
+     Nothing here invents a register, a palette or a timing.
+
+     ══ 🚨 THE FINDING THAT PRICES ALL THREE VARIANTS ════════════════════════
+     THE SHIPPED PAPER CANNOT SHOW FOUR OF THE SIX CHANGES.
+     tailor/page.tsx:58-63 renders exactly four sections — summary, experience, skills, education.
+     There is NO LETTERHEAD, no certifications, no `additional`. That is precisely where a date of
+     birth, a marital status, a driving licence and an expired certification live.
+     So a put-back of a date of birth today lands NOWHERE SHE CAN SEE IT. Whichever variant wins,
+     either the tailor paper grows three parts, or the control moves to /preview/[jobId] — where
+     the real CV renders, but inside a SANDBOXED IFRAME the server writes, so anything drawn on
+     the document is drawn by renderPreviewHtml() and would be IN the document.
+     This is a build cost common to all three variants, not a discriminator. Stated once, here.
+
+     ══ THE THREE VARIANTS ═══════════════════════════════════════════════════
+       A — IN THE ENDING.  The list IS the ending block, above the exits. She was going to tap
+           "Apply with this CV" anyway, so the confirm and the exit are the SAME TAP — zero added
+           taps. A report. Closest to the owner's own "one confirm may cover several".
+       B — ON THE PAPER.   Every change marked where it happened, on the CV itself; tap a mark for
+           the reason and the put-back. An annotation. Most literal reading of "explained where
+           the candidate sees it" — and the only shape that puts "3 more from this role" at the role.
+       C — BEHIND ONE LINE. The ending carries one line — "I changed 6 things for this job" — and
+           the list opens on tap. A disclosure. Cheapest in space.
+           🚨 THE SHARP QUESTION: is an ANNOUNCEMENT an EXPLANATION? A count with the reasons one
+           tap away may be the silent removal ADR-0007 cl.4 forbids, wearing a link.
+
+     Designer instrumentation lives in the DARK strip below the app only — never her screen.
+
+     ══ VERDICT ══════════════════════════════════════════════════════════════
+     (appended when the owner decides)
+
+     Not production code. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JobCrush — what I changed for this job (#157 Design B)</title>
+
+<style>
+  :root {
+    /* ── the SHIPPED dark HUD, deck.css:6-19 verbatim ── */
+    --hud-0: #101419;
+    --hud-1: #171c23;
+    --hud-2: #1f262f;
+    --hud-line: #2b333d;
+    --hud-ink: #e8eaed;
+    --hud-mute: #7f8b98;
+    --gold: #e8a33d;
+    --gold-dim: #a8762b;
+    --weak: #6f7d8c;
+    --settled: #4d5865;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+
+    /* ── the SHIPPED paper, tailor.css:7-14 verbatim ── */
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --paper: #f6f2ea;
+    --paper-edge: #e2dacb;
+    --ink: #16150f;
+    --ink-mute: #6b6455;
+    --rule: #d9d0bd;
+    --gold-glow: rgba(232, 163, 61, 0.22);
+
+    --sw-h: 66px;
+  }
+
+  * { box-sizing: border-box; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.25) transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #e7e3dd;
+    font-family: var(--sans);
+    line-height: 1.5;
+    padding: 20px 18px calc(var(--sw-h) + 26px);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ══ the explainer — light, and deliberately NOT part of the app ══ */
+  .ask {
+    max-width: 1180px; margin: 0 auto 16px; background: #fffdf9; border: 1px solid #ded7cb;
+    border-radius: 12px; padding: 18px 22px; color: #1f2328;
+  }
+  .ask h1 { margin: 0 0 8px; font-size: 19px; letter-spacing: -.01em; }
+  .ask p { margin: 0 0 8px; font-size: 14px; color: #3c444d; }
+  .ask p:last-child { margin-bottom: 0; }
+  .ask code { font-family: var(--mono); font-size: 12.5px; background: #f1ece2; padding: 1px 5px; border-radius: 4px; }
+  .ask .rules {
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid #ece5d9;
+    font-family: var(--mono); font-size: 11.5px; color: #6b6455; line-height: 1.7;
+  }
+
+  /* ══ the app — the SHIPPED tailor screen's register ══ */
+  .app {
+    max-width: 1180px; margin: 0 auto; background: var(--hud-0); color: var(--hud-ink);
+    border: 1px solid var(--hud-line); border-radius: 16px; overflow: hidden;
+    box-shadow: 0 22px 60px -20px rgba(0,0,0,.6);
+  }
+  .brandbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 11px 18px; border-bottom: 1px solid var(--hud-line); background: var(--hud-1);
+    font-size: 13px; color: var(--hud-mute);
+  }
+  .brandbar b { color: var(--hud-ink); font-weight: 620; letter-spacing: -.01em; }
+  .brandbar .job { font-size: 12px; }
+  .brandbar .job em { font-style: normal; color: var(--gold); }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0; align-items: start; }
+  .col { padding: 18px; min-width: 0; }
+  .col.left { border-right: 1px solid var(--hud-line); }
+
+  .divider {
+    display: flex; align-items: center; gap: 9px; padding: 0 0 11px;
+    font-family: var(--mono); font-size: 10px; color: var(--hud-mute);
+    text-transform: uppercase; letter-spacing: .1em;
+  }
+  .divider::after { content: ""; flex: 1; height: 1px; background: var(--hud-line); }
+
+  /* ── the job card (why anything was changed at all) ── */
+  .jobcard {
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 14px;
+    padding: 15px 16px; margin-bottom: 16px;
+  }
+  .jobcard h2 { margin: 0 0 3px; font-size: 17px; font-weight: 620; letter-spacing: -.015em; line-height: 1.25; }
+  .jobcard .co { margin: 0 0 11px; font-size: 13px; color: var(--hud-mute); }
+  .jobcard .reqs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .jobcard .req {
+    font-size: 11.5px; padding: 3.5px 9px; border-radius: 999px;
+    border: 1px solid var(--hud-line); background: var(--hud-2); color: var(--hud-mute);
+  }
+  .jobcard .req.hit { border-color: rgba(232,163,61,.4); color: var(--gold); }
+  .jobcard .mkt {
+    margin: 12px 0 0; padding-top: 11px; border-top: 1px solid var(--hud-line);
+    font-size: 12.5px; color: var(--hud-mute);
+  }
+  .jobcard .mkt b { color: var(--hud-ink); font-weight: 600; }
+  .jobcard .mkt a { color: var(--gold); text-decoration: none; border-bottom: 1px solid rgba(232,163,61,.35); cursor: pointer; }
+
+  /* ══ the CV paper — tailor.css:91-155 verbatim, with the parts it does not have yet ══ */
+  .cv {
+    position: relative; overflow: hidden; padding: 22px 22px 26px; border-radius: 10px;
+    border: 1px solid var(--paper-edge); background: var(--paper); color: var(--ink);
+    font-family: var(--serif);
+    box-shadow: 0 18px 44px -14px rgba(0,0,0,.75), 0 1px 0 rgba(255,255,255,.16) inset;
+  }
+  .cv::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background-image: radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px);
+    background-size: 3px 3px;
+  }
+  /* the letterhead the shipped miniature DOES NOT HAVE — see the header comment */
+  .cv .head { margin: 0 0 18px; }
+  .cv .head .nm { font-size: 21px; font-weight: 600; letter-spacing: -.01em; margin: 0; }
+  .cv .head .ct {
+    margin: 4px 0 0; font-family: var(--sans); font-size: 11.5px; color: var(--ink-mute);
+    line-height: 1.55;
+  }
+  .cv-sec {
+    margin: 0 0 8px; font-family: var(--sans); font-size: 9.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .14em; color: var(--ink-mute);
+  }
+  .cv section { margin: 0 0 17px; }
+  .cv section:last-child { margin-bottom: 0; }
+  .cv .role-h { margin: 0 0 5px; font-family: var(--sans); font-size: 13px; font-weight: 620; }
+  .cv .role-h span { font-weight: 400; color: var(--ink-mute); }
+  .cv-line { position: relative; margin: 0 0 8px; padding-left: 14px; font-size: 14px; line-height: 1.45; }
+  .cv-line::before {
+    content: ""; position: absolute; left: 0; top: .62em; width: 5px; height: 5px;
+    border-radius: 50%; background: var(--gold-dim);
+  }
+  .cv .plain { margin: 0 0 7px; font-size: 14px; line-height: 1.45; }
+  .cv .landed { animation: tl-settle 640ms cubic-bezier(.2,1,.3,1); border-radius: 5px; }
+
+  /* ══ VARIANT B ONLY — marks on the paper ═════════════════════════════════
+     A mark must never read as a defect. So: no red, no strikethrough, no squiggle. A quiet
+     gold dot-rule and a count, in the SANS face so it is visibly not part of the document. */
+  .mk {
+    display: inline-flex; align-items: center; gap: 5px; vertical-align: baseline;
+    font-family: var(--sans); font-size: 11px; color: var(--gold-dim);
+    border: 1px dashed rgba(168,118,43,.5); background: rgba(232,163,61,.09);
+    border-radius: 999px; padding: 1.5px 9px; cursor: pointer; line-height: 1.5;
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .mk:hover, .mk:focus-visible { background: rgba(232,163,61,.2); border-color: var(--gold-dim); outline: none; }
+  .mk.block { display: flex; width: fit-content; margin: 2px 0 8px 14px; }
+  .mk.inline-after { margin-left: 7px; }
+  .cv .tidy-underline {
+    text-decoration: underline; text-decoration-style: dotted;
+    text-decoration-color: var(--gold-dim); text-underline-offset: 3px; cursor: pointer;
+  }
+
+  /* ══ the ending block — tailor/page.tsx's own, extended ══ */
+  .ending { margin-top: 16px; }
+  .ending .big {
+    margin: 0 0 14px; font-size: 16.5px; font-weight: 550; line-height: 1.35;
+    letter-spacing: -.01em; color: var(--hud-ink); text-wrap: balance;
+  }
+  .cta {
+    appearance: none; display: block; width: 100%; text-align: center; font: inherit;
+    font-size: 15px; font-weight: 600; padding: 13.5px 16px; border-radius: 12px;
+    border: 1px solid transparent; background: var(--gold); color: #1a1206;
+    cursor: pointer; margin-bottom: 9px; transition: filter 140ms ease, transform 90ms ease;
+  }
+  .cta:hover { filter: brightness(1.06); }
+  .cta:active { transform: scale(.99); }
+  .cta.ghost { background: transparent; color: var(--hud-ink); border-color: var(--hud-line); font-weight: 500; }
+  .cta.ghost:hover { background: var(--hud-2); }
+
+  /* ══ THE CONTROL — one row frame, controls differ by what the machine did ══ */
+  .changed {
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 14px;
+    padding: 15px 16px; margin-bottom: 14px;
+  }
+  .changed > h3 {
+    margin: 0 0 4px; font-size: 15px; font-weight: 620; letter-spacing: -.01em; color: var(--hud-ink);
+  }
+  .changed > .scope { margin: 0 0 14px; font-size: 12.5px; color: var(--hud-mute); line-height: 1.45; }
+  .grp {
+    margin: 0 0 7px; font-family: var(--mono); font-size: 9.5px; text-transform: uppercase;
+    letter-spacing: .13em; color: var(--hud-mute);
+  }
+  .grp:not(:first-of-type) { margin-top: 16px; }
+
+  .row {
+    border: 1px solid var(--hud-line); border-radius: 11px; background: var(--hud-2);
+    padding: 12px 13px; margin-bottom: 7px;
+  }
+  .row:last-child { margin-bottom: 0; }
+  .row.on { border-color: rgba(232,163,61,.45); background: #262f3a; }
+  .row .lb { margin: 0; font-size: 13.5px; font-weight: 600; letter-spacing: -.005em; }
+  .row .vl {
+    margin: 4px 0 0; font-family: var(--serif); font-size: 14px; color: var(--hud-ink);
+    line-height: 1.4;
+  }
+  .row .why { margin: 6px 0 0; font-size: 12.5px; color: var(--hud-mute); line-height: 1.45; }
+  .row .why b { color: #b9c2cc; font-weight: 600; }
+  .row .orig {
+    margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,.22);
+    border-left: 2px solid var(--gold-dim);
+  }
+  .row .orig .k {
+    display: block; font-family: var(--mono); font-size: 9.5px; text-transform: uppercase;
+    letter-spacing: .12em; color: var(--hud-mute); margin-bottom: 3px;
+  }
+  .row .orig .t { font-family: var(--serif); font-size: 13.5px; color: var(--hud-ink); }
+  .row .acts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; align-items: center; }
+
+  .btn {
+    appearance: none; font: inherit; font-size: 13px; padding: 8px 13px; border-radius: 9px;
+    border: 1px solid var(--hud-line); background: var(--hud-1); color: var(--hud-ink);
+    cursor: pointer; transition: background 140ms ease, border-color 140ms ease, transform 90ms ease;
+  }
+  .btn:hover { background: #262f3a; border-color: #3b4653; }
+  .btn:active { transform: scale(.985); }
+  .btn.pick { border-color: var(--gold); background: #262f3a; color: var(--gold); }
+  .btn.link {
+    border: 0; background: transparent; color: var(--hud-mute); padding: 8px 4px;
+    text-decoration: underline; text-underline-offset: 3px;
+  }
+  .btn.link:hover { background: transparent; color: var(--hud-ink); }
+  .done-note { font-size: 12.5px; color: var(--gold); display: inline-flex; align-items: center; gap: 6px; }
+
+  .sub { margin: 9px 0 0; padding-left: 11px; border-left: 1px solid var(--hud-line); }
+  .sub .sl {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid rgba(43,51,61,.6);
+  }
+  .sub .sl:last-child { border-bottom: 0; }
+  .sub .sl p { margin: 0; font-family: var(--serif); font-size: 13.5px; line-height: 1.4; flex: 1; }
+  .sub .sl.on p { color: var(--gold); }
+
+  /* variant C's one line */
+  .oneline {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 12px;
+    padding: 13px 15px; margin-bottom: 14px;
+  }
+  .oneline p { margin: 0; font-size: 13.5px; color: var(--hud-ink); }
+  .oneline p span { color: var(--hud-mute); display: block; font-size: 12px; margin-top: 2px; }
+
+  /* variant B's sheet */
+  .sheet-wrap {
+    position: absolute; inset: 0; background: rgba(8,11,15,.62); backdrop-filter: blur(2px);
+    display: flex; align-items: flex-end; justify-content: center; z-index: 40; padding: 14px;
+  }
+  .sheet {
+    width: 100%; max-width: 440px; background: var(--hud-1); border: 1px solid var(--hud-line);
+    border-radius: 16px; padding: 15px 16px; animation: tl-rise 260ms cubic-bezier(.2,1,.3,1);
+    box-shadow: 0 -12px 44px rgba(0,0,0,.55);
+  }
+  .sheet h4 { margin: 0 0 11px; font-size: 14px; font-weight: 620; }
+  .colwrap { position: relative; }
+
+  @keyframes tl-settle { 0% { background: rgba(232,163,61,.2); } 100% { background: transparent; } }
+  @keyframes tl-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  /* ── designer instrumentation — dark, never mistakable for her screen ── */
+  .instr {
+    max-width: 1180px; margin: 12px auto 0; background: var(--hud-1); border: 1px solid var(--hud-line);
+    border-radius: 8px; padding: 11px 15px; color: var(--hud-mute); font-family: var(--mono);
+    font-size: 11.5px; line-height: 1.75;
+  }
+  .instr b { color: var(--hud-ink); }
+  .instr .tag {
+    color: var(--gold); font-family: var(--sans); font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; font-size: 10px; margin-right: 10px;
+  }
+  .instr .warn { color: var(--gold); }
+  .instr hr { border: 0; border-top: 1px solid var(--hud-line); margin: 8px 0; }
+
+  .switcher {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px; z-index: 70; height: var(--sw-h);
+    display: flex; align-items: stretch; background: rgba(23,28,35,.94); backdrop-filter: blur(14px);
+    border: 1px solid var(--hud-line); border-radius: 999px; box-shadow: 0 10px 34px rgba(0,0,0,.6);
+    overflow: hidden; font-family: var(--sans);
+  }
+  .switcher .vlabel {
+    display: flex; flex-direction: column; justify-content: center; padding: 0 18px; min-width: 178px;
+    color: var(--hud-ink); border-right: 1px solid var(--hud-line);
+  }
+  .switcher .vlabel .k { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+  .switcher .vlabel .n { font-size: 13.5px; margin-top: 3px; }
+  .switcher .tog {
+    display: flex; align-items: center; padding: 0 17px; cursor: pointer; color: var(--hud-ink);
+    font-size: 13px; border-right: 1px solid var(--hud-line); user-select: none;
+  }
+  .switcher .tog:last-child { border-right: 0; }
+  .switcher .tog:hover { background: rgba(232,163,61,.1); }
+  /* the three variants, clickable — the label alone was not a control (owner, round 1) */
+  .switcher .arrow { padding: 0 14px; font-size: 16px; color: var(--hud-mute); }
+  .switcher .arrow:hover { color: var(--hud-ink); }
+  .switcher .vbtn { padding: 0 15px; font-weight: 650; letter-spacing: .04em; color: var(--hud-mute); }
+  .switcher .vbtn.on { color: #1a1206; background: var(--gold); }
+  .switcher .vbtn.on:hover { background: var(--gold); filter: brightness(1.06); }
+
+  .hint {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--sw-h) + 20px);
+    font-size: 10.5px; color: #6b7784; font-family: var(--mono); z-index: 69; white-space: nowrap;
+  }
+
+  @media (max-width: 980px) {
+    .cols { grid-template-columns: 1fr; }
+    .col.left { border-right: 0; border-bottom: 1px solid var(--hud-line); }
+    .hint { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* globals.css flattens every animation app-wide; mirrored so the prototype is judged
+       under the rule the product ships. */
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+
+<div class="ask">
+  <h1>#157 · Design B — “we changed what prints”</h1>
+  <p><strong>The question:</strong> the machine changed what prints. How does she see that, and put it back <strong>for this one application</strong>, in one control rather than four?</p>
+  <p><strong>Five callers, one row frame.</strong> A country page left off her date of birth · the tailor printed 10 of 13 lines for one role · the sanity gate withheld a block it read as a mistake · a French line was translated · a certification expired. Two verbs — <em>left off</em> (put it back) and <em>changed</em> (is this still yours?) — so the row frame generalises and the control on the row does not. That is Design A’s own precedent.</p>
+  <p><strong>Reusing what ships:</strong> the dark register, the CV paper, the option buttons, the <code>tl-settle</code> landing beat and the ending block are <code>/tailor</code>’s, at their own values. Nothing here invents a palette or a timing.</p>
+  <p>🚨 <strong>The paper cannot show four of the six changes.</strong> The shipped miniature renders summary, experience, skills, education — <strong>no letterhead, no certifications, no <code>additional</code></strong>, which is exactly where a date of birth, a driving licence and an expired certification live. A put-back today would land somewhere she cannot see. That cost is the same for all three variants; the paper below shows the parts that would have to be added.</p>
+  <p class="rules">locked, not open here: no standing setting (ADR-0007 cl.4) · stretches are Design C, never this control (cl.11) · a withholding never touches the profile (cl.5) · the explanation names the market page (cl.10) · no page ⇒ nothing stripped ⇒ nothing on her screen (cl.3) · she must be able to say “yes, that’s what my CV says” (ADR-0010 cl.4) · convention, not compliance · undo everywhere<br>⚠️ open, for the owner: does the expired certification (#168 AC 5) belong in this control, or is it a second one?</p>
+</div>
+
+<div class="app" id="app">
+  <div class="brandbar">
+    <div><b>JobCrush</b></div>
+    <div class="job">tailoring for <em>Senior Project Manager · DBS Bank</em></div>
+  </div>
+  <div class="cols">
+    <div class="col left colwrap" id="colLeft"></div>
+    <div class="col" id="colRight"></div>
+  </div>
+</div>
+
+<div class="instr" id="instr"></div>
+<div class="hint">click A · B · C below, or press ← → &nbsp;·&nbsp; M market page &nbsp;·&nbsp; R reset</div>
+
+<div class="switcher">
+  <div class="tog arrow" data-v-step="-1" title="previous variant">‹</div>
+  <div class="vlabel"><span class="k" id="swK">Variant A</span><span class="n" id="swN">In the ending</span></div>
+  <div class="tog vbtn" data-v="a" title="In the ending">A</div>
+  <div class="tog vbtn" data-v="b" title="On the paper">B</div>
+  <div class="tog vbtn" data-v="c" title="Behind one line">C</div>
+  <div class="tog arrow" data-v-step="1" title="next variant">›</div>
+  <div class="tog" id="togMkt">Market: Singapore</div>
+  <div class="tog" id="reset">Reset</div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   THE CASE. Remy Tan — ADR-0007 clause 6's own worked letterhead — applying to a
+   Singapore advert. Every one of the five callers fires once, on one CV, so the
+   control is judged on the case that actually stresses it.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const MARKETS = {
+  sg: {
+    name: "Singapore",
+    /* ADR-0007 cl.2's seven. Singapore strips all seven (market-strip-lists.md).
+       Only what this CV actually carries can be left off. */
+    strips: ["dob", "marital"],
+    /* cl.11 — each page carries its own next-check date. Instrumentation, never her screen. */
+    nextCheck: "2027-10-01",
+  },
+  none: {
+    /* cl.3 — an unresolved market. THE PASS RUNS AND REMOVES NOTHING.
+       Her screen must show an empty "left off" group for the strip rows, never the
+       words "no page for this market" — that is our vocabulary, not hers. */
+    name: "APAC (Remote)",
+    strips: [],
+    nextCheck: null,
+  },
+};
+
+const CHANGES = [
+  /* ── 1. STRIP-LIST · ADR-0007 cl.2 + cl.4 ─────────────────────────────── */
+  {
+    id: "dob", verb: "off", kind: "strip", where: "head",
+    label: "Date of birth",
+    value: "4 July 1978",
+    why: (m) => `${m} CVs don’t usually carry this.`,
+  },
+  {
+    id: "marital", verb: "off", kind: "strip", where: "head",
+    label: "Marital status",
+    value: "Married, 2 children",
+    why: (m) => `${m} CVs don’t usually carry this.`,
+  },
+  /* ── 2. CHOSEN BULLETS · #153 decision 4 + 5 ──────────────────────────────
+     ⚠️ May be PROTOTYPED, not BUILT before #158 lands claim-ids on printed bullets.
+     Without ids the system cannot name WHICH three, and "choosing" degenerates into
+     the silent removal ADR-0007 cl.4 forbids. */
+  {
+    id: "bullets", verb: "off", kind: "bullets", where: "exp",
+    label: "Standard Chartered Bank — 3 lines",
+    why: () => "This job asks for vendor delivery and budget ownership. These three say other things.",
+    lines: [
+      "Ran the Hong Kong office’s move to a new floor over one weekend, with no trading downtime.",
+      "Sat on the regional diversity committee and chaired its quarterly review.",
+      "Wrote the onboarding pack new joiners in the PMO still use.",
+    ],
+  },
+  /* ── 3. SANITY GATE · ADR-0010 cl.5 ───────────────────────────────────────
+     Scope is COPY-PASTE ACCIDENTS AND MANIFEST MISTAKES — explicitly not taste, tone
+     or judgment about what helps. So the copy must claim an ACCIDENT, never a verdict. */
+  {
+    id: "blob", verb: "off", kind: "gate", where: "addl",
+    label: "A block from the end of your CV",
+    value: "Interests: I like to play with water and the colour blue is nice",
+    why: () => "This looked like it might have got in by mistake.",
+  },
+  /* ── 4. TIDIED · ADR-0010 cl.4 ────────────────────────────────────────────
+     Translation is the risk case: the machine understands this content LEAST, so a
+     mistranslation is exactly what it cannot check. The original is shown, not hidden
+     behind a tap. The negative branch is a CORRECTION, and corrections already have a
+     decided home — Design A's tap-to-correct card back (#163). */
+  {
+    id: "licence", verb: "chg", kind: "tidied", where: "addl",
+    label: "Driving licence: B (own vehicle)",
+    original: "Titulaire permis B / Véhiculé",
+    why: () => "Translated from French.",
+  },
+  /* ── 5. EXPIRED CERT · ADR-0007 cl.9 ──────────────────────────────────────
+     🚨 The "without the date" option stands EVEN ON THE ADVERT DEMANDING IT. No warning,
+     no confirmation, no nudge — adding a guardrail here is exactly what decision 9
+     rejected. This prototype makes that falsifiable: the advert below demands PL-300. */
+  {
+    id: "cert", verb: "chg", kind: "cert", where: "cert",
+    label: "PL-300 – Power BI Data Analyst Associate",
+    why: () => "You passed this in Feb 2023; it expired in Feb 2026. It’s on your CV either way — you choose how.",
+    options: [
+      { k: "date", t: "With the date", print: "PL-300 – Power BI Data Analyst Associate, Feb 2023 (expired)" },
+      { k: "nodate", t: "Without the date", print: "PL-300 – Power BI Data Analyst Associate" },
+      { k: "off", t: "Leave it off this CV", print: null },
+    ],
+  },
+];
+
+/* ══ COPY — the deliverable. Every string a person reads, in one place. ══ */
+const COPY = {
+  heading: "What I changed for this job",
+  /* The scope promise, said ONCE at the container (ADR-0007 cl.5). Never a standing setting. */
+  scope: "Anything you change here is on this CV only — your profile stays exactly as it is.",
+  grpOff: "Left off",
+  grpChg: "Changed",
+  putBack: "Put it on this CV",
+  putBackDone: "Back on this CV — just this one.",
+  undo: "Undo",
+  seeLines: "See the three",
+  hideLines: "Hide them",
+  notMine: "That’s not what mine says",
+  yourCv: "Your CV says",
+  ending: "This CV is as strong as I can make it for this job.",
+  apply: "Apply with this CV",
+  save: "Save it and come back later",
+  applyAndSeen: "Looks right — apply with this CV",
+  oneLine: (n) => `I changed ${n} ${n === 1 ? "thing" : "things"} to fit this CV to this job.`,
+  oneLineSub: "Nothing left your profile.",
+  seeChanges: "See what I changed",
+  hideChanges: "Hide",
+  markHead: (n) => `${n} ${n === 1 ? "detail" : "details"} left off`,
+  markBullets: (n) => `${n} more from this role aren’t shown`,
+  markBlob: "1 block left off",
+  markTidied: "translated",
+  markCert: "expired — you choose",
+};
+
+/* ══ STATE ══ */
+let variant = "a";
+let market = "sg";
+let back = {};          // id -> true when put back on this CV
+let subBack = {};       // bullet index -> true
+let showBullets = false; // the three unprinted lines, expanded
+let panelOpen = false;   // variant C only: the list behind the one line
+let certPick = "date";
+let sheet = null;        // variant B: which change's sheet is open
+let justLanded = null;   // the paper element that just changed — drives tl-settle
+
+const VARIANTS = {
+  a: { k: "Variant A", n: "In the ending" },
+  b: { k: "Variant B", n: "On the paper" },
+  c: { k: "Variant C", n: "Behind one line" },
+};
+
+function reset() {
+  back = {}; subBack = {}; showBullets = false; panelOpen = false;
+  certPick = "date"; sheet = null; justLanded = null;
+  render();
+}
+
+/* Which changes are live, given the market. cl.3: no page ⇒ the strip rows never exist. */
+function liveChanges() {
+  const m = MARKETS[market];
+  return CHANGES.filter((c) => c.kind !== "strip" || m.strips.includes(c.id));
+}
+function offChanges() { return liveChanges().filter((c) => c.verb === "off"); }
+function chgChanges() { return liveChanges().filter((c) => c.verb === "chg"); }
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE PAPER. Renders the four sections the miniature ships PLUS the letterhead,
+   certifications and `additional` it does not — because three of the five callers
+   have nowhere to land without them.
+   ══════════════════════════════════════════════════════════════════════════ */
+function paper() {
+  const m = MARKETS[market];
+  const B = variant === "b";
+  const live = liveChanges();
+  const has = (id) => live.some((c) => c.id === id);
+
+  /* letterhead: the ADR's own lump, with the stripped parts removed unless put back */
+  const bits = ["12 Orchard Road, Singapore", "+65 9123 4567", "remy@mail.com"];
+  if (!has("dob") || back.dob) bits.push("Born 4 July 1978");
+  if (!has("marital") || back.marital) bits.push("Married, 2 children");
+  bits.push("Singaporean");
+  const headMarks = live.filter((c) => c.kind === "strip" && !back[c.id]).length;
+
+  const bullets = [
+    "Owned a USD 12m regional payments programme across six markets, delivered on budget.",
+    "Ran vendor selection and contract negotiation for the Singapore core-banking refresh.",
+    "Cut release cycle time from six weeks to nine days with the platform team.",
+    "Reported programme health to the regional exco every month for three years.",
+  ];
+  const backLines = (CHANGES.find((c) => c.id === "bullets").lines || []).filter((_, i) => subBack[i]);
+  const bulletsLeft = 3 - backLines.length;
+
+  const cert = CHANGES.find((c) => c.id === "cert").options.find((o) => o.k === certPick);
+  const licence = CHANGES.find((c) => c.id === "licence");
+
+  return `
+  <div class="cv">
+    <div class="head">
+      <p class="nm">Remy Tan</p>
+      <p class="ct ${justLanded === "dob" || justLanded === "marital" ? "landed" : ""}">${esc(bits.join(" · "))}${
+        B && headMarks
+          ? `<br><span class="mk inline-after" data-sheet="head" tabindex="0" role="button">${esc(COPY.markHead(headMarks))} ›</span>`
+          : ""
+      }</p>
+    </div>
+
+    <section>
+      <h2 class="cv-sec">Experience</h2>
+      <p class="role-h">Standard Chartered Bank <span>· Regional Project Manager · 2019–2022</span></p>
+      ${bullets.map((b) => `<p class="cv-line">${esc(b)}</p>`).join("")}
+      ${backLines
+        .map((b) => `<p class="cv-line ${justLanded === "bullets" ? "landed" : ""}">${esc(b)}</p>`)
+        .join("")}
+      ${
+        B && bulletsLeft > 0
+          ? `<span class="mk block" data-sheet="bullets" tabindex="0" role="button">${esc(COPY.markBullets(bulletsLeft))} ›</span>`
+          : ""
+      }
+    </section>
+
+    <section>
+      <h2 class="cv-sec">Certifications</h2>
+      ${
+        cert.print
+          ? `<p class="plain ${justLanded === "cert" ? "landed" : ""}">${esc(cert.print)}${
+              B ? ` <span class="mk inline-after" data-sheet="cert" tabindex="0" role="button">${esc(COPY.markCert)} ›</span>` : ""
+            }</p>`
+          : B
+            ? `<span class="mk block" style="margin-left:0" data-sheet="cert" tabindex="0" role="button">1 certification left off ›</span>`
+            : ""
+      }
+      <p class="plain">PMP – Project Management Institute, 2017</p>
+    </section>
+
+    <section>
+      <h2 class="cv-sec">Additional</h2>
+      <p class="plain">Languages: English (native), Mandarin, Malay</p>
+      <p class="plain">${
+        B
+          ? `<span class="tidy-underline" data-sheet="licence" tabindex="0" role="button">${esc(licence.label)}</span> <span class="mk inline-after" data-sheet="licence" tabindex="0" role="button">${esc(COPY.markTidied)} ›</span>`
+          : esc(licence.label)
+      }</p>
+      ${
+        back.blob
+          ? `<p class="plain ${justLanded === "blob" ? "landed" : ""}">${esc(CHANGES.find((c) => c.id === "blob").value)}</p>`
+          : ""
+      }
+      ${
+        B && !back.blob
+          ? `<span class="mk block" style="margin-left:0" data-sheet="blob" tabindex="0" role="button">${esc(COPY.markBlob)} ›</span>`
+          : ""
+      }
+    </section>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE ROW. One frame; the control differs by what the machine did.
+   ══════════════════════════════════════════════════════════════════════════ */
+function row(c) {
+  const m = MARKETS[market].name;
+  const on = !!back[c.id];
+
+  if (c.kind === "bullets") {
+    const lines = c.lines;
+    const nBack = lines.filter((_, i) => subBack[i]).length;
+    return `
+      <div class="row ${nBack ? "on" : ""}">
+        <p class="lb">${esc(c.label)}</p>
+        <p class="why">${esc(c.why(m))}</p>
+        ${
+          showBullets
+            ? `<div class="sub">${lines
+                .map(
+                  (l, i) => `
+              <div class="sl ${subBack[i] ? "on" : ""}">
+                <p>${esc(l)}</p>
+                ${
+                  subBack[i]
+                    ? `<button class="btn link" data-sub-undo="${i}">${esc(COPY.undo)}</button>`
+                    : `<button class="btn" data-sub="${i}">${esc(COPY.putBack)}</button>`
+                }
+              </div>`,
+                )
+                .join("")}</div>`
+            : ""
+        }
+        <div class="acts">
+          <button class="btn ${showBullets ? "pick" : ""}" data-toggle-lines>${esc(showBullets ? COPY.hideLines : COPY.seeLines)}</button>
+          ${nBack ? `<span class="done-note">${esc(nBack)} back on this CV — just this one.</span>` : ""}
+        </div>
+      </div>`;
+  }
+
+  if (c.kind === "tidied") {
+    return `
+      <div class="row">
+        <p class="lb">${esc(c.label)}</p>
+        <p class="why">${esc(c.why(m))}</p>
+        <div class="orig">
+          <span class="k">${esc(COPY.yourCv)}</span>
+          <span class="t">${esc(c.original)}</span>
+        </div>
+        <div class="acts">
+          <button class="btn" data-correct="${c.id}">${esc(COPY.notMine)}</button>
+        </div>
+      </div>`;
+  }
+
+  if (c.kind === "cert") {
+    return `
+      <div class="row">
+        <p class="lb">${esc(c.label)}</p>
+        <p class="why">${esc(c.why(m))}</p>
+        <div class="acts">
+          ${c.options
+            .map((o) => `<button class="btn ${certPick === o.k ? "pick" : ""}" data-cert="${o.k}">${esc(o.t)}</button>`)
+            .join("")}
+        </div>
+      </div>`;
+  }
+
+  /* strip + gate — the plain "put it back" frame */
+  return `
+    <div class="row ${on ? "on" : ""}">
+      <p class="lb">${esc(c.label)}</p>
+      <p class="vl">${esc(c.value)}</p>
+      <p class="why">${esc(c.why(m))}</p>
+      <div class="acts">
+        ${
+          on
+            ? `<span class="done-note">${esc(COPY.putBackDone)}</span><button class="btn link" data-undo="${c.id}">${esc(COPY.undo)}</button>`
+            : `<button class="btn" data-back="${c.id}">${esc(COPY.putBack)}</button>`
+        }
+      </div>
+    </div>`;
+}
+
+function changedPanel() {
+  const off = offChanges();
+  const chg = chgChanges();
+  return `
+    <div class="changed">
+      <h3>${esc(COPY.heading)}</h3>
+      <p class="scope">${esc(COPY.scope)}</p>
+      ${off.length ? `<p class="grp">${esc(COPY.grpOff)} · ${off.length}</p>${off.map(row).join("")}` : ""}
+      ${chg.length ? `<p class="grp">${esc(COPY.grpChg)} · ${chg.length}</p>${chg.map(row).join("")}` : ""}
+    </div>`;
+}
+
+/* ══ the ending block — /tailor's own, per variant ══ */
+function ending() {
+  if (variant === "a") {
+    return `
+      <div class="ending">
+        <p class="big">${esc(COPY.ending)}</p>
+        ${changedPanel()}
+        <button class="cta">${esc(COPY.applyAndSeen)}</button>
+        <button class="cta ghost">${esc(COPY.save)}</button>
+      </div>`;
+  }
+  if (variant === "c") {
+    const n = liveChanges().length;
+    return `
+      <div class="ending">
+        <p class="big">${esc(COPY.ending)}</p>
+        <div class="oneline">
+          <p>${esc(COPY.oneLine(n))}<span>${esc(COPY.oneLineSub)}</span></p>
+          <button class="btn ${panelOpen ? "pick" : ""}" data-open-panel>${esc(panelOpen ? COPY.hideChanges : COPY.seeChanges)}</button>
+        </div>
+        ${panelOpen ? changedPanel() : ""}
+        <button class="cta">${esc(COPY.apply)}</button>
+        <button class="cta ghost">${esc(COPY.save)}</button>
+      </div>`;
+  }
+  /* B — the paper carries the marks; the ending is the shipped one, untouched */
+  return `
+    <div class="ending">
+      <p class="big">${esc(COPY.ending)}</p>
+      <button class="cta">${esc(COPY.apply)}</button>
+      <button class="cta ghost">${esc(COPY.save)}</button>
+    </div>`;
+}
+
+function sheetFor(id) {
+  const c = id === "head" ? null : CHANGES.find((x) => x.id === id);
+  const rows =
+    id === "head"
+      ? liveChanges().filter((x) => x.kind === "strip").map(row).join("")
+      : row(c);
+  return `
+    <div class="sheet-wrap" data-close-sheet>
+      <div class="sheet" role="dialog" aria-modal="true">
+        <h4>${esc(COPY.heading)}</h4>
+        <p class="scope" style="margin:-6px 0 12px;font-size:12.5px;color:var(--hud-mute)">${esc(COPY.scope)}</p>
+        ${rows}
+        <div class="acts" style="margin-top:12px">
+          <button class="btn" data-close-sheet>Close</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ══ RENDER ══ */
+function render() {
+  const m = MARKETS[market];
+  const live = liveChanges();
+
+  document.getElementById("colLeft").innerHTML = `
+    <p class="divider">the job</p>
+    <div class="jobcard">
+      <h2>Senior Project Manager</h2>
+      <p class="co">DBS Bank · Singapore · posted 3 days ago</p>
+      <div class="reqs">
+        <span class="req hit">Vendor delivery</span>
+        <span class="req hit">Budget ownership</span>
+        <span class="req hit">PL-300 required</span>
+        <span class="req">Mandarin</span>
+      </div>
+      <p class="mkt">Market read from this advert: <b>${esc(m.name)}</b> — <a data-flip-market>change</a></p>
+    </div>
+    ${ending()}
+    ${sheet ? sheetFor(sheet) : ""}`;
+
+  document.getElementById("colRight").innerHTML = `
+    <p class="divider">your CV for this job</p>
+    ${paper()}`;
+
+  document.getElementById("swK").textContent = VARIANTS[variant].k;
+  document.getElementById("swN").textContent = VARIANTS[variant].n;
+  document.getElementById("togMkt").textContent = "Market: " + m.name;
+  document.querySelectorAll(".vbtn").forEach((el) => el.classList.toggle("on", el.dataset.v === variant));
+
+  instrument();
+  wire();
+}
+
+function instrument() {
+  const m = MARKETS[market];
+  const live = liveChanges();
+  const nOff = offChanges().length;
+  const nChg = chgChanges().length;
+
+  /* Taps to SEE everything, and taps to put one thing back. The two numbers that separate
+     the variants. A's "see" cost is zero because the list is already on the ending screen
+     and the confirm is the exit tap she was going to make anyway. */
+  const seeCost = { a: 0, b: live.length, c: 1 }[variant];
+  const backCost = { a: 1, b: 3, c: 2 }[variant]; /* B: open sheet, put back, close */
+
+  const claims = {
+    a: "The list IS the ending block. She was tapping “apply” anyway, so the confirm and the exit are the same tap — the shape closest to the owner’s own “one confirm may cover several”. Costs vertical space on every application.",
+    b: "The change sits where it happened — the only shape that puts “3 more from this role” at the role, and the most literal reading of “explained where the candidate sees it.” Costs one tap per change to read, and needs the paper to grow a letterhead, certifications and an additional section.",
+    c: "Cheapest in space and taps. 🚨 The sharp question: a COUNT with the reasons behind a tap may be the silent removal ADR-0007 cl.4 forbids, wearing a link. Judge whether “I changed 6 things” is an explanation or an announcement.",
+  };
+
+  document.getElementById("instr").innerHTML = `
+    <span class="tag">Instrument</span>
+    <b>${VARIANTS[variant].k} — ${VARIANTS[variant].n}.</b> ${claims[variant]}
+    <hr>
+    market page: <b>${esc(m.name)}</b>${m.strips.length ? ` · strips ${m.strips.length} of the seven on this CV · next check <b>${m.nextCheck}</b>` : ` · <span class="warn">no page — the pass ran and removed nothing (cl.3)</span>`}
+    &nbsp;·&nbsp; changes declared: <b>${live.length}</b> (${nOff} left off, ${nChg} changed)
+    <hr>
+    taps to see every change: <b>${seeCost}</b> &nbsp;·&nbsp; taps to put one thing back: <b>${backCost}</b>
+    &nbsp;·&nbsp; put back so far: <b>${Object.values(back).filter(Boolean).length + Object.values(subBack).filter(Boolean).length}</b>
+    &nbsp;·&nbsp; certification printed as: <b>${esc(CHANGES.find((c) => c.id === "cert").options.find((o) => o.k === certPick).t.toLowerCase())}</b>
+    <hr>
+    <span class="warn">falsifiable in this prototype:</span>
+    (1) no control anywhere says “always” / “from now on” / “remember this” — ADR-0007 cl.4;
+    (2) the advert demands PL-300 and “without the date” fires <b>no warning at all</b> — cl.9;
+    (3) switching the market to <b>APAC (Remote)</b> removes the strip rows entirely — no “no page for this market” ever reaches her screen — cl.3;
+    (4) no stretch appears in this control — cl.11, Design C’s territory;
+    (5) the tidied row’s negative branch is a <b>correction</b> (#163), never a revert to French.
+    <hr>
+    ⚠️ <span class="warn">build cost common to all three:</span> tailor/page.tsx:58-63 renders four sections and no letterhead —
+    the paper above adds <b>letterhead, certifications, additional</b> so a put-back has somewhere to land.
+    ⚠️ the bullets row may be <b>prototyped, not built</b> before #158 lands claim-ids (kickoff).`;
+}
+
+/* ══ WIRING ══ */
+function wire() {
+  const root = document.getElementById("app");
+
+  root.querySelectorAll("[data-back]").forEach((el) =>
+    el.addEventListener("click", () => { back[el.dataset.back] = true; justLanded = el.dataset.back; render(); }),
+  );
+  root.querySelectorAll("[data-undo]").forEach((el) =>
+    el.addEventListener("click", () => { back[el.dataset.undo] = false; justLanded = null; render(); }),
+  );
+  root.querySelectorAll("[data-sub]").forEach((el) =>
+    el.addEventListener("click", () => { subBack[el.dataset.sub] = true; justLanded = "bullets"; render(); }),
+  );
+  root.querySelectorAll("[data-sub-undo]").forEach((el) =>
+    el.addEventListener("click", () => { subBack[el.dataset.subUndo] = false; justLanded = null; render(); }),
+  );
+  root.querySelectorAll("[data-toggle-lines]").forEach((el) =>
+    el.addEventListener("click", () => { showBullets = !showBullets; justLanded = null; render(); }),
+  );
+  root.querySelectorAll("[data-open-panel]").forEach((el) =>
+    el.addEventListener("click", () => { panelOpen = !panelOpen; justLanded = null; render(); }),
+  );
+  root.querySelectorAll("[data-cert]").forEach((el) =>
+    el.addEventListener("click", () => { certPick = el.dataset.cert; justLanded = "cert"; render(); }),
+  );
+  root.querySelectorAll("[data-correct]").forEach((el) =>
+    el.addEventListener("click", () =>
+      alert("→ Design A's correction surface (#163): the card back, where she fixes her own words.\n\nThis row never reverts to the French original — an English CV with a French line is not the fix. The negative branch is a correction, and corrections already have a decided home."),
+    ),
+  );
+  root.querySelectorAll("[data-sheet]").forEach((el) => {
+    const open = () => { sheet = el.dataset.sheet; render(); };
+    el.addEventListener("click", open);
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+  });
+  root.querySelectorAll("[data-close-sheet]").forEach((el) =>
+    el.addEventListener("click", (e) => { if (e.target === el) { sheet = null; render(); } }),
+  );
+  root.querySelectorAll("[data-flip-market]").forEach((el) =>
+    el.addEventListener("click", flipMarket),
+  );
+}
+
+function flipMarket() { market = market === "sg" ? "none" : "sg"; reset(); }
+function setVariant(v) {
+  variant = v; sheet = null; showBullets = false; panelOpen = false; justLanded = null;
+  const u = new URL(location.href); u.searchParams.set("v", v); history.replaceState(null, "", u);
+  render();
+}
+
+const ORDER = ["a", "b", "c"];
+function stepVariant(d) { setVariant(ORDER[(ORDER.indexOf(variant) + d + 3) % 3]); }
+
+document.getElementById("togMkt").addEventListener("click", flipMarket);
+document.getElementById("reset").addEventListener("click", reset);
+document.querySelectorAll(".vbtn").forEach((el) =>
+  el.addEventListener("click", () => setVariant(el.dataset.v)),
+);
+document.querySelectorAll("[data-v-step]").forEach((el) =>
+  el.addEventListener("click", () => stepVariant(Number(el.dataset.vStep))),
+);
+
+addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") stepVariant(1);
+  else if (e.key === "ArrowLeft") stepVariant(-1);
+  else if (e.key === "1") setVariant("a");
+  else if (e.key === "2") setVariant("b");
+  else if (e.key === "3") setVariant("c");
+  else if (e.key.toLowerCase() === "m") flipMarket();
+  else if (e.key.toLowerCase() === "r") reset();
+  else if (e.key === "Escape" && sheet) { sheet = null; render(); }
+});
+
+const v0 = new URL(location.href).searchParams.get("v");
+if (v0 && VARIANTS[v0]) variant = v0;
+render();
+</script>
+
+</body>
+</html>

@@ -2,6 +2,41 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-08 (session 94) — Design C DECIDED (the scope of a "no"), and the design effort got its tooling
+
+_One prototype round for the design itself; most of the session was an owner-directed detour that
+set up the impeccable design skill on this repo — kept because it outlives the session. Binding
+instructions on [#171](https://github.com/adrien-mounier/jobcrush-app/issues/171) and
+[#169](https://github.com/adrien-mounier/jobcrush-app/issues/169); register updated on
+[#157](https://github.com/adrien-mounier/jobcrush-app/issues/157)._
+
+- **Design C decided in one round: variant A — "both doors on the card" — plus the memory-on-repeat
+  line.** The per-advert no stays Design B's `Not for this one`; the permanent no is a quiet
+  text-weight link from first sight, behind one inline confirm. 🚨 **The confirm's emphasized
+  default is the escape hatch** (`Just not this job` primary, the stop secondary) — a misreader who
+  meant "not today" lands on the harmless answer; that is the discharge of the owner's ADR-0005 c9
+  objection. Scope is always concrete ("for every job from now on, not just this one"), the cost is
+  said (questions: "will show as untested"), and the way back is named in the same breath.
+- **One mute surface, two kinds**: "Things you asked me to stop" on the profile holds stopped
+  offers and stopped questions — kind chips, origin lines, append-only order (Still List rule),
+  one-tap reversal, Undo toast at creation. Rejected: B (stop only on a repeat — pesters someone
+  who already knows their answer) and C (stop only on the profile — the moment of "no" is on the
+  card). Primary source: `apps/web/prototypes/scope-of-a-no.prototype.html`.
+- **The impeccable skill is now fully set up** (owner: "make sure we are using /impeccable and it's
+  correctly set up"): `PRODUCT.md` (global-first, interviews-won, business model recorded open,
+  voice observed-not-binding), `DESIGN.md` + `.impeccable/design.json` (the incumbent system
+  documented as "The Night Desk": Gold Law, Two Rooms, Serif Means Her, Still List, shipped motion
+  values), the design-detector hook on (design-system rules scoped off for prototype fixture
+  chrome), and live element-variant mode configured for all prototype files.
+- **A style probe ran and closed**: `north-star.prototype.html` — the incumbent vs two committed
+  worlds (Dealer's Table, Cockpit), side by side after round 1's token-swap version was rightly
+  called indistinguishable. **Owner verdict: the incumbent style is kept**; DESIGN.md documents, it
+  does not redesign. The owner also test-drove live mode (two element picks) and concluded the
+  screen's style stands — live mode is for per-element variants, switcher prototypes remain the
+  tool for whole-screen comparisons.
+- **Next: Design E** — chunked ingestion, the last design on the register. The Design B
+  outside-opinion round keeps running in parallel.
+
 ## 2026-08-08 (session 93b) — Design B refined after closure, and put out for outside opinion
 
 _Same day, after the closure below. The owner asked to keep the prototypes as a shareable mockup

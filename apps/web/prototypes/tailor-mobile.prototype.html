@@ -1,0 +1,640 @@
+<!-- PROTOTYPE — throwaway. Design effort #157, Design B round 2 SIDE-NOTE: what Shape 1 becomes
+     on a phone. Built to answer one owner question in the live session (2026-08-07): "does the
+     shape choice make the mobile app harder later?" — answer given: Shape 1 is the phone's native
+     grammar; this file SHOWS that instead of claiming it.
+
+     ⚠️ QUICK EXAMPLE, not a full design pass. The reviewed source of truth for Design B round 2
+     is tailor-cards.prototype.html (desktop, shapes 1+2, full impeccable cycle). This file:
+       - same case, same cards, same copy, same state rules — placement only changes
+       - deliberately omits: shape 2 (no phone answer — see the session note), the market flip,
+         and the full a11y pass (focus-visible + aria-live + reduced motion kept; deeper pass
+         belongs to the real mobile effort one day)
+
+     THE MOBILE COMPOSITION (Shape 1 translated):
+       - the ADVERT becomes a sticky top band: title · company · small dial · profile count.
+         Tap the band to open/close the six graded asks (user-initiated, so no surprise reflow).
+       - the CARD takes the screen — one at a time, the phone's own pattern, and the same
+         full-screen-card grammar the shipped confirm/job decks already use on small screens.
+       - the CV lives behind a bottom bar: "Your CV · Changes · N". Tap → the paper slides up as
+         a sheet; the declarations sit at the top of the sheet with their put-backs. Undo there.
+       - reward beats kept at shipped values: dial tween 680ms + bump 460ms; chip flight 720ms
+         to the profile count; a stretch stakes ON THE BAND (advert), never the profile count.
+
+     Locked constraints inherited unchanged from the desktop file: no standing setting · decline
+     is "Not for this one" only · declarations move no score · every removal is declared and
+     reversible "this CV only" · stretch never joins the profile.
+
+     Designer instrumentation lives in the DARK strip below the phone — never her screen.
+
+     ══ VERDICT ══ (appended when the owner reacts)
+
+     Not production code. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JobCrush — Shape 1 on a phone (#157 Design B round 2, side-note)</title>
+
+<style>
+  :root {
+    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-line: #2b333d;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98; --gold: #e8a33d; --gold-dim: #a8762b;
+    --hud-mute-2: #8a95a2; /* NEW token carried from the desktop file (AA on hud-2) */
+    --weak: #6f7d8c; --settled: #4d5865;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --paper: #f6f2ea; --paper-edge: #e2dacb; --ink: #16150f; --ink-mute: #6b6455;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: #e7e3dd; font-family: var(--sans); line-height: 1.5; padding: 20px 18px 30px; -webkit-font-smoothing: antialiased; }
+
+  .ask { max-width: 900px; margin: 0 auto 18px; background: #fffdf9; border: 1px solid #ded7cb; border-radius: 12px; padding: 16px 20px; color: #1f2328; }
+  .ask h1 { margin: 0 0 6px; font-size: 18px; letter-spacing: -.01em; }
+  .ask p { margin: 0 0 6px; font-size: 13.5px; color: #3c444d; }
+  .ask p:last-child { margin-bottom: 0; }
+
+  /* ══ the phone ══ */
+  .desk { display: flex; justify-content: center; }
+  .phone {
+    width: 390px; height: 800px; border-radius: 46px; border: 11px solid #0a0d10;
+    background: var(--hud-0); color: var(--hud-ink); overflow: hidden; position: relative;
+    box-shadow: 0 30px 70px -24px rgba(0,0,0,.65), 0 0 0 1.5px #2a323c;
+    display: flex; flex-direction: column;
+  }
+
+  /* ── the advert band — sticky, tap to open the asks ── */
+  .band { flex: 0 0 auto; background: var(--hud-1); border-bottom: 1px solid var(--hud-line); }
+  .band .row1 { display: flex; align-items: center; gap: 12px; padding: 14px 16px 10px; cursor: pointer; }
+  .band .tt { flex: 1; min-width: 0; }
+  .band h2 { margin: 0; font-size: 15.5px; font-weight: 640; letter-spacing: -.015em; line-height: 1.25; }
+  .band .co { margin: 1px 0 0; font-size: 11.5px; color: var(--hud-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .band .asks-line { margin: 2px 0 0; font-size: 11px; color: var(--hud-mute-2); display: inline-flex; align-items: center; gap: 5px; }
+  .band .asks-line svg { transition: transform 180ms ease; }
+  .band.open .asks-line svg { transform: rotate(90deg); }
+  .dial { position: relative; width: 46px; height: 46px; flex: 0 0 auto; }
+  .dial .num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .dial .num.bump { animation: jd-bump 460ms cubic-bezier(.2,1.5,.4,1); }
+  .prof { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 999px; background: var(--hud-2); border: 1px solid var(--hud-line); font-size: 11px; flex: 0 0 auto; }
+  .prof .n { font-weight: 700; font-variant-numeric: tabular-nums; display: inline-block; }
+  .prof .n.bump { animation: jd-bump 460ms cubic-bezier(.2,1.5,.4,1); }
+
+  .band .stake { display: none; align-items: center; gap: 6px; padding: 0 16px 9px; font-size: 11.5px; color: var(--gold); }
+  .band .stake.show { display: flex; }
+  .band .stake .x { all: unset; cursor: pointer; color: var(--hud-mute); font-size: 11px; text-decoration: underline; text-underline-offset: 2px; padding: 2px; }
+
+  .band .reqs { display: none; padding: 2px 12px 11px; }
+  .band.open .reqs { display: block; }
+  .req { display: flex; align-items: center; gap: 9px; padding: 6px 6px; border-radius: 8px; font-size: 12.5px; }
+  .req .st { flex: 0 0 auto; display: grid; place-items: center; width: 15px; height: 15px; }
+  .req .t { flex: 1; min-width: 0; }
+  .req .word { font-size: 10.5px; color: var(--hud-mute); }
+  .req[data-state="open"] .t { color: var(--hud-mute-2); }
+  .req.active { background: rgba(232,163,61,.1); outline: 1px solid rgba(232,163,61,.28); }
+  .req.active .t { color: var(--hud-ink); }
+
+  /* ── the card takes the screen ── */
+  .scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 16px 14px 20px; scrollbar-width: thin; }
+  .meta { display: flex; justify-content: space-between; align-items: center; margin: 0 4px 8px; font-family: var(--mono); font-size: 9.5px; color: var(--hud-mute); text-transform: uppercase; letter-spacing: .08em; }
+  .meta b { color: var(--hud-ink); }
+  .meta .skip-link { all: unset; cursor: pointer; color: var(--hud-mute); font-family: var(--sans); font-size: 11.5px; text-decoration: underline; text-underline-offset: 2px; padding: 2px; }
+  .card { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 16px; padding: 18px 16px 16px; box-shadow: 0 16px 40px -18px rgba(0,0,0,.6); }
+  .card.dealin { animation: jd-dealin 340ms ease; }
+  .card h3 { margin: 0 0 6px; font-size: 16.5px; font-weight: 620; letter-spacing: -.015em; line-height: 1.3; text-wrap: balance; }
+  .card .sub { margin: 0 0 13px; font-size: 12.5px; color: var(--hud-mute); line-height: 1.5; }
+  .card .body { margin: 0 0 13px; font-size: 13.5px; line-height: 1.55; }
+  .print-line { margin: 0 0 11px; padding: 11px 13px; border-radius: 10px; background: var(--paper); border: 1px solid var(--paper-edge); font-family: var(--serif); font-size: 14px; color: var(--ink); line-height: 1.45; }
+  .print-note { margin: -3px 0 13px; font-size: 11.5px; color: var(--hud-mute); }
+  .opts { display: flex; flex-direction: column; gap: 7px; }
+  .opt { appearance: none; width: 100%; text-align: left; background: var(--hud-2); color: var(--hud-ink); border: 1px solid var(--hud-line); border-radius: 11px; padding: 12px 14px; font: inherit; font-size: 14px; cursor: pointer; }
+  .opt:active { transform: scale(.985); }
+  .typed { display: flex; gap: 8px; }
+  .typed input { flex: 1; min-width: 0; background: var(--hud-2); border: 1px solid var(--hud-line); color: var(--hud-ink); border-radius: 11px; padding: 11px 14px; font: inherit; font-size: 14px; }
+  .typed input::placeholder { color: var(--hud-mute-2); }
+  .btn { appearance: none; font: inherit; font-size: 13px; font-weight: 600; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--hud-line); background: var(--hud-2); color: var(--hud-ink); cursor: pointer; }
+  .btn:active { transform: scale(.985); }
+  .btn.gold { background: var(--gold); border-color: transparent; color: #1a1206; }
+  .btn.quiet { background: transparent; font-weight: 500; }
+  .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
+  .skip { all: unset; display: inline-block; margin-top: 12px; cursor: pointer; font-size: 12px; color: var(--hud-mute); text-decoration: underline; text-underline-offset: 3px; padding: 2px; }
+  .err { margin: 9px 0 0; font-size: 12px; color: var(--gold); }
+  :where(button, input, .opt, .row1):focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 2px; }
+
+  .dec { border: 1px solid var(--hud-line); border-radius: 11px; background: var(--hud-2); padding: 11px 12px; margin: 0 0 8px; }
+  .dec .lb { margin: 0; font-size: 13px; font-weight: 600; }
+  .dec .why { margin: 3px 0 0; font-size: 12px; color: var(--hud-mute-2); line-height: 1.5; }
+  .dec .acts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; align-items: center; }
+  .dec .done-note { font-size: 12px; color: var(--gold); }
+  .dec .btn { font-size: 12px; padding: 8px 11px; }
+  .sub-lines .sl { display: flex; align-items: flex-start; gap: 9px; padding: 8px 0; border-top: 1px solid rgba(43,51,61,.6); margin-top: 8px; }
+  .sub-lines .sl p { margin: 0; flex: 1; font-family: var(--serif); font-size: 13px; line-height: 1.45; }
+  .sub-lines .sl.on p { color: var(--gold); }
+
+  .end-sum { margin: 0 0 14px; font-size: 13px; color: var(--hud-mute-2); line-height: 1.55; }
+  .cta { appearance: none; display: block; width: 100%; text-align: center; font: inherit; font-size: 14.5px; font-weight: 600; padding: 13px 16px; border-radius: 12px; border: 1px solid transparent; background: var(--gold); color: #1a1206; cursor: pointer; margin-bottom: 8px; }
+  .cta.ghost { background: transparent; color: var(--hud-ink); border-color: var(--hud-line); font-weight: 500; }
+
+  .ledger { min-height: 18px; margin: 10px 4px 0; font-size: 12px; color: var(--hud-mute-2); display: flex; gap: 8px; }
+  .ledger.gold { color: var(--gold); }
+  .ledger .undo { all: unset; cursor: pointer; color: var(--hud-mute); font-size: 11px; text-decoration: underline; text-underline-offset: 2px; padding: 2px; }
+
+  /* ── the CV bar + sheet ── */
+  .cvbar {
+    all: unset; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--hud-1); border-top: 1px solid var(--hud-line); padding: 13px 16px 17px;
+    font-size: 13px; font-weight: 600; color: var(--hud-ink); cursor: pointer; text-align: center;
+  }
+  .cvbar .chg { font-weight: 500; font-size: 12px; color: var(--gold-dim); border: 1px dashed rgba(168,118,43,.5); background: rgba(232,163,61,.09); border-radius: 999px; padding: 2px 9px; }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0; top: 84px; z-index: 40;
+    background: var(--hud-0); border-top: 1px solid var(--hud-line); border-radius: 18px 18px 0 0;
+    transform: translateY(102%); transition: transform 300ms cubic-bezier(.2,1,.3,1);
+    display: flex; flex-direction: column; box-shadow: 0 -14px 44px rgba(0,0,0,.55);
+  }
+  .sheet.open { transform: none; }
+  .sheet .grab { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 8px; }
+  .sheet .grab .hl { font-size: 13px; font-weight: 620; }
+  .sheet .grab .btn { font-size: 12px; padding: 7px 11px; }
+  .sheet .inner { flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 4px 14px 20px; scrollbar-width: thin; }
+
+  .cv { position: relative; overflow: hidden; padding: 18px 18px 22px; border-radius: 10px; border: 1px solid var(--paper-edge); background: var(--paper); color: var(--ink); font-family: var(--serif); box-shadow: 0 18px 44px -14px rgba(0,0,0,.75), 0 1px 0 rgba(255,255,255,.16) inset; }
+  .cv::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5; background-image: radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px); background-size: 3px 3px; }
+  .cv .nm { font-size: 18px; font-weight: 600; margin: 0; }
+  .cv .ct { margin: 3px 0 0; font-family: var(--sans); font-size: 10.5px; color: var(--ink-mute); line-height: 1.55; }
+  .cv section { margin: 14px 0 0; }
+  .cv-sec { margin: 0 0 7px; font-family: var(--sans); font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .14em; color: var(--ink-mute); }
+  .cv .role-h { margin: 0 0 4px; font-family: var(--sans); font-size: 12px; font-weight: 620; }
+  .cv .role-h span { font-weight: 400; color: var(--ink-mute); }
+  .cv-line { position: relative; margin: 0 0 7px; padding-left: 13px; font-size: 13px; line-height: 1.45; }
+  .cv-line::before { content: ""; position: absolute; left: 0; top: .6em; width: 4.5px; height: 4.5px; border-radius: 50%; background: var(--gold-dim); }
+  .cv .plain { margin: 0 0 6px; font-size: 13px; line-height: 1.45; }
+  .cv .settle { animation: tl-settle 640ms cubic-bezier(.2,1,.3,1); border-radius: 5px; }
+
+  .fly { position: fixed; z-index: 90; display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600; color: #1a1206; background: var(--gold); border-radius: 999px; padding: 4px 10px; box-shadow: 0 6px 18px rgba(0,0,0,.4); transition: transform 720ms cubic-bezier(.4,.05,.3,1), opacity 720ms ease; }
+  .fly.stretch { background: var(--hud-1); color: var(--gold); border: 1px dashed var(--gold-dim); }
+
+  @keyframes jd-dealin { from { opacity: 0; transform: translateY(22px) scale(.96); } to { opacity: 1; transform: none; } }
+  @keyframes jd-bump { 0% { transform: none; } 40% { transform: scale(1.28); color: var(--gold); } 100% { transform: none; } }
+  @keyframes tl-settle { 0% { background: rgba(232,163,61,.2); } 100% { background: transparent; } }
+
+  .instr { max-width: 900px; margin: 16px auto 0; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 8px; padding: 11px 15px; color: var(--hud-mute); font-family: var(--mono); font-size: 11.5px; line-height: 1.75; }
+  .instr b { color: var(--hud-ink); }
+  .instr .tag { color: var(--gold); font-family: var(--sans); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 10px; margin-right: 10px; }
+  .instr .warn { color: var(--gold); }
+  .instr hr { border: 0; border-top: 1px solid var(--hud-line); margin: 8px 0; }
+
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+
+<div class="ask">
+  <h1>#157 · Shape 1 on a phone — quick example</h1>
+  <p><strong>Same cards, same words, same rules as the desktop file.</strong> Only the placement changes: the advert folds into a sticky top band (tap it to open the six asks) · the card takes the screen · the CV waits behind the bottom bar, with the Changes list at the top of its sheet.</p>
+  <p>Watch the same physics: a fact's chip flies to the profile count in the band; a stretch stakes <em>on the band</em> — the advert — and the profile count never moves.</p>
+</div>
+
+<div class="desk">
+  <div class="phone" id="phone">
+    <div class="band" id="band">
+      <div class="row1" id="bandRow" role="button" tabindex="0" aria-expanded="false" aria-label="Senior Project Manager, DBS Bank. Open the advert's asks">
+        <div class="tt">
+          <h2>Senior Project Manager</h2>
+          <p class="co">DBS Bank · Singapore</p>
+          <span class="asks-line" id="asksLine">
+            <svg width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M3 1.5L7 5L3 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span id="asksSum"></span>
+          </span>
+        </div>
+        <div class="dial" id="dialWrap"></div>
+        <span class="prof" id="prof">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <rect x="1.5" y="8.5" width="11" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
+            <rect x="3" y="4.6" width="8" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
+            <rect x="4.5" y=".7" width="5" height="3.2" rx="1.1" stroke="#e8a33d" stroke-width="1.3"/>
+          </svg>
+          <span class="n" id="profN">34</span>
+        </span>
+      </div>
+      <div class="stake" id="stake">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="2" transform="rotate(45 8 8)" stroke="#e8a33d" stroke-width="1.4" stroke-dasharray="2.6 2.2"/></svg>
+        <span>1 stretch with this application</span>
+        <button class="x" id="stakeUndo" type="button">undo</button>
+      </div>
+      <div class="reqs" id="reqs"></div>
+      <div class="ledger" id="ledger"></div>
+      <div style="height:8px"></div>
+    </div>
+
+    <div class="scroll" id="scrollArea"></div>
+
+    <button class="cvbar" id="cvbar" type="button" aria-expanded="false"></button>
+
+    <div class="sheet" id="sheet" role="dialog" aria-label="Your CV for this advert">
+      <div class="grab">
+        <span class="hl">Your CV for this advert</span>
+        <button class="btn" id="sheetClose" type="button">Close</button>
+      </div>
+      <div class="inner" id="sheetInner"></div>
+    </div>
+  </div>
+</div>
+
+<div class="instr" id="instr"></div>
+<div class="sr" aria-live="polite" id="live"></div>
+
+<script>
+/* Same case + state machine as tailor-cards.prototype.html, re-skinned for the phone. */
+const REQS = [
+  { id: "vendor", label: "Vendor delivery, end to end" },
+  { id: "budget", label: "Owning the project budget" },
+  { id: "powerbi", label: "Power BI reporting" },
+  { id: "stake2", label: "Regional stakeholder management", fixed: "fit" },
+  { id: "pl300", label: "PL-300 certification", fixed: "fit" },
+  { id: "mandarin", label: "Mandarin", fixed: "fit" },
+];
+const BASE = 58;
+const UNPRINTED = [
+  "Ran the Hong Kong office's move to a new floor over one weekend, with no trading downtime.",
+  "Sat on the regional diversity committee and chaired its quarterly review.",
+  "Wrote the onboarding pack new joiners in the PMO still use.",
+];
+const COPY = {
+  skip: "Skip for now", early: "I'm done — skip to the end",
+  qBudgetH: "Have you owned a project budget yourself?", qBudgetSub: "This advert asks for budget ownership.",
+  qBudgetY: "Yes — the budget was mine", qBudgetS: "I managed the spend; my sponsor signed it", qBudgetN: "Not yet",
+  qPowH: "How many years have you used Power BI?", qPowSub: "This advert asks for Power BI reporting.",
+  qPowErr: "Type a number of years — or skip for now.",
+  sH: "A stretch: vendor delivery, end to end",
+  sBody: "This advert wants someone who has run vendor delivery from selection to handover. You ran vendor selection and contracts at Standard Chartered — close, and worth a careful reach.",
+  sLine: "Led vendor selection through to delivery handover for the core-banking refresh.",
+  sNote: "Worded so you can stand behind it. A two-line interview story is saved with it.",
+  sYes: "Propose it on this CV", sNo: "Not for this one",
+  dH: "What I changed for this advert", dSub: "Everything here is about this one CV. Your profile stays as it is.",
+  dStripLb: "Left off: date of birth · marital status", dStripWhy: "CVs in Singapore don't usually carry these.",
+  dStripBtn: "Put them back — this CV only", dStripDone: "Back on this CV — just this one.",
+  dBulLb: (n) => n ? `Standard Chartered Bank — ${n} line${n === 1 ? "" : "s"} not printed` : "Standard Chartered Bank — all 3 lines are on this CV",
+  dBulWhy: (n) => n ? `Your strongest lines for this advert are on the CV. These ${n} say things this advert doesn't ask about.` : "You put all 3 back — this CV only.",
+  dBulSee: "See the 3 lines", dBulHide: "Hide them", putBack: "Put it back", undo: "Undo", dOk: "Looks right",
+  endH: "This CV is as strong as I can make it for this advert.",
+  apply: "Apply with this CV", save: "Save it and come back later",
+  ledBudgetY: "Budget ownership — added to your profile.", ledBudgetS: "Shared budget oversight — added to your profile.",
+  ledBudgetN: "Settled. This advert now knows where you stand.",
+  ledPow: (y) => `Power BI (${y} year${y === 1 ? "" : "s"}) — added to your profile.`,
+  ledPowN: "Settled. This advert now knows where you stand.",
+  ledStretch: "Stretch saved with this application — it never joins your profile.",
+  ledStretchOff: "Stretch removed from this application.", ledBack: "Back on this CV — just this one.",
+  chip: (n) => n ? `Changes · ${n}` : "Changes",
+};
+
+let S;
+function freshState() {
+  return { queue: ["budget", "powerbi", "stretch", "changed", "end"], idx: 0,
+    budget: null, powerbi: null, stretch: null, powErr: null,
+    back: false, subBack: {}, showThree: false, bandOpen: false, sheetOpen: false,
+    profExtra: 0, shownScore: BASE, ledger: null, lastUndo: null, deal: false };
+}
+S = freshState();
+const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function targetScore() {
+  let n = BASE;
+  if (S.budget === "y") n += 9; else if (S.budget === "s") n += 6;
+  if (S.powerbi) n += 7;
+  if (S.stretch === "y") n += 8;
+  return n;
+}
+function reqState(id) {
+  const r = REQS.find((x) => x.id === id);
+  if (r.fixed) return r.fixed;
+  if (id === "vendor") return S.stretch === "y" ? "stretched" : "open";
+  if (id === "budget") return S.budget == null ? "open" : S.budget === "n" ? "settled" : "fit";
+  if (id === "powerbi") return S.powerbi == null ? "open" : S.powerbi === 0 ? "settled" : "fit";
+  return "open";
+}
+const WORD = { fit: "you fit", open: "to answer", settled: "answered", stretched: "stretched" };
+function mark(st) {
+  if (st === "fit") return `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.4" fill="#e8a33d"/><path d="M5.6 8.2l1.7 1.7 3.1-3.6" stroke="#1a1206" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  if (st === "stretched") return `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="2" transform="rotate(45 8 8)" stroke="#e8a33d" stroke-width="1.4" stroke-dasharray="2.6 2.2"/></svg>`;
+  if (st === "settled") return `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.4" fill="#4d5865"/></svg>`;
+  return `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="4.9" stroke="#6f7d8c" stroke-width="1.4"/></svg>`;
+}
+const CARD_FOR_REQ = { budget: "budget", powerbi: "powerbi", vendor: "stretch" };
+const act = () => S.queue[S.idx] ?? null;
+const changesCount = () => (!S.back ? 1 : 0) + (UNPRINTED.filter((_, i) => !S.subBack[i]).length ? 1 : 0);
+
+/* ══ render ══ */
+function dialHtml() {
+  const pct = Math.round(S.shownScore);
+  const C = 2 * Math.PI * 19;
+  return `<svg width="46" height="46" viewBox="0 0 46 46" role="img" aria-label="${pct} percent match">
+    <circle cx="23" cy="23" r="19" fill="none" stroke="var(--hud-line)" stroke-width="4.5"/>
+    <circle cx="23" cy="23" r="19" fill="none" stroke="var(--gold)" stroke-width="4.5" stroke-linecap="round"
+      stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - pct / 100)).toFixed(1)}" transform="rotate(-90 23 23)"/>
+  </svg><div class="num" id="dialNum">${pct}%</div>`;
+}
+function decRows() {
+  const nHidden = UNPRINTED.filter((_, i) => !S.subBack[i]).length;
+  return `
+    <div class="dec">
+      <p class="lb">${esc(COPY.dStripLb)}</p>
+      <p class="why">${esc(COPY.dStripWhy)}</p>
+      <div class="acts">${S.back
+        ? `<span class="done-note">${esc(COPY.dStripDone)}</span><button class="btn quiet" data-act="strip-undo" type="button">${esc(COPY.undo)}</button>`
+        : `<button class="btn" data-act="strip-back" type="button">${esc(COPY.dStripBtn)}</button>`}</div>
+    </div>
+    <div class="dec">
+      <p class="lb">${esc(COPY.dBulLb(nHidden))}</p>
+      <p class="why">${esc(COPY.dBulWhy(nHidden))}</p>
+      ${S.showThree ? `<div class="sub-lines">${UNPRINTED.map((l, i) => `
+        <div class="sl ${S.subBack[i] ? "on" : ""}">
+          <p>${esc(l)}</p>
+          ${S.subBack[i]
+            ? `<button class="btn quiet" data-act="sub-undo" data-i="${i}" type="button">${esc(COPY.undo)}</button>`
+            : `<button class="btn" data-act="sub-back" data-i="${i}" type="button">${esc(COPY.putBack)}</button>`}
+        </div>`).join("")}</div>` : ""}
+      <div class="acts">
+        <button class="btn" data-act="three" type="button">${esc(S.showThree ? COPY.dBulHide : COPY.dBulSee)}</button>
+        ${nHidden < 3 ? `<span class="done-note">${3 - nHidden} back on this CV — just this one.</span>` : ""}
+      </div>
+    </div>`;
+}
+function cardHtml(id) {
+  const deal = S.deal ? "dealin" : "";
+  if (id === "budget") return `
+    <div class="card ${deal}">
+      <h3>${esc(COPY.qBudgetH)}</h3><p class="sub">${esc(COPY.qBudgetSub)}</p>
+      <div class="opts">
+        <button class="opt" data-act="budget" data-v="y" type="button">${esc(COPY.qBudgetY)}</button>
+        <button class="opt" data-act="budget" data-v="s" type="button">${esc(COPY.qBudgetS)}</button>
+        <button class="opt" data-act="budget" data-v="n" type="button">${esc(COPY.qBudgetN)}</button>
+      </div>
+      <button class="skip" data-act="skip" type="button">${esc(COPY.skip)}</button>
+    </div>`;
+  if (id === "powerbi") return `
+    <div class="card ${deal}">
+      <h3>${esc(COPY.qPowH)}</h3><p class="sub">${esc(COPY.qPowSub)}</p>
+      <form class="typed" id="powForm">
+        <input id="powIn" inputmode="numeric" placeholder="e.g. 3" aria-label="${esc(COPY.qPowH)}">
+        <button class="btn gold" type="submit">Add it</button>
+      </form>
+      ${S.powErr ? `<p class="err" role="alert">${esc(S.powErr)}</p>` : ""}
+      <button class="skip" data-act="skip" type="button">${esc(COPY.skip)}</button>
+    </div>`;
+  if (id === "stretch") return `
+    <div class="card ${deal}">
+      <h3>${esc(COPY.sH)}</h3><p class="body">${esc(COPY.sBody)}</p>
+      <div class="print-line">${esc(COPY.sLine)}</div>
+      <p class="print-note">${esc(COPY.sNote)}</p>
+      <div class="row2">
+        <button class="btn gold" data-act="stretch" data-v="y" type="button">${esc(COPY.sYes)}</button>
+        <button class="btn" data-act="stretch" data-v="n" type="button">${esc(COPY.sNo)}</button>
+      </div>
+      <button class="skip" data-act="skip" type="button">${esc(COPY.skip)}</button>
+    </div>`;
+  if (id === "changed") return `
+    <div class="card ${deal}">
+      <h3>${esc(COPY.dH)}</h3><p class="sub">${esc(COPY.dSub)}</p>
+      ${decRows()}
+      <div class="row2" style="margin-top:11px"><button class="btn gold" data-act="d-ok" type="button">${esc(COPY.dOk)}</button></div>
+    </div>`;
+  const closed = (S.budget && S.budget !== "n" ? 1 : 0) + (S.powerbi ? 1 : 0);
+  const settled = (S.budget === "n" ? 1 : 0) + (S.powerbi === 0 ? 1 : 0);
+  const parts = [];
+  if (closed) parts.push(`you closed ${closed} gap${closed > 1 ? "s" : ""}`);
+  if (settled) parts.push(`${settled} ${settled > 1 ? "are" : "is"} answered and settled`);
+  if (S.stretch === "y") parts.push("1 stretch is saved with this application");
+  const n = changesCount();
+  return `
+    <div class="card ${deal}">
+      <h3>${esc(COPY.endH)}</h3>
+      <p class="end-sum">${parts.length ? esc(parts.join(", ")).replace(/^./, (c) => c.toUpperCase()) + ". " : ""}${
+        n ? `I changed ${n} thing${n === 1 ? "" : "s"} — they're under <b>${esc(COPY.chip(n))}</b> below, with undo.`
+          : `Anything I changed earlier is back on this CV — <b>Changes</b> below keeps the record, with undo.`}</p>
+      <button class="cta" data-act="apply" type="button">${esc(COPY.apply)}</button>
+      <button class="cta ghost" data-act="save" type="button">${esc(COPY.save)}</button>
+    </div>`;
+}
+function cvHtml() {
+  const bits = ["12 Orchard Road, Singapore", "+65 9123 4567", "remy@mail.com"];
+  if (S.back) bits.push("Born 4 July 1978", "Married, 2 children");
+  bits.push("Singaporean");
+  const sum = ["Regional project manager with 9 years across banking programmes in Singapore and Hong Kong."];
+  if (S.budget === "y") sum.push("Owned programme budgets to USD 12m.");
+  if (S.budget === "s") sum.push("Managed programme spend to USD 12m with the sponsor.");
+  const bullets = [
+    "Owned a USD 12m regional payments programme across six markets, delivered on budget.",
+    "Ran vendor selection and contract negotiation for the Singapore core-banking refresh.",
+    "Cut release cycle time from six weeks to nine days with the platform team.",
+    "Reported programme health to the regional exco every month for three years.",
+  ];
+  const extra = [];
+  if (S.stretch === "y") extra.push(COPY.sLine);
+  UNPRINTED.forEach((l, i) => { if (S.subBack[i]) extra.push(l); });
+  return `
+  <div class="cv">
+    <p class="nm">Remy Tan</p>
+    <p class="ct settle">${esc(bits.join(" · "))}</p>
+    <section><h2 class="cv-sec">Summary</h2>${sum.map((t) => `<p class="plain">${esc(t)}</p>`).join("")}</section>
+    <section><h2 class="cv-sec">Experience</h2>
+      <p class="role-h">Standard Chartered Bank <span>· Regional Project Manager · 2019–2022</span></p>
+      ${bullets.map((b) => `<p class="cv-line">${esc(b)}</p>`).join("")}
+      ${extra.map((b) => `<p class="cv-line settle">${esc(b)}</p>`).join("")}
+    </section>
+    <section><h2 class="cv-sec">Skills</h2>
+      <p class="plain">Delivery: Agile, PRINCE2, vendor and contract management</p>
+      <p class="plain">Data: SQL, Excel${S.powerbi ? `, Power BI (${S.powerbi} year${S.powerbi === 1 ? "" : "s"})` : ""}</p>
+    </section>
+    <section><h2 class="cv-sec">Certifications</h2>
+      <p class="plain">PL-300 – Power BI Data Analyst Associate, Feb 2023 (expired)</p>
+      <p class="plain">PMP – Project Management Institute, 2017</p>
+    </section>
+    <section><h2 class="cv-sec">Additional</h2>
+      <p class="plain">Languages: English (native), Mandarin, Malay</p>
+      <p class="plain">Driving licence: B (own vehicle)</p>
+    </section>
+  </div>`;
+}
+
+function render(fx = {}) {
+  const a = act();
+  const fits = REQS.filter((r) => reqState(r.id) === "fit").length;
+  document.getElementById("asksSum").textContent = `${REQS.length} asks · ${fits} you fit — tap to see them`;
+  document.getElementById("band").classList.toggle("open", S.bandOpen);
+  document.getElementById("bandRow").setAttribute("aria-expanded", S.bandOpen);
+  document.getElementById("reqs").innerHTML = REQS.map((r) => {
+    const st = reqState(r.id);
+    return `<div class="req ${CARD_FOR_REQ[r.id] === a ? "active" : ""}" data-state="${st}">
+      <span class="st">${mark(st)}</span><span class="t">${esc(r.label)}</span><span class="word">${WORD[st]}</span></div>`;
+  }).join("");
+  document.getElementById("dialWrap").innerHTML = dialHtml();
+  document.getElementById("profN").textContent = 34 + S.profExtra;
+  document.getElementById("stake").classList.toggle("show", S.stretch === "y");
+  document.getElementById("ledger").className = "ledger" + (S.ledger?.gold ? " gold" : "");
+  document.getElementById("ledger").innerHTML = S.ledger
+    ? `<span>${esc(S.ledger.text)}${S.ledger.delta ? ` +${S.ledger.delta}` : ""}</span>${S.lastUndo ? `<button class="undo" data-act="last-undo" type="button">${esc(COPY.undo)}</button>` : ""}`
+    : "";
+
+  const step = Math.min(S.idx + 1, S.queue.length - 1);
+  document.getElementById("scrollArea").innerHTML = a
+    ? `${a !== "end" ? `<div class="meta"><span>${step} <b>of ${S.queue.length - 1}</b></span>${
+        a !== "changed" ? `<button class="skip-link" data-act="early" type="button">${esc(COPY.early)}</button>` : ""
+      }</div>` : ""}${cardHtml(a)}`
+    : "";
+
+  const n = changesCount();
+  document.getElementById("cvbar").innerHTML = `Your CV for this advert <span class="chg">${esc(COPY.chip(n))}</span>`;
+  document.getElementById("cvbar").setAttribute("aria-expanded", S.sheetOpen);
+  document.getElementById("sheet").classList.toggle("open", S.sheetOpen);
+  document.getElementById("sheetInner").innerHTML = S.sheetOpen ? `${decRows()}<div style="height:10px"></div>${cvHtml()}` : "";
+
+  S.deal = false;
+  if (fx.announce) document.getElementById("live").textContent = fx.announce;
+  if (fx.tween) tween();
+  if (fx.fly && !REDUCED) fly(fx.fly); else if (fx.fly) bump(fx.fly.to);
+  wire();
+}
+
+function tween() {
+  const from = S.shownScore, to = targetScore();
+  if (from === to) return;
+  if (REDUCED) { S.shownScore = to; render({}); return; }
+  const t0 = performance.now();
+  function fr(t) {
+    const p = Math.min(1, (t - t0) / 680);
+    S.shownScore = from + (to - from) * (1 - Math.pow(1 - p, 3));
+    const el = document.getElementById("dialNum");
+    if (el) el.textContent = Math.round(S.shownScore) + "%";
+    const arc = document.querySelector("#dialWrap svg circle:last-of-type");
+    if (arc) { const C = 2 * Math.PI * 19; arc.setAttribute("stroke-dashoffset", (C * (1 - S.shownScore / 100)).toFixed(1)); }
+    if (p < 1) requestAnimationFrame(fr);
+    else { const e = document.getElementById("dialNum"); if (e) { e.classList.remove("bump"); void e.offsetWidth; e.classList.add("bump"); } }
+  }
+  requestAnimationFrame(fr);
+}
+function bump(to) {
+  const el = to === "profile" ? document.getElementById("profN") : document.getElementById("stake");
+  if (el) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
+}
+function fly({ label, to, stretch }) {
+  const from = document.getElementById("scrollArea").getBoundingClientRect();
+  const target = (to === "profile" ? document.getElementById("prof") : document.getElementById("stake")).getBoundingClientRect();
+  const chip = document.createElement("div");
+  chip.className = "fly" + (stretch ? " stretch" : "");
+  chip.textContent = label;
+  chip.style.left = from.left + 40 + "px"; chip.style.top = from.top + 30 + "px";
+  document.body.appendChild(chip);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    chip.style.transform = `translate(${target.left - from.left - 40 + 10}px, ${target.top - from.top - 30}px) scale(.6)`;
+    chip.style.opacity = "0";
+  }));
+  setTimeout(() => { chip.remove(); bump(to); }, 740);
+}
+
+function advance() { S.idx += 1; S.deal = true; }
+function led(text, delta, gold, undoFn) { S.ledger = { text, delta, gold }; S.lastUndo = undoFn || null; }
+
+const ACTIONS = {
+  budget(v) {
+    S.budget = v;
+    const fact = v !== "n";
+    if (fact) S.profExtra += 1;
+    led(v === "y" ? COPY.ledBudgetY : v === "s" ? COPY.ledBudgetS : COPY.ledBudgetN, v === "y" ? 9 : v === "s" ? 6 : 0, fact,
+        () => { S.budget = null; if (fact) S.profExtra -= 1; S.queue.splice(S.idx = Math.min(S.idx, S.queue.indexOf("changed")), 0, "budget"); S.ledger = null; S.lastUndo = null; });
+    advance();
+    render({ tween: true, announce: `${targetScore()} percent match. ${S.ledger.text}`, fly: fact ? { label: "+1 fact", to: "profile" } : null });
+  },
+  powerbi(raw) {
+    const t = String(raw).trim(); const v = Number(t);
+    if (t === "" || !Number.isInteger(v) || v < 0) {
+      S.powErr = COPY.qPowErr; render({});
+      const input = document.getElementById("powIn"); if (input) input.focus();
+      return;
+    }
+    S.powErr = null; S.powerbi = v;
+    if (v === 0) {
+      led(COPY.ledPowN, 0, false, () => { S.powerbi = null; S.queue.splice(S.idx = Math.min(S.idx, S.queue.indexOf("changed")), 0, "powerbi"); S.ledger = null; S.lastUndo = null; });
+      advance(); render({ announce: S.ledger.text }); return;
+    }
+    S.profExtra += 1;
+    led(COPY.ledPow(v), 7, true, () => { S.powerbi = null; S.profExtra -= 1; S.queue.splice(S.idx = Math.min(S.idx, S.queue.indexOf("changed")), 0, "powerbi"); S.ledger = null; S.lastUndo = null; });
+    advance();
+    render({ tween: true, announce: `${targetScore()} percent match. ${S.ledger.text}`, fly: { label: "+1 fact", to: "profile" } });
+  },
+  stretch(v) {
+    S.stretch = v;
+    if (v === "y") {
+      led(COPY.ledStretch, 8, true, () => ACTIONS["stretch-undo"]());
+      advance();
+      render({ tween: true, announce: `${targetScore()} percent match. ${S.ledger.text}`, fly: { label: "stretch", to: "stake", stretch: true } });
+    } else { led("Noted — not for this one.", 0, false, null); advance(); render({ announce: S.ledger.text }); }
+  },
+  "stretch-undo"() {
+    S.stretch = null;
+    if (!S.queue.includes("stretch")) S.queue.splice(Math.min(S.queue.indexOf("changed"), S.idx), 0, "stretch");
+    S.idx = Math.min(S.idx, S.queue.indexOf("stretch"));
+    led(COPY.ledStretchOff, 0, false, null);
+    render({ tween: true, announce: S.ledger.text });
+  },
+  "d-ok"() { advance(); render({ announce: COPY.endH }); },
+  skip() {
+    const id = S.queue[S.idx]; S.powErr = null;
+    S.queue.splice(S.idx, 1); S.queue.splice(S.queue.indexOf("changed"), 0, id);
+    S.deal = true; render({});
+  },
+  early() { S.idx = S.queue.indexOf("changed"); S.deal = true; render({}); },
+  "strip-back"() { S.back = true; led(COPY.ledBack, 0, false, () => { S.back = false; S.ledger = null; }); render({ announce: COPY.ledBack }); },
+  "strip-undo"() { S.back = false; render({}); },
+  "sub-back"(i) { S.subBack[i] = true; render({ announce: COPY.ledBack }); },
+  "sub-undo"(i) { S.subBack[i] = false; render({}); },
+  three() { S.showThree = !S.showThree; render({}); },
+  "last-undo"() { if (S.lastUndo) { S.lastUndo(); S.deal = true; render({ tween: true }); } },
+  apply() { led("Ready. Nothing goes out until you press send.", 0, true, null); render({ announce: S.ledger.text }); },
+  save() { led("Saved. Pick it up whenever you want.", 0, false, null); render({ announce: S.ledger.text }); },
+};
+
+const FOCUS_NEXT = { "sub-back": "sub-undo", "sub-undo": "sub-back", "strip-back": "strip-undo", "strip-undo": "strip-back", three: "three" };
+function wire() {
+  document.querySelectorAll("[data-act]").forEach((el) => {
+    if (el.dataset.wired) return;
+    el.dataset.wired = "1";
+    el.addEventListener("click", () => {
+      const a = el.dataset.act;
+      const i = el.dataset.i != null ? Number(el.dataset.i) : null;
+      if (a === "budget" || a === "stretch") ACTIONS[a](el.dataset.v);
+      else if (a === "sub-back" || a === "sub-undo") ACTIONS[a](i);
+      else ACTIONS[a]();
+      const nx = FOCUS_NEXT[a];
+      if (nx) { const t = document.querySelector(i != null ? `[data-act="${nx}"][data-i="${i}"]` : `[data-act="${nx}"]`); if (t) t.focus(); }
+    });
+  });
+  const f = document.getElementById("powForm");
+  if (f && !f.dataset.wired) { f.dataset.wired = "1"; f.addEventListener("submit", (e) => { e.preventDefault(); ACTIONS.powerbi(document.getElementById("powIn").value); }); }
+}
+
+const bandRow = document.getElementById("bandRow");
+bandRow.addEventListener("click", () => { S.bandOpen = !S.bandOpen; render({}); });
+bandRow.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); S.bandOpen = !S.bandOpen; render({}); } });
+document.getElementById("cvbar").addEventListener("click", () => { S.sheetOpen = !S.sheetOpen; render({}); });
+document.getElementById("sheetClose").addEventListener("click", () => { S.sheetOpen = false; render({}); });
+document.getElementById("stakeUndo").addEventListener("click", () => ACTIONS["stretch-undo"]());
+addEventListener("keydown", (e) => {
+  if (e.target.matches("input")) return;
+  if (e.key === "Escape" && S.sheetOpen) { S.sheetOpen = false; render({}); }
+  if (e.key.toLowerCase() === "r") { S = freshState(); render({}); }
+});
+
+document.getElementById("instr").innerHTML = `
+  <span class="tag">Instrument</span>
+  <b>Shape 1 → phone, by translation not redesign.</b> The dock IS the screen; the advert folds to a sticky band (tap for the six asks); the CV waits behind the bottom bar with the Changes list on its sheet. Same cards, same words, same state rules as tailor-cards.prototype.html — placement only.
+  <hr>
+  <span class="warn">quick example — deliberately omitted:</span> shape 2 (no phone answer — a card inside a list is an accordion that jumps), the market flip, the deeper a11y pass. The desktop file remains the reviewed source of truth.
+  <hr>
+  same physics: fact chip → profile count in the band · stretch stakes on the band (the advert) and the profile count never moves · declarations move no score · put-backs say "this CV only" · R resets`;
+
+render({});
+</script>
+
+</body>
+</html>

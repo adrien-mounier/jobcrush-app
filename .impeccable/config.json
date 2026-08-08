@@ -1,0 +1,44 @@
+{
+  "hook": {
+    "enabled": true,
+    "limits": {
+      "maxFindings": 5,
+      "maxChars": 8000
+    }
+  },
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [
+      "apps/web/prototypes/north-star.prototype.html"
+    ],
+    "ignoreValues": [
+      {
+        "rule": "design-system-color",
+        "value": "*",
+        "files": [
+          "apps/web/prototypes/*.prototype.html"
+        ],
+        "createdAt": "2026-08-08T16:12:32.676Z",
+        "reason": "Prototype chrome (desk, bezel, brief card, instrument strip) is fixture scaffolding by #157 convention; the product region inside the phone uses the documented tokens"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "apps/web/prototypes/*.prototype.html"
+        ],
+        "createdAt": "2026-08-08T16:12:32.755Z",
+        "reason": "Prototype chrome (desk, bezel, brief card, instrument strip) is fixture scaffolding by #157 convention; the product region inside the phone uses the documented tokens"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "*",
+        "files": [
+          "apps/web/prototypes/*.prototype.html"
+        ],
+        "createdAt": "2026-08-08T16:12:32.836Z",
+        "reason": "Prototype chrome (desk, bezel, brief card, instrument strip) is fixture scaffolding by #157 convention; the product region inside the phone uses the documented tokens"
+      }
+    ]
+  }
+}

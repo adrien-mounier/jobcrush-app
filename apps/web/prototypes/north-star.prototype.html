@@ -1,0 +1,364 @@
+<!-- PROTOTYPE — throwaway. Impeccable setup (owner-requested, 2026-08-08), North Star probe.
+     NOT a Design C decision file. The question: which named metaphor governs the whole visual
+     system in DESIGN.md?
+
+     ══ ROUND 2 (2026-08-08, owner: "they all look the same, I don't really see the difference") ══
+     Round 1 held layout/type/material constant and swapped only palette tokens — correct
+     discipline for comparing a CONTROL, wrong for comparing a WORLD. A world lives in the type
+     voice, the materials, the shapes and the signature details. Round 2:
+       - three phones SIDE BY SIDE (no memory needed, no switcher between screens)
+       - each world fully committed — caricature-level, deliberately: the point of a probe is
+         to make the difference felt; the chosen world gets tuned down to taste afterwards
+       - same moment, same copy in all three, so the comparison stays fair
+
+     Worlds:
+       night   — THE NIGHT DESK. Warm dark room, serif voice, the CV as the one lamp-lit sheet,
+                 gold as lamplight. The machine is a quiet desk lamp beside you.
+       table   — THE DEALER'S TABLE. Deep felt, white card faces, chip stacks, press-down
+                 buttons. The game leads: decks, chips, wins.
+       cockpit — THE COCKPIT AND THE LETTER. Cool instrument chrome: grid, brackets, ticked
+                 gauges, mono readouts — around one warm human artifact, the letter.
+
+     VERDICT (owner, 2026-08-08): THE INCUMBENT STYLE IS KEPT. Shown round 1 (token swap,
+     "they all look the same") and round 2 (side-by-side, fully committed caricatures), the
+     owner's call was the existing register as shipped — his reference: the Design B
+     comparison artifact ("I prefer the style I have already"). Dealer's Table and Cockpit
+     rejected; no re-theming of the product. Consequence: DESIGN.md documents the incumbent
+     system as the North Star ("The Night Desk" is its name, describing what already exists,
+     not a redesign). Style questions are settled "for now" — reopen only on the owner's ask.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>North Star probe — three visual worlds (prototype)</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #e7e3dd; font-family: var(--sans); line-height: 1.5;
+    padding: 20px 18px 60px; -webkit-font-smoothing: antialiased;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  }
+
+  .ask-brief { max-width: 1140px; margin: 0 auto 22px; background: #fffdf9; border: 1px solid #ded7cb; border-radius: 12px; padding: 16px 20px; color: #1f2328; }
+  .ask-brief h1 { margin: 0 0 6px; font-size: 18px; letter-spacing: -.01em; }
+  .ask-brief p { margin: 0 0 6px; font-size: 13.5px; color: #3c444d; }
+  .ask-brief p:last-child { margin-bottom: 0; }
+
+  .row { display: flex; justify-content: center; gap: 26px; flex-wrap: wrap; align-items: flex-start; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .caption { max-width: 340px; text-align: center; }
+  .caption b { display: block; font-size: 14.5px; color: #1f2328; }
+  .caption span { font-size: 12.5px; color: #59636e; }
+
+  .phone {
+    position: relative; width: 350px; height: 758px; overflow: hidden;
+    border-radius: 42px; border: 10px solid #0a0d10;
+    box-shadow: 0 26px 60px -22px rgba(0,0,0,.6), 0 0 0 1.5px #2a323c;
+    display: flex; flex-direction: column;
+  }
+
+  /* ════════ shared bones (kept identical so the comparison is fair) ════════ */
+  .topbar { position: relative; z-index: 3; flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 13px 17px 9px; font-size: 13px; }
+  .wordmark { font-weight: 700; letter-spacing: .02em; font-size: 14px; }
+  .spacer { flex: 1; }
+  .ctx { position: relative; z-index: 3; padding: 2px 19px 12px; }
+  .stage { position: relative; z-index: 2; flex: 1 1 auto; min-height: 0; padding: 16px 16px 0; }
+  .card { border-radius: 16px; padding: 16px 16px 14px; }
+  .why { margin: 0 0 10px; font-size: 12.5px; }
+  .note { margin: 0 0 12px; font-size: 11.5px; }
+  .btn { font: inherit; font-size: 14px; font-weight: 650; padding: 12px 14px; cursor: pointer; border: 1px solid transparent; text-align: center; width: 100%; }
+  .btns { display: flex; flex-direction: column; gap: 8px; }
+  .sheetbar { position: absolute; z-index: 4; left: 0; right: 0; bottom: 0; padding: 0 14px; }
+  .paper { margin: 0 auto; width: 300px; border-radius: 9px 9px 0 0; overflow: hidden; }
+  .grab { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 7px 0 5px; font-size: 11px; }
+  .pillbar { width: 32px; height: 4px; border-radius: 2px; }
+  .sheet { padding: 10px 16px 10px; font-family: var(--serif); }
+  .sheet .name { font-size: 14px; font-weight: 700; letter-spacing: .01em; }
+  .sheet .role { font-size: 10.5px; margin-bottom: 7px; }
+  .sheet .hr { height: 1px; margin: 5px 0 8px; }
+  .sheet .b { font-size: 11px; line-height: 1.5; margin: 0 0 4px; }
+
+  /* ═══════════════════ 1 · THE NIGHT DESK ═══════════════════ */
+  .w-night {
+    background:
+      radial-gradient(90% 46% at 50% 104%, rgba(232,163,61,.32) 0%, rgba(232,163,61,.10) 46%, transparent 72%),
+      radial-gradient(130% 100% at 50% 0%, #241b10 0%, #171208 55%, #0f0b05 100%);
+    color: #ece4d4; font-family: var(--serif);
+  }
+  .w-night .topbar { color: #9a8f78; }
+  .w-night .wordmark { color: #f0e6d2; font-family: var(--serif); letter-spacing: .04em; }
+  .w-night .facts { font-family: var(--serif); font-style: italic; font-size: 13px; color: #cdbb96; }
+  .w-night .facts b { color: #e8a33d; font-style: normal; font-size: 15px; }
+  .w-night .ctx { border-bottom: 1px solid rgba(232,163,61,.18); }
+  .w-night .job { font-family: var(--serif); font-size: 17px; font-weight: 600; color: #f0e6d2; }
+  .w-night .place { font-size: 12px; color: #9a8f78; font-family: var(--sans); }
+  .w-night .prog { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .w-night .prog .lbl { font-size: 11.5px; color: #9a8f78; font-style: italic; }
+  .w-night .prog .track { flex: 1; height: 2px; background: rgba(232,163,61,.18); position: relative; }
+  .w-night .prog .fill { position: absolute; left: 0; top: 0; height: 100%; width: 37.5%; background: #e8a33d; box-shadow: 0 0 8px rgba(232,163,61,.8); }
+  .w-night .prog .fill::after { content: ""; position: absolute; right: -3px; top: -2.5px; width: 7px; height: 7px; border-radius: 50%; background: #ffd9a0; box-shadow: 0 0 10px rgba(255,217,160,.9); }
+  .w-night .card { background: rgba(255,240,214,.05); border: 1px solid rgba(232,163,61,.22); }
+  .w-night .card h2 { margin: 0 0 9px; font-size: 21px; line-height: 1.25; font-weight: 600; color: #f0e6d2; }
+  .w-night .card h2 .tag { color: #e8a33d; font-style: italic; }
+  .w-night .why { color: #b3a78d; font-family: var(--sans); }
+  .w-night .line {
+    margin: 0 0 9px; padding: 13px 15px; font-size: 15px; font-style: italic; line-height: 1.45;
+    background: #f6f2ea; color: #16150f; border-radius: 4px;
+    box-shadow: 0 0 0 1px #d9d0bd, 0 0 34px rgba(232,163,61,.28), 0 8px 22px -10px rgba(0,0,0,.7);
+  }
+  .w-night .note { color: #9a8f78; font-family: var(--sans); }
+  .w-night .btn { font-family: var(--sans); border-radius: 10px; }
+  .w-night .btn.primary { background: #e8a33d; color: #1a1206; box-shadow: 0 0 26px rgba(232,163,61,.35); }
+  .w-night .btn.primary:hover { background: #ffd9a0; }
+  .w-night .btn.secondary { background: transparent; color: #cdbb96; border-color: rgba(232,163,61,.3); }
+  .w-night .paper { background: #f6f2ea; color: #16150f; box-shadow: 0 0 0 1px #d9d0bd, 0 0 60px rgba(232,163,61,.4), 0 -12px 36px -10px rgba(0,0,0,.7); }
+  .w-night .grab { color: #6b6455; border-bottom: 1px solid #d9d0bd; font-family: var(--serif); font-style: italic; }
+  .w-night .pillbar { background: #d9d0bd; }
+  .w-night .role, .w-night .sheet .hr { color: #6b6455; }
+  .w-night .sheet .hr { background: #16150f; opacity: .7; }
+  .w-night .b.gold { background: rgba(232,163,61,.3); border-radius: 2px; padding: 1px 3px; margin-left: -3px; }
+
+  /* ═══════════════════ 2 · THE DEALER'S TABLE ═══════════════════ */
+  .w-table {
+    background:
+      radial-gradient(120% 90% at 50% 20%, #1d6b47 0%, #145033 52%, #0c3823 100%);
+    color: #eaf3ec;
+  }
+  /* the wooden rail along the bottom */
+  .w-table::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 90px; z-index: 1;
+    background: linear-gradient(180deg, transparent 0%, #3a2313 55%, #241207 100%);
+  }
+  .w-table .topbar { color: #a9cbb6; }
+  .w-table .wordmark { color: #fff; font-weight: 800; letter-spacing: .01em; }
+  .w-table .chipstack { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #cfe6d7; font-weight: 700; }
+  .w-table .chips { position: relative; width: 26px; height: 22px; }
+  .w-table .chips i { position: absolute; left: 0; width: 26px; height: 8px; border-radius: 50%; background: #e8b13d;
+    box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.5), inset 0 -2px 2px rgba(0,0,0,.3); }
+  .w-table .chips i:nth-child(1) { bottom: 0; } .w-table .chips i:nth-child(2) { bottom: 6px; } .w-table .chips i:nth-child(3) { bottom: 12px; background: #f0f0e8; }
+  .w-table .job { font-size: 17px; font-weight: 800; color: #fff; letter-spacing: -.01em; }
+  .w-table .place { font-size: 12px; color: #a9cbb6; }
+  .w-table .prog { display: flex; align-items: center; gap: 5px; margin-top: 9px; }
+  .w-table .prog .lbl { font-size: 11.5px; color: #a9cbb6; font-weight: 600; margin-right: 3px; }
+  .w-table .pip { width: 13px; height: 13px; border-radius: 50%; background: rgba(255,255,255,.14); box-shadow: inset 0 1px 2px rgba(0,0,0,.3); }
+  .w-table .pip.won { background: #e8b13d; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.5), inset 0 -1.5px 2px rgba(0,0,0,.3); }
+  .w-table .card {
+    background: #fdfcf7; color: #1d2126; border-radius: 14px; position: relative;
+    box-shadow: 0 2px 0 #d8d2bd, 0 16px 34px -12px rgba(0,0,0,.55);
+  }
+  .w-table .cornerchip { position: absolute; top: 12px; right: 12px; width: 22px; height: 22px; border-radius: 50%;
+    background: #e8b13d; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55), inset 0 0 0 3.5px #e8b13d, inset 0 -2px 3px rgba(0,0,0,.3); }
+  .w-table .card h2 { margin: 0 0 8px; padding-right: 28px; font-size: 19px; line-height: 1.25; font-weight: 800; letter-spacing: -.01em; }
+  .w-table .card h2 .tag { color: #b07b1e; }
+  .w-table .why { color: #5d6a61; }
+  .w-table .line { margin: 0 0 9px; padding: 12px 14px; font-size: 14px; font-family: var(--serif); font-style: italic;
+    background: #f4f1e4; color: #1d2126; border: 1px dashed #cfc49f; border-radius: 10px; }
+  .w-table .note { color: #7c8578; }
+  .w-table .btn { border-radius: 999px; font-weight: 800; }
+  .w-table .btn.primary { background: #e8b13d; color: #241a05; box-shadow: 0 4px 0 #9a7217; padding: 13px 14px; }
+  .w-table .btn.primary:hover { background: #ffd985; }
+  .w-table .btn.primary:active { transform: translateY(3px); box-shadow: 0 1px 0 #9a7217; }
+  .w-table .btn.secondary { background: transparent; color: #1d2126; border: 1.5px solid #c9c2a8; box-shadow: 0 3px 0 #d8d2bd; }
+  .w-table .btn.secondary:active { transform: translateY(2px); box-shadow: 0 1px 0 #d8d2bd; }
+  .w-table .paper { background: #fdfcf7; color: #1d2126; box-shadow: 0 -12px 30px -10px rgba(0,0,0,.6); }
+  .w-table .grab { color: #7c8578; border-bottom: 1px solid #e0dbc9; font-weight: 700; }
+  .w-table .pillbar { background: #d8d2bd; }
+  .w-table .role { color: #7c8578; }
+  .w-table .sheet .hr { background: #1d2126; opacity: .8; }
+  .w-table .b.gold { background: rgba(232,177,61,.35); border-radius: 2px; padding: 1px 3px; margin-left: -3px; }
+
+  /* ═══════════════════ 3 · THE COCKPIT AND THE LETTER ═══════════════════ */
+  .w-cockpit {
+    background:
+      repeating-linear-gradient(90deg, rgba(105,150,190,.07) 0 1px, transparent 1px 44px),
+      repeating-linear-gradient(0deg, rgba(105,150,190,.06) 0 1px, transparent 1px 44px),
+      linear-gradient(180deg, #0b1420 0%, #081019 100%);
+    color: #d5e2ee; font-family: var(--mono);
+  }
+  .w-cockpit .topbar { color: #6e8299; }
+  .w-cockpit .wordmark { font-family: var(--mono); color: #e8f1f9; letter-spacing: .14em; text-transform: uppercase; font-size: 12.5px; }
+  .w-cockpit .facts { font-size: 11px; letter-spacing: .12em; color: #6e8299; border: 1px solid #24384d; padding: 4px 9px; }
+  .w-cockpit .facts b { color: #5fd4e6; }
+  .w-cockpit .ctx { border-bottom: 1px solid #24384d; }
+  .w-cockpit .job { font-family: var(--sans); font-size: 16.5px; font-weight: 700; color: #e8f1f9; }
+  .w-cockpit .place { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: #6e8299; margin-top: 2px; }
+  .w-cockpit .prog { display: flex; align-items: center; gap: 9px; margin-top: 9px; }
+  .w-cockpit .prog .lbl { font-size: 10.5px; letter-spacing: .1em; color: #5fd4e6; }
+  .w-cockpit .gauge { flex: 1; height: 8px; position: relative;
+    background: repeating-linear-gradient(90deg, #24384d 0 1.5px, rgba(36,56,77,.25) 1.5px 12.5%); }
+  .w-cockpit .gauge .fill { position: absolute; left: 0; top: 1.5px; bottom: 1.5px; width: 37.5%; background: #ffb454; }
+  .w-cockpit .card { background: #0e1926; border: 1px solid #24384d; border-radius: 3px; position: relative; }
+  .w-cockpit .card::before, .w-cockpit .card::after {
+    content: ""; position: absolute; width: 11px; height: 11px; border: 1px solid #5fd4e6; opacity: .8; }
+  .w-cockpit .card::before { top: -4px; left: -4px; border-right: none; border-bottom: none; }
+  .w-cockpit .card::after  { bottom: -4px; right: -4px; border-left: none; border-top: none; }
+  .w-cockpit .cardtag { font-size: 9.5px; letter-spacing: .22em; text-transform: uppercase; color: #5fd4e6; margin: 0 0 9px; }
+  .w-cockpit .card h2 { margin: 0 0 9px; font-family: var(--sans); font-size: 18px; font-weight: 700; line-height: 1.3; color: #e8f1f9; }
+  .w-cockpit .why { font-family: var(--sans); color: #8fa2b5; }
+  .w-cockpit .line { margin: 0 0 9px; padding: 12px 14px; font-size: 14px; font-family: var(--serif); font-style: italic;
+    background: #f5f1e8; color: #16150f; border-radius: 2px; box-shadow: 0 0 0 1px #d9d0bd; }
+  .w-cockpit .note { font-size: 10.5px; letter-spacing: .05em; color: #6e8299; }
+  .w-cockpit .btn { font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase; font-size: 12px; border-radius: 3px; }
+  .w-cockpit .btn.primary { background: #ffb454; color: #1c1204; }
+  .w-cockpit .btn.primary:hover { background: #ffd9a0; }
+  .w-cockpit .btn.secondary { background: transparent; color: #d5e2ee; border-color: #24384d; }
+  .w-cockpit .btn.secondary:hover { border-color: #5fd4e6; }
+  .w-cockpit .paper { background: #f5f1e8; color: #16150f; border-radius: 2px; box-shadow: 0 0 0 1px #d9d0bd, 0 -12px 30px -10px rgba(0,0,0,.65); position: relative; }
+  .w-cockpit .sheetbar::before, .w-cockpit .sheetbar::after {
+    content: ""; position: absolute; top: -8px; width: 13px; height: 13px; border: 1px solid #5fd4e6; opacity: .9; }
+  .w-cockpit .sheetbar::before { left: 16px; border-right: none; border-bottom: none; }
+  .w-cockpit .sheetbar::after { right: 16px; border-left: none; border-bottom: none; }
+  .w-cockpit .grab { color: #6b6455; border-bottom: 1px solid #d9d0bd; font-size: 9.5px; letter-spacing: .22em; text-transform: uppercase; }
+  .w-cockpit .pillbar { background: #d9d0bd; }
+  .w-cockpit .role { color: #6b6455; }
+  .w-cockpit .sheet .hr { background: #16150f; opacity: .7; }
+  .w-cockpit .b.gold { background: rgba(255,180,84,.32); border-radius: 2px; padding: 1px 3px; margin-left: -3px; }
+</style>
+</head>
+<body>
+
+<div class="ask-brief">
+  <h1>North Star probe, round 2 — side by side, fully committed</h1>
+  <p>Same moment, same words. Each world now speaks with its own <b>type voice</b> (serif lamp-lit letterpress · bold game table · mono instrument), its own <b>materials</b>, its own <b>shapes</b>, and one <b>signature detail</b> each: the lamplight pool and glowing thread · the chip stack and press-down buttons · the corner brackets and ticked gauge.</p>
+  <p>These are deliberately turned up loud so the difference is felt — the chosen one gets tuned down to taste. Pick a world, or name the mix ("night's room, table's buttons").</p>
+</div>
+
+<div class="row">
+
+  <!-- ═══ 1 · NIGHT DESK ═══ -->
+  <div class="col">
+    <div class="phone w-night">
+      <div class="topbar">
+        <span class="wordmark">jobcrush</span>
+        <span class="spacer"></span>
+        <span class="facts"><b>14</b> facts</span>
+      </div>
+      <div class="ctx">
+        <div class="job">Regional Delivery Manager</div>
+        <div class="place">DBS Bank — Singapore</div>
+        <div class="prog"><span class="lbl">3 of 8 settled</span><span class="track"><span class="fill"></span></span></div>
+      </div>
+      <div class="stage">
+        <div class="card">
+          <h2><span class="tag">A stretch:</span> vendor delivery, end to end</h2>
+          <p class="why">This advert wants someone who has run vendor delivery from selection to handover. You ran vendor selection and contracts at Standard Chartered — close, and worth a careful reach.</p>
+          <p class="line">&ldquo;Led vendor selection through to delivery handover for the core-banking refresh.&rdquo;</p>
+          <p class="note">Worded so you can stand behind it. A two-line interview story is saved with it.</p>
+          <div class="btns">
+            <button type="button" class="btn primary">Propose it on this CV</button>
+            <button type="button" class="btn secondary">Not for this one</button>
+          </div>
+        </div>
+      </div>
+      <div class="sheetbar">
+        <div class="paper">
+          <div class="grab"><span class="pillbar"></span> Your CV</div>
+          <div class="sheet">
+            <div class="name">MEI-LIN CHEONG</div>
+            <div class="role">Senior Project Manager · Singapore · mei.cheong@—</div>
+            <div class="hr"></div>
+            <p class="b gold">Delivered the core-banking refresh across 4 vendor teams, 6 months early.</p>
+            <p class="b">Ran vendor selection and contracts for a S$12m programme at Standard Chartered.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption"><b>1 · The Night Desk</b><span>A warm-lit desk after dark. Serif voice, the CV as the one lit sheet, gold is lamplight.</span></div>
+  </div>
+
+  <!-- ═══ 2 · DEALER'S TABLE ═══ -->
+  <div class="col">
+    <div class="phone w-table">
+      <div class="topbar">
+        <span class="wordmark">jobcrush</span>
+        <span class="spacer"></span>
+        <span class="chipstack"><span class="chips"><i></i><i></i><i></i></span> 14</span>
+      </div>
+      <div class="ctx">
+        <div class="job">Regional Delivery Manager</div>
+        <div class="place">DBS Bank — Singapore</div>
+        <div class="prog">
+          <span class="lbl">3 of 8</span>
+          <span class="pip won"></span><span class="pip won"></span><span class="pip won"></span>
+          <span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="card">
+          <span class="cornerchip"></span>
+          <h2><span class="tag">A stretch:</span> vendor delivery, end to end</h2>
+          <p class="why">This advert wants someone who has run vendor delivery from selection to handover. You ran vendor selection and contracts at Standard Chartered — close, and worth a careful reach.</p>
+          <p class="line">&ldquo;Led vendor selection through to delivery handover for the core-banking refresh.&rdquo;</p>
+          <p class="note">Worded so you can stand behind it. A two-line interview story is saved with it.</p>
+          <div class="btns">
+            <button type="button" class="btn primary">Propose it on this CV</button>
+            <button type="button" class="btn secondary">Not for this one</button>
+          </div>
+        </div>
+      </div>
+      <div class="sheetbar">
+        <div class="paper">
+          <div class="grab"><span class="pillbar"></span> Your CV</div>
+          <div class="sheet">
+            <div class="name">MEI-LIN CHEONG</div>
+            <div class="role">Senior Project Manager · Singapore · mei.cheong@—</div>
+            <div class="hr"></div>
+            <p class="b gold">Delivered the core-banking refresh across 4 vendor teams, 6 months early.</p>
+            <p class="b">Ran vendor selection and contracts for a S$12m programme at Standard Chartered.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption"><b>2 · The Dealer's Table</b><span>Deep felt, white card faces, chips for facts, buttons that press down. The game leads.</span></div>
+  </div>
+
+  <!-- ═══ 3 · COCKPIT ═══ -->
+  <div class="col">
+    <div class="phone w-cockpit">
+      <div class="topbar">
+        <span class="wordmark">jobcrush</span>
+        <span class="spacer"></span>
+        <span class="facts">FACTS <b>14</b></span>
+      </div>
+      <div class="ctx">
+        <div class="job">Regional Delivery Manager</div>
+        <div class="place">DBS Bank — Singapore</div>
+        <div class="prog"><span class="lbl">3/8 SETTLED</span><span class="gauge"><span class="fill"></span></span></div>
+      </div>
+      <div class="stage">
+        <div class="card">
+          <p class="cardtag">A stretch — yours to approve</p>
+          <h2>Vendor delivery, end to end</h2>
+          <p class="why">This advert wants someone who has run vendor delivery from selection to handover. You ran vendor selection and contracts at Standard Chartered — close, and worth a careful reach.</p>
+          <p class="line">&ldquo;Led vendor selection through to delivery handover for the core-banking refresh.&rdquo;</p>
+          <p class="note">Worded so you can stand behind it · interview story saved with it</p>
+          <div class="btns">
+            <button type="button" class="btn primary">Propose it on this CV</button>
+            <button type="button" class="btn secondary">Not for this one</button>
+          </div>
+        </div>
+      </div>
+      <div class="sheetbar">
+        <div class="paper">
+          <div class="grab"><span class="pillbar"></span> Your CV</div>
+          <div class="sheet">
+            <div class="name">MEI-LIN CHEONG</div>
+            <div class="role">Senior Project Manager · Singapore · mei.cheong@—</div>
+            <div class="hr"></div>
+            <p class="b gold">Delivered the core-banking refresh across 4 vendor teams, 6 months early.</p>
+            <p class="b">Ran vendor selection and contracts for a S$12m programme at Standard Chartered.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption"><b>3 · The Cockpit and the Letter</b><span>Instrument chrome: grid, brackets, ticked gauge, mono labels — around one warm letter.</span></div>
+  </div>
+
+</div>
+</body>
+</html>

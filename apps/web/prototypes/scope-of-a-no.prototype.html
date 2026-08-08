@@ -1,0 +1,707 @@
+<!-- PROTOTYPE — throwaway. Design effort #157, Design C ROUND 1: "the scope of a no."
+     Covers register items 2 + 6 — the stretch decline control (ADR-0005 clause 9, binds #171)
+     and the profile mute list (ADR-0011 clause 4, binds #169 and #171's AC 5).
+
+     ══ THE QUESTION ═════════════════════════════════════════════════════════
+     When she says NO to the machine — declining a proposed stretch, or refusing a question —
+     how does she say WHICH no she means (not for this job vs never), without a misread turning
+     "not today" into a permanent silence? Owner's recorded objection (ADR-0005 c9, #157):
+     "'never suggest this again' is not good enough for the user to understand." A misread
+     control produces principled declines from people who meant NOT TODAY.
+
+     ══ LOCKED — decided elsewhere, not open in this prototype ═══════════════
+       - A decline STATES ITS SCOPE: this advert, or never (ADR-0005 c9). The split is decided;
+         only the control that says it is open.
+       - Every "never" is LISTED on the profile, one-tap reversible (#171 AC 5, ADR-0011 c4).
+         No "stop" control may ship anywhere before that surface exists.
+       - A skip means "not now". An ANSWERED question closes permanently (that is not a mute).
+         A later advert may re-ask a skipped question — never twice for the same advert.
+       - NO "ALWAYS" OPTION ANYWHERE (#171 UX intent). The asymmetry is the design: a standing
+         NO is hers — visible, reversible, it only narrows. A standing YES is the ADR-0005 leak.
+       - Never moralise; a proposal reads as an offer, not a warning. "Not for this one" is
+         Design B's decided per-advert decline — kept verbatim.
+       - Every suggestion states why it fired (ADR-0005 c3). A re-ask says its reason is fresh.
+       - Mute-list rows NEVER REORDER (Design B finding: never re-sort a list under someone);
+         new entries join the END. Undo everywhere (#120). Plain words on her screen;
+         instrumentation only in the dark chrome below the phone.
+       - The stretch chip stays with the advert; the profile count never moves on a stretch
+         (ADR-0005 as physics — Design B, kept).
+
+     ══ WHAT THE VARIANTS DISAGREE ABOUT ═════════════════════════════════════
+     WHERE the permanent "no" is allowed to exist. Same wording discipline in all three
+     ("for every job from now on", the cost said plainly, the escape hatch routes a misreader
+     back to the per-advert no) — the structure differs:
+
+       A — BOTH DOORS ON THE CARD. Every proposal/question carries a quiet second door:
+           "Stop offering this / Stop asking about this", behind one inline confirm that states
+           the consequence and offers "Just not this job" as the way out.
+       B — THE NEVER ARRIVES ON THE REPEAT. First sight of anything: only "Not for this one" /
+           "Not now" — a permanent no CANNOT be created on first sight. When the machine
+           re-offers or re-asks (later advert, fresh reason), the card says its memory aloud
+           ("you said no to this for the DBS job") and ONLY THEN offers the stop.
+           Mirrors ADR-0005 c5's own prompt pattern, pointed the other way.
+       C — THE NEVER LIVES WITH ITS UNDO. Cards only ever say "Not for this one" / "Not now",
+           forever. The permanent no is created ONLY on the profile — the same surface that
+           reverses it. Cards carry a quiet pointer there. Honest cost, shown not hidden:
+           the profile can only stop what has already fired at least once, and stopping means
+           finding it later rather than saying it in the moment.
+
+     ══ SCOPE NOTES ══════════════════════════════════════════════════════════
+       - The two-job flow (DBS → three weeks later → Grab) exists so the REPEAT can be felt;
+         copy for the vendor stretch is Design B's own register, reused.
+       - Design B's card physics are not re-simulated here — arrival/settle only. This
+         prototype's question is the words and the structure of the no, not the physics.
+       - The profile slice here is a focused fragment of the shipped dark profile register
+         (deck.css / profile.css --hud-*), not a rebuild of the whole screen.
+       - When a stretch is stopped, job 2 simply HAS no stretch card — the absence is the
+         design (ADR-0005: nothing to filter). The instrument strip says so; her screen doesn't.
+
+     Switcher: ?variant=A|B|C, ← → keys, floating pill. Switching variants resets the world.
+
+     VERDICT (owner, 2026-08-08): VARIANT A — BOTH DOORS ON THE CARD — with the memory-on-repeat
+     line (which this file already renders in every variant: a repeat proposal/question says its
+     history aloud, naming the advert it was declined for). Decided in one round.
+
+     The decided shape, binding on #171 (decline control) and #169 (mute list / stop-asking):
+       - Per-advert no stays Design B's control, one tap, no confirm: "Not for this one" / "Not now".
+       - The permanent no is a QUIET GHOST LINK on the card ("Stop offering this" / "Stop asking
+         about X") — text-weight, never button-weight — opening an INLINE confirm that states the
+         scope and cost in plain words ("for every job from now on, not just this one", and for a
+         question: "even ones that want it — those will show this as untested"), plus where it is
+         reversed ("a list on your profile; one tap there turns it back on").
+       - 🚨 THE CONFIRM'S EMPHASIZED DEFAULT IS THE ESCAPE HATCH: "Just not this job" carries
+         primary weight; "Stop offering it" is secondary. A misreader who meant "not today" lands
+         on the per-advert no. This is the answer to the owner's recorded objection.
+       - Every stop lands as a mute-list row (append at end, never reorder) + an Undo toast (6s).
+       - Memory on repeat: "You said not for that one when I offered this for [job]. This is a
+         different job, so I'm offering it again."
+     Rejected: B (stop only on the repeat) — withholds the stop from someone who already knows
+     their answer and pesters once before allowing it; its one good idea (the memory line) is part
+     of A. C (stop lives only on the profile) — the moment of "no" is on the card; requiring a
+     second surface later turns a sentence into a chore. Both kept below as the record.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design C — the scope of a "no" (prototype)</title>
+<style>
+  :root {
+    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-line: #2b333d;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98; --hud-mute-2: #8a95a2; --gold: #e8a33d; --gold-dim: #a8762b;
+    --settled: #4d5865;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --sw-h: 60px;
+  }
+  * { box-sizing: border-box; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.25) transparent; }
+  html, body { margin: 0; padding: 0; }
+  body { background: #e7e3dd; font-family: var(--sans); line-height: 1.5; padding: 20px 18px calc(var(--sw-h) + 26px); -webkit-font-smoothing: antialiased; }
+
+  .ask-brief { max-width: 900px; margin: 0 auto 18px; background: #fffdf9; border: 1px solid #ded7cb; border-radius: 12px; padding: 16px 20px; color: #1f2328; }
+  .ask-brief h1 { margin: 0 0 6px; font-size: 18px; letter-spacing: -.01em; }
+  .ask-brief p { margin: 0 0 6px; font-size: 13.5px; color: #3c444d; }
+  .ask-brief p:last-child { margin-bottom: 0; }
+  .ask-brief b { color: #1f2328; }
+
+  .desk { display: flex; justify-content: center; }
+  .phone {
+    position: relative; width: 390px; height: 844px; overflow: hidden;
+    border-radius: 46px; border: 11px solid #0a0d10; background: var(--hud-0); color: var(--hud-ink);
+    box-shadow: 0 30px 70px -24px rgba(0,0,0,.65), 0 0 0 1.5px #2a323c;
+    display: flex; flex-direction: column;
+  }
+  .phone :focus-visible { outline: 2px solid var(--hud-ink); outline-offset: 2px; }
+
+  /* ── phone top bar ── */
+  .topbar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 14px 18px 10px; font-size: 13px; color: var(--hud-mute); }
+  .topbar .wordmark { font-weight: 700; letter-spacing: .02em; color: var(--hud-ink); font-size: 14px; }
+  .topbar .spacer { flex: 1; }
+  .topbar button {
+    font: inherit; font-size: 12.5px; color: var(--hud-mute-2); background: var(--hud-1);
+    border: 1px solid var(--hud-line); border-radius: 999px; padding: 5px 12px; cursor: pointer;
+  }
+  .topbar button:hover { color: var(--hud-ink); border-color: #3a4450; }
+
+  /* ── context strip (which moment we're in) ── */
+  .ctx { flex: 0 0 auto; padding: 4px 20px 10px; border-bottom: 1px solid var(--hud-line); }
+  .ctx .when { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-mute); }
+  .ctx .job { font-size: 15px; font-weight: 600; color: var(--hud-ink); margin-top: 1px; }
+  .ctx .place { font-size: 12.5px; color: var(--hud-mute-2); }
+
+  /* ── stage ── */
+  .stage { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 18px 18px 24px; display: flex; flex-direction: column; }
+
+  .card {
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 18px;
+    padding: 18px 18px 16px; animation: dealin .32s cubic-bezier(.2,.8,.3,1);
+  }
+  .card.leaving { animation: settle .3s ease forwards; }
+  @keyframes dealin { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+  @keyframes settle { to { opacity: 0; transform: translateY(10px) scale(.99); } }
+  @media (prefers-reduced-motion: reduce) { .card, .card.leaving { animation: none; } }
+
+  .kind { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+  .kind.q { color: var(--hud-mute-2); }
+  .card h2 { margin: 0 0 8px; font-size: 18px; line-height: 1.3; letter-spacing: -.01em; }
+  .card .why { margin: 0 0 12px; font-size: 13.5px; color: var(--hud-mute-2); }
+  .card .memory {
+    margin: 0 0 12px; padding: 10px 12px; border-left: 2px solid var(--gold-dim);
+    background: rgba(232,163,61,.06); border-radius: 0 10px 10px 0;
+    font-size: 13px; color: var(--hud-mute-2);
+  }
+  .card .memory b { color: var(--hud-ink); font-weight: 600; }
+  .line {
+    margin: 0 0 8px; padding: 12px 14px; background: var(--hud-2); border: 1px solid var(--hud-line);
+    border-radius: 12px; font-size: 14.5px; color: var(--hud-ink); font-style: italic;
+  }
+  .note { margin: 0 0 14px; font-size: 12.5px; color: var(--hud-mute); }
+
+  .btns { display: flex; flex-direction: column; gap: 8px; }
+  .btn {
+    font: inherit; font-size: 14.5px; font-weight: 600; border-radius: 12px; padding: 12px 14px;
+    cursor: pointer; border: 1px solid transparent; text-align: center;
+  }
+  .btn.primary { background: var(--gold); color: #16150f; }
+  .btn.primary:hover { background: #f0b055; }
+  .btn.secondary { background: var(--hud-2); color: var(--hud-ink); border-color: var(--hud-line); }
+  .btn.secondary:hover { border-color: #3a4450; }
+  .btn.ghost {
+    background: none; border: none; color: var(--hud-mute); font-weight: 500; font-size: 13px;
+    padding: 8px 6px 2px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #3a4450;
+  }
+  .btn.ghost:hover { color: var(--hud-mute-2); }
+  .opts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+  .opts .btn.secondary { text-align: left; font-weight: 500; }
+
+  /* inline confirm — the moment the cost is said */
+  .confirm {
+    margin-top: 10px; padding: 14px; border-radius: 12px; background: var(--hud-2);
+    border: 1px solid #3a4450; animation: dealin .25s ease;
+  }
+  .confirm h3 { margin: 0 0 6px; font-size: 15px; }
+  .confirm p { margin: 0 0 12px; font-size: 13.5px; color: var(--hud-mute-2); }
+  .confirm p b { color: var(--hud-ink); }
+  .confirm .btns { gap: 8px; }
+
+  .footerlink { margin-top: 12px; font-size: 12.5px; color: var(--hud-mute); }
+  .footerlink a { color: var(--hud-mute-2); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #3a4450; }
+  .footerlink a:hover { color: var(--hud-ink); }
+
+  /* done card */
+  .done { text-align: center; padding: 30px 18px; }
+  .done .big { font-size: 18px; font-weight: 600; margin: 0 0 8px; }
+  .done p { font-size: 13.5px; color: var(--hud-mute-2); margin: 0 0 16px; }
+
+  /* ── profile screen ── */
+  .phead { padding: 8px 20px 14px; }
+  .phead .ptitle { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--hud-mute); margin: 0 0 2px; }
+  .phead h2 { margin: 0; font-size: 21px; letter-spacing: -.01em; }
+  .phead h2 .n { color: var(--gold); }
+  .phead .sub { margin: 4px 0 0; font-size: 12.5px; color: var(--hud-mute); }
+
+  .psection { margin: 6px 16px 16px; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 16px; padding: 14px 16px; }
+  .psection > h3 { margin: 0 0 2px; font-size: 15px; }
+  .psection > .sub { margin: 0 0 12px; font-size: 12.5px; color: var(--hud-mute); }
+  .mrow { display: flex; flex-direction: column; gap: 4px; padding: 11px 0; border-top: 1px solid var(--hud-line); animation: dealin .25s ease; }
+  .mrow:first-of-type { border-top: none; }
+  .mrow .top { display: flex; align-items: baseline; gap: 8px; }
+  .chip {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 999px; border: 1px solid var(--hud-line); color: var(--hud-mute-2); flex: 0 0 auto;
+  }
+  .chip.offer { color: var(--gold); border-color: var(--gold-dim); }
+  .mrow .what { font-size: 14px; color: var(--hud-ink); }
+  .mrow .origin { font-size: 12px; color: var(--hud-mute); }
+  .mrow .act { margin-top: 6px; }
+  .mrow .act .btn { width: auto; font-size: 13px; padding: 8px 14px; }
+  .mempty { padding: 8px 0 4px; font-size: 13px; color: var(--hud-mute); }
+
+  /* ── toast (undo everywhere) ── */
+  .toast {
+    position: absolute; left: 16px; right: 16px; bottom: 18px; z-index: 5;
+    background: #0c0f13; border: 1px solid #3a4450; border-radius: 14px; padding: 12px 14px;
+    display: flex; align-items: center; gap: 10px; box-shadow: 0 12px 30px -12px rgba(0,0,0,.7);
+    animation: dealin .25s ease; font-size: 13.5px;
+  }
+  .toast .msg { flex: 1; color: var(--hud-ink); }
+  .toast button { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--gold); background: none; border: none; cursor: pointer; padding: 4px 6px; }
+
+  /* ── instrument strip — designer chrome, never her screen ── */
+  .instruments { max-width: 900px; margin: 18px auto 0; background: #14181d; color: #97aabc; border-radius: 12px; padding: 12px 16px; font-family: var(--mono); font-size: 11.5px; }
+  .instruments .tag { color: #5b6b7a; letter-spacing: .1em; text-transform: uppercase; font-size: 10px; }
+  .instruments .row { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; align-items: center; }
+  .instruments button { font: inherit; font-size: 11px; color: #c3d0dc; background: #1d232b; border: 1px solid #2b333d; border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+  .instruments button:hover { border-color: #3a4450; }
+  .instruments .state { margin-top: 6px; color: #7f8b98; white-space: pre-wrap; }
+
+  /* ── switcher pill ── */
+  .switcher {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 50;
+    display: flex; align-items: center; gap: 4px; background: #101419; color: #e8eaed;
+    border: 1px solid #2b333d; border-radius: 999px; padding: 6px 8px;
+    box-shadow: 0 10px 28px -8px rgba(0,0,0,.5); font-size: 13px;
+  }
+  .switcher button { font: inherit; font-size: 15px; background: none; border: none; color: #97aabc; cursor: pointer; padding: 4px 10px; border-radius: 999px; }
+  .switcher button:hover { color: #fff; background: #1d232b; }
+  .switcher .lbl { padding: 0 8px; min-width: 250px; text-align: center; }
+  .switcher .lbl b { color: #e8a33d; }
+</style>
+</head>
+<body>
+
+<div class="ask-brief">
+  <h1>Design C — the scope of a &ldquo;no&rdquo;</h1>
+  <p>The machine offers a stretch, or asks a question. She says no. <b>Which no?</b> &ldquo;Not for this job&rdquo; and &ldquo;never&rdquo; are different, and a misread turns &ldquo;not today&rdquo; into a permanent silence. Three structures for where the permanent no is allowed to exist — same wording discipline in all three.</p>
+  <p><b>Play the loop:</b> decline the stretch, skip the question, and watch what the second job (three weeks later) does with your no. Then open the profile — every permanent no must be listed there, one tap back on. Judge: <b>could you tell what each button would do before tapping it? · did the permanent one feel mistappable? · where would you look to undo it?</b></p>
+</div>
+
+<div class="desk">
+  <div class="phone" id="phone"></div>
+</div>
+
+<div class="instruments">
+  <div class="tag">designer instrumentation — never on her screen</div>
+  <div class="row" id="inst-desc"></div>
+  <div class="row">
+    <button id="i-restart">restart world</button>
+    <button id="i-job2">jump to job 2</button>
+    <button id="i-profile">open profile</button>
+  </div>
+  <div class="state" id="inst-state"></div>
+</div>
+
+<div class="switcher" role="group" aria-label="Prototype variant switcher">
+  <button id="sw-prev" aria-label="Previous variant">‹</button>
+  <div class="lbl" id="sw-label"></div>
+  <button id="sw-next" aria-label="Next variant">›</button>
+</div>
+
+<script>
+"use strict";
+
+/* ────────────────────────── variants ────────────────────────── */
+const VARIANTS = {
+  A: { name: "Both doors on the card",
+       desc: "the stop is available at every proposal/question, behind one inline confirm" },
+  B: { name: "The never arrives on the repeat",
+       desc: "first sight: per-advert no only. the stop appears when the machine re-offers, with its memory said aloud" },
+  C: { name: "The never lives with its undo",
+       desc: "cards never carry a stop. the permanent no is created only on the profile — the surface that reverses it" },
+};
+const ORDER = ["A", "B", "C"];
+
+/* ────────────────────────── copy register ─────────────────────
+   Vendor stretch reuses Design B's own register (tailor-desktop-deck). */
+const JOBS = {
+  1: { when: "Today · Tailoring your CV", job: "Regional Delivery Manager", place: "DBS Bank — Singapore", short: "the DBS job" },
+  2: { when: "Three weeks later · Tailoring your CV", job: "Digital Project Lead", place: "Grab — Singapore", short: "the Grab job" },
+};
+const T = {
+  sKind: "A stretch — yours to approve",
+  sH: "Vendor delivery, end to end",
+  sWhy1: "This advert wants someone who has run vendor delivery from selection to handover. You ran vendor selection and contracts at Standard Chartered — close, and worth a careful reach.",
+  sWhy2: "This advert leads on end-to-end vendor delivery too. Your vendor selection work at Standard Chartered is the closest thing you have.",
+  sLine: "Led vendor selection through to delivery handover for the core-banking refresh.",
+  sNote: "Worded so you can stand behind it. A two-line interview story is saved with it.",
+  sYes: "Propose it on this CV",
+  sNo: "Not for this one",
+  sStopLink: "Stop offering this",
+  sMemory: (job) => `You said <b>not for that one</b> when I offered this for ${job}. This is a different job, so I'm offering it again.`,
+  sConfirmH: "Stop offering this?",
+  sConfirmBody: "I'll stop suggesting <b>vendor delivery</b> — for every job from now on, not just this one. It moves to a list on your profile; one tap there turns it back on.",
+  sConfirmYes: "Stop offering it",
+  sConfirmNo: "Just not this job",
+  sToast: "Stopped. I won't offer vendor delivery again.",
+
+  qKind: "This advert asks",
+  qH: "How comfortable are you running a meeting in Mandarin?",
+  qWhy: "This advert asks for Mandarin — your profile doesn't say yet.",
+  qMemory: (job) => `I asked this for ${job} — you skipped it then. This advert wants Mandarin too.`,
+  qOpts: ["I could run that meeting", "I could follow it, not lead it", "Not really working-level"],
+  qSkip: "Not now",
+  qStopLink: "Stop asking about Mandarin",
+  qConfirmH: "Stop asking about Mandarin?",
+  qConfirmBody: "I'll stop asking — for every job, even ones that want it. Those will show this as <b>untested</b> rather than answered. It goes on your profile; one tap there and I'll ask again.",
+  qConfirmYes: "Stop asking",
+  qConfirmNo: "Just not now",
+  qToast: "Stopped. I won't ask about Mandarin again.",
+
+  cFooter: "I'll keep offering things like this when a job fits. You can stop any of them from your ",
+  cFooterLink: "profile",
+
+  doneH: "That's everything for this one.",
+  doneP: "This CV is as strong as I can make it for this job.",
+  doneProfile: "Open your profile",
+  doneNothing: "Nothing to ask for this one — your CV is ready.",
+
+  pTitle: "your profile",
+  pCount: "things you've told me",
+  pMuteH: "Things you asked me to stop",
+  pMuteSub: "One tap turns any of these back on.",
+  pMuteEmpty: "Nothing stopped. If you ever tell me to stop offering or asking something, it lands here — never lost, one tap to turn back on.",
+  pOfferAgain: "Offer it again",
+  pAskAgain: "Ask me again",
+  pUnmuteOfferToast: "Back on. I'll offer it when a job fits.",
+  pUnmuteAskToast: "Back on. I'll ask next time a job wants it.",
+  pLibH: "Offered or asked lately",
+  pLibSub: "Everything I've offered or asked so far. Stop any of it here.",
+  pLibEmpty: "Nothing yet — this fills as I offer and ask things.",
+  pLibStopOffer: "Stop offering this",
+  pLibStopAsk: "Stop asking this",
+  chipOffer: "offering",
+  chipAsk: "asking",
+};
+
+/* ────────────────────────── state ────────────────────────── */
+let V = new URLSearchParams(location.search).get("variant");
+if (!ORDER.includes(V)) V = "A";
+
+let S;
+function resetWorld() {
+  S = {
+    screen: "flow",        // flow | profile
+    stretch: { 1: null, 2: null, stopped: false },   // null | "on" | "no"
+    lang:    { 1: null, 2: null, stopped: false },   // null | "answered" | "skip"
+    confirm: null,          // "stretch" | "lang" | "lib-stretch" | "lib-lang" | null
+    toast: null,            // { msg, undo: fn|null, timer }
+    mutes: [],              // { kind: "offer"|"ask", what, origin } — append-only, never reordered
+    seen: { stretch: [], lang: [] },  // which jobs each has fired on (feeds variant C's library)
+  };
+}
+resetWorld();
+
+/* ────────────────────────── queue ──────────────────────────
+   The current card is derived, never stored — same discipline as Design B. */
+function queue() {
+  const q = [];
+  if (S.stretch[1] === null) q.push({ t: "stretch", j: 1 });
+  if (S.lang[1] === null) q.push({ t: "lang", j: 1 });
+  if (!S.stretch.stopped && S.stretch[2] === null) q.push({ t: "stretch", j: 2 });
+  if (!S.lang.stopped && S.lang[1] !== "answered" && S.lang[2] === null) q.push({ t: "lang", j: 2 });
+  q.push({ t: "done", j: q.length ? q[q.length - 1].j : 2 });
+  return q;
+}
+
+/* ────────────────────────── actions ────────────────────────── */
+function markSeen(kind, j) { if (!S.seen[kind].includes(j)) S.seen[kind].push(j); }
+
+function toast(msg, undo) {
+  clearToast();
+  S.toast = { msg, undo };
+  render();
+  S.toast.timer = setTimeout(() => { S.toast = null; render(); }, 6000);
+}
+function clearToast() { if (S.toast) { clearTimeout(S.toast.timer); S.toast = null; } }
+
+function stopStretch(originJob) {
+  S.stretch.stopped = true;
+  S.confirm = null;
+  S.mutes.push({ kind: "offer", what: T.sH, origin: `You stopped this while tailoring for ${JOBS[originJob].job} — ${JOBS[originJob].place.split(" — ")[0]}` });
+  toast(T.sToast, () => { S.stretch.stopped = false; S.mutes = S.mutes.filter(m => !(m.kind === "offer" && m.what === T.sH)); });
+}
+function stopLang(originJob) {
+  S.lang.stopped = true;
+  S.confirm = null;
+  S.mutes.push({ kind: "ask", what: "How comfortable you are working in Mandarin", origin: `You stopped this while tailoring for ${JOBS[originJob].job} — ${JOBS[originJob].place.split(" — ")[0]}` });
+  toast(T.qToast, () => { S.lang.stopped = false; S.mutes = S.mutes.filter(m => !(m.kind === "ask")); });
+}
+function unmute(i) {
+  const m = S.mutes[i];
+  if (m.kind === "offer") { S.stretch.stopped = false; toast(T.pUnmuteOfferToast, null); }
+  else { S.lang.stopped = false; toast(T.pUnmuteAskToast, null); }
+  S.mutes.splice(i, 1);
+  render();
+}
+
+/* ────────────────────────── rendering ────────────────────────── */
+const phone = document.getElementById("phone");
+
+function h(html) { const d = document.createElement("div"); d.innerHTML = html; return d.firstElementChild; }
+function esc(s) { return s; } // copy is authored, not user input
+
+function render() {
+  const cur = queue()[0];
+  phone.innerHTML = "";
+
+  // top bar
+  const tb = h(`<div class="topbar"><span class="wordmark">jobcrush</span><span class="spacer"></span></div>`);
+  const pbtn = h(`<button type="button">${S.screen === "profile" ? "‹ Back" : "Profile"}</button>`);
+  pbtn.onclick = () => { S.screen = S.screen === "profile" ? "flow" : "profile"; S.confirm = null; render(); };
+  tb.appendChild(pbtn);
+  phone.appendChild(tb);
+
+  if (S.screen === "profile") renderProfile();
+  else renderFlow(cur);
+
+  if (S.toast) {
+    const t = h(`<div class="toast"><span class="msg">${S.toast.msg}</span></div>`);
+    if (S.toast.undo) {
+      const u = h(`<button type="button">Undo</button>`);
+      u.onclick = () => { const fn = S.toast.undo; clearToast(); fn(); render(); };
+      t.appendChild(u);
+    }
+    phone.appendChild(t);
+  }
+  renderInstruments(cur);
+}
+
+function renderFlow(cur) {
+  const j = JOBS[cur.j];
+  phone.appendChild(h(
+    `<div class="ctx"><div class="when">${j.when}</div><div class="job">${j.job}</div><div class="place">${j.place}</div></div>`
+  ));
+  const stage = h(`<div class="stage"></div>`);
+  phone.appendChild(stage);
+
+  if (cur.t === "stretch") stage.appendChild(stretchCard(cur.j));
+  else if (cur.t === "lang") stage.appendChild(langCard(cur.j));
+  else stage.appendChild(doneCard());
+}
+
+function advance() { S.confirm = null; render(); }
+
+function stretchCard(j) {
+  markSeen("stretch", j);
+  const declinedBefore = j === 2 && S.stretch[1] === "no";
+  const card = h(`<div class="card">
+    <div class="kind">${T.sKind}</div>
+    <h2>${T.sH}</h2>
+    ${declinedBefore ? `<p class="memory">${T.sMemory(JOBS[1].short)}</p>` : ""}
+    <p class="why">${j === 1 ? T.sWhy1 : T.sWhy2}</p>
+    <p class="line">&ldquo;${T.sLine}&rdquo;</p>
+    <p class="note">${T.sNote}</p>
+  </div>`);
+
+  if (S.confirm === "stretch") { card.appendChild(stretchConfirm(j)); return card; }
+
+  const btns = h(`<div class="btns"></div>`);
+  const yes = h(`<button type="button" class="btn primary">${T.sYes}</button>`);
+  yes.onclick = () => { S.stretch[j] = "on"; advance(); };
+  const no = h(`<button type="button" class="btn secondary">${T.sNo}</button>`);
+  no.onclick = () => { S.stretch[j] = "no"; advance(); };
+  btns.appendChild(yes); btns.appendChild(no);
+
+  const showStop = (V === "A") || (V === "B" && declinedBefore);
+  if (showStop) {
+    const stop = h(`<button type="button" class="btn ghost">${T.sStopLink}</button>`);
+    stop.onclick = () => { S.confirm = "stretch"; render(); };
+    btns.appendChild(stop);
+  }
+  card.appendChild(btns);
+  if (V === "C") card.appendChild(profileFooterLink());
+  return card;
+}
+
+function stretchConfirm(j) {
+  const c = h(`<div class="confirm">
+    <h3>${T.sConfirmH}</h3>
+    <p>${T.sConfirmBody}</p>
+  </div>`);
+  const btns = h(`<div class="btns"></div>`);
+  const yes = h(`<button type="button" class="btn secondary">${T.sConfirmYes}</button>`);
+  yes.onclick = () => { S.stretch[j] = S.stretch[j] ?? "no"; stopStretch(j); render(); };
+  const no = h(`<button type="button" class="btn primary">${T.sConfirmNo}</button>`);
+  no.onclick = () => { S.stretch[j] = "no"; advance(); };
+  btns.appendChild(no); btns.appendChild(yes);
+  c.appendChild(btns);
+  return c;
+}
+
+function langCard(j) {
+  markSeen("lang", j);
+  const skippedBefore = j === 2 && S.lang[1] === "skip";
+  const card = h(`<div class="card">
+    <div class="kind q">${T.qKind}</div>
+    <h2>${T.qH}</h2>
+    ${skippedBefore ? `<p class="memory">${T.qMemory(JOBS[1].short)}</p>` : `<p class="why">${T.qWhy}</p>`}
+  </div>`);
+
+  if (S.confirm === "lang") { card.appendChild(langConfirm(j)); return card; }
+
+  const opts = h(`<div class="opts"></div>`);
+  T.qOpts.forEach(o => {
+    const b = h(`<button type="button" class="btn secondary">${o}</button>`);
+    b.onclick = () => { S.lang[j] = "answered"; advance(); };
+    opts.appendChild(b);
+  });
+  card.appendChild(opts);
+
+  const btns = h(`<div class="btns"></div>`);
+  const skip = h(`<button type="button" class="btn ghost" style="font-size:13.5px">${T.qSkip}</button>`);
+  skip.onclick = () => { S.lang[j] = "skip"; advance(); };
+  btns.appendChild(skip);
+
+  const showStop = (V === "A") || (V === "B" && skippedBefore);
+  if (showStop) {
+    const stop = h(`<button type="button" class="btn ghost">${T.qStopLink}</button>`);
+    stop.onclick = () => { S.confirm = "lang"; render(); };
+    btns.appendChild(stop);
+  }
+  card.appendChild(btns);
+  if (V === "C") card.appendChild(profileFooterLink());
+  return card;
+}
+
+function langConfirm(j) {
+  const c = h(`<div class="confirm">
+    <h3>${T.qConfirmH}</h3>
+    <p>${T.qConfirmBody}</p>
+  </div>`);
+  const btns = h(`<div class="btns"></div>`);
+  const yes = h(`<button type="button" class="btn secondary">${T.qConfirmYes}</button>`);
+  yes.onclick = () => { S.lang[j] = S.lang[j] ?? "skip"; stopLang(j); render(); };
+  const no = h(`<button type="button" class="btn primary">${T.qConfirmNo}</button>`);
+  no.onclick = () => { S.lang[j] = "skip"; advance(); };
+  btns.appendChild(no); btns.appendChild(yes);
+  c.appendChild(btns);
+  return c;
+}
+
+function profileFooterLink() {
+  const f = h(`<p class="footerlink">${T.cFooter}<a>${T.cFooterLink}</a>.</p>`);
+  f.querySelector("a").onclick = () => { S.screen = "profile"; render(); };
+  return f;
+}
+
+function doneCard() {
+  const askedNothing = S.stretch.stopped && (S.lang.stopped || S.lang[1] === "answered") &&
+                       S.stretch[2] === null && S.lang[2] === null;
+  const card = h(`<div class="card done">
+    <p class="big">${T.doneH}</p>
+    <p>${askedNothing ? T.doneNothing : T.doneP}</p>
+  </div>`);
+  const b = h(`<button type="button" class="btn secondary">${T.doneProfile}</button>`);
+  b.onclick = () => { S.screen = "profile"; render(); };
+  card.appendChild(b);
+  return card;
+}
+
+/* ── profile ── */
+function renderProfile() {
+  phone.appendChild(h(`<div class="phead">
+    <p class="ptitle">${T.pTitle}</p>
+    <h2><span class="n">14</span> ${T.pCount}</h2>
+    <p class="sub">Gold is on your CV right now. Grey is saved for later.</p>
+  </div>`));
+  const stage = h(`<div class="stage" style="padding:0 0 24px"></div>`);
+  phone.appendChild(stage);
+
+  // the mute list — the surface item 6 exists for
+  const mute = h(`<div class="psection">
+    <h3>${T.pMuteH}</h3>
+    <p class="sub">${T.pMuteSub}</p>
+  </div>`);
+  if (S.mutes.length === 0) {
+    mute.appendChild(h(`<p class="mempty">${T.pMuteEmpty}</p>`));
+  } else {
+    S.mutes.forEach((m, i) => {
+      const row = h(`<div class="mrow">
+        <div class="top"><span class="chip ${m.kind === "offer" ? "offer" : ""}">${m.kind === "offer" ? T.chipOffer : T.chipAsk}</span><span class="what">${m.what}</span></div>
+        <div class="origin">${m.origin}</div>
+        <div class="act"></div>
+      </div>`);
+      const b = h(`<button type="button" class="btn secondary">${m.kind === "offer" ? T.pOfferAgain : T.pAskAgain}</button>`);
+      b.onclick = () => unmute(i);
+      row.querySelector(".act").appendChild(b);
+      mute.appendChild(row);
+    });
+  }
+  stage.appendChild(mute);
+
+  // variant C: the library — the only place a stop can be created
+  if (V === "C") {
+    const lib = h(`<div class="psection">
+      <h3>${T.pLibH}</h3>
+      <p class="sub">${T.pLibSub}</p>
+    </div>`);
+    const items = [];
+    if (S.seen.stretch.length && !S.stretch.stopped) {
+      const j = S.seen.stretch[0];
+      items.push({ kind: "offer", what: T.sH, origin: `Offered for ${JOBS[j].job} — ${JOBS[j].place.split(" — ")[0]}`, stop: () => { S.confirm = "lib-stretch"; render(); }, confirmKey: "lib-stretch",
+                   confirm: () => libConfirm(T.sConfirmH, T.sConfirmBody, T.sConfirmYes, () => { stopStretch(S.seen.stretch[0]); render(); }) });
+    }
+    if (S.seen.lang.length && !S.lang.stopped && S.lang[1] !== "answered") {
+      const j = S.seen.lang[0];
+      items.push({ kind: "ask", what: "How comfortable you are working in Mandarin", origin: `Asked for ${JOBS[j].job} — ${JOBS[j].place.split(" — ")[0]}`, stop: () => { S.confirm = "lib-lang"; render(); }, confirmKey: "lib-lang",
+                   confirm: () => libConfirm(T.qConfirmH, T.qConfirmBody, T.qConfirmYes, () => { stopLang(S.seen.lang[0]); render(); }) });
+    }
+    if (items.length === 0) {
+      lib.appendChild(h(`<p class="mempty">${T.pLibEmpty}</p>`));
+    } else {
+      items.forEach(it => {
+        const row = h(`<div class="mrow">
+          <div class="top"><span class="chip ${it.kind === "offer" ? "offer" : ""}">${it.kind === "offer" ? T.chipOffer : T.chipAsk}</span><span class="what">${it.what}</span></div>
+          <div class="origin">${it.origin}</div>
+          <div class="act"></div>
+        </div>`);
+        if (S.confirm === it.confirmKey) {
+          row.appendChild(it.confirm());
+        } else {
+          const b = h(`<button type="button" class="btn secondary">${it.kind === "offer" ? T.pLibStopOffer : T.pLibStopAsk}</button>`);
+          b.onclick = it.stop;
+          row.querySelector(".act").appendChild(b);
+        }
+        lib.appendChild(row);
+      });
+    }
+    stage.appendChild(lib);
+  }
+}
+
+function libConfirm(head, body, yesLabel, onYes) {
+  const c = h(`<div class="confirm"><h3>${head}</h3><p>${body}</p></div>`);
+  const btns = h(`<div class="btns"></div>`);
+  const yes = h(`<button type="button" class="btn secondary">${yesLabel}</button>`);
+  yes.onclick = onYes;
+  const no = h(`<button type="button" class="btn primary">Keep it as it is</button>`);
+  no.onclick = () => { S.confirm = null; render(); };
+  btns.appendChild(no); btns.appendChild(yes);
+  c.appendChild(btns);
+  return c;
+}
+
+/* ── instruments ── */
+function renderInstruments(cur) {
+  document.getElementById("inst-desc").innerHTML =
+    `<span><b style="color:#e8a33d">${V}</b> — ${VARIANTS[V].name}: ${VARIANTS[V].desc}</span>`;
+  const fmt = (v) => v === null ? "·" : v;
+  document.getElementById("inst-state").textContent =
+    `screen=${S.screen} card=${cur.t}@job${cur.j}  |  stretch: job1=${fmt(S.stretch[1])} job2=${fmt(S.stretch[2])} stopped=${S.stretch.stopped}` +
+    `  |  mandarin: job1=${fmt(S.lang[1])} job2=${fmt(S.lang[2])} stopped=${S.lang.stopped}  |  mutes=${S.mutes.length}` +
+    (S.stretch.stopped ? "\nstretch stopped → job-2 stretch card never fires (the absence IS the design — nothing to filter, ADR-0005)" : "");
+}
+
+document.getElementById("i-restart").onclick = () => { resetWorld(); render(); };
+document.getElementById("i-job2").onclick = () => {
+  if (S.stretch[1] === null) S.stretch[1] = "no";
+  if (S.lang[1] === null) S.lang[1] = "skip";
+  S.screen = "flow"; S.confirm = null; render();
+};
+document.getElementById("i-profile").onclick = () => { S.screen = "profile"; S.confirm = null; render(); };
+
+/* ── switcher ── */
+function setVariant(v) {
+  V = v;
+  const url = new URL(location.href);
+  url.searchParams.set("variant", v);
+  history.replaceState(null, "", url);
+  resetWorld();
+  document.getElementById("sw-label").innerHTML = `<b>${V}</b> — ${VARIANTS[V].name}`;
+  render();
+}
+document.getElementById("sw-prev").onclick = () => setVariant(ORDER[(ORDER.indexOf(V) + ORDER.length - 1) % ORDER.length]);
+document.getElementById("sw-next").onclick = () => setVariant(ORDER[(ORDER.indexOf(V) + 1) % ORDER.length]);
+document.addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+  if (e.key === "ArrowLeft") document.getElementById("sw-prev").click();
+  if (e.key === "ArrowRight") document.getElementById("sw-next").click();
+});
+
+setVariant(V);
+</script>
+</body>
+</html>

@@ -1,5 +1,24 @@
 # Lessons — jobcrush-app
 
+## A tool that anchors on `</body>` finds nothing in a file the browser renders fine
+
+The impeccable live-mode injector writes its script before `</body>` — and 14 of our 17 prototype
+files never had one (browsers auto-close, so nothing ever looked wrong). The injector reported
+overall success while silently skipping them; the symptom was "I don't see any bar" on exactly the
+file the owner opened. Two takeaways: **prototype HTML gets real closing tags from now on** (they
+cost nothing and every anchor-based tool assumes them), and when a tool reports success over a
+file set, check *per file* — the found-nothing/didn't-run distinction this project keeps relearning
+applies to third-party tooling too.
+
+## A style probe varies material and type, or it shows nothing
+
+Round 1 of the North Star probe held layout/type/material constant and swapped palette tokens —
+correct discipline for comparing a *control*, and exactly wrong for comparing a *world*: the owner's
+verdict was "they all look the same." A world lives in type voice, materials, shapes, and one
+signature detail each; and side-by-side phones beat a switcher for style questions, because nobody
+compares moods from memory. (Controls stay switcher-compared; worlds go side by side, turned up
+loud, tuned down after the pick.)
+
 ## Before rationing something, check the pipeline can see it
 
 #153 spent its whole brief on how to split a per-role bullet budget, and the research it commissioned
