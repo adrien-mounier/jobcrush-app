@@ -26,6 +26,10 @@ import { runPurge } from "./purge.js";
 import { getPool } from "./db.js";
 import { usageLedgerStoreFromEnv } from "./usageLedgerStore.js";
 import { postingStoreFromEnv } from "./postingStore.js";
+import { techmapProviderFromEnv } from "./postingProvider.js";
+import { loadActivePostingProviders } from "./postings.js";
+import { makePostingRetriever, storeBackedPostingProvidersFor } from "./postingRetrieval.js";
+import { initialProductionFamilyFloors } from "./familyFloors.js";
 import { pricingTableFromEnv } from "./llmPricing.js";
 import { meterLlm } from "./llmMeter.js";
 import type { LlmClient } from "./llm.js";
@@ -59,11 +63,23 @@ const adRequirements = adRequirementsStoreFromEnv(process.env.DATABASE_URL);
 // #105: the persisted judgement cache, keyed by (adId, factsFingerprint) rather than adId alone —
 // see judgementStore.ts's header for why this one isn't shared the way adRequirements is.
 const judgements = judgementStoreFromEnv(process.env.DATABASE_URL);
-// #100: the provider-posting store — table creation only, here. Nothing calls .upsert() yet (the
-// fetch->store wiring is #101's), but the table must exist before #101 needs it, same as every other
-// store's own init() below — a store this ticket adds is this ticket's job to boot, not the ticket
-// that first calls it.
+// #100/#101: provider records and the durable monthly call counter share this store. It must be
+// initialized before the retrieval seam below can fetch, persist, or reserve a paid call.
 const postingStore = postingStoreFromEnv(process.env.DATABASE_URL);
+const productionFamilyFloors = initialProductionFamilyFloors();
+const postingProviderPolicies = loadActivePostingProviders();
+const postingProviders = [
+  ...storeBackedPostingProvidersFor(postingProviderPolicies, postingStore),
+  ...postingProviderPolicies
+    .map((policy) => techmapProviderFromEnv(policy, postingStore))
+    .filter((provider) => provider !== null),
+];
+const retrievePostings = makePostingRetriever({
+  registry: postingProviderPolicies,
+  providers: postingProviders,
+  store: postingStore,
+  productionFamilyFloors,
+});
 try {
   await sessions.init();
   await claims.init();
@@ -83,6 +99,8 @@ const { app } = buildServer({
   sessions,
   claims,
   eligibility,
+  productionFamilyFloors,
+  retrievePostings,
   auth,
   familyLearning,
   screenFamilyCandidate: makeFamilyCandidateScreen(metered("family-screen", llm)),

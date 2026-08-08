@@ -3,7 +3,22 @@
 // the JC-19 merge hook.
 import { randomBytes } from "node:crypto";
 import type { Pool } from "pg";
+import {
+  PostingRetrievalResultV1,
+  type PostingRetrievalResultV1 as PostingRetrievalResultV1Value,
+} from "@jobcrush/contracts";
 import { getPool, iso } from "./db.js";
+
+// Techmap's worst bounded call is two 10s attempts plus one 1s retry backoff and pacing. A 60s
+// lease leaves headroom while still recovering an abandoned background claim promptly.
+export const RETRIEVAL_CLAIM_LEASE_MS = 60_000;
+
+export function retrievalClaimWindow(nowMs = Date.now()): { claimedAt: string; staleBefore: string } {
+  return {
+    claimedAt: new Date(nowMs).toISOString(),
+    staleBefore: new Date(nowMs - RETRIEVAL_CLAIM_LEASE_MS).toISOString(),
+  };
+}
 
 // Where a session sits in the onboarding loop; the client reads it on load to pick a screen.
 // front-door (screen 0) → discovery (#16) → deck → tailor (#21/#23) → grill (JC-24) → ready | loopback.
@@ -22,6 +37,37 @@ export interface ProductionDiscoveryState {
   floor: { familyId: string; version: number } | null;
   coveredItemIds: string[];
   checkpoint: "family_confirmed" | "essential_floor_covered" | null;
+}
+
+export interface RetrievalSnapshot {
+  requestFingerprint: string;
+  recordedAt: string;
+  result: PostingRetrievalResultV1Value;
+}
+
+function retrievalSnapshot(value: unknown): RetrievalSnapshot | null {
+  if (typeof value === "string") {
+    try {
+      return retrievalSnapshot(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const snapshot = value as Record<string, unknown>;
+  if (
+    Object.keys(snapshot).sort().join(",") !== "recordedAt,requestFingerprint,result" ||
+    typeof snapshot.requestFingerprint !== "string" ||
+    snapshot.requestFingerprint.length === 0 ||
+    typeof snapshot.recordedAt !== "string" ||
+    !Number.isFinite(Date.parse(snapshot.recordedAt))
+  ) {
+    return null;
+  }
+  const result = PostingRetrievalResultV1.safeParse(snapshot.result);
+  return result.success
+    ? { requestFingerprint: snapshot.requestFingerprint, recordedAt: snapshot.recordedAt, result: result.data }
+    : null;
 }
 
 function discoveryState(value: unknown): ProductionDiscoveryState {
@@ -134,6 +180,11 @@ export interface SessionRecord {
   importResolutions: Record<string, string>;
   intent: SearchIntent;
   discovery: ProductionDiscoveryState;
+  retrieval: RetrievalSnapshot | null;
+  /** Raw CAS coordinate stored separately from the parsed snapshot. An old snapshot may no longer
+   * validate, but its durable coordinate must still be replaceable rather than wedging retrieval. */
+  retrievalCoordinationFingerprint: string | null;
+  retrievalGeneration: number;
 }
 
 export interface SessionStore {
@@ -149,6 +200,22 @@ export interface SessionStore {
   setImportProof(id: string, proof: ImportProof): Promise<void>;
   setImportResolution(id: string, fieldId: string, value: string): Promise<void>;
   setIntent(id: string, intent: Partial<SearchIntent>): Promise<SearchIntent>;
+  beginRetrievalState(
+    id: string,
+    generation: number,
+    requestFingerprint: string,
+    expectedSnapshotFingerprint: string | null,
+    ownerToken: string,
+    claimedAt: string,
+    staleBefore: string,
+  ): Promise<boolean>;
+  reconcileRetrievalState(
+    id: string,
+    generation: number,
+    requestFingerprint: string,
+    ownerToken: string,
+    snapshot: RetrievalSnapshot,
+  ): Promise<boolean>;
   reconcileDiscoveryState(
     id: string,
     floor: NonNullable<ProductionDiscoveryState["floor"]>,
@@ -186,12 +253,19 @@ function newSession(): SessionRecord {
     importResolutions: {},
     intent: { targetRole: null, searchArea: null },
     discovery: { floor: null, coveredItemIds: [], checkpoint: null },
+    retrieval: null,
+    retrievalCoordinationFingerprint: null,
+    retrievalGeneration: 0,
   };
 }
 
 export class InMemorySessionStore implements SessionStore {
   private byToken = new Map<string, SessionRecord>();
   private byId = new Map<string, SessionRecord>();
+  private retrievalsInFlight = new Map<
+    string,
+    { requestFingerprint: string; ownerToken: string; claimedAtMs: number }
+  >();
 
   async init(): Promise<void> {}
 
@@ -243,11 +317,67 @@ export class InMemorySessionStore implements SessionStore {
   async setIntent(id: string, intent: Partial<SearchIntent>): Promise<SearchIntent> {
     const s = this.byId.get(id);
     if (!s) throw new Error("session not found");
-    s.intent = {
+    const next = {
       targetRole: intent.targetRole ?? s.intent.targetRole,
       searchArea: intent.searchArea ?? s.intent.searchArea,
     };
+    if (next.targetRole !== s.intent.targetRole || next.searchArea !== s.intent.searchArea) {
+      s.retrieval = null;
+      s.retrievalCoordinationFingerprint = null;
+      s.retrievalGeneration += 1;
+      this.retrievalsInFlight.delete(id);
+    }
+    s.intent = next;
     return s.intent;
+  }
+
+  async beginRetrievalState(
+    id: string,
+    generation: number,
+    requestFingerprint: string,
+    expectedSnapshotFingerprint: string | null,
+    ownerToken: string,
+    claimedAt: string,
+    staleBefore: string,
+  ): Promise<boolean> {
+    const s = this.byId.get(id);
+    if (!s) throw new Error("session not found");
+    if (
+      s.retrievalGeneration !== generation ||
+      s.retrievalCoordinationFingerprint !== expectedSnapshotFingerprint
+    ) {
+      return false;
+    }
+    const claimedAtMs = Date.parse(claimedAt);
+    const staleBeforeMs = Date.parse(staleBefore);
+    if (!ownerToken || !Number.isFinite(claimedAtMs) || !Number.isFinite(staleBeforeMs)) return false;
+    const active = this.retrievalsInFlight.get(id);
+    if (active && active.claimedAtMs > staleBeforeMs) return false;
+    this.retrievalsInFlight.set(id, { requestFingerprint, ownerToken, claimedAtMs });
+    return true;
+  }
+
+  async reconcileRetrievalState(
+    id: string,
+    generation: number,
+    requestFingerprint: string,
+    ownerToken: string,
+    snapshot: RetrievalSnapshot,
+  ): Promise<boolean> {
+    if (snapshot.requestFingerprint !== requestFingerprint) return false;
+    const s = this.byId.get(id);
+    if (!s) throw new Error("session not found");
+    if (
+      s.retrievalGeneration !== generation ||
+      this.retrievalsInFlight.get(id)?.requestFingerprint !== requestFingerprint ||
+      this.retrievalsInFlight.get(id)?.ownerToken !== ownerToken
+    ) {
+      return false;
+    }
+    s.retrieval = structuredClone(snapshot);
+    s.retrievalCoordinationFingerprint = requestFingerprint;
+    this.retrievalsInFlight.delete(id);
+    return true;
   }
 
   async reconcileDiscoveryState(
@@ -264,11 +394,18 @@ export class InMemorySessionStore implements SessionStore {
     ) {
       throw new Error("production discovery floor already pinned");
     }
-    s.discovery = {
+    const discovery: ProductionDiscoveryState = {
       floor: structuredClone(floor),
       coveredItemIds: [...coveredItemIds],
       checkpoint: complete ? "essential_floor_covered" : "family_confirmed",
     };
+    if (JSON.stringify(discovery) !== JSON.stringify(s.discovery)) {
+      s.retrieval = null;
+      s.retrievalCoordinationFingerprint = null;
+      s.retrievalGeneration += 1;
+      this.retrievalsInFlight.delete(id);
+    }
+    s.discovery = discovery;
     return structuredClone(s.discovery);
   }
   async resolveImport(
@@ -338,7 +475,13 @@ CREATE TABLE IF NOT EXISTS sessions (
   source_entry       jsonb,
   target_role        text,
   search_area        text,
-  production_discovery jsonb NOT NULL DEFAULT '{"floor":null,"coveredItemIds":[],"checkpoint":null}'
+  production_discovery jsonb NOT NULL DEFAULT '{"floor":null,"coveredItemIds":[],"checkpoint":null}',
+  retrieval                       jsonb,
+  retrieval_fingerprint           text,
+  retrieval_generation            integer NOT NULL DEFAULT 0,
+  retrieval_in_flight_fingerprint text,
+  retrieval_in_flight_owner       text,
+  retrieval_in_flight_claimed_at  timestamptz
 )`;
 
 const SESSIONS_ALTERS = [
@@ -359,6 +502,12 @@ const SESSIONS_ALTERS = [
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS search_area text",
   `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS production_discovery jsonb NOT NULL
    DEFAULT '{"floor":null,"coveredItemIds":[],"checkpoint":null}'`,
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval jsonb",
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval_fingerprint text",
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval_generation integer NOT NULL DEFAULT 0",
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval_in_flight_fingerprint text",
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval_in_flight_owner text",
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval_in_flight_claimed_at timestamptz",
 ];
 
 function toSession(r: Record<string, unknown>): SessionRecord {
@@ -383,6 +532,9 @@ function toSession(r: Record<string, unknown>): SessionRecord {
       searchArea: (r.search_area as string) ?? null,
     },
     discovery: discoveryState(r.production_discovery),
+    retrieval: retrievalSnapshot(r.retrieval),
+    retrievalCoordinationFingerprint: (r.retrieval_fingerprint as string) ?? null,
+    retrievalGeneration: (r.retrieval_generation as number) ?? 0,
   };
 }
 
@@ -470,7 +622,31 @@ export class PgSessionStore implements SessionStore {
     const { rows } = await this.pool.query(
       `UPDATE sessions
        SET target_role = COALESCE($2, target_role),
-           search_area = COALESCE($3, search_area)
+           search_area = COALESCE($3, search_area),
+           retrieval = CASE
+             WHEN ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
+               OR ($3::text IS NOT NULL AND (search_area IS NULL OR search_area <> $3::text))
+             THEN NULL ELSE retrieval END,
+           retrieval_fingerprint = CASE
+             WHEN ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
+               OR ($3::text IS NOT NULL AND (search_area IS NULL OR search_area <> $3::text))
+             THEN NULL ELSE retrieval_fingerprint END,
+           retrieval_generation = CASE
+             WHEN ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
+               OR ($3::text IS NOT NULL AND (search_area IS NULL OR search_area <> $3::text))
+             THEN retrieval_generation + 1 ELSE retrieval_generation END,
+           retrieval_in_flight_fingerprint = CASE
+             WHEN ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
+               OR ($3::text IS NOT NULL AND (search_area IS NULL OR search_area <> $3::text))
+             THEN NULL ELSE retrieval_in_flight_fingerprint END,
+           retrieval_in_flight_owner = CASE
+             WHEN ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
+               OR ($3::text IS NOT NULL AND (search_area IS NULL OR search_area <> $3::text))
+             THEN NULL ELSE retrieval_in_flight_owner END,
+           retrieval_in_flight_claimed_at = CASE
+             WHEN ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
+               OR ($3::text IS NOT NULL AND (search_area IS NULL OR search_area <> $3::text))
+             THEN NULL ELSE retrieval_in_flight_claimed_at END
        WHERE id = $1
        RETURNING target_role, search_area`,
       [id, intent.targetRole ?? null, intent.searchArea ?? null],
@@ -480,6 +656,49 @@ export class PgSessionStore implements SessionStore {
       targetRole: (rows[0].target_role as string) ?? null,
       searchArea: (rows[0].search_area as string) ?? null,
     };
+  }
+
+  async beginRetrievalState(
+    id: string,
+    generation: number,
+    requestFingerprint: string,
+    expectedSnapshotFingerprint: string | null,
+    ownerToken: string,
+    claimedAt: string,
+    staleBefore: string,
+  ): Promise<boolean> {
+    if (!ownerToken || !Number.isFinite(Date.parse(claimedAt)) || !Number.isFinite(Date.parse(staleBefore))) {
+      return false;
+    }
+    const result = await this.pool.query(
+      `UPDATE sessions SET retrieval_in_flight_fingerprint = $3,
+         retrieval_in_flight_owner = $5, retrieval_in_flight_claimed_at = $6
+       WHERE id = $1 AND retrieval_generation = $2
+         AND (retrieval_in_flight_fingerprint IS NULL OR retrieval_in_flight_claimed_at IS NULL
+              OR retrieval_in_flight_claimed_at <= $7)
+         AND ((retrieval_fingerprint IS NULL AND $4::text IS NULL) OR retrieval_fingerprint = $4::text)`,
+      [id, generation, requestFingerprint, expectedSnapshotFingerprint, ownerToken, claimedAt, staleBefore],
+    );
+    return result.rowCount === 1;
+  }
+
+  async reconcileRetrievalState(
+    id: string,
+    generation: number,
+    requestFingerprint: string,
+    ownerToken: string,
+    snapshot: RetrievalSnapshot,
+  ): Promise<boolean> {
+    if (snapshot.requestFingerprint !== requestFingerprint) return false;
+    const result = await this.pool.query(
+      `UPDATE sessions SET retrieval = $4, retrieval_fingerprint = $3,
+         retrieval_in_flight_fingerprint = NULL, retrieval_in_flight_owner = NULL,
+         retrieval_in_flight_claimed_at = NULL
+       WHERE id = $1 AND retrieval_generation = $2 AND retrieval_in_flight_fingerprint = $3
+         AND retrieval_in_flight_owner = $5`,
+      [id, generation, requestFingerprint, JSON.stringify(snapshot), ownerToken],
+    );
+    return result.rowCount === 1;
   }
 
   async reconcileDiscoveryState(
@@ -508,10 +727,18 @@ export class PgSessionStore implements SessionStore {
         coveredItemIds: [...coveredItemIds],
         checkpoint: complete ? "essential_floor_covered" : "family_confirmed",
       };
-      await client.query("UPDATE sessions SET production_discovery = $2 WHERE id = $1", [
-        id,
-        JSON.stringify(discovery),
-      ]);
+      const changed = JSON.stringify(discovery) !== JSON.stringify(current);
+      await client.query(
+        `UPDATE sessions SET production_discovery = $2,
+           retrieval = CASE WHEN $3 THEN NULL ELSE retrieval END,
+           retrieval_fingerprint = CASE WHEN $3 THEN NULL ELSE retrieval_fingerprint END,
+           retrieval_generation = CASE WHEN $3 THEN retrieval_generation + 1 ELSE retrieval_generation END,
+           retrieval_in_flight_fingerprint = CASE WHEN $3 THEN NULL ELSE retrieval_in_flight_fingerprint END,
+           retrieval_in_flight_owner = CASE WHEN $3 THEN NULL ELSE retrieval_in_flight_owner END,
+           retrieval_in_flight_claimed_at = CASE WHEN $3 THEN NULL ELSE retrieval_in_flight_claimed_at END
+         WHERE id = $1`,
+        [id, JSON.stringify(discovery), changed],
+      );
       await client.query("COMMIT");
       return discovery;
     } catch (error) {

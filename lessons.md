@@ -1,5 +1,25 @@
 # Lessons — jobcrush-app
 
+## A durable background claim needs a lease, an owner, and the raw replacement coordinate
+
+A persisted `in_flight` boolean or fingerprint is not recoverable state. If the worker dies, it stays
+set forever; if a later worker takes over, the old worker can still publish unless completion proves
+ownership. The complete shape is a bounded lease, a unique owner token, and compare-and-set completion.
+
+There is a less obvious companion: safe parsing can reject an old snapshot while its durable request
+fingerprint remains valid coordination data. Throwing that raw fingerprint away makes replacement
+impossible because the next claim compares `null` with the stored value. Parse the payload fail-closed,
+but preserve the raw replacement coordinate. The same instant-versus-representation rule applies to
+timestamps across store drivers: normalize valid timestamps before ordering them, never compare offset
+strings lexicographically.
+
+## With zero fresh results, incomplete coverage outranks stale evidence
+
+Stale records answer "what did we know before"; coverage answers "did every eligible source answer now."
+When there are no fresh postings and even one source failed, the honest result is `provider_unavailable`,
+not `stale_data`: otherwise an outage disappears behind weaker old evidence. Outcome unions need an
+explicit precedence table and mixed-state tests, not only one test per arm.
+
 ## A tool that anchors on `</body>` finds nothing in a file the browser renders fine
 
 The impeccable live-mode injector writes its script before `</body>` — and 14 of our 17 prototype

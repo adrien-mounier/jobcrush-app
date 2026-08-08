@@ -44,6 +44,8 @@ import type { AdRequirementsV1 } from "@jobcrush/contracts";
 import type { JudgeFn, JudgePeekFn } from "./judge.js";
 import { runWithVisitor } from "./llmVisitorContext.js";
 import { InMemoryUsageLedgerStore, type UsageLedgerStore } from "./usageLedgerStore.js";
+import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
+import type { RetrievalRequest } from "./postingRetrieval.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -69,6 +71,7 @@ export interface BuildOptions {
   familyFloors?: TestFixtureFamilyFloorStore;
   productionFamilyFloors?: ProductionFamilyFloorStore;
   placeFamily?: (session: Readonly<SessionRecord>) => Promise<import("@jobcrush/contracts").FamilyPlacement>;
+  retrievePostings?: (input: RetrievalRequest) => Promise<PostingRetrievalResultV1>;
   /** JC-24 grill question phrasing (LLM-backed in prod). Absent → deterministic template phrasing. */
   phraseGrill?: GrillPhraser;
   /** S2 decision #6 root-CV wording audit (LLM-backed in prod). Absent → the CV ships unaudited. */
@@ -435,6 +438,7 @@ export function buildServer(opts: BuildOptions = {}) {
     familyFloors,
     productionFamilyFloors,
     placeFamily,
+    retrievePostings: opts.retrievePostings,
     phraseGrill: opts.phraseGrill,
     auditCv: opts.auditCv,
     readAd: opts.readAd,

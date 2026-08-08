@@ -8,6 +8,7 @@
 //     arithmetic (no LLM). The "state machine" is a single `stage` field on the session.
 //   - No claim tiering and no grill yet — every claim is a plain confirm. That intelligence is the
 //     next E3 pass; this slice exists to exercise the untouched spine end to end.
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
@@ -15,7 +16,12 @@ import type { CandidateClaim, MinedRole, RankBand, AdRequirementsV1 } from "@job
 import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore, ClaimRecord } from "../claims.js";
 import type { JobStore } from "../jobs.js";
-import type { SessionStore, SessionRecord } from "../sessions.js";
+import {
+  RETRIEVAL_CLAIM_LEASE_MS,
+  retrievalClaimWindow,
+  type SessionStore,
+  type SessionRecord,
+} from "../sessions.js";
 import { buildClaimGraph, kindTag } from "../graph.js";
 import { renderRootCv, SECTIONS } from "../rootcv.js";
 import { runGate } from "../gate.js";
@@ -79,6 +85,27 @@ import {
   fixtureDiscoveryClaimId,
 } from "../adaptiveDiscovery.js";
 import type { ProductionFamilyFloorStore, TestFixtureFamilyFloorStore } from "../familyFloors.js";
+import {
+  isReusableRetrievalSnapshot,
+  retrievalFingerprint,
+  unavailablePostingRetrieval,
+  type RetrievalRequest,
+} from "../postingRetrieval.js";
+import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
+
+type RetrievalRouteFailureCategory =
+  | "claim_failed"
+  | "snapshot_read_failed"
+  | "retrieval_failed"
+  | "reconciliation_failed"
+  | "background_failed";
+
+function logPostingRetrievalFailure(
+  log: { error(bindings: { category: RetrievalRouteFailureCategory }, message: string): unknown },
+  category: RetrievalRouteFailureCategory,
+): void {
+  log.error({ category }, "posting retrieval failed");
+}
 
 export interface OnboardingDeps {
   claims: ClaimStore;
@@ -90,6 +117,7 @@ export interface OnboardingDeps {
   familyFloors: TestFixtureFamilyFloorStore;
   productionFamilyFloors: ProductionFamilyFloorStore;
   placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>;
+  retrievePostings?: (input: RetrievalRequest) => Promise<PostingRetrievalResultV1>;
   /** JC-24: LLM phrasing for grill questions. Absent → template phrasing (tests + the safe fallback). */
   phraseGrill?: GrillPhraser;
   /** S2 decision #6: LLM wording audit of the built root CV. Absent → the CV ships unaudited. */
@@ -167,6 +195,22 @@ export const claimTier = (touch: CandidateClaim["machine_touch"]): DeckTier =>
   touch === "verbatim" ? "batch" : "individual";
 
 export function onboardingRoutes(deps: OnboardingDeps) {
+  const retrievePostings = deps.retrievePostings ?? unavailablePostingRetrieval;
+  const retrievalsInFlight = new Map<
+    string,
+    { fingerprint: string; startedAtMs: number; result: Promise<PostingRetrievalResultV1> }
+  >();
+  const retrievalInProgress = (): PostingRetrievalResultV1 => ({
+    schemaVersion: "4",
+    outcome: "provider_unavailable",
+    coverage: {
+      providersQueried: [],
+      providersUnavailable: ["retrieval-in-progress"],
+      complete: false,
+    },
+    reason: "posting retrieval is in progress",
+    retryable: true,
+  });
   return async function plugin(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>();
 
@@ -1005,6 +1049,125 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     app.get("/onboarding/cards", async (req) => {
       const session = requireSession(req);
       const [confirmed, negatives, , facts] = await discoveryReads(session.id);
+      const retrievalRequest: RetrievalRequest = {
+        targetRole: session.intent.targetRole,
+        searchArea: session.intent.searchArea,
+        family: session.discovery.floor,
+        checkpoint: session.discovery.checkpoint,
+        confirmedEvidence: confirmed.map((claim) => ({
+          semanticKey: claim.semantic_key,
+          fieldLabel: claim.field_label,
+        })),
+        explicitNegatives: negatives.map((claim) => ({
+          semanticKey: claim.semantic_key,
+          fieldLabel: claim.field_label,
+          fieldValue: claim.field_value,
+        })),
+      };
+      const requestFingerprint = retrievalFingerprint(retrievalRequest);
+      let retrieval: PostingRetrievalResultV1;
+      if (isReusableRetrievalSnapshot(session.retrieval, requestFingerprint)) {
+        retrieval = session.retrieval!.result;
+      } else {
+        const existing = retrievalsInFlight.get(session.id);
+        if (
+          existing?.fingerprint === requestFingerprint &&
+          Date.now() - existing.startedAtMs < RETRIEVAL_CLAIM_LEASE_MS
+        ) {
+          retrieval = retrievalInProgress();
+        } else {
+          const generation = session.retrievalGeneration;
+          const expectedSnapshotFingerprint = session.retrievalCoordinationFingerprint;
+          const ownerToken = randomUUID();
+          const claimWindow = retrievalClaimWindow();
+          const result = (async () => {
+            let claimed: boolean;
+            try {
+              claimed = await deps.sessions.beginRetrievalState(
+                session.id,
+                generation,
+                requestFingerprint,
+                expectedSnapshotFingerprint,
+                ownerToken,
+                claimWindow.claimedAt,
+                claimWindow.staleBefore,
+              );
+            } catch {
+              logPostingRetrievalFailure(app.log, "claim_failed");
+              return {
+                schemaVersion: "4" as const,
+                outcome: "provider_unavailable" as const,
+                coverage: {
+                  providersQueried: [],
+                  providersUnavailable: ["retrieval-store"],
+                  complete: false,
+                },
+                reason: "posting retrieval is temporarily unavailable",
+                retryable: true,
+              };
+            }
+            if (!claimed) {
+              try {
+                const latest = await deps.sessions.getById(session.id);
+                if (isReusableRetrievalSnapshot(latest?.retrieval ?? null, requestFingerprint)) {
+                  return latest!.retrieval!.result;
+                }
+              } catch {
+                logPostingRetrievalFailure(app.log, "snapshot_read_failed");
+              }
+              return retrievalInProgress();
+            }
+            let current: PostingRetrievalResultV1;
+            try {
+              current = await retrievePostings(retrievalRequest);
+            } catch {
+              logPostingRetrievalFailure(app.log, "retrieval_failed");
+              current = {
+                schemaVersion: "4",
+                outcome: "provider_unavailable",
+                coverage: {
+                  providersQueried: [],
+                  providersUnavailable: ["retrieval"],
+                  complete: false,
+                },
+                reason: "posting retrieval is temporarily unavailable",
+                retryable: true,
+              };
+            }
+            try {
+              await deps.sessions.reconcileRetrievalState(
+                session.id,
+                generation,
+                requestFingerprint,
+                ownerToken,
+                { requestFingerprint, recordedAt: new Date().toISOString(), result: current },
+              );
+            } catch {
+              logPostingRetrievalFailure(app.log, "reconciliation_failed");
+            }
+            return current;
+          })();
+          retrievalsInFlight.set(session.id, {
+            fingerprint: requestFingerprint,
+            startedAtMs: Date.parse(claimWindow.claimedAt),
+            result,
+          });
+          void result.then(
+            () => {
+              if (retrievalsInFlight.get(session.id)?.result === result) retrievalsInFlight.delete(session.id);
+            },
+            () => {
+              logPostingRetrievalFailure(app.log, "background_failed");
+              if (retrievalsInFlight.get(session.id)?.result === result) retrievalsInFlight.delete(session.id);
+            },
+          );
+          // §2.6 forbids provider latency on the cards request. §2.8's session snapshot is the handoff:
+          // the first uncached read fails closed while this one background task runs; later reads use
+          // its CAS-persisted result. The map coalesces same-process duplicates, while SessionStore's
+          // atomic claim prevents another process from spending for the same observed session state.
+          retrieval = retrievalInProgress();
+        }
+      }
       // #107 (E5 slice 6, D5): the SAME (dimension, familyId) scope eligibilityDiscovery.ts's
       // years-experience question WRITES a real answer at — see resolveUserYears's own doc for why a
       // mismatched scope would silently do nothing. Reads `facts` (already fetched above by
@@ -1207,7 +1370,14 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           .map(([language, count]) => ({ language, count }))
           .sort((a, b) => b.count - a.count || a.language.localeCompare(b.language)),
       };
-      return { stage: session.stage, cards, pendingCount, authed: session.claimedByUserId !== null, withdrawn };
+      return {
+        stage: session.stage,
+        cards,
+        pendingCount,
+        authed: session.claimedByUserId !== null,
+        withdrawn,
+        retrieval,
+      };
     });
 
     app.post(

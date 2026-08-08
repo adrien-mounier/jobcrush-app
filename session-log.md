@@ -2,15 +2,20 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
-## 2026-08-09 (session 97) - Durable monthly provider spend cap (#132)
+## 2026-08-09 (session 97) - Durable provider spend and live retrieval boundary (#132, #101)
 
-_Orchestrated backend slice in an isolated worktree; one review-fix round, then QA GO._
+_Orchestrated two backend slices in one isolated worktree; each passed independent Standards, Spec and QA gates._
 
 - The paid posting provider now reserves calls in a durable `(provider, UTC month)` counter before HTTP. Postgres performs the limit check and increment atomically, so restarts do not reset the allowance and concurrent callers cannot exceed it.
 - Missing, non-durable, or failed budget storage disables the paid path and reports a distinct operational signal. The live-provider smoke refuses to run without `DATABASE_URL`; in-memory storage remains available only for local contracts and deterministic tests.
 - Standards review found two release blockers: the smoke's silent in-memory fallback and short-window units being consumed when the durable check failed. Both were corrected; the re-review and Spec review had no must-fixes.
 - QA GO: focused provider/store/counter suite 160/160; full uncached suite 972 passed with 10 intentional skips; all typecheck and build tasks passed. Docker and local Postgres were unavailable, so real-server lock contention remains residual evidence; pg-mem exercised the shared SQL store contract.
-- Next in this session: #101, the server-owned live-posting retrieval boundary this cap protects.
+- #101 added the server-owned `retrievePostings` boundary and wired `/onboarding/cards` to session-owned intent, published family authority, confirmed structured evidence and explicit negatives only. The route returns a fail-closed in-progress state on a cold read while a leased background task persists the result; matching snapshots avoid repeat provider spend.
+- Retrieval fans eligible providers concurrently, stores normalized records, deduplicates once after all settle, and preserves the five result arms. A durable curated-region refresh marker prevents an untouched store from certifying a false zero; role filtering, provider TTLs, expiry and complete coverage all gate reuse.
+- Review caught post-I/O clock drift, repeat spend, obsolete-result races, missing curated authority, leaked error detail and unrecoverable claims. Owner-token leases, raw coordination fingerprints and compare-and-set completion now make crash, contract-bump and intent-change recovery explicit in both session drivers.
+- QA found four further defects after the review-green build: stale data hid an incomplete provider sweep, curated matching accepted one generic token, successful freshness decisions were not audited, and the in-memory refresh marker compared timestamp strings rather than instants. Each now has a regression in the shared retrieval/store matrix.
+- Final QA GO: focused retrieval matrix 152/152; uncached monorepo 1,031 passed with 10 intentional skips; typecheck 7/7 and build 5/5. `TECHMAP_RAPIDAPI_KEY` and `DATABASE_URL` were absent, so the paid live smoke and real-Postgres locking/restart evidence remain external residuals; the smoke fails before network without durable Postgres.
+- Next: #63 consumes the retrieval union and removes the production fixture-card path; that replacement is intentionally outside #101.
 
 ## 2026-08-09 (session 96) — The sign-up seam is CLOSED: Confirm follows the question game into the Night Desk
 

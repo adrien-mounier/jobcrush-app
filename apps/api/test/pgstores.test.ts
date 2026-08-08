@@ -4,7 +4,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { newDb } from "pg-mem";
 import type { CandidateClaim, ProviderPostingRecordV1 } from "@jobcrush/contracts";
-import { InMemorySessionStore, PgSessionStore, type SessionStore } from "../src/sessions.js";
+import {
+  InMemorySessionStore,
+  PgSessionStore,
+  RETRIEVAL_CLAIM_LEASE_MS,
+  retrievalClaimWindow,
+  type SessionStore,
+} from "../src/sessions.js";
 import { InMemoryClaimStore, PgClaimStore, type ClaimStore } from "../src/claims.js";
 import { InMemoryPostingStore, PgPostingStore, type PostingStore } from "../src/postingStore.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
@@ -41,6 +47,9 @@ for (const [name, make] of sessionDrivers) {
         coveredItemIds: [],
         checkpoint: null,
       });
+      expect(s.retrieval).toBeNull();
+      expect(s.retrievalCoordinationFingerprint).toBeNull();
+      expect(s.retrievalGeneration).toBe(0);
       expect(await store.getByToken(s.token)).toMatchObject({
         id: s.id,
         token: s.token,
@@ -169,6 +178,211 @@ for (const [name, make] of sessionDrivers) {
         targetRole: "Programme Manager",
         searchArea: "Remote in Thailand",
       });
+    });
+
+    it("persists retrieval snapshots and invalidates only retrieval when intent actually changes", async () => {
+      const s = await store.create();
+      await store.setIntent(s.id, { targetRole: "Programme Manager", searchArea: "Hong Kong" });
+      await store.reconcileDiscoveryState(
+        s.id,
+        { familyId: "it-project-delivery", version: 1 },
+        ["end-to-end-delivery"],
+        true,
+      );
+      const snapshot = {
+        requestFingerprint: "intent-v1",
+        recordedAt: "2026-08-09T00:00:00.000Z",
+        result: {
+          schemaVersion: "4" as const,
+          outcome: "provider_unavailable" as const,
+          coverage: {
+            providersQueried: [],
+            providersUnavailable: ["techmap"],
+            complete: false,
+          },
+          reason: "timeout",
+          retryable: true,
+        },
+      };
+      const generation = (await store.getById(s.id))!.retrievalGeneration;
+      expect(
+        await store.beginRetrievalState(
+          s.id,
+          generation,
+          "intent-v1",
+          null,
+          "owner-1",
+          "2026-08-09T00:00:00.000Z",
+          "2026-08-08T23:59:00.000Z",
+        ),
+      ).toBe(true);
+      expect(
+        await store.beginRetrievalState(
+          s.id,
+          generation,
+          "intent-v1",
+          null,
+          "owner-2",
+          "2026-08-09T00:00:01.000Z",
+          "2026-08-08T23:59:01.000Z",
+        ),
+      ).toBe(false);
+      expect(
+        await store.reconcileRetrievalState(s.id, generation, "intent-v1", "owner-1", snapshot),
+      ).toBe(true);
+      expect(await store.getByToken(s.token)).toMatchObject({
+        retrieval: snapshot,
+        retrievalCoordinationFingerprint: "intent-v1",
+      });
+      // A second worker that read retrieval:null before the commit cannot claim after it.
+      expect(
+        await store.beginRetrievalState(
+          s.id,
+          generation,
+          "intent-v1",
+          null,
+          "stale-reader",
+          "2026-08-09T00:00:02.000Z",
+          "2026-08-08T23:59:02.000Z",
+        ),
+      ).toBe(false);
+
+      await store.setIntent(s.id, { targetRole: "Programme Manager" });
+      expect((await store.getById(s.id))?.retrieval).toEqual(snapshot);
+
+      await store.setIntent(s.id, { searchArea: "Singapore" });
+      expect(await store.getById(s.id)).toMatchObject({
+        intent: { targetRole: "Programme Manager", searchArea: "Singapore" },
+        retrieval: null,
+        retrievalCoordinationFingerprint: null,
+        discovery: {
+          floor: { familyId: "it-project-delivery", version: 1 },
+          coveredItemIds: ["end-to-end-delivery"],
+          checkpoint: "essential_floor_covered",
+        },
+      });
+    });
+
+    it("compare-and-set rejects an old in-flight result after intent changes", async () => {
+      const s = await store.create();
+      await store.setIntent(s.id, { targetRole: "Programme Manager", searchArea: "Hong Kong" });
+      const before = (await store.getById(s.id))!;
+      expect(
+        await store.beginRetrievalState(
+          s.id,
+          before.retrievalGeneration,
+          "old-request",
+          null,
+          "owner-old",
+          "2026-08-09T00:00:00.000Z",
+          "2026-08-08T23:59:00.000Z",
+        ),
+      ).toBe(true);
+
+      await store.setIntent(s.id, { searchArea: "Singapore" });
+      const accepted = await store.reconcileRetrievalState(
+        s.id,
+        before.retrievalGeneration,
+        "old-request",
+        "owner-old",
+        {
+          requestFingerprint: "old-request",
+          recordedAt: "2026-08-09T00:00:00.000Z",
+          result: { schemaVersion: "4", outcome: "invalid_request", code: "search_area_not_covered" },
+        },
+      );
+      expect(accepted).toBe(false);
+      expect((await store.getById(s.id))?.retrieval).toBeNull();
+    });
+
+    it("a discovery checkpoint transition invalidates retrieval and rejects the older generation", async () => {
+      const s = await store.create();
+      await store.setIntent(s.id, { targetRole: "Programme Manager", searchArea: "Hong Kong" });
+      await store.reconcileDiscoveryState(
+        s.id,
+        { familyId: "it-project-delivery", version: 1 },
+        ["end-to-end-delivery"],
+        false,
+      );
+      const before = (await store.getById(s.id))!;
+      expect(
+        await store.beginRetrievalState(
+          s.id,
+          before.retrievalGeneration,
+          "before-checkpoint",
+          null,
+          "owner-checkpoint",
+          "2026-08-09T00:00:00.000Z",
+          "2026-08-08T23:59:00.000Z",
+        ),
+      ).toBe(true);
+      await store.reconcileDiscoveryState(
+        s.id,
+        { familyId: "it-project-delivery", version: 1 },
+        ["end-to-end-delivery", "stakeholder-coordination"],
+        true,
+      );
+      expect(
+        await store.reconcileRetrievalState(
+          s.id,
+          before.retrievalGeneration,
+          "before-checkpoint",
+          "owner-checkpoint",
+          {
+            requestFingerprint: "before-checkpoint",
+            recordedAt: "2026-08-09T00:00:00.000Z",
+            result: { schemaVersion: "4", outcome: "invalid_request", code: "floor_not_covered" },
+          },
+        ),
+      ).toBe(false);
+      expect(await store.getById(s.id)).toMatchObject({
+        retrieval: null,
+        discovery: { checkpoint: "essential_floor_covered" },
+      });
+    });
+
+    it("allows a new owner to recover an abandoned claim after the lease, never before", async () => {
+      const s = await store.create();
+      expect(
+        await store.beginRetrievalState(
+          s.id,
+          0,
+          "request",
+          null,
+          "owner-abandoned",
+          "2026-08-09T00:00:00.000Z",
+          "2026-08-08T23:59:00.000Z",
+        ),
+      ).toBe(true);
+      expect(
+        await store.beginRetrievalState(
+          s.id,
+          0,
+          "request",
+          null,
+          "owner-early",
+          "2026-08-09T00:00:59.000Z",
+          "2026-08-08T23:59:59.000Z",
+        ),
+      ).toBe(false);
+      expect(
+        await store.beginRetrievalState(
+          s.id,
+          0,
+          "request",
+          null,
+          "owner-recovery",
+          "2026-08-09T00:01:01.000Z",
+          "2026-08-09T00:00:01.000Z",
+        ),
+      ).toBe(true);
+      const snapshot = {
+        requestFingerprint: "request",
+        recordedAt: "2026-08-09T00:01:01.000Z",
+        result: { schemaVersion: "4" as const, outcome: "invalid_request" as const, code: "missing_intent" as const },
+      };
+      expect(await store.reconcileRetrievalState(s.id, 0, "request", "owner-abandoned", snapshot)).toBe(false);
+      expect(await store.reconcileRetrievalState(s.id, 0, "request", "owner-recovery", snapshot)).toBe(true);
     });
 
     it("setSourceEntry persists last-write-wins", async () => {
@@ -617,6 +831,16 @@ for (const [name, make] of postingDrivers) {
       expect((await store.listByProvider("curated-pool")).map((r) => r.providerPostingId)).toEqual(["c-1"]);
     });
 
+    it("persists a per-provider/per-region operator refresh marker without cross-region leakage", async () => {
+      expect(await store.getRegionRefresh("curated-pool", "HK")).toBeNull();
+      await store.markRegionRefreshed("curated-pool", "HK", "2026-08-09T00:00:00.000Z");
+      expect(await store.getRegionRefresh("curated-pool", "HK")).toBe("2026-08-09T00:00:00.000Z");
+      await store.markRegionRefreshed("curated-pool", "HK", "2026-08-08T23:30:00-01:00");
+      expect(await store.getRegionRefresh("curated-pool", "HK")).toBe("2026-08-09T00:30:00.000Z");
+      expect(await store.getRegionRefresh("curated-pool", "VN")).toBeNull();
+      expect(await store.getRegionRefresh("techmap", "HK")).toBeNull();
+    });
+
     describe("#132 durable monthly provider-call budget", () => {
       it("starts each calendar month at zero and keeps provider/month counts separate", async () => {
         expect(await store.getMonthlyCallCount("techmap", "2026-08")).toBe(0);
@@ -706,4 +930,92 @@ it("#132 PgPostingStore preserves the month-to-date count across store reconstru
   const afterRestart = new PgPostingStore(pool);
   expect(await afterRestart.getMonthlyCallCount("techmap", "2026-08")).toBe(2);
   expect(await afterRestart.reserveMonthlyCall("techmap", "2026-08", 2)).toBe(false);
+});
+
+it("#101 retrieval claim lease is bounded, clock-testable, and exceeds the provider attempt window", () => {
+  expect(RETRIEVAL_CLAIM_LEASE_MS).toBeGreaterThan(21_000);
+  expect(retrievalClaimWindow(Date.parse("2026-08-09T00:01:00.000Z"))).toEqual({
+    claimedAt: "2026-08-09T00:01:00.000Z",
+    staleBefore: "2026-08-09T00:00:00.000Z",
+  });
+});
+
+it("#101 PgSessionStore recovers an abandoned claim after store reconstruction", async () => {
+  const pool = pgPool();
+  const abandonedStore = new PgSessionStore(pool);
+  await abandonedStore.init();
+  const session = await abandonedStore.create();
+  expect(
+    await abandonedStore.beginRetrievalState(
+      session.id,
+      0,
+      "request",
+      null,
+      "abandoned-owner",
+      "2026-08-09T00:00:00.000Z",
+      "2026-08-08T23:59:00.000Z",
+    ),
+  ).toBe(true);
+
+  const reconstructedStore = new PgSessionStore(pool);
+  expect(
+    await reconstructedStore.beginRetrievalState(
+      session.id,
+      0,
+      "request",
+      null,
+      "recovery-owner",
+      "2026-08-09T00:01:01.000Z",
+      "2026-08-09T00:00:01.000Z",
+    ),
+  ).toBe(true);
+  const snapshot = {
+    requestFingerprint: "request",
+    recordedAt: "2026-08-09T00:01:01.000Z",
+    result: { schemaVersion: "4" as const, outcome: "invalid_request" as const, code: "missing_intent" as const },
+  };
+  expect(
+    await abandonedStore.reconcileRetrievalState(session.id, 0, "request", "abandoned-owner", snapshot),
+  ).toBe(false);
+  expect(
+    await reconstructedStore.reconcileRetrievalState(session.id, 0, "request", "recovery-owner", snapshot),
+  ).toBe(true);
+});
+
+it("#101 PgPostingStore preserves the operator refresh marker across store reconstruction", async () => {
+  const pool = pgPool();
+  const beforeRestart = new PgPostingStore(pool);
+  await beforeRestart.init();
+  await beforeRestart.markRegionRefreshed("curated-pool", "HK", "2026-08-09T00:00:00.000Z");
+
+  const afterRestart = new PgPostingStore(pool);
+  expect(await afterRestart.getRegionRefresh("curated-pool", "HK")).toBe("2026-08-09T00:00:00.000Z");
+  expect(await afterRestart.getRegionRefresh("curated-pool", "VN")).toBeNull();
+});
+
+it("#101 PgSessionStore can replace an invalid old snapshot using its durable coordination fingerprint", async () => {
+  const pool = pgPool();
+  const beforeRestart = new PgSessionStore(pool);
+  await beforeRestart.init();
+  const session = await beforeRestart.create();
+  await pool.query(
+    "UPDATE sessions SET retrieval = $2, retrieval_fingerprint = $3 WHERE id = $1",
+    [session.id, JSON.stringify({ schemaVersion: "old", result: "invalid" }), "old-fingerprint"],
+  );
+
+  const afterRestart = new PgSessionStore(pool);
+  const reconstructed = await afterRestart.getById(session.id);
+  expect(reconstructed?.retrieval).toBeNull();
+  expect(reconstructed?.retrievalCoordinationFingerprint).toBe("old-fingerprint");
+  expect(
+    await afterRestart.beginRetrievalState(
+      session.id,
+      0,
+      "replacement-fingerprint",
+      reconstructed!.retrievalCoordinationFingerprint,
+      "replacement-owner",
+      "2026-08-09T00:00:00.000Z",
+      "2026-08-08T23:59:00.000Z",
+    ),
+  ).toBe(true);
 });

@@ -46,6 +46,8 @@ export interface PostingStore {
   /** Every record currently stored for one provider — the input a caller doing cross-provider dedup
    *  (postings.ts's dedupePostings) or #101's retrieval reads from. */
   listByProvider(providerId: string): Promise<ProviderPostingRecordV1Value[]>;
+  markRegionRefreshed(providerId: string, regionCode: string, refreshedAt: string): Promise<void>;
+  getRegionRefresh(providerId: string, regionCode: string): Promise<string | null>;
   /** Atomically consumes one provider call in the named calendar month, but never increments past
    *  `limit`. False means the month is already exhausted. */
   reserveMonthlyCall(providerId: string, yearMonth: string, limit: number): Promise<boolean>;
@@ -60,6 +62,7 @@ export class InMemoryPostingStore implements PostingStore {
   readonly durable = false;
   private byKey = new Map<string, ProviderPostingRecordV1Value>();
   private monthlyCalls = new Map<string, number>();
+  private regionRefreshes = new Map<string, string>();
 
   async init(): Promise<void> {}
 
@@ -99,6 +102,20 @@ export class InMemoryPostingStore implements PostingStore {
     return out;
   }
 
+  async markRegionRefreshed(providerId: string, regionCode: string, refreshedAt: string): Promise<void> {
+    const refreshedAtMs = Date.parse(refreshedAt);
+    if (!Number.isFinite(refreshedAtMs)) throw new Error("invalid region refresh timestamp");
+    const key = keyOf(providerId, regionCode);
+    const current = this.regionRefreshes.get(key);
+    if (!current || refreshedAtMs > Date.parse(current)) {
+      this.regionRefreshes.set(key, new Date(refreshedAtMs).toISOString());
+    }
+  }
+
+  async getRegionRefresh(providerId: string, regionCode: string): Promise<string | null> {
+    return this.regionRefreshes.get(keyOf(providerId, regionCode)) ?? null;
+  }
+
   async reserveMonthlyCall(providerId: string, yearMonth: string, limit: number): Promise<boolean> {
     if (limit <= 0) return false;
     const key = keyOf(providerId, yearMonth);
@@ -130,6 +147,14 @@ CREATE TABLE IF NOT EXISTS provider_monthly_calls (
   call_count         integer NOT NULL,
   reservation_allowed boolean NOT NULL,
   PRIMARY KEY (provider_id, year_month)
+)`;
+
+const PROVIDER_REGION_REFRESHES_TABLE = `
+CREATE TABLE IF NOT EXISTS provider_region_refreshes (
+  provider_id  text NOT NULL,
+  region_code  text NOT NULL,
+  refreshed_at timestamptz NOT NULL,
+  PRIMARY KEY (provider_id, region_code)
 )`;
 
 /** jsonb columns come back as an object on real pg but as a string on pg-mem (used by the store
@@ -165,6 +190,7 @@ export class PgPostingStore implements PostingStore {
   async init(): Promise<void> {
     await this.pool.query(PROVIDER_POSTINGS_TABLE);
     await this.pool.query(PROVIDER_MONTHLY_CALLS_TABLE);
+    await this.pool.query(PROVIDER_REGION_REFRESHES_TABLE);
   }
 
   async upsert(record: ProviderPostingRecordV1Value): Promise<ProviderPostingRecordV1Value> {
@@ -230,6 +256,25 @@ export class PgPostingStore implements PostingStore {
       }
     }
     return out;
+  }
+
+  async markRegionRefreshed(providerId: string, regionCode: string, refreshedAt: string): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO provider_region_refreshes (provider_id, region_code, refreshed_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (provider_id, region_code) DO UPDATE SET
+         refreshed_at = CASE WHEN provider_region_refreshes.refreshed_at >= EXCLUDED.refreshed_at
+                             THEN provider_region_refreshes.refreshed_at ELSE EXCLUDED.refreshed_at END`,
+      [providerId, regionCode, refreshedAt],
+    );
+  }
+
+  async getRegionRefresh(providerId: string, regionCode: string): Promise<string | null> {
+    const { rows } = await this.pool.query(
+      "SELECT refreshed_at FROM provider_region_refreshes WHERE provider_id = $1 AND region_code = $2",
+      [providerId, regionCode],
+    );
+    return rows[0] ? iso(rows[0].refreshed_at) : null;
   }
 
   async reserveMonthlyCall(providerId: string, yearMonth: string, limit: number): Promise<boolean> {
