@@ -2,6 +2,48 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-08 (session 93b) — Design B refined after closure, and put out for outside opinion
+
+_Same day, after the closure below. The owner asked to keep the prototypes as a shareable mockup
+so people outside the room can test the choice: **"I want to collect people opinion and be sure we
+are not choosing the wrong design."** Five refinements landed. Recorded on
+[#168](https://github.com/adrien-mounier/jobcrush-app/issues/168) and
+[#170](https://github.com/adrien-mounier/jobcrush-app/issues/170) — the closure comments were
+already stale._
+
+- **🚨 The desktop verdict was taken against an unfair comparison, and is now provisional.** The
+  rejected deck was bounded to a 640px window with its CV hidden behind a pull-up sheet — owner:
+  *"not at all at a computer ratio screen, it looks like tablet format."* Rebuilt at full desktop
+  scale with the CV beside it; **the CV now renders at an identical 523 × 739.6px in both files**,
+  so the comparison finally isolates one variable. **Do not start desktop UI work assuming the
+  list has won.** Mobile is not in question.
+- **⭐ The progress bar opens into the eight asks** (owner: *"we miss the list of 'you have this'
+  already… expandable just under the progress bar because it's directly linked"*). 🚨 **The panel
+  REPORTS and never ANSWERS** — an unanswered ask is not even a button. Break that and the deck
+  becomes the list, and #157 loses the thing it is comparing.
+- **🚨 The list is grouped ONCE, then frozen — and this took three attempts.** Live re-sort, then
+  sort-by-most-recently-answered, both rejected: *"it should just stay where it is, period."* Then,
+  on the raw advert order: *"the 'you have this' are not all grouped together."* **The
+  reconciliation: decide the order before she has answered anything, then never recompute.** Built
+  as a constant from the ask's kind, not a function of state — both failures were functions of
+  state, so a re-sort path always existed. ⚠️ Accepted: the groups blur as she answers. Stability,
+  not tidiness.
+- **⭐ The write-on effect lost its visibility guard** — both earlier files played *her answer
+  appearing on her own CV* only if the CV happened to be open, so the most persuasive moment in the
+  design was usually invisible. Worth carrying whichever shape wins.
+- **⚠️ Half this session went to a caching ghost, and the lesson is real.** The owner reported
+  changes not landing; the server was correct every time, verified twice by downloading the
+  published page. Nothing on the page said which build was on screen, and I had made the two
+  desktop options **re-roll their order on every load** — so the page looked broken rather than
+  methodical. Both fixed: a visible build stamp, and the order drawn **once per browser** and
+  remembered. **Spread an A/B order across people, never within one person.**
+- **The comparison page** (`apps/web/prototypes/build-comparison.mjs`) assembles all three into one
+  self-contained file. Labels never say which was chosen; the two desktop options are offered in a
+  randomised-but-stable order; each keeps its own progress so flipping between them *is* the
+  comparison. ⚠️ It embeds **copies** — re-run the builder after any prototype edit.
+- **Next:** Design C — the scope of a "no" (items 2 + 6): #171 and #169. Not blocked by the
+  outside-opinion round.
+
 ## 2026-08-08 (session 93) — Design effort [#157](https://github.com/adrien-mounier/jobcrush-app/issues/157): **Design B decided** — "we changed what prints" (item 5 + ADR-0010's three)
 
 _Three prototype rounds with the owner live: a merge of a parallel-agent's own desktop attempt, a

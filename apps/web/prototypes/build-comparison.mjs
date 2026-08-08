@@ -172,6 +172,10 @@ const page = String.raw`<title>JobCrush — which one feels better?</title>
     padding: 12px 26px; cursor: pointer; transition: filter 140ms ease;
   }
   .go:hover { filter: brightness(1.08); }
+  /* the same stamp inside the panel — the panel is reopenable from the bar and scrolls, so on a
+     phone this is the placement that can never fall off the bottom of the screen */
+  .stamp { margin: 20px 0 0; font-family: var(--mono); font-size: 11px; line-height: 1.6; color: var(--ink-3); }
+  .stamp b { color: var(--ink-2); font-weight: 700; }
 
   @media (max-width: 760px) {
     .bar { gap: 10px; padding: 10px 14px; }
@@ -179,6 +183,10 @@ const page = String.raw`<title>JobCrush — which one feels better?</title>
     .switch { order: 3; width: 100%; justify-content: space-between; }
     .switch button { padding: 7px 10px; font-size: 12.5px; }
     .caption .hint { display: none; }
+    /* the stamp has to come FIRST on a phone. Sitting after the description it wrapped onto a
+       third line, which falls below the fold — so the one thing that tells you whether you are
+       looking at the current build was the one thing you could not see. */
+    .caption .build { order: -1; width: 100%; border-left: 0; padding-left: 0; }
     .sheet { padding: 24px 20px 22px; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition-duration: .01ms !important; } }
@@ -221,6 +229,7 @@ const page = String.raw`<title>JobCrush — which one feels better?</title>
     </ol>
     <p class="note"><b>None of this is real.</b> It's a made-up person's CV, running entirely in your own browser. Nothing you type is saved and nothing is sent anywhere. Click around freely — you can't break it, and <b>Start this one over</b> resets whichever version you're on.</p>
     <button class="go" id="start" type="button">Have a look</button>
+    <p class="stamp">version <b>${BUILD}</b> &middot; if that looks older than you expect, you are seeing a saved copy &mdash; reopen the link in a private tab</p>
   </div>
 </div>
 
