@@ -21,7 +21,9 @@ _Design session on #175. New primary evidence `job-card-desktop.prototype.html`;
 - **Score dialect travels (ticket item 3):** /100 under the number, steel/bronze/gold arc, tier
   word, identical ★ Top match badge at 90+ — now in **both** card prototypes (a 92 job heads each
   deck as evidence; badge replaces the tier word at 90+ rather than doubling it). Thresholds
-  50/75/90 remain owner-flagged for the deliberate pre-build pass.
+  50/75/90 remain owner-flagged for the deliberate pre-build pass — now homed in **#177**
+  (pass against real score distributions; blocked by the E5 scoring build; must land before
+  the ladder ships on any surface).
 - **Copy sweep (#169) + decline audit (#171 item 2):** button is "Not for this one" (scope-naming
   register wording; stamps keep "Want it" / "Not for me" per the ticket); "Read the full job
   post"; the folded post moved directly under title + score (owner). Confirmed: the card's no is
