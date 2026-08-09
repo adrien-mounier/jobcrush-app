@@ -2,6 +2,27 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 (session 98) — Knowledge-graph rebuild, the onboarding.ts ratchet, and the family-floor glossary pin
+
+_Graphify full rebuild over the repo (3,230 nodes / 5,583 edges / 242 communities), then two small
+hardening commits that came out of reading the graph._
+
+- The graph named `onboardingRoutes()` the app's biggest cross-community bridge (68 edges, 13
+  communities). Verdict after reading the code: genuinely the journey spine, but accumulating —
+  2,095 lines, 23 endpoints, business-logic helpers (`buildJobCard`, `buildTailorState`) living in
+  the route file. Owner adopted a no-dedicated-refactor rule: extract helpers opportunistically,
+  enforced by a one-way **line-count ratchet test** (`apps/api/test/onboardingRatchet.test.ts`,
+  limit 2095, raise only with owner OK recorded in the commit) + a CLAUDE.md repo rule. Commit
+  `a857300`. Known limit, stated to the owner: an agent *can* edit the limit — the ratchet is a
+  tripwire that makes growth visible and deliberate, not a lock.
+- The graph's AMBIGUOUS edge between the CV brain's "family floor" and the reward design's "ranked
+  essential floor" settled as **one concept, two names** (tailoring-reasoning.md §4 already points
+  at onboarding-reward-design.md §6.2 as the definition). Pinned in `CONTEXT.md` under **Family
+  floor**, with the discriminator-vs-floor #6 misreading recorded beside it. Commit `174f4f9`.
+- Graph caveats recorded honestly: `apps/web/.scratch/big.pdf` unreadable (no poppler on this
+  machine; left unstamped so `--update` retries), 592 dangling semantic edges dropped at build,
+  session-log.md too large for extraction agents to read whole.
+
 ## 2026-08-09 (session 97) - Durable provider spend and live retrieval boundary (#132, #101)
 
 _Orchestrated two backend slices in one isolated worktree; each passed independent Standards, Spec and QA gates._
