@@ -5,14 +5,15 @@ import { describe, expect, it } from "vitest";
 import { CandidateClaims } from "@jobcrush/contracts";
 import { buildServer } from "../src/server.js";
 import {
+  buildTailorInput,
   conservationIssues,
+  Draft,
   eligiblePostings,
   loadPostings,
   matchPosting,
   makePreviewStep,
   renderPreviewHtml,
   tailorDraft,
-  type Draft,
 } from "../src/preview.js";
 import { makeMineStep } from "../src/miner.js";
 import { isTerminal } from "../src/jobs.js";
@@ -31,14 +32,14 @@ const sampleDraft: Draft = {
       employer: "Nordic Retail Group",
       location: "Warsaw, Poland",
       dates: "Mar 2021 - Present",
+      // Claim ids here must be real ids from the recordedClaims() fixture (clean-pdf.json) —
+      // conservationIssues() now cross-checks every claimIds entry against it (#158 must-fix 2).
       bullets: [
-        "Led the checkout replatforming, delivered 2 months early",
-        "Managed a budget of EUR 1.2M across 3 vendor teams",
-        "Ran steering committee reporting for the CIO",
-        "Coordinated cross-functional delivery across vendors",
-        "Owned the release calendar across squads",
-        "Drove risk and dependency management for delivery",
+        { text: "Led the checkout replatforming, delivered 2 months early", claimIds: ["nrg-led-checkout-replatform"] },
+        { text: "Managed a budget of EUR 1.2M across 3 vendor teams", claimIds: ["nrg-managed-budget"] },
+        { text: "Ran steering committee reporting for the CIO", claimIds: ["nrg-steering-committee-reporting"] },
       ],
+      unprinted: [],
     },
   ],
   skills: [{ label: "Delivery", items: ["Jira", "MS Project"] }],
@@ -109,6 +110,29 @@ describe("JC-16 posting match + render", () => {
     expect(html).toContain("&lt;img");
   });
 
+  // #158 AC: a bullet's claim ids are provenance data, not UI — the page keeps rendering the
+  // human text unchanged, and never leaks the ids that back a merge.
+  it("renders a bullet's text but never the claim ids behind it", () => {
+    const merged: Draft = {
+      ...sampleDraft,
+      experience: [
+        {
+          ...sampleDraft.experience[0]!,
+          bullets: [
+            {
+              text: "Led the checkout replatforming and managed its EUR 1.2M budget",
+              claimIds: ["nrg-led-checkout-replatform", "nrg-managed-budget"],
+            },
+          ],
+        },
+      ],
+    };
+    const html = renderPreviewHtml(merged, matchPosting([]));
+    expect(html).toContain("Led the checkout replatforming and managed its EUR 1.2M budget");
+    expect(html).not.toContain("nrg-led-checkout-replatform");
+    expect(html).not.toContain("nrg-managed-budget");
+  });
+
   it("tailorDraft validates the LLM's JSON against the draft schema", async () => {
     const draft = await tailorDraft(await recordedClaims(), matchPosting([]), llmReturning(sampleDraft));
     expect(draft.name).toBe("Maria Kowalski");
@@ -157,23 +181,81 @@ describe("JC-16 posting match + render", () => {
 });
 
 describe("conservation lint — tailor by emphasis, not amputation", () => {
-  it("passes a draft that keeps certs, languages, and current-role density", async () => {
+  it("passes a draft that keeps certs and languages", async () => {
     expect(conservationIssues(await recordedClaims(), sampleDraft)).toEqual([]);
   });
 
-  it("flags dropped certifications, lost languages, and a thinned current role", async () => {
+  it("flags dropped certifications and lost languages", async () => {
     const lossy: Draft = {
       ...sampleDraft,
       certifications: [],
       additional: [],
-      experience: [
-        { ...sampleDraft.experience[0]!, bullets: ["Led the checkout replatforming"] },
-      ],
     };
     const issues = conservationIssues(await recordedClaims(), lossy);
     expect(issues.some((i) => i.includes("certifications lost"))).toBe(true);
     expect(issues.some((i) => i.includes("languages lost"))).toBe(true);
-    expect(issues.some((i) => i.includes("current role too thin"))).toBe(true);
+  });
+
+  // #153/#158: the hidden floor (Math.min(6, sourceBullets) on the newest role) is deleted.
+  // A thin current role is no longer a conservation issue — "first call is not a floor."
+  it("does not flag a thinned current role — the floor was deleted (#153)", async () => {
+    const thin: Draft = {
+      ...sampleDraft,
+      experience: [
+        {
+          ...sampleDraft.experience[0]!,
+          bullets: [
+            {
+              text: "Led the checkout replatforming, delivered 2 months early",
+              claimIds: ["nrg-led-checkout-replatform"],
+            },
+          ],
+        },
+      ],
+    };
+    expect(conservationIssues(await recordedClaims(), thin)).toEqual([]);
+  });
+
+  // #158 must-fix: claim ids are provenance, not decoration — an id the tailor never actually
+  // received must be caught, not merely well-formed. Without this check a fabricated id like
+  // "made-up-claim" passes validation untouched.
+  it("flags a bullet citing a claim id that is not a real source claim", async () => {
+    const claims = await recordedClaims();
+    const fabricated: Draft = {
+      ...sampleDraft,
+      experience: [
+        {
+          ...sampleDraft.experience[0]!,
+          bullets: [
+            {
+              text: "Led the checkout replatforming, delivered 2 months early",
+              claimIds: ["made-up-claim"],
+            },
+          ],
+        },
+      ],
+    };
+    const issues = conservationIssues(claims, fabricated);
+    expect(issues.some((i) => i.includes("made-up-claim"))).toBe(true);
+  });
+
+  it("flags an unprinted entry citing a claim id that is not a real source claim", async () => {
+    const claims = await recordedClaims();
+    const fabricated: Draft = {
+      ...sampleDraft,
+      experience: [{ ...sampleDraft.experience[0]!, unprinted: ["also-made-up"] }],
+    };
+    const issues = conservationIssues(claims, fabricated);
+    expect(issues.some((i) => i.includes("also-made-up"))).toBe(true);
+  });
+
+  it("does not flag claim ids that are real, in bullets or in unprinted", async () => {
+    const claims = await recordedClaims();
+    const valid: Draft = {
+      ...sampleDraft,
+      experience: [{ ...sampleDraft.experience[0]!, unprinted: ["nrg-managed-budget"] }],
+    };
+    expect(conservationIssues(claims, valid)).toEqual([]);
   });
 
   it("does not count education diplomas or experience bullets as certifications", async () => {
@@ -224,6 +306,111 @@ describe("conservation lint — tailor by emphasis, not amputation", () => {
     const lossy = { ...sampleDraft, certifications: [] };
     const draft = await tailorDraft(await recordedClaims(), matchPosting([]), llmReturning(lossy));
     expect(draft.certifications.length).toBe(0); // shipped, flagged via console.warn
+  });
+});
+
+describe("buildTailorInput carries claim ids (#158, #153 falsifiable check)", () => {
+  it("prefixes every claim line with its own id so the tailor can cite it back", async () => {
+    const claims = await recordedClaims();
+    const input = buildTailorInput(claims, matchPosting([]));
+    for (const c of claims.claims) {
+      expect(input).toContain(c.id);
+    }
+    expect(input).toContain(
+      "- nrg-led-checkout-replatform [IT Project Manager - Nordic Retail Group]",
+    );
+  });
+});
+
+describe("Draft schema — bullet spend rail, no floor, claim provenance (#158)", () => {
+  const bullet = (n: number, claimIds: string[] = [`claim-${n}`]) => ({
+    text: `Delivered outcome number ${n} for the team`,
+    claimIds,
+  });
+  const draftWithBullets = (bullets: unknown[], unprinted: string[] = []) => ({
+    ...sampleDraft,
+    experience: [{ ...sampleDraft.experience[0]!, bullets, unprinted }],
+  });
+
+  it("accepts a role with exactly 10 bullets — the rail", () => {
+    const bullets = Array.from({ length: 10 }, (_, i) => bullet(i));
+    expect(() => Draft.parse(draftWithBullets(bullets))).not.toThrow();
+  });
+
+  it("rejects an 11th bullet on one role", () => {
+    const bullets = Array.from({ length: 11 }, (_, i) => bullet(i));
+    expect(() => Draft.parse(draftWithBullets(bullets))).toThrow();
+  });
+
+  it("a 2-bullet role is valid on its own — no floor forces padding", () => {
+    const bullets = [bullet(0), bullet(1)];
+    expect(() => Draft.parse(draftWithBullets(bullets))).not.toThrow();
+  });
+
+  it("rejects a bullet citing no claim — an uncited bullet is treated as invented", () => {
+    const bullets = [bullet(0, [])];
+    expect(() => Draft.parse(draftWithBullets(bullets))).toThrow();
+  });
+
+  it("accepts a merged bullet carrying two source claim ids, visible mechanically", () => {
+    const bullets = [bullet(0, ["nrg-led-checkout-replatform", "nrg-managed-budget"])];
+    const parsed = Draft.parse(draftWithBullets(bullets));
+    expect(parsed.experience[0]!.bullets[0]!.claimIds).toEqual([
+      "nrg-led-checkout-replatform",
+      "nrg-managed-budget",
+    ]);
+  });
+
+  it("records unprinted candidate bullets by claim id instead of discarding them", () => {
+    const bullets = Array.from({ length: 10 }, (_, i) => bullet(i));
+    const parsed = Draft.parse(draftWithBullets(bullets, ["nrg-steering-committee-reporting"]));
+    expect(parsed.experience[0]!.unprinted).toEqual(["nrg-steering-committee-reporting"]);
+  });
+});
+
+describe("tailor prompt pins the #153 decisions (#158 falsifiable check)", () => {
+  async function promptText(): Promise<string> {
+    return readFile(join(fixtures, "..", "prompts", "preview-tailor.md"), "utf8");
+  }
+
+  it("states the spend ladder and the rail of 10, with no per-role cap other than 10", async () => {
+    const prompt = await promptText();
+    expect(prompt).toContain("first call");
+    expect(prompt).toContain("10 bullets");
+    expect(prompt).not.toContain("4-6");
+    expect(prompt).not.toContain("3-4");
+    expect(prompt).not.toContain("reach **8**");
+  });
+
+  it("has no rule that thins a role by its age or by how many roles the candidate has", async () => {
+    const prompt = await promptText();
+    expect(prompt).not.toMatch(/older than ~?8 years/i);
+    expect(prompt).not.toMatch(/compress the oldest/i);
+  });
+
+  it("withdraws merge-never-drop: choosing and reporting what did not print replaces it", async () => {
+    const prompt = await promptText();
+    expect(prompt).not.toContain("merge weak or overlapping bullets instead of dropping");
+    expect(prompt).not.toContain("must never render with fewer bullets than the source supports");
+    expect(prompt).toContain("choose, do not squish");
+    expect(prompt).toContain("unprinted");
+  });
+
+  it("instructs the tailor to cite claim ids on every printed bullet", async () => {
+    const prompt = await promptText();
+    expect(prompt).toContain("claimIds");
+  });
+
+  // docs/cv-brain/cv-authoring-rules.md ("Length and bullet density"): "an advert can still
+  // overrule [the ladder] when an older role is the relevant one" — the ladder is not absolute.
+  it("states the posting can overrule the ladder when an older role is the relevant one", async () => {
+    const prompt = await promptText();
+    expect(prompt).toMatch(/posting can overrule\s+the ladder when an older role is/);
+  });
+
+  it("states the two-page budget as a maximum, matching cv-brain wording", async () => {
+    const prompt = await promptText();
+    expect(prompt).toContain("two pages maximum");
   });
 });
 

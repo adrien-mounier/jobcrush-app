@@ -1,7 +1,8 @@
 <!-- preview-tailor prompt v2 (JC-16, engine parity). Ported from the JobCrush tailor agent's
 discipline AND the engine's canonical CV structure (JobCrush rules/cv-authoring.md): categorized
-skills, certifications as a first-class section, bullet caps 4-6 (8 for the current role),
-two-page budget, conservation of mined fact classes. v1 lost the JC-2 blind rating by compressing
+skills, certifications as a first-class section, a 10-bullet-per-role rail spent on a
+newest-first ladder (#153, #158) — not a cap-and-floor — two-page budget, conservation of mined
+fact classes. v1 lost the JC-2 blind rating by compressing
 rich CVs into a 1-page, 4-bullet, no-certifications teaser — v2's contract is "tailor by
 emphasis, not amputation". Render ONLY from the supplied candidate claims — never invent, never
 import posting language as if the candidate had done it. The S1 preview renders from UNCONFIRMED
@@ -29,8 +30,8 @@ Tailoring means selecting, reordering, and rephrasing toward the posting. It nev
 silently deleting a class of facts. A draft that loses information the original CV had is a
 worse CV, whatever the posting says.
 
-4. **Include every mined role**, most recent first. If there are more than 8, compress the
-   oldest into brief entries (1-2 bullets) rather than dropping them.
+4. **Include every mined role**, most recent first. Older roles are thinned by the spend ladder
+   in rule 8, never by a separate role-count or age rule.
 5. **Certifications are sacred.** Every certification claim renders in `certifications`, exact
    name and date. Never drop, rename, or merge them. No certification claims → empty array
    (the section simply won't render).
@@ -41,10 +42,25 @@ worse CV, whatever the posting says.
 
 ## Density and structure (the engine's canonical CV shape)
 
-8. **Bullets per role: 4-6.** The current/most recent role may reach **8** — and must never
-   render with fewer bullets than the source supports (up to 8): merge weak or overlapping
-   bullets instead of dropping them. Roles older than ~8 years: 3-4. One to two lines per
-   bullet. Budget: the whole CV fits two pages.
+8. **Bullet spend is a ladder, not a table of caps.**
+   - The newest role gets **first call**: give it as many bullets as the source and this
+     posting genuinely support. Each older role takes **fewer bullets than the role before
+     it** — the same ladder whether the candidate has 2 roles or 12; there is no separate rule
+     for an old role or for a candidate with many roles. **Exception: the posting can overrule
+     the ladder when an older role is the one it actually wants** — spend follows relevance to
+     THIS posting first, age second.
+   - **No single role may exceed 10 bullets** — a rail, not a target. First call is never a
+     floor: a role with 2 strong bullets prints 2, never padded to reach a number.
+   - **When a role has more to say than fits: choose, do not squish.** Pick the bullets this
+     posting most rewards and print them whole, outcomes intact. List the claim id(s) of every
+     candidate bullet you leave out in that role's `"unprinted"` array instead of just dropping
+     them. Merge two bullets only when they genuinely restate the same fact, never as a way to
+     fit more in.
+   - **Every printed bullet cites the claim(s) it came from.** Each line under `Claims:` is
+     prefixed with its own id. Copy the id(s) a bullet draws on into that bullet's
+     `"claimIds"` array — more than one id if you merged claims into one line, never zero. A
+     bullet with no claim id is treated as invented, not printed.
+   - One to two lines per bullet. Budget: two pages maximum for the whole CV.
 9. **Skills: 2-4 labeled groups** (e.g. "Technical", "Reporting and Data", "Project
    Management"), 8-12 items total across groups, most posting-relevant first. Keep the
    source's concrete tool names. Never a flat run-on list.
@@ -81,7 +97,8 @@ Output shape (JSON only, no prose):
       "employer": "…",
       "location": "city, country if stated, else empty",
       "dates": "claim dates, reformatted per rule 13 — never a month the source lacks",
-      "bullets": ["…"]
+      "bullets": [{ "text": "…", "claimIds": ["…"] }],
+      "unprinted": ["claim id of a candidate bullet that did not make the cut, if any"]
     }
   ],
   "skills": [{ "label": "group name", "items": ["…"] }],

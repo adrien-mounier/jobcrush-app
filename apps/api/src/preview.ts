@@ -5,15 +5,18 @@
 // PDF export is deliberately absent until the facts are verified (S3/JC-40).
 //
 // The draft schema, prompt, and renderer mirror the JobCrush engine's canonical CV structure
-// (rules/cv-authoring.md): categorized skills, certifications as a first-class section,
-// bullet caps 4-6 (8 for the current role), two-page budget. The conservation lint below
-// enforces "tailor by emphasis, not amputation": mined certifications, languages, and the
-// current role's bullet density may never silently disappear from the draft.
+// (rules/cv-authoring.md): categorized skills, certifications as a first-class section, a
+// 10-bullet-per-role rail spent on a newest-first ladder — not a cap-and-floor (#153/#158) —
+// two-page budget. The conservation lint below enforces "tailor by emphasis, not amputation"
+// for mined certifications and languages; every printed experience bullet carries the source
+// claim id(s) it was built from, and conservationIssues() cross-checks every cited id against
+// the real source claims, so a merge, a silent drop, and an invention are mechanically
+// distinguishable — an id the tailor did not actually receive is flagged, not trusted.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import type { CandidateClaims } from "@jobcrush/contracts";
+import { SLUG, type CandidateClaims } from "@jobcrush/contracts";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
 import type { RawCv } from "./extract.js";
@@ -102,7 +105,17 @@ export function matchPosting(
   return best;
 }
 
-const Draft = z.object({
+// A printed experience bullet carries the id(s) of the claim(s) it was built from — one id for a
+// bullet drawn straight from a single claim, more than one when the tailor merged claims into one
+// line. A bullet with no claim id fails validation here; conservationIssues() below then
+// cross-checks every id against the real source claims, so a fabricated id (well-formed but
+// never actually issued) is caught too, not just a missing one (#153, #158).
+const ExperienceBullet = z.object({
+  text: z.string().min(1),
+  claimIds: z.array(z.string().regex(SLUG)).min(1),
+});
+
+export const Draft = z.object({
   name: z.string().min(1),
   headline: z.string().min(1),
   contact: z.string().default(""),
@@ -114,7 +127,14 @@ const Draft = z.object({
         employer: z.string(),
         location: z.string().default(""),
         dates: z.string().default(""),
-        bullets: z.array(z.string()).min(1).max(8),
+        // The rail is 10 — a guard rail, not a cap-and-floor. There is no separate per-role
+        // minimum: a role with 2 good bullets prints 2 (docs/cv-brain/cv-authoring-rules.md,
+        // "Length and bullet density").
+        bullets: z.array(ExperienceBullet).min(1).max(10),
+        // Candidate bullets the tailor chose not to print for this role, by claim id — kept, not
+        // discarded, so a future "N more not shown" control (#157, out of scope here) has data to
+        // work from.
+        unprinted: z.array(z.string().min(1)).default([]),
       }),
     )
     .min(1)
@@ -155,7 +175,10 @@ export function buildTailorInput(
   posting: Posting,
   headerText = "",
 ): string {
-  const claimLines = claims.claims.map((c) => `- [${c.role}] ${c.text}`).join("\n");
+  // Each line leads with the claim's own id so the tailor can cite it back in a printed
+  // bullet's "claimIds" (#153, #158) — previously stripped here, which made a merge, a silent
+  // drop, and an invention indistinguishable downstream.
+  const claimLines = claims.claims.map((c) => `- ${c.id} [${c.role}] ${c.text}`).join("\n");
   const roles = claims.roles
     .map((r) => `- ${r.title} at ${r.employer} (${r.dates_as_written || "dates not stated"})`)
     .join("\n");
@@ -203,26 +226,28 @@ export function conservationIssues(claims: CandidateClaims, draft: Draft): strin
     );
   }
 
-  // Current-role bullet floor: the most recent role must keep its density (up to the cap of 8).
-  // Halving a strong recent role is the single biggest quality regression a tailor can make.
-  const recent = claims.roles[0];
-  if (recent) {
-    const key = (s: string) => s.toLowerCase().slice(0, 12);
-    const sourceBullets = claims.claims.filter(
-      (c) =>
-        c.role.toLowerCase().includes(key(recent.employer)) &&
-        c.role.toLowerCase().includes(key(recent.title)),
-    ).length;
-    const entry = draft.experience.find((e) =>
-      e.employer.toLowerCase().includes(key(recent.employer)),
-    );
-    const floor = Math.min(6, sourceBullets);
-    if (entry && entry.bullets.length < floor) {
-      issues.push(
-        `current role too thin: "${recent.title}" has ${entry.bullets.length} bullets but the ` +
-          `source supports ${sourceBullets}. Render at least ${floor} (up to 8) — merge weak ` +
-          `bullets instead of dropping them.`,
-      );
+  // Claim-id provenance: every id a bullet or an "unprinted" list cites must be a real source
+  // claim id. This is the actual mechanical check behind the header comment's claim — without
+  // it, a tailor could cite a fabricated id (e.g. "made-up") and pass validation untouched.
+  const realIds = new Set(claims.claims.map((c) => c.id));
+  for (const role of draft.experience) {
+    for (const b of role.bullets) {
+      for (const id of b.claimIds) {
+        if (!realIds.has(id)) {
+          issues.push(
+            `unknown claim id "${id}" cited by a bullet in "${role.role}" — every claimIds ` +
+              `entry must be a real source claim id, never invented.`,
+          );
+        }
+      }
+    }
+    for (const id of role.unprinted) {
+      if (!realIds.has(id)) {
+        issues.push(
+          `unknown claim id "${id}" in "${role.role}"'s unprinted list — every unprinted ` +
+            `entry must be a real source claim id, never invented.`,
+        );
+      }
     }
   }
 
@@ -305,7 +330,9 @@ export function renderPreviewHtml(
         `<div class="role"><div class="role-head"><strong>${esc(employer)}</strong>` +
         `<span class="dates">${esc(e.dates)}</span></div>` +
         `<div class="role-title">${esc(e.role)}</div>` +
-        `<ul>${e.bullets.map((b) => `<li>${esc(b)}</li>`).join("")}</ul></div>`
+        // Renders the bullet's human text only — claimIds/unprinted are provenance data for a
+        // future control (#157), never shown on the page itself.
+        `<ul>${e.bullets.map((b) => `<li>${esc(b.text)}</li>`).join("")}</ul></div>`
       );
     })
     .join("");

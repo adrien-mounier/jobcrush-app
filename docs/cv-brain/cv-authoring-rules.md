@@ -273,14 +273,18 @@ from**. This is what makes the three rules above checkable rather than merely st
 ⚠️ **Honest limit:** the writer assigns these ids and will sometimes assign them wrongly. This buys
 **checkable**, not **correct**.
 
-🚨 **Three code sites contradict this section today and none has been changed** (this was a decision
-pass, not a build): `apps/api/src/preview.ts` still hard-rejects an 11th bullet
-(`bullets: …max(8)`) and still enforces a **floor** of `Math.min(6, sourceBullets)` on the newest
-role · `apps/api/prompts/preview-tailor.md` rule 8 still states the 4-6 / 8 / 3-4 ladder and still
-instructs *"merge weak or overlapping bullets instead of dropping them"* · and `buildTailorInput()`
-**strips claim ids** before sending, so no printed bullet can carry one. **None of this section is
-live until those land.** Rule 4's separate recency rule (*"if there are more than 8 roles, compress
-the oldest into 1-2 bullets"*) folds into the spend ladder and stops being a second hidden rule.
+✅ **This section is live** (#158, built 2026-08-09; it was decided on #153). The three code sites
+that contradicted it have been changed: `apps/api/src/preview.ts` now enforces the rail of 10 with
+**no floor** (the `Math.min(6, sourceBullets)` current-role floor is deleted), every printed bullet
+carries `claimIds` validated against the real source claims by `conservationIssues()` (a fabricated
+id is flagged by name), and each role records its `unprinted` candidate bullets by claim id ·
+`apps/api/prompts/preview-tailor.md` rule 8 states the spend ladder — with the posting-relevance
+exception above — and *"merge weak or overlapping bullets instead of dropping them"* is withdrawn
+in favour of choose-and-record · `buildTailorInput()` sends each claim **with its id**. Rule 4's
+separate recency rule (*"if there are more than 8 roles, compress the oldest into 1-2 bullets"*)
+folded into the spend ladder and stopped being a second hidden rule. Honest limit that remains:
+nothing yet checks that cited ∪ unprinted **covers** the source — a claim dropped without being
+listed passes silently (the *"N more not shown"* control is #157's build).
 
 **Visual formatting and section design** — full reference: `/research_result/2026-06-09_cv-formatting-design-standards.md`. Apply on every CV write:
 - **Section order is fixed by the root CV** (Summary, Professional Experience, Personal Projects, Skills, Education, Additional Information). Never move Skills above Professional Experience (council-validated 2026-06-11).
