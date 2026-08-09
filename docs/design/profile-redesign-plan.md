@@ -27,7 +27,11 @@ A fresh session opened with *"let's work on `docs/design/profile-redesign-plan.m
 | R2-a | 2 + 3 — colour/count semantics, category table, stretch word | **done — 2026-08-09** |
 | R2-b | 4 — CV-section regroup audit → its own ticket | **done — 2026-08-09 (#178)** |
 | R2-c | 5 — list view + constellation restructure | **done — 2026-08-09** |
-| R2-d | 1 — rail: Location + eligibility, Job Family | **open — next** |
+| R2-d | 1 — rail: Location + eligibility, Job Family | **done — 2026-08-09 (#179, #180)** |
+
+**Round 2 is complete** — all four sessions closed. What remains is build work, not design:
+#179 (family → sibling-titles data), #180 (market-keyed work rights), and the job-attribution
+contract addition carried out of R2-c.
 
 ### Decisions already taken (do not reopen)
 
@@ -45,43 +49,40 @@ not reopened and stands unless a session below explicitly reopens it.
 
 ---
 
-## Part 1 — The right rail: Location and Job Family sections
+## Part 1 — The right rail: Location and Job Family sections ✅ DECIDED (R2-d, 2026-08-09)
 
-**What the owner wants**
+**Decision record: the R2-d comment on #176.** Prototype evidence in the round-2 file
+(`apps/web/prototypes/profile-desktop.prototype.html`); screenshots `screenshots/r2d-*.png`.
+Backend tickets written this session: **#179** (family → sibling-titles data — the `KIN_TITLES`
+one-family stub cannot ship) · **#180** (work-rights answers are market-blind today).
 
-- Two distinct rail sections, each with a dedicated icon:
-  1. **Location** — where you're searching. **Eligibility moves here** (out of the
-     constellation/list), editable in place — e.g. work rights ("can you work in X without
-     sponsorship") lives with the location it is about.
-  2. **Job family** — the role searched (e.g. *IT project manager*) plus, in a nice design, the
-     **related roles of the same family** (*project manager, delivery manager, …*).
+**Decisions (owner, session R2-d):**
 
-**Decided ground it touches**
+- **The "Searching" card splits into 📍 Location and 💼 Job family** — the two halves of the
+  search promise, each with its own icon. Everything in both corrects one way: the original
+  question re-opens with the answer kept (#120 re-homed; the rail is never an editor). The
+  area-change flow is #173's as specced (validation, coverage, honest fetching).
+- **Job family is display + one door back.** Role as typed · sibling titles ("Also searching") ·
+  open-jobs count (owner kept it) · one action — *"Not the job you meant?"* — re-opening the
+  original role question pre-filled. Chosen over display-only (a mis-read role would be visible
+  yet unfixable) and over per-title toggles (a new preference class + retrieval change + re-pull
+  semantics, unjustified).
+- **Work rights is per-market**, living in Location labelled with the current area: switching
+  market keeps every old answer and shows the new place's question honestly open ("Answer it
+  now") — available, never a forced re-ask. #173's "nothing re-asked" check stands: nothing
+  lost, nothing re-asked; one new question about the new place becomes available. Store → #180.
+- **Languages have no rail line at all** — owner decision revising #178 decision 3's read-only
+  rail summary: the rail line was a signpost, never a door, and it broke Location's rule (what
+  sits there belongs to the current place and re-asks on a switch; languages follow you
+  everywhere). The field's LANGUAGES section remains the single home and editing door. The rail
+  holds only place- and family-scoped answers.
+- **Years in this family** displays under Job family: worked out, display-only (ADR-0008, the
+  Mei rule), and **per family** — it recounts when the family changes (Camille: 8 years in
+  delivery, 2 as a business analyst, from the same jobs). Falsifiable check in the prototype:
+  no control writes the number; the only door points at the jobs beneath it.
 
-- #173: the search-area change was decided onto the profile this session — the Location section is
-  its home. #173's validation, coverage message and "fetching new market" waiting state apply.
-- #120 (owner ruling): **no per-case eligibility editor** — the general mechanism is "listed, shows
-  where it came from, correctable by re-opening the original question with the answer kept."
-  Moving eligibility into the Location section must stay that mechanism, only re-homed.
-
-**To audit / open questions**
-
-- **Which eligibility facts move?** Work rights → Location is natural. **Languages are both** an
-  eligibility answer *and* a CV section (Part 4's LANGUAGES). Decide the single editing surface —
-  two doors to the same answer is how contradictions ship. Years-experience is worked out, never
-  edited anywhere (ADR-0008, the Mei rule) — it must not appear as editable here.
-- **Job family data: does it exist?** ✅ **Prefetched during R2-b:** a family → sibling-titles
-  mapping exists today only as a **hardcoded one-family stub** (`KIN_TITLES` in
-  `apps/api/src/discovery.ts`: IT project manager → programme manager, delivery manager, project
-  lead, …). Real data for the rail needs its own small backend ticket — write it in R2-d.
-  (Concept elsewhere in the model: posting family fit — E5/#86; family floor — CONTEXT.md; family
-  authority in retrieval — #101. The cv-brain role taxonomy remains a candidate source.)
-- What is the family section *for*, product-wise? Display only ("your search covers these"), or a
-  control ("also search these")? The answer changes the design entirely. **Owner to decide in the
-  session.**
-
-**Deliverable:** rail design in the round-2 prototype; a backend ticket if the family mapping
-doesn't exist.
+**Eligibility re-homing, summarised:** years → the family · work rights → the place · languages
+→ the person (the field). Each answer lives with the noun it is about.
 
 ---
 
@@ -154,7 +155,8 @@ the normative home for the five audit answers. The short version:
 2. **Orphan (no-job) facts get an "About you" group, first in the list** — the one stated
    exception to the section list. The "Professional Summary" heading dies on the profile.
 3. **Languages: the profile LANGUAGES section is the single editing door** (#120 mechanism
-   unchanged); the Part 1 rail shows a read-only summary that links there.
+   unchanged). ~~The Part 1 rail shows a read-only summary that links there~~ — **revised R2-d
+   (owner): no rail line at all**; the rail holds only place- and family-scoped answers.
 
 **Carried into R2-c:** job sub-clusters are supported (every experience claim carries its job;
 #161 makes it durable) but the profile payload doesn't pass job attribution through yet — small
@@ -213,8 +215,9 @@ prototype updated, this plan's section marked done.
   entirely (see "Decisions already taken"). Consequence for Part 5: the grey layer is *held-out
   facts only*; the stretch word (Part 3) is still needed, but for the tailor/proposal surfaces,
   not the profile.
-- ✅ ~~Languages: one editing surface~~ — closed R2-b: the profile LANGUAGES section is the single
-  editing door; the rail summary is read-only and links there.
+- ✅ ~~Languages: one editing surface~~ — closed R2-b, sharpened R2-d: the profile LANGUAGES
+  section is the single editing door **and the only surface** — the owner dropped the rail
+  summary line entirely (no rail line at all).
 - ✅ ~~"Root CV" vs "current CV"~~ — closed R2-a: gold describes the **root CV**; applying never
   recolours the profile.
 - ✅ ~~§8.1 profile-vs-CV distance~~ — closed R2-b: narrowed on purpose (ratified); the remaining

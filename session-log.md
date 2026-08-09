@@ -2,6 +2,31 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 (session R2-d) — Part 1 DECIDED (#176): the rail splits into Location and Job family; round 2 complete
+
+_Design session on #176 Part 1, running `docs/design/profile-redesign-plan.md` — the last open
+session; the round-2 plan is done. Rail built in
+`apps/web/prototypes/profile-desktop.prototype.html`; screenshots `screenshots/r2d-*.png`;
+decisions posted on #176; backend tickets #179 + #180 filed._
+
+- **The "Searching" card splits into 📍 Location and 💼 Job family** — the two halves of the
+  search promise; every correction re-opens the original question with the answer kept (#120
+  re-homed; the rail is never an editor). #173's area-change flow applies as specced.
+- **Job family = display + one door back (owner):** role as typed, sibling titles, open-jobs
+  count (kept), and *"Not the job you meant?"* re-opening the role question pre-filled. Family
+  data is a one-family stub → **#179**.
+- **Work rights = per-market (owner):** lives in Location labelled with the current area; a
+  switch keeps old answers and opens the new place's question honestly ("Answer it now"). The
+  store is market-blind today → **#180**.
+- **Languages: no rail line at all (owner, revising #178 decision 3's rail summary):** the
+  field's LANGUAGES section is the single home + editing door; the rail holds only place- and
+  family-scoped answers.
+- **Years in this family:** worked out, display-only (the Mei rule), **per-family recount**
+  (8 yrs delivery / 2 yrs analysis from the same jobs). Prototype falsifiable check: no control
+  writes the number.
+- Eligibility re-homing summary: years → the family · work rights → the place · languages → the
+  person (the field).
+
 ## 2026-08-09 (session R2-c) — Part 5 + constellation DECIDED (#176): style B hybrid list on the CV sections, per-job gold ordering, weighted sky with job sub-constellations
 
 _Design session on #176 Part 5, running `docs/design/profile-redesign-plan.md`. Round-2 prototype

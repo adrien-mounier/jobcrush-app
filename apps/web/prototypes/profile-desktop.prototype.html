@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>JobCrush — profile desktop, round 2: CV sections</title>
+<title>JobCrush — profile desktop, round 2: sections + rail</title>
 <!-- PROTOTYPE — throwaway. Design ticket #176 ROUND 2 (session R2-c), built on
      the decisions of R2-a (#176) and R2-b (#178):
 
@@ -29,7 +29,31 @@
      ring centre at 200 accepted as night-sky atmosphere.
      Plus the lopsided SCALE test #178 ordered: 6 · 28 · 200 facts, one huge
      experience cluster dominating. 200-fact data is generated stress data —
-     judge density, not sentences. Not production code. -->
+     judge density, not sentences.
+
+     SESSION R2-d (Part 1 — the rail), decisions applied:
+       - The "Searching" card splits into LOCATION and JOB FAMILY, each with
+         its own icon — the two halves of the search promise, each editable
+         only by re-opening its original question with the answer kept
+         (#120 mechanism, re-homed; never an editor).
+       - Work rights lives in LOCATION and is shown as belonging to the
+         CURRENT market: switch area → the old answer is kept, the new
+         market's question is honestly open. Backend note: the stored
+         answer is not market-keyed today — on the ticket.
+       - Languages: NO rail line (owner, R2-d — revises R2-b's note that
+         the rail shows a read-only summary; a rail line was a signpost,
+         never a door). The field's LANGUAGES section remains the single
+         home and editing door; the rail holds only place- and
+         family-scoped answers.
+       - JOB FAMILY is DISPLAY + ONE DOOR BACK (owner, R2-d): the sibling
+         titles one search covers, and "Not the job you meant?" re-opens
+         the original role question. Family data is a one-family stub
+         today (KIN_TITLES in discovery.ts) — backend ticket this session.
+       - Years in this family: worked out, DISPLAY-ONLY (the Mei rule,
+         ADR-0008). FALSIFIABLE CHECK: no control in this file writes the
+         years number — the only door points at the jobs beneath it.
+
+     Not production code. -->
 <style>
   :root {
     --hud-0: #0d1116; --hud-1: #151a21; --hud-2: #1d242d; --hud-line: #29313b;
@@ -201,6 +225,31 @@
   .unmute:hover { text-decoration: underline; }
   .mempty { font-size: 12px; color: var(--hud-mute); margin: 0; line-height: 1.55; }
 
+  /* R2-d — the two rail sections */
+  .panel h3 { display: flex; align-items: center; gap: 8px; }
+  .panel h3 .pic { width: 14px; height: 14px; color: var(--hud-mute-2); flex: 0 0 auto; }
+  .erow { border-top: 1px solid var(--hud-line); padding: 11px 0 2px; margin-top: 12px; }
+  .elabel { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--hud-mute); margin: 0 0 5px; display: flex; gap: 7px; align-items: baseline; }
+  .elabel .ewhere { margin-left: auto; letter-spacing: .08em; color: var(--settled); }
+  .etxt { font-size: 13.5px; line-height: 1.45; color: var(--hud-ink); margin: 0 0 3px; }
+  .esrc { font-size: 11.5px; color: var(--hud-mute); margin: 2px 0 0; line-height: 1.45; }
+  .esrc b { color: #b9c3cd; font-weight: 600; }
+  .eact { appearance: none; background: none; border: none; font: inherit; font-size: 12px;
+    color: var(--gold); cursor: pointer; padding: 5px 0 0; display: block; text-align: left; }
+  .eact:hover { text-decoration: underline; }
+  .qbox { margin-top: 4px; }
+  .qbox .qq { font-size: 13px; color: #dbe2e9; margin: 0 0 8px; line-height: 1.4; }
+  .qopts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sbtn.kept { border-color: var(--gold-lo); color: var(--gold-hi); }
+  .keepnote { font-size: 11px; color: var(--hud-mute); margin: 8px 0 0; line-height: 1.5; }
+  .kinline { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 7px; }
+  .kintag { font-size: 11px; line-height: 1.2; padding: 4px 9px; border-radius: 999px;
+    border: 1px solid #2a333e; color: #aab5c0; background: rgba(29,36,45,.5); cursor: default; }
+  .rolein { width: 100%; font: inherit; font-size: 13px; color: var(--hud-ink); background: var(--hud-2);
+    border: 1px solid var(--hud-line); border-radius: 8px; padding: 8px 10px; margin: 2px 0 9px; }
+  .rolein:focus { outline: 1.5px solid var(--gold-lo); }
+
   /* sky */
   .skywrap { position: absolute; inset: 0; }
   .skywrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -233,9 +282,9 @@
 <body>
 
 <div class="ask-brief">
-  <h1>Ticket #176, round 2 (R2-c) — the profile rebuilt on the CV's own sections</h1>
-  <p>Shape A stands (round 1). Colour law v2 stands (R2-a). Structure is now the CV's sections per #178: <strong>About you</strong> first (orphan facts — the one profile-only group), then <strong>experience sub-clustered by job</strong>, projects, skills, certifications, education, languages, additional. Nothing empty is ever drawn. Eligibility rows have left the field — they move to the rail in R2-d. Languages stay: the section is their single editing door.</p>
-  <p><strong>The fork — decided (owner, R2-c, 2026-08-09): B is the list</strong> — sentence facts as rows, word facts (skills, certifications, languages, additional) as chips. A and C stay switchable as the comparison record. Also ratified: gold-above-grey applies <em>per job</em>, and the constellation's weighted section slices with jobs as sub-constellations. <strong>The scale test (Facts):</strong> 6 · 28 · 200, lopsided — one huge experience cluster. At 200 the data is generated stress filler: judge <em>density and navigation</em>, not the sentences. Flip Sorted/Constellation at each scale.</p>
+  <h1>Ticket #176, round 2 (R2-d) — the rail: Location and Job family</h1>
+  <p>The old "Searching" card bundled two nouns. It is now the rail's two standing sections, each with its own icon, each holding the eligibility answers that belong to it. <strong>Location</strong>: the search area (same change flow — #173's validation, coverage, honest fetching) plus <strong>work rights, shown as belonging to the current place</strong> — switch market and your old answer is kept while the new place's question is honestly open. Languages have <strong>no rail line at all</strong> (owner, R2-d — revising R2-b's read-only-summary note): they live solely in the field's Languages section, the single editing door. <strong>Job family</strong>: the role as you typed it, the sibling titles one search covers, and <strong>years in this family — worked out from your jobs, never editable here</strong>: fix the jobs and the number follows.</p>
+  <p><strong>The fork — decided (owner, R2-d, 2026-08-09): the family section is display + one door back.</strong> Its one action — <em>Not the job you meant?</em> — re-opens the original role question with your answer kept, the same mechanism every correction uses (#120). Try it: type "business analyst". <strong>Two proposals for reaction, not yet decided:</strong> the open-jobs count under the sibling titles, and the per-market work-rights re-ask (the stored answer is not market-keyed today — backend note on the mapping ticket). R2-c's Style/Facts switchers stay for the comparison record.</p>
 </div>
 
 <div class="app" id="app"></div>
@@ -398,9 +447,23 @@ const SECS = [
 ];
 const WORDY = new Set(["skill", "cert", "lang", "addl"]);
 
+// R2-d: the family → sibling-titles stub, canned like KIN_TITLES in discovery.ts.
+// One extra family so the "Not the job you meant?" door has somewhere to go.
+const FAMILIES = {
+  delivery: { kin: ["programme manager", "delivery manager", "project lead", "PMO lead"], count: 142, years: 8 },
+  analysis: { kin: ["business analyst", "functional consultant", "product analyst", "data analyst"], count: 96, years: 2 },
+};
+const resolveFam = text => /analyst|analysis/i.test(text) ? FAMILIES.analysis : FAMILIES.delivery;
+
 let S = {
   view: "sorted", style: "B", scale: 28, sel: null,
   role: "IT project manager", area: "Paris", changing: false, fetching: null,
+  roleChanging: false, roleFetching: null,
+  kin: FAMILIES.delivery.kin, count: FAMILIES.delivery.count, years: FAMILIES.delivery.years,
+  // work rights, kept PER MARKET — the design statement of R2-d: an answer
+  // about Paris never silently becomes an answer about Hong Kong.
+  rights: { Paris: { ok: true, when: "during sign-up" } },
+  rightsOpen: false,
   mutes: [
     { kind: "offer", what: "Vendor-management boost", origin: "Stopped while looking at Senior IT PM, Atos — 2 days ago" },
     { kind: "ask", what: "Security clearance", origin: "Stopped during sign-up — last week" },
@@ -462,21 +525,85 @@ function detailPanel() {
   </div>`;
 }
 
-function searchPanel() {
-  let body;
+// --- R2-d: the two rail sections — the search promise split into its nouns ---
+const PIC = {
+  pin: `<svg class="pic" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M7 12.6C9.7 9.7 11.4 7.5 11.4 5.4a4.4 4.4 0 1 0-8.8 0c0 2.1 1.7 4.3 4.4 7.2z"/><circle cx="7" cy="5.4" r="1.5"/></svg>`,
+  work: `<svg class="pic" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.8" y="4.4" width="10.4" height="7.2" rx="1.6"/><path d="M5 4.4V3.3a1.1 1.1 0 0 1 1.1-1.1h1.8A1.1 1.1 0 0 1 9 3.3v1.1M1.8 7.4h10.4"/></svg>`,
+};
+
+function locationPanel() {
+  let areaBody;
   if (S.fetching) {
-    body = `<p class="fetching">Fetching ${esc(S.fetching)} jobs… nothing you've answered is re-asked.</p>`;
+    areaBody = `<p class="fetching">Fetching ${esc(S.fetching)} jobs… nothing you've answered is re-asked.</p>`;
   } else if (S.changing) {
-    body = `<div class="search-opts">
+    areaBody = `<div class="search-opts">
       <button class="sbtn" data-area="Hong Kong">Hong Kong</button>
       <button class="sbtn" data-area="Singapore">Singapore</button>
       <button class="sbtn" data-area="">Keep ${esc(S.area)}</button>
     </div>`;
   } else {
-    body = `<div class="search-line"><span class="what">${esc(S.role)} · ${esc(S.area)}</span>
+    areaBody = `<div class="search-line"><span class="what">${esc(S.area)}</span>
       <button class="chg" id="chg">Change</button></div>`;
   }
-  return `<div class="panel"><h3>Searching</h3><p class="sub">Where your jobs come from.</p>${body}</div>`;
+
+  // work rights — an answer about a place, shown with the place it is about
+  const r = S.rights[S.area];
+  let rights;
+  if (S.rightsOpen) {
+    rights = `<div class="qbox"><p class="qq">Can you work in ${esc(S.area)} without sponsorship?</p>
+      <div class="qopts">
+        <button class="sbtn ${r && r.ok ? "kept" : ""}" data-rights="yes">Yes</button>
+        <button class="sbtn ${r && !r.ok ? "kept" : ""}" data-rights="no">No — I'd need a sponsor</button>
+        <button class="sbtn" data-rights="">Not now</button>
+      </div>
+      ${r ? `<p class="keepnote">Your answer stays until you replace it.</p>` : ""}</div>`;
+  } else if (r) {
+    rights = `<p class="etxt">${r.ok ? `You can work in ${esc(S.area)} without sponsorship.` : `You'd need a sponsor in ${esc(S.area)}.`}</p>
+      <p class="esrc"><b>You told me this</b> — ${esc(r.when)}.</p>
+      <button class="eact" id="rightsChange">Change this answer</button>`;
+  } else {
+    const kept = Object.keys(S.rights);
+    rights = `<p class="etxt">Can you work in ${esc(S.area)} without sponsorship? I haven't asked yet.</p>
+      ${kept.length ? `<p class="esrc">Your ${kept.map(esc).join(" and ")} answer${kept.length > 1 ? "s are" : " is"} kept — this is a new place.</p>` : ""}
+      <button class="eact" id="rightsChange">Answer it now</button>`;
+  }
+
+  // languages have NO rail line (owner, R2-d): they live solely in the field's
+  // LANGUAGES section, the single editing door. The rail holds only place- and
+  // family-scoped answers.
+  return `<div class="panel"><h3>${PIC.pin}Location</h3><p class="sub">Where you're searching.</p>
+    ${areaBody}
+    <div class="erow"><p class="elabel">Work rights <span class="ewhere">${esc(S.area)}</span></p>${rights}</div></div>`;
+}
+
+function familyPanel() {
+  let body;
+  if (S.roleFetching) {
+    body = `<p class="fetching">Fetching ${esc(S.roleFetching)} jobs… nothing you've answered is re-asked.</p>`;
+  } else if (S.roleChanging) {
+    body = `<div class="qbox"><p class="qq">What job are you looking for?</p>
+      <input class="rolein" id="rolein" type="text" value="${esc(S.role)}">
+      <div class="qopts">
+        <button class="sbtn" id="roleGo">Search this</button>
+        <button class="sbtn" id="roleKeep">Keep ${esc(S.role)}</button>
+      </div>
+      <p class="keepnote">Your answer stays until you replace it.</p></div>`;
+  } else {
+    const kin = S.kin.filter(k => k.toLowerCase() !== S.role.toLowerCase());
+    body = `<div class="search-line"><span class="what">${esc(S.role)}</span></div>
+      <div class="erow"><p class="elabel">Also searching</p>
+        <div class="kinline">${kin.map(k => `<span class="kintag">${esc(k)}</span>`).join("")}</div>
+        <p class="esrc"><b>${S.count} jobs open</b> across these titles right now.</p>
+        <button class="eact" id="roleDoor">Not the job you meant?</button>
+      </div>`;
+  }
+  // worked out, display-only (the Mei rule): the only door points at the jobs
+  // beneath it — and the number is PER FAMILY, so changing family recounts it
+  const years = `<div class="erow"><p class="elabel">Years in this family</p>
+    <p class="etxt">${S.years} years — worked out from your jobs.</p>
+    <p class="esrc">If it looks wrong, fix the jobs — the number follows.</p>
+    <button class="eact" id="goexp">See the jobs it's counted from</button></div>`;
+  return `<div class="panel"><h3>${PIC.work}Job family</h3><p class="sub">The job you're looking for.</p>${body}${years}</div>`;
 }
 
 function mutePanel() {
@@ -532,7 +659,7 @@ function secBlock(s) {
   else if (s.k === "proj") body = projBlocks(s.items);
   else if (S.style === "B" && WORDY.has(s.k)) body = chipsOf(s.items);
   else body = rowsOf(s.items);
-  return `<section class="sec">${head}${body}</section>`;
+  return `<section class="sec" data-k="${s.k}">${head}${body}</section>`;
 }
 
 function sortedList() {
@@ -765,7 +892,7 @@ function render() {
     <div class="field ${S.view === "sky" ? "skymode" : ""}" id="field">
       ${S.view === "sky" ? skyShell : `${headHtml()}${sortedList()}`}
     </div>
-    <div class="rail">${S.view === "sky" ? headHtml() : ""}${detailPanel()}${searchPanel()}${mutePanel()}</div>
+    <div class="rail">${S.view === "sky" ? headHtml() : ""}${detailPanel()}${locationPanel()}${familyPanel()}${mutePanel()}</div>
   </div></div>`;
   if (S.view === "sky") startSky(id => { S.sel = id; render(); });
   wire();
@@ -798,6 +925,42 @@ function wire() {
     if (a) { S.fetching = a; render(); setTimeout(() => { S.area = a; S.fetching = null; render(); }, 1600); }
     else render();
   });
+  // R2-d: work rights — re-opens the one original question, answer kept
+  const rc = $("#rightsChange");
+  if (rc) rc.onclick = () => { S.rightsOpen = true; render(); };
+  $$("[data-rights]").forEach(b => b.onclick = () => {
+    const v = b.dataset.rights;
+    S.rightsOpen = false;
+    if (v) S.rights[S.area] = { ok: v === "yes", when: "just now" };
+    render();
+  });
+  // R2-d: the family door — re-opens the original role question, answer kept
+  const rd = $("#roleDoor");
+  if (rd) rd.onclick = () => {
+    S.roleChanging = true; render();
+    const i = $("#rolein"); if (i) { i.focus(); i.select(); }
+  };
+  const rk = $("#roleKeep");
+  if (rk) rk.onclick = () => { S.roleChanging = false; render(); };
+  const rg = $("#roleGo");
+  if (rg) rg.onclick = () => {
+    const v = ($("#rolein").value.trim() || S.role);
+    S.roleChanging = false; S.roleFetching = v; render();
+    setTimeout(() => {
+      const fam = resolveFam(v);
+      S.role = v; S.kin = fam.kin; S.count = fam.count; S.years = fam.years; S.roleFetching = null;
+      render();
+    }, 1600);
+  };
+  const ri = $("#rolein");
+  if (ri) ri.onkeydown = e => { if (e.key === "Enter") $("#roleGo").click(); };
+  // R2-d: links into the field — the rail never edits, it points
+  const goSection = k => {
+    if (S.view !== "sorted") { S.view = "sorted"; render(); }
+    const el = $(`.sec[data-k="${k}"]`);
+    if (el) el.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "start" });
+  };
+  const ge = $("#goexp"); if (ge) ge.onclick = () => goSection("exp");
   $$("[data-unmute]").forEach(b => b.onclick = () => {
     const i = +b.dataset.unmute;
     const m = S.mutes.splice(i, 1)[0];
