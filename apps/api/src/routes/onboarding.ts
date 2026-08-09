@@ -22,8 +22,9 @@ import {
   type SessionStore,
   type SessionRecord,
 } from "../sessions.js";
-import { buildClaimGraph, kindTag } from "../graph.js";
-import { renderRootCv, SECTIONS } from "../rootcv.js";
+import { buildClaimGraph } from "../graph.js";
+import { renderRootCv } from "../rootcv.js";
+import { buildProfileState } from "../profile.js";
 import { runGate } from "../gate.js";
 import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
@@ -635,11 +636,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     });
 
     // --- #20 the profile screen: session-authenticated, reachable pre-wall (requireSession, not
-    // requireUser — an unverified visitor can already open their own profile). Colour law: a fact is
-    // gold iff its claim id appears in the rendered root CV's trace. That trace is derived from the
-    // same confirmed renderable facts as /onboarding/build; grey otherwise means mined-but-not-yet-
-    // confirmed, i.e. still `pending` in the deck. Rejected/negative claims are stripped entirely
-    // (AC5): the profile never lists what the visitor lacks, while negatives still count in factCount.
+    // requireUser — an unverified visitor can already open their own profile). Assembly + the colour
+    // law live in profile.ts; #179 added the `search` block (the rail's Job family data) there too.
     app.get("/profile", async (req) => {
       const session = requireSession(req);
       const facts = (await deps.claims.list(session.id)).filter(
@@ -653,29 +651,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         session,
         factCount(excludingEligibility(confirmed), excludingEligibility(negatives)),
       );
-      const rootCv = renderRootCv(buildClaimGraph(confirmed));
-      const goldIds = new Set(rootCv.trace.entries.flatMap((e) => e.nodeIds));
-
-      const byTag = new Map<string, ProfileFact[]>();
-      for (const c of facts) {
-        const tag = kindTag(c);
-        const bucket = byTag.get(tag) ?? [];
-        bucket.push({
-          id: c.id,
-          text: c.text,
-          colour: goldIds.has(c.id) ? "gold" : "grey",
-          source: c.origin === "user-authored" ? "told" : "read",
-        });
-        byTag.set(tag, bucket);
-      }
-
-      const domains: ProfileDomain[] = SECTIONS.filter(([tag]) => byTag.has(tag)).map(([tag, heading]) => ({
-        tag,
-        heading,
-        facts: byTag.get(tag)!,
-      }));
-      const payload: ProfileState = { domains, factCount: profileFactCount };
-      return payload;
+      return buildProfileState(facts, confirmed, profileFactCount, session.targetTitles[0] ?? null);
     });
 
     // --- #16 discovery (screen 1a): the answer→CV-line→section-bar loop -------------------------
@@ -1541,23 +1517,6 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       return { stage: "deck" };
     });
   };
-}
-
-// --- #20 profile shape (the pinned frontend contract, apps/web/lib/api.ts) -------------------------
-interface ProfileFact {
-  id: string;
-  text: string;
-  colour: "gold" | "grey";
-  source: "told" | "read";
-}
-interface ProfileDomain {
-  tag: string;
-  heading: string;
-  facts: ProfileFact[];
-}
-interface ProfileState {
-  domains: ProfileDomain[];
-  factCount: number;
 }
 
 // --- #19 card shape (the pinned frontend contract) -----------------------------------------------

@@ -200,6 +200,7 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
   });
   const profileState: ProfileState = {
     factCount: 12,
+    search: { role: "IT project manager", family: null, siblingTitles: [], openJobs: null },
     domains: [
       {
         tag: "experience",

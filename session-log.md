@@ -2,6 +2,27 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 — #179 data-source call DECIDED + the backend half built (honest count, profile search block)
+
+_Owner decision recorded on #179; backend landed this session. The rail's frontend (the honest
+empty state per the #176 R2-d design) stays on #179 for the profile-build session._
+
+- **Decision (owner):** role → family resolution **waits for E5 (#86)** — no interim hand list, no
+  LLM placement at Q1. Until E5, the rail's Job family section is the **honest empty state for
+  everyone** (role as typed + the door; no family, siblings, or count the machine cannot
+  attribute). The count is **real with one producer**; an unmapped role (post-E5) gets the same
+  empty state. The "two families resolve differently" falsifiable check transfers to E5's
+  acceptance. Full record: #179 comment (2026-08-09).
+- **`promiseCount()` is real:** counts live-pool postings whose read-stamped `familyFit` names the
+  family (postings ⋈ ad-requirements by adId). The sign-up promise now says **10, not 142** —
+  honest and small, accepted. Confidence deliberately unthresholded (CONTEXT.md: a weak verdict's
+  meaning is the feed's decision, not the counter's).
+- **`GET /profile` carries `search`** — role verbatim as typed · family `null` · siblingTitles
+  `[]` · openJobs `null` — the #179 payload addition, nulls until E5 lights the seam
+  (`apps/api/src/profile.ts`, mirrored in `apps/web/lib/api.ts`).
+- **Ratchet turned:** profile payload assembly extracted from `routes/onboarding.ts` into
+  `src/profile.ts`; MAX_LINES 2095 → 2054.
+
 ## 2026-08-09 (session R2-d) — Part 1 DECIDED (#176): the rail splits into Location and Job family; round 2 complete
 
 _Design session on #176 Part 1, running `docs/design/profile-redesign-plan.md` — the last open

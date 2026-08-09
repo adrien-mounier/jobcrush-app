@@ -93,7 +93,12 @@ interface ProfileFact {
 interface ProfileResponse {
   domains: Array<{ tag: string; heading: string; facts: ProfileFact[] }>;
   factCount: number;
+  search: { role: string | null; family: string | null; siblingTitles: string[]; openJobs: number | null };
 }
+
+// #179: until E5 places typed roles into families, the search block is the honest empty state for
+// everyone — role exactly as typed, and NO family/siblings/count (never the resolveFamily stub).
+const EMPTY_SEARCH = (role: string | null) => ({ role, family: null, siblingTitles: [], openJobs: null });
 
 describe("#20 profile screen — the colour law over HTTP", () => {
   it("returns gold confirmed facts, grey pending facts under the current product decision, and no rejected facts", async () => {
@@ -164,7 +169,7 @@ describe("#20 profile screen — the colour law over HTTP", () => {
 
     const res = await get(server.app, cookie, "/profile");
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ domains: [], factCount: 1 });
+    expect(res.json()).toEqual({ domains: [], factCount: 1, search: EMPTY_SEARCH(ROLE) });
   });
 
   it("an empty profile (no claims yet) is 200 with no domains, not an error", async () => {
@@ -172,7 +177,21 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     const cookie = await anonSession(server.app);
     const res = await get(server.app, cookie, "/profile");
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ domains: [], factCount: 0 });
+    expect(res.json()).toEqual({ domains: [], factCount: 0, search: EMPTY_SEARCH(null) });
+  });
+
+  // #179 decision (2026-08-09): the rail's Job family data. Until E5 (#86) places roles, the
+  // machine displays no family it cannot honestly attribute — the internal resolveFamily() stub
+  // (which places EVERY role in "IT Project Manager") must never leak into this payload.
+  it("#179: search carries the role exactly as typed and no stub family", async () => {
+    const server = buildServer();
+    const cookie = await anonSession(server.app);
+    await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
+
+    const { search } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    expect(search).toEqual(EMPTY_SEARCH(ROLE));
+    expect(search.role).toBe("IT project manager in Paris, mostly ERP"); // verbatim, never cleaned
+    expect(search.family).not.toBe("IT Project Manager"); // the stub's one answer must not surface
   });
 
   // #106 code-review D1 (2026-08-03, round 3): a decline used to write a claim /profile's factCount

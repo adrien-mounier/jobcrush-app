@@ -16,6 +16,7 @@ async function stubSession(page: Page) {
 
 const PROFILE: ProfileState = {
   factCount: 4,
+  search: { role: "IT project manager in Paris", family: null, siblingTitles: [], openJobs: null },
   domains: [
     {
       tag: "experience",

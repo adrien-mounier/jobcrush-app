@@ -14,6 +14,7 @@ import {
   factCount,
   isNoAnswer,
   parseCity,
+  promiseCount,
   readerQuestion,
   resolveFamily,
   type DiscoveryState,
@@ -217,6 +218,15 @@ describe("#16 discovery routes", () => {
     expect(res.json()).toMatchObject({ stage: "discovery", role: null, questions: [], cvLines: [] });
   });
 
+  // #179: promiseCount is the ONE producer of the open-jobs number — the onboarding promise and
+  // the profile rail both read it. It counts pool postings whose read-stamped familyFit names the
+  // family; a family nothing is stamped for gets a real 0, never a hand number.
+  it("#179: promiseCount counts read-stamped pool postings per family, 0 for an unstamped family", () => {
+    expect(promiseCount("IT Project Manager")).toBe(10); // see the /start test's join note
+    expect(promiseCount("Business Analysis")).toBe(0);
+    expect(promiseCount("")).toBe(0);
+  });
+
   it("family lookup returns the family + kin titles; an empty query is silent", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
@@ -232,7 +242,11 @@ describe("#16 discovery routes", () => {
     const cookie = await anonSession(app);
     const s: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
     expect(s).toMatchObject({ role: ROLE, family: "IT Project Manager", city: "Paris" });
-    expect(s.promise).toMatchObject({ family: "IT Project Manager", city: "Paris", count: 142 });
+    // #179: the count is real now — the postings in the live pool (sample-postings.json) whose
+    // read-stamped familyFit (sample-ad-requirements.json, joined by adId) names this family.
+    // 10 of the 17 pool postings carry a stamp today, all "IT Project Manager". If this fails
+    // after a pool/fixture change, recount the join — never hand-tune the number back.
+    expect(s.promise).toMatchObject({ family: "IT Project Manager", city: "Paris", count: 10 });
     expect(s.essentialRemaining).toBe(3); // 3 essential items in the stub floor
     expect(s.questions.map((q) => q.itemId)).not.toContain("headline-focus"); // nice-to-have not asked
     // #106 code-review must-fix 2: the 3 eligibility questions are visible from Q1 too, appended

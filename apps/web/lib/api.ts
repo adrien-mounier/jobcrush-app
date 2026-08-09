@@ -473,9 +473,22 @@ export interface ProfileDomain {
   facts: ProfileFact[];
 }
 
+// #179: what the profile rail's Job family section draws. `family` is null for everyone until E5
+// places typed roles into families — the rail renders the honest empty state (role as typed + the
+// "Not the job you meant?" door), never a family the machine cannot attribute. When family is
+// non-null: siblingTitles never contains `role` as typed, and openJobs comes from the same server
+// producer as the onboarding promise count.
+export interface ProfileSearch {
+  role: string | null; // exactly as typed at Q1; null before Q1
+  family: string | null;
+  siblingTitles: string[];
+  openJobs: number | null;
+}
+
 export interface ProfileState {
   factCount: number;
   domains: ProfileDomain[];
+  search: ProfileSearch;
 }
 
 export type SourceEntry =

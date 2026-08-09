@@ -13,7 +13,8 @@
 //     question), so GET /discovery resumes with no client state.
 import type { FloorItem, CvSection, MinedRole, EligibilityDimension } from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
-import { loadFamilyFloor } from "./e5stub.js";
+import { loadFamilyFloor, lookupAdRequirements } from "./e5stub.js";
+import { loadPostings } from "./preview.js";
 
 export const CV_SECTIONS = ["summary", "experience", "skills", "education"] as const;
 
@@ -33,10 +34,6 @@ const KIN_TITLES = [
   "project lead",
   "PMO lead",
 ];
-// A hand "jobs open" count per family — E5/the real market feed replaces this producer (spec §carried
-// risks: the count is stubbed behind the contract). One number is the whole promise (spec §7).
-const STUB_COUNT: Record<string, number> = { [STUB_FAMILY]: 142 };
-
 /** Q1 free text → its job family + the kin titles we search ("same kind of job"). A title that matches
  *  nothing is still placed (spec story #16: accepted in silence) — the stub always returns the family. */
 export function resolveFamily(text: string): { family: string; suggestions: string[] } {
@@ -50,8 +47,20 @@ export function parseCity(text: string): string | null {
   return m?.[1] ?? null;
 }
 
-export function promiseCount(family: string): number | null {
-  return STUB_COUNT[family] ?? null;
+/** #179: the open-jobs count per family — ONE producer for the onboarding promise and the profile
+ *  rail's Job family section, replacing the hand STUB_COUNT (142). Counts postings in the live pool
+ *  (preview.ts's loadPostings — the ingest point) whose read-stamped family fit names this family;
+ *  the stamp is #104's ad-reader output, hand fixtures today (e5stub). A posting never read, or read
+ *  into another family, does not count. Confidence is deliberately not thresholded: deciding what a
+ *  weak family-fit verdict means for the feed is a separate decision that does not belong here
+ *  (CONTEXT.md, posting family fit). 0 is a real answer — a family with nothing stamped for it. */
+export function promiseCount(family: string): number {
+  let count = 0;
+  for (const posting of loadPostings()) {
+    const lookup = lookupAdRequirements(posting.id);
+    if (lookup.status === "found" && lookup.requirements.familyFit.family === family) count += 1;
+  }
+  return count;
 }
 
 /** The CV's lead line — the role the visitor typed is the first line on the page (spec story #18: never
