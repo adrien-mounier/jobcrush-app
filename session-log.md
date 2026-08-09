@@ -2,6 +2,28 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 (session R2-b) — Part 4 audit DONE (#176 → #178): the invented domains never existed; CV sections ratified as the profile's structure
+
+_Audit session on #176 Part 4, running `docs/design/profile-redesign-plan.md`. Audit + decision
+record filed as #178; decisions posted on #176._
+
+- **Headline:** DELIVERY / SECTORS / SCALE / TOOLS were prototype demo fiction — the shipped
+  profile route already buckets facts by the root-CV sections (`kindTag()` → `SECTIONS`). Part 4
+  is a ratification + gap-fix, not a migration.
+- **No authoritative section list existed:** the tailored Draft, the root-CV renderer, and the
+  cv-brain rules disagree three ways (languages/certifications placement, stale "Personal
+  Projects"). Recorded on #178 for cv-brain reconciliation.
+- **Decisions (owner):** (1) ratified — sections are the structure (EXPERIENCE · PROJECTS ·
+  SKILLS · CERTIFICATIONS · EDUCATION · LANGUAGES · ADDITIONAL), §8.1 distance stated not
+  structural (greys, origins, never an editor) · (2) orphan no-job facts → an "About you" group on
+  top; "Professional Summary" dies as a profile heading · (3) languages: the profile section is
+  the single editing door, rail summary read-only — two-doors hazard closed.
+- **Carried to R2-c:** job sub-clusters supported but the profile payload must pass job
+  attribution through; scale test re-runs lopsided (one huge experience cluster).
+- **R2-d prefetch:** family → sibling-titles exists only as a one-family stub (`KIN_TITLES`,
+  `discovery.ts`) — backend ticket to write in R2-d.
+- Ledger: R2-b done; **R2-c (list view + constellation restructure) is next and unblocked.**
+
 ## 2026-08-09 (session R2-a) — Profile semantics DECIDED (#176): queue framing dead, colour law v2 pinned to the root CV, category table swept, the stretch word is "boost"
 
 _Design session (grill format) on #176, running `docs/design/profile-redesign-plan.md` — Parts 2+3

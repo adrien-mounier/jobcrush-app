@@ -25,8 +25,8 @@ A fresh session opened with *"let's work on `docs/design/profile-redesign-plan.m
 | Session | Parts | Status |
 |---|---|---|
 | R2-a | 2 + 3 — colour/count semantics, category table, stretch word | **done — 2026-08-09** |
-| R2-b | 4 — CV-section regroup audit → its own ticket | **open — next** |
-| R2-c | 5 — list view + constellation restructure | open (gated on a + b) |
+| R2-b | 4 — CV-section regroup audit → its own ticket | **done — 2026-08-09 (#178)** |
+| R2-c | 5 — list view + constellation restructure | **open — next** |
 | R2-d | 1 — rail: Location + eligibility, Job Family | open |
 
 ### Decisions already taken (do not reopen)
@@ -70,12 +70,12 @@ not reopened and stands unless a session below explicitly reopens it.
   eligibility answer *and* a CV section (Part 4's LANGUAGES). Decide the single editing surface —
   two doors to the same answer is how contradictions ship. Years-experience is worked out, never
   edited anywhere (ADR-0008, the Mei rule) — it must not appear as editable here.
-- **Job family data: does it exist?** The concept exists in the model (posting family fit — E5/#86;
-  the family floor / ranked essential floor — CONTEXT.md; family authority in retrieval — #101).
-  What the rail needs is different: **sibling role titles of the searched family**. Candidate
-  source: the role taxonomy in `docs/cv-brain/tailoring-reasoning.md`. Audit whether a
-  family → sibling-titles mapping exists anywhere today, or whether this section needs its own
-  small backend ticket.
+- **Job family data: does it exist?** ✅ **Prefetched during R2-b:** a family → sibling-titles
+  mapping exists today only as a **hardcoded one-family stub** (`KIN_TITLES` in
+  `apps/api/src/discovery.ts`: IT project manager → programme manager, delivery manager, project
+  lead, …). Real data for the rail needs its own small backend ticket — write it in R2-d.
+  (Concept elsewhere in the model: posting family fit — E5/#86; family floor — CONTEXT.md; family
+  authority in retrieval — #101. The cv-brain role taxonomy remains a candidate source.)
 - What is the family section *for*, product-wise? Display only ("your search covers these"), or a
   control ("also search these")? The answer changes the design entirely. **Owner to decide in the
   session.**
@@ -132,37 +132,34 @@ the label's caveat.
 
 ---
 
-## Part 4 — Restructure the groups: CV sections instead of domains ⚠️ audit first
+## Part 4 — Restructure the groups: CV sections instead of domains ✅ DECIDED (R2-b, 2026-08-09)
 
-**What the owner wants** — replace the invented domains (DELIVERY / SECTORS / SCALE / TOOLS…) with
-**the agreed CV sections**: PROFESSIONAL EXPERIENCE · LANGUAGES · SKILLS · CERTIFICATIONS ·
-EDUCATION · ADDITIONAL · (+ any section decided that this list forgot — the audit's first job is
-the authoritative list from the Draft schema in `apps/api/src/preview.ts` and the cv-brain rules,
-including PROJECTS, decided by ADR-0006). Expectation: PROFESSIONAL EXPERIENCE will "match
-perfectly with the data model we designed" (#161's job record: jobs as containers of sentences —
-so in the sky, each job could be its own sub-cluster).
+**Audit + decision record: [#178](https://github.com/adrien-mounier/jobcrush-app/issues/178)** —
+the normative home for the five audit answers. The short version:
 
-**The owner asked for a real audit, and suspects it deserves its own ticket. Agreed — it does.**
+- **Headline finding:** the invented domains (DELIVERY / SECTORS / SCALE / TOOLS…) were prototype
+  demo fiction — the shipped profile route already groups by the root-CV sections server-side
+  (`kindTag()` → `SECTIONS`). Part 4 is a **ratification + gap-fix, not a migration**.
+- **No authoritative section list existed** — the tailored Draft, the root-CV renderer, and the
+  cv-brain rules disagree three ways (languages placement, certifications placement, stale
+  "Personal Projects"). #178 records the disagreement so the cv-brain gets reconciled, not
+  rediscovered.
 
-**Audit questions (the ticket's body):**
+**Decisions (owner, R2-b):**
 
-1. The authoritative section list, from the Draft schema + cv-brain + ADR-0006 (PROJECTS) +
-   ADR-0010 (`additional`) — not from memory.
-2. Mapping: every fact kind the claim graph holds → exactly one section. Where does a grill answer
-   with no CV line live (e.g. "ran three projects at once")? SKILLS? Its job's container? The
-   mapping must be total or the sky drops facts silently.
-3. **The philosophical shift, named honestly:** §8.1 decided "the profile and the CV are different
-   objects." Making the profile's structure mirror the CV's sections narrows that distance — is
-   that intended? (It has real upside: one structure to learn, and the profile *explains* the CV.
-   It has a cost: the profile starts to look like a CV editor, which it is not.)
-4. Does #161's job record support job-level sub-clusters (a job = a named cluster of its
-   sentences)? What happens to facts not attached to any job?
-5. Scale check: PROFESSIONAL EXPERIENCE will dominate (most facts live there). Does one huge
-   cluster + five small ones still read, in both views, at 6 facts and at 200? (The mobile
-   prototype's scale test, re-run against the new grouping.)
+1. **Ratified — CV sections are the profile's structure:** PROFESSIONAL EXPERIENCE · PROJECTS ·
+   SKILLS · CERTIFICATIONS · EDUCATION · LANGUAGES · ADDITIONAL (Projects + Additional
+   decided-not-built, ADR-0006/0010). The §8.1 distance is **stated, not structural**: the profile
+   shows the greys, shows origins, and is **never an editor** — R2-c must keep that visible.
+2. **Orphan (no-job) facts get an "About you" group, first in the list** — the one stated
+   exception to the section list. The "Professional Summary" heading dies on the profile.
+3. **Languages: the profile LANGUAGES section is the single editing door** (#120 mechanism
+   unchanged); the Part 1 rail shows a read-only summary that links there.
 
-**Deliverable:** a new GitHub ticket (audit + decision), then the restructure designed in its own
-session on the audit's answer.
+**Carried into R2-c:** job sub-clusters are supported (every experience claim carries its job;
+#161 makes it durable) but the profile payload doesn't pass job attribution through yet — small
+contract addition. The scale test must re-run with a **lopsided** distribution (one huge
+experience cluster + five small ones), at 6 facts and at 200 — the flat 24-fact demo data hid this.
 
 ---
 
@@ -183,7 +180,9 @@ experience facts can't all fit; a top-N is shown by default until tailoring swap
   the machine's priority call — the detail of a grey fact should say "left out for space, swaps in
   when an offer needs it," which is Part 2's reframe doing its work.
 
-**Depends on Parts 3 and 4** (colours + sections). Cannot be designed before them.
+**Depends on Parts 3 and 4** (colours + sections) — **both decided as of R2-b; this part is
+unblocked.** Inherits from #178: the "About you" group leads the list; experience sub-clusters by
+job; empty sections never drawn; scale test re-run lopsided.
 
 ---
 
@@ -197,7 +196,7 @@ prototype updated, this plan's section marked done.
 | **R2-a** | Parts 2 + 3 together (they are one decision: what the colours and counts *mean*, incl. the stretch word + category table) | Everything downstream renders these semantics; deciding them first prevents redesigning twice. No build dependency. |
 | **R2-b** | Part 4 **audit** → new ticket, decision | Structure next; the audit is reading + mapping work and can start any time, but its *decision* gates R2-c. |
 | **R2-c** | Part 5 (list view) + constellation restructure | Pure design once a + b are decided. The big visual session. |
-| **R2-d** | Part 1 (rail: Location + eligibility move, Job family) | Independent of colours/structure except the languages question; doing it last means the eligibility/languages surface decision is made with Part 4's sections already fixed. Needs the family-mapping audit answer (small, can be prefetched during R2-b). |
+| **R2-d** | Part 1 (rail: Location + eligibility move, Job family) | Independent of colours/structure except the languages question; doing it last means the eligibility/languages surface decision is made with Part 4's sections already fixed. Family-mapping answer prefetched in R2-b (one-family stub only — backend ticket to write in R2-d); the languages surface decision also closed in R2-b (profile section edits). |
 
 **Hazards register (carry into every session):**
 
@@ -205,9 +204,11 @@ prototype updated, this plan's section marked done.
   entirely (see "Decisions already taken"). Consequence for Part 5: the grey layer is *held-out
   facts only*; the stretch word (Part 3) is still needed, but for the tailor/proposal surfaces,
   not the profile.
-- ⚠️ Languages: one editing surface, chosen deliberately (Parts 1 vs 4).
+- ✅ ~~Languages: one editing surface~~ — closed R2-b: the profile LANGUAGES section is the single
+  editing door; the rail summary is read-only and links there.
 - ✅ ~~"Root CV" vs "current CV"~~ — closed R2-a: gold describes the **root CV**; applying never
   recolours the profile.
-- ⚠️ §8.1 profile-vs-CV distance (Part 4) — narrow it on purpose or not at all.
+- ✅ ~~§8.1 profile-vs-CV distance~~ — closed R2-b: narrowed on purpose (ratified); the remaining
+  distance is stated, not structural — greys, origins, never an editor.
 - The hidden-"no" decision and the Mei rule are not reopened by anything above; if a session
   drifts into them, stop and say so.
