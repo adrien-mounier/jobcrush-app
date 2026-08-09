@@ -23,6 +23,16 @@ const TYPE_SPEED = 36;
 const ALLOWED_EXT = [".pdf", ".docx", ".txt"];
 const MAX_BYTES = 10 * 1024 * 1024;
 
+// #184 (#172): the coverage list rendered in the early-access line — Oxford-less, matching
+// discovery/page.tsx's own joinList convention for the language-checkbox confirm. Never a second
+// hard-coded copy of the provider registry's served regions: the list itself always comes from the
+// resolved response, only the joining rule lives here.
+function joinCoverage(list: string[]): string {
+  if (list.length <= 1) return list[0] ?? "";
+  if (list.length === 2) return `${list[0]} and ${list[1]}`;
+  return `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
+}
+
 type Choice = "cv" | "questions";
 type CvState =
   | { phase: "idle" }
@@ -467,13 +477,46 @@ function IntentPanel({
   const [errors, setErrors] = useState<{ targetRole?: string; searchArea?: string }>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  // #184 (#172): the server's own response is the single source of truth for the area resolution —
+  // read on every render below (both the still-needed form and the confirmation), so a cold reload
+  // and a live resubmission render identically instead of drifting apart. `editedArea` is the only
+  // piece of genuinely local state left: it just dismisses a stale coverage line the moment the
+  // person starts retyping, since the server has nothing to say about an edit that hasn't been
+  // submitted yet. `areaOnlyConfirm` is also local — the response carries no "was this round
+  // area-only" flag, so it can only shape the confirmation sentence for the submission that just
+  // happened, not survive a reload (a reload always renders the fuller "We'll look for X in Y."
+  // sentence, still with the canonical market name).
+  const [editedArea, setEditedArea] = useState(false);
+  const [areaOnlyConfirm, setAreaOnlyConfirm] = useState(false);
+  // `fresh` is a page-navigation flag ("did we land on this screen live, not via a cold restore") —
+  // it is NOT "did a submit just happen." A visit can restore straight into this exact form
+  // (fresh=false, e.g. the source-entry choice was already durable) and still submit live within
+  // that same session, and AC1's spot-focus must fire then too. `justSubmittedRef` is that separate,
+  // decoupled signal: submit() sets it right before handing the new state to the parent; the effect
+  // below reads-and-clears it on the very next run, so it can never leak into an unrelated later
+  // state change (e.g. one caused by something other than this panel's own submit).
+  const justSubmittedRef = useRef(false);
 
+  // One effect, one focus decision per `state` change. The area branch is checked first and always
+  // returns: a live uncovered resubmission both is `justSubmitted` and would otherwise also satisfy
+  // `fresh`, and checking the heading branch afterwards would silently steal focus back to it.
   useEffect(() => {
     if (!state) return;
     setTargetRole(state.intent.targetRole ?? "");
     setSearchArea(state.intent.searchArea ?? "");
+    setEditedArea(false);
+    const justSubmitted = justSubmittedRef.current;
+    justSubmittedRef.current = false;
+    if (justSubmitted && state.searchAreaResolution?.covered === false) {
+      areaRef.current?.focus();
+      return;
+    }
     if (fresh) headingRef.current?.focus();
   }, [fresh, state]);
+
+  const resolution = state?.searchAreaResolution ?? null;
+  const resolvedMarket = resolution?.covered === true ? resolution.market : null;
+  const areaCoverage = !editedArea && resolution?.covered === false ? resolution.coverage : null;
 
   if (loadError) {
     return (
@@ -497,13 +540,20 @@ function IntentPanel({
   }
 
   if (state.checkpoint === "intent_known") {
+    // #184 MUST-FIX: confirms the canonical resolved market, never the raw typed text — on a live
+    // submit AND on a cold reload alike, since `resolvedMarket` reads straight off this render's
+    // `state.searchAreaResolution` rather than something only a fresh submit ever set. Falls back
+    // to the saved value only if the server genuinely has no resolution for this record (a save
+    // that predates this feature, or one that never touched the area).
+    const areaName = resolvedMarket ?? state.intent.searchArea;
+    const confirmation = areaOnlyConfirm
+      ? `We’ll search ${areaName}.`
+      : `We’ll look for ${state.intent.targetRole} in ${areaName}.`;
     return (
       <section className="source-screen intent-screen">
         <p className="wordmark">JobCrush</p>
         <h1 tabIndex={-1} ref={headingRef}>Got it.</h1>
-        <p className="source-intro intent-confirmation">
-          We’ll look for {state.intent.targetRole} in {state.intent.searchArea}.
-        </p>
+        <p className="source-intro intent-confirmation">{confirmation}</p>
         <p className="intent-live" aria-live={fresh ? "polite" : "off"}>
           {fresh ? "Saved." : ""}
         </p>
@@ -547,6 +597,14 @@ function IntentPanel({
         ...(needsRole ? { targetRole: role } : {}),
         ...(needsArea ? { searchArea: area } : {}),
       });
+      setSaving(false);
+      // AC1/MUST-FIX: the server itself now never advances the checkpoint past an uncovered area
+      // (the typed text still stores, so it isn't lost) — this always calls onAccepted and trusts
+      // that checkpoint, rather than re-deciding it here. The coverage line and the resolved-market
+      // confirmation above both derive straight from `state.searchAreaResolution` on the resulting
+      // render, so this only needs to record which shape of confirmation sentence this round wants.
+      setAreaOnlyConfirm(needsArea && !needsRole && accepted.searchAreaResolution?.covered === true);
+      justSubmittedRef.current = true;
       onAccepted(accepted);
     } catch {
       setSaving(false);
@@ -604,15 +662,31 @@ function IntentPanel({
                 ref={areaRef}
                 value={searchArea}
                 disabled={saving}
-                placeholder="e.g. Remote in Thailand, or Bangkok"
+                // #184 (AC5): both examples must resolve to a covered market — coordinated with the
+                // backend team, which checks the same provider-registry list.
+                placeholder="e.g. Hong Kong, or Remote in Vietnam"
                 aria-invalid={Boolean(errors.searchArea)}
-                aria-describedby={`search-area-helper${errors.searchArea ? " search-area-error" : ""}`}
-                onChange={(event) => setSearchArea(event.target.value)}
+                aria-describedby={[
+                  "search-area-helper",
+                  errors.searchArea ? "search-area-error" : null,
+                  areaCoverage ? "search-area-coverage" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onChange={(event) => {
+                  setSearchArea(event.target.value);
+                  setEditedArea(true);
+                }}
               />
               <p id="search-area-helper" className="intent-helper">
                 A city, region, remote preference, or relocation area all work.
               </p>
               {errors.searchArea && <p id="search-area-error" className="intent-validation" role="alert">{errors.searchArea}</p>}
+              {areaCoverage && (
+                <p id="search-area-coverage" className="intent-coverage" role="status">
+                  {`JobCrush is in early access — we currently cover ${joinCoverage(areaCoverage)}.`}
+                </p>
+              )}
             </div>
           )}
         </div>

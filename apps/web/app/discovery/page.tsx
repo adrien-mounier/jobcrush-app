@@ -48,12 +48,12 @@ const SECTIONS: { key: CvSection; label: string }[] = [
 const C2 = "What kind of job are you going for?";
 const C3 =
   "I search the whole family, not just your words — say project manager and I'll also read IT project manager, programme manager, delivery manager.";
-const C4 = "e.g. IT project manager in Paris, mostly ERP, I use Jira and MS Project";
+const C4 = "e.g. IT project manager, mostly ERP, I use Jira and MS Project";
 const C5 = "That's me";
 const C6 = "same kind of job";
 const C7 = "Finding jobs like yours…";
 const C10 = "Keep going and I'll score them against you.";
-const C13 = "Saved to your profile — it'll be used when a job asks for it.";
+const C13 = "Saved to your profile — kept for when a job needs it.";
 const C14 = "Answer the question below and this page starts writing itself.";
 // #18 discovery (screen 1b): in-flow correction + the deck-transition placeholder + the bare-"no"
 // notice — verbatim from discovery-1b-design-spec.md's copy table.

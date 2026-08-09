@@ -62,7 +62,6 @@ import {
   factCount,
   freeTextLine,
   isNoAnswer,
-  parseCity,
   READER_ROLE_ITEM_ID,
   readerQuestion,
   resolveFamily,
@@ -88,25 +87,13 @@ import {
 import type { ProductionFamilyFloorStore, TestFixtureFamilyFloorStore } from "../familyFloors.js";
 import {
   isReusableRetrievalSnapshot,
+  logPostingRetrievalFailure,
+  resolvedCityFor,
   retrievalFingerprint,
   unavailablePostingRetrieval,
   type RetrievalRequest,
 } from "../postingRetrieval.js";
 import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
-
-type RetrievalRouteFailureCategory =
-  | "claim_failed"
-  | "snapshot_read_failed"
-  | "retrieval_failed"
-  | "reconciliation_failed"
-  | "background_failed";
-
-function logPostingRetrievalFailure(
-  log: { error(bindings: { category: RetrievalRouteFailureCategory }, message: string): unknown },
-  category: RetrievalRouteFailureCategory,
-): void {
-  log.error({ category }, "posting retrieval failed");
-}
 
 export interface OnboardingDeps {
   claims: ClaimStore;
@@ -115,6 +102,7 @@ export interface OnboardingDeps {
   /** #106: the eligibility-fact store (#86 decisions 4+5, apps/api/src/eligibility.ts) — asked once in
    *  discovery, reused across every posting. */
   eligibility: EligibilityStore;
+  contact: import("../contact.js").ContactStore; // #190: GET /profile reads it, additively.
   familyFloors: TestFixtureFamilyFloorStore;
   productionFamilyFloors: ProductionFamilyFloorStore;
   placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>;
@@ -636,8 +624,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     });
 
     // --- #20 the profile screen: session-authenticated, reachable pre-wall (requireSession, not
-    // requireUser — an unverified visitor can already open their own profile). Assembly + the colour
-    // law live in profile.ts; #179 added the `search` block (the rail's Job family data) there too.
+    // requireUser). Assembly + colour law live in profile.ts (#179 search, #190 contact block).
     app.get("/profile", async (req) => {
       const session = requireSession(req);
       const facts = (await deps.claims.list(session.id)).filter(
@@ -651,7 +638,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         session,
         factCount(excludingEligibility(confirmed), excludingEligibility(negatives)),
       );
-      return buildProfileState(facts, confirmed, profileFactCount, session.targetTitles[0] ?? null);
+      return buildProfileState(facts, confirmed, profileFactCount, session.targetTitles[0] ?? null, await deps.contact.getRecord(session.id));
     });
 
     // --- #16 discovery (screen 1a): the answer→CV-line→section-bar loop -------------------------
@@ -728,10 +715,12 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // this repo already has for that state. Must-fix 5: correcting an answer TO a decline retracts
     // any value a PRIOR real answer stored — eligibility.remove() runs unconditionally on a decline (a
     // no-op if nothing was ever stored), so the dimension reads unknown again, never a retracted
-    // value. Must-fix 8: `city` is the visitor's REAL parsed city, not a placeholder — it's rebuilt
-    // into the question text a decline's claim records verbatim, so that record must match what the
-    // visitor was actually asked. Returns a reply already sent on failure, undefined on success —
-    // mirrors this file's other early-return route helpers (e.g. fixtureState above).
+    // value. Must-fix 8: `city` is the visitor's REAL resolved city (#184: postingRetrieval.ts's
+    // resolvedCityFor, over the confirmed search area — no longer parseCity(role), never a
+    // placeholder) — it's rebuilt into the question text a decline's claim records verbatim, so that
+    // record must match what the visitor was actually asked. Returns a reply already sent on failure,
+    // undefined on success — mirrors this file's other early-return route helpers (e.g. fixtureState
+    // above).
     //
     // #123: `body` replaces the old single `rawAnswer` string — the languages question is
     // multi-select, so its real answer arrives as `answers: string[]`, never a single `answer`. Every
@@ -745,7 +734,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       reply: FastifyReply,
     ): Promise<FastifyReply | undefined> => {
       const { familyId, scopeLabel } = resolveEligibilityFamilyScope(session, role);
-      const city = parseCity(role);
+      const city = resolvedCityFor(session.intent.searchArea);
       const question = eligibilityCandidates(familyId, ANY_FAMILY, scopeLabel, city).find(
         (q) => q.itemId === itemId,
       );
@@ -851,7 +840,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const session = requireSession(req);
         const role = session.targetTitles[0] ?? null;
         const [confirmed, negatives, rejected, facts] = await discoveryReads(session.id);
-        const state = discoveryState(role, confirmed, negatives, rejected);
+        const state = discoveryState(role, confirmed, negatives, rejected, resolvedCityFor(session.intent.searchArea));
 
         const jobId = req.query.job;
         // #35: a deck-rejected reader-role claim still closes the question — same never-re-ask rule
@@ -895,7 +884,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         await deps.sessions.setTargetTitles(session.id, [req.body.role]);
         await deps.sessions.setStage(session.id, "discovery");
         const [confirmed, negatives, rejected, facts] = await discoveryReads(session.id);
-        const state = discoveryState(req.body.role, confirmed, negatives, rejected);
+        const state = discoveryState(req.body.role, confirmed, negatives, rejected, resolvedCityFor(session.intent.searchArea));
         applyEligibility(session, req.body.role, state, confirmed, negatives, rejected, facts);
         state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
@@ -1001,7 +990,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         }
 
         const [confirmed, negatives, rejected, facts] = await discoveryReads(session.id);
-        const state = discoveryState(role, confirmed, negatives, rejected);
+        const state = discoveryState(role, confirmed, negatives, rejected, resolvedCityFor(session.intent.searchArea));
         applyEligibility(session, role, state, confirmed, negatives, rejected, facts);
         // #18 AC1 / #106: the essential band fully asked AND every eligibility question closed flips
         // the session to the deck stage, so a reload lands there too. Code-review must-fix 2: the

@@ -267,8 +267,9 @@ function buildQuestion(
   }
   if (dimension === "work-rights") {
     // Must-fix 8: this text is recorded verbatim in a decline's claim text, so it must reflect the
-    // CITY THE VISITOR WAS ACTUALLY ASKED ABOUT — callers must pass the real parseCity(role) result,
-    // never a placeholder null, for that record to be honest.
+    // CITY THE VISITOR WAS ACTUALLY ASKED ABOUT — callers must pass the real resolved city (#184:
+    // routes/onboarding.ts's resolvedCityFor, over the confirmed search area — no longer
+    // parseCity(role)), never a placeholder null, for that record to be honest.
     //
     // #182: the ANSWER is now a fact about that same city — `familyId` (the store's generic scope
     // column) carries it, falling back to ANY_FAMILY only when no city is known at all (never a

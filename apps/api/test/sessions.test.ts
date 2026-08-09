@@ -109,6 +109,7 @@ describe("JC-10 anonymous sessions", () => {
       intent: { targetRole: null, searchArea: null },
       missing: ["targetRole", "searchArea"],
       checkpoint: "intent_needed",
+      searchAreaResolution: null, // #184: nothing typed yet, nothing to resolve
     });
     expect(response.json()).not.toHaveProperty("jobCount");
     expect(response.json()).not.toHaveProperty("matches");
@@ -123,24 +124,26 @@ describe("JC-10 anonymous sessions", () => {
       method: "PUT",
       url: "/sessions/me/intent",
       headers: { cookie },
-      payload: { targetRole: "  Programme Manager  ", searchArea: "  Bangkok  " },
+      payload: { targetRole: "  Programme Manager  ", searchArea: "  Hong Kong  " },
     });
     expect(accepted.statusCode).toBe(200);
     expect(accepted.json()).toEqual({
-      intent: { targetRole: "Programme Manager", searchArea: "Bangkok" },
+      intent: { targetRole: "Programme Manager", searchArea: "Hong Kong" },
       missing: [],
       checkpoint: "intent_known",
+      searchAreaResolution: { covered: true, market: "Hong Kong", marketKey: "hong-kong" },
     });
     const updated = await app.inject({
       method: "PUT",
       url: "/sessions/me/intent",
       headers: { cookie },
-      payload: { searchArea: "Remote in Thailand" },
+      payload: { searchArea: "Singapore" },
     });
     expect(updated.json()).toEqual({
-      intent: { targetRole: "Programme Manager", searchArea: "Remote in Thailand" },
+      intent: { targetRole: "Programme Manager", searchArea: "Singapore" },
       missing: [],
       checkpoint: "intent_known",
+      searchAreaResolution: { covered: true, market: "Singapore", marketKey: "singapore" },
     });
     const restored = await app.inject({
       method: "GET",
@@ -149,7 +152,51 @@ describe("JC-10 anonymous sessions", () => {
     });
     expect(restored.json().intent).toEqual({
       targetRole: "Programme Manager",
-      searchArea: "Remote in Thailand",
+      searchArea: "Singapore",
+    });
+  });
+
+  // #184 spec review MUST-FIX: the coverage gate is server-side, not just the web's refusal to
+  // advance. Repro this pinned: type "Bangkok" -> early-access message -> reload -> without this fix
+  // the checkpoint had already flipped to intent_known and a reload showed "We'll look for ... in
+  // Bangkok" — the area passing silently onward, the exact #172 complaint.
+  it("an uncovered search area never advances the checkpoint to intent_known (server-side gate)", async () => {
+    const { app } = buildServer();
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = cookieOf(created);
+    const COVERAGE = ["Hong Kong", "Singapore", "Vietnam", "Australia"];
+
+    const accepted = await app.inject({
+      method: "PUT",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+      payload: { targetRole: "Programme Manager", searchArea: "Bangkok" },
+    });
+    expect(accepted.statusCode).toBe(200);
+    // Free text is still STORED as typed (capture stays free text) — only the checkpoint gate reacts.
+    expect(accepted.json()).toEqual({
+      intent: { targetRole: "Programme Manager", searchArea: "Bangkok" },
+      missing: ["searchArea"], // still counts as unmet — an uncovered area is not a satisfied intent
+      checkpoint: "intent_needed", // NEVER intent_known on an uncovered area
+      searchAreaResolution: { covered: false, coverage: COVERAGE },
+    });
+
+    // The gate survives a reload too — GET must carry the SAME resolution, never a bare "known".
+    const reloaded = await app.inject({ method: "GET", url: "/sessions/me/intent", headers: { cookie } });
+    expect(reloaded.json()).toEqual(accepted.json());
+
+    // Correcting to a covered area is what actually advances the checkpoint.
+    const corrected = await app.inject({
+      method: "PUT",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+      payload: { searchArea: "Hong Kong" },
+    });
+    expect(corrected.json()).toEqual({
+      intent: { targetRole: "Programme Manager", searchArea: "Hong Kong" },
+      missing: [],
+      checkpoint: "intent_known",
+      searchAreaResolution: { covered: true, market: "Hong Kong", marketKey: "hong-kong" },
     });
   });
 
@@ -175,6 +222,7 @@ describe("JC-10 anonymous sessions", () => {
       intent: { targetRole: "Delivery Lead", searchArea: null },
       missing: ["searchArea"],
       checkpoint: "intent_needed",
+      searchAreaResolution: null,
     });
   });
 

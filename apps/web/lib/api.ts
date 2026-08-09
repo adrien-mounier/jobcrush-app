@@ -485,10 +485,45 @@ export interface ProfileSearch {
   openJobs: number | null;
 }
 
+// #190 "contact info is a fact" — mirrors apps/api/src/profile.ts's ProfileContactField/
+// ProfileContact exactly. `origin` is the same "you told us" vs "read from your CV" distinction
+// ProfileFact.source already carries, spelled with the contact record's own two origin kinds —
+// never re-derived here.
+export interface ProfileContactField {
+  value: string;
+  origin: "read" | "person-said";
+}
+export interface ProfileContact {
+  phone: ProfileContactField | null;
+  email: ProfileContactField | null;
+}
+
 export interface ProfileState {
   factCount: number;
   domains: ProfileDomain[];
   search: ProfileSearch;
+  contact: ProfileContact;
+}
+
+// Mirrors apps/api/src/contact.ts's ContactValue/ContactRecord — the PUT /contact response shape.
+// The profile door never reads this response directly (same #183 pattern as the Job family door):
+// it saves, then re-fetches /api/profile so the screen always renders from one payload shape.
+export type ContactOrigin = "read" | "person-said";
+export interface ContactValue {
+  value: string;
+  origin: ContactOrigin;
+  sourceText: string;
+}
+export interface ContactRecord {
+  phone: ContactValue | null;
+  email: ContactValue | null;
+}
+
+export function saveContact(field: "phone" | "email", value: string): Promise<ContactRecord> {
+  return jfetch("/api/contact", {
+    method: "PUT",
+    body: JSON.stringify({ field, value }),
+  });
 }
 
 export type SourceEntry =
@@ -526,10 +561,19 @@ export interface SearchIntent {
   searchArea: string | null;
 }
 
+// #184 (#172): the search-area entry gets an on-the-spot answer, resolved server-side against the
+// provider registry's served regions — never re-derived here. `coverage` is the live served-regions
+// list, rendered as-is — never a second hard-coded copy of it.
+export type SearchAreaResolution =
+  | { covered: true; market: string; marketKey: string }
+  | { covered: false; coverage: string[] };
+
 export interface IntentState {
   intent: SearchIntent;
   missing: Array<"targetRole" | "searchArea">;
   checkpoint: "intent_needed" | "intent_known";
+  // Always present on the server's response; null when the last submission never touched the area.
+  searchAreaResolution: SearchAreaResolution | null;
 }
 
 export function getIntent(): Promise<IntentState> {

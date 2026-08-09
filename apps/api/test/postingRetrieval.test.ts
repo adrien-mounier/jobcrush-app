@@ -8,10 +8,12 @@ import {
   type ProductionFamilyFloorStore,
 } from "../src/familyFloors.js";
 import {
+  coveredRegionCodes,
   makePostingRetriever,
   providersFor,
   retrievalFingerprint,
   isReusableRetrievalSnapshot,
+  resolveSearchArea,
   resolveSearchAreaToRegions,
   storeBackedPostingProvidersFor,
   StoreBackedCuratedPostingProvider,
@@ -98,6 +100,55 @@ describe("#101 provider routing", () => {
     expect(retrievalFingerprint(request({ checkpoint: "family_confirmed" }))).not.toBe(
       retrievalFingerprint(request({ checkpoint: "essential_floor_covered" })),
     );
+  });
+});
+
+// #184 — the search-area intent route's resolver: robustness (AC2), the registry-sourced coverage
+// list (AC1/AC3), and the placeholder-city-slug compat note this suite pins the vocabulary for.
+describe("#184 resolveSearchArea", () => {
+  it.each([
+    ["Hong Kong", "Hong Kong", "hong-kong"],
+    ["Sydney, Australia", "Australia", "australia"], // AC2: trailing country
+    ["hong kong,", "Hong Kong", "hong-kong"], // AC2: stray punctuation + case
+    ["  Singapore  ", "Singapore", "singapore"], // AC2: stray whitespace
+    ["HK", "Hong Kong", "hong-kong"], // AC2: common alias
+    ["Ho Chi Minh City, Vietnam.", "Vietnam", "vietnam"], // AC2: city + trailing country + period
+    // AC5, pinned verbatim (not just a substring check, per spec review): the search-area field's own
+    // placeholder text ("e.g. Hong Kong, or Remote in Vietnam", apps/web/app/page.tsx) — both examples
+    // the product itself suggests must resolve. "Hong Kong" is already the first case above; listed
+    // again here, explicitly, so this row's OWN reason for existing is legible without cross-reading.
+    ["Hong Kong", "Hong Kong", "hong-kong"],
+    ["Remote in Vietnam", "Vietnam", "vietnam"],
+    // #184 QA residual: two named-uncovered inputs from #172's own list — obvious district/airport
+    // aliases, not covered by the city/country names alone.
+    ["Kowloon", "Hong Kong", "hong-kong"],
+    ["HKG", "Hong Kong", "hong-kong"],
+    ["Saigon", "Vietnam", "vietnam"], // flagged alongside the above as an equally clear-cut gap
+  ])("%s resolves and confirms back as its country-level market (AC2)", (typed, market, marketKey) => {
+    expect(resolveSearchArea(typed)).toEqual({ covered: true, market, marketKey });
+  });
+
+  it("an uncovered area gets the registry-sourced coverage list (AC1)", () => {
+    expect(resolveSearchArea("Bangkok")).toEqual({
+      covered: false,
+      coverage: ["Hong Kong", "Singapore", "Vietnam", "Australia"],
+    });
+  });
+
+  it("the coverage list comes from the REGISTRY, not a hard-coded copy — a new region appears with no code change (AC3)", () => {
+    const registry = [policy("future-provider", ["HK", "TH"], 1)]; // hypothetical: Thailand added
+    expect(resolveSearchArea("nowhere-recognisable", registry)).toEqual({
+      covered: false,
+      coverage: ["Hong Kong", "TH"], // an unmapped code still shows (visibly), never a crash
+    });
+  });
+
+  it("the wildcard '*' registry entry never counts as a covered region on its own", () => {
+    expect(coveredRegionCodes([policy("curated-pool", ["*"], 0)])).toEqual([]);
+  });
+
+  it("genuinely unrecognisable text stays uncovered, never a guess", () => {
+    expect(resolveSearchArea("asdkjfh")).toMatchObject({ covered: false });
   });
 });
 

@@ -9,6 +9,7 @@ import type { PostingProvider, PostingProviderFetchInput, PostingProviderFetchRe
 import type { PostingStore } from "./postingStore.js";
 import { dedupePostings, loadActivePostingProviders } from "./postings.js";
 import type { RetrievalSnapshot } from "./sessions.js";
+import { slug } from "./discovery.js";
 
 export interface RetrievalSignal {
   semanticKey: string;
@@ -39,6 +40,8 @@ export const unavailablePostingRetrieval = async (): Promise<PostingRetrievalRes
 const AREA_REGIONS: Readonly<Record<string, string[]>> = {
   "hong kong": ["HK"],
   hk: ["HK"],
+  kowloon: ["HK"], // #184 QA: a major HK district, obvious enough to type as the whole answer
+  hkg: ["HK"], // #184 QA: the airport code — exact-match only (3 chars), see regionsForLocationText
   singapore: ["SG"],
   sg: ["SG"],
   vietnam: ["VN"],
@@ -46,6 +49,7 @@ const AREA_REGIONS: Readonly<Record<string, string[]>> = {
   "ho chi minh city": ["VN"],
   "ho chi minh": ["VN"],
   hcmc: ["VN"],
+  saigon: ["VN"], // #184 QA: the pre-1976 name, still the everyday one in casual English
   hanoi: ["VN"],
   australia: ["AU"],
   au: ["AU"],
@@ -74,15 +78,97 @@ export function resolveSearchAreaToRegions(searchArea: string): string[] {
  *  skipped here — exact-match-safe, but a substring scan over free text would false-positive on
  *  ordinary words that happen to contain those two letters. Returns [] (never guesses) when nothing
  *  recognisable is found — withdrawal.ts's own honest "cannot place this posting, never withdraw"
- *  case (a region-only "APAC" listing, or a market outside today's four, e.g. "Shenzhen, China"). */
+ *  case (a region-only "APAC" listing, or a market outside today's four, e.g. "Shenzhen, China").
+ *
+ *  #184: whitespace runs collapse to one space before scanning — "Hong  Kong" (a stray double space,
+ *  the ticket's own "punctuation must not defeat it" case) does not literally contain "hong kong" as
+ *  a substring otherwise, so a genuinely covered typo would read as uncovered. */
 export function regionsForLocationText(location: string): string[] {
-  const lower = location.trim().toLocaleLowerCase("en-US");
+  const lower = location.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-US");
   const regions = new Set<string>();
   for (const [key, codes] of Object.entries(AREA_REGIONS)) {
     if (key.length < 4) continue; // abbreviation keys — exact-match only, see doc above
     if (lower.includes(key)) for (const code of codes) regions.add(code);
   }
   return [...regions];
+}
+
+// #184 — region code -> the plain country/territory name the coverage message and a covered
+// confirmation both print ("We'll search Hong Kong."). Not a second coverage list: WHICH codes are
+// covered still comes from the registry (coveredRegionCodes below); this only names a code the
+// registry already emitted. A code this map doesn't know falls back to the raw code itself
+// (regionDisplayName) rather than throwing — visible and honest, never a 500 on a registry edit.
+const REGION_DISPLAY_NAMES: Readonly<Record<string, string>> = {
+  HK: "Hong Kong",
+  SG: "Singapore",
+  VN: "Vietnam",
+  AU: "Australia",
+};
+
+function regionDisplayName(code: string): string {
+  return REGION_DISPLAY_NAMES[code] ?? code;
+}
+
+/** #184: the region codes this product actually covers, in the registry's own first-declared order
+ *  — never a hand-typed list. `"*"` (curated-pool's own regionsServed entry) names no specific region
+ *  and is skipped: it means "also eligible wherever a NAMED provider already covers", not a fifth
+ *  covered place on its own. Defaults to the SAME registry retrieval already trusts
+ *  (loadActivePostingProviders, postingRetrieval.ts's own makePostingRetriever) so "covered" here can
+ *  never claim more than retrieval could actually serve. */
+export function coveredRegionCodes(
+  registry: PostingProviderPolicyV1[] = loadActivePostingProviders(),
+): string[] {
+  const codes = new Set<string>();
+  for (const policy of registry) {
+    for (const region of policy.regionsServed) {
+      if (region !== "*") codes.add(region);
+    }
+  }
+  return [...codes];
+}
+
+export type SearchAreaResolution =
+  | { covered: true; market: string; marketKey: string }
+  | { covered: false; coverage: string[] };
+
+/** #184 — the search-area intent route's own resolver (routes/sessions.ts): free text in, an honest
+ *  covered/uncovered verdict out. Robustness against "trailing country names, common city aliases,
+ *  and punctuation" (the ticket's own wording) comes from trying BOTH of this module's existing
+ *  matchers — resolveSearchAreaToRegions (exact, handles a bare alias like "hk" or "Singapore" typed
+ *  alone) and regionsForLocationText (substring, handles "Sydney, Australia" or "Hong Kong SAR.") —
+ *  and keeping only the FIRST match that is actually in today's covered set (deterministic: both
+ *  matchers iterate AREA_REGIONS in its own declared order). `market`/`marketKey` are the CANONICAL
+ *  country-level name for whichever region matched — "Sydney" resolves, but confirms back as
+ *  "Australia", the same name coveredRegionCodes()/the coverage message use, never the visitor's raw
+ *  city text. `marketKey` is `slug(market)` — country-level, e.g. "hong-kong"/"singapore"/"vietnam"/
+ *  "australia" — which is BY CONSTRUCTION the same slug a role naming that country outright already
+ *  produced under #182 (see discovery.test.ts's compat test); only a city-specific old answer (e.g.
+ *  a #182-era "sydney") diverges, an accepted pre-launch difference, not a live migration. */
+export function resolveSearchArea(
+  text: string,
+  registry: PostingProviderPolicyV1[] = loadActivePostingProviders(),
+): SearchAreaResolution {
+  const covered = new Set(coveredRegionCodes(registry));
+  const candidates = [...resolveSearchAreaToRegions(text), ...regionsForLocationText(text)];
+  const matched = candidates.find((region) => covered.has(region));
+  if (matched) {
+    const market = regionDisplayName(matched);
+    return { covered: true, market, marketKey: slug(market) };
+  }
+  return { covered: false, coverage: [...covered].map(regionDisplayName) };
+}
+
+/** #184: the ONE location signal — a confirmed search area resolved to its covered display name, or
+ *  null when unset/uncovered. Replaces parseCity(role) at every site that used to guess a city from
+ *  the job title text (routes/onboarding.ts's discoveryState/eligibility-question call sites, which
+ *  pass `session.intent.searchArea` in — this function takes the raw string, not a session, so this
+ *  module stays decoupled from the session type). Standards review: lives beside resolveSearchArea
+ *  rather than as an onboarding.ts-local helper, so the route file's own ratchet is never paid for by
+ *  shaving this module's documented rationale comments. */
+export function resolvedCityFor(searchArea: string | null): string | null {
+  if (!searchArea) return null;
+  const resolution = resolveSearchArea(searchArea);
+  return resolution.covered ? resolution.market : null;
 }
 
 export function providersFor(
@@ -111,6 +197,25 @@ export interface PostingFreshnessAuditEvent {
   providerId: string;
   checkedAt: string;
   status: "fresh" | "stale";
+}
+
+// Extracted from routes/onboarding.ts (the ratchet's own remedy: extraction, not comment-shaving) —
+// the ROUTE-level failure category for the /onboarding/cards retrieval-request/reconcile flow
+// (claim/snapshot-read/retrieval/reconciliation/background), distinct from the PROVIDER-level
+// PostingRetrievalFailureCategory above. `log` is passed in (Fastify's app.log) rather than imported,
+// so this stays a pure logging helper with no framework dependency of its own.
+export type RetrievalRouteFailureCategory =
+  | "claim_failed"
+  | "snapshot_read_failed"
+  | "retrieval_failed"
+  | "reconciliation_failed"
+  | "background_failed";
+
+export function logPostingRetrievalFailure(
+  log: { error(bindings: { category: RetrievalRouteFailureCategory }, message: string): unknown },
+  category: RetrievalRouteFailureCategory,
+): void {
+  log.error({ category }, "posting retrieval failed");
 }
 
 function words(value: string): string[] {

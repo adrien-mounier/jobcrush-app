@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { IpRateLimiter, type SessionStore } from "../sessions.js";
+import { resolveSearchArea } from "../postingRetrieval.js";
 
 export const SESSION_COOKIE = "jc_session";
 
@@ -49,12 +50,35 @@ const intentWriteSchema = z
   .strict()
   .refine((value) => value.targetRole !== undefined || value.searchArea !== undefined);
 
+// #184 — the PINNED additive field: resolved fresh from postingRetrieval.ts's live provider registry
+// on every read (never persisted, never a second copy of the coverage list), so a registry edit
+// updates the message with no code change (AC3) — across DEPLOYS; postings.ts's own loader
+// memoizes the parsed file for the lifetime of a running process (postings.ts:41), so a registry
+// edit only takes effect on the next deploy/restart, not the next request against a live one. `null`
+// only when nothing has been typed yet — once `searchArea` is non-null, the visitor is ALWAYS told
+// covered/uncovered, at the intent step, before any retrieval (AC1).
+const searchAreaResolutionSchema = z.union([
+  z.object({ covered: z.literal(true), market: z.string(), marketKey: z.string() }),
+  z.object({ covered: z.literal(false), coverage: z.array(z.string()) }),
+]);
+
 const intentState = (intent: { targetRole: string | null; searchArea: string | null }) => {
-  const missing = (["targetRole", "searchArea"] as const).filter((field) => intent[field] === null);
+  const searchAreaResolution = intent.searchArea ? resolveSearchArea(intent.searchArea) : null;
+  // #184 spec review must-fix: the coverage gate is SERVER-side, not just the web's refusal to
+  // advance — an uncovered area must never flip the checkpoint to intent_known. The typed text is
+  // still stored and still returned in `intent` (useful for re-display), but it counts as still
+  // "missing" so checkpoint stays intent_needed and the web's restore path (GET, e.g. on reload) can
+  // re-show the coverage message from `searchAreaResolution` rather than the area passing silently
+  // onward once the checkpoint alone said "known".
+  const uncoveredArea = searchAreaResolution !== null && !searchAreaResolution.covered;
+  const missing = (["targetRole", "searchArea"] as const).filter(
+    (field) => intent[field] === null || (field === "searchArea" && uncoveredArea),
+  );
   return {
     intent,
     missing,
     checkpoint: missing.length === 0 ? ("intent_known" as const) : ("intent_needed" as const),
+    searchAreaResolution,
   };
 };
 
@@ -62,6 +86,7 @@ const intentStateSchema = z.object({
   intent: intentSchema,
   missing: z.array(z.enum(["targetRole", "searchArea"])),
   checkpoint: z.enum(["intent_needed", "intent_known"]),
+  searchAreaResolution: searchAreaResolutionSchema.nullable(),
 });
 
 export function sessionRoutes(

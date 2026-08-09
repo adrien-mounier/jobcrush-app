@@ -5,9 +5,13 @@
 //   - composeCvLine / composeRoleLine — cheap, deterministic CV text from an answer (spec §8.2:
 //     "composed cheaply from my answer, polished later" — a later audit pass rewrites; prior art
 //     grill.ts's answerToClaim, which composes claim text locally the same way).
-//   - resolveFamily / parseCity — the family-placement + city stubs (the real family classifier is a
-//     clustering model, out of scope — spec "the flow uses a hand list stand-in"). Behind functions so
-//     E5 can replace the producer, exactly like e5stub.ts's loadFamilyFloor.
+//   - resolveFamily — the family-placement stub (the real family classifier is a clustering model,
+//     out of scope — spec "the flow uses a hand list stand-in"). Behind a function so E5 can replace
+//     the producer, exactly like e5stub.ts's loadFamilyFloor.
+//   - parseCity — #184 SUBORDINATED, not deleted: discoveryState/the eligibility questions no longer
+//     call it (the ONE location signal is now the resolved search area — routes/onboarding.ts passes
+//     it in, resolved via postingRetrieval.ts's resolveSearchArea over session.intent.searchArea).
+//     Still exported and still tested as its own small text utility; nothing production reaches it.
 //   - discoveryState — rebuilds the whole DiscoveryState from the session's role + its recorded
 //     discovery answers (confirmed positives + negatives + #35's deck-rejected, all of which close a
 //     question), so GET /discovery resumes with no client state.
@@ -40,15 +44,19 @@ export function resolveFamily(text: string): { family: string; suggestions: stri
   return { family: STUB_FAMILY, suggestions: text.trim() ? KIN_TITLES : [] };
 }
 
-/** The visitor's city, lifted from Q1 for free (spec story #20: the promise carries my city). "…in Paris"
+/** The visitor's city, regex-guessed from the words after "in" in their typed job title. "…in Paris"
  *  → "Paris"; none → null. Deliberately simple — Q1 is free text, not a structured field.
  *
- *  #182 QA round 3: the word after "in" no longer has to start capitalised — "IT PM in hong kong"
- *  used to match nothing (the old regex required a leading \p{Lu} on every word), silently losing the
- *  visitor's city and falling the work-rights question back to the no-city phrasing. The captured
- *  words are title-cased on the way out, so the question still reads "…in Hong Kong" regardless of
- *  how the visitor typed it — display casing and market-key casing are handled separately (see
- *  `slug()`, which is what actually canonicalises a city into a store key). */
+ *  #184 SUBORDINATED: this guess and the search area the visitor actually confirmed could disagree
+ *  with nothing reconciling them (a role saying "…in Hong Kong" while search area was set to
+ *  "Sydney"), which is exactly the two-signal bug #184 closes — production now has ONE location
+ *  signal, the resolved search area (postingRetrieval.ts's resolveSearchArea over
+ *  session.intent.searchArea), never this regex. Kept exported and independently tested as a small
+ *  text utility; discoveryState/the eligibility questions no longer call it.
+ *
+ *  #182 QA round 3 (still true, for whatever DOES call this): the word after "in" no longer has to
+ *  start capitalised — "IT PM in hong kong" used to match nothing (the old regex required a leading
+ *  \p{Lu} on every word). The captured words are title-cased on the way out. */
 export function parseCity(text: string): string | null {
   const m = text.match(/\bin\s+(\p{L}[\p{L}-]+(?:\s+\p{L}[\p{L}-]+)?)/u);
   if (!m) return null;
@@ -258,12 +266,18 @@ export function discoveryCvLines(
  *  never into `positives` — no CV line (cvLines stays confirmed-only, unaffected) and no trigger
  *  (isTriggered keys off `positives`, so a rejected trigger does not surface an UNanswered triggered
  *  item — an already-answered one stays askable; see the isTriggered comment).
- *  Pure + deterministic → GET resumes. */
+ *
+ *  #184: `resolvedCity` — the ONE location signal, the visitor's confirmed search area RESOLVED to a
+ *  display name (postingRetrieval.ts's resolveSearchArea; `null` when unset or uncovered) — replaces
+ *  the old internal parseCity(role) guess. The caller (routes/onboarding.ts) resolves it once from
+ *  session.intent.searchArea and passes it in; this function does no resolving of its own, same as it
+ *  never did any of its own IO. Pure + deterministic → GET resumes. */
 export function discoveryState(
   role: string | null,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
   rejected: ClaimRecord[] = [],
+  resolvedCity: string | null = null,
 ): DiscoveryState {
   if (!role) {
     return {
@@ -281,7 +295,7 @@ export function discoveryState(
   }
 
   const { family } = resolveFamily(role);
-  const city = parseCity(role);
+  const city = resolvedCity;
   const floor = loadFamilyFloor(family).items;
   const byId = new Map(floor.map((i) => [i.id, i]));
 

@@ -59,10 +59,18 @@ async function stubCvImport(
   });
 }
 
+// #184 (#172): the pinned area-resolution shape, additive on the existing area-submission response —
+// mirrors lib/api.ts's SearchAreaResolution. Absent on a response whose submission never touched the
+// area (e.g. a role-only save).
+type SearchAreaResolution =
+  | { covered: true; market: string; marketKey: string }
+  | { covered: false; coverage: string[] };
+
 type IntentState = {
   intent: { targetRole: string | null; searchArea: string | null };
   missing: Array<"targetRole" | "searchArea">;
   checkpoint: "intent_needed" | "intent_known";
+  searchAreaResolution?: SearchAreaResolution;
 };
 
 async function stubIntent(page: Page, initial: IntentState, failFirstSave = false) {
@@ -92,6 +100,33 @@ async function stubIntent(page: Page, initial: IntentState, failFirstSave = fals
     await route.fulfill({ json: state });
   });
   return { writes, getSaveAttempts: () => saveAttempts };
+}
+
+// #184 (#172): a variant of stubIntent that lets each test decide how the mocked server resolves
+// the submitted area, per the pinned searchAreaResolution contract — kept separate from stubIntent
+// (which always advances unconditionally) so none of the existing area-agnostic tests above change
+// behaviour.
+async function stubIntentWithResolution(
+  page: Page,
+  initial: IntentState,
+  resolve: (body: Partial<IntentState["intent"]>) => IntentState,
+) {
+  let state = initial;
+  const writes: unknown[] = [];
+  await page.route("**/api/sessions/me/stage", async (route) => {
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.route("**/api/sessions/me/intent", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: state });
+      return;
+    }
+    const body = route.request().postDataJSON() as Partial<IntentState["intent"]>;
+    writes.push(body);
+    state = resolve(body);
+    await route.fulfill({ json: state });
+  });
+  return { writes };
 }
 
 async function chooseCv(page: Page) {
@@ -638,4 +673,163 @@ test("no useful facts is neutral, retryable, continuable, and durable across rel
   await expect(heading).not.toBeFocused();
   await page.getByRole("button", { name: "Continue with questions" }).click();
   await expect.poll(() => stageWrites).toEqual([{ stage: "discovery" }]);
+});
+
+// ---------- #184 (#172): the search-area entry gets an on-the-spot coverage answer ----------
+
+test("an uncovered search area shows the early-access line on the spot and never passes onward", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "source_selected", choice: "questions" });
+  const intent = await stubIntentWithResolution(
+    page,
+    { intent: { targetRole: "Delivery manager", searchArea: null }, missing: ["searchArea"], checkpoint: "intent_needed" },
+    // The real pinned shape (server-side gate): an uncovered area still STORES the typed text and
+    // the checkpoint stays "intent_needed" — the server itself never advances past it, the client
+    // no longer has to re-decide that.
+    (body) => ({
+      intent: { targetRole: "Delivery manager", searchArea: body.searchArea ?? null },
+      missing: ["searchArea"],
+      checkpoint: "intent_needed",
+      searchAreaResolution: { covered: false, coverage: ["Hong Kong", "Singapore", "Vietnam", "Australia"] },
+    }),
+  );
+
+  await page.goto("/");
+  await expect(page.getByText("Looking for Delivery manager")).toBeVisible();
+  await page.getByLabel("Search area").fill("Bangkok");
+  await page.getByRole("button", { name: "Save and continue" }).click();
+
+  const message = page.getByText(
+    "JobCrush is in early access — we currently cover Hong Kong, Singapore, Vietnam and Australia.",
+  );
+  await expect(message).toBeVisible();
+  await expect(message).not.toHaveAttribute("role", "alert"); // a stated fact, never an error scolding
+  await expect(page.getByLabel("Search area")).toBeFocused();
+  await expect(page.getByLabel("Search area")).toHaveValue("Bangkok"); // kept so the person can retype
+  await expect(page.getByRole("heading", { name: "Got it." })).toHaveCount(0); // never passes onward
+  expect(intent.writes).toEqual([{ searchArea: "Bangkok" }]);
+
+  // Editing the field clears the stale message rather than leaving it hanging.
+  await page.getByLabel("Search area").fill("Hong Kong");
+  await expect(message).toHaveCount(0);
+});
+
+test("an uncovered search area still blocks the form after a reload, with the coverage line restored", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "source_selected", choice: "questions" });
+  await stubIntentWithResolution(
+    page,
+    { intent: { targetRole: "Delivery manager", searchArea: null }, missing: ["searchArea"], checkpoint: "intent_needed" },
+    (body) => ({
+      intent: { targetRole: "Delivery manager", searchArea: body.searchArea ?? null },
+      missing: ["searchArea"],
+      checkpoint: "intent_needed",
+      searchAreaResolution: { covered: false, coverage: ["Hong Kong", "Singapore", "Vietnam", "Australia"] },
+    }),
+  );
+
+  await page.goto("/");
+  await page.getByLabel("Search area").fill("Bangkok");
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await expect(page.getByText(
+    "JobCrush is in early access — we currently cover Hong Kong, Singapore, Vietnam and Australia.",
+  )).toBeVisible();
+
+  // MUST-FIX: a cold reload reads the restored resolution too — the form stays blocked and the
+  // coverage line reappears on its own, instead of sitting unexplained until the person retypes.
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Got it." })).toHaveCount(0);
+  await expect(page.getByLabel("Search area")).toHaveValue("Bangkok"); // the typed text still stored
+  await expect(page.getByText(
+    "JobCrush is in early access — we currently cover Hong Kong, Singapore, Vietnam and Australia.",
+  )).toBeVisible();
+});
+
+test("a covered area with a trailing country resolves and is confirmed back plainly", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "source_selected", choice: "questions" });
+  await stubIntentWithResolution(
+    page,
+    { intent: { targetRole: "Delivery manager", searchArea: null }, missing: ["searchArea"], checkpoint: "intent_needed" },
+    () => ({
+      intent: { targetRole: "Delivery manager", searchArea: "Hong Kong, China" },
+      missing: [],
+      checkpoint: "intent_known",
+      searchAreaResolution: { covered: true, market: "Hong Kong", marketKey: "hong-kong" },
+    }),
+  );
+
+  await page.goto("/");
+  await page.getByLabel("Search area").fill("Hong Kong, China"); // trailing country + punctuation
+  await page.getByRole("button", { name: "Save and continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "Got it." })).toBeVisible();
+  // Confirmed back with the resolved canonical name, not the raw typed alias.
+  await expect(page.getByText("We’ll search Hong Kong.")).toBeVisible();
+});
+
+test("a covered area shows the canonical market after a reload too, never the raw typed alias", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "source_selected", choice: "questions" });
+  await stubIntentWithResolution(
+    page,
+    { intent: { targetRole: "Delivery manager", searchArea: null }, missing: ["searchArea"], checkpoint: "intent_needed" },
+    () => ({
+      intent: { targetRole: "Delivery manager", searchArea: "Hong Kong, China" },
+      missing: [],
+      checkpoint: "intent_known",
+      searchAreaResolution: { covered: true, market: "Hong Kong", marketKey: "hong-kong" },
+    }),
+  );
+
+  await page.goto("/");
+  await page.getByLabel("Search area").fill("Hong Kong, China");
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await expect(page.getByText("We’ll search Hong Kong.")).toBeVisible();
+
+  // MUST-FIX: before this fix, a reload re-rendered the raw stored alias ("Hong Kong, China")
+  // instead of the canonical resolved market — inconsistent with what a fresh save just showed.
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Got it." })).toBeVisible();
+  await expect(page.getByText("Hong Kong, China")).toHaveCount(0);
+  await expect(page.getByText("We’ll look for Delivery manager in Hong Kong.")).toBeVisible();
+});
+
+test("the uncovered coverage list is rendered from the response, never a hard-coded copy", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "source_selected", choice: "questions" });
+  await stubIntentWithResolution(
+    page,
+    { intent: { targetRole: "Delivery manager", searchArea: null }, missing: ["searchArea"], checkpoint: "intent_needed" },
+    () => ({
+      intent: { targetRole: "Delivery manager", searchArea: null },
+      missing: ["searchArea"],
+      checkpoint: "intent_needed",
+      // A coverage list the product has never shipped — proves the UI has no second, hard-coded
+      // copy of the provider registry's served regions.
+      searchAreaResolution: { covered: false, coverage: ["Testland", "Sampleria"] },
+    }),
+  );
+
+  await page.goto("/");
+  await page.getByLabel("Search area").fill("Nowhere");
+  await page.getByRole("button", { name: "Save and continue" }).click();
+
+  await expect(page.getByText("JobCrush is in early access — we currently cover Testland and Sampleria.")).toBeVisible();
+});
+
+test("both search-area placeholder examples are covered markets", async ({ page }) => {
+  const COVERED_MARKETS = ["Hong Kong", "Singapore", "Vietnam", "Australia"];
+  await stubSourceEntry(page, { checkpoint: "invited", choice: null });
+  await stubIntent(page, {
+    intent: { targetRole: null, searchArea: null },
+    missing: ["targetRole", "searchArea"],
+    checkpoint: "intent_needed",
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /Start questions instead/ }).click();
+
+  const placeholder = await page.getByLabel("Search area").getAttribute("placeholder");
+  expect(placeholder).toBe("e.g. Hong Kong, or Remote in Vietnam");
+  const examples = placeholder!.replace("e.g. ", "").split(", or ");
+  expect(examples).toHaveLength(2);
+  for (const example of examples) {
+    expect(COVERED_MARKETS.some((market) => example.includes(market))).toBe(true);
+  }
 });
