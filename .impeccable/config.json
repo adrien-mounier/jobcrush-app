@@ -80,6 +80,15 @@
         ],
         "createdAt": "2026-08-09T07:01:09.418Z",
         "reason": "Rejected variant B halo kept as the decision record on the comparison page"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "apps/web/prototypes/profile-desktop.prototype.html"
+        ],
+        "createdAt": "2026-08-09T11:20:51.442Z",
+        "reason": "Owner-confirmed constellation language (R2-c, #176): gold facts glow like stars on the profile's night sky; carried from the round-1 and mobile prototypes"
       }
     ]
   }
