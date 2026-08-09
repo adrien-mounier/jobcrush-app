@@ -2,6 +2,26 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 (session R2-a) — Profile semantics DECIDED (#176): queue framing dead, colour law v2 pinned to the root CV, category table swept, the stretch word is "boost"
+
+_Design session (grill format) on #176, running `docs/design/profile-redesign-plan.md` — Parts 2+3
+closed together. Copy updated in `profile-desktop-options.prototype.html`._
+
+- **The "waiting for a job that asks" framing is dead everywhere** — the owner's objection was to
+  the sentence, not the split; gold/grey stays. The hero's second line survives, reframed about the
+  CV: *"18 make your CV right now — your strongest selection. The rest are kept for when a job
+  needs them."* Copy never names a colour ("the greys" rejected).
+- **Colour law v2:** gold = on the **root CV's** default render · grey = held, not on that render ·
+  anything per-application never draws. Applying to a job never recolours the profile. Accepted
+  edge: a per-market-stripped fact still shows gold (withholding explains itself per-application).
+- **Category table swept, every row falls out of the law** — no special cases; superseded values
+  live in the fact detail; `additional` and worked-out values draw by the law; muted stays a rail
+  list; hidden-"no" untouched.
+- **User-facing stretch word: "boost"** — tailor/proposal surfaces only, internal term unchanged.
+  Beat *angle/pitch* (idioms) and *suggested line* (flavourless). The interview narrative is the
+  card's content, not the label's caveat.
+- Ledger: R2-a done; **R2-b (Part 4 CV-section regroup audit → own ticket) is next.**
+
 ## 2026-08-09 (session 102) — Profile desktop (#176): shape A chosen from three live options, then a five-part complete re-design briefed and planned
 
 _Design session on #176. Comparison prototype `profile-desktop-options.prototype.html` (three

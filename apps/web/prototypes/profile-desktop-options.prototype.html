@@ -26,7 +26,9 @@
          detail carries "Change this answer", which re-opens the original question
          with the previous answer kept (the decided correction pattern, never a
          hand-built editor).
-     Colour law unchanged: gold = on your CV now · blue-grey = saved in reserve.
+     Colour law v2 (R2-a, 2026-08-09): gold = on the root CV's default render ·
+     grey = kept on the profile, not on that render. Copy is about the CV, never
+     about a queue — the "waiting for a job that asks" framing is dead.
      Mobile evidence: profile-screen.prototype.html. Not production code. -->
 <style>
   :root {
@@ -309,7 +311,7 @@ let S = {
 };
 
 const srcOf = f => (f.from === "cv" ? "Read from your CV" : "You told me this");
-const slotOf = f => f.onCv ? { k: "on", label: "On your CV right now" } : { k: "wait", label: "Saved to your profile" };
+const slotOf = f => f.onCv ? { k: "on", label: "On your CV right now" } : { k: "wait", label: "Kept on your profile" };
 
 // --- shared pieces ---------------------------------------------------------
 
@@ -333,17 +335,17 @@ function seg() {
 }
 
 function headHtml() {
-  const onCv = FACTS.filter(f => f.onCv).length, waiting = FACTS.length - onCv;
+  const onCv = FACTS.filter(f => f.onCv).length;
   return `<div class="phead">
     <p class="ptitle">your profile</p>
     <h1 class="pcount"><span class="n">${FACTS.length}</span> <span class="t">things you've told me</span></h1>
-    <p class="pwait"><b class="on">${onCv}</b> are on your CV right now. · <b class="wait">${waiting}</b> are waiting for a job that asks for them.</p>
+    <p class="pwait"><b class="on">${onCv}</b> make your CV right now — your strongest selection. <b class="wait">The rest</b> are kept for when a job needs them.</p>
   </div>`;
 }
 
 function detailInner(f) {
   const slot = slotOf(f);
-  const explain = f.onCv ? "" : "It'll be used when a job asks for it. ";
+  const explain = f.onCv ? "" : "Kept for when a job needs it. ";
   return `<p class="cl ${slot.k}"><i></i>${slot.label}</p>
     <p class="dtxt">${esc(f.text)}</p>
     <p class="said">${f.said}</p>
@@ -354,7 +356,7 @@ function detailInner(f) {
 function detailPanel() {
   const f = FACTS.find(x => x.id === S.sel);
   return `<div class="panel" id="detail">
-    ${f ? detailInner(f) : `<p class="hint">Tap any fact — what you said and where it came from lands here. Gold is on your CV right now; grey is saved for a job that asks.</p>`}
+    ${f ? detailInner(f) : `<p class="hint">Tap any fact — what you said and where it came from lands here. Gold makes your CV right now; grey is kept for when a job needs it.</p>`}
   </div>`;
 }
 
@@ -400,7 +402,7 @@ function sortedField() {
   }).join("");
 }
 
-const legend = `<div class="legend"><span><i></i>on your CV</span><span class="c"><i></i>saved for later</span></div>`;
+const legend = `<div class="legend"><span><i></i>on your CV</span><span class="c"><i></i>kept for later</span></div>`;
 const skyShell = `<div class="skywrap" id="skywrap"><canvas id="skycanvas"></canvas><div class="vig"></div>${legend}</div>`;
 
 // --- the sky (adapted from the mobile prototype, detail routed per variant) --
@@ -585,7 +587,7 @@ function render() {
     app.innerHTML = `${topbar}<div class="stage"><div class="vA">
       <div class="field ${S.view === "sky" ? "skymode" : ""}" id="field">
         ${S.view === "sky" ? skyShell : `${headHtml()}<div class="cols">${sortedField()}</div>
-          <p class="dnote"><b class="on">Gold</b> is on your CV right now. <b class="wait">Grey</b> is saved — it'll be pulled in when a job asks for it.</p>`}
+          <p class="dnote"><b class="on">Gold</b> makes your CV right now. <b class="wait">Grey</b> is kept — it comes in when a job needs it.</p>`}
       </div>
       <div class="rail">${S.view === "sky" ? headHtml() : ""}${detailPanel()}${searchPanel()}${mutePanel()}</div>
     </div></div>`;
@@ -596,7 +598,7 @@ function render() {
     app.innerHTML = `${topbar}<div class="stage"><div class="vB"><div class="col">
       ${headHtml()}
       ${S.view === "sky" ? `<div class="skybox">${skyShell}</div>` : sortedField()}
-      <p class="dnote" style="margin-bottom:18px"><b class="on">Gold</b> is on your CV right now. <b class="wait">Grey</b> is saved — it'll be pulled in when a job asks for it.</p>
+      <p class="dnote" style="margin-bottom:18px"><b class="on">Gold</b> makes your CV right now. <b class="wait">Grey</b> is kept — it comes in when a job needs it.</p>
       <div style="display:flex;flex-direction:column;gap:14px">${searchPanel()}${mutePanel()}</div>
     </div></div></div>`;
     if (S.view === "sky") startSky(id => { S.sel = id; openModal(); });

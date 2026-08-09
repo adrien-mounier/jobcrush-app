@@ -24,8 +24,8 @@ A fresh session opened with *"let's work on `docs/design/profile-redesign-plan.m
 
 | Session | Parts | Status |
 |---|---|---|
-| R2-a | 2 + 3 — colour/count semantics, category table, stretch word | **open — next** |
-| R2-b | 4 — CV-section regroup audit → its own ticket | open |
+| R2-a | 2 + 3 — colour/count semantics, category table, stretch word | **done — 2026-08-09** |
+| R2-b | 4 — CV-section regroup audit → its own ticket | **open — next** |
 | R2-c | 5 — list view + constellation restructure | open (gated on a + b) |
 | R2-d | 1 — rail: Location + eligibility, Job Family | open |
 
@@ -85,64 +85,50 @@ doesn't exist.
 
 ---
 
-## Part 2 — Kill the "waiting for a job that asks" framing?
+## Part 2 — Kill the "waiting for a job that asks" framing? ✅ DECIDED (R2-a, 2026-08-09)
 
-**What the owner thinks** — the line "*N are waiting for a job that asks for them*" (and the whole
-"reserve" framing) adds confusion, not information: those facts will be pulled in when a job asks,
-and not before, so announcing them beforehand buys nothing.
+**Decisions (owner, session R2-a):**
 
-**Designer's position going into the session (to be argued, not assumed):** mostly agree on the
-*sentence*, disagree on losing the *distinction*. The gold/grey split earns its place because it
-answers a question users really ask — "I told you X, why isn't it on my CV?" — with "space, not
-rejection." But the *"waiting for a job that asks"* phrasing makes the machine sound like it's
-holding things back. Part 5's reframe already contains the fix: **"your CV shows the strongest
-selection right now; the rest is kept and used when an offer needs it"** — same truth, told about
-the CV instead of about a queue. Proposal: the count line dies, the colour distinction stays,
-re-captioned.
-
-**Decided ground it touches**
-
-- The colour axis "gold = on your CV now" (owner decision 2026-07-24) — *kept* under this proposal;
-  only the copy layer changes.
-- §8.1's "honest line" (the profile outgrows the two-page CV; both counts only grow) — the
-  progression story loses its counter. Check in the session: does the hero count ("24 things
-  you've told me") carry the progression feeling alone? (Position: yes.)
-
-**Deliverable:** decision on #176; copy updated in the prototype. Merges naturally into Part 3/5's
-session — see session plan.
+- The owner's objection was to the **sentence, not the split** — the two piles stay visible; the
+  queue story ("waiting for a job that asks") dies everywhere.
+- The second hero line **survives, reframed about the CV**. Final copy:
+  > **24** things you've told me
+  > **18** make your CV right now — your strongest selection. The rest are kept for when a job
+  > needs them.
+- Copy never names a colour ("the greys" rejected — colour-blind bridge + machinery through the
+  back door); "the rest" carries it. Grey-fact detail caption: *"Kept for when a job needs it."*
+- Prototype copy updated (`profile-desktop-options.prototype.html`: hero, detail captions, legend
+  "kept for later", dnotes).
 
 ---
 
-## Part 3 — What the constellation's colours mean (and the categories inventory)
+## Part 3 — What the constellation's colours mean ✅ DECIDED (R2-a, 2026-08-09)
 
-**What the owner wants** — if the reserve framing dies: **gold = in the root CV** (the audited base
-CV) vs **grey = not kept on the CV for now** (until an offer needs it), plus the stretched things,
-plus anything not yet thought of. Also: **a different user-facing word for "stretch."**
+**Colour law v2 (owner, session R2-a), one sentence:** **gold = on the root CV's default render ·
+grey = held on the profile, not on that render · anything per-application never draws.** Gold
+describes the **root CV**, never the latest tailored one — applying to a job never recolours the
+profile (same reasoning that kept stretches off it).
 
-**Categories inventory — the full list of things the model can hold, so nothing is missed** (this
-is the checklist the owner asked for; each needs a decision: shown? where? what colour?):
+**Category table — every row decided by the law, no special cases:**
 
-| Category | Today | Note |
+| Category | Verdict | Why |
 |---|---|---|
-| Fact on the root CV's default render | gold | The owner's proposed gold. "Root CV" vs "current tailored CV" must be pinned — they differ after tailoring. |
-| Fact held, not on the default render | grey | The "left out by priority / space" set (Part 5). |
-| A "no" (ruled out) | hidden | Decided 2026-07-23; **stands unless reopened.** |
-| An approved stretch | not shown | ✅ **DECIDED (owner, session 102): stays off the profile entirely** — "a stretch is a fact about one application, never about you." ADR-0005 kept structural. |
-| A proposed, not-yet-approved stretch | not shown | ✅ Same decision — off the profile. |
-| A withheld fact (per-market strip, ADR-0007) | not shown | Withholding is per *application*, never touches the profile — arguably invisible here by design. |
-| A superseded/corrected value | not shown | The current value shows; the superseded one lives in the fact's detail (origin chain, ADR-0004). |
-| Unclassified / `additional` content (ADR-0010) | not shown yet | Will exist; Part 4's ADDITIONAL section is its natural home. |
-| Worked-out values (years total, ADR-0008) | shown as fact | Display-only, never editable, regenerates. |
-| Muted things ("asked me to stop") | rail list | Not facts; stay in the rail (decided shape). |
+| Fact on the root CV's default render | **gold** | The law. |
+| Fact held, not on the render | **grey** | The law; caption per Part 2. |
+| A "no" (ruled out) | **hidden** | 2026-07-23 decision, not reopened. |
+| Approved / proposed stretch | **off the profile** | Closed, session 102 (ADR-0005 structural). |
+| Withheld fact (per-market strip, ADR-0007) | **not shown as withheld** | Withholding is per-application; the fact still draws gold/grey by the law. Accepted edge: a stripped fact (e.g. DOB in a market that strips it) shows gold on the profile yet won't print in applications — the withholding pass explains itself per-application. |
+| Superseded / corrected value | **not drawn** | Current value draws; old value lives in the fact's detail (origin chain, ADR-0004). |
+| Unclassified `additional` (ADR-0010) | **no special rule** | Prints on the root render by default → gold; left off → grey. Falls out of the law. |
+| Worked-out values (ADR-0008) | **draw by the law, never editable** | Display-only stands. |
+| Muted things | **rail list, not dots** | Not facts; decided shape stands. |
 
-**The word for "stretch"** — user-facing only. Recommendation: **do not rename the internal term**
-(it is written through ADR-0005/#171 and the codebase); decide the *on-screen* word. Candidates to
-bring to the session: *boost* · *angle* · *pitch* · *suggested line* · *proposed line*. Test each
-against #169 (plain international English) and the marketing-document philosophy (never moralise —
-the word must sound like an offer, not a warning or a confession).
-
-**Deliverable:** the colour law v2 + category table with a decision per row, posted on #176; the
-user-facing stretch word decided.
+**The user-facing word for a stretch is "boost"** (owner, R2-a). Internal term unchanged
+(*stretch* through ADR-0005/#171 and code). Appears only on **tailor/proposal surfaces** — never
+the profile. Chosen over *angle/pitch* (idioms, fail #169) and *suggested/proposed line*
+(flavourless, doesn't distinguish from ordinary rewrites); "boost" is plain international English
+and pure offer — no moralising. The defensibility story is the proposal card's **content**, not
+the label's caveat.
 
 ---
 
@@ -220,7 +206,8 @@ prototype updated, this plan's section marked done.
   facts only*; the stretch word (Part 3) is still needed, but for the tailor/proposal surfaces,
   not the profile.
 - ⚠️ Languages: one editing surface, chosen deliberately (Parts 1 vs 4).
-- ⚠️ "Root CV" vs "current CV" — pin which document gold describes (Part 3).
+- ✅ ~~"Root CV" vs "current CV"~~ — closed R2-a: gold describes the **root CV**; applying never
+  recolours the profile.
 - ⚠️ §8.1 profile-vs-CV distance (Part 4) — narrow it on purpose or not at all.
 - The hidden-"no" decision and the Mei rule are not reopened by anything above; if a session
   drifts into them, stop and say so.
