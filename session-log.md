@@ -2,6 +2,32 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 (session 100) — Pre-build audit: location, market switching, and the two S1 screens the design round skipped (#172–#176)
+
+_Owner-driven check of four worries before build; two repo traces, five tickets filed, two design
+decisions taken live._
+
+- **Location audit:** no country picker exists — one free-text "Search area" box, unvalidated, whose
+  own placeholder ("Remote in Thailand") resolves to zero regions; failures surface only as a silent
+  `search_area_not_covered` deep in retrieval. The sponsorship question's city comes from a second,
+  unreconciled signal (`parseCity` on the job-title text). No UI can change the area after
+  `intent_known`. → **#172** (validate at entry + early-access coverage message from the provider
+  registry + one location signal) and **#173** (a screen to change the search area + the honest
+  "fetching new market" waiting state; switch preserves all confirmed evidence — #101 already does).
+- **Market-switch trace:** nothing is pre-pulled per market; retrieval is per-user on demand, scores
+  per (fact-set × ad). Worse: the visible deck is still the 17-job fixture pool filtered by language
+  only — #101's retrieval results reach nobody until **#63** lands. Also found: theirstack registered
+  with no driver (permanently blocks `coverage.complete` everywhere) and the curated pool structurally
+  dead (`markRegionRefreshed` has zero prod callers) → **#174**.
+- **The two skipped screens:** job card (#10/#19/#21) and profile (#9/#17/#20) shipped in S1 but are
+  mobile-only, absent from #51's desktop scope (profile entirely), and untouched by the #157 round.
+  Reviewed with the owner → **#175** (job card: desktop **one card at a time — no list-plus-detail,
+  owner decision**; buttons + keyboard; the /100 metal ladder + ★ Top match badge travels here; the
+  three sections *Where you fit / Where you don't — yet / Asked and closed* are **settled, keep**)
+  and **#176** (profile: desktop for both shapes — **Sorted/Constellation toggle survives, owner
+  decision**; absorbs the #171 mute list, the #120 eligibility editor, and the #173 search-area
+  placement question).
+
 ## 2026-08-09 (session 99) — The match display decided: score /100 on a metal ladder, "Top match" at 90+ (#157)
 
 _Design session on the tailor screen's match number. Two throwaway comparison prototypes, then the
