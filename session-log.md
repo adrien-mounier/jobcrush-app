@@ -2,6 +2,36 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09/10 — /orchestrate-team: profile foundation layer + orphaned #158 + owner's contact-info request (5 slices, 6 tickets closed)
+
+_Orchestrated build session (paused and resumed mid-flight by the owner). Every slice: build → two-axis
+review → QA (live browser/full-stack where drivable) → path-scoped commit → close._
+
+- **#183** (`5a53be9`) — desktop profile shape A: field + 320/360px rail at ≥900px, phone stacks
+  field-then-rail (owner-reviewable; screenshots delivered), new hero copy, Job family section with
+  the honest pre-E5 state and the "Not the job you meant?" door (Q1 strings, targets endpoint).
+- **#158** (`bed20ad`) — found ORPHANED in the working tree (built by an earlier session, never
+  reviewed/committed). Bullet spend ladder + rail of 10, claimIds on every printed bullet,
+  `conservationIssues()` cross-check (instantly caught 3 fabricated ids in the old fixture),
+  cv-brain "Length and bullet density" status updated to live.
+- **#182 + #180** (`3850c06`) — work-rights keyed to slugged markets; supersede history in its own
+  table (survives remove/decline, both drivers); gating per-posting by region overlap, fail-open.
+  QA round 1 NO-GO (decline → build dead end; HK answer withdrew Sydney postings) — fixed, GO.
+- **#184 + #172** (`86e6e79`) — search-area resolution at entry (aliases incl. Kowloon/HKG/Saigon,
+  placeholders pinned verbatim), coverage list from the provider registry, SERVER-side uncovered
+  gate (review caught the client-only gate leaking on reload), one location signal (parseCity dead).
+  onboarding.ts 2053→2042 by extraction; an attempted MAX_LINES raise was caught and reverted.
+- **#190** (`9a6df37`) — owner request mid-session, ticket written this session: contact info is a
+  fact. Deterministic mine-time parse (ADR-0004 origins), contact store w/ supersede history +
+  ADR-0008 read-never-overwrites-person-said guard, GET /profile additive contact block,
+  PUT /contact + About-you door, preview render prefers stored values (emails masked before the
+  phone pass; dotted/bracket formats handled — three render defects caught by review/QA rounds).
+- Residuals routed: substring location false-match → #174 · About-you merge + zero-facts contact
+  visibility → #185 · design-lint documented-ramp drift → #191 (new, owner decision) · discovery
+  e2e pre-existing timeouts noted for #189's full-journey pass.
+- Spec #181 frontier next: #185 (payload) → #186/#187/#188 → #189 (full-journey QA + mobile rail
+  decision before the owner).
+
 ## 2026-08-09 — #179 data-source call DECIDED + the backend half built (honest count, profile search block)
 
 _Owner decision recorded on #179; backend landed this session. The rail's frontend (the honest
