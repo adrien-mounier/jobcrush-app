@@ -5,7 +5,7 @@
 // user-visible AC still gets its own boundary test.
 import { describe, expect, it } from "vitest";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
-import { ANY_FAMILY, type EligibilityFact } from "../src/eligibility.js";
+import type { EligibilityFact } from "../src/eligibility.js";
 import { findWithdrawingRequirement } from "../src/withdrawal.js";
 
 const ad = (over: Partial<AdRequirementsV1> = {}): AdRequirementsV1 => ({
@@ -76,8 +76,12 @@ describe("#107 findWithdrawingRequirement", () => {
     expect(findWithdrawingRequirement(advertisement, [fact({ familyId: "Mandarin", value: "none" })])).toBeNull();
   });
 
-  it("work-rights never withdraws, on any value (M1) — no visitor-location fact exists to scope it safely", () => {
-    const advertisement = ad({
+  // #182 resolves code-review M1: work-rights now reads at `market`, the caller's own current place
+  // (routes/onboarding.ts derives it via discovery.ts's parseCity(role), the same city the question
+  // is worded about) — passed as findWithdrawingRequirement's third argument, never resolved inside
+  // this pure function.
+  const workRightsAd = () =>
+    ad({
       requirements: [
         {
           id: "work-rights-required",
@@ -89,14 +93,44 @@ describe("#107 findWithdrawingRequirement", () => {
         },
       ],
     });
-    // code-review M1: work-rights can NEVER withdraw — the discovery answer is stored globally
-    // (ANY_FAMILY) but the QUESTION is city-scoped, so there is no visitor-location fact to tell
-    // apart "can't work in Hong Kong" from "can't work in Australia" (see scopeFor's own doc). An
-    // explicit "no" here must still leave the posting in the deck, on every value.
+
+  it("work-rights never withdraws with no market given (M1's original safety net, still true)", () => {
+    // A caller that never learned the visitor's place (or predates #182) passes no third argument —
+    // scopeFor's own doc: null market must never fall back to ANY_FAMILY or any other scope.
     for (const value of ["needs-sponsorship", "eligible"]) {
-      const facts = [{ dimension: "work-rights" as const, familyId: ANY_FAMILY, value, label: "Right to work" }];
-      expect(findWithdrawingRequirement(advertisement, facts)).toBeNull();
+      const facts = [{ dimension: "work-rights" as const, familyId: "Hong Kong", value, label: "Right to work" }];
+      expect(findWithdrawingRequirement(workRightsAd(), facts)).toBeNull();
     }
+  });
+
+  it("#182 AC: withdraws on an explicit 'no' stored for the SAME market gating is running for", () => {
+    const facts = [
+      { dimension: "work-rights" as const, familyId: "Hong Kong", value: "needs-sponsorship", label: "Right to work" },
+    ];
+    expect(findWithdrawingRequirement(workRightsAd(), facts, "Hong Kong")?.id).toBe("work-rights-required");
+  });
+
+  it("#182 AC3: a conflicting answer stored for a DIFFERENT market has no effect on this market's gate", () => {
+    // The falsifiable check from #180/#182: a Paris "no" must never gate a Hong Kong deck.
+    const facts = [
+      { dimension: "work-rights" as const, familyId: "Paris", value: "needs-sponsorship", label: "Right to work" },
+    ];
+    expect(findWithdrawingRequirement(workRightsAd(), facts, "Hong Kong")).toBeNull();
+  });
+
+  it("#182 AC4: an unanswered market reads unknown and never withdraws, even with facts stored for other markets", () => {
+    const facts = [
+      { dimension: "work-rights" as const, familyId: "Paris", value: "needs-sponsorship", label: "Right to work" },
+      { dimension: "work-rights" as const, familyId: "Hong Kong", value: "eligible", label: "Right to work" },
+    ];
+    expect(findWithdrawingRequirement(workRightsAd(), facts, "Singapore")).toBeNull();
+  });
+
+  it("#182: matches the market case-insensitively and trimmed, same as language/certification scope", () => {
+    const facts = [
+      { dimension: "work-rights" as const, familyId: " Hong Kong ", value: "needs-sponsorship", label: "Right to work" },
+    ];
+    expect(findWithdrawingRequirement(workRightsAd(), facts, "hong kong")?.id).toBe("work-rights-required");
   });
 
   // certification is wired through the predicate (D3: "don't special-case it away") even though no

@@ -22,7 +22,7 @@ import { z } from "zod";
 import type { EligibilityDimension } from "@jobcrush/contracts";
 import type { SessionRecord } from "./sessions.js";
 import type { ClaimRecord } from "./claims.js";
-import { resolveFamily, isDiscoveryClaim, itemIdOf, type DiscoveryQuestion } from "./discovery.js";
+import { resolveFamily, isDiscoveryClaim, itemIdOf, slug, type DiscoveryQuestion } from "./discovery.js";
 
 export const DECLINE_OPTION = "Ask me later";
 
@@ -128,9 +128,14 @@ export const LANGUAGE_ITEM_ID = `${ELIGIBILITY_ITEM_PREFIX}languages`;
 const ASK_DIMENSIONS: readonly EligibilityDimension[] = ["years-experience", "work-rights", "language"];
 
 // years-experience is family-scoped (CONTEXT.md: "length of experience is always experience in a
-// family, never a career total") — itemId()/FAMILY_SCOPED below exist for it. work-rights holds
-// regardless of role — right to work doesn't vary by subject — so it keeps using the store's
-// ANY_FAMILY (passed in by callers — see eligibilityCandidates) and a null scopeLabel.
+// family, never a career total") — itemId()/FAMILY_SCOPED below exist for it. work-rights does NOT
+// vary by job family (right to work doesn't depend on the role) but, per #182 / #180, DOES vary by
+// PLACE: the question is already worded "Can you work in {city}...?", so its answer is a fact about
+// that city, not a global one. FAMILY_SCOPED is reused rather than duplicated for this — it just
+// means "this dimension's itemId/store-scope carries a suffix", and work-rights' suffix is a city
+// instead of a job family. `eligibilityCandidates`'s `city` parameter supplies it; ANY_FAMILY remains
+// the fallback when no city is known yet (buildQuestion's own null-city branch), and a null
+// scopeLabel — scopeLabel is years-experience's own question-text field, unused here.
 //
 // language is NOT in this set (#123 supersedes #107 D2's use of it): the store's familyId column is
 // still a free-text SCOPE for language, and a blocking requirement's eligibilitySubject ("Mandarin")
@@ -140,7 +145,7 @@ const ASK_DIMENSIONS: readonly EligibilityDimension[] = ["years-experience", "wo
 // language branch below writes a fixed itemId (LANGUAGE_ITEM_ID) directly instead; the actual
 // per-language store writes happen in routes/onboarding.ts via languageFacts(), each at its own
 // language's scope, exactly like before — only the QUESTION shape and its itemId scheme changed.
-const FAMILY_SCOPED: ReadonlySet<EligibilityDimension> = new Set(["years-experience"]);
+const FAMILY_SCOPED: ReadonlySet<EligibilityDimension> = new Set(["years-experience", "work-rights"]);
 
 // --- years-experience bands (UI design spec §2 — pinned, do not change without the spec) ---
 const YEARS_OPTIONS = ["Under 3 years", "3–4 years", "5–7 years", "8–10 years", "More than 10 years"] as const;
@@ -210,13 +215,12 @@ function scopeLabelFor(key: string): string {
 /** A deterministic slug from the E5 stub's human family name ("IT Project Manager" -> "it-project-
  *  manager"), so the stub path has a stable id to key the eligibility store on without inventing one
  *  by hand. Not the same id as the published "it-project-delivery" family — the stub is a hand
- *  stand-in for a single family (e5stub.ts's own doc), not that production floor. */
+ *  stand-in for a single family (e5stub.ts's own doc), not that production floor. #182 QA round 3:
+ *  now a thin wrapper over discovery.ts's `slug()` — this used to duplicate the same lowercase/
+ *  collapse-non-alnum logic locally; the work-rights market key needs the identical canonicalisation
+ *  (buildQuestion's work-rights branch, below), so there is one slugging rule, not two. */
 function stableFamilyId(familyName: string): string {
-  return familyName
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  return slug(familyName);
 }
 
 /** The ONE place that decides which family scopes years-experience (#106 step 3.3). Prefers the
@@ -265,15 +269,27 @@ function buildQuestion(
     // Must-fix 8: this text is recorded verbatim in a decline's claim text, so it must reflect the
     // CITY THE VISITOR WAS ACTUALLY ASKED ABOUT — callers must pass the real parseCity(role) result,
     // never a placeholder null, for that record to be honest.
+    //
+    // #182: the ANSWER is now a fact about that same city — `familyId` (the store's generic scope
+    // column) carries it, falling back to ANY_FAMILY only when no city is known at all (never a
+    // placeholder market). This changes the itemId's shape for work-rights (it now carries a city
+    // suffix, even the ANY_FAMILY one) — an accepted pre-launch shape change, the same kind #123's
+    // LANGUAGE_ITEM_ID already made for the same reason: no real session's answer predates this.
+    //
+    // #182 QA round 3 must-fix: the KEY is `slug(city)`, never the raw display string — a raw city
+    // ("Hong Kong") breaks ClaimGraph's kebab-slug id contract the moment a decline's claim id
+    // inherits it, and "Hong Kong" / "HONG KONG" / "Hong  Kong" would otherwise be three different
+    // markets. `city` itself (unslugged) is used ONLY in `question`'s display text below.
+    const marketId = city ? slug(city) : anyFamily;
     const question = city
       ? `Can you already work in ${city} without visa sponsorship?`
       : "Can you already work where you're job-hunting, without visa sponsorship?";
     return {
-      itemId: itemId(dimension, anyFamily),
+      itemId: itemId(dimension, marketId),
       question,
       options: [WORK_RIGHTS_YES, WORK_RIGHTS_NOT_YET, DECLINE_OPTION],
       cvSection: "experience",
-      eligibility: { dimension, familyId: anyFamily, scopeLabel: null, declineOption: DECLINE_OPTION },
+      eligibility: { dimension, familyId: marketId, scopeLabel: null, declineOption: DECLINE_OPTION },
     };
   }
   // dimension === "language" — #123 supersedes #107 D2's single-English question with ONE

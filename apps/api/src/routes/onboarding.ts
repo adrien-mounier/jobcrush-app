@@ -1203,17 +1203,15 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // #123 (coordinator, 2026-08-04) — the reveal's "N jobs needed Mandarin" undo line needs the
       // withdrawal COUNT, not just an operator metric (deck.cards_withdrawn is process-wide, not
       // per-response, and names no language). Tallied HERE, inside the SAME filter pass that already
-      // decides a posting's fate — no second pass over `candidates`, no second eligibility read, and
-      // `withdrawal.ts` itself is untouched: this only ACCUMULATES what findWithdrawingRequirement
-      // already reports, never re-decides anything. Scoped to `candidates` (postings already past
-      // every OTHER exclusion — language-ineligible, unreadable advert) means a posting excluded for
-      // any other reason is never in this loop at all, so it can never be miscounted as a language
-      // withdrawal (the correctness trap: this must mean "cost you a job", not "excluded, for any
-      // reason, and also happened to have a language answer").
+      // decides a posting's fate — no second pass over `candidates`, no second eligibility read; this
+      // only ACCUMULATES what findWithdrawingRequirement reports, never re-decides anything. Scoped to
+      // `candidates` (postings already past every OTHER exclusion) means a posting excluded for any
+      // other reason can never be miscounted as a language withdrawal (this must mean "cost you a
+      // job", not "excluded, for any reason, and also happened to have a language answer").
       const withdrawnTotal = { count: 0 };
       const withdrawnByLanguage = new Map<string, number>();
       const openCandidates = candidates.filter((entry) => {
-        const req = findWithdrawingRequirement(entry.adReq, facts);
+        const req = findWithdrawingRequirement(entry.adReq, facts, entry.posting.location);
         if (!req) return true;
         incrementCounter("deck.cards_withdrawn");
         withdrawnTotal.count++;
@@ -1366,15 +1364,16 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const langs = readingLanguages(session);
         const posting = eligiblePostings(langs).find((p) => p.id === req.params.adId);
         const adReq = posting ? await resolveAdRequirements(posting.id, deps.readAd, posting) : null;
-        // T3 (code review): guard on `adReq` itself, not a derived boolean, so TS narrows it to
-        // non-null below without a `!` assertion — a later edit to this guard is then a compile
-        // error if it stops guaranteeing that, not a runtime one.
-        if (!adReq || !languageEligible(adReq.language, langs))
+        // T3 (code review): guard on `posting`/`adReq` themselves, not a derived boolean, so TS
+        // narrows both to non-null below without a `!` assertion — a later edit to this guard is then
+        // a compile error if it stops guaranteeing that, not a runtime one. (#182: `posting` joined
+        // the guard so its `.location` below is typed non-null, not just `adReq`'s.)
+        if (!posting || !adReq || !languageEligible(adReq.language, langs))
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
         // #107 (D4): a withdrawn ad is not a valid want target either — same 404 shape as an unknown
         // card, so a session can never distinguish "never existed" from "genuinely can't take it".
         const facts = await deps.eligibility.list(session.id);
-        if (findWithdrawingRequirement(adReq, facts))
+        if (findWithdrawingRequirement(adReq, facts, posting.location))
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
 
         await deps.sessions.setTailorTarget(session.id, req.params.adId);
@@ -1405,7 +1404,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // target at all — no rejection message, no error screen (the ticket's own UX intent: "It does
       // not appear as a greyed-out card, a 'you can't apply' state, or a rejection message"). Clearing
       // it here means a reload doesn't keep landing back on the same dead target.
-      if (findWithdrawingRequirement(adReq, facts)) {
+      if (findWithdrawingRequirement(adReq, facts, posting.location)) {
         await deps.sessions.clearTailorTarget(session.id);
         return reply
           .status(409)
@@ -1478,7 +1477,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         // still recorded — harmless, tied to this ad's own claim id) behaves EXACTLY like no target
         // at all from here on: no rejection message, nothing further asserted about a job the visitor
         // can no longer take. Cleared so a reload doesn't keep landing back on the same dead target.
-        if (findWithdrawingRequirement(adReq, facts)) {
+        if (findWithdrawingRequirement(adReq, facts, posting.location)) {
           await deps.sessions.clearTailorTarget(session.id);
           return reply
             .status(409)

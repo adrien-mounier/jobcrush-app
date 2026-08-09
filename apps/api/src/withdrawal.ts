@@ -15,35 +15,49 @@
 //   3. that fact's value is an EXPLICIT "no" (isExplicitNo below) for the dimension. "Some, but not
 //      for work" is not "I don't speak it" and must never withdraw (the spec's own regression case).
 import type { AdRequirementV1, AdRequirementsV1, EligibilityDimension } from "@jobcrush/contracts";
-import type { EligibilityFact } from "./eligibility.js";
+import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
+import { regionsForLocationText } from "./postingRetrieval.js";
 
-/** The eligibility-store scope one requirement's blocking check reads at, or null when there is no
- *  safe way to resolve one — a null scope means "cannot determine, never withdraw", never "fall back
- *  to the global scope".
- *
- *  work-rights ALWAYS returns null — code-review M1 (2026-08-03): the discovery question is asked
- *  ONCE, city-scoped in its own wording ("Can you already work in {city}...?"), but STORED globally
- *  (ANY_FAMILY) with no visitor-location fact attached to it. apps/api/data/sample-postings.json
- *  spans multiple countries (Australia, Hong Kong SAR, Vietnam, China); an Australian visitor
- *  job-hunting in Hong Kong who answers "Not yet — I'd need sponsorship" about Hong Kong would
- *  otherwise have every right-to-work-demanding AUSTRALIAN posting silently deleted too — exactly the
- *  silent-deletion-of-a-winnable-job failure #86 names as the worst this engine can make. This is the
- *  SAME conclusion eligibilityDiscovery.ts's own must-fix-7 comment already reached for the mirror-
- *  image case (a posting's applicantLocationRequirements vs. a visitor's city): "which countries this
- *  job accepts applicants from" and "can THIS visitor work in THEIR city without sponsorship" do not
- *  resolve into each other without a visitor-location fact nothing in this codebase collects.
- *  work-rights stays fully wired through the contract, the reader, and isExplicitNo below — it simply
- *  never reaches a withdrawal via this function. Resolvable the day a real visitor-location fact
- *  exists (out of scope here); until then, null, always.
- *
- *  language/certification read at their own eligibilitySubject — absent (a fixture predating #107, or
- *  a reader output the clamp somehow missed) means there is no safe way to know WHICH language/
- *  certification is meant, so this requirement can never withdraw anything rather than risk matching
- *  the wrong subject. years-experience/degree are never blocking (adReader.ts's own hard-gate clamp),
- *  so they fall through to null defensively rather than being special-cased out of the switch. */
+/** The eligibility-store scope one (language/certification) requirement's blocking check reads at, or
+ *  null when there is no safe way to resolve one — a null scope means "cannot determine, never
+ *  withdraw", never "fall back to the global scope". Read at their own eligibilitySubject — absent (a
+ *  fixture predating #107, or a reader output the clamp somehow missed) means there is no safe way to
+ *  know WHICH language/certification is meant, so this requirement can never withdraw anything rather
+ *  than risk matching the wrong subject. years-experience/degree are never blocking (adReader.ts's own
+ *  hard-gate clamp), so they fall through to null defensively rather than being special-cased out.
+ *  work-rights is NOT resolved here — see findWorkRightsFact below, its own dedicated match. */
 function scopeFor(dimension: EligibilityDimension, subject: string | undefined): string | null {
-  if (dimension === "work-rights") return null;
   if (dimension === "language" || dimension === "certification") return subject ?? null;
+  return null;
+}
+
+/** #182 QA round 2 M1 / round 3 HIGH: work-rights matches by REGION, not by exact scope string. The
+ *  discovery question is city-scoped ("Can you already work in {city}...?") and the store now keys an
+ *  answer by that city's slug (eligibilityDiscovery.ts's buildQuestion) — but a POSTING's own market
+ *  is a free-text `location` field ("Wan Chai District, Hong Kong SAR"), never the visitor's own typed
+ *  city string, so exact-matching the two would almost never fire and matching on the SESSION's
+ *  current city (the round-2 shape) applied one answer to every posting regardless of where it
+ *  actually was — a Hong Kong "no" wrongly withdrew Sydney postings. Both sides are instead resolved
+ *  to REGION CODES via postingRetrieval.ts's shared AREA_REGIONS vocabulary (regionsForLocationText —
+ *  substring-safe for free text, de-hyphenating a stored slug back to space form first) and matched on
+ *  overlap. Either side resolving to no region at all (an "APAC"-only posting, a market outside
+ *  today's four, e.g. Shenzhen; or a market this store never learned a region for, e.g. Paris) means
+ *  no safe way to place it — fails OPEN, the same "unknown never withdraws" rule as every other
+ *  dimension, never a guess. A legacy ANY_FAMILY-scoped fact (predating #182) is skipped outright: it
+ *  was never about one place, so it must never apply to one. */
+function findWorkRightsFact(
+  facts: readonly EligibilityFact[],
+  postingLocation: string | null | undefined,
+): EligibilityFact | null {
+  if (!postingLocation) return null;
+  const postingRegions = new Set(regionsForLocationText(postingLocation));
+  if (postingRegions.size === 0) return null; // cannot place the posting — never guess
+  for (const fact of facts) {
+    if (fact.dimension !== "work-rights") continue;
+    if (fact.familyId === ANY_FAMILY) continue;
+    const factRegions = regionsForLocationText(fact.familyId.replace(/-/g, " "));
+    if (factRegions.some((r) => postingRegions.has(r))) return fact;
+  }
   return null;
 }
 
@@ -83,17 +97,27 @@ function isExplicitNo(dimension: EligibilityDimension, value: string): boolean {
   return false; // years-experience/degree are never blocking
 }
 
-/** The first requirement (in the advert's own rank order) that genuinely withdraws this posting from
+/** The first requirement (in the advert's own rank order) that genuinely withdraws THIS posting from
  *  this session's deck, or null when nothing does. `facts` is whatever the caller already read
- *  (EligibilityFact[]) — never fetched here. */
+ *  (EligibilityFact[]) — never fetched here. `postingLocation` (#182 QA round 3) is THIS posting's own
+ *  `location` field — never the session's current city; work-rights is gated per-posting (findWork
+ *  RightsFact above), because a session may hold answers for several markets and only the posting's
+ *  OWN market's answer may ever apply to it. Optional and defaulting to null so a caller that cannot
+ *  supply it (or predates this) safely never withdraws on work-rights, same as no fact at all. */
 export function findWithdrawingRequirement(
   adReq: AdRequirementsV1,
   facts: readonly EligibilityFact[],
+  postingLocation: string | null = null,
 ): AdRequirementV1 | null {
   for (const req of adReq.requirements) {
     if (req.kind !== "blocking") continue;
     const dimension = req.eligibilityDimension;
     if (!dimension) continue; // defensive — the reader's clamp already guarantees this is set
+    if (dimension === "work-rights") {
+      const fact = findWorkRightsFact(facts, postingLocation);
+      if (fact && isExplicitNo(dimension, fact.value)) return req;
+      continue;
+    }
     const scope = scopeFor(dimension, req.eligibilitySubject);
     if (scope === null) continue;
     const fact = facts.find(

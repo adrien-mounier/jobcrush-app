@@ -825,7 +825,9 @@ describe("#106 eligibility questions in discovery", () => {
     });
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
-    expect(await eligibility.get(sid, "work-rights")).toMatchObject({ value: "needs-sponsorship" });
+    // #182: stored at the SLUG of the city the question was about (ROLE names Paris), not the old
+    // global scope, and never the raw display string (QA round 3 must-fix: kebab slug, not "Paris").
+    expect(await eligibility.get(sid, "work-rights", "paris")).toMatchObject({ value: "needs-sponsorship" });
   });
 
   // Code-review must-fix 5: correcting TO a decline must retract a prior real answer's stored value —
@@ -843,13 +845,14 @@ describe("#106 eligibility questions in discovery", () => {
     });
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
-    expect(await eligibility.get(sid, "work-rights")).toMatchObject({ value: "needs-sponsorship" }); // stored
+    // #182: stored at the SLUG of the city the question was about (ROLE names Paris).
+    expect(await eligibility.get(sid, "work-rights", "paris")).toMatchObject({ value: "needs-sponsorship" }); // stored
 
     const corrected: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION })
     ).json();
     expect(corrected.questions.map((q) => q.itemId)).not.toContain(workRights.itemId); // still closed
-    expect(await eligibility.get(sid, "work-rights")).toBeNull(); // retracted, not stale
+    expect(await eligibility.get(sid, "work-rights", "paris")).toBeNull(); // retracted, not stale
   });
 
   it("re-answering an eligibility question corrects it, exactly like the existing idempotent upsert", async () => {
@@ -910,6 +913,74 @@ describe("#106 eligibility questions in discovery", () => {
     const declineClaim = negatives.find((c) => c.id === discoveryClaimId(workRights.itemId))!;
     expect(declineClaim.text).toContain("Paris");
     expect(declineClaim.text).not.toContain("where you're job-hunting"); // the generic fallback text
+  });
+
+  // #182 QA round 3, MUST-FIX: a multi-word city ("Hong Kong") used to reach the decline's claim id
+  // raw ("discovery-eligibility-work-rights-Hong Kong") — a space and a capital, both illegal in
+  // ClaimGraph's kebab-slug id contract — so /onboarding/build looped back with "id must be a kebab
+  // slug" the moment a visitor declined work-rights while job-hunting in a two-word city. The key is
+  // now slug(city) ("hong-kong"), never the raw display string.
+  it("#182 QA round 3: a decline in a MULTI-WORD city produces a valid kebab-slug claim id and /onboarding/build reaches ready", async () => {
+    const { app, claims } = buildServer();
+    const cookie = await anonSession(app);
+    await signIn(app, cookie, "qa182-multiword@example.com");
+    const start: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/start", { role: "IT project manager in Hong Kong" })
+    ).json();
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION });
+
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    const negatives = await claims.negatives(sid);
+    const declineClaim = negatives.find((c) => c.id === discoveryClaimId(workRights.itemId))!;
+    const KEBAB_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    expect(KEBAB_SLUG.test(declineClaim.id)).toBe(true);
+
+    // Build needs at least one confirmed fact to leave `loopback` — seed one directly (this test's
+    // subject is the DECLINE's claim id, not the mine pipeline).
+    await claims.add(sid, {
+      id: "qa-seed-claim",
+      semantic_key: "qa-seed-claim",
+      field_key: null,
+      field_value: null,
+      field_label: null,
+      role: "profile",
+      text: "Delivered projects.",
+      machine_touch: "verbatim",
+      classification: "Verified",
+      source_quote: "Delivered projects.",
+      needs_grill: false,
+      grill_hint: null,
+    });
+    const built = await post(app, cookie, "/onboarding/build", undefined);
+    const body = built.json();
+    expect(body.stage).toBe("ready");
+    expect(body.gate).toEqual({ ok: true, errors: [] });
+  });
+
+  // #182 QA round 3 must-fix: case and whitespace variants of ONE city must land on the SAME market
+  // key — "in HONG KONG" and "in Hong  Kong" (double space) used to split into different itemIds
+  // (and so different store keys), and an all-lowercase "in hong kong" used to match parseCity's old
+  // regex NOT AT ALL, silently storing the answer at the global ANY_FAMILY scope instead of a market.
+  it("#182 QA round 3: case and whitespace variants of one city resolve to the SAME work-rights market key", async () => {
+    const { app } = buildServer();
+    const itemIdFor = async (role: string) => {
+      const cookie = await anonSession(app);
+      const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role })).json();
+      return start.questions.find((q) => q.eligibility?.dimension === "work-rights")!.itemId;
+    };
+    const ids = await Promise.all(
+      [
+        "IT project manager in Hong Kong",
+        "IT project manager in hong kong",
+        "IT project manager in HONG KONG",
+        "IT project manager in  Hong  Kong",
+        "IT project manager in Hong kong",
+      ].map(itemIdFor),
+    );
+    expect(new Set(ids).size).toBe(1); // every variant is the SAME market key
+    expect(ids[0]).not.toBe("eligibility-work-rights-*"); // the lowercase variant found a real city, not ANY_FAMILY
   });
 
   it("an unknown eligibility itemId is a 404", async () => {

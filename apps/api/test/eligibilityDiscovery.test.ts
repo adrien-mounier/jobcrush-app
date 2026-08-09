@@ -57,9 +57,13 @@ describe("#106 eligibilityCandidates", () => {
     expect(years!.eligibility?.scopeLabel).toBeNull();
   });
 
-  it("work-rights is global (ANY_FAMILY, no scopeLabel) and names the given city in its question", () => {
+  // #182: work-rights is a fact about the PLACE it was asked about — familyId now carries the given
+  // city's SLUG (never the raw display string, never ANY_FAMILY, never job-family-scoped: right to
+  // work still doesn't vary by role). QA round 3 must-fix: a raw "Hong Kong" familyId broke the
+  // ClaimGraph kebab-slug id contract; the display city stays in `question` only.
+  it("work-rights is keyed to the given city's SLUG (no scopeLabel) and names the DISPLAY city in its question", () => {
     const workRights = candidates.find((q) => q.eligibility?.dimension === "work-rights")!;
-    expect(workRights.eligibility).toMatchObject({ familyId: ANY_FAMILY, scopeLabel: null });
+    expect(workRights.eligibility).toMatchObject({ familyId: "paris", scopeLabel: null });
     expect(workRights.question).toBe("Can you already work in Paris without visa sponsorship?");
     expect(workRights.options).toEqual([
       "Yes — no sponsorship needed",
@@ -68,9 +72,28 @@ describe("#106 eligibilityCandidates", () => {
     ]);
   });
 
-  it("work-rights falls back to the generic phrasing when no city is given", () => {
+  it("work-rights falls back to ANY_FAMILY and the generic phrasing when no city is given", () => {
     const [, workRights] = eligibilityCandidates(FAMILY_ID, ANY_FAMILY, SCOPE_LABEL, null);
     expect(workRights!.question).toBe("Can you already work where you're job-hunting, without visa sponsorship?");
+    expect(workRights!.eligibility).toMatchObject({ familyId: ANY_FAMILY, scopeLabel: null });
+  });
+
+  // #182 falsifiable checks (#180): a "yes" answered while searching Paris must read as unknown once
+  // the search moves to Hong Kong, and switching back to Paris must find the original answer again,
+  // never re-asking it. Exercised at this module's own seam (eligibilityCandidates/itemId), since the
+  // store-level "which market a fact belongs to" is eligibility.test.ts's job.
+  it("#182 AC1/AC2: work-rights gets a DIFFERENT itemId per city, so switching city never re-uses another city's answer", () => {
+    const paris = eligibilityCandidates(FAMILY_ID, ANY_FAMILY, SCOPE_LABEL, "Paris").find(
+      (q) => q.eligibility?.dimension === "work-rights",
+    )!;
+    const hongKong = eligibilityCandidates(FAMILY_ID, ANY_FAMILY, SCOPE_LABEL, "Hong Kong").find(
+      (q) => q.eligibility?.dimension === "work-rights",
+    )!;
+    const parisAgain = eligibilityCandidates(FAMILY_ID, ANY_FAMILY, SCOPE_LABEL, "Paris").find(
+      (q) => q.eligibility?.dimension === "work-rights",
+    )!;
+    expect(paris.itemId).not.toBe(hongKong.itemId);
+    expect(paris.itemId).toBe(parisAgain.itemId); // switching back resolves to the SAME question
   });
 
   // #123: language is now ONE multi-select question over every supported language
@@ -167,6 +190,24 @@ describe("#106 unresolvedEligibilityQuestions — never re-asked", () => {
       { dimension: "years-experience", familyId: "some-other-family" },
     ]);
     expect(qs.map((q) => q.eligibility?.dimension)).toContain("years-experience");
+  });
+
+  // #182 (#180's falsifiable checks), at this seam: a work-rights fact stored for one city never
+  // closes another city's question, and switching back finds the original answer again. `familyId`
+  // below is the SLUG a real write actually stores (QA round 3 must-fix) — the raw display city
+  // ("Hong Kong"/"Paris") only ever appears in `city` (this fn's 4th arg) and in question text.
+  it("#182 AC1: a Paris work-rights answer leaves Hong Kong's question open (unknown, not borrowed)", () => {
+    const qs = unresolvedEligibilityQuestions(noFloorSession, ROLE, ANY_FAMILY, "Hong Kong", [], [], [], [
+      { dimension: "work-rights", familyId: "paris" },
+    ]);
+    expect(qs.map((q) => q.eligibility?.dimension)).toContain("work-rights");
+  });
+
+  it("#182 AC2: switching back to Paris finds the stored Paris answer and does not re-ask it", () => {
+    const qs = unresolvedEligibilityQuestions(noFloorSession, ROLE, ANY_FAMILY, "Paris", [], [], [], [
+      { dimension: "work-rights", familyId: "paris" },
+    ]);
+    expect(qs.map((q) => q.eligibility?.dimension)).not.toContain("work-rights");
   });
 });
 

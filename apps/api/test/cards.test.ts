@@ -1047,15 +1047,13 @@ describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
     expect(body.cards.map((c) => c.adId)).toContain(target.id);
   });
 
-  // M1 (code review): work-rights must never withdraw — the discovery answer is stored globally
-  // (ANY_FAMILY) while the QUESTION is city-scoped, so there is no visitor-location fact to tell a
-  // "can't work in Hong Kong" answer apart from a job in Australia (see withdrawal.ts's scopeFor).
-  // Pinned here, not only as a withdrawal.test.ts unit, because #86's Testing Decisions make the API
-  // boundary the primary seam precisely to rule out "asserts an internal predicate returned false" —
-  // and this guards the spec's own named worst case, a winnable job silently vanishing. If a
-  // work-rights scope is ever re-enabled, this is the test that would have to be edited to allow it;
-  // the unit test alone would not stop it.
-  it("a posting with a blocking work-rights requirement still appears for a user who answered 'needs sponsorship'", async () => {
+  // M1 (code review), resolved by #182: work-rights no longer withdraws BLINDLY — a fact with no
+  // known market (this session never ran discovery, so it has no city at all) still must never
+  // withdraw, exactly the spec's own named worst case (a winnable job silently vanishing) for a
+  // session the engine cannot place. The market-AWARE cases (same-market withdraws, a DIFFERENT
+  // market's answer has no effect) are pinned below, at this same API boundary, per #86's Testing
+  // Decisions — the primary seam, not only a withdrawal.test.ts unit.
+  it("a posting with a blocking work-rights requirement still appears for a user with no known market at all", async () => {
     const target = uncachedEnglishPostings()[0]!;
     const workRightsBlocking = (adId: string): AdRequirementsV1 => ({
       schemaVersion: "1",
@@ -1088,6 +1086,89 @@ describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     expect(body.cards.map((c) => c.adId)).toContain(target.id);
+  });
+
+  // #182 QA round 2/3: gating reads the POSTING'S OWN market (its `location` field), never the
+  // session's currently-typed city — a Hong Kong answer must never gate a Sydney posting, and a
+  // posting genuinely IN the answered market must still be gated by it. Real fixture locations
+  // (never a hand-picked market like "Paris", which this product's region map doesn't cover at all)
+  // so the region-matching path — postingRetrieval.ts's regionsForLocationText — is really exercised.
+  const workRightsBlocking = (adId: string): AdRequirementsV1 => ({
+    schemaVersion: "1",
+    adId,
+    curated: false,
+    language: "en",
+    familyFit: { family: "IT Project Manager", confidence: 0.6 },
+    requirements: [
+      {
+        id: "work-rights-required",
+        band: "essential",
+        kind: "blocking",
+        requirement: "Right to work required, no visa sponsorship",
+        eligibilityDimension: "work-rights",
+        sourceSpan: "must already have the right to work without sponsorship",
+      },
+    ],
+  });
+
+  it("#182: a work-rights 'no' answered about a posting's OWN market (Hong Kong) withdraws it", async () => {
+    const target = uncachedEnglishPostings().find((p) => /hong kong/i.test(p.location))!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? workRightsBlocking(posting.id) : stubRequirements(posting.id);
+    const { app, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE }); // ROLE names Paris — irrelevant now
+    const sid = await sessionId(app, cookie);
+    await eligibility.put(sid, {
+      dimension: "work-rights",
+      familyId: "hong-kong",
+      value: "needs-sponsorship",
+      label: "Right to work without sponsorship",
+    });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).not.toContain(target.id);
+  });
+
+  // #182 AC3, at the API boundary: a "no" planted for a DIFFERENT market than a posting's OWN one
+  // must have no effect — the falsifiable check named on the ticket, and the exact QA repro (a Hong
+  // Kong answer must never withdraw a Sydney posting).
+  it("#182 AC3: a Hong Kong 'no' has no effect on a posting located in Sydney/Australia", async () => {
+    const target = uncachedEnglishPostings().find((p) => /sydney|australia/i.test(p.location))!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? workRightsBlocking(posting.id) : stubRequirements(posting.id);
+    const { app, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const sid = await sessionId(app, cookie);
+    await eligibility.put(sid, {
+      dimension: "work-rights",
+      familyId: "hong-kong",
+      value: "needs-sponsorship",
+      label: "Right to work without sponsorship",
+    });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).toContain(target.id); // the Sydney posting is never gated by Hong Kong's answer
+  });
+
+  it("#182 AC3 (converse): a Sydney 'no' withdraws the Sydney posting the Hong Kong answer left standing", async () => {
+    const target = uncachedEnglishPostings().find((p) => /sydney|australia/i.test(p.location))!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? workRightsBlocking(posting.id) : stubRequirements(posting.id);
+    const { app, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const sid = await sessionId(app, cookie);
+    await eligibility.put(sid, {
+      dimension: "work-rights",
+      familyId: "sydney",
+      value: "needs-sponsorship",
+      label: "Right to work without sponsorship",
+    });
+
+    const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(body.cards.map((c) => c.adId)).not.toContain(target.id);
   });
 
   it("AC6: a withdrawal is observable — deck.cards_withdrawn rises by exactly one per withdrawn card", async () => {

@@ -66,6 +66,25 @@ export function resolveSearchAreaToRegions(searchArea: string): string[] {
   return [...(AREA_REGIONS[searchArea.trim().toLocaleLowerCase("en-US")] ?? [])];
 }
 
+/** #182 QA round 3, must-fix: unlike resolveSearchAreaToRegions's EXACT match (built for a clean,
+ *  single-token search area or provider-set location), a FIXTURE posting's own `location` is free
+ *  text with extra detail ("Wan Chai District, Hong Kong SAR", "Sydney, New South Wales, Australia")
+ *  — this SCANS the same AREA_REGIONS vocabulary (the honest, already-audited source, not a new list)
+ *  for any of its keys appearing as a substring. Short abbreviation keys ("hk", "sg", "vn", "au") are
+ *  skipped here — exact-match-safe, but a substring scan over free text would false-positive on
+ *  ordinary words that happen to contain those two letters. Returns [] (never guesses) when nothing
+ *  recognisable is found — withdrawal.ts's own honest "cannot place this posting, never withdraw"
+ *  case (a region-only "APAC" listing, or a market outside today's four, e.g. "Shenzhen, China"). */
+export function regionsForLocationText(location: string): string[] {
+  const lower = location.trim().toLocaleLowerCase("en-US");
+  const regions = new Set<string>();
+  for (const [key, codes] of Object.entries(AREA_REGIONS)) {
+    if (key.length < 4) continue; // abbreviation keys — exact-match only, see doc above
+    if (lower.includes(key)) for (const code of codes) regions.add(code);
+  }
+  return [...regions];
+}
+
 export function providersFor(
   regions: string[],
   registry: PostingProviderPolicyV1[],

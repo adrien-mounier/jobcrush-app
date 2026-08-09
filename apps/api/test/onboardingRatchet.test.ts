@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 //   3. If your ticket touched one of the in-file helpers (e.g. buildJobCard,
 //      buildTailorState), move that helper out as part of the ticket, then
 //      LOWER MAX_LINES to the new count. The ratchet only turns one way.
-const MAX_LINES = 2054;
+const MAX_LINES = 2053;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

@@ -121,5 +121,124 @@ for (const [name, make] of drivers) {
       expect(await store.numeric(sid, "years-experience", IT)).toBeNull();
       expect(await store.get(sid, "degree")).toMatchObject({ value: "bachelor" });
     });
+
+    // #182 — work-rights becomes a fact about a place. The store itself is generic (the same familyId
+    // column years-experience already scopes by family), so these pin the vocabulary this ticket
+    // actually adds: a market, and non-destructive correction — via the SAME mechanics the tests above
+    // already prove for family scoping and overwrite-vs-accumulate.
+    it("#182 AC1: work-rights answers are keyed to the market they were asked about — Paris and Hong Kong never collide", async () => {
+      await store.put(sid, {
+        dimension: "work-rights",
+        familyId: "Paris",
+        value: "eligible",
+        label: "Right to work without sponsorship",
+      });
+      // Hong Kong is unasked — unknown, never borrowed from Paris.
+      expect(await store.get(sid, "work-rights", "Hong Kong")).toBeNull();
+      expect(await store.get(sid, "work-rights", "Paris")).toMatchObject({ value: "eligible" });
+    });
+
+    it("#182 AC1/AC2: writing a Hong Kong answer leaves the Paris answer stored and unchanged", async () => {
+      await store.put(sid, {
+        dimension: "work-rights",
+        familyId: "Paris",
+        value: "eligible",
+        label: "Right to work without sponsorship",
+      });
+      await store.put(sid, {
+        dimension: "work-rights",
+        familyId: "Hong Kong",
+        value: "needs-sponsorship",
+        label: "Right to work without sponsorship",
+      });
+      expect(await store.get(sid, "work-rights", "Paris")).toMatchObject({ value: "eligible" });
+      expect(await store.get(sid, "work-rights", "Hong Kong")).toMatchObject({ value: "needs-sponsorship" });
+    });
+
+    it("#182 AC3: a fact stored for one market is invisible to a read scoped at a different market", async () => {
+      await store.put(sid, {
+        dimension: "work-rights",
+        familyId: "Paris",
+        value: "needs-sponsorship",
+        label: "Right to work without sponsorship",
+      });
+      // Planted a conflicting ("no") answer in a market gating never reads for — no effect.
+      expect(await store.get(sid, "work-rights", "Hong Kong")).toBeNull();
+      expect(await store.numeric(sid, "work-rights", "Hong Kong")).toBeNull();
+    });
+
+    it("#182 AC5: a changed answer for the SAME market supersedes the previous value rather than deleting it", async () => {
+      await store.put(sid, {
+        dimension: "work-rights",
+        familyId: "Hong Kong",
+        value: "needs-sponsorship",
+        label: "Right to work without sponsorship",
+      });
+      await store.put(sid, {
+        dimension: "work-rights",
+        familyId: "Hong Kong",
+        value: "eligible",
+        label: "Right to work without sponsorship",
+      });
+
+      // The current read reflects the correction...
+      expect(await store.get(sid, "work-rights", "Hong Kong")).toMatchObject({ value: "eligible" });
+      expect(await store.list(sid)).toHaveLength(1); // never accumulates a second visible row
+      // ...but the prior value is provably kept, not deleted.
+      const history = await store.history(sid, "work-rights", "Hong Kong");
+      expect(history).toHaveLength(1);
+      expect(history[0]).toMatchObject({ value: "needs-sponsorship", label: "Right to work without sponsorship" });
+      expect(typeof history[0]!.supersededAt).toBe("string");
+    });
+
+    // #182 code review must-fix: a decline (the discovery route's remove()) must never take a
+    // superseded value down with it — driver-parity bug caught here because it's exercised on BOTH
+    // drivers, not just in-memory. Real scenario: answer -> correct -> decline. QA round 3 small fix:
+    // the decline itself ALSO supersedes (never deletes) the value it retracts, so history grows to
+    // TWO entries here — the put()-superseded "needs-sponsorship" AND the remove()-superseded
+    // "eligible", oldest first.
+    it("#182: put -> put -> remove -> history() still returns every superseded value on both drivers", async () => {
+      await store.put(sid, {
+        dimension: "work-rights",
+        familyId: "Hong Kong",
+        value: "needs-sponsorship",
+        label: "Right to work without sponsorship",
+      });
+      await store.put(sid, {
+        dimension: "work-rights",
+        familyId: "Hong Kong",
+        value: "eligible",
+        label: "Right to work without sponsorship",
+      });
+      await store.remove(sid, "work-rights", "Hong Kong");
+
+      expect(await store.get(sid, "work-rights", "Hong Kong")).toBeNull(); // retracted, as before
+      const history = await store.history(sid, "work-rights", "Hong Kong");
+      expect(history).toHaveLength(2);
+      expect(history[0]).toMatchObject({ value: "needs-sponsorship", label: "Right to work without sponsorship" });
+      expect(history[1]).toMatchObject({ value: "eligible", label: "Right to work without sponsorship" });
+    });
+
+    it("history stays empty for a fact that has never been corrected", async () => {
+      await store.put(sid, {
+        dimension: "work-rights",
+        familyId: "Paris",
+        value: "eligible",
+        label: "Right to work without sponsorship",
+      });
+      expect(await store.history(sid, "work-rights", "Paris")).toEqual([]);
+    });
+
+    it("re-storing the identical value/label does not grow history — only a real correction supersedes", async () => {
+      const fact = {
+        dimension: "work-rights" as const,
+        familyId: "Paris",
+        value: "eligible",
+        label: "Right to work without sponsorship",
+      };
+      await store.put(sid, fact);
+      await store.put(sid, { ...fact });
+      expect(await store.history(sid, "work-rights", "Paris")).toEqual([]);
+    });
   });
 }

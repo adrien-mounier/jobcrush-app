@@ -41,10 +41,36 @@ export function resolveFamily(text: string): { family: string; suggestions: stri
 }
 
 /** The visitor's city, lifted from Q1 for free (spec story #20: the promise carries my city). "…in Paris"
- *  → "Paris"; none → null. Deliberately simple — Q1 is free text, not a structured field. */
+ *  → "Paris"; none → null. Deliberately simple — Q1 is free text, not a structured field.
+ *
+ *  #182 QA round 3: the word after "in" no longer has to start capitalised — "IT PM in hong kong"
+ *  used to match nothing (the old regex required a leading \p{Lu} on every word), silently losing the
+ *  visitor's city and falling the work-rights question back to the no-city phrasing. The captured
+ *  words are title-cased on the way out, so the question still reads "…in Hong Kong" regardless of
+ *  how the visitor typed it — display casing and market-key casing are handled separately (see
+ *  `slug()`, which is what actually canonicalises a city into a store key). */
 export function parseCity(text: string): string | null {
-  const m = text.match(/\bin\s+(\p{Lu}[\p{L}-]+(?:\s+\p{Lu}[\p{L}-]+)?)/u);
-  return m?.[1] ?? null;
+  const m = text.match(/\bin\s+(\p{L}[\p{L}-]+(?:\s+\p{L}[\p{L}-]+)?)/u);
+  if (!m) return null;
+  return m[1]!
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/** A deterministic, lowercase kebab slug from any free-text label — collapses case AND whitespace
+ *  differences ("Hong Kong" / "HONG KONG" / "Hong  Kong" all → "hong-kong") into ONE canonical key.
+ *  #182 QA round 3 must-fix: this is now the ONLY form a market ever reaches a store key or itemId
+ *  as — eligibilityDiscovery.ts's work-rights question uses it for both, so two visitors (or one
+ *  visitor typing the same city two different ways) are never split into separate markets. Also used
+ *  by resolveEligibilityFamilyScope's own family-id derivation (formerly a private near-duplicate of
+ *  this same logic), so there is exactly one slugging rule in this module, not two that could drift. */
+export function slug(label: string): string {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 /** #179: the open-jobs count per family — ONE producer for the onboarding promise and the profile
