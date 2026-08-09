@@ -3,8 +3,40 @@
 **Owner brief, 2026-08-09 (session 102), on ticket #176.** The owner wants to re-think the profile
 screen completely, in five parts, each tackled in its own dedicated session. This document is the
 plan of record: what each part is, what decided ground it touches, what must be audited before
-designing, and the session order. Update it as sessions close; decisions land on #176 (and new
-tickets where named).
+designing, and the session order.
+
+## How to run a session from this document
+
+A fresh session opened with *"let's work on `docs/design/profile-redesign-plan.md`"* should:
+
+1. Read this document whole, then the **status ledger** below — the next `open` session in R2
+   order is the work, unless the owner names another.
+2. Work as the **senior UX/UI designer persona** with the owner interactively (creative proposals,
+   challenge his direction, then build his call). Prototype evidence lives in
+   `apps/web/prototypes/` — round-2 work continues in `profile-desktop-options.prototype.html` or
+   a new `profile-desktop.prototype.html` once the redesign converges. **Screenshot prototypes
+   (Playwright) before showing them.**
+3. When a part closes: post the decisions on **#176** · update this doc (mark the ledger row
+   `done`, fold decisions into the part's section, prune resolved hazards) · session-log entry ·
+   commit and push when green.
+
+### Status ledger
+
+| Session | Parts | Status |
+|---|---|---|
+| R2-a | 2 + 3 — colour/count semantics, category table, stretch word | **open — next** |
+| R2-b | 4 — CV-section regroup audit → its own ticket | open |
+| R2-c | 5 — list view + constellation restructure | open (gated on a + b) |
+| R2-d | 1 — rail: Location + eligibility, Job Family | open |
+
+### Decisions already taken (do not reopen)
+
+- Desktop shape **A — field + right rail** (owner, session 102).
+- The profile is the **home of the search-area change** (#173, recorded there).
+- ⭐ **Stretches stay off the profile entirely** (owner, session 102, closing the brief's open
+  question): *"a stretch is a fact about one application, never about you."* Neither sky nor list
+  draws them — ADR-0005 kept structural, not visual. Part 3's category table row is decided;
+  the R2-a session inherits this closed.
 
 **Standing context:** desktop shape **A (field + right rail)** is chosen (owner, session 102, from
 `apps/web/prototypes/profile-desktop-options.prototype.html`). The Sorted / Constellation toggle
@@ -95,8 +127,8 @@ is the checklist the owner asked for; each needs a decision: shown? where? what 
 | Fact on the root CV's default render | gold | The owner's proposed gold. "Root CV" vs "current tailored CV" must be pinned — they differ after tailoring. |
 | Fact held, not on the default render | grey | The "left out by priority / space" set (Part 5). |
 | A "no" (ruled out) | hidden | Decided 2026-07-23; **stands unless reopened.** |
-| An approved stretch | not shown | ⚠️ **ADR-0005: a stretch belongs to its advert, lives BESIDE the profile, never graduates; the profile count never moves on a stretch.** Showing it in the sky as "yours" is the leak framing rebuilt visually. If shown at all: a visibly different register, attached to its one application — or not in the sky at all. **Biggest hazard in this whole redesign.** |
-| A proposed, not-yet-approved stretch | not shown | Same ADR; almost certainly stays off the profile. |
+| An approved stretch | not shown | ✅ **DECIDED (owner, session 102): stays off the profile entirely** — "a stretch is a fact about one application, never about you." ADR-0005 kept structural. |
+| A proposed, not-yet-approved stretch | not shown | ✅ Same decision — off the profile. |
 | A withheld fact (per-market strip, ADR-0007) | not shown | Withholding is per *application*, never touches the profile — arguably invisible here by design. |
 | A superseded/corrected value | not shown | The current value shows; the superseded one lives in the fact's detail (origin chain, ADR-0004). |
 | Unclassified / `additional` content (ADR-0010) | not shown yet | Will exist; Part 4's ADDITIONAL section is its natural home. |
@@ -183,8 +215,10 @@ prototype updated, this plan's section marked done.
 
 **Hazards register (carry into every session):**
 
-- 🚨 ADR-0005 vs stretches-in-the-sky (Part 3) — the one place this redesign could rebuild a
-  decided-away leak.
+- ✅ ~~ADR-0005 vs stretches-in-the-sky~~ — closed session 102: stretches stay off the profile
+  entirely (see "Decisions already taken"). Consequence for Part 5: the grey layer is *held-out
+  facts only*; the stretch word (Part 3) is still needed, but for the tailor/proposal surfaces,
+  not the profile.
 - ⚠️ Languages: one editing surface, chosen deliberately (Parts 1 vs 4).
 - ⚠️ "Root CV" vs "current CV" — pin which document gold describes (Part 3).
 - ⚠️ §8.1 profile-vs-CV distance (Part 4) — narrow it on purpose or not at all.
