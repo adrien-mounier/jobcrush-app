@@ -2,6 +2,27 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 (session 99) — The match display decided: score /100 on a metal ladder, "Top match" at 90+ (#157)
+
+_Design session on the tailor screen's match number. Two throwaway comparison prototypes, then the
+pick wired into `tailor-merged.prototype.html`._
+
+- **Decision (owner):** the match displays as a **score out of 100** (old-JobCrush style), not a
+  percent and not the 8-segment ask-count ring (prototyped in
+  `score-representation.prototype.html`, rejected). The dial shows the big number with a small
+  muted `/ 100` stacked beneath it — an inline `77/100` was tried and rejected as ugly.
+- **The high end earns its gold — "Variant C without the laurel"** (four treatments prototyped in
+  `score-gold-states.prototype.html`): the arc climbs a **metal ladder** — steel below 50, bronze
+  50–74, house gold 75–89 — and at **90+** the number turns bright gold and a still
+  **"★ Top match" badge** appears under the dial. Explicitly rejected: laurel branches, breathing
+  halo/glow, spark burst. Tier words: Big gaps · Worth a look · Strong match · Top match.
+- ⚠️ **Open, owner-flagged for the build:** the tier thresholds (50 / 75 / 90) are authored, like
+  the score formula itself — the ladder makes them feel official, so they need a deliberate pass
+  before the real build. The badge is also the one element meant to travel to job lists/cards.
+- Design-hook notes: the comparison page keeps Variant B's glowing halo as the record of a
+  rejected candidate (intentional); the merged prototype's paper-grid + springy bump easing are
+  pre-existing #157 round design, left as-is.
+
 ## 2026-08-09 (session 98) — Knowledge-graph rebuild, the onboarding.ts ratchet, and the family-floor glossary pin
 
 _Graphify full rebuild over the repo (3,230 nodes / 5,583 edges / 242 communities), then two small

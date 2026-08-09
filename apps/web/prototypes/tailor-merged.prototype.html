@@ -105,6 +105,7 @@
     --hud-ink: #e8eaed; --hud-mute: #7f8b98; --gold: #e8a33d; --gold-dim: #a8762b;
     --hud-mute-2: #8a95a2; /* NEW (round 2): AA for muted text on hud-2 */
     --weak: #6f7d8c; --settled: #4d5865;
+    --steel: #5b6b7d; --bronze: #b07a3a; --gold-hi: #ffd98a;
     --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
     --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
     --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
@@ -171,9 +172,13 @@
   /* the % score, next to the title (owner) — bigger */
   .scorebox { flex: 0 0 auto; text-align: center; }
   .dial { position: relative; width: 84px; height: 84px; margin: 0 auto; }
-  .dial .num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .dial .num { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; font-size: 23px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; transition: color 400ms ease; }
+  .dial .num .den { font-size: 9.5px; font-weight: 500; letter-spacing: .03em; color: var(--hud-mute); margin-top: 3px; }
   .dial .num.bump { animation: jd-bump 460ms cubic-bezier(.2,1.5,.4,1); }
+  /* owner: the score-ladder pick (score-gold-states C) — at 90+ a still, earned badge; no glow, no motion */
+  .scorebox .badge { display: inline-flex; align-items: center; gap: 5px; margin-top: 7px; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(232,163,61,.45); background: rgba(232,163,61,.10); color: var(--gold); font-size: 11px; font-weight: 620; letter-spacing: .02em; }
   .scorebox .cap { margin: 6px 0 0; font-size: 11px; line-height: 1.35; color: var(--hud-mute); max-width: 128px; }
+  .scorebox .cap .tier { font-weight: 620; color: var(--hud-ink); }
 
   /* the stated strip line (parallel design, kept — quiet, zero questions) */
   .stripline { margin: 16px 0 0; padding: 11px 13px; border-radius: 9px; background: var(--hud-1); border: 1px solid var(--hud-line); font-size: 12.8px; line-height: 1.5; color: var(--hud-mute-2); display: flex; gap: 10px; align-items: flex-start; }
@@ -465,7 +470,7 @@ const INITIAL_RANK = { yes: 0, part: 1 };
 const ORDERED = [...ASKS].sort((a, b) => (INITIAL_RANK[a.kind] ?? 2) - (INITIAL_RANK[b.kind] ?? 2));
 
 const COPY = {
-  scoreCap: "of what this advert asks for is answered",
+  scoreCap: "match score",
   strip: (m) => `${m} CVs don't usually carry a <b>date of birth</b> or <b>marital status</b>. Both are off this one.`,
   stripBack: `Your <b>date of birth</b> and <b>marital status</b> are on this CV, because you asked. This CV only.`,
   stripShow: "Show them anyway", stripHide: "Leave them off",
@@ -525,6 +530,15 @@ function score() {
   return { solid, part, total: ASKS.length, pct: Math.round(((solid + part * 0.5) / ASKS.length) * 100) };
 }
 function openAsksCount() { return ASKS.filter((a) => askState(a) === "open").length; }
+/* the metal ladder (score-gold-states C, laurel dropped): the arc becomes more precious as the
+   score climbs; 90+ is the "Top match" state — gold-bright number + a still badge. The 90
+   threshold is authored, like the score formula itself. */
+function ladder(p) {
+  if (p >= 90) return { stroke: "var(--gold)", num: "var(--gold-hi)", tier: "Top match", top: true };
+  if (p >= 75) return { stroke: "var(--gold)", num: "var(--hud-ink)", tier: "Strong match", top: false };
+  if (p >= 50) return { stroke: "var(--bronze)", num: "var(--hud-ink)", tier: "Worth a look", top: false };
+  return { stroke: "var(--steel)", num: "var(--hud-ink)", tier: "Big gaps", top: false };
+}
 /* Owner: the meter should read as a loading bar (filled left, empty right) — not mirror the
    asks list's own order, where filled/half/empty are scattered. The row list below keeps the
    job's real order; only this small summary control re-sorts its dots. */
@@ -640,6 +654,7 @@ function renderJob() {
   const next = nextOpenId();
   const pct = Math.round(S.shownScore);
   const C = 2 * Math.PI * 34;
+  const L = ladder(sc.pct);
 
   /* 🚨 ROUND 3.4 — THE ROWS DO NOT MOVE. Reversing round 3.2's live re-sort, on the owner's own
      reversal after using it: "the element of the list we answer should just stay where it is in
@@ -681,15 +696,16 @@ function renderJob() {
         <p class="employer">DBS Bank <span class="sep">·</span> Singapore <span class="sep">·</span> Full time</p>
       </div>
       <div class="scorebox">
-        <div class="dial" role="img" aria-label="${pct} percent match">
+        <div class="dial" role="img" aria-label="${sc.pct} out of 100 match score. ${L.tier}.">
           <svg width="84" height="84" viewBox="0 0 84 84">
             <circle cx="42" cy="42" r="34" fill="none" stroke="var(--hud-line)" stroke-width="6"/>
-            <circle cx="42" cy="42" r="34" fill="none" stroke="var(--gold)" stroke-width="6" stroke-linecap="round"
+            <circle cx="42" cy="42" r="34" fill="none" stroke="${L.stroke}" stroke-width="6" stroke-linecap="round"
               stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - pct / 100)).toFixed(1)}" transform="rotate(-90 42 42)"/>
           </svg>
-          <div class="num" id="dialNum">${pct}%</div>
+          <div class="num" id="dialNum" style="color:${L.num}"><span id="dialDigits">${pct}</span><span class="den">/ 100</span></div>
         </div>
-        <p class="cap">${esc(COPY.scoreCap)}</p>
+        ${L.top ? '<span class="badge">★ Top match</span>' : ""}
+        <p class="cap"><span class="tier">${L.tier}</span> · ${esc(COPY.scoreCap)}</p>
       </div>
     </div>
     <details class="jobdesc" id="jobdesc" ${S.descOpen ? "open" : ""}>
@@ -838,8 +854,8 @@ function tweenScore() {
   (function fr(t) {
     const p = Math.min(1, (t - t0) / 680);
     S.shownScore = from + (to - from) * (1 - Math.pow(1 - p, 3));
-    const el = document.getElementById("dialNum");
-    if (el) el.textContent = Math.round(S.shownScore) + "%";
+    const el = document.getElementById("dialDigits");
+    if (el) el.textContent = Math.round(S.shownScore);
     const arc = document.querySelector(".dial svg circle:last-of-type");
     if (arc) { const C = 2 * Math.PI * 34; arc.setAttribute("stroke-dashoffset", (C * (1 - S.shownScore / 100)).toFixed(1)); }
     if (p < 1) requestAnimationFrame(fr);
@@ -893,7 +909,7 @@ const ACTIONS = {
     if (fact) S.profExtra += 1;
     led(o.led + (fact ? " +" : ""), fact, () => { if (fact) S.profExtra -= 1; S.budget = null; S.ledger = null; S.lastUndo = null; S.open.budget = true; });
     S.open.budget = false; openNext();
-    render({ tween: true, announce: `${score().pct} percent. ${o.led}`, mat: fact ? ["sum1"] : [], fly: fact ? { label: "+1 fact", to: "profile" } : null });
+    render({ tween: true, announce: `Match score ${score().pct}. ${o.led}`, mat: fact ? ["sum1"] : [], fly: fact ? { label: "+1 fact", to: "profile" } : null });
   },
   "budget-undo"() { if (S.budget !== "n") S.profExtra -= 1; S.budget = null; S.open.budget = true; led(null); S.ledger = null; render({ tween: true }); },
 
@@ -911,14 +927,14 @@ const ACTIONS = {
     S.profExtra += 1;
     led(COPY.ledPow(v), true, () => { S.powerbi = null; S.profExtra -= 1; S.ledger = null; S.lastUndo = null; S.open.powerbi = true; });
     S.open.powerbi = false; openNext();
-    render({ tween: true, announce: `${score().pct} percent. ${COPY.ledPow(v)}`, mat: ["skills"], fly: { label: "+1 fact", to: "profile" } });
+    render({ tween: true, announce: `Match score ${score().pct}. ${COPY.ledPow(v)}`, mat: ["skills"], fly: { label: "+1 fact", to: "profile" } });
   },
   "pow-undo"() { if (S.powerbi) S.profExtra -= 1; S.powerbi = null; S.open.powerbi = true; S.ledger = null; render({ tween: true }); },
 
   "stretch-yes"() {
     S.stretch = "y";
     led(COPY.ledStretch, true, () => ACTIONS["stretch-undo"]());
-    render({ tween: true, announce: `${score().pct} percent. ${COPY.ledStretch}`, mat: ["stretchline"], fly: { label: "stretch · this CV only", to: "advert", stretch: true } });
+    render({ tween: true, announce: `Match score ${score().pct}. ${COPY.ledStretch}`, mat: ["stretchline"], fly: { label: "stretch · this CV only", to: "advert", stretch: true } });
   },
   "stretch-no"() { S.stretch = "n"; S.open.agile = false; led("Noted — not for this one.", false, null); render({ announce: S.ledger.text }); },
   "stretch-undo"() { S.stretch = null; S.open.agile = true; led(COPY.ledStretchOff, false, null); render({ tween: true, announce: COPY.ledStretchOff }); },
@@ -987,7 +1003,7 @@ function instrument() {
     <span class="tag">Instrument</span>
     <b>Round 3 — the merge.</b> Parallel design's asks panel + ratio + meter + stated strip · round 2's bubbles, physics, paper. The exits are pinned under the paper — <b>this file's proposal</b> for the owner's open problem; fallback is a full-width bottom bar.
     <hr>
-    asks: <b>${sc.solid}</b> solid · ${sc.part} partial · ${sc.total - sc.solid - sc.part} open &nbsp;·&nbsp; score ${sc.pct}% = (solid + ½·partial) / 8 — same formula as the parallel file, <span class="warn">weights are authored, not measured</span>
+    asks: <b>${sc.solid}</b> solid · ${sc.part} partial · ${sc.total - sc.solid - sc.part} open &nbsp;·&nbsp; score ${sc.pct}/100 = (solid + ½·partial) / 8 — same formula as the parallel file, <span class="warn">weights are authored, not measured</span>
     &nbsp;·&nbsp; market: <b>${MARKETS[S.market].name}</b>${MARKETS[S.market].strips ? "" : ' — <span class="warn">no page, nothing stripped, no strip line (cl.3)</span>'}
     &nbsp;·&nbsp; changes: <b>${changesCount()}</b> · page: <b>${S.page}</b>
     <hr>

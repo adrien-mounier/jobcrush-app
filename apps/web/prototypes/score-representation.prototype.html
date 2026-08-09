@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobCrush — match display: score vs segmented ring</title>
+<style>
+  :root {
+    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-line: #2b333d;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98; --gold: #e8a33d; --gold-dim: #a8762b;
+    --hud-mute-2: #8a95a2; --settled: #4d5865;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: #e7e3dd; font-family: var(--sans); line-height: 1.5; padding: 20px 18px 40px; -webkit-font-smoothing: antialiased; }
+
+  .ask-brief { max-width: 1100px; margin: 0 auto 16px; background: #fffdf9; border: 1px solid #ded7cb; border-radius: 12px; padding: 16px 22px; color: #1f2328; }
+  .ask-brief h1 { margin: 0 0 6px; font-size: 18px; letter-spacing: -.01em; }
+  .ask-brief p { margin: 0 0 6px; font-size: 13.5px; color: #3c444d; }
+  .ask-brief p:last-child { margin-bottom: 0; }
+
+  .stage { max-width: 1100px; margin: 0 auto; display: grid; gap: 18px; }
+
+  .panel { background: var(--hud-0); color: var(--hud-ink); border: 1px solid var(--hud-line); border-radius: 16px; overflow: hidden; box-shadow: 0 22px 60px -20px rgba(0,0,0,.45); }
+  .panel-tag { padding: 9px 18px; border-bottom: 1px solid var(--hud-line); background: var(--hud-1); font-size: 12.5px; color: var(--hud-mute); display: flex; gap: 8px; align-items: baseline; }
+  .panel-tag b { color: var(--hud-ink); font-weight: 620; }
+  .panel-body { padding: 20px 22px; }
+
+  .posted { font-size: 12px; color: var(--hud-mute); }
+  .hero { display: flex; align-items: center; gap: 20px; }
+  .hero .tt { flex: 1; min-width: 0; }
+  .jobtitle { font-size: 29px; line-height: 1.13; letter-spacing: -.022em; font-weight: 660; margin: 6px 0 5px; text-wrap: balance; }
+  .employer { font-size: 14px; color: var(--hud-ink); margin: 0; }
+  .employer .sep { color: var(--settled); margin: 0 7px; }
+
+  .scorebox { flex: 0 0 auto; text-align: center; }
+  .dial { position: relative; width: 84px; height: 84px; margin: 0 auto; }
+  .dial svg { display: block; }
+  .dial .num { position: absolute; inset: 0; display: grid; place-items: center; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .dial .num.bump { animation: jd-bump 460ms cubic-bezier(.2,1.5,.4,1); }
+  .scorebox .cap { margin: 6px 0 0; font-size: 11px; line-height: 1.35; color: var(--hud-mute); max-width: 132px; }
+  .scorebox .cap b.tier { color: var(--gold); font-weight: 620; }
+
+  /* variant 1 — the old-app score */
+  .num-score { font-size: 24px; font-weight: 700; }
+  .num-score .den { font-size: 12px; font-weight: 500; color: var(--hud-mute); }
+
+  /* variant 2 — the count inside the segmented ring */
+  .num-count { font-size: 21px; font-weight: 700; }
+  .num-count .den { font-size: 12.5px; font-weight: 500; color: var(--hud-mute); }
+
+  .seg { transition: stroke 420ms ease; }
+
+  @keyframes jd-bump { 0% { transform: none; } 40% { transform: scale(1.24); color: var(--gold); } 100% { transform: none; } }
+
+  /* the simulator */
+  .sim { max-width: 1100px; margin: 0 auto; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 14px; padding: 14px 18px; color: var(--hud-ink); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; box-shadow: 0 14px 40px -18px rgba(0,0,0,.45); }
+  .sim .lbl { font-size: 13px; color: var(--hud-mute-2); margin-right: 4px; }
+  .sim .state { font-family: var(--mono); font-size: 12px; color: var(--hud-mute); margin-left: auto; }
+  .sim .state b { color: var(--hud-ink); font-weight: 600; }
+  .btn { appearance: none; font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--hud-line); background: var(--hud-2); color: var(--hud-ink); cursor: pointer; transition: background 140ms ease, border-color 140ms ease, transform 90ms ease; }
+  .btn:hover { border-color: #3b4653; }
+  .btn:active { transform: scale(.97); }
+  .btn.gold { background: var(--gold); border-color: transparent; color: #1a1206; }
+  .btn.gold:hover { filter: brightness(1.06); }
+  .btn:disabled { opacity: .4; cursor: default; }
+
+  @media (min-width: 900px) { .stage.two-up { grid-template-columns: 1fr 1fr; } .stage.two-up .jobtitle { font-size: 24px; } }
+</style>
+</head>
+<body>
+
+<div class="ask-brief">
+  <h1>The match display — two ways, side by side</h1>
+  <p><strong>Top panel:</strong> the old JobCrush score — a smooth arc and a mark out of 100. <strong>Bottom panel:</strong> the combined option — an 8-segment ring (one segment per ask: full, half, or empty, filled left-first like a loading bar), the honest count in the middle, and a plain-words tier as the caption.</p>
+  <p>Use the buttons below to simulate the visitor answering asks — both dials react to the same event, so you can compare how each one <em>moves</em>. Same job, same 8 asks, same starting state as the tailor prototype (4 solid · 2 partial · 2 open).</p>
+</div>
+
+<div class="stage" style="margin-bottom:18px">
+
+  <div class="panel">
+    <div class="panel-tag"><b>Variant 1 — the score</b> like the old app: one number out of 100</div>
+    <div class="panel-body">
+      <div class="posted">Posted 3 days ago</div>
+      <div class="hero">
+        <div class="tt">
+          <h1 class="jobtitle">Senior Project Manager</h1>
+          <p class="employer">DBS Bank <span class="sep">·</span> Singapore <span class="sep">·</span> Full time</p>
+        </div>
+        <div class="scorebox">
+          <div class="dial" role="img" id="dialA" aria-label="">
+            <svg width="84" height="84" viewBox="0 0 84 84">
+              <circle cx="42" cy="42" r="34" fill="none" stroke="var(--hud-line)" stroke-width="6"/>
+              <circle id="arcA" cx="42" cy="42" r="34" fill="none" stroke="var(--gold)" stroke-width="6" stroke-linecap="round" transform="rotate(-90 42 42)"/>
+            </svg>
+            <div class="num num-score" id="numA"></div>
+          </div>
+          <p class="cap">match score</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-tag"><b>Variant 2 — the count</b>: 8 segments, one per ask · tier word as caption</div>
+    <div class="panel-body">
+      <div class="posted">Posted 3 days ago</div>
+      <div class="hero">
+        <div class="tt">
+          <h1 class="jobtitle">Senior Project Manager</h1>
+          <p class="employer">DBS Bank <span class="sep">·</span> Singapore <span class="sep">·</span> Full time</p>
+        </div>
+        <div class="scorebox">
+          <div class="dial" role="img" id="dialB" aria-label="">
+            <svg width="84" height="84" viewBox="0 0 84 84" id="ringB"></svg>
+            <div class="num num-count" id="numB"></div>
+          </div>
+          <p class="cap" id="capB"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="sim">
+  <span class="lbl">Simulate the visitor:</span>
+  <button class="btn gold" id="bYes">Answer one — “yes, I have it”</button>
+  <button class="btn" id="bPart">Answer one — “partly”</button>
+  <button class="btn" id="bReset">Reset</button>
+  <span class="state" id="stateLine"></span>
+</div>
+
+<script>
+"use strict";
+const TOTAL = 8;
+const START = { solid: 4, part: 2 };
+let S = { ...START };
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let shownA = null;
+
+const open = () => TOTAL - S.solid - S.part;
+const credit = () => S.solid + S.part * 0.5;
+const pct100 = () => Math.round((credit() / TOTAL) * 100);
+function tier() {
+  const c = credit();
+  if (c >= 7) return "Strong match";
+  if (c >= 5) return "Good match";
+  if (c >= 3) return "Getting there";
+  return "Big gaps";
+}
+
+/* ── variant 1: smooth arc + /100 ── */
+const CIRC = 2 * Math.PI * 34;
+function paintA(v) {
+  document.getElementById("arcA").setAttribute("stroke-dasharray", CIRC.toFixed(1));
+  document.getElementById("arcA").setAttribute("stroke-dashoffset", (CIRC * (1 - v / 100)).toFixed(1));
+  document.getElementById("numA").innerHTML = Math.round(v) + '<span class="den">/100</span>';
+  document.getElementById("dialA").setAttribute("aria-label", Math.round(v) + " out of 100 match score");
+}
+function tweenA() {
+  const from = shownA, to = pct100();
+  if (REDUCED || from === null) { shownA = to; paintA(to); return; }
+  const T = 600, t0 = performance.now();
+  (function f(now) {
+    const p = Math.min(1, (now - t0) / T);
+    shownA = from + (to - from) * (1 - Math.pow(1 - p, 3));
+    paintA(shownA);
+    if (p < 1) requestAnimationFrame(f); else { shownA = to; paintA(to); }
+  })(t0);
+}
+
+/* ── variant 2: 8 segments, sorted filled-first (the meter's own loading-bar rule) ── */
+function segPath(i) {
+  const GAP = 5, span = 360 / TOTAL;
+  const a0 = -90 + i * span + GAP / 2, a1 = -90 + (i + 1) * span - GAP / 2;
+  const r = 34, cx = 42, cy = 42, rad = (d) => (d * Math.PI) / 180;
+  const x0 = cx + r * Math.cos(rad(a0)), y0 = cy + r * Math.sin(rad(a0));
+  const x1 = cx + r * Math.cos(rad(a1)), y1 = cy + r * Math.sin(rad(a1));
+  return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+function paintB(bump) {
+  const cls = [
+    ...Array(S.solid).fill("var(--gold)"),
+    ...Array(S.part).fill("var(--gold-dim)"),
+    ...Array(open()).fill("var(--hud-line)"),
+  ];
+  document.getElementById("ringB").innerHTML = cls
+    .map((c, i) => `<path class="seg" d="${segPath(i)}" fill="none" stroke="${c}" stroke-width="6" stroke-linecap="round"/>`)
+    .join("");
+  const el = document.getElementById("numB");
+  el.innerHTML = S.solid + '<span class="den">/' + TOTAL + "</span>";
+  document.getElementById("capB").innerHTML =
+    '<b class="tier">' + tier() + "</b><br>" + (open() ? open() + " left to answer" : "everything answered");
+  document.getElementById("dialB").setAttribute(
+    "aria-label",
+    S.solid + " of " + TOTAL + " asks answered" + (S.part ? ", " + S.part + " partly" : "") + ". " + tier() + "."
+  );
+  if (bump && !REDUCED) { el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
+}
+
+function stateLine() {
+  document.getElementById("stateLine").innerHTML =
+    "asks: <b>" + S.solid + "</b> solid · " + S.part + " partial · " + open() + " open";
+  document.getElementById("bYes").disabled = open() === 0;
+  document.getElementById("bPart").disabled = open() === 0;
+}
+
+function render(bump) { tweenA(); paintB(bump); stateLine(); }
+
+document.getElementById("bYes").addEventListener("click", () => { if (open()) { S.solid++; render(true); } });
+document.getElementById("bPart").addEventListener("click", () => { if (open()) { S.part++; render(true); } });
+document.getElementById("bReset").addEventListener("click", () => { S = { ...START }; shownA = null; render(false); });
+
+render(false);
+</script>
+</body>
+</html>

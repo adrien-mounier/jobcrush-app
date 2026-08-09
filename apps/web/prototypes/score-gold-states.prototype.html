@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobCrush — the score earns its gold: four treatments</title>
+<style>
+  :root {
+    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-line: #2b333d;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98; --gold: #e8a33d; --gold-dim: #a8762b;
+    --hud-mute-2: #8a95a2; --settled: #4d5865;
+    --steel: #5b6b7d; --bronze: #b07a3a;
+    --gold-hi: #ffd98a;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: #e7e3dd; font-family: var(--sans); line-height: 1.5; padding: 20px 18px 40px; -webkit-font-smoothing: antialiased; }
+
+  .ask-brief { max-width: 1160px; margin: 0 auto 16px; background: #fffdf9; border: 1px solid #ded7cb; border-radius: 12px; padding: 16px 22px; color: #1f2328; }
+  .ask-brief h1 { margin: 0 0 6px; font-size: 18px; letter-spacing: -.01em; }
+  .ask-brief p { margin: 0 0 6px; font-size: 13.5px; color: #3c444d; }
+  .ask-brief p:last-child { margin-bottom: 0; }
+
+  /* the driver bar */
+  .sim { max-width: 1160px; margin: 0 auto 18px; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 14px; padding: 14px 18px; color: var(--hud-ink); display: flex; flex-wrap: wrap; gap: 12px; align-items: center; box-shadow: 0 14px 40px -18px rgba(0,0,0,.45); }
+  .sim .lbl { font-size: 13px; color: var(--hud-mute-2); }
+  .sim input[type=range] { flex: 1; min-width: 180px; accent-color: var(--gold); }
+  .sim .val { font-family: var(--mono); font-size: 14px; font-weight: 600; min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+  .btn { appearance: none; font: inherit; font-size: 13px; font-weight: 600; padding: 7px 13px; border-radius: 10px; border: 1px solid var(--hud-line); background: var(--hud-2); color: var(--hud-ink); cursor: pointer; transition: background 140ms ease, border-color 140ms ease, transform 90ms ease; }
+  .btn:hover { border-color: #3b4653; }
+  .btn:active { transform: scale(.97); }
+
+  .stage { max-width: 1160px; margin: 0 auto; display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+
+  .panel { background: var(--hud-0); color: var(--hud-ink); border: 1px solid var(--hud-line); border-radius: 16px; overflow: hidden; box-shadow: 0 22px 60px -20px rgba(0,0,0,.45); display: flex; flex-direction: column; }
+  .panel-tag { padding: 9px 16px; border-bottom: 1px solid var(--hud-line); background: var(--hud-1); font-size: 12.5px; color: var(--hud-mute); }
+  .panel-tag b { color: var(--hud-ink); font-weight: 620; }
+  .panel-body { padding: 26px 18px 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; flex: 1; }
+  .panel-note { padding: 0 16px 16px; font-size: 12px; line-height: 1.5; color: var(--hud-mute-2); }
+
+  .scorebox { text-align: center; }
+  .dialwrap { position: relative; width: 120px; height: 120px; margin: 0 auto; }
+  .dialwrap svg.main { display: block; position: relative; z-index: 2; }
+  .num { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; font-size: 26px; font-weight: 700; transition: color 400ms ease; }
+  .num .den { font-size: 10px; font-weight: 500; letter-spacing: .03em; color: var(--hud-mute); margin-top: 3px; }
+  .cap { margin: 8px 0 0; font-size: 11.5px; line-height: 1.4; color: var(--hud-mute); max-width: 160px; transition: color 400ms ease; }
+  .cap b { font-weight: 620; }
+
+  /* ── A · heat: the arc itself climbs through metals ── */
+  #arcA, #arcB, #arcC, #arcD { transition: stroke 500ms ease, filter 500ms ease; }
+
+  /* ── B · halo: 90+ breathes ── */
+  .halo { position: absolute; inset: -14px; z-index: 1; border-radius: 50%; opacity: 0; transition: opacity 700ms ease; pointer-events: none;
+    background: radial-gradient(circle, rgba(232,163,61,.32) 30%, rgba(232,163,61,.10) 55%, transparent 72%); }
+  .is-top .halo { opacity: 1; animation: breathe 2.6s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { transform: scale(.96); opacity: .75; } 50% { transform: scale(1.05); opacity: 1; } }
+  /* the shimmer — a short bright dash orbiting the arc, 90+ only */
+  .spinwrap { position: absolute; inset: 0; z-index: 2; opacity: 0; transition: opacity 500ms ease; pointer-events: none; }
+  .is-top .spinwrap { opacity: 1; animation: orbit 3.2s linear infinite; }
+  @keyframes orbit { to { transform: rotate(360deg); } }
+
+  /* ── C · badge: 90+ is named ── */
+  .badge { display: inline-flex; align-items: center; gap: 6px; margin-top: 9px; padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(232,163,61,.45); background: rgba(232,163,61,.10); color: var(--gold); font-size: 11.5px; font-weight: 620; letter-spacing: .02em; opacity: 0; transform: translateY(4px); transition: opacity 500ms ease, transform 500ms ease; }
+  .is-top .badge { opacity: 1; transform: none; }
+
+  /* ── D · forged: gradient-gold number + one-time spark burst ── */
+  .num.forged { background: linear-gradient(115deg, var(--gold-dim) 20%, var(--gold-hi) 45%, var(--gold) 60%, var(--gold-dim) 85%); background-size: 250% 100%;
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: sheen 3.4s ease-in-out infinite; }
+  .num.forged .den { -webkit-text-fill-color: var(--hud-mute); }
+  @keyframes sheen { 0%,100% { background-position: 0% 0; } 50% { background-position: 100% 0; } }
+  .spark { position: absolute; z-index: 4; width: 5px; height: 5px; border-radius: 50%; background: var(--gold-hi); pointer-events: none; box-shadow: 0 0 6px rgba(232,163,61,.9); }
+
+  .num.bump { animation: bump 460ms cubic-bezier(.2,1.5,.4,1); }
+  @keyframes bump { 40% { transform: scale(1.18); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .is-top .halo, .is-top .spinwrap, .num.forged { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ask-brief">
+  <h1>The score earns its gold — four treatments of the high end</h1>
+  <p>You picked the <strong>score out of 100</strong>. All four dials below are that same score — they differ only in <em>how the dial celebrates as the number climbs</em>. Every one uses the same ladder: below 50 the arc is quiet steel · 50–74 bronze · 75–89 the house gold · <strong>90+ is the “top match” state</strong>, and that's where the four personalities split.</p>
+  <p>Drag the slider (or use the presets) and watch all four cross 90 together. The treatments are cumulative ideas — the winner can borrow from its neighbours.</p>
+</div>
+
+<div class="sim">
+  <span class="lbl">Score</span>
+  <input type="range" id="slider" min="0" max="100" value="77" aria-label="score">
+  <span class="val" id="sliderVal">77/100</span>
+  <button class="btn" data-v="42">42</button>
+  <button class="btn" data-v="63">63</button>
+  <button class="btn" data-v="77">77</button>
+  <button class="btn" data-v="88">88</button>
+  <button class="btn" data-v="92">92</button>
+  <button class="btn" data-v="100">100</button>
+</div>
+
+<div class="stage">
+
+  <div class="panel">
+    <div class="panel-tag"><b>A · Heat</b> — the metal ladder alone</div>
+    <div class="panel-body">
+      <div class="scorebox" id="boxA">
+        <div class="dialwrap">
+          <svg class="main" width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="48" fill="none" stroke="var(--hud-line)" stroke-width="8"/>
+            <circle id="arcA" cx="60" cy="60" r="48" fill="none" stroke-width="8" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+          </svg>
+          <div class="num" id="numA"></div>
+        </div>
+        <p class="cap" id="capA"></p>
+      </div>
+    </div>
+    <div class="panel-note">The quietest option: nothing is added, the arc simply <em>becomes</em> more precious — steel → bronze → gold → at 90+ the arc and the number both go bright gold with a soft glow on the stroke. Reads instantly at a distance.</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-tag"><b>B · Halo</b> — at 90+ the dial breathes</div>
+    <div class="panel-body">
+      <div class="scorebox" id="boxB">
+        <div class="dialwrap">
+          <div class="halo"></div>
+          <svg class="main" width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="48" fill="none" stroke="var(--hud-line)" stroke-width="8"/>
+            <circle id="arcB" cx="60" cy="60" r="48" fill="none" stroke-width="8" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+          </svg>
+          <div class="spinwrap">
+            <svg width="120" height="120" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="48" fill="none" stroke="var(--gold-hi)" stroke-width="8" stroke-linecap="round"
+                stroke-dasharray="14 288" opacity=".8" transform="rotate(-90 60 60)"/>
+            </svg>
+          </div>
+          <div class="num" id="numB"></div>
+        </div>
+        <p class="cap" id="capB"></p>
+      </div>
+    </div>
+    <div class="panel-note">Same metal ladder, plus life: at 90+ a warm halo breathes behind the dial and a bright spark orbits the arc. The screen's one living object — your eye goes there first. The risk: it keeps moving forever.</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-tag"><b>C · Badge — the pick</b> — at 90+ a “Top match” badge appears</div>
+    <div class="panel-body">
+      <div class="scorebox" id="boxC">
+        <div class="dialwrap">
+          <svg class="main" width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="48" fill="none" stroke="var(--hud-line)" stroke-width="8"/>
+            <circle id="arcC" cx="60" cy="60" r="48" fill="none" stroke-width="8" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+          </svg>
+          <div class="num" id="numC"></div>
+        </div>
+        <span class="badge">★ Top match</span>
+        <p class="cap" id="capC"></p>
+      </div>
+    </div>
+    <div class="panel-note"><b>The chosen design.</b> The metal ladder does the work, and at 90+ the number turns bright gold and a still “★ Top match” badge appears beneath — an earned emblem, no animation. The badge is also the one element that can travel to other screens later (job lists, cards) without the dial.</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-tag"><b>D · Forged</b> — the number itself turns to gold</div>
+    <div class="panel-body">
+      <div class="scorebox" id="boxD">
+        <div class="dialwrap">
+          <svg class="main" width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="48" fill="none" stroke="var(--hud-line)" stroke-width="8"/>
+            <circle id="arcD" cx="60" cy="60" r="48" fill="none" stroke-width="8" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+          </svg>
+          <div class="num" id="numD"></div>
+        </div>
+        <p class="cap" id="capD"></p>
+      </div>
+    </div>
+    <div class="panel-note">Crossing 90 fires a one-time burst of gold sparks, then the number itself becomes forged gold — a slow sheen passes through the digits. The celebration happens <em>once, at the moment of crossing</em>; what remains is a precious but calm object.</div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const CIRC = 2 * Math.PI * 48;
+const VARIANTS = ["A", "B", "C", "D"];
+let wasTop = null;
+
+function ladder(v) {
+  if (v >= 90) return { stroke: "var(--gold)", num: "var(--gold-hi)", tier: "Top match", glow: true };
+  if (v >= 75) return { stroke: "var(--gold)", num: "var(--hud-ink)", tier: "Strong match", glow: false };
+  if (v >= 50) return { stroke: "var(--bronze)", num: "var(--hud-ink)", tier: "Worth a look", glow: false };
+  return { stroke: "var(--steel)", num: "var(--hud-ink)", tier: "Big gaps", glow: false };
+}
+
+function sparks(box) {
+  if (REDUCED) return;
+  const wrap = box.querySelector(".dialwrap");
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement("i");
+    s.className = "spark";
+    const ang = (i / 14) * Math.PI * 2 + Math.random() * 0.4;
+    const dist = 52 + Math.random() * 26;
+    s.style.left = "57px"; s.style.top = "57px";
+    wrap.appendChild(s);
+    const dx = Math.cos(ang) * dist, dy = Math.sin(ang) * dist;
+    s.animate(
+      [ { transform: "translate(0,0) scale(1)", opacity: 1 },
+        { transform: `translate(${dx}px,${dy}px) scale(.2)`, opacity: 0 } ],
+      { duration: 700 + Math.random() * 300, easing: "cubic-bezier(.1,.7,.3,1)" }
+    ).onfinish = () => s.remove();
+  }
+}
+
+function paint(v, bump) {
+  const L = ladder(v);
+  const top = v >= 90;
+  VARIANTS.forEach((k) => {
+    const arc = document.getElementById("arc" + k);
+    arc.setAttribute("stroke-dasharray", CIRC.toFixed(1));
+    arc.setAttribute("stroke-dashoffset", (CIRC * (1 - v / 100)).toFixed(1));
+    arc.setAttribute("stroke", L.stroke);
+    arc.style.filter = L.glow && k !== "C" ? "drop-shadow(0 0 5px rgba(232,163,61,.55))" : "none";
+
+    const num = document.getElementById("num" + k);
+    num.innerHTML = v + '<span class="den">/ 100</span>';
+    num.style.color = L.num;
+    num.classList.toggle("forged", k === "D" && top);
+    if (bump && !REDUCED) { num.classList.remove("bump"); void num.offsetWidth; num.classList.add("bump"); }
+
+    document.getElementById("cap" + k).innerHTML = "<b>" + L.tier + "</b> · match score";
+    document.getElementById("box" + k).classList.toggle("is-top", top);
+  });
+  if (top && wasTop === false) sparks(document.getElementById("boxD"));
+  wasTop = top;
+  document.getElementById("sliderVal").textContent = v + "/100";
+}
+
+const slider = document.getElementById("slider");
+slider.addEventListener("input", () => paint(+slider.value, false));
+document.querySelectorAll(".btn[data-v]").forEach((b) =>
+  b.addEventListener("click", () => { slider.value = b.dataset.v; paint(+b.dataset.v, true); })
+);
+paint(77, false);
+</script>
+</body>
+</html>
