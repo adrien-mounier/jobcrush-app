@@ -2,6 +2,30 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 (session 102) — Profile desktop (#176): shape A chosen from three live options, then a five-part complete re-design briefed and planned
+
+_Design session on #176. Comparison prototype `profile-desktop-options.prototype.html` (three
+desktop shapes, all carrying the mute list, the #173 search-area change and the #120 eligibility
+correction live); plan of record `docs/design/profile-redesign-plan.md`._
+
+- **Shape decided (owner): A — field + right rail.** Facts field left (Sorted columns / the sky),
+  persistent rail right. B (one wide column) and C (full-bleed sky, floating panels) kept in the
+  file as the record. Round-1 hygiene lesson re-learned: screenshot prototypes before shipping —
+  shape C shipped with its rail panels piled top-left (missing `position:absolute`), caught by the
+  owner, fixed and re-verified with Playwright screenshots.
+- **Owner briefed a five-part complete re-design**; each part gets its own session (R2-a…R2-d in
+  the plan doc): (1) rail = Location section (absorbs eligibility, editable) + Job Family section
+  (searched role + siblings — data audit needed) · (2) drop the "waiting for a job that asks"
+  framing? (position: kill the sentence, keep the gold/grey distinction) · (3) colour law v2 +
+  category inventory + a user-facing replacement word for "stretch" · (4) regroup by CV sections —
+  audit first, own ticket · (5) list view vertical by section, gold on top, grey held-out under.
+- **Hazards register started**, biggest first: ADR-0005 — stretches shown in the sky as facts of
+  the person would visually rebuild the decided-away leak · languages need ONE editing surface
+  (rail vs LANGUAGES section) · "root CV" vs "current CV" gold must be pinned · §8.1's
+  profile-vs-CV distance narrows only on purpose.
+- The search-area placement half of #173 is answered: **the profile is the home** (decision
+  recorded in round-1 comparison + plan; #173's validation/coverage/waiting-state spec applies).
+
 ## 2026-08-09 (session 101) — Job card desktop DECIDED (#175): one card centred, footer buttons + keys, the score ladder travels, dive at the first yes
 
 _Design session on #175. New primary evidence `job-card-desktop.prototype.html`; the mobile

@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobCrush — profile desktop: three shapes</title>
+<!-- PROTOTYPE — throwaway. Design ticket #176 ROUND 1: the profile on desktop,
+     three candidate shapes side by side (switch at the bottom).
+
+       A — FIELD + RIGHT RAIL. The facts field (Sorted columns or the sky) fills
+           the left; a persistent rail holds the selected fact's detail (no modal),
+           the search area and the mute list. The tailor's two-column grammar.
+       B — ONE WIDE CENTRED COLUMN. The mobile shape at 720px in the dark room;
+           detail stays a modal; the absorbed jobs are sections at the bottom.
+       C — FULL-BLEED SKY. The Constellation is the whole canvas; counts, detail
+           and the absorbed jobs float as glass panels; Sorted opens as an overlay.
+
+     Carried into ALL three (so the layouts are judged with their real cargo):
+       - Mute list: the scope-of-a-no DECIDED shape verbatim — "Things you asked
+         me to stop", rows append at the end, offering/asking chip, origin line,
+         one-tap "Turn back on" + toast. Placement is what varies.
+       - Search area (#173): a standing "Searching" card with Change → the honest
+         "Fetching {market} jobs… nothing you've answered is re-asked" state.
+       - Eligibility (#120): answers render as POSITIVE-FORM facts ("Can work in
+         France without sponsorship") — the hidden-"no" decision stands; their
+         detail carries "Change this answer", which re-opens the original question
+         with the previous answer kept (the decided correction pattern, never a
+         hand-built editor).
+     Colour law unchanged: gold = on your CV now · blue-grey = saved in reserve.
+     Mobile evidence: profile-screen.prototype.html. Not production code. -->
+<style>
+  :root {
+    --hud-0: #0d1116; --hud-1: #151a21; --hud-2: #1d242d; --hud-line: #29313b;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98; --hud-mute-2: #8a95a2;
+    --gold: #e8a33d; --gold-lo: #a8762b; --gold-hi: #ffd9a0;
+    --reserve: #97aabc; --settled: #4d5865;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.22) transparent; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: rgba(140,150,160,.22); border-radius: 3px; }
+  html, body { margin: 0; padding: 0; }
+  body { background: #e7e3dd; font-family: var(--sans); line-height: 1.5; padding: 20px 18px 90px; -webkit-font-smoothing: antialiased; }
+
+  .ask-brief { max-width: 1320px; margin: 0 auto 16px; background: #fffdf9; border: 1px solid #ded7cb; border-radius: 12px; padding: 16px 22px; color: #1f2328; }
+  .ask-brief h1 { margin: 0 0 6px; font-size: 18px; letter-spacing: -.01em; }
+  .ask-brief p { margin: 0 0 6px; font-size: 13.5px; color: #3c444d; }
+  .ask-brief p:last-child { margin-bottom: 0; }
+
+  .app { max-width: 1320px; height: 860px; margin: 0 auto; background: var(--hud-0); color: var(--hud-ink);
+    border: 1px solid var(--hud-line); border-radius: 16px; overflow: hidden; position: relative; isolation: isolate;
+    box-shadow: 0 22px 60px -20px rgba(0,0,0,.6); display: flex; flex-direction: column; }
+  .app::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(90% 50% at 50% -6%, rgba(232,163,61,.07), transparent 60%); }
+
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 16px 26px 12px; flex: 0 0 auto; position: relative; z-index: 5; }
+  .wordmark { font-size: 13px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--hud-mute); }
+  .spacer { flex: 1; }
+  .prof { display: flex; align-items: center; gap: 7px; padding: 5px 12px 5px 10px; border-radius: 999px;
+    background: var(--hud-2); border: 1px solid var(--hud-line); }
+  .prof svg { width: 18px; height: 21px; display: block; }
+  .prof svg rect { fill: var(--hud-mute); }
+  .prof svg rect.top { fill: #a9b4bf; }
+  .prof .n { font-family: var(--mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* the view toggle — chrome, centred, textless (mobile decision kept) */
+  .seg { position: absolute; left: 50%; transform: translateX(-50%);
+    display: flex; padding: 3px; border-radius: 999px;
+    background: rgba(21,26,33,.82); border: 1px solid var(--hud-line); }
+  .seg button { position: relative; appearance: none; background: none; border: none;
+    width: 44px; height: 30px; border-radius: 999px; cursor: pointer;
+    display: grid; place-items: center; color: var(--hud-mute); transition: color 260ms ease, background 260ms ease; }
+  .seg button.on { color: var(--gold); background: linear-gradient(180deg, #2f3844, #232b35); border: 1px solid #3d4956; }
+  .seg button:hover { color: var(--hud-ink); }
+  .seg button.on:hover { color: var(--gold); }
+  .seg .ic { width: 16px; height: 16px; display: block; }
+
+  .stage { flex: 1; min-height: 0; position: relative; z-index: 1; display: flex; }
+
+  /* ── head ── */
+  .phead { padding: 4px 0 14px; }
+  .ptitle { font-family: var(--mono); font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--hud-mute); margin: 0 0 8px; }
+  .pcount { font-size: 22px; font-weight: 600; letter-spacing: -.022em; margin: 0; line-height: 1.1; display: flex; align-items: baseline; gap: 9px; }
+  .pcount .n { font-family: var(--mono); font-size: 38px; font-weight: 700; color: var(--gold-hi);
+    font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1;
+    text-shadow: 0 0 26px rgba(232,163,61,.55); }
+  .pcount .t { color: var(--hud-ink); font-weight: 560; }
+  .pwait { font-size: 12px; line-height: 1.5; color: var(--hud-mute); margin: 9px 0 0; }
+  .pwait b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .pwait b.on { color: var(--gold); }
+  .pwait b.wait { color: var(--reserve); }
+
+  /* ── sorted field ── */
+  .dom { position: relative; padding: 13px 0 14px; break-inside: avoid; }
+  .dhead { display: flex; align-items: baseline; gap: 9px; margin-bottom: 10px; }
+  .dname { font-family: var(--mono); font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--hud-mute); }
+  .dcount { font-family: var(--mono); font-size: 10px; color: var(--settled); margin-left: auto; font-variant-numeric: tabular-nums; }
+  .dlead { font-size: 16px; line-height: 1.3; font-weight: 550; letter-spacing: -.018em;
+    margin: 0 0 11px; text-wrap: balance; cursor: pointer; color: #eef2f6; }
+  .dlead.oncv { color: var(--gold-hi); text-shadow: 0 0 22px rgba(232,163,61,.32); }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { font-size: 11.5px; line-height: 1.25; padding: 6px 11px; border-radius: 999px;
+    background: linear-gradient(180deg, rgba(41,49,59,.85), rgba(29,36,45,.85));
+    border: 1px solid #2f3945; color: #c3ccd5; cursor: pointer; font-family: inherit;
+    transition: border-color 160ms ease, transform 90ms ease; }
+  .chip:hover { border-color: #3e4a58; }
+  .chip:active { transform: scale(.96); }
+  .chip:focus-visible, .dlead:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .chip.oncv { background: linear-gradient(180deg, rgba(232,163,61,.9), rgba(200,132,44,.92));
+    border-color: rgba(255,209,160,.6); color: #1a1206; font-weight: 600;
+    box-shadow: 0 0 16px rgba(232,163,61,.28); }
+  .chip.sel, .dlead.sel { outline: 1.5px solid var(--reserve); outline-offset: 2px; }
+  .chip.oncv.sel, .dlead.oncv.sel { outline-color: var(--gold-hi); }
+  .dnote { font-size: 11px; color: var(--hud-mute); margin: 14px 0 0; line-height: 1.55; }
+  .dnote b.on { color: var(--gold); } .dnote b.wait { color: var(--reserve); }
+
+  /* ── the rail / panels ── */
+  .panel { background: rgba(21,26,33,.88); border: 1px solid var(--hud-line); border-radius: 14px; padding: 15px 16px; }
+  .panel h3 { margin: 0 0 3px; font-size: 14.5px; font-weight: 620; }
+  .panel .sub { margin: 0 0 10px; font-size: 12px; color: var(--hud-mute); }
+
+  .cl { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+    margin: 0 0 8px; display: flex; align-items: center; gap: 7px; }
+  .cl i { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 10px currentColor; }
+  .cl.on { color: var(--gold); } .cl.on i { background: var(--gold); }
+  .cl.wait { color: var(--reserve); } .cl.wait i { background: var(--reserve); box-shadow: none; }
+  .dtxt { font-size: 15.5px; line-height: 1.35; margin: 0 0 10px; letter-spacing: -.012em; color: #f2f5f8; text-wrap: balance; }
+  .said { font-size: 11.5px; line-height: 1.5; color: var(--hud-mute); margin: 0 0 8px; }
+  .said b { color: #cdd5dd; font-weight: 600; }
+  .src { font-size: 11.5px; line-height: 1.45; color: var(--hud-mute); margin: 0; }
+  .src b { color: #b9c3cd; font-weight: 600; }
+  .hint { font-size: 12px; color: var(--hud-mute); margin: 0; line-height: 1.55; }
+  .fixlink { appearance: none; background: none; border: none; font: inherit; font-size: 12.5px;
+    color: var(--gold); cursor: pointer; padding: 8px 0 0; display: block; }
+  .fixlink:hover { text-decoration: underline; }
+
+  /* searching card */
+  .search-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .search-line .what { font-size: 14px; color: #eef2f6; }
+  .search-line .chg { appearance: none; background: none; border: none; font: inherit; font-size: 12.5px;
+    color: var(--gold); cursor: pointer; padding: 0; margin-left: auto; }
+  .search-line .chg:hover { text-decoration: underline; }
+  .search-opts { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .sbtn { appearance: none; font: inherit; font-size: 12.5px; padding: 7px 12px; border-radius: 999px;
+    border: 1px solid var(--hud-line); background: var(--hud-2); color: var(--hud-ink); cursor: pointer; }
+  .sbtn:hover { border-color: #3e4a58; }
+  .fetching { font-size: 12.5px; color: var(--reserve); margin: 10px 0 0; }
+  .fetching::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    border: 2px solid var(--reserve); border-top-color: transparent; margin-right: 7px;
+    animation: spin 900ms linear infinite; vertical-align: -1px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* mute list — the decided shape */
+  .mrow { display: flex; flex-direction: column; gap: 4px; padding: 11px 0; border-top: 1px solid var(--hud-line); }
+  .mrow:first-of-type { border-top: none; }
+  .mrow .top { display: flex; align-items: baseline; gap: 8px; }
+  .mchip { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 999px; border: 1px solid var(--hud-line); color: var(--hud-mute-2); flex: 0 0 auto; }
+  .mchip.offer { color: var(--gold); border-color: var(--gold-lo); }
+  .mrow .what { font-size: 13.5px; color: var(--hud-ink); }
+  .mrow .origin { font-size: 11.5px; color: var(--hud-mute); }
+  .unmute { appearance: none; background: none; border: none; font: inherit; font-size: 12px;
+    color: var(--gold); cursor: pointer; padding: 4px 0 0; text-align: left; width: fit-content; }
+  .unmute:hover { text-decoration: underline; }
+  .mempty { font-size: 12px; color: var(--hud-mute); margin: 0; line-height: 1.55; }
+
+  /* ── variant A: field + rail ── */
+  .vA { display: flex; width: 100%; min-height: 0; }
+  .vA .field { flex: 1; min-width: 0; overflow-y: auto; padding: 6px 30px 26px; }
+  .vA .field.skymode { overflow: hidden; padding: 0; position: relative; }
+  .vA .cols { columns: 2; column-gap: 44px; }
+  .vA .rail { flex: 0 0 360px; overflow-y: auto; padding: 6px 24px 26px 4px;
+    display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── variant B: one column ── */
+  .vB { width: 100%; overflow-y: auto; }
+  .vB .col { max-width: 720px; margin: 0 auto; padding: 6px 30px 110px; }
+  .vB .skybox { position: relative; height: 520px; border: 1px solid var(--hud-line); border-radius: 14px; overflow: hidden; margin-bottom: 18px; }
+
+  /* ── variant C: full-bleed sky ── */
+  .vC { width: 100%; position: relative; overflow: hidden; }
+  .vC .glass { position: absolute; z-index: 6; background: rgba(21,26,33,.82); border: 1px solid var(--hud-line);
+    border-radius: 14px; padding: 15px 16px; backdrop-filter: blur(14px) saturate(1.2);
+    box-shadow: 0 12px 40px -14px rgba(0,0,0,.8); }
+  .vC .g-head { left: 22px; top: 14px; width: 300px; }
+  .vC .g-detail { right: 22px; top: 14px; width: 320px; }
+  .vC .g-jobs { position: absolute; z-index: 6; right: 22px; bottom: 18px; width: 320px;
+    max-height: 46%; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  .vC .g-jobs .panel { background: rgba(21,26,33,.82); backdrop-filter: blur(14px); }
+  .vC .sortbtn { position: absolute; z-index: 6; left: 22px; bottom: 18px; appearance: none; font: inherit;
+    font-size: 12.5px; font-weight: 600; padding: 9px 16px; border-radius: 999px;
+    border: 1px solid var(--hud-line); background: rgba(21,26,33,.85); color: var(--hud-ink);
+    cursor: pointer; backdrop-filter: blur(12px); }
+  .vC .sortbtn:hover { border-color: #3e4a58; }
+  .vC .sortpanel { position: absolute; z-index: 7; left: 22px; top: 14px; bottom: 18px; width: 420px;
+    background: rgba(13,17,22,.94); border: 1px solid var(--hud-line); border-radius: 14px;
+    padding: 18px 20px; overflow-y: auto; backdrop-filter: blur(16px);
+    animation: slidein 300ms cubic-bezier(.2,1,.3,1); }
+  @keyframes slidein { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+  .vC .sortpanel .x { appearance: none; background: none; border: none; color: var(--hud-mute); font: inherit;
+    font-size: 12.5px; cursor: pointer; padding: 0 0 10px; }
+  .vC .sortpanel .x:hover { color: var(--hud-ink); }
+
+  /* sky */
+  .skywrap { position: absolute; inset: 0; }
+  .skywrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .skywrap .vig { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(120% 88% at 50% 44%, transparent 55%, rgba(7,9,12,.75)); }
+  .legend { position: absolute; left: 20px; bottom: 16px; display: flex; flex-direction: column; gap: 5px; pointer-events: none; z-index: 3; }
+  .vC .legend { left: 138px; bottom: 24px; }
+  .legend span { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--hud-mute); display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 5px; height: 5px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+  .legend .c i { background: var(--reserve); box-shadow: none; }
+
+  /* modal (variant B) */
+  .modal { position: absolute; inset: 0; background: rgba(6,8,11,.72); backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center; z-index: 30; animation: fade 220ms ease; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .modal .card { width: 460px; max-width: 90%; background: rgba(21,26,33,.97); border: 1px solid var(--hud-line);
+    border-radius: 18px; padding: 22px 24px; }
+  .modal .x { appearance: none; background: none; border: none; color: var(--hud-mute); font: inherit;
+    font-size: 12.5px; cursor: pointer; margin-top: 16px; padding: 0; }
+  .modal .x:hover { color: var(--hud-ink); }
+
+  .toast { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 40;
+    background: #f2f4f7; color: #101419; font-size: 13px; font-weight: 600;
+    padding: 10px 18px; border-radius: 999px; box-shadow: 0 8px 26px rgba(0,0,0,.5);
+    animation: toastin 260ms cubic-bezier(.2,1,.3,1); }
+  @keyframes toastin { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+  .switcher { position: fixed; bottom: 13px; left: 50%; transform: translateX(-50%); z-index: 200;
+    display: flex; align-items: center; gap: 4px; background: #f2f4f7; color: #101419;
+    border-radius: 999px; padding: 5px; box-shadow: 0 8px 26px rgba(0,0,0,.4); font-family: var(--sans); }
+  .switcher .lbl { font-size: 11.5px; font-weight: 700; padding: 0 9px; white-space: nowrap; }
+  .switcher button { appearance: none; border: none; font: inherit; font-size: 11.5px; font-weight: 600;
+    border-radius: 999px; padding: 0 13px; height: 29px; cursor: pointer; background: #d7dce3; color: #101419; white-space: nowrap; }
+  .switcher button.on { background: #101419; color: #f2f4f7; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: 1ms !important; transition-duration: 1ms !important; } }
+</style>
+</head>
+<body>
+
+<div class="ask-brief">
+  <h1>Ticket #176, round 1 — the profile on desktop: three shapes</h1>
+  <p>Same facts, same colour law (gold = on your CV now · blue-grey = saved in reserve), same three absorbed jobs (the mute list, the search-area change, eligibility answers with "Change this answer"). Only the <strong>shape</strong> differs. <strong>A</strong> — field + right rail (tap a fact: detail lands in the rail, no modal). <strong>B</strong> — one wide centred column, mobile's shape grown up, detail as a modal, absorbed jobs at the bottom. <strong>C</strong> — the Constellation full-bleed with floating glass panels; Sorted opens as an overlay.</p>
+  <p><strong>Judge each:</strong> can you find "where am I searching" and "what did I stop" in two seconds? · tap a gold chip and a grey chip — where does your eye go for the detail? · flip Sorted/Constellation — does the shape survive both views? · does it feel like a place, not a stretched phone?</p>
+</div>
+
+<div class="app" id="app"></div>
+
+<div class="switcher">
+  <span class="lbl">Shape</span>
+  <button data-v="A" class="on">A · field + rail</button>
+  <button data-v="B">B · one column</button>
+  <button data-v="C">C · full sky</button>
+</div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// PROTOTYPE. Throwaway. Ticket #176 round 1 — three desktop shapes compared.
+// Persona: the same Camille Roussel. Facts lifted from the mobile profile
+// prototype (the shown() set — the hidden-"no" decision stands), plus two
+// eligibility answers rendered in POSITIVE form with a correction route.
+// ---------------------------------------------------------------------------
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+const FACTS = [
+  { dom: "Sectors", onCv: 1, from: "you", text: "Eight years in IT delivery.", said: "you typed <b>“IT project manager in Paris, mostly ERP, I use Jira and MS Project”</b>" },
+  { dom: "Tools", onCv: 1, from: "you", text: "Jira, every day.", said: "you typed <b>“… I use Jira and MS Project”</b>" },
+  { dom: "Tools", onCv: 1, from: "you", text: "MS Project.", said: "you typed <b>“… I use Jira and MS Project”</b>" },
+  { dom: "Scale", onCv: 1, from: "you", text: "Managed a €2M budget across 4 teams.", said: "you tapped <b>€1M – €5M</b>" },
+  { dom: "Scale", onCv: 1, from: "you", text: "Led a team of 12.", said: "you tapped <b>10 – 20 people</b>" },
+  { dom: "Delivery", onCv: 1, from: "you", text: "Delivered an ERP migration end to end, on time.", said: "you tapped <b>Yes — start to finish</b>" },
+  { dom: "Delivery", onCv: 1, from: "you", text: "Runs agile and stage-gate both.", said: "you tapped <b>Both, depending on the client</b>" },
+  { dom: "Languages", onCv: 1, from: "you", text: "French, native.", said: "you tapped <b>Native</b>", elig: 1 },
+  { dom: "Languages", onCv: 1, from: "you", text: "English, fluent.", said: "you tapped <b>Fluent</b>", elig: 1 },
+  { dom: "Qualifications", onCv: 1, from: "you", text: "PMP certified.", said: "you tapped <b>Yes, PMP</b>" },
+  { dom: "Tools", onCv: 1, from: "you", text: "SAP ECC — not S/4HANA yet.", said: "you tapped <b>Only the older ECC</b>" },
+  { dom: "Scale", onCv: 0, from: "you", text: "Ran three projects at once.", said: "you tapped <b>2 – 4 at a time</b>" },
+  { dom: "Delivery", onCv: 0, from: "you", text: "Cut a release cycle from six weeks to two.", said: "you typed <b>“we got releases down from 6 weeks to 2”</b>" },
+  { dom: "Tools", onCv: 0, from: "you", text: "Confluence.", said: "you tapped <b>Confluence</b>" },
+  { dom: "Sectors", onCv: 0, from: "you", text: "Two years in retail supply chain.", said: "you typed <b>“2 years before that in retail supply chain”</b>" },
+  { dom: "Eligibility", onCv: 0, from: "you", text: "Can work in France without sponsorship.", said: "you tapped <b>Yes, no sponsorship needed</b>", elig: 1 },
+  { dom: "Sectors", onCv: 1, from: "cv", text: "Finance platforms.", said: "from your CV: “Finance platform replacement, Paris.”" },
+  { dom: "Delivery", onCv: 1, from: "cv", text: "Ran SIT and UAT cycles through to sign-off.", said: "from your CV: “Runs and coordinates SIT and UAT testing cycles through to sign-off.”" },
+  { dom: "Delivery", onCv: 1, from: "cv", text: "Owned the vendor relationship and the contract.", said: "from your CV: “Vendor and contract ownership across two suppliers.”" },
+  { dom: "Qualifications", onCv: 1, from: "cv", text: "MSc, information systems.", said: "from your CV: “MSc Information Systems, Dauphine.”" },
+  { dom: "Scale", onCv: 0, from: "cv", text: "Reported monthly to the group CIO.", said: "from your CV: “Monthly reporting to group CIO.”" },
+  { dom: "Scale", onCv: 0, from: "cv", text: "Chaired a steering committee of nine.", said: "from your CV: “Chaired the project steering committee.”" },
+  { dom: "Delivery", onCv: 0, from: "cv", text: "Built and ran the risk register weekly.", said: "from your CV: “Weekly risk and issue review.”" },
+  { dom: "Tools", onCv: 0, from: "cv", text: "Power BI for portfolio reporting.", said: "from your CV: “Portfolio dashboards in Power BI.”" },
+].map((f, i) => ({ ...f, id: "f" + i }));
+
+let S = {
+  variant: "A", view: "sorted", sel: null, sortOpen: false,
+  role: "IT project manager", area: "Paris", changing: false, fetching: null,
+  mutes: [
+    { kind: "offer", what: "Vendor-management stretch", origin: "Stopped while looking at Senior IT PM, Atos — 2 days ago" },
+    { kind: "ask", what: "Security clearance", origin: "Stopped during sign-up — last week" },
+  ],
+};
+
+const srcOf = f => (f.from === "cv" ? "Read from your CV" : "You told me this");
+const slotOf = f => f.onCv ? { k: "on", label: "On your CV right now" } : { k: "wait", label: "Saved to your profile" };
+
+// --- shared pieces ---------------------------------------------------------
+
+function profEl() {
+  const n = FACTS.length;
+  const rects = Array.from({ length: 5 }, (_, i) => {
+    const w = 16 - i * 1.4, x = (18 - w) / 2, y = 16 - i * 3.3;
+    return `<rect class="${i === 4 ? "top" : ""}" x="${x}" y="${y}" width="${w}" height="4.6" rx="1.4"></rect>`;
+  }).join("");
+  return `<span class="prof"><svg viewBox="0 0 18 21">${rects}</svg><span class="n">${n}</span></span>`;
+}
+
+const ICONS = {
+  sorted: `<svg class="ic" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 3.5h10M2 7h7M2 10.5h4"/></svg>`,
+  sky: `<svg class="ic" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="3.4" cy="4" r="1.5"/><circle cx="10.6" cy="3.2" r="1.2"/><circle cx="7" cy="9.8" r="1.6"/><path d="M4.6 4.9 5.9 8.5M9.6 4.2 8 8.5" stroke-linecap="round"/></svg>`,
+};
+
+function seg() {
+  const b = (v, label) => `<button data-view="${v}" class="${S.view === v ? "on" : ""}" aria-label="${label}" title="${label}">${ICONS[v]}</button>`;
+  return `<div class="seg">${b("sorted", "Sorted")}${b("sky", "Constellation")}</div>`;
+}
+
+function headHtml() {
+  const onCv = FACTS.filter(f => f.onCv).length, waiting = FACTS.length - onCv;
+  return `<div class="phead">
+    <p class="ptitle">your profile</p>
+    <h1 class="pcount"><span class="n">${FACTS.length}</span> <span class="t">things you've told me</span></h1>
+    <p class="pwait"><b class="on">${onCv}</b> are on your CV right now. · <b class="wait">${waiting}</b> are waiting for a job that asks for them.</p>
+  </div>`;
+}
+
+function detailInner(f) {
+  const slot = slotOf(f);
+  const explain = f.onCv ? "" : "It'll be used when a job asks for it. ";
+  return `<p class="cl ${slot.k}"><i></i>${slot.label}</p>
+    <p class="dtxt">${esc(f.text)}</p>
+    <p class="said">${f.said}</p>
+    <p class="src">${explain}<b>${srcOf(f)}.</b></p>
+    ${f.elig ? `<button class="fixlink" data-fix="${f.id}">Change this answer</button>` : ""}`;
+}
+
+function detailPanel() {
+  const f = FACTS.find(x => x.id === S.sel);
+  return `<div class="panel" id="detail">
+    ${f ? detailInner(f) : `<p class="hint">Tap any fact — what you said and where it came from lands here. Gold is on your CV right now; grey is saved for a job that asks.</p>`}
+  </div>`;
+}
+
+function searchPanel() {
+  let body;
+  if (S.fetching) {
+    body = `<p class="fetching">Fetching ${esc(S.fetching)} jobs… nothing you've answered is re-asked.</p>`;
+  } else if (S.changing) {
+    body = `<div class="search-opts">
+      <button class="sbtn" data-area="Hong Kong">Hong Kong</button>
+      <button class="sbtn" data-area="Singapore">Singapore</button>
+      <button class="sbtn" data-area="">Keep ${esc(S.area)}</button>
+    </div>`;
+  } else {
+    body = `<div class="search-line"><span class="what">${esc(S.role)} · ${esc(S.area)}</span>
+      <button class="chg" id="chg">Change</button></div>`;
+  }
+  return `<div class="panel"><h3>Searching</h3><p class="sub">Where your jobs come from.</p>${body}</div>`;
+}
+
+function mutePanel() {
+  const rows = S.mutes.length
+    ? S.mutes.map((m, i) => `<div class="mrow">
+        <div class="top"><span class="mchip ${m.kind === "offer" ? "offer" : ""}">${m.kind === "offer" ? "offering" : "asking"}</span><span class="what">${esc(m.what)}</span></div>
+        <div class="origin">${esc(m.origin)}</div>
+        <button class="unmute" data-unmute="${i}">Turn back on</button>
+      </div>`).join("")
+    : `<p class="mempty">Nothing stopped. If you ever tell me to stop offering or asking something, it lands here — never lost, one tap to turn back on.</p>`;
+  return `<div class="panel"><h3>Things you asked me to stop</h3><p class="sub">One tap turns any of these back on.</p>${rows}</div>`;
+}
+
+function sortedField() {
+  const doms = [...new Set(FACTS.map(f => f.dom))];
+  const groups = doms.map(d => ({ d, all: FACTS.filter(f => f.dom === d) })).sort((a, b) => b.all.length - a.all.length);
+  return groups.map(g => {
+    const lead = [...g.all].reverse()[0];
+    const rest = g.all.filter(f => f !== lead);
+    return `<section class="dom">
+      <div class="dhead"><span class="dname">${esc(g.d)}</span><span class="dcount">${g.all.length}</span></div>
+      <p class="dlead ${lead.onCv ? "oncv" : ""} ${S.sel === lead.id ? "sel" : ""}" data-id="${lead.id}" tabindex="0">${esc(lead.text)}</p>
+      ${rest.length ? `<div class="chips">${rest.map(f => `<button class="chip ${f.onCv ? "oncv" : ""} ${S.sel === f.id ? "sel" : ""}" data-id="${f.id}">${esc(f.text.replace(/\.$/, ""))}</button>`).join("")}</div>` : ""}
+    </section>`;
+  }).join("");
+}
+
+const legend = `<div class="legend"><span><i></i>on your CV</span><span class="c"><i></i>saved for later</span></div>`;
+const skyShell = `<div class="skywrap" id="skywrap"><canvas id="skycanvas"></canvas><div class="vig"></div>${legend}</div>`;
+
+// --- the sky (adapted from the mobile prototype, detail routed per variant) --
+const GOLDEN = Math.PI * (3 - Math.sqrt(5)), VB = 120;
+const TONE = {
+  on: { core: [255, 224, 170], glow: [232, 163, 61] },
+  wait: { core: [188, 201, 214], glow: [116, 138, 161] },
+};
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+let sky = null;
+
+function stopSky() {
+  if (sky && sky.raf) cancelAnimationFrame(sky.raf);
+  if (sky && sky.ro) sky.ro.disconnect();
+  sky = null;
+}
+
+function skyLayout(facts) {
+  const doms = [...new Set(facts.map(f => f.dom))];
+  const nodes = [], links = [], labels = [];
+  const R = 34;
+  const maxSpread = Math.min(19, R * Math.sin(Math.PI / doms.length) * 0.9);
+  doms.forEach((d, di) => {
+    const a = (di / doms.length) * Math.PI * 2 - Math.PI / 2;
+    const cx = VB / 2 + Math.cos(a) * R, cy = VB / 2 + Math.sin(a) * R * .94;
+    const mine = facts.filter(f => f.dom === d);
+    const spread = Math.min(maxSpread, 3.4 + Math.sqrt(mine.length) * 2.6);
+    const placed = [];
+    mine.forEach((f, i) => {
+      const r = spread * Math.sqrt((i + .6) / mine.length), th = i * GOLDEN;
+      const depth = .45 + ((i * 37 + di * 71) % 100) / 100 * .55;
+      const nd = { f, x: cx + Math.cos(th) * r, y: cy + Math.sin(th) * r,
+        ph: i * 1.7 + di, sp: .7 + ((i * 53 + di * 17) % 100) / 100 * .6, depth, links: [] };
+      let best = null, bd = Infinity;
+      for (const p of placed) { const dd = (p.x - nd.x) ** 2 + (p.y - nd.y) ** 2; if (dd < bd) { bd = dd; best = p; } }
+      if (best) { links.push([best, nd]); best.links.push(nd); nd.links.push(best); }
+      placed.push(nd); nodes.push(nd);
+    });
+    const lx = cx + Math.cos(a) * (spread + 7), ly = cy + Math.sin(a) * (spread + 7) + 1.2;
+    labels.push({ d, x: lx, y: ly, align: Math.cos(a) > .4 ? "left" : Math.cos(a) < -.4 ? "right" : "center" });
+  });
+  return { nodes, links, labels };
+}
+
+function startSky(onPick) {
+  const wrap = $("#skywrap"), canvas = $("#skycanvas");
+  if (!wrap || !canvas) return;
+  const ctx = canvas.getContext("2d");
+  sky = { wrap, canvas, ctx, ...skyLayout(FACTS), t0: performance.now(), hover: null, w: 0, h: 0, s: 1, sy: 1, ox: 0, oy: 0 };
+
+  const fit = () => {
+    const r = wrap.getBoundingClientRect();
+    const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    sky.w = r.width; sky.h = r.height;
+    canvas.width = Math.max(1, Math.round(r.width * dpr));
+    canvas.height = Math.max(1, Math.round(r.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sky.s = Math.min(r.width, r.height) / VB * .96;
+    sky.sy = Math.min(sky.s * 1.1, r.height / VB * .96);
+    sky.ox = (r.width - VB * sky.s) / 2;
+    sky.oy = (r.height - VB * sky.sy) / 2;
+  };
+  fit();
+  sky.ro = new ResizeObserver(fit);
+  sky.ro.observe(wrap);
+
+  const px = (nd, t) => {
+    if (REDUCED) return { x: sky.ox + nd.x * sky.s, y: sky.oy + nd.y * sky.sy };
+    const a = 2.1 * nd.depth, w = t * .00026 * nd.sp;
+    return {
+      x: sky.ox + (nd.x + Math.sin(w + nd.ph) * a + Math.sin(w * 2.3 + nd.ph * .6) * a * .3) * sky.s,
+      y: sky.oy + (nd.y + Math.cos(w * .82 + nd.ph * 1.3) * a + Math.cos(w * 1.9 + nd.ph) * a * .28) * sky.sy,
+    };
+  };
+  const baseR = Math.max(1.6, Math.min(3.2, 17 / Math.sqrt(FACTS.length)));
+
+  const draw = () => {
+    if (!sky) return;
+    const t = performance.now() - sky.t0, c = sky.ctx;
+    c.clearRect(0, 0, sky.w, sky.h);
+    const intro = REDUCED ? 1 : Math.min(1, t / 900);
+    const hv = sky.hover;
+    const near = n => !hv || n === hv || hv.links.includes(n);
+
+    c.lineWidth = Math.max(.4, baseR * .16);
+    sky.links.forEach(([a, b]) => {
+      const pa = px(a, t), pb = px(b, t);
+      const lit = hv && (a === hv || b === hv);
+      const al = (lit ? .95 : hv ? .1 : .32) * intro;
+      const g = c.createLinearGradient(pa.x, pa.y, pb.x, pb.y);
+      g.addColorStop(0, rgba(TONE[slotOf(a.f).k].glow, al));
+      g.addColorStop(1, rgba(TONE[slotOf(b.f).k].glow, al));
+      c.strokeStyle = g;
+      c.beginPath(); c.moveTo(pa.x, pa.y);
+      c.quadraticCurveTo((pa.x + pb.x) / 2, (pa.y + pb.y) / 2 + Math.abs(pa.x - pb.x) * .07, pb.x, pb.y);
+      c.stroke();
+    });
+
+    c.globalCompositeOperation = "lighter";
+    sky.nodes.forEach((nd, i) => {
+      const p = px(nd, t), tone = TONE[slotOf(nd.f).k];
+      const stagger = REDUCED ? 1 : Math.max(0, Math.min(1, (t - i * 6) / 500));
+      if (stagger <= 0) return;
+      const dim = .72 + nd.depth * .34;
+      const isSel = S.sel === nd.f.id, isHov = nd === hv;
+      const recede = near(nd) ? 1 : .22;
+      const boost = isSel || isHov ? 1.9 : 1;
+      const r = baseR * nd.depth * 1.15 * (isSel || isHov ? 1.4 : 1);
+      const hr = r * 7 * boost;
+      const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, hr);
+      g.addColorStop(0, rgba(tone.glow, .5 * dim * stagger * intro * recede));
+      g.addColorStop(.45, rgba(tone.glow, .13 * dim * stagger * intro * recede));
+      g.addColorStop(1, rgba(tone.glow, 0));
+      c.fillStyle = g;
+      c.beginPath(); c.arc(p.x, p.y, hr, 0, 7); c.fill();
+      c.fillStyle = rgba(tone.core, .95 * dim * stagger * intro * recede);
+      c.beginPath(); c.arc(p.x, p.y, r, 0, 7); c.fill();
+    });
+    c.globalCompositeOperation = "source-over";
+
+    c.font = `500 10px ${getComputedStyle(document.body).getPropertyValue("--mono") || "monospace"}`;
+    if ("letterSpacing" in c) c.letterSpacing = "1.4px";
+    c.fillStyle = `rgba(127,139,152,${.85 * intro})`;
+    c.textAlign = "left";
+    sky.labels.forEach(l => {
+      const txt = l.d.toUpperCase(), w = c.measureText(txt).width;
+      const anchor = sky.ox + l.x * sky.s;
+      let x = l.align === "center" ? anchor - w / 2 : l.align === "left" ? anchor : anchor - w;
+      x = Math.max(6, Math.min(sky.w - w - 6, x));
+      c.fillText(txt, x, sky.oy + l.y * sky.sy);
+    });
+
+    if (hv) {
+      const p = px(hv, t), txt = hv.f.text.replace(/\.$/, "");
+      c.font = `500 12.5px ${getComputedStyle(document.body).getPropertyValue("--sans") || "sans-serif"}`;
+      if ("letterSpacing" in c) c.letterSpacing = "0px";
+      const w = Math.min(c.measureText(txt).width, sky.w - 40);
+      let lx = p.x + 14, ly = p.y + 4;
+      if (lx + w + 12 > sky.w) lx = p.x - 14 - w;
+      ly = Math.max(16, Math.min(sky.h - 12, ly));
+      c.fillStyle = "rgba(9,12,16,.88)";
+      c.beginPath(); c.roundRect(lx - 8, ly - 14, w + 16, 22, 6); c.fill();
+      c.fillStyle = "#eef2f6";
+      c.fillText(txt, lx, ly);
+    }
+    sky.raf = requestAnimationFrame(draw);
+  };
+  sky.raf = requestAnimationFrame(draw);
+
+  const nearest = e => {
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const t = performance.now() - sky.t0;
+    let best = null, bd = Infinity;
+    sky.nodes.forEach(nd => {
+      const p = px(nd, t), d = (p.x - mx) ** 2 + (p.y - my) ** 2;
+      if (d < bd) { bd = d; best = nd; }
+    });
+    return { best, bd };
+  };
+  canvas.addEventListener("pointerdown", e => {
+    const { best, bd } = nearest(e);
+    if (best && bd < 46 * 46) onPick(best.f.id);
+  });
+  canvas.addEventListener("pointermove", e => {
+    const { best, bd } = nearest(e);
+    const hit = best && bd < 26 * 26 ? best : null;
+    if (sky && hit !== sky.hover) { sky.hover = hit; canvas.style.cursor = hit ? "pointer" : "default"; }
+  });
+  canvas.addEventListener("pointerleave", () => { if (sky) { sky.hover = null; canvas.style.cursor = "default"; } });
+}
+
+// --- variants ---------------------------------------------------------------
+
+function render() {
+  stopSky();
+  const app = $("#app");
+  const topbar = `<div class="topbar"><span class="wordmark">JobCrush</span>
+    ${S.variant !== "C" ? seg() : ""}<span class="spacer"></span>${profEl()}</div>`;
+
+  if (S.variant === "A") {
+    app.innerHTML = `${topbar}<div class="stage"><div class="vA">
+      <div class="field ${S.view === "sky" ? "skymode" : ""}" id="field">
+        ${S.view === "sky" ? skyShell : `${headHtml()}<div class="cols">${sortedField()}</div>
+          <p class="dnote"><b class="on">Gold</b> is on your CV right now. <b class="wait">Grey</b> is saved — it'll be pulled in when a job asks for it.</p>`}
+      </div>
+      <div class="rail">${S.view === "sky" ? headHtml() : ""}${detailPanel()}${searchPanel()}${mutePanel()}</div>
+    </div></div>`;
+    if (S.view === "sky") startSky(id => { S.sel = id; softDetail(); });
+  }
+
+  if (S.variant === "B") {
+    app.innerHTML = `${topbar}<div class="stage"><div class="vB"><div class="col">
+      ${headHtml()}
+      ${S.view === "sky" ? `<div class="skybox">${skyShell}</div>` : sortedField()}
+      <p class="dnote" style="margin-bottom:18px"><b class="on">Gold</b> is on your CV right now. <b class="wait">Grey</b> is saved — it'll be pulled in when a job asks for it.</p>
+      <div style="display:flex;flex-direction:column;gap:14px">${searchPanel()}${mutePanel()}</div>
+    </div></div></div>`;
+    if (S.view === "sky") startSky(id => { S.sel = id; openModal(); });
+  }
+
+  if (S.variant === "C") {
+    app.innerHTML = `${topbar}<div class="stage"><div class="vC">
+      ${skyShell}
+      <div class="glass g-head">${headHtml()}</div>
+      <div class="glass g-detail">${$html(detailPanel())}</div>
+      <div class="g-jobs">${searchPanel()}${mutePanel()}</div>
+      <button class="sortbtn" id="sortbtn">${S.sortOpen ? "✕ Close" : "≡ Sorted"}</button>
+      ${S.sortOpen ? `<div class="sortpanel"><button class="x" id="sortclose">✕ Close</button>${sortedField()}</div>` : ""}
+    </div></div>`;
+    startSky(id => { S.sel = id; softDetail(); });
+    const sb = $("#sortbtn");
+    if (sb) sb.onclick = () => { S.sortOpen = !S.sortOpen; render(); };
+    const sc = $("#sortclose");
+    if (sc) sc.onclick = () => { S.sortOpen = false; render(); };
+  }
+
+  wire();
+}
+
+// panel inner without the outer wrapper (variant C reuses its own glass box)
+function $html(panelHtml) {
+  const d = document.createElement("div");
+  d.innerHTML = panelHtml;
+  const p = d.querySelector(".panel");
+  return p ? p.innerHTML : panelHtml;
+}
+
+// repaint just the detail without restarting the canvas
+function softDetail() {
+  if (S.variant === "C") {
+    const el = $(".g-detail");
+    if (el) el.innerHTML = $html(detailPanel());
+  } else {
+    const el = $("#detail");
+    if (el) el.outerHTML = detailPanel();
+  }
+  wireDetail();
+  markSel();
+}
+
+function markSel() {
+  $$("[data-id]").forEach(el => el.classList.toggle("sel", el.dataset.id === S.sel));
+}
+
+function openModal() {
+  const f = FACTS.find(x => x.id === S.sel);
+  if (!f) return;
+  const m = document.createElement("div");
+  m.className = "modal";
+  m.innerHTML = `<div class="card">${detailInner(f)}<button class="x">Close</button></div>`;
+  m.onclick = e => { if (e.target === m || e.target.classList.contains("x")) m.remove(); };
+  $("#app").appendChild(m);
+  wireDetail();
+}
+
+function toast(msg) {
+  $$(".toast").forEach(t => t.remove());
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.textContent = msg;
+  $("#app").appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+
+function wireDetail() {
+  $$("[data-fix]").forEach(b => b.onclick = () => {
+    toast("The original question reopens, with your answer kept — nothing else is touched.");
+  });
+}
+
+function wire() {
+  $$(".seg button").forEach(b => b.onclick = () => {
+    if (S.view === b.dataset.view) return;
+    S.view = b.dataset.view; S.sel = null; render();
+  });
+  $$("[data-id]").forEach(el => el.onclick = () => {
+    S.sel = el.dataset.id;
+    if (S.variant === "B") openModal(); else softDetail();
+  });
+  const chg = $("#chg");
+  if (chg) chg.onclick = () => { S.changing = true; render(); };
+  $$("[data-area]").forEach(b => b.onclick = () => {
+    S.changing = false;
+    const area = b.dataset.area;
+    if (!area) { render(); return; }
+    S.fetching = area;
+    render();
+    setTimeout(() => {
+      S.fetching = null; S.area = area;
+      render();
+      toast(`Now searching ${area}. Everything you've answered came with you.`);
+    }, REDUCED ? 50 : 2200);
+  });
+  $$("[data-unmute]").forEach(b => b.onclick = () => {
+    const m = S.mutes.splice(+b.dataset.unmute, 1)[0];
+    render();
+    toast(m.kind === "offer" ? "Back on. I'll offer it when a job fits." : "Back on. I'll ask next time a job wants it.");
+  });
+  wireDetail();
+}
+
+$$(".switcher button[data-v]").forEach(b => b.onclick = () => {
+  $$(".switcher button[data-v]").forEach(x => x.classList.toggle("on", x === b));
+  S.variant = b.dataset.v; S.sel = null; S.sortOpen = false; S.changing = false;
+  S.view = b.dataset.v === "C" ? "sky" : S.view;
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
