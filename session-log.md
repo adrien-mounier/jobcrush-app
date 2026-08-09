@@ -2,6 +2,27 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 (session R2-c) — Part 5 + constellation DECIDED (#176): style B hybrid list on the CV sections, per-job gold ordering, weighted sky with job sub-constellations
+
+_Design session on #176 Part 5, running `docs/design/profile-redesign-plan.md`. Round-2 prototype
+built: `apps/web/prototypes/profile-desktop.prototype.html` (round-1 options file frozen as the
+shape-A record); screenshots `screenshots/r2c-*.png`; decisions posted on #176._
+
+- **Style B (hybrid) is the list** — sentence facts as rows, word facts (skills, certifications,
+  languages, additional) as chips. A (all rows) and C (the shipped lead+chips applied naively)
+  built and kept switchable as the comparison record; C erases the jobs and squashes sentences —
+  judged on screenshots, not asserted.
+- **Gold-top/grey-under applies per job, not per section** — preserves the job sub-clusters #178
+  carried in. Grey experience caption: *"Left out for space — it swaps in when a job needs it."*
+- **Constellation restructured:** angular slices weighted by section size; jobs as
+  sub-constellations with employer labels (≤40 facts; hover beyond); the dark ring centre at 200
+  accepted as night-sky atmosphere.
+- **Lopsided scale test passed** at 6 (three sections only; §7's nothing-empty proven visibly) and
+  at 200 (job headers anchor the scroll). Eligibility rows left the field — rail material (R2-d).
+- Impeccable: file-scoped dark-glow exception registered (owner-confirmed constellation language).
+- Ledger: R2-c done; **R2-d (rail: Location + eligibility move, Job family) is next and last** —
+  opens with the KIN_TITLES backend ticket (one-family stub, prefetched in R2-b).
+
 ## 2026-08-09 (session R2-b) — Part 4 audit DONE (#176 → #178): the invented domains never existed; CV sections ratified as the profile's structure
 
 _Audit session on #176 Part 4, running `docs/design/profile-redesign-plan.md`. Audit + decision

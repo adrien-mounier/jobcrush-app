@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobCrush — profile desktop, round 2: CV sections</title>
+<!-- PROTOTYPE — throwaway. Design ticket #176 ROUND 2 (session R2-c), built on
+     the decisions of R2-a (#176) and R2-b (#178):
+
+       - Shape A (field + right rail) — decided round 1; no other shape shown.
+       - Colour law v2: gold = on the root CV's default render · grey = held on
+         the profile, not on that render. Applying to a job never recolours.
+       - Structure: the CV's own sections — ABOUT YOU (orphan facts, the one
+         profile-only group, always first) · PROFESSIONAL EXPERIENCE
+         (sub-clustered by job) · PROJECTS · SKILLS · CERTIFICATIONS ·
+         EDUCATION · LANGUAGES · ADDITIONAL. Nothing empty is ever drawn (§7).
+       - "Professional Summary" never appears as a heading (#178 decision 2).
+       - Eligibility rows have LEFT the field — rail material (Part 1, R2-d).
+         Languages stay: the profile LANGUAGES section is the single editing
+         door (#178 decision 3; #120 correction mechanism, never an editor).
+
+     THE FORK — DECIDED (owner, R2-c, 2026-08-09): B is the list.
+       A — every fact a full sentence row.
+       B — hybrid: sentence facts as rows, word facts as chips. [DECIDED]
+       C — the shipped mobile pattern (lead sentence + chips) applied naively,
+           kept switchable so its cost stays visible, not asserted.
+     Also ratified: gold-top/grey-under applies PER JOB, not per section; the
+     sky's weighted section slices with jobs as sub-constellations; the dark
+     ring centre at 200 accepted as night-sky atmosphere.
+     Plus the lopsided SCALE test #178 ordered: 6 · 28 · 200 facts, one huge
+     experience cluster dominating. 200-fact data is generated stress data —
+     judge density, not sentences. Not production code. -->
+<style>
+  :root {
+    --hud-0: #0d1116; --hud-1: #151a21; --hud-2: #1d242d; --hud-line: #29313b;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98; --hud-mute-2: #8a95a2;
+    --gold: #e8a33d; --gold-lo: #a8762b; --gold-hi: #ffd9a0;
+    --reserve: #97aabc; --settled: #4d5865;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.22) transparent; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: rgba(140,150,160,.22); border-radius: 3px; }
+  html, body { margin: 0; padding: 0; }
+  body { background: #e7e3dd; font-family: var(--sans); line-height: 1.5; padding: 20px 18px 90px; -webkit-font-smoothing: antialiased; }
+
+  .ask-brief { max-width: 1320px; margin: 0 auto 16px; background: #fffdf9; border: 1px solid #ded7cb; border-radius: 12px; padding: 16px 22px; color: #1f2328; }
+  .ask-brief h1 { margin: 0 0 6px; font-size: 18px; letter-spacing: -.01em; }
+  .ask-brief p { margin: 0 0 6px; font-size: 13.5px; color: #3c444d; }
+  .ask-brief p:last-child { margin-bottom: 0; }
+
+  .app { max-width: 1320px; height: 860px; margin: 0 auto; background: var(--hud-0); color: var(--hud-ink);
+    border: 1px solid var(--hud-line); border-radius: 16px; overflow: hidden; position: relative; isolation: isolate;
+    box-shadow: 0 22px 60px -20px rgba(0,0,0,.6); display: flex; flex-direction: column; }
+  .app::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(90% 50% at 50% -6%, rgba(232,163,61,.07), transparent 60%); }
+
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 16px 26px 12px; flex: 0 0 auto; position: relative; z-index: 5; }
+  .wordmark { font-size: 13px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--hud-mute); }
+  .spacer { flex: 1; }
+  .prof { display: flex; align-items: center; gap: 7px; padding: 5px 12px 5px 10px; border-radius: 999px;
+    background: var(--hud-2); border: 1px solid var(--hud-line); }
+  .prof svg { width: 18px; height: 21px; display: block; }
+  .prof svg rect { fill: var(--hud-mute); }
+  .prof svg rect.top { fill: #a9b4bf; }
+  .prof .n { font-family: var(--mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .seg { position: absolute; left: 50%; transform: translateX(-50%);
+    display: flex; padding: 3px; border-radius: 999px;
+    background: rgba(21,26,33,.82); border: 1px solid var(--hud-line); }
+  .seg button { position: relative; appearance: none; background: none; border: none;
+    width: 44px; height: 30px; border-radius: 999px; cursor: pointer;
+    display: grid; place-items: center; color: var(--hud-mute); transition: color 260ms ease, background 260ms ease; }
+  .seg button.on { color: var(--gold); background: linear-gradient(180deg, #2f3844, #232b35); border: 1px solid #3d4956; }
+  .seg button:hover { color: var(--hud-ink); }
+  .seg button.on:hover { color: var(--gold); }
+  .seg .ic { width: 16px; height: 16px; display: block; }
+
+  .stage { flex: 1; min-height: 0; position: relative; z-index: 1; display: flex; }
+  .vA { display: flex; width: 100%; min-height: 0; }
+  .vA .field { flex: 1; min-width: 0; overflow-y: auto; padding: 6px 30px 26px; }
+  .vA .field.skymode { overflow: hidden; padding: 0; position: relative; }
+  .vA .rail { flex: 0 0 360px; overflow-y: auto; padding: 6px 24px 26px 4px;
+    display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── head ── */
+  .phead { padding: 4px 0 10px; }
+  .ptitle { font-family: var(--mono); font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--hud-mute); margin: 0 0 8px; }
+  .pcount { font-size: 22px; font-weight: 600; letter-spacing: -.022em; margin: 0; line-height: 1.1; display: flex; align-items: baseline; gap: 9px; }
+  .pcount .n { font-family: var(--mono); font-size: 38px; font-weight: 700; color: var(--gold-hi);
+    font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1;
+    text-shadow: 0 0 26px rgba(232,163,61,.55); }
+  .pcount .t { color: var(--hud-ink); font-weight: 560; }
+  .pwait { font-size: 12px; line-height: 1.5; color: var(--hud-mute); margin: 9px 0 0; }
+  .pwait b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .pwait b.on { color: var(--gold); }
+  .pwait b.wait { color: var(--reserve); }
+
+  /* ── the vertical list (Part 5) ── */
+  .list { max-width: 680px; }
+  .sec { padding: 15px 0 10px; border-top: 1px solid var(--hud-line); }
+  .sec:first-child { border-top: none; }
+  .shead { display: flex; align-items: baseline; gap: 9px; margin-bottom: 7px; }
+  .sname { font-family: var(--mono); font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--hud-mute); }
+  .scount { font-family: var(--mono); font-size: 10px; color: var(--settled); margin-left: auto; font-variant-numeric: tabular-nums; }
+
+  .job, .prj { margin: 4px 0 10px; }
+  .jhead { display: flex; align-items: baseline; gap: 7px; margin: 10px 0 3px; }
+  .jtitle { font-size: 13px; font-weight: 620; color: #dbe2e9; letter-spacing: -.01em; }
+  .jorg { font-size: 12px; color: var(--hud-mute-2); }
+  .jwhen { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--settled); font-variant-numeric: tabular-nums; }
+  .plink { font-family: var(--mono); font-size: 9.5px; color: var(--reserve); border: 1px solid var(--hud-line);
+    padding: 2px 8px; border-radius: 999px; text-decoration: none; }
+
+  .row { display: flex; gap: 10px; align-items: flex-start; margin: 0; padding: 4px 6px 4px 2px;
+    border-radius: 8px; cursor: pointer; }
+  .row:hover { background: rgba(41,49,59,.4); }
+  .row .dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; margin-top: 7px;
+    border: 1px solid var(--reserve); }
+  .row .txt { font-size: 14px; line-height: 1.4; color: #b9c3cd; letter-spacing: -.008em; }
+  .row.oncv .dot { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 9px rgba(232,163,61,.55); }
+  .row.oncv .txt { color: var(--gold-hi); text-shadow: 0 0 18px rgba(232,163,61,.22); font-weight: 520; }
+  .row.sel { outline: 1.5px solid var(--reserve); outline-offset: 0; }
+  .row.oncv.sel { outline-color: var(--gold-hi); }
+  .row:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+  /* chips (style B word-facts, style C rests) */
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 2px; }
+  .chip { font-size: 11.5px; line-height: 1.25; padding: 6px 11px; border-radius: 999px;
+    background: linear-gradient(180deg, rgba(41,49,59,.85), rgba(29,36,45,.85));
+    border: 1px solid #2f3945; color: #c3ccd5; cursor: pointer; font-family: inherit;
+    transition: border-color 160ms ease, transform 90ms ease; }
+  .chip:hover { border-color: #3e4a58; }
+  .chip:active { transform: scale(.96); }
+  .chip:focus-visible, .dlead:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .chip.oncv { background: linear-gradient(180deg, rgba(232,163,61,.9), rgba(200,132,44,.92));
+    border-color: rgba(255,209,160,.6); color: #1a1206; font-weight: 600;
+    box-shadow: 0 0 16px rgba(232,163,61,.28); }
+  .chip.sel { outline: 1.5px solid var(--reserve); outline-offset: 2px; }
+  .chip.oncv.sel { outline-color: var(--gold-hi); }
+
+  /* style C: the shipped-mobile lead+chips pattern */
+  .dlead { font-size: 16px; line-height: 1.3; font-weight: 550; letter-spacing: -.018em;
+    margin: 0 0 11px; text-wrap: balance; cursor: pointer; color: #eef2f6; }
+  .dlead.oncv { color: var(--gold-hi); text-shadow: 0 0 22px rgba(232,163,61,.32); }
+  .dlead.sel { outline: 1.5px solid var(--reserve); outline-offset: 2px; }
+  .dlead.oncv.sel { outline-color: var(--gold-hi); }
+
+  .dnote { font-size: 11px; color: var(--hud-mute); margin: 14px 0 0; line-height: 1.55; max-width: 680px; }
+  .dnote b.on { color: var(--gold); } .dnote b.wait { color: var(--reserve); }
+
+  /* ── the rail / panels ── */
+  .panel { background: rgba(21,26,33,.88); border: 1px solid var(--hud-line); border-radius: 14px; padding: 15px 16px; }
+  .panel h3 { margin: 0 0 3px; font-size: 14.5px; font-weight: 620; }
+  .panel .sub { margin: 0 0 10px; font-size: 12px; color: var(--hud-mute); }
+
+  .cl { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+    margin: 0 0 8px; display: flex; align-items: center; gap: 7px; }
+  .cl i { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 10px currentColor; }
+  .cl.on { color: var(--gold); } .cl.on i { background: var(--gold); }
+  .cl.wait { color: var(--reserve); } .cl.wait i { background: var(--reserve); box-shadow: none; }
+  .dctx { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--hud-mute-2); margin: 0 0 7px; }
+  .dtxt { font-size: 15.5px; line-height: 1.35; margin: 0 0 10px; letter-spacing: -.012em; color: #f2f5f8; text-wrap: balance; }
+  .said { font-size: 11.5px; line-height: 1.5; color: var(--hud-mute); margin: 0 0 8px; }
+  .said b { color: #cdd5dd; font-weight: 600; }
+  .src { font-size: 11.5px; line-height: 1.45; color: var(--hud-mute); margin: 0; }
+  .src b { color: #b9c3cd; font-weight: 600; }
+  .hint { font-size: 12px; color: var(--hud-mute); margin: 0; line-height: 1.55; }
+  .fixlink { appearance: none; background: none; border: none; font: inherit; font-size: 12.5px;
+    color: var(--gold); cursor: pointer; padding: 8px 0 0; display: block; }
+  .fixlink:hover { text-decoration: underline; }
+
+  .search-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .search-line .what { font-size: 14px; color: #eef2f6; }
+  .search-line .chg { appearance: none; background: none; border: none; font: inherit; font-size: 12.5px;
+    color: var(--gold); cursor: pointer; padding: 0; margin-left: auto; }
+  .search-line .chg:hover { text-decoration: underline; }
+  .search-opts { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .sbtn { appearance: none; font: inherit; font-size: 12.5px; padding: 7px 12px; border-radius: 999px;
+    border: 1px solid var(--hud-line); background: var(--hud-2); color: var(--hud-ink); cursor: pointer; }
+  .sbtn:hover { border-color: #3e4a58; }
+  .fetching { font-size: 12.5px; color: var(--reserve); margin: 10px 0 0; }
+  .fetching::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    border: 2px solid var(--reserve); border-top-color: transparent; margin-right: 7px;
+    animation: spin 900ms linear infinite; vertical-align: -1px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .mrow { display: flex; flex-direction: column; gap: 4px; padding: 11px 0; border-top: 1px solid var(--hud-line); }
+  .mrow:first-of-type { border-top: none; }
+  .mrow .top { display: flex; align-items: baseline; gap: 8px; }
+  .mchip { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 999px; border: 1px solid var(--hud-line); color: var(--hud-mute-2); flex: 0 0 auto; }
+  .mchip.offer { color: var(--gold); border-color: var(--gold-lo); }
+  .mrow .what { font-size: 13.5px; color: var(--hud-ink); }
+  .mrow .origin { font-size: 11.5px; color: var(--hud-mute); }
+  .unmute { appearance: none; background: none; border: none; font: inherit; font-size: 12px;
+    color: var(--gold); cursor: pointer; padding: 4px 0 0; text-align: left; width: fit-content; }
+  .unmute:hover { text-decoration: underline; }
+  .mempty { font-size: 12px; color: var(--hud-mute); margin: 0; line-height: 1.55; }
+
+  /* sky */
+  .skywrap { position: absolute; inset: 0; }
+  .skywrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .skywrap .vig { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(120% 88% at 50% 44%, transparent 55%, rgba(7,9,12,.75)); }
+  .legend { position: absolute; left: 20px; bottom: 16px; display: flex; flex-direction: column; gap: 5px; pointer-events: none; z-index: 3; }
+  .legend span { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--hud-mute); display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 5px; height: 5px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+  .legend .c i { background: var(--reserve); box-shadow: none; }
+
+  .toast { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 40;
+    background: #f2f4f7; color: #101419; font-size: 13px; font-weight: 600;
+    padding: 10px 18px; border-radius: 999px; box-shadow: 0 8px 26px rgba(0,0,0,.5);
+    animation: toastin 260ms cubic-bezier(.2,1,.3,1); max-width: 70%; text-align: center; }
+  @keyframes toastin { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+  .switcher { position: fixed; bottom: 13px; left: 50%; transform: translateX(-50%); z-index: 200;
+    display: flex; align-items: center; gap: 4px; background: #f2f4f7; color: #101419;
+    border-radius: 999px; padding: 5px; box-shadow: 0 8px 26px rgba(0,0,0,.4); font-family: var(--sans); }
+  .switcher .lbl { font-size: 11.5px; font-weight: 700; padding: 0 9px; white-space: nowrap; }
+  .switcher .div { width: 1px; height: 20px; background: #c8cfd8; margin: 0 6px; }
+  .switcher button { appearance: none; border: none; font: inherit; font-size: 11.5px; font-weight: 600;
+    border-radius: 999px; padding: 0 13px; height: 29px; cursor: pointer; background: #d7dce3; color: #101419; white-space: nowrap; }
+  .switcher button.on { background: #101419; color: #f2f4f7; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: 1ms !important; transition-duration: 1ms !important; } }
+</style>
+</head>
+<body>
+
+<div class="ask-brief">
+  <h1>Ticket #176, round 2 (R2-c) — the profile rebuilt on the CV's own sections</h1>
+  <p>Shape A stands (round 1). Colour law v2 stands (R2-a). Structure is now the CV's sections per #178: <strong>About you</strong> first (orphan facts — the one profile-only group), then <strong>experience sub-clustered by job</strong>, projects, skills, certifications, education, languages, additional. Nothing empty is ever drawn. Eligibility rows have left the field — they move to the rail in R2-d. Languages stay: the section is their single editing door.</p>
+  <p><strong>The fork — decided (owner, R2-c, 2026-08-09): B is the list</strong> — sentence facts as rows, word facts (skills, certifications, languages, additional) as chips. A and C stay switchable as the comparison record. Also ratified: gold-above-grey applies <em>per job</em>, and the constellation's weighted section slices with jobs as sub-constellations. <strong>The scale test (Facts):</strong> 6 · 28 · 200, lopsided — one huge experience cluster. At 200 the data is generated stress filler: judge <em>density and navigation</em>, not the sentences. Flip Sorted/Constellation at each scale.</p>
+</div>
+
+<div class="app" id="app"></div>
+
+<div class="switcher">
+  <span class="lbl">Style</span>
+  <button data-style="A">A · rows</button>
+  <button data-style="B" class="on">B · hybrid</button>
+  <button data-style="C">C · lead + chips</button>
+  <span class="div"></span>
+  <span class="lbl">Facts</span>
+  <button data-scale="6">6</button>
+  <button data-scale="28" class="on">28</button>
+  <button data-scale="200">200</button>
+</div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// PROTOTYPE. Throwaway. #176 round 2 — the profile on the CV's own sections.
+// Persona: the same Camille Roussel. 28 curated facts; the 6-fact scale is a
+// subset; the 200-fact scale adds deterministic generated stress data
+// (no randomness — screenshots must be reproducible).
+// ---------------------------------------------------------------------------
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+// --- jobs + project containers ---------------------------------------------
+const J = {
+  j1: { t: "IT Project Manager", o: "Veolia", w: "2019 – now" },
+  j2: { t: "Project Manager", o: "Carrefour Supply Chain", w: "2016 – 2019" },
+  j3: { t: "PMO Analyst", o: "Atos", w: "2014 – 2016" },
+  j4: { t: "Junior Project Manager", o: "Capgemini", w: "2012 – 2014" },
+  j5: { t: "Business Analyst", o: "BNP Paribas", w: "2010 – 2012" },
+  j6: { t: "Support Analyst", o: "Orange", w: "2008 – 2010" },
+  j7: { t: "IT Intern", o: "Air France", w: "2007" },
+};
+const P = {
+  p1: { n: "PM Meetup Paris", link: "meetup.com/pm-paris" },
+  p2: { n: "Kanban home-lab", link: "" },
+};
+
+// --- the 28 curated facts ---------------------------------------------------
+// six:1 marks the 6-fact subset. fix:1 = the #120 correction route (languages).
+const CURATED = [
+  { sec: "about", onCv: 1, from: "you", six: 1, text: "Eight years in IT delivery.", said: "you typed <b>“IT project manager in Paris, mostly ERP, I use Jira and MS Project”</b>" },
+  { sec: "about", onCv: 0, from: "you", text: "Moved from engineering into delivery in 2018.", said: "you typed <b>“started out as an engineer, moved over to delivery in 2018”</b>" },
+
+  { sec: "exp", job: "j1", onCv: 1, from: "you", six: 1, text: "Delivered an ERP migration end to end, on time.", said: "you tapped <b>Yes — start to finish</b>" },
+  { sec: "exp", job: "j1", onCv: 1, from: "you", six: 1, text: "Managed a €2M budget across 4 teams.", said: "you tapped <b>€1M – €5M</b>" },
+  { sec: "exp", job: "j1", onCv: 1, from: "you", six: 1, text: "Led a team of 12.", said: "you tapped <b>10 – 20 people</b>" },
+  { sec: "exp", job: "j1", onCv: 1, from: "cv", text: "Replaced the group finance platform in Paris.", said: "from your CV: “Finance platform replacement, Paris.”" },
+  { sec: "exp", job: "j1", onCv: 1, from: "cv", text: "Ran SIT and UAT cycles through to sign-off.", said: "from your CV: “Runs and coordinates SIT and UAT testing cycles through to sign-off.”" },
+  { sec: "exp", job: "j1", onCv: 1, from: "cv", text: "Owned the vendor relationship and the contract.", said: "from your CV: “Vendor and contract ownership across two suppliers.”" },
+  { sec: "exp", job: "j1", onCv: 0, from: "cv", six: 1, text: "Chaired a steering committee of nine.", said: "from your CV: “Chaired the project steering committee.”" },
+  { sec: "exp", job: "j1", onCv: 0, from: "cv", text: "Reported monthly to the group CIO.", said: "from your CV: “Monthly reporting to group CIO.”" },
+  { sec: "exp", job: "j1", onCv: 0, from: "cv", text: "Built and ran the risk register weekly.", said: "from your CV: “Weekly risk and issue review.”" },
+  { sec: "exp", job: "j1", onCv: 0, from: "you", text: "Runs agile and stage-gate both.", said: "you tapped <b>Both, depending on the client</b>" },
+
+  { sec: "exp", job: "j2", onCv: 1, from: "you", text: "Cut a release cycle from six weeks to two.", said: "you typed <b>“we got releases down from 6 weeks to 2”</b>" },
+  { sec: "exp", job: "j2", onCv: 0, from: "you", text: "Two years in retail supply chain.", said: "you typed <b>“2 years before that in retail supply chain”</b>" },
+  { sec: "exp", job: "j2", onCv: 0, from: "you", text: "Ran three projects at once.", said: "you tapped <b>2 – 4 at a time</b>" },
+
+  { sec: "exp", job: "j3", onCv: 1, from: "cv", text: "Standardised status reporting across the PMO.", said: "from your CV: “Rolled out a single status-report format across the PMO.”" },
+  { sec: "exp", job: "j3", onCv: 0, from: "cv", text: "Supported six project managers' plans and budgets.", said: "from your CV: “Plan and budget support for six PMs.”" },
+
+  { sec: "proj", proj: "p1", onCv: 1, from: "you", text: "Organises a monthly meetup for 200 project managers.", said: "you typed <b>“I also run a monthly PM meetup, about 200 members”</b>" },
+
+  { sec: "skill", onCv: 1, from: "you", six: 1, text: "Jira, every day.", said: "you typed <b>“… I use Jira and MS Project”</b>" },
+  { sec: "skill", onCv: 1, from: "you", text: "MS Project.", said: "you typed <b>“… I use Jira and MS Project”</b>" },
+  { sec: "skill", onCv: 1, from: "you", text: "SAP ECC — not S/4HANA yet.", said: "you tapped <b>Only the older ECC</b>" },
+  { sec: "skill", onCv: 0, from: "cv", text: "Power BI for portfolio reporting.", said: "from your CV: “Portfolio dashboards in Power BI.”" },
+  { sec: "skill", onCv: 0, from: "you", text: "Confluence.", said: "you tapped <b>Confluence</b>" },
+
+  { sec: "cert", onCv: 1, from: "you", text: "PMP certified.", said: "you tapped <b>Yes, PMP</b>" },
+
+  { sec: "edu", onCv: 1, from: "cv", text: "MSc Information Systems, Dauphine.", said: "from your CV: “MSc Information Systems, Dauphine.”" },
+
+  { sec: "lang", onCv: 1, from: "you", fix: 1, text: "French, native.", said: "you tapped <b>Native</b>" },
+  { sec: "lang", onCv: 1, from: "you", fix: 1, text: "English, fluent.", said: "you tapped <b>Fluent</b>" },
+
+  { sec: "addl", onCv: 1, from: "cv", text: "Driving licence B.", said: "from your CV: “Permis B” — translated faithfully; the original stays with the fact." },
+];
+
+// --- 200-fact stress data (deterministic, no Math.random) -------------------
+const GV = ["Coordinated", "Ran", "Planned", "Rebuilt", "Migrated", "Negotiated", "Consolidated", "Piloted", "Recovered", "Streamlined", "Documented", "Chaired", "Scoped", "Budgeted", "Tracked"];
+const GO = ["the data-migration workstream", "the cutover plan", "a 40-workshop blueprint phase", "the offshore testing team", "the interface catalogue (86 flows)", "the training rollout to 900 users", "the hypercare rota", "a €400k change request", "the archiving decommission", "the monthly portfolio review", "supplier penalties on late sprints", "the go-live readiness checklist", "the master-data cleanup", "two release trains in parallel", "the security sign-off with the CISO"];
+const GT = ["", " ahead of plan", " across three countries", " with zero P1s at go-live", " under a hard regulatory date", " within the original budget", " for the Paris and Lyon sites", " through two vendor changes"];
+const GSKILLS = ["ServiceNow", "Trello", "Miro", "Asana", "Notion", "SQL", "Tableau", "Sciforma", "Planisware", "SharePoint", "Visio", "Lucidchart", "Monday.com", "Smartsheet", "Airtable", "Postman", "JMeter", "HP ALM", "Xray", "TestRail", "Salesforce basics", "Oracle EBS", "Ariba", "Coupa", "Concur", "PowerApps", "Qlik"];
+
+function genBullet(i, off) {
+  const v = GV[i % GV.length];
+  const o = GO[(i + Math.floor(i / GV.length) * 4 + off) % GO.length];
+  const t = GT[(i * 5 + off) % GT.length];
+  return `${v} ${o}${t}.`;
+}
+
+function build200() {
+  const out = CURATED.map(f => ({ ...f }));
+  // experience: one huge cluster (j1) + a long tail. Targets incl. curated.
+  const want = { j1: 59, j2: 18, j3: 14, j4: 16, j5: 12, j6: 10, j7: 8 };
+  const goldWant = { j1: 8, j2: 4, j3: 3, j4: 3, j5: 2, j6: 2, j7: 1 };
+  Object.keys(want).forEach((k, ki) => {
+    const have = out.filter(f => f.sec === "exp" && f.job === k);
+    let golds = have.filter(f => f.onCv).length;
+    for (let i = have.length; i < want[k]; i++) {
+      const text = genBullet(i, ki * 3);
+      const gold = golds < goldWant[k] ? (golds++, 1) : 0;
+      out.push({ sec: "exp", job: k, onCv: gold, from: "cv", text, said: `from your CV: “${text.replace(/\.$/, "")}.”` });
+    }
+  });
+  GSKILLS.forEach((s, i) => out.push({ sec: "skill", onCv: i < 7 ? 1 : 0, from: "cv", text: `${s}.`, said: `from your CV: “${s}.”` }));
+  [
+    { sec: "about", onCv: 1, from: "you", text: "Paris-based, at home in ERP programmes.", said: "you typed <b>“Paris, mostly ERP programmes”</b>" },
+    { sec: "about", onCv: 0, from: "you", text: "Comfortable owning a vendor relationship.", said: "you typed <b>“I usually end up owning the vendor side”</b>" },
+    { sec: "about", onCv: 0, from: "you", text: "Prefers delivery roles over pure PMO.", said: "you typed <b>“I'd rather deliver than administrate”</b>" },
+    { sec: "cert", onCv: 1, from: "cv", text: "PRINCE2 Foundation.", said: "from your CV: “PRINCE2 Foundation.”" },
+    { sec: "cert", onCv: 1, from: "cv", text: "ITIL v4 Foundation.", said: "from your CV: “ITIL v4 Foundation.”" },
+    { sec: "cert", onCv: 0, from: "cv", text: "Certified Scrum Master.", said: "from your CV: “CSM, 2018.”" },
+    { sec: "cert", onCv: 0, from: "cv", text: "PSM I.", said: "from your CV: “PSM I.”" },
+    { sec: "edu", onCv: 1, from: "cv", text: "Maîtrise MIAGE, Paris-Sud.", said: "from your CV: “Maîtrise MIAGE, Université Paris-Sud.”" },
+    { sec: "edu", onCv: 0, from: "cv", text: "Baccalauréat S.", said: "from your CV: “Baccalauréat S.”" },
+    { sec: "lang", onCv: 0, from: "you", fix: 1, text: "Spanish — gets by.", said: "you tapped <b>Basic</b>" },
+    { sec: "lang", onCv: 0, from: "you", fix: 1, text: "German — basics.", said: "you tapped <b>Basic</b>" },
+    { sec: "proj", proj: "p1", onCv: 1, from: "you", text: "Runs the speaker programme, six events a year.", said: "you typed <b>“I book the speakers, ~6 events a year”</b>" },
+    { sec: "proj", proj: "p1", onCv: 0, from: "you", text: "Grew the group from 40 to 200 members.", said: "you typed <b>“we went from 40 to 200 in two years”</b>" },
+    { sec: "proj", proj: "p1", onCv: 0, from: "you", text: "Sponsors cover the venue.", said: "you typed <b>“sponsors pay the room now”</b>" },
+    { sec: "proj", proj: "p2", onCv: 0, from: "you", text: "Built a kanban board tool to learn React.", said: "you typed <b>“built a little kanban tool to learn React”</b>" },
+    { sec: "proj", proj: "p2", onCv: 0, from: "you", text: "Runs it on a home server.", said: "you typed <b>“self-hosted on a NUC at home”</b>" },
+    { sec: "proj", proj: "p2", onCv: 0, from: "you", text: "Fifty commits, most of them Sundays.", said: "you typed <b>“I poke at it on Sundays”</b>" },
+    { sec: "proj", proj: "p2", onCv: 0, from: "you", text: "Wrote the setup guide for friends.", said: "you typed <b>“two friends run it, I wrote a setup guide”</b>" },
+    { sec: "addl", onCv: 1, from: "cv", text: "Interests: trail running, chess.", said: "from your CV: “Interests: trail running, chess.”" },
+    { sec: "addl", onCv: 1, from: "cv", text: "Available from October.", said: "from your CV: “Available October 2026.”" },
+    { sec: "addl", onCv: 0, from: "cv", text: "Volunteers at a coding school.", said: "from your CV: “Volunteer mentor, Simplon.”" },
+    { sec: "addl", onCv: 0, from: "you", text: "Comfortable with 50% travel.", said: "you tapped <b>Up to half my time</b>" },
+    { sec: "addl", onCv: 0, from: "cv", text: "Own car.", said: "from your CV: “Véhicule personnel” — translated faithfully; the original stays with the fact." },
+  ].forEach(f => out.push(f));
+  return out;
+}
+
+const SCALES = {
+  6: CURATED.filter(f => f.six),
+  28: CURATED,
+  200: build200(),
+};
+Object.keys(SCALES).forEach(k => { SCALES[k] = SCALES[k].map((f, i) => ({ ...f, id: "s" + k + "f" + i })); });
+
+// --- sections ----------------------------------------------------------------
+const SECS = [
+  { k: "about", label: "About you", sky: "ABOUT YOU" },
+  { k: "exp", label: "Professional experience", sky: "EXPERIENCE" },
+  { k: "proj", label: "Projects", sky: "PROJECTS" },
+  { k: "skill", label: "Skills", sky: "SKILLS" },
+  { k: "cert", label: "Certifications", sky: "CERTIFICATIONS" },
+  { k: "edu", label: "Education", sky: "EDUCATION" },
+  { k: "lang", label: "Languages", sky: "LANGUAGES" },
+  { k: "addl", label: "Additional", sky: "ADDITIONAL" },
+];
+const WORDY = new Set(["skill", "cert", "lang", "addl"]);
+
+let S = {
+  view: "sorted", style: "B", scale: 28, sel: null,
+  role: "IT project manager", area: "Paris", changing: false, fetching: null,
+  mutes: [
+    { kind: "offer", what: "Vendor-management boost", origin: "Stopped while looking at Senior IT PM, Atos — 2 days ago" },
+    { kind: "ask", what: "Security clearance", origin: "Stopped during sign-up — last week" },
+  ],
+};
+
+const active = () => SCALES[S.scale];
+const srcOf = f => (f.from === "cv" ? "Read from your CV" : "You told me this");
+const slotOf = f => f.onCv ? { k: "on", label: "On your CV right now" } : { k: "wait", label: "Kept on your profile" };
+const byGold = arr => [...arr.filter(f => f.onCv), ...arr.filter(f => !f.onCv)];
+
+// --- shared pieces -----------------------------------------------------------
+function profEl() {
+  const n = active().length;
+  const rects = Array.from({ length: 5 }, (_, i) => {
+    const w = 16 - i * 1.4, x = (18 - w) / 2, y = 16 - i * 3.3;
+    return `<rect class="${i === 4 ? "top" : ""}" x="${x}" y="${y}" width="${w}" height="4.6" rx="1.4"></rect>`;
+  }).join("");
+  return `<span class="prof"><svg viewBox="0 0 18 21">${rects}</svg><span class="n">${n}</span></span>`;
+}
+
+const ICONS = {
+  sorted: `<svg class="ic" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 3.5h10M2 7h7M2 10.5h4"/></svg>`,
+  sky: `<svg class="ic" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="3.4" cy="4" r="1.5"/><circle cx="10.6" cy="3.2" r="1.2"/><circle cx="7" cy="9.8" r="1.6"/><path d="M4.6 4.9 5.9 8.5M9.6 4.2 8 8.5" stroke-linecap="round"/></svg>`,
+};
+
+function seg() {
+  const b = (v, label) => `<button data-view="${v}" class="${S.view === v ? "on" : ""}" aria-label="${label}" title="${label}">${ICONS[v]}</button>`;
+  return `<div class="seg">${b("sorted", "Sorted")}${b("sky", "Constellation")}</div>`;
+}
+
+function headHtml() {
+  const facts = active();
+  const onCv = facts.filter(f => f.onCv).length;
+  return `<div class="phead">
+    <p class="ptitle">your profile</p>
+    <h1 class="pcount"><span class="n">${facts.length}</span> <span class="t">things you've told me</span></h1>
+    <p class="pwait"><b class="on">${onCv}</b> make your CV right now — your strongest selection. <b class="wait">The rest</b> are kept for when a job needs them.</p>
+  </div>`;
+}
+
+function detailInner(f) {
+  const slot = slotOf(f);
+  const ctx = f.job ? `<p class="dctx">${esc(J[f.job].t)} · ${esc(J[f.job].o)}</p>`
+    : f.proj ? `<p class="dctx">${esc(P[f.proj].n)}</p>` : "";
+  const explain = f.onCv ? "" : (f.sec === "exp" ? "Left out for space — it swaps in when a job needs it. " : "Kept for when a job needs it. ");
+  return `<p class="cl ${slot.k}"><i></i>${slot.label}</p>
+    ${ctx}
+    <p class="dtxt">${esc(f.text)}</p>
+    <p class="said">${f.said}</p>
+    <p class="src">${explain}<b>${srcOf(f)}.</b></p>
+    ${f.fix ? `<button class="fixlink" data-fix="${f.id}">Change this answer</button>` : ""}`;
+}
+
+function detailPanel() {
+  const f = active().find(x => x.id === S.sel);
+  return `<div class="panel" id="detail">
+    ${f ? detailInner(f) : `<p class="hint">Tap any fact — what you said and where it came from lands here. Gold makes your CV right now; grey is kept for when a job needs it.</p>`}
+  </div>`;
+}
+
+function searchPanel() {
+  let body;
+  if (S.fetching) {
+    body = `<p class="fetching">Fetching ${esc(S.fetching)} jobs… nothing you've answered is re-asked.</p>`;
+  } else if (S.changing) {
+    body = `<div class="search-opts">
+      <button class="sbtn" data-area="Hong Kong">Hong Kong</button>
+      <button class="sbtn" data-area="Singapore">Singapore</button>
+      <button class="sbtn" data-area="">Keep ${esc(S.area)}</button>
+    </div>`;
+  } else {
+    body = `<div class="search-line"><span class="what">${esc(S.role)} · ${esc(S.area)}</span>
+      <button class="chg" id="chg">Change</button></div>`;
+  }
+  return `<div class="panel"><h3>Searching</h3><p class="sub">Where your jobs come from.</p>${body}</div>`;
+}
+
+function mutePanel() {
+  const rows = S.mutes.length
+    ? S.mutes.map((m, i) => `<div class="mrow">
+        <div class="top"><span class="mchip ${m.kind === "offer" ? "offer" : ""}">${m.kind === "offer" ? "offering" : "asking"}</span><span class="what">${esc(m.what)}</span></div>
+        <div class="origin">${esc(m.origin)}</div>
+        <button class="unmute" data-unmute="${i}">Turn back on</button>
+      </div>`).join("")
+    : `<p class="mempty">Nothing stopped. If you ever tell me to stop offering or asking something, it lands here — never lost, one tap to turn back on.</p>`;
+  return `<div class="panel"><h3>Things you asked me to stop</h3><p class="sub">One tap turns any of these back on.</p>${rows}</div>`;
+}
+
+// --- the vertical list (Part 5) ---------------------------------------------
+const rowOf = f => `<p class="row ${f.onCv ? "oncv" : ""} ${S.sel === f.id ? "sel" : ""}" data-id="${f.id}" tabindex="0"><i class="dot"></i><span class="txt">${esc(f.text)}</span></p>`;
+const chipOf = f => `<button class="chip ${f.onCv ? "oncv" : ""} ${S.sel === f.id ? "sel" : ""}" data-id="${f.id}">${esc(f.text.replace(/\.$/, ""))}</button>`;
+const rowsOf = items => byGold(items).map(rowOf).join("");
+const chipsOf = items => `<div class="chips">${byGold(items).map(chipOf).join("")}</div>`;
+
+function leadChips(items) {
+  const ordered = byGold(items);
+  const lead = ordered[0], rest = ordered.slice(1);
+  return `<p class="dlead ${lead.onCv ? "oncv" : ""} ${S.sel === lead.id ? "sel" : ""}" data-id="${lead.id}" tabindex="0">${esc(lead.text)}</p>
+    ${rest.length ? `<div class="chips">${rest.map(chipOf).join("")}</div>` : ""}`;
+}
+
+function jobBlocks(items) {
+  const keys = Object.keys(J).filter(k => items.some(f => f.job === k));
+  return keys.map(k => {
+    const j = J[k], mine = items.filter(f => f.job === k);
+    return `<div class="job">
+      <div class="jhead"><span class="jtitle">${esc(j.t)}</span><span class="jorg">· ${esc(j.o)}</span><span class="jwhen">${esc(j.w)}</span></div>
+      ${rowsOf(mine)}</div>`;
+  }).join("");
+}
+
+function projBlocks(items) {
+  const keys = Object.keys(P).filter(k => items.some(f => f.proj === k));
+  return keys.map(k => {
+    const p = P[k], mine = items.filter(f => f.proj === k);
+    return `<div class="prj">
+      <div class="jhead"><span class="jtitle">${esc(p.n)}</span>${p.link ? `<a class="plink" href="#" onclick="return false">↗ ${esc(p.link)}</a>` : ""}</div>
+      ${rowsOf(mine)}</div>`;
+  }).join("");
+}
+
+function secBlock(s) {
+  const on = s.items.filter(f => f.onCv).length;
+  const head = `<div class="shead"><span class="sname">${esc(s.label)}</span><span class="scount">${s.items.length}${on ? ` · ${on} on your CV` : ""}</span></div>`;
+  let body;
+  if (S.style === "C") body = leadChips(s.items); // the naive shipped pattern: no jobs, sentences behind chips
+  else if (s.k === "exp") body = jobBlocks(s.items);
+  else if (s.k === "proj") body = projBlocks(s.items);
+  else if (S.style === "B" && WORDY.has(s.k)) body = chipsOf(s.items);
+  else body = rowsOf(s.items);
+  return `<section class="sec">${head}${body}</section>`;
+}
+
+function sortedList() {
+  const facts = active();
+  const secs = SECS.map(s => ({ ...s, items: facts.filter(f => f.sec === s.k) })).filter(s => s.items.length);
+  const emptyNote = secs.length < SECS.length
+    ? `<p class="dnote">Only ${secs.length === 3 ? "three sections have" : "what has"} anything to show — an empty section is never drawn.</p>` : "";
+  return `<div class="list">${secs.map(secBlock).join("")}</div>
+    <p class="dnote"><b class="on">Gold</b> makes your CV right now. <b class="wait">Grey</b> is kept — it comes in when a job needs it.</p>
+    ${emptyNote}`;
+}
+
+const legend = `<div class="legend"><span><i></i>on your CV</span><span class="c"><i></i>kept for later</span></div>`;
+const skyShell = `<div class="skywrap" id="skywrap"><canvas id="skycanvas"></canvas><div class="vig"></div>${legend}</div>`;
+
+// --- the sky: weighted section slices, jobs as sub-constellations ------------
+const GOLDEN = Math.PI * (3 - Math.sqrt(5)), VB = 120;
+const TONE = {
+  on: { core: [255, 224, 170], glow: [232, 163, 61] },
+  wait: { core: [188, 201, 214], glow: [116, 138, 161] },
+};
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+let sky = null;
+
+function stopSky() {
+  if (sky && sky.raf) cancelAnimationFrame(sky.raf);
+  if (sky && sky.ro) sky.ro.disconnect();
+  sky = null;
+}
+
+function spiral(mine, cx, cy, spread, seed, nodes, links) {
+  const placed = [];
+  mine.forEach((f, i) => {
+    const r = spread * Math.sqrt((i + .6) / mine.length), th = i * GOLDEN + seed;
+    const depth = .45 + ((i * 37 + seed * 71) % 100) / 100 * .55;
+    const nd = { f, x: cx + Math.cos(th) * r, y: cy + Math.sin(th) * r,
+      ph: i * 1.7 + seed, sp: .7 + ((i * 53 + seed * 17) % 100) / 100 * .6, depth, links: [] };
+    let best = null, bd = Infinity;
+    for (const p of placed) { const dd = (p.x - nd.x) ** 2 + (p.y - nd.y) ** 2; if (dd < bd) { bd = dd; best = p; } }
+    if (best) { links.push([best, nd]); best.links.push(nd); nd.links.push(best); }
+    placed.push(nd); nodes.push(nd);
+  });
+}
+
+function skyLayout(facts) {
+  const secs = SECS.map(s => ({ s, items: facts.filter(f => f.sec === s.k) })).filter(x => x.items.length);
+  const w = secs.map(x => Math.sqrt(x.items.length));
+  const W = w.reduce((a, b) => a + b, 0);
+  const nodes = [], links = [], labels = [], sublabels = [];
+  const R = 32;
+  let acc = -Math.PI / 2;
+  secs.forEach((x, si) => {
+    const slice = (w[si] / W) * Math.PI * 2;
+    const mid = acc + slice / 2; acc += slice;
+    const cx = VB / 2 + Math.cos(mid) * R, cy = VB / 2 + Math.sin(mid) * R * .94;
+    let outer = 0;
+    if (x.s.k === "exp") {
+      const jkeys = Object.keys(J).filter(k => x.items.some(f => f.job === k));
+      const jw = jkeys.map(k => Math.sqrt(x.items.filter(f => f.job === k).length));
+      const JW = jw.reduce((a, b) => a + b, 0);
+      let jacc = mid - slice * .42;
+      jkeys.forEach((k, ji) => {
+        const jslice = (jw[ji] / JW) * slice * .84;
+        const ja = jacc + jslice / 2; jacc += jslice;
+        const jr = R + (ji % 2 ? 5 : -5);
+        const jcx = VB / 2 + Math.cos(ja) * jr, jcy = VB / 2 + Math.sin(ja) * jr * .94;
+        const mine = x.items.filter(f => f.job === k);
+        const spread = Math.min(9.5, 2.2 + Math.sqrt(mine.length) * 1.9);
+        spiral(mine, jcx, jcy, spread, si * 7 + ji, nodes, links);
+        sublabels.push({ t: J[k].o.toUpperCase(), x: jcx, y: jcy + spread + 4.5 });
+        outer = Math.max(outer, spread);
+      });
+    } else {
+      const spread = Math.min(13, 3 + Math.sqrt(x.items.length) * 2.2);
+      spiral(x.items, cx, cy, spread, si * 7, nodes, links);
+      outer = spread;
+    }
+    const lx = cx + Math.cos(mid) * (outer + 8), ly = cy + Math.sin(mid) * (outer + 8) + 1.2;
+    labels.push({ d: x.s.sky, x: lx, y: ly, align: Math.cos(mid) > .4 ? "left" : Math.cos(mid) < -.4 ? "right" : "center" });
+  });
+  return { nodes, links, labels, sublabels };
+}
+
+function startSky(onPick) {
+  const wrap = $("#skywrap"), canvas = $("#skycanvas");
+  if (!wrap || !canvas) return;
+  const ctx = canvas.getContext("2d");
+  const facts = active();
+  sky = { wrap, canvas, ctx, ...skyLayout(facts), t0: performance.now(), hover: null, w: 0, h: 0, s: 1, sy: 1, ox: 0, oy: 0 };
+
+  const fit = () => {
+    const r = wrap.getBoundingClientRect();
+    const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    sky.w = r.width; sky.h = r.height;
+    canvas.width = Math.max(1, Math.round(r.width * dpr));
+    canvas.height = Math.max(1, Math.round(r.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sky.s = Math.min(r.width, r.height) / VB * .96;
+    sky.sy = Math.min(sky.s * 1.1, r.height / VB * .96);
+    sky.ox = (r.width - VB * sky.s) / 2;
+    sky.oy = (r.height - VB * sky.sy) / 2;
+  };
+  fit();
+  sky.ro = new ResizeObserver(fit);
+  sky.ro.observe(wrap);
+
+  const px = (nd, t) => {
+    if (REDUCED) return { x: sky.ox + nd.x * sky.s, y: sky.oy + nd.y * sky.sy };
+    const a = 2.1 * nd.depth, w = t * .00026 * nd.sp;
+    return {
+      x: sky.ox + (nd.x + Math.sin(w + nd.ph) * a + Math.sin(w * 2.3 + nd.ph * .6) * a * .3) * sky.s,
+      y: sky.oy + (nd.y + Math.cos(w * .82 + nd.ph * 1.3) * a + Math.cos(w * 1.9 + nd.ph) * a * .28) * sky.sy,
+    };
+  };
+  const baseR = Math.max(1.3, Math.min(3.2, 17 / Math.sqrt(facts.length)));
+  const showSub = facts.length <= 40;
+
+  const draw = () => {
+    if (!sky) return;
+    const t = performance.now() - sky.t0, c = sky.ctx;
+    c.clearRect(0, 0, sky.w, sky.h);
+    const intro = REDUCED ? 1 : Math.min(1, t / 900);
+    const hv = sky.hover;
+    const near = n => !hv || n === hv || hv.links.includes(n);
+
+    c.lineWidth = Math.max(.4, baseR * .16);
+    sky.links.forEach(([a, b]) => {
+      const pa = px(a, t), pb = px(b, t);
+      const lit = hv && (a === hv || b === hv);
+      const al = (lit ? .95 : hv ? .1 : .32) * intro;
+      const g = c.createLinearGradient(pa.x, pa.y, pb.x, pb.y);
+      g.addColorStop(0, rgba(TONE[slotOf(a.f).k].glow, al));
+      g.addColorStop(1, rgba(TONE[slotOf(b.f).k].glow, al));
+      c.strokeStyle = g;
+      c.beginPath(); c.moveTo(pa.x, pa.y);
+      c.quadraticCurveTo((pa.x + pb.x) / 2, (pa.y + pb.y) / 2 + Math.abs(pa.x - pb.x) * .07, pb.x, pb.y);
+      c.stroke();
+    });
+
+    c.globalCompositeOperation = "lighter";
+    sky.nodes.forEach((nd, i) => {
+      const p = px(nd, t), tone = TONE[slotOf(nd.f).k];
+      const stagger = REDUCED ? 1 : Math.max(0, Math.min(1, (t - i * 4) / 500));
+      if (stagger <= 0) return;
+      const dim = .72 + nd.depth * .34;
+      const isSel = S.sel === nd.f.id, isHov = nd === hv;
+      const recede = near(nd) ? 1 : .22;
+      const boost = isSel || isHov ? 1.9 : 1;
+      const r = baseR * nd.depth * 1.15 * (isSel || isHov ? 1.4 : 1);
+      const hr = r * 7 * boost;
+      const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, hr);
+      g.addColorStop(0, rgba(tone.glow, .5 * dim * stagger * intro * recede));
+      g.addColorStop(.45, rgba(tone.glow, .13 * dim * stagger * intro * recede));
+      g.addColorStop(1, rgba(tone.glow, 0));
+      c.fillStyle = g;
+      c.beginPath(); c.arc(p.x, p.y, hr, 0, 7); c.fill();
+      c.fillStyle = rgba(tone.core, .95 * dim * stagger * intro * recede);
+      c.beginPath(); c.arc(p.x, p.y, r, 0, 7); c.fill();
+    });
+    c.globalCompositeOperation = "source-over";
+
+    const mono = getComputedStyle(document.body).getPropertyValue("--mono") || "monospace";
+    if (showSub) {
+      c.font = `500 7.5px ${mono}`;
+      if ("letterSpacing" in c) c.letterSpacing = "1px";
+      c.fillStyle = `rgba(127,139,152,${.55 * intro})`;
+      c.textAlign = "center";
+      sky.sublabels.forEach(l => c.fillText(l.t, sky.ox + l.x * sky.s, sky.oy + l.y * sky.sy));
+      c.textAlign = "left";
+    }
+    c.font = `500 10px ${mono}`;
+    if ("letterSpacing" in c) c.letterSpacing = "1.4px";
+    c.fillStyle = `rgba(127,139,152,${.85 * intro})`;
+    sky.labels.forEach(l => {
+      const txt = l.d, wq = c.measureText(txt).width;
+      const anchor = sky.ox + l.x * sky.s;
+      let x = l.align === "center" ? anchor - wq / 2 : l.align === "left" ? anchor : anchor - wq;
+      x = Math.max(6, Math.min(sky.w - wq - 6, x));
+      c.fillText(txt, x, Math.max(12, Math.min(sky.h - 6, sky.oy + l.y * sky.sy)));
+    });
+
+    if (hv) {
+      const p = px(hv, t);
+      const f = hv.f;
+      const txt = f.text.replace(/\.$/, "") + (f.job ? ` — ${J[f.job].t}, ${J[f.job].o}` : f.proj ? ` — ${P[f.proj].n}` : "");
+      c.font = `500 12.5px ${getComputedStyle(document.body).getPropertyValue("--sans") || "sans-serif"}`;
+      if ("letterSpacing" in c) c.letterSpacing = "0px";
+      const wq = Math.min(c.measureText(txt).width, sky.w - 40);
+      let lx = p.x + 14, ly = p.y + 4;
+      if (lx + wq + 12 > sky.w) lx = p.x - 14 - wq;
+      ly = Math.max(16, Math.min(sky.h - 12, ly));
+      c.fillStyle = "rgba(9,12,16,.88)";
+      c.beginPath(); c.roundRect(lx - 8, ly - 14, wq + 16, 22, 6); c.fill();
+      c.fillStyle = "#eef2f6";
+      c.fillText(txt, lx, ly);
+    }
+    sky.raf = requestAnimationFrame(draw);
+  };
+  sky.raf = requestAnimationFrame(draw);
+
+  const nearest = e => {
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const t = performance.now() - sky.t0;
+    let best = null, bd = Infinity;
+    sky.nodes.forEach(nd => {
+      const p = px(nd, t), d = (p.x - mx) ** 2 + (p.y - my) ** 2;
+      if (d < bd) { bd = d; best = nd; }
+    });
+    return { best, bd };
+  };
+  canvas.addEventListener("pointerdown", e => {
+    const { best, bd } = nearest(e);
+    if (best && bd < 46 * 46) onPick(best.f.id);
+  });
+  canvas.addEventListener("pointermove", e => {
+    const { best, bd } = nearest(e);
+    const hit = best && bd < 26 * 26 ? best : null;
+    if (sky && hit !== sky.hover) { sky.hover = hit; canvas.style.cursor = hit ? "pointer" : "default"; }
+  });
+  canvas.addEventListener("pointerleave", () => { if (sky) { sky.hover = null; canvas.style.cursor = "default"; } });
+}
+
+// --- render + wiring ---------------------------------------------------------
+function render() {
+  stopSky();
+  const app = $("#app");
+  const topbar = `<div class="topbar"><span class="wordmark">JobCrush</span>${seg()}<span class="spacer"></span>${profEl()}</div>`;
+  app.innerHTML = `${topbar}<div class="stage"><div class="vA">
+    <div class="field ${S.view === "sky" ? "skymode" : ""}" id="field">
+      ${S.view === "sky" ? skyShell : `${headHtml()}${sortedList()}`}
+    </div>
+    <div class="rail">${S.view === "sky" ? headHtml() : ""}${detailPanel()}${searchPanel()}${mutePanel()}</div>
+  </div></div>`;
+  if (S.view === "sky") startSky(id => { S.sel = id; render(); });
+  wire();
+}
+
+function toast(msg) {
+  $$(".toast").forEach(t => t.remove());
+  const el = document.createElement("div");
+  el.className = "toast"; el.textContent = msg;
+  $("#app").appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+function wire() {
+  $$("[data-view]").forEach(b => b.onclick = () => { S.view = b.dataset.view; render(); });
+  $$("[data-id]").forEach(el => {
+    const go = () => { S.sel = el.dataset.id; render(); };
+    el.onclick = go;
+    el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+  });
+  $$("[data-fix]").forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    toast("Re-opens the original question — your answer stays until you replace it.");
+  });
+  const chg = $("#chg");
+  if (chg) chg.onclick = () => { S.changing = true; render(); };
+  $$("[data-area]").forEach(b => b.onclick = () => {
+    const a = b.dataset.area;
+    S.changing = false;
+    if (a) { S.fetching = a; render(); setTimeout(() => { S.area = a; S.fetching = null; render(); }, 1600); }
+    else render();
+  });
+  $$("[data-unmute]").forEach(b => b.onclick = () => {
+    const i = +b.dataset.unmute;
+    const m = S.mutes.splice(i, 1)[0];
+    toast(`Back on — I'll ${m.kind === "offer" ? "offer" : "ask about"} “${m.what}” again when it helps.`);
+    render();
+  });
+}
+
+$$(".switcher [data-style]").forEach(b => b.onclick = () => {
+  S.style = b.dataset.style; S.sel = null;
+  $$(".switcher [data-style]").forEach(x => x.classList.toggle("on", x === b));
+  render();
+});
+$$(".switcher [data-scale]").forEach(b => b.onclick = () => {
+  S.scale = +b.dataset.scale; S.sel = null;
+  $$(".switcher [data-scale]").forEach(x => x.classList.toggle("on", x === b));
+  render();
+});
+
+render();
+</script>
+</body>
+</html>

@@ -13,9 +13,9 @@ A fresh session opened with *"let's work on `docs/design/profile-redesign-plan.m
    order is the work, unless the owner names another.
 2. Work as the **senior UX/UI designer persona** with the owner interactively (creative proposals,
    challenge his direction, then build his call). Prototype evidence lives in
-   `apps/web/prototypes/` — round-2 work continues in `profile-desktop-options.prototype.html` or
-   a new `profile-desktop.prototype.html` once the redesign converges. **Screenshot prototypes
-   (Playwright) before showing them.**
+   `apps/web/prototypes/` — round-2 work continues in `profile-desktop.prototype.html` (created
+   R2-c; the round-1 `profile-desktop-options.prototype.html` is the frozen shape-A record).
+   **Screenshot prototypes (Playwright) before showing them.**
 3. When a part closes: post the decisions on **#176** · update this doc (mark the ledger row
    `done`, fold decisions into the part's section, prune resolved hazards) · session-log entry ·
    commit and push when green.
@@ -26,8 +26,8 @@ A fresh session opened with *"let's work on `docs/design/profile-redesign-plan.m
 |---|---|---|
 | R2-a | 2 + 3 — colour/count semantics, category table, stretch word | **done — 2026-08-09** |
 | R2-b | 4 — CV-section regroup audit → its own ticket | **done — 2026-08-09 (#178)** |
-| R2-c | 5 — list view + constellation restructure | **open — next** |
-| R2-d | 1 — rail: Location + eligibility, Job Family | open |
+| R2-c | 5 — list view + constellation restructure | **done — 2026-08-09** |
+| R2-d | 1 — rail: Location + eligibility, Job Family | **open — next** |
 
 ### Decisions already taken (do not reopen)
 
@@ -163,26 +163,35 @@ experience cluster + five small ones), at 6 facts and at 200 — the flat 24-fac
 
 ---
 
-## Part 5 — The list view, rebuilt vertically on the CV sections
+## Part 5 — The list view, rebuilt vertically on the CV sections ✅ DECIDED (R2-c, 2026-08-09)
 
-**What the owner wants** — a vertical list: one block per CV section (per Part 4); inside each
-block, **the facts on the CV now, in gold, on top**; under them, in grey, the ones not on the CV
-for now — the stretched things (word per Part 3) and the ones **left out by priority** (N
-experience facts can't all fit; a top-N is shown by default until tailoring swaps them per offer).
+**Decisions (owner, session R2-c)** — prototype evidence:
+`apps/web/prototypes/profile-desktop.prototype.html` (round-2 file, shape A only; the round-1
+options file stays untouched as the shape-A decision record). Style + scale switchers built in;
+screenshots in `screenshots/r2c-*.png`.
 
-**Decided ground it touches**
+- **Style B — hybrid — is the list.** Sentence facts (About you, experience, projects, education)
+  are full rows; word facts (skills, certifications, languages, additional) are chips. A (all
+  rows) spends a line per word; C (the shipped lead-sentence + chips, applied naively) squashes
+  sentences into truncated chips and erases the jobs — judged on screenshots, not asserted. A and
+  C stay switchable in the prototype as the comparison record.
+- **Gold-top/grey-under applies per job, not per section** — pulling gold bullets out of their
+  jobs to the top of the section would undo the job sub-clusters #178 carried in. Each job block
+  reads: on the CV now, then kept.
+- **The constellation groups by section with space by size** (angular slices weighted by count);
+  jobs are sub-constellations with employer labels (labels drop above 40 facts, return on hover).
+  The dark ring centre at 200 facts is accepted as night-sky atmosphere.
+- **The lopsided scale test passed** (#178's order): at 6 facts only three sections exist and
+  nothing empty is drawn — §7 proven visibly; at 200 (one huge experience cluster) the list stays
+  navigable because job headers anchor the scroll.
+- Grey experience detail caption: *"Left out for space — it swaps in when a job needs it."* —
+  Part 2's reframe stating **who chose**. Other greys keep *"Kept for when a job needs it."*
 
-- "Nothing empty is ever drawn" (§7 — an empty section is a capacity, and a capacity grades the
-  person). An empty EDUCATION block must not render as an empty slot.
-- The lead-sentence + chips pattern (mobile Sorted) — does it survive, or does the vertical list
-  become rows? Design call for the session.
-- The "top-N by priority" story must be honest about *who chose*: the default render's selection is
-  the machine's priority call — the detail of a grey fact should say "left out for space, swaps in
-  when an offer needs it," which is Part 2's reframe doing its work.
-
-**Depends on Parts 3 and 4** (colours + sections) — **both decided as of R2-b; this part is
-unblocked.** Inherits from #178: the "About you" group leads the list; experience sub-clusters by
-job; empty sections never drawn; scale test re-run lopsided.
+**Build notes carried out of the session:** the profile payload must pass job attribution through
+(small contract addition, #178 Q4) · the rail in the round-2 prototype is the round-1 placeholder
+(detail · searching · stopped list) — its real design is Part 1, session R2-d · impeccable
+dark-glow exception registered file-scoped for the round-2 prototype (owner-confirmed
+constellation language).
 
 ---
 

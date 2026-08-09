@@ -1,0 +1,29 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(.2, 1.5, .4, 1)",
+        "createdAt": "2026-08-08T17:09:53.192Z",
+        "reason": "Shipped product value: deck.css jd-bump reward-beat overshoot, reused verbatim per #157 convention 3 (owner-decided); also the level-up pop so the prototype has one celebratory curve, the product's own"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(.2,1.5,.4,1)",
+        "createdAt": "2026-08-08T17:09:53.331Z",
+        "reason": "Same value, raw source form (no spaces)"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "prototypes/profile-desktop.prototype.html"
+        ],
+        "createdAt": "2026-08-09T11:17:21.317Z",
+        "reason": "Owner-confirmed constellation language (R2-c, #176): gold facts glow like stars on the profile's night sky; carried from the round-1 and mobile prototypes"
+      }
+    ]
+  }
+}
