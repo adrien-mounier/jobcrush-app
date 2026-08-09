@@ -10,7 +10,15 @@ import "../deck.css";
 import "../profile.css";
 import { FactBadge } from "../factbadge";
 import { useReducedMotion } from "../jobcard";
-import { ensureSession, getProfile, type ProfileDomain, type ProfileFact, type ProfileState } from "../../lib/api";
+import {
+  ensureSession,
+  getProfile,
+  saveTargetTitles,
+  type ProfileDomain,
+  type ProfileFact,
+  type ProfileSearch,
+  type ProfileState,
+} from "../../lib/api";
 
 type Screen = "loading" | "error" | "empty" | "ready";
 type View = "sorted" | "constellation";
@@ -32,11 +40,26 @@ const P19 = "saved for later";
 const P20 = "Every point is something you told me. Tap one.";
 const P21 = "On your CV right now";
 const P22 = "Saved to your profile";
-const P23 = "It'll be used when a job asks for it. ";
+const P23 = "Kept for when a job needs it. ";
 const P24 = "You told me this.";
 const P25 = "Read from your CV.";
 const P26 = "Close";
 const P29 = "Every fact, as a list";
+
+// #183 the rail's Job family panel. R7/R8/R10 are the exact Q1 strings from discovery/page.tsx's C2/
+// C5 — re-declared locally (not imported) so the door reads as returning to a familiar question.
+const R1 = "Your search";
+const R2 = "Job family";
+const R3 = "The job you're looking for.";
+const R4 = "Also searching";
+const R5 = "Not the job you meant?";
+const R6 = "What job are you looking for?";
+const R7 = "What kind of job are you going for?";
+const R8 = "That's me";
+const R9 = "You haven't told me yet.";
+const R10 = "Finding jobs like yours…";
+const R11 = "Your answer stays until you replace it.";
+const R12 = "Couldn't save that just now. Try again.";
 
 const ICON_SORTED = (
   <svg className="ic" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" aria-hidden="true">
@@ -51,23 +74,34 @@ const ICON_SKY = (
     <path d="M4.6 4.9 5.9 8.5M9.6 4.2 8 8.5" strokeLinecap="round" />
   </svg>
 );
+const ICON_BRIEFCASE = (
+  <svg className="pic" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.3} aria-hidden="true">
+    <rect x="1.8" y="4.4" width="10.4" height="7.2" rx="1.6" />
+    <path d="M5 4.4V3.3a1.1 1.1 0 0 1 1.1-1.1h1.8A1.1 1.1 0 0 1 9 3.3v1.1M1.8 7.4h10.4" />
+  </svg>
+);
 
-// P7/P8 — both counts tinted inline, never the only carrier (the words "on your CV"/"waiting" ride
-// along in the same sentence, §3.2). All-gold collapses to P8; otherwise P7.
-function Pwait({ gold, grey }: { gold: number; grey: number }) {
-  if (grey === 0) {
-    const text = gold === 1 ? "It's on your CV right now." : `All ${gold} are on your CV right now.`;
+// #183 hero line 2 (design-183-desktop-profile-shape-a.md §2) — the "kept for when a job needs
+// them" framing, never the dead "waiting for a job that asks" one. `rest` is total − gold; it is
+// never itself numbered in copy, only gold is.
+function Pwait({ gold, rest }: { gold: number; rest: number }) {
+  if (rest > 0) {
+    if (gold === 0) {
+      return <p className="pwait">None make your CV right now — they&apos;re all kept for when a job needs them.</p>;
+    }
     return (
       <p className="pwait">
-        <b className="g">{text}</b>
+        <b className="g">{gold}</b> {gold === 1 ? "makes" : "make"} your CV right now — your strongest selection. The rest
+        are kept for when a job needs them.
       </p>
     );
   }
-  const goldClause = gold === 1 ? "1 is on your CV right now." : `${gold} are on your CV right now.`;
-  const greyClause = grey === 1 ? "1 is waiting for a job that asks for it." : `${grey} are waiting for a job that asks for them.`;
+  if (gold === 1) {
+    return <p className="pwait">It makes your CV right now.</p>;
+  }
   return (
     <p className="pwait">
-      <b className="g">{goldClause}</b> <span className="dot">·</span> <b className="r">{greyClause}</b>
+      All <b className="g">{gold}</b> make your CV right now — your strongest selection.
     </p>
   );
 }
@@ -104,6 +138,177 @@ function DetailBody({ fact }: { fact: ProfileFact }) {
         <b>{sourceLine(fact.source)}</b>
       </p>
     </>
+  );
+}
+
+// #183 §3.3 — an open-jobs sentence, singular-aware, worded differently depending on whether
+// siblings are shown alongside it. `n` is never rendered as a bare number; the whole clause is bold.
+function OpenJobsLine({ n, hasSiblings }: { n: number; hasSiblings: boolean }) {
+  const word = n === 1 ? "job open" : "jobs open";
+  const tail = hasSiblings ? "across these titles right now." : "for this job right now.";
+  return (
+    <p className="rsrc">
+      <b>
+        {n} {word}
+      </b>{" "}
+      {tail}
+    </p>
+  );
+}
+
+// #183 the rail's Job family section (design spec §3). Pre-E5 (`family === null`) is the permanent
+// shape: role as typed + the door, nothing else — never a family/sibling/count derived client-side.
+// The door replaces the display block in place with Q1's own question, re-declared locally (§3.5);
+// answering it re-saves via the existing targets route and re-renders from a fresh /api/profile
+// fetch — it never calls startDiscovery, which would restart the whole discovery flow.
+function JobFamilyPanel({
+  search,
+  onSearchUpdated,
+  onAnnounce,
+}: {
+  search: ProfileSearch;
+  onSearchUpdated: (search: ProfileSearch) => void;
+  onAnnounce: (message: string) => void;
+}) {
+  const [asking, setAsking] = useState(false);
+  const [value, setValue] = useState(search.role ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const doorRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (asking) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [asking]);
+
+  function openDoor() {
+    setValue(search.role ?? "");
+    setError(null);
+    setAsking(true);
+  }
+
+  function closeDoor() {
+    setAsking(false);
+    setError(null);
+    requestAnimationFrame(() => doorRef.current?.focus());
+  }
+
+  async function save() {
+    const role = value.trim();
+    if (role.length < 2 || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await saveTargetTitles([role]);
+    } catch {
+      // The save itself failed — the server never got the new role. This is the only case R12 may
+      // report, so it never claims a save failed when it actually succeeded.
+      setSaving(false);
+      setError(R12);
+      // §6.4: failure keeps focus in the input (never moves it to the button that was just clicked).
+      requestAnimationFrame(() => inputRef.current?.focus());
+      return;
+    }
+    // The save succeeded — the server already holds the new role. A refetch failure past this point
+    // must never be reported as a save failure; fall back to the value we just saved (the next full
+    // profile load will pick up any fresher family/siblings/openJobs derived from it).
+    try {
+      const fresh = await getProfile();
+      onSearchUpdated(fresh.search);
+      onAnnounce(`Now searching ${fresh.search.role ?? role}.`);
+    } catch {
+      onSearchUpdated({ ...search, role });
+      onAnnounce(`Now searching ${role}.`);
+    }
+    setSaving(false);
+    setAsking(false);
+    requestAnimationFrame(() => doorRef.current?.focus());
+  }
+
+  const hasSiblings = search.siblingTitles.length > 0;
+  const hasRow = hasSiblings || search.openJobs !== null;
+  const door = (
+    <button type="button" ref={doorRef} className="rdoor" onClick={openDoor}>
+      {search.role === null ? R6 : R5}
+    </button>
+  );
+
+  return (
+    <section className="rpanel">
+      <h2 className="rtitle">
+        {ICON_BRIEFCASE}
+        {R2}
+      </h2>
+      <p className="rsub">{R3}</p>
+      {asking ? (
+        <div className="rq">
+          <label className="rqq" htmlFor="role-again">
+            {R7}
+          </label>
+          <input
+            className="rin"
+            id="role-again"
+            type="text"
+            ref={inputRef}
+            value={value}
+            disabled={saving}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                save();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                closeDoor();
+              }
+            }}
+          />
+          <div className="rbtns">
+            <button type="button" className="rbtn" disabled={saving || value.trim().length < 2} onClick={save}>
+              {R8}
+            </button>
+            <button type="button" className="rbtn" disabled={saving} onClick={closeDoor}>
+              {search.role ? `Keep ${search.role}` : "Not now"}
+            </button>
+          </div>
+          {saving && <p className="rbusy">{R10}</p>}
+          {error && (
+            <p className="rerr" role="alert">
+              {error}
+            </p>
+          )}
+          {!saving && !error && <p className="rnote">{R11}</p>}
+        </div>
+      ) : (
+        <>
+          {search.role === null ? <p className="rrole rmute">{R9}</p> : <p className="rrole">{search.role}</p>}
+          {search.family !== null && <p className="rfam">Part of {search.family}.</p>}
+          {hasRow ? (
+            <div className="rrow">
+              {hasSiblings && (
+                <>
+                  <p className="rlabel">{R4}</p>
+                  <div className="rkin">
+                    {search.siblingTitles.map((title) => (
+                      <span className="rtag" key={title}>
+                        {title}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
+              {search.openJobs !== null && <OpenJobsLine n={search.openJobs} hasSiblings={hasSiblings} />}
+              {door}
+            </div>
+          ) : (
+            door
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -157,6 +362,10 @@ export default function ProfilePage() {
       errorRef.current?.focus();
     }
   }, [screen]);
+
+  const handleSearchUpdated = useCallback((search: ProfileSearch) => {
+    setProfile((p) => (p ? { ...p, search } : p));
+  }, []);
 
   const restoreDialogFocus = useCallback(() => {
     const opener = dialogOpenerRef.current;
@@ -259,6 +468,8 @@ export default function ProfilePage() {
           onCloseDialog={closeDialog}
           onDialogClosed={handleDialogClosed}
           onBack={() => router.back()}
+          onSearchUpdated={handleSearchUpdated}
+          onAnnounce={setLiveMessage}
         />
       )}
     </div>
@@ -282,6 +493,8 @@ function ReadyScreen({
   onCloseDialog,
   onDialogClosed,
   onBack,
+  onSearchUpdated,
+  onAnnounce,
 }: {
   profile: ProfileState;
   view: View;
@@ -299,6 +512,8 @@ function ReadyScreen({
   onCloseDialog: () => void;
   onDialogClosed: () => void;
   onBack: () => void;
+  onSearchUpdated: (search: ProfileSearch) => void;
+  onAnnounce: (message: string) => void;
 }) {
   const indRef = useRef<HTMLSpanElement>(null);
 
@@ -319,7 +534,9 @@ function ReadyScreen({
 
   const visibleCount = profile.domains.reduce((s, d) => s + d.facts.length, 0);
   const gold = profile.domains.reduce((s, d) => s + d.facts.filter((f) => f.colour === "gold").length, 0);
-  const grey = Math.max(0, visibleCount - gold);
+  // rest is total − gold (the h1's factCount), not visible − gold: factCount includes facts the
+  // domains don't draw (e.g. "no" answers), and the two hero lines must never contradict each other.
+  const grey = Math.max(0, profile.factCount - gold);
   const showP12 = visibleCount <= 2;
 
   const domains = useMemo(() => [...profile.domains].sort((a, b) => b.facts.length - a.facts.length), [profile.domains]);
@@ -361,69 +578,73 @@ function ReadyScreen({
         <FactBadge count={totalCount} fly={null} rootRef={rootRef} />
       </div>
 
-      {view === "sorted" && (
-        <section className="phead">
-          <p className="ptitle">{P5}</p>
-          <h1 className="pcount" tabIndex={-1} ref={headingRef}>
-            <span className="n">{totalCount}</span> {totalCount === 1 ? "thing you've told me" : "things you've told me"}
-          </h1>
-          <Pwait gold={gold} grey={grey} />
-        </section>
-      )}
+      <div className="stage">
+        <div className="field">
+          {view === "sorted" && (
+            <section className="phead">
+              <p className="ptitle">{P5}</p>
+              <h1 className="pcount" tabIndex={-1} ref={headingRef}>
+                <span className="n">{totalCount}</span>{" "}
+                <span className="t">{totalCount === 1 ? "thing you've told me" : "things you've told me"}</span>
+              </h1>
+              <Pwait gold={gold} rest={grey} />
+            </section>
+          )}
 
-      <div id="profileview" className={`body ${view}`} ref={view === "sorted" ? sortedBodyRef : undefined}>
-        {view === "sorted" ? (
-          <div className="sheetwrap">
-            {domains.map((d, i) => {
-              const { lead, rest } = pickLead(d.facts);
-              const a = (0.035 + 0.075 * (d.facts.length / biggest)).toFixed(3);
-              return (
-                <section
-                  className="dom"
-                  key={d.tag}
-                  style={reducedMotion ? undefined : { animationDelay: `${Math.min(i * 55, 330)}ms` }}
-                >
-                  <span className="aura" style={{ ["--a" as string]: a }} aria-hidden="true" />
-                  <div className="dhead">
-                    <h2 className="dname">{d.heading}</h2>
-                    <span className="dcount">
-                      {d.facts.length}
-                      <span className="sr-only"> {d.facts.length === 1 ? "fact" : "facts"}</span>
-                    </span>
-                  </div>
-                  <p className={`dlead ${lead.colour}`}>{lead.text}</p>
-                  {rest.length > 0 && (
-                    <div className="facts">
-                      {rest.map((f) => (
-                        <button
-                          key={f.id}
-                          type="button"
-                          className={`fact ${f.colour}`}
-                          aria-label={`${f.text} — ${f.colour === "gold" ? P21 : P22}`}
-                          onClick={() => onOpenFact(f)}
-                        >
-                          {chipText(f.text)}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              );
-            })}
-            <p className="dnote">
-              {showP12 ? (
-                P12
-              ) : (
-                <>
-                  <b className="g">Gold</b> is on your CV right now. <b className="r">Grey</b> is saved — it&rsquo;ll be
-                  pulled in when a job asks for it. The CV is two pages, so it picks; nothing is ever dropped.
-                </>
-              )}
-            </p>
+          <div id="profileview" className={`body ${view}`} ref={view === "sorted" ? sortedBodyRef : undefined}>
+            {view === "sorted" ? (
+              <div className="sheetwrap">
+                {domains.map((d, i) => {
+                  const { lead, rest } = pickLead(d.facts);
+                  const a = (0.035 + 0.075 * (d.facts.length / biggest)).toFixed(3);
+                  return (
+                    <section
+                      className="dom"
+                      key={d.tag}
+                      style={reducedMotion ? undefined : { animationDelay: `${Math.min(i * 55, 330)}ms` }}
+                    >
+                      <span className="aura" style={{ ["--a" as string]: a }} aria-hidden="true" />
+                      <div className="dhead">
+                        <h2 className="dname">{d.heading}</h2>
+                        <span className="dcount">
+                          {d.facts.length}
+                          <span className="sr-only"> {d.facts.length === 1 ? "fact" : "facts"}</span>
+                        </span>
+                      </div>
+                      <p className={`dlead ${lead.colour}`}>{lead.text}</p>
+                      {rest.length > 0 && (
+                        <div className="facts">
+                          {rest.map((f) => (
+                            <button
+                              key={f.id}
+                              type="button"
+                              className={`fact ${f.colour}`}
+                              aria-label={`${f.text} — ${f.colour === "gold" ? P21 : P22}`}
+                              onClick={() => onOpenFact(f)}
+                            >
+                              {chipText(f.text)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
+                <p className="dnote">
+                  {showP12
+                    ? P12
+                    : "The highlighted ones make your CV right now. The rest are kept for when a job needs them. Your CV is two pages, so it picks; nothing is ever dropped."}
+                </p>
+              </div>
+            ) : (
+              <Constellation domains={domains} reducedMotion={reducedMotion} selected={selected} onOpenFact={onOpenFact} />
+            )}
           </div>
-        ) : (
-          <Constellation domains={domains} reducedMotion={reducedMotion} selected={selected} onOpenFact={onOpenFact} />
-        )}
+        </div>
+
+        <aside className="rail" aria-label={R1}>
+          <JobFamilyPanel search={profile.search} onSearchUpdated={onSearchUpdated} onAnnounce={onAnnounce} />
+        </aside>
       </div>
 
       <dialog

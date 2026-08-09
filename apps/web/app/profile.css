@@ -24,7 +24,9 @@
 }
 .profile .topbar,
 .profile .phead,
-.profile .body {
+.profile .body,
+.profile .stage,
+.profile .rail {
   position: relative;
   z-index: 1;
 }
@@ -123,6 +125,10 @@
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  line-height: 1.1;
 }
 .profile .pcount .n {
   font-family: var(--mono);
@@ -132,15 +138,23 @@
   text-shadow: 0 0 22px rgba(232, 163, 61, 0.32);
   margin-right: 2px;
 }
+.profile .pcount .t {
+  color: var(--hud-ink);
+  font-weight: 560;
+}
 .profile .pwait {
-  margin: 0;
-  font-size: 11.5px;
+  margin: 9px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--hud-mute);
 }
 .profile .pwait b.g,
 .profile .dnote b.g {
   color: var(--gold);
   font-weight: 600;
+}
+.profile .pwait b.g {
+  font-variant-numeric: tabular-nums;
 }
 .profile .pwait b.r,
 .profile .dnote b.r {
@@ -520,4 +534,270 @@
   .profile .sheetin {
     animation-name: none;
   }
+}
+
+/* ---------- #183 layout: field + right rail (design-183-desktop-profile-shape-a.md §1) ---------- */
+.profile .stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* ≤ 899 — one column, the whole stage scrolls */
+@media (max-width: 899px) {
+  .profile .stage {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .profile .field {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+  .profile .body {
+    flex: 0 0 auto;
+  }
+  .profile .body.sorted {
+    overflow-y: visible;
+  }
+  .profile .body.constellation {
+    height: min(68svh, 520px);
+    min-height: 360px;
+  }
+  .profile .sky .sheet {
+    bottom: 12px;
+  }
+  .profile .sheetwrap {
+    padding-bottom: 18px;
+  }
+  .profile .rail {
+    padding: 0 18px calc(26px + env(safe-area-inset-bottom));
+  }
+}
+@media (min-width: 641px) and (max-width: 899px) {
+  .profile .stage {
+    max-width: var(--jc-desk-col);
+    margin-inline: auto;
+    width: 100%;
+  }
+}
+
+/* ≥ 900 — the two zones */
+@media (min-width: 900px) {
+  .profile .topbar {
+    max-width: 1120px;
+    margin-inline: auto;
+    width: 100%;
+  }
+  .profile .stage {
+    max-width: 1120px;
+    margin-inline: auto;
+    width: 100%;
+    gap: 22px;
+    padding: 0 24px;
+  }
+  .profile .field {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .profile .body.sorted {
+    overflow-y: auto;
+  }
+  .profile .sheetwrap {
+    max-width: 680px;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .profile .phead {
+    padding-left: 0;
+    padding-right: 0;
+    max-width: 680px;
+  }
+  .profile .dom + .dom::before {
+    left: 0;
+    right: 0;
+  }
+  .profile .rail {
+    flex: 0 0 320px;
+    overflow-y: auto;
+    padding: 2px 0 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+}
+@media (min-width: 1180px) {
+  .profile .rail {
+    flex-basis: 360px;
+  }
+}
+
+/* ---------- #183 rail: Job family card (design spec §3.1) ---------- */
+.profile .rpanel {
+  background: rgba(23, 28, 35, 0.86);
+  border: 1px solid var(--hud-line);
+  border-radius: 14px;
+  padding: 15px 16px;
+}
+.profile .rtitle {
+  margin: 0 0 3px;
+  font-size: 14.5px;
+  font-weight: 620;
+  color: var(--hud-ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.profile .rtitle .pic {
+  width: 14px;
+  height: 14px;
+  color: var(--settled);
+  flex: 0 0 auto;
+}
+.profile .rsub {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--hud-mute);
+}
+.profile .rrole {
+  margin: 0;
+  font-size: 14px;
+  color: #eef2f6;
+  overflow-wrap: break-word;
+}
+.profile .rmute {
+  color: var(--hud-mute);
+}
+.profile .rfam {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--hud-mute);
+}
+.profile .rrow {
+  border-top: 1px solid var(--hud-line);
+  padding: 11px 0 2px;
+  margin-top: 12px;
+}
+.profile .rlabel {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hud-mute);
+  margin: 0 0 5px;
+}
+.profile .rkin {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 2px 0 7px;
+}
+.profile .rtag {
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid #2a333e;
+  color: #aab5c0;
+  background: rgba(29, 36, 45, 0.5);
+}
+.profile .rsrc {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--hud-mute);
+  line-height: 1.45;
+}
+.profile .rsrc b {
+  color: #b9c3cd;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.profile .rdoor {
+  appearance: none;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--gold);
+  cursor: pointer;
+  padding: 7px 0 0;
+  display: block;
+  text-align: left;
+}
+.profile .rdoor:hover {
+  text-decoration: underline;
+}
+@media (max-width: 359px) {
+  .profile .rpanel {
+    padding: 13px 14px;
+  }
+}
+
+/* ---------- #183 rail: the door open — the question, not an editor (design spec §3.5) ---------- */
+.profile .rq {
+  margin-top: 4px;
+}
+.profile .rqq {
+  display: block;
+  font-size: 13px;
+  color: #dbe2e9;
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+.profile .rin {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  color: var(--hud-ink);
+  background: var(--hud-2);
+  border: 1px solid var(--hud-line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0 0 9px;
+}
+.profile .rin:focus-visible {
+  outline: 2px solid var(--hud-ink);
+  outline-offset: 1px;
+}
+.profile .rbtns {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.profile .rbtn {
+  appearance: none;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--hud-line);
+  background: var(--hud-2);
+  color: var(--hud-ink);
+  cursor: pointer;
+  min-height: 34px;
+}
+.profile .rbtn:hover:not(:disabled) {
+  border-color: var(--gold-dim);
+}
+.profile .rbtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.profile .rnote {
+  font-size: 11px;
+  color: var(--hud-mute);
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+.profile .rbusy {
+  font-size: 12.5px;
+  color: var(--reserve);
+  margin: 10px 0 0;
+}
+.profile .rerr {
+  font-size: 12px;
+  color: var(--hud-ink);
+  margin: 8px 0 0;
 }
