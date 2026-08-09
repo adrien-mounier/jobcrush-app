@@ -384,6 +384,13 @@ this rule keeps the docs honest *between* those, so no progress goes unrecorded.
   (spec §8-3). Pipeline stages checkpoint LLM outputs so retries never re-spend.
 - **Coding discipline:** simplest thing that works, surgical diffs, no speculative abstractions. Read
   the code a change touches before writing.
+- **`routes/onboarding.ts` is a ratchet — it may only shrink.** A test
+  (`apps/api/test/onboardingRatchet.test.ts`) fails any push that grows the file. New logic goes in
+  its own module beside the subsystem it belongs to; the route entry stays thin (new endpoints are
+  fine that way). If your ticket touches an in-file helper (`buildJobCard`, `buildTailorState`, …),
+  move it out as part of the ticket and lower the limit. **Never raise the limit without the owner's
+  explicit OK, recorded in the commit message** — the pressure to raise it will arrive looking like a
+  reasonable improvement; the right response is extraction.
 
 ## Layout
 
