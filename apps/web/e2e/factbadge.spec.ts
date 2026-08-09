@@ -208,6 +208,7 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
         facts: [{ id: "sap", text: "Ran SAP rollouts across three sites.", colour: "gold", source: "told" }],
       },
     ],
+    contact: { phone: null, email: null },
   };
   await page.route("**/api/profile", async (route) => {
     await route.fulfill({ json: profileState });

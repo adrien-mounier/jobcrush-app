@@ -43,6 +43,7 @@ const PROFILE: ProfileState = {
       facts: [{ id: "s1", text: "SQL.", colour: "gold", source: "told" }],
     },
   ],
+  contact: { phone: null, email: null }, // #190's honest-absence default; populated fixtures below
 };
 
 async function stubProfile(page: Page, state: ProfileState = PROFILE) {
@@ -61,10 +62,12 @@ test("the screen loads, opening on the fullest domain with its strongest fact le
   await expect(heading).toBeVisible();
   await expect(heading).toBeFocused();
 
-  // The fullest domain (Professional Experience, 3 facts) is listed before Skills (1 fact).
+  // About you (#190) always leads; the fullest domain (Professional Experience, 3 facts) is listed
+  // before Skills (1 fact).
   const domainNames = page.locator(".dname");
-  await expect(domainNames.nth(0)).toHaveText("Professional Experience");
-  await expect(domainNames.nth(1)).toHaveText("Skills");
+  await expect(domainNames.nth(0)).toHaveText("About you");
+  await expect(domainNames.nth(1)).toHaveText("Professional Experience");
+  await expect(domainNames.nth(2)).toHaveText("Skills");
 
   // Its lead is the longest fact, without preferring gold over grey.
   const firstLead = page.locator(".dlead").first();
@@ -371,4 +374,123 @@ test("role never answered: the door reads its own copy and opens the same questi
   await door.click();
   await expect(page.getByLabel("What kind of job are you going for?")).toHaveValue("");
   await expect(page.getByRole("button", { name: "Not now" })).toBeVisible();
+});
+
+// ---------- #190 "contact info is a fact": About you (phone + email) ----------
+
+test("phone and email display in About you, each with its origin shown like a fact's source", async ({ page }) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    contact: {
+      phone: { value: "+852 1234 5678", origin: "read" },
+      email: { value: "person@example.com", origin: "person-said" },
+    },
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  const about = page.locator(".dom").filter({ hasText: "About you" });
+  await expect(about.getByText("Phone", { exact: true })).toBeVisible();
+  await expect(about.getByText("+852 1234 5678")).toBeVisible();
+  await expect(about.getByText("Read from your CV.")).toBeVisible();
+  // The CV email is labelled as what the CV shows — never presented as the account/login email.
+  await expect(about.getByText("Email on your CV", { exact: true })).toBeVisible();
+  await expect(about.getByText("person@example.com")).toBeVisible();
+  await expect(about.getByText("You told me this.")).toBeVisible();
+  await expect(about.getByRole("button", { name: "Not your number?" })).toBeVisible();
+  await expect(about.getByRole("button", { name: "Not the right email?" })).toBeVisible();
+});
+
+test("an absent phone reads as honestly absent, and supplying one flows exactly like a correction", async ({ page }) => {
+  await stubSession(page);
+  let current: ProfileState = { ...PROFILE, contact: { phone: null, email: null } };
+  await page.route("**/api/profile", async (route) => {
+    await route.fulfill({ json: current });
+  });
+  await page.route("**/api/contact", async (route) => {
+    const body = route.request().postDataJSON() as { field: "phone" | "email"; value: string };
+    current = {
+      ...current,
+      contact: { ...current.contact, [body.field]: { value: body.value, origin: "person-said" } },
+    };
+    await route.fulfill({ json: { ...current.contact, phone: { ...current.contact.phone, sourceText: "" } } });
+  });
+  await page.goto("/profile");
+
+  const about = page.locator(".dom").filter({ hasText: "About you" });
+  await expect(about.getByText("Not on your CV")).toHaveCount(2); // neither phone nor email captured yet
+
+  await about.getByRole("button", { name: "What's the best phone number for your CV?" }).click();
+  const input = page.getByLabel("What's the best phone number for your CV?");
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("");
+
+  await input.fill("+852 9876 5432");
+  await about.getByRole("button", { name: "Save" }).click();
+
+  await expect(page.getByText("Phone updated.")).toBeAttached();
+  await expect(about.getByText("+852 9876 5432")).toBeVisible();
+  await expect(about.getByText("You told me this.")).toBeVisible();
+  await expect(about.getByRole("button", { name: "Not your number?" })).toBeFocused();
+});
+
+test("the phone door reopens pre-filled with the current value, and cancelling keeps it unchanged", async ({ page }) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    contact: { phone: { value: "+852 1234 5678", origin: "read" }, email: null },
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  const about = page.locator(".dom").filter({ hasText: "About you" });
+  const door = about.getByRole("button", { name: "Not your number?" });
+  await door.click();
+
+  const input = page.getByLabel("What's the best phone number for your CV?");
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("+852 1234 5678");
+
+  await input.fill("garbage");
+  await page.getByRole("button", { name: "Keep +852 1234 5678" }).click();
+
+  await expect(about.getByText("+852 1234 5678")).toBeVisible();
+  await expect(door).toBeFocused();
+});
+
+test("a refetch failure after a successful contact save is never reported as a save failure", async ({ page }) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    contact: { phone: { value: "+852 1234 5678", origin: "read" }, email: null },
+  };
+  let profileCalls = 0;
+  await page.route("**/api/profile", async (route) => {
+    profileCalls += 1;
+    if (profileCalls === 1) {
+      await route.fulfill({ json: state });
+      return;
+    }
+    await route.abort(); // the post-save refetch fails
+  });
+  await page.route("**/api/contact", async (route) => {
+    await route.fulfill({
+      json: {
+        phone: { value: "+852 9999 0000", origin: "person-said", sourceText: "+852 9999 0000" },
+        email: null,
+      },
+    });
+  });
+  await page.goto("/profile");
+
+  const about = page.locator(".dom").filter({ hasText: "About you" });
+  await about.getByRole("button", { name: "Not your number?" }).click();
+  await page.getByLabel("What's the best phone number for your CV?").fill("+852 9999 0000");
+  await about.getByRole("button", { name: "Save" }).click();
+
+  await expect(page.getByText("Couldn't save that just now. Try again.")).toHaveCount(0);
+  await expect(page.getByText("Phone updated.")).toBeAttached();
+  await expect(about.getByText("+852 9999 0000")).toBeVisible();
+  await expect(about.getByText("You told me this.")).toBeVisible();
 });

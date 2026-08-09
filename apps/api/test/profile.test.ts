@@ -90,15 +90,22 @@ interface ProfileFact {
   colour: "gold" | "grey";
   source: "told" | "read";
 }
+interface ProfileContactField {
+  value: string;
+  origin: "read" | "person-said";
+}
 interface ProfileResponse {
   domains: Array<{ tag: string; heading: string; facts: ProfileFact[] }>;
   factCount: number;
   search: { role: string | null; family: string | null; siblingTitles: string[]; openJobs: number | null };
+  contact: { phone: ProfileContactField | null; email: ProfileContactField | null };
 }
 
 // #179: until E5 places typed roles into families, the search block is the honest empty state for
 // everyone — role exactly as typed, and NO family/siblings/count (never the resolveFamily stub).
 const EMPTY_SEARCH = (role: string | null) => ({ role, family: null, siblingTitles: [], openJobs: null });
+// #190: honest absence — no contact record yet.
+const EMPTY_CONTACT = { phone: null, email: null };
 
 describe("#20 profile screen — the colour law over HTTP", () => {
   it("returns gold confirmed facts, grey pending facts under the current product decision, and no rejected facts", async () => {
@@ -169,7 +176,7 @@ describe("#20 profile screen — the colour law over HTTP", () => {
 
     const res = await get(server.app, cookie, "/profile");
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ domains: [], factCount: 1, search: EMPTY_SEARCH(ROLE) });
+    expect(res.json()).toEqual({ domains: [], factCount: 1, search: EMPTY_SEARCH(ROLE), contact: EMPTY_CONTACT });
   });
 
   it("an empty profile (no claims yet) is 200 with no domains, not an error", async () => {
@@ -177,7 +184,7 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     const cookie = await anonSession(server.app);
     const res = await get(server.app, cookie, "/profile");
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ domains: [], factCount: 0, search: EMPTY_SEARCH(null) });
+    expect(res.json()).toEqual({ domains: [], factCount: 0, search: EMPTY_SEARCH(null), contact: EMPTY_CONTACT });
   });
 
   // #179 decision (2026-08-09): the rail's Job family data. Until E5 (#86) places roles, the
@@ -213,6 +220,80 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     const after = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
 
     expect(after.factCount).toBe(before.factCount);
+  });
+
+  // #190 ACs: mined phone/email land on the profile with a "read" origin pointing at the source
+  // words, and a correction through the door shows "person-said" — the other field, untouched by
+  // the correction, keeps its own "read" origin.
+  it("#190: a mined phone/email show read origin; correcting one leaves the other alone", async () => {
+    const server = buildServer({ pipeline: fakePipeline() });
+    const cookie = await anonSession(server.app);
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/cv/paste",
+      headers: { cookie },
+      payload: {
+        text: "Jane Doe\njane@example.com | +33 6 00 00 00 00\n\nExperience\nPM at Acme 2020 - 2024\n- shipped things\n".repeat(
+          5,
+        ),
+      },
+    });
+    const { jobId } = created.json();
+    await waitTerminal(server, jobId);
+
+    const before = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    expect(before.contact.phone).toEqual({ value: "+33 6 00 00 00 00", origin: "read" });
+    expect(before.contact.email).toEqual({ value: "jane@example.com", origin: "read" });
+
+    await put(server.app, cookie, "/contact", { field: "phone", value: "+33 6 99 99 99 99" });
+    const after = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    expect(after.contact.phone).toEqual({ value: "+33 6 99 99 99 99", origin: "person-said" });
+    expect(after.contact.email).toEqual({ value: "jane@example.com", origin: "read" });
+  });
+
+  // #190 AC: a CV with no phone is an honest absence, and a value supplied through the door flows
+  // exactly like a correction (person-said, immediately readable).
+  it("#190: no phone on the CV shows honest absence; supplying one through the door lands as person-said", async () => {
+    const server = buildServer({ pipeline: fakePipeline() });
+    const cookie = await anonSession(server.app);
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/cv/paste",
+      headers: { cookie },
+      payload: { text: "Jane Doe\njane@example.com\n\nExperience\nPM at Acme 2020 - 2024\n- shipped things\n".repeat(5) },
+    });
+    const { jobId } = created.json();
+    await waitTerminal(server, jobId);
+
+    const before = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    expect(before.contact.phone).toBeNull();
+
+    await put(server.app, cookie, "/contact", { field: "phone", value: "+33 6 99 99 99 99" });
+    const after = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    expect(after.contact.phone).toEqual({ value: "+33 6 99 99 99 99", origin: "person-said" });
+  });
+
+  // #190 AC: the login/account email and the CV's contact email are different values with different
+  // jobs — signing in with one email must never surface it as (or overwrite) the CV's own email.
+  it("#190: the login email and the CV's contact email are never conflated", async () => {
+    const server = buildServer({ pipeline: fakePipeline() });
+    const cookie = await anonSession(server.app);
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/cv/paste",
+      headers: { cookie },
+      payload: {
+        text: "Jane Doe\ncv-contact@example.com | +33 6 00 00 00 00\n\nExperience\nPM at Acme 2020 - 2024\n- shipped things\n".repeat(
+          5,
+        ),
+      },
+    });
+    const { jobId } = created.json();
+    await waitTerminal(server, jobId);
+    await signIn(server.app, cookie, "login-account@example.com");
+
+    const { contact } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    expect(contact.email).toEqual({ value: "cv-contact@example.com", origin: "read" });
   });
 
   it("requires a session (401 with no cookie) but is reachable pre-wall (an unverified anonymous session is not rejected)", async () => {

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-08T22:40:00+07:00",
+  "generatedAt": "2026-08-09T22:50:00+07:00",
   "title": "Design System: JobCrush",
   "extensions": {
     "colorMeta": {
@@ -84,7 +84,7 @@
     "northStar": "The Night Desk",
     "overview": "JobCrush happens in a dark, quiet room. The interface is the room — matte charcoal surfaces, thin lines, muted greys — and it stays deliberately self-effacing, because the one thing that matters in the room is the CV: a warm, cream, serif sheet of paper that reads like a real printed page. Gold is lamplight: it falls only on what is on the page right now, or on the moment something the person said becomes part of their record. When something glows on this screen, it earned it. This identity was not invented; it is the shipped product's own register, chosen again by the owner on 2026-08-08 against three deliberately louder alternative worlds.",
     "keyCharacteristics": [
-      "Two grounds: the dark room (the game) and a warm light register (forms, admin); the paper is a third material living in both",
+      "Two grounds: the dark room (the game — confirm deck, question game, job decks, tailoring, profile) and a warm light register (import, sign-in, settings, admin); the paper is a third material living in both. Sign-up enters the dark room at Confirm and stays there through the question game — no register change between those back-to-back screens",
       "One accent — gold is rationed and semantic, never decorative",
       "Quiet chrome: 1px lines, tonal layering, muted text; the content is the show",
       "The machine speaks in the first person, in short plain words (observed practice, not locked)"

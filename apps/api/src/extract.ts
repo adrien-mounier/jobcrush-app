@@ -63,7 +63,14 @@ function headingKind(line: string): BlockKind | null {
   return null;
 }
 
-const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.]+/;
+export const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.]+/;
+// QA #190 blocking: the old `\+?\d...` couldn't START on "(", so a bracketed code like "(852) 1234
+// 5678" or "(02) 9000 1000" matched from INSIDE the bracket ("852) 1234 5678") — a mined value
+// pointing at words the document never contained (ADR-0004 clause 1a defect). `\(?\+?` admits an
+// optional leading "(" (and "(+" for "(+852) …") without widening what counts as digits-and-
+// separators after it, so isContact's classifier truth value is unchanged (that span already
+// matched before; only the captured start position moves left to include the bracket).
+export const PHONE_RE = /\(?\+?\d[\d ()-]{7,}/;
 const MONTH = "(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*";
 const DATE_RANGE_RE = new RegExp(
   `(?:\\b${MONTH}\\s+)?\\b(?:19|20)\\d{2}\\b\\s*(?:[-–—]|to)\\s*` +
@@ -93,7 +100,7 @@ export function segment(fullText: string): RawCvBlock[] {
     } else {
       if (!current) {
         // preamble before any heading: contact details if we see an email/phone, else header text
-        const isContact = EMAIL_RE.test(line) || /\+?\d[\d ()-]{7,}/.test(line);
+        const isContact = EMAIL_RE.test(line) || PHONE_RE.test(line);
         current = { kind: isContact ? "contact" : "other", confidence: isContact ? 0.7 : 0.5, lines: [] };
       } else if (!headingKind(line)) {
         // preamble blocks upgrade to contact the moment an email appears
@@ -140,6 +147,32 @@ export function buildRawCv(
       chars: trimmed.length,
       pages,
     },
+  };
+}
+
+export interface ContactFieldRead {
+  value: string;
+  /** The exact source words the value was parsed from (ADR-0004 clause 1a). */
+  sourceText: string;
+}
+export interface ContactExtraction {
+  phone: ContactFieldRead | null;
+  email: ContactFieldRead | null;
+}
+
+/** #190: deterministic phone/email parse over the already-tagged contact block(s) — reuses the same
+ *  EMAIL_RE/PHONE_RE the block classifier tags a region with, so "tagged as contact" and "parses as
+ *  contact" never disagree. No match is an honest absence: never invented, never guessed. */
+export function extractContact(blocks: RawCvBlock[]): ContactExtraction {
+  const text = blocks
+    .filter((b) => b.kind === "contact")
+    .map((b) => b.text)
+    .join("\n");
+  const email = text.match(EMAIL_RE);
+  const phone = text.match(PHONE_RE);
+  return {
+    email: email ? { value: email[0], sourceText: email[0] } : null,
+    phone: phone ? { value: phone[0].trim(), sourceText: phone[0].trim() } : null,
   };
 }
 

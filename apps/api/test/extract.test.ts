@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { buildRawCv, extractRawCv, segment } from "../src/extract.js";
+import { buildRawCv, extractContact, extractRawCv, segment } from "../src/extract.js";
 import { buildImportProof, runOnboardingJob, UNPARSEABLE_ERROR } from "../src/pipeline.js";
 import { InMemoryJobStore } from "../src/jobs.js";
 
@@ -191,6 +191,47 @@ describe("JC-12 text extraction", () => {
     const blocks = segment("Jane Doe\njane@example.com | +33 6 00 00 00 00\n\nExperience\nPM at X");
     expect(blocks[0]).toMatchObject({ kind: "contact" });
     expect(blocks[0].confidence).toBeLessThan(0.9);
+  });
+});
+
+// #190: deterministic phone/email parse over the already-tagged contact block(s).
+describe("#190 extractContact — deterministic phone/email parse", () => {
+  it("parses both phone and email out of the tagged contact block, source words as origin", () => {
+    const blocks = segment("Jane Doe\njane@example.com | +33 6 00 00 00 00\n\nExperience\nPM at X");
+    const contact = extractContact(blocks);
+    expect(contact.email).toEqual({ value: "jane@example.com", sourceText: "jane@example.com" });
+    expect(contact.phone).toEqual({ value: "+33 6 00 00 00 00", sourceText: "+33 6 00 00 00 00" });
+  });
+
+  it("a CV with no phone yields an honest absence, never invented", () => {
+    const blocks = segment("Jane Doe\njane@example.com\n\nExperience\nPM at X");
+    const contact = extractContact(blocks);
+    expect(contact.email).toEqual({ value: "jane@example.com", sourceText: "jane@example.com" });
+    expect(contact.phone).toBeNull();
+  });
+
+  // QA #190 blocking: PHONE_RE could not start on "(", so a bracketed area/country code mined from
+  // INSIDE the bracket ("852) 1234 5678") — a value pointing at words the document never contained
+  // (ADR-0004 clause 1a defect). Each of these must mine the EXACT source span, bracket included.
+  it("a Hong Kong bracketed number mines exactly, bracket included — never from inside it", () => {
+    const blocks = segment("Jane Doe\njane@example.com\n(852) 1234 5678\n\nExperience\nPM at X");
+    expect(extractContact(blocks).phone).toEqual({ value: "(852) 1234 5678", sourceText: "(852) 1234 5678" });
+  });
+
+  it("a standard AU landline format mines exactly, bracket included", () => {
+    const blocks = segment("Jane Doe\njane@example.com\n(02) 9000 1000\n\nExperience\nPM at X");
+    expect(extractContact(blocks).phone).toEqual({ value: "(02) 9000 1000", sourceText: "(02) 9000 1000" });
+  });
+
+  it("a bracketed number with a leading + inside the bracket mines exactly", () => {
+    const blocks = segment("Jane Doe\njane@example.com\n(+852) 1234 5678\n\nExperience\nPM at X");
+    expect(extractContact(blocks).phone).toEqual({ value: "(+852) 1234 5678", sourceText: "(+852) 1234 5678" });
+  });
+
+  it("a CV with no contact block at all yields both absent", () => {
+    const contact = extractContact([{ kind: "role", text: "PM at X", confidence: 0.9 }]);
+    expect(contact.phone).toBeNull();
+    expect(contact.email).toBeNull();
   });
 });
 

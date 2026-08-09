@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { CandidateClaims } from "@jobcrush/contracts";
 import { buildServer } from "../src/server.js";
 import {
+  applyStoredContact,
   buildTailorInput,
   conservationIssues,
   Draft,
@@ -177,6 +178,91 @@ describe("JC-16 posting match + render", () => {
     expect(html).toContain("Mar 2021 - Present");
     expect(html).toContain("Warsaw · maria@example.com");
     expect(html).not.toContain("–");
+  });
+});
+
+describe("#190 applyStoredContact — render preference over the header re-read", () => {
+  it("replaces the header's phone and email in place, leaving the rest of the line untouched", () => {
+    const result = applyStoredContact("Warsaw · +48 600 000 000 · old@example.com", {
+      phone: "+48 611 111 111",
+      email: "new@example.com",
+    });
+    expect(result).toBe("Warsaw · +48 611 111 111 · new@example.com");
+  });
+
+  it("only touches the field that has a stored value — the other stays as the header wrote it", () => {
+    const result = applyStoredContact("Warsaw · +48 600 000 000 · old@example.com", {
+      phone: "+48 611 111 111",
+      email: null,
+    });
+    expect(result).toBe("Warsaw · +48 611 111 111 · old@example.com");
+  });
+
+  it("appends a stored value the header never printed, rather than losing it (a supply-once CV)", () => {
+    const result = applyStoredContact("Warsaw", { phone: "+48 611 111 111", email: null });
+    expect(result).toBe("Warsaw · +48 611 111 111");
+  });
+
+  it("is a no-op when nothing is stored for either field", () => {
+    const result = applyStoredContact("Warsaw · +48 600 000 000 · old@example.com", { phone: null, email: null });
+    expect(result).toBe("Warsaw · +48 600 000 000 · old@example.com");
+  });
+
+  // Code review must-fix 1: PHONE_RE matches any 8+ digit run — a digit-bearing email local-part
+  // must never be mistaken for a phone number to swap into.
+  it("never corrupts a digit-bearing email when swapping in a stored phone (no separate phone in the header)", () => {
+    const result = applyStoredContact("Warsaw · jane.12345678@example.com", {
+      phone: "+48 611 111 111",
+      email: null,
+    });
+    // The email is untouched — its digits were never a phone match — and the phone is appended,
+    // since there was no OTHER phone-shaped span in the line to swap.
+    expect(result).toBe("Warsaw · jane.12345678@example.com · +48 611 111 111");
+  });
+
+  it("swaps a real phone next to a digit-bearing email without touching the email's own digits", () => {
+    const result = applyStoredContact("Warsaw · +48 600 000 000 · jane.12345678@example.com", {
+      phone: "+48 611 111 111",
+      email: null,
+    });
+    expect(result).toBe("Warsaw · +48 611 111 111 · jane.12345678@example.com");
+  });
+
+  it("a digit-bearing email with stored email explicitly null is never altered", () => {
+    const result = applyStoredContact("jane.12345678@example.com", { phone: null, email: null });
+    expect(result).toBe("jane.12345678@example.com");
+  });
+
+  // Code review must-fix 2: extract.ts's PHONE_RE has no dot separator, so a tailor-reformatted
+  // "+33.6.00.00.00.00" (a common French style) would otherwise go unrecognised and the correction
+  // would be APPENDED beside the wrong number instead of replacing it — two phones on the page.
+  it("replaces a dotted-format phone rather than appending beside it — exactly one phone prints", () => {
+    const result = applyStoredContact("Paris · +33.6.00.00.00.00 · jane@example.com", {
+      phone: "+33 6 11 11 11 11",
+      email: null,
+    });
+    expect(result).toBe("Paris · +33 6 11 11 11 11 · jane@example.com");
+    expect(result.match(/\+33/g)).toHaveLength(1);
+  });
+
+  // QA #190 blocking: a bracket-mined stored value ("(852) 1234 5678", now mined whole per the
+  // extract.ts fix) must both (a) swap cleanly onto a header phone written differently, and (b)
+  // be recognised as the header's OWN phone-shaped span so a later re-render can find and replace
+  // it too, without leaving a stray "(" behind.
+  it("a bracket-shaped stored phone swaps in cleanly over a plain header phone", () => {
+    const result = applyStoredContact("Hong Kong · +852 9999 9999 · jane@example.com", {
+      phone: "(852) 1234 5678",
+      email: null,
+    });
+    expect(result).toBe("Hong Kong · (852) 1234 5678 · jane@example.com");
+  });
+
+  it("a bracket-shaped phone already in the header is recognised and replaced, not left with a stray bracket", () => {
+    const result = applyStoredContact("Hong Kong · (852) 9999 9999 · jane@example.com", {
+      phone: "+852 1234 5678",
+      email: null,
+    });
+    expect(result).toBe("Hong Kong · +852 1234 5678 · jane@example.com");
   });
 });
 
@@ -478,6 +564,46 @@ describe("JC-16/17 pipeline end to end (fake LLMs)", () => {
     expect(preview.statusCode).toBe(200);
     expect(preview.headers["content-type"]).toContain("text/html");
     expect(preview.body).toContain("DRAFT");
+  });
+
+  // #190 AC4/AC5: the stored, corrected phone wins over the tailor's own header re-read — proven by
+  // planting a DIFFERENT phone in the source document's header than the one the door corrected to.
+  // The fake LLM copies the header verbatim (as the real one would), so a plain rendering would show
+  // the header's number; only the deterministic post-process in preview.ts can make the corrected
+  // one appear. Correcting BEFORE the CV is even seen also proves ADR-0008 §3: the mine step's own
+  // "read" write of the header's number must never clobber the person-said correction.
+  it("a corrected phone prints on the render even though the CV's own header carries a different number", async () => {
+    const headerDraft: Draft = { ...sampleDraft, contact: "Jane Doe · jane@example.com · +33 6 00 00 00 00" };
+    const server = buildServer({
+      pipeline: { mine: fakePipeline().mine, preview: makePreviewStep(llmReturning(headerDraft)) },
+    });
+    const cookie = await startSession(server.app);
+    const corrected = await server.app.inject({
+      method: "PUT",
+      url: "/contact",
+      headers: { cookie },
+      payload: { field: "phone", value: "+33 6 99 99 99 99" },
+    });
+    expect(corrected.statusCode).toBe(200);
+
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/cv/paste",
+      headers: { cookie },
+      payload: {
+        text: "Jane Doe\njane@example.com | +33 6 00 00 00 00\n\nExperience\nPM at Acme 2020 - 2024\n- shipped things\n".repeat(
+          5,
+        ),
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const { jobId } = created.json();
+    await waitTerminal(server, jobId);
+
+    const preview = await server.app.inject({ method: "GET", url: `/previews/${jobId}`, headers: { cookie } });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.body).toContain("+33 6 99 99 99 99");
+    expect(preview.body).not.toContain("+33 6 00 00 00 00");
   });
 
   it("previews are session-scoped: another session gets 404", async () => {

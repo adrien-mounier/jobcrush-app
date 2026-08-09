@@ -801,3 +801,45 @@
   color: var(--hud-ink);
   margin: 8px 0 0;
 }
+
+/* ---------- #190 "contact info is a fact": the About you section ---------- */
+/* The section shell reuses .dom/.dhead/.dname as-is (the divider between it and the next domain
+   comes free from the existing `.dom + .dom::before` rule). The door state reuses .rq/.rqq/.rin/
+   .rbtns/.rbtn/.rnote/.rbusy/.rerr and .rdoor verbatim from the Job family rail (#183) — same
+   mechanism, so no new door CSS. Origin reuses .src verbatim (the same class DetailBody's source
+   line uses), scoped narrower here only for spacing. */
+.profile .cxfield {
+  margin-top: 10px;
+}
+.profile .cxfield + .cxfield {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hud-line);
+}
+.profile .cxlabel {
+  margin: 0 0 4px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--hud-mute);
+  font-weight: 400;
+}
+.profile .cxvalue {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.3;
+  font-weight: 550;
+  color: #eef2f6;
+  overflow-wrap: break-word;
+}
+.profile .cxvalue.cxmute {
+  color: var(--hud-mute);
+  font-weight: 500;
+}
+.profile .cxfield .src {
+  margin: 4px 0 0;
+}
+.profile .cxfield .rdoor {
+  margin-top: 6px;
+}

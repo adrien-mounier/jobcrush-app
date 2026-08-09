@@ -12,6 +12,7 @@ import { sessionStoreFromEnv } from "./sessions.js";
 import { claimStoreFromEnv } from "./claims.js";
 import { authStoreFromEnv } from "./auth.js";
 import { eligibilityStoreFromEnv } from "./eligibility.js";
+import { contactStoreFromEnv } from "./contact.js";
 import { adRequirementsStoreFromEnv } from "./adRequirementsStore.js";
 import { makeAdReader } from "./adReader.js";
 import { judgementStoreFromEnv } from "./judgementStore.js";
@@ -58,6 +59,8 @@ const familyLearning = familyLearningStoreFromEnv(process.env.DATABASE_URL);
 // #86 decisions 4 + 5. #106 asks the questions (threaded through buildServer below); #89 reads them
 // while scoring, still to land.
 const eligibility = eligibilityStoreFromEnv(process.env.DATABASE_URL);
+// #190: phone/email + origin, wired the same way as eligibility above.
+const contact = contactStoreFromEnv(process.env.DATABASE_URL);
 // #104: the shared, persisted ad-requirements read cache — wired the same way as eligibility above.
 const adRequirements = adRequirementsStoreFromEnv(process.env.DATABASE_URL);
 // #105: the persisted judgement cache, keyed by (adId, factsFingerprint) rather than adId alone —
@@ -86,6 +89,7 @@ try {
   await auth.init();
   await familyLearning.init();
   await eligibility.init();
+  await contact.init();
   await adRequirements.init();
   await judgements.init();
   await usageLedger.init();
@@ -99,6 +103,7 @@ const { app } = buildServer({
   sessions,
   claims,
   eligibility,
+  contact,
   productionFamilyFloors,
   retrievePostings,
   auth,

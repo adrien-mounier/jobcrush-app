@@ -13,7 +13,9 @@ import { useReducedMotion } from "../jobcard";
 import {
   ensureSession,
   getProfile,
+  saveContact,
   saveTargetTitles,
+  type ProfileContact,
   type ProfileDomain,
   type ProfileFact,
   type ProfileSearch,
@@ -60,6 +62,20 @@ const R9 = "You haven't told me yet.";
 const R10 = "Finding jobs like yours…";
 const R11 = "Your answer stays until you replace it.";
 const R12 = "Couldn't save that just now. Try again.";
+
+// #190 "contact info is a fact" — the About you section's phone/email rows. Same one-mechanism
+// door pattern as the Job family rail (R11/R12 above are reused verbatim: the "stays until you
+// replace it" note and the save-failure line are generic, not job-specific). CX_EMAIL_LABEL says
+// "on your CV" explicitly (AC7): this is the CV's contact email, never the account/login email.
+const CX_HEADING = "About you";
+const CX_ABSENT = "Not on your CV";
+const CX_SAVING = "Saving…";
+const CX_PHONE_LABEL = "Phone";
+const CX_EMAIL_LABEL = "Email on your CV";
+const CX_PHONE_QUESTION = "What's the best phone number for your CV?";
+const CX_EMAIL_QUESTION = "What email should your CV show?";
+const CX_PHONE_DOOR = "Not your number?";
+const CX_EMAIL_DOOR = "Not the right email?";
 
 const ICON_SORTED = (
   <svg className="ic" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" aria-hidden="true">
@@ -153,6 +169,185 @@ function OpenJobsLine({ n, hasSiblings }: { n: number; hasSiblings: boolean }) {
       </b>{" "}
       {tail}
     </p>
+  );
+}
+
+// #190 one contact field's row (Phone or Email) inside the About you section — the exact
+// one-mechanism door pattern from JobFamilyPanel above: a display block (value + origin, shown the
+// way DetailBody shows a fact's source — reusing `.src`/sourceLine's P24/P25 pair verbatim) that the
+// door replaces in place with the pinned question, pre-filled with the current value. Saves via
+// saveContact then re-fetches /api/profile, exactly like the Job family door — including the same
+// "a refetch failure is never reported as a save failure" honesty (#183 code review, applied here
+// from the start): only the PUT itself can produce the error state.
+function ContactField({
+  field,
+  label,
+  question,
+  doorLabel,
+  contact,
+  onUpdated,
+  onAnnounce,
+}: {
+  field: "phone" | "email";
+  label: string;
+  question: string;
+  doorLabel: string;
+  contact: ProfileContact;
+  onUpdated: (contact: ProfileContact) => void;
+  onAnnounce: (message: string) => void;
+}) {
+  const data = contact[field];
+  const [asking, setAsking] = useState(false);
+  const [value, setValue] = useState(data?.value ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const doorRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = `contact-${field}-again`;
+
+  useEffect(() => {
+    if (asking) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [asking]);
+
+  function openDoor() {
+    setValue(data?.value ?? "");
+    setError(null);
+    setAsking(true);
+  }
+
+  function closeDoor() {
+    setAsking(false);
+    setError(null);
+    requestAnimationFrame(() => doorRef.current?.focus());
+  }
+
+  async function save() {
+    const next = value.trim();
+    if (!next || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await saveContact(field, next);
+    } catch {
+      setSaving(false);
+      setError(R12);
+      requestAnimationFrame(() => inputRef.current?.focus());
+      return;
+    }
+    try {
+      const fresh = await getProfile();
+      onUpdated(fresh.contact);
+    } catch {
+      onUpdated({ ...contact, [field]: { value: next, origin: "person-said" } });
+    }
+    onAnnounce(`${label} updated.`);
+    setSaving(false);
+    setAsking(false);
+    requestAnimationFrame(() => doorRef.current?.focus());
+  }
+
+  return (
+    <div className="cxfield">
+      <p className="cxlabel">{label}</p>
+      {asking ? (
+        <div className="rq">
+          <label className="rqq" htmlFor={inputId}>
+            {question}
+          </label>
+          <input
+            className="rin"
+            id={inputId}
+            type="text"
+            ref={inputRef}
+            value={value}
+            disabled={saving}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                save();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                closeDoor();
+              }
+            }}
+          />
+          <div className="rbtns">
+            <button type="button" className="rbtn" disabled={saving || !value.trim()} onClick={save}>
+              Save
+            </button>
+            <button type="button" className="rbtn" disabled={saving} onClick={closeDoor}>
+              {data ? `Keep ${data.value}` : "Not now"}
+            </button>
+          </div>
+          {saving && <p className="rbusy">{CX_SAVING}</p>}
+          {error && (
+            <p className="rerr" role="alert">
+              {error}
+            </p>
+          )}
+          {!saving && !error && <p className="rnote">{R11}</p>}
+        </div>
+      ) : (
+        <>
+          {data ? (
+            <>
+              <p className="cxvalue">{data.value}</p>
+              <p className="src">
+                <b>{data.origin === "person-said" ? P24 : P25}</b>
+              </p>
+            </>
+          ) : (
+            <p className="cxvalue cxmute">{CX_ABSENT}</p>
+          )}
+          <button type="button" ref={doorRef} className="rdoor" onClick={openDoor}>
+            {data ? doorLabel : question}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// #190 the About you section — always the first section in Sorted, always rendered (contact is
+// additive on the payload, never absent), so honest absence ("Not on your CV") has somewhere to
+// live even for a person with neither phone nor email captured yet.
+function AboutYou({
+  contact,
+  onUpdated,
+  onAnnounce,
+}: {
+  contact: ProfileContact;
+  onUpdated: (contact: ProfileContact) => void;
+  onAnnounce: (message: string) => void;
+}) {
+  return (
+    <section className="dom">
+      <div className="dhead">
+        <h2 className="dname">{CX_HEADING}</h2>
+      </div>
+      <ContactField
+        field="phone"
+        label={CX_PHONE_LABEL}
+        question={CX_PHONE_QUESTION}
+        doorLabel={CX_PHONE_DOOR}
+        contact={contact}
+        onUpdated={onUpdated}
+        onAnnounce={onAnnounce}
+      />
+      <ContactField
+        field="email"
+        label={CX_EMAIL_LABEL}
+        question={CX_EMAIL_QUESTION}
+        doorLabel={CX_EMAIL_DOOR}
+        contact={contact}
+        onUpdated={onUpdated}
+        onAnnounce={onAnnounce}
+      />
+    </section>
   );
 }
 
@@ -367,6 +562,10 @@ export default function ProfilePage() {
     setProfile((p) => (p ? { ...p, search } : p));
   }, []);
 
+  const handleContactUpdated = useCallback((contact: ProfileContact) => {
+    setProfile((p) => (p ? { ...p, contact } : p));
+  }, []);
+
   const restoreDialogFocus = useCallback(() => {
     const opener = dialogOpenerRef.current;
     dialogOpenerRef.current = null;
@@ -469,6 +668,7 @@ export default function ProfilePage() {
           onDialogClosed={handleDialogClosed}
           onBack={() => router.back()}
           onSearchUpdated={handleSearchUpdated}
+          onContactUpdated={handleContactUpdated}
           onAnnounce={setLiveMessage}
         />
       )}
@@ -494,6 +694,7 @@ function ReadyScreen({
   onDialogClosed,
   onBack,
   onSearchUpdated,
+  onContactUpdated,
   onAnnounce,
 }: {
   profile: ProfileState;
@@ -513,6 +714,7 @@ function ReadyScreen({
   onDialogClosed: () => void;
   onBack: () => void;
   onSearchUpdated: (search: ProfileSearch) => void;
+  onContactUpdated: (contact: ProfileContact) => void;
   onAnnounce: (message: string) => void;
 }) {
   const indRef = useRef<HTMLSpanElement>(null);
@@ -594,6 +796,7 @@ function ReadyScreen({
           <div id="profileview" className={`body ${view}`} ref={view === "sorted" ? sortedBodyRef : undefined}>
             {view === "sorted" ? (
               <div className="sheetwrap">
+                <AboutYou contact={profile.contact} onUpdated={onContactUpdated} onAnnounce={onAnnounce} />
                 {domains.map((d, i) => {
                   const { lead, rest } = pickLead(d.facts);
                   const a = (0.035 + 0.075 * (d.facts.length / biggest)).toFixed(3);

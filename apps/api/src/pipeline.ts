@@ -3,7 +3,7 @@
 // human-readable line to progress.feed — JC-15 renders those live over SSE; trust is built by
 // showing real extracted facts, not a spinner.
 import type { JobStore } from "./jobs.js";
-import { buildRawCv, extractRawCv, type RawCv } from "./extract.js";
+import { buildRawCv, extractContact, extractRawCv, type ContactExtraction, type RawCv } from "./extract.js";
 import type { CvKind } from "./uploads.js";
 import { CandidateClaim } from "@jobcrush/contracts";
 import type { CandidateClaim as CandidateClaimType } from "@jobcrush/contracts";
@@ -45,12 +45,21 @@ export interface PipelineDeps {
     proof: ImportProof,
     claims: CandidateClaimType[],
   ) => Promise<ImportProof>;
-  /** JC-16 preview: mined claims + target titles (+ raw CV for header data) → watermarked HTML. */
+  /** JC-16 preview: mined claims + target titles (+ raw CV for header data, + the session's stored
+   *  contact — #190) → watermarked HTML. */
   preview?: (
     minerOutput: unknown,
     targetTitles: string[],
     rawCv: RawCv,
+    contact?: { phone: string | null; email: string | null },
   ) => Promise<{ html: string; postingTitle: string; postingCompany: string }>;
+  /** #190: persist phone/email parsed from the raw CV's contact block, once, right after extract —
+   *  no LLM call. A "read" write here never overwrites a person-said correction; the contact store
+   *  enforces that guard (ADR-0008 §3), not this pipeline. */
+  persistContact?: (sessionId: string, extraction: ContactExtraction) => Promise<void>;
+  /** #190: this session's current contact record, read once before rendering so the preview step
+   *  can prefer the stored phone/email over the tailor's own header re-read for those two values. */
+  getContact?: (sessionId: string) => Promise<{ phone: string | null; email: string | null }>;
   /** Best-effort guestbook write; called once on any terminal state. Never throws into the run. */
   recordVisit?: (visit: VisitRecord) => Promise<void>;
 }
@@ -171,6 +180,13 @@ export async function runOnboardingJob(
         `${rawCv.blocks.length} sections.`,
     );
 
+    // #190: parse phone/email out of the CV's own contact block, once, deterministically — no LLM
+    // call. A "read" write here never overwrites a person-said correction (ADR-0008 §3); the guard
+    // lives in the contact store itself (contact.ts's put()), not here.
+    if (deps.persistContact && job?.sessionId) {
+      await deps.persistContact(job.sessionId, extractContact(rawCv.blocks));
+    }
+
     // Step 2 — mine (JC-13)
     if (deps.mine) {
       job = await store.get(jobId);
@@ -209,7 +225,8 @@ export async function runOnboardingJob(
         job = await store.get(jobId);
         if (!job?.progress.preview) {
           await appendFeed(store, jobId, "Picking a live posting that matches your targets…");
-          const rendered = await deps.preview(miner, targetTitles, rawCv);
+          const contact = deps.getContact && job?.sessionId ? await deps.getContact(job.sessionId) : undefined;
+          const rendered = await deps.preview(miner, targetTitles, rawCv, contact);
           await store.update(jobId, {
             progress: {
               preview: {

@@ -19,6 +19,8 @@ import { cvRoutes } from "./routes/cv.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
 import { InMemoryClaimStore, type ClaimStore } from "./claims.js";
 import { InMemoryEligibilityStore, type EligibilityStore } from "./eligibility.js";
+import { InMemoryContactStore, type ContactStore } from "./contact.js";
+import { contactRoutes } from "./routes/contact.js";
 import type { GrillPhraser } from "./grill.js";
 import type { CvAuditor } from "./audit.js";
 import {
@@ -67,6 +69,8 @@ export interface BuildOptions {
   claims?: ClaimStore;
   /** #106: the eligibility-fact store (#86 decisions 4+5) backing discovery's eligibility questions. */
   eligibility?: EligibilityStore;
+  /** #190: the contact-fact store (phone/email + origin) backing the profile's contact block. */
+  contact?: ContactStore;
   /** Deterministic, explicitly non-production floor catalog for #59 integration tests. */
   familyFloors?: TestFixtureFamilyFloorStore;
   productionFamilyFloors?: ProductionFamilyFloorStore;
@@ -140,6 +144,7 @@ export function buildServer(opts: BuildOptions = {}) {
   const uploads = opts.uploads ?? new InMemoryUploadStore();
   const claims = opts.claims ?? new InMemoryClaimStore();
   const eligibility = opts.eligibility ?? new InMemoryEligibilityStore();
+  const contact = opts.contact ?? new InMemoryContactStore();
   const familyFloors = opts.familyFloors ?? new TestFixtureFamilyFloorStore();
   const productionFamilyFloors =
     opts.productionFamilyFloors ?? initialProductionFamilyFloors();
@@ -371,6 +376,21 @@ export function buildServer(opts: BuildOptions = {}) {
   const pipelineDeps: PipelineDeps = {
     ...(opts.pipeline ?? {}),
     recordVisit: opts.pipeline?.recordVisit ?? guestbook.record,
+    // #190: shared by both the upload and paste pipeline entry points (unlike persistImport below,
+    // which is only bound for uploads) — sessionId travels as a plain argument, not a per-request
+    // closure, so contact capture works uniformly on either intake path.
+    persistContact:
+      opts.pipeline?.persistContact ??
+      (async (sessionId, extraction) => {
+        if (extraction.phone) await contact.put(sessionId, "phone", { ...extraction.phone, origin: "read" });
+        if (extraction.email) await contact.put(sessionId, "email", { ...extraction.email, origin: "read" });
+      }),
+    getContact:
+      opts.pipeline?.getContact ??
+      (async (sessionId) => {
+        const record = await contact.getRecord(sessionId);
+        return { phone: record.phone?.value ?? null, email: record.email?.value ?? null };
+      }),
   };
   const defaultOnUploaded: NonNullable<UploadDeps["onUploaded"]> = async (row, data) => {
     if (!row.kind) return null;
@@ -430,11 +450,13 @@ export function buildServer(opts: BuildOptions = {}) {
   };
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps }));
+  app.register(contactRoutes({ contact }));
   app.register(onboardingRoutes({
     claims,
     store,
     sessions,
     eligibility,
+    contact,
     familyFloors,
     productionFamilyFloors,
     placeFamily,
@@ -534,5 +556,5 @@ export function buildServer(opts: BuildOptions = {}) {
     },
   );
 
-  return { app, store, sessions, blobs, uploads, claims, eligibility, auth, familyLearning, usageLedger };
+  return { app, store, sessions, blobs, uploads, claims, eligibility, contact, auth, familyLearning, usageLedger };
 }

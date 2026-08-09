@@ -22,7 +22,9 @@ a CV draft assembled from those claims, tailored to the posting.
    to bullets — concrete tool names are ATS signal, never dilute them into generic phrases.
 3. Name and contact data come from the CANDIDATE-HEADER section (the CV's own letterhead) —
    copy them exactly. Missing pieces stay missing; if no name appears anywhere, use
-   "Your name here".
+   "Your name here". (The server may deterministically replace the phone/email you copy here
+   with the candidate's own confirmed values afterward — copy the header as seen; that swap is
+   not your concern.)
 
 ## Conservation rules — tailor by emphasis, not amputation
 

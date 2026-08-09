@@ -19,7 +19,7 @@ import { z } from "zod";
 import { SLUG, type CandidateClaims } from "@jobcrush/contracts";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
-import type { RawCv } from "./extract.js";
+import { EMAIL_RE, PHONE_RE, type RawCv } from "./extract.js";
 import { detectLanguage, languageEligible, SERVED_LANGUAGES } from "./language.js";
 import { incrementCounter } from "./counters.js";
 
@@ -416,9 +416,84 @@ ${section("Additional Information", additional)}
 </body></html>`;
 }
 
+export interface StoredContact {
+  phone: string | null;
+  email: string | null;
+}
+
+const appendContactPart = (line: string, part: string) => (line ? `${line} · ${part}` : part);
+
+// PHONE_SWAP_RE's char class is greedy across spaces/dashes/dots — it has to span "600 000 000" or
+// "6.00.00.00.00" — so an ungoverned match can also eat a trailing separator before the next
+// contact part. `trimTrailing` strips that noise off the match before substituting: the phone pass
+// trims down to the last DIGIT (its whole match is separator-heavy by design), while the email pass
+// keeps the default (trailing whitespace only) — an email match is already digit-sparse, so trimming
+// to "last digit" would eat the entire local-part of a digit-free address ("jane@example.com" has no
+// digit at all) and silently duplicate it instead of replacing it. `searchText` may differ from
+// `text` (the phone pass searches a masked copy but splices into the real string, below).
+function replaceMatch(
+  text: string,
+  searchText: string,
+  re: RegExp,
+  replacement: string,
+  trimTrailing: RegExp = /\s+$/,
+): string {
+  const m = re.exec(searchText);
+  if (!m) return text;
+  const trimmedLength = m[0].replace(trimTrailing, "").length;
+  return text.slice(0, m.index) + replacement + text.slice(m.index + trimmedLength);
+}
+
+// Code review must-fix: PHONE_RE (extract.ts's mine-time regex) matches ANY 8+ digit run, including
+// digits inside an email local-part ("jane.12345678@example.com") — an ungoverned phone pass would
+// splice the stored number into the middle of the address. Mask every email-shaped span to
+// non-digit placeholders of the SAME length before the phone pass runs, so it structurally cannot
+// see (and therefore cannot match) a single character that belongs to an email. Length-preserving
+// means match indices found against the masked text point at the identical span in the real text.
+const EMAIL_RE_GLOBAL = new RegExp(EMAIL_RE.source, "g");
+const maskEmails = (text: string) => text.replace(EMAIL_RE_GLOBAL, (m) => "#".repeat(m.length));
+
+// Code review must-fix 2: extract.ts's PHONE_RE has no dot separator, so a tailor that reformats the
+// header phone as "+33.6.00.00.00.00" (a common French style) is invisible to it — the render pass
+// would then find nothing to swap and APPEND the correction beside the unrecognised original,
+// printing two phones. Widened HERE ONLY (never extract.ts's own PHONE_RE, which stays exact for
+// mine-time parsing) so render-time swap-detection recognises more reformattings without loosening
+// what gets captured as a person's canonical number.
+// QA #190 blocking (extract.ts's PHONE_RE) applies symmetrically here: without a leading `\(?` a
+// header phone written as "(852) 1234 5678" would match starting INSIDE the bracket, leaving a
+// stray "(" behind after the swap. Same widening, same reasoning.
+const PHONE_SWAP_RE = /\(?\+?\d[\d .()-]{7,}/;
+
+/**
+ * #190 render preference: swap the tailor's own header re-read of phone/email for the person's
+ * stored, corrected values — the rest of the contact line (city, etc.) is untouched. Pure and
+ * deterministic (regex substitution, no LLM call), so a corrected value provably wins every render,
+ * never just "usually". A stored value with nothing to replace in the line is appended, not lost —
+ * this is also how a value supplied for a CV that had none reaches the render, exactly like a
+ * correction (ADR-0008 §3).
+ */
+export function applyStoredContact(contact: string, stored: StoredContact): string {
+  let result = contact;
+  if (stored.email) {
+    result = EMAIL_RE.test(result)
+      ? replaceMatch(result, result, EMAIL_RE, stored.email)
+      : appendContactPart(result, stored.email);
+  }
+  if (stored.phone) {
+    // Search on a masked copy (any email — the one just substituted, or an untouched original one
+    // when stored.email is null — is never a valid phone-swap target) but splice into the REAL
+    // string, so the substitution itself still carries the real surrounding characters.
+    const masked = maskEmails(result);
+    result = PHONE_SWAP_RE.test(masked)
+      ? replaceMatch(result, masked, PHONE_SWAP_RE, stored.phone, /[^\d]+$/)
+      : appendContactPart(result, stored.phone);
+  }
+  return result;
+}
+
 /** Pipeline step factory (JC-16). `minerOutput` is the mine step's `{doc}` payload. */
 export function makePreviewStep(llm: LlmClient) {
-  return async (minerOutput: unknown, targetTitles: string[], rawCv?: RawCv) => {
+  return async (minerOutput: unknown, targetTitles: string[], rawCv?: RawCv, contact?: StoredContact) => {
     const doc = (minerOutput as { doc: CandidateClaims }).doc;
     const posting = matchPosting(targetTitles);
     // Header (name/contact) isn't a "claim" — it's the CV's own letterhead. Feed the
@@ -429,6 +504,7 @@ export function makePreviewStep(llm: LlmClient) {
       .map((b) => b.text)
       .join("\n");
     const draft = await tailorDraft(doc, posting, llm, headerText);
+    if (contact) draft.contact = applyStoredContact(draft.contact, contact);
     return {
       html: renderPreviewHtml(draft, posting),
       postingTitle: posting.title,
