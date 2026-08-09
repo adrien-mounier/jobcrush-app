@@ -2,6 +2,32 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-09 (session 101) — Job card desktop DECIDED (#175): one card centred, footer buttons + keys, the score ladder travels, dive at the first yes
+
+_Design session on #175. New primary evidence `job-card-desktop.prototype.html`; the mobile
+`job-card.prototype.html` reconciled to the same dialect._
+
+- **Layout (owner):** one card centred at 680px in the tailor's dark room — no list exists.
+  Deck presence = the next card's **blank** peeking edge (unclickable, content-free) + one quiet
+  count line ("12 more waiting"). Rejected: flanking paddles (dating-app cliché), bar-under-card.
+- **Controls (owner):** buttons in the card's footer; ← / → fire the **same handler with the same
+  stamp beat** (falsifiable check #3, demonstrated). **No keycap glyphs on the buttons** — the
+  keyboard works but is not advertised on the control. Buttons now earn the stamp too (on mobile
+  only a swipe did).
+- **Flow (owner): dive at the first yes, both layouts.** "I want this one" opens the tailor
+  immediately; finishing or leaving returns to the deck at the next card. No triage-then-batch —
+  a shortlist of accepted jobs would be a browsable list, the banned shape. Build note recorded in
+  the prototype: show the next card's re-score bump on the return; no prototype demos it yet.
+- **Score dialect travels (ticket item 3):** /100 under the number, steel/bronze/gold arc, tier
+  word, identical ★ Top match badge at 90+ — now in **both** card prototypes (a 92 job heads each
+  deck as evidence; badge replaces the tier word at 90+ rather than doubling it). Thresholds
+  50/75/90 remain owner-flagged for the deliberate pre-build pass.
+- **Copy sweep (#169) + decline audit (#171 item 2):** button is "Not for this one" (scope-naming
+  register wording; stamps keep "Want it" / "Not for me" per the ticket); "Read the full job
+  post"; the folded post moved directly under title + score (owner). Confirmed: the card's no is
+  per-job, one tap, no confirm; nothing on a job card can create a permanent no.
+- Stamp-slam overshoot easing owner-approved; waiver recorded in `.impeccable/config.json`.
+
 ## 2026-08-09 (session 100) — Pre-build audit: location, market switching, and the two S1 screens the design round skipped (#172–#176)
 
 _Owner-driven check of four worries before build; two repo traces, five tickets filed, two design

@@ -4,7 +4,19 @@
      (one number, never on the person), §9 (the card is alive), and §6.2 rule 1
      ("covered" means asked, not satisfied).
      Visual system reused verbatim from onboarding-screen.prototype.html — ink and
-     glass. Not production code. -->
+     glass.
+     UPDATED by design ticket #175 (2026-08-09) — reconciliation with the current
+     design language, one score language across deck and tailor:
+       - the score speaks the session-99 dialect: /100 under the number, arc on the
+         metal ladder (steel <50 · bronze 50–74 · gold 75–89 · bright gold 90+),
+         tier word under the dial, the SAME still "★ Top match" badge as the tailor
+         screen at 90+ (a 92 job heads the deck as evidence);
+       - copy sweep (#169): decline button "Not for this one" (the decline register's
+         scope-naming wording; stamps keep "Want it" / "Not for me" per the ticket);
+         "Read the full job post"; the fold sits under title + score (owner);
+       - flow confirmed for both layouts: dive at the first yes — this file's
+         yes → live card → back to the deck loop IS the decided shape.
+     Not production code. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>JobCrush — the job card</title>
 
@@ -19,6 +31,9 @@
 
     --gold: #e8a33d;
     --gold-dim: #a8762b;
+    --gold-hi: #ffd98a;
+    --steel: #5b6b7d;
+    --bronze: #b07a3a;
     --weak: #6f7d8c;
     /* the third mark state: a "no" that is recorded and closed. Deliberately not
        red, not a cross — §7 forbids ever showing a "no" as a failure. */
@@ -77,16 +92,24 @@
   .prof svg rect.top { fill: #a9b4bf; }
   .prof .n { font-family: var(--mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--hud-ink); }
 
-  /* ---------- the one number ---------- */
-  .score { position: relative; flex: 0 0 auto; display: grid; place-items: center; width: 46px; height: 46px; }
+  /* ---------- the one number — session-99 dialect (/100, metal ladder, #175) ---------- */
+  .scorebox { flex: 0 0 auto; text-align: center; width: 78px; }
+  .score { position: relative; display: grid; place-items: center; width: 46px; height: 46px; margin: 0 auto; }
   .score.lg { width: 64px; height: 64px; }
   .score svg { position: absolute; inset: 0; transform: rotate(-90deg); }
   .score .bg { fill: none; stroke: rgba(255,255,255,.12); stroke-width: 3.5; }
-  .score .fg { fill: none; stroke: var(--gold); stroke-width: 3.5; stroke-linecap: round;
-    transition: stroke-dashoffset 700ms cubic-bezier(.3,.9,.3,1); }
-  .score .n { font-family: var(--mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--hud-ink); }
-  .score.lg .n { font-size: 18px; }
-  .score .n .pct { font-size: 8px; color: var(--hud-mute); }
+  .score .fg { fill: none; stroke-width: 3.5; stroke-linecap: round;
+    transition: stroke-dashoffset 700ms cubic-bezier(.3,.9,.3,1), stroke 500ms ease; }
+  .score .n { font-family: var(--mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
+    color: var(--hud-ink); display: flex; flex-direction: column; align-items: center; line-height: 1; }
+  .score.lg .n { font-size: 17px; }
+  .score .n .den { font-size: 7.5px; font-weight: 500; color: var(--hud-mute); margin-top: 2px; letter-spacing: .03em; }
+  .scorebox .cap { margin: 5px 0 0; font-size: 10px; line-height: 1.3; color: var(--hud-mute); }
+  .scorebox .cap b { font-weight: 620; color: #a9b4bf; }
+  /* the badge — SAME component as the tailor screen; at 90+ it replaces the tier word */
+  .badge { display: inline-flex; align-items: center; gap: 4px; margin-top: 5px; padding: 3px 9px; border-radius: 999px;
+    border: 1px solid rgba(232,163,61,.45); background: rgba(232,163,61,.10); color: var(--gold);
+    font-size: 10px; font-weight: 620; letter-spacing: .02em; white-space: nowrap; }
   .score.bumped .n { animation: bump 460ms cubic-bezier(.2,1.5,.4,1); }
   @keyframes bump { 0% { transform: none; } 40% { transform: scale(1.28); color: var(--gold); } 100% { transform: none; } }
 
@@ -176,7 +199,8 @@
   /* ---------- the ad, at the bottom, folded away ----------
      A real ad is far longer than this one. It is also the only part of the card a
      job board already gives you, so it goes last and closed. */
-  details.ad { margin-top: 18px; border-top: 1px solid var(--hud-line); padding-top: 13px; }
+  /* folded, directly under the header (owner, #175) — still closed by default */
+  details.ad { margin-top: 12px; }
   details.ad summary { font-size: 12.5px; color: var(--hud-mute); cursor: pointer; list-style: none; padding: 2px 0; }
   details.ad summary::-webkit-details-marker { display: none; }
   details.ad summary::before { content: "▸ "; }
@@ -246,11 +270,13 @@
 </style>
 
 <p class="caption">
-  <b>Ticket #10 — the job card.</b> The reveal shows nothing behind it, then lands on the highest
-  score. On the card: title, subtitle and score, then the <b>highlight bubble</b> — your strongest
-  fact against what this ad leads with, and the biggest thing still open. Then where you fit and
-  where you don't. The ad itself is last and folded away. Swipe right to see the card move while you
-  answer — including on a <b>no</b>, which pays nothing in percent and still has to be worth pressing.
+  <b>Ticket #10 — the job card</b> (updated by #175: score /100 on the metal ladder, ★ Top match
+  at 90+, the fold under the header, the copy sweep). The reveal shows nothing behind it, then
+  lands on the highest score. On the card: title, subtitle and score, the folded job post, then
+  the <b>highlight bubble</b> — your strongest fact against what this job leads with, and the
+  biggest thing still open. Then where you fit and where you don't. Swipe right to see the card
+  move while you answer — including on a <b>no</b>, which pays no points and still has to be
+  worth pressing.
 </p>
 
 <div class="phone" id="phone">
@@ -286,6 +312,31 @@ const rank = r => BANDS.indexOf(r.band);
 
 const JOBS = [
   {
+    // #175: the 90+ card — evidence that the ★ Top match badge travels to the deck
+    title: "IT Project Manager, ERP",
+    co: "Sopra Steria · Paris La Défense",
+    meta: "€66–74k · Hybrid, 2 days on site",
+    score: 92,
+    hit: "This is your job on paper — the ERP migration, the budget and the team size all match what they lead with.",
+    ad: "Own the delivery of an S/4-adjacent ERP consolidation for an industrial client. You hold the plan, a €1.5M budget and a team of ten, reporting to the client's IT director. French-speaking environment with monthly steering in English.",
+    reqs: [
+      { band: "must",   ask: "An ERP migration, end to end",  mine: "You shipped one, on time",   state: "fit" },
+      { band: "must",   ask: "A budget over €1M",             mine: "€2M, across 4 teams",        state: "fit" },
+      { band: "must",   ask: "A team of 8 or more",           mine: "You led 12",                 state: "fit" },
+      { band: "should", ask: "Agile and stage-gate both",     mine: "You run both",               state: "fit" },
+      { band: "nice",   ask: "Industrial-sector background",  gap: "industry work",               state: "open" },
+      { band: "nice",   ask: "English for steering",          mine: "Fluent",                     state: "fit" },
+    ],
+    asks: [
+      { req: 4, q: "They'd like industrial-sector background. Have you delivered for an industrial client?",
+        opts: [
+          { t: "Yes, more than once", gain: 4, mine: "Delivered for industrial clients" },
+          { t: "Once, briefly",       gain: 2, mine: "One industrial-sector delivery" },
+          { t: "No",                  gain: 0, mine: null },
+        ] },
+    ],
+  },
+  {
     title: "Senior IT Project Manager",
     co: "Atos · Paris 15e",
     meta: "€68–78k · Hybrid, 2 days on site",
@@ -301,6 +352,20 @@ const JOBS = [
       { band: "should", ask: "Vendor and contract ownership", mine: "You own the vendor today", state: "fit" },
       { band: "should", ask: "Public-sector delivery",        gap: "public-sector work",        state: "open" },
       { band: "nice",   ask: "English for a European rollout", mine: "Fluent",                  state: "fit" },
+    ],
+    asks: [
+      { req: 2, q: "They want SAP S/4HANA. Have you worked on that version?",
+        opts: [
+          { t: "Yes, ran a project on it", gain: 9, mine: "Ran an S/4HANA project, through cutover" },
+          { t: "Only the older ECC",       gain: 4, mine: "SAP ECC, not S/4HANA yet" },
+          { t: "Never touched it",         gain: 0, mine: null },
+        ] },
+      { req: 5, q: "They ask for public-sector delivery. Has any of your work been for a government or public body?",
+        opts: [
+          { t: "Yes, several", gain: 6, mine: "Delivered under EU public procurement" },
+          { t: "One contract", gain: 3, mine: "One public-sector contract" },
+          { t: "No",           gain: 0, mine: null },
+        ] },
     ],
   },
   {
@@ -338,24 +403,9 @@ const JOBS = [
 ];
 
 // The tailor questions ARE the card's open requirements (§9: one artefact, three
-// jobs). Each option says what it pays. The last option in each is the "no" —
-// which pays no percentage at all, and must still be worth pressing.
-const ASKS = {
-  0: [
-    { req: 2, q: "They want SAP S/4HANA. Have you worked on that version?",
-      opts: [
-        { t: "Yes, ran a project on it", gain: 9, mine: "Ran an S/4HANA project, through cutover" },
-        { t: "Only the older ECC",       gain: 4, mine: "SAP ECC, not S/4HANA yet" },
-        { t: "Never touched it",         gain: 0, mine: null },
-      ] },
-    { req: 5, q: "They ask for public-sector delivery. Has any of your work been for a government or public body?",
-      opts: [
-        { t: "Yes, several", gain: 6, mine: "Delivered under EU public procurement" },
-        { t: "One contract", gain: 3, mine: "One public-sector contract" },
-        { t: "No",           gain: 0, mine: null },
-      ] },
-  ],
-};
+// jobs). They live on each job (#175 — the deck sorts by score, so index keys
+// broke). Each option says what it pays. The last option in each is the "no" —
+// which pays nothing at all, and must still be worth pressing.
 
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const $ = (s, r = document) => r.querySelector(s);
@@ -376,12 +426,24 @@ fresh();
 
 // --- pieces ----------------------------------------------------------------
 
+// the session-99 ladder, verbatim (#175 — one score language across deck and tailor)
+function ladder(v) {
+  if (v >= 90) return { stroke: "var(--gold)", num: "var(--gold-hi)", tier: "Top match",    top: true };
+  if (v >= 75) return { stroke: "var(--gold)", num: "var(--hud-ink)", tier: "Strong match", top: false };
+  if (v >= 50) return { stroke: "var(--bronze)", num: "var(--hud-ink)", tier: "Worth a look", top: false };
+  return { stroke: "var(--steel)", num: "var(--hud-ink)", tier: "Big gaps", top: false };
+}
+
 function scoreEl(score, big, id) {
+  const L = ladder(score);
   const r = big ? 28 : 20, C = 2 * Math.PI * r, s = big ? 64 : 46;
-  return `<div class="score ${big ? "lg" : ""}"${id ? ` id="${id}"` : ""}><svg viewBox="0 0 ${s} ${s}" aria-hidden="true">
-    <circle class="bg" cx="${s/2}" cy="${s/2}" r="${r}"></circle>
-    <circle class="fg" cx="${s/2}" cy="${s/2}" r="${r}" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-score/100)}"></circle>
-  </svg><span class="n">${score}<span class="pct">%</span></span></div>`;
+  return `<div class="scorebox">
+    <div class="score ${big ? "lg" : ""}"${id ? ` id="${id}"` : ""}><svg viewBox="0 0 ${s} ${s}" aria-hidden="true">
+      <circle class="bg" cx="${s/2}" cy="${s/2}" r="${r}"></circle>
+      <circle class="fg" cx="${s/2}" cy="${s/2}" r="${r}" style="stroke:${L.stroke}" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-score/100)}"></circle>
+    </svg><span class="n" style="color:${L.num}">${score}<span class="den">/ 100</span></span></div>
+    ${L.top ? `<span class="badge">★ Top match</span>` : `<p class="cap"><b>${L.tier}</b></p>`}
+  </div>`;
 }
 
 function tweenScore(el, from, to) {
@@ -391,11 +453,17 @@ function tweenScore(el, from, to) {
   ring.style.strokeDashoffset = C * (1 - to / 100);
   el.classList.add("bumped");
   setTimeout(() => el.classList.remove("bumped"), 470);
-  if (reduced || from === to) { num.innerHTML = to + '<span class="pct">%</span>'; return; }
+  const paint = v => {
+    const L = ladder(v);
+    ring.style.stroke = L.stroke;
+    num.style.color = L.num;
+    num.innerHTML = v + '<span class="den">/ 100</span>';
+  };
+  if (reduced || from === to) { paint(to); return; }
   const t0 = performance.now();
   const tick = t => {
     const k = Math.min(1, (t - t0) / 680), e = 1 - Math.pow(1 - k, 3);
-    num.innerHTML = Math.round(from + (to - from) * e) + '<span class="pct">%</span>';
+    paint(Math.round(from + (to - from) * e));
     if (k < 1) requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -448,13 +516,13 @@ function cardInner(j, live) {
       <div class="t"><h2>${esc(j.title)}</h2><p class="co">${esc(j.co)}<br>${esc(j.meta)}</p></div>
       ${scoreEl(j.score, true, live ? "liveScore" : null)}
     </div>
+    <details class="ad"><summary>Read the full job post</summary><p>${esc(j.ad)}</p></details>
     <div class="bubble" id="${live ? "liveBubble" : "bubble"}"><p>${bubbleFor(j)}</p></div>
     <div class="flat">
       ${fits.length ? `<h3>Where you fit</h3>${fits.map(r => row(r, idx(r), "fit")).join("")}` : ""}
       ${open.length ? `<h3>Where you don't — yet</h3>${open.map(r => row(r, idx(r), "open")).join("")}` : ""}
       ${shut.length ? `<h3>Asked and closed</h3>${shut.map(r => row(r, idx(r), "settled")).join("")}` : ""}
-    </div>
-    <details class="ad"><summary>Read the ad in full</summary><p>${esc(j.ad)}</p></details>`;
+    </div>`;
 }
 
 // --- screens ---------------------------------------------------------------
@@ -470,7 +538,7 @@ function renderCurtain() {
   $("#sCurtain").innerHTML = `
     <div class="curtain"><div>
       <div class="burst">🂠</div>
-      <p class="big">3 jobs just <em>matched you</em></p>
+      <p class="big">${S.jobs.length} jobs just <em>matched you</em></p>
       <button class="go" id="reveal">See them</button>
     </div></div>`;
   $("#reveal").onclick = () => { S.screen = "sDeck"; show(); };
@@ -487,7 +555,7 @@ function renderDeck() {
         <span class="stamp yes">Want it</span><span class="stamp no">Not for me</span>
         <div class="jcbody">${cardInner(j, false)}</div>
         <div class="jcfoot">
-          <button class="sw" id="no">Not for me</button>
+          <button class="sw" id="no">Not for this one</button>
           <button class="sw yes" id="yes">I want this one</button>
         </div>
       </div>
@@ -507,7 +575,7 @@ function renderDeck() {
 // here — this screen exists to put the CARD's behaviour on trial, nothing else.
 function renderLive() {
   const j = S.jobs[S.live];
-  const step = (ASKS[S.live] || []).filter(a => j.reqs[a.req].state === "open")[0];
+  const step = (j.asks || []).filter(a => j.reqs[a.req].state === "open")[0];
   $("#sLive").innerHTML = `
     <div class="topbar"><span class="wordmark">JobCrush</span><span class="spacer"></span>${profEl()}</div>
     <div class="live-wrap"><div class="live-card">${cardInner(j, true)}</div></div>
@@ -551,7 +619,7 @@ function answer(step, k) {
   S.facts++;
   const left = j.reqs.filter(x => x.state === "open").length;
   S.ledger = opt.gain > 0
-    ? { txt: `+${opt.gain}%  ·  ${r.ask}` }
+    ? { txt: `+${opt.gain}  ·  ${r.ask}` }
     : { quiet: true, txt: left ? `asked and closed  ·  ${left} still open` : "asked and closed" };
   renderLive();
   const el = $("#liveScore");
@@ -570,9 +638,9 @@ function renderEnd() {
   $("#sEnd").innerHTML = `
     <div class="topbar"><span class="wordmark">JobCrush</span><span class="spacer"></span>${profEl()}</div>
     <div class="end">
-      <p class="big">That's your three.</p>
+      <p class="big">That's all of them.</p>
       <p class="sub"><b>142</b> project manager jobs are open in Paris.<br>
-        I scored the three closest to you. Tell me more and I'll widen the net.</p>
+        I scored the closest ones to you. Tell me more and I'll widen the net.</p>
       <button class="go" id="more">Answer a few more questions</button>
       <p class="keep">Nothing you told me is lost — it's all on your profile.</p>
     </div>`;

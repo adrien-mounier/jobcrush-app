@@ -38,6 +38,48 @@
         ],
         "createdAt": "2026-08-08T16:12:32.836Z",
         "reason": "Prototype chrome (desk, bezel, brief card, instrument strip) is fixture scaffolding by #157 convention; the product region inside the phone uses the documented tokens"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(.2, 1.5, .4, 1)",
+        "createdAt": "2026-08-08T16:49:27.631Z",
+        "reason": "Owner confirmed the dial-number bump easing is intentional (#157 round 2 shipped values)"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(.2,1.5,.4,1)",
+        "createdAt": "2026-08-08T16:59:04.954Z",
+        "reason": "Shipped product value: deck.css jd-bump reward-beat overshoot, reused verbatim per #157 convention 3 (owner-decided); also reused for the level-up pop so the prototype has one celebratory curve, the product's own"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(.2, 1.6, .4, 1)",
+        "createdAt": "2026-08-09T07:00:54.439Z",
+        "reason": "Owner confirmed the profile-chip bump easing is intentional (#157 round 2 shipped values)"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(.2, 1.4, .3, 1)",
+        "createdAt": "2026-08-09T08:20:39.000Z",
+        "reason": "Owner approved the stamp-slam overshoot (#175 session): a stamp hits and settles; same springy family as the #157 round's kept score bump"
+      },
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": [
+          "apps/web/prototypes/tailor-merged.prototype.html"
+        ],
+        "createdAt": "2026-08-09T07:01:09.313Z",
+        "reason": "Owner confirmed the faint grid behind the A4 CV paper is intentional (#157 decided design)"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "apps/web/prototypes/score-gold-states.prototype.html"
+        ],
+        "createdAt": "2026-08-09T07:01:09.418Z",
+        "reason": "Rejected variant B halo kept as the decision record on the comparison page"
       }
     ]
   }

@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobCrush — the job card, desktop</title>
+<!-- PROTOTYPE — throwaway. Design ticket #175: the job card on desktop, reconciled
+     with the current design language (#157 round, sessions 92–99).
+
+     Owner calls already made (ticket, 2026-08-09):
+       - ONE card at a time. No list, no list-plus-detail. Sequential decision is the product.
+       - The three sections stand: Where you fit / Where you don't — yet / Asked and closed.
+     Session calls (this file's round, 2026-08-09):
+       - Controls: card-footer buttons — one shape across breakpoints; the decision
+         stays attached to the card the stamp lands on. ← / → keys fire the same
+         handler; owner (2026-08-09): NO keycap glyphs on the buttons — the keyboard
+         works but is not advertised on the control.
+         (Rejected: flanking paddles — dating-app cliché, detaches the decision;
+          bar-under-card — competes with the count line, drifts from a scrolled card.)
+       - Deck presence: next card's BLANK edge peeks behind + one quiet count line.
+         The peek shows no content, no score, and is unclickable — never browsable.
+       - Score: session-99 dialect adopted verbatim — /100 under the number, arc climbs
+         the metal ladder (steel <50 · bronze 50–74 · gold 75–89 · bright gold 90+),
+         tier word beneath, and at 90+ the still "★ Top match" badge — the SAME badge
+         component as tailor-merged, per the ticket's falsifiable check.
+       - Copy (per-#169 sweep, small strings only): decline button is "Not for this one"
+         (the decline register's decided scope-naming wording — a per-job no, one tap,
+         no confirm; NOTHING on a job card can create a permanent no, which lives on
+         the profile only). "Read the ad in full" → "Read the full job post".
+         The STAMPS keep "Want it" / "Not for me" — the ticket names them as surviving;
+         a stamp is a mood, not a control.
+       - Keyboard: ← = Not for this one, → = I want this one. Fires the SAME handler as
+         the buttons, including the stamp beat (falsifiable check #3). Buttons now get
+         the stamp beat too — on mobile only a swipe earned it.
+     Flow (owner, 2026-08-09, this session): DIVE AT THE FIRST YES, both layouts —
+     "I want this one" opens the tailor immediately (desktop: tailor-merged.prototype.html;
+     mobile: the live card in job-card.prototype.html), and finishing or leaving there
+     returns to the deck at the next card. No triage-then-batch: a shortlist of accepted
+     jobs would be a browsable list, the banned shape. Build note: on the return to the
+     deck, the next card's score may have climbed from the answers just given — show that
+     bump on arrival; it is the loop's strongest beat and no prototype demos it yet.
+     The job post fold sits directly under title + score (owner, same session).
+     Not production code. -->
+<style>
+  :root {
+    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-line: #2b333d;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98; --hud-mute-2: #8a95a2;
+    --gold: #e8a33d; --gold-dim: #a8762b; --gold-hi: #ffd98a;
+    --steel: #5b6b7d; --bronze: #b07a3a;
+    --weak: #6f7d8c;
+    /* the third mark state: a "no" that is recorded and closed. Never red, never a cross. */
+    --settled: #4d5865;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: #e7e3dd; font-family: var(--sans); line-height: 1.5; padding: 20px 18px 40px; -webkit-font-smoothing: antialiased; }
+
+  .ask-brief { max-width: 1320px; margin: 0 auto 16px; background: #fffdf9; border: 1px solid #ded7cb; border-radius: 12px; padding: 16px 22px; color: #1f2328; }
+  .ask-brief h1 { margin: 0 0 6px; font-size: 18px; letter-spacing: -.01em; }
+  .ask-brief p { margin: 0 0 6px; font-size: 13.5px; color: #3c444d; }
+  .ask-brief p:last-child { margin-bottom: 0; }
+
+  /* ══ the room ══ */
+  .app { max-width: 1320px; height: 860px; margin: 0 auto; background: var(--hud-0); color: var(--hud-ink);
+    border: 1px solid var(--hud-line); border-radius: 16px; overflow: hidden;
+    box-shadow: 0 22px 60px -20px rgba(0,0,0,.6); display: flex; flex-direction: column; }
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 16px 26px 12px; flex: 0 0 auto; }
+  .wordmark { font-size: 13px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--hud-mute); }
+  .spacer { flex: 1; }
+  .topline { font-size: 13px; color: var(--hud-mute-2); }
+  .prof { display: flex; align-items: center; gap: 7px; padding: 5px 12px 5px 10px; border-radius: 999px;
+    background: var(--hud-2); border: 1px solid var(--hud-line); }
+  .prof svg { width: 18px; height: 21px; display: block; overflow: visible; }
+  .prof svg rect { fill: var(--hud-mute); }
+  .prof svg rect.top { fill: #a9b4bf; }
+  .prof .n { font-family: var(--mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ══ the stage: one card, centred ══ */
+  .stage { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; padding: 18px 26px 16px; }
+  .deck { position: relative; width: min(680px, 100%); flex: 1; min-height: 0; }
+  /* the next card's edge: BLANK back, unclickable, no content ever. Presence, not a list. */
+  .peek { position: absolute; left: 14px; right: 14px; top: -8px; height: 40px; border-radius: 16px;
+    background: var(--hud-1); border: 1px solid var(--hud-line); opacity: .55; pointer-events: none; }
+  .peek.two { left: 26px; right: 26px; top: -15px; opacity: .3; }
+
+  .jobcard { position: absolute; inset: 0; background: var(--hud-1); border: 1px solid var(--hud-line);
+    border-radius: 18px; display: flex; flex-direction: column; overflow: hidden; isolation: isolate;
+    animation: dealin 520ms cubic-bezier(.2,1,.3,1); transition: transform 300ms cubic-bezier(.2,1,.3,1); }
+  @keyframes dealin { from { opacity: 0; transform: translateY(22px) scale(.97); } to { opacity: 1; transform: none; } }
+  .jobcard.out-left  { animation: outL 340ms ease forwards; }
+  .jobcard.out-right { animation: outR 340ms ease forwards; }
+  @keyframes outL { to { opacity: 0; transform: translateX(-70%) rotate(-6deg); } }
+  @keyframes outR { to { opacity: 0; transform: translateX(70%) rotate(6deg); } }
+
+  .jcbody { flex: 1; overflow-y: auto; padding: 26px 30px 10px; min-height: 0; }
+  .jcbody { scrollbar-width: thin; scrollbar-color: rgba(140,150,160,.28) transparent; }
+  .jcbody::-webkit-scrollbar { width: 4px; }
+  .jcbody::-webkit-scrollbar-thumb { background: rgba(140,150,160,.28); border-radius: 3px; }
+
+  /* the stamp — the reward beat. Fires on swipe, button AND key alike. */
+  .stamp { position: absolute; top: 30px; font-size: 17px; font-weight: 750; letter-spacing: .08em;
+    text-transform: uppercase; padding: 8px 15px; border-radius: 8px; border: 3px solid currentColor;
+    opacity: 0; pointer-events: none; z-index: 3; }
+  .stamp.yes { left: 26px; transform: rotate(-13deg); color: var(--gold); }
+  .stamp.no  { right: 26px; transform: rotate(13deg); color: #b0787a; }
+  .stamp.hit { animation: slam 420ms cubic-bezier(.2,1.4,.3,1) forwards; }
+  @keyframes slam { from { opacity: 0; scale: 1.6; } to { opacity: 1; scale: 1; } }
+
+  /* ══ card head: title left, the dial right ══ */
+  .hd { display: flex; gap: 22px; align-items: flex-start; }
+  .hd .t { flex: 1; min-width: 0; padding-top: 4px; }
+  .hd h2 { font-size: 22px; font-weight: 630; letter-spacing: -.015em; margin: 0 0 5px; line-height: 1.25; text-wrap: balance; }
+  .hd .co { font-size: 13.5px; color: var(--hud-mute); margin: 0; line-height: 1.5; }
+
+  /* the score, session-99 dialect: /100, metal ladder, tier word, badge at 90+ */
+  .scorebox { flex: 0 0 auto; text-align: center; width: 108px; }
+  .dialwrap { position: relative; width: 84px; height: 84px; margin: 0 auto; }
+  .dialwrap svg { display: block; }
+  .dial-arc { transition: stroke 500ms ease, filter 500ms ease; }
+  .num { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; font-size: 21px; font-weight: 700; }
+  .num .den { font-size: 8.5px; font-weight: 500; letter-spacing: .03em; color: var(--hud-mute); margin-top: 2px; }
+  .cap { margin: 7px 0 0; font-size: 11px; line-height: 1.35; color: var(--hud-mute); }
+  .cap b { font-weight: 620; color: var(--hud-mute-2); }
+  /* the badge — SAME component as the tailor screen (score-gold-states variant C).
+     At 90+ it replaces the tier caption: the badge IS the tier word, worn. */
+  .badge { display: inline-flex; align-items: center; gap: 6px; margin-top: 7px; padding: 4px 12px; border-radius: 999px;
+    border: 1px solid rgba(232,163,61,.45); background: rgba(232,163,61,.10); color: var(--gold);
+    font-size: 11.5px; font-weight: 620; letter-spacing: .02em; }
+
+  /* ══ highlight bubble ══ */
+  .bubble { display: flex; gap: 14px; align-items: center; margin: 18px 0 2px; padding: 15px 17px;
+    border-radius: 13px; background: linear-gradient(135deg, rgba(232,163,61,.12), rgba(232,163,61,.04));
+    border: 1px solid rgba(232,163,61,.3); }
+  .bubble p { margin: 0; font-size: 14px; line-height: 1.5; }
+  .bubble .gap { color: var(--hud-mute); }
+
+  /* ══ the three sections — settled, kept as-is. Wider card = one clean line per row. ══ */
+  .flat { margin-top: 17px; display: flex; flex-direction: column; gap: 8px; }
+  .flat h3 { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--hud-mute); margin: 10px 0 2px; }
+  .flat .row { display: flex; gap: 11px; font-size: 14.5px; line-height: 1.45; align-items: baseline; padding: 1px 0; }
+  .mk { flex: 0 0 auto; width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 9.5px; line-height: 1; align-self: flex-start; margin-top: 2px; }
+  .fit .mk { background: rgba(232,163,61,.18); color: var(--gold); border: 1px solid rgba(232,163,61,.4); }
+  .open .mk { background: rgba(111,125,140,.16); color: var(--weak); border: 1px solid rgba(111,125,140,.35); }
+  .settled .mk { background: rgba(77,88,101,.16); color: var(--settled); border: 1px solid rgba(77,88,101,.5); }
+  .open { color: var(--hud-mute); }
+  .settled { color: var(--settled); }
+
+  /* the job post, folded, directly under the header (owner, 2026-08-09): quick
+     orientation before the card's own reading — still closed by default, still
+     the one part a job board already gives you */
+  details.ad { margin-top: 10px; }
+  details.ad summary { font-size: 13px; color: var(--hud-mute); cursor: pointer; list-style: none; padding: 2px 0; }
+  details.ad summary::-webkit-details-marker { display: none; }
+  details.ad summary::before { content: "▸ "; }
+  details.ad[open] summary::before { content: "▾ "; }
+  details.ad summary:hover { color: var(--hud-ink); }
+  details.ad summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 4px; }
+  details.ad p { font-size: 13.5px; line-height: 1.6; color: #c3ccd5; margin: 12px 0 0; }
+
+  /* ══ the decision bar: in the card's foot, keycaps beside the words ══ */
+  .jcfoot { flex: 0 0 auto; display: flex; gap: 12px; padding: 15px 18px 16px;
+    border-top: 1px solid var(--hud-line); background: var(--hud-1); }
+  .sw { flex: 1; appearance: none; border-radius: 999px; padding: 14px 18px; font: inherit; font-size: 15px;
+    font-weight: 620; cursor: pointer; border: 1px solid var(--hud-line); background: var(--hud-2);
+    color: var(--hud-mute-2); transition: transform 90ms ease, background 160ms ease, border-color 160ms ease;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+  .sw:hover { border-color: #3b4653; color: var(--hud-ink); }
+  .sw:active { transform: scale(.97); }
+  .sw:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .sw.yes { background: var(--gold); color: #1a1206; border-color: var(--gold); flex: 1.5; }
+  .sw.yes:hover { background: #f0b055; color: #1a1206; }
+
+  .deckcount { flex: 0 0 auto; font-family: var(--mono); font-size: 11.5px; color: var(--hud-mute);
+    text-align: center; padding: 13px 0 2px; }
+
+  /* ══ the empty deck ══ */
+  .end { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center;
+    align-items: center; gap: 15px; text-align: center; padding: 0 40px; }
+  .end .big { font-size: 26px; font-weight: 660; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+  .end .sub { font-size: 14.5px; line-height: 1.6; color: var(--hud-mute); margin: 0; max-width: 44ch; }
+  .end .sub b { color: var(--gold); font-family: var(--mono); font-weight: 600; }
+  .end .go { appearance: none; border: none; border-radius: 999px; padding: 14px 30px; font: inherit; font-size: 15px;
+    font-weight: 650; cursor: pointer; background: var(--gold); color: #1a1206; margin-top: 4px; }
+  .end .keep { font-size: 12.5px; color: var(--settled); margin: 0; }
+
+  .instr { max-width: 1320px; margin: 12px auto 0; background: var(--hud-1); border: 1px solid var(--hud-line);
+    border-radius: 8px; padding: 11px 15px; color: var(--hud-mute); font-family: var(--mono); font-size: 11.5px; line-height: 1.75; }
+  .instr b { color: var(--hud-mute-2); }
+
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: 1ms !important; transition-duration: 1ms !important; } }
+</style>
+</head>
+<body>
+
+<div class="ask-brief">
+  <h1>Ticket #175 — the job card on desktop</h1>
+  <p><strong>One card, centred, 680px. No list exists.</strong> The decision is buttons + keyboard (← / →) with the stamp beat kept; the rest of the deck is a blank peeking edge and one quiet count. The score now speaks the session-99 dialect: <strong>score / 100 on the metal ladder</strong> — steel, bronze, gold — and at 90+ the same still <strong>★ Top match</strong> badge as the tailor screen, unchanged.</p>
+  <p><strong>Judge:</strong> does the first card (92) feel like an event and the 47 still composed? · press ← or → — same decision, same stamp, as the buttons? · does the peeking edge read as "more waiting" without inviting a browse? · "Not for this one": is the scope of the no unmistakable?</p>
+</div>
+
+<div class="app">
+  <div class="topbar">
+    <span class="wordmark">JobCrush</span>
+    <span class="topline" id="topline"></span>
+    <span class="spacer"></span>
+    <span id="profSlot"></span>
+  </div>
+  <div class="stage" id="stage"></div>
+</div>
+
+<div class="instr">
+  <b>Keys:</b> ← Not for this one · → I want this one. Both fire the exact same handler as the buttons — stamp, then the card leaves. ·
+  <b>Decline register (Design C), confirmed:</b> the card's no is per-job, one tap, no confirm dialog. No control on a job card can create a permanent no — that lives on the profile with its undo. ·
+  <b>Copy sweep (#169):</b> "Not for this one" (was "Not for me" on the button) · "Read the full job post" (was "Read the ad in full"). Stamps keep "Want it" / "Not for me" per the ticket. ·
+  <b>Restart:</b> press R.
+</div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// PROTOTYPE. Throwaway. Ticket #175 — the job card on desktop.
+// Same Camille Roussel persona as job-card.prototype.html, plus one 90+ job so
+// the badge's travel from the tailor screen is visible evidence, and one steel
+// job so the ladder's low rung is judged too.
+// ---------------------------------------------------------------------------
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const BANDS = ["must", "should", "nice"];
+const rank = r => BANDS.indexOf(r.band);
+
+const JOBS = [
+  {
+    title: "IT Project Manager, ERP",
+    co: "Sopra Steria · Paris La Défense",
+    meta: "€66–74k · Hybrid, 2 days on site",
+    score: 92,
+    hit: "This is your job on paper — the ERP migration, the budget and the team size all match what they lead with.",
+    ad: "Own the delivery of an S/4-adjacent ERP consolidation for an industrial client. You hold the plan, a €1.5M budget and a team of ten, reporting to the client's IT director. French-speaking environment with monthly steering in English.",
+    reqs: [
+      { band: "must",   ask: "An ERP migration, end to end",  mine: "You shipped one, on time",   state: "fit" },
+      { band: "must",   ask: "A budget over €1M",             mine: "€2M, across 4 teams",        state: "fit" },
+      { band: "must",   ask: "A team of 8 or more",           mine: "You led 12",                 state: "fit" },
+      { band: "should", ask: "Agile and stage-gate both",     mine: "You run both",               state: "fit" },
+      { band: "should", ask: "Vendor and contract ownership", mine: "You own the vendor today",   state: "fit" },
+      { band: "nice",   ask: "Industrial-sector background",  gap: "industry work",               state: "open" },
+      { band: "nice",   ask: "English for steering",          mine: "Fluent",                     state: "fit" },
+    ],
+  },
+  {
+    title: "Senior IT Project Manager",
+    co: "Atos · Paris 15e",
+    meta: "€68–78k · Hybrid, 2 days on site",
+    score: 61,
+    hit: "Your €2M budget and the ERP migration are the two things they lead with.",
+    ad: "Lead the replacement of a legacy finance platform across four European sites. You own the plan, the budget and the vendor relationship, reporting to the IT director. You will run a mixed internal and vendor team, chair the steering committee, and report monthly to the group CIO. Occasional travel to Lyon and Madrid.",
+    reqs: [
+      { band: "must",   ask: "A budget over €1M",              mine: "€2M, across 4 teams",      state: "fit" },
+      { band: "must",   ask: "An ERP migration, end to end",   mine: "You shipped one, on time", state: "fit" },
+      { band: "must",   ask: "SAP S/4HANA",                    gap: "their SAP version",         state: "open" },
+      { band: "should", ask: "A team of 10 or more",           mine: "You led 12",               state: "fit" },
+      { band: "should", ask: "Public-sector delivery",         gap: "public-sector work",        state: "open" },
+      { band: "should", ask: "Contract-stage vendor work",     mine: "Asked — you said no",      state: "settled" },
+      { band: "nice",   ask: "English for a European rollout", mine: "Fluent",                   state: "fit" },
+    ],
+  },
+  {
+    title: "Delivery Lead, Core Banking",
+    co: "Capgemini · Lyon",
+    meta: "€65–75k · Remote-first",
+    score: 47,
+    hit: "Your ERP migration is the closest thing on the page to what they need.",
+    ad: "Client-facing delivery of a core banking replacement for a regional bank. A mixed onshore/offshore team of about 30, split between Lyon and Bangalore. You are the single point of contact for the client's programme director.",
+    reqs: [
+      { band: "must",   ask: "A large platform replacement", mine: "Your ERP migration transfers", state: "fit" },
+      { band: "must",   ask: "Banking domain knowledge",     gap: "banking",                       state: "open" },
+      { band: "must",   ask: "Offshore team experience",     gap: "offshore delivery",             state: "open" },
+      { band: "should", ask: "Fluent English",               mine: "Fluent",                       state: "fit" },
+      { band: "should", ask: "A team of 25+",                gap: "the team size",                 state: "open" },
+      { band: "nice",   ask: "Travel to Bangalore",          gap: "the travel",                    state: "open" },
+    ],
+  },
+];
+const WAITING = 12; // jobs scored beyond the three shown — the count line's promise
+
+let S;
+function fresh() {
+  S = { deck: 0, facts: 24, leaving: false,
+        jobs: JOBS.map(j => ({ ...j, reqs: j.reqs.map(r => ({ ...r })) })).sort((a, b) => b.score - a.score) };
+}
+fresh();
+
+// ── the session-99 ladder, verbatim ──
+function ladder(v) {
+  if (v >= 90) return { stroke: "var(--gold)", num: "var(--gold-hi)", tier: "Top match",    top: true };
+  if (v >= 75) return { stroke: "var(--gold)", num: "var(--hud-ink)", tier: "Strong match", top: false };
+  if (v >= 50) return { stroke: "var(--bronze)", num: "var(--hud-ink)", tier: "Worth a look", top: false };
+  return { stroke: "var(--steel)", num: "var(--hud-ink)", tier: "Big gaps", top: false };
+}
+
+function scoreEl(score) {
+  const L = ladder(score), r = 34, C = 2 * Math.PI * r;
+  return `<div class="scorebox">
+    <div class="dialwrap">
+      <svg width="84" height="84" viewBox="0 0 84 84" aria-hidden="true">
+        <circle cx="42" cy="42" r="${r}" fill="none" stroke="var(--hud-line)" stroke-width="6.5"/>
+        <circle class="dial-arc" cx="42" cy="42" r="${r}" fill="none" stroke="${L.stroke}" stroke-width="6.5"
+          stroke-linecap="round" transform="rotate(-90 42 42)"
+          stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - score / 100)).toFixed(1)}"/>
+      </svg>
+      <div class="num" style="color:${L.num}">${score}<span class="den">/ 100</span></div>
+    </div>
+    ${L.top ? `<span class="badge">★ Top match</span>` : `<p class="cap"><b>${L.tier}</b></p>`}
+  </div>`;
+}
+
+const layersFor = n => Math.min(5, Math.max(1, Math.ceil(n / 6)));
+function profEl() {
+  const L = layersFor(S.facts);
+  const rects = Array.from({ length: L }, (_, i) => {
+    const w = 16 - i * 1.4, x = (18 - w) / 2, y = 16 - i * 3.3;
+    return `<rect class="${i === L - 1 ? "top" : ""}" x="${x}" y="${y}" width="${w}" height="4.6" rx="1.4"></rect>`;
+  }).join("");
+  return `<span class="prof"><svg viewBox="0 0 18 21">${rects}</svg><span class="n">${S.facts}</span></span>`;
+}
+
+function bubbleFor(j) {
+  const worst = j.reqs.filter(r => r.state === "open").sort((a, b) => rank(a) - rank(b))[0];
+  return worst
+    ? `${esc(j.hit)} <span class="gap">The gap is ${esc(worst.gap)}.</span>`
+    : `${esc(j.hit)} <span class="gap">Nothing they ask for is still open.</span>`;
+}
+
+function row(r, kind) {
+  const text = kind === "fit" || kind === "settled" ? r.mine : r.ask;
+  const mark = kind === "fit" ? "✓" : kind === "open" ? "?" : "·";
+  return `<div class="row ${kind}"><span class="mk">${mark}</span><span>${esc(text)}</span></div>`;
+}
+
+function render() {
+  const j = S.jobs[S.deck];
+  $("#profSlot").innerHTML = profEl();
+  $("#topline").textContent = j ? `${S.jobs.length} jobs matched today` : "";
+  if (!j) { renderEnd(); return; }
+
+  const byRank = s => j.reqs.filter(r => r.state === s).sort((a, b) => rank(a) - rank(b));
+  const fits = byRank("fit"), open = byRank("open"), shut = byRank("settled");
+  const behind = (S.jobs.length - S.deck - 1) + WAITING;
+
+  $("#stage").innerHTML = `
+    <div class="deck">
+      ${behind > 1 ? `<div class="peek two"></div>` : ""}
+      ${behind > 0 ? `<div class="peek"></div>` : ""}
+      <div class="jobcard" id="jc">
+        <span class="stamp yes">Want it</span><span class="stamp no">Not for me</span>
+        <div class="jcbody">
+          <div class="hd">
+            <div class="t"><h2>${esc(j.title)}</h2><p class="co">${esc(j.co)}<br>${esc(j.meta)}</p></div>
+            ${scoreEl(j.score)}
+          </div>
+          <details class="ad"><summary>Read the full job post</summary><p>${esc(j.ad)}</p></details>
+          <div class="bubble"><p>${bubbleFor(j)}</p></div>
+          <div class="flat">
+            ${fits.length ? `<h3>Where you fit</h3>${fits.map(r => row(r, "fit")).join("")}` : ""}
+            ${open.length ? `<h3>Where you don't — yet</h3>${open.map(r => row(r, "open")).join("")}` : ""}
+            ${shut.length ? `<h3>Asked and closed</h3>${shut.map(r => row(r, "settled")).join("")}` : ""}
+          </div>
+        </div>
+        <div class="jcfoot">
+          <button class="sw" id="no">Not for this one</button>
+          <button class="sw yes" id="yes">I want this one</button>
+        </div>
+      </div>
+    </div>
+    <p class="deckcount">${behind} more waiting</p>`;
+
+  $("#no").onclick = () => decide(false);
+  $("#yes").onclick = () => decide(true);
+}
+
+// ONE decision path. Button, key — identical: stamp slams, then the card leaves.
+function decide(yes) {
+  if (S.leaving || !S.jobs[S.deck]) return;
+  S.leaving = true;
+  const card = $("#jc");
+  $(yes ? ".stamp.yes" : ".stamp.no", card).classList.add("hit");
+  setTimeout(() => {
+    card.classList.add(yes ? "out-right" : "out-left");
+    setTimeout(() => { S.deck++; S.leaving = false; render(); }, REDUCED ? 10 : 330);
+  }, REDUCED ? 10 : 300);
+  // a "yes" would hand off to the desktop tailor here (tailor-merged) — outside this file
+}
+
+function renderEnd() {
+  $("#stage").innerHTML = `
+    <div class="deck"><div class="end">
+      <p class="big">That's your three.</p>
+      <p class="sub"><b>142</b> project manager jobs are open in Paris.<br>
+        I scored the three closest to you. Tell me more and I'll widen the net.</p>
+      <button class="go" id="more">Answer a few more questions</button>
+      <p class="keep">Nothing you told me is lost — it's all on your profile.</p>
+    </div></div>`;
+  $("#more").onclick = () => { fresh(); render(); };
+}
+
+addEventListener("keydown", e => {
+  if (e.target.closest("input, textarea")) return;
+  if (e.key === "ArrowLeft")  { e.preventDefault(); decide(false); }
+  if (e.key === "ArrowRight") { e.preventDefault(); decide(true); }
+  if (e.key === "r" || e.key === "R") { fresh(); render(); }
+});
+
+render();
+</script>
+</body>
+</html>
