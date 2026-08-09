@@ -40,6 +40,14 @@ A group of target roles that share one essential requirement floor for discovery
 may be related without belonging to the same job family.
 _Avoid_: Career neighborhood, job title
 
+**Family floor**:
+The ranked checklist of what every job in a family expects, which discovery must cover before the
+job reveal. One concept with two names: the CV brain (`tailoring-reasoning.md` §4) says "family
+floor"; `onboarding-reward-design.md` §6 says "ranked essential floor" / "essential requirement
+floor" and defines its shape (§6.2). It is the opposite of §4's role-language discriminators, which
+separate roles within a family — misreading those as the floor is the documented mistake behind #6.
+_Avoid_: Discriminator, role-language signals
+
 **Career neighborhood**:
 A broader group of related job families whose roles may be close in meaning or plausible career
 transitions but do not share one essential requirement floor.
