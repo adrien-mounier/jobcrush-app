@@ -5,6 +5,7 @@ import type {
   ProviderPostingRecordV1,
 } from "@jobcrush/contracts";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
+import { TechmapPostingProvider } from "./postingProvider.js";
 import type { PostingProvider, PostingProviderFetchInput, PostingProviderFetchResult } from "./postingProvider.js";
 import type { PostingStore } from "./postingStore.js";
 import { dedupePostings, loadActivePostingProviders } from "./postings.js";
@@ -334,7 +335,11 @@ export function isReusableRetrievalSnapshot(
 /** A curated regional slice is authoritative only after an operator has durably marked that region
  * checked. Stored rows alone cannot prove that an untouched region is genuinely empty. */
 export class StoreBackedCuratedPostingProvider implements PostingProvider {
-  readonly providerId = "curated-pool";
+  // #174 must-fix 1 (round 2): the single declared source of "this driver implements curated-pool" —
+  // read by IMPLEMENTED_PROVIDER_IDS below to build the boot-time "does an implementation exist"
+  // check without constructing an instance.
+  static readonly providerId = "curated-pool";
+  readonly providerId = StoreBackedCuratedPostingProvider.providerId;
 
   constructor(
     private readonly store: Pick<PostingStore, "durable" | "listByProvider" | "getRegionRefresh">,
@@ -372,12 +377,59 @@ export class StoreBackedCuratedPostingProvider implements PostingProvider {
   }
 }
 
+/**
+ * Wires a StoreBackedCuratedPostingProvider whenever a curated-pool policy is present in the GIVEN
+ * registry — deliberately retained, not dead code, even though today's active registry excludes
+ * curated-pool (postings.ts's OPERATIONALLY_DISABLED_PROVIDER_IDS, #174: its own driver can't
+ * certify freshness without a production operator-refresh caller that doesn't exist yet). The moment
+ * that gap closes and curated-pool re-enters loadActivePostingProviders(), this wiring resumes with
+ * no code change here.
+ */
 export function storeBackedPostingProvidersFor(
   registry: PostingProviderPolicyV1[],
   store: Pick<PostingStore, "durable" | "listByProvider" | "getRegionRefresh">,
 ): PostingProvider[] {
-  const policy = registry.find((entry) => entry.providerId === "curated-pool");
+  const policy = registry.find((entry) => entry.providerId === StoreBackedCuratedPostingProvider.providerId);
   return policy ? [new StoreBackedCuratedPostingProvider(store, policy)] : [];
+}
+
+// #174 must-fix 1 (round 2): built from each driver CLASS's own declared static `providerId` — never
+// a hand-typed list of strings maintained separately from the driver code. A provider id can only
+// join this set by an actual driver class existing and declaring it; there is no way to "add" a
+// phantom id here by editing this file alone.
+const IMPLEMENTED_PROVIDER_IDS: ReadonlySet<string> = new Set([
+  StoreBackedCuratedPostingProvider.providerId,
+  TechmapPostingProvider.providerId,
+]);
+
+/**
+ * #174 must-fix 1 (round 2): "does an IMPLEMENTATION exist for this active provider id" — deliberately
+ * NOT "was a live instance constructed in this process". Those are different questions with different
+ * correct failure modes, and round 1 of this fix conflated them (checked against main.ts's actual
+ * `providers` array, which also made a MISSING API KEY a boot failure):
+ *   - No implementation anywhere for an active row is a permanent, code-level defect that can only
+ *     ever be a mistake (e.g. a registry row activated with no driver ever written for it) — fail
+ *     fast at boot, naming the row. That is #174's own invariant, checked against IMPLEMENTED_
+ *     PROVIDER_IDS above (real driver classes), never a mirror.
+ *   - An implementation EXISTS but its factory declined for a config reason — e.g.
+ *     postingProvider.ts's techmapProviderFromEnv returns null when TECHMAP_RAPIDAPI_KEY is unset —
+ *     is a legitimate, ALREADY-HONEST runtime state, unchanged by this function: that row still boots
+ *     fine, and driver_missing stays a LIVE, REACHABLE coverage.providersUnavailable category at every
+ *     retrieval (makePostingRetriever's own logFailure call), reported honestly as provider_unavailable
+ *     rather than crashing the process. Conflating the two turns one paid provider's missing key into
+ *     a total outage (signup, upload, the deck, tailoring — all down), strictly worse than #174's own
+ *     bug. Call this once, at boot, right after loadActivePostingProviders() — it takes the registry
+ *     alone, never a constructed `providers` array, so a missing API key structurally cannot affect it.
+ */
+export function assertEveryActiveProviderIsImplemented(registry: PostingProviderPolicyV1[]): void {
+  const unimplemented = registry.find((policy) => !IMPLEMENTED_PROVIDER_IDS.has(policy.providerId));
+  if (unimplemented) {
+    throw new Error(
+      `posting-providers.json: "${unimplemented.providerId}" is active but no driver implementation ` +
+        `exists for it anywhere (see postingProvider.ts / postingRetrieval.ts's own driver classes). ` +
+        `Wire one, or keep the row out of the active registry.`,
+    );
+  }
 }
 
 export function makePostingRetriever(

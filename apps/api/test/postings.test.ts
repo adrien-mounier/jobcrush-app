@@ -8,6 +8,7 @@ import {
   computeProviderCostUsd,
   dedupePostings,
   loadActivePostingProviders,
+  loadProviderPolicies,
   parseProviderPolicies,
 } from "../src/postings.js";
 
@@ -397,12 +398,22 @@ describe("dedupePostings (#99, §2.4)", () => {
 
 describe("posting-providers registry loader (#99, §2.2)", () => {
   // Asserts the RULE, not the literal file contents — an operator adding a fourth provider row
-  // later must not break this test just for existing alongside the two we already know about.
-  it("theirstack is present as a candidate row but absent from the active registry", () => {
+  // later must not break this test just for existing alongside the ones we already know about.
+  //
+  // #174 must-fix 2: theirstack's absence must be checked against the RAW on-disk registry (every
+  // row, active or not), not just the active list — it was ALREADY absent from the active list before
+  // this diff (its permission booleans were false), so an active-only assertion here would stay green
+  // even if a driverless theirstack candidate row quietly reappeared (which docs/research/
+  // live-posting-retrieval-contract.md §1 explicitly invites re-adding).
+  it("#174: theirstack has no row at all in the raw on-disk registry — no driver, an owner spend decision", () => {
+    const raw = loadProviderPolicies();
+    expect(raw.some((p) => p.providerId === "theirstack")).toBe(false);
+  });
+
+  it("#174: curated-pool is operationally disabled (no production refresh path) and techmap is the only active provider today", () => {
     const active = loadActivePostingProviders();
-    expect(active.some((p) => p.providerId === "curated-pool")).toBe(true);
+    expect(active.some((p) => p.providerId === "curated-pool")).toBe(false);
     expect(active.some((p) => p.providerId === "techmap")).toBe(true);
-    expect(active.some((p) => p.providerId === "theirstack")).toBe(false);
   });
 
   it("a row needs both permission booleans true AND attributionRequired false to be active", () => {
@@ -419,6 +430,10 @@ describe("posting-providers registry loader (#99, §2.2)", () => {
     const brokenRow = { ...validRow, permitsStorage: "yes" }; // wrong type, not a valid boolean
     expect(() => parseProviderPolicies([validRow, brokenRow])).toThrow();
   });
+
+  // #174 AC "a registry row without a driver must not be representable as serving a region" is now
+  // proven at postingRetrieval.test.ts's assertEveryActiveProviderIsImplemented — checked against each
+  // driver class's own declared identity, not this loader's own data (#174 must-fix 1).
 });
 
 describe("computeProviderCostUsd (#100, §2.9)", () => {

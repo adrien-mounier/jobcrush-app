@@ -118,7 +118,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     const retrievePostings = vi.fn(async () => ({
       schemaVersion: "4" as const,
       outcome: "empty_pool" as const,
-      coverage: { providersQueried: ["curated-pool"], providersUnavailable: [], complete: true },
+      coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
       retrievedAt: new Date().toISOString(),
     }));
     const built = buildServer({ retrievePostings });
@@ -131,6 +131,32 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     expect(first.json().retrieval.outcome).toBe("provider_unavailable");
     expect(second.json().retrieval.outcome).toBe("empty_pool");
     expect(retrievePostings).toHaveBeenCalledOnce();
+  });
+
+  // #174 must-fix 3: surfaced while fixing #174 (the "techmap" swap above needed doing at all because
+  // "curated-pool" had stopped being a real provider) — a real, previously untested consequence of
+  // isReusableRetrievalSnapshot's own registry lookup (postingRetrieval.ts): a stored empty_pool
+  // snapshot naming a provider the CURRENT registry doesn't recognise is never reused. Honest, not a
+  // bug — but until now nothing pinned it, so a future registry edit (e.g. retiring a provider id)
+  // could silently start re-spending a real provider call on every live session's next read, with
+  // nothing going red. That collides with the repo's "retries never re-spend" rule if it ever
+  // regresses, which is exactly what this test exists to catch.
+  it("#174: a snapshot naming a provider the registry no longer recognises is never reused — the next request re-spends", async () => {
+    const retrievePostings = vi.fn(async () => ({
+      schemaVersion: "4" as const,
+      outcome: "empty_pool" as const,
+      coverage: { providersQueried: ["retired-provider"], providersUnavailable: [], complete: true },
+      retrievedAt: new Date().toISOString(),
+    }));
+    const built = buildServer({ retrievePostings });
+    const { id, cookie } = await authorizedSession(built);
+    await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    await vi.waitFor(async () =>
+      expect((await built.sessions.getById(id))?.retrieval?.result.outcome).toBe("empty_pool"),
+    );
+    const second = await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    expect(second.json().retrieval.outcome).toBe("provider_unavailable"); // re-attempting, not reused
+    await vi.waitFor(() => expect(retrievePostings).toHaveBeenCalledTimes(2));
   });
 
   it("briefly reuses an unavailable snapshot instead of spending again on every reload", async () => {
@@ -181,7 +207,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       return {
         schemaVersion: "4" as const,
         outcome: "empty_pool" as const,
-        coverage: { providersQueried: ["curated-pool"], providersUnavailable: [], complete: true },
+        coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
         retrievedAt: new Date().toISOString(),
       };
     });
@@ -220,7 +246,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       return {
         schemaVersion: "4" as const,
         outcome: "empty_pool" as const,
-        coverage: { providersQueried: ["curated-pool"], providersUnavailable: [], complete: true },
+        coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
         retrievedAt: new Date().toISOString(),
       };
     });
@@ -254,7 +280,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       return {
         schemaVersion: "4" as const,
         outcome: "empty_pool" as const,
-        coverage: { providersQueried: ["curated-pool"], providersUnavailable: [], complete: true },
+        coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
         retrievedAt: new Date().toISOString(),
       };
     });

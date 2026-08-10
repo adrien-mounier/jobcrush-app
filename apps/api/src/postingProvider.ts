@@ -446,7 +446,12 @@ export interface TechmapPostingProviderOptions {
  * the one place the key ever appears, in the `x-rapidapi-key` header).
  */
 export class TechmapPostingProvider implements PostingProvider {
-  readonly providerId = "techmap";
+  // #174 must-fix 1 (round 2): the single declared source of "this driver implements techmap" — read
+  // by postingRetrieval.ts's IMPLEMENTED_PROVIDER_IDS to build the boot-time "does an implementation
+  // exist" check WITHOUT constructing an instance (constructing one needs a live API key, which must
+  // stay a runtime/config concern, never a build-time one).
+  static readonly providerId = "techmap";
+  readonly providerId = TechmapPostingProvider.providerId;
   private readonly gate: MinIntervalGate;
   private readonly perMinuteBudget: FixedWindowBudget;
   private readonly perDayBudget: FixedWindowBudget;
@@ -624,7 +629,7 @@ export function techmapProviderFromEnv(
   policy: PostingProviderPolicyV1Value,
   monthlyBudgetStore: Pick<PostingStore, "durable" | "reserveMonthlyCall">,
 ): PostingProvider | null {
-  if (policy.providerId !== "techmap") return null;
+  if (policy.providerId !== TechmapPostingProvider.providerId) return null;
   const apiKey = process.env.TECHMAP_RAPIDAPI_KEY;
   if (apiKey && !monthlyBudgetStore.durable) {
     console.error("[ops] TECHMAP_RAPIDAPI_KEY is set without a durable monthly budget store; provider disabled");

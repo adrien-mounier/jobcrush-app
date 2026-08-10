@@ -39,7 +39,12 @@ export function parseProviderPolicies(raw: unknown[]): PostingProviderPolicyV1Va
 }
 
 let cachedProviderPolicies: PostingProviderPolicyV1Value[] | null = null;
-function loadProviderPolicies(): PostingProviderPolicyV1Value[] {
+// #174 must-fix 2: exported so a test can assert against the RAW on-disk registry (every row, active
+// or not) rather than only the active list — loadActivePostingProviders alone can't tell "never had a
+// row" from "had a row that never activated", and the two need different tests: a re-added candidate
+// row (which docs/research/live-posting-retrieval-contract.md §1 explicitly invites) must show up
+// here even while correctly staying out of loadActivePostingProviders.
+export function loadProviderPolicies(): PostingProviderPolicyV1Value[] {
   if (!cachedProviderPolicies) {
     const raw = JSON.parse(
       readFileSync(join(here, "..", "data", "posting-providers.json"), "utf8"),
@@ -49,21 +54,67 @@ function loadProviderPolicies(): PostingProviderPolicyV1Value[] {
   return cachedProviderPolicies;
 }
 
+// #174: providerIds excluded from the active registry despite passing the §2.2 permission gate below
+// — because the code path that would let them serve real traffic doesn't exist YET, not because the
+// row's own contractual terms changed. curated-pool's own driver
+// (postingRetrieval.ts's StoreBackedCuratedPostingProvider) genuinely exists and its permitsStorage/
+// permitsMatching are honestly true (it's our own operator-curated data, no third-party ToS to
+// violate) — so it is deliberately NOT deactivated by editing those fields, which would misstate a
+// fact that hasn't changed. What's actually missing is a durable operator region refresh: `fetch()`
+// requires one (postingStore.ts's markRegionRefreshed), and nothing in production ever calls it, so
+// every live call fails "curated region has no fresh operator refresh" — which coverage then reports
+// as an unavailable provider on every region, permanently blocking coverage.complete (the bug #174
+// closes). Remove an id here only once its production refresh path actually exists.
+const OPERATIONALLY_DISABLED_PROVIDER_IDS: ReadonlySet<string> = new Set(["curated-pool"]);
+
 /**
- * The active registry: rows the live system may actually query. Fail closed (§2.2) — a row is
- * active only when `permitsStorage && permitsMatching && !attributionRequired`. The
- * `attributionRequired` clause is #99's own known gap, made explicit here: `JobCardV1`
- * (packages/contracts/src/jobCard.ts) has no attribution field, so a provider requiring attribution
- * cannot be rendered lawfully today — it therefore must not activate, even if its storage/matching
- * terms are otherwise clean. A provider whose terms are unconfirmed or restrictive (e.g. TheirStack,
- * per docs/research/live-posting-retrieval-contract.md §1) can exist as a documented candidate row
- * the owner can review, but never enters the active list without someone explicitly flipping its
- * booleans in this file.
+ * Pure filter — parseProviderPolicies's own sibling — over an already-parsed policy array: every row
+ * this build's active registry may query BY PERMISSION (§2.2's booleans, plus the operational-disable
+ * list above). This does NOT verify a driver IMPLEMENTATION exists for what it returns — an earlier
+ * version of this function threw on a provider id absent from a hand-typed KNOWN_DRIVER_PROVIDER_IDS
+ * mirror declared in this file, which could drift from what driver code actually exists (a mirror
+ * entry added with no matching driver class would pass silently, reproducing #174's own bug through
+ * the mechanism meant to prevent it). That check now lives where it can see the truth:
+ * postingRetrieval.ts's assertEveryActiveProviderIsImplemented, called once at boot in main.ts and
+ * built from each driver class's own declared `providerId`, never a mirror. It deliberately checks
+ * implementation-exists, not instance-constructed: a provider whose driver exists but declines for a
+ * config reason (e.g. techmap with no API key) still boots fine and degrades honestly per request —
+ * see that function's own doc. Exported standalone so the operational-disable behaviour here is
+ * testable without touching the real on-disk registry, the same reason parseProviderPolicies is
+ * exported rather than inlined.
+ */
+export function selectActivePostingProviders(
+  policies: PostingProviderPolicyV1Value[],
+): PostingProviderPolicyV1Value[] {
+  return policies.filter(
+    (policy) =>
+      policy.permitsStorage &&
+      policy.permitsMatching &&
+      !policy.attributionRequired &&
+      !OPERATIONALLY_DISABLED_PROVIDER_IDS.has(policy.providerId),
+  );
+}
+
+/**
+ * The active registry: rows the live system may query BY PERMISSION. Fail closed (§2.2) — a row is
+ * active only when `permitsStorage && permitsMatching && !attributionRequired`, and it isn't listed in
+ * OPERATIONALLY_DISABLED_PROVIDER_IDS above. This does NOT by itself guarantee an IMPLEMENTATION exists
+ * for every row it returns — see selectActivePostingProviders's own doc for where that invariant
+ * actually lives (postingRetrieval.ts's assertEveryActiveProviderIsImplemented, checked at boot in
+ * main.ts against each driver class's own declared identity, not this file's data — and deliberately
+ * NOT against whether a live instance got constructed, so a provider whose driver exists but declines
+ * for a config reason, e.g. techmap with no API key, still boots fine). The `attributionRequired`
+ * clause is #99's own
+ * known gap, made explicit here: `JobCardV1` (packages/contracts/src/jobCard.ts) has no attribution
+ * field, so a provider requiring attribution cannot be rendered lawfully today — it therefore must not
+ * activate, even if its storage/matching terms are otherwise clean. A provider whose terms are
+ * unconfirmed or restrictive (e.g. TheirStack — dropped from this registry entirely pending a driver
+ * and an owner spend decision, per docs/research/live-posting-retrieval-contract.md §1) can exist as a
+ * documented candidate row the owner can review, but never enters the active list without someone
+ * explicitly flipping its booleans in this file.
  */
 export function loadActivePostingProviders(): PostingProviderPolicyV1Value[] {
-  return loadProviderPolicies().filter(
-    (policy) => policy.permitsStorage && policy.permitsMatching && !policy.attributionRequired,
-  );
+  return selectActivePostingProviders(loadProviderPolicies());
 }
 
 // ---- dedupePostings (§2.4) ----

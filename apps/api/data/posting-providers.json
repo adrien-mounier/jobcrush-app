@@ -28,20 +28,5 @@
     "timeoutMs": 10000,
     "costModel": { "kind": "perThousandPostings", "amountUsd": 1 },
     "freshnessTtlHours": 24
-  },
-  {
-    "schemaVersion": "2",
-    "providerId": "theirstack",
-    "regionsServed": ["HK", "SG", "VN", "AU"],
-    "authorityRank": 2,
-    "permitsStorage": false,
-    "permitsMatching": false,
-    "attributionRequired": true,
-    "attributionTemplate": null,
-    "rateLimit": { "perSecond": null, "perMinute": null, "perDay": null, "perMonth": 1500 },
-    "retry": { "maxAttempts": 2, "backoffMs": 1000 },
-    "timeoutMs": 10000,
-    "costModel": { "kind": "flatMonthlyTier", "amountUsd": 59, "includedUnits": 1500 },
-    "freshnessTtlHours": 24
   }
 ]

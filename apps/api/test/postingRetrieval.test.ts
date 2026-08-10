@@ -8,6 +8,7 @@ import {
   type ProductionFamilyFloorStore,
 } from "../src/familyFloors.js";
 import {
+  assertEveryActiveProviderIsImplemented,
   coveredRegionCodes,
   makePostingRetriever,
   providersFor,
@@ -561,14 +562,79 @@ describe("#101 posting retrieval service", () => {
     });
   });
 
-  it("production wiring supplies a store-backed driver for the active curated policy", () => {
-    const registry = loadActivePostingProviders();
-    expect(registry.some((entry) => entry.providerId === "curated-pool")).toBe(true);
+  it("storeBackedPostingProvidersFor wires a driver whenever a curated-pool policy is present in the given registry", () => {
+    // Direct test of the wiring helper itself, with a synthetic active-shaped policy — NOT gated on
+    // whether today's real file currently activates curated-pool (#174 says it doesn't; see the next
+    // test). Kept pinned so this stays correct for when the production operator-refresh gap closes and
+    // curated-pool re-enters loadActivePostingProviders().
+    const registry = [policy("curated-pool", ["*"], 0)];
     expect(
       storeBackedPostingProvidersFor(registry, new InMemoryPostingStore()).map(
         (provider) => provider.providerId,
       ),
     ).toEqual(["curated-pool"]);
+  });
+
+  it("#174: curated-pool is excluded from TODAY's active registry, so production wiring never constructs its driver", () => {
+    const registry = loadActivePostingProviders();
+    expect(registry.some((entry) => entry.providerId === "curated-pool")).toBe(false);
+    expect(storeBackedPostingProvidersFor(registry, new InMemoryPostingStore())).toEqual([]);
+  });
+
+  // #174's central falsifiable check: before this fix, curated-pool's always-failing driver (its
+  // fetch() can never certify a fresh operator refresh in production, see postings.ts) sat in the
+  // active registry for every region ("*"), so coverage.complete could never be true and empty_pool
+  // was unreachable — a genuinely empty techmap result always read as provider_unavailable instead.
+  // This drives retrieval through the REAL on-disk registry (loadActivePostingProviders's default,
+  // not a hand-rolled fixture) and the REAL production wiring call (storeBackedPostingProvidersFor),
+  // so it would have failed before curated-pool was excluded from the active set.
+  it("#174: empty_pool is reachable through the real on-disk registry now that curated-pool no longer poisons every region's coverage", async () => {
+    const registry = loadActivePostingProviders();
+    const store = new InMemoryPostingStore();
+    const providers = [
+      ...storeBackedPostingProvidersFor(registry, store), // production's own wiring call — today: []
+      new TestFixturePostingProvider("techmap", { ok: true, records: [] }),
+    ];
+    const retrieve = makePostingRetriever({
+      registry,
+      providers,
+      store,
+      productionFamilyFloors: initialProductionFamilyFloors(),
+      now,
+    });
+    // #174 review: asserts the RULE (a complete, provider-unavailable-free certification), not that
+    // techmap is the only row that will ever queue up here — a future SECOND active provider must not
+    // break this test just for showing up alongside it (postings.test.ts's own stated convention).
+    await expect(retrieve(request())).resolves.toMatchObject({
+      outcome: "empty_pool",
+      coverage: { providersUnavailable: [], complete: true },
+    });
+  });
+
+  // #174 must-fix 1 round 2: "implementation exists" (checked against real driver CLASSES, never a
+  // hand-typed mirror of provider ids), deliberately split from "instance was constructed" — round 1
+  // conflated them and made a missing TECHMAP_RAPIDAPI_KEY a boot-time outage, caught by the
+  // coordinator before it shipped. The function takes the registry alone (no `providers` array), so a
+  // missing API key structurally cannot reach it.
+  describe("#174 must-fix 1 (round 2): assertEveryActiveProviderIsImplemented", () => {
+    it("passes for an active row with a real implementation, using the REAL on-disk registry", () => {
+      expect(() => assertEveryActiveProviderIsImplemented(loadActivePostingProviders())).not.toThrow();
+    });
+
+    // The regression guard for exactly what round 1 got wrong: an implemented-but-unconfigured
+    // provider (techmap with no live driver instance anywhere in this test) must still boot fine — the
+    // assertion never sees a `providers` array, so it has no way to know whether a key is set, and
+    // driver_missing stays a live, retrieval-time-only category (makePostingRetriever's own tests
+    // above already pin that it degrades to provider_unavailable, never a throw).
+    it("boots fine for an implemented-but-unconfigured provider — a missing API key must never reach this check", () => {
+      const registry = [policy("techmap", ["HK", "SG", "VN", "AU"], 1)];
+      expect(() => assertEveryActiveProviderIsImplemented(registry)).not.toThrow();
+    });
+
+    it("throws, naming the row, when an active policy has no implementation anywhere", () => {
+      const registry = [policy("techmap", ["HK"], 1), policy("ghost-provider", ["HK"], 2)];
+      expect(() => assertEveryActiveProviderIsImplemented(registry)).toThrow(/ghost-provider/);
+    });
   });
 
   it("rechecks cached relevant postings against every source policy TTL", () => {

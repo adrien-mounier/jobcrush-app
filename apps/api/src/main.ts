@@ -29,7 +29,11 @@ import { usageLedgerStoreFromEnv } from "./usageLedgerStore.js";
 import { postingStoreFromEnv } from "./postingStore.js";
 import { techmapProviderFromEnv } from "./postingProvider.js";
 import { loadActivePostingProviders } from "./postings.js";
-import { makePostingRetriever, storeBackedPostingProvidersFor } from "./postingRetrieval.js";
+import {
+  assertEveryActiveProviderIsImplemented,
+  makePostingRetriever,
+  storeBackedPostingProvidersFor,
+} from "./postingRetrieval.js";
 import { initialProductionFamilyFloors } from "./familyFloors.js";
 import { pricingTableFromEnv } from "./llmPricing.js";
 import { meterLlm } from "./llmMeter.js";
@@ -71,6 +75,19 @@ const judgements = judgementStoreFromEnv(process.env.DATABASE_URL);
 const postingStore = postingStoreFromEnv(process.env.DATABASE_URL);
 const productionFamilyFloors = initialProductionFamilyFloors();
 const postingProviderPolicies = loadActivePostingProviders();
+// #174 must-fix 1 (round 2): fail fast, naming the row, only when NO driver implementation exists
+// anywhere for an active row (checked against real driver classes, not a hand-typed mirror — see
+// assertEveryActiveProviderIsImplemented's own doc). Deliberately checked BEFORE constructing
+// postingProviders below and takes the registry alone: a provider whose driver exists but declines
+// for a config reason (e.g. TECHMAP_RAPIDAPI_KEY unset) must still boot normally and degrade honestly
+// per-request (driver_missing -> provider_unavailable) — never take the whole API down over one
+// paid provider's missing key.
+try {
+  assertEveryActiveProviderIsImplemented(postingProviderPolicies);
+} catch (err) {
+  console.error("posting provider wiring invalid", err);
+  process.exit(1);
+}
 const postingProviders = [
   ...storeBackedPostingProvidersFor(postingProviderPolicies, postingStore),
   ...postingProviderPolicies
