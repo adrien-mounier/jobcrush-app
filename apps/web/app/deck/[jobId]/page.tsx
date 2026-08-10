@@ -40,6 +40,20 @@ function evidenceBadge(classifications: string[]): { key: string; label: string 
   return CLS_META[worst] ?? { key: "verified", label: worst };
 }
 
+// #159 (code review must-fix 4): the master CV's one passive note when a missing-dates question
+// was shown and left unanswered — never a nag, never blocking, and nothing prints on a tailored
+// CV (that stays honest per-role, see preview-tailor.md rule 13). "Genuinely does not know" is
+// read here as "asked, never answered": there's no dedicated "I don't know" affordance today, and
+// typing any answer (including literally "I don't know") closes the gap the same way a real date
+// would, so an open gap is the only mechanical signal this data model can express.
+function missingDatesNote(skipped: number): string | null {
+  if (skipped === 0) return null;
+  // QA #159: "months" was wrong and unactionable — the gap is `dates_missing`, which covers a role
+  // with a start but no end AND a role with no dates at all. "Add months" is advice you cannot take
+  // for the second kind, and it contradicted the grill's own question ("start and end dates").
+  return `${skipped} role${skipped === 1 ? "" : "s"} ${skipped === 1 ? "is" : "are"} missing dates.`;
+}
+
 export default function DeckScreen() {
   const { jobId } = useParams<{ jobId: string }>();
   const router = useRouter();
@@ -47,6 +61,7 @@ export default function DeckScreen() {
   const [removed, setRemoved] = useState<Set<string>>(new Set()); // batch claims toggled off
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const [built, setBuilt] = useState<BuildResult | null>(null);
+  const [datesNote, setDatesNote] = useState<string | null>(null); // #159: the master CV's note
   const [grill, setGrill] = useState<GrillQuestion[] | null>(null); // set → grill phase
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -163,6 +178,10 @@ export default function DeckScreen() {
         const a = answers[q.gapId]?.trim();
         if (a) await answerGrill(jobId, q.gapId, a);
       }
+      const skippedDates = (grill ?? []).filter(
+        (q) => q.type === "missing-dates" && !answers[q.gapId]?.trim(),
+      ).length;
+      setDatesNote(missingDatesNote(skippedDates));
       setBuilt(await buildRootCv());
     } catch (e) {
       setError(e instanceof Error ? e.message : "could not build your CV");
@@ -185,7 +204,15 @@ export default function DeckScreen() {
       </main>
     );
   if (!claims) return <main><p className="lede">Opening your deck…</p></main>;
-  if (built) return <BuildOutcome result={built} onFix={() => setBuilt(null)} onRebuilt={setBuilt} />;
+  if (built)
+    return (
+      <BuildOutcome
+        result={built}
+        datesNote={datesNote}
+        onFix={() => setBuilt(null)}
+        onRebuilt={setBuilt}
+      />
+    );
 
   if (grill)
     return (
@@ -353,10 +380,12 @@ export default function DeckScreen() {
 // verified facts. Never a freeform editor over the CV text itself.
 function BuildOutcome({
   result,
+  datesNote,
   onFix,
   onRebuilt,
 }: {
   result: BuildResult;
+  datesNote: string | null;
   onFix: () => void;
   onRebuilt: (r: BuildResult) => void;
 }) {
@@ -427,6 +456,11 @@ function BuildOutcome({
         confirmed, and nothing you didn&apos;t. It&apos;s yours to keep. Spot something off? Fix the
         fact behind the line and the CV re-renders.
       </p>
+      {datesNote && (
+        <p style={{ fontSize: "0.85rem", color: "var(--jc-ink-muted)", margin: "0 0 16px" }}>
+          {datesNote}
+        </p>
+      )}
 
       <div className="badge-legend">
         <span>

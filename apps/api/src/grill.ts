@@ -94,7 +94,7 @@ export function detectGaps(
 /** The always-available fallback phrasing. Asks about the CV entry, never judges the person. */
 export function templateQuestion(g: Gap): string {
   if (g.type === "missing-dates") {
-    return `What dates did you hold the ${g.title} role at ${g.employer}? Roughly is fine.`;
+    return `What dates did you hold the ${g.title} role at ${g.employer}?`;
   }
   return `Anything to add to "${g.claimText}"? A number, a result, or a specific detail helps.`;
 }
@@ -133,8 +133,10 @@ export function makeGrillPhraser(llm: LlmClient): GrillPhraser {
     }));
     const prompt =
       `Rephrase each item below as ONE short, warm question that fills a gap in a CV. Rules: ask about ` +
-      `the CV entry, NEVER judge the person or their choices (never "why is there a gap"); one sentence; ` +
-      `no preamble. Return ONLY a JSON array of strings, same order, one per item.\n\n` +
+      `the CV entry, NEVER judge the person or their choices (never "why is there a gap"); NEVER suggest ` +
+      `an approximate answer is fine (no "roughly is fine", "approximately", or similar — ask for the ` +
+      `dates plainly); one sentence; no preamble. Return ONLY a JSON array of strings, same order, one ` +
+      `per item.\n\n` +
       JSON.stringify(items);
     const raw = await llm.complete(prompt);
     const start = raw.indexOf("[");

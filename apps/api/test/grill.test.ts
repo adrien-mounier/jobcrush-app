@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { MinedRole } from "@jobcrush/contracts";
 import { buildServer } from "../src/server.js";
 import { isTerminal } from "../src/jobs.js";
-import { answerToClaim, detectGaps, templateQuestion, type Gap } from "../src/grill.js";
+import { answerToClaim, detectGaps, makeGrillPhraser, templateQuestion, type Gap } from "../src/grill.js";
 import type { ClaimRecord } from "../src/claims.js";
+import type { LlmClient } from "../src/llm.js";
 
 const claim = (over: Partial<ClaimRecord>): ClaimRecord => ({
   id: "acme-led",
@@ -104,6 +105,40 @@ describe("JC-24 detectGaps (pure)", () => {
       { answered: new Set(["grill-gap-info-skill-x"]) },
     );
     expect(gaps).toEqual([]);
+  });
+
+  // #159: "Roughly is fine." manufactured the coarse dates cv-authoring-rules.md then has to
+  // handle on the page. The question drops the suggestion; coarse answers are still accepted and
+  // stored at their stated precision, never rejected or tightened.
+  describe("#159 the date question drops 'roughly is fine' but keeps precision", () => {
+    const dateGap: Gap = { id: "gap-dates-acme", type: "missing-dates", role: "PM - Acme", employer: "Acme", title: "PM" };
+
+    it("does not suggest an approximate answer", () => {
+      expect(templateQuestion(dateGap)).not.toMatch(/roughly/i);
+      expect(templateQuestion(dateGap)).toMatch(/what dates did you hold/i);
+    });
+
+    it("stores an approximate answer at its stated precision, unchanged", () => {
+      const c = answerToClaim(dateGap, "around 2019, not totally sure of the month");
+      expect(c.text).toContain("around 2019, not totally sure of the month");
+      expect(c.source_quote).toBe("around 2019, not totally sure of the month");
+    });
+
+    // Code review must-fix 3: in production the shipped question is LLM-phrased
+    // (makeGrillPhraser, wired at main.ts) — templateQuestion() only runs as its fallback. The
+    // phraser's own instructions said nothing about approximation, so the model could still
+    // return "Roughly when were you at Acme?" on the path users actually hit.
+    it("instructs the LLM phraser to never suggest an approximate answer is fine", async () => {
+      let capturedPrompt = "";
+      const llm: LlmClient = {
+        complete: async (prompt) => {
+          capturedPrompt = prompt;
+          return JSON.stringify(["What dates did you hold the PM role at Acme?"]);
+        },
+      };
+      await makeGrillPhraser(llm)([dateGap]);
+      expect(capturedPrompt).toContain("NEVER suggest an approximate answer is fine");
+    });
   });
 });
 

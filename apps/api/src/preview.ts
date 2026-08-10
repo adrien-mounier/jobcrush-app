@@ -119,7 +119,13 @@ export const Draft = z.object({
   name: z.string().min(1),
   headline: z.string().min(1),
   contact: z.string().default(""),
-  summary: z.string().min(1),
+  // A MISSING key must still fail parse — that's what drives the retry in tailorDraft() below.
+  // Only an explicit "" ("nothing earns the section a place", cv-authoring-rules.md "Professional
+  // Summary", #143/#159) is a deliberate omission; renderPreviewHtml() then omits the whole
+  // section, heading included. z.string().default("") would also accept an ABSENT key, so a
+  // truncated/retried response that drops the field would parse clean and ship a CV with no
+  // summary, byte-identical to a correct omission (code review must-fix 1, #159).
+  summary: z.string(),
   experience: z
     .array(
       z.object({
@@ -310,9 +316,11 @@ const WATERMARK_SVG = encodeURIComponent(
 
 /**
  * Render the draft as a self-contained HTML document styled like the engine's DOCX output
- * (_docx_build/build_cv.mjs): Calibri, #1F4E79 accent, centered header, uppercase bordered
- * section heads, bold employer + italic role title, categorized skills. Sections with no
- * content (certifications, education, additional) are omitted entirely.
+ * (_docx_build/build_cv.mjs): Calibri, #1F4E79 accent, left-aligned two-line header (name, then
+ * role + contact folded onto one line, #157 item 1 variant C "one spine" — binding on #159),
+ * uppercase bordered section heads, bold employer + italic role title, categorized skills.
+ * Sections with no content (certifications, education, additional, and summary when nothing
+ * earns it a place) are omitted entirely, heading included — never a heading over nothing.
  */
 export function renderPreviewHtml(
   draft: Draft,
@@ -375,16 +383,16 @@ export function renderPreviewHtml(
 <meta name="robots" content="noindex">
 <style>
   body{font-family:Calibri,'Segoe UI',Arial,sans-serif;color:#1d2126;max-width:760px;margin:0 auto;
-    padding:36px 44px;line-height:1.4;font-size:14px;${
+    padding:34px 44px 36px;line-height:1.4;font-size:14px;${
       watermark ? `\n    background-image:url("data:image/svg+xml,${WATERMARK_SVG}");` : ""
     }}
   .banner{background:#fbeaea;border:1px solid #d99;color:#8a1f1f;
     font-size:12px;padding:8px 14px;border-radius:6px;margin-bottom:24px;}
-  h1{font-size:26px;margin:0;color:#1F4E79;text-align:center;}
-  .headline{font-weight:bold;text-transform:uppercase;text-align:center;margin:4px 0 0;font-size:14px;}
-  .contact{color:#444;font-size:12px;margin:4px 0 0;text-align:center;}
+  h1{font-size:23px;margin:0;color:#1F4E79;text-align:left;letter-spacing:.01em;}
+  .headline{font-weight:normal;text-transform:none;text-align:left;margin:5px 0 0;font-size:12.5px;color:#444;}
+  .headline .role-word{font-weight:bold;text-transform:uppercase;letter-spacing:.06em;color:#1d2126;}
   h2{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:#1F4E79;
-    border-bottom:1.5px solid #1F4E79;padding-bottom:3px;margin:20px 0 8px;}
+    border-bottom:1.5px solid #1F4E79;padding-bottom:3px;margin:18px 0 7px;}
   .role{margin-bottom:12px;}
   .role-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;}
   .dates{color:#5A6675;font-size:12px;white-space:nowrap;}
@@ -405,9 +413,10 @@ ${
       )}. Facts not yet verified by the candidate; not for submission.</div>\n`
     : ""
 }<h1>${esc(draft.name)}</h1>
-<p class="headline">${esc(draft.headline)}</p>
-${draft.contact ? `<p class="contact">${esc(draft.contact)}</p>` : ""}
-${section("Summary", `<p>${esc(draft.summary)}</p>`)}
+<p class="headline"><span class="role-word">${esc(draft.headline)}</span>${
+  draft.contact ? ` - ${esc(draft.contact)}` : ""
+}</p>
+${draft.summary.trim() ? section("Professional Summary", `<p>${esc(draft.summary)}</p>`) : ""}
 ${section("Professional Experience", experience)}
 ${section("Skills", skills)}
 ${section("Certifications", certifications)}

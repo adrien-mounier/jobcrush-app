@@ -37,8 +37,11 @@ worse CV, whatever the posting says.
 5. **Certifications are sacred.** Every certification claim renders in `certifications`, exact
    name and date. Never drop, rename, or merge them. No certification claims → empty array
    (the section simply won't render).
-6. **Languages, nationality, and similar profile facts** render in `additional` (e.g.
-   `{"label": "Languages", "value": "English (Fluent), French (Native)"}`). Never drop them.
+6. **Languages** render in `additional` (e.g. `{"label": "Languages", "value": "English
+   (Fluent), French (Native)"}`). Never drop them — a conservation rule. **Nationality and
+   similar profile facts print in `additional` by default** when the claims carry them: unlike
+   languages, this is a default, not a conservation rule — a missing nationality line is not a
+   conservation loss the way a missing language would be (ADR-0007).
 7. **Education** always renders: institution (+ location) in `institution`, the degree line in
    `detail`, dates in `dates`.
 
@@ -66,8 +69,18 @@ worse CV, whatever the posting says.
 9. **Skills: 2-4 labeled groups** (e.g. "Technical", "Reporting and Data", "Project
    Management"), 8-12 items total across groups, most posting-relevant first. Keep the
    source's concrete tool names. Never a flat run-on list.
-10. **Summary ≤ 55 words**, positioning the candidate for THIS posting using only claim facts.
-    `headline` is one line (title-style, not a sentence).
+10. **Summary prints only when it earns its place.** Write `summary` only if the claims support
+    a concrete achievement (a named thing done, with a result or a number) or a fact THIS posting
+    actually tests. **If neither exists, output `"summary": ""`** — an empty summary is correct,
+    not a failure; the renderer omits the whole section, heading included. When you do write one,
+    the order replaces any word count: the achievement first, then one line of context only if it
+    says something not already stated elsewhere on the page, then the posting's tested facts
+    compressed into one short closing clause that never displaces the achievement. Nothing else
+    belongs in it. Banned outright: the identity opener ("Senior Project Manager with 7+ years of
+    experience..."), capability claims ("proven ability to", "expertise in", "strong in",
+    "comfortable bridging", "results-driven"), and restating the title, employer, dates, or years
+    already visible elsewhere on the page. `headline` is one line (title-style, not a sentence)
+    and is always required, even when `summary` is empty.
 
 ## Writing style
 
@@ -78,12 +91,22 @@ worse CV, whatever the posting says.
     lists.
 13. **Dates:** "Month YYYY - Month YYYY" or "MM/YYYY - MM/YYYY", month-first, and the SAME one of
     those two forms for every role, certification, and education entry — mixing them is a parser
-    hazard. "Present" (capitalised) for a current role, never "Now" or "Current". Reformat the
-    claim's punctuation and spacing into that shape: "Mar 2021—Jun 2024" renders as "March 2021 -
-    June 2024". Never year-first ("2024/03"), two-digit years ("'24"), or seasons ("Summer 2023").
-    **Never add a month the source does not state.** A claim carrying year-only dates renders
-    exactly as "2021 - 2024". Reformatting is always allowed; supplying missing precision is
-    fabrication and is forbidden by rule 2.
+    hazard. "Present" (capitalised) is for a role the claims confirm is still current, never "Now"
+    or "Current". Reformat the claim's punctuation and spacing into that shape: "Mar 2021—Jun 2024"
+    renders as "March 2021 - June 2024". Never year-first ("2024/03"), two-digit years ("'24"), or
+    seasons ("Summer 2023"). **Never add a month the source does not state.** A claim carrying
+    year-only dates renders exactly as "2021 - 2024". Reformatting is always allowed; supplying
+    missing precision is fabrication and is forbidden by rule 2.
+    **A role whose end date is not stated and not confirmed current renders its start alone**, at
+    exactly the precision the source gave it — "2003" if the source names only a year, "March
+    2003" if the source names a month too. **The same-form rule above governs how a date is
+    written, never whether it has a month, and can never license inventing one** to match the
+    CV's other roles: a year-only start stays year-only even when every other role prints "Month
+    YYYY". This keeps the role's place in the newest-first order. Never invent "Present" for it,
+    never write "Since 2003" or "From 2003", and never leave `dates` empty — a known start with
+    an unconfirmed end is a start-only date, not a dateless entry. Print the honest coarse date
+    and nothing else: never add a note, caveat, or placeholder about the missing end date — that
+    belongs on the candidate's master CV, never on a tailored one.
 
 Output shape (JSON only, no prose):
 
@@ -92,13 +115,13 @@ Output shape (JSON only, no prose):
   "name": "…",
   "headline": "one line positioning the candidate for THIS posting, grounded in claims",
   "contact": "city · phone · email — only parts present in the header",
-  "summary": "…",
+  "summary": "… (or \"\" — see rule 10; empty is correct when nothing earns the section a place)",
   "experience": [
     {
       "role": "job title as written",
       "employer": "…",
       "location": "city, country if stated, else empty",
-      "dates": "claim dates, reformatted per rule 13 — never a month the source lacks",
+      "dates": "claim dates, reformatted per rule 13 — start alone when the end is unknown",
       "bullets": [{ "text": "…", "claimIds": ["…"] }],
       "unprinted": ["claim id of a candidate bullet that did not make the cut, if any"]
     }

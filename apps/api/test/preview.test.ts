@@ -58,6 +58,10 @@ async function recordedClaims(): Promise<CandidateClaims> {
   );
 }
 
+async function promptText(): Promise<string> {
+  return readFile(join(fixtures, "..", "prompts", "preview-tailor.md"), "utf8");
+}
+
 function llmReturning(json: unknown): LlmClient {
   return { complete: async () => JSON.stringify(json) };
 }
@@ -455,10 +459,6 @@ describe("Draft schema — bullet spend rail, no floor, claim provenance (#158)"
 });
 
 describe("tailor prompt pins the #153 decisions (#158 falsifiable check)", () => {
-  async function promptText(): Promise<string> {
-    return readFile(join(fixtures, "..", "prompts", "preview-tailor.md"), "utf8");
-  }
-
   it("states the spend ladder and the rail of 10, with no per-role cap other than 10", async () => {
     const prompt = await promptText();
     expect(prompt).toContain("first call");
@@ -497,6 +497,142 @@ describe("tailor prompt pins the #153 decisions (#158 falsifiable check)", () =>
   it("states the two-page budget as a maximum, matching cv-brain wording", async () => {
     const prompt = await promptText();
     expect(prompt).toContain("two pages maximum");
+  });
+});
+
+// #159: coarse/unknown dates print a start-only date (never "Present"), the summary prints only
+// when it earns its place (no word cap), and nationality becomes a print-by-default rather than a
+// conservation rule. cv-authoring-rules.md ("Coarse and unknown dates", "Professional Summary")
+// is the normative spec these rules implement; see also ADR-0007's rule-6 consequence.
+describe("#159 tailor prompt — coarse dates, summary earns its place, nationality by default", () => {
+  it("instructs a start-only date when a role's end is unstated and not confirmed current", async () => {
+    const prompt = await promptText();
+    expect(prompt).toContain("renders its start alone");
+    expect(prompt).toContain('Never invent "Present"');
+    expect(prompt).toContain('"Since 2003"');
+    expect(prompt).toContain('"From 2003"');
+  });
+
+  // Code review must-fix 2: the start-alone clause offered "2003" or "March 2003" with no tie to
+  // source precision, sitting inside a rule that demands the SAME date form for every role — so
+  // the model could "helpfully" invent a month on a year-only role to match the rest of the CV.
+  it("ties start-only precision to the source, never to the CV's other roles' form", async () => {
+    const prompt = await promptText();
+    expect(prompt).toContain("exactly the precision the source gave it");
+    expect(prompt).toContain("can never license inventing one");
+    expect(prompt).toContain(
+      "a year-only start stays year-only even when every other role prints",
+    );
+  });
+
+  it("forbids a dateless entry and any note about the missing end date on the tailored CV", async () => {
+    const prompt = await promptText();
+    expect(prompt).toContain("never leave `dates` empty");
+    expect(prompt).toContain("start-only date, not a dateless entry");
+    expect(prompt).toContain("never add a note, caveat, or placeholder");
+  });
+
+  it("has no word cap on the summary rule specifically, and allows an empty one when nothing earns it a place", async () => {
+    const prompt = await promptText();
+    // Scoped to rule 10's own paragraph (code review take-if-cheap) — a whole-file scan would
+    // also redden on an unrelated future word count elsewhere (e.g. a bullet-length rule).
+    const rule10 = prompt.slice(prompt.indexOf("10. **Summary prints"), prompt.indexOf("## Writing style"));
+    expect(rule10).not.toMatch(/\d+\s*words/i);
+    expect(rule10).toContain("prints only when it earns its place");
+    expect(rule10).toContain('"summary": ""');
+  });
+
+  it("orders the summary achievement first and bans the identity opener and capability claims", async () => {
+    const prompt = await promptText();
+    expect(prompt).toContain("the achievement first");
+    expect(prompt).toContain("never displaces the achievement");
+    expect(prompt).toContain("identity opener");
+    expect(prompt).toContain("capability claims");
+    expect(prompt).toContain("proven ability to");
+  });
+
+  it("keeps languages as a conservation rule but reframes nationality as a print-by-default", async () => {
+    const prompt = await promptText();
+    expect(prompt).toContain("Never drop them — a conservation rule");
+    expect(prompt).toContain("print in `additional` by default");
+    expect(prompt).not.toContain("Languages, nationality, and similar profile facts");
+  });
+});
+
+describe("#159 summary prints only when it earns its place — schema + render", () => {
+  it("Draft accepts an empty summary (nothing earned it a place)", () => {
+    expect(() => Draft.parse({ ...sampleDraft, summary: "" })).not.toThrow();
+  });
+
+  // Code review must-fix 1 (both review axes): z.string().default("") also accepted an ABSENT
+  // key, so a truncated/retried tailor response that drops "summary" entirely parsed clean and
+  // shipped byte-identical to a deliberate omission. Only "" is a deliberate omission; a missing
+  // key must still fail parse and drive the retry.
+  it("Draft rejects a MISSING summary key — a dropped key must retry, never silently vanish", () => {
+    const { summary: _summary, ...withoutSummary } = sampleDraft;
+    expect(() => Draft.parse(withoutSummary)).toThrow();
+  });
+
+  it("tailorDraft retries when the response is missing the summary key entirely", async () => {
+    const { summary: _summary, ...withoutSummary } = sampleDraft;
+    let calls = 0;
+    const llm = {
+      complete: async () => {
+        calls++;
+        return JSON.stringify(calls === 1 ? withoutSummary : sampleDraft);
+      },
+    };
+    const draft = await tailorDraft(await recordedClaims(), matchPosting([]), llm);
+    expect(calls).toBe(2);
+    expect(draft.summary).toBe(sampleDraft.summary);
+  });
+
+  it("omits the Professional Summary heading entirely when summary is empty — never a heading with nothing under it", () => {
+    const html = renderPreviewHtml({ ...sampleDraft, summary: "" }, matchPosting([]));
+    expect(html).not.toContain("<h2>Professional Summary</h2>");
+  });
+
+  it("treats a whitespace-only summary as absent too", () => {
+    const html = renderPreviewHtml({ ...sampleDraft, summary: "   " }, matchPosting([]));
+    expect(html).not.toContain("<h2>Professional Summary</h2>");
+  });
+
+  it("still renders the Professional Summary heading and text when a summary is present", () => {
+    const html = renderPreviewHtml(sampleDraft, matchPosting([]));
+    expect(html).toContain("<h2>Professional Summary</h2>");
+    expect(html).toContain(sampleDraft.summary);
+  });
+});
+
+describe("#159 header — left-aligned, two-line, no filler (BINDING DESIGN #157 item 1 variant C)", () => {
+  it("left-aligns the name instead of centering it", () => {
+    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { watermark: false });
+    // Whitespace-tolerant (code review take-if-cheap): a harmless "h1{" -> "h1 {" reformat must
+    // not redden this, only an actual alignment regression should.
+    expect(html).toMatch(/h1\s*\{[^}]*text-align:\s*left/);
+    expect(html).not.toMatch(/h1\s*\{[^}]*text-align:\s*center/);
+  });
+
+  it("folds the headline and contact onto one line, joined by a dash, not a pipe", () => {
+    const html = renderPreviewHtml(sampleDraft, matchPosting([]), { watermark: false });
+    expect(html).toContain(
+      `<span class="role-word">${sampleDraft.headline}</span> - ${sampleDraft.contact}`,
+    );
+    expect(html).not.toContain('<p class="contact">');
+  });
+
+  // Code review must-fix 5: renderPreviewHtml() emits exactly one <h1> and one
+  // <p class="headline"> for every draft regardless of summary state, so counting them can never
+  // fail — it duplicated the schema+render block's own omission test without adding coverage.
+  // This instead checks the actual adjacency: with no summary, the header runs straight into the
+  // next section with nothing between them — a real filler block, or a regression to the old
+  // 3-line header, would break this exact substring.
+  it("adds no filler block when the summary is absent — header runs straight into Experience", () => {
+    const html = renderPreviewHtml({ ...sampleDraft, summary: "" }, matchPosting([]), {
+      watermark: false,
+    });
+    expect(html).toContain("</p>\n\n<h2>Professional Experience</h2>");
+    expect(html).not.toContain("<h2>Professional Summary</h2>");
   });
 });
 
