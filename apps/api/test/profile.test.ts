@@ -90,6 +90,7 @@ interface ProfileFact {
   colour: "gold" | "grey";
   source: "told" | "read";
   job: string | null;
+  answerOnly?: true;
 }
 interface ProfileContactField {
   value: string;
@@ -533,6 +534,70 @@ describe("#20 profile screen — the colour law over HTTP", () => {
 
       const { languagesQuestion } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
       expect(languagesQuestion.answer).toBeNull();
+    });
+  });
+
+  // #193: a stored languages answer with zero CV language claims had no editing door anywhere — the
+  // Languages section only drew for CV-mined language claims, so an answer-only person's languages
+  // were invisible AND unfixable. Fix: the SAME "lang" bucket the CV-claim path fills also composes
+  // from `languagesQuestion.answer` when there is no CV-claim bucket to fill it.
+  describe("#193: answer-only Languages section", () => {
+    it("a stored answer with zero CV language claims draws a Languages section of kept chips, person-said", async () => {
+      const server = buildServer();
+      const cookie = await anonSession(server.app);
+      await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
+      const before = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      const [english, mandarin] = before.languagesQuestion.options;
+
+      await post(server.app, cookie, "/onboarding/discovery/answer", {
+        itemId: before.languagesQuestion.questionId,
+        answers: [english, mandarin],
+      });
+      const after = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+
+      const langDomain = after.domains.find((d) => d.tag === "lang");
+      expect(langDomain?.heading).toBe("Languages");
+      expect(langDomain?.facts).toEqual([
+        { id: expect.any(String), text: english, colour: "grey", source: "told", job: null, answerOnly: true },
+        { id: expect.any(String), text: mandarin, colour: "grey", source: "told", job: null, answerOnly: true },
+      ]);
+      expect(after.languagesQuestion.answer).toEqual([english, mandarin]);
+    });
+
+    it("CV language claims present: the Languages section still composes from the claims only, unchanged by a stored answer", async () => {
+      const claims: CandidateClaim[] = [
+        claim({ id: "acme-led-migration" }),
+        claim({ id: "lang-fluent", role: "profile", text: "Fluent in English and Mandarin." }),
+      ];
+      const server = buildServer({ pipeline: { mine: async () => ({ doc: null, claims, roles: 1, needsGrill: 0 }) } });
+      const cookie = await anonSession(server.app);
+      await signIn(server.app, cookie, "e2e-lang-both@example.com");
+      const jobId = await mineAndGetJob(server, cookie);
+      await post(server.app, cookie, "/onboarding/deck", { jobId });
+      await post(server.app, cookie, "/onboarding/claims/lang-fluent/confirm");
+
+      await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
+      const before = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      const [english, mandarin] = before.languagesQuestion.options;
+      await post(server.app, cookie, "/onboarding/discovery/answer", {
+        itemId: before.languagesQuestion.questionId,
+        answers: [english, mandarin],
+      });
+
+      const after = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      const langDomains = after.domains.filter((d) => d.tag === "lang");
+      expect(langDomains).toHaveLength(1);
+      expect(langDomains[0].facts).toEqual([
+        { id: "lang-fluent", text: "Fluent in English and Mandarin.", colour: expect.any(String), source: "read", job: null },
+      ]);
+      expect(langDomains[0].facts[0].answerOnly).toBeUndefined();
+    });
+
+    it("neither a CV language claim nor a stored answer: no Languages section", async () => {
+      const server = buildServer();
+      const cookie = await anonSession(server.app);
+      const { domains } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      expect(domains.find((d) => d.tag === "lang")).toBeUndefined();
     });
   });
 

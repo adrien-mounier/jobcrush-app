@@ -244,6 +244,10 @@ function FactRow({
 
 // #186 A4 — a word fact as a compact chip (skill / cert / lang domains). Opens the same detail as a
 // row, via the same onOpenFact handler — no second mechanism.
+// #193 B3 — a language answer synthesised server-side (`answerOnly: true`, the API's own pinned
+// field — never derived client-side from `id` shape) carries no CV-mined detail behind it: it
+// renders as the same kept-coloured chip but inert (no click, no detail sheet) rather than opening
+// an empty/misleading DetailBody.
 function ChipButton({
   fact,
   tag,
@@ -253,6 +257,9 @@ function ChipButton({
   tag: string;
   onOpenFact: (fact: ProfileFact, tag: string) => void;
 }) {
+  if (fact.answerOnly) {
+    return <span className={`fact ${fact.colour} inert`}>{chipText(fact.text)}</span>;
+  }
   return (
     <button
       type="button"
@@ -302,13 +309,10 @@ function ChipGroup({
 // value in payload order; `job === null` facts form one leading, unheaded block. Inside a block:
 // gold rows (payload order), the kept caption (if ≥1 grey), then grey rows (payload order) — the
 // only reordering this screen permits, and it never pools across blocks.
-function ExperienceBody({
-  domain,
-  onOpenFact,
-}: {
-  domain: ProfileDomain;
-  onOpenFact: (fact: ProfileFact, tag: string) => void;
-}) {
+// #187 A4 — one derivation of Professional Experience's job blocks, shared by the list
+// (ExperienceBody) and the constellation (buildSky). Block order = first appearance of each `job`
+// value in payload order; `job === null` facts form one leading, unheaded block.
+function jobBlocks(domain: ProfileDomain): Array<{ job: string | null; facts: ProfileFact[] }> {
   const nullFacts = domain.facts.filter((f) => f.job === null);
   const namedFacts = domain.facts.filter((f) => f.job !== null);
   const jobOrder: string[] = [];
@@ -318,6 +322,17 @@ function ExperienceBody({
   const blocks: Array<{ job: string | null; facts: ProfileFact[] }> = [];
   if (nullFacts.length > 0) blocks.push({ job: null, facts: nullFacts });
   for (const job of jobOrder) blocks.push({ job, facts: namedFacts.filter((f) => f.job === job) });
+  return blocks;
+}
+
+function ExperienceBody({
+  domain,
+  onOpenFact,
+}: {
+  domain: ProfileDomain;
+  onOpenFact: (fact: ProfileFact, tag: string) => void;
+}) {
+  const blocks = jobBlocks(domain);
 
   return (
     <>
@@ -1869,52 +1884,123 @@ interface SkyNode {
   ph: number;
   sp: number;
   linked: number[]; // indices into the flat node array — nearest already-placed sibling(s)
+  clusterIdx: number | null; // #187 A6 — the owning "job" cluster (for label reveal); null elsewhere
 }
 
-function buildSky(domains: ProfileDomain[]): SkyNode[] {
+// #187 A1/A5/A6 — one geometry source. `draw()` reads `clusters` for labels and never recomputes the
+// section/sub-cluster math inline (that duplication was the live drift bug this ticket fixes).
+interface SkyCluster {
+  kind: "section" | "job";
+  label: string; // domain.heading, or fact.job verbatim (#186: never parsed)
+  cx: number;
+  cy: number;
+  spread: number;
+  angle: number;
+  parent: number | null; // index of the owning section cluster, for a "job" cluster
+  nodeIdx: number[];
+}
+
+const FLOOR = 0.04; // #187 A3 — every drawn section keeps a visible foothold, however few its facts
+
+function placeBlock(
+  nodes: SkyNode[],
+  clusters: SkyCluster[],
+  facts: ProfileFact[],
+  cx: number,
+  cy: number,
+  spread: number,
+  tag: string,
+  secIdx: number,
+  clusterIdx: number | null,
+) {
+  const m = facts.length;
+  const start = nodes.length;
+  facts.forEach((fact, j) => {
+    const r = spread * Math.sqrt((j + 0.6) / m);
+    const theta = j * 2.399963;
+    const nx = cx + Math.cos(theta) * r;
+    const ny = cy + Math.sin(theta) * r;
+    const flatIdx = nodes.length; // #187 A4 — flat index, not the per-block j, so drift stays varied
+    const depth = 0.45 + (((flatIdx * 37 + secIdx * 71) % 100) / 100) * 0.55;
+    const ph = flatIdx * 1.7 + secIdx;
+    const sp = 0.7 + (((flatIdx * 53 + secIdx * 17) % 100) / 100) * 0.6;
+    // ponytail: O(m²) nearest-sibling scan, confined to this block (#187 A4) — fine at m <= 200
+    // (design-20-profile-screen.md §5); upgrade to a spatial grid if a block ever grows past that.
+    let nearest = -1;
+    let best = Infinity;
+    for (let p = 0; p < j; p++) {
+      const other = nodes[start + p];
+      const dx = other.nx - nx;
+      const dy = other.ny - ny;
+      const dist = dx * dx + dy * dy;
+      if (dist < best) {
+        best = dist;
+        nearest = start + p;
+      }
+    }
+    const idx = nodes.length;
+    const node: SkyNode = { fact, domainIndex: secIdx, tag, nx, ny, depth, ph, sp, linked: [], clusterIdx };
+    if (nearest >= 0) {
+      node.linked.push(nearest);
+      nodes[nearest].linked.push(idx);
+    }
+    nodes.push(node);
+    clusters[secIdx].nodeIdx.push(idx);
+    if (clusterIdx !== null && clusterIdx !== secIdx) clusters[clusterIdx].nodeIdx.push(idx);
+  });
+}
+
+function buildSky(domains: ProfileDomain[]): { nodes: SkyNode[]; clusters: SkyCluster[] } {
   const nodes: SkyNode[] = [];
-  const k = domains.length;
-  domains.forEach((d, i) => {
+  const clusters: SkyCluster[] = [];
+  // #187 A2 — empty sections get no sky at all: no cluster, no wedge, no label, no shifted angle.
+  const drawn = domains.filter((d) => d.facts.length > 0);
+  const k = drawn.length;
+  const W = drawn.reduce((s, d) => s + d.facts.length, 0) || 1;
+
+  let cum = 0;
+  drawn.forEach((d) => {
+    const facts_i = d.facts.length;
+    const raw = facts_i / W;
+    // #187 A3 — share-driven wedge with the FLOOR so a 1-fact section still gets a visible foothold
+    // and never collides with its neighbour (its own max spread shrinks with its share).
+    const share = (raw + FLOOR) / (1 + k * FLOOR);
+    const a = -Math.PI / 2 + 2 * Math.PI * (cum + share / 2);
+    cum += share;
     const R = k <= 2 ? 17 : 34;
-    const a = (i / k) * 2 * Math.PI - Math.PI / 2;
     const cx = 60 + Math.cos(a) * R;
     const cy = 60 + Math.sin(a) * R * 0.94;
-    const m = d.facts.length;
-    const maxSpr = k < 3 ? 18 : Math.min(19, R * Math.sin(Math.PI / k) * 0.9);
-    const spread = Math.min(maxSpr, 3.4 + Math.sqrt(m) * 2.6);
-    const domainStart = nodes.length;
-    d.facts.forEach((fact, j) => {
-      const r = spread * Math.sqrt((j + 0.6) / m);
-      const theta = j * 2.399963;
-      const nx = cx + Math.cos(theta) * r;
-      const ny = cy + Math.sin(theta) * r;
-      const depth = 0.45 + (((j * 37 + i * 71) % 100) / 100) * 0.55;
-      const ph = j * 1.7 + i;
-      const sp = 0.7 + (((j * 53 + i * 17) % 100) / 100) * 0.6;
-      // ponytail: O(m²) nearest-sibling scan — fine at m <= 200 (design-20-profile-screen.md §5);
-      // upgrade to a spatial grid if a domain ever grows past that.
-      let nearest = -1;
-      let best = Infinity;
-      for (let p = 0; p < j; p++) {
-        const other = nodes[domainStart + p];
-        const dx = other.nx - nx;
-        const dy = other.ny - ny;
-        const dist = dx * dx + dy * dy;
-        if (dist < best) {
-          best = dist;
-          nearest = domainStart + p;
+    const maxSpr = k < 3 ? 18 : Math.min(19, R * Math.sin(Math.PI * share) * 0.9);
+    const spread = Math.min(maxSpr, 3.4 + Math.sqrt(facts_i) * 2.6);
+
+    const secIdx = clusters.length;
+    clusters.push({ kind: "section", label: d.heading, cx, cy, spread, angle: a, parent: null, nodeIdx: [] });
+
+    if (d.tag === "experience") {
+      // #187 A4 — per-job sub-constellations, exactly ExperienceBody's block rule.
+      const blocks = jobBlocks(d);
+      const B = blocks.length;
+      blocks.forEach((block, b) => {
+        const m_b = block.facts.length;
+        const subR = B === 1 ? 0 : spread * 0.52;
+        const beta = a + Math.PI + ((b + 0.5) / B) * 2 * Math.PI; // +π: no sub-cluster under the section label
+        const subCx = cx + Math.cos(beta) * subR;
+        const subCy = cy + Math.sin(beta) * subR * 0.94;
+        const subSpr = Math.min(spread * 0.42, 1.8 + Math.sqrt(m_b) * 1.5);
+
+        let jobIdx: number | null = null;
+        if (block.job !== null) {
+          jobIdx = clusters.length;
+          clusters.push({ kind: "job", label: block.job, cx: subCx, cy: subCy, spread: subSpr, angle: beta, parent: secIdx, nodeIdx: [] });
         }
-      }
-      const idx = nodes.length;
-      const node: SkyNode = { fact, domainIndex: i, tag: d.tag, nx, ny, depth, ph, sp, linked: [] };
-      if (nearest >= 0) {
-        node.linked.push(nearest);
-        nodes[nearest].linked.push(idx);
-      }
-      nodes.push(node);
-    });
+        placeBlock(nodes, clusters, block.facts, subCx, subCy, subSpr, d.tag, secIdx, jobIdx);
+      });
+    } else {
+      placeBlock(nodes, clusters, d.facts, cx, cy, spread, d.tag, secIdx, null);
+    }
   });
-  return nodes;
+
+  return { nodes, clusters };
 }
 
 function Constellation({
@@ -1931,6 +2017,8 @@ function Constellation({
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nodesRef = useRef<SkyNode[]>([]);
+  const clustersRef = useRef<SkyCluster[]>([]);
+  const labelCacheRef = useRef<Map<number, { s: number; text: string }>>(new Map());
   const spritesRef = useRef<{ gold: HTMLCanvasElement; grey: HTMLCanvasElement } | null>(null);
   const rafRef = useRef<number | null>(null);
   const hoveredRef = useRef<number | null>(null);
@@ -1938,13 +2026,21 @@ function Constellation({
   const t0Ref = useRef(0);
   const geomRef = useRef({ s: 1, sy: 1, ox: 0, oy: 0, usable: 0, w: 0, h: 0 });
   const [geom, setGeom] = useState(() => geomRef.current);
-  const nodes = useMemo(() => buildSky(domains), [domains]);
+  const sky = useMemo(() => buildSky(domains), [domains]);
+  const nodes = sky.nodes;
 
   useEffect(() => {
-    nodesRef.current = nodes;
+    nodesRef.current = sky.nodes;
+    clustersRef.current = sky.clusters;
+    labelCacheRef.current = new Map();
     hoveredRef.current = null;
     selIndexRef.current = null;
-  }, [nodes]);
+  }, [sky]);
+
+  // #187 A6 — closing the fact sheet clears the tap-driven reveal (selected comes from the parent).
+  useEffect(() => {
+    if (selected === null) selIndexRef.current = null;
+  }, [selected]);
 
   // Bloom sprites, baked once (§5) — the low-power path: never a live createRadialGradient per node.
   useEffect(() => {
@@ -2117,23 +2213,62 @@ function Constellation({
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
 
-      // (4) cluster labels
+      // (4) cluster labels — #187 A1/A5: geometry comes from `clusters`, the one geometry source;
+      // draw() never recomputes it inline (the fix for the old live-drift bug).
+      const { s, sy, ox, oy } = geomRef.current;
+      const clustersNow = clustersRef.current;
+      const hotClusterIdx = hotIndex !== null ? nodesRef.current[hotIndex]?.clusterIdx ?? null : null;
+      // #187 A6 — every drawn star, across every domain (an answer-only Languages chip is a real
+      // fact the API sent us, so it is a star and counts here too — the count law is "every fact
+      // in a domain we drew", not a filtered subset).
+      const total = nodesRef.current.length;
+      const employersVisible = total <= 40;
+
       ctx.font = "9.5px var(--mono, monospace)";
       ctx.fillStyle = "rgba(151,170,188,0.62)";
-      const k = domains.length;
-      domains.forEach((d, i) => {
-        const R = k <= 2 ? 17 : 34;
-        const a = (i / k) * 2 * Math.PI - Math.PI / 2;
-        const cx = 60 + Math.cos(a) * R;
-        const cy = 60 + Math.sin(a) * R * 0.94;
-        const m = d.facts.length;
-        const maxSpr = k < 3 ? 18 : Math.min(19, R * Math.sin(Math.PI / k) * 0.9);
-        const spread = Math.min(maxSpr, 3.4 + Math.sqrt(m) * 2.6);
-        const lx = cx + Math.cos(a) * (spread + 7);
-        const ly = cy + Math.sin(a) * (spread + 7) + 1.2;
-        const { s, sy, ox, oy } = geomRef.current;
-        ctx.textAlign = Math.cos(a) > 0.4 ? "left" : Math.cos(a) < -0.4 ? "right" : "center";
-        ctx.fillText(d.heading, ox + lx * s, oy + ly * sy);
+      clustersNow.forEach((c) => {
+        if (c.kind !== "section") return;
+        const lx = c.cx + Math.cos(c.angle) * (c.spread + 7);
+        const ly = c.cy + Math.sin(c.angle) * (c.spread + 7) + 1.2;
+        ctx.textAlign = Math.cos(c.angle) > 0.4 ? "left" : Math.cos(c.angle) < -0.4 ? "right" : "center";
+        ctx.fillText(c.label, ox + lx * s, oy + ly * sy);
+      });
+
+      // #187 A5/A6 — employer labels: hidden past 40 facts unless their job is the hot cluster
+      // (hover on desktop, tap on touch — one derivation, `hotIndex` above). Width-truncated only,
+      // `fact.job` is never parsed. Drawn in cluster order, skipping on collision with an
+      // already-drawn box — the label is still reachable by reveal even when skipped here.
+      ctx.font = "9px var(--mono, monospace)";
+      ctx.textAlign = "center";
+      const maxLabelPx = 26 * s;
+      const boxes: Array<{ x0: number; x1: number; y0: number; y1: number }> = [];
+      clustersNow.forEach((c, ci) => {
+        if (c.kind !== "job" || !c.label) return;
+        const revealed = hotClusterIdx === ci;
+        if (!employersVisible && !revealed) return;
+        const cached = labelCacheRef.current.get(ci);
+        let text: string;
+        if (cached && cached.s === s) {
+          text = cached.text;
+        } else {
+          text = c.label;
+          if (ctx.measureText(text).width > maxLabelPx) {
+            while (text.length > 1 && ctx.measureText(`${text}…`).width > maxLabelPx) {
+              text = text.slice(0, -1);
+            }
+            text = `${text}…`;
+          }
+          labelCacheRef.current.set(ci, { s, text });
+        }
+        const lpx = ox + c.cx * s;
+        const lpy = oy + (c.cy + c.spread + 4.5) * sy;
+        const tw = ctx.measureText(text).width;
+        const box = { x0: lpx - tw / 2, x1: lpx + tw / 2, y0: lpy - 8, y1: lpy + 3 };
+        const overlaps = boxes.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
+        if (overlaps) return;
+        boxes.push(box);
+        ctx.fillStyle = revealed ? "rgba(184,199,213,0.9)" : "rgba(151,170,188,0.42)";
+        ctx.fillText(text, lpx, lpy);
       });
 
       // (5) hover tooltip
@@ -2222,7 +2357,11 @@ function Constellation({
               <button
                 type="button"
                 className={`star ${node.fact.colour}${selected?.fact.id === node.fact.id ? " active" : ""}`}
-                aria-label={`${node.fact.text} — ${node.fact.colour === "gold" ? P21 : P22}`}
+                aria-label={
+                  node.fact.job !== null
+                    ? `${node.fact.job} — ${node.fact.text} — ${node.fact.colour === "gold" ? P21 : P22}`
+                    : `${node.fact.text} — ${node.fact.colour === "gold" ? P21 : P22}`
+                }
                 onFocus={() => chooseNode(i)}
                 onPointerEnter={() => {
                   hoveredRef.current = i;

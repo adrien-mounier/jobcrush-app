@@ -402,6 +402,17 @@
 .profile .fact:active {
   transform: scale(0.96);
 }
+/* #193 B3 — answer-only language chips: same .fact.grey visual, but not tappable (no detail behind
+   them). Explicitly cancel the hover/active affordances rather than relying on cursor alone. */
+.profile .fact.inert {
+  cursor: default;
+}
+.profile .fact.inert:hover {
+  border-color: #2b333d;
+}
+.profile .fact.inert:active {
+  transform: none;
+}
 .profile .dnote {
   margin: 14px 0 0;
   font-size: 11px;

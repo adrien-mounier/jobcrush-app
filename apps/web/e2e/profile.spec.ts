@@ -1506,3 +1506,273 @@ test("#188 AC7: no in-place editing — the section shows plain values and doors
   await expect(loc.getByText("Ask me later")).toBeVisible();
   await expect(loc.getByRole("button", { name: "Change this answer" })).toBeVisible();
 });
+
+// ---------- #187 the weighted constellation with job sub-clusters ----------
+
+function bbox(points: Array<{ x: number; y: number }>) {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+}
+
+async function starPositions(page: Page): Promise<Array<{ x: number; y: number }>> {
+  const lis = page.locator(".skylist li");
+  const count = await lis.count();
+  const points: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i < count; i++) {
+    const style = (await lis.nth(i).getAttribute("style")) ?? "";
+    const mx = /left:\s*([\d.]+)px/.exec(style);
+    const my = /top:\s*([\d.]+)px/.exec(style);
+    if (mx && my) points.push({ x: parseFloat(mx[1]), y: parseFloat(my[1]) });
+  }
+  return points;
+}
+
+test("#187 AC1: a bigger section's stars spread over noticeably more sky than a small section's", async ({ page }) => {
+  await stubSession(page);
+  function fact(id: string, i: number): Fact {
+    return { id, text: `Fact ${i}.`, colour: i % 3 === 0 ? "gold" : "grey", source: "told", job: null };
+  }
+  const state: ProfileState = {
+    ...PROFILE,
+    // Skills (12 facts) vs Certifications (3): non-experience tags on purpose — Experience routes
+    // every star through A4's per-job sub-clustering, which deliberately compresses its own spread
+    // (a tight single-job cluster reads correctly small even in a big section), so it is the wrong
+    // domain to prove A3's per-section weighting with. Skills/Certifications place stars straight
+    // off the section's own `spread`, which is what A3 actually re-weights.
+    domains: [
+      { tag: "skill", heading: "Skills", facts: Array.from({ length: 12 }, (_, i) => fact(`e${i}`, i)) },
+      { tag: "cert", heading: "Certifications", facts: Array.from({ length: 3 }, (_, i) => fact(`s${i}`, i)) },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+  await page.getByRole("button", { name: "Constellation" }).click();
+  await expect(page.locator(".skylist li")).toHaveCount(15);
+
+  const all = await starPositions(page);
+  const bigBox = bbox(all.slice(0, 12)); // Skills' 12 stars, payload order
+  const smallBox = bbox(all.slice(12, 15)); // Certifications' 3 stars
+  expect(Math.max(bigBox.w, bigBox.h)).toBeGreaterThan(Math.max(smallBox.w, smallBox.h) * 1.3);
+});
+
+test("#187 AC2: two jobs render as separate sub-clusters, each star's accessible name carrying its own job", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const jobA = "IT Project Manager · Veolia";
+  const jobB = "Senior Consultant · Capgemini";
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      {
+        tag: "experience",
+        heading: "Professional Experience",
+        facts: [
+          { id: "a1", text: "Coordinated vendor contracts across three markets.", colour: "grey", source: "told", job: jobA },
+          { id: "a2", text: "Ran the go-live cutover.", colour: "gold", source: "told", job: jobA },
+          { id: "b1", text: "Delivered a SAP rollout across three sites.", colour: "gold", source: "told", job: jobB },
+        ],
+      },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+  await page.getByRole("button", { name: "Constellation" }).click();
+
+  const stars = page.locator(".skylist button");
+  await expect(stars).toHaveCount(3);
+  await expect(stars.nth(0)).toHaveAttribute("aria-label", new RegExp(`^${jobA.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} — `));
+  await expect(stars.nth(1)).toHaveAttribute("aria-label", new RegExp(`^${jobA.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} — `));
+  await expect(stars.nth(2)).toHaveAttribute("aria-label", new RegExp(`^${jobB.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} — `));
+});
+
+test("#187 AC5: tapping a star in Constellation opens the same fact detail as the list (said vs read, kept caption)", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      {
+        tag: "experience",
+        heading: "Professional Experience",
+        facts: [{ id: "e1", text: "Owned a seven-figure vendor budget.", colour: "grey", source: "read", job: null }],
+      },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+  await page.getByRole("button", { name: "Constellation" }).click();
+  await page.locator(".skylist button").first().click();
+
+  const sheet = page.locator(".sheet.in");
+  await expect(sheet).toContainText("Owned a seven-figure vendor budget.");
+  await expect(sheet).toContainText("Read from your CV."); // #186 P25 — the said-vs-read line
+  await expect(sheet).toContainText("Left out for space — it swaps in when a job needs it"); // experience's kept caption
+});
+
+test("#187 AC4: colour comes only from the payload — no client-side re-derivation of gold", async ({ page }) => {
+  await stubSession(page);
+  // Two facts, same job and same domain (tag/job cannot distinguish them) — the payload's own
+  // `colour` field is the ONLY thing that may differ their rendered colour.
+  const job = "Senior Consultant · Capgemini";
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      {
+        tag: "experience",
+        heading: "Professional Experience",
+        facts: [
+          { id: "g1", text: "Delivered a SAP rollout.", colour: "grey", source: "told", job },
+          { id: "g2", text: "Ran the go-live cutover.", colour: "gold", source: "told", job },
+        ],
+      },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+  await page.getByRole("button", { name: "Constellation" }).click();
+
+  const stars = page.locator(".skylist button");
+  await expect(stars.nth(0)).toHaveClass(/\bgrey\b/);
+  await expect(stars.nth(1)).toHaveClass(/\bgold\b/);
+});
+
+async function opaquePixelCount(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const canvas = document.querySelector(".sky canvas") as HTMLCanvasElement;
+    const ctx = canvas.getContext("2d")!;
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let count = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 10) count++;
+    return count;
+  });
+}
+
+function jobFacts(n: number, job: string): Fact[] {
+  return Array.from({ length: n }, (_, i) => ({
+    id: `f${i}`,
+    text: `Delivered item ${i}.`,
+    colour: i % 2 === 0 ? "gold" : "grey",
+    source: "told",
+    job,
+  }));
+}
+
+test("#187 AC3: 40 or fewer facts shows the employer label without any hover", async ({ page }) => {
+  await stubSession(page);
+  const withJob: ProfileState = {
+    ...PROFILE,
+    domains: [{ tag: "experience", heading: "Professional Experience", facts: jobFacts(5, "Senior Consultant · Capgemini") }],
+  };
+  await stubProfile(page, withJob);
+  await page.goto("/profile");
+  await page.getByRole("button", { name: "Constellation" }).click();
+  await page.waitForTimeout(200);
+  const withJobCount = await opaquePixelCount(page);
+
+  // Control: the same five facts with no job at all — never gets an employer label to draw, so this
+  // is the "no label" baseline the labelled fixture above is compared against.
+  const noJob: ProfileState = {
+    ...PROFILE,
+    domains: [{ tag: "experience", heading: "Professional Experience", facts: jobFacts(5, "").map((f) => ({ ...f, job: null })) }],
+  };
+  await stubProfile(page, noJob);
+  await page.goto("/profile");
+  await page.getByRole("button", { name: "Constellation" }).click();
+  await page.waitForTimeout(200);
+  const noJobCount = await opaquePixelCount(page);
+
+  // The labelled fixture paints meaningfully more opaque pixels at rest (≤40 facts, so the ticket
+  // says the label shows without any interaction) — the extra pixels are the employer label's glyphs.
+  expect(withJobCount).toBeGreaterThan(noJobCount + 40);
+});
+
+test("#187 AC3: more than 40 facts hides the employer label until hover, then it reappears", async ({ page }) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [{ tag: "experience", heading: "Professional Experience", facts: jobFacts(45, "Senior Consultant · Capgemini") }],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+  await page.getByRole("button", { name: "Constellation" }).click();
+  await page.waitForTimeout(200);
+  const restCount = await opaquePixelCount(page);
+
+  await page.locator(".skylist button").first().hover({ force: true }); // dense sky: overlapping stars intercept a strict hover
+  await page.waitForTimeout(200);
+  const hoveredCount = await opaquePixelCount(page);
+  expect(hoveredCount).toBeGreaterThan(restCount + 40); // the label appears
+
+  await page.mouse.move(2, 2); // away from every star
+  await page.waitForTimeout(200);
+  const afterCount = await opaquePixelCount(page);
+  expect(afterCount).toBeLessThan(hoveredCount - 20); // the label goes away again
+});
+
+// ---------- #193 a stored languages answer with zero CV claims ----------
+
+test("#193: an answer-only language chip renders kept-coloured but inert — no click, no detail sheet", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      ...PROFILE.domains,
+      {
+        tag: "lang",
+        heading: "Languages",
+        facts: [
+          { id: "lang-answer-mandarin", text: "Mandarin", colour: "grey", source: "told", job: null, answerOnly: true },
+          { id: "lang-answer-cantonese", text: "Cantonese", colour: "grey", source: "told", job: null, answerOnly: true },
+        ],
+      },
+    ],
+    languagesQuestion: { ...LANGUAGES_QUESTION, answer: ["Mandarin", "Cantonese"] },
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  const chips = page.locator(".fact.inert");
+  await expect(chips).toHaveCount(2);
+  await expect(chips.nth(0)).toHaveText("Mandarin");
+  // Inert: a <span>, not a <button> — nothing to focus or click, so no detail sheet can open.
+  await expect(chips.first()).not.toHaveJSProperty("tagName", "BUTTON");
+  await chips.first().click({ force: true });
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
+
+  // The languages door still exists exactly once, pre-filled from the answer.
+  await expect(page.getByRole("button", { name: "Change your languages" })).toHaveCount(1);
+});
+
+test("#193: the Languages section badge counts an answer-only chip (decided count law) but never credits a gold CV claim", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      ...PROFILE.domains,
+      {
+        tag: "lang",
+        heading: "Languages",
+        facts: [
+          { id: "l1", text: "English", colour: "gold", source: "told", job: null },
+          { id: "lang-answer-mandarin", text: "Mandarin", colour: "grey", source: "told", job: null, answerOnly: true },
+        ],
+      },
+    ],
+    languagesQuestion: { ...LANGUAGES_QUESTION, answer: ["Mandarin"] },
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  const langSection = page.locator(".dom").filter({ has: page.locator(".dname", { hasText: "Languages" }) });
+  // The badge counts every fact the domain carries — the claim and the answer-only chip alike.
+  await expect(langSection.locator(".dcount")).toContainText("2");
+  await expect(langSection.locator(".dgold")).toHaveText(" · 1 on your CV"); // only the real CV claim is gold
+  await expect(langSection.locator(".fact.inert")).toHaveCount(1);
+});

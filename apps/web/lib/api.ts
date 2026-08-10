@@ -468,6 +468,10 @@ export interface ProfileFact {
   // #186: experience facts carry the job line they belong to (rendered verbatim as a job block's
   // header — never parsed for dates/employer); null for every other domain.
   job: string | null;
+  // #193: pinned additively — true only for a Languages chip synthesised from the stored answer,
+  // with no CV-mined detail behind it (absent/undefined on every other fact). Never derived
+  // client-side from `id` shape; the API is the one source of this flag.
+  answerOnly?: true;
 }
 
 export interface ProfileDomain {

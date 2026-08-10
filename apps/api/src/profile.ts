@@ -25,6 +25,10 @@ export interface ProfileFact {
    *  null for every other fact — kindTag() already tells the two apart (a "profile"-role claim never
    *  tags "experience"), so this is a straight read, never a second lookup. */
   job: string | null;
+  /** #193 code-review follow-up: marks a synthetic answer-only language chip (no CV claim behind
+   *  it) — explicit and additive so the frontend never keys off the `lang-answer-` id prefix.
+   *  Absent/undefined on every other fact, including CV-claim language chips. */
+  answerOnly?: true;
 }
 // #185: the no-job facts group (tag "profile") heads the rail as "About you" and orders first — a
 // PROFILE-SCREEN-ONLY heading. rootcv.ts's own SECTIONS ("Professional Summary") stays untouched;
@@ -207,6 +211,26 @@ export function buildProfileState(
       job: tag === "experience" ? c.role : null,
     });
     byTag.set(tag, bucket);
+  }
+
+  // #193: a stored languages answer with zero CV language claims still needs a door. Answer-only
+  // languages compose into the SAME "lang" bucket the CV-claim path fills, so an existing claim
+  // bucket is never touched (AC "do not change how CV-claim languages compose") and the section
+  // draws in its normal SECTIONS slot. Kept-grey, never gold: an answer-only language never appears
+  // in the root CV's render trace. Origin is "told" (the person said it), matching #185/#186's own
+  // told/read split for the same reason a user-authored claim is "told".
+  if (!byTag.has("lang") && languages.answer && languages.answer.length > 0) {
+    byTag.set(
+      "lang",
+      languages.answer.map((lang) => ({
+        id: `lang-answer-${lang}`,
+        text: lang,
+        colour: "grey" as const,
+        source: "told" as const,
+        job: null,
+        answerOnly: true as const,
+      })),
+    );
   }
 
   const domains: ProfileDomain[] = SECTIONS.filter(([tag]) => byTag.has(tag)).map(([tag, heading]) => ({
