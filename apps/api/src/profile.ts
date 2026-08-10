@@ -11,6 +11,9 @@ import { buildClaimGraph, kindTag } from "./graph.js";
 import { renderRootCv, SECTIONS } from "./rootcv.js";
 import type { ClaimRecord } from "./claims.js";
 import type { ContactRecord } from "./contact.js";
+import type { EligibilityStore } from "./eligibility.js";
+import { workRightsAnswerLabel, workRightsQuestionFor } from "./eligibilityDiscovery.js";
+import { resolveSearchArea } from "./postingRetrieval.js";
 
 // The pinned frontend contract — apps/web/lib/api.ts mirrors these shapes.
 export interface ProfileFact {
@@ -18,7 +21,16 @@ export interface ProfileFact {
   text: string;
   colour: "gold" | "grey";
   source: "told" | "read";
+  /** #185: the job line this fact belongs to (the claim's own `role` text) for an experience fact;
+   *  null for every other fact — kindTag() already tells the two apart (a "profile"-role claim never
+   *  tags "experience"), so this is a straight read, never a second lookup. */
+  job: string | null;
 }
+// #185: the no-job facts group (tag "profile") heads the rail as "About you" and orders first — a
+// PROFILE-SCREEN-ONLY heading. rootcv.ts's own SECTIONS ("Professional Summary") stays untouched;
+// that heading still prints on the root CV itself.
+const PROFILE_TAG = "profile";
+const ABOUT_YOU_HEADING = "About you";
 export interface ProfileDomain {
   tag: string;
   heading: string;
@@ -50,11 +62,34 @@ export interface ProfileContact {
   phone: ProfileContactField | null;
   email: ProfileContactField | null;
 }
+/** #185: the rail's work-rights line — present only once a search area has resolved to a covered
+ *  market (never a placeholder market). `answer` is null when THIS market has no stored answer yet
+ *  — an honest "unanswered", never another market's answer (see resolveProfileLocation below).
+ *  `questionId`/`question`/`options` (code-review contract extension) let the rail's door RE-OPEN
+ *  the original question and its own option strings without ever composing the itemId client-side —
+ *  that would duplicate the server's own slug rule (see workRightsQuestionFor). */
+export interface ProfileWorkRights {
+  market: string;
+  answer: string | null;
+  questionId: string;
+  question: string;
+  options: string[];
+}
+/** #185: the rail's Location data. `area` is the search area exactly as the person gave it (null
+ *  before one is set). `workRights` is null both before an area is set AND when a set area is
+ *  uncovered — an uncovered area resolves to no market (postingRetrieval.ts's own resolveSearchArea),
+ *  so there is no market to attribute a work-rights answer to, and #182/#184's own discovery flow
+ *  never asks a per-market work-rights question for one either. */
+export interface ProfileLocation {
+  area: string | null;
+  workRights: ProfileWorkRights | null;
+}
 export interface ProfileState {
   domains: ProfileDomain[];
   factCount: number;
   search: ProfileSearch;
   contact: ProfileContact;
+  location: ProfileLocation;
 }
 
 export function profileSearch(role: string | null): ProfileSearch {
@@ -65,6 +100,39 @@ const toProfileContactField = (v: ContactRecord["phone"]): ProfileContactField |
   v ? { value: v.value, origin: v.origin } : null;
 
 export const EMPTY_PROFILE_CONTACT: ProfileContact = { phone: null, email: null };
+export const EMPTY_PROFILE_LOCATION: ProfileLocation = { area: null, workRights: null };
+
+/** #185: the rail's Location data, resolved fresh from the session's own search area + the
+ *  eligibility store — never a second copy of either. Reuses postingRetrieval.ts's resolveSearchArea
+ *  directly (not resolvedCityFor + a second slug() call) so the eligibility lookup keys on the exact
+ *  same marketKey the work-rights question itself was asked and answered under (#182's "one slugging
+ *  rule, not two"). */
+export async function resolveProfileLocation(
+  eligibility: Pick<EligibilityStore, "get">,
+  sessionId: string,
+  searchArea: string | null,
+): Promise<ProfileLocation> {
+  if (!searchArea) return EMPTY_PROFILE_LOCATION;
+  const resolution = resolveSearchArea(searchArea);
+  if (!resolution.covered) return { area: searchArea, workRights: null };
+  // #185 code-review contract extension: the question is composed ONCE, here, by the same
+  // buildQuestion branch the answer route itself uses — `marketId` (the eligibility store's key) is
+  // read back off that composition rather than re-derived, so there is exactly one slug computation
+  // in this whole path, never two landing on the same value by coincidence.
+  const question = workRightsQuestionFor(resolution.market);
+  const marketId = question.eligibility!.familyId;
+  const fact = await eligibility.get(sessionId, "work-rights", marketId);
+  return {
+    area: searchArea,
+    workRights: {
+      market: resolution.market,
+      answer: fact ? workRightsAnswerLabel(fact.value) : null,
+      questionId: question.itemId,
+      question: question.question,
+      options: question.options,
+    },
+  };
+}
 
 /** Assembles GET /profile's payload: facts grouped by kind tag in SECTIONS order, coloured by the
  *  colour law above. `facts` excludes rejected/negative; `confirmed` is its confirmed subset
@@ -75,6 +143,7 @@ export function buildProfileState(
   factCount: number,
   role: string | null,
   contact: ContactRecord = { phone: null, email: null },
+  location: ProfileLocation = EMPTY_PROFILE_LOCATION,
 ): ProfileState {
   const rootCv = renderRootCv(buildClaimGraph(confirmed));
   const goldIds = new Set(rootCv.trace.entries.flatMap((e) => e.nodeIds));
@@ -88,13 +157,14 @@ export function buildProfileState(
       text: c.text,
       colour: goldIds.has(c.id) ? "gold" : "grey",
       source: c.origin === "user-authored" ? "told" : "read",
+      job: tag === "experience" ? c.role : null,
     });
     byTag.set(tag, bucket);
   }
 
   const domains: ProfileDomain[] = SECTIONS.filter(([tag]) => byTag.has(tag)).map(([tag, heading]) => ({
     tag,
-    heading,
+    heading: tag === PROFILE_TAG ? ABOUT_YOU_HEADING : heading,
     facts: byTag.get(tag)!,
   }));
   return {
@@ -102,5 +172,6 @@ export function buildProfileState(
     factCount,
     search: profileSearch(role),
     contact: { phone: toProfileContactField(contact.phone), email: toProfileContactField(contact.email) },
+    location,
   };
 }

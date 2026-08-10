@@ -89,16 +89,25 @@ interface ProfileFact {
   text: string;
   colour: "gold" | "grey";
   source: "told" | "read";
+  job: string | null;
 }
 interface ProfileContactField {
   value: string;
   origin: "read" | "person-said";
+}
+interface ProfileWorkRights {
+  market: string;
+  answer: string | null;
+  questionId: string;
+  question: string;
+  options: string[];
 }
 interface ProfileResponse {
   domains: Array<{ tag: string; heading: string; facts: ProfileFact[] }>;
   factCount: number;
   search: { role: string | null; family: string | null; siblingTitles: string[]; openJobs: number | null };
   contact: { phone: ProfileContactField | null; email: ProfileContactField | null };
+  location: { area: string | null; workRights: ProfileWorkRights | null };
 }
 
 // #179: until E5 places typed roles into families, the search block is the honest empty state for
@@ -106,6 +115,8 @@ interface ProfileResponse {
 const EMPTY_SEARCH = (role: string | null) => ({ role, family: null, siblingTitles: [], openJobs: null });
 // #190: honest absence — no contact record yet.
 const EMPTY_CONTACT = { phone: null, email: null };
+// #185: honest absence — no search area set yet, so no market to hold a work-rights answer either.
+const EMPTY_LOCATION = { area: null, workRights: null };
 
 describe("#20 profile screen — the colour law over HTTP", () => {
   it("returns gold confirmed facts, grey pending facts under the current product decision, and no rejected facts", async () => {
@@ -131,11 +142,15 @@ describe("#20 profile screen — the colour law over HTTP", () => {
 
     const experience = domains.find((d) => d.tag === "experience")!;
     expect(experience.heading).toBe("Professional Experience");
-    expect(experience.facts).toEqual([{ id: "acme-led-migration", text: expect.any(String), colour: "gold", source: "read" }]);
+    // #185: the job attribution is the claim's own `role` text — "Acme — PM", the MINED fixture's job line.
+    expect(experience.facts).toEqual([
+      { id: "acme-led-migration", text: expect.any(String), colour: "gold", source: "read", job: "Acme — PM" },
+    ]);
 
     const cert = domains.find((d) => d.tag === "cert")!;
     expect(cert.facts.map((f) => f.id)).toEqual(["cert-pmp"]);
-    expect(cert.facts[0]).toMatchObject({ colour: "grey", source: "read" });
+    // #185: a non-experience fact carries no job attribution.
+    expect(cert.facts[0]).toMatchObject({ colour: "grey", source: "read", job: null });
 
     // The rejected claim is gone entirely — no domain lists it, gold or grey.
     const allIds = domains.flatMap((d) => d.facts.map((f) => f.id));
@@ -176,7 +191,13 @@ describe("#20 profile screen — the colour law over HTTP", () => {
 
     const res = await get(server.app, cookie, "/profile");
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ domains: [], factCount: 1, search: EMPTY_SEARCH(ROLE), contact: EMPTY_CONTACT });
+    expect(res.json()).toEqual({
+      domains: [],
+      factCount: 1,
+      search: EMPTY_SEARCH(ROLE),
+      contact: EMPTY_CONTACT,
+      location: EMPTY_LOCATION,
+    });
   });
 
   it("an empty profile (no claims yet) is 200 with no domains, not an error", async () => {
@@ -184,7 +205,13 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     const cookie = await anonSession(server.app);
     const res = await get(server.app, cookie, "/profile");
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ domains: [], factCount: 0, search: EMPTY_SEARCH(null), contact: EMPTY_CONTACT });
+    expect(res.json()).toEqual({
+      domains: [],
+      factCount: 0,
+      search: EMPTY_SEARCH(null),
+      contact: EMPTY_CONTACT,
+      location: EMPTY_LOCATION,
+    });
   });
 
   // #179 decision (2026-08-09): the rail's Job family data. Until E5 (#86) places roles, the
@@ -294,6 +321,136 @@ describe("#20 profile screen — the colour law over HTTP", () => {
 
     const { contact } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
     expect(contact.email).toEqual({ value: "cv-contact@example.com", origin: "read" });
+  });
+
+  // #185 AC: the no-job group (tag "profile") heads the rail as "About you" and orders first — the
+  // printed root CV's own "Professional Summary" heading must never leak onto the profile screen.
+  it("#185: the no-job group is headed \"About you\" and orders first; \"Professional Summary\" never appears", async () => {
+    const claims: CandidateClaim[] = [
+      claim({ id: "acme-led-migration" }),
+      claim({ id: "summary-headline", role: "profile", text: "Delivery-focused IT PM." }),
+    ];
+    const server = buildServer({ pipeline: { mine: async () => ({ doc: null, claims, roles: 1, needsGrill: 0 }) } });
+    const cookie = await anonSession(server.app);
+    await signIn(server.app, cookie, "e2e-about-you@example.com");
+    const jobId = await mineAndGetJob(server, cookie);
+    await post(server.app, cookie, "/onboarding/deck", { jobId });
+    await post(server.app, cookie, "/onboarding/claims/acme-led-migration/confirm");
+    await post(server.app, cookie, "/onboarding/claims/summary-headline/confirm");
+
+    const { domains } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    expect(domains[0]).toMatchObject({ tag: "profile", heading: "About you" });
+    expect(domains.map((d) => d.heading)).not.toContain("Professional Summary");
+  });
+
+  // #185 AC: experience facts from two jobs each carry their OWN job attribution.
+  it("#185: experience facts from two jobs each carry their own job attribution", async () => {
+    const claims: CandidateClaim[] = [
+      claim({ id: "acme-led-migration", role: "Acme — PM", text: "Led the checkout replatform." }),
+      claim({ id: "acme-second-fact", role: "Acme — PM", text: "Ran vendor negotiations." }),
+      claim({ id: "globex-shipped", role: "Globex — Delivery Lead", text: "Shipped the ERP rollout." }),
+    ];
+    const server = buildServer({ pipeline: { mine: async () => ({ doc: null, claims, roles: 2, needsGrill: 0 }) } });
+    const cookie = await anonSession(server.app);
+    await signIn(server.app, cookie, "e2e-jobs@example.com");
+    const jobId = await mineAndGetJob(server, cookie);
+    await post(server.app, cookie, "/onboarding/deck", { jobId });
+    await post(server.app, cookie, "/onboarding/claims/acme-led-migration/confirm");
+    await post(server.app, cookie, "/onboarding/claims/acme-second-fact/confirm");
+    await post(server.app, cookie, "/onboarding/claims/globex-shipped/confirm");
+
+    const { domains } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    const experience = domains.find((d) => d.tag === "experience")!;
+    const jobById = Object.fromEntries(experience.facts.map((f) => [f.id, f.job]));
+    expect(jobById).toEqual({
+      "acme-led-migration": "Acme — PM",
+      "acme-second-fact": "Acme — PM",
+      "globex-shipped": "Globex — Delivery Lead",
+    });
+  });
+
+  // #185 code-review must-fix: AC5 ("rejected/negative facts absent") was only pinned for REJECTED
+  // above — a "no" answer persists as a NEGATIVE decision (#13's answerNegative), a different code
+  // path (routes/onboarding.ts's `c.decision !== "negative"` filter) that a refactor could drop
+  // without this suite noticing. Pins the negative half at the same seam.
+  it("#185 code-review must-fix: a negative ('no') fact appears in no group", async () => {
+    const server = buildServer();
+    const cookie = await anonSession(server.app);
+    await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    await post(server.app, cookie, "/onboarding/discovery/answer", {
+      itemId: "budget-accountability",
+      answer: "No",
+    });
+
+    const { domains } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+    const allIds = domains.flatMap((d) => d.facts.map((f) => f.id));
+    expect(allIds).not.toContain("discovery-budget-accountability");
+  });
+
+  // #185 AC: the rail's Location data reads the work-rights answer keyed to the CURRENT search
+  // area's own market (#182's per-market keying) — an unanswered market is honest, never another
+  // market's stored answer, and switching markets never bleeds a stale answer across (#182's own
+  // Paris-then-Hong-Kong guarantee, exercised here at the profile seam). Also pins the code-review
+  // contract extension: the rail's own questionId/question/options round-trip against the SAME
+  // question the discovery route asked and the answer route accepts — never a client-composed id.
+  describe("#185: the profile rail's Location data", () => {
+    it("carries the area and this market's work-rights answer; switching markets never bleeds the old one", async () => {
+      const server = buildServer();
+      const cookie = await anonSession(server.app);
+      await put(server.app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
+      const start = (await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE })).json() as {
+        questions: Array<{ itemId: string; question: string; options: string[]; eligibility?: { dimension: string } }>;
+      };
+      const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+
+      const before = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      // The rail's own question/options are byte-identical to the ones discovery/start actually
+      // asked — never re-composed, never paraphrased — and its questionId is the SAME id the answer
+      // route below accepts (the round-trip pin).
+      expect(before.location).toEqual({
+        area: "Hong Kong",
+        workRights: {
+          market: "Hong Kong",
+          answer: null,
+          questionId: workRights.itemId,
+          question: workRights.question,
+          options: workRights.options,
+        },
+      });
+
+      await post(server.app, cookie, "/onboarding/discovery/answer", {
+        itemId: before.location.workRights!.questionId, // the rail's own id, not a client-composed one
+        answer: workRights.options[0], // "Yes — no sponsorship needed"
+      });
+      const afterAnswer = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      expect(afterAnswer.location).toEqual({
+        area: "Hong Kong",
+        workRights: {
+          market: "Hong Kong",
+          answer: workRights.options[0],
+          questionId: workRights.itemId,
+          question: workRights.question,
+          options: workRights.options,
+        },
+      });
+
+      // Switch to a different covered market: Singapore's own (unanswered) state shows, with its
+      // OWN question identity — never Hong Kong's stored "yes" or Hong Kong's questionId.
+      await put(server.app, cookie, "/sessions/me/intent", { searchArea: "Singapore" });
+      const afterSwitch = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      expect(afterSwitch.location.workRights!.market).toBe("Singapore");
+      expect(afterSwitch.location.workRights!.answer).toBeNull();
+      expect(afterSwitch.location.workRights!.questionId).not.toBe(workRights.itemId);
+    });
+
+    it("an uncovered search area has no market to hold a work-rights answer", async () => {
+      const server = buildServer();
+      const cookie = await anonSession(server.app);
+      await put(server.app, cookie, "/sessions/me/intent", { searchArea: "London" });
+
+      const { location } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      expect(location).toEqual({ area: "London", workRights: null });
+    });
   });
 
   it("requires a session (401 with no cookie) but is reachable pre-wall (an unverified anonymous session is not rejected)", async () => {

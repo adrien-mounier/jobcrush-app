@@ -163,6 +163,12 @@ const YEARS_BAND_VALUES: Readonly<Record<string, number>> = {
 // --- work-rights options (UI design spec §2) ---
 const WORK_RIGHTS_YES = "Yes — no sponsorship needed";
 const WORK_RIGHTS_NOT_YET = "Not yet — I'd need sponsorship";
+// #185 code-review cheap weld: the store's own canonical value tokens, named once so
+// mapEligibilityAnswer (answer text -> value, below) and workRightsAnswerLabel (value -> answer
+// text, the profile rail's reverse lookup, below) share ONE vocabulary — a rename of either literal
+// can no longer silently desync the two directions into "an answered market reads as unanswered".
+const WORK_RIGHTS_ELIGIBLE_VALUE = "eligible";
+const WORK_RIGHTS_NEEDS_SPONSORSHIP_VALUE = "needs-sponsorship";
 
 // --- the languages question (#123 UI design spec — pinned copy, do not paraphrase) ---
 //
@@ -425,8 +431,10 @@ export function mapEligibilityAnswer(
     return years === undefined ? null : { value: String(years), label: `Years in ${scopeLabel}` };
   }
   if (dimension === "work-rights") {
-    if (answer === WORK_RIGHTS_YES) return { value: "eligible", label: "Right to work without sponsorship" };
-    if (answer === WORK_RIGHTS_NOT_YET) return { value: "needs-sponsorship", label: "Right to work without sponsorship" };
+    if (answer === WORK_RIGHTS_YES)
+      return { value: WORK_RIGHTS_ELIGIBLE_VALUE, label: "Right to work without sponsorship" };
+    if (answer === WORK_RIGHTS_NOT_YET)
+      return { value: WORK_RIGHTS_NEEDS_SPONSORSHIP_VALUE, label: "Right to work without sponsorship" };
     return null;
   }
   // #123: language no longer has a single-value real answer to map — the languages question is
@@ -435,6 +443,29 @@ export function mapEligibilityAnswer(
   // function. A language dimension therefore always falls through to null here, same as
   // certification/degree (neither of which this module ever builds a question for either).
   return null;
+}
+
+/** #185 — the profile rail's reverse lookup: a STORED work-rights fact's canonical value
+ *  (mapEligibilityAnswer's own vocabulary above, shared via the two WORK_RIGHTS_*_VALUE constants)
+ *  back to the display text it was answered with. Null for anything else (defensive; every real
+ *  work-rights write today goes through mapEligibilityAnswer, so this only ever sees its two values). */
+export function workRightsAnswerLabel(value: string): string | null {
+  if (value === WORK_RIGHTS_ELIGIBLE_VALUE) return WORK_RIGHTS_YES;
+  if (value === WORK_RIGHTS_NEEDS_SPONSORSHIP_VALUE) return WORK_RIGHTS_NOT_YET;
+  return null;
+}
+
+/** #185 — the profile rail's re-open door needs the ORIGINAL work-rights question (itemId,
+ *  question text, option strings) for the visitor's current (covered) market, so the client never
+ *  composes the itemId itself — that would duplicate this module's own slug rule (#182 QA round 3's
+ *  must-fix, the same one buildQuestion's own work-rights branch comment records). Thin wrapper over
+ *  that branch — the ONE place this composition happens — so the itemId returned here is BY
+ *  CONSTRUCTION the same one answerEligibilityItem (routes/onboarding.ts) looks up when the visitor
+ *  answers through this door. `familyId`/`anyFamily`/`scopeLabel` are dead parameters on the
+ *  work-rights branch (buildQuestion's own comment: its marketId comes from `city` alone) — passed
+ *  as empty strings here, never fabricated values pretending to mean something. */
+export function workRightsQuestionFor(city: string): DiscoveryQuestion {
+  return buildQuestion("work-rights", "", "", "", city);
 }
 
 export interface LanguageFactWrite {
