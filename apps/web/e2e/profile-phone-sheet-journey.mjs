@@ -195,20 +195,37 @@ await qa.click('button[aria-label="Sorted"]', 'tap the Sorted toggle while the s
 await assert((await expanded()) === 'true', 'a toggle tap opens the sheet and switches the view together');
 
 // ==============================================================================================
-// 4. A correction door reached through the sheet (#190 contact) — including its Escape.
+// 4. Contact's correction door (#190, re-homed by #194 onto its own rail panel) — reached directly
+//    from the principal screen now, never through the sheet. An EXPANDED sheet is a fixed, near-
+//    full-height panel that visually covers the rail underneath it, so the two are never open at
+//    once — collapse it first.
 // ==============================================================================================
 
-await qa.click('.cxfield .rdoor', 'open the phone-number door from inside the sheet');
-await qa.expectVisible('#contact-phone-again', 'the contact question opens inside the sheet');
+if ((await expanded()) === 'true') {
+  await qa.click('.pfgrab', 'collapse the sheet so the rail — and Contact — are reachable again');
+  await page.waitForTimeout(500);
+}
+await assert((await expanded()) === 'false', 'the sheet is collapsed going into the Contact check');
+await qa.expectVisible('.rcontact', 'Contact is its own rail panel, beside Location and Job family');
+const contactOnPrincipalScreen = await page.evaluate(() => {
+  const contact = document.querySelector('.rcontact');
+  const sheetBody = document.querySelector('#profileview');
+  return contact !== null && (sheetBody === null || !sheetBody.contains(contact));
+});
+await assert(contactOnPrincipalScreen, 'Contact is on the principal screen, never inside the facts sheet (AC2)');
+await page.locator('.rcontact').scrollIntoViewIfNeeded();
+await shot('phone-contact-rail-panel.png');
+
+await qa.click('.rcontact .cxfield .rdoor', 'open the phone-number door from the rail');
+await qa.expectVisible('#contact-phone-again', 'the contact question opens in place, on the rail');
 const pre = await page.locator('#contact-phone-again').inputValue();
-await assert(pre === '+852 1234 5678', 'the question is pre-filled with the number on the CV');
+await assert(pre === '+852 1234 5678', 'the question is pre-filled with the number on the CV — the #190 flow, unchanged');
 await assert(await activeIs('#contact-phone-again'), 'focus lands in the field');
 
 await qa.press('#contact-phone-again', 'Escape', 'press Escape to back out of the correction');
-const doorBack = await page.locator('.cxfield .rdoor').first().isVisible();
-const sheetAfter = await expanded();
+const doorBack = await page.locator('.rcontact .cxfield .rdoor').first().isVisible();
 await assert(doorBack, 'backing out returns the contact row to its display state');
-await assert(sheetAfter === 'true', 'ADVERSARIAL: Escape inside a question must not also slam the whole sheet shut');
+await assert((await expanded()) === 'false', "the (collapsed) facts sheet is untouched by this door's own Escape");
 
 // ==============================================================================================
 // 5. The narrow phone, 360x800.
@@ -279,6 +296,27 @@ await assert(shape.headDisplay === 'none' && shape.sheetDisplay === 'contents' &
 await assert(shape.sheetTransform === 'none', 'desktop: no sheet transform is applied');
 await assert(shape.role === null && !shape.grabberVisible, 'desktop: no phantom "Your facts" landmark, no grabber');
 await shot('desktop-unchanged.png');
+
+// #194: Contact as a proper third rail panel on desktop, aligned with Location and Job family —
+// same panel spacing, same title/icon rhythm, no layout drift in the field column.
+const panels = await page.evaluate(() => {
+  const els = Array.from(document.querySelectorAll('.rail .rpanel'));
+  return els.map((el) => {
+    const box = el.getBoundingClientRect();
+    return { title: el.querySelector('.rtitle')?.textContent?.trim() ?? '', width: Math.round(box.width), top: Math.round(box.top) };
+  });
+});
+await assert(panels.length === 3, `desktop: the rail holds exactly three panels (found ${panels.length})`);
+await assert(
+  panels.every((p) => Math.abs(p.width - panels[0].width) < 2),
+  `desktop: all three panels share the rail's column width (${panels.map((p) => p.width).join(', ')})`,
+);
+await assert(
+  panels[0].top < panels[1].top && panels[1].top < panels[2].top,
+  'desktop: Location, then Job family, then Contact — stacked top to bottom with no overlap',
+);
+await assert(/Contact/.test(panels[2].title), `desktop: the third panel is Contact (read "${panels[2].title}")`);
+await shot('desktop-contact-rail-panel.png');
 
 // The behaviour half of "unchanged" — the review must-fix.
 await qa.click('button[aria-label="Sorted"]', 'desktop: click the ALREADY ACTIVE view toggle');

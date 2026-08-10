@@ -153,6 +153,16 @@ const WR_CHANGE = "Change this answer";
 const WR_ASK = "Answer it now";
 const WR_KEEP = "Keep my answer";
 
+// #194 the rail's Contact section. Same 14×14/stroke-1.3/currentColor idiom as ICON_PIN/ICON_BRIEFCASE.
+const ICON_ENVELOPE = (
+  <svg className="pic" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.3} aria-hidden="true">
+    <rect x="1.5" y="3" width="11" height="8" rx="1.3" />
+    <path d="M2 4l5 3.6L12 4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const CT_TITLE = "Contact";
+const CT_SUB = "What's on your CV.";
+
 // #183 hero line 2 (design-183-desktop-profile-shape-a.md §2) — the "kept for when a job needs
 // them" framing, never the dead "waiting for a job that asks" one. `rest` is total − gold; it is
 // never itself numbered in copy, only gold is.
@@ -684,38 +694,55 @@ function ContactField({
   );
 }
 
-// #190/#186 the About you section — always the first section in Sorted, always rendered (contact is
-// additive on the payload, never absent), so honest absence ("Not on your CV") has somewhere to
-// live even for a person with neither phone nor email captured yet. #186 A1 merges this with the
-// payload's own no-job "About you" domain group (arrives first, tag "profile") into ONE section:
-// the domain's own facts as rows, then the two contact fields — never two "About you" headings.
-// `domain` is null when the payload carries no such group (e.g. a thin profile); the count is
-// omitted entirely in that case, per A1.
+// #190/#186 the About you section — the payload's own no-job "About you" domain group (arrives
+// first, tag "profile"), rendered as plain rows under one heading. #194 moves the two contact fields
+// out to their own rail panel (ContactPanel, below) — this group keeps only its OTHER facts now, and
+// the caller only mounts this component when there's something left to show (never an empty box).
 function AboutYou({
   domain,
-  contact,
-  onUpdated,
-  onAnnounce,
   onOpenFact,
 }: {
-  domain: ProfileDomain | null;
-  contact: ProfileContact;
-  onUpdated: (contact: ProfileContact) => void;
-  onAnnounce: (message: string) => void;
+  domain: ProfileDomain;
   onOpenFact: (fact: ProfileFact, tag: string) => void;
 }) {
   return (
     <section className="dom">
       <div className="dhead">
         <h2 className="dname">{CX_HEADING}</h2>
-        {domain && domain.facts.length > 0 && (
-          <span className="dcount">
-            {domain.facts.length}
-            <span className="sr-only"> {domain.facts.length === 1 ? "fact" : "facts"}</span>
-          </span>
-        )}
+        <span className="dcount">
+          {domain.facts.length}
+          <span className="sr-only"> {domain.facts.length === 1 ? "fact" : "facts"}</span>
+        </span>
       </div>
-      {domain?.facts.map((f) => <FactRow key={f.id} fact={f} tag="profile" onOpenFact={onOpenFact} />)}
+      {domain.facts.map((f) => (
+        <FactRow key={f.id} fact={f} tag="profile" onOpenFact={onOpenFact} />
+      ))}
+    </section>
+  );
+}
+
+// #194 the rail's Contact section — #190's phone/email fields, re-homed unchanged (ContactField
+// itself is not touched: same door, same saveContact/getProfile flow, same .cxfield/.src markup —
+// "move, don't rebuild"). Follows Location/Job family's own idiom for the panel shell only
+// (.rpanel + a marker class, .rtitle + icon, .rsub). Always renders: each field already carries its
+// own honest "Not on your CV" state (#190), so there is no "no contact at all" case that needs a
+// second, section-level empty state — the two rows already are that state when both are absent.
+function ContactPanel({
+  contact,
+  onUpdated,
+  onAnnounce,
+}: {
+  contact: ProfileContact;
+  onUpdated: (contact: ProfileContact) => void;
+  onAnnounce: (message: string) => void;
+}) {
+  return (
+    <section className="rpanel rcontact">
+      <h2 className="rtitle">
+        {ICON_ENVELOPE}
+        {CT_TITLE}
+      </h2>
+      <p className="rsub">{CT_SUB}</p>
       <ContactField
         field="phone"
         label={CX_PHONE_LABEL}
@@ -1764,13 +1791,9 @@ function ReadyScreen({
               <div id="profileview" className={`body ${view}`} ref={view === "sorted" ? sortedBodyRef : undefined}>
                 {view === "sorted" ? (
                   <div className="sheetwrap">
-                    <AboutYou
-                      domain={aboutDomain}
-                      contact={profile.contact}
-                      onUpdated={onContactUpdated}
-                      onAnnounce={onAnnounce}
-                      onOpenFact={onOpenFact}
-                    />
+                    {aboutDomain && aboutDomain.facts.length > 0 && (
+                      <AboutYou domain={aboutDomain} onOpenFact={onOpenFact} />
+                    )}
                     {restDomains.map((d, i) => (
                       <DomainSection
                         key={d.tag}
@@ -1806,6 +1829,7 @@ function ReadyScreen({
         <aside className="rail" aria-label={R1}>
           <LocationPanel location={profile.location} onProfileRefreshed={onProfileRefreshed} onAnnounce={onAnnounce} />
           <JobFamilyPanel search={profile.search} onSearchUpdated={onSearchUpdated} onAnnounce={onAnnounce} />
+          <ContactPanel contact={profile.contact} onUpdated={onContactUpdated} onAnnounce={onAnnounce} />
         </aside>
       </div>
 

@@ -67,7 +67,9 @@ async function stubProfile(page: Page, state: ProfileState = PROFILE) {
   });
 }
 
-test("the screen loads with groups in payload order, About you first, experience facts as full rows", async ({ page }) => {
+test("the screen loads with groups in payload order, experience facts as full rows, no empty About you group", async ({
+  page,
+}) => {
   await stubSession(page);
   await stubProfile(page);
 
@@ -77,14 +79,16 @@ test("the screen loads with groups in payload order, About you first, experience
   await expect(heading).toBeVisible();
   await expect(heading).toBeFocused();
 
-  // About you (#190/#186 merge) always leads; the payload's own order is drawn as-is (this fixture's
-  // order happens to also be size order — the dedicated CV-order test below uses a fixture where the
-  // two would disagree, to prove the client-side size-sort is really gone from Sorted).
+  // #194: PROFILE carries no "profile"-tag domain and (since #194) contact no longer lives in this
+  // group either — so About you has nothing left to show and must not draw an empty box (AC4). The
+  // payload's own order is drawn as-is otherwise (this fixture's order happens to also be size
+  // order — the dedicated CV-order test below uses a fixture where the two would disagree, to prove
+  // the client-side size-sort is really gone from Sorted).
   const domainNames = page.locator(".dname");
-  await expect(domainNames).toHaveCount(3);
-  await expect(domainNames.nth(0)).toHaveText("About you");
-  await expect(domainNames.nth(1)).toHaveText("Professional Experience");
-  await expect(domainNames.nth(2)).toHaveText("Skills");
+  await expect(domainNames).toHaveCount(2);
+  await expect(page.getByText("About you", { exact: true })).toHaveCount(0);
+  await expect(domainNames.nth(0)).toHaveText("Professional Experience");
+  await expect(domainNames.nth(1)).toHaveText("Skills");
 
   // #186 A2/A3: experience facts render as full sentence rows (never chips), gold before grey.
   const firstRow = page.locator(".frow").first();
@@ -399,26 +403,7 @@ test("phone: a real pull gesture past the threshold expands the sheet", async ({
   await expect(page.locator("#profileview")).toBeVisible();
 });
 
-test("phone: a contact door opens correctly from inside the expanded sheet", async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 800 });
-  await stubSession(page);
-  const state: ProfileState = {
-    ...PROFILE,
-    contact: { phone: { value: "+852 1234 5678", origin: "read" }, email: null },
-  };
-  await stubProfile(page, state);
-  await page.goto("/profile");
-
-  await page.getByRole("button", { name: /Your facts/ }).click();
-  const about = page.locator(".dom").filter({ hasText: "About you" });
-  await about.getByRole("button", { name: "Not your number?" }).click();
-
-  const input = page.getByLabel("What's the best phone number for your CV?");
-  await expect(input).toBeFocused();
-  await expect(input).toHaveValue("+852 1234 5678");
-});
-
-test("phone: Escape inside a door's question closes only the question — the sheet stays open, focus on the door", async ({
+test("#194: phone: a contact door opens correctly from the rail, above the collapsed facts sheet — no sheet expansion needed", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 375, height: 800 });
@@ -430,25 +415,45 @@ test("phone: Escape inside a door's question closes only the question — the sh
   await stubProfile(page, state);
   await page.goto("/profile");
 
-  await page.getByRole("button", { name: /Your facts/ }).click();
-  const about = page.locator(".dom").filter({ hasText: "About you" });
-  const door = about.getByRole("button", { name: "Not your number?" });
+  // AC2: Contact is on the principal screen, not inside the facts sheet — reachable with the sheet
+  // still fully collapsed.
+  const contact = page.locator(".rcontact");
+  await expect(contact).toBeVisible();
+  await expect(page.locator("#profileview")).not.toBeVisible();
+  await contact.getByRole("button", { name: "Not your number?" }).click();
+
+  const input = page.getByLabel("What's the best phone number for your CV?");
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("+852 1234 5678");
+});
+
+test("phone: Escape inside the contact door's question closes only the question, focus back on the door — the collapsed facts sheet is untouched", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    contact: { phone: { value: "+852 1234 5678", origin: "read" }, email: null },
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  // #194: Contact now lives on the rail, above the facts sheet, reachable with the sheet collapsed
+  // (an EXPANDED sheet is a fixed, near-full-height panel that visually covers the rail, so the two
+  // are never open at once in practice — the QA-fix Escape guard below still matters generally on
+  // this screen, just not as a reachable combination for this particular door any more).
+  const contact = page.locator(".rcontact");
+  const door = contact.getByRole("button", { name: "Not your number?" });
   await door.click();
 
   const input = page.getByLabel("What's the best phone number for your CV?");
   await expect(input).toBeFocused();
   await page.keyboard.press("Escape");
 
-  // QA fix: one layer of Escape closes the question — it must not also fall through to the page-
-  // level handler and collapse the sheet out from under it.
   await expect(input).toHaveCount(0);
   await expect(door).toBeFocused();
-  await expect(page.locator(".pfsheet")).toHaveClass(/open/);
-  await expect(page.locator("#profileview")).toBeVisible();
-
-  // A second Escape, now that focus is back on the door (outside any question), does collapse it.
-  await page.keyboard.press("Escape");
-  await expect(page.locator(".pfsheet")).not.toHaveClass(/open/);
+  await expect(page.locator(".pfsheet")).not.toHaveClass(/open/); // never opened — still collapsed
 });
 
 test("phone at 360×800: 'Not the job you meant?' is visible without any scrolling or sheet occlusion (AC3)", async ({
@@ -643,9 +648,54 @@ test("role never answered: the door reads its own copy and opens the same questi
   await expect(page.getByRole("button", { name: "Not now" })).toBeVisible();
 });
 
-// ---------- #190 "contact info is a fact": About you (phone + email) ----------
+// ---------- #190/#194 "contact info is a fact": the rail's Contact section (phone + email) ----------
 
-test("phone and email display in About you, each with its origin shown like a fact's source", async ({ page }) => {
+test("#194 desktop: Contact is a third rail panel, aligned with Location and Job family, and About you carries no contact rows", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    contact: { phone: { value: "+852 1234 5678", origin: "read" }, email: null },
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  const rail = page.locator(".rail");
+  const panels = rail.locator(".rpanel");
+  await expect(panels).toHaveCount(3);
+
+  // Order: Location, Job family, Contact (AC1) — each with its own title/icon rhythm.
+  await expect(panels.nth(0).locator(".rtitle")).toContainText("Location");
+  await expect(panels.nth(1).locator(".rtitle")).toContainText("Job family");
+  await expect(panels.nth(2).locator(".rtitle")).toContainText("Contact");
+  await expect(panels.nth(2)).toHaveClass(/rcontact/);
+
+  // Same rail column, same panel width — no layout drift in the field column from adding a third
+  // panel; and the three stack top to bottom with no overlap.
+  const boxes = await panels.evaluateAll((els) => els.map((el) => el.getBoundingClientRect()));
+  expect(boxes).toHaveLength(3);
+  expect(Math.abs(boxes[0].width - boxes[2].width)).toBeLessThan(1);
+  expect(Math.abs(boxes[1].width - boxes[2].width)).toBeLessThan(1);
+  expect(boxes[1].y).toBeGreaterThanOrEqual(boxes[0].y + boxes[0].height);
+  expect(boxes[2].y).toBeGreaterThanOrEqual(boxes[1].y + boxes[1].height);
+
+  // The Contact panel shows the value + origin + door, following Location/Job family's own idiom.
+  const contact = panels.nth(2);
+  await expect(contact.getByText("+852 1234 5678")).toBeVisible();
+  await expect(contact.getByText("Read from your CV.")).toBeVisible();
+  await expect(contact.getByRole("button", { name: "Not your number?" })).toBeVisible();
+
+  // About you no longer carries a phone/email door — present in exactly one place.
+  const about = page.locator(".dom").filter({ hasText: "About you" });
+  await expect(about.getByRole("button", { name: "Not your number?" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Not your number?" })).toHaveCount(1);
+});
+
+test("phone and email display in the rail's Contact section, each with its origin shown like a fact's source", async ({
+  page,
+}) => {
   await stubSession(page);
   const state: ProfileState = {
     ...PROFILE,
@@ -657,16 +707,16 @@ test("phone and email display in About you, each with its origin shown like a fa
   await stubProfile(page, state);
   await page.goto("/profile");
 
-  const about = page.locator(".dom").filter({ hasText: "About you" });
-  await expect(about.getByText("Phone", { exact: true })).toBeVisible();
-  await expect(about.getByText("+852 1234 5678")).toBeVisible();
-  await expect(about.getByText("Read from your CV.")).toBeVisible();
+  const contact = page.locator(".rcontact");
+  await expect(contact.getByText("Phone", { exact: true })).toBeVisible();
+  await expect(contact.getByText("+852 1234 5678")).toBeVisible();
+  await expect(contact.getByText("Read from your CV.")).toBeVisible();
   // The CV email is labelled as what the CV shows — never presented as the account/login email.
-  await expect(about.getByText("Email on your CV", { exact: true })).toBeVisible();
-  await expect(about.getByText("person@example.com")).toBeVisible();
-  await expect(about.getByText("You told me this.")).toBeVisible();
-  await expect(about.getByRole("button", { name: "Not your number?" })).toBeVisible();
-  await expect(about.getByRole("button", { name: "Not the right email?" })).toBeVisible();
+  await expect(contact.getByText("Email on your CV", { exact: true })).toBeVisible();
+  await expect(contact.getByText("person@example.com")).toBeVisible();
+  await expect(contact.getByText("You told me this.")).toBeVisible();
+  await expect(contact.getByRole("button", { name: "Not your number?" })).toBeVisible();
+  await expect(contact.getByRole("button", { name: "Not the right email?" })).toBeVisible();
 });
 
 test("an absent phone reads as honestly absent, and supplying one flows exactly like a correction", async ({ page }) => {
@@ -685,21 +735,21 @@ test("an absent phone reads as honestly absent, and supplying one flows exactly 
   });
   await page.goto("/profile");
 
-  const about = page.locator(".dom").filter({ hasText: "About you" });
-  await expect(about.getByText("Not on your CV")).toHaveCount(2); // neither phone nor email captured yet
+  const contact = page.locator(".rcontact");
+  await expect(contact.getByText("Not on your CV")).toHaveCount(2); // neither phone nor email captured yet
 
-  await about.getByRole("button", { name: "What's the best phone number for your CV?" }).click();
+  await contact.getByRole("button", { name: "What's the best phone number for your CV?" }).click();
   const input = page.getByLabel("What's the best phone number for your CV?");
   await expect(input).toBeFocused();
   await expect(input).toHaveValue("");
 
   await input.fill("+852 9876 5432");
-  await about.getByRole("button", { name: "Save" }).click();
+  await contact.getByRole("button", { name: "Save" }).click();
 
   await expect(page.getByText("Phone updated.")).toBeAttached();
-  await expect(about.getByText("+852 9876 5432")).toBeVisible();
-  await expect(about.getByText("You told me this.")).toBeVisible();
-  await expect(about.getByRole("button", { name: "Not your number?" })).toBeFocused();
+  await expect(contact.getByText("+852 9876 5432")).toBeVisible();
+  await expect(contact.getByText("You told me this.")).toBeVisible();
+  await expect(contact.getByRole("button", { name: "Not your number?" })).toBeFocused();
 });
 
 test("the phone door reopens pre-filled with the current value, and cancelling keeps it unchanged", async ({ page }) => {
@@ -711,8 +761,8 @@ test("the phone door reopens pre-filled with the current value, and cancelling k
   await stubProfile(page, state);
   await page.goto("/profile");
 
-  const about = page.locator(".dom").filter({ hasText: "About you" });
-  const door = about.getByRole("button", { name: "Not your number?" });
+  const contact = page.locator(".rcontact");
+  const door = contact.getByRole("button", { name: "Not your number?" });
   await door.click();
 
   const input = page.getByLabel("What's the best phone number for your CV?");
@@ -722,7 +772,7 @@ test("the phone door reopens pre-filled with the current value, and cancelling k
   await input.fill("garbage");
   await page.getByRole("button", { name: "Keep +852 1234 5678" }).click();
 
-  await expect(about.getByText("+852 1234 5678")).toBeVisible();
+  await expect(contact.getByText("+852 1234 5678")).toBeVisible();
   await expect(door).toBeFocused();
 });
 
@@ -751,15 +801,15 @@ test("a refetch failure after a successful contact save is never reported as a s
   });
   await page.goto("/profile");
 
-  const about = page.locator(".dom").filter({ hasText: "About you" });
-  await about.getByRole("button", { name: "Not your number?" }).click();
+  const contact = page.locator(".rcontact");
+  await contact.getByRole("button", { name: "Not your number?" }).click();
   await page.getByLabel("What's the best phone number for your CV?").fill("+852 9999 0000");
-  await about.getByRole("button", { name: "Save" }).click();
+  await contact.getByRole("button", { name: "Save" }).click();
 
   await expect(page.getByText("Couldn't save that just now. Try again.")).toHaveCount(0);
   await expect(page.getByText("Phone updated.")).toBeAttached();
-  await expect(about.getByText("+852 9999 0000")).toBeVisible();
-  await expect(about.getByText("You told me this.")).toBeVisible();
+  await expect(contact.getByText("+852 9999 0000")).toBeVisible();
+  await expect(contact.getByText("You told me this.")).toBeVisible();
 });
 
 // ---------- #186 the list, style B: CV order, job blocks, chips vs rows, kept captions, the
@@ -802,10 +852,14 @@ test("#186 AC1: groups render in payload (CV) order, About you merged into one h
   await expect(domainNames.nth(2)).toHaveText("Professional Experience");
   await expect(page.getByText("About you", { exact: true })).toHaveCount(1); // never two headings
 
-  // The merge: the payload's own "About you" facts sit alongside the contact fields in ONE section.
+  // The merge: the payload's own "About you" facts render under the one heading — #194 moved
+  // contact out to its own rail panel, so this group is domain facts only now.
   const about = page.locator(".dom").filter({ hasText: "About you" });
   await expect(about.getByText("Based in Hong Kong.")).toBeVisible();
-  await expect(about.getByRole("button", { name: "What's the best phone number for your CV?" })).toBeVisible();
+  await expect(about.getByRole("button", { name: "Not your number?" })).toHaveCount(0); // not here anymore
+  // PROFILE's contact is absent by default, so the rail's Contact door reads its own question —
+  // "Not your number?" only shows once a value exists (see the dedicated Contact tests below).
+  await expect(page.locator(".rcontact").getByRole("button", { name: "What's the best phone number for your CV?" })).toBeVisible();
 
   // No empty section is drawn: only the three domains the payload actually sent.
   await expect(page.locator(".dom")).toHaveCount(3);
@@ -1084,8 +1138,9 @@ test("#186: Constellation still sorts by domain size, independent of Sorted's ow
   await stubProfile(page, state);
   await page.goto("/profile");
 
-  // Sorted keeps the payload's own CV order: Skills first.
-  await expect(page.locator(".dname").nth(1)).toHaveText("Skills");
+  // Sorted keeps the payload's own CV order: Skills first (no "profile"-tag domain here, and #194
+  // moved contact out of the merge, so there's no About you heading at all in this fixture).
+  await expect(page.locator(".dname").nth(0)).toHaveText("Skills");
 
   // Constellation keeps its own size-sorted input regardless: the bigger domain (Experience, 3
   // facts) places first, ahead of the payload-first but smaller Skills domain (1 fact) — unpinned

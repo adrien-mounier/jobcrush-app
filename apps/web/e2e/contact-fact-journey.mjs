@@ -107,23 +107,24 @@ for (let i = 0; i < 3; i++) {
 }
 
 // --------------------------------------------------------------------------------------------
-// 2. The profile shows both, under About you, each saying where it came from.
+// 2. The profile shows both, in the rail's Contact section (#194 re-homed this off "About you"),
+//    each saying where it came from.
 // --------------------------------------------------------------------------------------------
 await qa.goto(`${BASE}/profile`, 'the person opens their profile');
 await qa.scrollThrough('reads down the profile');
 
-const about = page.locator('.dom').filter({ hasText: 'About you' });
-await qa.expectVisible(about, 'the About you section is there');
-await qa.expectText(about, 'Phone', 'a Phone row');
-await qa.expectText(about, CV_PHONE, 'showing the number read from the CV');
-await qa.expectText(about, 'Email on your CV', 'and the email row, labelled as the CV’s — never the login email');
-await qa.expectText(about, CV_EMAIL, 'showing the address read from the CV');
-await qa.expectText(about, 'Read from your CV.', 'each says it was read from the document, not invented');
+const contact = page.locator('.rcontact');
+await qa.expectVisible(contact, 'the rail\'s Contact section is there, beside Location and Job family');
+await qa.expectText(contact, 'Phone', 'a Phone row');
+await qa.expectText(contact, CV_PHONE, 'showing the number read from the CV');
+await qa.expectText(contact, 'Email on your CV', 'and the email row, labelled as the CV’s — never the login email');
+await qa.expectText(contact, CV_EMAIL, 'showing the address read from the CV');
+await qa.expectText(contact, 'Read from your CV.', 'each says it was read from the document, not invented');
 
 // --------------------------------------------------------------------------------------------
 // 3. The door: one plain question, pre-filled with what we hold.
 // --------------------------------------------------------------------------------------------
-await qa.click(about.getByRole('button', { name: 'Not your number?' }), 'taps the door beside the phone');
+await qa.click(contact.getByRole('button', { name: 'Not your number?' }), 'taps the door beside the phone');
 const input = page.getByLabel("What's the best phone number for your CV?");
 await qa.expectVisible(input, 'the question opens in place, as a question and not a form');
 await qa.expectText(page.locator('.rq'), 'Your answer stays until you replace it.', 'and says the answer sticks');
@@ -135,10 +136,10 @@ if ((await input.inputValue()) !== CV_PHONE) {
 }
 
 await qa.fill(input, CORRECTED_PHONE, 'types the right number');
-await qa.click(about.getByRole('button', { name: 'Save' }), 'saves it');
-await qa.expectText(about, CORRECTED_PHONE, 'the profile now shows the corrected number');
-await qa.expectText(about, 'You told me this.', 'and credits the person for it, not the document');
-await qa.expectText(about, CV_EMAIL, 'the email is untouched by a phone correction');
+await qa.click(contact.getByRole('button', { name: 'Save' }), 'saves it');
+await qa.expectText(contact, CORRECTED_PHONE, 'the profile now shows the corrected number');
+await qa.expectText(contact, 'You told me this.', 'and credits the person for it, not the document');
+await qa.expectText(contact, CV_EMAIL, 'the email is untouched by a phone correction');
 
 // --------------------------------------------------------------------------------------------
 // 4. The fix reaches the CV. The CV document still says the OLD number — the correction has to
@@ -160,9 +161,9 @@ if (printed.includes(CV_PHONE)) {
 // 5. The correction survived a second full mining of the same document.
 // --------------------------------------------------------------------------------------------
 await qa.goto(`${BASE}/profile`, 'back to the profile after the re-read');
-const about2 = page.locator('.dom').filter({ hasText: 'About you' });
-await qa.expectText(about2, CORRECTED_PHONE, 'the correction outlived a second read of the same CV');
-await qa.expectText(about2, 'You told me this.', 'and is still credited to the person');
+const contact2 = page.locator('.rcontact');
+await qa.expectText(contact2, CORRECTED_PHONE, 'the correction outlived a second read of the same CV');
+await qa.expectText(contact2, 'You told me this.', 'and is still credited to the person');
 
 const ok = await qa.finish();
 process.exit(ok ? 0 : 1);
