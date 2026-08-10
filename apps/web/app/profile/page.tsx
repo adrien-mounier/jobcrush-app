@@ -77,6 +77,14 @@ const CX_EMAIL_QUESTION = "What email should your CV show?";
 const CX_PHONE_DOOR = "Not your number?";
 const CX_EMAIL_DOOR = "Not the right email?";
 
+// #192 the phone pull-up sheet (design-192.md §6). PS2/PS3 are aria-hidden (touch-specific wording);
+// the grabber's accessible name comes from PS1 + the sr-only count instead (§7).
+const PS1 = "Your facts";
+const PS2 = "Pull up to open";
+const PS3 = "Pull down to close";
+const PS4 = "Your facts opened.";
+const PS5 = "Your facts closed.";
+
 const ICON_SORTED = (
   <svg className="ic" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" aria-hidden="true">
     <path d="M2 3.5h10M2 7h7M2 10.5h4" />
@@ -271,6 +279,10 @@ function ContactField({
                 save();
               } else if (e.key === "Escape") {
                 e.preventDefault();
+                // QA fix: the question consumes its own Escape so the phone sheet's page-level
+                // Escape handler never also sees it — without this, closing the question on phone
+                // also collapsed the sheet out from under the door focus() below.
+                e.stopPropagation();
                 closeDoor();
               }
             }}
@@ -457,6 +469,9 @@ function JobFamilyPanel({
                 save();
               } else if (e.key === "Escape") {
                 e.preventDefault();
+                // QA fix (same as ContactField): consume Escape here so the phone sheet's
+                // page-level handler never also collapses the sheet out from under this door.
+                e.stopPropagation();
                 closeDoor();
               }
             }}
@@ -734,6 +749,182 @@ function ReadyScreen({
     return () => window.removeEventListener("resize", place);
   }, [view, sortedButtonRef, skyButtonRef]);
 
+  // #192 the phone pull-up sheet — collapsed by default; inert on desktop, where `.pfsheet` is
+  // `display: contents` and `.pfsheet-head` is `display: none` (design spec §8). Every entry point
+  // (openSheet/closeSheet/toggleSheet, the Escape handler) is gated behind `isSheetActive()` so a
+  // desktop click/keypress can never announce, open, or expose sheet-only ARIA — code review
+  // MUST-FIX: the sheet must not leak onto desktop.
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const grabRef = useRef<HTMLButtonElement>(null);
+  const pfheadRef = useRef<HTMLDivElement>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  // Whether the sheet exists at all right now, per the DOM's own rendered state — never a viewport
+  // sniff. Drives the `role`/`aria-label` on `.pfsheet` (display: contents can otherwise leave a
+  // phantom landmark behind on desktop) and is re-derived by the same measurement effect below.
+  const [sheetActive, setSheetActive] = useState(false);
+  // §2.3: the fallback matches the CSS custom property's own fallback (76px) until the first real
+  // measurement lands.
+  const peekPxRef = useRef(76);
+  // code review fix 3: the safe-area inset, read once (and on every re-measure) from a zero-impact
+  // computed-style probe (`.profile`'s `scroll-padding-bottom`, profile.css) — never hard-coded —
+  // so the JS drag's max range agrees with the CSS collapsed rest position (`100% - peek - safe
+  // area`) instead of overshooting it and visibly snapping on notched phones.
+  const safeAreaRef = useRef(0);
+  // §3.3: mirrors deck/page.tsx's card-drag idiom, rotated 90° — a mutable per-gesture record (not
+  // React state, so pointermove never re-renders) plus `draggedRef`, which survives past the
+  // pointerup-to-synthetic-click boundary so onClick can tell a drag from a tap (§3.3's last rule).
+  // `pointerId` (code review fix 4) is checked once live so a second finger touching down mid-drag
+  // can never hijack the gesture that already has pointer capture.
+  const dragStateRef = useRef<{ y0: number; dy: number; openAtStart: boolean; live: boolean; pointerId: number | null } | null>(
+    null,
+  );
+  const draggedRef = useRef(false);
+
+  // The sheet exists only when `.pfsheet-head` actually has a box — true at ≤899px (a child of the
+  // fixed `.pfsheet`), false at ≥900px (`display: none`). `offsetParent` is null in exactly that
+  // case, and it is a live read of the real rendered DOM, not a media-query duplicated into JS.
+  function isSheetActive(): boolean {
+    const head = pfheadRef.current;
+    return head !== null && head.offsetParent !== null;
+  }
+
+  // §2.3: measured on the root (not the sheet) because `.rail`'s bottom padding needs the same
+  // value. Re-measures on any size change of the head itself — rotation, dynamic type, the §2.2
+  // hint-string swap, and crossing the 900px breakpoint (the head's own box changes from ~72px to
+  // 0) all naturally trigger a ResizeObserver firing, no extra dependency needed.
+  useLayoutEffect(() => {
+    const head = pfheadRef.current;
+    const root = rootRef.current;
+    if (!head || !root) return;
+    function measure() {
+      setSheetActive(isSheetActive());
+      const h = head!.getBoundingClientRect().height;
+      if (h > 0) {
+        peekPxRef.current = h;
+        root!.style.setProperty("--pf-peek", `${h}px`);
+      }
+      const safe = parseFloat(getComputedStyle(root!).scrollPaddingBottom);
+      safeAreaRef.current = Number.isFinite(safe) ? safe : 0;
+    }
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(head);
+    return () => ro.disconnect();
+  }, [rootRef]);
+
+  function announceSheet(open: boolean) {
+    onAnnounce(open ? PS4 : PS5);
+  }
+  function openSheet() {
+    if (!isSheetActive() || sheetOpen) return;
+    setSheetOpen(true);
+    announceSheet(true);
+  }
+  function closeSheet() {
+    if (!isSheetActive() || !sheetOpen) return;
+    setSheetOpen(false);
+    announceSheet(false);
+    // code review fix 2 (§3.6): the sheet body's delayed `visibility: hidden` would otherwise strand
+    // focus at <body> if it was on something inside the sheet when this fired (Escape, or a drag
+    // released past the close threshold) — focus lands on / stays on the grabber on every collapse.
+    const active = document.activeElement;
+    if (active && active !== grabRef.current && sheetRef.current?.contains(active)) {
+      grabRef.current?.focus();
+    }
+  }
+  function toggleSheet() {
+    if (!isSheetActive()) return;
+    setSheetOpen(!sheetOpen);
+    announceSheet(!sheetOpen);
+  }
+
+  // §3.2 layered Escape dismissal, first match wins: the native dialog owns its own Escape (rule 1,
+  // so this never fires while it's open). Rules 2/3 are both scoped to "expanded", which only means
+  // something where the sheet exists at all — gated behind `isSheetActive()` so Escape-clears-
+  // selection stays the phone-sheet behaviour the spec asked for, not a new desktop one (code review
+  // MUST-FIX: desktop must be behaviour-identical to shipped, not just visually).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      // QA fix: a door's own Escape handler calls preventDefault() when it consumes the key (it
+      // also calls stopPropagation(), but that alone isn't reliable here — React delegates its own
+      // root listener very close to `document`, so two same-node listeners fire in registration
+      // order regardless of stopPropagation()). `defaultPrevented` is a property of the shared
+      // event object, so it is set well before this ancestor-level listener ever sees the event,
+      // independent of listener registration order.
+      if (e.defaultPrevented) return;
+      if (dialogRef.current?.open) return;
+      if (!isSheetActive() || !sheetOpen) return;
+      if (selected) {
+        onCloseDialog();
+        return;
+      }
+      closeSheet();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [dialogRef, selected, sheetOpen, onCloseDialog]);
+
+  // §3.3 drag, rotated 90° from the deck's horizontal swipe. Handlers live on `.pfgrab` (pointer
+  // capture keeps them firing there through the whole gesture); the inline transform is written to
+  // the sheet itself, which is what actually slides.
+  function onGrabPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    if (dragStateRef.current?.live) return; // a second pointer must not hijack an in-progress drag
+    draggedRef.current = false;
+    dragStateRef.current = { y0: e.clientY, dy: 0, openAtStart: sheetOpen, live: false, pointerId: null };
+  }
+  function onGrabPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    const drag = dragStateRef.current;
+    if (!drag) return;
+    if (drag.live && e.pointerId !== drag.pointerId) return; // ignore other pointers once captured
+    const dy = e.clientY - drag.y0;
+    drag.dy = dy;
+    if (!drag.live) {
+      if (Math.abs(dy) < 6) return;
+      drag.live = true;
+      drag.pointerId = e.pointerId;
+      draggedRef.current = true;
+      setDragging(true);
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    // Under reduced motion, track `dy` for the pointerup decision but never move the sheet live —
+    // the shipped precedent for this is deck/page.tsx's own `if (!reducedMotion) setDragX(dx)`.
+    if (reducedMotion) return;
+    const sheetEl = sheetRef.current;
+    if (!sheetEl) return;
+    // code review fix 3: matches the CSS collapsed transform's own formula exactly.
+    const max = Math.max(0, sheetEl.getBoundingClientRect().height - peekPxRef.current - safeAreaRef.current);
+    const base = drag.openAtStart ? 0 : max;
+    const y = Math.min(max, Math.max(0, base + dy));
+    sheetEl.style.transform = `translateY(${y}px)`;
+  }
+  function onGrabPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
+    const drag = dragStateRef.current;
+    if (drag?.live && e.pointerId !== drag.pointerId) return; // a stray pointer must not end the real gesture
+    dragStateRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    setDragging(false);
+    if (sheetRef.current) sheetRef.current.style.transform = "";
+    if (!drag || !drag.live) return;
+    if (drag.dy < -56) openSheet();
+    else if (drag.dy > 56) closeSheet();
+    else if (drag.openAtStart) openSheet();
+    else closeSheet();
+  }
+  // §3.3 last rule: a drag's synthetic click must not also toggle — `draggedRef` is the guard,
+  // reset on the next pointerdown rather than here.
+  function onGrabClick() {
+    // QA fix: this must CONSUME the flag, not just read it — it was previously cleared only in
+    // onGrabPointerDown, so a keyboard Enter/Space (which fires click with no pointerdown at all)
+    // read a flag left `true` by the last drag forever, going permanently keyboard-dead.
+    if (draggedRef.current) {
+      draggedRef.current = false;
+      return;
+    }
+    toggleSheet();
+  }
+
   const visibleCount = profile.domains.reduce((s, d) => s + d.facts.length, 0);
   const gold = profile.domains.reduce((s, d) => s + d.facts.filter((f) => f.colour === "gold").length, 0);
   // rest is total − gold (the h1's factCount), not visible − gold: factCount includes facts the
@@ -760,7 +951,13 @@ function ReadyScreen({
             title={P13}
             aria-label={P13}
             aria-controls="profileview"
-            onClick={() => onSwitchView("sorted")}
+            onClick={() => {
+              // §3.2: the toggle stays in the topbar, so on phone it must be able to reach what it
+              // controls even while the sheet sits collapsed. openSheet() is idempotent; switchView
+              // early-returns on an unchanged view, so the open must never be gated behind it.
+              openSheet();
+              onSwitchView("sorted");
+            }}
           >
             {ICON_SORTED}
           </button>
@@ -772,7 +969,10 @@ function ReadyScreen({
             title={P14}
             aria-label={P14}
             aria-controls="profileview"
-            onClick={() => onSwitchView("constellation")}
+            onClick={() => {
+              openSheet();
+              onSwitchView("constellation");
+            }}
           >
             {ICON_SKY}
           </button>
@@ -781,67 +981,107 @@ function ReadyScreen({
       </div>
 
       <div className="stage">
-        <div className="field">
-          {view === "sorted" && (
-            <section className="phead">
-              <p className="ptitle">{P5}</p>
-              <h1 className="pcount" tabIndex={-1} ref={headingRef}>
-                <span className="n">{totalCount}</span>{" "}
-                <span className="t">{totalCount === 1 ? "thing you've told me" : "things you've told me"}</span>
-              </h1>
-              <Pwait gold={gold} rest={grey} />
-            </section>
-          )}
+        <div className={`field ${view}`}>
+          {/* #192 §1: the hero now renders in every view (was Sorted-only); desktop restores its
+              Sorted-only hero via `.field.constellation .phead { display: none }` at ≥900px. */}
+          <section className="phead">
+            <p className="ptitle">{P5}</p>
+            <h1 className="pcount" tabIndex={-1} ref={headingRef}>
+              <span className="n">{totalCount}</span>{" "}
+              <span className="t">{totalCount === 1 ? "thing you've told me" : "things you've told me"}</span>
+            </h1>
+            <Pwait gold={gold} rest={grey} />
+          </section>
 
-          <div id="profileview" className={`body ${view}`} ref={view === "sorted" ? sortedBodyRef : undefined}>
-            {view === "sorted" ? (
-              <div className="sheetwrap">
-                <AboutYou contact={profile.contact} onUpdated={onContactUpdated} onAnnounce={onAnnounce} />
-                {domains.map((d, i) => {
-                  const { lead, rest } = pickLead(d.facts);
-                  const a = (0.035 + 0.075 * (d.facts.length / biggest)).toFixed(3);
-                  return (
-                    <section
-                      className="dom"
-                      key={d.tag}
-                      style={reducedMotion ? undefined : { animationDelay: `${Math.min(i * 55, 330)}ms` }}
-                    >
-                      <span className="aura" style={{ ["--a" as string]: a }} aria-hidden="true" />
-                      <div className="dhead">
-                        <h2 className="dname">{d.heading}</h2>
-                        <span className="dcount">
-                          {d.facts.length}
-                          <span className="sr-only"> {d.facts.length === 1 ? "fact" : "facts"}</span>
-                        </span>
-                      </div>
-                      <p className={`dlead ${lead.colour}`}>{lead.text}</p>
-                      {rest.length > 0 && (
-                        <div className="facts">
-                          {rest.map((f) => (
-                            <button
-                              key={f.id}
-                              type="button"
-                              className={`fact ${f.colour}`}
-                              aria-label={`${f.text} — ${f.colour === "gold" ? P21 : P22}`}
-                              onClick={() => onOpenFact(f)}
-                            >
-                              {chipText(f.text)}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </section>
-                  );
-                })}
-                <p className="dnote">
-                  {showP12
-                    ? P12
-                    : "The highlighted ones make your CV right now. The rest are kept for when a job needs them. Your CV is two pages, so it picks; nothing is ever dropped."}
-                </p>
+          {/* #192 §1: one DOM, two layouts. At ≥900px `.pfsheet`/`.pfsheet-body` are `display:
+              contents`, so `.body` is once again a direct flex child of `.field` — desktop shape A
+              is byte-identical. At ≤899px this becomes the fixed pull-up sheet. `role`/`aria-label`
+              are added only while `sheetActive` — `display: contents` does not reliably strip an
+              element's own ARIA semantics, so an unconditional landmark here would survive on
+              desktop as an empty "Your facts" region (code review MUST-FIX). */}
+          <div
+            className={`pfsheet ${view}${sheetOpen ? " open" : ""}${dragging ? " dragging" : ""}`}
+            ref={sheetRef}
+            {...(sheetActive ? { role: "region", "aria-label": PS1 } : {})}
+          >
+            <div className="pfsheet-head" ref={pfheadRef}>
+              <button
+                type="button"
+                className="pfgrab"
+                ref={grabRef}
+                aria-expanded={sheetOpen}
+                aria-controls="pfsheetbody"
+                onClick={onGrabClick}
+                onPointerDown={onGrabPointerDown}
+                onPointerMove={onGrabPointerMove}
+                onPointerUp={onGrabPointerUp}
+                onPointerCancel={onGrabPointerUp}
+              >
+                <span className="pfbar" aria-hidden="true" />
+                <span className="pfrow">
+                  <span className="pftitle">{PS1}</span>{" "}
+                  <span className="pfnum">
+                    {totalCount}
+                    <span className="sr-only"> {totalCount === 1 ? "fact" : "facts"}</span>
+                  </span>
+                </span>
+                <span className="pfhint" aria-hidden="true">
+                  {sheetOpen ? PS3 : PS2}
+                </span>
+              </button>
+            </div>
+            <div id="pfsheetbody" className="pfsheet-body">
+              <div id="profileview" className={`body ${view}`} ref={view === "sorted" ? sortedBodyRef : undefined}>
+                {view === "sorted" ? (
+                  <div className="sheetwrap">
+                    <AboutYou contact={profile.contact} onUpdated={onContactUpdated} onAnnounce={onAnnounce} />
+                    {domains.map((d, i) => {
+                      const { lead, rest } = pickLead(d.facts);
+                      const a = (0.035 + 0.075 * (d.facts.length / biggest)).toFixed(3);
+                      return (
+                        <section
+                          className="dom"
+                          key={d.tag}
+                          style={reducedMotion ? undefined : { animationDelay: `${Math.min(i * 55, 330)}ms` }}
+                        >
+                          <span className="aura" style={{ ["--a" as string]: a }} aria-hidden="true" />
+                          <div className="dhead">
+                            <h2 className="dname">{d.heading}</h2>
+                            <span className="dcount">
+                              {d.facts.length}
+                              <span className="sr-only"> {d.facts.length === 1 ? "fact" : "facts"}</span>
+                            </span>
+                          </div>
+                          <p className={`dlead ${lead.colour}`}>{lead.text}</p>
+                          {rest.length > 0 && (
+                            <div className="facts">
+                              {rest.map((f) => (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  className={`fact ${f.colour}`}
+                                  aria-label={`${f.text} — ${f.colour === "gold" ? P21 : P22}`}
+                                  onClick={() => onOpenFact(f)}
+                                >
+                                  {chipText(f.text)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </section>
+                      );
+                    })}
+                    <p className="dnote">
+                      {showP12
+                        ? P12
+                        : "The highlighted ones make your CV right now. The rest are kept for when a job needs them. Your CV is two pages, so it picks; nothing is ever dropped."}
+                    </p>
+                  </div>
+                ) : (
+                  <Constellation domains={domains} reducedMotion={reducedMotion} selected={selected} onOpenFact={onOpenFact} />
+                )}
               </div>
-            ) : (
-              <Constellation domains={domains} reducedMotion={reducedMotion} selected={selected} onOpenFact={onOpenFact} />
-            )}
+            </div>
           </div>
         </div>
 

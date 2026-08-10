@@ -7,9 +7,15 @@
   --reserve: #97aabc; /* the cool grey of the colour law — never --weak, which means "gap" */
   --reserve-dim: #748aa1; /* the constellation glow for reserve nodes, never text */
   --gold-hi: #ffd9a0; /* the lit gold for the head number + the on-CV lead line */
+  --pf-peek: 76px; /* #192 fallback; JS overwrites with the measured .pfsheet-head height */
   /* no position here: `.jobdeck` (same element) is already `position: fixed`, which is a positioning
      context on its own — redeclaring `relative` here would win on source order alone (profile.css
      loads after deck.css, same specificity) and collapse the fixed full-screen layout to auto height. */
+  /* code review fix 3: a zero-visual-impact probe so JS can read the real safe-area inset (custom
+     properties don't resolve env() on their own — this property does, and has no layout/paint
+     effect otherwise) — used to keep the sheet's JS drag range in agreement with its CSS collapsed
+     rest position (`100% - peek - safe area`), instead of overshooting it. */
+  scroll-padding-bottom: env(safe-area-inset-bottom);
 }
 
 .profile::before {
@@ -567,10 +573,16 @@
     bottom: 12px;
   }
   .profile .sheetwrap {
-    padding-bottom: 18px;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
   }
+  /* #192 §2.4: the rail leads on phone now — flex+gap reserves #188's Location slot above Job
+     family (§1), and the bottom padding clears the collapsed sheet's peek so nothing sits behind
+     it. Replaces the flat `26px` padding this rule carried before #192. */
   .profile .rail {
-    padding: 0 18px calc(26px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 0 18px calc(20px + var(--pf-peek) + env(safe-area-inset-bottom));
   }
 }
 @media (min-width: 641px) and (max-width: 899px) {
@@ -587,6 +599,11 @@
     max-width: 1120px;
     margin-inline: auto;
     width: 100%;
+  }
+  /* #192 §1: the hero now renders in every view (view class moved from JS-gating .phead to
+     `.field`'s own class) — this restores desktop's Sorted-only hero, byte-identical to before. */
+  .profile .field.constellation .phead {
+    display: none;
   }
   .profile .stage {
     max-width: 1120px;
@@ -842,4 +859,148 @@
 }
 .profile .cxfield .rdoor {
   margin-top: 6px;
+}
+
+/* ---------- #192 the phone pull-up sheet (design-192.md §0/§2/§3) ----------
+   Every value below is sourced from a shipped value already on this screen — `.pfsheet` is new
+   work (the ticket's named "tailor screen sheet" reference does not exist), not a reuse:
+     surface/border/corners/shadow ← `.profile dialog.detail` + `.profile .sheet`
+     motion (360ms cubic-bezier(0.2, 1, 0.3, 1)) ← pf-sheetin
+     reduced motion ← the blanket `.jobdeck * { transition-duration: 1ms !important }` (deck.css),
+       plus the two additions in this section (transition-delay override, no-live-follow in JS)
+   Naming trap: `.sheet`/`.sheetwrap`/`.sheetin` are taken by Constellation's detail card and the
+   Sorted list's padding wrapper — this is `.pfsheet`/`.pfsheet-head`/`.pfsheet-body`/`.pfgrab`. */
+
+@media (max-width: 899px) {
+  .profile .pfsheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 6; /* .stage/.rail are z-index 1 */
+    height: 88svh;
+    display: flex;
+    flex-direction: column;
+    background: rgba(23, 28, 35, 0.97);
+    border-top: 1px solid var(--hud-line);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -12px 46px -14px rgba(0, 0, 0, 0.9);
+    transform: translateY(calc(100% - var(--pf-peek) - env(safe-area-inset-bottom)));
+    transition: transform 360ms cubic-bezier(0.2, 1, 0.3, 1);
+    will-change: transform;
+  }
+  .profile .pfsheet.open {
+    transform: none;
+  }
+  .profile .pfsheet.dragging {
+    transition: none;
+  }
+  .profile .pfsheet .pfsheet-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* Keeps the collapsed body out of the tab order and the a11y tree with no JS viewport check —
+       this rule lives inside the phone media query, so desktop can never inert its own field. The
+       360ms delay on collapse keeps content visible while the panel slides down. */
+    visibility: hidden;
+    transition: visibility 0s linear 360ms;
+  }
+  .profile .pfsheet.open .pfsheet-body {
+    visibility: visible;
+    transition-delay: 0s;
+  }
+  /* §3.4: the constellation view fills the sheet instead of its fixed 520px box. (0,4,0) beats the
+     base `.profile .body.constellation` rule's (0,3,0) regardless of source order. */
+  .profile .pfsheet.constellation .pfsheet-body {
+    overflow: hidden;
+  }
+  .profile .pfsheet .body.constellation {
+    height: 100%;
+    min-height: 0;
+  }
+}
+@media (min-width: 641px) and (max-width: 899px) {
+  .profile .pfsheet {
+    max-width: var(--jc-desk-col); /* matches the capped .stage */
+    margin-inline: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The blanket `.jobdeck *` rule caps every transition's duration to 1ms, not its delay — this is
+     the one extra override reduced motion needs so the sheet still snaps instead of visibly lagging
+     visibility by 360ms after an instant slide. */
+  .profile .pfsheet .pfsheet-body {
+    transition-delay: 0s;
+  }
+}
+
+/* ≥ 900px: no grabber, no sheet chrome — .pfsheet/.pfsheet-body are transparent to layout so
+   .phead and .body stay direct flex children of .field (desktop shape A, byte-identical). */
+@media (min-width: 900px) {
+  .profile .pfsheet,
+  .profile .pfsheet-body {
+    display: contents;
+  }
+  .profile .pfsheet-head {
+    display: none;
+  }
+}
+
+/* ---------- #192 the collapsed edge — the whole edge is one button ---------- */
+.profile .pfsheet-head {
+  flex: 0 0 auto;
+}
+.profile .pfgrab {
+  appearance: none;
+  display: block;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 9px 18px 12px;
+  touch-action: none; /* the drag must not be stolen by page scroll */
+}
+.profile .pfbar {
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: 0 auto 10px;
+  border-radius: 999px;
+  background: var(--hud-line);
+}
+.profile .pfgrab:hover .pfbar,
+.profile .pfgrab:focus-visible .pfbar {
+  background: var(--hud-mute);
+}
+.profile .pfrow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.profile .pftitle {
+  font-size: 14.5px; /* = .rtitle */
+  font-weight: 620;
+  color: var(--hud-ink);
+}
+.profile .pfnum {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px; /* = .dcount */
+  color: var(--settled);
+  font-variant-numeric: tabular-nums;
+}
+.profile .pfhint {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px; /* = .rsub */
+  color: var(--hud-mute);
+}
+@media (max-width: 359px) {
+  .profile .pfgrab {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
 }

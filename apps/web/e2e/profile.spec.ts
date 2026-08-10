@@ -184,31 +184,252 @@ test("desktop: the field and rail render side by side, and the Sorted/Constellat
   await expect(rail).toBeVisible(); // the rail survives the view switch
 });
 
-test("phone: field and rail stack in one column with nothing missing", async ({ page }) => {
+test("desktop: clicking a view toggle never touches the sheet — no announcement, no sheet state or landmark", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await stubSession(page);
+  await stubProfile(page);
+  await page.goto("/profile");
+
+  await page.getByRole("button", { name: "Constellation" }).click();
+  await expect(page.locator(".sky")).toBeVisible();
+
+  // Code review MUST-FIX: the sheet must not leak onto desktop — no announcement, no `.open` class,
+  // no phantom "Your facts" landmark surviving `display: contents`.
+  await expect(page.getByText("Your facts opened.")).toHaveCount(0);
+  await expect(page.getByText("Your facts closed.")).toHaveCount(0);
+  await expect(page.locator(".pfsheet")).not.toHaveClass(/open/);
+  await expect(page.locator(".pfsheet")).not.toHaveAttribute("role", "region");
+  await expect(page.getByRole("region", { name: "Your facts" })).toHaveCount(0);
+});
+
+// ---------- #192 phone: the rail leads, the facts open as a pull-up sheet ----------
+// Supersedes #183's interim phone stacking (facts first, rail below). See design-192.md.
+
+test("phone: the rail leads, and the facts sheet sits collapsed with a visible grabber and count", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await stubSession(page);
   await stubProfile(page);
   await page.goto("/profile");
 
-  const stageDirection = await page.locator(".stage").evaluate((el) => getComputedStyle(el).flexDirection);
-  expect(stageDirection).toBe("column");
+  // Hero and rail are both visible without opening the sheet.
+  await expect(page.getByRole("heading", { name: "4 things you've told me" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Not the job you meant?" })).toBeVisible();
 
-  const field = page.locator(".field");
-  const rail = page.locator(".rail");
-  await expect(field).toBeAttached();
-  await expect(rail).toBeAttached();
+  const grab = page.getByRole("button", { name: /Your facts/ });
+  await expect(grab).toBeVisible();
+  await expect(grab).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".pfnum")).toContainText("4");
 
-  const fieldBox = await field.boundingBox();
-  const railBox = await rail.boundingBox();
-  expect(fieldBox).not.toBeNull();
-  expect(railBox).not.toBeNull();
-  // Stacked: the rail starts at/after the field's bottom edge.
-  expect(railBox!.y).toBeGreaterThanOrEqual(fieldBox!.y + fieldBox!.height - 5);
+  // Collapsed: the field's own content is out of the tab order / a11y tree — no JS viewport check.
+  await expect(page.locator("#profileview")).not.toBeVisible();
+});
 
-  // Nothing missing — the door is still reachable by scrolling.
+test("phone: tapping the grabber expands the sheet with the Sorted/Constellation toggle fully working", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await stubSession(page);
+  await stubProfile(page);
+  await page.goto("/profile");
+
+  const grab = page.getByRole("button", { name: /Your facts/ });
+  await grab.click();
+
+  await expect(grab).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator(".pfsheet")).toHaveClass(/open/);
+  await expect(page.locator("#profileview")).toBeVisible();
+  await expect(page.getByText("Your facts opened.")).toBeAttached();
+
+  // The toggle still works fully while expanded.
+  const constellationBtn = page.getByRole("button", { name: "Constellation" });
+  await constellationBtn.click();
+  await expect(constellationBtn).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".sky")).toBeVisible();
+
+  const sortedBtn = page.getByRole("button", { name: "Sorted" });
+  await sortedBtn.click();
+  await expect(sortedBtn).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".sheetwrap")).toBeVisible();
+});
+
+test("phone: activating the grabber by keyboard expands the sheet, focus staying on the grabber", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await stubSession(page);
+  await stubProfile(page);
+  await page.goto("/profile");
+
+  const grab = page.getByRole("button", { name: /Your facts/ });
+  await grab.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(grab).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#profileview")).toBeVisible();
+  // Standard disclosure behaviour: no focus jump into the content.
+  await expect(grab).toBeFocused();
+});
+
+test("phone: tapping a view toggle while collapsed opens the sheet and switches the view together", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await stubSession(page);
+  await stubProfile(page);
+  await page.goto("/profile");
+
+  const grab = page.getByRole("button", { name: /Your facts/ });
+  await expect(grab).toHaveAttribute("aria-expanded", "false");
+
+  await page.getByRole("button", { name: "Constellation" }).click();
+
+  await expect(grab).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator(".sky")).toBeVisible();
+});
+
+test("phone: a fact's detail dialog opens and closes correctly inside the expanded sheet", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await stubSession(page);
+  await stubProfile(page);
+  await page.goto("/profile");
+
+  await page.getByRole("button", { name: /Your facts/ }).click();
+  const fact = page.getByRole("button", { name: /Led SAP cutover planning/ });
+  await fact.click();
+
+  const dialog = page.locator("dialog.detail");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await expect(fact).toBeFocused();
+  // The dialog's own Escape must not also collapse the sheet behind it (§3.2 rule 1).
+  await expect(page.locator(".pfsheet")).toHaveClass(/open/);
+});
+
+test("phone: collapsing the sheet again restores the rail view", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await stubSession(page);
+  await stubProfile(page);
+  await page.goto("/profile");
+
+  const grab = page.getByRole("button", { name: /Your facts/ });
+  await grab.click();
+  await expect(grab).toHaveAttribute("aria-expanded", "true");
+
+  await grab.click();
+  await expect(grab).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#profileview")).not.toBeVisible();
+  await expect(page.getByText("Your facts closed.")).toBeAttached();
+  await expect(page.getByRole("button", { name: "Not the job you meant?" })).toBeVisible();
+});
+
+test("phone: a real pull gesture past the threshold expands the sheet", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await stubSession(page);
+  await stubProfile(page);
+  await page.goto("/profile");
+
+  const grab = page.getByRole("button", { name: /Your facts/ });
+  const box = await grab.boundingBox();
+  expect(box).not.toBeNull();
+  const x = box!.x + box!.width / 2;
+  const y = box!.y + box!.height / 2;
+
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y - 80, { steps: 8 }); // well past the 56px open threshold
+  await page.mouse.up();
+
+  await expect(grab).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#profileview")).toBeVisible();
+
+  // QA regression guard: drag it back down, then the grabber must still be keyboard-operable — a
+  // shipped bug left `draggedRef` stuck true after any drag, going permanently keyboard-dead.
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + 80, { steps: 8 }); // well past the 56px close threshold
+  await page.mouse.up();
+  await expect(grab).toHaveAttribute("aria-expanded", "false");
+
+  await grab.focus();
+  await page.keyboard.press("Enter");
+  await expect(grab).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#profileview")).toBeVisible();
+});
+
+test("phone: a contact door opens correctly from inside the expanded sheet", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    contact: { phone: { value: "+852 1234 5678", origin: "read" }, email: null },
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  await page.getByRole("button", { name: /Your facts/ }).click();
+  const about = page.locator(".dom").filter({ hasText: "About you" });
+  await about.getByRole("button", { name: "Not your number?" }).click();
+
+  const input = page.getByLabel("What's the best phone number for your CV?");
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("+852 1234 5678");
+});
+
+test("phone: Escape inside a door's question closes only the question — the sheet stays open, focus on the door", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    contact: { phone: { value: "+852 1234 5678", origin: "read" }, email: null },
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  await page.getByRole("button", { name: /Your facts/ }).click();
+  const about = page.locator(".dom").filter({ hasText: "About you" });
+  const door = about.getByRole("button", { name: "Not your number?" });
+  await door.click();
+
+  const input = page.getByLabel("What's the best phone number for your CV?");
+  await expect(input).toBeFocused();
+  await page.keyboard.press("Escape");
+
+  // QA fix: one layer of Escape closes the question — it must not also fall through to the page-
+  // level handler and collapse the sheet out from under it.
+  await expect(input).toHaveCount(0);
+  await expect(door).toBeFocused();
+  await expect(page.locator(".pfsheet")).toHaveClass(/open/);
+  await expect(page.locator("#profileview")).toBeVisible();
+
+  // A second Escape, now that focus is back on the door (outside any question), does collapse it.
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".pfsheet")).not.toHaveClass(/open/);
+});
+
+test("phone at 360×800: 'Not the job you meant?' is visible without any scrolling or sheet occlusion (AC3)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await stubSession(page);
+  await stubProfile(page);
+  await page.goto("/profile");
+
   const door = page.getByRole("button", { name: "Not the job you meant?" });
-  await door.scrollIntoViewIfNeeded();
   await expect(door).toBeVisible();
+  const box = await door.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(800);
+
+  // Not occluded by the collapsed sheet's own visible edge either — the door's bottom must clear
+  // the peek, not just the viewport.
+  const headBox = await page.locator(".pfsheet-head").boundingBox();
+  expect(headBox).not.toBeNull();
+  expect(box!.y + box!.height).toBeLessThanOrEqual(headBox!.y);
+
+  const scrollTop = await page.locator(".stage").evaluate((el) => el.scrollTop);
+  expect(scrollTop).toBe(0); // visible at rest, before any scroll happens
 });
 
 test("the hero reads the live counts with the 'kept for when a job needs them' framing, no colour name", async ({ page }) => {
