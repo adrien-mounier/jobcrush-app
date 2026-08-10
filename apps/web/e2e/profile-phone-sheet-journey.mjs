@@ -39,13 +39,30 @@ for (const ev of ['uncaughtException', 'unhandledRejection']) {
 const BASE_PROFILE = {
   factCount: 4,
   search: { role: 'IT project manager in Paris', family: null, siblingTitles: [], openJobs: null },
+  location: {
+    area: 'Hong Kong',
+    workRights: {
+      market: 'Hong Kong',
+      answer: null,
+      questionId: 'eligibility:work-rights:hong-kong',
+      question: 'Can you work in Hong Kong without sponsorship?',
+      options: ['Yes — no sponsorship needed', "Not yet — I'd need sponsorship", "I'd rather not say"],
+    },
+  },
+  languagesQuestion: {
+    questionId: 'eligibility:language',
+    question: 'Which of these languages could you work in?',
+    consequence: null,
+    options: ['English', 'Cantonese', 'Mandarin', "I'd rather not say"],
+    answer: null,
+  },
   contact: { phone: { value: '+852 1234 5678', origin: 'read' }, email: { value: 'mei@example.com', origin: 'person-said' } },
   domains: [
     {
       tag: 'experience',
       heading: 'Professional Experience',
       facts: [
-        { id: 'e1', text: 'Managed a team of six engineers.', colour: 'gold', source: 'told' },
+        { id: 'e1', text: 'Managed a team of six engineers.', colour: 'gold', source: 'told', job: null },
         { id: 'e2', text: 'Owned a seven-figure vendor budget while coordinating finance, procurement, and delivery.', colour: 'grey', source: 'read' },
         { id: 'e3', text: 'Led SAP cutover planning.', colour: 'grey', source: 'told' },
       ],
