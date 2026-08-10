@@ -1,5 +1,38 @@
 # What the structured CV read would cost per upload
 
+> 🚨 **CORRECTION, 2026-08-11 — do not cite the 0.77× as a verdict on record richness.**
+>
+> The numbers below are real and correctly computed. **The conclusion drawn from them is not.** A
+> five-model adversarial council found this comparison **confounded across two independent dials**:
+>
+> 1. **Granularity** — records per CV. Today's miner writes **few** (it is explicitly allowed to batch
+>    a whole skill inventory into one claim). This prototype wrote **many** (21 skills vs 4).
+> 2. **Richness** — fields per record. Today's miner writes **~12**. This prototype wrote **~2**.
+>
+> This document compares ***many × lean*** against ***few × rich***, and its headline reads as a
+> verdict on **richness**. Cost is the **product** of the two dials, so it is not one. **The cell the
+> product actually needs — *many × rich* — was never measured here.**
+>
+> Worse, **both shapes measured below are unshippable**: the batched shape cannot expose the five
+> machine decisions inside one quoted line (ADR-0004 clause 1a and #157 Design A both require it,
+> including *counts-as-work*, which moves years-of-experience and therefore eligibility), and the lean
+> shape carries none of the judgments the confirm deck tiers on. **All five council roles rejected the
+> minimal shape**, including the one briefed to find the upside in the cheap option.
+>
+> The *"What would change this number"* section below anticipated exactly this — but as a caveat, not
+> as the headline, and the headline is what travels.
+>
+> **→ [#196](https://github.com/adrien-mounier/jobcrush-app/issues/196)** measures the missing cell on
+> the production API path with thinking disabled, plus a *compact-emission* variant (short enum codes
+> and source pointers instead of repeated quote text) that two council roles independently estimated
+> could be **40–50%** of the output bill by itself.
+>
+> **What still stands, unaffected:** the structured read is **not cheap because it captured less** —
+> same jobs, identical certification and language counts across all six CVs, and substantially more
+> skills. And the assumptions and limits stated below are the template #196 must improve on, not
+> discard.
+
+
 _Research for [#160](https://github.com/adrien-mounier/jobcrush-app/issues/160), commissioned as a
 blocker on the 11-ticket structured-fact build ([ADR-0003](../adr/0003-the-shared-parts-organisation-date-level.md),
 [ADR-0004](../adr/0004-each-elements-own-parts.md)) because the owner set no cost ceiling on that
