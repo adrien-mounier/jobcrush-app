@@ -2,6 +2,29 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-10 (continuation) — owner decisions: rail-first mobile profile (#192) + the design system made real (#191)
+
+_Same orchestration session, resumed for two owner decisions given after the wrap-up briefing._
+
+- **#192** (`5367561`) — owner decision: on phones the rail leads and the Sorted/Constellation
+  field lives in a bottom pull-up sheet (grabber + fact count; drag/tap/keyboard; layered Escape;
+  desktop shape A byte- and behaviour-identical, gated by live DOM state). Designer flagged the
+  referenced tailor "CV pull-up sheet" was never actually shipped — built new from this screen's
+  own values. Review: 3 must-fixes (desktop announcement/landmark leak, focus drop, safe-area
+  snap). QA NO-GO round 1 (grabber keyboard-dead after drag; door-Escape collapsed the sheet —
+  the fix needed `event.defaultPrevented`; stopPropagation is unreliable under React 18
+  delegation) → GO round 2, 28/28 e2e. Decision recorded on #176.
+- **#191** (`21248df` docs + `0365ebe` CSS) — owner decision A refined by his own analysis:
+  DESIGN.md/frontmatter/sidecar document the dark room's real working ramp (10.5–42px, floor rule,
+  missing tokens: gold-ink, night-weak "gap grey", danger-soft terracotta, 14px panel radius);
+  lint findings 100 → single digits, every survivor deliberate. CSS normalization: text floor
+  10.5px live (17 raises; 3 glyph exceptions), profile drift inks → shared tokens, gold-tint
+  one-hex typo fixed, paper shadow → documented value, progress rail scaleX. QA GO: 79 e2e,
+  measured type sweep + AA contrast. Recorded not blessed: 22/32px one-offs, rgba(200,132,44),
+  #2f3844, 4/13/20px radii, low-contrast .dcount/.pfnum ink (2.55:1) — future design look.
+  Known tool quirks recorded on #191: audit CLI stops at apps/web's package boundary; detector
+  ±0.5px tolerance (the 10px sweep was done by grep).
+
 ## 2026-08-09/10 — /orchestrate-team: profile foundation layer + orphaned #158 + owner's contact-info request (5 slices, 6 tickets closed)
 
 _Orchestrated build session (paused and resumed mid-flight by the owner). Every slice: build → two-axis
