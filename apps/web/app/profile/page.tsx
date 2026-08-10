@@ -11,15 +11,20 @@ import "../profile.css";
 import { FactBadge } from "../factbadge";
 import { useReducedMotion } from "../jobcard";
 import {
+  answerDiscovery,
   answerDiscoveryMulti,
   ensureSession,
+  getCards,
   getProfile,
   saveContact,
+  saveIntent,
   saveTargetTitles,
+  type IntentState,
   type ProfileContact,
   type ProfileDomain,
   type ProfileFact,
   type ProfileLanguagesQuestion,
+  type ProfileLocation,
   type ProfileSearch,
   type ProfileState,
 } from "../../lib/api";
@@ -130,6 +135,23 @@ const ICON_BRIEFCASE = (
     <path d="M5 4.4V3.3a1.1 1.1 0 0 1 1.1-1.1h1.8A1.1 1.1 0 0 1 9 3.3v1.1M1.8 7.4h10.4" />
   </svg>
 );
+// #188 the rail's Location section (design-186-188.md PART B). Pin path from
+// prototypes/profile-desktop.prototype.html's PIC.pin.
+const ICON_PIN = (
+  <svg className="pic" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.3} aria-hidden="true">
+    <path d="M7 12.6C9.7 9.7 11.4 7.5 11.4 5.4a4.4 4.4 0 1 0-8.8 0c0 2.1 1.7 4.3 4.4 7.2z" />
+    <circle cx="7" cy="5.4" r="1.5" />
+  </svg>
+);
+const LOC_TITLE = "Location";
+const LOC_SUB = "Where you're searching.";
+const LOC_ASK = "Where should JobCrush look?";
+const LOC_HELPER = "Tell us the area you want to search — it can be different from where you live.";
+const LOC_CONFIRM = "Search this";
+const WR_TOLD_TAIL = " I haven't asked you about this place yet.";
+const WR_CHANGE = "Change this answer";
+const WR_ASK = "Answer it now";
+const WR_KEEP = "Keep my answer";
 
 // #183 hero line 2 (design-183-desktop-profile-shape-a.md §2) — the "kept for when a job needs
 // them" framing, never the dead "waiting for a job that asks" one. `rest` is total − gold; it is
@@ -716,6 +738,333 @@ function AboutYou({
   );
 }
 
+// #184 (#172): the coverage list rendered in the early-access line — re-declared locally (not
+// imported) per the #183 precedent for shared strings/rules, comment citing the source: app/page.tsx
+// carries the canonical copy. The list itself always comes from the server response — never a second
+// hard-coded country list; only this joining rule lives here too.
+function joinCoverage(list: string[]): string {
+  if (list.length <= 1) return list[0] ?? "";
+  if (list.length === 2) return `${list[0]} and ${list[1]}`;
+  return `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
+}
+
+// #188 the rail's Location section (design-186-188.md PART B). The rail is never an editor: every
+// control opens a re-asked original question, exactly the Job family panel's own door pattern below.
+// Two independent doors — search area (reuses #184's validation + coverage copy, never a second
+// implementation) and work rights (market-keyed). Neither door holds local memory of a stale
+// answer: every render reads `location` straight off the prop, refreshed via onProfileRefreshed —
+// the same "re-fetch, never patch in place" rule #186's language door already follows.
+function LocationPanel({
+  location,
+  onProfileRefreshed,
+  onAnnounce,
+}: {
+  location: ProfileLocation;
+  onProfileRefreshed: (profile: ProfileState) => void;
+  onAnnounce: (message: string) => void;
+}) {
+  // --- the search-area door ---
+  const [areaAsking, setAreaAsking] = useState(false);
+  const [areaValue, setAreaValue] = useState(location.area ?? "");
+  const [areaSaving, setAreaSaving] = useState(false);
+  const [areaSaveError, setAreaSaveError] = useState(false);
+  const [areaCoverage, setAreaCoverage] = useState<string[] | null>(null);
+  // Fetching/failed persist past the door closing (B2: the area zone is one of line | door |
+  // fetching | fetch-failed) so they're their own state, not folded into `areaAsking`.
+  const [fetchingMarket, setFetchingMarket] = useState<string | null>(null);
+  const [fetchFailedMarket, setFetchFailedMarket] = useState<string | null>(null);
+  // Shared across every state the area zone's trailing button can be in (Change / the no-area
+  // prompt / Try again) — only one ever renders at a time, so one ref suffices, and focus always
+  // returns to "whichever door-like button is now on screen" (B6).
+  const areaDoorRef = useRef<HTMLButtonElement>(null);
+  const areaInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (areaAsking) {
+      areaInputRef.current?.focus();
+      areaInputRef.current?.select();
+    }
+  }, [areaAsking]);
+
+  function openAreaDoor() {
+    setAreaValue(location.area ?? "");
+    setAreaCoverage(null);
+    setAreaSaveError(false);
+    setAreaAsking(true);
+  }
+  function closeAreaDoor() {
+    setAreaAsking(false);
+    setAreaCoverage(null);
+    setAreaSaveError(false);
+    requestAnimationFrame(() => areaDoorRef.current?.focus());
+  }
+
+  // #185 decision 5: the profile refresh + the deck-warming request together ARE the honest end
+  // signal for a market switch — no unbounded spinner anywhere in this flow. `getCards()` is what
+  // actually drives the new market's pull, and it alone is what the fetching line waits on;
+  // `getProfile()` runs alongside it only to bring the rest of the payload current.
+  async function runFetch(market: string) {
+    setFetchFailedMarket(null);
+    setFetchingMarket(market);
+    try {
+      await getCards();
+      setFetchingMarket(null);
+    } catch {
+      setFetchingMarket(null);
+      setFetchFailedMarket(market);
+    }
+    requestAnimationFrame(() => areaDoorRef.current?.focus());
+  }
+
+  async function confirmArea() {
+    const value = areaValue.trim();
+    if (!value || areaSaving) return;
+    setAreaSaving(true);
+    setAreaSaveError(false);
+    let accepted: IntentState;
+    try {
+      accepted = await saveIntent({ searchArea: value });
+    } catch {
+      setAreaSaving(false);
+      setAreaSaveError(true);
+      requestAnimationFrame(() => areaInputRef.current?.focus());
+      return;
+    }
+    setAreaSaving(false);
+    const resolution = accepted.searchAreaResolution;
+    if (resolution && resolution.covered === false) {
+      // AC2: an early-access coverage fact, never the person's mistake — nothing changes, the door
+      // stays open with the typed text and focus kept exactly where they were.
+      setAreaCoverage(resolution.coverage);
+      requestAnimationFrame(() => areaInputRef.current?.focus());
+      return;
+    }
+    const market = resolution && resolution.covered === true ? resolution.market : value;
+    setAreaAsking(false);
+    setAreaCoverage(null);
+    onAnnounce(`Now searching ${market}.`);
+    void getProfile()
+      .then(onProfileRefreshed)
+      .catch(() => {
+        // A refetch failure here is never reported as a save failure (the #183 rule) — the fetching
+        // line's own success/failure below is the only honest signal this flow reports on.
+      });
+    await runFetch(market);
+  }
+
+  // --- the work-rights door ---
+  const [wrAsking, setWrAsking] = useState(false);
+  const [wrSaving, setWrSaving] = useState(false);
+  const [wrError, setWrError] = useState(false);
+  const wrDoorRef = useRef<HTMLButtonElement>(null);
+  const wrFirstOptRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (wrAsking) wrFirstOptRef.current?.focus();
+  }, [wrAsking]);
+
+  // A market switch never carries the door's open/closed state across either — an open question
+  // about Paris must not still be sitting open once the rail is showing Hong Kong.
+  const currentMarket = location.workRights?.market ?? null;
+  const prevMarketRef = useRef(currentMarket);
+  useEffect(() => {
+    if (currentMarket !== prevMarketRef.current) {
+      prevMarketRef.current = currentMarket;
+      setWrAsking(false);
+      setWrError(false);
+    }
+  }, [currentMarket]);
+
+  function openWrDoor() {
+    setWrError(false);
+    setWrAsking(true);
+  }
+  function closeWrDoor() {
+    setWrAsking(false);
+    setWrError(false);
+    requestAnimationFrame(() => wrDoorRef.current?.focus());
+  }
+
+  async function pickWorkRights(option: string) {
+    if (wrSaving || !location.workRights) return;
+    const { market, questionId } = location.workRights;
+    setWrSaving(true);
+    setWrError(false);
+    try {
+      await answerDiscovery(questionId, option);
+    } catch {
+      setWrSaving(false);
+      setWrError(true);
+      return;
+    }
+    try {
+      const fresh = await getProfile();
+      onProfileRefreshed(fresh);
+    } catch {
+      // Best effort only; the next full load will pick up the fresh answer.
+    }
+    onAnnounce(`Work rights for ${market}: ${option}.`);
+    setWrSaving(false);
+    setWrAsking(false);
+    requestAnimationFrame(() => wrDoorRef.current?.focus());
+  }
+
+  return (
+    <section className="rpanel rloc">
+      <h2 className="rtitle">
+        {ICON_PIN}
+        {LOC_TITLE}
+      </h2>
+      <p className="rsub">{LOC_SUB}</p>
+
+      {fetchingMarket ? (
+        <p className="rfetch" role="status">{`Fetching ${fetchingMarket} jobs… nothing you've answered is re-asked.`}</p>
+      ) : fetchFailedMarket ? (
+        <div className="rline">
+          <p className="rerr">{`Couldn't fetch ${fetchFailedMarket} jobs just now.`}</p>
+          <button type="button" ref={areaDoorRef} className="rdoor" onClick={() => void runFetch(fetchFailedMarket)}>
+            {P3}
+          </button>
+        </div>
+      ) : areaAsking ? (
+        <div
+          className="rq"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              // QA fix (same pattern as every other door on this screen): consume Escape here so
+              // the phone sheet's page-level handler never also collapses the sheet from under it —
+              // the rail sits outside the sheet, but a person can have the sheet open at the same
+              // time as this door.
+              e.stopPropagation();
+              closeAreaDoor();
+            }
+          }}
+        >
+          <label className="rqq" htmlFor="loc-area-again">
+            {LOC_ASK}
+          </label>
+          <input
+            id="loc-area-again"
+            className="rin"
+            ref={areaInputRef}
+            value={areaValue}
+            disabled={areaSaving}
+            aria-describedby={["loc-area-helper", areaCoverage ? "loc-area-coverage" : null].filter(Boolean).join(" ")}
+            onChange={(e) => {
+              setAreaValue(e.target.value);
+              setAreaCoverage(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void confirmArea();
+              }
+            }}
+          />
+          <p id="loc-area-helper" className="rnote">
+            {LOC_HELPER}
+          </p>
+          {areaCoverage && (
+            <p id="loc-area-coverage" className="rcover" role="status">
+              {`JobCrush is in early access — we currently cover ${joinCoverage(areaCoverage)}.`}
+            </p>
+          )}
+          <div className="rbtns">
+            <button type="button" className="rbtn" disabled={areaSaving || !areaValue.trim()} onClick={() => void confirmArea()}>
+              {LOC_CONFIRM}
+            </button>
+            <button type="button" className="rbtn" disabled={areaSaving} onClick={closeAreaDoor}>
+              {location.area ? `Keep ${location.area}` : "Not now"}
+            </button>
+          </div>
+          {areaSaving && <p className="rbusy">{CX_SAVING}</p>}
+          {areaSaveError && (
+            <p className="rerr" role="alert">
+              {R12}
+            </p>
+          )}
+          {!areaSaving && !areaSaveError && <p className="rnote">{R11}</p>}
+        </div>
+      ) : (
+        <div className="rline">
+          <p className={location.area ? "rrole" : "rrole rmute"}>{location.area ?? R9}</p>
+          <button type="button" ref={areaDoorRef} className="rdoor" onClick={openAreaDoor}>
+            {location.area ? "Change" : LOC_ASK}
+          </button>
+        </div>
+      )}
+
+      {/* B5: the whole row is absent when there's no valid, covered market to key work rights to —
+          an answer about nowhere has no meaning, and this screen never draws an empty box. */}
+      {location.workRights && (
+        <div className="rrow">
+          <p className="rlabel">{`Work rights · ${location.workRights.market}`}</p>
+          {wrAsking ? (
+            <div
+              className="rq"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  closeWrDoor();
+                }
+              }}
+            >
+              <p className="rqq" id="wr-q">
+                {location.workRights.question}
+              </p>
+              <div className="rbtns" role="group" aria-labelledby="wr-q">
+                {location.workRights.options.map((opt, i) => {
+                  const picked = opt === location.workRights!.answer;
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      ref={i === 0 ? wrFirstOptRef : undefined}
+                      className={`rbtn${picked ? " picked" : ""}`}
+                      aria-current={picked ? "true" : undefined}
+                      disabled={wrSaving}
+                      onClick={() => void pickWorkRights(opt)}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+              <button type="button" ref={wrDoorRef} className="rdoor" disabled={wrSaving} onClick={closeWrDoor}>
+                {location.workRights.answer !== null ? WR_KEEP : "Not now"}
+              </button>
+              {wrSaving && <p className="rbusy">{CX_SAVING}</p>}
+              {wrError && (
+                <p className="rerr" role="alert">
+                  {R12}
+                </p>
+              )}
+              {!wrSaving && !wrError && <p className="rnote">{R11}</p>}
+            </div>
+          ) : location.workRights.answer !== null ? (
+            <>
+              <p className="rrole">{location.workRights.answer}</p>
+              <p className="src">{P24}</p>
+              <button type="button" ref={wrDoorRef} className="rdoor" onClick={openWrDoor}>
+                {WR_CHANGE}
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="rrole rmute">{`${location.workRights.question}${WR_TOLD_TAIL}`}</p>
+              <button type="button" ref={wrDoorRef} className="rdoor" onClick={openWrDoor}>
+                {WR_ASK}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // #183 the rail's Job family section (design spec §3). Pre-E5 (`family === null`) is the permanent
 // shape: role as typed + the door, nothing else — never a family/sibling/count derived client-side.
 // The door replaces the display block in place with Q1's own question, re-declared locally (§3.5);
@@ -797,7 +1146,10 @@ function JobFamilyPanel({
   );
 
   return (
-    <section className="rpanel">
+    // #188: `rjob` mirrors Location's own `rloc` marker — the rail now holds two `.rpanel` sections,
+    // and each needs its own scoping hook for both CSS and e2e locators (`.rrole` etc. are shared
+    // across both panels' shells).
+    <section className="rpanel rjob">
       <h2 className="rtitle">
         {ICON_BRIEFCASE}
         {R2}
@@ -1452,6 +1804,7 @@ function ReadyScreen({
         </div>
 
         <aside className="rail" aria-label={R1}>
+          <LocationPanel location={profile.location} onProfileRefreshed={onProfileRefreshed} onAnnounce={onAnnounce} />
           <JobFamilyPanel search={profile.search} onSearchUpdated={onSearchUpdated} onAnnounce={onAnnounce} />
         </aside>
       </div>

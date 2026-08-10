@@ -522,11 +522,11 @@ test("Job family renders only the role and the door when family is null — no f
   await stubProfile(page); // PROFILE.search.family/siblingTitles/openJobs are the pre-E5 empty shape
   await page.goto("/profile");
 
-  const rail = page.locator(".rail");
-  await expect(rail.locator(".rrole")).toHaveText("IT project manager in Paris");
-  await expect(rail.locator(".rfam")).toHaveCount(0);
-  await expect(rail.locator(".rrow")).toHaveCount(0);
-  await expect(rail.getByRole("button", { name: "Not the job you meant?" })).toBeVisible();
+  const jobPanel = page.locator(".rjob");
+  await expect(jobPanel.locator(".rrole")).toHaveText("IT project manager in Paris");
+  await expect(jobPanel.locator(".rfam")).toHaveCount(0);
+  await expect(jobPanel.locator(".rrow")).toHaveCount(0);
+  await expect(jobPanel.getByRole("button", { name: "Not the job you meant?" })).toBeVisible();
 });
 
 test("the door reopens the original role question pre-filled, and answering it updates the search", async ({ page }) => {
@@ -562,7 +562,7 @@ test("the door reopens the original role question pre-filled, and answering it u
   await expect(page.getByText("Finding jobs like yours…")).toBeVisible();
   releaseSave();
   await expect(page.getByText("Now searching Delivery manager in Lyon.")).toBeAttached();
-  await expect(page.locator(".rrole")).toHaveText("Delivery manager in Lyon");
+  await expect(page.locator(".rjob .rrole")).toHaveText("Delivery manager in Lyon");
   await expect(door).toBeFocused();
 });
 
@@ -577,7 +577,7 @@ test("cancelling the door keeps the previous answer and returns focus to the doo
   await input.fill("Something else entirely");
   await page.getByRole("button", { name: "Keep IT project manager in Paris" }).click();
 
-  await expect(page.locator(".rrole")).toHaveText("IT project manager in Paris");
+  await expect(page.locator(".rjob .rrole")).toHaveText("IT project manager in Paris");
   await expect(door).toBeFocused();
 });
 
@@ -616,15 +616,15 @@ test("when the search block carries a family, siblings, and an open-jobs count, 
   await stubProfile(page, state);
   await page.goto("/profile");
 
-  const rail = page.locator(".rail");
-  await expect(rail.locator(".rrole")).toHaveText("IT project manager in Paris");
-  await expect(rail.locator(".rfam")).toHaveText("Part of IT Project Management.");
-  await expect(rail.locator(".rlabel")).toHaveText("Also searching");
-  await expect(rail.locator(".rtag")).toHaveCount(2);
-  await expect(rail.locator(".rtag").first()).toHaveText("Programme manager");
-  await expect(rail.locator(".rsrc")).toContainText("42 jobs open");
-  await expect(rail.locator(".rsrc")).toContainText("across these titles right now.");
-  await expect(rail.getByRole("button", { name: "Not the job you meant?" })).toBeVisible();
+  const jobPanel = page.locator(".rjob");
+  await expect(jobPanel.locator(".rrole")).toHaveText("IT project manager in Paris");
+  await expect(jobPanel.locator(".rfam")).toHaveText("Part of IT Project Management.");
+  await expect(jobPanel.locator(".rlabel")).toHaveText("Also searching");
+  await expect(jobPanel.locator(".rtag")).toHaveCount(2);
+  await expect(jobPanel.locator(".rtag").first()).toHaveText("Programme manager");
+  await expect(jobPanel.locator(".rsrc")).toContainText("42 jobs open");
+  await expect(jobPanel.locator(".rsrc")).toContainText("across these titles right now.");
+  await expect(jobPanel.getByRole("button", { name: "Not the job you meant?" })).toBeVisible();
 });
 
 test("role never answered: the door reads its own copy and opens the same question", async ({ page }) => {
@@ -633,9 +633,9 @@ test("role never answered: the door reads its own copy and opens the same questi
   await stubProfile(page, state);
   await page.goto("/profile");
 
-  const rail = page.locator(".rail");
-  await expect(rail.locator(".rrole")).toHaveText("You haven't told me yet.");
-  const door = rail.getByRole("button", { name: "What job are you looking for?" });
+  const jobPanel = page.locator(".rjob");
+  await expect(jobPanel.locator(".rrole")).toHaveText("You haven't told me yet.");
+  const door = jobPanel.getByRole("button", { name: "What job are you looking for?" });
   await expect(door).toBeVisible();
 
   await door.click();
@@ -1185,4 +1185,269 @@ test("#186 AC7: a two-hundred-fact profile stays navigable, with sticky job head
   expect(containerBox).not.toBeNull();
   expect(headerBox).not.toBeNull();
   expect(Math.abs(headerBox!.y - containerBox!.y)).toBeLessThan(6);
+});
+
+// ---------- #188 the rail's Location section: the search area, the area-change door, work rights
+// keyed to the place they're about ----------
+
+type WorkRights = NonNullable<ProfileState["location"]["workRights"]>;
+
+const WR_PARIS: WorkRights = {
+  market: "Paris",
+  answer: "Yes — no sponsorship needed",
+  questionId: "eligibility-work-rights-paris",
+  question: "Can you work in Paris without sponsorship?",
+  options: ["Yes — no sponsorship needed", "Not yet — I'd need sponsorship", "Ask me later"],
+};
+
+const WR_HONG_KONG_UNANSWERED: WorkRights = {
+  market: "Hong Kong",
+  answer: null,
+  questionId: "eligibility-work-rights-hong-kong",
+  question: "Can you work in Hong Kong without sponsorship?",
+  options: ["Yes — no sponsorship needed", "Not yet — I'd need sponsorship", "Ask me later"],
+};
+
+test("#188 AC1: a set search area shows in the Location section, on desktop rail and phone stack alike", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const state: ProfileState = { ...PROFILE, location: { area: "Hong Kong", workRights: null } };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  const loc = page.locator(".rloc");
+  await expect(loc.locator(".rrole")).toHaveText("Hong Kong");
+  await expect(loc.getByRole("button", { name: "Change", exact: true })).toBeVisible();
+});
+
+test("#188 AC1: on phone, Location shows above the collapsed facts sheet", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await stubSession(page);
+  const state: ProfileState = { ...PROFILE, location: { area: "Hong Kong", workRights: null } };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  const loc = page.locator(".rloc");
+  await expect(loc).toBeVisible();
+  await expect(loc.locator(".rrole")).toHaveText("Hong Kong");
+});
+
+test("#188 AC2: an uncovered area shows the early-access coverage message and changes nothing", async ({ page }) => {
+  await stubSession(page);
+  const state: ProfileState = { ...PROFILE, location: { area: "Paris", workRights: null } };
+  await stubProfile(page, state);
+  await page.route("**/api/sessions/me/intent", async (route) => {
+    await route.fulfill({
+      json: {
+        intent: { targetRole: null, searchArea: "Nowhereland" },
+        missing: [],
+        checkpoint: "intent_needed",
+        searchAreaResolution: { covered: false, coverage: ["Hong Kong", "Singapore", "Vietnam", "Australia"] },
+      },
+    });
+  });
+  await page.goto("/profile");
+
+  const loc = page.locator(".rloc");
+  await loc.getByRole("button", { name: "Change", exact: true }).click();
+  const input = page.getByLabel("Where should JobCrush look?");
+  await expect(input).toHaveValue("Paris");
+  await input.fill("Nowhereland");
+  await loc.getByRole("button", { name: "Search this" }).click();
+
+  await expect(
+    page.getByText("JobCrush is in early access — we currently cover Hong Kong, Singapore, Vietnam and Australia."),
+  ).toBeVisible();
+  await expect(input).toHaveValue("Nowhereland"); // kept, nothing changed
+  await expect(input).toBeFocused();
+  await expect(loc.locator(".rline")).toHaveCount(0); // the door stays open, never closes on this response
+});
+
+test("#188 AC3: a valid switch shows a deliberate fetching state, distinguishable from 'no jobs match you', until the pull completes", async ({
+  page,
+}) => {
+  await stubSession(page);
+  let current: ProfileState = { ...PROFILE, location: { area: "Paris", workRights: null } };
+  await page.route("**/api/profile", async (route) => {
+    await route.fulfill({ json: current });
+  });
+  await page.route("**/api/sessions/me/intent", async (route) => {
+    current = { ...current, location: { area: "Hong Kong", workRights: null } };
+    await route.fulfill({
+      json: {
+        intent: { targetRole: null, searchArea: "Hong Kong" },
+        missing: [],
+        checkpoint: "intent_known",
+        searchAreaResolution: { covered: true, market: "Hong Kong", marketKey: "hong-kong" },
+      },
+    });
+  });
+  let releaseCards: () => void = () => {};
+  const cardsGate = new Promise<void>((resolve) => {
+    releaseCards = resolve;
+  });
+  await page.route("**/api/onboarding/cards", async (route) => {
+    await cardsGate;
+    await route.fulfill({ json: { stage: "deck", cards: [], authed: true, pendingCount: 0 } });
+  });
+  await page.goto("/profile");
+
+  const loc = page.locator(".rloc");
+  await loc.getByRole("button", { name: "Change", exact: true }).click();
+  await page.getByLabel("Where should JobCrush look?").fill("Hong Kong");
+  await loc.getByRole("button", { name: "Search this" }).click();
+
+  await expect(page.getByText("Fetching Hong Kong jobs…", { exact: false })).toBeVisible();
+  await expect(page.getByText("Now searching Hong Kong.")).toBeAttached();
+  await expect(page.getByText(/no jobs match you/i)).toHaveCount(0);
+
+  releaseCards();
+
+  await expect(page.getByText("Fetching Hong Kong jobs…", { exact: false })).toHaveCount(0);
+  await expect(loc.locator(".rrole")).toHaveText("Hong Kong");
+});
+
+test("#188 AC3: a fetch failure shows a retry door, never an unbounded spinner", async ({ page }) => {
+  await stubSession(page);
+  const state: ProfileState = { ...PROFILE, location: { area: "Paris", workRights: null } };
+  await page.route("**/api/profile", async (route) => {
+    await route.fulfill({ json: state });
+  });
+  await page.route("**/api/sessions/me/intent", async (route) => {
+    await route.fulfill({
+      json: {
+        intent: { targetRole: null, searchArea: "Hong Kong" },
+        missing: [],
+        checkpoint: "intent_known",
+        searchAreaResolution: { covered: true, market: "Hong Kong", marketKey: "hong-kong" },
+      },
+    });
+  });
+  let cardsCalls = 0;
+  await page.route("**/api/onboarding/cards", async (route) => {
+    cardsCalls += 1;
+    if (cardsCalls === 1) {
+      await route.abort();
+      return;
+    }
+    await route.fulfill({ json: { stage: "deck", cards: [], authed: true, pendingCount: 0 } });
+  });
+  await page.goto("/profile");
+
+  const loc = page.locator(".rloc");
+  await loc.getByRole("button", { name: "Change", exact: true }).click();
+  await page.getByLabel("Where should JobCrush look?").fill("Hong Kong");
+  await loc.getByRole("button", { name: "Search this" }).click();
+
+  const retry = page.getByRole("button", { name: "Try again" });
+  await expect(page.getByText("Couldn't fetch Hong Kong jobs just now.")).toBeVisible();
+  await expect(retry).toBeVisible();
+
+  await retry.click();
+  await expect(page.getByText("Couldn't fetch Hong Kong jobs just now.")).toHaveCount(0);
+});
+
+test("#188 AC4/AC5/AC6/AC7: work rights are market-keyed — a switch never credits or loses an answer, and every control re-asks the original question", async ({
+  page,
+}) => {
+  await stubSession(page);
+  let current: ProfileState = { ...PROFILE, location: { area: "Paris", workRights: WR_PARIS } };
+  await page.route("**/api/profile", async (route) => {
+    await route.fulfill({ json: current });
+  });
+  await page.route("**/api/sessions/me/intent", async (route) => {
+    const body = route.request().postDataJSON() as { searchArea?: string };
+    const area = (body.searchArea ?? "").trim();
+    const workRights = area === "Hong Kong" ? WR_HONG_KONG_UNANSWERED : area === "Paris" ? WR_PARIS : null;
+    current = { ...current, location: { area, workRights } };
+    await route.fulfill({
+      json: {
+        intent: { targetRole: null, searchArea: area },
+        missing: [],
+        checkpoint: "intent_known",
+        searchAreaResolution: { covered: true, market: area, marketKey: area.toLowerCase().replace(/\s+/g, "-") },
+      },
+    });
+  });
+  await page.route("**/api/onboarding/cards", async (route) => {
+    await route.fulfill({ json: { stage: "deck", cards: [], authed: true, pendingCount: 0 } });
+  });
+  let answered: { itemId: string; answer: string } | null = null;
+  await page.route("**/api/onboarding/discovery/answer", async (route) => {
+    const body = route.request().postDataJSON() as { itemId: string; answer?: string };
+    answered = { itemId: body.itemId, answer: body.answer ?? "" };
+    current = {
+      ...current,
+      location: { ...current.location, workRights: { ...current.location.workRights!, answer: body.answer ?? null } },
+    };
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.goto("/profile");
+
+  const loc = page.locator(".rloc");
+  await expect(loc.locator(".rlabel")).toHaveText(/work rights · paris/i);
+  await expect(loc.getByText("Yes — no sponsorship needed")).toBeVisible();
+  await expect(loc.getByText("You told me this.")).toBeVisible();
+
+  // Switch to Hong Kong.
+  await loc.getByRole("button", { name: "Change", exact: true }).click();
+  await page.getByLabel("Where should JobCrush look?").fill("Hong Kong");
+  await loc.getByRole("button", { name: "Search this" }).click();
+  await expect(page.getByText("Fetching Hong Kong jobs…", { exact: false })).toHaveCount(0);
+
+  // AC4: reads "WORK RIGHTS · HONG KONG" with "Answer it now" — Paris's answer neither shown nor lost.
+  await expect(loc.locator(".rlabel")).toHaveText(/work rights · hong kong/i);
+  const askNow = loc.getByRole("button", { name: "Answer it now" });
+  await expect(askNow).toBeVisible();
+  await expect(loc.getByText("Yes — no sponsorship needed")).toHaveCount(0);
+
+  // AC5/AC7: "Answer it now" re-opens the ORIGINAL Hong Kong question (verbatim, no prior answer
+  // pre-selected — there is none yet); answering stores it keyed to Hong Kong.
+  await askNow.click();
+  await expect(page.getByText(WR_HONG_KONG_UNANSWERED.question)).toBeVisible();
+  const firstOption = page.getByRole("button", { name: "Yes — no sponsorship needed" });
+  await expect(firstOption).toBeFocused(); // B6: open moves focus to the first option
+  await expect(firstOption).not.toHaveAttribute("aria-current", "true"); // nothing was ever answered here yet
+  const notYet = page.getByRole("button", { name: "Not yet — I'd need sponsorship" });
+  await notYet.click();
+
+  await expect(page.getByText("Work rights for Hong Kong: Not yet — I'd need sponsorship.")).toBeAttached();
+  await expect(loc.getByText("Not yet — I'd need sponsorship")).toBeVisible();
+  expect(answered).toEqual({ itemId: "eligibility-work-rights-hong-kong", answer: "Not yet — I'd need sponsorship" });
+
+  // AC6: switching back to Paris shows the original answer unchanged and not re-asked.
+  await loc.getByRole("button", { name: "Change", exact: true }).click();
+  await page.getByLabel("Where should JobCrush look?").fill("Paris");
+  await loc.getByRole("button", { name: "Search this" }).click();
+  await expect(page.getByText("Fetching Paris jobs…", { exact: false })).toHaveCount(0);
+
+  await expect(loc.locator(".rlabel")).toHaveText(/work rights · paris/i);
+  await expect(loc.getByText("Yes — no sponsorship needed")).toBeVisible();
+  await expect(loc.getByRole("button", { name: "Answer it now" })).toHaveCount(0); // not re-asked
+
+  // AC7: the "Change this answer" door re-opens the same original question with the previous
+  // answer pre-selected — never a second, in-place editor.
+  await loc.getByRole("button", { name: "Change this answer" }).click();
+  const yesOption = page.getByRole("button", { name: "Yes — no sponsorship needed" });
+  await expect(yesOption).toHaveAttribute("aria-current", "true");
+});
+
+test("#188 AC7: no in-place editing — the section shows plain values and doors, never a free-standing input", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    location: { area: "Hong Kong", workRights: { ...WR_HONG_KONG_UNANSWERED, answer: "Ask me later" } },
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  const loc = page.locator(".rloc");
+  await expect(loc.locator("input")).toHaveCount(0);
+  await expect(loc.locator(".rrole").first()).toHaveText("Hong Kong");
+  await expect(loc.getByRole("button", { name: "Change", exact: true })).toBeVisible();
+  await expect(loc.getByText("Ask me later")).toBeVisible();
+  await expect(loc.getByRole("button", { name: "Change this answer" })).toBeVisible();
 });

@@ -930,6 +930,64 @@
   margin: 8px 0 0;
 }
 
+/* ---------- #188 rail: Location (design-186-188.md PART B) ---------- */
+.profile .rline {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.profile .rline .rdoor {
+  margin-left: auto;
+  padding-top: 0;
+}
+.profile .rcover {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--hud-ink);
+}
+.profile .rfetch {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--reserve);
+}
+.profile .rfetch::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--reserve);
+  border-top-color: transparent;
+  margin-right: 7px;
+  vertical-align: -1px;
+  animation: pf-spin 900ms linear infinite;
+}
+@keyframes pf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile .rfetch::before {
+    animation-name: none;
+  }
+}
+.profile .rbtn.picked {
+  border-color: var(--gold-dim);
+  color: var(--gold-hi);
+}
+/* B6: every door in this section gets a taller hit box (its text alone is short) — scoped to
+   `.rloc` only, so the Job family panel's own `.rdoor` (already fine at its default size) is
+   untouched. */
+.profile .rloc .rdoor {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+
 /* ---------- #190 "contact info is a fact": the About you section ---------- */
 /* The section shell reuses .dom/.dhead/.dname as-is (the divider between it and the next domain
    comes free from the existing `.dom + .dom::before` rule). The door state reuses .rq/.rqq/.rin/
