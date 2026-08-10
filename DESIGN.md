@@ -80,6 +80,7 @@ rounded:
   soft: "10px"
   control: "11px"
   card: "12px"
+  panel: "14px"
   card-dark: "16px"
   pill: "999px"
 spacing:

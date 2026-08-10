@@ -121,7 +121,7 @@
 .profile .ptitle {
   margin: 0 0 4px;
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10.5px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--hud-mute);
@@ -224,7 +224,7 @@
 .profile .dname {
   margin: 0;
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10.5px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--hud-mute);
@@ -233,7 +233,7 @@
 .profile .dcount {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--settled);
   font-variant-numeric: tabular-nums;
 }
@@ -269,7 +269,7 @@
 }
 .profile .fact.gold {
   background: linear-gradient(180deg, rgba(232, 163, 61, 0.9), rgba(200, 132, 44, 0.92));
-  border: 1px solid rgba(255, 209, 160, 0.6);
+  border: 1px solid rgba(255, 217, 160, 0.6); /* matches gold-light #ffd9a0 */
   color: #1a1206;
   font-weight: 600;
   box-shadow:
@@ -278,8 +278,8 @@
 }
 .profile .fact.grey {
   background: linear-gradient(180deg, rgba(41, 49, 59, 0.85), rgba(29, 36, 45, 0.85));
-  border: 1px solid #2f3945;
-  color: #c3ccd5;
+  border: 1px solid #2b333d; /* the documented night-line */
+  color: #8a95a2; /* the documented night-muted-readable — secondary text on Raised */
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 .profile .fact:hover {
@@ -437,7 +437,7 @@
   border-radius: 16px;
   padding: 15px 16px;
   backdrop-filter: blur(18px) saturate(1.2);
-  box-shadow: 0 -12px 46px -14px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 -12px 36px -10px rgba(0, 0, 0, 0.6); /* DESIGN.md's paper-lift */
 }
 .profile .sheet.hint p {
   margin: 0;
@@ -482,7 +482,7 @@
 }
 .profile .txt {
   margin: 0 0 10px;
-  color: #f2f5f8;
+  color: #e8eaed; /* the documented night-ink */
 }
 .profile dialog .txt {
   font-size: 17px;
@@ -681,7 +681,7 @@
 .profile .rrole {
   margin: 0;
   font-size: 14px;
-  color: #eef2f6;
+  color: #e8eaed; /* the documented night-ink */
   overflow-wrap: break-word;
 }
 .profile .rmute {
@@ -699,7 +699,7 @@
 }
 .profile .rlabel {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 10.5px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--hud-mute);
@@ -716,8 +716,8 @@
   line-height: 1.2;
   padding: 4px 9px;
   border-radius: 999px;
-  border: 1px solid #2a333e;
-  color: #aab5c0;
+  border: 1px solid #2a333e; /* close to but not the same as the documented night-line #2b333d — a distinct value, left as-is */
+  color: #8a95a2; /* the documented night-muted-readable — secondary text on Raised */
   background: rgba(29, 36, 45, 0.5);
 }
 .profile .rsrc {
@@ -727,7 +727,7 @@
   line-height: 1.45;
 }
 .profile .rsrc b {
-  color: #b9c3cd;
+  color: #8a95a2; /* the documented night-muted-readable — secondary text on Raised */
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -770,7 +770,7 @@
   color: var(--hud-ink);
   background: var(--hud-2);
   border: 1px solid var(--hud-line);
-  border-radius: 8px;
+  border-radius: 10px; /* DESIGN.md's Inputs/Fields spec */
   padding: 8px 10px;
   margin: 0 0 9px;
 }
@@ -836,7 +836,7 @@
 .profile .cxlabel {
   margin: 0 0 4px;
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10.5px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--hud-mute);
@@ -844,10 +844,10 @@
 }
 .profile .cxvalue {
   margin: 0;
-  font-size: 16px;
+  font-size: 17px; /* matches .dlead's own 16.5px-reads-as-17 step */
   line-height: 1.3;
   font-weight: 550;
-  color: #eef2f6;
+  color: #e8eaed; /* the documented night-ink */
   overflow-wrap: break-word;
 }
 .profile .cxvalue.cxmute {
@@ -884,7 +884,7 @@
     background: rgba(23, 28, 35, 0.97);
     border-top: 1px solid var(--hud-line);
     border-radius: 20px 20px 0 0;
-    box-shadow: 0 -12px 46px -14px rgba(0, 0, 0, 0.9);
+    box-shadow: 0 -12px 36px -10px rgba(0, 0, 0, 0.6); /* DESIGN.md's paper-lift */
     transform: translateY(calc(100% - var(--pf-peek) - env(safe-area-inset-bottom)));
     transition: transform 360ms cubic-bezier(0.2, 1, 0.3, 1);
     will-change: transform;
@@ -988,7 +988,7 @@
 .profile .pfnum {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 10px; /* = .dcount */
+  font-size: 10.5px; /* = .dcount */
   color: var(--settled);
   font-variant-numeric: tabular-nums;
 }

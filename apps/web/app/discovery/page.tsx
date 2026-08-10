@@ -229,7 +229,9 @@ function Rail({
   return (
     <div className="rail" aria-hidden="true">
       <div className="rail-track">
-        <i style={{ width: `${overall}%` }} />
+        {/* Progress fill: a scaleX() fraction, not a width percentage — discovery.css transitions
+            `transform` with transform-origin: left, at the same 620ms curve. */}
+        <i style={{ transform: `scaleX(${overall / 100})` }} />
       </div>
       <div className="rail-steps">
         {SECTIONS.map((s) => {

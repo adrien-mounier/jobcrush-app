@@ -116,6 +116,12 @@
         "value": "8px",
         "createdAt": "2026-08-10T02:16:00.538Z",
         "reason": "Owner 2026-08-10: 8px occurrences are glyphs (percent sign, triangle), not reading text"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0, 0, 0, 0.6)",
+        "createdAt": "2026-08-10T03:11:00.861Z",
+        "reason": "The documented paper-lift shadow's own colour (DESIGN.md Shadow Vocabulary / sidecar shadows) - the colour rule does not credit shadow tokens"
       }
     ]
   }
