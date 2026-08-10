@@ -26,6 +26,13 @@ Three slices, committed and deployed (`651ce7b`, `e25ef6e`, `ffded0a`):
   session usage limit) + 46/46 live browser checks; no independent QA walkthrough on this slice —
   recorded honestly, #189's full-journey pass will cover it.
 
+Post-wrap owner additions (same session): **#194** (`072aa5d`) — contact moves to the rail as its
+third panel (Location → Job family → Contact), the #190 door re-homed verbatim, About you keeping
+only its other facts; desktop aligned, phone gets contact on the principal screen. And `1bf7cf7` —
+the phone-sheet journey's fixture predated the Location payload and crashed the shipped rail
+(caught refreshing owner screenshots; the slice-3 gap recorded above, now closed). Note for #189:
+an expanded phone sheet covers the rail — sheet and rail are never interactable at once.
+
 Follow-up filed: **#193** (a stored languages answer with no CV language claims has no editing door
 anywhere — scope hole found by QA, not a regression). Pre-existing, untouched:
 `profile-shape-a-journey.mjs` fails on a fixture predating #190's contact field.
