@@ -1,5 +1,65 @@
 # Lessons — jobcrush-app
 
+## A measurement that moves two variables answers neither
+
+#160 compared today's CV reader against a prototype and reported **0.77×**, read as *"the richer read
+is cheaper."* It wasn't a verdict on richness at all. Cost is the **product** of two dials —
+**granularity** (records per CV) and **richness** (fields per record) — and the comparison moved both:
+*few × rich* against *many × lean*. The cell the product actually needs, *many × rich*, was never
+measured, and **both measured shapes were unshippable** under constraints we had already decided.
+
+The tell, and it generalises: before trusting a comparison, **name every dimension that differs between
+the two arms.** If more than one does, the number is real but it does not answer the question — and the
+danger is that a real number reads as a settled one.
+
+Two habits that would have caught it: state the dials explicitly in the report's headline rather than as
+a caveat at the bottom (the caveat *was* there and it did not travel), and ask *"can we actually ship
+either arm?"* — if neither is shippable, the comparison cannot decide anything.
+
+## A test gate that mocks the network does not exercise what you built for it
+
+We checked in a fake-model API so the e2e suite could run, wired the route-mocked specs into CI, and
+they went green. But those specs mock **every** pipeline call — **the fake model was never invoked.**
+It could have returned `"{}"` for everything and the deploy gate would have stayed green.
+
+The fix that generalises is not "make the gate drive the model." Route-mocked specs are the right cheap
+tier. It is: **when a gate deliberately does not exercise something, assert that** — a post-run step now
+fails the job if the fake was touched at all. The weakness became a checked invariant instead of a
+comment nobody reads, and if a future spec starts hitting it, we hear about it.
+
+Same family as the repo's standing rule: *found nothing* must differ from *did not run*. Here the third
+state was worse — **ran, proved nothing, reported success.**
+
+## A test double that reads ambient env will find your production infrastructure
+
+The QA server isolated the model and the upload directory, then called `storageFromEnv()` and
+`mailerFromEnv()`. Both read ambient config — so run it in a shell with `R2_*` or `RESEND_API_KEY`
+exported (an ops shell, routinely) and the "costs nothing, touches nothing" run **writes to the
+Cloudflare bucket shared with the sibling project and sends real email.** The same shape was then found
+in `guestbook`, reading `DATABASE_URL`.
+
+**A `*FromEnv()` helper is an ambient-authority hole in anything that claims to be isolated.** Construct
+the local implementation directly — `new LocalDiskStorage(...)`, `new DevMailer(...)` — so isolation is
+structural rather than dependent on a clean shell. And when you find one, **grep for the whole family**;
+they cluster.
+
+Related, same session: the QA server defaulted to production's own port, and `/healthz` answered
+identically on both — so a health-wait could pass **against the real API** and a "never spend money" run
+would spend. **A liveness probe must prove *which* server answered**, not that something did.
+
+## Tests nobody can run rot, and the missing piece is usually smaller than a strategy
+
+33 e2e files sat in this repo; CI ran none. It looked like a testing-culture problem. It was one missing
+file: **there was no checked-in way to start the API with a fake model**, so every QA session hand-built
+a throwaway one and deleted it. Running the suite meant rebuilding scaffolding first, so nobody did.
+Once a ~140-line entry existed, **10 previously-unrunnable journeys passed on the first try** and the
+full sweep found **zero real defects** — the product was fine, the tests had simply rotted.
+
+Before proposing a testing initiative, **check whether the tests already exist and are merely
+unreachable.** And measure before building: the sweep also overturned two assumptions this session had
+stated confidently — that all the browser specs needed a paid key (only 1 of 9 did) and that a spec
+file's failures were all staleness (6 of 7 were a rate limiter poisoning the run).
+
 ## A schema default cannot tell "deliberately empty" from "never arrived"
 
 Relaxing a required field to allow an empty value is not the same as making it optional. `z.string()`

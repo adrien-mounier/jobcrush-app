@@ -73,7 +73,55 @@ mechanical guard** — the renderer is pass-through, the rule is prompt-enforced
 sample · `conservationIssues()` **never inspects `summary`**.
 
 **Gates**: full suite **1135 passed / 10 skipped / 0 failed** (baseline 1109), typecheck clean across
-seven packages. **Frontier now**: **#161 unblocked** (then #162–#171 behind it) · #63 · #109 · #113.
+seven packages.
+
+### Second half — the council overturned the session's own recommendation, and the deploy gained a screen gate
+
+Two more commits (`0313085`, `e959bd7`), three tickets filed, one closed.
+
+- 🚨 **The council overruled the orchestrator on the record shape, and the correction is the more
+  valuable output than the original number.** A five-model adversarial council was run on *what shape
+  is a stored structured fact*. **All five roles rejected the minimal shape** — including the one
+  briefed to argue for the cheap option. The finding: **#160 moved two dials at once.** Cost is the
+  **product** of *granularity* (records per CV) and *richness* (fields per record); #160 compared
+  *few × rich* against *many × lean* and the result was read as a verdict on richness. **The cell the
+  product needs — *many × rich* — was never measured, and both measured shapes are unshippable.**
+  → **#196** filed to measure it properly (production path, thinking disabled, tokens per *fact*,
+  correctness spot-checked, plus a *compact-emission* variant two roles estimated at **40–50%** of the
+  output bill). Corrections written to **three** places so the number cannot mislead a future session:
+  a banner on the report, a comment on #160, and the binding consequences on #161.
+  ⭐ **Two corrections to #161 stand regardless of #196's result**, because they rest on ADRs rather
+  than on cost: **one record per atomic machine decision**, and 🚨 **`needs_grill`/`grill_hint` come
+  OFF the frozen record** — they depend on the advert, so freezing them makes them stale on the second
+  application. That is ADR-0005 and ADR-0007's own pattern applied one level down. ⚠️ **#161 was
+  deliberately NOT re-blocked** — the owner's call, since it gates eleven tickets.
+- ⭐ **#198 shipped: the deploy now waits for the screens.** `apps/web/e2e/` held **33 files CI never
+  ran**, so a green push auto-deployed with nothing having driven a screen. 🚨 **The root cause was one
+  missing file, not a testing-culture problem: there was no checked-in way to start the API with a fake
+  model**, so every QA session hand-built a throwaway one and deleted it. A health sweep of all 24
+  journeys — the first in months — found **14 pass · 6 STALE · 4 INFRA · ZERO real defects**: the
+  product was fine, the tests rotted. Now `apps/api/src/qa-main.ts` (a **separate** entry, never an
+  `LLM_DRIVER=fake` branch — a branch puts production one env var from serving fabricated CV content;
+  the Dockerfile also prunes it from the production image) plus an `e2e` CI job gating
+  `deploy-staging`. **Green on its first live run** (`31428397929`), 123 passed / 1 skipped.
+  ⚠️ **Two session assumptions overturned by measurement**: only **1 of 9** browser specs needs a paid
+  key (not all 9), and **6 of `discovery.spec.ts`'s 7 failures were the session rate limiter, not
+  staleness** — it had been quietly poisoning the run.
+- 🚨 **Review sent #198 back once, and the finding was that the gate proved less than it claimed.** All
+  eight specs route-mock every pipeline call, so **the fake model was never exercised** — it could have
+  returned `"{}"` and CI stayed green. ⭐ **Made an asserted invariant instead of a hidden weakness:** a
+  post-run step now fails the job if Tier 1 touched the fake at all. Also caught: the QA server
+  **defaulted to production's port** with `/healthz` answering on both, so a health-wait could pass
+  against the real API and a *never-spend* run would spend · `storageFromEnv`/`mailerFromEnv` read
+  **ambient env**, so an ops shell would have written to the **shared Cloudflare bucket and sent real
+  email** (the engineer then found the same shape in `guestbook`/`DATABASE_URL` by pattern) · no
+  `forbidOnly` (one stray `test.only` → gate runs one test, exits 0, ships) · no `workers` pin (two
+  specs racing one in-memory server) · and the fake's catch-all branch would have turned a **tone-copy
+  reword** in `grill.ts` into `[object Object]` questions shipping green.
+
+**Follow-ups filed**: **#196** (the missing cost cell) · **#197** (6 stale journeys + the crash-report
+guard) · **#199** (Tier 2 real-stack journeys, blocked on #197). **Frontier now**: **#161 unblocked**
+(then #162–#171) · #196 · #197 · #63 · #109 · #113.
 
 ## 2026-08-10 (session 100) `/orchestrate-team` — spec #181 CLOSED: #187, #193, #189 shipped, full-journey GO
 
