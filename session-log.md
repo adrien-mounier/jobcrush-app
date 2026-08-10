@@ -2,6 +2,79 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-11 (session 101) `/orchestrate-team` — the structured-fact gate is open, and the CV stops asserting what nobody said
+
+Three commits (`2c8922c`, `c5ab350`, `94d27d0`), two QA GOs, four tickets closed. **The headline is
+that #161 — the keystone gating eleven tickets — is now unblocked**, and the cost fear that gated it
+turned out to be wrong.
+
+- **#157 closed (design register, bookkeeping)** — its own condition was *"close only when the five
+  have somewhere better to live."* Verified first-hand: all five items decided across sessions 92–95,
+  each binding decision posted as a comment on the ticket it binds (#159, #161, #163, #168, #169,
+  #170, #171), plus Design E on #169. Its three checkboxes were answered on the record (it became its
+  own interactive effort; item 5's precondition landed with #158; #120's *design* blocker is
+  discharged but **#120's live harm is not fixed** — it now waits on #163's build).
+  ⚠️ **One residual would have been orphaned by the close and was re-homed**: item 1's own note *"the
+  hole may be at the bottom"* (a thin CV ends ~2/3 down, ~300px trailing white) → commented onto
+  **#156**, which owns *"there is no page"* and is the only ticket that can make it measurable.
+- **#160 closed** (`2c8922c`) — **the structured read costs LESS than today's reader.** Six real
+  corpus CVs, one call per CV per reader: today's miner **$0.2065**/upload vs the structured read
+  **$0.1598** — **0.77×**; adjusted for harness overhead, $0.1794 vs $0.1312, **0.73×**. The gap is
+  almost entirely **output** tokens (~11,112 vs ~7,822). 🔑 **And it is not cheap by capturing less** —
+  same jobs, identical certification and language counts on all six, and **substantially more skills**
+  (21 vs 4, 28 vs 4) because today's miner is allowed to batch a whole skill inventory into one claim
+  to protect its 15-decision review budget. It costs more because it writes a **~12-field record per
+  claim** (semantic_key, three field slots, machine_touch, classification, source_quote, grill flags)
+  for the review deck's own needs. Report: `docs/research/structured-read-cost.md`.
+  ⚠️ **Caveats that must travel with the number**: run through the Claude Code CLI fallback, not the
+  production API path (no key present), so the adjusted column is a **computed estimate, not a bill**;
+  **thinking could not be disabled** as production does (`llm.ts` disables it precisely because
+  thinking was truncating the miner's JSON), and that gap is uncorrected on the output side where the
+  cost lives; one sample per cell; correctness of neither reader was checked.
+  🔑 **The decision it hands the owner**: the low cost holds *only* while a structured fact stays a
+  short *words + source span* record. A field-heavier final schema plausibly pushes it past 1×, and
+  that choice lands inside **#161**.
+- **#159 shipped** (`c5ab350`, QA **GO**) — unknown end prints its start alone (never `Present`);
+  the summary prints only when it earns its place, whole section omitted otherwise, nothing filling
+  the gap; *"Roughly is fine."* out of the date question; nationality becomes a print-by-default so
+  ADR-0007's withholding pass can ever fire; owner's variant C **"one spine"** header (left-aligned,
+  two lines, dashes — **pipes are mechanically impossible**, `cleanGlyphs` rewrites them); plus a
+  quiet master-CV note naming the roles whose dates are unknown, with nothing leaking to the tailored
+  CV. ACs verified **behaviourally against a live model**, not by asserting prompt strings.
+- **#174 shipped** (`94d27d0`, QA **GO**) — the phantom `theirstack` row (registered, no driver, all
+  four markets) and the structurally dead curated pool are honestly disabled, so `empty_pool` is
+  **reachable for the first time**. `IMPLEMENTED_PROVIDER_IDS` derives from each driver class's own
+  `static readonly providerId` — no hand-typed mirror — and `main.ts` refuses to boot naming any
+  active row with no implementation.
+  ⚠️ **Consequence, not a regression**: all four markets now run on **`techmap` alone, no fallback**.
+  ⚠️ **Copy trap recorded on #63**: `coverage.complete === true` means *"our one aggregator answered"*,
+  **never** *"there are no jobs in Hong Kong"* — and `provider_unavailable` must not collapse into the
+  same screen as `empty_pool`.
+
+**Four defects caught before shipping, three of them silent-by-construction:**
+
+1. 🚨 **`Draft.summary` as `z.string().default("")` swallowed an ABSENT key** — both review axes caught
+   it independently. A truncated tailor response would parse clean, skip the retry that exists for
+   exactly this, and ship a CV with no summary for someone who *has* an achievement — byte-identical
+   to a correct omission.
+2. 🚨 **The `"Roughly is fine."` removal fixed the wrong path.** Production phrases the date question
+   through `makeGrillPhraser`; `templateQuestion()` runs only when the model fails. AC4 was unmet
+   where users actually are.
+3. 🚨 **The first provider guard asserted on CONSTRUCTED drivers**, so an absent `TECHMAP_RAPIDAPI_KEY`
+   **crashed the whole API at boot** — one paid source's missing key becoming a total outage, on a repo
+   where a green push auto-deploys. Redesigned to take the registry alone and run before any driver is
+   constructed. Proven by booting with the key removed: healthy.
+4. 🚨 **Nothing proved `main.ts` called the guard** — deleting the five-line try/catch left all 1134
+   tests green. Pinned source-level (the `onboardingRatchet.test.ts` idiom), verified red-then-restored.
+
+⚠️ **Known gaps shipped knowingly**: `apps/web` **has no unit-test runner** (its `test` script is a
+literal no-op echo), so the master-CV note is covered only by the e2e added here · **AC1 has no
+mechanical guard** — the renderer is pass-through, the rule is prompt-enforced and rests on one model
+sample · `conservationIssues()` **never inspects `summary`**.
+
+**Gates**: full suite **1135 passed / 10 skipped / 0 failed** (baseline 1109), typecheck clean across
+seven packages. **Frontier now**: **#161 unblocked** (then #162–#171 behind it) · #63 · #109 · #113.
+
 ## 2026-08-10 (session 100) `/orchestrate-team` — spec #181 CLOSED: #187, #193, #189 shipped, full-journey GO
 
 Two commits (`8361a3d`, `45f2f52`); spec #181 closed with a full-journey QA GO on both viewports.

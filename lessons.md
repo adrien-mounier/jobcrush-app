@@ -1,5 +1,62 @@
 # Lessons — jobcrush-app
 
+## A schema default cannot tell "deliberately empty" from "never arrived"
+
+Relaxing a required field to allow an empty value is not the same as making it optional. `z.string()`
+allows `""` while still rejecting a **missing key**; `z.string().default("")` silently manufactures the
+empty value when the key is absent — and on an LLM boundary, absent is exactly what a truncated or
+retried response produces. The default then swallows the validation error that would have driven the
+retry, and the empty result is byte-identical to a correct one.
+
+The tell: when the empty value is a **decision the producer must state**, a default is wrong, because
+it lets a non-answer impersonate an answer. Reach for the default only when absence genuinely means
+"caller didn't supply this", never when it means "the model failed to say".
+
+This is the same shape as the repo's standing rule that *found nothing* must be distinguishable from
+*did not run* — the third time that rule has been broken in a new place. Both review axes caught this
+one independently, which is an argument for keeping the two axes unmerged.
+
+## Fix the path production takes, not the one that reads like the implementation
+
+A rule removed from a template that only runs as a **fallback** is not removed from the product. The
+grill's date question is LLM-phrased in production (`makeGrillPhraser`); `templateQuestion()` fires
+only when the model fails — so deleting the banned phrasing from the template left the shipped question
+free to say it, while a test asserting on the template passed.
+
+Before claiming a behavioural rule is enforced, trace which code the deployed wiring actually reaches
+(`main.ts` is the honest map here) and pin the test **there** — for a prompt-shaped rule, by capturing
+the real prompt sent to a fake LLM. A test on the fallback is a test on the error path.
+
+## A startup guard must assert what the code CAN do, never what this environment DID construct
+
+A guard checking "was a driver instance constructed" conflates two conditions that need opposite
+responses: **no implementation exists anywhere** (a build-time defect — fail fast, loudly) and **the
+implementation exists but declined for a config reason** (a legitimate runtime state the system already
+degrades honestly for). Asserting on constructed instances turned a missing `TECHMAP_RAPIDAPI_KEY` into
+a boot crash — converting one paid provider's absent key into a whole-API outage, on a repo where a
+green push auto-deploys.
+
+Assert on **capability, derived from the code itself** (here: each driver class's `static readonly
+providerId`, so a phantom id cannot exist without a class declaring it), and run the check **before**
+constructing anything, so config is structurally unable to reach it. Fail-fast belongs to defects that
+are always mistakes; anything an environment may legitimately lack must degrade, not crash.
+
+Corollary worth the ten lines: **nothing proved `main.ts` called the guard at all** — deleting the
+try/catch left the entire suite green. An entry point's wiring is usually untested; a source-level
+assertion in the `onboardingRatchet.test.ts` idiom is cheap and beats trusting it.
+
+## A ticket's blockers can outlive the work that satisfied them
+
+Eleven build tickets sat blocked on a design register whose five items had all been decided weeks
+earlier and posted onto the tickets they bind — the register was simply never closed. Nothing in the
+tracker notices that a blocker has become vacuous, so the frontier reads as empty while the real
+constraint is bookkeeping.
+
+When a frontier looks thin, check whether the blockers are still *true* rather than merely *open* —
+and when closing such a ticket, hunt for anything **routed back to it**. This one carried an open
+residual that the close would have orphaned; it needed a new home first. "Close only when the items
+have somewhere better to live" is a condition to verify, not a formality.
+
 ## A durable background claim needs a lease, an owner, and the raw replacement coordinate
 
 A persisted `in_flight` boolean or fingerprint is not recoverable state. If the worker dies, it stays
