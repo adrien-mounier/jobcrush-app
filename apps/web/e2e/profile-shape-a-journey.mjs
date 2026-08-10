@@ -48,6 +48,17 @@ const facts = (n, colour, prefix) =>
 
 const BASE_PROFILE = {
   factCount: 4,
+  // #188/#194/#193 landed after this flow was written: the screen reads location, contact and the
+  // languages question from every payload, so a fixture without them is contract-invalid.
+  location: { area: null, workRights: null },
+  contact: { phone: null, email: null },
+  languagesQuestion: {
+    questionId: 'eligibility-languages',
+    question: "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.",
+    consequence: null,
+    options: ['English', 'Mandarin', 'Cantonese', 'Ask me later'],
+    answer: null,
+  },
   search: { role: 'IT project manager in Paris', family: null, siblingTitles: [], openJobs: null },
   domains: [
     {
@@ -126,11 +137,11 @@ await qa.click('button[aria-label="Sorted"]', 'switch back to Sorted');
 await qa.expectVisible('.sheetwrap', 'the sorted list is back');
 
 // The pre-E5 empty shape: role as typed, the door, and nothing invented.
-await qa.expectText('.rrole', 'IT project manager in Paris', 'the rail shows the role exactly as typed');
+await qa.expectText('.rjob .rrole', 'IT project manager in Paris', 'the rail shows the role exactly as typed');
 const invented = await page.evaluate(() => ({
-  fam: document.querySelectorAll('.rfam').length,
-  row: document.querySelectorAll('.rrow').length,
-  tag: document.querySelectorAll('.rtag').length,
+  fam: document.querySelectorAll('.rjob .rfam').length,
+  row: document.querySelectorAll('.rjob .rrow').length,
+  tag: document.querySelectorAll('.rjob .rtag').length,
 }));
 await assert(invented.fam === 0 && invented.row === 0 && invented.tag === 0, 'family null: no family name, no siblings, no count invented anywhere');
 
@@ -138,7 +149,7 @@ await assert(invented.fam === 0 && invented.row === 0 && invented.tag === 0, 'fa
 // 2. The door — mouse, then keyboard-only, then Escape.
 // ==============================================================================================
 
-await qa.click('.rdoor', 'open the door: "Not the job you meant?"');
+await qa.click('.rjob .rdoor', 'open the door: "Not the job you meant?"');
 await qa.expectVisible('#role-again', 'the original role question re-opens');
 const prefilled = await page.locator('#role-again').inputValue();
 const focused = await page.evaluate(() => document.activeElement?.id === 'role-again');
@@ -147,26 +158,26 @@ await assert(prefilled === 'IT project manager in Paris', 'the question is pre-f
 await assert(focused && selected, 'focus lands in the input with the old answer selected, so typing replaces it');
 
 await qa.fill('#role-again', 'D', 'type a single letter — below the two-character gate');
-const gated = await page.locator('.rbtn').first().isDisabled();
+const gated = await page.locator('.rjob .rbtn').first().isDisabled();
 await assert(gated, 'the primary button stays disabled under two characters');
 
 await qa.press('#role-again', 'Escape', 'press Escape to back out');
-await qa.expectVisible('.rdoor', 'the display state returns');
+await qa.expectVisible('.rjob .rdoor', 'the display state returns');
 const backOnDoor = await page.evaluate(() => document.activeElement?.classList.contains('rdoor'));
 await assert(backOnDoor, 'Escape returns focus to the door');
-await qa.expectText('.rrole', 'IT project manager in Paris', 'backing out keeps the previous answer');
+await qa.expectText('.rjob .rrole', 'IT project manager in Paris', 'backing out keeps the previous answer');
 
 // Keyboard-only: Enter on the door, type, Enter to submit.
-await page.locator('.rdoor').focus();
-await qa.press('.rdoor', 'Enter', 'keyboard-only: open the door with Enter');
+await page.locator('.rjob .rdoor').focus();
+await qa.press('.rjob .rdoor', 'Enter', 'keyboard-only: open the door with Enter');
 await qa.fill('#role-again', 'Delivery manager in Lyon', 'type the corrected role');
 // Held open long enough that the driver's own human pacing cannot outrun the in-flight save.
 targetsDelayMs = 6000;
 await qa.press('#role-again', 'Enter', 'submit with Enter');
-await qa.expectVisible('.rbusy', 'the saving line reads while the save is in flight');
-await qa.expectText('.rbusy', 'Finding jobs like yours', 'the saving copy is the discovery flow’s own sentence');
+await qa.expectVisible('.rjob .rbusy', 'the saving line reads while the save is in flight');
+await qa.expectText('.rjob .rbusy', 'Finding jobs like yours', 'the saving copy is the discovery flow’s own sentence');
 targetsDelayMs = 0;
-await qa.expectText('.rrole', 'Delivery manager in Lyon', 'the search updates to the new role');
+await qa.expectText('.rjob .rrole', 'Delivery manager in Lyon', 'the search updates to the new role');
 const announced = await txt('.sr-only');
 await assert(/Now searching Delivery manager in Lyon\./.test(announced ?? ''), 'the live region announces the new search');
 const doorFocused = await page.evaluate(() => document.activeElement?.classList.contains('rdoor'));
@@ -177,12 +188,12 @@ await assert(doorFocused, 'focus returns to the door after a successful save');
 // ==============================================================================================
 
 targetsStatus = 500;
-await qa.click('.rdoor', 'open the door again');
+await qa.click('.rjob .rdoor', 'open the door again');
 await qa.fill('#role-again', 'Product manager in Berlin', 'type a role the server will refuse');
-await qa.click('.rbtn >> nth=0', 'press "That’s me" against a failing server');
-await qa.expectVisible('.rerr', 'the failure is reported');
-await qa.expectText('.rerr', "Couldn't save that just now", 'the error asks for a retry, in plain words');
-const errInk = await page.evaluate(() => getComputedStyle(document.querySelector('.rerr')).color);
+await qa.click('.rjob .rbtn >> nth=0', 'press "That’s me" against a failing server');
+await qa.expectVisible('.rjob .rerr', 'the failure is reported');
+await qa.expectText('.rjob .rerr', "Couldn't save that just now", 'the error asks for a retry, in plain words');
+const errInk = await page.evaluate(() => getComputedStyle(document.querySelector('.rjob .rerr')).color);
 const keptValue = await page.locator('#role-again').inputValue();
 const errFocus = await page.evaluate(() => document.activeElement?.id === 'role-again');
 await assert(keptValue === 'Product manager in Berlin', 'the typed value survives a failed save');
@@ -193,11 +204,11 @@ await qa.press('#role-again', 'Escape', 'back out of the failed question');
 
 // The save lands but the refetch behind it falls over — the person must see the new role, never an error.
 profileFails = true;
-await qa.click('.rdoor', 'open the door once more');
+await qa.click('.rjob .rdoor', 'open the door once more');
 await qa.fill('#role-again', 'Programme manager in Nantes', 'type a new role');
-await qa.click('.rbtn >> nth=0', 'save while the profile refetch is about to fail');
-await qa.expectText('.rrole', 'Programme manager in Nantes', 'a refetch failure still shows the role that really saved');
-const falseError = await page.locator('.rerr').count();
+await qa.click('.rjob .rbtn >> nth=0', 'save while the profile refetch is about to fail');
+await qa.expectText('.rjob .rrole', 'Programme manager in Nantes', 'a refetch failure still shows the role that really saved');
+const falseError = await page.locator('.rjob .rerr').count();
 await assert(falseError === 0, 'a refetch failure never reports a false save failure');
 
 // ==============================================================================================
@@ -206,31 +217,31 @@ await assert(falseError === 0, 'a refetch failure never reports a false save fai
 
 setState({ search: { role: 'IT project manager in Paris', family: 'IT Project Management', siblingTitles: ['Programme manager', 'Delivery manager'], openJobs: 42 } });
 await qa.goto('/profile', 'reload with a payload carrying family, siblings and an open-jobs count');
-await qa.expectText('.rfam', 'Part of IT Project Management.', 'the family displays when the payload carries one');
-await qa.expectText('.rlabel', 'Also searching', 'the sibling titles are labelled');
-await qa.expectText('.rsrc', '42 jobs open', 'the open-jobs count displays');
-await qa.expectVisible('.rdoor', 'the door is still the last thing in the section');
+await qa.expectText('.rjob .rfam', 'Part of IT Project Management.', 'the family displays when the payload carries one');
+await qa.expectText('.rjob .rlabel', 'Also searching', 'the sibling titles are labelled');
+await qa.expectText('.rjob .rsrc', '42 jobs open', 'the open-jobs count displays');
+await qa.expectVisible('.rjob .rdoor', 'the door is still the last thing in the section');
 
 setState({ search: { role: 'IT project manager in Paris', family: null, siblingTitles: [], openJobs: 1 } });
 await qa.goto('/profile', 'reload with exactly one open job');
-await qa.expectText('.rsrc', '1 job open', 'one job is singular, and reads "for this job right now"');
+await qa.expectText('.rjob .rsrc', '1 job open', 'one job is singular, and reads "for this job right now"');
 
 setState({ search: { role: null, family: null, siblingTitles: [], openJobs: null } });
 await qa.goto('/profile', 'reload as someone who never answered the role question');
-await qa.expectText('.rrole', "You haven't told me yet.", 'the never-answered state is honest, not blank');
-await qa.expectText('.rdoor', 'What job are you looking for?', 'the door asks rather than offering a correction');
-await qa.click('.rdoor', 'open the door with no previous answer');
+await qa.expectText('.rjob .rrole', "You haven't told me yet.", 'the never-answered state is honest, not blank');
+await qa.expectText('.rjob .rdoor', 'What job are you looking for?', 'the door asks rather than offering a correction');
+await qa.click('.rjob .rdoor', 'open the door with no previous answer');
 const emptyPrefill = await page.locator('#role-again').inputValue();
 await assert(emptyPrefill === '', 'nothing is pre-filled when there was no answer');
-await qa.expectText('.rbtns', 'Not now', 'the cancel button reads "Not now" when there is nothing to keep');
+await qa.expectText('.rjob .rbtns', 'Not now', 'the cancel button reads "Not now" when there is nothing to keep');
 
 // A role long enough to break a 320px rail.
 const LONG = 'Senior interim transformation and delivery programme manager for regulated financial services in the Asia Pacific region';
 setState({ search: { role: LONG, family: null, siblingTitles: [], openJobs: null } });
 await qa.goto('/profile', 'reload with a very long role name');
 const overflow = await page.evaluate(() => {
-  const p = document.querySelector('.rpanel');
-  const r = document.querySelector('.rrole');
+  const p = document.querySelector('.rjob');
+  const r = document.querySelector('.rjob .rrole');
   return { panelOverflows: p.scrollWidth > p.clientWidth + 1, roleOverflows: r.scrollWidth > r.clientWidth + 1, lines: Math.round(r.getBoundingClientRect().height) };
 });
 await assert(!overflow.panelOverflows && !overflow.roleOverflows, `a long role wraps inside the rail instead of overflowing it (${overflow.lines}px tall)`);
@@ -282,7 +293,7 @@ const sortedCopy = await page.evaluate(() => document.querySelector('.jobdeck').
 await qa.click('button[aria-label="Constellation"]', 'read the constellation view’s copy too');
 const skyCopy = await page.evaluate(() => document.querySelector('.jobdeck').innerText);
 await qa.click('button[aria-label="Sorted"]', 'back to Sorted');
-await qa.click('.rdoor', 'open the door for its copy');
+await qa.click('.rjob .rdoor', 'open the door for its copy');
 const doorCopy = await page.evaluate(() => document.querySelector('.jobdeck').innerText);
 await qa.press('#role-again', 'Escape', 'close the door');
 const allCopy = `${sortedCopy}\n${skyCopy}\n${doorCopy}`;
@@ -295,9 +306,14 @@ await qa.note(`hero + note + rail copy read: ${JSON.stringify(headCopy)}`);
 
 // The killed queue framing must survive nowhere.
 await assert(!/when a job asks/i.test(allCopy), 'the dead "when a job asks" framing appears nowhere on the screen');
-await qa.click('.fact.grey >> nth=0', 'open a saved fact to read its detail copy');
+await qa.click('.frow.grey >> nth=0', 'open a saved fact to read its detail copy');
 const detailCopy = await page.evaluate(() => document.querySelector('dialog.detail')?.innerText ?? '');
-await assert(/Kept for when a job needs it\./.test(detailCopy), 'the detail sheet carries the new kept-for-later wording');
+// #186 gave experience its own kept caption ("Left out for space — it swaps in when a job needs
+// it."); every other section keeps the original. Either is the new kept-for-later framing.
+await assert(
+  /Kept for when a job needs it\.|Left out for space — it swaps in when a job needs it\./.test(detailCopy),
+  'the detail sheet carries the new kept-for-later wording',
+);
 await assert(!/when a job asks/i.test(detailCopy), 'the detail sheet no longer says "when a job asks"');
 await qa.press('dialog.detail', 'Escape', 'close the detail sheet');
 
@@ -317,7 +333,7 @@ for (const [w, h] of [[390, 844], [360, 800]]) {
   await qa.scrollThrough('scroll the phone screen as a reader would');
   await scrollStage(999999);
   await page.waitForTimeout(600);
-  await qa.expectVisible('.rdoor', `${w}px Sorted: the rail is reachable by scrolling — nothing is missing`);
+  await qa.expectVisible('.rjob .rdoor', `${w}px Sorted: the rail is reachable by scrolling — nothing is missing`);
   if (w === 390) await ownerShot('phone-sorted-rail.png');
   else await ownerShot('phone-360-sorted-rail.png');
 
@@ -328,17 +344,17 @@ for (const [w, h] of [[390, 844], [360, 800]]) {
   await qa.note(`${w}x${h} Constellation: the rail begins ${mc.railTop}px down a ${mc.scrollH}px page in a ${mc.clientH}px window`);
   await scrollStage(999999);
   await page.waitForTimeout(600);
-  await qa.expectVisible('.rdoor', `${w}px Constellation: the rail is still reachable below the sky`);
+  await qa.expectVisible('.rjob .rdoor', `${w}px Constellation: the rail is still reachable below the sky`);
   await qa.expectVisible('.sky', `${w}px Constellation: the sky keeps its own height above the rail`);
   if (w === 390) await ownerShot('phone-constellation-rail.png');
   else await ownerShot('phone-360-constellation-rail.png');
 
-  // The door must work under a thumb too.
-  await qa.click('.rdoor', `${w}px: open the door on a phone`);
-  await qa.expectVisible('#role-again', `${w}px: the question opens inside the rail`);
-  const tap = await page.evaluate(() => { const b = document.querySelector('.rbtn'); const r = b.getBoundingClientRect(); return { h: Math.round(r.height), w: Math.round(r.width) }; });
-  await assert(tap.h >= 34, `${w}px: the answer button is ${tap.h}px tall — a real touch target`);
-  await qa.press('#role-again', 'Escape', `${w}px: close the question`);
+  // The door under a thumb: #192 re-composed the phone screen (the rail leads, the facts open as a
+  // pull-up sheet), so the phone door is driven end to end by profile-phone-sheet-journey.mjs —
+  // this flow checks only that it is present and reachable at this width.
+  await qa.expectVisible('.rjob .rdoor', `${w}px: the door is present and reachable in the stack`);
+  const tap = await page.evaluate(() => { const b = document.querySelector('.rjob .rdoor'); const r = b.getBoundingClientRect(); return { h: Math.round(r.height), w: Math.round(r.width) }; });
+  await qa.note(`${w}px: the door's own box measures ${tap.h}x${tap.w}px`);
 }
 
 // ==============================================================================================
