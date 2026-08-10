@@ -2,6 +2,36 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-10 (session 99) `/orchestrate-team` — profile spec #181's middle: #185, #186, #188 (+#173) shipped
+
+Three slices, committed and deployed (`651ce7b`, `e25ef6e`, `ffded0a`):
+
+- **#185** (`651ce7b`) — the profile payload speaks the new design, additively: "About you" first
+  ("Professional Summary" pinned never-a-heading), per-fact job attribution, rail Location data.
+  Two review-driven extensions mid-slice: the work-rights block carries the composed question
+  (questionId/question/options — the client must never re-slug), and a `languagesQuestion` block
+  after #186's review found the door re-declaring options client-side AND pre-ticking from CV claim
+  text — a save could have silently flipped real eligibility answers to "no" and withdrawn jobs.
+  QA GO after a live-HTTP adversarial drive (switch/switch-back/decline/supersede/aliases).
+- **#186** (`e25ef6e`) — the Sorted view is style B: CV-section order, per-job blocks (on-CV above
+  kept, never pooled), chips for word facts, honest kept captions, said/read in every detail,
+  languages edited in exactly one honest place. QA GO: 39/39 spec + 58/0 phone-sheet journey live on
+  desktop and phone. The long-flaky pull-gesture e2e was diagnosed (stale grabber coordinates across
+  the sheet's 360ms transition; the slice made it near-deterministic) and fixed with an
+  arrived-and-stopped poll; the phone-sheet journey's selector followed the new row markup.
+- **#188 + #173** (`ffded0a`) — the rail's Location section whole: area on show, the change door
+  reusing #184's validation + coverage copy, honest named fetching state with a real end condition
+  and retry, market-labelled work rights ("Answer it now" when honestly open), Paris↔Hong Kong
+  round trip pinned. Reviewed by the orchestrator directly (both review agents were cut off by the
+  session usage limit) + 46/46 live browser checks; no independent QA walkthrough on this slice —
+  recorded honestly, #189's full-journey pass will cover it.
+
+Follow-up filed: **#193** (a stored languages answer with no CV language claims has no editing door
+anywhere — scope hole found by QA, not a regression). Pre-existing, untouched:
+`profile-shape-a-journey.mjs` fails on a fixture predating #190's contact field.
+**Spec #181's remaining frontier: #187 (constellation) → #189 (full-journey QA + the owner's
+mobile-rail decision).**
+
 ## 2026-08-10 (continuation) — owner decisions: rail-first mobile profile (#192) + the design system made real (#191)
 
 _Same orchestration session, resumed for two owner decisions given after the wrap-up briefing._
