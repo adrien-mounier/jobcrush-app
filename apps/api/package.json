@@ -8,6 +8,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "node --loader ts-node/esm src/main.ts",
     "start": "node dist/main.js",
+    "start:qa": "node dist/qa-main.js",
     "test": "vitest run",
     "set-r2-cors": "node scripts/set-r2-cors.mjs",
     "techmap-smoke": "node scripts/techmap-smoke.mjs"

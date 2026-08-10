@@ -12,10 +12,21 @@ export default defineConfig({
   testDir: "./e2e",
   timeout: 300_000, // paste → mine → preview → deck → build (now with the audit) + a review-fix rebuild, all on the real model
   expect: { timeout: 15_000 },
-  reporter: [["list"]],
+  // A stray test.only left in any spec would otherwise make the CI gate run just that one test,
+  // exit 0, and ship — forbidOnly turns that into a hard failure, in CI only (a local test.only
+  // while iterating is still fine).
+  forbidOnly: !!process.env.CI,
+  // Different spec files run in separate workers by default; all of them share ONE in-memory
+  // qa-main.ts process (sessions, family-learning store, rate limiter, …), so parallel workers race
+  // on that shared server state. Pinned to 1 in CI — a deploy gate that's flaky is worse than one
+  // that's merely slow. Local iteration keeps the default (parallel, fast).
+  workers: process.env.CI ? 1 : undefined,
+  reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000",
     actionTimeout: 30_000,
     navigationTimeout: 30_000,
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
   },
 });

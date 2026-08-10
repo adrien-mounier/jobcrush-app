@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "echo 'no unit tests (UI is exercised by the e2e onboarding smoke)'",
     "e2e": "playwright test",
+    "e2e:mocked": "node e2e/run-mocked.mjs",
     "e2e:r2-cors": "node e2e/r2-cors-preflight.mjs"
   },
   "dependencies": {

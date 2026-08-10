@@ -25,10 +25,70 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  # Tier 1 e2e: the 8 route-mocked Playwright specs (everything except onboarding.spec.ts, the one
+  # spec that drives the real paid model — that one never runs in CI) against the checked-in
+  # fake-model API (apps/api/src/qa-main.ts). Runs in parallel with `test`, not after it, to keep
+  # wall-clock down — deploy-staging waits on both below.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @jobcrush/contracts --filter @jobcrush/ui --filter @jobcrush/api build
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      # :34101, not :3001 (main.ts's port) — qa-main.ts's own default. Both processes expose
+      # GET /healthz identically, so a health-wait against /healthz could pass against a real dev
+      # API already up on 3001 and the "never spend money" run would spend. /qa/llm-calls exists
+      # only on qa-main.ts (main.ts 404s it), so a response here proves it's the fake that answered.
+      - name: start the fake-model API
+        run: |
+          pnpm --filter @jobcrush/api start:qa > /tmp/qa-api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:34101/qa/llm-calls > /dev/null && break; sleep 1; done
+          curl -sf http://127.0.0.1:34101/qa/llm-calls || { echo "qa-main.js did not become healthy"; cat /tmp/qa-api.log; exit 1; }
+      # API_URL is baked into the web build at BUILD time (next.config.mjs), not read at start — so
+      # the fake-model API must already be listening, on the exact URL passed below, before this
+      # runs. Built directly with pnpm --filter, never `pnpm build` (turbo): turbo does not hash
+      # API_URL as a build input, so a cached task could silently serve a stale API target.
+      - run: API_URL=http://127.0.0.1:34101 pnpm --filter @jobcrush/web build
+      - name: start the web app
+        run: |
+          pnpm --filter @jobcrush/web start > /tmp/qa-web.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:3000/ > /dev/null && break; sleep 1; done
+          curl -sf http://127.0.0.1:3000/ || { echo "next start did not become healthy"; cat /tmp/qa-web.log; exit 1; }
+      - run: E2E_BASE_URL=http://127.0.0.1:3000 pnpm --filter @jobcrush/web e2e:mocked
+      # All 8 Tier 1 specs route-mock every pipeline call — this run must never actually reach the
+      # fake model. A non-zero count here means a spec started hitting the real fake unmocked, which
+      # is a gate-scope change that deserves its own look, not a silent pass.
+      - name: assert Tier 1 never touched the fake model
+        run: |
+          calls=$(curl -sf http://127.0.0.1:34101/qa/llm-calls)
+          echo "qa-main.js call counts: $calls"
+          echo "$calls" | grep -q '"mine":0,"tailor":0,"grill":0,"audit":0' || { echo "Tier 1 called the fake model — it should stay route-mocked end to end"; exit 1; }
+      # v7, not v4 — this file's own header records why: v4 targets the retired Node 20 runtime and
+      # survives only on a temporary compatibility shim, so a v4 action here would eventually fail
+      # the job that GATES THE DEPLOY. Held at the current major like every other action above.
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-evidence
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+            /tmp/qa-api.log
+            /tmp/qa-web.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Deploys to Fly staging on every green main build (JC-6 unblocked 2026-07-17).
   deploy-staging:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: test
+    needs: [test, e2e]
     # Serialize deploys: two pushes minutes apart (normal with parallel agent sessions) would
     # otherwise race and could land the OLDER build last — a live site quietly running stale code.
     # No cancel-in-progress: an in-flight deploy finishes, the next one waits its turn.

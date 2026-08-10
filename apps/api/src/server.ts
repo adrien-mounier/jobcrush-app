@@ -9,7 +9,7 @@ import {
 } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { InMemoryJobStore, isTerminal, runDemoJob, type JobStore } from "./jobs.js";
-import { InMemorySessionStore, type SessionRecord, type SessionStore } from "./sessions.js";
+import { InMemorySessionStore, IpRateLimiter, type SessionRecord, type SessionStore } from "./sessions.js";
 import { SESSION_COOKIE, sessionRoutes } from "./routes/sessions.js";
 import { uploadRoutes, type UploadDeps } from "./routes/uploads.js";
 import { InMemoryBlobStorage, type BlobStorage } from "./storage.js";
@@ -58,6 +58,11 @@ declare module "fastify" {
 export interface BuildOptions {
   store?: JobStore;
   sessions?: SessionStore;
+  /** Overrides sessionRoutes' own default IpRateLimiter (12/hour) — test-only in practice (main.ts
+   *  never sets it). A real Playwright run mints many real anonymous sessions from one IP inside the
+   *  default window; qa-main.ts passes a generous limiter here rather than raising the production
+   *  default in sessions.ts. Absent → sessionRoutes' own default, unchanged for every other caller. */
+  sessionRateLimiter?: IpRateLimiter;
   blobs?: BlobStorage;
   uploads?: InMemoryUploadStore;
   /** LLM-backed pipeline steps (mine, preview). Absent steps are skipped — tests inject fakes. */
@@ -369,7 +374,7 @@ export function buildServer(opts: BuildOptions = {}) {
     },
   );
 
-  app.register(sessionRoutes(sessions));
+  app.register(sessionRoutes(sessions, opts.sessionRateLimiter));
 
   // A completed upload starts the onboarding pipeline job (extract → mine → preview).
   // Every run leaves one durable line in the guestbook (recordVisit).

@@ -7,6 +7,10 @@ COPY packages ./packages
 COPY apps/api ./apps/api
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @jobcrush/contracts --filter @jobcrush/api-client --filter @jobcrush/api build
+# qa-main.ts (apps/api/src) is a QA-only fake-model entry, never CMD'd here — but tsc has no
+# per-file exclude that wouldn't also drop it from the CI build that needs it, so prune the compiled
+# output post-build instead: unreachable-by-CMD is not the same guarantee as absent-from-the-image.
+RUN rm -f apps/api/dist/qa-main.js
 
 FROM node:22-slim
 WORKDIR /app

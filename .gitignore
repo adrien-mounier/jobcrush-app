@@ -22,6 +22,7 @@ scripts/s1-smoke-preview.html
 test-results/
 playwright-report/
 qa-results/
+qa-uploads/
 
 graphify-out/
 
