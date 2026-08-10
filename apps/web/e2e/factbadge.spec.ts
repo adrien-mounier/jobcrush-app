@@ -205,10 +205,18 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
       {
         tag: "experience",
         heading: "Professional Experience",
-        facts: [{ id: "sap", text: "Ran SAP rollouts across three sites.", colour: "gold", source: "told" }],
+        facts: [{ id: "sap", text: "Ran SAP rollouts across three sites.", colour: "gold", source: "told", job: null }],
       },
     ],
     contact: { phone: null, email: null },
+    location: { area: null, workRights: null },
+    languagesQuestion: {
+      questionId: "eligibility-languages",
+      question: "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.",
+      consequence: null,
+      options: ["English", "Ask me later"],
+      answer: null,
+    },
   };
   await page.route("**/api/profile", async (route) => {
     await route.fulfill({ json: profileState });

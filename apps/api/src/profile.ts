@@ -12,7 +12,7 @@ import { renderRootCv, SECTIONS } from "./rootcv.js";
 import type { ClaimRecord } from "./claims.js";
 import type { ContactRecord } from "./contact.js";
 import type { EligibilityStore } from "./eligibility.js";
-import { workRightsAnswerLabel, workRightsQuestionFor } from "./eligibilityDiscovery.js";
+import { languagesQuestion, workRightsAnswerLabel, workRightsQuestionFor } from "./eligibilityDiscovery.js";
 import { resolveSearchArea } from "./postingRetrieval.js";
 
 // The pinned frontend contract — apps/web/lib/api.ts mirrors these shapes.
@@ -84,12 +84,24 @@ export interface ProfileLocation {
   area: string | null;
   workRights: ProfileWorkRights | null;
 }
+/** #185 code-review contract extension: the SAME re-open contract as ProfileWorkRights, for the
+ *  rail's languages door — `answer` reads ONLY the eligibility store (never a CV language claim), so
+ *  a save can never silently flip a real eligibility answer. Always present (the languages question
+ *  exists for every session, unlike work-rights which needs a resolved market first). */
+export interface ProfileLanguagesQuestion {
+  questionId: string;
+  question: string;
+  consequence: string | null;
+  options: string[];
+  answer: string[] | null;
+}
 export interface ProfileState {
   domains: ProfileDomain[];
   factCount: number;
   search: ProfileSearch;
   contact: ProfileContact;
   location: ProfileLocation;
+  languagesQuestion: ProfileLanguagesQuestion;
 }
 
 export function profileSearch(role: string | null): ProfileSearch {
@@ -134,6 +146,40 @@ export async function resolveProfileLocation(
   };
 }
 
+const composeProfileLanguagesQuestion = (answer: string[] | null): ProfileLanguagesQuestion => {
+  const composition = languagesQuestion();
+  return {
+    questionId: composition.itemId,
+    question: composition.question,
+    consequence: composition.consequence ?? null,
+    options: composition.options,
+    answer,
+  };
+};
+export const UNANSWERED_LANGUAGES_QUESTION: ProfileLanguagesQuestion = composeProfileLanguagesQuestion(null);
+
+/** #185 code-review contract extension: the profile rail's languages door needs the SAME composed-
+ *  question contract work-rights got — a client that re-declares the question/options risks drifting
+ *  from the real one, and pre-ticking from CV-mined claim text risks silently flipping a real
+ *  eligibility "no" to "yes" on save. `answer` reads ONLY the eligibility store — a CV language claim
+ *  never influences it (eligibility facts and claims-store facts are different kinds by design; see
+ *  eligibility.ts's own header comment). Null means no language fact is stored at all — true before
+ *  the question is ever answered AND after a decline (#123's decline retracts every stored language
+ *  fact, so the store's own state is then identical to "never answered" — the same null-means-unknown
+ *  semantic eligibility.ts's get()/remove() already document, not a new one; not genuinely ambiguous,
+ *  since the store itself keeps no other record of a decline). The answer order matches `options`
+ *  (languagesUnion() order), read straight off the composed question rather than a second import. */
+export async function resolveLanguagesQuestion(
+  eligibility: Pick<EligibilityStore, "list">,
+  sessionId: string,
+): Promise<ProfileLanguagesQuestion> {
+  const composition = languagesQuestion();
+  const stored = (await eligibility.list(sessionId)).filter((f) => f.dimension === "language");
+  if (stored.length === 0) return UNANSWERED_LANGUAGES_QUESTION;
+  const professional = new Set(stored.filter((f) => f.value === "professional").map((f) => f.familyId));
+  return composeProfileLanguagesQuestion(composition.options.filter((o) => professional.has(o)));
+}
+
 /** Assembles GET /profile's payload: facts grouped by kind tag in SECTIONS order, coloured by the
  *  colour law above. `facts` excludes rejected/negative; `confirmed` is its confirmed subset
  *  (passed in rather than re-filtered so the route's one list() read serves both). */
@@ -144,6 +190,7 @@ export function buildProfileState(
   role: string | null,
   contact: ContactRecord = { phone: null, email: null },
   location: ProfileLocation = EMPTY_PROFILE_LOCATION,
+  languages: ProfileLanguagesQuestion = UNANSWERED_LANGUAGES_QUESTION,
 ): ProfileState {
   const rootCv = renderRootCv(buildClaimGraph(confirmed));
   const goldIds = new Set(rootCv.trace.entries.flatMap((e) => e.nodeIds));
@@ -173,5 +220,6 @@ export function buildProfileState(
     search: profileSearch(role),
     contact: { phone: toProfileContactField(contact.phone), email: toProfileContactField(contact.email) },
     location,
+    languagesQuestion: languages,
   };
 }

@@ -24,7 +24,7 @@ import {
 } from "../sessions.js";
 import { buildClaimGraph } from "../graph.js";
 import { renderRootCv } from "../rootcv.js";
-import { buildProfileState, resolveProfileLocation } from "../profile.js";
+import { buildProfileState, resolveProfileLocation, resolveLanguagesQuestion } from "../profile.js";
 import { runGate } from "../gate.js";
 import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
@@ -638,7 +638,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         session,
         factCount(excludingEligibility(confirmed), excludingEligibility(negatives)),
       );
-      return buildProfileState(facts, confirmed, profileFactCount, session.targetTitles[0] ?? null, await deps.contact.getRecord(session.id), await resolveProfileLocation(deps.eligibility, session.id, session.intent.searchArea));
+      return buildProfileState(facts, confirmed, profileFactCount, session.targetTitles[0] ?? null, await deps.contact.getRecord(session.id), await resolveProfileLocation(deps.eligibility, session.id, session.intent.searchArea), await resolveLanguagesQuestion(deps.eligibility, session.id));
     });
 
     // --- #16 discovery (screen 1a): the answer→CV-line→section-bar loop -------------------------

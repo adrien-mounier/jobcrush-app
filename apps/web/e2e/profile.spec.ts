@@ -19,6 +19,18 @@ async function stubSession(page: Page) {
 
 type Fact = ProfileState["domains"][number]["facts"][number];
 
+// #186 review round 2 — the eligibility store's own languages question, always present on the
+// payload. `answer: null` is the safe default for every fixture that doesn't touch languages; the
+// dedicated language-door tests below override it (and `domains`) per case.
+const LANGUAGES_QUESTION: ProfileState["languagesQuestion"] = {
+  questionId: "eligibility-languages",
+  question: "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.",
+  consequence:
+    "A no takes jobs that require that language out of your deck. Tick every one you could run a meeting in. Not sure? Tick it.",
+  options: ["English", "Mandarin", "Cantonese", "Vietnamese", "Ask me later"],
+  answer: null,
+};
+
 const PROFILE: ProfileState = {
   factCount: 4,
   search: { role: "IT project manager in Paris", family: null, siblingTitles: [], openJobs: null },
@@ -27,23 +39,26 @@ const PROFILE: ProfileState = {
       tag: "experience",
       heading: "Professional Experience",
       facts: [
-        { id: "e1", text: "Managed a team of six engineers.", colour: "gold", source: "told" },
+        { id: "e1", text: "Managed a team of six engineers.", colour: "gold", source: "told", job: null },
         {
           id: "e2",
           text: "Owned a seven-figure vendor budget while coordinating finance, procurement, and delivery.",
           colour: "grey",
           source: "read",
+          job: null,
         },
-        { id: "e3", text: "Led SAP cutover planning.", colour: "grey", source: "told" },
+        { id: "e3", text: "Led SAP cutover planning.", colour: "grey", source: "told", job: null },
       ],
     },
     {
       tag: "skill",
       heading: "Skills",
-      facts: [{ id: "s1", text: "SQL.", colour: "gold", source: "told" }],
+      facts: [{ id: "s1", text: "SQL.", colour: "gold", source: "told", job: null }],
     },
   ],
   contact: { phone: null, email: null }, // #190's honest-absence default; populated fixtures below
+  location: { area: null, workRights: null }, // #188's rail — types mirrored only, not this ticket's UI
+  languagesQuestion: LANGUAGES_QUESTION,
 };
 
 async function stubProfile(page: Page, state: ProfileState = PROFILE) {
@@ -52,7 +67,7 @@ async function stubProfile(page: Page, state: ProfileState = PROFILE) {
   });
 }
 
-test("the screen loads, opening on the fullest domain with its strongest fact leading", async ({ page }) => {
+test("the screen loads with groups in payload order, About you first, experience facts as full rows", async ({ page }) => {
   await stubSession(page);
   await stubProfile(page);
 
@@ -62,19 +77,20 @@ test("the screen loads, opening on the fullest domain with its strongest fact le
   await expect(heading).toBeVisible();
   await expect(heading).toBeFocused();
 
-  // About you (#190) always leads; the fullest domain (Professional Experience, 3 facts) is listed
-  // before Skills (1 fact).
+  // About you (#190/#186 merge) always leads; the payload's own order is drawn as-is (this fixture's
+  // order happens to also be size order — the dedicated CV-order test below uses a fixture where the
+  // two would disagree, to prove the client-side size-sort is really gone from Sorted).
   const domainNames = page.locator(".dname");
+  await expect(domainNames).toHaveCount(3);
   await expect(domainNames.nth(0)).toHaveText("About you");
   await expect(domainNames.nth(1)).toHaveText("Professional Experience");
   await expect(domainNames.nth(2)).toHaveText("Skills");
 
-  // Its lead is the longest fact, without preferring gold over grey.
-  const firstLead = page.locator(".dlead").first();
-  await expect(firstLead).toHaveText("Owned a seven-figure vendor budget while coordinating finance, procurement, and delivery.");
-  await expect(firstLead).toHaveClass(/grey/);
-  await expect(firstLead).toHaveCSS("color", "rgb(151, 170, 188)");
-  await expect(page.locator(".dlead").nth(1)).toHaveClass(/gold/);
+  // #186 A2/A3: experience facts render as full sentence rows (never chips), gold before grey.
+  const firstRow = page.locator(".frow").first();
+  await expect(firstRow).toHaveText("Managed a team of six engineers.");
+  await expect(firstRow).toHaveClass(/gold/);
+  await expect(page.locator(".frow.grey")).toHaveCount(2);
 });
 
 test("the toggle switches Sorted and Constellation under one colour law", async ({ page }) => {
@@ -99,10 +115,22 @@ test("the toggle switches Sorted and Constellation under one colour law", async 
 
 test("both colours render, and source is neutral text — never a colour, never a lacks list", async ({ page }) => {
   await stubSession(page);
-  await stubProfile(page);
+  // A local fixture (not the shared PROFILE) so the extra grey chip doesn't ripple into other tests
+  // that count total facts (e.g. the keyboard-reachability test's Constellation star count).
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      PROFILE.domains[0],
+      {
+        ...PROFILE.domains[1],
+        facts: [...PROFILE.domains[1].facts, { id: "s2", text: "Excel.", colour: "grey", source: "read", job: null }],
+      },
+    ],
+  };
+  await stubProfile(page, state);
   await page.goto("/profile");
 
-  // A gold fact and a grey fact both render as fact chips in Sorted.
+  // A gold fact and a grey fact both render as fact chips in Sorted (Skills is a chip section).
   await expect(page.locator(".fact.gold").first()).toBeVisible();
   await expect(page.locator(".fact.grey").first()).toBeVisible();
 
@@ -343,9 +371,25 @@ test("phone: a real pull gesture past the threshold expands the sheet", async ({
 
   // QA regression guard: drag it back down, then the grabber must still be keyboard-operable — a
   // shipped bug left `draggedRef` stuck true after any drag, going permanently keyboard-dead.
-  await page.mouse.move(x, y);
+  // The grabber moved when the sheet opened, so re-read its position — stale coordinates land the
+  // second gesture on the sheet body. Wait until it has genuinely arrived (well above the collapsed
+  // position) AND stopped moving: a read mid-transition yields a coordinate it is about to leave.
+  let openBox: Awaited<ReturnType<typeof grab.boundingBox>> = null;
+  await expect(async () => {
+    const a = await grab.boundingBox();
+    expect(a).not.toBeNull();
+    expect(a!.y).toBeLessThan(y - 200);
+    await page.waitForTimeout(100);
+    const b = await grab.boundingBox();
+    expect(b!.y).toBe(a!.y);
+    openBox = b;
+  }).toPass({ timeout: 5000 });
+  expect(openBox).not.toBeNull();
+  const ox = openBox!.x + openBox!.width / 2;
+  const oy = openBox!.y + openBox!.height / 2;
+  await page.mouse.move(ox, oy);
   await page.mouse.down();
-  await page.mouse.move(x, y + 80, { steps: 8 }); // well past the 56px close threshold
+  await page.mouse.move(ox, oy + 80, { steps: 8 }); // well past the 56px close threshold
   await page.mouse.up();
   await expect(grab).toHaveAttribute("aria-expanded", "false");
 
@@ -446,12 +490,14 @@ test("the hero reads the live counts with the 'kept for when a job needs them' f
           text: `Numbered fact ${i}.`,
           colour: "gold",
           source: "told",
+          job: null,
         })).concat(
           Array.from<unknown, Fact>({ length: 6 }, (_, i) => ({
             id: `s${i}`,
             text: `Saved fact ${i}.`,
             colour: "grey",
             source: "told",
+            job: null,
           })),
         ),
       },
@@ -714,4 +760,429 @@ test("a refetch failure after a successful contact save is never reported as a s
   await expect(page.getByText("Phone updated.")).toBeAttached();
   await expect(about.getByText("+852 9999 0000")).toBeVisible();
   await expect(about.getByText("You told me this.")).toBeVisible();
+});
+
+// ---------- #186 the list, style B: CV order, job blocks, chips vs rows, kept captions, the
+// languages door, thin/big fixtures ----------
+
+test("#186 AC1: groups render in payload (CV) order, About you merged into one heading, no empty section drawn", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    factCount: 6,
+    domains: [
+      {
+        tag: "profile",
+        heading: "About you",
+        facts: [{ id: "p1", text: "Based in Hong Kong.", colour: "gold", source: "told", job: null }],
+      },
+      // Skills (1 fact) is listed BEFORE the bigger Professional Experience (3 facts) in the
+      // payload — proving the client no longer resorts Sorted by domain size.
+      { tag: "skill", heading: "Skills", facts: [{ id: "s1", text: "SQL.", colour: "gold", source: "told", job: null }] },
+      {
+        tag: "experience",
+        heading: "Professional Experience",
+        facts: [
+          { id: "e1", text: "Managed a team of six engineers.", colour: "gold", source: "told", job: null },
+          { id: "e2", text: "Led SAP cutover planning.", colour: "grey", source: "told", job: null },
+          { id: "e3", text: "Owned a seven-figure vendor budget.", colour: "grey", source: "told", job: null },
+        ],
+      },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  const domainNames = page.locator(".dname");
+  await expect(domainNames).toHaveCount(3);
+  await expect(domainNames.nth(0)).toHaveText("About you");
+  await expect(domainNames.nth(1)).toHaveText("Skills");
+  await expect(domainNames.nth(2)).toHaveText("Professional Experience");
+  await expect(page.getByText("About you", { exact: true })).toHaveCount(1); // never two headings
+
+  // The merge: the payload's own "About you" facts sit alongside the contact fields in ONE section.
+  const about = page.locator(".dom").filter({ hasText: "About you" });
+  await expect(about.getByText("Based in Hong Kong.")).toBeVisible();
+  await expect(about.getByRole("button", { name: "What's the best phone number for your CV?" })).toBeVisible();
+
+  // No empty section is drawn: only the three domains the payload actually sent.
+  await expect(page.locator(".dom")).toHaveCount(3);
+});
+
+test("#186 AC2: experience job blocks never pool — a kept fact in job A and an on-CV fact in job B stay apart", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const jobA = "IT Project Manager · Veolia";
+  const jobB = "Senior Consultant · Capgemini";
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      {
+        tag: "experience",
+        heading: "Professional Experience",
+        facts: [
+          { id: "a1", text: "Coordinated vendor contracts across three markets.", colour: "grey", source: "told", job: jobA },
+          { id: "b1", text: "Delivered a SAP rollout across three sites.", colour: "gold", source: "told", job: jobB },
+        ],
+      },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  const blocks = page.locator(".jblk");
+  await expect(blocks).toHaveCount(2);
+  await expect(blocks.nth(0).locator(".jhead")).toHaveText(jobA);
+  await expect(blocks.nth(1).locator(".jhead")).toHaveText(jobB);
+
+  // Job A's block holds only its own kept fact — job B's on-CV fact never pools into it.
+  await expect(blocks.nth(0).getByText("Coordinated vendor contracts across three markets.")).toBeVisible();
+  await expect(blocks.nth(0).getByText("Delivered a SAP rollout across three sites.")).toHaveCount(0);
+  await expect(blocks.nth(0).locator(".krun")).toHaveText("Left out for space — it swaps in when a job needs it");
+
+  // Job B's block holds only its own on-CV fact — job A's kept fact never pools into it.
+  await expect(blocks.nth(1).getByText("Delivered a SAP rollout across three sites.")).toBeVisible();
+  await expect(blocks.nth(1).getByText("Coordinated vendor contracts across three markets.")).toHaveCount(0);
+  await expect(blocks.nth(1).locator(".krun")).toHaveCount(0); // all-gold block: no caption at all
+});
+
+test("#186 AC3: skills/certifications/languages render as chips, sentence facts render as full rows", async ({ page }) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      { tag: "skill", heading: "Skills", facts: [{ id: "s1", text: "SQL.", colour: "gold", source: "told", job: null }] },
+      { tag: "cert", heading: "Certifications", facts: [{ id: "c1", text: "PMP.", colour: "gold", source: "told", job: null }] },
+      { tag: "lang", heading: "Languages", facts: [{ id: "l1", text: "English", colour: "gold", source: "told", job: null }] },
+      { tag: "edu", heading: "Education", facts: [{ id: "d1", text: "MBA, INSEAD.", colour: "gold", source: "told", job: null }] },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  await expect(page.locator(".fact", { hasText: "SQL" })).toBeVisible();
+  await expect(page.locator(".fact", { hasText: "PMP" })).toBeVisible();
+  await expect(page.locator(".fact", { hasText: "English" })).toBeVisible();
+  await expect(page.locator(".frow", { hasText: "MBA, INSEAD." })).toBeVisible();
+
+  // Never crossed: a chip-section fact is never a row, and a sentence fact is never a chip.
+  await expect(page.locator(".frow", { hasText: "SQL" })).toHaveCount(0);
+  await expect(page.locator(".fact", { hasText: "MBA, INSEAD." })).toHaveCount(0);
+});
+
+test("#186 AC4/AC5: the kept caption shows verbatim in list runs and in detail, told/read shows on every fact, and the dead 'waiting for a job that asks' phrasing is gone", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const jobA = "IT Project Manager · Veolia";
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      {
+        tag: "experience",
+        heading: "Professional Experience",
+        facts: [{ id: "a1", text: "Coordinated vendor contracts.", colour: "grey", source: "told", job: jobA }],
+      },
+      {
+        tag: "skill",
+        heading: "Skills",
+        facts: [
+          { id: "s1", text: "SQL.", colour: "gold", source: "told", job: null },
+          { id: "s2", text: "Excel.", colour: "grey", source: "read", job: null },
+        ],
+      },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  // List-run captions, verbatim (A5) — the experience variant differs from every other section's.
+  await expect(page.locator(".jblk .krun")).toHaveText("Left out for space — it swaps in when a job needs it");
+  await expect(page.locator(".dom").filter({ hasText: "Skills" }).locator(".krun")).toHaveText("Kept for when a job needs it");
+
+  const dialog = page.locator("dialog.detail");
+
+  // A kept experience fact's detail: the experience caption + the job context line + told/read.
+  await page.locator(".frow.grey").click();
+  await expect(dialog).toContainText(jobA);
+  await expect(dialog).toContainText("Left out for space — it swaps in when a job needs it. You told me this.");
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // A kept, non-experience fact's detail: the generic caption + the read line.
+  await page.locator(".fact.grey").click();
+  await expect(dialog).toContainText("Kept for when a job needs it. Read from your CV.");
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // An on-CV fact's detail: no kept caption, and the told line still shows.
+  await page.locator(".fact.gold").click();
+  await expect(dialog).not.toContainText("Kept for when a job needs it");
+  await expect(dialog).toContainText("You told me this.");
+
+  await expect(page.getByText(/waiting for a job that asks/i)).toHaveCount(0);
+});
+
+test("#186 AC6: languages are edited in exactly one place, and the door pre-ticks from the eligibility answer — never the CV-mined chip text", async ({
+  page,
+}) => {
+  await stubSession(page);
+  // Review round 2 must-fix: the Languages *domain* (chips) is CV-mined claim text, a different
+  // provenance than the eligibility store. This fixture makes the two deliberately disagree — the
+  // claim mentions English, but the real eligibility answer is Mandarin + Cantonese and does NOT
+  // include English — so a test built on the chip text could never have caught the bug.
+  let current: ProfileState = {
+    ...PROFILE,
+    domains: [
+      {
+        tag: "lang",
+        heading: "Languages",
+        facts: [{ id: "claim", text: "Fluent in English and Mandarin.", colour: "gold", source: "read", job: null }],
+      },
+    ],
+    languagesQuestion: { ...LANGUAGES_QUESTION, answer: ["Mandarin", "Cantonese"] },
+  };
+  await page.route("**/api/profile", async (route) => {
+    await route.fulfill({ json: current });
+  });
+  let savedAnswers: string[] | null = null;
+  await page.route("**/api/onboarding/discovery/answer", async (route) => {
+    const body = route.request().postDataJSON() as { itemId: string; answers?: string[] };
+    savedAnswers = body.answers ?? null;
+    current = { ...current, languagesQuestion: { ...current.languagesQuestion, answer: savedAnswers } };
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.goto("/profile");
+
+  // Exactly one editing surface on the whole screen.
+  const door = page.getByRole("button", { name: "Change your languages" });
+  await expect(door).toHaveCount(1);
+
+  await door.click();
+  // Ticks follow the eligibility answer, not the chip text: English is unticked (the answer never
+  // included it, even though the claim mentions it), Mandarin/Cantonese are ticked.
+  await expect(page.getByRole("checkbox", { name: "English" })).not.toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "English" })).toBeFocused();
+  await expect(page.getByRole("checkbox", { name: "Mandarin" })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Cantonese" })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Vietnamese" })).not.toBeChecked();
+
+  await page.getByRole("checkbox", { name: "Vietnamese" }).check();
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await expect(page.getByText("Your languages are updated.")).toBeAttached();
+  await expect(door).toBeFocused();
+  expect(savedAnswers).not.toBeNull();
+  expect(savedAnswers).toContain("Mandarin");
+  expect(savedAnswers).toContain("Cantonese");
+  expect(savedAnswers).toContain("Vietnamese");
+  expect(savedAnswers).not.toContain("English"); // the claim text never gets to override the answer
+});
+
+test("#186 AC6: saving the languages door unchanged leaves the stored answer exactly as it was — nothing silently erased", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      { tag: "lang", heading: "Languages", facts: [{ id: "l1", text: "Mandarin", colour: "gold", source: "told", job: null }] },
+    ],
+    languagesQuestion: { ...LANGUAGES_QUESTION, answer: ["Mandarin", "Cantonese"] },
+  };
+  await stubProfile(page, state);
+  let savedAnswers: string[] | null = null;
+  await page.route("**/api/onboarding/discovery/answer", async (route) => {
+    const body = route.request().postDataJSON() as { itemId: string; answers?: string[] };
+    savedAnswers = body.answers ?? null;
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.goto("/profile");
+
+  await page.getByRole("button", { name: "Change your languages" }).click();
+  await page.getByRole("button", { name: "Save" }).click(); // no ticks touched
+
+  await expect(page.getByText("Your languages are updated.")).toBeAttached();
+  expect(savedAnswers).not.toBeNull();
+  expect(savedAnswers).toHaveLength(2);
+  expect(savedAnswers).toContain("Mandarin");
+  expect(savedAnswers).toContain("Cantonese");
+});
+
+test("#186 AC6: languagesQuestion.answer === null opens every checkbox unticked, with honest 'not answered yet' copy", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      { tag: "lang", heading: "Languages", facts: [{ id: "claim", text: "English mentioned on CV.", colour: "grey", source: "read", job: null }] },
+    ],
+    languagesQuestion: { ...LANGUAGES_QUESTION, answer: null },
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  await page.getByRole("button", { name: "Change your languages" }).click();
+  await expect(page.getByRole("checkbox", { name: "English" })).not.toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Mandarin" })).not.toBeChecked();
+  await expect(page.getByText("You haven't answered this yet.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Not now" })).toBeVisible();
+});
+
+test("#186 AC6: cancelling the languages door saves nothing and returns focus to the door", async ({ page }) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      {
+        tag: "lang",
+        heading: "Languages",
+        facts: [{ id: "en", text: "English", colour: "gold", source: "told", job: null }],
+      },
+    ],
+    languagesQuestion: { ...LANGUAGES_QUESTION, answer: ["English"] },
+  };
+  await stubProfile(page, state);
+  let answered = false;
+  await page.route("**/api/onboarding/discovery/answer", async () => {
+    answered = true;
+  });
+  await page.goto("/profile");
+
+  const door = page.getByRole("button", { name: "Change your languages" });
+  await door.click();
+  await page.getByRole("checkbox", { name: "Mandarin" }).check();
+  await page.getByRole("button", { name: "Keep what I have" }).click();
+
+  await expect(page.getByRole("checkbox", { name: "Mandarin" })).toHaveCount(0); // the door closed
+  await expect(door).toBeFocused();
+  expect(answered).toBe(false);
+});
+
+test("#186: Constellation still sorts by domain size, independent of Sorted's own CV order", async ({ page }) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      // Skills (1 fact) is listed FIRST in the payload; Experience (3 facts) is bigger but second.
+      { tag: "skill", heading: "Skills", facts: [{ id: "s1", text: "SQL.", colour: "gold", source: "told", job: null }] },
+      {
+        tag: "experience",
+        heading: "Professional Experience",
+        facts: [
+          { id: "e1", text: "Managed a team of six engineers.", colour: "gold", source: "told", job: null },
+          { id: "e2", text: "Led SAP cutover planning.", colour: "grey", source: "told", job: null },
+          { id: "e3", text: "Owned a seven-figure vendor budget.", colour: "grey", source: "told", job: null },
+        ],
+      },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  // Sorted keeps the payload's own CV order: Skills first.
+  await expect(page.locator(".dname").nth(1)).toHaveText("Skills");
+
+  // Constellation keeps its own size-sorted input regardless: the bigger domain (Experience, 3
+  // facts) places first, ahead of the payload-first but smaller Skills domain (1 fact) — unpinned
+  // since the CV-order split, so this guards against a silent regression to CV order there too.
+  await page.getByRole("button", { name: "Constellation" }).click();
+  const firstStar = page.locator(".skylist button").first();
+  await expect(firstStar).toHaveAttribute(
+    "aria-label",
+    /Managed a team of six engineers|Led SAP cutover planning|Owned a seven-figure vendor budget/,
+  );
+});
+
+function job200Facts(): Fact[] {
+  const jobs = ["IT Project Manager · Veolia", "Senior Consultant · Capgemini", "Delivery Lead · Atos"];
+  const facts: Fact[] = [];
+  jobs.forEach((job, ji) => {
+    for (let i = 0; i < 67; i++) {
+      facts.push({
+        id: `j${ji}-${i}`,
+        text: `Delivered workstream ${ji}-${i} for ${job}.`,
+        colour: i < 30 ? "gold" : "grey",
+        source: "told",
+        job,
+      });
+    }
+  });
+  return facts;
+}
+
+test("#186 AC7: a six-fact profile shows only its real sections", async ({ page }) => {
+  await stubSession(page);
+  const state: ProfileState = {
+    ...PROFILE,
+    factCount: 6,
+    domains: [
+      {
+        tag: "profile",
+        heading: "About you",
+        facts: [{ id: "p1", text: "Based in Hanoi.", colour: "gold", source: "told", job: null }],
+      },
+      {
+        tag: "experience",
+        heading: "Professional Experience",
+        facts: [{ id: "e1", text: "Managed a small delivery team.", colour: "gold", source: "told", job: null }],
+      },
+      { tag: "skill", heading: "Skills", facts: [{ id: "s1", text: "Jira.", colour: "gold", source: "told", job: null }] },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  await expect(page.locator(".dname")).toHaveCount(3);
+  await expect(page.locator(".dname")).toHaveText(["About you", "Professional Experience", "Skills"]);
+  // Never invented: a section this profile never answered stays entirely absent.
+  await expect(page.getByText("Education", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Certifications", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Languages", { exact: true })).toHaveCount(0);
+});
+
+test("#186 AC7: a two-hundred-fact profile stays navigable, with sticky job headers anchoring the scroll", async ({
+  page,
+}) => {
+  await stubSession(page);
+  // Reduced motion so the `.dom` entrance animation (transform: translateY, up to ~560ms) can't
+  // still be mid-flight when we measure the sticky header's position below — an animating ancestor
+  // transform is a real source of measurement noise, unrelated to sticky itself.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const facts = job200Facts(); // 201 facts across 3 jobs
+  const state: ProfileState = {
+    ...PROFILE,
+    factCount: facts.length,
+    domains: [{ tag: "experience", heading: "Professional Experience", facts }],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  await expect(page.getByRole("heading", { name: "201 things you've told me" })).toBeVisible();
+  const blocks = page.locator(".jblk");
+  await expect(blocks).toHaveCount(3);
+  const headers = page.locator(".jhead");
+  await expect(headers).toHaveCount(3);
+  await expect(headers.first()).toHaveCSS("position", "sticky");
+  // Every fact is still reachable, no pagination/virtualisation swallowing the tail of the list.
+  await expect(page.locator(".frow")).toHaveCount(facts.length);
+
+  // The sticky behaviour itself, not just the declared CSS: scroll well past job 0's header (its
+  // block is ~67 rows tall, so 400px lands solidly inside it, nowhere near job 1's header) and
+  // check the header is still pinned to the scroll container's own top edge instead of scrolling
+  // off with the rest of its block's content.
+  const container = page.locator("#profileview.body.sorted");
+  const header0 = page.locator("#job-0 .jhead");
+  await container.evaluate((el) => {
+    el.scrollTop = 400;
+  });
+  const containerBox = await container.boundingBox();
+  const headerBox = await header0.boundingBox();
+  expect(containerBox).not.toBeNull();
+  expect(headerBox).not.toBeNull();
+  expect(Math.abs(headerBox!.y - containerBox!.y)).toBeLessThan(6);
 });

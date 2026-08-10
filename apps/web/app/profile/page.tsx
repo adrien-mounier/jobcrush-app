@@ -11,6 +11,7 @@ import "../profile.css";
 import { FactBadge } from "../factbadge";
 import { useReducedMotion } from "../jobcard";
 import {
+  answerDiscoveryMulti,
   ensureSession,
   getProfile,
   saveContact,
@@ -18,6 +19,7 @@ import {
   type ProfileContact,
   type ProfileDomain,
   type ProfileFact,
+  type ProfileLanguagesQuestion,
   type ProfileSearch,
   type ProfileState,
 } from "../../lib/api";
@@ -47,6 +49,30 @@ const P24 = "You told me this.";
 const P25 = "Read from your CV.";
 const P26 = "Close";
 const P29 = "Every fact, as a list";
+
+// #186 the list, style B — the two kept-caption wordings (design-186-188.md §A5). The list-run
+// caption never carries a trailing period; the detail caption does (feeding straight into the bold
+// told/read line beside it, matching P23's own shape).
+const CAP_EXP_RUN = "Left out for space — it swaps in when a job needs it";
+const CAP_OTHER_RUN = "Kept for when a job needs it";
+const CAP_EXP_DETAIL = "Left out for space — it swaps in when a job needs it. ";
+function keptRunCaption(tag: string): string {
+  return tag === "experience" ? CAP_EXP_RUN : CAP_OTHER_RUN;
+}
+function keptDetailCaption(tag: string): string {
+  return tag === "experience" ? CAP_EXP_DETAIL : P23;
+}
+
+// #186 A8 — the languages door. Review round 2 (must-fix): question/consequence/options render from
+// `profile.languagesQuestion` verbatim — never a locally re-declared copy. Unlike the Job family
+// panel's Q1 text (fixed, never varies), the languages question's `answer` is per-visitor state that
+// lives in the eligibility store, not in CV-mined claim text — the two are different provenances
+// (a claim like "Fluent in English and Mandarin." matches no option), so only the payload's own
+// field can pre-tick this door correctly.
+const LANG_DOOR = "Change your languages";
+const LANG_UNANSWERED = "You haven't answered this yet.";
+const LANG_SAVING = "Saving…";
+const LANG_SAVED = "Your languages are updated.";
 
 // #183 the rail's Job family panel. R7/R8/R10 are the exact Q1 strings from discovery/page.tsx's C2/
 // C5 — re-declared locally (not imported) so the door reads as returning to a familiar question.
@@ -130,14 +156,6 @@ function Pwait({ gold, rest }: { gold: number; rest: number }) {
   );
 }
 
-// §1: the payload has no explicit strength score, so the local proxy is longest text.
-// Ties → lowest index (store order); colour is only the visual law, never the ranking law.
-function pickLead(facts: ProfileFact[]): { lead: ProfileFact; rest: ProfileFact[] } {
-  let lead = facts[0];
-  for (const f of facts) if (f.text.length > lead.text.length) lead = f;
-  return { lead, rest: facts.filter((f) => f.id !== lead.id) };
-}
-
 function chipText(text: string): string {
   return text.replace(/\.$/, "");
 }
@@ -146,9 +164,11 @@ function sourceLine(source: ProfileFact["source"]): string {
   return source === "told" ? P24 : P25;
 }
 
-// The shared detail block (§4) — the same three lines whether painted into the Sorted dialog or the
-// Constellation sheet.
-function DetailBody({ fact }: { fact: ProfileFact }) {
+// The shared detail block (§4/A7) — the same lines whether painted into the Sorted dialog or the
+// Constellation sheet. `tag` is the owning domain's tag, passed down alongside the fact (never
+// re-derived from the fact's text) — it picks the kept caption's wording and, via `fact.job`,
+// whether the job context line (`.dctx`, A7 new) draws at all.
+function DetailBody({ fact, tag }: { fact: ProfileFact; tag: string }) {
   const on = fact.colour === "gold";
   return (
     <>
@@ -156,12 +176,330 @@ function DetailBody({ fact }: { fact: ProfileFact }) {
         <i aria-hidden="true" />
         {on ? P21 : P22}
       </p>
+      {fact.job !== null && <p className="dctx">{fact.job}</p>}
       <p className="txt">{fact.text}</p>
       <p className="src">
-        {!on && P23}
+        {!on && keptDetailCaption(tag)}
         <b>{sourceLine(fact.source)}</b>
       </p>
     </>
+  );
+}
+
+// #186 A2 — a sentence fact as a full row (profile / experience / edu domains). A real <button>,
+// never a <p tabindex=0>.
+function FactRow({
+  fact,
+  tag,
+  onOpenFact,
+}: {
+  fact: ProfileFact;
+  tag: string;
+  onOpenFact: (fact: ProfileFact, tag: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`frow ${fact.colour}`}
+      aria-label={`${fact.text} — ${fact.colour === "gold" ? P21 : P22}`}
+      onClick={() => onOpenFact(fact, tag)}
+    >
+      <i className="fdot" aria-hidden="true" />
+      <span className="ftxt">{fact.text}</span>
+    </button>
+  );
+}
+
+// #186 A4 — a word fact as a compact chip (skill / cert / lang domains). Opens the same detail as a
+// row, via the same onOpenFact handler — no second mechanism.
+function ChipButton({
+  fact,
+  tag,
+  onOpenFact,
+}: {
+  fact: ProfileFact;
+  tag: string;
+  onOpenFact: (fact: ProfileFact, tag: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`fact ${fact.colour}`}
+      aria-label={`${fact.text} — ${fact.colour === "gold" ? P21 : P22}`}
+      onClick={() => onOpenFact(fact, tag)}
+    >
+      {chipText(fact.text)}
+    </button>
+  );
+}
+
+// #186 A4 — gold chips, then the kept caption (only if ≥1 grey), then grey chips. Two separate
+// `.facts` runs, never one combined list, so an all-gold or all-kept section draws only the run it
+// has (A9).
+function ChipGroup({
+  domain,
+  onOpenFact,
+}: {
+  domain: ProfileDomain;
+  onOpenFact: (fact: ProfileFact, tag: string) => void;
+}) {
+  const gold = domain.facts.filter((f) => f.colour === "gold");
+  const grey = domain.facts.filter((f) => f.colour === "grey");
+  return (
+    <>
+      {gold.length > 0 && (
+        <div className="facts">
+          {gold.map((f) => (
+            <ChipButton key={f.id} fact={f} tag={domain.tag} onOpenFact={onOpenFact} />
+          ))}
+        </div>
+      )}
+      {grey.length > 0 && <p className="krun">{keptRunCaption(domain.tag)}</p>}
+      {grey.length > 0 && (
+        <div className="facts">
+          {grey.map((f) => (
+            <ChipButton key={f.id} fact={f} tag={domain.tag} onOpenFact={onOpenFact} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+// #186 A3 — Professional Experience's job blocks. Block order = first appearance of each `job`
+// value in payload order; `job === null` facts form one leading, unheaded block. Inside a block:
+// gold rows (payload order), the kept caption (if ≥1 grey), then grey rows (payload order) — the
+// only reordering this screen permits, and it never pools across blocks.
+function ExperienceBody({
+  domain,
+  onOpenFact,
+}: {
+  domain: ProfileDomain;
+  onOpenFact: (fact: ProfileFact, tag: string) => void;
+}) {
+  const nullFacts = domain.facts.filter((f) => f.job === null);
+  const namedFacts = domain.facts.filter((f) => f.job !== null);
+  const jobOrder: string[] = [];
+  for (const f of namedFacts) {
+    if (f.job !== null && !jobOrder.includes(f.job)) jobOrder.push(f.job);
+  }
+  const blocks: Array<{ job: string | null; facts: ProfileFact[] }> = [];
+  if (nullFacts.length > 0) blocks.push({ job: null, facts: nullFacts });
+  for (const job of jobOrder) blocks.push({ job, facts: namedFacts.filter((f) => f.job === job) });
+
+  return (
+    <>
+      {blocks.map((block, i) => {
+        const gold = block.facts.filter((f) => f.colour === "gold");
+        const grey = block.facts.filter((f) => f.colour === "grey");
+        return (
+          <div className="jblk" id={`job-${i}`} key={block.job ?? "__none__"}>
+            {block.job !== null && <h3 className="jhead">{block.job}</h3>}
+            {gold.map((f) => (
+              <FactRow key={f.id} fact={f} tag="experience" onOpenFact={onOpenFact} />
+            ))}
+            {grey.length > 0 && <p className="krun">{CAP_EXP_RUN}</p>}
+            {grey.map((f) => (
+              <FactRow key={f.id} fact={f} tag="experience" onOpenFact={onOpenFact} />
+            ))}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+// #186 A8 — the one place languages are edited. A minimal door: no fetch on open (the question
+// itself rides on every /api/profile response). Review round 2 (must-fix): pre-ticks EXCLUSIVELY
+// from `languagesQuestion.answer` — the eligibility store's own current set — never from the
+// Languages domain's chip text, which is CV-mined claim text, a different provenance that can name a
+// language the store was never asked about (or miss one it was). Saves via the existing multi-select
+// answer route using the payload's own `questionId`, then re-fetches the whole profile — the same
+// one-mechanism door pattern as ContactField/JobFamilyPanel above, R11/R12 reused verbatim from there.
+function LanguageDoor({
+  languagesQuestion,
+  onProfileRefreshed,
+  onAnnounce,
+}: {
+  languagesQuestion: ProfileLanguagesQuestion;
+  onProfileRefreshed: (profile: ProfileState) => void;
+  onAnnounce: (message: string) => void;
+}) {
+  const [asking, setAsking] = useState(false);
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const doorRef = useRef<HTMLButtonElement>(null);
+  const firstCheckRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (asking) firstCheckRef.current?.focus();
+  }, [asking]);
+
+  function openDoor() {
+    setTicked(new Set(languagesQuestion.answer ?? []));
+    setError(null);
+    setAsking(true);
+  }
+
+  function closeDoor() {
+    setAsking(false);
+    setError(null);
+    requestAnimationFrame(() => doorRef.current?.focus());
+  }
+
+  function toggle(name: string) {
+    setTicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
+  async function save() {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await answerDiscoveryMulti(languagesQuestion.questionId, Array.from(ticked));
+    } catch {
+      setSaving(false);
+      setError(R12);
+      return;
+    }
+    // The save succeeded — a refetch failure past this point is never reported as a save failure
+    // (the #183 rule, applied here from the start).
+    try {
+      const fresh = await getProfile();
+      onProfileRefreshed(fresh);
+    } catch {
+      // Best effort only; the next full load will pick up the fresh languages.
+    }
+    onAnnounce(LANG_SAVED);
+    setSaving(false);
+    setAsking(false);
+    requestAnimationFrame(() => doorRef.current?.focus());
+  }
+
+  if (!asking) {
+    return (
+      <button type="button" ref={doorRef} className="rdoor" onClick={openDoor}>
+        {LANG_DOOR}
+      </button>
+    );
+  }
+
+  // Whether there's an existing answer to keep — the eligibility store's own signal, not whether
+  // the Languages *domain* happens to have chips (CV-mined claim text can exist with no eligibility
+  // answer behind it yet, exactly the bug this fix closes) — so "Not now" is genuinely reachable.
+  const hasAnswer = languagesQuestion.answer !== null;
+  // #186 §A8/discovery precedent: the options array carries N language names then the decline
+  // string last (contract-pinned order) — this door renders the tickable languages, matching the
+  // same slice the discovery screen's own multi-select uses for the identical list.
+  const languages = languagesQuestion.options.slice(0, -1);
+
+  return (
+    <div
+      className="rq"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          // QA fix (same as ContactField/JobFamilyPanel): consume Escape here so the phone sheet's
+          // page-level handler never also collapses the sheet out from under this door.
+          e.stopPropagation();
+          closeDoor();
+        }
+      }}
+    >
+      <p className="rqq" id="lang-q">
+        {languagesQuestion.question}
+      </p>
+      {languagesQuestion.consequence && <p className="rconseq">{languagesQuestion.consequence}</p>}
+      {!hasAnswer && <p className="rmute">{LANG_UNANSWERED}</p>}
+      <div className="rchecks" role="group" aria-labelledby="lang-q">
+        {languages.map((name, i) => (
+          <label className="rcheck" key={name}>
+            <input
+              type="checkbox"
+              ref={i === 0 ? firstCheckRef : undefined}
+              checked={ticked.has(name)}
+              disabled={saving}
+              onChange={() => toggle(name)}
+            />
+            {name}
+          </label>
+        ))}
+      </div>
+      <div className="rbtns">
+        <button type="button" className="rbtn" disabled={saving} onClick={save}>
+          Save
+        </button>
+        <button type="button" className="rbtn" disabled={saving} onClick={closeDoor}>
+          {hasAnswer ? "Keep what I have" : "Not now"}
+        </button>
+      </div>
+      {saving && <p className="rbusy">{LANG_SAVING}</p>}
+      {error && (
+        <p className="rerr" role="alert">
+          {error}
+        </p>
+      )}
+      {!saving && !error && <p className="rnote">{R11}</p>}
+    </div>
+  );
+}
+
+// #186 the domain section shell — .dom/.dhead/.dname/.dcount/.aura reused exactly as shipped, per
+// domain, in payload order. Body varies by tag: experience gets job blocks (A3), skill/cert/lang get
+// chips (A4, lang also gets the languages door), everything else (edu) gets flat sentence rows in
+// store order — the "Still List Rule": no reordering except the gold-then-grey split A3/A4 name.
+function DomainSection({
+  domain,
+  index,
+  biggest,
+  reducedMotion,
+  onOpenFact,
+  languagesQuestion,
+  onProfileRefreshed,
+  onAnnounce,
+}: {
+  domain: ProfileDomain;
+  index: number;
+  biggest: number;
+  reducedMotion: boolean;
+  onOpenFact: (fact: ProfileFact, tag: string) => void;
+  languagesQuestion: ProfileLanguagesQuestion;
+  onProfileRefreshed: (profile: ProfileState) => void;
+  onAnnounce: (message: string) => void;
+}) {
+  const gold = domain.facts.filter((f) => f.colour === "gold").length;
+  const a = (0.035 + 0.075 * (domain.facts.length / biggest)).toFixed(3);
+  const isChips = domain.tag === "skill" || domain.tag === "cert" || domain.tag === "lang";
+  return (
+    <section className="dom" style={reducedMotion ? undefined : { animationDelay: `${Math.min(index * 55, 330)}ms` }}>
+      <span className="aura" style={{ ["--a" as string]: a }} aria-hidden="true" />
+      <div className="dhead">
+        <h2 className="dname">{domain.heading}</h2>
+        <span className="dcount">
+          {domain.facts.length}
+          <span className="sr-only"> {domain.facts.length === 1 ? "fact" : "facts"}</span>
+          {gold > 0 && <span className="dgold"> · {gold} on your CV</span>}
+        </span>
+      </div>
+      {domain.tag === "experience" ? (
+        <ExperienceBody domain={domain} onOpenFact={onOpenFact} />
+      ) : isChips ? (
+        <>
+          <ChipGroup domain={domain} onOpenFact={onOpenFact} />
+          {domain.tag === "lang" && (
+            <LanguageDoor languagesQuestion={languagesQuestion} onProfileRefreshed={onProfileRefreshed} onAnnounce={onAnnounce} />
+          )}
+        </>
+      ) : (
+        domain.facts.map((f) => <FactRow key={f.id} fact={f} tag={domain.tag} onOpenFact={onOpenFact} />)
+      )}
+    </section>
   );
 }
 
@@ -324,23 +662,38 @@ function ContactField({
   );
 }
 
-// #190 the About you section — always the first section in Sorted, always rendered (contact is
+// #190/#186 the About you section — always the first section in Sorted, always rendered (contact is
 // additive on the payload, never absent), so honest absence ("Not on your CV") has somewhere to
-// live even for a person with neither phone nor email captured yet.
+// live even for a person with neither phone nor email captured yet. #186 A1 merges this with the
+// payload's own no-job "About you" domain group (arrives first, tag "profile") into ONE section:
+// the domain's own facts as rows, then the two contact fields — never two "About you" headings.
+// `domain` is null when the payload carries no such group (e.g. a thin profile); the count is
+// omitted entirely in that case, per A1.
 function AboutYou({
+  domain,
   contact,
   onUpdated,
   onAnnounce,
+  onOpenFact,
 }: {
+  domain: ProfileDomain | null;
   contact: ProfileContact;
   onUpdated: (contact: ProfileContact) => void;
   onAnnounce: (message: string) => void;
+  onOpenFact: (fact: ProfileFact, tag: string) => void;
 }) {
   return (
     <section className="dom">
       <div className="dhead">
         <h2 className="dname">{CX_HEADING}</h2>
+        {domain && domain.facts.length > 0 && (
+          <span className="dcount">
+            {domain.facts.length}
+            <span className="sr-only"> {domain.facts.length === 1 ? "fact" : "facts"}</span>
+          </span>
+        )}
       </div>
+      {domain?.facts.map((f) => <FactRow key={f.id} fact={f} tag="profile" onOpenFact={onOpenFact} />)}
       <ContactField
         field="phone"
         label={CX_PHONE_LABEL}
@@ -530,7 +883,9 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileState | null>(null);
   const [view, setView] = useState<View>("sorted");
   const [liveMessage, setLiveMessage] = useState("");
-  const [selected, setSelected] = useState<ProfileFact | null>(null);
+  // #186: the fact plus the tag of the domain it came from — the detail block needs the tag to pick
+  // the right kept-caption wording (A5) without re-deriving it from the fact's text.
+  const [selected, setSelected] = useState<{ fact: ProfileFact; tag: string } | null>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -581,6 +936,13 @@ export default function ProfilePage() {
     setProfile((p) => (p ? { ...p, contact } : p));
   }, []);
 
+  // #186 A8 — the languages door replaces the whole payload after a save (languages can shift gold/
+  // grey elsewhere too, e.g. via a re-tailor), the same "re-fetch, never patch in place" rule the
+  // Job family/contact doors already follow.
+  const handleProfileRefreshed = useCallback((next: ProfileState) => {
+    setProfile(next);
+  }, []);
+
   const restoreDialogFocus = useCallback(() => {
     const opener = dialogOpenerRef.current;
     dialogOpenerRef.current = null;
@@ -592,8 +954,8 @@ export default function ProfilePage() {
   }, [view]);
 
   const openFact = useCallback(
-    (fact: ProfileFact) => {
-      setSelected(fact);
+    (fact: ProfileFact, tag: string) => {
+      setSelected({ fact, tag });
       if (view === "sorted" && !dialogRef.current?.open) {
         const active = document.activeElement;
         dialogOpenerRef.current = active instanceof HTMLElement ? active : null;
@@ -684,6 +1046,7 @@ export default function ProfilePage() {
           onBack={() => router.back()}
           onSearchUpdated={handleSearchUpdated}
           onContactUpdated={handleContactUpdated}
+          onProfileRefreshed={handleProfileRefreshed}
           onAnnounce={setLiveMessage}
         />
       )}
@@ -710,6 +1073,7 @@ function ReadyScreen({
   onBack,
   onSearchUpdated,
   onContactUpdated,
+  onProfileRefreshed,
   onAnnounce,
 }: {
   profile: ProfileState;
@@ -722,14 +1086,15 @@ function ReadyScreen({
   skyButtonRef: React.RefObject<HTMLButtonElement | null>;
   dialogRef: React.RefObject<HTMLDialogElement | null>;
   sortedBodyRef: React.RefObject<HTMLDivElement | null>;
-  selected: ProfileFact | null;
+  selected: { fact: ProfileFact; tag: string } | null;
   onSwitchView: (v: View) => void;
-  onOpenFact: (f: ProfileFact) => void;
+  onOpenFact: (f: ProfileFact, tag: string) => void;
   onCloseDialog: () => void;
   onDialogClosed: () => void;
   onBack: () => void;
   onSearchUpdated: (search: ProfileSearch) => void;
   onContactUpdated: (contact: ProfileContact) => void;
+  onProfileRefreshed: (profile: ProfileState) => void;
   onAnnounce: (message: string) => void;
 }) {
   const indRef = useRef<HTMLSpanElement>(null);
@@ -932,8 +1297,21 @@ function ReadyScreen({
   const grey = Math.max(0, profile.factCount - gold);
   const showP12 = visibleCount <= 2;
 
-  const domains = useMemo(() => [...profile.domains].sort((a, b) => b.facts.length - a.facts.length), [profile.domains]);
-  const biggest = domains.reduce((m, d) => Math.max(m, d.facts.length), 1);
+  // #186 A0/A1: Sorted renders the payload's own CV order (About you first); the client-side
+  // size-sort is deleted from that path entirely — CV order is the law. Constellation keeps its
+  // prior behaviour (its own size-sorted input), hence the two separate consts.
+  const domainsCv = profile.domains;
+  // Review round 2 (cheap hardening): looked up by tag, not assumed at index 0 — the contract says
+  // the payload puts this group first, but a defensive lookup means a reordered/malformed payload
+  // can never leave the "profile" domain also rendered as its own DomainSection below, which would
+  // draw a second "About you" heading.
+  const aboutDomain = domainsCv.find((d) => d.tag === "profile") ?? null;
+  const restDomains = aboutDomain ? domainsCv.filter((d) => d.tag !== "profile") : domainsCv;
+  const domainsBySize = useMemo(
+    () => [...profile.domains].sort((a, b) => b.facts.length - a.facts.length),
+    [profile.domains],
+  );
+  const biggest = domainsCv.reduce((m, d) => Math.max(m, d.facts.length), 1);
 
   return (
     <>
@@ -1034,43 +1412,26 @@ function ReadyScreen({
               <div id="profileview" className={`body ${view}`} ref={view === "sorted" ? sortedBodyRef : undefined}>
                 {view === "sorted" ? (
                   <div className="sheetwrap">
-                    <AboutYou contact={profile.contact} onUpdated={onContactUpdated} onAnnounce={onAnnounce} />
-                    {domains.map((d, i) => {
-                      const { lead, rest } = pickLead(d.facts);
-                      const a = (0.035 + 0.075 * (d.facts.length / biggest)).toFixed(3);
-                      return (
-                        <section
-                          className="dom"
-                          key={d.tag}
-                          style={reducedMotion ? undefined : { animationDelay: `${Math.min(i * 55, 330)}ms` }}
-                        >
-                          <span className="aura" style={{ ["--a" as string]: a }} aria-hidden="true" />
-                          <div className="dhead">
-                            <h2 className="dname">{d.heading}</h2>
-                            <span className="dcount">
-                              {d.facts.length}
-                              <span className="sr-only"> {d.facts.length === 1 ? "fact" : "facts"}</span>
-                            </span>
-                          </div>
-                          <p className={`dlead ${lead.colour}`}>{lead.text}</p>
-                          {rest.length > 0 && (
-                            <div className="facts">
-                              {rest.map((f) => (
-                                <button
-                                  key={f.id}
-                                  type="button"
-                                  className={`fact ${f.colour}`}
-                                  aria-label={`${f.text} — ${f.colour === "gold" ? P21 : P22}`}
-                                  onClick={() => onOpenFact(f)}
-                                >
-                                  {chipText(f.text)}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </section>
-                      );
-                    })}
+                    <AboutYou
+                      domain={aboutDomain}
+                      contact={profile.contact}
+                      onUpdated={onContactUpdated}
+                      onAnnounce={onAnnounce}
+                      onOpenFact={onOpenFact}
+                    />
+                    {restDomains.map((d, i) => (
+                      <DomainSection
+                        key={d.tag}
+                        domain={d}
+                        index={i}
+                        biggest={biggest}
+                        reducedMotion={reducedMotion}
+                        onOpenFact={onOpenFact}
+                        languagesQuestion={profile.languagesQuestion}
+                        onProfileRefreshed={onProfileRefreshed}
+                        onAnnounce={onAnnounce}
+                      />
+                    ))}
                     <p className="dnote">
                       {showP12
                         ? P12
@@ -1078,7 +1439,12 @@ function ReadyScreen({
                     </p>
                   </div>
                 ) : (
-                  <Constellation domains={domains} reducedMotion={reducedMotion} selected={selected} onOpenFact={onOpenFact} />
+                  <Constellation
+                    domains={domainsBySize}
+                    reducedMotion={reducedMotion}
+                    selected={selected}
+                    onOpenFact={onOpenFact}
+                  />
                 )}
               </div>
             </div>
@@ -1100,7 +1466,7 @@ function ReadyScreen({
       >
         {selected && (
           <>
-            <DetailBody fact={selected} />
+            <DetailBody fact={selected.fact} tag={selected.tag} />
             <button type="button" className="detailclose" onClick={onCloseDialog}>
               {P26}
             </button>
@@ -1119,6 +1485,7 @@ const PAD_B = 104;
 interface SkyNode {
   fact: ProfileFact;
   domainIndex: number;
+  tag: string; // #186: the owning domain's tag, threaded to onOpenFact for the detail's caption wording
   nx: number;
   ny: number;
   depth: number;
@@ -1162,7 +1529,7 @@ function buildSky(domains: ProfileDomain[]): SkyNode[] {
         }
       }
       const idx = nodes.length;
-      const node: SkyNode = { fact, domainIndex: i, nx, ny, depth, ph, sp, linked: [] };
+      const node: SkyNode = { fact, domainIndex: i, tag: d.tag, nx, ny, depth, ph, sp, linked: [] };
       if (nearest >= 0) {
         node.linked.push(nearest);
         nodes[nearest].linked.push(idx);
@@ -1181,8 +1548,8 @@ function Constellation({
 }: {
   domains: ProfileDomain[];
   reducedMotion: boolean;
-  selected: ProfileFact | null;
-  onOpenFact: (f: ProfileFact) => void;
+  selected: { fact: ProfileFact; tag: string } | null;
+  onOpenFact: (f: ProfileFact, tag: string) => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1287,7 +1654,7 @@ function Constellation({
       const idx = nearestNode(e.clientX - rect.left, e.clientY - rect.top, 46, performance.now() - t0Ref.current);
       if (idx !== null) {
         selIndexRef.current = idx;
-        onOpenFact(nodesRef.current[idx].fact);
+        onOpenFact(nodesRef.current[idx].fact, nodesRef.current[idx].tag);
       }
     }
     canvas.addEventListener("pointermove", onPointerMove);
@@ -1452,7 +1819,7 @@ function Constellation({
   function chooseNode(i: number) {
     selIndexRef.current = i;
     hoveredRef.current = i;
-    onOpenFact(nodes[i].fact);
+    onOpenFact(nodes[i].fact, nodes[i].tag);
   }
 
   return (
@@ -1477,7 +1844,7 @@ function Constellation({
             <li key={node.fact.id} style={style}>
               <button
                 type="button"
-                className={`star ${node.fact.colour}${selected?.id === node.fact.id ? " active" : ""}`}
+                className={`star ${node.fact.colour}${selected?.fact.id === node.fact.id ? " active" : ""}`}
                 aria-label={`${node.fact.text} — ${node.fact.colour === "gold" ? P21 : P22}`}
                 onFocus={() => chooseNode(i)}
                 onPointerEnter={() => {
@@ -1493,7 +1860,7 @@ function Constellation({
         })}
       </ul>
       <div className={`sheet ${selected ? "in sheetin" : "hint"}`}>
-        {selected ? <DetailBody fact={selected} /> : <p>{P20}</p>}
+        {selected ? <DetailBody fact={selected.fact} tag={selected.tag} /> : <p>{P20}</p>}
       </div>
     </div>
   );

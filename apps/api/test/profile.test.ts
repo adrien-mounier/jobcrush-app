@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { CandidateClaim } from "@jobcrush/contracts";
 import { buildServer } from "../src/server.js";
 import { isTerminal } from "../src/jobs.js";
-import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
+import { DECLINE_OPTION, languagesQuestion as composeLanguagesQuestion } from "../src/eligibilityDiscovery.js";
 
 const claim = (over: Partial<CandidateClaim>): CandidateClaim => ({
   id: "acme-led-migration",
@@ -102,12 +102,20 @@ interface ProfileWorkRights {
   question: string;
   options: string[];
 }
+interface ProfileLanguagesQuestion {
+  questionId: string;
+  question: string;
+  consequence: string | null;
+  options: string[];
+  answer: string[] | null;
+}
 interface ProfileResponse {
   domains: Array<{ tag: string; heading: string; facts: ProfileFact[] }>;
   factCount: number;
   search: { role: string | null; family: string | null; siblingTitles: string[]; openJobs: number | null };
   contact: { phone: ProfileContactField | null; email: ProfileContactField | null };
   location: { area: string | null; workRights: ProfileWorkRights | null };
+  languagesQuestion: ProfileLanguagesQuestion;
 }
 
 // #179: until E5 places typed roles into families, the search block is the honest empty state for
@@ -117,6 +125,18 @@ const EMPTY_SEARCH = (role: string | null) => ({ role, family: null, siblingTitl
 const EMPTY_CONTACT = { phone: null, email: null };
 // #185: honest absence — no search area set yet, so no market to hold a work-rights answer either.
 const EMPTY_LOCATION = { area: null, workRights: null };
+// #185 code-review contract extension: the languages question composed the SAME way
+// eligibilityDiscovery.ts's buildQuestion composes it — imported directly (never hand-copied text)
+// so this fixture can never drift from the shipped copy. `answer: null` — the honest never-answered
+// state every fresh session starts in.
+const LANGUAGES_COMPOSITION = composeLanguagesQuestion();
+const UNANSWERED_LANGUAGES_QUESTION: ProfileLanguagesQuestion = {
+  questionId: LANGUAGES_COMPOSITION.itemId,
+  question: LANGUAGES_COMPOSITION.question,
+  consequence: LANGUAGES_COMPOSITION.consequence ?? null,
+  options: LANGUAGES_COMPOSITION.options,
+  answer: null,
+};
 
 describe("#20 profile screen — the colour law over HTTP", () => {
   it("returns gold confirmed facts, grey pending facts under the current product decision, and no rejected facts", async () => {
@@ -197,6 +217,7 @@ describe("#20 profile screen — the colour law over HTTP", () => {
       search: EMPTY_SEARCH(ROLE),
       contact: EMPTY_CONTACT,
       location: EMPTY_LOCATION,
+      languagesQuestion: UNANSWERED_LANGUAGES_QUESTION,
     });
   });
 
@@ -211,6 +232,7 @@ describe("#20 profile screen — the colour law over HTTP", () => {
       search: EMPTY_SEARCH(null),
       contact: EMPTY_CONTACT,
       location: EMPTY_LOCATION,
+      languagesQuestion: UNANSWERED_LANGUAGES_QUESTION,
     });
   });
 
@@ -450,6 +472,67 @@ describe("#20 profile screen — the colour law over HTTP", () => {
 
       const { location } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
       expect(location).toEqual({ area: "London", workRights: null });
+    });
+  });
+
+  // #185 code-review contract extension: the SAME re-open contract as work-rights, for the
+  // languages door — the frontend review found it re-declared the question/options itself AND
+  // pre-ticked from CV-mined claim text, either of which could silently misrepresent (or, on save,
+  // flip) a real eligibility answer. Always present, and reads ONLY the eligibility store.
+  describe("#185: the profile rail's languages question", () => {
+    it("question/options are byte-identical to discovery's own, and a never-answered session reads answer: null", async () => {
+      const server = buildServer();
+      const cookie = await anonSession(server.app);
+      const start = (await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE })).json() as {
+        questions: Array<{
+          itemId: string;
+          question: string;
+          consequence?: string;
+          options: string[];
+          eligibility?: { dimension: string };
+        }>;
+      };
+      const discoveryLanguages = start.questions.find((q) => q.eligibility?.dimension === "language")!;
+
+      const { languagesQuestion } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      expect(languagesQuestion).toEqual({
+        questionId: discoveryLanguages.itemId,
+        question: discoveryLanguages.question,
+        consequence: discoveryLanguages.consequence ?? null,
+        options: discoveryLanguages.options,
+        answer: null,
+      });
+    });
+
+    it("the questionId round-trips to the answer route and the answered set comes back exactly as stored", async () => {
+      const server = buildServer();
+      const cookie = await anonSession(server.app);
+      await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
+      const before = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      const [english, mandarin] = before.languagesQuestion.options; // languagesUnion() order, verbatim
+
+      await post(server.app, cookie, "/onboarding/discovery/answer", {
+        itemId: before.languagesQuestion.questionId, // the rail's own id, not a client-composed one
+        answers: [english, mandarin],
+      });
+      const after = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      expect(after.languagesQuestion.answer).toEqual([english, mandarin]);
+    });
+
+    it("a CV language claim never influences the answer (the eligibility store is the only source)", async () => {
+      const claims: CandidateClaim[] = [
+        claim({ id: "acme-led-migration" }),
+        claim({ id: "lang-fluent", role: "profile", text: "Fluent in English and Mandarin." }),
+      ];
+      const server = buildServer({ pipeline: { mine: async () => ({ doc: null, claims, roles: 1, needsGrill: 0 }) } });
+      const cookie = await anonSession(server.app);
+      await signIn(server.app, cookie, "e2e-lang-claim@example.com");
+      const jobId = await mineAndGetJob(server, cookie);
+      await post(server.app, cookie, "/onboarding/deck", { jobId });
+      await post(server.app, cookie, "/onboarding/claims/lang-fluent/confirm");
+
+      const { languagesQuestion } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      expect(languagesQuestion.answer).toBeNull();
     });
   });
 

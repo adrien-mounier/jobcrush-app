@@ -465,6 +465,9 @@ export interface ProfileFact {
   text: string;
   colour: "gold" | "grey";
   source: "told" | "read";
+  // #186: experience facts carry the job line they belong to (rendered verbatim as a job block's
+  // header — never parsed for dates/employer); null for every other domain.
+  job: string | null;
 }
 
 export interface ProfileDomain {
@@ -498,11 +501,40 @@ export interface ProfileContact {
   email: ProfileContactField | null;
 }
 
+// #188 (rail's Location section) — mirrored here additively per #186's pinned contract; this
+// ticket does not render it (the rail stays #188's to build). `workRights` is omitted entirely
+// server-side, never a placeholder object, when `area` is null.
+export interface ProfileLocation {
+  area: string | null;
+  workRights: {
+    market: string;
+    answer: string | null;
+    questionId: string;
+    question: string;
+    options: string[];
+  } | null;
+}
+
+// #186 review round 2 (must-fix) — the eligibility store's own languages answer, always present on
+// the payload. The Languages *domain* (chips in the main list) is CV-mined claim text — a different
+// provenance that never matches this question's options and must never be used to pre-tick it (a
+// claim like "Fluent in English and Mandarin." matches no option; deriving ticks from it opens the
+// door wrong and a save would silently flip real eligibility answers to "no", withdrawing jobs).
+export interface ProfileLanguagesQuestion {
+  questionId: string;
+  question: string;
+  consequence: string | null;
+  options: string[]; // verbatim, including the trailing decline option
+  answer: string[] | null; // the eligibility store's current set; null = never answered
+}
+
 export interface ProfileState {
   factCount: number;
   domains: ProfileDomain[];
   search: ProfileSearch;
   contact: ProfileContact;
+  location: ProfileLocation;
+  languagesQuestion: ProfileLanguagesQuestion;
 }
 
 // Mirrors apps/api/src/contact.ts's ContactValue/ContactRecord — the PUT /contact response shape.

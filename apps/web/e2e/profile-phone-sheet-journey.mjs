@@ -132,7 +132,7 @@ await qa.expectVisible('.dnote', 'the sheet scrolls to the end of the list — n
 await page.locator('.pfsheet-body').evaluate((el) => { el.scrollTop = 0; });
 await page.waitForTimeout(600);
 
-await qa.click('.fact.grey', 'open a saved fact from inside the sheet');
+await qa.click('.frow', 'open a saved fact from inside the sheet');
 await qa.expectVisible('dialog.detail', 'the detail dialog opens above the sheet');
 await escape('press Escape once');
 await assert(!(await page.locator('dialog.detail').isVisible()), 'Escape closes the detail first');

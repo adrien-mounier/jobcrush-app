@@ -468,6 +468,18 @@ export function workRightsQuestionFor(city: string): DiscoveryQuestion {
   return buildQuestion("work-rights", "", "", "", city);
 }
 
+/** #185 — the profile rail's languages door needs the SAME re-open contract work-rights got: the
+ *  ORIGINAL languages question (itemId, question/consequence text, option strings), so the client
+ *  never re-declares LANGUAGES_QUESTION/languagesUnion()/DECLINE_OPTION itself, and never pre-ticks
+ *  from CV-mined claim text (a save built on that would silently flip a real "no" to "yes" or vice
+ *  versa). Thin wrapper over buildQuestion's own language branch — the ONE place this composition
+ *  happens — mirroring workRightsQuestionFor above. `familyId`/`anyFamily`/`scopeLabel`/`city` are
+ *  all dead parameters on that branch (see buildQuestion's own doc comment: the language branch
+ *  reads nothing from any of them) — passed as empty/null placeholders, never fabricated. */
+export function languagesQuestion(): DiscoveryQuestion {
+  return buildQuestion("language", "", "", "", null);
+}
+
 export interface LanguageFactWrite {
   /** The eligibility store's scope column — the language's own name. */
   familyId: string;
