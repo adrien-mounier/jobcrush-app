@@ -2,6 +2,30 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-10 (session 100) `/orchestrate-team` — spec #181 CLOSED: #187, #193, #189 shipped, full-journey GO
+
+Two commits (`8361a3d`, `45f2f52`); spec #181 closed with a full-journey QA GO on both viewports.
+
+- **#187 + #193** (`8361a3d`) — the constellation is regrouped by CV section with share-weighted
+  wedges (0.04 floor, empty sections draw nothing), per-job sub-constellations with employer labels
+  (hide >40 facts, hover/tap reveal via the existing hot-node derivation), colours payload-only with
+  a no-re-derivation test. The profile payload composes an answer-only Languages section (kept chips,
+  `answerOnly: true` flag, the existing single door) when a stored answer exists with zero CV
+  language claims. Review round: id-prefix coupling replaced by the explicit flag, near-vacuous AC1
+  spread test rebuilt, fs-regex internals test dropped, the missing 40-label e2e added, and the
+  count law decided (answer-only chips count in the section badge and the 40 threshold — coherent
+  with the hero's factCount, overruling the designer's exclusion intent). QA GO.
+- **#189** (`45f2f52`) — full-journey e2e over the whole round-2 profile, green 82/82 at desktop and
+  phone: field+rail / stacked, hero counts, list grouping, constellation, both correction doors
+  pre-filled, the market-switch round trip. The shape-a journey's stale fixture (predating
+  Location/Contact/Languages) had disabled ALL its checks — repaired. Three falsifiable checks
+  previously unasserted on-screen now pinned ("Professional Summary" never a heading in-browser, no
+  rail languages line, family stub never displayed). Mobile stacked-rail screenshots committed and
+  linked on #176 for the owner's verdict.
+- Known lows recorded, not gated: answer-only language is a dead chip in the list but a live star in
+  the sky (#193 comment) · sorted list would draw a zero-fact section heading if the API ever sent
+  one (it never does) · rail correction doors ~25px on phone, under the 44px touch guidance (#176).
+
 ## 2026-08-10 (session 99) `/orchestrate-team` — profile spec #181's middle: #185, #186, #188 (+#173) shipped
 
 Three slices, committed and deployed (`651ce7b`, `e25ef6e`, `ffded0a`):
