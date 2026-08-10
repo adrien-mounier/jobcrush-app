@@ -89,6 +89,33 @@
         ],
         "createdAt": "2026-08-09T11:20:51.442Z",
         "reason": "Owner-confirmed constellation language (R2-c, #176): gold facts glow like stars on the profile's night sky; carried from the round-1 and mobile prototypes"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(0.2, 1.5, 0.4, 1)",
+        "createdAt": "2026-08-10T01:56:31.814Z",
+        "reason": "Owner confirmed 2026-08-10: the 460ms pile-bump / burst spring is a documented DESIGN.md motion token (reused at its own values, never re-timed)"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(0.3, 1.15, 0.3, 1)",
+        "createdAt": "2026-08-10T01:56:31.918Z",
+        "reason": "Owner confirmed 2026-08-10: the profile toggle slide's gentle overshoot is intentional shipped motion"
+      },
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": [
+          "apps/web/app/discovery.css"
+        ],
+        "createdAt": "2026-08-10T02:13:43.435Z",
+        "reason": "CV paper grain is the ratified physical-paper treatment"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "8px",
+        "createdAt": "2026-08-10T02:16:00.538Z",
+        "reason": "Owner 2026-08-10: 8px occurrences are glyphs (percent sign, triangle), not reading text"
       }
     ]
   }

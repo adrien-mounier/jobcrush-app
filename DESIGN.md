@@ -5,6 +5,7 @@ colors:
   gold: "#e8a33d"
   gold-deep: "#a8762b"
   gold-light: "#ffd9a0"
+  gold-ink: "#1a1206"
   night-floor: "#101419"
   night-surface: "#171c23"
   night-raised: "#1f262f"
@@ -14,6 +15,7 @@ colors:
   night-muted-readable: "#8a95a2"
   reserve: "#97aabc"
   settled: "#4d5865"
+  night-weak: "#6f7d8c"
   paper: "#f6f2ea"
   paper-edge: "#e2dacb"
   paper-ink: "#16150f"
@@ -30,6 +32,7 @@ colors:
   evidence-suggested: "#8250df"
   evidence-negative: "#57606a"
   danger: "#cf222e"
+  danger-soft: "#e0876c"
 typography:
   display:
     fontFamily: "Segoe UI Variable Text, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, system-ui, sans-serif"
@@ -58,9 +61,24 @@ typography:
     fontSize: "11.5px"
     fontWeight: 400
     letterSpacing: "0.02em"
+  scale:
+    mono-label: "10.5px"
+    tag: "11px"
+    caption: "12px"
+    meta: "12.5px"
+    note: "13px"
+    reading: "13.5px"
+    emphasis: "17px"
+    headline: "18px"
+    stat: "19px"
+    moment: "24px"
+    reveal: "27px"
+    hero-count: "38px"
+    burst: "42px"
 rounded:
   tight: "6px"
   soft: "10px"
+  control: "11px"
   card: "12px"
   card-dark: "16px"
   pill: "999px"
@@ -73,7 +91,7 @@ spacing:
 components:
   button-primary:
     backgroundColor: "{colors.gold}"
-    textColor: "#1a1206"
+    textColor: "{colors.gold-ink}"
     rounded: "{rounded.soft}"
     padding: "12px 14px"
   button-primary-hover:
@@ -139,6 +157,8 @@ A charcoal room, one gold voice, warm paper, and a small semantic evidence palet
   your CV right now", the reward beat (a fact chip flying to the profile), the active
   step, the primary action. Deep variant (#a8762b) for pressed/dim states; light
   variant (#ffd9a0) for hover and glow cores.
+- **Gold Ink** (#1a1206): the near-black warm ink that sits *on* gold — button text,
+  lit chip text, anything printed on a lamplight fill. Never used on its own ground.
 
 ### Neutral — the dark room
 - **Night Floor** (#101419): the app background in the dark register.
@@ -149,6 +169,9 @@ A charcoal room, one gold voice, warm paper, and a small semantic evidence palet
   Floor/Surface · **Night Muted Readable** (#8a95a2) secondary text on Raised (kept AA).
 - **Reserve Grey** (#97aabc): the counterpart of gold — a fact saved for later, not on
   the page. **Settled** (#4d5865): separators and done-state text.
+- **Night Weak** (#6f7d8c): the gap grey of the colour law — "where you don't match
+  yet" marks and their tinted pills; never gold's counterpart (that is Reserve), and
+  never body text.
 
 ### Neutral — the paper
 - **Paper** (#f6f2ea) with **Paper Edge** (#e2dacb) borders, **Paper Ink** (#16150f)
@@ -165,6 +188,16 @@ A charcoal room, one gold voice, warm paper, and a small semantic evidence palet
 ### Semantic — evidence badges (light register, spec §5)
 - **Verified** (#1a7f37) · **Derived** (#0969da) · **Partial** (#9a6700) ·
   **Suggested** (#8250df) · **Negative** (#57606a) · **Danger** (#cf222e).
+- **Danger Soft** (#e0876c): the dark room's error voice — inline error text on night
+  surfaces, where the light register's danger red would vibrate against the charcoal.
+
+### Translucency
+Translucent surfaces are alpha blends of the documented night colours, never new
+colours: Night Surface at .82/.86/.97 for floating sheets, rails and dialogs; Night
+Ink at .28/.45 for lit borders; gold at .04–.4 for lamplight pools, bubble fills and
+glows; Night Weak and Settled at .12–.5 for their tinted pills. A blend takes its
+identity from its base colour — only the base has to be on the ramp, so a new alpha
+step of a documented colour is not drift.
 
 ### Named Rules
 **The Gold Law.** Gold marks what is on the rendered CV right now, or the moment a fact
@@ -174,6 +207,13 @@ decorate, and its rarity is the point — one glowing thing per screen is the ce
 **The Two Rooms Rule.** A surface commits to one register — dark room or light
 register — and uses the paper palette only for things that are literally the printed
 page. Mixing registers on one surface is a defect, not a blend.
+
+**The Working Ramp Rule.** The dark room's full type and colour working ramp is
+documented here — the five typography roles and the headline colour names are the
+landmarks, not the whole ladder. The frontmatter `typography.scale` and the colour
+tokens (with their sidecar tonal ramps) are the complete documented ramp, extracted
+from the shipped, owner-ratified screens. A value outside the documented ramp is
+drift, not idiom.
 
 ## Typography
 
@@ -196,6 +236,22 @@ export format.)
 - **Body** (400, 14px, 1.5): everything readable.
 - **Label** (mono, 10.5–11.5px): counts, build stamps, tiny keys — always with words,
   never carrying meaning by colour alone.
+
+### Working Ramp
+The dark room ships a wider ladder than the five roles above; the full working ramp
+(frontmatter `typography.scale` plus the roles) is:
+**10.5 / 11 / 11.5 / 12 / 12.5 / 13 / 13.5 / 14 / 14.5 / 15 / 17 / 18 / 19 / 24 /
+27 / 29 / 38 / 42px.**
+The notable steps: **42px** is the celebration burst on the deck reveal · **38px**
+the profile's hero fact count · **27px** the curtain reveal headline · **24px** the
+dark room's "moment" headline (load states, loopback) · **19px** mono stat numbers ·
+**18px** card and wall headings (the 18–21px headline band) · **17px** dialog lead
+text · **12.5px** the workhorse secondary/meta size · **10.5–11.5px** the mono label
+family. Half-steps within 0.5px of a documented step (15.5, 16.5, 18.5) read as that
+step.
+
+**The smallest reading text in the product is 10.5px (the label floor). Glyph-only
+marks (a percent sign, a chevron) may go smaller; sentences never do.**
 
 ### Named Rule
 **The Serif Means Her Rule.** Serif text is reserved for the person's own document and

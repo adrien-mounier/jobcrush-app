@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-09T22:50:00+07:00",
+  "generatedAt": "2026-08-10T10:00:00+07:00",
   "title": "Design System: JobCrush",
   "extensions": {
     "colorMeta": {
@@ -8,7 +8,13 @@
       "night-surface": { "role": "neutral", "displayName": "Night Surface", "canonical": "#171c23", "tonalRamp": ["#0a0d11", "#101419", "#171c23", "#1f262f", "#2b333d", "#3b4653", "#7f8b98", "#e8eaed"] },
       "paper": { "role": "neutral", "displayName": "Warm Paper", "canonical": "#f6f2ea", "tonalRamp": ["#2e2a1f", "#5a5240", "#8a7f63", "#b3a88a", "#d0c7ac", "#e2dacb", "#f6f2ea", "#fbf9f4"] },
       "reserve": { "role": "neutral", "displayName": "Reserve Grey", "canonical": "#97aabc", "tonalRamp": ["#131a20", "#25313c", "#3a4a59", "#526478", "#6e8296", "#97aabc", "#b8c6d4", "#dde5ec"] },
-      "day-teal": { "role": "secondary", "displayName": "Day Teal", "canonical": "#0b6e5f", "tonalRamp": ["#04231e", "#07382f", "#0b4e42", "#0b6e5f", "#1d8a77", "#3ba692", "#79c4b4", "#c2e5dd"] }
+      "day-teal": { "role": "secondary", "displayName": "Day Teal", "canonical": "#0b6e5f", "tonalRamp": ["#04231e", "#07382f", "#0b4e42", "#0b6e5f", "#1d8a77", "#3ba692", "#79c4b4", "#c2e5dd"] },
+      "gold-ink": { "role": "primary", "displayName": "Gold Ink", "canonical": "#1a1206", "tonalRamp": ["#0d0903", "#1a1206", "#2c200c", "#3a2707", "#5c3e0e", "#7e5517", "#a8762b", "#e8a33d"] },
+      "night-weak": { "role": "neutral", "displayName": "Night Weak", "canonical": "#6f7d8c", "tonalRamp": ["#131a20", "#25313c", "#3a4a59", "#525f6d", "#6f7d8c", "#7f8b98", "#8a95a2", "#97aabc"] },
+      "danger-soft": { "role": "semantic", "displayName": "Danger Soft", "canonical": "#e0876c", "tonalRamp": ["#3a1810", "#5c2a1d", "#7e3f2c", "#a5573f", "#c56f54", "#e0876c", "#eda58f", "#f7c9ba"] }
+    },
+    "roundedMeta": {
+      "card-dark": { "canonical": "16px", "values": ["18px"], "purpose": "Dark cards run 16-18px (Shapes prose); the deck's job card ships the 18px end." }
     },
     "typographyMeta": {
       "display": { "displayName": "Display", "purpose": "The advert hero title on the tailor screen; at most one per screen." },
@@ -92,6 +98,7 @@
     "rules": [
       { "name": "The Gold Law", "body": "Gold marks what is on the rendered CV right now, or the moment a fact joins the record. Grey (Reserve) marks what is saved for later. Gold never decorates; one glowing thing per screen is the ceiling.", "section": "colors" },
       { "name": "The Two Rooms Rule", "body": "A surface commits to one register — dark room or light register — and uses the paper palette only for things that are literally the printed page.", "section": "colors" },
+      { "name": "The Working Ramp Rule", "body": "The dark room's full type and colour working ramp is documented here — the five typography roles and the headline colour names are the landmarks, not the whole ladder. The frontmatter typography.scale and the colour tokens (with their sidecar tonal ramps) are the complete documented ramp, extracted from the shipped, owner-ratified screens. A value outside the documented ramp is drift, not idiom.", "section": "colors" },
       { "name": "The Serif Means Her Rule", "body": "Serif text is reserved for the person's own document and sentences quoted from it. The machine never speaks in the serif.", "section": "typography" },
       { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest; depth is tonal. If something casts a shadow, the person should be able to imagine picking it up.", "section": "elevation" },
       { "name": "The Fit-Width Paper Rule", "body": "The CV paper renders at true page proportions (640×905) and is scaled to fit via transform — never reflowed.", "section": "layout" },
