@@ -378,9 +378,15 @@ function LanguageDoor({
   const [error, setError] = useState<string | null>(null);
   const doorRef = useRef<HTMLButtonElement>(null);
   const firstCheckRef = useRef<HTMLInputElement>(null);
+  const restoreDoorFocusRef = useRef(false);
 
   useEffect(() => {
-    if (asking) firstCheckRef.current?.focus();
+    if (asking) {
+      firstCheckRef.current?.focus();
+    } else if (restoreDoorFocusRef.current) {
+      restoreDoorFocusRef.current = false;
+      doorRef.current?.focus();
+    }
   }, [asking]);
 
   function openDoor() {
@@ -390,9 +396,9 @@ function LanguageDoor({
   }
 
   function closeDoor() {
+    restoreDoorFocusRef.current = true;
     setAsking(false);
     setError(null);
-    requestAnimationFrame(() => doorRef.current?.focus());
   }
 
   function toggle(name: string) {
@@ -425,8 +431,8 @@ function LanguageDoor({
     }
     onAnnounce(LANG_SAVED);
     setSaving(false);
+    restoreDoorFocusRef.current = true;
     setAsking(false);
-    requestAnimationFrame(() => doorRef.current?.focus());
   }
 
   if (!asking) {

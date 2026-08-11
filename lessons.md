@@ -1,5 +1,17 @@
 # Lessons — jobcrush-app
 
+## Focus after a conditional render belongs after the commit
+
+The language door saved correctly and called `requestAnimationFrame(() => door.focus())` immediately
+after `setAsking(false)`. On a fast local render that looked reliable. On Linux CI, the animation frame
+ran before React committed the button replacing the form, so the ref was still null and focus stayed
+on `body` forever.
+
+When an action swaps the focused surface for its return target, arm the intent first, change state,
+then restore focus from an effect keyed to the committed state. A timer or animation frame is not a
+React commit boundary. Prove it with repeated save **and cancel** cases, because both exits owe the same
+accessibility contract.
+
 ## The authority that shows a card must also own every action on it
 
 A real provider job first appeared in the retrieval metadata but not the rendered cards. After that

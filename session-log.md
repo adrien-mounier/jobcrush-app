@@ -30,6 +30,12 @@ absence could turn the language regression itself into a green skip.
 **Gates:** both review axes CLEAN for both slices; full suite **1,194 passed / 10 intentionally
 skipped / 0 failed**; typecheck **7/7**; build **5/5**.
 
+**Release gate repair:** CI twice reproduced an inherited #186 accessibility race: the languages save
+completed, but `requestAnimationFrame` tried to restore focus before React had committed the return
+door, leaving focus on `body` for 15 seconds. Focus now returns from the post-commit effect. Independent
+QA: save/cancel focus **40/40** under timing stress; clean mocked suite **123 passed / 1 intentional
+skip / 0 failed**; fake-model counters stayed at zero.
+
 ## 2026-08-11 (session 101) `/orchestrate-team` — the structured-fact gate is open, and the CV stops asserting what nobody said
 
 Three commits (`2c8922c`, `c5ab350`, `94d27d0`), two QA GOs, four tickets closed. **The headline is
