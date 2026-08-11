@@ -119,9 +119,37 @@ Two more commits (`0313085`, `e959bd7`), three tickets filed, one closed.
   specs racing one in-memory server) · and the fake's catch-all branch would have turned a **tone-copy
   reword** in `grill.ts` into `[object Object]` questions shipping green.
 
-**Follow-ups filed**: **#196** (the missing cost cell) · **#197** (6 stale journeys + the crash-report
-guard) · **#199** (Tier 2 real-stack journeys, blocked on #197). **Frontier now**: **#161 unblocked**
-(then #162–#171) · #196 · #197 · #63 · #109 · #113.
+### ✅ Owner decision closing the session — build the rich record now, optimise later
+
+Offered the council's three shapes, the owner chose **A: the rich record today** — simplest to build,
+most expensive per upload — **deliberately trading cost per upload for speed of build at today's
+volumes**, with optimisation deferred to a backlog ticket. Recorded as binding on **#161**.
+
+🚨 **"Rich" explicitly does NOT mean "reuse today's ~12 fields as-is."** `needs_grill`/`grill_hint`
+still come **off** the record — they depend on the advert, so freezing them makes them stale on the
+second application. That is a **correctness** fix (ADR-0005/ADR-0007's pattern one level down), not a
+cost saving, and it survives the decision untouched. Granularity stays **one record per atomic machine
+decision**. And `machine_touch`/`classification` must **not** be derived in code to save tokens — four
+of five council roles refuted that, and the failure mode is showing the person a confidence level the
+backend fabricated.
+
+⭐ **The clause that makes the deferral safe:** #161 persists the model's **raw output plus a schema
+version**, so the shape can evolve **by versioning rather than re-parsing** (ADR-0001 clause 6).
+🚨 Re-parsing is not merely re-paying the LLM — it can produce different record ids and extractions, so
+**a person's earlier corrections may not survive** and they would re-confirm work already done. That
+cost appears in no token estimate.
+
+**Consequent tracker changes:** **#200** filed as the AI-usage optimisation **backlog** ticket
+(deliberately **not** `ready-for-agent`) — holding option **C** (lean core + sparse overlay),
+*emit-compact/store-rich* (the highest-confidence lever, **40–50%** of the output bill by two
+independent estimates, and it changes no stored shape), prompt caching, pruning unread fields, and
+per-stage model right-sizing — each with what would kill it, under the standing rule **never optimise
+by capturing less**. **#196 retargeted** from decision-gate to **cost baseline** (renamed, un-flagged
+from the frontier, now blocking #200) — **it no longer gates #161.**
+
+**Follow-ups filed**: **#196** (cost baseline, now feeding #200) · **#197** (6 stale journeys + the
+crash-report guard) · **#199** (Tier 2 real-stack journeys, blocked on #197) · **#200** (optimisation
+backlog). **Frontier now**: **#161 unblocked and decided** (then #162–#171) · #197 · #63 · #109 · #113.
 
 ## 2026-08-10 (session 100) `/orchestrate-team` — spec #181 CLOSED: #187, #193, #189 shipped, full-journey GO
 
