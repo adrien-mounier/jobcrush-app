@@ -70,6 +70,16 @@ jobs:
           calls=$(curl -sf http://127.0.0.1:34101/qa/llm-calls)
           echo "qa-main.js call counts: $calls"
           echo "$calls" | grep -q '"mine":0,"tailor":0,"grill":0,"audit":0' || { echo "Tier 1 called the fake model — it should stay route-mocked end to end"; exit 1; }
+      # Tier 2 (#199): five real-stack journeys against the SAME fake-model API + web processes Tier 1
+      # just proved healthy — no rebuild, no restart. Real Fastify, real stores, real extraction, real
+      # render; only the model is faked. Sequential (qa-driver.mjs's own reasoning: several journeys
+      # mint a real magic-link sign-in against auth's 5-per-15-min-per-IP limiter, routes/auth.ts — a
+      # single job run only ever spends 4 of that budget, comfortably under the cap; no session-cap or
+      # rate-limit override was needed beyond qa-main.ts's own generous IpRateLimiter, already landed
+      # by #198). factbadge-floor-journey.mjs is deliberately excluded — see run-tier2.mjs's header for
+      # the measured reason. Continues through a failure so every journey still gets its HTML report,
+      # then fails the step (and so the job, and so the deploy) if any journey failed.
+      - run: BASE_URL=http://127.0.0.1:3000 pnpm --filter @jobcrush/web e2e:tier2
       # v7, not v4 — this file's own header records why: v4 targets the retired Node 20 runtime and
       # survives only on a temporary compatibility shim, so a v4 action here would eventually fail
       # the job that GATES THE DEPLOY. Held at the current major like every other action above.
@@ -80,6 +90,7 @@ jobs:
           path: |
             apps/web/playwright-report/
             apps/web/test-results/
+            apps/web/qa-results/
             /tmp/qa-api.log
             /tmp/qa-web.log
           if-no-files-found: ignore
