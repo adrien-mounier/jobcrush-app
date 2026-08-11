@@ -51,6 +51,7 @@ import { fileURLToPath } from "node:url";
 import { buildServer } from "./server.js";
 import { LocalDiskStorage } from "./storage.js";
 import { makeMineStep } from "./miner.js";
+import { makeMineJobBlocksStep } from "./jobBlockMiner.js";
 import { makePreviewStep, type Draft } from "./preview.js";
 import { makeGrillPhraser } from "./grill.js";
 import { makeCvAuditor } from "./audit.js";
@@ -97,7 +98,42 @@ const DRAFT: Draft = {
   additional: [{ label: "Languages", value: "Polish (Native), English (Fluent)" }],
 };
 
-const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, unknown: 0 };
+const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, jobBlocks: 0, unknown: 0 };
+
+// A canned, contract-valid MinedJobBlocks doc (#161): three dated blocks exercising the shapes the
+// confirm deck cares about — a month-precision ended job, a year-precision ongoing job, and an
+// education block (kind decides counting; education must not add to experience). Kept inline like
+// DRAFT above rather than recorded: the job-block miner has no recorded real output yet.
+const JOB_BLOCKS = JSON.stringify({
+  schemaVersion: "1",
+  blocks: [
+    {
+      id: "nordic-retail-it-pm",
+      employer: { value: "Nordic Retail Group", source_quote: "Nordic Retail Group", machine_touch: "verbatim", classification: "Verified" },
+      title: { value: "IT Project Manager", source_quote: "IT Project Manager", machine_touch: "verbatim", classification: "Verified" },
+      start: { value: { year: 2021, month: 3, precision: "month" }, source_quote: "Mar 2021", machine_touch: "verbatim", classification: "Verified" },
+      end: { value: { state: "ongoing" }, source_quote: "Present", machine_touch: "verbatim", classification: "Verified" },
+      kind: { value: "job", source_quote: "IT Project Manager, Nordic Retail Group", machine_touch: "inferred", classification: "Derived" },
+    },
+    {
+      id: "baltic-systems-coordinator",
+      employer: { value: "Baltic Systems", source_quote: "Baltic Systems sp. z o.o.", machine_touch: "verbatim", classification: "Verified" },
+      title: { value: "Project Coordinator", source_quote: "Project Coordinator", machine_touch: "verbatim", classification: "Verified" },
+      start: { value: { year: 2018, month: null, precision: "year" }, source_quote: "2018 - 2021", machine_touch: "verbatim", classification: "Verified" },
+      end: { value: { state: "ended", date: { year: 2021, month: null, precision: "year" } }, source_quote: "2018 - 2021", machine_touch: "verbatim", classification: "Verified" },
+      kind: { value: "job", source_quote: "Project Coordinator, Baltic Systems", machine_touch: "inferred", classification: "Derived" },
+    },
+    {
+      id: "university-of-warsaw-msc",
+      employer: { value: "University of Warsaw", source_quote: "University of Warsaw", machine_touch: "verbatim", classification: "Verified" },
+      title: { value: "MSc Management Information Systems", source_quote: "MSc MIS", machine_touch: "reworded", classification: "Verified" },
+      start: { value: { year: 2015, month: null, precision: "year" }, source_quote: "2015 - 2017", machine_touch: "verbatim", classification: "Verified" },
+      end: { value: { state: "ended", date: { year: 2017, month: null, precision: "year" } }, source_quote: "2015 - 2017", machine_touch: "verbatim", classification: "Verified" },
+      kind: { value: "education", source_quote: "MSc MIS, University of Warsaw", machine_touch: "inferred", classification: "Verified" },
+    },
+  ],
+  parser_flags: [],
+});
 
 // Count the items in the trailing JSON array of a prompt (grill + audit both append one).
 function trailingArrayLength(prompt: string): number {
@@ -115,6 +151,13 @@ function trailingArrayLength(prompt: string): number {
 const fakeLlm: LlmClient = {
   model: "qa-fake",
   async complete(prompt: string): Promise<string> {
+    // BEFORE the claim-miner branch: both miners end in the same ===CV-TEXT=== data marker, so the
+    // job-block miner needs its own affirmative match (its prompt's opening line) checked first —
+    // the marker alone would misroute it into the claim-miner branch (the silent-drift shape again).
+    if (prompt.includes("You are the job-block miner")) {
+      seen.jobBlocks += 1;
+      return JOB_BLOCKS;
+    }
     if (prompt.includes("===CV-TEXT===")) {
       seen.mine += 1;
       return MINED;
@@ -185,6 +228,7 @@ const { app } = buildServer({
   blobs,
   pipeline: {
     mine: makeMineStep(fakeLlm),
+    mineJobBlocks: makeMineJobBlocksStep(fakeLlm),
     preview: makePreviewStep(fakeLlm),
   },
   phraseGrill: makeGrillPhraser(fakeLlm),

@@ -626,3 +626,94 @@ export function saveIntent(intent: Partial<Record<keyof SearchIntent, string>>):
 export function getProfile(): Promise<ProfileState> {
   return jfetch("/api/profile");
 }
+
+// --- #161 job blocks (structured work-history records) + #157 Design A confirm deck ---
+// Mirrors apps/api/src/jobBlockStore.ts's JobBlockView/DeckSummary exactly — this is the pinned
+// interface the confirm-swipe screen builds against (slice A shipped in bac864c).
+
+export type JobBlockKind = "job" | "education" | "project" | "client" | "volunteering";
+
+export interface MinedDate {
+  year: number;
+  month: number | null; // null unless precision is "month"
+  precision: "year" | "month";
+}
+
+export type MinedEndValue =
+  | { state: "ongoing" }
+  | { state: "ended"; date: MinedDate }
+  | { state: "unknown" };
+
+export type DecisionOrigin =
+  | { kind: "read"; source_quote: string }
+  | { kind: "corrected"; supersededValue: unknown };
+
+export interface DecisionView<T = unknown> {
+  id: string; // `${blockId}:${decisionKey}`
+  value: T;
+  origin: DecisionOrigin;
+  machine_touch: "verbatim" | "reworded" | "inferred" | null; // null once a person has corrected it
+  classification: "Verified" | "Derived" | "Partially-Supported" | null;
+}
+
+export interface JobBlockView {
+  id: string;
+  kind: JobBlockKind;
+  countsTowardExperience: boolean; // derived server-side, never asked (#157 Design A §2)
+  employer: DecisionView<string>;
+  title: DecisionView<string>;
+  start: DecisionView<MinedDate>;
+  end: DecisionView<MinedEndValue>;
+  kindDecision: DecisionView<JobBlockKind>;
+  confirmed: boolean;
+  matchState: "new" | "matched" | "ambiguous";
+  candidateBlockIds: string[]; // populated only when matchState === "ambiguous"
+}
+
+export type JobBlocksReadStatus =
+  | { status: "not_run" }
+  | { status: "ok"; blocksFound: number }
+  | { status: "failed" };
+
+export interface JobBlocksSummary {
+  totalBlocks: number;
+  confirmedBlocks: number;
+  read: JobBlocksReadStatus;
+}
+
+export function getJobBlocks(): Promise<{ blocks: JobBlockView[]; summary: JobBlocksSummary }> {
+  return jfetch("/api/job-blocks");
+}
+
+export function confirmJobBlock(id: string): Promise<{ ok: boolean }> {
+  return jfetch(`/api/job-blocks/${id}/confirm`, { method: "POST" });
+}
+
+// The server-side reverse of confirmJobBlock — lets undo actually unwind a confirm rather than
+// only hiding it locally (a reload would otherwise resurrect the "undone" decision).
+export function unconfirmJobBlock(id: string): Promise<{ ok: boolean }> {
+  return jfetch(`/api/job-blocks/${id}/unconfirm`, { method: "POST" });
+}
+
+export type JobBlockCorrection =
+  | { key: "employer"; value: string }
+  | { key: "title"; value: string }
+  | { key: "start"; value: MinedDate }
+  | { key: "end"; value: MinedEndValue }
+  | { key: "kind"; value: JobBlockKind };
+
+export function correctJobBlock(id: string, correction: JobBlockCorrection): Promise<{ ok: boolean }> {
+  return jfetch(`/api/job-blocks/${id}/correct`, {
+    method: "POST",
+    body: JSON.stringify(correction),
+  });
+}
+
+export type JobBlockMatchResolution = { resolution: "same"; matchedBlockId: string } | { resolution: "different" };
+
+export function resolveJobBlockMatch(id: string, resolution: JobBlockMatchResolution): Promise<{ ok: boolean }> {
+  return jfetch(`/api/job-blocks/${id}/resolve-match`, {
+    method: "POST",
+    body: JSON.stringify(resolution),
+  });
+}

@@ -105,7 +105,7 @@ export default function PreviewScreen() {
           Next step: confirm your facts to make this real — a quick review where you approve each
           claim, then the watermark comes off and you own a verified master CV.
         </p>
-        <Link className="btn" href={`/deck/${jobId}`}>
+        <Link className="btn" href={`/job-blocks/${jobId}`}>
           Confirm my facts
         </Link>
         {/* Set the contract before the wall so it isn't a surprise. */}

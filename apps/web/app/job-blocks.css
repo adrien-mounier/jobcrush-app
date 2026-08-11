@@ -1,0 +1,451 @@
+/* job-blocks.css — #161 AC7, #157 Design A confirm-swipe deck for structured job records.
+   Scoped to `.jobblocks`, styled off the app's existing LIGHT tokens (packages/ui/tokens.css) —
+   the same register /import, /preview and the rest of the non-HUD screens already use. Deliberate:
+   the shipped sentence deck (.jobdeck, deck.css) is dark; this stays light on purpose (#157 Design
+   A point 6 — a swipe here locks in a fact about her life, not a disposable job-ad reject).
+
+   Mechanics reused at their shipped values from deck.css: 8px drag activation, axis lock, 90px
+   commit threshold, stamp opacity ramp over 110px, jd-out-left/right 340ms, jd-dealin, jd-bump.
+   Reduced motion: globals.css already flattens every animation/transition app-wide; the two
+   JS-driven beats (the reward chip, the number tween) opt out themselves in the component. */
+.jobblocks {
+  --jb-yes: var(--jc-accent);
+  --jb-yes-bg: color-mix(in oklab, var(--jc-accent) 10%, var(--jc-surface));
+  --jb-ask: var(--jc-partial);
+  --jb-ask-bg: color-mix(in oklab, var(--jc-partial) 10%, var(--jc-surface));
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: var(--jc-sp-lg) var(--jc-sp-md) calc(var(--jc-sp-xl) + 24px);
+}
+
+/* the app-wide visually-hidden idiom, mirrored from deck.css's `.jobdeck .sr-only` (scoped per
+   root rather than global, same discipline). */
+.jobblocks .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.jobblocks .jb-layout {
+  display: flex;
+  gap: var(--jc-sp-lg);
+  align-items: flex-start;
+}
+
+/* ---------- the progress panel — plain words only, right-hand side (#157 Design A §5) ---------- */
+.jobblocks .jb-prog {
+  flex: 0 0 240px;
+  background: var(--jc-surface);
+  border: 1px solid var(--jc-line);
+  border-radius: var(--jc-radius-card);
+  padding: var(--jc-sp-lg);
+  position: sticky;
+  top: var(--jc-sp-lg);
+}
+.jobblocks .jb-prog h2 {
+  margin: 0 0 var(--jc-sp-md);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jc-ink-muted);
+  font-weight: 700;
+}
+.jobblocks .jb-stat {
+  margin-bottom: var(--jc-sp-md);
+}
+.jobblocks .jb-stat .v {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  display: inline-block;
+}
+.jobblocks .jb-stat .v.growing {
+  color: var(--jc-accent);
+}
+.jobblocks .jb-stat .l {
+  font-size: 0.82rem;
+  color: var(--jc-ink-muted);
+}
+.jobblocks .jb-stat .v.bump {
+  animation: jb-bump 460ms cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+@keyframes jb-bump {
+  0% {
+    transform: none;
+  }
+  40% {
+    transform: scale(1.24);
+    color: var(--jc-accent);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* ---------- the card area ---------- */
+.jobblocks .jb-deckarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.jobblocks .jb-kicker {
+  font-size: 0.85rem;
+  color: var(--jc-ink-muted);
+  margin: 0 0 var(--jc-sp-md);
+  text-align: center;
+}
+
+.jobblocks .jb-cardstack {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  min-height: 380px;
+}
+.jobblocks .jb-peek {
+  position: absolute;
+  inset: 14px -6px -12px -6px;
+  background: var(--jc-surface);
+  border: 1px solid var(--jc-line);
+  border-radius: var(--jc-radius-card);
+  opacity: 0.55;
+  transform: scale(0.965);
+}
+.jobblocks .jb-peek.two {
+  inset: 26px -12px -22px -12px;
+  opacity: 0.3;
+  transform: scale(0.93);
+}
+
+.jobblocks .jb-card {
+  position: relative;
+  background: var(--jc-surface);
+  border: 1px solid var(--jc-line);
+  border-radius: var(--jc-radius-card);
+  /* DESIGN.md's "Card Flight" shadow, verbatim — the one documented exception to Flat-By-Default:
+     "a real shadow means a physical object … a card in flight", which this literally is. */
+  box-shadow: 0 16px 34px -12px rgba(0, 0, 0, 0.55);
+  padding: var(--jc-sp-lg);
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-y;
+  cursor: grab;
+  overflow: hidden;
+  animation: jd-dealin 300ms ease-out;
+}
+.jobblocks .jb-card.dragging {
+  cursor: grabbing;
+  transition: none;
+}
+.jobblocks .jb-card.out-left {
+  animation: jd-out-left 340ms ease forwards;
+}
+.jobblocks .jb-card.out-right {
+  animation: jd-out-right 340ms ease forwards;
+}
+.jobblocks .jb-card.back {
+  cursor: default;
+}
+@keyframes jd-dealin {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes jd-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(-120%) rotate(-9deg);
+  }
+}
+@keyframes jd-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(120%) rotate(9deg);
+  }
+}
+
+.jobblocks .jb-stamp {
+  position: absolute;
+  top: 22px;
+  z-index: 3;
+  padding: 6px 12px;
+  border: 2.5px solid currentColor;
+  /* DESIGN.md Shapes: "full pills … for chips, counts and small status controls" — a stamp is one. */
+  border-radius: var(--jc-radius-pill);
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0;
+  pointer-events: none;
+}
+.jobblocks .jb-stamp.yes {
+  right: 20px;
+  color: var(--jb-yes);
+  background: var(--jb-yes-bg);
+  transform: rotate(9deg);
+}
+.jobblocks .jb-stamp.fix {
+  left: 20px;
+  color: var(--jb-ask);
+  background: var(--jb-ask-bg);
+  transform: rotate(-9deg);
+}
+
+.jobblocks .jb-kindtag {
+  align-self: flex-start;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--jc-ink-muted);
+  background: var(--jc-bg);
+  border: 1px solid var(--jc-line);
+  padding: 4px 10px;
+  border-radius: var(--jc-radius-pill);
+  margin-bottom: var(--jc-sp-md);
+}
+.jobblocks .jb-kindtag[data-ask="true"] {
+  background: var(--jb-ask-bg);
+  color: var(--jb-ask);
+  border-color: var(--jb-ask);
+}
+
+.jobblocks .jb-readback {
+  font-size: 1.15rem;
+  line-height: 1.55;
+  margin: 0 0 auto;
+  letter-spacing: -0.01em;
+}
+.jobblocks .jb-quote {
+  color: var(--jc-ink-muted);
+  font-size: 0.83rem;
+  margin: var(--jc-sp-md) 0 0;
+  padding-top: var(--jc-sp-md);
+  border-top: 1px solid var(--jc-line);
+}
+
+.jobblocks .jb-swipehint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--jc-sp-md);
+  margin-top: var(--jc-sp-lg);
+  width: 100%;
+  max-width: 480px;
+}
+.jobblocks .jb-cbtn {
+  flex: 1;
+  min-height: 48px;
+  border: 1.5px solid;
+  background: var(--jc-surface);
+  border-radius: var(--jc-radius-pill);
+  padding: 12px 18px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+.jobblocks .jb-cbtn.yes {
+  border-color: var(--jb-yes);
+  color: var(--jb-yes);
+  background: var(--jb-yes-bg);
+}
+.jobblocks .jb-cbtn.fix {
+  border-color: var(--jb-ask);
+  color: var(--jb-ask);
+  background: var(--jb-ask-bg);
+}
+.jobblocks .jb-cbtn.neutral {
+  border-color: var(--jc-line);
+  color: var(--jc-ink-muted);
+}
+.jobblocks .jb-cbtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- the back — one frame, correction controls ---------- */
+.jobblocks .jb-back {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+}
+.jobblocks .jb-back h3 {
+  margin: 0 0 var(--jc-sp-md);
+  font-size: 1.05rem;
+}
+.jobblocks .jb-back label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--jc-ink-muted);
+  margin: 0 0 5px;
+}
+.jobblocks .jb-fgrp {
+  margin-bottom: var(--jc-sp-md);
+}
+.jobblocks .jb-fieldrow {
+  display: flex;
+  gap: 9px;
+}
+.jobblocks .jb-fieldrow > div {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.jobblocks .jb-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.jobblocks .jb-choice button {
+  text-align: left;
+  padding: 10px 12px;
+  border: 1.5px solid var(--jc-line);
+  background: var(--jc-bg);
+  /* DESIGN.md rounded.soft (10px) — the "Inputs/Fields" bucket these choice controls belong to. */
+  border-radius: 10px;
+  font: inherit;
+  cursor: pointer;
+  color: var(--jc-ink);
+}
+.jobblocks .jb-choice button[aria-pressed="true"] {
+  border-color: var(--jb-yes);
+  background: var(--jb-yes-bg);
+}
+.jobblocks .jb-choice button strong {
+  display: block;
+  font-size: 0.9rem;
+}
+.jobblocks .jb-choice button span {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--jc-ink-muted);
+  margin-top: 2px;
+}
+.jobblocks .jb-note {
+  border: 0;
+  padding: 0;
+  margin-top: 8px;
+  font-size: 0.83rem;
+  color: var(--jc-ink-muted);
+}
+.jobblocks .jb-consequence {
+  background: var(--jb-yes-bg);
+  border: 1px solid var(--jb-yes);
+  /* DESIGN.md rounded.soft (10px) */
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  margin: var(--jc-sp-md) 0;
+  color: var(--jc-ink);
+}
+.jobblocks .jb-consequence.none {
+  background: var(--jc-bg);
+  border-color: var(--jc-line);
+  color: var(--jc-ink-muted);
+}
+.jobblocks .jb-backacts {
+  display: flex;
+  gap: var(--jc-sp-sm);
+  margin-top: auto;
+  padding-top: var(--jc-sp-md);
+}
+
+/* ---------- undo — always visible after one action, nothing red ---------- */
+.jobblocks .jb-undo {
+  position: sticky;
+  bottom: 12px;
+  margin-top: var(--jc-sp-md);
+  align-self: center;
+  background: var(--jc-ink);
+  /* --jc-accent-ink is the app's one documented "ink that sits on a filled surface" token — reused
+     here rather than a literal white (Flat-By-Default: a toast is not a documented shadow-caster). */
+  color: var(--jc-accent-ink);
+  border-radius: var(--jc-radius-pill);
+  padding: 8px 8px 8px 16px;
+  font-size: 0.86rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+  z-index: 5;
+}
+.jobblocks .jb-undo button {
+  background: color-mix(in oklab, var(--jc-accent-ink) 16%, transparent);
+  border: 0;
+  color: var(--jc-accent-ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: var(--jc-radius-pill);
+  padding: 5px 13px;
+}
+
+.jobblocks .jb-done {
+  text-align: center;
+  max-width: 440px;
+  margin: 40px auto 0;
+}
+.jobblocks .jb-done h2 {
+  font-size: 1.5rem;
+  margin: 0 0 var(--jc-sp-sm);
+  letter-spacing: -0.02em;
+}
+
+/* ---------- the flying reward chip — factbadge.css's .factchip idiom, light-register colours ---------- */
+.jobblocks .jb-chip {
+  position: fixed;
+  z-index: 90;
+  pointer-events: none;
+  background: var(--jc-accent);
+  color: var(--jc-accent-ink);
+  font-family: var(--jc-font);
+  font-size: 12px;
+  font-weight: 650;
+  padding: 6px 12px;
+  border-radius: var(--jc-radius-pill);
+  white-space: nowrap;
+  /* factbadge.css's .factchip shadow, reused verbatim (DESIGN.md: "reuse the shipped motion values
+     … never re-timing per screen" — the same discipline extends to this reused element's shadow). */
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -50%);
+  transition:
+    transform 720ms cubic-bezier(0.4, 0.05, 0.3, 1),
+    opacity 720ms ease;
+}
+
+@media (max-width: 900px) {
+  .jobblocks .jb-layout {
+    flex-direction: column-reverse;
+  }
+  .jobblocks .jb-prog {
+    flex: none;
+    width: 100%;
+    position: static;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jobblocks * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
