@@ -1,5 +1,38 @@
 # Lessons — jobcrush-app
 
+## The authority that shows a card must also own every action on it
+
+A real provider job first appeared in the retrieval metadata but not the rendered cards. After that
+was fixed, the card rendered but `/want` and Tailor still searched the fixture pool and returned 404.
+After *that* was fixed, stale snapshots stayed actionable during refresh; then the first Tailor answer
+changed the retrieval fingerprint and orphaned the selected job itself.
+
+The recurring mistake was treating “the deck” as a render problem. A displayed external record opens
+an authority chain: **retrieve → render → select → continue → finish**. Test the whole chain with one
+identity, including a second state-changing action and a stale/fingerprint-changed snapshot. One
+session-owned pool should decide all of it; otherwise each endpoint quietly invents its own truth.
+
+## Job vocabulary is not language evidence
+
+`project manager`, `agile`, `scrum`, `cloud` and even an English-looking heading travel freely inside
+French, Indonesian and other job adverts. A ratio over that vocabulary opened the English deck to
+non-English posts; a function-word ratio then failed on repeated Spanish `a`.
+
+For a fail-closed language gate, require **distinct language evidence**, positively label the cheap
+supported cases before testing English, and treat advert jargon only as shape evidence under a much
+narrower structural rule. Every new English rescue case needs an adversarial foreign case through the
+same eligibility boundary, not only a detector unit test.
+
+## A failure artifact is not evidence until the host can open it
+
+The shared journey driver finally wrote HTML on crashes, but it wrote PASS before browser cleanup and
+used a timestamp ending in `.`. On Windows the resulting report directory existed yet normal
+PowerShell and `rg` could not traverse it. The artifact was present and operationally absent at once.
+
+Failure reporting has its own acceptance seam: record cleanup errors **before** final totals, make
+finish idempotent, remove global handlers, force the process non-zero, and then reopen the artifact
+with the ordinary tools used on the target host. Existence alone is not a usable CI artifact.
+
 ## A measurement that moves two variables answers neither
 
 #160 compared today's CV reader against a prototype and reported **0.77×**, read as *"the richer read

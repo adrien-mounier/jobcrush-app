@@ -2,6 +2,34 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-11 (session 102) `/orchestrate-team` — real provider jobs stay usable, and the browser gate becomes honest
+
+Two tickets shipped in two reviewed slices (`46bad69`, `7b0b3b7`), both with independent QA GO.
+
+- **#113** — sparse English provider adverts now survive ATS bullets, bare skill blobs and recruiter
+  one-liners; Vietnamese and Indonesian receive positive labels; and adversarial French, Spanish and
+  Indonesian loanword-heavy posts stay outside the English deck. The checked-in calibration set is a
+  sanitised, exact slice of one authorised Techmap response. The live session pool is now one
+  authority through deck → want → Tailor, dedupes by canonical job identity, rejects stale or
+  fingerprint-mismatched snapshots, and keeps the selected advert usable across advert-scoped Tailor
+  answers. Focused QA: **46/46**; no paid provider or model call in tests.
+- **#197** — five stale journeys were repaired and the obsolete pre-#187 CSS audit was deliberately
+  retired. The shared driver now writes a truthful, traversable FAIL report for mid-run crashes,
+  cleanup rejection and collected PDF failures; `finish()` is idempotent and removes its process
+  handlers. The language-withdrawal diagnostic decides fixture availability from the baseline deck
+  and skips every dependent assertion when those fixtures are absent. Final 24-journey health:
+  **19 PASS · 0 FAIL · 4 intentional INFRA · 1 RETIRED**.
+
+**Defects caught before shipping:** job-word density opened French/Indonesian posts as English · a
+provider job appeared in retrieval but not `cards` · once visible, it 404ed in want/Tailor · stale
+snapshots remained actionable during refresh · the first Tailor answer changed the retrieval
+fingerprint and orphaned its own selected job · cleanup could reject after a PASS report was already
+written · run folders ended in a dot and were unreadable by normal Windows tools · a post-answer
+absence could turn the language regression itself into a green skip.
+
+**Gates:** both review axes CLEAN for both slices; full suite **1,194 passed / 10 intentionally
+skipped / 0 failed**; typecheck **7/7**; build **5/5**.
+
 ## 2026-08-11 (session 101) `/orchestrate-team` — the structured-fact gate is open, and the CV stops asserting what nobody said
 
 Three commits (`2c8922c`, `c5ab350`, `94d27d0`), two QA GOs, four tickets closed. **The headline is
