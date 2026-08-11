@@ -22,22 +22,38 @@ const EMAIL = "reveal-wall-e2e@example.com";
 const qa = await createSession("onboarding-reveal-wall", { baseURL: BASE_URL });
 const { page } = qa;
 
-// ---- discovery: answer Q1 + the essential floor, human-paced ---------------------------------
+// ---- discovery: answer Q1 + today's complete question set, human-paced ------------------------
 await qa.goto("/discovery", "front door -> discovery (bootstraps the anonymous session on mount)");
 await qa.scrollThrough("read the discovery screen");
 await qa.fill("#q1-role", ROLE, `question 1: type the role — "${ROLE}"`);
 await qa.click("button.go.wide", "submit the role ('That's me')");
 
-// The tap-first essential floor. Two positives, then the closing 'No' that fills the essential band
-// and flips the session to stage 'deck'.
+// Walk the current floor and the first two eligibility questions. The languages checkbox group is
+// deliberately left for the closing answer below so the transient handoff can still be captured.
 await qa.expectVisible("#ask-q", "the first floor question is asked");
-await qa.click(page.getByRole("button", { name: "Yes, over $1M" }), "budget: tap 'Yes, over $1M'");
-await qa.click(page.getByRole("button", { name: "Yes, multiple teams" }), "cross-functional: tap 'Yes, multiple teams'");
+let answered = 0;
+for (let i = 0; i < 12 && !(await page.locator("fieldset.elig-group").count()); i++) {
+  const option = page.locator(".discovery .opts .opt").first();
+  if (await option.count()) {
+    const label = (await option.textContent()).trim();
+    await qa.click(option, `answer ${i + 1}: "${label}"`);
+  } else if (await page.locator("#floor-free").count()) {
+    await qa.fill("#floor-free", "Owned a $2M budget at Acme from 2021 to 2024", `answer ${i + 1}: type the evidence`);
+    await qa.click(".discovery .field .go", `answer ${i + 1}: Continue`);
+  } else {
+    break;
+  }
+  answered += 1;
+  await page.waitForTimeout(1200);
+}
+await qa.note(`answered ${answered} questions before the closing languages multi-select`);
+await qa.expectVisible("fieldset.elig-group", "the final languages question uses the current checkbox group");
+await qa.click(page.locator(".discovery .opt.check").first(), "tick the first supported language");
 
-// #25 AC1: the closing answer flips stage->deck. Click it raw (skipping the driver's trailing pause)
+// #25 AC1: confirming the closing answer flips stage->deck. Click it raw (skipping the driver's trailing pause)
 // so the transient ~800ms handoff bridge is still on screen when the next assertion screenshots it.
-await qa.note("tap the closing floor answer 'No' — this fills the essential band (stage -> deck)");
-await page.getByRole("button", { name: "No", exact: true }).click();
+await qa.note("confirm the closing languages answer — this completes the current discovery set (stage -> deck)");
+await page.locator(".discovery .elig-actions .go").click();
 
 // The #18 handoff still shows first, as the brief bridge before the nav. It is transient (~800ms
 // by design), so poll for it to render (the driver's own assert is a single-shot check) before

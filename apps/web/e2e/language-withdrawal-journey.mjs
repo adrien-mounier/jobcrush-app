@@ -46,19 +46,6 @@ const qa = await createSession('language-withdrawal-journey', {
 const { page } = qa;
 page.setDefaultTimeout(12000);
 
-let aborted = false;
-for (const ev of ['uncaughtException', 'unhandledRejection']) {
-  process.on(ev, async (e) => {
-    if (aborted) return;
-    aborted = true;
-    try {
-      await qa.note(`RUN ABORTED (${ev}): ${e?.message ?? e}`);
-      await qa.finish();
-    } catch { /* report already closed */ }
-    process.exit(1);
-  });
-}
-
 const assert = (cond, note) => qa.expectText('body', cond ? '' : ' -IMPOSSIBLE-', note);
 const txt = async (sel) => (await page.locator(sel).count())
   ? (await page.locator(sel).first().textContent()).trim() : null;
@@ -224,6 +211,13 @@ const before = await deckIds();
 await qa.note(`BASELINE deck before the language answer: ${before.count} cards, withdrawn=${JSON.stringify(before.withdrawn)}`);
 await assert(before.ok && before.withdrawn && before.withdrawn.total === 0,
   `before answering, nothing is withdrawn (${JSON.stringify(before.withdrawn)}) — the safety rule holds up to the last moment`);
+const baselineHasLanguageAdverts = before.ok
+  && before.ids.includes(BLOCKING_AD)
+  && before.ids.includes(ADVANTAGE_AD);
+await qa.note(
+  `language-advert prerequisites in the BASELINE deck: blocking=${before.ok && before.ids.includes(BLOCKING_AD)}, ` +
+  `advantage=${before.ok && before.ids.includes(ADVANTAGE_AD)}`,
+);
 
 await qa.expectVisible('.discovery .elig-actions', 'AC2 setup: English ticked, MANDARIN DELIBERATELY LEFT UNTICKED — the answer that must remove Mandarin-mandatory jobs');
 await qa.click(page.locator('.discovery .elig-actions .go'), `confirm the answer: "${confirmLabel}"`);
@@ -262,40 +256,41 @@ for (let attempt = 1; attempt <= 4 && !after; attempt++) {
 }
 await assert(after !== null, 'the deck returns a 200');
 
-// -----------------------------------------------------------------------------------------------
-// THE REMOVAL IS VISIBLE (L7). The reveal carries a line under "See them" naming what was left out.
-// Its NUMBER is checked against the jobs ACTUALLY missing versus the baseline deck — if that number
-// is wrong, the line lies to the visitor.
-// -----------------------------------------------------------------------------------------------
-const onScreenLine = await txt('.reveal .aside, .deck .aside, .aside');
-const reveal = await txt('.big, .reveal h1, h1');
-await qa.note(`the reveal heading: ${JSON.stringify(reveal)}`);
-await qa.note(`the removal line on screen: ${JSON.stringify(onScreenLine)}`);
-await qa.expectVisible('.aside', 'THE FIX: the visitor is TOLD what was left out, right under the reveal — removal is no longer silent');
-
-const missing = before.ids.filter((id) => !after.ids.includes(id));
-await qa.note(`jobs actually missing versus the baseline deck (${missing.length}): ${JSON.stringify(missing)}`);
-await qa.note(`server reported: ${JSON.stringify(after.withdrawn)}`);
-await assert(after.withdrawn && after.withdrawn.total === missing.length,
-  `THE NUMBER ON SCREEN MATCHES REALITY: the line says ${after.withdrawn?.total} and exactly ${missing.length} jobs are actually gone (deck ${before.count} -> ${after.count})`);
-await assert(onScreenLine === expectedLine(after.withdrawn),
-  `the sentence a visitor reads is exactly the designed line: "${onScreenLine}"`);
-await assert((after.withdrawn?.byLanguage ?? []).reduce((a, l) => a + l.count, 0) === after.withdrawn?.total,
-  'the per-language counts sum to the total — no unnamed exclusion is folded into the sentence');
-
 await qa.scrollThrough('scroll the whole deck the way a visitor browses it');
 await qa.expectVisible('body', 'the deck a visitor who does NOT work in Mandarin actually receives');
 
-const adsPresent = after && (after.ids.includes(BLOCKING_AD) || after.ids.includes(ADVANTAGE_AD));
-if (!after) {
-  await qa.note('SKIPPED AC2/AC3/AC6 deck assertions — the deck never returned.');
-} else if (!adsPresent) {
+if (!baselineHasLanguageAdverts) {
   await qa.note(
-    'SKIPPED AC2/AC3/AC6 deck assertions — this API is serving no advert with a language requirement ' +
-    '(the shipped sample-ad-requirements.json has none). Re-run against an API wired with the two ' +
-    'language adverts described in this file\'s header to exercise them.',
+    'SKIPPED AC2/AC3/AC6 deck assertions — the BASELINE deck did not contain BOTH required language ' +
+    'advert fixtures (the shipped sample-ad-requirements.json has none). Re-run against an API wired ' +
+    'with the two language adverts described in this file\'s header to exercise them.',
+  );
+} else if (!after) {
+  await qa.note(
+    'AC2/AC3/AC6 assertions could not run because the post-answer deck failed to return; the baseline ' +
+    'prerequisites were present and the earlier deck assertion already makes this report fail.',
   );
 } else {
+  // -------------------------------------------------------------------------------------------
+  // THE REMOVAL IS VISIBLE (L7). These checks depend on the language adverts above; when those
+  // preconditions are absent, none of them runs (including the `.aside` evidence assertion).
+  // -------------------------------------------------------------------------------------------
+  const onScreenLine = await txt('.reveal .aside, .deck .aside, .aside');
+  const reveal = await txt('.big, .reveal h1, h1');
+  await qa.note(`the reveal heading: ${JSON.stringify(reveal)}`);
+  await qa.note(`the removal line on screen: ${JSON.stringify(onScreenLine)}`);
+  await qa.expectVisible('.aside', 'THE FIX: the visitor is TOLD what was left out, right under the reveal — removal is no longer silent');
+
+  const missing = before.ids.filter((id) => !after.ids.includes(id));
+  await qa.note(`jobs actually missing versus the baseline deck (${missing.length}): ${JSON.stringify(missing)}`);
+  await qa.note(`server reported: ${JSON.stringify(after.withdrawn)}`);
+  await assert(after.withdrawn && after.withdrawn.total === missing.length,
+    `THE NUMBER ON SCREEN MATCHES REALITY: the line says ${after.withdrawn?.total} and exactly ${missing.length} jobs are actually gone (deck ${before.count} -> ${after.count})`);
+  await assert(onScreenLine === expectedLine(after.withdrawn),
+    `the sentence a visitor reads is exactly the designed line: "${onScreenLine}"`);
+  await assert((after.withdrawn?.byLanguage ?? []).reduce((a, l) => a + l.count, 0) === after.withdrawn?.total,
+    'the per-language counts sum to the total — no unnamed exclusion is folded into the sentence');
+
   await assert(!after.ids.includes(BLOCKING_AD),
     `AC2: the posting that DEMANDS fluent Mandarin is GONE from the deck of a visitor who did not tick Mandarin (${after.count} cards remain)`);
   await assert(after.ids.includes(ADVANTAGE_AD),

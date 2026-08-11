@@ -26,7 +26,7 @@ const HEADED = process.env.QA_HEADED === '1';
 const OUT_ROOT = process.env.QA_OUT ?? 'qa-results';
 
 const stamp = () =>
-  new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15).replace(/(\d{8})(\d+)/, '$1-$2');
+  new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14).replace(/(\d{8})(\d+)/, '$1-$2');
 
 const esc = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -38,6 +38,8 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
 
   const steps = [];
   let shotN = 0;
+  let finishPromise = null;
+  let aborting = false;
 
   const { chromium } = await import('@playwright/test'); // lazy: report renderer/selftest need no browser
   const browser = await chromium.launch({ headless: !HEADED });
@@ -157,19 +159,58 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
 
     note: (text) => act('note', null, text, null),
 
-    async finish() {
-      const passed = steps.filter((s) => s.status === 'pass').length;
-      const failed = steps.filter((s) => s.status === 'fail').length;
-      const reportPath = path.join(runDir, 'report.html');
-      fs.writeFileSync(reportPath, renderReport({ name, passed, failed, steps }));
-      await context.close();
-      await browser.close();
-      // eslint-disable-next-line no-console
-      console.log(`\nQA "${name}": ${passed} passed, ${failed} failed`);
-      console.log(`Report: ${reportPath}`);
-      return failed === 0;
+    finish() {
+      if (finishPromise) return finishPromise;
+      finishPromise = (async () => {
+        removeCrashHandlers();
+        for (const [target, close] of [
+          ['browser context', () => context.close()],
+          ['browser', () => browser.close()],
+        ]) {
+          try {
+            await close();
+          } catch (error) {
+            record('cleanup', target, `failed to close ${target}`, 'fail', error, null);
+          }
+        }
+        const passed = steps.filter((s) => s.status === 'pass').length;
+        const failed = steps.filter((s) => s.status === 'fail').length;
+        const reportPath = path.join(runDir, 'report.html');
+        fs.writeFileSync(reportPath, renderReport({ name, passed, failed, steps }));
+        // eslint-disable-next-line no-console
+        console.log(`\nQA "${name}": ${passed} passed, ${failed} failed`);
+        console.log(`Report: ${reportPath}`);
+        return failed === 0;
+      })();
+      return finishPromise;
     },
   };
+
+  async function abort(event, error) {
+    if (aborting) return;
+    aborting = true;
+    let buf = null;
+    try { buf = await highlightShot(null); } catch { /* page may already be gone */ }
+    record('run-aborted', '', `RUN ABORTED (${event})`, 'fail', error, buf);
+    try { await api.finish(); } catch { /* preserve the original crash as the process failure */ }
+    process.exit(1);
+  }
+
+  function onUncaughtException(error) {
+    void abort('uncaughtException', error);
+  }
+
+  function onUnhandledRejection(error) {
+    void abort('unhandledRejection', error);
+  }
+
+  function removeCrashHandlers() {
+    process.removeListener('uncaughtException', onUncaughtException);
+    process.removeListener('unhandledRejection', onUnhandledRejection);
+  }
+
+  process.once('uncaughtException', onUncaughtException);
+  process.once('unhandledRejection', onUnhandledRejection);
 
   return api;
 }

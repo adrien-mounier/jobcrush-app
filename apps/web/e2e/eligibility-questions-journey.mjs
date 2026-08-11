@@ -27,19 +27,6 @@ const qa = await createSession('eligibility-questions-journey', {
 const { page } = qa;
 
 page.setDefaultTimeout(9000);
-// The HTML report is the deliverable — never lose it to an unexpected timeout mid-journey.
-let aborted = false;
-for (const ev of ['uncaughtException', 'unhandledRejection']) {
-  process.on(ev, async (e) => {
-    if (aborted) return;
-    aborted = true;
-    try {
-      await qa.note(`RUN ABORTED (${ev}): ${e?.message ?? e}`);
-      await qa.finish();
-    } catch { /* report already closed */ }
-    process.exit(1);
-  });
-}
 
 const assert = (cond, note) => qa.expectText('body', cond ? '' : ' -IMPOSSIBLE-', note);
 // Read a class off a button that may not be on screen, without throwing.
@@ -52,10 +39,15 @@ const dockText = async () => (await page.locator('.discovery .ask').count())
   ? (await page.locator('.discovery .ask').first().innerText()).replace(/\n+/g, ' | ')
   : '(no ask dock)';
 const txt = async (sel) => (await page.locator(sel).count()) ? (await page.locator(sel).first().textContent()).trim() : null;
-const askQ = () => txt('.discovery #ask-q');
+const askQ = () => txt('.discovery #ask-q, .discovery legend.q');
 const askSub = () => txt('.discovery .sub');
 const optLabels = () => page.locator('.discovery .opts .opt').allTextContents();
-const eligDim = async () => (await page.locator('.discovery .opts').count()) ? page.locator('.discovery .opts').first().getAttribute('data-elig') : null;
+const eligDim = async () => {
+  const dim = (await page.locator('.discovery .opts[data-elig]').count())
+    ? await page.locator('.discovery .opts[data-elig]').first().getAttribute('data-elig')
+    : null;
+  return dim ?? ((await page.locator('.discovery fieldset.elig-group').count()) ? 'language' : null);
+};
 const countdown = () => txt('.discovery .countdown');
 const badgeCount = () => page.evaluate(() => {
   const el = document.querySelector('a.prof');
@@ -86,6 +78,15 @@ await qa.scrollThrough('read the front door top to bottom');
 // 2. Q1 — the role question. Eligibility questions must be invisible here: no marker, no heading.
 // ---------------------------------------------------------------------------------------------
 await qa.goto('/discovery', 'into discovery');
+const intent = await page.evaluate(async () => {
+  const response = await fetch('/api/sessions/me/intent', {
+    method: 'PUT', credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ targetRole: 'IT project manager', searchArea: 'Singapore' }),
+  });
+  return { ok: response.ok, status: response.status };
+});
+await assert(intent.ok, `the current intent checkpoint records Singapore before discovery (${JSON.stringify(intent)})`);
 await qa.fill(page.getByRole('textbox', { name: /What kind of job are you going for/ }), ROLE, 'Q1: type the role');
 await qa.click(page.getByRole('button', { name: "That's me" }), "Q1: submit the role (That's me)");
 await page.waitForTimeout(1600);
@@ -281,8 +282,8 @@ const dim3 = await eligDim();
 await qa.note(`last eligibility question: ${dim3} — ${JSON.stringify(await askQ())}`);
 await qa.note(`the ask dock right now: ${await dockText()}`);
 const badgeBeforeDecline = await badgeCount();
-const declineBtn = page.getByRole('button', { name: 'Ask me later', exact: true }).first();
-await assert(await hasClass('Ask me later', 'quiet'), 'the decline is the quiet option — secondary, but always present');
+const declineBtn = page.getByRole('button', { name: /^Ask me later/ }).first();
+await assert(await declineBtn.evaluate((n) => n.classList.contains('quiet')), 'the decline is the quiet option — secondary, but always present');
 await qa.click(declineBtn, 'decline the last eligibility question: "Ask me later"');
 countAsk('eligibility: language = declined');
 await page.waitForTimeout(2600);
