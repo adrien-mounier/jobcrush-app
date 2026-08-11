@@ -3,6 +3,8 @@
 // non-English posting is retained-but-hidden lives in cards.test.ts.
 import { describe, expect, it } from "vitest";
 import { detectLanguage, languageEligible, readingLanguages } from "../src/language.js";
+import { loadPostings } from "../src/preview.js";
+import { TECHMAP_LANGUAGE_SAMPLES } from "./fixtures/provider-language-samples.js";
 
 describe("#103 detectLanguage — local, deterministic, no model call", () => {
   it("detects English prose via function-word frequency", () => {
@@ -29,6 +31,111 @@ describe("#103 detectLanguage — local, deterministic, no model call", () => {
     expect(
       detectLanguage("Bonjour et bienvenue chez nous pour ce poste de gestion de projet informatique"),
     ).toBe("und");
+  });
+});
+
+describe("#113 sparse real-world advert formats", () => {
+  it.each([
+    [
+      "ATS bullet list",
+      "Responsibilities:\n- Manage end-to-end delivery\n- Stakeholder engagement\n- Budget governance\n- Risk planning\n- Vendor coordination",
+    ],
+    ["bare skills blob", "Agile Scrum Jira Confluence Stakeholder Management Risk Governance Budget Planning"],
+    [
+      "recruiter one-liner",
+      "Hiring now: Senior IT Project Manager - hybrid Hong Kong. #projectmanagement #agile",
+    ],
+  ])("labels an English %s as en", (_format, text) => {
+    expect(detectLanguage(text)).toBe("en");
+  });
+
+  it("keeps the exact checked-in Techmap capture as an English calibration set", () => {
+    expect(TECHMAP_LANGUAGE_SAMPLES.metadata).toEqual({
+      provider: "techmap",
+      capturedAt: "2026-08-11",
+      region: "HK",
+      query: "project manager",
+      sourceField: "jsonLD.description",
+    });
+    expect(
+      TECHMAP_LANGUAGE_SAMPLES.adverts.map((advert) => ({
+        baseline: advert.baselineVerdict,
+        current: detectLanguage(advert.description),
+      })),
+    ).toEqual([
+      { baseline: "en", current: "en" },
+      { baseline: "en", current: "en" },
+      { baseline: "en", current: "en" },
+    ]);
+  });
+
+  it.each([
+    ["French", "und", "Chef de projet agile management du risque équipe senior"],
+    [
+      "sparse French",
+      "und",
+      "Recherche project manager agile scrum transformation numérique Paris",
+    ],
+    [
+      "loanword-heavy French",
+      "und",
+      "Recherche project manager agile scrum cloud risk management Paris",
+    ],
+    [
+      "loanword-heavy Indonesian",
+      "id",
+      "Lowongan project manager agile scrum cloud untuk Jakarta remote",
+    ],
+    [
+      "marker-prefixed French",
+      "und",
+      "Responsibilities: Chef de projet agile scrum cloud pour équipe Paris",
+    ],
+    [
+      "Spanish with one English function-word collision",
+      "und",
+      "Buscamos a gerente de proyecto con experiencia Madrid",
+    ],
+    [
+      "Spanish with a repeated English function-word collision",
+      "und",
+      "Buscamos a gerente para trabajar a tiempo completo Madrid",
+    ],
+    [
+      "Indonesian",
+      "id",
+      "Dicari project manager agile scrum berpengalaman memimpin transformasi digital perbankan lintas departemen",
+    ],
+  ])("does not open the English gate for a sparse %s advert", (_name, label, text) => {
+    const detected = detectLanguage(text);
+    expect(detected).toBe(label);
+    expect(languageEligible(detected, ["en"])).toBe(false);
+  });
+
+  it.each([
+    [
+      "Vietnamese",
+      "vi",
+      "Chúng tôi đang tuyển quản lý dự án công nghệ có kinh nghiệm làm việc với các nhóm quốc tế.",
+    ],
+    [
+      "Indonesian",
+      "id",
+      "Kami mencari manajer proyek teknologi yang memiliki pengalaman mengelola tim dan bekerja dengan pemangku kepentingan.",
+    ],
+  ])("positively labels a Latin-script %s advert and keeps it out of an English deck", (_name, label, text) => {
+    const detected = detectLanguage(text);
+    expect(detected).toBe(label);
+    expect(languageEligible(detected, ["en"])).toBe(false);
+  });
+
+  it("keeps every English corpus advert labelled en and the non-English fixture ineligible", () => {
+    const chinesePostingId = "2026-07-10_huaxin-tech-shenzhen_it-xiangmu-jingli";
+    for (const posting of loadPostings()) {
+      const expected = posting.id === chinesePostingId ? "zh" : "en";
+      expect(posting.language, posting.id).toBe(expected);
+    }
+    expect(languageEligible("zh", ["en"])).toBe(false);
   });
 });
 

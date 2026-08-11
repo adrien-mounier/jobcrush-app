@@ -9,8 +9,10 @@ import { TechmapPostingProvider } from "./postingProvider.js";
 import type { PostingProvider, PostingProviderFetchInput, PostingProviderFetchResult } from "./postingProvider.js";
 import type { PostingStore } from "./postingStore.js";
 import { dedupePostings, loadActivePostingProviders } from "./postings.js";
-import type { RetrievalSnapshot } from "./sessions.js";
+import type { RetrievalSnapshot, SessionRecord } from "./sessions.js";
+import type { ClaimRecord } from "./claims.js";
 import { slug } from "./discovery.js";
+import { isTailorClaimId } from "./tailor.js";
 
 export interface RetrievalSignal {
   semanticKey: string;
@@ -28,6 +30,34 @@ export interface RetrievalRequest {
   checkpoint: "family_confirmed" | "essential_floor_covered" | null;
   confirmedEvidence: RetrievalSignal[];
   explicitNegatives: RetrievalNegative[];
+}
+
+/** Builds the one server-owned retrieval request used to fingerprint deck, want, and tailor reads.
+ * Tailor answers are scoped to the selected advert, so they must not retune its retrieval snapshot. */
+export function retrievalRequestForSession(
+  session: Pick<SessionRecord, "intent" | "discovery">,
+  confirmed: ReadonlyArray<Pick<ClaimRecord, "id" | "semantic_key" | "field_label">>,
+  negatives: ReadonlyArray<Pick<ClaimRecord, "id" | "semantic_key" | "field_label" | "field_value">>,
+): RetrievalRequest {
+  return {
+    targetRole: session.intent.targetRole,
+    searchArea: session.intent.searchArea,
+    family: session.discovery.floor,
+    checkpoint: session.discovery.checkpoint,
+    confirmedEvidence: confirmed
+      .filter((claim) => !isTailorClaimId(claim.id))
+      .map((claim) => ({
+        semanticKey: claim.semantic_key,
+        fieldLabel: claim.field_label,
+      })),
+    explicitNegatives: negatives
+      .filter((claim) => !isTailorClaimId(claim.id))
+      .map((claim) => ({
+        semanticKey: claim.semantic_key,
+        fieldLabel: claim.field_label,
+        fieldValue: claim.field_value,
+      })),
+  };
 }
 
 export const unavailablePostingRetrieval = async (): Promise<PostingRetrievalResultV1> => ({

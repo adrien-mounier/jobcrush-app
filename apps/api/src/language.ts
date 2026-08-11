@@ -53,6 +53,34 @@ const ENGLISH_FUNCTION_WORDS = new Set([
   "it", "its", "all", "who", "their", "was", "were", "can",
 ]);
 
+// Latin-script Asian languages need positive labels too (#113): otherwise retained Vietnamese and
+// Indonesian adverts accumulate under "und" and opening either language later starts with an empty
+// labelled pool. These small job-advert vocabularies are checked before English so an advert that
+// also contains borrowed English technology names is not mistaken for English.
+const VIETNAMESE_WORDS = new Set([
+  "các", "có", "công", "của", "đang", "được", "kinh", "không", "là", "làm", "một", "nghiệm",
+  "quản", "tôi", "trong", "tuyển", "và", "việc", "với",
+]);
+const INDONESIAN_WORDS = new Set([
+  "akan", "anda", "atau", "bekerja", "berpengalaman", "dan", "dari", "dalam", "dengan", "departemen",
+  "dicari", "digital", "kami", "kemampuan", "kerja", "lintas", "lowongan", "memiliki", "memimpin", "mengelola",
+  "pengalaman", "perbankan", "proyek", "sebagai", "serta", "tim", "transformasi", "untuk", "yang",
+]);
+
+// English job adverts are not always prose. ATS bullets and recruiter one-liners can contain almost
+// no function words, so an explicit English structural marker plus dense recognized advert
+// vocabulary is the language evidence. A bare skills blob has no such marker and is accepted only
+// when every token is recognized vocabulary.
+// There is deliberately no generic density fallback: job jargon is freely borrowed into other
+// Latin-script languages and cannot establish that the surrounding text is English.
+const ENGLISH_ADVERT_WORDS = new Set([
+  "agile", "budget", "cloud", "confluence", "delivery", "engagement", "governance", "hiring",
+  "hybrid", "jira", "manage", "management", "manager", "planning", "program", "programme", "project",
+  "projectmanagement", "qualifications", "remote", "requirements", "responsibilities", "risk", "scrum",
+  "senior", "skills", "stakeholder", "team",
+]);
+const ENGLISH_ADVERT_MARKER = /\b(?:responsibilities|requirements|qualifications|skills|hiring now)\s*:/i;
+
 // Below this many Latin words there isn't enough signal to trust a frequency check either way —
 // falls to "und" (see detectLanguage's doc comment for how "und" is treated downstream).
 const MIN_WORDS_TO_JUDGE = 8;
@@ -64,9 +92,9 @@ const ENGLISH_FUNCTION_WORD_THRESHOLD = 0.12;
 
 /**
  * Local, deterministic language detection for one posting's text — no model call, no per-advert
- * cost (#86 decision). Returns a BCP-47 primary subtag ("en", "zh", "ja", "ko", "th", "ru", "ar",
- * "hi") or "und" ("undetermined") when the text is too short, or reads as Latin-script but not
- * English, to classify with confidence.
+ * cost (#86 decision). Returns a BCP-47 primary subtag ("en", "vi", "id", "zh", "ja", "ko", "th",
+ * "ru", "ar", "hi") or "und" ("undetermined") when the text is too short, or reads as an
+ * unsupported Latin-script language, to classify with confidence.
  *
  * "und" handling is a deliberate, documented choice, not an omission: languageEligible() below
  * treats "und" as NOT eligible for anyone. An advert we can't confidently read is exactly the case
@@ -85,10 +113,21 @@ export function detectLanguage(text: string): string {
       if (share >= SCRIPT_DOMINANCE_THRESHOLD) return lang;
     }
   }
-  const words = text.toLowerCase().match(/[a-z']+/g) ?? [];
+  const words: string[] = text.toLowerCase().normalize("NFC").match(/\p{Script=Latin}+/gu) ?? [];
   if (words.length < MIN_WORDS_TO_JUDGE) return "und";
+  const vietnameseHits = words.filter((w) => VIETNAMESE_WORDS.has(w)).length;
+  if (vietnameseHits >= 3 && vietnameseHits / words.length >= 0.12) return "vi";
+  const indonesianHits = words.filter((w) => INDONESIAN_WORDS.has(w)).length;
+  if (
+    (indonesianHits >= 3 && indonesianHits / words.length >= 0.12) ||
+    (words.includes("lowongan") && indonesianHits >= 2)
+  ) return "id";
   const hits = words.filter((w) => ENGLISH_FUNCTION_WORDS.has(w)).length;
-  return hits / words.length >= ENGLISH_FUNCTION_WORD_THRESHOLD ? "en" : "und";
+  const distinctHits = new Set(words.filter((w) => ENGLISH_FUNCTION_WORDS.has(w))).size;
+  if (distinctHits >= 2 && hits / words.length >= ENGLISH_FUNCTION_WORD_THRESHOLD) return "en";
+  const advertHits = words.filter((w) => ENGLISH_ADVERT_WORDS.has(w)).length;
+  if (ENGLISH_ADVERT_MARKER.test(text) && advertHits >= 2 && advertHits / words.length >= 0.6) return "en";
+  return advertHits === words.length ? "en" : "und";
 }
 
 /**

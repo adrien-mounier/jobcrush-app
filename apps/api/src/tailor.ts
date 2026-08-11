@@ -24,6 +24,7 @@ export interface LedgerLine {
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 export const tailorClaimId = (adId: string, requirementId: string): string =>
   `tailor-${slug(adId)}-${requirementId}`;
+export const isTailorClaimId = (claimId: string): boolean => claimId.startsWith("tailor-");
 
 const isBareYes = (answer: string) => /^yes[.!]?$/i.test(answer.trim());
 

@@ -29,7 +29,7 @@ import { runGate } from "../gate.js";
 import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
 import { loadFamilyFloor, lookupAdRequirements } from "../e5stub.js";
-import { eligiblePostings, type Posting } from "../preview.js";
+import { eligiblePostings, sessionPostings, type Posting } from "../preview.js";
 import { ANY_FAMILY, type EligibilityFact, type EligibilityStore } from "../eligibility.js";
 import {
   eligibilityCandidates,
@@ -89,6 +89,7 @@ import {
   isReusableRetrievalSnapshot,
   logPostingRetrievalFailure,
   resolvedCityFor,
+  retrievalRequestForSession,
   retrievalFingerprint,
   unavailablePostingRetrieval,
   type RetrievalRequest,
@@ -1014,21 +1015,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     app.get("/onboarding/cards", async (req) => {
       const session = requireSession(req);
       const [confirmed, negatives, , facts] = await discoveryReads(session.id);
-      const retrievalRequest: RetrievalRequest = {
-        targetRole: session.intent.targetRole,
-        searchArea: session.intent.searchArea,
-        family: session.discovery.floor,
-        checkpoint: session.discovery.checkpoint,
-        confirmedEvidence: confirmed.map((claim) => ({
-          semanticKey: claim.semantic_key,
-          fieldLabel: claim.field_label,
-        })),
-        explicitNegatives: negatives.map((claim) => ({
-          semanticKey: claim.semantic_key,
-          fieldLabel: claim.field_label,
-          fieldValue: claim.field_value,
-        })),
-      };
+      const retrievalRequest = retrievalRequestForSession(session, confirmed, negatives);
       const requestFingerprint = retrievalFingerprint(retrievalRequest);
       let retrieval: PostingRetrievalResultV1;
       if (isReusableRetrievalSnapshot(session.retrieval, requestFingerprint)) {
@@ -1141,7 +1128,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       const role = session.targetTitles[0] ?? null;
       const userYears = resolveUserYears(facts, session, role);
       const langs = readingLanguages(session);
-      const postings = eligiblePostings(langs);
+      const postings = eligiblePostings(langs, sessionPostings(session, requestFingerprint));
       // #104: every eligible posting gets a requirement set now, not only the hand-curated ones —
       // resolveAdRequirements is fixture-first, reader-second, so the demo-8-cards-to-16 growth is
       // exactly this loop widening from "the fixture set" to "every posting the session can read".
@@ -1351,7 +1338,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         // #103: an ad this session's languages can't read isn't a valid want target either, even if
         // guessed directly by id — same dual gate (posting AND requirement-set language) as the deck.
         const langs = readingLanguages(session);
-        const posting = eligiblePostings(langs).find((p) => p.id === req.params.adId);
+        const [confirmed, negatives, , facts] = await discoveryReads(session.id);
+        const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
+        const posting = eligiblePostings(langs, sessionPostings(session, fingerprint)).find((p) => p.id === req.params.adId);
         const adReq = posting ? await resolveAdRequirements(posting.id, deps.readAd, posting) : null;
         // T3 (code review): guard on `posting`/`adReq` themselves, not a derived boolean, so TS
         // narrows both to non-null below without a `!` assertion — a later edit to this guard is then
@@ -1361,7 +1350,6 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
         // #107 (D4): a withdrawn ad is not a valid want target either — same 404 shape as an unknown
         // card, so a session can never distinguish "never existed" from "genuinely can't take it".
-        const facts = await deps.eligibility.list(session.id);
         if (findWithdrawingRequirement(adReq, facts, posting.location))
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
 
@@ -1384,11 +1372,12 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         return reply
           .status(409)
           .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-      const target = await tailorTarget(session, adId, deps.readAd);
+      const [confirmed, negatives, , facts] = await discoveryReads(session.id);
+      const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
+      const target = await tailorTarget(session, adId, deps.readAd, fingerprint);
       if (!target)
         return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
       const { posting, adReq } = target;
-      const [confirmed, negatives, , facts] = await discoveryReads(session.id);
       // #107 (M3, code review): a target that has since become withdrawn behaves EXACTLY like no
       // target at all — no rejection message, no error screen (the ticket's own UX intent: "It does
       // not appear as a greyed-out card, a 'you can't apply' state, or a rejection message"). Clearing
@@ -1431,7 +1420,14 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           return reply
             .status(409)
             .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-        const target = await tailorTarget(session, adId, deps.readAd);
+        const [targetConfirmed, targetNegatives] = await Promise.all([
+          deps.claims.confirmed(session.id),
+          deps.claims.negatives(session.id),
+        ]);
+        const fingerprint = retrievalFingerprint(
+          retrievalRequestForSession(session, targetConfirmed, targetNegatives),
+        );
+        const target = await tailorTarget(session, adId, deps.readAd, fingerprint);
         if (!target)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
         const { posting, adReq } = target;
@@ -1954,20 +1950,21 @@ interface TailorState {
 }
 
 /** This session's tailor target, resolved to its posting + requirements — or null if either is no
- *  longer present in the fixtures. tailorAdId is PERSISTED session state that can outlive the fixture
- *  pair that validated it at /onboarding/cards/:adId/want time (these are explicitly stubs awaiting
- *  E5, liable to be edited/reordered) — so a miss here is reachable, not impossible, and must fail
+ *  longer present in the session's posting pool. tailorAdId is PERSISTED session state that can
+ *  outlive the pool entry that validated it at /onboarding/cards/:adId/want time — so a miss here is
+ *  reachable, not impossible, and must fail
  *  closed with the same 404 that route already uses for an unknown card id. */
 async function tailorTarget(
-  session: Pick<SessionRecord, "id">,
+  session: Pick<SessionRecord, "id" | "retrieval">,
   adId: string,
   readAd: OnboardingDeps["readAd"],
+  requestFingerprint: string,
 ): Promise<{ posting: Posting; adReq: AdRequirementsV1 } | null> {
   // #103: same dual gate as the deck and /want — a persisted tailorAdId for a posting (or a
   // requirement set) this session's languages can no longer read (or never could) fails closed with
   // the existing "unknown card" 404.
   const langs = readingLanguages(session);
-  const posting = eligiblePostings(langs).find((p) => p.id === adId);
+  const posting = eligiblePostings(langs, sessionPostings(session, requestFingerprint)).find((p) => p.id === adId);
   if (!posting) return null;
   // #104: a card the user can already see must be tailorable — fixture-or-reader via the same
   // shared resolver as the deck, so a newly-read (not hand-curated) advert doesn't 404 here just

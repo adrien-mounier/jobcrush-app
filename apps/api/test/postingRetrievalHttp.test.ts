@@ -1,8 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
-import type { CandidateClaim } from "@jobcrush/contracts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  canonicalKeyOf,
+  type AdRequirementsV1,
+  type CandidateClaim,
+  type PostingProviderPolicyV1,
+} from "@jobcrush/contracts";
 import { initialProductionFamilyFloors } from "../src/familyFloors.js";
 import { makePostingRetriever } from "../src/postingRetrieval.js";
 import { InMemoryPostingStore } from "../src/postingStore.js";
+import { TechmapPostingProvider } from "../src/postingProvider.js";
+import { loadPostings, type Posting } from "../src/preview.js";
 import { buildServer } from "../src/server.js";
 import { RETRIEVAL_CLAIM_LEASE_MS } from "../src/sessions.js";
 
@@ -22,6 +29,8 @@ const claim = (id: string, text: string, fieldLabel: string): CandidateClaim => 
 });
 
 describe("#101 GET /onboarding/cards retrieval seam", () => {
+  afterEach(() => vi.useRealTimers());
+
   async function authorizedSession(built: ReturnType<typeof buildServer>) {
     const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
     const id = created.json().id as string;
@@ -36,6 +45,89 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       id,
       cookie: `jc_session=${created.cookies.find((item) => item.name === "jc_session")!.value}`,
     };
+  }
+
+  async function signIn(built: ReturnType<typeof buildServer>, cookie: string, email: string) {
+    const link = await built.app.inject({
+      method: "POST",
+      url: "/auth/request-link",
+      headers: { cookie },
+      payload: { email },
+    });
+    const token = new URL("http://test" + link.json().devLink).searchParams.get("token")!;
+    await built.app.inject({
+      method: "POST",
+      url: "/auth/verify",
+      headers: { cookie },
+      payload: { token },
+    });
+  }
+
+  async function liveSnapshotHarness() {
+    const fixturePosting = loadPostings().find((posting) => posting.language === "en")!;
+    const canonicalKey = canonicalKeyOf(fixturePosting.company, fixturePosting.location, fixturePosting.title);
+    const retrievePostings = vi.fn(async () => {
+      const now = new Date().toISOString();
+      return {
+        schemaVersion: "4" as const,
+        outcome: "relevant_postings" as const,
+        postings: [{
+          schemaVersion: "4" as const,
+          id: `posting:${canonicalKey}`,
+          canonicalKey,
+          title: fixturePosting.title,
+          company: fixturePosting.company,
+          location: fixturePosting.location,
+          sourceUrl: "https://example.com/current-live-posting",
+          excerpt: "We are hiring a project manager to lead delivery with our technology team in Hong Kong.",
+          postedAt: "2026-08-11T00:00:00.000Z",
+          capturedAt: now,
+          verifiedLiveAt: now,
+          expiresAt: null,
+          attribution: [],
+          sources: [{ providerId: "techmap", providerPostingId: "current-live-posting" }],
+          skills: ["Project management"],
+          language: "en",
+        }],
+        coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
+        retrievedAt: now,
+      };
+    });
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1> => ({
+      schemaVersion: "1",
+      adId: posting.id,
+      curated: false,
+      language: posting.language,
+      familyFit: { family: "IT Project Manager", confidence: 0.9 },
+      requirements: [{
+        id: "project-delivery",
+        band: "essential",
+        kind: "ordinary",
+        requirement: "Deliver technology projects",
+        sourceSpan: "project manager",
+      }],
+    });
+    const built = buildServer({
+      productionFamilyFloors: initialProductionFamilyFloors(),
+      retrievePostings,
+      readAd,
+    });
+    const { id, cookie } = await authorizedSession(built);
+    await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    await vi.waitFor(async () =>
+      expect((await built.sessions.getById(id))?.retrieval?.result.outcome).toBe("relevant_postings"),
+    );
+    const current = await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    const liveId = current.json().retrieval.postings[0].id as string;
+    expect(current.json().cards.map((card: { adId: string }) => card.adId)).toContain(liveId);
+    await signIn(built, cookie, `snapshot-${canonicalKey.slice(0, 8)}@example.com`);
+    expect((await built.app.inject({
+      method: "POST",
+      url: `/onboarding/cards/${encodeURIComponent(liveId)}/want`,
+      headers: { cookie },
+    })).statusCode).toBe(200);
+    const requestFingerprint = (await built.sessions.getById(id))!.retrieval!.requestFingerprint;
+    return { built, cookie, id, liveId, requestFingerprint, retrievePostings };
   }
 
   it("uses only session/server state, persists the result, and ignores client override fields", async () => {
@@ -112,6 +204,229 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       outcome: "provider_unavailable",
       retryable: true,
     });
+  });
+
+  it.each([
+    {
+      id: "ats-bullets",
+      format: "ATS bullet list",
+      description:
+        "Responsibilities:\n- Manage end-to-end delivery\n- Stakeholder engagement\n" +
+        "- Budget governance\n- Risk planning\n- Vendor coordination",
+    },
+    {
+      id: "skills-blob",
+      format: "bare skills blob",
+      description: "Agile Scrum Jira Confluence Stakeholder Management Risk Governance Budget Planning",
+    },
+    {
+      id: "recruiter-one-liner",
+      format: "recruiter one-liner",
+      description: "Hiring now: Senior IT Project Manager - hybrid Hong Kong. #projectmanagement #agile",
+    },
+  ])("ingests an English $format through the provider and exposes it through the deck API", async ({ id: caseId, description }) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-11T12:00:00.000Z"));
+    const fixturePosting = loadPostings().find((posting) => posting.language === "en")!;
+    const providerPolicy: PostingProviderPolicyV1 = {
+      schemaVersion: "2",
+      providerId: "techmap",
+      regionsServed: ["HK"],
+      authorityRank: 1,
+      permitsStorage: true,
+      permitsMatching: true,
+      attributionRequired: false,
+      attributionTemplate: null,
+      rateLimit: { perSecond: null, perMinute: null, perDay: null, perMonth: null },
+      retry: { maxAttempts: 1, backoffMs: 0 },
+      timeoutMs: 1000,
+      costModel: { kind: "operatorHours" },
+      freshnessTtlHours: 24,
+    };
+    const provider = new TechmapPostingProvider({
+      apiKey: "test-key",
+      policy: providerPolicy,
+      now: Date.now,
+      fetchImpl: async () => new Response(JSON.stringify({
+        result: [{
+          title: fixturePosting.title,
+          jsonLD: {
+            identifier: caseId,
+            title: fixturePosting.title,
+            description,
+            hiringOrganization: fixturePosting.company,
+            jobLocation: fixturePosting.location,
+            url: `https://example.com/${caseId}`,
+            datePosted: "2026-08-11",
+            skills: ["Program management"],
+          },
+        }],
+        totalCount: 1,
+      }), { status: 200, headers: { "content-type": "application/json" } }),
+    });
+    const productionFamilyFloors = initialProductionFamilyFloors();
+    const retrievePostings = makePostingRetriever({
+      registry: [providerPolicy],
+      providers: [provider],
+      store: new InMemoryPostingStore(),
+      productionFamilyFloors,
+      now: () => new Date(),
+    });
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1> => ({
+      schemaVersion: "1",
+      adId: posting.id,
+      curated: false,
+      language: posting.language,
+      familyFit: { family: "IT Project Manager", confidence: 0.9 },
+      requirements: [
+        {
+          id: "project-delivery",
+          band: "essential",
+          kind: "ordinary",
+          requirement: "Deliver technology projects",
+          sourceSpan: "Project Manager",
+        },
+        {
+          id: "risk-management",
+          band: "standard",
+          kind: "ordinary",
+          requirement: "Manage project risks",
+          sourceSpan: "Risk planning",
+        },
+      ],
+    });
+    const built = buildServer({ productionFamilyFloors, retrievePostings, readAd });
+    const { id, cookie } = await authorizedSession(built);
+
+    await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    await vi.waitFor(async () =>
+      expect((await built.sessions.getById(id))?.retrieval?.result.outcome).toBe("relevant_postings"),
+    );
+    const completed = await built.app.inject({
+      method: "GET",
+      url: "/onboarding/cards",
+      headers: { cookie },
+    });
+
+    expect(completed.json().retrieval).toMatchObject({
+      outcome: "relevant_postings",
+      postings: [{ title: fixturePosting.title, language: "en" }],
+    });
+    const livePosting = completed.json().retrieval.postings[0];
+    await signIn(built, cookie, `${caseId}@example.com`);
+    const wanted = await built.app.inject({
+      method: "POST",
+      url: `/onboarding/cards/${encodeURIComponent(livePosting.id)}/want`,
+      headers: { cookie },
+    });
+    expect(wanted.statusCode).toBe(200);
+    const tailor = await built.app.inject({ method: "GET", url: "/onboarding/tailor", headers: { cookie } });
+    expect(tailor.statusCode).toBe(200);
+    expect(tailor.json().card).toMatchObject({ adId: livePosting.id, adExcerpt: description });
+    const initialPct = tailor.json().card.matchPct as number;
+    const firstRequirementId = tailor.json().questions[0].requirementId as string;
+    const firstAnswer = await built.app.inject({
+      method: "POST",
+      url: "/onboarding/tailor/answer",
+      headers: { cookie },
+      payload: { requirementId: firstRequirementId, answer: "Yes" },
+    });
+    expect(firstAnswer.statusCode).toBe(200);
+    expect(firstAnswer.json().card.matchPct).toBeGreaterThan(initialPct);
+
+    const resumed = await built.app.inject({ method: "GET", url: "/onboarding/tailor", headers: { cookie } });
+    expect(resumed.statusCode).toBe(200);
+    expect(resumed.json().card.matchPct).toBe(firstAnswer.json().card.matchPct);
+    const secondRequirementId = resumed.json().questions[0].requirementId as string;
+    expect(secondRequirementId).not.toBe(firstRequirementId);
+    const secondAnswer = await built.app.inject({
+      method: "POST",
+      url: "/onboarding/tailor/answer",
+      headers: { cookie },
+      payload: { requirementId: secondRequirementId, answer: "No" },
+    });
+    expect(secondAnswer.statusCode).toBe(200);
+    const completedTailor = await built.app.inject({ method: "GET", url: "/onboarding/tailor", headers: { cookie } });
+    expect(completedTailor.statusCode).toBe(200);
+    expect(completedTailor.json()).toMatchObject({ done: true, closedGaps: { asked: 2 } });
+
+    const sameAdvertCards = completed.json().cards.filter((card: Record<string, unknown>) =>
+      card.title === fixturePosting.title &&
+      card.company === fixturePosting.company &&
+      card.place === fixturePosting.location,
+    );
+    expect(sameAdvertCards).toEqual([
+      expect.objectContaining({ adId: livePosting.id, adExcerpt: description }),
+    ]);
+  });
+
+  it("holds a stale persisted live posting out of deck, want, and tailor until refresh completes", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-11T12:00:00.000Z"));
+    const { built, cookie, id, liveId, retrievePostings } = await liveSnapshotHarness();
+    vi.setSystemTime(new Date("2026-08-13T12:00:00.000Z"));
+
+    expect((await built.app.inject({ method: "GET", url: "/onboarding/tailor", headers: { cookie } })).statusCode).toBe(404);
+    expect((await built.app.inject({
+      method: "POST",
+      url: `/onboarding/cards/${encodeURIComponent(liveId)}/want`,
+      headers: { cookie },
+    })).statusCode).toBe(404);
+    const refreshing = await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    expect(refreshing.json().retrieval).toMatchObject({
+      outcome: "provider_unavailable",
+      reason: "posting retrieval is in progress",
+    });
+    expect(refreshing.json().cards.map((card: { adId: string }) => card.adId)).not.toContain(liveId);
+
+    await vi.waitFor(() => expect(retrievePostings).toHaveBeenCalledTimes(2));
+    await vi.waitFor(async () =>
+      expect((await built.sessions.getById(id))?.retrieval?.result.postings?.[0]?.verifiedLiveAt)
+        .toBe("2026-08-13T12:00:00.000Z"),
+    );
+    const current = await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    expect(current.json().cards.map((card: { adId: string }) => card.adId)).toContain(liveId);
+    expect((await built.app.inject({ method: "GET", url: "/onboarding/tailor", headers: { cookie } })).statusCode).toBe(200);
+    expect((await built.app.inject({
+      method: "POST",
+      url: `/onboarding/cards/${encodeURIComponent(liveId)}/want`,
+      headers: { cookie },
+    })).statusCode).toBe(200);
+  });
+
+  it("holds a fingerprint-mismatched persisted live posting out of deck, want, and tailor until refresh completes", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-11T12:00:00.000Z"));
+    const { built, cookie, id, liveId, requestFingerprint, retrievePostings } = await liveSnapshotHarness();
+    await built.claims.seed(id, [claim("new-evidence", "New delivery evidence", "Delivery")]);
+    await built.claims.confirm(id, "new-evidence");
+
+    expect((await built.app.inject({ method: "GET", url: "/onboarding/tailor", headers: { cookie } })).statusCode).toBe(404);
+    expect((await built.app.inject({
+      method: "POST",
+      url: `/onboarding/cards/${encodeURIComponent(liveId)}/want`,
+      headers: { cookie },
+    })).statusCode).toBe(404);
+    const refreshing = await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    expect(refreshing.json().retrieval).toMatchObject({
+      outcome: "provider_unavailable",
+      reason: "posting retrieval is in progress",
+    });
+    expect(refreshing.json().cards.map((card: { adId: string }) => card.adId)).not.toContain(liveId);
+
+    await vi.waitFor(() => expect(retrievePostings).toHaveBeenCalledTimes(2));
+    await vi.waitFor(async () =>
+      expect((await built.sessions.getById(id))?.retrieval?.requestFingerprint)
+        .not.toBe(requestFingerprint),
+    );
+    const current = await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    expect(current.json().cards.map((card: { adId: string }) => card.adId)).toContain(liveId);
+    expect((await built.app.inject({ method: "GET", url: "/onboarding/tailor", headers: { cookie } })).statusCode).toBe(200);
+    expect((await built.app.inject({
+      method: "POST",
+      url: `/onboarding/cards/${encodeURIComponent(liveId)}/want`,
+      headers: { cookie },
+    })).statusCode).toBe(200);
   });
 
   it("reuses an unchanged fresh snapshot without another provider call", async () => {

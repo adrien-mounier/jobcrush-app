@@ -16,12 +16,14 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { SLUG, type CandidateClaims } from "@jobcrush/contracts";
+import { canonicalKeyOf, SLUG, type CandidateClaims } from "@jobcrush/contracts";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
 import { EMAIL_RE, PHONE_RE, type RawCv } from "./extract.js";
 import { detectLanguage, languageEligible, SERVED_LANGUAGES } from "./language.js";
 import { incrementCounter } from "./counters.js";
+import type { SessionRecord } from "./sessions.js";
+import { isReusableRetrievalSnapshot } from "./postingRetrieval.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -75,6 +77,37 @@ export function loadPostings(): Posting[] {
  */
 export function eligiblePostings(languages: string[], postings = loadPostings()): Posting[] {
   return postings.filter((p) => languageEligible(p.language, languages));
+}
+
+/** The authoritative posting pool for one session. Only a currently reusable persisted
+ * relevant-postings snapshot can widen the fixture pool; every other state stays fixture-only. A
+ * live row replaces a fixture row with the same canonical identity, so its selectable id wins. */
+export function sessionPostings(
+  session: Pick<SessionRecord, "retrieval">,
+  requestFingerprint: string,
+): Posting[] {
+  const byCanonicalKey = new Map(
+    loadPostings().map((posting) => [
+      canonicalKeyOf(posting.company, posting.location, posting.title),
+      posting,
+    ]),
+  );
+  if (
+    !isReusableRetrievalSnapshot(session.retrieval, requestFingerprint) ||
+    session.retrieval?.result.outcome !== "relevant_postings"
+  ) return [...byCanonicalKey.values()];
+  for (const posting of session.retrieval.result.postings) {
+    byCanonicalKey.set(posting.canonicalKey, {
+      id: posting.id,
+      title: posting.title,
+      company: posting.company,
+      location: posting.location,
+      keywords: posting.skills,
+      excerpt: posting.excerpt,
+      language: posting.language,
+    });
+  }
+  return [...byCanonicalKey.values()];
 }
 
 /** Title-keyword match: most overlapping keywords wins; ties go to the earlier posting. Defaults to
