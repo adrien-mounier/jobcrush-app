@@ -13,12 +13,15 @@ import {
   FamilyPlacement,
   Inbox,
   JobCardV1,
+  MinedJobBlocks,
   PostingProviderPolicyV1,
   PostingRetrievalResultV1,
   ProviderPostingRecordV1,
 } from "../src/index.js";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateCandidateClaims } from "../oracle/validate_candidate_claims.mjs";
+// @ts-expect-error — plain .mjs oracle, no types by design
+import { validateMinedJobBlocks } from "../oracle/validate_job_block.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateGraph } from "../oracle/validate_graph.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
@@ -297,6 +300,109 @@ describe("CandidateClaims v1", () => {
       const oracle = validateCandidateClaims(doc).ok;
       expect(CandidateClaims.safeParse(doc).success).toBe(oracle);
       expect(validateSchema(doc)).toBe(oracle);
+      expect(oracle).toBe(false);
+    }
+  });
+});
+
+describe("MinedJobBlocks v1 (#161)", () => {
+  const employer = {
+    value: "Standard Chartered",
+    source_quote: "Standard Chartered Bank",
+    machine_touch: "verbatim",
+    classification: "Verified",
+  };
+  const title = {
+    value: "Regional PM",
+    source_quote: "Regional Project Manager",
+    machine_touch: "verbatim",
+    classification: "Verified",
+  };
+  const start = {
+    value: { year: 2019, month: 1, precision: "month" },
+    source_quote: "Jan 2019",
+    machine_touch: "verbatim",
+    classification: "Verified",
+  };
+  const end = {
+    value: { state: "ended", date: { year: 2022, month: 3, precision: "month" } },
+    source_quote: "Mar 2022",
+    machine_touch: "verbatim",
+    classification: "Verified",
+  };
+  const kind = {
+    value: "job",
+    source_quote: "Regional Project Manager, Standard Chartered",
+    machine_touch: "verbatim",
+    classification: "Verified",
+  };
+  const valid = {
+    schemaVersion: "1",
+    blocks: [{ id: "block-1", employer, title, start, end, kind }],
+    parser_flags: [],
+  };
+
+  it("valid fixture passes both oracle and zod", () => {
+    expect(validateMinedJobBlocks(valid).ok).toBe(true);
+    expect(MinedJobBlocks.safeParse(valid).success).toBe(true);
+  });
+
+  it("a no-end-date job stores an explicit 'unknown' end, distinct from 'ongoing'", () => {
+    const unknownEnd = structuredClone(valid);
+    unknownEnd.blocks[0].end = {
+      value: { state: "unknown" },
+      source_quote: null,
+      machine_touch: "verbatim",
+      classification: "Verified",
+    };
+    expect(validateMinedJobBlocks(unknownEnd).ok).toBe(true);
+    expect(MinedJobBlocks.safeParse(unknownEnd).success).toBe(true);
+
+    const ongoing = structuredClone(valid);
+    ongoing.blocks[0].end = {
+      value: { state: "ongoing" },
+      source_quote: "Present",
+      machine_touch: "verbatim",
+      classification: "Verified",
+    };
+    expect(validateMinedJobBlocks(ongoing).ok).toBe(true);
+    expect(MinedJobBlocks.safeParse(ongoing).success).toBe(true);
+  });
+
+  it("a CV with no dated jobs is a valid empty-blocks doc, not a rejected one", () => {
+    const empty = { schemaVersion: "1", blocks: [], parser_flags: ["no-dated-jobs-found"] };
+    expect(validateMinedJobBlocks(empty).ok).toBe(true);
+    expect(MinedJobBlocks.safeParse(empty).success).toBe(true);
+  });
+
+  it("keeps oracle and zod aligned for every required structural invariant", () => {
+    const mutations: Array<(doc: any) => void> = [
+      (doc) => (doc.schemaVersion = "2"),
+      (doc) => (doc.blocks[0].id = "Not A Slug"),
+      (doc) => (doc.blocks[0].employer.value = ""),
+      (doc) => (doc.blocks[0].employer.source_quote = ""),
+      (doc) => (doc.blocks[0].employer.source_quote = "x".repeat(201)),
+      (doc) => (doc.blocks[0].employer.machine_touch = "typed"),
+      (doc) => (doc.blocks[0].employer.classification = "Unsupported-but-Plausible"),
+      (doc) => (doc.blocks[0].start.value.precision = "year"), // month set, precision says year — inconsistent
+      (doc) => (doc.blocks[0].start.value.month = null), // month precision requires a month
+
+      (doc) => (doc.blocks[0].start.value.year = 1899),
+      (doc) => (doc.blocks[0].end.value = { state: "ended" }), // ended with no date
+      (doc) => (doc.blocks[0].end.source_quote = null), // ended but no source quote
+      (doc) => {
+        doc.blocks[0].end.value = { state: "unknown" };
+        doc.blocks[0].end.source_quote = "something"; // unknown must have nothing to quote
+      },
+      (doc) => (doc.blocks[0].end.value = { state: "sabbatical" }),
+      (doc) => (doc.blocks[0].kind.value = "hobby"),
+      (doc) => (doc.parser_flags = [1]),
+    ];
+    for (const mutate of mutations) {
+      const doc = structuredClone(valid);
+      mutate(doc);
+      const oracle = validateMinedJobBlocks(doc).ok;
+      expect(MinedJobBlocks.safeParse(doc).success, `zod/oracle disagree after ${mutate.toString()}`).toBe(oracle);
       expect(oracle).toBe(false);
     }
   });

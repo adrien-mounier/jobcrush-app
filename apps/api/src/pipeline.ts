@@ -6,7 +6,7 @@ import type { JobStore } from "./jobs.js";
 import { buildRawCv, extractContact, extractRawCv, type ContactExtraction, type RawCv } from "./extract.js";
 import type { CvKind } from "./uploads.js";
 import { CandidateClaim } from "@jobcrush/contracts";
-import type { CandidateClaim as CandidateClaimType } from "@jobcrush/contracts";
+import type { CandidateClaim as CandidateClaimType, MinedJobBlocks } from "@jobcrush/contracts";
 import type { ImportProof } from "./sessions.js";
 
 export type PipelineInput =
@@ -60,6 +60,19 @@ export interface PipelineDeps {
   /** #190: this session's current contact record, read once before rendering so the preview step
    *  can prefer the stored phone/email over the tailor's own header re-read for those two values. */
   getContact?: (sessionId: string) => Promise<{ phone: string | null; email: string | null }>;
+  /** #161 job-block miner: raw CV -> mined dated blocks (employer/title/start/end/kind, each with
+   *  its own origin) plus the model's raw text for that run. Optional so extract/mine can ship on
+   *  their own — same convention as `mine` above. */
+  mineJobBlocks?: (rawCv: RawCv) => Promise<{ doc: MinedJobBlocks; rawOutput: string }>;
+  /** #161: ingests one mining run into the durable job-block store (matches against what's already
+   *  stored for this session; never duplicates a recognised job) and persists the raw output +
+   *  schema version beside the parsed blocks. */
+  persistJobBlocks?: (sessionId: string, doc: MinedJobBlocks, rawOutput: string) => Promise<void>;
+  /** #161: the job-block miner failed validation twice (an unreadable history). Records that the
+   *  read RAN and FAILED — distinct from both "never run" and "ran, found none" — and MUST NOT
+   *  throw into the run: an unreadable work history is a question the store surfaces, never a
+   *  reason to fail the whole upload (binding UX intent — claims mining still proceeds). */
+  recordJobBlocksFailed?: (sessionId: string) => Promise<void>;
   /** Best-effort guestbook write; called once on any terminal state. Never throws into the run. */
   recordVisit?: (visit: VisitRecord) => Promise<void>;
 }
@@ -185,6 +198,34 @@ export async function runOnboardingJob(
     // lives in the contact store itself (contact.ts's put()), not here.
     if (deps.persistContact && job?.sessionId) {
       await deps.persistContact(job.sessionId, extractContact(rawCv.blocks));
+    }
+
+    // Step 1.5 — job blocks (#161): independent of the sentence-level claim miner below, so it
+    // runs (and checkpoints) on its own — a retry never re-mines it once it has landed. Binding UX
+    // intent: "an unreadable history reads as a question, never as a failure" — a miner failure here
+    // is caught and recorded, never allowed to fail the whole upload (claims mining still proceeds).
+    if (deps.mineJobBlocks && job?.sessionId) {
+      job = await store.get(jobId);
+      if (!job?.progress.jobBlocks) {
+        await appendFeed(store, jobId, "Reading your work history into job records…");
+        try {
+          const { doc, rawOutput } = await deps.mineJobBlocks(rawCv);
+          if (deps.persistJobBlocks) await deps.persistJobBlocks(job!.sessionId!, doc, rawOutput);
+          await appendFeed(
+            store,
+            jobId,
+            `Found ${doc.blocks.length} dated block${doc.blocks.length === 1 ? "" : "s"} in your history.`,
+          );
+        } catch {
+          if (deps.recordJobBlocksFailed) await deps.recordJobBlocksFailed(job!.sessionId!);
+          await appendFeed(
+            store,
+            jobId,
+            "Could not read your work history into job records — you can still continue; you can add it yourself later.",
+          );
+        }
+        await store.update(jobId, { progress: { jobBlocks: true } });
+      }
     }
 
     // Step 2 — mine (JC-13)

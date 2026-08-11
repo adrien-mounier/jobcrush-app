@@ -104,3 +104,23 @@ class of facts the source CV had — certifications, languages, or the density o
 focused 8-12, not exhaustively conserved. This principle is enforced mechanically by the conservation
 lint in `apps/api/src/preview.ts` (`conservationIssues`) and is the direct lesson of the JC-2 rating
 failure that prompted this fork.
+
+## 7. Reading a dated block (#161, added at the durable-record build)
+
+Before #161, a dated entry (a job, a school, a client engagement) was read as four loose strings and
+discarded after one use. The durable job record decomposes each dated block into five independent
+machine decisions — employer, title, start, end, kind — and two reading rules from that ticket belong
+here because they are CV-reading judgement, not storage plumbing:
+
+- **Precision is never invented.** "2021 – 2023" is read at year precision; a month is only recorded
+  when the CV states one ("Jan 2019 – Mar 2022" is month precision). The record must print no more
+  than it knows — the same conservatism `cv-authoring-rules.md` asks of writing applies to reading.
+- **A client line nested under an employer is never a job.** `ASSYTEM (client) - 02/2021 - 05/2021`
+  sitting inside a consulting role is a name plus a date range, byte-for-byte the shape of an
+  employment block — but it is read as `kind: client`, never `kind: job`, so it can never fabricate a
+  second employer the candidate never worked for (ADR-0009). The miner is told to look for the parent
+  employer around an ambiguous name+date block before deciding.
+
+The full mining contract lives in `apps/api/prompts/job-block-miner.md` and
+`packages/contracts/src/jobBlock.ts`; this section records only the reading judgement behind it, per
+the repo rule that a change to the reading rules is recorded here, not left implicit in the prompt.

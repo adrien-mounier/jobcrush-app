@@ -18,6 +18,8 @@ import { runOnboardingJob, type PipelineDeps } from "./pipeline.js";
 import { cvRoutes } from "./routes/cv.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
 import { InMemoryClaimStore, type ClaimStore } from "./claims.js";
+import { InMemoryJobBlockStore, type JobBlockStore } from "./jobBlockStore.js";
+import { jobBlocksRoutes } from "./routes/jobBlocks.js";
 import { InMemoryEligibilityStore, type EligibilityStore } from "./eligibility.js";
 import { InMemoryContactStore, type ContactStore } from "./contact.js";
 import { contactRoutes } from "./routes/contact.js";
@@ -72,6 +74,8 @@ export interface BuildOptions {
   guestbook?: Guestbook;
   /** JC-21 confirmed-claims store backing the onboarding deck. Postgres driver lands with JC-6/26. */
   claims?: ClaimStore;
+  /** #161 durable job-record store (employer/title/start/end/kind, each with its own origin). */
+  jobBlocks?: JobBlockStore;
   /** #106: the eligibility-fact store (#86 decisions 4+5) backing discovery's eligibility questions. */
   eligibility?: EligibilityStore;
   /** #190: the contact-fact store (phone/email + origin) backing the profile's contact block. */
@@ -148,6 +152,7 @@ export function buildServer(opts: BuildOptions = {}) {
   const blobs = opts.blobs ?? new InMemoryBlobStorage();
   const uploads = opts.uploads ?? new InMemoryUploadStore();
   const claims = opts.claims ?? new InMemoryClaimStore();
+  const jobBlocks = opts.jobBlocks ?? new InMemoryJobBlockStore();
   const eligibility = opts.eligibility ?? new InMemoryEligibilityStore();
   const contact = opts.contact ?? new InMemoryContactStore();
   const familyFloors = opts.familyFloors ?? new TestFixtureFamilyFloorStore();
@@ -164,6 +169,7 @@ export function buildServer(opts: BuildOptions = {}) {
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" }).withTypeProvider<ZodTypeProvider>();
   guestbook.init().catch((err) => app.log.error(err, "guestbook init failed"));
   familyLearning.init().catch((err) => app.log.error(err, "family learning init failed"));
+  jobBlocks.init().catch((err) => app.log.error(err, "job block store init failed"));
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.register(cookie);
@@ -390,6 +396,18 @@ export function buildServer(opts: BuildOptions = {}) {
         if (extraction.phone) await contact.put(sessionId, "phone", { ...extraction.phone, origin: "read" });
         if (extraction.email) await contact.put(sessionId, "email", { ...extraction.email, origin: "read" });
       }),
+    // #161: shared by both intake paths, same convention as persistContact above — sessionId travels
+    // as a plain argument so job-block capture works uniformly on either upload or paste.
+    persistJobBlocks:
+      opts.pipeline?.persistJobBlocks ??
+      (async (sessionId, doc, rawOutput) => {
+        await jobBlocks.ingest(sessionId, doc, rawOutput);
+      }),
+    recordJobBlocksFailed:
+      opts.pipeline?.recordJobBlocksFailed ??
+      (async (sessionId) => {
+        await jobBlocks.recordFailedRun(sessionId);
+      }),
     getContact:
       opts.pipeline?.getContact ??
       (async (sessionId) => {
@@ -456,6 +474,7 @@ export function buildServer(opts: BuildOptions = {}) {
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps }));
   app.register(contactRoutes({ contact }));
+  app.register(jobBlocksRoutes({ jobBlocks }));
   app.register(onboardingRoutes({
     claims,
     store,

@@ -22,6 +22,7 @@ export type LlmStage =
   | "advert-reading"
   | "judging"
   | "claim-mining"
+  | "job-block-mining"
   | "preview-tailor"
   | "grill"
   | "cv-audit"

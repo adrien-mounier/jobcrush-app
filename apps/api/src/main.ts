@@ -10,6 +10,8 @@ import { makeGrillPhraser } from "./grill.js";
 import { makeCvAuditor } from "./audit.js";
 import { sessionStoreFromEnv } from "./sessions.js";
 import { claimStoreFromEnv } from "./claims.js";
+import { jobBlockStoreFromEnv } from "./jobBlockStore.js";
+import { makeMineJobBlocksStep } from "./jobBlockMiner.js";
 import { authStoreFromEnv } from "./auth.js";
 import { eligibilityStoreFromEnv } from "./eligibility.js";
 import { contactStoreFromEnv } from "./contact.js";
@@ -58,6 +60,7 @@ const metered = (stage: LlmStage, client: LlmClient): LlmClient => meterLlm(clie
 // in-memory otherwise. Init (create tables) before serving; fail fast if the DB is unreachable.
 const sessions = sessionStoreFromEnv(process.env.DATABASE_URL);
 const claims = claimStoreFromEnv(process.env.DATABASE_URL);
+const jobBlocks = jobBlockStoreFromEnv(process.env.DATABASE_URL);
 const auth = authStoreFromEnv(process.env.DATABASE_URL);
 const familyLearning = familyLearningStoreFromEnv(process.env.DATABASE_URL);
 // #86 decisions 4 + 5. #106 asks the questions (threaded through buildServer below); #89 reads them
@@ -103,6 +106,7 @@ const retrievePostings = makePostingRetriever({
 try {
   await sessions.init();
   await claims.init();
+  await jobBlocks.init();
   await auth.init();
   await familyLearning.init();
   await eligibility.init();
@@ -119,6 +123,7 @@ try {
 const { app } = buildServer({
   sessions,
   claims,
+  jobBlocks,
   eligibility,
   contact,
   productionFamilyFloors,
@@ -132,6 +137,7 @@ const { app } = buildServer({
   blobs,
   pipeline: {
     mine: makeMineStep(metered("claim-mining", llm)),
+    mineJobBlocks: makeMineJobBlocksStep(metered("job-block-mining", llm)),
     preview: makePreviewStep(metered("preview-tailor", llm)),
   },
   phraseGrill: makeGrillPhraser(metered("grill", llm)),
