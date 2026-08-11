@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-08-11_
+_Last updated: 2026-08-12_
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
@@ -15,6 +15,17 @@ pipeline, for many users, on web and mobile. v0.1 scope is **prepared-apply** (t
 no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
+
+**2026-08-12 (session 103) `/orchestrate-team` — the keystone is BUILT: #161 shipped whole, the
+#162–#171 fan-out is open, and every deploy now survives five real-stack journeys** (`bac864c`,
+`9e83fc5`, `9675c87`). A dated job is five atomic origin-bearing records with raw output + schema
+version persisted append-only (evolve by versioning, never re-parse); the #157 Design A confirm
+deck ships at `/job-blocks/[jobId]` — swipe-confirm, skip-returns, tap-correct, kind-not-work,
+server-effective undo — QA 56/56 GO after one caught blocker. #199 adds ~10.1 min of real-stack
+journeys gating `deploy-staging` (factbadge-floor cut for measured flakiness, signature recorded).
+**Frontier now: the structured-fact fan-out #162–#171 (all unblocked) · #196 cost baseline · #63 ·
+#109 · #113 · #124.** Known gaps carried: model-asserted source quotes unverified (eval under
+#196) · "potential jobs matching" panel stat awaits a matching-side field.
 
 **2026-08-11 (session 102) `/orchestrate-team` — provider jobs are language-safe and actionable; the
 e2e gate has no stale failures** (`46bad69`, `7b0b3b7`). [#113](https://github.com/adrien-mounier/jobcrush-app/issues/113)

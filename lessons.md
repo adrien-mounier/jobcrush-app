@@ -1,5 +1,28 @@
 # Lessons — jobcrush-app
 
+## A pointer-drag guard held in React state is already stale when the click fires
+
+The confirm deck guarded its card's `onClick` with `!dragging` — but `setDragging(false)` runs in
+the pointer-release handler, and the browser dispatches the synthetic click *after* that, against the
+re-rendered state. Every completed swipe therefore also fired the tap action (QA caught it live; unit
+gates cannot — web has no unit runner). Guard drag-vs-click with a ref set at release when movement
+crossed the activation threshold, checked-and-cleared inside the click handler. State is for
+rendering; event-ordering races need refs.
+
+## Throwaway workspace copies must live outside the repo
+
+A QA agent duplicated `apps/web` to `apps/web-qa161` inside the repo to build against its own ports.
+pnpm discovers workspaces by glob, saw two packages named `@jobcrush/web`, and every whole-tree gate
+(test, typecheck) failed at resolution — blocking an unrelated slice's push until the copy was gone.
+Scratch copies of a workspace package go in the session scratch dir, never under the repo root.
+
+## Both miners end in the same data marker — match prompts affirmatively, not by marker
+
+`claim-miner.md` and `job-block-miner.md` both terminate in `===CV-TEXT===`. qa-main's stage-aware
+fake routed on that marker alone, so the job-block prompt silently fell into the claim-miner branch
+and returned the wrong document shape. Any prompt-routing fake must match each stage by its own
+opening line (an affirmative, stage-unique string), with shared data markers checked last.
+
 ## Focus after a conditional render belongs after the commit
 
 The language door saved correctly and called `requestAnimationFrame(() => door.focus())` immediately

@@ -2,6 +2,44 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-12 (session 103) `/orchestrate-team` — #161 SHIPPED WHOLE (both slices) and the deploy gate rides the real stack
+
+The keystone closed: **#161** in two reviewed, QA-GO slices (`bac864c` slice A, `9e83fc5` slice B),
+plus **#199** (`9675c87`). The #162–#171 fan-out is now unblocked.
+
+- **#161 slice A (backend)** — a dated job is five atomic origin-bearing records (employer, title,
+  start, end, kind), persisted with the raw model output + schema version append-only per run
+  (owner decision #161c4: rich record, evolve by versioning, never re-parse). Year-honest dates;
+  end `unknown` ≠ `ongoing`; a client line never becomes a job (ADR-0009); a promotion is two rows;
+  re-upload recognition is employer+title+overlap with an explicit `ambiguous` state and a
+  `resolve-match` answer path; `needs_grill`/`grill_hint` absent by design (ADR-0005/0007); read
+  state is three-way `ok/failed/not_run`, and a miner failure no longer fails the upload. Review
+  found 9 must-fixes (worst: run-record written before blocks landed → could manufacture the exact
+  ran/found-nothing confusion the negative test exists for; promotion re-upload duplicated rows).
+  QA GO over live HTTP, 45/45 probes.
+- **#161 slice B (web)** — the #157 Design A confirm deck at `/job-blocks/[jobId]` (preview →
+  job-blocks → sentence deck): one block = one card, right=confirm / left=skip-returns-at-end /
+  tap=correct, kind asked never "does this count as work?", undo server-effective (unconfirm
+  endpoint added) and reload-proof, reward per finished card regardless of answer, light register.
+  QA round 1 NO-GO (drag release also fired the tap handler → correction panel ambushed every
+  swipe; fixed with a drag-just-ended ref) → round 2 **56/56 GO**. Deliverable journey:
+  `apps/web/e2e/job-blocks-confirm-journey.mjs`; `qa-main.ts` now wires the job-block miner with a
+  canned three-block answer (own affirmative prompt marker — both miners share `===CV-TEXT===`).
+- **#199** — five real-stack journeys (contact-fact, tailor, search-area-coverage, factbadge,
+  band-vocabulary) gate `deploy-staging` via `e2e:tier2`, sequential on purpose (auth's 5/15-min
+  magic-link limiter), ~10.1 min added, byte-identical verdicts across three clean runs.
+  `factbadge-floor-journey` cut per the ticket's own clause — 2/6 attempts hung at discovery Q1
+  (signature in `run-tier2.mjs`'s header; re-add when root-caused). Session cap + crash guard were
+  already satisfied by #198/#197 — half the ticket was verification, not build.
+
+**Known gaps shipped knowingly:** origin `source_quote` is model-asserted, never checked against
+the document (eval under #196) · the "potential jobs matching your profile" panel stat awaits a
+matching-side field · web still has no unit runner (the confirm deck is covered by its journey +
+typecheck only).
+
+**Gates:** full suite 1,225 passed / 10 skipped, typecheck clean; CI green including the first
+Tier-2 run. **Frontier next: #162–#171 fan-out (now open), #196 baseline, #63, #109, #113, #124.**
+
 ## 2026-08-11 (session 102) `/orchestrate-team` — real provider jobs stay usable, and the browser gate becomes honest
 
 Two tickets shipped in two reviewed slices (`46bad69`, `7b0b3b7`), both with independent QA GO.
