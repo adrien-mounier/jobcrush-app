@@ -2,6 +2,38 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-13 (session 111) `/triage` + planning — the board now says what is true, and in what order
+
+No product change. The board did not match the code, and the ordering advice given off it was wrong
+in two places.
+
+- ✅ **Three finished tickets were still open.** #162, #136 and #154 had all shipped and none had
+  closed, because every commit references `(#N)` — which links and never closes. Closed with evidence
+  comments. **Root cause recorded in `CLAUDE.md`:** the `Closes #N` trailer, earned only after a
+  `/qa-gate` GO, since the keyword fires on push and push is the deploy (`a320355`, `a50bee4`).
+- 🚨 **`/implement`'s own closing line was outranking this repo's lifecycle.** It ends at "commit your
+  work" and names neither a gate nor a tracker — it is written for repos with neither. Recorded beside
+  the gate, not beside the close rule, because the next skill to end with a confident closing line
+  will not be `/implement`. Both notes then pruned against `/writing-for-agents` (`d9aad4d`).
+- ⚠️ **`/triage` had never been set up here.** Its label vocabulary section is skipped when the skill
+  isn't installed, so the repo had `ready-for-agent` and nothing else. Three labels created and
+  `docs/agents/triage-labels.md` written by hand — re-running setup would have regenerated
+  `domain.md`, which is customised here with the cv-brain pointer that does not exist upstream
+  (`f9daeab`).
+- 🔑 **#63 is unblocked and I had told the owner to skip it.** Judged stale from its update date; the
+  record says otherwise — #85/#99/#100/#101 all closed 2026-08-03 and it carries binding copy guidance
+  from 2026-08-11. It is the head of the whole #54 chain and turns the deck from 17 fixtures into real
+  live postings. **Lesson: an update date is not evidence of staleness.**
+- ✅ **#51 closed as already-implemented** — all four decisions shipped 2026-07-26, held open only for
+  a staging eyeball long since superseded. #54 carries the chain map and five re-scope warnings;
+  **#67's is the largest — the checkpoint rule it describes is already live** in `jobs.ts` and
+  `pipeline.ts`.
+- 🗺️ **Run order for all 44 open issues written into `roadmap.md`**, with skill, model and effort per
+  ticket. Two dependencies found by checking rather than assuming: **#124 before #63** (retrieval has
+  no location parameter and right-to-work is stored globally — the first live deck would serve jobs
+  the visitor cannot legally take), and **#110 → #177 → #175** (the metal ladder may not reach users
+  before its thresholds meet real score distributions).
+
 ## 2026-08-13 (session 110) `/implement #165` — a language and its level became two facts
 
 The live job-deleting bug is gone, and not by being more careful.

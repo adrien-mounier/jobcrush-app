@@ -14,6 +14,133 @@ A hosted product that turns anyone's CV into a **grounded, verified profile** an
 pipeline, for many users, on web and mobile. v0.1 scope is **prepared-apply** (the user submits;
 no autonomous submit, no LinkedIn credentials, ever).
 
+## Run order — what to build next
+
+_Ordered 2026-08-13 over all 44 open issues. **This goes stale on every landing** — when a ticket
+closes, strike it here in the same commit, and when a dependency claim below stops being true, fix
+it rather than working around it._
+
+**Skill column:** `/implement` = specced, build it · `/wayfinder` = fog, needs charting first ·
+`/grill-with-docs` = a decision to interrogate, writes the ADR · `/prototype` = needs design rounds ·
+`/research` = investigate and write up · `—` = do not run.
+
+**Model/effort** are per session 107's pass: Fable earns its cost where a ticket can ship subtly
+wrong and still green (invariants that must hold by construction, restraint rules, content whose
+accuracy is a real-world claim); Opus everywhere else. Effort buys holding constraints in tension,
+not correctness on well-specified work — start no ticket at `max`.
+
+### Phase 1 — make the live deck honest before it exists
+
+| Order | # | What | Skill | Model | Effort |
+|---|---|---|---|---|---|
+| 1 | #202 | Fix the structured read's accuracy | `/research` | Opus | high |
+| 2 | #120 | Durable editor for eligibility answers | `/implement` | Opus | medium |
+| 3 | #124 | Where do you want to work? | `/wayfinder` | Opus | high |
+| 4 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
+| 5 | #64 | The match count survives signup | `/implement` | Opus | medium |
+
+**#202 first** — every ticket below inherits that read, and #196 settled its cost while finding it
+reads *less* completely. **#120 before #166** adds two more answers it calls permanent: an
+eligibility answer has no CV line to tap, the correction affordance reaches one answer back, and the
+*last* answer loses it inside 800ms. #165 landing now makes that live. **#124 before #63** or the
+first live deck knowingly serves jobs the visitor cannot legally take — retrieval shipped with no
+location parameter and #107's right-to-work answer is stored globally, so a visitor needing
+sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not labelled
+`ready-for-agent`; confirm its scope before building.
+
+### Phase 2 — the profile gets rich (map #127 fan-out)
+
+| Order | # | What | Skill | Model | Effort |
+|---|---|---|---|---|---|
+| 6 | #176 | Desktop profile layout | `/prototype` | Opus | high |
+| 7 | #178 | Which sections the profile has | `/prototype` | Opus | medium |
+| 8 | #169 | Questions come in short, resumable topics | `/implement` | Fable | high |
+| 9 | #166 | Degrees & certifications asked when silent | `/implement` | Opus | low |
+| 10 | #122 | An unasked requirement reads as a question | `/implement` | Opus | medium |
+| 11 | #164 | Skills become records in your own words | `/implement` | Opus | medium |
+| 12 | #156 | Something finally checks the two-page rule | `/implement` | Opus | medium |
+| 13 | #167 | Projects get their own CV section | `/implement` | Opus | medium |
+| 14 | #168 | What prints is decided per market | `/implement` | Fable | high |
+| 15 | #203 | Put a held-back fact back, for one application | `/implement` | Opus | medium |
+| 16 | #170 | Unclassifiable content kept and printed faithfully | `/implement` | Fable | medium |
+| 17 | #171 | Stretches proposed and approved per advert | `/implement` | Fable | xhigh |
+
+**#176 and #178 first** — they decide where everything below lands on screen, and #178's audit
+already found three authorities disagreeing about which sections exist. **#169 before #166** so its
+two questions are born in the new container rather than migrated into it. **#156 before #167**
+because #167, #170 and #171 each make CVs longer and nothing checks length today.
+
+### Phase 3 — the deck gets cheap and trustworthy
+
+| Order | # | What | Skill | Model | Effort |
+|---|---|---|---|---|---|
+| 18 | #121 | Score jobs just ahead of the swipe | `/wayfinder` | Opus | high |
+| 19 | #116 | Deck appears instantly and fills in | `/implement` | Opus | medium |
+| 20 | #108 | The card's highlight sentence | `/implement` | Opus | medium |
+| 21 | #109 | "3 jobs just got better" | `/implement` | Opus | medium |
+| 22 | #110 | Choose the judging model by measuring it | `/implement` | Opus | high |
+| 23 | #177 | Tier thresholds 50/75/90 | `—` owner call | Opus | medium |
+| 24 | #175 | Job card desktop | `/prototype` | Opus | high |
+| 25 | #111 | Take the safety nets off | `/implement` | Opus | medium |
+| 26 | #200 | Cut cost per upload | `/implement` | Opus | medium |
+
+**The hard chain is #110 → #177 → #175.** #177's own timing line forbids the metal ladder shipping
+to users on any surface before the thresholds are checked against real distributions, and those
+distributions come from #110. #111 follows #110. #200 waits for #202 or it optimises a read about to
+change.
+
+### Phase 4 — finish the live-jobs chain (#54)
+
+| Order | # | What | Skill | Model | Effort |
+|---|---|---|---|---|---|
+| 27 | #67 | Slow and failed work resumes | `/implement` | Opus | medium |
+| 28 | #68 | Delete-my-data, expiry, consent | `/implement` | Opus | high |
+| 29 | #65 | The card separates offer, coverage, gaps | `/implement` | Opus | medium |
+| 30 | #66 | Card evidence carries into the tailored CV | `/implement` | Opus | high |
+| 31 | #69 | Pilot measurement and release gates | `/implement` | Opus | medium |
+
+**Re-read each against the code before building** — all five predate work that shipped underneath
+them; the concrete overlaps are recorded on #54. #67 is much cheaper than its 5 points (the
+checkpoint rule is already live in `jobs.ts` and `pipeline.ts`); #68 has a seam cut and waiting
+(`scrubVisitor`, see `purge.ts`'s header).
+
+### Phase 5 — where the jobs come from
+
+| Order | # | What | Skill | Model | Effort |
+|---|---|---|---|---|---|
+| 32 | #92 | How often providers duplicate the same job | `/research` | Opus | medium |
+| 33 | #94 | South Korea needs its own provider | `/research` | Opus | medium |
+| 34 | #93 | Does JobCrush work in Japanese/Chinese at all | `/grill-with-docs` | Opus | high |
+
+One provider serves all four markets today, with no registry-level fallback (#174).
+
+### Phase 6 — the next products
+
+| Order | # | What | Skill | Model | Effort |
+|---|---|---|---|---|---|
+| 35 | #134 | Classify a job into a kind of work | `/grill-with-docs` | Opus | high |
+| 36 | #179 | Real job-family data for the profile rail | `/implement` | Opus | medium |
+| 37 | #119 | Ops dashboard: cost per user | `/implement` | Opus | medium |
+| 38 | #142 | Application history | `/wayfinder` | Opus | high |
+| 39 | #195 | Phone profile revisit | `/prototype` | Opus | medium |
+
+**#134 precedes #179** and also settles the compromise #162 shipped with: `resolveFamily()` returns a
+constant, so every visitor is scoped to one placeholder family.
+
+### Owner tasks and parents
+
+| # | What | Note |
+|---|---|---|
+| #32 | Spending alert + verify vitacairn's Fly token scope | `ready-for-human` — needs dashboard access |
+| #127 | Map: the CV as structured data | Parent — closes when #164–#171 close |
+| #86 | Spec: per-ad understanding | Parent — closes when #108–#111 close |
+| #54 | Spec: first-run onboarding | Parent — closes when #63–#69 close |
+
+**Never point `/implement` at a parent** — it will try to build a whole epic in one session.
+
+**Confidence:** phases 1–2 and the #110→#177→#175 chain rest on dependencies verified against the
+code and the tracker. Phase 4 onward is a value judgement — reorder freely.
+
 ## Current design frontier
 
 **2026-08-13 (session 110) `/implement #165` — the mistap that deleted jobs is gone, structurally.**
