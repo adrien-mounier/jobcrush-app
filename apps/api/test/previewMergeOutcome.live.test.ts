@@ -9,6 +9,16 @@
 // Q11). Re-run it by hand when rule 8 or the outcome rule changes:
 //
 //   ANTHROPIC_API_KEY=... pnpm --filter @jobcrush/api test previewMergeOutcome.live
+//
+// 🚨 FIRST RUN, 2026-08-12 — green, and read what it actually certified.
+// The real tailor printed FIVE bullets, every one drawn from a single claim, and held six back. It
+// merged NOTHING. So the run certifies the half that matters most — under amended rule 8 the model
+// CHOOSES rather than squishes, which is the behaviour whose absence caused the reported bug — and
+// leaves the merge branch (declare a result, put it verbatim in the line) certified only against a
+// scripted model. The per-bullet assertions below did not execute, because no bullet qualified.
+// This cannot be fixed by trying harder: a merge is now the rare correct move, so no fixture can
+// deterministically provoke one from a real model. The console.log dump exists so this stays
+// visible instead of reading as a full pass.
 import { describe, expect, it } from "vitest";
 import { conservationIssues, Draft, draftDisclosure, tailorDraft } from "../src/preview.js";
 import { llmFromEnv } from "../src/llm.js";

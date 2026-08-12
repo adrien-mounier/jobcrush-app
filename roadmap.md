@@ -40,10 +40,12 @@ tailored copy — all three already existed in the live UI. **Ceilings recorded,
 surviving result per line is guaranteed, **not all of them** (the rest is disclosed, not prevented),
 and a three-claim squish is tolerated silently. Record: [ADR-0012](docs/adr/0012-a-merged-bullet-declares-the-result-it-kept.md).
 Follow-up: [#203](https://github.com/adrien-mounier/jobcrush-app/issues/203) (put a held-back fact
-back, for one application only — it carries the page-budget question #156 owns). 🚨 **Owed before
-push: the one live run** against the real model is written and network-gated, and three attempts
-returned `anthropic 529 Overloaded` — **nothing yet certifies that the real tailor obeys amended rule
-8**, only that the check catches it when it does not.
+back, for one application only — it carries the page-budget question #156 owns). ✅ **The live run is
+green, and worth reading precisely:** the real tailor printed **five bullets, each from a single
+claim, and held six back — it merged nothing**, which certifies the half that matters most (the model
+now **chooses rather than squishes**) and leaves the merge branch certified against a scripted model
+only. ⚠️ **That gap is structural, not laziness:** a merge is now the rare correct move, so no fixture
+deterministically provokes one from a real model.
 
 **2026-08-12 (session 108) `/research #196` — the cost question is settled; accuracy is the new
 blocker.** The cell #160 never measured — *per-decision × rich*, the record ADR-0003/0004/0008

@@ -42,10 +42,15 @@ held-back list reached no screen at all.**
   draft screen · 10 unit tests (`previewMergeOutcome.test.ts`) + 3 route-mocked screen tests
   (`preview-disclosure.spec.ts`) · #154 body rewritten ·
   [#203](https://github.com/adrien-mounier/jobcrush-app/issues/203) filed for put-back.
-- 🚨 **Owed: the one live run.** `previewMergeOutcome.live.test.ts` is written and network-gated (never
-  in CI, by decision — a flaky paid gate before every deploy is worse than a slow one). Three attempts
-  all returned **anthropic 529 Overloaded**; nothing certifies that the *real* model obeys amended
-  rule 8 yet. Re-run before pushing.
+- ✅ **The one live run is green** (`previewMergeOutcome.live.test.ts`, network-gated, never in CI by
+  decision — a flaky paid gate before every deploy is worse than a slow one). Four attempts returned
+  **anthropic 529 Overloaded** before one got through; the outage was server-side.
+- ⚠️ **Read what that run certified.** The real tailor printed **five bullets, every one from a single
+  claim, and held six back — it merged nothing.** So it certifies the half that matters most: under
+  amended rule 8 the model **chooses rather than squishes**, which is the behaviour whose absence
+  caused the reported bug. The merge branch (declare the result, put it verbatim in the line) stays
+  certified against a scripted model only, and **cannot be fixed by trying harder** — a merge is now
+  the rare correct move, so no fixture deterministically provokes one from a real model.
 
 ## 2026-08-12 (session 108) `/research #196` — the missing cost cell, measured on a real bill
 
