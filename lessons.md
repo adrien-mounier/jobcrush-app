@@ -1,5 +1,24 @@
 # Lessons — jobcrush-app
 
+## A ticket's body AND its own impact comment can both be stale — check every AC against HEAD first
+
+#154 arrived with four acceptance criteria. **Three had already landed** with #153/#158 a week earlier,
+and the impact comment written to correct the body was itself out of date: it stated
+*"`preview-tailor.md` rule 8 still carries the old ladder and the old merge instruction verbatim"* when
+the prompt had already been rewritten. Ten minutes of reading the four files the ticket names turned a
+four-part build into a three-part one and re-pointed the design at the only real gap. In a repo where
+decision passes and build passes are separate sessions, **the issue tracker lags the code by design** —
+read the code, then rewrite the ticket body as part of the work.
+
+## A declared-field check must check containment, not presence
+
+#154's fix has the writer declare, in a field of its own, the outcome a merged bullet kept. Checking
+that the field is *non-empty* would have passed the exact bug: a clean outcome in the data beside a
+scope list on the page, because the field is never printed. The check that works is that the declared
+words appear **verbatim inside the text that prints**. Whenever a model is asked to self-declare a
+property, ask what stops the declaration from being decorative — and prefer the mechanical check that
+ties the declaration to the artefact the user actually sees.
+
 ## Check an architecture finding against the code before building the fix
 
 Two of the three deferred findings from the session-104 architecture review did not survive contact
