@@ -124,23 +124,15 @@ function multiSelectLockedIn(ticked: string[]): string {
 }
 // #106: the eligibility `.sub` clarifier — the wire contract carries `.q`/`options` fully worded
 // server-side but no clarifier field (EligibilityAsk in lib/api.ts), so this is the one piece of
-// eligibility copy the client still composes. years-experience is the only dimension whose sub
-// depends on the question's own data (scopeLabel, design spec §3).
+// eligibility copy the client still composes.
 // #123 code review: language used to be the plain fallback here, but the server's languages
 // question now always carries `multiSelect: true` (apps/api/src/eligibilityDiscovery.ts's
 // buildQuestion) and renderAsk branches to renderMultiSelect — which renders `consequence`, not
-// `.sub` — before this function is ever called for it. So years-experience/work-rights are the
-// only two dimensions this function actually renders today; the fallback below is unreachable and
-// intentionally holds no dimension-specific copy (certification/degree are still declared on
-// EligibilityAsk for forward-compat, per the comment above, but the server has never emitted
-// either) — it exists only so the function type-checks against EligibilityAsk's full dimension
-// union.
+// `.sub` — before this function is ever called for it. #162 removed the years-experience question
+// entirely (worked out, never asked), so work-rights is the ONE dimension this function renders
+// today; the fallback below is unreachable and intentionally holds no dimension-specific copy —
+// it exists only so the function type-checks against EligibilityAsk's full dimension union.
 function eligibilitySub(elig: EligibilityAsk): string {
-  if (elig.dimension === "years-experience") {
-    return elig.scopeLabel
-      ? `Years in ${elig.scopeLabel} only — not your whole career.`
-      : "Years in that kind of work only — not your whole career.";
-  }
   if (elig.dimension === "work-rights") return "Either answer is useful — it just changes which jobs I show you.";
   return ""; // unreachable — see comment above
 }
@@ -1237,11 +1229,23 @@ function DiscoveryScreen() {
     if (item.options.length === 0) {
       // A free-text floor item (e.g. headline-focus) — the design spec doesn't pin exact copy for
       // this path (§4e only specifies the mechanic), so "Continue" is a judgment call.
+      //
+      // #162 QA NO-GO: a free-text question may carry a `consequence` too, and until this it was the
+      // ONLY question shape that dropped it. The date-hole question ("When did you leave X?") put its
+      // whole reason for existing in that field — an end date I don't have makes your experience read
+      // shorter and drops you out of jobs — and the person saw a bare question and a Continue button.
+      // Rendered here in the same `.conseq` shape the multi-select uses, and wired to the input by
+      // aria-describedby so it reaches a screen reader too.
       return (
         <>
           <label htmlFor="floor-free" className="q">
             {item.question}
           </label>
+          {item.consequence && (
+            <p className="conseq" id="floor-free-why">
+              {item.consequence}
+            </p>
+          )}
           <div className="field">
             <input
               id="floor-free"
@@ -1249,6 +1253,7 @@ function DiscoveryScreen() {
               type="text"
               value={freeAnswer}
               disabled={isAnswering}
+              aria-describedby={item.consequence ? "floor-free-why" : undefined}
               onChange={(e) => setFreeAnswer(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {

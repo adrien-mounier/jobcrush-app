@@ -15,7 +15,10 @@ import { fileURLToPath } from "node:url";
 //   3. If your ticket touched one of the in-file helpers (e.g. buildJobCard,
 //      buildTailorState), move that helper out as part of the ticket, then
 //      LOWER MAX_LINES to the new count. The ratchet only turns one way.
-const MAX_LINES = 1282;
+// #162 lowered this from 1282: the eligibility answer's whole write path moved out of the spine to
+// eligibilityDiscovery.ts (answerEligibilityItem), and the new date-hole answer path went straight
+// into yearsWorked.ts rather than in here.
+const MAX_LINES = 1184;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

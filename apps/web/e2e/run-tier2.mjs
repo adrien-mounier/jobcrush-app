@@ -1,5 +1,5 @@
 // Tier 2 gate file list — #199. Unlike run-mocked.mjs's computed Tier 1 list, this is a deliberately
-// HAND-PICKED five: these journeys ride the real Fastify server, real stores, real extraction, real
+// HAND-PICKED set: these journeys ride the real Fastify server, real stores, real extraction, real
 // render (faking only the model, via the #198 fake-model API entry already running when this is
 // invoked from ci.yml), and each was chosen for a specific real-stack regression it alone can catch.
 // A computed glob is wrong here on purpose — the exclusions are deliberate product judgement calls
@@ -22,12 +22,21 @@ import { fileURLToPath } from "node:url";
 
 const e2eDir = fileURLToPath(new URL("./", import.meta.url));
 
+//
+// years-worked-out-journey.mjs added 2026-08-12 (#162), and it earns its slot on the same
+// "a specific real-stack regression it alone can catch" rule: it is the only journey that walks a
+// real CV through the real miner into the real job records and reads the number ADVERTS GATE ON back
+// off a rendered card. It caught this exact class of defect on its first run — every server-side test
+// for the date question's "why this matters" line passed while the line never reached the screen,
+// because nothing else drives that render. Measured cost: ~90s, no sign-in, so it spends none of
+// auth's 5-per-15-min limiter budget.
 const JOURNEYS = [
   "contact-fact-journey.mjs",
   "tailor-journey.mjs",
   "search-area-coverage-journey.mjs",
   "factbadge-journey.mjs",
   "band-vocabulary-journey.mjs",
+  "years-worked-out-journey.mjs",
 ];
 
 let failed = 0;

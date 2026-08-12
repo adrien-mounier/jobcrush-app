@@ -38,6 +38,12 @@ const JobCardCommon = z.object({
   dontYet: z.array(CardRequirement),
   askedClosed: z.array(CardFact),
   adExcerpt: z.string(),
+  /** #162 AC6 — requirements this card could NOT test, because the fact they gate on is unknown
+   *  rather than absent (today: a years-of-experience bar with no readable work history). An unknown
+   *  never lowers a score (#86 decision 3), so the honest thing is to say the bar was not tested
+   *  instead of letting silence read as a pass or a fail. Optional and additive: a card with nothing
+   *  untested omits it entirely, so every pre-#162 payload stays byte-identical. */
+  notTested: z.array(CardRequirement).optional(),
 });
 
 /** A real score: judged against the candidate's evidence, or — only when no judge is wired at all —

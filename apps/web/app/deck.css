@@ -698,6 +698,13 @@
 .jobdeck .settled {
   color: var(--settled);
 }
+/* #162: the one-line reason under an untested bar — quieter than a row, never a warning. */
+.jobdeck .untested-note {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--hud-mute);
+  margin: 2px 0 0 25px;
+}
 
 /* #51 the reduced match breakdown — two cells inside the card, above the folded ad. Scoped to
    .jobdeck so it applies to /tailor's live-card too (its root carries .jobdeck). */

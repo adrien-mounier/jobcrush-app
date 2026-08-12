@@ -12,6 +12,12 @@ import type { JobCard } from "../lib/api";
 const H1 = "Where you fit";
 const H2 = "Where you don't — yet";
 const H3 = "Asked and closed";
+// #162 AC6: a bar we could not test is not a bar the person failed — said plainly. The note claims
+// only what is true: the years total this bar is measured against does not exist yet, and adding
+// the dates underneath is what changes it.
+const H4 = "Not tested";
+const NOT_TESTED_NOTE =
+  "I don't have your dated work history yet, so I couldn't measure you against this one. Add your dates and it can change.";
 const A1 = "Read the ad in full";
 
 // #117 the pending card's copy (design-117 §5). P3 ("Not scored yet") is retired by the §11
@@ -329,6 +335,23 @@ export function CardBody({
                 <span>{r.requirement}</span>
               </div>
             ))}
+          </>
+        )}
+        {/* #162 AC6: an untested bar, named. Present only when the years total could not be worked
+            out at all (no readable work history) — a confident zero is a real number and scores
+            normally, so it never lands here. */}
+        {(card.notTested?.length ?? 0) > 0 && (
+          <>
+            <h3>{H4}</h3>
+            {card.notTested!.map((r) => (
+              <div className={rowClass("settled", r.id, landedId)} key={r.id} data-req={r.id}>
+                <span className="mk" aria-hidden="true">
+                  –
+                </span>
+                <span>{r.requirement}</span>
+              </div>
+            ))}
+            <p className="untested-note">{NOT_TESTED_NOTE}</p>
           </>
         )}
         {/* Omitted when empty — no discovery "no" recorded yet is the common 2a case, but a

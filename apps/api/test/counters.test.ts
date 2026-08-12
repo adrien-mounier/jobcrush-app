@@ -64,6 +64,7 @@ describe("#103 posting-pool counters", () => {
       "judge.fallback_timeout": 0,
       // #118 — see counters.ts's own header for what these mean.
       "usageLedger.write_failed": 0,
+      "years.drift_detected": 0,
       "usageLedger.pricing_override_rejected": 0,
       // #117 — see counters.ts's own header for what these mean.
       "judge.subset_reused": 0,

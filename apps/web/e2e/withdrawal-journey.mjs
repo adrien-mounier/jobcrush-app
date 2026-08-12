@@ -79,23 +79,16 @@ await qa.note(`answered ${floorAnswered} floor questions before the eligibility 
 await qa.scrollThrough('read the CV the floor answers wrote, then back to the dock');
 
 // ---------------------------------------------------------------------------------------------
-// 4. The years question — answer a SHORTFALL band, the fact #107's scoring rule reads.
+// 4. The work-rights question. #162: years-experience is NO LONGER ASKED — it is worked out from
+//    the dated job records (ADR-0008 clause 2), so the block opens on work-rights now.
 // ---------------------------------------------------------------------------------------------
-await assert((await eligDim()) === 'years-experience', 'the eligibility block opens on years-experience');
-await qa.expectVisible('.discovery #ask-q', 'the years question, as a real visitor reads it');
-await qa.note(`years question: ${JSON.stringify(await askQ())}\n  options: ${JSON.stringify(await optLabels())}`);
-await qa.click(page.getByRole('button', { name: '5–7 years', exact: true }), 'answer years: "5–7 years" (a shortfall against an 8+ advert)');
-await page.waitForTimeout(2300);
-await qa.expectVisible('.discovery .notice', 'the answer is confirmed as reusable — never asked again');
-
-// ---------------------------------------------------------------------------------------------
-// 5. The work-rights question.
-// ---------------------------------------------------------------------------------------------
-await page.waitForTimeout(800);
-await assert((await eligDim()) === 'work-rights', `the next eligibility question is work-rights (got "${await eligDim()}")`);
-await qa.note(`work-rights question: ${JSON.stringify(await askQ())}`);
+await assert((await eligDim()) === 'work-rights', `the eligibility block opens on work-rights (got "${await eligDim()}")`);
+await assert(!/how many years/i.test((await askQ()) ?? ''), '#162: nothing asks for a years-of-experience total');
+await qa.expectVisible('.discovery #ask-q', 'the work-rights question, as a real visitor reads it');
+await qa.note(`work-rights question: ${JSON.stringify(await askQ())}\n  options: ${JSON.stringify(await optLabels())}`);
 await qa.click(page.locator('.discovery .opts .opt').first(), 'answer work-rights with the first option');
 await page.waitForTimeout(2300);
+await qa.expectVisible('.discovery .notice', 'the answer is confirmed as reusable — never asked again');
 
 // ---------------------------------------------------------------------------------------------
 // 6. THE LANGUAGES QUESTION — now a multi-select. It must still be asked, accept a confirmed set,

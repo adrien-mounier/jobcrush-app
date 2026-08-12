@@ -1542,16 +1542,15 @@ describe("#107 D5 — the years shortfall (AC4)", () => {
     const scoreFor = async (years: string): Promise<number> => {
       const { app, eligibility } = buildServer({ judge: fakeJudge, judgeMaxCards: 999 });
       const cookie = await anonSession(app);
-      const start = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json() as {
-        questions: Array<{ eligibility?: { dimension: string; familyId: string } }>;
-      };
-      const yearsQuestion = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+      await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
       const sid = await sessionId(app, cookie);
+      // #162: the total is WORKED OUT and stored at the global scope (yearsWorked.ts) — never asked,
+      // and no longer family-scoped. Seeded directly here, standing in for a dated work history.
       await eligibility.put(sid, {
         dimension: "years-experience",
-        familyId: yearsQuestion.eligibility!.familyId,
+        familyId: ANY_FAMILY,
         value: years,
-        label: "Years in IT project delivery",
+        label: "Years of experience (worked out from your dated jobs)",
       });
 
       const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };

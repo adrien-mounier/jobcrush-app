@@ -92,12 +92,16 @@ export function judgedUncoveredRequirements(
  *  fact. A `"<="`/`"=="` bar states no MINIMUM demand, so there is nothing a shortfall could mean
  *  against it — left untouched too, out of this ticket's scope.
  *
- *  ACCEPTED RESIDUAL (recorded, not fixed here): userYears is resolved at the VISITOR's own family
- *  scope (routes/onboarding.ts's resolveUserYears) and applied to every judged advert's years-bar
- *  requirement regardless of which family THAT advert belongs to — a years fact earned in one family
- *  can attenuate a requirement on an out-of-family advert. Acceptable specifically because this rule
- *  can now only ever LOWER a score: an out-of-family advert scoring down is the direction #86 wants
- *  anyway, not a new risk the old "replace" rule didn't already carry (and worse, in that direction).
+ *  ACCEPTED RESIDUAL, restated for #162 (recorded, not fixed here): userYears is no longer a
+ *  family-scoped ANSWER at all — it is the WORKED-OUT CAREER TOTAL (yearsWorked.ts, stored at
+ *  ANY_FAMILY), applied to every judged advert's years bar whatever family that advert belongs to.
+ *  The number is therefore GENEROUS on an out-of-family advert rather than mis-scoped: 12 years of
+ *  retail plus 4 of delivery reads as 16 against a "5+ years of delivery" bar. It could not be built
+ *  any other way today — resolveFamily() returns a constant, so there is exactly ONE family in the
+ *  system and a per-family total would be identical to this one for every visitor (#126 §5). The
+ *  classifier that closes it is #134, which carries the full follow-up. Acceptable meanwhile for the
+ *  same reason as before: this rule can only ever LOWER or hold a score, so a generous reading can
+ *  leave a job on the deck but never silently delete one — the failure #86 ranks worst.
  *
  *  Pure — no IO, called at READ TIME by the route (routes/onboarding.ts), never persisted: the cached
  *  judgement describes the advert and the fact set it was judged against; years-experience is session

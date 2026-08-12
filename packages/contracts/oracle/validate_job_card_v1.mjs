@@ -68,11 +68,14 @@ export function validateJobCardV1(card) {
     e.require(isObject(card.bubble), "bubble must be an object");
     e.require(isString(card.bubble?.hit), "bubble.hit must be a string");
     e.require(isString(card.bubble?.open), "bubble.open must be a string");
-    validateRequirementArray(e, card.dontYet);
+    validateRequirementArray(e, card.dontYet, "dontYet");
   }
 
   validateFactArray(e, card.fit, "fit");
   validateFactArray(e, card.askedClosed, "askedClosed");
+  // #162 AC6 — optional and additive: absent means "nothing went untested on this card", which is
+  // what every pre-#162 payload meant by saying nothing. Present, it must be a requirement array.
+  if (card.notTested !== undefined) validateRequirementArray(e, card.notTested, "notTested");
   return result(e);
 }
 
@@ -86,10 +89,10 @@ function validateFactArray(e, value, field) {
   });
 }
 
-function validateRequirementArray(e, value) {
-  if (!e.require(isArray(value), "dontYet must be an array")) return;
+function validateRequirementArray(e, value, field) {
+  if (!e.require(isArray(value), `${field} must be an array`)) return;
   value.forEach((requirement, index) => {
-    const at = `dontYet[${index}]`;
+    const at = `${field}[${index}]`;
     if (!e.require(isObject(requirement), `${at} must be an object`)) return;
     e.require(isString(requirement.id), `${at}.id must be a string`);
     e.require(

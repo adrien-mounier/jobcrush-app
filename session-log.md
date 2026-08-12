@@ -2,6 +2,111 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-12 (session 107) `/implement #162` — years of experience is worked out, never asked
+
+ADR-0008 clause 2 (the Mei rule) turned from a written rule into an enforced one. Its own falsifiable
+check — *"`years-experience` must never appear in `ASK_DIMENSIONS`"* — now has a test in both the unit
+and route suites, so a future ticket cannot quietly add the question back.
+
+- **The computation** (`apps/api/src/yearsWorked.ts`, new): calendar time actually worked, overlapping
+  months counted once, gaps zero, part-time counted in full, only blocks whose `kind` counts as work
+  (`countsTowardExperience`) included. An **unknown end contributes nothing** — that is the hole, not a
+  guess. A year-precision span reads Jan→Dec (the plain reading of "2019 – 2021"); #143 still owns how
+  a coarse date is *written*.
+- **What is asked instead** (clause 3): one free-text question per work block with an unknown end,
+  *"When did you leave {employer}?"*, carrying the reason on the question itself — an unknown end adds
+  nothing, so the total reads shorter than it is and minimum-years adverts stop matching. A start can
+  never be missing (the contract requires it), so this is the only date hole a record can carry.
+  The answer parses ("March 2019", "03/2019", "2019", "still there"), corrects the record through the
+  **same door** a confirm-screen edit uses (origin becomes `corrected`), then re-derives the total.
+  An unreadable answer is a 400 with plain words, never a stored guess.
+- **The backstop** (AC5): the stored eligibility fact is a regenerable copy. `syncWorkedYears`
+  recomputes, compares, increments **`years.drift_detected`** on a disagreement, and writes the fresh
+  value — wired at ingest and at every job-block mutation door. An untestable history leaves the
+  stored copy alone rather than deleting it.
+- **Two states that must not be confused** (AC6): a run that succeeded and found no work is a
+  **confident zero** and scores as zero; a failed or never-run read is **untestable**, leaves every
+  judged verdict untouched, and puts the advert's years bars in a new `notTested` list the card
+  renders as *"Not tested"* with one line saying it has not lowered the score. `notTested` is additive
+  and optional on the JobCard contract, changed in **both** places (zod + oracle).
+- **Scope simplification that fell out:** with years gone, no eligibility question is job-family
+  scoped, so `resolveEligibilityFamilyScope` and its two label helpers are deleted and the total is
+  stored at the global scope (`ANY_FAMILY`) — a career total, per #126 AC2's deferred scope.
+- **Ratchet 1282 → 1184.** The eligibility answer's whole write path moved out of the route closure to
+  `eligibilityDiscovery.ts` as `answerEligibilityItem`, returning a result instead of sending a reply,
+  so it is testable without the HTTP funnel; the new date-answer path went straight into
+  `yearsWorked.ts` rather than into the spine.
+
+**Code review sent it back once, and the first fix was worse than the defect it fixed.** Both axes
+independently flagged the same two things; the spec axis found a third.
+
+- 🚨 **AC6 was half-built.** The card named the untested years bar under *"Not tested"* while the
+  SAME bar still sat under *"Where you don't — yet"*, beside a line claiming it had not lowered the
+  score. **The first fix — dropping untested bars out of the score entirely — was wrong and the test
+  suite proved it:** removing a requirement the visitor's CV evidence already COVERS lowers the
+  denominator and so lowers their score, the exact opposite of the AC, and it broke the tailor
+  surface's monotonic floor (47 vs 49) and its ledger/open-list agreement. **Shipped instead: a
+  display move only.** The bar is listed once, under "Not tested"; every scored relation still sees
+  the full requirement set, byte-identical to pre-#162; the on-screen note dropped its score claim
+  and now says only what is true — *"I couldn't measure you against this one. Add your dates and it
+  can change."* Three direct tests pin it, including one asserting the score is **unchanged**
+  between a tested and an untested session.
+- ⚠️ **The tailor surface disagreed with the deck.** `buildTailorState` never passed `yearsTested`,
+  so the default applied and one visitor saw the same advert name the bar untested on the deck and
+  say nothing in tailor. Threaded through; pinned by test.
+- ⚠️ **`CONTEXT.md` said the opposite of what shipped** — *"length of experience is always experience
+  in a family, never a career total"*. As built it IS a career total (a mined job record carries no
+  family; #126 AC2's scope was deferred). The glossary now records the deviation, the reason, and
+  what the end state still needs, rather than leaving the decision written in two places that
+  disagree. **Owner decision, same day, taken on evidence rather than convenience:** the deferral
+  stands — `resolveFamily()` still ignores its input and returns a constant, so there is exactly ONE
+  job family in the system and a family-scoped number would be **numerically identical to the career
+  total for every visitor**. #126 §5 had already reached this and filed **#134**. The years half of
+  that follow-up is now specified in full on #134 (place each dated job, store one fact per family,
+  make `resolveUserYears` read the advert's own `familyFit`) — so the improvement is saved, not lost.
+- Also from review: both new route deps were made **required** rather than optional (`server.ts` is
+  their only constructor, and optional silently skipped AC5's drift backstop); one loop-invariant
+  hoisted out of the date parser.
+- **Recorded, not fixed:** AC5's recompute runs at every WRITE door, not on read — a door added later
+  that forgets to sync would be caught only at the next write, by the drift counter. And ADR-0008
+  clause 3's own example (a missing *start*) is unrepresentable: the contract makes `start` mandatory,
+  so an unknown *end* is the only date hole a job record can carry.
+
+🚨 **The QA gate returned NO-GO, and its headline finding is the lesson of this session: every
+server-side test for AC4 passed while the person on the screen was told nothing.** The date question's
+"why this matters" line was on the wire and correct; the discovery page rendered `consequence` only
+inside the multi-select branch, and the date-hole question is FREE TEXT. So the screen showed
+*"When did you leave Nordic Retail Group?"* and a Continue button — no reason, which is the only thing
+that would make anyone answer. **Two tests asserted the field on the payload; none touched the render.**
+Fixed in the free-text branch (same `.conseq` shape, wired by `aria-describedby`), with a mocked-tier
+spec that drives the render — the check that was missing, not another payload assertion.
+
+Three more from the same gate:
+
+- 🚨 **A future end date was not clamped (real, and invisible).** `computeYearsWorked` clamped an
+  *ongoing* job to today but took an *ended* date verbatim, and the answer box accepts any 4-digit
+  year: *"December 2029"* → 8.8 years; *"December 9999"* → **7,978 years** — on the exact number
+  adverts gate on, with no screen showing the total back for anyone to catch it. Every end is now
+  clamped to today (which also covers a future date the MINER reads off a CV); the record keeps the
+  date the person gave, only the arithmetic stops.
+- ⚠️ **`years.drift_detected` was 100% noise.** It was counted on every sync, and every sync ran
+  straight after a door that had just changed a record — so the happy path always "drifted". Counting
+  moved to a new **read-path** verification (`verifyWorkedYears`, on `GET /job-blocks`), where nothing
+  should have changed and a disagreement is therefore a real event. This also closes the code-review
+  residual that AC5's *"when anything reads the total"* was write-side only.
+- Two stale comments corrected, including `judgedScore.ts`'s "accepted residual", which described a
+  family-scoped fact that no longer exists.
+
+**The journey the gate wrote is now part of the deploy gate** (`years-worked-out-journey.mjs`, Tier 2,
+6th slot) rather than left to rot — #198's own lesson. It is the only journey that walks a real CV
+through the real miner into the real job records and reads the gating number back off a rendered card,
+and it caught this class of defect on its first run.
+
+**Gates after the fixes:** 1,275 api + 45 contracts passed / 10 skipped · typecheck clean on seven
+packages · build clean · Tier 1 e2e 125 passed / 1 skipped · Tier 2 all 6 journeys passed. Three Tier 2
+journeys and `discovery.spec.ts` were repointed off the deleted years question onto work-rights, each
+gaining an assertion that nothing asks for a years total.
+
 ## 2026-08-12 (session 105) architecture pass, part 2 — the deferred candidates, two built and one refused
 
 Picked up the three items session 104 deferred while #163 was in flight. #163 (`dd99634`) landed

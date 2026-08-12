@@ -16,6 +16,25 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
 
+**2026-08-12 (session 107) `/implement #162` — years of experience is worked out, never asked.**
+ADR-0008's Mei rule is now enforced in code: the years-experience question is **gone from the
+ask-list** (a falsifiable check in two test files pins it), and the total is computed from the dated
+job records — overlaps merged once, gaps zero, only work-kind blocks counted, an unknown end
+contributing nothing. What is asked instead is the hole underneath: *"When did you leave X?"*, in
+free text, with the reason said aloud (#143). The stored total is a regenerable copy re-derived at
+every door that can change a record (ingest, correct, detach, resolve-match, a date answer), with a
+disagreement counted (`years.drift_detected`), never silently absorbed. **Two honest states now read
+differently:** a confident zero scores as the real zero it is; an unreadable or never-run history
+never lowers a score and the card says the bar was **not tested** (`notTested`, additive on the
+JobCard contract + oracle). The eligibility answer's write path left the route spine on the way past
+— ratchet 1282 → 1184. Carried: the total is a **career total**, not per-family — **owner
+decision 2026-08-12, taken on evidence, not convenience:** `resolveFamily()` is still a constant, so
+there is exactly ONE job family in the system and a family-scoped number would be numerically
+identical to the career total for every visitor. The follow-up is specified in full on **#134** (place
+each job, store one fact per family, read at the advert's own `familyFit`) and the deviation is
+recorded in `CONTEXT.md`. Also carried: a year-precision span reads Jan→Dec; AC5's recompute runs at
+every write door, not on read.
+
 **2026-08-12 (session 106) `/implement #163` — a correction sticks and reaches the tailored CV.**
 The tailor's `Roles:` block now comes from the stored, corrected job records (ADR-0002); the
 conservation lint watches corrected facts and advert-tested declared languages and tells the

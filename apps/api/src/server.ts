@@ -51,6 +51,7 @@ import { InMemoryUsageLedgerStore, type UsageLedgerStore } from "./usageLedgerSt
 import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
 import type { RetrievalRequest } from "./postingRetrieval.js";
 import { reconcileImport } from "./importReconciliation.js";
+import { refreshWorkedYears } from "./yearsWorked.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -403,6 +404,9 @@ export function buildServer(opts: BuildOptions = {}) {
       opts.pipeline?.persistJobBlocks ??
       (async (sessionId, doc, rawOutput) => {
         await jobBlocks.ingest(sessionId, doc, rawOutput);
+        // #162: the years-of-experience total is a regenerable copy of these records — re-derived at
+        // every door that changes them, never asked for.
+        await refreshWorkedYears(jobBlocks, eligibility, sessionId);
       }),
     recordJobBlocksFailed:
       opts.pipeline?.recordJobBlocksFailed ??
@@ -446,12 +450,13 @@ export function buildServer(opts: BuildOptions = {}) {
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps }));
   app.register(contactRoutes({ contact }));
-  app.register(jobBlocksRoutes({ jobBlocks, claims }));
+  app.register(jobBlocksRoutes({ jobBlocks, claims, eligibility }));
   app.register(onboardingRoutes({
     claims,
     store,
     sessions,
     eligibility,
+    jobBlocks,
     contact,
     familyFloors,
     productionFamilyFloors,

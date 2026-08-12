@@ -35,23 +35,23 @@ const Q_HEADLINE = {
   options: [],
   cvSection: "summary" as const,
 };
+// #162: a free-text question may carry a `consequence` — the date-hole question puts its whole
+// reason for existing there. Shape copied from apps/api/src/yearsWorked.ts's dateHoleQuestions.
+const Q_JOB_DATE = {
+  itemId: "job-date-nordic-retail",
+  question: "When did you leave Nordic Retail Group?",
+  consequence:
+    "I don't have an end date for this job, so right now it adds nothing to your years of experience —" +
+    " that makes your total read shorter than it is, and jobs that ask for a minimum stop matching you." +
+    ' Type the month and year you left, or "still there".',
+  options: [],
+  cvSection: "experience" as const,
+};
 
 // #106: eligibility questions — asked at the tail of the floor loop, through the same ask dock.
 // Copy is verbatim from the #106 design spec's copy table (the contract the backend engineer
 // implements against too), so these fixtures double as a check that the client renders the wire
 // strings as-is rather than composing its own `.q`/options.
-const Q_ELIG_YEARS = {
-  itemId: "elig-years",
-  question: "How many years have you worked in IT project delivery?",
-  options: ["Under 3 years", "3–4 years", "5–7 years", "8–10 years", "More than 10 years", "Ask me later"],
-  cvSection: "experience" as const,
-  eligibility: {
-    dimension: "years-experience" as const,
-    familyId: "it-project-delivery",
-    scopeLabel: "IT project delivery",
-    declineOption: "Ask me later",
-  },
-};
 const Q_ELIG_WORK_RIGHTS = {
   itemId: "elig-work-rights",
   question: "Can you already work in Paris without visa sponsorship?",
@@ -142,6 +142,10 @@ const AFTER_FREE_TEXT: DiscoveryState = {
   ...AFTER_ANSWER,
   questions: [Q_HEADLINE],
 };
+const AFTER_JOB_DATE_HOLE: DiscoveryState = {
+  ...AFTER_ANSWER,
+  questions: [Q_JOB_DATE],
+};
 
 // #18: "budget" was the last essential item — the server flips the stage, no new line either way.
 const AFTER_ESSENTIAL_DONE: DiscoveryState = {
@@ -157,13 +161,8 @@ const AFTER_ESSENTIAL_DONE: DiscoveryState = {
 // it with the eligibility items still present rather than falling back to one or the other.
 const AFTER_ELIG_START: DiscoveryState = {
   ...AFTER_ANSWER,
-  questions: [Q_ELIG_YEARS, Q_ELIG_WORK_RIGHTS, Q_ELIG_CERT],
-  essentialRemaining: 0,
-};
-const AFTER_ELIG_YEARS_ANSWERED: DiscoveryState = {
-  ...AFTER_ELIG_START,
   questions: [Q_ELIG_WORK_RIGHTS, Q_ELIG_CERT],
-  factCount: 3, // the badge still grows on an eligibility answer — no CV line, but the pile does (#17)
+  essentialRemaining: 0,
 };
 const AFTER_ELIG_WORK_RIGHTS_DECLINED: DiscoveryState = {
   ...AFTER_ELIG_START,
@@ -212,11 +211,9 @@ async function stubDiscovery(page: Page) {
       current = AFTER_ESSENTIAL_DONE;
     } else if (itemId === "budget" && /^no$/i.test(answer)) {
       current = AFTER_NO;
-    } else if (itemId === "elig-years") {
-      // #106: any answer (fresh or a correction) — state doesn't observably differ, since an
-      // eligibility item never produces a line either way (design spec §5.3).
-      current = AFTER_ELIG_YEARS_ANSWERED;
     } else if (itemId === "elig-work-rights") {
+      // #106: any answer (fresh, a decline, or a correction) — state doesn't observably differ,
+      // since an eligibility item never produces a line either way (design spec §5.3).
       current = AFTER_ELIG_WORK_RIGHTS_DECLINED;
     } else if (itemId === "elig-cert") {
       current = AFTER_ELIG_ALL_DONE;
@@ -385,11 +382,11 @@ test("every discovery question state fits fluidly across phone, tablet and deskt
       AFTER_ANSWER,
       AFTER_NO,
       AFTER_FREE_TEXT,
-      // #106: the years question (6 options, one at 19 chars) and the work-rights question (the
-      // longest option, "Not yet — I'd need sponsorship") — the two eligibility fixtures the design
-      // spec calls out by name for the 360-ish px floor (§8).
+      // #106: the work-rights question carries the longest option in the set ("Not yet — I'd need
+      // sponsorship"), the eligibility fixture the design spec calls out for the 360-ish px floor
+      // (§8); the certification question follows it.
       AFTER_ELIG_START,
-      AFTER_ELIG_YEARS_ANSWERED,
+      AFTER_ELIG_WORK_RIGHTS_DECLINED,
     ]) {
       current = state;
       await page.goto("/discovery");
@@ -548,13 +545,13 @@ test("an eligibility question states its scope in the question itself, offers a 
   // The scope is tellable from the question alone (design spec §3) — not just a sub-line a user
   // could skim past.
   await expect(
-    page.getByText("How many years have you worked in IT project delivery?", { exact: true }),
+    page.getByText("Can you already work in Paris without visa sponsorship?", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Years in IT project delivery only — not your whole career.")).toBeVisible();
+  await expect(page.getByText("Either answer is useful — it just changes which jobs I show you.")).toBeVisible();
 
   // Tap-first: no free-text box on this question, and the decline is a real option, last in order.
   const options = page.locator(".discovery .opts button");
-  await expect(options).toHaveCount(6);
+  await expect(options).toHaveCount(3);
   await expect(options.last()).toHaveText("Ask me later");
   await expect(page.locator(".discovery .freetext")).toHaveCount(0);
 
@@ -564,7 +561,7 @@ test("an eligibility question states its scope in the question itself, offers a 
   // The floor's finished CV is untouched underneath the block.
   await expect(page.getByText("5 to 10 years of experience as a project manager.", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "5–7 years" }).click();
+  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
 
   // A real answer reads exactly like any other — a locked-in confirmation, never a punishment —
   // and still no CV line was added for it.
@@ -576,8 +573,35 @@ test("an eligibility question states its scope in the question itself, offers a 
   await expectDiscoveryFitsViewport(page);
 });
 
+// #162, QA NO-GO regression: the date-hole question's reason lived only on the wire. The free-text
+// branch rendered the question and an input and dropped `consequence` entirely, so the person was
+// asked for a date and never told that leaving it blank shortens their experience and drops them out
+// of jobs — the only reason they would answer. Server-side tests passed throughout; nothing checked
+// the render. This is that check.
+test("a free-text question renders its consequence, and stays plain when it has none", async ({ page }) => {
+  current = AFTER_JOB_DATE_HOLE;
+  await stubDiscovery(page);
+
+  await page.goto("/discovery");
+  await expect(page.getByText("When did you leave Nordic Retail Group?", { exact: true })).toBeVisible();
+  const why = page.locator(".discovery .conseq");
+  await expect(why).toBeVisible();
+  await expect(why).toContainText("adds nothing to your years of experience");
+  await expect(why).toContainText("jobs that ask for a minimum stop matching you");
+  // a11y: the reason travels with the input, not just visually near it.
+  await expect(page.locator("#floor-free")).toHaveAttribute("aria-describedby", "floor-free-why");
+  await expectDiscoveryFitsViewport(page);
+
+  // A free-text question with no consequence renders no empty line.
+  current = AFTER_FREE_TEXT;
+  await page.goto("/discovery");
+  await expect(page.getByText("What should employers notice first?", { exact: true })).toBeVisible();
+  await expect(page.locator(".discovery .conseq")).toHaveCount(0);
+  await expect(page.locator("#floor-free")).not.toHaveAttribute("aria-describedby", /./);
+});
+
 test("declining an eligibility question is informative, never a failure, and stays correctable", async ({ page }) => {
-  current = AFTER_ELIG_YEARS_ANSWERED; // "elig-years" already answered; "elig-work-rights" is live
+  current = AFTER_ELIG_START; // "elig-work-rights" is live; "elig-cert" is next
   await stubDiscovery(page);
 
   await page.goto("/discovery");
@@ -605,14 +629,14 @@ test("fixing an answered eligibility question re-opens it with the previous choi
   await stubDiscovery(page);
 
   await page.goto("/discovery");
-  await page.getByRole("button", { name: "5–7 years" }).click();
+  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
   const fixThat = page.getByRole("button", { name: "Fix that?" });
   await expect(fixThat).toBeVisible();
 
   await fixThat.click();
   await expect(page.getByText("Change your answer.")).toBeVisible();
   // design spec §5.4 point 2: the re-ask opens with the current answer already picked, not blank.
-  await expect(page.getByRole("button", { name: "5–7 years" })).toHaveClass(/picked/);
+  await expect(page.getByRole("button", { name: "Yes — no sponsorship needed" })).toHaveClass(/picked/);
 
   await page.keyboard.press("Escape");
   await expect(fixThat).toBeFocused();
@@ -620,7 +644,7 @@ test("fixing an answered eligibility question re-opens it with the previous choi
   // Committing a different answer updates the notice and returns focus to the fix button, exactly
   // like the bare-"no" correction flow (#24).
   await fixThat.click();
-  await page.getByRole("button", { name: "More than 10 years" }).click();
+  await page.getByRole("button", { name: "Not yet — I'd need sponsorship" }).click();
   await expect(page.locator(".discovery .notice")).toContainText(
     "Locked in — I'll use that on every job, so I won't ask again.",
   );

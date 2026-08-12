@@ -124,31 +124,32 @@ await qa.note(`answered ${floorAnswered} floor questions; countdown trail so far
 await qa.scrollThrough('read the CV the floor answers wrote, then back to the dock');
 
 // ---------------------------------------------------------------------------------------------
-// 4. The FIRST eligibility question — years, and whether its scope is tellable from the question.
+// 4. The FIRST eligibility question. #162: it is work-rights now — the years question is GONE,
+//    worked out from the dated job records instead of asked (ADR-0008 clause 2).
 // ---------------------------------------------------------------------------------------------
 const dim1 = await eligDim();
-await assert(dim1 === 'years-experience', `the eligibility block opens on years-experience (got "${dim1}")`);
-const yearsQ = await askQ();
-const yearsSub = await askSub();
-const yearsOpts = await optLabels();
-await qa.note(`years question: ${JSON.stringify(yearsQ)}\n  sub: ${JSON.stringify(yearsSub)}\n  options: ${JSON.stringify(yearsOpts)}`);
-await qa.expectVisible('.discovery #ask-q', 'AC4 / UX intent: the years question as a real visitor reads it');
+await assert(dim1 === 'work-rights', `the eligibility block opens on work-rights (got "${dim1}")`);
+const firstQ = await askQ();
+const firstSub = await askSub();
+const firstOpts = await optLabels();
+await qa.note(`work-rights question: ${JSON.stringify(firstQ)}\n  sub: ${JSON.stringify(firstSub)}\n  options: ${JSON.stringify(firstOpts)}`);
+await qa.expectVisible('.discovery #ask-q', 'AC4 / UX intent: the question as a real visitor reads it');
 
 await assert(
-  /worked in IT project delivery\?$/.test(yearsQ ?? ''),
-  `AC4: the scope is a FIELD OF WORK in the question line itself, not a job title — "${yearsQ}"`,
+  /without visa sponsorship\?$/.test(firstQ ?? ''),
+  `the question names the place and the condition in the question line itself — "${firstQ}"`,
 );
 await assert(
-  !/Project Manager|IT Project Manager/i.test(yearsQ ?? ''),
-  `AC4: the question never reads as a job title — "${yearsQ}"`,
+  !/how many years/i.test(firstQ ?? ''),
+  `#162 / ADR-0008 clause 2: nothing asks for a years-of-experience total — "${firstQ}"`,
 );
 await assert(
-  /not your whole career/i.test(yearsSub ?? ''),
-  `AC4: the clarifier reinforces that this is not a career total — "${yearsSub}"`,
+  /changes which jobs I show you/i.test(firstSub ?? ''),
+  `the clarifier says what the answer changes, not what it costs — "${firstSub}"`,
 );
 await assert(
-  yearsOpts[yearsOpts.length - 1] === 'Ask me later',
-  `UX intent: declining is last and always available — options end with "${yearsOpts[yearsOpts.length - 1]}"`,
+  firstOpts[firstOpts.length - 1] === 'Ask me later',
+  `UX intent: declining is last and always available — options end with "${firstOpts[firstOpts.length - 1]}"`,
 );
 await assert(
   (await page.locator('.discovery .opts .opt.quiet').count()) === 1,
@@ -168,10 +169,10 @@ await assert(groupLabelled === 'ask-q', `a11y: the options group is named by the
 // 5. ANSWERING — a real answer, and the confirmation + fix affordance it earns.
 // ---------------------------------------------------------------------------------------------
 const badgeBefore = await badgeCount();
-await qa.click(page.getByRole('button', { name: '8–10 years', exact: true }), 'answer the years question: "8–10 years"');
-countAsk('eligibility: years = "8–10 years"');
+await qa.click(page.getByRole('button', { name: 'Yes — no sponsorship needed', exact: true }), 'answer work-rights: "Yes — no sponsorship needed"');
+countAsk('eligibility: work-rights = "Yes — no sponsorship needed"');
 await page.waitForTimeout(2300);
-await readMeter('answered years (real answer)');
+await readMeter('answered work-rights (real answer)');
 const notice1 = await txt('.discovery .notice');
 await qa.expectVisible('.discovery .notice', 'the confirmation an answered eligibility question earns');
 await assert(
@@ -188,16 +189,16 @@ await qa.note(`fact badge: ${badgeBefore} -> ${badgeAfterReal} after a real elig
 // ---------------------------------------------------------------------------------------------
 // 6. THE RETRACTION — correct that real answer to "Ask me later". The stored fact must go.
 // ---------------------------------------------------------------------------------------------
-await qa.click(page.getByRole('button', { name: 'Fix that?' }).first(), 'open the correction on the years answer');
+await qa.click(page.getByRole('button', { name: 'Fix that?' }).first(), 'open the correction on the work-rights answer');
 await page.waitForTimeout(1500);
 await qa.expectVisible('.discovery .opts', 'the correction re-ask, with the current answer pre-marked');
 const premarked = await page.locator('.discovery .opts .opt.picked').allTextContents();
 await qa.note(`the correction opens with the current answer pre-marked: ${JSON.stringify(premarked)}`);
 await assert(
-  premarked.some((t) => t.trim() === '8–10 years'),
+  premarked.some((t) => t.trim() === 'Yes — no sponsorship needed'),
   `the correction opens showing what they said before (pre-marked: ${JSON.stringify(premarked)})`,
 );
-await qa.click(page.getByRole('button', { name: 'Ask me later', exact: true }).first(), 'RETRACT: change "8–10 years" to "Ask me later"');
+await qa.click(page.getByRole('button', { name: 'Ask me later', exact: true }).first(), 'RETRACT: change the answer to "Ask me later"');
 await page.waitForTimeout(2400);
 const notice2 = await txt('.discovery .notice');
 await qa.expectVisible('.discovery .notice', 'the confirmation after retracting an answer to "Ask me later"');
@@ -209,7 +210,7 @@ await assert(
   (await page.getByRole('button', { name: 'Answer it now' }).count()) > 0,
   'a declined answer offers "Answer it now", not "Fix that?" — the state genuinely changed',
 );
-await readMeter('after retracting years to a decline');
+await readMeter('after retracting work-rights to a decline');
 
 // ---------------------------------------------------------------------------------------------
 // 6b. A REFUSAL IS NOT A FACT — the count must not move, on any screen that shows it.
@@ -403,11 +404,10 @@ async function checkLabel(name) {
 const dim360 = await eligDim();
 await qa.note(`at 360px the eligibility block opens on: ${dim360} — ${JSON.stringify(await askQ())}`);
 await qa.scrollThrough('AC8: scroll the 360px ask dock the way a phone user would');
-await checkLabel('More than 10 years');
-await qa.click(page.getByRole('button', { name: 'Under 3 years', exact: true }).first(), 'answer years at 360px');
-await page.waitForTimeout(2300);
 await checkLabel("Not yet — I'd need sponsorship");
 await qa.scrollThrough('AC8: read the whole 360px screen with the work-rights question up');
+await qa.click(page.getByRole('button', { name: 'Yes — no sponsorship needed', exact: true }).first(), 'answer work-rights at 360px');
+await page.waitForTimeout(2300);
 
 // a11y non-regression: the focus ring survives on the quiet option too (design §7).
 const quietRing = await page.evaluate(() => {

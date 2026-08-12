@@ -286,6 +286,10 @@ const counts = {
   "postings.techmap_normalize_dropped": 0,
   "postings.techmap_budget_exceeded": 0,
   "postings.techmap_budget_store_unavailable": 0,
+  // #162 AC5 — the stored years-of-experience total is a regenerable copy of the dated job records.
+  // A recompute that disagrees with it is a real event (a correction that never reached the copy, or
+  // a copy written by something that should not have): counted, never silently absorbed.
+  "years.drift_detected": 0,
 };
 
 export type CounterName = keyof typeof counts;

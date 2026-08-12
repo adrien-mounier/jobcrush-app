@@ -1,6 +1,9 @@
 // #106 — which eligibility dimensions (apps/api/src/eligibility.ts) discovery actually asks, built as
-// DiscoveryQuestion[] the /onboarding/discovery* routes append to state.questions, plus the
-// years-experience family-scope helper.
+// DiscoveryQuestion[] the /onboarding/discovery* routes append to state.questions, plus the write
+// path an answer takes (answerEligibilityItem, at the foot of this file).
+//
+// #162: `years-experience` is NOT one of them and never can be — it is worked out, not asked
+// (yearsWorked.ts, ADR-0008 clause 2). See ASK_DIMENSIONS below.
 //
 // Derivation: docs/research/eligibility-dimensions-from-the-corpus.md. Copy/order: the #106 UI design
 // spec (pinned strings — do not paraphrase). Storage is eligibility.ts's job; this module only decides
@@ -19,10 +22,10 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import type { EligibilityDimension } from "@jobcrush/contracts";
-import type { SessionRecord } from "./sessions.js";
-import type { ClaimRecord } from "./claims.js";
+import type { EligibilityDimension, JobBlockView } from "@jobcrush/contracts";
+import type { ClaimRecord, ClaimStore } from "./claims.js";
 import {
+  discoveryClaimId,
   resolveFamily,
   isDiscoveryClaim,
   itemIdOf,
@@ -31,7 +34,8 @@ import {
   type DiscoveryState,
 } from "./discovery.js";
 import { loadFamilyFloor } from "./e5stub.js";
-import { ANY_FAMILY } from "./eligibility.js";
+import { ANY_FAMILY, type EligibilityStore } from "./eligibility.js";
+import { dateHoleQuestions } from "./yearsWorked.js";
 
 export const DECLINE_OPTION = "Ask me later";
 
@@ -129,22 +133,26 @@ export function languagesUnion(): readonly string[] {
 // buildQuestion's own language branch.
 export const LANGUAGE_ITEM_ID = `${ELIGIBILITY_ITEM_PREFIX}languages`;
 
-// Step 1 derivation (docs/research/eligibility-dimensions-from-the-corpus.md): years-experience (6/17)
-// and work-rights (0/17, included as a deliberate, owner-approved deviation — see the doc) and
-// language (2/17) are asked; certification (1/17) and degree (4/17) are excluded because the live
-// discovery floor (sample-family-floors.json) already asks both. Order matches the UI design spec's
-// block order.
-const ASK_DIMENSIONS: readonly EligibilityDimension[] = ["years-experience", "work-rights", "language"];
+// Step 1 derivation (docs/research/eligibility-dimensions-from-the-corpus.md): work-rights (0/17,
+// included as a deliberate, owner-approved deviation — see the doc) and language (2/17) are asked;
+// certification (1/17) and degree (4/17) are excluded because the live discovery floor
+// (sample-family-floors.json) already asks both. Order matches the UI design spec's block order.
+//
+// 🚨 #162 / ADR-0008 clause 2 (the Mei rule) — `years-experience` MUST NEVER APPEAR HERE, for any
+// reason, INCLUDING an unreadable work history. It is a WORKED-OUT value (apps/api/src/yearsWorked.ts
+// computes it from the dated job records), so any answer a person typed would be deleted by the next
+// recompute: the question is not merely redundant, it destroys what they typed. When the calculation
+// cannot run, clause 3 says ask for the missing part UNDERNEATH — yearsWorked.ts's dateHoleQuestions,
+// placed by applyEligibilityQuestions below. This line is the ADR's own falsifiable check; a test
+// (eligibilityDiscovery.test.ts) fails if it is ever re-added.
+const ASK_DIMENSIONS: readonly EligibilityDimension[] = ["work-rights", "language"];
 
-// years-experience is family-scoped (CONTEXT.md: "length of experience is always experience in a
-// family, never a career total") — itemId()/FAMILY_SCOPED below exist for it. work-rights does NOT
-// vary by job family (right to work doesn't depend on the role) but, per #182 / #180, DOES vary by
-// PLACE: the question is already worded "Can you work in {city}...?", so its answer is a fact about
-// that city, not a global one. FAMILY_SCOPED is reused rather than duplicated for this — it just
-// means "this dimension's itemId/store-scope carries a suffix", and work-rights' suffix is a city
-// instead of a job family. `eligibilityCandidates`'s `city` parameter supplies it; ANY_FAMILY remains
-// the fallback when no city is known yet (buildQuestion's own null-city branch), and a null
-// scopeLabel — scopeLabel is years-experience's own question-text field, unused here.
+// work-rights does NOT vary by job family (right to work doesn't depend on the role) but, per #182 /
+// #180, DOES vary by PLACE: the question is already worded "Can you work in {city}...?", so its
+// answer is a fact about that city, not a global one. FAMILY_SCOPED means "this dimension's
+// itemId/store-scope carries a suffix", and work-rights' suffix is a city.
+// `eligibilityCandidates`'s `city` parameter supplies it; ANY_FAMILY remains the fallback when no
+// city is known yet (buildQuestion's own null-city branch).
 //
 // language is NOT in this set (#123 supersedes #107 D2's use of it): the store's familyId column is
 // still a free-text SCOPE for language, and a blocking requirement's eligibilitySubject ("Mandarin")
@@ -154,20 +162,7 @@ const ASK_DIMENSIONS: readonly EligibilityDimension[] = ["years-experience", "wo
 // language branch below writes a fixed itemId (LANGUAGE_ITEM_ID) directly instead; the actual
 // per-language store writes happen in routes/onboarding.ts via languageFacts(), each at its own
 // language's scope, exactly like before — only the QUESTION shape and its itemId scheme changed.
-const FAMILY_SCOPED: ReadonlySet<EligibilityDimension> = new Set(["years-experience", "work-rights"]);
-
-// --- years-experience bands (UI design spec §2 — pinned, do not change without the spec) ---
-const YEARS_OPTIONS = ["Under 3 years", "3–4 years", "5–7 years", "8–10 years", "More than 10 years"] as const;
-// Each band's LOWER bound, never a midpoint (design spec: "never overstates what the visitor
-// confirmed"). "Under 3 years" -> 0 is intentional, not a default: the true lower bound of an
-// open-ended "under" band is 0, and the design spec explicitly rejected a midpoint guess here.
-const YEARS_BAND_VALUES: Readonly<Record<string, number>> = {
-  "Under 3 years": 0,
-  "3–4 years": 3,
-  "5–7 years": 5,
-  "8–10 years": 8,
-  "More than 10 years": 10,
-};
+const FAMILY_SCOPED: ReadonlySet<EligibilityDimension> = new Set(["work-rights"]);
 
 // --- work-rights options (UI design spec §2) ---
 const WORK_RIGHTS_YES = "Yes — no sponsorship needed";
@@ -204,82 +199,21 @@ const LANGUAGES_CONSEQUENCE =
   "A no takes jobs that require that language out of your deck. Tick every one you could run a meeting in." +
   " Not sure? Tick it.";
 
-// Code-review must-fix 6 (2026-08-03): a years-experience question scoped by a JOB TITLE ("...worked
-// in IT Project Manager?") is ungrammatical and reads as the wrong thing — the ticket's central UX
-// requirement is that the scope be tellable from the question alone, which needs a domain phrase, not
-// a title. Keyed by whatever resolveEligibilityFamilyScope actually has on hand: the E5 stub's raw
-// family name (e5stub.ts's STUB_FAMILY) on the path that runs today, or a pinned production familyId
-// once that path is live. Both keys resolve to the SAME real domain — the stub's one family and the
-// one published production family (apps/api/research/it-project-delivery-v1.json) describe the same
-// real-world work.
-const KNOWN_SCOPE_LABELS: Readonly<Record<string, string>> = {
-  "IT Project Manager": "IT project delivery", // e5stub.ts's STUB_FAMILY — the path that runs today
-  "it-project-delivery": "IT project delivery", // the one published production familyId
-};
-
-/** A generic, deterministic fallback for any key with no entry above — sentence-cases a hyphenated
- *  id, or returns a spaced human name as-is if it isn't hyphenated. Exercised only for a family this
- *  codebase does not yet know a domain phrase for. */
-function scopeLabelFor(key: string): string {
-  const known = KNOWN_SCOPE_LABELS[key];
-  if (known) return known;
-  const spaced = key.includes("-") ? key.replace(/-/g, " ").trim() : key.trim();
-  return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : key;
-}
-
-/** A deterministic slug from the E5 stub's human family name ("IT Project Manager" -> "it-project-
- *  manager"), so the stub path has a stable id to key the eligibility store on without inventing one
- *  by hand. Not the same id as the published "it-project-delivery" family — the stub is a hand
- *  stand-in for a single family (e5stub.ts's own doc), not that production floor. #182 QA round 3:
- *  now a thin wrapper over discovery.ts's `slug()` — this used to duplicate the same lowercase/
- *  collapse-non-alnum logic locally; the work-rights market key needs the identical canonicalisation
- *  (buildQuestion's work-rights branch, below), so there is one slugging rule, not two. */
-function stableFamilyId(familyName: string): string {
-  return slug(familyName);
-}
-
-/** The ONE place that decides which family scopes years-experience (#106 step 3.3). Prefers the
- *  production-discovery pinned floor when the session has one (session.discovery.floor) — that path
- *  is not wired into the live discovery routes today (they run the E5 stub, e5stub.ts's
- *  loadFamilyFloor), but the check costs nothing and means nothing else has to change when it is.
- *  Otherwise derives a stable id from the live stub flow's resolveFamily(role), the path that
- *  actually runs today. `scopeLabel` is a bare domain phrase (never a job title, never a sentence) —
- *  the UI design spec renders it directly inside its own question templates (must-fix 6). */
-export function resolveEligibilityFamilyScope(
-  session: Pick<SessionRecord, "discovery">,
-  role: string,
-): { familyId: string; scopeLabel: string } {
-  const pinned = session.discovery.floor;
-  if (pinned) return { familyId: pinned.familyId, scopeLabel: scopeLabelFor(pinned.familyId) };
-  const { family } = resolveFamily(role);
-  return { familyId: stableFamilyId(family), scopeLabel: scopeLabelFor(family) };
-}
-
 function itemId(dimension: EligibilityDimension, familyId: string): string {
   return FAMILY_SCOPED.has(dimension)
     ? `${ELIGIBILITY_ITEM_PREFIX}${dimension}-${familyId}`
     : `${ELIGIBILITY_ITEM_PREFIX}${dimension}`;
 }
 
+// #162: `familyId`/`scopeLabel` parameters are GONE, along with the years-experience branch that was
+// the only thing that ever read them (and with resolveEligibilityFamilyScope, which existed only to
+// produce them). Neither remaining question is job-family-scoped: work-rights keys on a city,
+// language on a language. `EligibilityAsk.scopeLabel` stays on the wire, always null.
 function buildQuestion(
   dimension: EligibilityDimension,
-  familyId: string,
   anyFamily: string,
-  scopeLabel: string,
   city: string | null,
 ): DiscoveryQuestion {
-  if (dimension === "years-experience") {
-    const question = scopeLabel
-      ? `How many years have you worked in ${scopeLabel}?`
-      : "How many years have you worked in the kind of job you're going for?";
-    return {
-      itemId: itemId(dimension, familyId),
-      question,
-      options: [...YEARS_OPTIONS, DECLINE_OPTION],
-      cvSection: "experience",
-      eligibility: { dimension, familyId, scopeLabel: scopeLabel || null, declineOption: DECLINE_OPTION },
-    };
-  }
   if (dimension === "work-rights") {
     // Must-fix 8: this text is recorded verbatim in a decline's claim text, so it must reflect the
     // CITY THE VISITOR WAS ACTUALLY ASKED ABOUT — callers must pass the real resolved city (#184:
@@ -309,8 +243,7 @@ function buildQuestion(
     };
   }
   // dimension === "language" — #123 supersedes #107 D2's single-English question with ONE
-  // multi-select over every language in languagesUnion(). `familyId`/`scopeLabel` stay unused on this
-  // branch (this question has no ONE family/language scope); `anyFamily` is used only as a required
+  // multi-select over every language in languagesUnion(). `anyFamily` is used only as a required
   // placeholder for EligibilityAsk.familyId below — the route's real per-language writes (a full set
   // of facts, one per languagesUnion() entry, via languageFacts()) never read this field back.
   return {
@@ -329,13 +262,8 @@ function buildQuestion(
  *  question) needs the full set, not just what remains. `anyFamily` is the eligibility store's
  *  ANY_FAMILY constant, passed in by the caller rather than imported here, so this module stays
  *  decoupled from eligibility.ts's export surface beyond the one string value it needs. */
-export function eligibilityCandidates(
-  familyId: string,
-  anyFamily: string,
-  scopeLabel: string,
-  city: string | null,
-): DiscoveryQuestion[] {
-  return ASK_DIMENSIONS.map((d) => buildQuestion(d, familyId, anyFamily, scopeLabel, city));
+export function eligibilityCandidates(anyFamily: string, city: string | null): DiscoveryQuestion[] {
+  return ASK_DIMENSIONS.map((d) => buildQuestion(d, anyFamily, city));
 }
 
 /** itemIds of every eligibility question DECLINED or otherwise claims-store-closed. A real answer
@@ -395,8 +323,6 @@ function factResolvedItemIds(facts: readonly { dimension: EligibilityDimension; 
  *  candidates are appended after the floor's own questions by the caller — to keep them "asked after
  *  the floor" without withholding them from the visible countdown. */
 export function unresolvedEligibilityQuestions(
-  session: Pick<SessionRecord, "discovery">,
-  role: string,
   anyFamily: string,
   city: string | null,
   confirmed: ClaimRecord[],
@@ -404,10 +330,9 @@ export function unresolvedEligibilityQuestions(
   rejected: ClaimRecord[],
   facts: readonly { dimension: EligibilityDimension; familyId: string }[],
 ): DiscoveryQuestion[] {
-  const { familyId, scopeLabel } = resolveEligibilityFamilyScope(session, role);
   const declined = claimsClosedEligibilityItemIds(confirmed, negatives, rejected);
   const resolved = factResolvedItemIds(facts);
-  return eligibilityCandidates(familyId, anyFamily, scopeLabel, city).filter(
+  return eligibilityCandidates(anyFamily, city).filter(
     (q) => !declined.has(q.itemId) && !resolved.has(q.itemId),
   );
 }
@@ -433,26 +358,25 @@ export function unresolvedEligibilityQuestions(
  *  imports discovery.ts, so the reverse direction would be an import cycle.
  *
  *  Mutates `state` in place, as it always has — every call site builds a fresh DiscoveryState from
- *  discoveryState() one line earlier and keeps using it after. */
+ *  discoveryState() one line earlier and keeps using it after.
+ *
+ *  #162: the date-hole questions (yearsWorked.ts) ride in the SAME band. They are ADR-0008 clause 3's
+ *  replacement for the years-experience question this module no longer asks — the missing part
+ *  underneath, asked where the answer it replaces used to be — and ADR-0011 clause 1's "asked now"
+ *  channel: the answer moves the total, so it belongs before the deck, not after it. */
 export function applyEligibilityQuestions(
-  session: Pick<SessionRecord, "discovery">,
   role: string,
   state: DiscoveryState,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
   rejected: ClaimRecord[],
   facts: readonly { dimension: EligibilityDimension; familyId: string }[],
+  blocks: readonly JobBlockView[] = [],
 ): void {
-  const eligQuestions = unresolvedEligibilityQuestions(
-    session,
-    role,
-    ANY_FAMILY,
-    state.city,
-    confirmed,
-    negatives,
-    rejected,
-    facts,
-  );
+  const eligQuestions = [
+    ...unresolvedEligibilityQuestions(ANY_FAMILY, state.city, confirmed, negatives, rejected, facts),
+    ...dateHoleQuestions(blocks),
+  ];
   const { family } = resolveFamily(role);
   const standardIds = new Set(
     loadFamilyFloor(family).items.filter((i) => i.rankBand === "standard").map((i) => i.id),
@@ -474,7 +398,7 @@ export function excludingEligibility(claims: readonly ClaimRecord[]): ClaimRecor
 }
 
 export interface MappedEligibilityAnswer {
-  value: string; // canonical — a decimal string for years-experience, an opaque token otherwise
+  value: string; // canonical — an opaque token
   label: string; // human-readable, for the EligibilityFact the store renders back to the user
 }
 
@@ -483,13 +407,8 @@ export interface MappedEligibilityAnswer {
  *  before calling this — decline never reaches here. */
 export function mapEligibilityAnswer(
   dimension: EligibilityDimension,
-  scopeLabel: string,
   answer: string,
 ): MappedEligibilityAnswer | null {
-  if (dimension === "years-experience") {
-    const years = YEARS_BAND_VALUES[answer];
-    return years === undefined ? null : { value: String(years), label: `Years in ${scopeLabel}` };
-  }
   if (dimension === "work-rights") {
     if (answer === WORK_RIGHTS_YES)
       return { value: WORK_RIGHTS_ELIGIBLE_VALUE, label: "Right to work without sponsorship" };
@@ -523,9 +442,9 @@ export function workRightsAnswerLabel(value: string): string | null {
  *  CONSTRUCTION the same one answerEligibilityItem (routes/onboarding.ts) looks up when the visitor
  *  answers through this door. `familyId`/`anyFamily`/`scopeLabel` are dead parameters on the
  *  work-rights branch (buildQuestion's own comment: its marketId comes from `city` alone) — passed
- *  as empty strings here, never fabricated values pretending to mean something. */
+ *  as an empty string here, never a fabricated value pretending to mean something. */
 export function workRightsQuestionFor(city: string): DiscoveryQuestion {
-  return buildQuestion("work-rights", "", "", "", city);
+  return buildQuestion("work-rights", "", city);
 }
 
 /** #185 — the profile rail's languages door needs the SAME re-open contract work-rights got: the
@@ -534,10 +453,10 @@ export function workRightsQuestionFor(city: string): DiscoveryQuestion {
  *  from CV-mined claim text (a save built on that would silently flip a real "no" to "yes" or vice
  *  versa). Thin wrapper over buildQuestion's own language branch — the ONE place this composition
  *  happens — mirroring workRightsQuestionFor above. `familyId`/`anyFamily`/`scopeLabel`/`city` are
- *  all dead parameters on that branch (see buildQuestion's own doc comment: the language branch
- *  reads nothing from any of them) — passed as empty/null placeholders, never fabricated. */
+ *  dead parameters on that branch (see buildQuestion's own doc comment: the language branch reads
+ *  nothing from either) — passed as empty/null placeholders, never fabricated. */
 export function languagesQuestion(): DiscoveryQuestion {
-  return buildQuestion("language", "", "", "", null);
+  return buildQuestion("language", "", null);
 }
 
 export interface LanguageFactWrite {
@@ -585,3 +504,116 @@ export function isValidLanguageSelection(answers: readonly string[]): boolean {
 // (dimension.get() preferred over asking) is real work for #99-101 (live posting retrieval), once
 // there is an actual visitor-location fact to compare a posting's requirement against. AC5 is
 // reported as deferred to that ticket, not met here.
+
+export interface EligibilityAnswerStores {
+  eligibility: EligibilityStore;
+  claims: ClaimStore;
+}
+
+export type EligibilityAnswerResult =
+  | { ok: true }
+  | { ok: false; status: number; code: string; message: string };
+
+const badAnswer = { ok: false as const, status: 400, code: "invalid_answer", message: "unrecognized eligibility answer" };
+
+/** An eligibility answer's own write path. Code-review must-fix 1: a REAL answer (of any kind,
+ *  including a "no"-shaped one like "Not yet — I'd need sponsorship") never touches the claims store
+ *  — graph.ts's buildClaimGraph renders every claim in its first argument unconditionally, and
+ *  stamps every claim in its `negatives` option classification "Negative", which the contract oracle
+ *  (packages/contracts/oracle/validate_graph.mjs) defines as a CONFIRMED GAP Tailor must never
+ *  assert. Either path would misrepresent a real answer. A real answer therefore lives ONLY in the
+ *  eligibility store (put()); "already answered" is read back from THAT store, never from a claim.
+ *  Only a DECLINE still writes a claims-store record (answerNegative — "asked and closed, no fact"),
+ *  reusing the one persistence this repo already has for that state. Must-fix 5: correcting an answer
+ *  TO a decline retracts any value a PRIOR real answer stored — eligibility.remove() runs
+ *  unconditionally on a decline (a no-op if nothing was ever stored), so the dimension reads unknown
+ *  again, never a retracted value. Must-fix 8: `city` is the visitor's REAL resolved city (#184:
+ *  postingRetrieval.ts's resolvedCityFor, over the confirmed search area) — it's rebuilt into the
+ *  question text a decline's claim records verbatim, so that record must match what the visitor was
+ *  actually asked.
+ *
+ *  #123: `body` carries either a single `answer` (every single-select question, and every question's
+ *  OWN decline) or `answers: string[]` (the multi-select languages question's real answer).
+ *
+ *  2026-08-12 (#162 architecture pass): lifted out of routes/onboarding.ts, where this sat as a
+ *  route-local closure sending replies itself. It returns a plain result now — the route turns a
+ *  failure into its own HTTP status — so the write path is testable without the HTTP funnel, beside
+ *  the module that builds the very questions it answers. */
+export async function answerEligibilityItem(
+  stores: EligibilityAnswerStores,
+  sessionId: string,
+  city: string | null,
+  itemId: string,
+  body: { answer?: string; answers?: string[] },
+): Promise<EligibilityAnswerResult> {
+  const question = eligibilityCandidates(ANY_FAMILY, city).find((q) => q.itemId === itemId);
+  if (!question) return { ok: false, status: 404, code: "unknown_item", message: "no such floor item" };
+  const ask = question.eligibility!;
+
+  if (body.answer !== undefined) {
+    const answer = body.answer.trim();
+    if (answer === ask.declineOption) {
+      if (question.multiSelect) {
+        // #123: a decline on the (multi-select) languages question retracts EVERY language's stored
+        // fact, not just one scope — must-fix 5's rule, applied across the whole list, so a prior
+        // real answer is fully erased and every language reads as unknown again.
+        //
+        // Code-review must-fix 2 (2026-08-04): reads what this SESSION actually has stored (list())
+        // and removes each language-dimension fact by its own recorded scope, rather than looping
+        // over TODAY's languagesUnion() — languages-by-market.json is the owner's own hand-edit
+        // surface, and the day a market is dropped or a language renamed there, a visitor who
+        // answered under the OLD list and then declines would otherwise keep a stale fact at a scope
+        // the union no longer contains: a decline that silently fails to fully retract.
+        for (const fact of await stores.eligibility.list(sessionId)) {
+          if (fact.dimension === ask.dimension) {
+            await stores.eligibility.remove(sessionId, fact.dimension, fact.familyId);
+          }
+        }
+      } else {
+        await stores.eligibility.remove(sessionId, ask.dimension, ask.familyId);
+      }
+      const claimId = discoveryClaimId(itemId);
+      await stores.claims.answerNegative(sessionId, {
+        id: claimId,
+        semantic_key: claimId,
+        field_key: null,
+        field_value: null,
+        field_label: null,
+        role: "profile",
+        text: `Declined — ${question.question}`,
+        machine_touch: "verbatim",
+        classification: "Verified",
+        source_quote: answer.slice(0, 200),
+        needs_grill: false,
+        grill_hint: null,
+      });
+      return { ok: true };
+    }
+
+    // #123: a multi-select question only ever accepts a single `answer` for its decline (handled
+    // above) — a REAL response is always `answers`. Falling through to the single-value mapper below
+    // would be silently wrong (it knows nothing about this question's shape), so this is a 400.
+    if (question.multiSelect) return badAnswer;
+
+    const mapped = mapEligibilityAnswer(ask.dimension, answer);
+    if (!mapped) return badAnswer;
+    await stores.eligibility.put(sessionId, {
+      dimension: ask.dimension,
+      familyId: ask.familyId,
+      value: mapped.value,
+      label: mapped.label,
+    });
+    return { ok: true };
+  }
+
+  // #123: the multi-select real-answer path — `body.answers` (the caller checks exactly one of
+  // answer/answers is present first). A single-select question never accepts this shape.
+  if (!question.multiSelect || !body.answers || !isValidLanguageSelection(body.answers)) return badAnswer;
+  // Write the FULL set on every answer — every language, not only the ticked ones (AC6: this is what
+  // makes a correction work — re-answering with Mandarin ticked flips its stored "none" back to
+  // "professional" in the same call, rather than leaving a stale "none" for nothing to revisit).
+  for (const write of languageFacts(body.answers)) {
+    await stores.eligibility.put(sessionId, { dimension: ask.dimension, ...write });
+  }
+  return { ok: true };
+}

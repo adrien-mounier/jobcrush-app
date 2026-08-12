@@ -97,8 +97,30 @@ _Avoid_: Important gap, hard filter, knockout
 **Eligibility fact**:
 A fact about the user that adverts test as a gate rather than as evidence of capability — right to
 work, language fluency, length of experience, a mandatory certification. It does not vary by advert,
-so it is asked once and reused across every posting. Some are scoped to a job family and meaningless
-without one: length of experience is always experience *in* a family, never a career total.
+so it is reused across every posting. How one *arrives* differs by dimension (ADR-0008): most are
+**asked** once, but **length of experience is worked out**, never asked — computed from the dated job
+records (`apps/api/src/yearsWorked.ts`), because a value the machine regenerates would delete any
+answer the person typed.
+
+⚠️ **Scope, and a recorded deviation, owned by [#134](https://github.com/adrien-mounier/jobcrush-app/issues/134).**
+This entry used to read *"length of experience is always experience in a family, never a career
+total"*. As built (#162), the worked-out total is a **career total**, stored at the global scope
+(`ANY_FAMILY`). The family-scoped reading remains the intended end state and the rule above remains
+the target — it is **deferred, not abandoned**.
+
+Why it could not be built with #162, and this is the fact that settles it: **there is exactly one job
+family in the entire system, and it is a constant.** `resolveFamily()` ignores its input and returns
+`STUB_FAMILY`; `placeFamily` defaults to `unmapped`. So every dated job would be placed in the same
+one family, and a family-scoped number would be **numerically identical to the career total for every
+visitor**. #126 §5 reached this same conclusion and the owner deferred the kind-of-work label to
+**#134**, the classifier ticket, for exactly this reason.
+
+**What must change when #134 lands** (the years half of it): place each dated job record in a family;
+store one `years-experience` fact per family instead of one at `ANY_FAMILY`; and make
+`resolveUserYears` (`apps/api/src/deck.ts`) read the scope of the ADVERT's own family
+(`adRequirements.familyFit`) rather than the global one. The eligibility store is already keyed by
+scope, so it needs no change. Until then, a years bar on an out-of-family advert is tested against the
+career total — too generous, never too strict, so it can add a job to a deck but never delete one.
 _Avoid_: Screening answer, source-supported fact
 
 **Posting family fit**:

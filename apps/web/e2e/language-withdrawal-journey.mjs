@@ -97,13 +97,11 @@ await qa.note(`REGRESSION: answered ${floorAnswered} floor questions before the 
 await qa.scrollThrough('read the CV the floor answers wrote, then back to the dock');
 
 // ---------------------------------------------------------------------------------------------
-// 4. years-experience, then work-rights — the two eligibility questions #123 did NOT touch.
+// 4. work-rights — the eligibility question #123 did NOT touch. #162 removed years-experience
+//    from the ask-list entirely (worked out from the dated job records, ADR-0008 clause 2).
 // ---------------------------------------------------------------------------------------------
-await assert((await eligDim()) === 'years-experience', 'REGRESSION: the eligibility block still opens on years-experience');
-await qa.click(page.getByRole('button', { name: '5–7 years', exact: true }), 'answer years: "5–7 years"');
-await page.waitForTimeout(2300);
-await page.waitForTimeout(800);
 await assert((await eligDim()) === 'work-rights', `REGRESSION: work-rights is still asked (got "${await eligDim()}")`);
+await assert(!/how many years/i.test((await askQ()) ?? ''), '#162: nothing asks for a years-of-experience total');
 await qa.click(page.locator('.discovery .opts .opt').first(), 'answer work-rights with the first option');
 await page.waitForTimeout(2300);
 

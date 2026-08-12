@@ -10,12 +10,18 @@ import { holdContradictingSentences } from "../heldSentences.js";
 import { requireSession } from "../server.js";
 import type { DecisionKey, JobBlockStore, JobBlockView } from "../jobBlockStore.js";
 import type { ClaimStore } from "../claims.js";
+import type { EligibilityStore } from "../eligibility.js";
+import { refreshWorkedYears, verifyWorkedYears } from "../yearsWorked.js";
 
 export interface JobBlocksDeps {
   jobBlocks: JobBlockStore;
   /** #163 / ADR-0002 clause 3: lets a correction hold aside confirmed sentences that still carry
    *  the superseded value. Optional so pre-existing test builds keep working unchanged. */
   claims?: ClaimStore;
+  /** #162: every door here can move the years-of-experience total, which is a regenerable COPY of
+   *  these records — re-derived after each change so a read anywhere else sees the correction.
+   *  Required, not optional: an absent store would silently drop AC5's drift backstop. */
+  eligibility: EligibilityStore;
 }
 
 const Params = z.object({ blockId: z.string() });
@@ -40,8 +46,10 @@ const ResolveMatchBody = z.discriminatedUnion("resolution", [
 const notFound = (message: string) => ({ error: { code: "not_found", message } });
 
 // #163 binding UX intent — "the person is told what a correction will change downstream (their
-// total, their matches) in plain words." Years-of-experience is not computed anywhere yet (#126),
-// so this names the consequence without inventing a number.
+// total, their matches) in plain words." #162 now computes that total (yearsWorked.ts, re-derived by
+// reworkYears below) but still does not QUOTE it here: no route exposes the total and no screen
+// renders it yet, so naming a number would promise a readback that does not exist. The consequence
+// is named instead, which is what the ticket asked for.
 const downstreamMessage = (key: DecisionKey, value: unknown, before: JobBlockView): string => {
   if (key === "kind") {
     const now = countsTowardExperience(value as Kind);
@@ -62,6 +70,10 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
   return async function plugin(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>();
 
+    // #162 AC5 — the stored total is a copy; the records underneath always win. Re-derived after
+    // every door that can change a record, with a disagreement counted (yearsWorked.ts).
+    const reworkYears = (sessionId: string) => refreshWorkedYears(deps.jobBlocks, deps.eligibility, sessionId);
+
     // The confirm deck's own read: every dated block, each of its five decisions (value + origin +
     // machine_touch + classification + a stable per-decision id a correction can target), whether
     // it counts toward experience (derived, never asked), an ambiguous block's candidate ids, plus
@@ -73,6 +85,11 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
         deps.jobBlocks.list(session.id),
         deps.jobBlocks.summary(session.id),
       ]);
+      // #162 AC5's backstop, on the one path where it can mean something: nothing here changed a
+      // record, so a stored total that disagrees with a fresh recompute is a REAL event — a door that
+      // mutated a record without re-deriving. Counted and repaired, never silently absorbed. The
+      // records are already in hand, so this costs one eligibility read (and a write only on drift).
+      await verifyWorkedYears(deps.eligibility, session.id, blocks, summary.read);
       return { blocks, summary };
     });
 
@@ -133,6 +150,7 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
             );
           }
         }
+        await reworkYears(session.id);
         // `before` exists whenever correct() found the block; null only on a delete race.
         return { ok: true, held, downstream: before ? downstreamMessage(key, value, before) : null };
       },
@@ -145,6 +163,7 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
         const session = requireSession(req);
         const found = await deps.jobBlocks.detach(session.id, req.params.blockId);
         if (!found) return reply.status(404).send(notFound("unknown job block"));
+        await reworkYears(session.id);
         return { ok: true };
       },
     );
@@ -163,6 +182,7 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
             : ({ type: "different" as const });
         const found = await deps.jobBlocks.resolveMatch(session.id, req.params.blockId, resolution);
         if (!found) return reply.status(404).send(notFound("unknown job block or candidate"));
+        await reworkYears(session.id);
         return { ok: true };
       },
     );

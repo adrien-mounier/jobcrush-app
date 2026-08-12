@@ -14,8 +14,8 @@ import type { ClaimRecord } from "./claims.js";
 import type { SessionRecord } from "./sessions.js";
 import { lookupAdRequirements, loadFamilyFloor } from "./e5stub.js";
 import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
-import type { EligibilityFact } from "./eligibility.js";
-import { excludingEligibility, resolveEligibilityFamilyScope } from "./eligibilityDiscovery.js";
+import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
+import { excludingEligibility } from "./eligibilityDiscovery.js";
 import { readingLanguages, languageEligible } from "./language.js";
 import { incrementCounter, recordReadFailure } from "./counters.js";
 import {
@@ -345,30 +345,25 @@ export async function resolveJudgement(
   }
 }
 
-/** #107 (E5 slice 6, D5) — the ONE place userYears is READ, at the SAME (dimension, familyId) scope
- *  eligibilityDiscovery.ts's years-experience question WRITES a real answer at
- *  (resolveEligibilityFamilyScope(session, role)). A mismatched scope would silently find nothing and
- *  the whole feature would do nothing — this is the single call site every route goes through
- *  so that can't happen.
+/** #107 (E5 slice 6, D5) — the ONE place userYears is READ.
+ *
+ *  #162: the value is no longer a band the visitor tapped at a job-family scope; it is WORKED OUT
+ *  from the dated job records (yearsWorked.ts) and stored as a regenerable copy at the GLOBAL scope
+ *  (ANY_FAMILY) — a career total, not a per-family one (#126 AC2 deferred the scope). So this reads
+ *  that one fact, and needs neither the session nor the role.
  *
  *  Reads `facts` — whatever the caller already fetched via discoveryReads — rather than its own
  *  eligibility.numeric() store call. Code review T1: the tailor path was making THREE serialised
- *  eligibility-store reads per request (tailorTarget's own list, discoveryReads' list, and this
- *  function's own numeric() call) for data discoveryReads had already fetched once. Pure now, no IO
+ *  eligibility-store reads per request for data discoveryReads had already fetched once. Pure, no IO
  *  of its own — the same "facts is whatever the caller already read, never fetched here" contract
  *  withdrawal.ts's own findWithdrawingRequirement is held to.
  *
- *  null before Q1 (no role yet, so nothing could have been asked) and whenever the visitor genuinely
- *  was never asked (no matching fact, or one that fails to parse as a number) both read the same way
- *  to the caller: "leave the judged verdict untouched" (applyYearsShortfall's own null handling). */
-export function resolveUserYears(
-  facts: readonly EligibilityFact[],
-  session: Pick<SessionRecord, "discovery">,
-  role: string | null,
-): number | null {
-  if (!role) return null;
-  const familyId = resolveEligibilityFamilyScope(session, role).familyId;
-  const fact = facts.find((f) => f.dimension === "years-experience" && f.familyId === familyId);
+ *  null means UNTESTABLE — no usable work history yet (never uploaded, or a read that failed), which
+ *  #86 decision 3 forbids from lowering anything: "leave the judged verdict untouched"
+ *  (applyYearsShortfall's own null handling), and the card says the bar was not tested (buildJobCard).
+ *  A CONFIDENT ZERO is a stored "0" and reads as the real number it is, never as null. */
+export function resolveUserYears(facts: readonly EligibilityFact[]): number | null {
+  const fact = facts.find((f) => f.dimension === "years-experience" && f.familyId === ANY_FAMILY);
   if (!fact) return null;
   const years = Number(fact.value);
   return Number.isFinite(years) ? years : null;
@@ -423,6 +418,7 @@ export function buildJobCard(
   negatives: ClaimRecord[],
   judgement: JudgementRecord | null,
   unresolvedScored: "estimated",
+  yearsTested?: boolean,
 ): ScoredJobCard;
 export function buildJobCard(
   posting: Posting,
@@ -431,6 +427,7 @@ export function buildJobCard(
   negatives: ClaimRecord[],
   judgement: JudgementRecord | null,
   unresolvedScored: "pending" | "unscored" | "estimated",
+  yearsTested?: boolean,
 ): JobCard;
 export function buildJobCard(
   posting: Posting,
@@ -443,8 +440,19 @@ export function buildJobCard(
   // "estimated" from the tailor surface always, and from the deck route too when no judge is wired
   // at all.
   unresolvedScored: "pending" | "unscored" | "estimated",
+  // #162 AC6 — false when this session has NO usable work history (resolveUserYears === null), so
+  // every years-of-experience bar on this advert went untested rather than unmet. Defaults true:
+  // a caller that never had a reason to think otherwise claims nothing new.
+  yearsTested = true,
 ): JobCard {
   const negativeIds = negativeRequirementIds(adReq, negatives);
+  // Named on the card, never folded into the score: an unknown is not a shortfall.
+  const notTested = yearsTested
+    ? []
+    : adReq.requirements
+        .filter((r) => r.eligibilityDimension === "years-experience")
+        .map((r) => ({ id: r.id, band: r.band, requirement: r.requirement }));
+  const notTestedIds = new Set(notTested.map((r) => r.id));
   const base = {
     schemaVersion: "1" as const,
     adId: posting.id,
@@ -461,6 +469,7 @@ export function buildJobCard(
     fit: excludingEligibility(confirmed).map((c) => ({ id: c.id, text: c.text })),
     askedClosed: excludingEligibility(negatives).map((c) => ({ id: c.id, text: c.text })),
     adExcerpt: posting.excerpt,
+    ...(notTested.length > 0 ? { notTested } : {}),
   };
   if (!judgement && (unresolvedScored === "pending" || unresolvedScored === "unscored")) {
     // #117 AC5 — no number at all, rather than silently substituting the deterministic scorer's
@@ -468,8 +477,13 @@ export function buildJobCard(
     // an unscored/pending card has nothing yet to call an open gap either.
     return { ...base, scored: unresolvedScored, matchPct: null, breakdown: null, bubble: null, dontYet: [] };
   }
+  // #162 AC6, review must-fix: an untested bar is listed ONCE, under `notTested`, never also here —
+  // the same bar under "Where you don't — yet" AND "Not tested" tells the reader two things at once.
+  // A DISPLAY move only: the requirement stays in every scored relation below, exactly as it was
+  // before #162, because dropping it from the denominator would LOWER the score of anyone whose CV
+  // evidence already covers it — the opposite of what this AC asks for.
   const dontYet = (judgement ? judgedUncoveredRequirements(judgement.verdicts, adReq) : uncoveredRequirements(confirmed, adReq))
-    .filter((r) => !negativeIds.has(r.id))
+    .filter((r) => !negativeIds.has(r.id) && !notTestedIds.has(r.id))
     .map((r) => ({ id: r.id, band: r.band, requirement: r.requirement }));
   return {
     ...base,
@@ -642,6 +656,10 @@ export function buildTailorState(
   role: string | null,
   floorPct: number,
   judgement: JudgementRecord | null,
+  // #162 AC6, review must-fix: the tailor surface renders the SAME advert as the deck, so it must
+  // reach the same verdict on whether the years bar could be tested. Without this it defaulted to
+  // "tested" and one visitor saw the bar named untested on the deck and silently missing here.
+  yearsTested = true,
 ): TailorState {
   const matchPct = Math.max(
     judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
@@ -659,7 +677,7 @@ export function buildTailorState(
   // card on demand with a full budget (resolveJudgement's default deadline above), so there is no
   // bound here to be excluded by; a failed/timed-out call still shows today's deterministic number,
   // now labelled rather than silent.
-  const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated");
+  const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated", yearsTested);
 
   // B2: "the CV below" must include tailor's own answers, not just discovery's — discoveryCvLines is
   // the narrow slice of discoveryState's work this needs (no railFill/essentialRemaining/questions

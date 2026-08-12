@@ -256,9 +256,10 @@ describe("#16 discovery routes", () => {
     expect(s.promise).toMatchObject({ family: "IT Project Manager", city: "Hong Kong", count: 10 });
     expect(s.essentialRemaining).toBe(3); // 3 essential items in the stub floor
     expect(s.questions.map((q) => q.itemId)).not.toContain("headline-focus"); // nice-to-have not asked
-    // #106 code-review must-fix 2: the 3 eligibility questions are visible from Q1 too, appended
-    // after the 7 floor questions (never withheld until the essential band is covered).
-    expect(s.questions).toHaveLength(10); // 3 essential + 4 standard + 3 eligibility
+    // #106 code-review must-fix 2: the eligibility questions are visible from Q1 too, appended
+    // after the 7 floor questions (never withheld until the essential band is covered). #162 removed
+    // the years-experience one — worked out, never asked.
+    expect(s.questions).toHaveLength(9); // 3 essential + 4 standard + 2 eligibility
     expect(s.cvLines[0]).toMatchObject({ itemId: "role", text: "IT project manager in Paris" });
   });
 
@@ -373,9 +374,9 @@ describe("#16 discovery routes", () => {
       await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" })
     ).json();
     expect(last.essentialRemaining).toBe(0);
-    expect(last.stage).toBe("discovery"); // #106: three eligibility questions are now pending
+    expect(last.stage).toBe("discovery"); // #106: the eligibility questions are now pending
     const eligibilityIds = last.questions.filter((q) => q.eligibility).map((q) => q.itemId);
-    expect(eligibilityIds).toHaveLength(3);
+    expect(eligibilityIds).toHaveLength(2);
 
     let final: DiscoveryState = last;
     for (const itemId of eligibilityIds) {
@@ -641,11 +642,9 @@ describe("#106 eligibility questions in discovery", () => {
   it("an eligibility fact reads as unknown before it has ever been asked (#106 regression case)", async () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
-    expect(await eligibility.get(sid, "years-experience", years.eligibility!.familyId)).toBeNull();
     expect(await eligibility.get(sid, "work-rights")).toBeNull();
     expect(await eligibility.get(sid, "language")).toBeNull();
   });
@@ -655,7 +654,7 @@ describe("#106 eligibility questions in discovery", () => {
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
     expect(start.essentialRemaining).toBe(3); // essential band completely untouched
-    expect(start.questions).toHaveLength(10); // 3 essential + 3 eligibility + 4 standard (untriggered)
+    expect(start.questions).toHaveLength(9); // 3 essential + 2 eligibility + 4 standard (untriggered)
 
     // Round 2 put eligibility after the WHOLE floor (essential+standard) — a funnel regression (round
     // 3): the ask dock renders questions[0] only, so a visitor had to clear the entire standard band
@@ -663,8 +662,8 @@ describe("#106 eligibility questions in discovery", () => {
     // between essential and standard, never after standard.
     const eligDimensions = start.questions.map((q) => q.eligibility?.dimension ?? null);
     expect(eligDimensions.slice(0, 3)).toEqual([null, null, null]); // the 3 essential items
-    expect(eligDimensions.slice(3, 6)).toEqual(["years-experience", "work-rights", "language"]);
-    expect(eligDimensions.slice(6)).toEqual([null, null, null, null]); // the 4 standard items, still last
+    expect(eligDimensions.slice(3, 5)).toEqual(["work-rights", "language"]);
+    expect(eligDimensions.slice(5)).toEqual([null, null, null, null]); // the 4 standard items, still last
   });
 
   // Code-review round 3, the regression QA flagged directly: pins the funnel length so this can't
@@ -675,7 +674,7 @@ describe("#106 eligibility questions in discovery", () => {
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
     const eligIds = start.questions.filter((q) => q.eligibility).map((q) => q.itemId);
-    expect(eligIds).toHaveLength(3);
+    expect(eligIds).toHaveLength(2);
 
     let state = start;
     for (const itemId of eligIds) {
@@ -690,7 +689,7 @@ describe("#106 eligibility questions in discovery", () => {
       await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" })
     ).json();
 
-    expect(last.stage).toBe("deck"); // reached with only essential (3) + eligibility (3) = 6 answers
+    expect(last.stage).toBe("deck"); // reached with only essential (3) + eligibility (2) = 5 answers
     // None of the standard band's items were ever answered — they were never required.
     const standardFloorIds = ["delivery-methodology", "pm-certification", "risk-register", "education-related-field"];
     for (const itemId of standardFloorIds) {
@@ -719,7 +718,7 @@ describe("#106 eligibility questions in discovery", () => {
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
     const eligIds = start.questions.filter((q) => q.eligibility).map((q) => q.itemId);
-    expect(eligIds).toHaveLength(3);
+    expect(eligIds).toHaveLength(2);
 
     // Close every eligibility question FIRST, well before the essential band — legitimate under the
     // fix (they're always visible), and exactly the ordering the old withholding gate would have
@@ -749,18 +748,21 @@ describe("#106 eligibility questions in discovery", () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
 
     const answered: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "5–7 years" })
+      await post(app, cookie, "/onboarding/discovery/answer", {
+        itemId: workRights.itemId,
+        answer: "Yes — no sponsorship needed",
+      })
     ).json();
-    expect(answered.cvLines.some((l) => l.itemId === years.itemId)).toBe(false); // #106 AC7
-    expect(answered.questions.map((q) => q.itemId)).not.toContain(years.itemId); // closed, never re-offered
+    expect(answered.cvLines.some((l) => l.itemId === workRights.itemId)).toBe(false); // #106 AC7
+    expect(answered.questions.map((q) => q.itemId)).not.toContain(workRights.itemId); // closed, never re-offered
 
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
-    const fact = await eligibility.get(sid, "years-experience", years.eligibility!.familyId);
-    expect(fact).toMatchObject({ value: "5" }); // #106: the band's lower bound, never a midpoint
+    const fact = await eligibility.get(sid, "work-rights", workRights.eligibility!.familyId);
+    expect(fact).toMatchObject({ value: "eligible" });
   });
 
   // Code-review must-fix 1: the oracle (packages/contracts/oracle/validate_graph.mjs) defines a
@@ -775,20 +777,17 @@ describe("#106 eligibility questions in discovery", () => {
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
     const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
-    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
 
     await post(app, cookie, "/onboarding/discovery/answer", {
       itemId: workRights.itemId,
       answer: "Yes — no sponsorship needed",
     });
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "5–7 years" });
 
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
     const [confirmed, negatives] = await Promise.all([claims.confirmed(sid), claims.negatives(sid)]);
     const allIds = [...confirmed, ...negatives].map((c) => c.id);
     expect(allIds).not.toContain(discoveryClaimId(workRights.itemId));
-    expect(allIds).not.toContain(discoveryClaimId(years.itemId));
   });
 
   it("declining does not inflate factCount — a refusal is not a recorded fact (must-fix 3)", async () => {
@@ -868,42 +867,28 @@ describe("#106 eligibility questions in discovery", () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    const answer = (a: string) =>
+      post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: a });
 
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "Under 3 years" });
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "More than 10 years" });
+    await answer("Not yet — I'd need sponsorship");
+    await answer("Yes — no sponsorship needed");
 
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
-    expect(await eligibility.numeric(sid, "years-experience", years.eligibility!.familyId)).toBe(10);
+    expect(await eligibility.get(sid, "work-rights", workRights.eligibility!.familyId)).toMatchObject({
+      value: "eligible",
+    });
   });
 
-  it("years-experience is scoped to the resolved family — the global scope stays empty", async () => {
-    const { app, eligibility } = buildServer();
-    const cookie = await anonSession(app);
-    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
-    expect(years.eligibility!.familyId).not.toBe(ANY_FAMILY);
-
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "5–7 years" });
-    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
-    const sid = me.json().id as string;
-    expect(await eligibility.numeric(sid, "years-experience")).toBeNull(); // the global scope stays empty
-    expect(await eligibility.numeric(sid, "years-experience", years.eligibility!.familyId)).toBe(5);
-  });
-
-  // Code-review must-fix 6: a job title ("...worked in IT Project Manager?") is ungrammatical and
-  // misreads as the wrong thing — the ticket's central UX requirement is that the scope be tellable
-  // from the question alone, on the path that actually runs (the E5 stub — nothing pins a production
-  // floor via the live routes today).
-  it("the live path's years-experience question uses a domain phrase, not the stub's job title (must-fix 6)", async () => {
+  // #162 / ADR-0008 clause 2's falsifiable check, at the live route: the total is worked out from
+  // the dated job records, so asking for it would collect an answer the next recompute deletes.
+  it("no question ever asks for a years-of-experience total (ADR-0008 clause 2)", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
-    expect(years.question).toBe("How many years have you worked in IT project delivery?");
-    expect(years.eligibility!.scopeLabel).toBe("IT project delivery");
-    expect(years.question).not.toContain("IT Project Manager");
+    expect(start.questions.some((q) => q.eligibility?.dimension === "years-experience")).toBe(false);
+    expect(start.questions.some((q) => /how many years/i.test(q.question))).toBe(false);
   });
 
   // Code-review must-fix 8: the decline's recorded text rebuilds the question, so it must reflect the
@@ -1055,22 +1040,28 @@ describe("#106 eligibility questions in discovery", () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
-    const res = await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "about 8 years" });
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
+    const res = await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: workRights.itemId,
+      answer: "Maybe, one day",
+    });
     expect(res.statusCode).toBe(400);
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
-    // The store's own write-time guard (assertStorable) is never even reached with a bad value.
-    expect(await eligibility.get(sid, "years-experience", years.eligibility!.familyId)).toBeNull();
+    // Nothing was written — a rejected answer never half-lands.
+    expect(await eligibility.get(sid, "work-rights", workRights.eligibility!.familyId)).toBeNull();
   });
 
   it("resumes identically on a fresh GET — the whole screen stays a pure function of persisted state", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
     const answered: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "5–7 years" })
+      await post(app, cookie, "/onboarding/discovery/answer", {
+        itemId: workRights.itemId,
+        answer: "Yes — no sponsorship needed",
+      })
     ).json();
 
     const resumed: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
@@ -1088,12 +1079,17 @@ describe("#106 eligibility questions in discovery", () => {
     const { app } = buildServer({ eligibility });
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    const years = start.questions.find((q) => q.eligibility?.dimension === "years-experience")!;
+    const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
 
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: years.itemId, answer: "8–10 years" });
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: workRights.itemId,
+      answer: "Yes — no sponsorship needed",
+    });
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
-    expect(await eligibility.numeric(sid, "years-experience", years.eligibility!.familyId)).toBe(8);
+    expect(await eligibility.get(sid, "work-rights", workRights.eligibility!.familyId)).toMatchObject({
+      value: "eligible",
+    });
   });
 });
 

@@ -26,15 +26,12 @@ import { loadFamilyFloor } from "../e5stub.js";
 import { eligiblePostings, sessionPostings, type Posting } from "../preview.js";
 import { ANY_FAMILY, type EligibilityStore } from "../eligibility.js";
 import {
+  answerEligibilityItem,
   applyEligibilityQuestions,
-  eligibilityCandidates,
   excludingEligibility,
   isEligibilityItemId,
-  isValidLanguageSelection,
-  languageFacts,
-  mapEligibilityAnswer,
-  resolveEligibilityFamilyScope,
 } from "../eligibilityDiscovery.js";
+import { answerJobDateHole, isJobDateItemId } from "../yearsWorked.js";
 import { readingLanguages, languageEligible } from "../language.js";
 import { incrementCounter } from "../counters.js";
 import { matchTick } from "../matchtick.js";
@@ -90,6 +87,9 @@ export interface OnboardingDeps {
   /** #106: the eligibility-fact store (#86 decisions 4+5, apps/api/src/eligibility.ts) — asked once in
    *  discovery, reused across every posting. */
   eligibility: EligibilityStore;
+  /** #162: the dated job records years-of-experience is worked out from (yearsWorked.ts) — the
+   *  source of both the total and the date-hole questions asked in its place. */
+  jobBlocks: import("../jobBlockStore.js").JobBlockStore;
   contact: import("../contact.js").ContactStore; // #190: GET /profile reads it, additively.
   familyFloors: TestFixtureFamilyFloorStore;
   productionFamilyFloors: ProductionFamilyFloorStore;
@@ -639,137 +639,14 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         deps.claims.negatives(sessionId),
         deps.claims.list(sessionId).then((all) => all.filter((c) => c.decision === "rejected")),
         deps.eligibility.list(sessionId),
+        // #162: the dated job records the years-of-experience total is worked out from — and whose
+        // unknown ends are the questions asked instead of that total (ADR-0008 clause 3).
+        deps.jobBlocks.list(sessionId),
       ]);
 
     // #106: eligibility questions are layered onto discoveryState()'s pure floor-only output by
     // eligibilityDiscovery.ts's applyEligibilityQuestions — see its own doc for the band-interleaving
     // rule and the funnel regression that produced it.
-
-    // #106: an eligibility answer's own write path. Code-review must-fix 1: a REAL answer (of any
-    // kind, including a "no"-shaped one like "Not yet — I'd need sponsorship") never touches the
-    // claims store — graph.ts's buildClaimGraph renders every claim in its first argument
-    // unconditionally, and stamps every claim in its `negatives` option classification "Negative",
-    // which the contract oracle (packages/contracts/oracle/validate_graph.mjs) defines as a CONFIRMED
-    // GAP Tailor must never assert. Either path would misrepresent a real answer. A real answer
-    // therefore lives ONLY in the eligibility store (put()); "already answered" is read back from
-    // THAT store (this route's own `facts`), never from a claim. Only a DECLINE still writes a
-    // claims-store record (answerNegative — "asked and closed, no fact"), reusing the one persistence
-    // this repo already has for that state. Must-fix 5: correcting an answer TO a decline retracts
-    // any value a PRIOR real answer stored — eligibility.remove() runs unconditionally on a decline (a
-    // no-op if nothing was ever stored), so the dimension reads unknown again, never a retracted
-    // value. Must-fix 8: `city` is the visitor's REAL resolved city (#184: postingRetrieval.ts's
-    // resolvedCityFor, over the confirmed search area — no longer parseCity(role), never a
-    // placeholder) — it's rebuilt into the question text a decline's claim records verbatim, so that
-    // record must match what the visitor was actually asked. Returns a reply already sent on failure,
-    // undefined on success — mirrors this file's other early-return route helpers (e.g. fixtureState
-    // above).
-    //
-    // #123: `body` replaces the old single `rawAnswer` string — the languages question is
-    // multi-select, so its real answer arrives as `answers: string[]`, never a single `answer`. Every
-    // other eligibility question (years-experience, work-rights) and every question's OWN decline
-    // still arrive as a single `answer`, exactly as before.
-    const answerEligibilityItem = async (
-      session: SessionRecord,
-      role: string,
-      itemId: string,
-      body: { answer?: string; answers?: string[] },
-      reply: FastifyReply,
-    ): Promise<FastifyReply | undefined> => {
-      const { familyId, scopeLabel } = resolveEligibilityFamilyScope(session, role);
-      const city = resolvedCityFor(session.intent.searchArea);
-      const question = eligibilityCandidates(familyId, ANY_FAMILY, scopeLabel, city).find(
-        (q) => q.itemId === itemId,
-      );
-      if (!question) {
-        return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
-      }
-      const ask = question.eligibility!;
-
-      if (body.answer !== undefined) {
-        const answer = body.answer.trim();
-        if (answer === ask.declineOption) {
-          if (question.multiSelect) {
-            // #123: a decline on the (multi-select) languages question retracts EVERY language's
-            // stored fact, not just one scope — must-fix 5's rule, applied across the whole list, so
-            // a prior real answer is fully erased and every language reads as unknown again.
-            //
-            // Code-review must-fix 2 (2026-08-04): loops over languagesUnion() (TODAY's list), not
-            // whatever is actually stored — eligibility.remove() defaults its familyId to ANY_FAMILY,
-            // so it can't clear "every scope" in one call, and languages-by-market.json is the
-            // owner's own hand-edit surface (must-fix 4): the day a market is dropped or a language
-            // renamed there, a visitor who answered under the OLD list and then declines would keep a
-            // stale fact at a scope the union no longer contains — a decline that silently fails to
-            // fully retract. Reads what this SESSION actually has stored (list()) and removes each
-            // language-dimension fact by its own recorded scope instead, so a decline always fully
-            // retracts regardless of how the list has changed since the visitor answered.
-            const stored = await deps.eligibility.list(session.id);
-            for (const fact of stored) {
-              if (fact.dimension === ask.dimension) {
-                await deps.eligibility.remove(session.id, fact.dimension, fact.familyId);
-              }
-            }
-          } else {
-            await deps.eligibility.remove(session.id, ask.dimension, ask.familyId);
-          }
-          const claimId = discoveryClaimId(itemId);
-          await deps.claims.answerNegative(session.id, {
-            id: claimId,
-            semantic_key: claimId,
-            field_key: null,
-            field_value: null,
-            field_label: null,
-            role: "profile",
-            text: `Declined — ${question.question}`,
-            machine_touch: "verbatim",
-            classification: "Verified",
-            source_quote: answer.slice(0, 200),
-            needs_grill: false,
-            grill_hint: null,
-          });
-          return undefined;
-        }
-
-        // #123: a multi-select question only ever accepts a single `answer` for its decline (handled
-        // above) — a REAL response is always `answers`. Falling through to the single-value mapper
-        // below would be silently wrong (it knows nothing about this question's shape), so this is a
-        // 400, not a fall-through.
-        if (question.multiSelect) {
-          return reply
-            .status(400)
-            .send({ error: { code: "invalid_answer", message: "unrecognized eligibility answer" } });
-        }
-
-        const mapped = mapEligibilityAnswer(ask.dimension, scopeLabel, answer);
-        if (!mapped) {
-          return reply
-            .status(400)
-            .send({ error: { code: "invalid_answer", message: "unrecognized eligibility answer" } });
-        }
-        await deps.eligibility.put(session.id, {
-          dimension: ask.dimension,
-          familyId: ask.familyId,
-          value: mapped.value,
-          label: mapped.label,
-        });
-        return undefined;
-      }
-
-      // #123: the multi-select real-answer path — `body.answers` (the route only reaches here once
-      // it has already checked exactly one of answer/answers is present). A single-select question
-      // never accepts this shape.
-      if (!question.multiSelect || !body.answers || !isValidLanguageSelection(body.answers)) {
-        return reply
-          .status(400)
-          .send({ error: { code: "invalid_answer", message: "unrecognized eligibility answer" } });
-      }
-      // Write the FULL set on every answer — every language, not only the ticked ones (AC6: this is
-      // what makes a correction work — re-answering with Mandarin ticked flips its stored "none" back
-      // to "professional" in the same call, rather than leaving a stale "none" for nothing to revisit).
-      for (const write of languageFacts(body.answers)) {
-        await deps.eligibility.put(session.id, { dimension: ask.dimension, ...write });
-      }
-      return undefined;
-    };
 
     // Load / resume: rebuild the state from the store. Before Q1 (no role) → the empty skeleton state.
     // #18 AC6: an optional ?job= prepends the ONE reader-only question — over the uploaded CV's mined
@@ -781,7 +658,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       async (req) => {
         const session = requireSession(req);
         const role = session.targetTitles[0] ?? null;
-        const [confirmed, negatives, rejected, facts] = await discoveryReads(session.id);
+        const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
         const state = discoveryState(role, confirmed, negatives, rejected, resolvedCityFor(session.intent.searchArea));
 
         const jobId = req.query.job;
@@ -796,7 +673,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           const roles = job && job.sessionId === session.id ? minedRoles(job) : [];
           if (roles.length > 0) state.questions = [readerQuestion(roles[0]!), ...state.questions];
         }
-        if (role) applyEligibilityQuestions(session, role, state, confirmed, negatives, rejected, facts);
+        if (role) applyEligibilityQuestions(role, state, confirmed, negatives, rejected, facts, blocks);
         // #106 must-fix 3: a decline is a refusal, not a recorded fact — strip it before it inflates
         // the profile badge's "pile that only grows".
         state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
@@ -825,9 +702,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const session = requireSession(req);
         await deps.sessions.setTargetTitles(session.id, [req.body.role]);
         await deps.sessions.setStage(session.id, "discovery");
-        const [confirmed, negatives, rejected, facts] = await discoveryReads(session.id);
+        const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
         const state = discoveryState(req.body.role, confirmed, negatives, rejected, resolvedCityFor(session.intent.searchArea));
-        applyEligibilityQuestions(session, req.body.role, state, confirmed, negatives, rejected, facts);
+        applyEligibilityQuestions(req.body.role, state, confirmed, negatives, rejected, facts, blocks);
         state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
@@ -872,12 +749,34 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           });
         }
 
-        // #106: an eligibility item is a separate answer shape (see answerEligibilityItem's own doc
-        // comment above) — handled as its own path rather than forced through the shared claim/no
-        // branches below.
         if (isEligibilityItemId(req.body.itemId)) {
-          const errorReply = await answerEligibilityItem(session, role, req.body.itemId, req.body, reply);
-          if (errorReply) return errorReply;
+          // #162 (architecture pass): the whole eligibility write path now lives beside the module
+          // that builds the questions (eligibilityDiscovery.ts's answerEligibilityItem) — see its own
+          // doc for the never-a-claim rule and the decline/multi-select shapes.
+          const result = await answerEligibilityItem(
+            { eligibility: deps.eligibility, claims: deps.claims },
+            session.id,
+            resolvedCityFor(session.intent.searchArea),
+            req.body.itemId,
+            req.body,
+          );
+          if (!result.ok)
+            return reply.status(result.status).send({ error: { code: result.code, message: result.message } });
+        } else if (isJobDateItemId(req.body.itemId)) {
+          // #162 / ADR-0008 clause 3: the missing part underneath a worked-out total. The answer
+          // corrects the job record itself (yearsWorked.ts owns parsing, the correction and the
+          // recompute) — it is never stored as a claim, and never as a years total.
+          const result = await answerJobDateHole(
+            deps.jobBlocks,
+            deps.eligibility,
+            session.id,
+            req.body.itemId,
+            req.body.answer,
+          );
+          if (!result.ok)
+            return reply
+              .status(result.code === "not_found" ? 404 : 400)
+              .send({ error: { code: result.code, message: result.message } });
         } else {
           // A floor item / the reader-only question predates `answers` entirely (#123) — neither ever
           // accepts a multi-select shape, so this is the same single-`answer` flow as before.
@@ -931,9 +830,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           else await deps.claims.add(session.id, claim);
         }
 
-        const [confirmed, negatives, rejected, facts] = await discoveryReads(session.id);
+        const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
         const state = discoveryState(role, confirmed, negatives, rejected, resolvedCityFor(session.intent.searchArea));
-        applyEligibilityQuestions(session, role, state, confirmed, negatives, rejected, facts);
+        applyEligibilityQuestions(role, state, confirmed, negatives, rejected, facts, blocks);
         // #18 AC1 / #106: the essential band fully asked AND every eligibility question closed flips
         // the session to the deck stage, so a reload lands there too. Code-review must-fix 2: the
         // full set of remaining floor + eligibility items is visible from the very first response
@@ -967,7 +866,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // discoveryReads) rather than a second store call — T1 (code review): one eligibility read per
       // request, not one per thing that needs it.
       const role = session.targetTitles[0] ?? null;
-      const userYears = resolveUserYears(facts, session, role);
+      const userYears = resolveUserYears(facts);
       const langs = readingLanguages(session);
       const postings = eligiblePostings(langs, sessionPostings(session, requestFingerprint));
       // #104: every eligible posting gets a requirement set now, not only the hand-curated ones —
@@ -1066,6 +965,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           // flight, will self-heal into the store); one the bound never attempted at all is
           // `unscored` (nothing coming unless a later request's own bound selects it).
           !judgeWired ? "estimated" : entry.attempted ? "pending" : "unscored",
+          userYears !== null, // #162 AC6: no usable history → the years bar reads as untested, not unmet
         ),
         curated: entry.adReq.curated,
       }));
@@ -1170,16 +1070,11 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       const rawJudgement = await resolveJudgement(adReq, confirmed, deps.judge);
       // #107 (D5): the years-experience shortfall, applied at read time — see applyYearsShortfall's
       // own doc (judgedScore.ts). Reads `facts` already fetched above — T1: one eligibility read.
-      const judgement = withYearsShortfall(rawJudgement, adReq, resolveUserYears(facts, session, role));
-      const state = buildTailorState(
-        posting,
-        adReq,
-        confirmed,
-        negatives,
-        role,
-        session.tailorFloorPct,
-        judgement,
-      );
+      // #162 AC6: null years means no readable work history, so this surface must report the years
+      // bar untested exactly as the deck card does.
+      const userYears = resolveUserYears(facts);
+      const judgement = withYearsShortfall(rawJudgement, adReq, userYears);
+      const state = buildTailorState(posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, userYears !== null);
       state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
       return state;
     });
@@ -1253,20 +1148,13 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const rawJudgement = await resolveJudgement(adReq, confirmed, deps.judge);
         // #107 (D5): the years-experience shortfall, applied at read time — see applyYearsShortfall's
         // own doc (judgedScore.ts). Reads `facts` already fetched above — T1: one eligibility read.
-        const judgement = withYearsShortfall(rawJudgement, adReq, resolveUserYears(facts, session, role));
+        const userYears = resolveUserYears(facts);
+        const judgement = withYearsShortfall(rawJudgement, adReq, userYears);
         await deps.sessions.raiseTailorFloor(
           session.id,
           judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
         );
-        const state = buildTailorState(
-          posting,
-          adReq,
-          confirmed,
-          negatives,
-          role,
-          session.tailorFloorPct,
-          judgement,
-        );
+        const state = buildTailorState(posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, userYears !== null);
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
