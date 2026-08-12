@@ -2,6 +2,41 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-12 (session 105) architecture pass, part 2 — the deferred candidates, two built and one refused
+
+Picked up the three items session 104 deferred while #163 was in flight. #163 (`dd99634`) landed
+first and, per the relayed note, folded the job-record view shapes into
+`packages/contracts/src/jobBlockView.ts` — so that fourth item was already done on arrival.
+
+- **Candidate 6 (`fdb6f91`)** — `applyEligibility` moved out of the route closure to
+  `eligibilityDiscovery.ts` as `applyEligibilityQuestions`. **Not** into `discovery.ts` as the review
+  proposed: that module is imported BY `eligibilityDiscovery`, so the proposed direction is an import
+  cycle — the new home is beside the call that generates the questions it places. Session param
+  narrowed to `Pick<SessionRecord, "discovery">`; three unit cases now pin the band-interleaving rule
+  that previously needed the HTTP funnel. Ratchet 1322 → 1282.
+- **Candidate 5, narrowed (`a8a5c48`)** — the ADR-0002 re-upload rule ("a correction outranks a
+  re-read") left `server.ts`'s composition root for a pure `reconcileImport`; nine direct unit cases,
+  two of which the HTTP path never asserted precisely (a correction landing on `field_value` as well
+  as `text`; a conflict clearing only once answered). The BuildOptions 26-slot regroup was dropped:
+  ~200 `buildServer` call sites of churn for readability, with real risk of hiding a wiring mistake.
+
+**Candidate 4 (counters injection) is REFUSED — do not re-propose without new evidence.** Both
+premises in the session-104 report were checked against the code and are false:
+1. *"Alarm policy is buried in a counting module and untestable"* — `computeReadFailureAlarm` /
+   `computeReadTimeoutAlarm` are already pure, take explicit counts, and carry **10 direct assertions
+   with exact numbers** in `counters.test.ts`. Moving them to `alarms.ts` is a file move with zero
+   testability gain — it moves complexity rather than concentrating it.
+2. *"The deck double-counts withdrawals to work around the process-wide counter"* — it does not.
+   `deck.cards_withdrawn` is a cumulative operational metric; `withdrawn.byLanguage` is a
+   **per-response payload field the web deck renders** to the visitor (`withdrawnLine` in
+   `deck/page.tsx`, #123). Two different things; injection would remove neither.
+
+What remains is removing `resetCountersForTest` (3 test files, documented, working) at the cost of
+threading a metrics object through **64 call sites across 11 modules**, and standing up an interface
+with exactly one implementation — a hypothetical seam, not a real one.
+
+**Gates:** full suite 1,254 api + 45 contracts passed / 10 skipped, typecheck clean on every push.
+
 ## 2026-08-12 (session 106) `/implement #163` — a correction sticks and reaches the tailored CV
 
 ADR-0002 made flesh (commit refs below): the tailor is now fed from the stored, corrected job

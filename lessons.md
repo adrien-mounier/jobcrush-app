@@ -1,5 +1,22 @@
 # Lessons — jobcrush-app
 
+## Check an architecture finding against the code before building the fix
+
+Two of the three deferred findings from the session-104 architecture review did not survive contact
+with the source. The counters candidate rested on "alarm logic is untestable" (it is pure and has 10
+exact-number assertions already) and "the deck double-counts withdrawals as a workaround" (the second
+count is a per-response field the web renders — a different thing, not a workaround). A review that
+reads *shapes* — a big module, a repeated-looking number — generates plausible findings that a look at
+the tests and the consumer falsifies in minutes. Re-verify each finding at build time, and write the
+refusal down with its evidence so the next review does not re-propose it.
+
+## The obvious home for a moved helper may be the one that creates an import cycle
+
+The review said discovery's question-ordering rule belonged in `discovery.ts`. But
+`eligibilityDiscovery.ts` already imports `discovery.ts`, so moving it there would have inverted a
+dependency into a cycle. The right home was the *importing* module, beside the function generating the
+questions being ordered. Check the existing import direction before naming a destination module.
+
 ## Never `git add -A` in this repo — stage the files you touched, by name
 
 Sessions leave working artifacts at the repo root and under apps/web (screenshots, .scratch scripts,
