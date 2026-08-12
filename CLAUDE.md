@@ -65,13 +65,15 @@ When a meaningful unit of work lands (see session hygiene):
    `main` to Fly staging on every green push, so a push is a deploy** — the green gate is
    non-negotiable.
 
-**A commit that finishes a ticket closes it: end the message with `Closes #123` on its own line.**
-`(#123)` in the subject only *links* — GitHub closes on the keyword and nothing else, so a bare
-reference leaves finished work sitting on the board as available. `/implement` has no
-tracker step at all (it ends at "commit your work"), so the commit message is the only place this
-can happen. Never `Closes` a parent/map issue from a child's commit — reference it and leave it
-open. Finished but not closable from the commit (a decision, a research pass): close it by hand
-with a comment naming the commit.
+**A commit that finishes a ticket closes it: end the message with `Closes #123` on its own line —
+but only once `/qa-gate` has returned GO.** The keyword acts on push, which is the same moment the
+deploy happens, so a `Closes` written before the gate marks the board done for work nothing has
+verified. Earn the line, don't type it by habit. `(#123)` in the subject only *links* — GitHub
+closes on the keyword and nothing else, so a bare reference leaves finished work sitting on the
+board as available. `/implement` has no tracker step at all (it ends at "commit your work"), so the
+commit message is the only place this can happen. Never `Closes` a parent/map issue from a child's
+commit — reference it and leave it open. Finished but not closable from the commit (a decision, a
+research pass): close it by hand with a comment naming the commit.
 
 Use a branch + PR only for a `/code-review` pass or a change risky enough that staging must stay up
 while it is in progress. Background-job worktree isolation still applies: finish in a worktree,
@@ -125,6 +127,12 @@ This repo runs the **development-lifecycle** workflow from the **mattpocock-skil
 plus the local **`/qa-gate`** skill: after `/implement` + `/code-review` and before any commit, the
 independent `qa-tester` agent re-runs the gates, audits every acceptance criterion, and drives the
 real app in a browser with evidence — commit only on GO.
+
+  **A plugin skill's own last step never ends the work.** `/implement` closes with "commit your
+  work to the current branch" and says nothing about a gate or a tracker — it is written for repos
+  without either. This file wraps it: the gate runs first, and the GO is what licenses the commit.
+  An instruction being the one in front of you does not make it the outer one. The same applies to
+  any skill whose closing line contradicts this section.
 
 - **Issue tracker:** specs and tickets are GitHub Issues in `adrien-mounier/jobcrush-app` (via
   `gh`). See `docs/agents/issue-tracker.md`. Labels: `ready-for-agent`, `wayfinder:*`.
