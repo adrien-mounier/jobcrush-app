@@ -593,58 +593,28 @@ export function getProfile(): Promise<ProfileState> {
 }
 
 // --- #161 job blocks (structured work-history records) + #157 Design A confirm deck ---
-// Mirrors apps/api/src/jobBlockStore.ts's JobBlockView/DeckSummary exactly — this is the pinned
-// interface the confirm-swipe screen builds against (slice A shipped in bac864c).
-
-export type JobBlockKind = "job" | "education" | "project" | "client" | "volunteering";
-
-export interface MinedDate {
-  year: number;
-  month: number | null; // null unless precision is "month"
-  precision: "year" | "month";
-}
-
-export type MinedEndValue =
-  | { state: "ongoing" }
-  | { state: "ended"; date: MinedDate }
-  | { state: "unknown" };
-
-export type DecisionOrigin =
-  | { kind: "read"; source_quote: string }
-  | { kind: "corrected"; supersededValue: unknown };
-
-export interface DecisionView<T = unknown> {
-  id: string; // `${blockId}:${decisionKey}`
-  value: T;
-  origin: DecisionOrigin;
-  machine_touch: "verbatim" | "reworded" | "inferred" | null; // null once a person has corrected it
-  classification: "Verified" | "Derived" | "Partially-Supported" | null;
-}
-
-export interface JobBlockView {
-  id: string;
-  kind: JobBlockKind;
-  countsTowardExperience: boolean; // derived server-side, never asked (#157 Design A §2)
-  employer: DecisionView<string>;
-  title: DecisionView<string>;
-  start: DecisionView<MinedDate>;
-  end: DecisionView<MinedEndValue>;
-  kindDecision: DecisionView<JobBlockKind>;
-  confirmed: boolean;
-  matchState: "new" | "matched" | "ambiguous";
-  candidateBlockIds: string[]; // populated only when matchState === "ambiguous"
-}
-
-export type JobBlocksReadStatus =
-  | { status: "not_run" }
-  | { status: "ok"; blocksFound: number }
-  | { status: "failed" };
-
-export interface JobBlocksSummary {
-  totalBlocks: number;
-  confirmedBlocks: number;
-  read: JobBlocksReadStatus;
-}
+// #163: the view shapes now live once in @jobcrush/contracts (jobBlockView.ts) instead of being
+// hand-mirrored here — re-exported type-only under the names this app already uses, so drift
+// fails typecheck instead of rendering undefined (same pattern as JobCardV1, 85c0b19).
+export type {
+  Kind as JobBlockKind,
+  MinedDate,
+  MinedEndValue,
+  DecisionOrigin,
+  DecisionView,
+  JobBlockView,
+  ReadStatus as JobBlocksReadStatus,
+  DeckSummary as JobBlocksSummary,
+  HeldSentence,
+} from "@jobcrush/contracts";
+import type {
+  Kind as JobBlockKind,
+  MinedDate,
+  MinedEndValue,
+  HeldSentence,
+  JobBlockView,
+  DeckSummary as JobBlocksSummary,
+} from "@jobcrush/contracts";
 
 export function getJobBlocks(): Promise<{ blocks: JobBlockView[]; summary: JobBlocksSummary }> {
   return jfetch("/api/job-blocks");
@@ -667,7 +637,13 @@ export type JobBlockCorrection =
   | { key: "end"; value: MinedEndValue }
   | { key: "kind"; value: JobBlockKind };
 
-export function correctJobBlock(id: string, correction: JobBlockCorrection): Promise<{ ok: boolean }> {
+// #163: `held` — confirmed sentences this correction contradicted, now held aside with a precise
+// question each (ADR-0002 clause 3); they return to the CV when the person answers. `downstream`
+// tells the person, in plain words, what the correction changes on later CVs.
+export function correctJobBlock(
+  id: string,
+  correction: JobBlockCorrection,
+): Promise<{ ok: boolean; held: HeldSentence[]; downstream: string | null }> {
   return jfetch(`/api/job-blocks/${id}/correct`, {
     method: "POST",
     body: JSON.stringify(correction),

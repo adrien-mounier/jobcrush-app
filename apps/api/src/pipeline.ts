@@ -8,6 +8,7 @@ import type { CvKind } from "./uploads.js";
 import { CandidateClaim } from "@jobcrush/contracts";
 import type { CandidateClaim as CandidateClaimType, MinedJobBlocks } from "@jobcrush/contracts";
 import type { ImportProof } from "./sessions.js";
+import type { JobBlockView } from "./jobBlockStore.js";
 
 export type PipelineInput =
   | { type: "upload"; data: Buffer; kind: CvKind; key: string }
@@ -46,13 +47,23 @@ export interface PipelineDeps {
     claims: CandidateClaimType[],
   ) => Promise<ImportProof>;
   /** JC-16 preview: mined claims + target titles (+ raw CV for header data, + the session's stored
-   *  contact — #190) → watermarked HTML. */
+   *  contact — #190, + the stored corrected job records — #163) → watermarked HTML, plus any
+   *  plain-words conservation notices when the draft shipped lossy (ADR-0002 clause 5). */
   preview?: (
     minerOutput: unknown,
     targetTitles: string[],
     rawCv: RawCv,
     contact?: { phone: string | null; email: string | null },
-  ) => Promise<{ html: string; postingTitle: string; postingCompany: string }>;
+    jobBlocks?: JobBlockView[],
+  ) => Promise<{
+    html: string;
+    postingTitle: string;
+    postingCompany: string;
+    conservationNotices?: string[];
+  }>;
+  /** #163: this session's stored job records, read once before tailoring so the Roles: block is
+   *  fed from the corrected facts instead of the miner's original read (ADR-0002). */
+  getJobBlocks?: (sessionId: string) => Promise<JobBlockView[]>;
   /** #190: persist phone/email parsed from the raw CV's contact block, once, right after extract —
    *  no LLM call. A "read" write here never overwrites a person-said correction; the contact store
    *  enforces that guard (ADR-0008 §3), not this pipeline. */
@@ -267,12 +278,29 @@ export async function runOnboardingJob(
         if (!job?.progress.preview) {
           await appendFeed(store, jobId, "Picking a live posting that matches your targets…");
           const contact = deps.getContact && job?.sessionId ? await deps.getContact(job.sessionId) : undefined;
-          const rendered = await deps.preview(miner, targetTitles, rawCv, contact);
+          // #163: the stored, corrected job records feed the tailor. Best-effort — a store read
+          // failure falls back to the miner's read rather than failing the preview.
+          let jobBlocksForTailor: JobBlockView[] | undefined;
+          if (deps.getJobBlocks && job?.sessionId) {
+            try {
+              jobBlocksForTailor = await deps.getJobBlocks(job.sessionId);
+            } catch (err) {
+              // Fall back to the miner's read rather than failing the preview — but never silently:
+              // a failing store read here drops the person's corrections from this draft.
+              console.warn("[pipeline] job-block read failed; tailoring from the miner's read", err);
+              jobBlocksForTailor = undefined;
+            }
+          }
+          const rendered = await deps.preview(miner, targetTitles, rawCv, contact, jobBlocksForTailor);
+          const conservationNotices = rendered.conservationNotices ?? [];
           await store.update(jobId, {
             progress: {
               preview: {
                 postingTitle: rendered.postingTitle,
                 postingCompany: rendered.postingCompany,
+                // ADR-0002 clause 5: a lossy draft's notices travel WITH the preview to the client
+                // (clientView keeps progress.preview), never console-only.
+                conservationNotices,
               },
               previewHtml: rendered.html,
             },
@@ -282,6 +310,9 @@ export async function runOnboardingJob(
             jobId,
             `Tailored a draft for "${rendered.postingTitle}" at ${rendered.postingCompany}.`,
           );
+          for (const notice of conservationNotices) {
+            await appendFeed(store, jobId, notice);
+          }
         }
       }
     }

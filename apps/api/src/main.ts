@@ -138,7 +138,12 @@ const { app } = buildServer({
   pipeline: {
     mine: makeMineStep(metered("claim-mining", llm)),
     mineJobBlocks: makeMineJobBlocksStep(metered("job-block-mining", llm)),
-    preview: makePreviewStep(metered("preview-tailor", llm)),
+    // #163: the preview step reads which dimensions the matched posting gates on (a presentation
+    // read of the ad-requirements store — never a fresh model call) so a declared fact the advert
+    // tests can rise into the summary (ADR-0002 clause 4).
+    preview: makePreviewStep(metered("preview-tailor", llm), {
+      getAdRequirements: (adId) => adRequirements.get(adId),
+    }),
   },
   phraseGrill: makeGrillPhraser(metered("grill", llm)),
   auditCv: makeCvAuditor(metered("cv-audit", llm)),

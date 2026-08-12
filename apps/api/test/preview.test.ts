@@ -17,6 +17,7 @@ import {
   tailorDraft,
 } from "../src/preview.js";
 import { makeMineStep } from "../src/miner.js";
+import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { isTerminal } from "../src/jobs.js";
 import type { LlmClient } from "../src/llm.js";
 
@@ -139,7 +140,7 @@ describe("JC-16 posting match + render", () => {
   });
 
   it("tailorDraft validates the LLM's JSON against the draft schema", async () => {
-    const draft = await tailorDraft(await recordedClaims(), matchPosting([]), llmReturning(sampleDraft));
+    const { draft } = await tailorDraft(await recordedClaims(), matchPosting([]), llmReturning(sampleDraft));
     expect(draft.name).toBe("Maria Kowalski");
     await expect(
       tailorDraft(await recordedClaims(), matchPosting([]), llmReturning({ nope: 1 })),
@@ -282,8 +283,8 @@ describe("conservation lint — tailor by emphasis, not amputation", () => {
       additional: [],
     };
     const issues = conservationIssues(await recordedClaims(), lossy);
-    expect(issues.some((i) => i.includes("certifications lost"))).toBe(true);
-    expect(issues.some((i) => i.includes("languages lost"))).toBe(true);
+    expect(issues.some((i) => i.message.includes("certifications lost"))).toBe(true);
+    expect(issues.some((i) => i.message.includes("languages lost"))).toBe(true);
   });
 
   // #153/#158: the hidden floor (Math.min(6, sourceBullets) on the newest role) is deleted.
@@ -326,7 +327,7 @@ describe("conservation lint — tailor by emphasis, not amputation", () => {
       ],
     };
     const issues = conservationIssues(claims, fabricated);
-    expect(issues.some((i) => i.includes("made-up-claim"))).toBe(true);
+    expect(issues.some((i) => i.message.includes("made-up-claim"))).toBe(true);
   });
 
   it("flags an unprinted entry citing a claim id that is not a real source claim", async () => {
@@ -336,7 +337,7 @@ describe("conservation lint — tailor by emphasis, not amputation", () => {
       experience: [{ ...sampleDraft.experience[0]!, unprinted: ["also-made-up"] }],
     };
     const issues = conservationIssues(claims, fabricated);
-    expect(issues.some((i) => i.includes("also-made-up"))).toBe(true);
+    expect(issues.some((i) => i.message.includes("also-made-up"))).toBe(true);
   });
 
   it("does not flag claim ids that are real, in bullets or in unprinted", async () => {
@@ -387,15 +388,24 @@ describe("conservation lint — tailor by emphasis, not amputation", () => {
         return JSON.stringify(sampleDraft);
       },
     };
-    const draft = await tailorDraft(await recordedClaims(), matchPosting([]), llm);
+    const { draft, conservationNotices } = await tailorDraft(await recordedClaims(), matchPosting([]), llm);
     expect(calls).toBe(2);
     expect(draft.certifications.length).toBe(2);
+    expect(conservationNotices).toEqual([]);
   });
 
-  it("ships a still-lossy draft after retry instead of failing the job", async () => {
+  it("ships a still-lossy draft after retry, telling the visitor in plain words (#163)", async () => {
     const lossy = { ...sampleDraft, certifications: [] };
-    const draft = await tailorDraft(await recordedClaims(), matchPosting([]), llmReturning(lossy));
-    expect(draft.certifications.length).toBe(0); // shipped, flagged via console.warn
+    const { draft, conservationNotices } = await tailorDraft(
+      await recordedClaims(),
+      matchPosting([]),
+      llmReturning(lossy),
+    );
+    expect(draft.certifications.length).toBe(0); // shipped — never fails the job
+    // ADR-0002 clause 5: the loss is a message to the person, not a console-only warning.
+    expect(conservationNotices.length).toBeGreaterThan(0);
+    expect(conservationNotices[0]).toContain("certification");
+    expect(conservationNotices[0]).not.toContain("JSON"); // plain words, not LLM feedback
   });
 });
 
@@ -582,7 +592,7 @@ describe("#159 summary prints only when it earns its place — schema + render",
         return JSON.stringify(calls === 1 ? withoutSummary : sampleDraft);
       },
     };
-    const draft = await tailorDraft(await recordedClaims(), matchPosting([]), llm);
+    const { draft } = await tailorDraft(await recordedClaims(), matchPosting([]), llm);
     expect(calls).toBe(2);
     expect(draft.summary).toBe(sampleDraft.summary);
   });
@@ -794,5 +804,167 @@ describe("JC-13 mine step adapter", () => {
     expect(out.roles).toBe(claims.roles.length);
     expect(out.claims.length).toBe(claims.claims.length);
     expect(out.doc.schemaVersion).toBe("1");
+  });
+});
+
+// #163 — a correction sticks and reaches the tailored CV (ADR-0002).
+describe("#163 stored corrected job records feed the tailor", () => {
+  const blockDecision = (value: string, quote: string) => ({
+    value,
+    source_quote: quote,
+    machine_touch: "verbatim" as const,
+    classification: "Verified" as const,
+  });
+  const minedBlock = {
+    id: "scb-regional-pm",
+    employer: blockDecision("Standard Chartered", "Standard Chartered Bank"),
+    title: blockDecision("Regional PM", "Regional Project Manager"),
+    start: {
+      value: { year: 2019, month: null, precision: "year" as const },
+      source_quote: "2019",
+      machine_touch: "verbatim" as const,
+      classification: "Verified" as const,
+    },
+    end: {
+      value: { state: "ended" as const, date: { year: 2022, month: null, precision: "year" as const } },
+      source_quote: "2022",
+      machine_touch: "verbatim" as const,
+      classification: "Verified" as const,
+    },
+    kind: blockDecision("job", "Regional Project Manager") as never,
+  };
+  const doc = { blocks: [minedBlock], schemaVersion: "1" };
+
+  it("builds the Roles: block from the stored records, corrected values winning (AC1)", async () => {
+    const store = new InMemoryJobBlockStore();
+    await store.ingest("s1", doc as never, "raw");
+    await store.correct("s1", "scb-regional-pm", "title", "Regional Delivery Director");
+    const blocks = await store.list("s1");
+    const input = buildTailorInput(await recordedClaims(), matchPosting([]), "", { jobBlocks: blocks });
+    const rolesSection = input.slice(input.lastIndexOf("Roles:"), input.lastIndexOf("Claims:"));
+    expect(rolesSection).toContain("Regional Delivery Director at Standard Chartered (2019 - 2022)");
+    expect(rolesSection).not.toContain("Regional PM at"); // the miner's read no longer feeds the tailor
+  });
+
+  it("a correction survives a re-upload of the same CV and still reaches the tailor (AC2)", async () => {
+    const store = new InMemoryJobBlockStore();
+    await store.ingest("s1", doc as never, "raw");
+    await store.correct("s1", "scb-regional-pm", "title", "Regional Delivery Director");
+    await store.ingest("s1", doc as never, "raw again"); // re-upload: same CV re-mined
+    const blocks = await store.list("s1");
+    expect(blocks).toHaveLength(1); // never duplicated
+    const input = buildTailorInput(await recordedClaims(), matchPosting([]), "", { jobBlocks: blocks });
+    expect(input).toContain("Regional Delivery Director");
+  });
+
+  it("falls back to the miner's roles when no stored records exist", async () => {
+    const claims = await recordedClaims();
+    const input = buildTailorInput(claims, matchPosting([]), "", { jobBlocks: [] });
+    expect(input).toContain(claims.roles[0]!.title);
+  });
+
+  it("education blocks never enter the Roles: block", async () => {
+    const store = new InMemoryJobBlockStore();
+    const eduBlock = {
+      ...minedBlock,
+      id: "uni-warsaw",
+      employer: blockDecision("University of Warsaw", "University of Warsaw"),
+      kind: blockDecision("education", "MSc") as never,
+    };
+    await store.ingest("s1", { blocks: [eduBlock], schemaVersion: "1" } as never, "raw");
+    const input = buildTailorInput(await recordedClaims(), matchPosting([]), "", {
+      jobBlocks: await store.list("s1"),
+    });
+    const rolesSection = input.slice(input.lastIndexOf("Roles:"), input.lastIndexOf("Claims:"));
+    expect(rolesSection).not.toContain("University of Warsaw");
+  });
+
+  it("advert-tested dimensions enter the input with the summary-promotion instruction (AC3)", async () => {
+    const input = buildTailorInput(await recordedClaims(), matchPosting([]), "", {
+      advertTests: ["Fluent Mandarin"],
+    });
+    expect(input).toContain("===ADVERT-TESTS===");
+    expect(input).toContain("Fluent Mandarin");
+    expect(input).toContain("woven into the summary");
+    expect(input).toContain("Never invent a fact");
+  });
+
+  it("the lint flags a lost corrected fact and a printed superseded value, in plain words (AC4)", async () => {
+    const store = new InMemoryJobBlockStore();
+    await store.ingest("s1", doc as never, "raw");
+    await store.correct("s1", "scb-regional-pm", "title", "Regional Delivery Director");
+    const blocks = await store.list("s1");
+    const claims = await recordedClaims();
+
+    // Draft still prints the superseded title and not the corrected one.
+    const stale: Draft = {
+      ...sampleDraft,
+      experience: [{ ...sampleDraft.experience[0]!, role: "Regional PM", employer: "Standard Chartered" }],
+    };
+    const issues = conservationIssues(claims, stale, blocks);
+    expect(issues.some((i) => i.message.includes("corrected title lost"))).toBe(true);
+    expect(issues.some((i) => i.message.includes("superseded title printed"))).toBe(true);
+    const visitor = issues.map((i) => i.visitor).join(" ");
+    expect(visitor).toContain('"Regional Delivery Director"');
+
+    // Draft printing the corrected title passes both checks.
+    const corrected: Draft = {
+      ...sampleDraft,
+      experience: [
+        { ...sampleDraft.experience[0]!, role: "Regional Delivery Director", employer: "Standard Chartered" },
+      ],
+    };
+    expect(
+      conservationIssues(claims, corrected, blocks).filter((i) => i.message.includes("title")),
+    ).toEqual([]);
+  });
+});
+
+describe("#163 lint — advert-tested promotion and corrected dates", () => {
+  it("flags a declared, advert-tested language missing from the summary", async () => {
+    const claims = await recordedClaims();
+    // sampleDraft's additional carries Polish + English; the advert tests Polish; the summary
+    // doesn't mention it → flagged. Once the summary weaves it in, the issue clears.
+    const issues = conservationIssues(claims, sampleDraft, [], ["Native Polish required"]);
+    expect(issues.some((i) => i.message.includes("advert-tested fact not promoted"))).toBe(true);
+    expect(issues.some((i) => i.visitor.includes("Polish"))).toBe(true);
+    const promoted: Draft = { ...sampleDraft, summary: `${sampleDraft.summary} Native Polish speaker.` };
+    expect(conservationIssues(claims, promoted, [], ["Native Polish required"])).toEqual([]);
+  });
+
+  it("does not flag when the advert tests nothing the candidate declared", async () => {
+    expect(conservationIssues(await recordedClaims(), sampleDraft, [], ["Fluent Swahili"])).toEqual([]);
+  });
+
+  it("flags a corrected start date the printed entry does not carry", async () => {
+    const store = new InMemoryJobBlockStore();
+    await store.ingest(
+      "s1",
+      {
+        schemaVersion: "1",
+        blocks: [
+          {
+            id: "nrg-pm",
+            employer: { value: "Nordic Retail Group", source_quote: "Nordic Retail Group", machine_touch: "verbatim", classification: "Verified" },
+            title: { value: "IT Project Manager", source_quote: "IT Project Manager", machine_touch: "verbatim", classification: "Verified" },
+            start: { value: { year: 2021, month: null, precision: "year" }, source_quote: "2021", machine_touch: "verbatim", classification: "Verified" },
+            end: { value: { state: "ongoing" }, source_quote: "Present", machine_touch: "verbatim", classification: "Verified" },
+            kind: { value: "job", source_quote: "IT Project Manager", machine_touch: "verbatim", classification: "Verified" },
+          },
+        ],
+      } as never,
+      "raw",
+    );
+    await store.correct("s1", "nrg-pm", "start", { year: 2020, month: null, precision: "year" });
+    const blocks = await store.list("s1");
+    const claims = await recordedClaims();
+    // sampleDraft prints "Mar 2021 - Present" for Nordic Retail Group — the corrected 2020 is absent.
+    const issues = conservationIssues(claims, sampleDraft, blocks);
+    expect(issues.some((i) => i.message.includes("corrected start date lost"))).toBe(true);
+    const fixed: Draft = {
+      ...sampleDraft,
+      experience: [{ ...sampleDraft.experience[0]!, dates: "2020 - Present" }],
+    };
+    expect(conservationIssues(claims, fixed, blocks)).toEqual([]);
   });
 });

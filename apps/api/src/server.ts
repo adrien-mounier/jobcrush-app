@@ -414,6 +414,8 @@ export function buildServer(opts: BuildOptions = {}) {
         const record = await contact.getRecord(sessionId);
         return { phone: record.phone?.value ?? null, email: record.email?.value ?? null };
       }),
+    // #163: the stored, corrected job records feed the tailor's Roles: block (ADR-0002).
+    getJobBlocks: opts.pipeline?.getJobBlocks ?? (async (sessionId) => jobBlocks.list(sessionId)),
   };
   const defaultOnUploaded: NonNullable<UploadDeps["onUploaded"]> = async (row, data) => {
     if (!row.kind) return null;
@@ -474,7 +476,7 @@ export function buildServer(opts: BuildOptions = {}) {
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps }));
   app.register(contactRoutes({ contact }));
-  app.register(jobBlocksRoutes({ jobBlocks }));
+  app.register(jobBlocksRoutes({ jobBlocks, claims }));
   app.register(onboardingRoutes({
     claims,
     store,

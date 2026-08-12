@@ -2,6 +2,39 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-12 (session 106) `/implement #163` — a correction sticks and reaches the tailored CV
+
+ADR-0002 made flesh (commit refs below): the tailor is now fed from the stored, corrected job
+records, the conservation lint speaks to the visitor, and a contradicted sentence is held, never
+rewritten.
+
+- **AC1/AC2 — the corrected fact is what the tailor receives.** `buildTailorInput()` builds the
+  `Roles:` block from `JobBlockView`s (corrections win; education blocks excluded), read via a new
+  `getJobBlocks` pipeline dep. Re-upload survival was already the store's guarantee (#161); now
+  proven at the tailor-input level too.
+- **AC3 — advert-tested promotion.** The preview step does a presentation read of the
+  ad-requirements store for the matched posting; blocking dimensions enter the input as
+  `===ADVERT-TESTS===` with the weave-into-summary instruction, and the lint makes it falsifiable
+  for declared languages (word-match, capitalized names only — ponytail ceiling recorded).
+- **AC4 — the lint speaks.** `conservationIssues()` returns `{message, visitor}` pairs and now also
+  watches corrected titles/employers (lost OR superseded-still-printing) and corrected start/end
+  years. A still-lossy draft ships with `conservationNotices` in `progress.preview` and as feed
+  lines the web already renders — no console-only warning remains (ops warn kept for observability).
+- **AC5 — held, never rewritten.** `POST /job-blocks/:id/correct` sweeps confirmed claims for the
+  superseded value (new `heldSentences.ts`; substring/year match — ponytail: no NLP, "two years"
+  prose is invisible to it), reopens each hit (out of the confirmed set, deck re-asks), and returns
+  `held[]` with a precise question plus a plain-words `downstream` consequence line (no invented
+  years total — #126 unbuilt).
+- **Owner-relayed scope: the web's hand-mirrored job-record types are folded** into
+  `packages/contracts/src/jobBlockView.ts` (type-only, JobCardV1 precedent); API re-exports keep
+  importers unchanged, web re-exports keep its names; drift now fails typecheck.
+- **Known gaps, shipped knowingly:** a sentence held at correction time can still reach a LATER
+  preview because the tailor is fed the fresh miner doc, not the claim store (cross-upload claim
+  identity is its own problem — recorded on the ticket); promotion lint covers languages only;
+  contradiction detection is substring-level. Both review axes ran; all their fixable findings
+  applied (catches log now, hold logic extracted from the route).
+- Gates: 1,243+ tests green across 7 packages, typecheck clean. Ratchet untouched (1500).
+
 ## 2026-08-12 (session 105) `/implement #201` — the Tier-1 front-door flake is root-caused, not retried
 
 Two defects combined into the CI flake, both fixed; no retry-until-green anywhere.

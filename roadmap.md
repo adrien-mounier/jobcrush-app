@@ -16,6 +16,15 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
 
+**2026-08-12 (session 106) `/implement #163` — a correction sticks and reaches the tailored CV.**
+The tailor's `Roles:` block now comes from the stored, corrected job records (ADR-0002); the
+conservation lint watches corrected facts and advert-tested declared languages and tells the
+visitor in plain words when a draft ships lossy; a confirmed sentence contradicting a correction is
+held aside with a precise question, never rewritten; the correct endpoint names the downstream
+consequence. Job-record view types now live once in `packages/contracts` (web mirror folded).
+**#120's model half is unblocked.** Carried: held sentences can still reach a later preview (tailor
+reads the fresh miner doc, not the claim store); contradiction detection is substring-level.
+
 **2026-08-12 (session 103) `/orchestrate-team` — the keystone is BUILT: #161 shipped whole, the
 #162–#171 fan-out is open, and every deploy now survives five real-stack journeys** (`bac864c`,
 `9e83fc5`, `9675c87`). A dated job is five atomic origin-bearing records with raw output + schema

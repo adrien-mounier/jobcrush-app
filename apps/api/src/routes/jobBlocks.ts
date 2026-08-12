@@ -4,12 +4,18 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import { MinedDate, MinedEndValue, KINDS } from "@jobcrush/contracts";
+import { MinedDate, MinedEndValue, KINDS, countsTowardExperience } from "@jobcrush/contracts";
+import type { Kind, HeldSentence } from "@jobcrush/contracts";
+import { holdContradictingSentences } from "../heldSentences.js";
 import { requireSession } from "../server.js";
-import type { JobBlockStore } from "../jobBlockStore.js";
+import type { DecisionKey, JobBlockStore, JobBlockView } from "../jobBlockStore.js";
+import type { ClaimStore } from "../claims.js";
 
 export interface JobBlocksDeps {
   jobBlocks: JobBlockStore;
+  /** #163 / ADR-0002 clause 3: lets a correction hold aside confirmed sentences that still carry
+   *  the superseded value. Optional so pre-existing test builds keep working unchanged. */
+  claims?: ClaimStore;
 }
 
 const Params = z.object({ blockId: z.string() });
@@ -32,6 +38,25 @@ const ResolveMatchBody = z.discriminatedUnion("resolution", [
 ]);
 
 const notFound = (message: string) => ({ error: { code: "not_found", message } });
+
+// #163 binding UX intent — "the person is told what a correction will change downstream (their
+// total, their matches) in plain words." Years-of-experience is not computed anywhere yet (#126),
+// so this names the consequence without inventing a number.
+const downstreamMessage = (key: DecisionKey, value: unknown, before: JobBlockView): string => {
+  if (key === "kind") {
+    const now = countsTowardExperience(value as Kind);
+    if (before.countsTowardExperience !== now) {
+      return now
+        ? "This entry now counts toward your years of experience — your total and your matches can change."
+        : "This entry no longer counts toward your years of experience — your total and your matches can change.";
+    }
+    return "Every later CV will show this entry as its corrected kind.";
+  }
+  if (key === "start" || key === "end") {
+    return "Every later CV will use the corrected dates for this job — your years of experience and your matches can change.";
+  }
+  return `Every later CV will show "${String(value)}" for this job.`;
+};
 
 export function jobBlocksRoutes(deps: JobBlocksDeps) {
   return async function plugin(fastify: FastifyInstance) {
@@ -81,9 +106,35 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
       async (req, reply) => {
         const session = requireSession(req);
         const { key, value } = req.body;
+        // Snapshot what this correction supersedes BEFORE it lands — the store only remembers the
+        // ORIGINAL read as superseded, but the person contradicts what was showing until now.
+        const before = (await deps.jobBlocks.list(session.id)).find(
+          (b: JobBlockView) => b.id === req.params.blockId,
+        );
         const found = await deps.jobBlocks.correct(session.id, req.params.blockId, key, value);
         if (!found) return reply.status(404).send(notFound("unknown job block"));
-        return { ok: true };
+        let held: HeldSentence[] = [];
+        if (deps.claims && before) {
+          const decisions = {
+            employer: before.employer,
+            title: before.title,
+            start: before.start,
+            end: before.end,
+            kind: before.kindDecision,
+          } as const;
+          // `kind` is excluded: its values ("job", …) are generic words that would false-match.
+          if (key !== "kind") {
+            held = await holdContradictingSentences(
+              deps.claims,
+              session.id,
+              key,
+              decisions[key].value,
+              value,
+            );
+          }
+        }
+        // `before` exists whenever correct() found the block; null only on a delete race.
+        return { ok: true, held, downstream: before ? downstreamMessage(key, value, before) : null };
       },
     );
 

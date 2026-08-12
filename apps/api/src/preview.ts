@@ -16,7 +16,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { canonicalKeyOf, SLUG, type CandidateClaims } from "@jobcrush/contracts";
+import { canonicalKeyOf, SLUG, type AdRequirementsV1, type CandidateClaims } from "@jobcrush/contracts";
+import type { JobBlockView } from "./jobBlockStore.js";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
 import { EMAIL_RE, PHONE_RE, type RawCv } from "./extract.js";
@@ -209,22 +210,70 @@ function tailorPrompt(): string {
   return cachedPrompt;
 }
 
+// A job-block decision value is `unknown` once corrected — format tolerantly: MinedDate-shaped
+// objects print as year (or month/year), strings print as themselves.
+const fmtDateValue = (v: unknown): string => {
+  if (v && typeof v === "object" && "year" in (v as Record<string, unknown>)) {
+    const d = v as { year: number; month: number | null };
+    return d.month ? `${String(d.month).padStart(2, "0")}/${d.year}` : String(d.year);
+  }
+  return String(v);
+};
+const fmtEndValue = (v: unknown): string => {
+  const e = v as { state?: string; date?: unknown };
+  if (e?.state === "ongoing") return "present";
+  if (e?.state === "ended") return fmtDateValue(e.date);
+  return "end not stated";
+};
+
+/** The stored-record role line the tailor is fed (ADR-0002: the corrected value is what the tailor
+ *  receives — a JobBlockView's decision values already carry a person's corrections over the
+ *  miner's read). Education blocks aren't work-history roles and stay out of the Roles: block. */
+export function jobBlockRoleLines(jobBlocks: JobBlockView[]): string[] {
+  return jobBlocks
+    .filter((b) => b.kind !== "education")
+    .map(
+      (b) =>
+        `- ${String(b.title.value)} at ${String(b.employer.value)} ` +
+        `(${fmtDateValue(b.start.value)} - ${fmtEndValue(b.end.value)})`,
+    );
+}
+
+export interface TailorInputOpts {
+  /** #163: the stored, corrected job records. Non-empty ⇒ the Roles: block is built from these
+   *  instead of the miner's original read, so a correction reaches every later CV. */
+  jobBlocks?: JobBlockView[];
+  /** #163 / ADR-0002 clause 4: the dimensions the advert gates on (blocking requirements from the
+   *  ad-requirements store). A declared fact matching one must also rise into the summary. */
+  advertTests?: string[];
+}
+
 export function buildTailorInput(
   claims: CandidateClaims,
   posting: Posting,
   headerText = "",
+  opts: TailorInputOpts = {},
 ): string {
   // Each line leads with the claim's own id so the tailor can cite it back in a printed
   // bullet's "claimIds" (#153, #158) — previously stripped here, which made a merge, a silent
   // drop, and an invention indistinguishable downstream.
   const claimLines = claims.claims.map((c) => `- ${c.id} [${c.role}] ${c.text}`).join("\n");
-  const roles = claims.roles
-    .map((r) => `- ${r.title} at ${r.employer} (${r.dates_as_written || "dates not stated"})`)
-    .join("\n");
+  const roles = opts.jobBlocks?.length
+    ? jobBlockRoleLines(opts.jobBlocks).join("\n")
+    : claims.roles
+        .map((r) => `- ${r.title} at ${r.employer} (${r.dates_as_written || "dates not stated"})`)
+        .join("\n");
+  const advertTests = opts.advertTests?.length
+    ? `===ADVERT-TESTS===\nThis advert gates on:\n${opts.advertTests.map((t) => `- ${t}`).join("\n")}\n` +
+      `A declared fact of the candidate's (a language, a certification, an "additional" entry) that ` +
+      `matches one of these must ALSO be woven into the summary — it stays in its usual section too. ` +
+      `Never invent a fact to satisfy a gate.\n\n`
+    : "";
   return (
     `${tailorPrompt()}\n` +
     `===CANDIDATE-HEADER===\n${headerText.slice(0, 600) || "(none captured)"}\n\n` +
     `Roles:\n${roles}\n\nClaims:\n${claimLines}\n\n` +
+    advertTests +
     `===JOB-POSTING===\n${posting.title} at ${posting.company} (${posting.location})\n\n${posting.excerpt}\n`
   );
 }
@@ -240,29 +289,143 @@ const isLanguageClaim = (c: { id: string; text: string; role: string }) =>
     (/\blanguages?\b|\bspeaker\b/i.test(c.text) ||
       /\((native|fluent|conversational|proficient|bilingual|basic)\)/i.test(c.text)));
 
+/** One lint finding, in both registers: `message` is retry feedback for the LLM; `visitor` is the
+ *  plain-words version the person sees when the draft still ships lossy (ADR-0002 clause 5 — a
+ *  console-only warning made the no-silent-loss rule unfalsifiable). */
+export interface ConservationIssue {
+  message: string;
+  visitor: string;
+}
+
 /**
  * Conservation lint — the "never destroy" gate. The tailor may rephrase, reorder, merge, and
- * emphasize for the posting; it may not silently delete a fact class the miner extracted.
- * Returned issues are fed back to the LLM on retry; a draft that still fails ships with a
- * console warning rather than failing the job (the facts gate is the candidate's review).
+ * emphasize for the posting; it may not silently delete a fact class the miner extracted — nor,
+ * since #163, a fact the person declared or corrected (the stored job records). Returned issues
+ * are fed back to the LLM on retry; a draft that still fails ships WITH its visitor notices
+ * (the facts gate is the candidate's review — our failure is told, never hidden).
  */
-export function conservationIssues(claims: CandidateClaims, draft: Draft): string[] {
-  const issues: string[] = [];
+export function conservationIssues(
+  claims: CandidateClaims,
+  draft: Draft,
+  jobBlocks: JobBlockView[] = [],
+  advertTests: string[] = [],
+): ConservationIssue[] {
+  const issues: ConservationIssue[] = [];
 
   const certs = claims.claims.filter(isCertClaim);
   if (certs.length > draft.certifications.length) {
-    issues.push(
-      `certifications lost: source has ${certs.length}, draft renders ${draft.certifications.length}. ` +
+    issues.push({
+      message:
+        `certifications lost: source has ${certs.length}, draft renders ${draft.certifications.length}. ` +
         `Every mined certification must appear in "certifications" (exact name + date).`,
-    );
+      visitor:
+        `Your CV lists ${certs.length} certification${certs.length === 1 ? "" : "s"} but only ` +
+        `${draft.certifications.length} made it onto this draft. You can retry the draft or add the missing one when you review.`,
+    });
   }
 
   const langs = claims.claims.filter(isLanguageClaim);
   if (langs.length > 0 && !draft.additional.some((a) => /language/i.test(a.label))) {
-    issues.push(
-      `languages lost: the source lists languages but "additional" has no Languages entry. ` +
+    issues.push({
+      message:
+        `languages lost: the source lists languages but "additional" has no Languages entry. ` +
         `Add { "label": "Languages", "value": "..." } with the candidate's languages verbatim.`,
-    );
+      visitor:
+        "Your languages could not be placed on this draft. You can retry the draft or add them when you review.",
+    });
+  }
+
+  // #163 / ADR-0002 clause 5: a corrected fact is a declared fact — the lint watches it too. The
+  // corrected value must be what prints, and the value it superseded must be gone.
+  for (const block of jobBlocks) {
+    if (block.kind === "education") continue;
+    for (const [key, decision] of [
+      ["title", block.title],
+      ["employer", block.employer],
+    ] as const) {
+      if (decision.origin.kind !== "corrected" || typeof decision.value !== "string") continue;
+      const corrected = decision.value.toLowerCase();
+      const printed = draft.experience.some(
+        (e) => e.role.toLowerCase().includes(corrected) || e.employer.toLowerCase().includes(corrected),
+      );
+      if (!printed) {
+        issues.push({
+          message:
+            `corrected ${key} lost: the candidate corrected a role's ${key} to "${decision.value}" ` +
+            `but no experience entry prints it. The corrected value is the true one and must print.`,
+          visitor:
+            `Your corrected ${key} "${decision.value}" is not on this draft. You can retry the draft or fix it when you review.`,
+        });
+      }
+      const superseded = decision.origin.supersededValue;
+      if (
+        typeof superseded === "string" &&
+        draft.experience.some(
+          (e) =>
+            e.role.toLowerCase() === superseded.toLowerCase() ||
+            e.employer.toLowerCase() === superseded.toLowerCase(),
+        )
+      ) {
+        issues.push({
+          message:
+            `superseded ${key} printed: "${superseded}" was corrected to "${decision.value}" by the ` +
+            `candidate, but an experience entry still prints the old value. Print the corrected value.`,
+          visitor:
+            `This draft shows "${superseded}", but you corrected that to "${decision.value}". Retry the draft to pick up your correction.`,
+        });
+      }
+    }
+  }
+
+  // #163 / ADR-0002 clause 4, made falsifiable: a declared language the advert tests must ALSO
+  // appear in the summary, not only in its usual section — otherwise the promotion instruction is
+  // a hint the tailor can silently ignore. Mechanical and narrow: only capitalized words from
+  // language claims (language names are proper nouns — "Mandarin") that an advert-tested dimension
+  // mentions. ponytail: word-match promotion check, languages only; widen per element as ADR-0001
+  // elements land.
+  if (advertTests.length > 0) {
+    const testedText = advertTests.join(" ").toLowerCase();
+    const summary = draft.summary.toLowerCase();
+    for (const lang of claims.claims.filter(isLanguageClaim)) {
+      for (const word of lang.text.match(/[A-Z][a-z]{3,}/g) ?? []) {
+        if (!testedText.includes(word.toLowerCase())) continue;
+        if (summary.includes(word.toLowerCase())) continue;
+        issues.push({
+          message:
+            `advert-tested fact not promoted: the advert gates on "${word}" and the candidate declares ` +
+            `it, but the summary does not mention it. Weave it into the summary (it stays in its usual section too).`,
+          visitor: `This job tests for ${word}, which you have — but it is not in your draft's summary.`,
+        });
+      }
+    }
+  }
+
+  // #163: a corrected start/end date must reach the printed entry for that job. Narrow on purpose:
+  // only checked when an experience entry is identifiable by the block's employer — otherwise the
+  // corrected-title/employer checks above already speak.
+  for (const block of jobBlocks) {
+    if (block.kind === "education") continue;
+    const employer = typeof block.employer.value === "string" ? block.employer.value.toLowerCase() : "";
+    const entries = employer
+      ? draft.experience.filter((e) => e.employer.toLowerCase().includes(employer))
+      : [];
+    if (entries.length === 0) continue;
+    for (const [key, decision] of [
+      ["start", block.start],
+      ["end", block.end],
+    ] as const) {
+      if (decision.origin.kind !== "corrected") continue;
+      const v = decision.value as { year?: number; state?: string; date?: { year?: number } };
+      const year = typeof v?.year === "number" ? v.year : v?.state === "ended" ? v.date?.year : undefined;
+      if (year === undefined) continue;
+      if (entries.some((e) => e.dates.includes(String(year)))) continue;
+      issues.push({
+        message:
+          `corrected ${key} date lost: the candidate corrected this job's ${key} at "${block.employer.value}" ` +
+          `to ${year}, but the printed dates do not carry it. The corrected date is the true one and must print.`,
+        visitor: `Your corrected ${key} date (${year}) for ${block.employer.value} is not on this draft. Retry the draft to pick up your correction.`,
+      });
+    }
   }
 
   // Claim-id provenance: every id a bullet or an "unprinted" list cites must be a real source
@@ -273,19 +436,23 @@ export function conservationIssues(claims: CandidateClaims, draft: Draft): strin
     for (const b of role.bullets) {
       for (const id of b.claimIds) {
         if (!realIds.has(id)) {
-          issues.push(
-            `unknown claim id "${id}" cited by a bullet in "${role.role}" — every claimIds ` +
+          issues.push({
+            message:
+              `unknown claim id "${id}" cited by a bullet in "${role.role}" — every claimIds ` +
               `entry must be a real source claim id, never invented.`,
-          );
+            visitor: `One line under "${role.role}" could not be traced back to your CV — check it before sending.`,
+          });
         }
       }
     }
     for (const id of role.unprinted) {
       if (!realIds.has(id)) {
-        issues.push(
-          `unknown claim id "${id}" in "${role.role}"'s unprinted list — every unprinted ` +
+        issues.push({
+          message:
+            `unknown claim id "${id}" in "${role.role}"'s unprinted list — every unprinted ` +
             `entry must be a real source claim id, never invented.`,
-        );
+          visitor: `One held-back line under "${role.role}" could not be traced back to your CV.`,
+        });
       }
     }
   }
@@ -293,19 +460,28 @@ export function conservationIssues(claims: CandidateClaims, draft: Draft): strin
   return issues;
 }
 
+export interface TailoredDraft {
+  draft: Draft;
+  /** Plain-words notices for the person when the draft shipped lossy after retry — empty on a
+   *  clean draft. ADR-0002 clause 5: our failures are visible to the visitor, never console-only. */
+  conservationNotices: string[];
+}
+
 export async function tailorDraft(
   claims: CandidateClaims,
   posting: Posting,
   llm: LlmClient,
   headerText = "",
-): Promise<Draft> {
+  opts: TailorInputOpts = {},
+): Promise<TailoredDraft> {
   let lastError = "";
   let fallback: Draft | null = null;
+  let fallbackNotices: string[] = [];
   for (let attempt = 0; attempt < 2; attempt++) {
     const input =
       attempt === 0
-        ? buildTailorInput(claims, posting, headerText)
-        : `${buildTailorInput(claims, posting, headerText)}\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
+        ? buildTailorInput(claims, posting, headerText, opts)
+        : `${buildTailorInput(claims, posting, headerText, opts)}\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
     const raw = await llm.complete(input);
     let draft: Draft;
     try {
@@ -314,15 +490,17 @@ export async function tailorDraft(
       lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
       continue;
     }
-    const issues = conservationIssues(claims, draft);
-    if (issues.length === 0) return draft;
+    const issues = conservationIssues(claims, draft, opts.jobBlocks ?? [], opts.advertTests ?? []);
+    if (issues.length === 0) return { draft, conservationNotices: [] };
     fallback = draft;
-    lastError = issues.join("\n");
+    fallbackNotices = issues.map((i) => i.visitor);
+    lastError = issues.map((i) => i.message).join("\n");
   }
   if (fallback) {
-    // Schema-valid but conservation-lossy after retry: ship it and flag, don't fail the job.
+    // Schema-valid but conservation-lossy after retry: ship it, tell the visitor (the notices
+    // travel with the draft), and keep the ops-side warning for observability.
     console.warn(`[preview] draft ships with conservation issues:\n${lastError}`);
-    return fallback;
+    return { draft: fallback, conservationNotices: fallbackNotices };
   }
   throw new Error(`tailor output failed validation twice: ${lastError.slice(0, 500)}`);
 }
@@ -533,9 +711,21 @@ export function applyStoredContact(contact: string, stored: StoredContact): stri
   return result;
 }
 
+export interface PreviewStepExtras {
+  /** #163 / ADR-0002 clause 4: a presentation read of the ad-requirements store — which dimensions
+   *  the matched posting gates on. Optional; a missing/failed read just means no promotion hint. */
+  getAdRequirements?: (adId: string) => Promise<{ requirements: AdRequirementsV1 } | null>;
+}
+
 /** Pipeline step factory (JC-16). `minerOutput` is the mine step's `{doc}` payload. */
-export function makePreviewStep(llm: LlmClient) {
-  return async (minerOutput: unknown, targetTitles: string[], rawCv?: RawCv, contact?: StoredContact) => {
+export function makePreviewStep(llm: LlmClient, extras: PreviewStepExtras = {}) {
+  return async (
+    minerOutput: unknown,
+    targetTitles: string[],
+    rawCv?: RawCv,
+    contact?: StoredContact,
+    jobBlocks?: JobBlockView[],
+  ) => {
     const doc = (minerOutput as { doc: CandidateClaims }).doc;
     const posting = matchPosting(targetTitles);
     // Header (name/contact) isn't a "claim" — it's the CV's own letterhead. Feed the
@@ -545,12 +735,29 @@ export function makePreviewStep(llm: LlmClient) {
       .slice(0, 2)
       .map((b) => b.text)
       .join("\n");
-    const draft = await tailorDraft(doc, posting, llm, headerText);
+    // Which dimensions the advert gates on — best-effort: a failed store read never fails a preview.
+    let advertTests: string[] | undefined;
+    if (extras.getAdRequirements) {
+      try {
+        const record = await extras.getAdRequirements(posting.id);
+        advertTests = record?.requirements.requirements
+          .filter((r) => r.kind === "blocking")
+          .map((r) => r.requirement);
+      } catch (err) {
+        console.warn("[preview] ad-requirements read failed; tailoring without advert-tested dimensions", err);
+        advertTests = undefined;
+      }
+    }
+    const { draft, conservationNotices } = await tailorDraft(doc, posting, llm, headerText, {
+      jobBlocks,
+      advertTests,
+    });
     if (contact) draft.contact = applyStoredContact(draft.contact, contact);
     return {
       html: renderPreviewHtml(draft, posting),
       postingTitle: posting.title,
       postingCompany: posting.company,
+      conservationNotices,
     };
   };
 }

@@ -4,6 +4,7 @@ export * from "./roleCluster.js";
 export * from "./onboardingSession.js";
 export * from "./candidateClaims.js";
 export * from "./jobBlock.js";
+export * from "./jobBlockView.js";
 export * from "./familyFloor.js";
 export * from "./familyPlacement.js";
 export * from "./adRequirements.js";

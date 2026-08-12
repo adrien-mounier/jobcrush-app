@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { buildServer } from "../src/server.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
+import { InMemoryClaimStore } from "../src/claims.js";
 
 async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
   const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });
@@ -164,5 +165,114 @@ describe("POST /job-blocks/:blockId/unconfirm", () => {
     const res = await server.app.inject({ method: "POST", url: "/job-blocks/block-1/unconfirm", headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect((await jobBlocks.list(sessionId))[0]!.confirmed).toBe(false);
+  });
+});
+
+// #163 / ADR-0002 clause 3 — a confirmed sentence that contradicts a correction is held aside
+// (reopened, never rewritten) with a precise question; unrelated sentences are untouched.
+describe("POST /job-blocks/:blockId/correct — holds contradicting confirmed sentences", () => {
+  const claim = (id: string, text: string) => ({
+    id,
+    semantic_key: id,
+    field_key: null,
+    field_value: null,
+    field_label: null,
+    role: "IT Project Manager - Standard Chartered",
+    text,
+    machine_touch: "verbatim" as const,
+    classification: "Verified" as const,
+    source_quote: text.slice(0, 100),
+    needs_grill: false,
+    grill_hint: null,
+  });
+
+  async function seededWithClaims() {
+    const jobBlocks = new InMemoryJobBlockStore();
+    const claims = new InMemoryClaimStore();
+    await jobBlocks.init();
+    const server = buildServer({ jobBlocks, claims });
+    const cookie = await anonSession(server.app);
+    const meRes = await server.app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sessionId = meRes.json().id as string;
+    await jobBlocks.ingest(
+      sessionId,
+      {
+        schemaVersion: "1",
+        blocks: [
+          {
+            id: "block-1",
+            employer: { value: "Standard Chartered", source_quote: "Standard Chartered Bank", machine_touch: "verbatim", classification: "Verified" },
+            title: { value: "Regional PM", source_quote: "Regional Project Manager", machine_touch: "verbatim", classification: "Verified" },
+            start: { value: { year: 2019, month: 1, precision: "month" }, source_quote: "Jan 2019", machine_touch: "verbatim", classification: "Verified" },
+            end: { value: { state: "ended", date: { year: 2022, month: 3, precision: "month" } }, source_quote: "Mar 2022", machine_touch: "verbatim", classification: "Verified" },
+            kind: { value: "job", source_quote: "Regional Project Manager", machine_touch: "verbatim", classification: "Verified" },
+          },
+        ],
+      },
+      "raw",
+    );
+    await claims.seed(sessionId, [
+      claim("scb-title-sentence", "Promoted to Regional PM after one year"),
+      claim("scb-joined-sentence", "Joined the payments team in 2019"),
+      claim("scb-unrelated", "Delivered the checkout replatform two months early"),
+    ]);
+    for (const id of ["scb-title-sentence", "scb-joined-sentence", "scb-unrelated"]) {
+      await claims.confirm(sessionId, id);
+    }
+    return { server, cookie, sessionId, claims };
+  }
+
+  it("holds the sentence carrying the superseded title, with a question — and never rewrites it", async () => {
+    const { server, cookie, sessionId, claims } = await seededWithClaims();
+    const res = await server.app.inject({
+      method: "POST",
+      url: "/job-blocks/block-1/correct",
+      headers: { cookie },
+      payload: { key: "title", value: "Regional Delivery Director" },
+    });
+    expect(res.statusCode).toBe(200);
+    const { held } = res.json();
+    expect(held).toHaveLength(1);
+    expect(held[0].id).toBe("scb-title-sentence");
+    expect(held[0].text).toBe("Promoted to Regional PM after one year"); // untouched, never rewritten
+    expect(held[0].question).toContain('"Regional Delivery Director"');
+    expect(held[0].question).toContain("measure something");
+    // #163 binding UX intent: the downstream consequence, in plain words.
+    expect(res.json().downstream).toContain('"Regional Delivery Director"');
+    // Held = out of the confirmed set (never prints beside the corrected fact)…
+    const confirmed = await claims.confirmed(sessionId);
+    expect(confirmed.map((c) => c.id)).not.toContain("scb-title-sentence");
+    expect(confirmed.map((c) => c.id)).toContain("scb-unrelated");
+    // …but still present, pending — it returns the moment the person answers.
+    const all = await claims.list(sessionId);
+    const heldClaim = all.find((c) => c.id === "scb-title-sentence")!;
+    expect(heldClaim.decision).toBe("pending");
+    expect(heldClaim.text).toBe("Promoted to Regional PM after one year");
+  });
+
+  it("a date correction holds sentences carrying the superseded year", async () => {
+    const { server, cookie, sessionId, claims } = await seededWithClaims();
+    const res = await server.app.inject({
+      method: "POST",
+      url: "/job-blocks/block-1/correct",
+      headers: { cookie },
+      payload: { key: "start", value: { year: 2018, month: null, precision: "year" } },
+    });
+    const { held } = res.json();
+    expect(held.map((h: { id: string }) => h.id)).toEqual(["scb-joined-sentence"]);
+    expect((await claims.confirmed(sessionId)).map((c) => c.id)).not.toContain("scb-joined-sentence");
+  });
+
+  it("a correction contradicting nothing holds nothing", async () => {
+    const { server, cookie, sessionId, claims } = await seededWithClaims();
+    const res = await server.app.inject({
+      method: "POST",
+      url: "/job-blocks/block-1/correct",
+      headers: { cookie },
+      payload: { key: "employer", value: "Standard Chartered Singapore" },
+    });
+    // "Standard Chartered" appears in no confirmed sentence text — everything stays confirmed.
+    expect(res.json().held).toEqual([]);
+    expect(await claims.confirmed(sessionId)).toHaveLength(3);
   });
 });

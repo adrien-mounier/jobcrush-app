@@ -15,56 +15,24 @@
 // recognition, with employer+overlap-only surfaced as an ambiguous candidate list the person
 // resolves explicitly; an id collision is a skip (never an overwrite) on BOTH drivers.
 import type { Pool, PoolClient } from "pg";
-import type { Kind, MinedJobBlock } from "@jobcrush/contracts";
+import type {
+  DecisionKey,
+  DecisionView,
+  DeckSummary,
+  JobBlockView,
+  Kind,
+  MatchState,
+  MinedJobBlock,
+  ReadStatus,
+} from "@jobcrush/contracts";
 import { countsTowardExperience } from "@jobcrush/contracts";
 import { getPool } from "./db.js";
 
-export type MatchState = "new" | "matched" | "ambiguous";
-
-export type DecisionOrigin =
-  | { kind: "read"; source_quote: string }
-  | { kind: "corrected"; supersededValue: unknown };
-
-export type DecisionKey = "employer" | "title" | "start" | "end" | "kind";
+// #163: the view shapes moved to @jobcrush/contracts (jobBlockView.ts) so the web client stops
+// hand-mirroring them; re-exported here so existing importers keep working unchanged.
+export type { DecisionKey, DecisionOrigin, DecisionView, DeckSummary, JobBlockView, MatchState, ReadStatus } from "@jobcrush/contracts";
 
 export type MatchResolution = { type: "same"; matchedBlockId: string } | { type: "different" };
-
-/** One atomic machine decision, addressable by a stable id a correction can target. */
-export interface DecisionView {
-  id: string; // `${blockId}:${decisionKey}`
-  value: unknown;
-  origin: DecisionOrigin;
-  machine_touch: MinedJobBlock["employer"]["machine_touch"] | null; // null once a person has corrected it
-  classification: MinedJobBlock["employer"]["classification"] | null;
-}
-
-export interface JobBlockView {
-  id: string;
-  kind: Kind;
-  countsTowardExperience: boolean; // derived, never stored as its own answer
-  employer: DecisionView;
-  title: DecisionView;
-  start: DecisionView;
-  end: DecisionView;
-  kindDecision: DecisionView;
-  confirmed: boolean;
-  matchState: MatchState;
-  /** Populated only when matchState === "ambiguous" — the existing block ids this one might be the
-   *  same job as. The person resolves via resolveMatch(); empty otherwise. */
-  candidateBlockIds: string[];
-}
-
-/** The negative test's three-way state: never run at all, ran and found N (0 is a real fact, not a
- *  failure), or ran and FAILED — distinct from found-none so a genuine zero is never confused with a
- *  read the miner could not complete (UX intent: "an unreadable history reads as a question, never
- *  as a failure" — the pipeline still proceeds; this is only the record of what happened). */
-export type ReadStatus = { status: "not_run" } | { status: "ok"; blocksFound: number } | { status: "failed" };
-
-export interface DeckSummary {
-  totalBlocks: number;
-  confirmedBlocks: number;
-  read: ReadStatus;
-}
 
 interface StoredBlock {
   block: MinedJobBlock;
@@ -152,11 +120,13 @@ function classifyIncoming(
   return { kind: "new" };
 }
 
-function decisionView(blockId: string, key: DecisionKey, raw: MinedJobBlock[DecisionKey], stored: StoredBlock): DecisionView {
+// The per-key value cast is sound: a mined value is contract-validated, and a corrected value is
+// validated against the same per-key shape at the correction door (routes/jobBlocks.ts CorrectBody).
+function decisionView<T>(blockId: string, key: DecisionKey, raw: MinedJobBlock[DecisionKey], stored: StoredBlock): DecisionView<T> {
   const corrected = key in stored.corrections;
   return {
     id: `${blockId}:${key}`,
-    value: corrected ? stored.corrections[key] : raw.value,
+    value: (corrected ? stored.corrections[key] : raw.value) as T,
     origin: corrected
       ? { kind: "corrected", supersededValue: raw.value }
       : { kind: "read", source_quote: (raw as { source_quote: string | null }).source_quote ?? "" },
