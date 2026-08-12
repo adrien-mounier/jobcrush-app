@@ -115,7 +115,6 @@ describe("#106 eligibilityCandidates", () => {
       "Nothing you leave out counts against you: a job wanting a language you didn't list still stays in your deck." +
         " When one of them matters for a real job, I'll ask how well you speak it, and say why.",
     );
-    expect(language.consequence).not.toMatch(/out of your deck/);
     expect(language.options).toEqual([...languagesUnion(), DECLINE_OPTION]);
   });
 
@@ -288,6 +287,19 @@ describe("#123/#165 languagesUnion / languageDeclarationPlan / isValidLanguageSe
     const plan = languageDeclarationPlan(["Mandarin", "French"], stored);
     expect(plan.remove).toEqual([]);
     expect(plan.put).toEqual([{ familyId: "French", value: "declared", label: "Speaks French" }]);
+  });
+
+  // 🚨 #165 QA gate, DEFECT-2: a pre-#165 "none" row is STORED but declares nothing. Keying the
+  // write off bare existence made that row swallow the declaration — the person typed Mandarin, the
+  // screen said "Locked in", and Mandarin never reached the store, their profile, or their CV.
+  it("a language carrying only a pre-#165 'none' can be declared again — the legacy row is overwritten", () => {
+    const stored = [
+      { dimension: "language" as const, familyId: "English", value: "professional", label: "x" },
+      { dimension: "language" as const, familyId: "Mandarin", value: "none", label: "x" },
+    ];
+    const plan = languageDeclarationPlan(["English", "Mandarin"], stored);
+    expect(plan.put).toEqual([{ familyId: "Mandarin", value: "declared", label: "Speaks Mandarin" }]);
+    expect(plan.remove).toEqual([]); // English already says something — left exactly as it was
   });
 
   it("answers: [] stays legal, and now records nothing at all rather than a wall of 'no's", () => {

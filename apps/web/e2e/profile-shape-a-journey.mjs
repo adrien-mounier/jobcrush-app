@@ -54,7 +54,7 @@ const BASE_PROFILE = {
   contact: { phone: null, email: null },
   languagesQuestion: {
     questionId: 'eligibility-languages',
-    question: "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.",
+    question: "Which languages do you speak? Start typing — I'll suggest as you go.",
     consequence: null,
     options: ['English', 'Mandarin', 'Cantonese', 'Ask me later'],
     answer: null,

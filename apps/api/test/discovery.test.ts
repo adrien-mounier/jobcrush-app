@@ -1246,6 +1246,35 @@ describe("#123 the languages question", () => {
     expect(negatives.some((c) => c.id === discoveryClaimId(itemId))).toBe(true);
   });
 
+  // 🚨 #165 QA gate, DEFECT-1 — the regression that blocked the gate, driven the way the gate drove
+  // it. A level placed on the ladder is an answer to a DIFFERENT question (#125: once per language
+  // ever; ADR-0011 clause 4: answering closes it permanently), so declining "which languages do you
+  // speak" must not touch it. The web client sends exactly this decline when a person confirms the
+  // languages question with nothing listed, so before the fix an ordinary edit to a language list
+  // silently destroyed every rung they had placed — including the deliberate "I don't speak this
+  // one", which is never shown in that list and so could never be re-stated through it.
+  it("declining does NOT retract a placed level — only the bare declarations go (QA DEFECT-1)", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "French"] });
+    await post(app, cookie, "/onboarding/language-level", { language: "Cantonese", level: "meetings" });
+    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "not-at-all" });
+
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: DECLINE_OPTION });
+
+    // The placed rungs survive, both of them — including the one that withdraws jobs.
+    expect(await eligibility.get(sid, "language", "Cantonese")).toMatchObject({ value: "meetings" });
+    expect(await eligibility.get(sid, "language", "Mandarin")).toMatchObject({ value: "not-at-all" });
+    // The bare declarations are retracted, which is what a decline on THIS question means.
+    expect(await eligibility.get(sid, "language", "English")).toBeNull();
+    expect(await eligibility.get(sid, "language", "French")).toBeNull();
+  });
+
   // Code-review must-fix 2 (2026-08-04): languages-by-market.json is the owner's own hand-edit
   // surface (must-fix 4) and can shrink or rename entries. A decline must retract a fact stored at a
   // scope TODAY's list no longer contains — looping languagesUnion() (the pre-fix bug) would silently

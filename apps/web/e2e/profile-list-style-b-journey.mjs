@@ -42,9 +42,9 @@ for (const ev of ['uncaughtException', 'unhandledRejection']) {
 
 const LANGS = {
   questionId: 'eligibility-languages',
-  question: "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.",
+  question: "Which languages do you speak? Start typing — I'll suggest as you go.",
   consequence:
-    'A no takes jobs that require that language out of your deck. Tick every one you could run a meeting in. Not sure? Tick it.',
+    "Nothing you leave out counts against you: a job wanting a language you didn't list still stays in your deck. When one of them matters for a real job, I'll ask how well you speak it, and say why.",
   options: ['English', 'Mandarin', 'Cantonese', 'Vietnamese', 'Ask me later'],
   answer: null,
 };
@@ -245,7 +245,7 @@ const doors = page.getByRole('button', { name: 'Change your languages' });
 if ((await doors.count()) !== 1) throw new Error(`languages editing must exist exactly once, found ${await doors.count()}`);
 await qa.expectVisible(doors, 'the ONE languages editing door, inside the Languages section');
 await qa.click(doors, 'open the languages door');
-await qa.expectText('.rq .rqq', 'Which of these can you work in professionally', 'the door asks the real eligibility question');
+await qa.expectText('.rq .rqq', 'Which languages do you speak', 'the door asks the real eligibility question');
 
 // It must pre-tick from the eligibility ANSWER (Mandarin+Cantonese), never the CV chip text
 // ("Fluent in English and Mandarin.") — English stays unticked.

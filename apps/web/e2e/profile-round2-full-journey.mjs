@@ -65,8 +65,9 @@ const workRights = (market, answer) => ({
 
 const LANGS = {
   questionId: 'eligibility-languages',
-  question: "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.",
-  consequence: 'A no takes jobs that require that language out of your deck.',
+  question: "Which languages do you speak? Start typing — I'll suggest as you go.",
+  consequence:
+    "Nothing you leave out counts against you: a job wanting a language you didn't list still stays in your deck. When one of them matters for a real job, I'll ask how well you speak it, and say why.",
   options: ['English', 'Mandarin', 'Cantonese', 'Vietnamese', 'Ask me later'],
   answer: ['English', 'Mandarin'],
 };

@@ -97,14 +97,20 @@ await qa.expectVisible('.discovery .notice', 'the answer is confirmed as reusabl
 const langDim = await eligDim();
 await assert(langDim === 'language', `#107 regression: the languages question is STILL ASKED (got "${langDim}")`);
 const langQ = await askQ();
-const langOpts = await page.locator('.discovery .opt.check .lbl').allTextContents();
-await qa.expectVisible('.discovery fieldset.elig-group', '#107: the languages question renders as the current checkbox group');
-await qa.note(`language question: ${JSON.stringify(langQ)}\n  options: ${JSON.stringify(langOpts)}`);
-await assert(/Which of these can you work in professionally\?/.test(langQ ?? ''), `the languages question reads as designed — "${langQ}"`);
-await assert(langOpts.includes('English') && langOpts.length > 1,
-  `the current multi-select offers English among ${langOpts.length} languages (options: ${JSON.stringify(langOpts)})`);
+// #165: a TYPE-AHEAD, not a tick-list. The options are completions now, so they are read from the
+// suggestion list as the person types rather than from a rendered set of checkboxes.
+await qa.expectVisible('.discovery .lang-typeahead #lang-input', '#165: the languages question renders as a type-ahead');
+await qa.note(`language question: ${JSON.stringify(langQ)}`);
+await assert(/Which languages do you speak\?/.test(langQ ?? ''), `the languages question reads as designed — "${langQ}"`);
+await qa.fill('#lang-input', 'Eng', 'type three letters of a language on the list');
+await page.waitForTimeout(700);
+const langOpts = await page.locator('.discovery .sugg button').allTextContents();
+await qa.note(`completions offered: ${JSON.stringify(langOpts)}`);
+await assert(langOpts.some((o) => o.trim() === 'English'),
+  `the type-ahead completes English from the known list (offered: ${JSON.stringify(langOpts)})`);
 
-await qa.click(page.locator('.discovery .opt.check').filter({ hasText: 'English' }), 'tick English in the languages multi-select');
+await qa.click(page.locator('.discovery .sugg button', { hasText: 'English' }).first(), 'add English from the completions');
+await page.waitForTimeout(600);
 await qa.click(page.locator('.discovery .elig-actions .go'), 'confirm the languages answer');
 await page.waitForTimeout(3000);
 await qa.note(`after the languages answer the visitor is at: ${page.url()} — discovery's last question, so the app moves straight on`);
@@ -120,7 +126,7 @@ const qAfterReload = await askQ();
 const dimAfterReload = await eligDim();
 await qa.note(`after reload — question on screen: ${JSON.stringify(qAfterReload)}; eligibility dimension: ${JSON.stringify(dimAfterReload)}`);
 await assert(
-  !/Which of these can you work in professionally\?/.test(qAfterReload ?? ''),
+  !/Which languages do you speak\?/.test(qAfterReload ?? ''),
   `#107 KEY REGRESSION: the languages question does NOT re-ask itself on screen (on screen: "${qAfterReload}")`,
 );
 

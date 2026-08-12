@@ -35,7 +35,7 @@ import {
 } from "./discovery.js";
 import { loadFamilyFloor } from "./e5stub.js";
 import { ANY_FAMILY, type EligibilityFact, type EligibilityStore } from "./eligibility.js";
-import { LANGUAGE_DECLARED, levelOf, MAX_LANGUAGE_WORD } from "./languageLevel.js";
+import { isDeclaredValue, LANGUAGE_DECLARED, levelOf, MAX_LANGUAGE_WORD } from "./languageLevel.js";
 import { dateHoleQuestions } from "./yearsWorked.js";
 
 export const DECLINE_OPTION = "Ask me later";
@@ -499,10 +499,20 @@ export function languageDeclarationPlan(
     if (word.length > 0) named.set(word.toLowerCase(), word);
   }
   const stored = existing.filter((f) => f.dimension === "language");
-  const alreadyStored = new Set(stored.map((f) => f.familyId.trim().toLowerCase()));
+  // 🚨 #165 QA gate, DEFECT-2: "already stored" must mean "already says something we must keep" —
+  // a placed rung, or an existing declaration — NOT merely "a row exists at this scope". A pre-#165
+  // `"none"` row is stored and yet declares nothing (isDeclaredValue rejects it on purpose: it is
+  // the mistap value). Keying off bare existence made that row swallow the write: the person typed
+  // Mandarin, the screen said "Locked in — English, Mandarin", and Mandarin was never stored, never
+  // shown, never reached their CV. A legacy row is overwritten by the declaration instead.
+  const alreadySaid = new Set(
+    stored
+      .filter((f) => levelOf(f.value) !== null || isDeclaredValue(f.value))
+      .map((f) => f.familyId.trim().toLowerCase()),
+  );
   return {
     put: [...named.entries()]
-      .filter(([key]) => !alreadyStored.has(key))
+      .filter(([key]) => !alreadySaid.has(key))
       .map(([, word]) => ({ familyId: word, value: LANGUAGE_DECLARED, label: `Speaks ${word}` })),
     remove: stored
       .filter((f) => levelOf(f.value) === null) // a placed level is an answer, not a declaration
@@ -591,9 +601,8 @@ export async function answerEligibilityItem(
     const answer = body.answer.trim();
     if (answer === ask.declineOption) {
       if (question.multiSelect) {
-        // #123: a decline on the (multi-select) languages question retracts EVERY language's stored
-        // fact, not just one scope — must-fix 5's rule, applied across the whole list, so a prior
-        // real answer is fully erased and every language reads as unknown again.
+        // #123: a decline on the (multi-select) languages question retracts the languages this
+        // question itself recorded, so they read as unknown again.
         //
         // Code-review must-fix 2 (2026-08-04): reads what this SESSION actually has stored (list())
         // and removes each language-dimension fact by its own recorded scope, rather than looping
@@ -601,8 +610,20 @@ export async function answerEligibilityItem(
         // surface, and the day a market is dropped or a language renamed there, a visitor who
         // answered under the OLD list and then declines would otherwise keep a stale fact at a scope
         // the union no longer contains: a decline that silently fails to fully retract.
+        //
+        // 🚨 #165 QA gate, DEFECT-1: a PLACED LEVEL survives a decline, exactly as it survives a
+        // re-answer (languageDeclarationPlan's own rule — this loop is that rule's other half, and
+        // shipping one without the other is what the gate caught). A rung is an answer to a
+        // DIFFERENT question, asked by an advert and closed for good (#125: once per language ever;
+        // ADR-0011 clause 4). Declining "which languages do you speak" says nothing about it.
+        //
+        // The path is not hypothetical: the web client sends this decline when a person confirms the
+        // languages question with nothing listed ("I'd rather not list any"), so without this guard
+        // an ordinary edit to a language list silently destroyed every level they had placed —
+        // including the deliberate "I don't speak this one", which is never shown in that list and
+        // so can never be re-stated through it.
         for (const fact of await stores.eligibility.list(sessionId)) {
-          if (fact.dimension === ask.dimension) {
+          if (fact.dimension === ask.dimension && levelOf(fact.value) === null) {
             await stores.eligibility.remove(sessionId, fact.dimension, fact.familyId);
           }
         }

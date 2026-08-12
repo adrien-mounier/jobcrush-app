@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
 import type { EligibilityFact } from "../src/eligibility.js";
+import { LANGUAGE_LADDER, LANGUAGE_NOT_AT_ALL } from "../src/languageLevel.js";
 import { findWithdrawingRequirement } from "../src/withdrawal.js";
 
 const ad = (over: Partial<AdRequirementsV1> = {}): AdRequirementsV1 => ({
@@ -65,8 +66,13 @@ describe("#107 findWithdrawingRequirement", () => {
 
   // ADR-0003 clause 8(a), stated as a test: "being below the bar never withdraws a job". Every rung
   // above the bottom one leaves the posting in the deck, however demanding the advert is.
+  // Iterates LANGUAGE_LADDER itself rather than a hand-copied list — the QA gate caught this loop
+  // testing two values that are not rungs at all ("everyday", "work") while missing three that are,
+  // so a renamed rung would have slipped straight through the one check guarding this clause.
   it("does not withdraw on ANY rung above the bottom one — below the bar is not a no", () => {
-    for (const rung of ["everyday", "work", "meetings", "negotiate", "declared"]) {
+    const aboveTheBottom = LANGUAGE_LADDER.map((r) => r.value).filter((v) => v !== LANGUAGE_NOT_AT_ALL);
+    expect(aboveTheBottom.length).toBe(LANGUAGE_LADDER.length - 1);
+    for (const rung of [...aboveTheBottom, "declared"]) {
       expect(findWithdrawingRequirement(ad(), [fact({ value: rung })])).toBeNull();
     }
   });
