@@ -28,24 +28,47 @@ const ad = (over: Partial<AdRequirementsV1> = {}): AdRequirementsV1 => ({
   ...over,
 });
 
+// #165: the language "no" is now the ladder's own bottom rung — a value a person can only reach by
+// deliberately tapping "I don't speak this one". The pre-#165 "none" (which an UNTICKED checkbox
+// wrote for them) no longer withdraws anything; that regression has its own case below.
 const fact = (over: Partial<EligibilityFact>): EligibilityFact => ({
   dimension: "language",
   familyId: "Mandarin",
-  value: "none",
-  label: "Professional fluency in Mandarin",
+  value: "not-at-all",
+  label: "Mandarin — I don't speak this one",
   ...over,
 });
 
 describe("#107 findWithdrawingRequirement", () => {
   it("withdraws on a blocking requirement with an explicit 'no' at the matching (dimension, subject) scope", () => {
-    const req = findWithdrawingRequirement(ad(), [fact({ value: "none" })]);
+    const req = findWithdrawingRequirement(ad(), [fact({ value: "not-at-all" })]);
     expect(req?.id).toBe("mandarin-required");
   });
 
   // The spec's own second regression case: "conversational" ("Some, but not for work") is not "I
   // don't speak it" and must never withdraw.
-  it("does not withdraw on 'conversational' — only an explicit 'none' counts", () => {
+  it("does not withdraw on 'conversational' — only the ladder's own bottom rung counts", () => {
     expect(findWithdrawingRequirement(ad(), [fact({ value: "conversational" })])).toBeNull();
+  });
+
+  // 🚨 #165 AC2, the live bug this ticket exists to kill. #123's tick-list wrote "none" for every
+  // language the person left UNTICKED, and this predicate read that as "I don't speak it" — so one
+  // mistap removed real jobs. Under the ladder no silence writes anything, and every fact left over
+  // from the old shape reads as unknown. If this test ever goes green-to-red, the mistap is back.
+  it("does not withdraw on a pre-#165 'none' — an unticked box is not an answer", () => {
+    expect(findWithdrawingRequirement(ad(), [fact({ value: "none" })])).toBeNull();
+  });
+
+  it("does not withdraw on a pre-#165 'professional' either — an old answer is not a level", () => {
+    expect(findWithdrawingRequirement(ad(), [fact({ value: "professional" })])).toBeNull();
+  });
+
+  // ADR-0003 clause 8(a), stated as a test: "being below the bar never withdraws a job". Every rung
+  // above the bottom one leaves the posting in the deck, however demanding the advert is.
+  it("does not withdraw on ANY rung above the bottom one — below the bar is not a no", () => {
+    for (const rung of ["everyday", "work", "meetings", "negotiate", "declared"]) {
+      expect(findWithdrawingRequirement(ad(), [fact({ value: rung })])).toBeNull();
+    }
   });
 
   it("does not withdraw when no fact exists at all — unknown is never a no", () => {
@@ -53,7 +76,7 @@ describe("#107 findWithdrawingRequirement", () => {
   });
 
   it("does not withdraw when a fact exists for a DIFFERENT subject — Mandarin is not English", () => {
-    const facts = [fact({ familyId: "English", value: "none" })];
+    const facts = [fact({ familyId: "English", value: "not-at-all" })];
     expect(findWithdrawingRequirement(ad(), facts)).toBeNull();
   });
 
@@ -61,7 +84,7 @@ describe("#107 findWithdrawingRequirement", () => {
     const advertisement = ad({
       requirements: [{ ...ad().requirements[0]!, kind: "ordinary" }],
     });
-    expect(findWithdrawingRequirement(advertisement, [fact({ value: "none" })])).toBeNull();
+    expect(findWithdrawingRequirement(advertisement, [fact({ value: "not-at-all" })])).toBeNull();
   });
 
   // #107 D1's own safety net: a blocking language/certification requirement with NO
@@ -73,7 +96,9 @@ describe("#107 findWithdrawingRequirement", () => {
     });
     // Even a matching-dimension fact at a plausible scope must not fire — there is nothing to match
     // it against.
-    expect(findWithdrawingRequirement(advertisement, [fact({ familyId: "Mandarin", value: "none" })])).toBeNull();
+    expect(
+      findWithdrawingRequirement(advertisement, [fact({ familyId: "Mandarin", value: "not-at-all" })]),
+    ).toBeNull();
   });
 
   // #182 resolves code-review M1: work-rights now reads at `market`, the caller's own current place
@@ -170,7 +195,7 @@ describe("#107 findWithdrawingRequirement", () => {
         { ...ad().requirements[0]! }, // mandarin-required
       ],
     });
-    const facts = [fact({ familyId: "Cantonese", value: "none" }), fact({ value: "none" })];
+    const facts = [fact({ familyId: "Cantonese", value: "not-at-all" }), fact({ value: "not-at-all" })];
     expect(findWithdrawingRequirement(advertisement, facts)?.id).toBe("cantonese-required");
   });
 
@@ -178,7 +203,9 @@ describe("#107 findWithdrawingRequirement", () => {
   // " Mandarin " (whitespace) must still match the store's canonical "Mandarin" scope.
   it("matches the subject scope case-insensitively and trimmed (M4)", () => {
     for (const familyId of ["mandarin", " Mandarin ", "MANDARIN"]) {
-      expect(findWithdrawingRequirement(ad(), [fact({ familyId, value: "none" })])?.id).toBe("mandarin-required");
+      expect(findWithdrawingRequirement(ad(), [fact({ familyId, value: "not-at-all" })])?.id).toBe(
+        "mandarin-required",
+      );
     }
   });
 });

@@ -51,7 +51,8 @@ import {
   withYearsShortfall,
 } from "../deck.js";
 import { makeRetrievalCoordinator } from "../deckRetrieval.js";
-import { findWithdrawingRequirement, normalizeScope } from "../withdrawal.js";
+import { answerLanguageLevel, LanguageLevelBody, withLanguageLevelAsks } from "../languageLevel.js";
+import { findWithdrawingRequirement, partitionByWithdrawal } from "../withdrawal.js";
 import {
   composeCvLine,
   discoveryClaimId,
@@ -908,45 +909,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       );
 
       // #107 (E5 slice 6, D3/D4) — withdraw a posting from THIS session's deck BEFORE it costs
-      // anything: right after requirements resolve, before ranking, the free peek, or a paid judging
-      // attempt ever sees it. Matches AC1's "the posting does not appear... whatever its score" and
-      // the AC that a withdrawn card must never cost a model call. findWithdrawingRequirement
-      // (withdrawal.ts) is pure — it only reads `facts`, this session's ALREADY-READ eligibility
-      // facts (discoveryReads above), against each candidate's own requirement set; no IO of its own.
-      // deck.cards_withdrawn (counters.ts) is AC6's own number: over-firing shows up as a rising
-      // count an operator can see, not as jobs quietly disappearing.
-      //
-      // #123 (coordinator, 2026-08-04) — the reveal's "N jobs needed Mandarin" undo line needs the
-      // withdrawal COUNT, not just an operator metric (deck.cards_withdrawn is process-wide, not
-      // per-response, and names no language). Tallied HERE, inside the SAME filter pass that already
-      // decides a posting's fate — no second pass over `candidates`, no second eligibility read; this
-      // only ACCUMULATES what findWithdrawingRequirement reports, never re-decides anything. Scoped to
-      // `candidates` (postings already past every OTHER exclusion) means a posting excluded for any
-      // other reason can never be miscounted as a language withdrawal (this must mean "cost you a
-      // job", not "excluded, for any reason, and also happened to have a language answer").
-      const withdrawnTotal = { count: 0 };
-      const withdrawnByLanguage = new Map<string, number>();
-      const openCandidates = candidates.filter((entry) => {
-        const req = findWithdrawingRequirement(entry.adReq, facts, entry.posting.location);
-        if (!req) return true;
-        incrementCounter("deck.cards_withdrawn");
-        withdrawnTotal.count++;
-        if (req.eligibilityDimension === "language" && req.eligibilitySubject) {
-          // Render-ready casing: the requirement's OWN eligibilitySubject is whatever the ad reader
-          // produced ("mandarin", " Mandarin "), not necessarily how the visitor's tick-box read. The
-          // matching fact's `familyId` is the STORE's own canonical scope — exactly what
-          // languageFacts() wrote from languagesUnion() — so it's the same word the visitor ticked.
-          // This re-derives the SAME (normalized) match findWithdrawingRequirement already made
-          // internally; `facts` is the identical array it was given, so the match always succeeds.
-          const normalizedSubject = normalizeScope(req.eligibilitySubject);
-          const matchingFact = facts.find(
-            (f) => f.dimension === "language" && normalizeScope(f.familyId) === normalizedSubject,
-          );
-          const language = matchingFact?.familyId ?? req.eligibilitySubject.trim();
-          withdrawnByLanguage.set(language, (withdrawnByLanguage.get(language) ?? 0) + 1);
-        }
-        return false;
-      });
+      // anything: before ranking, the free peek, or a paid judging attempt ever sees it. The rule and
+      // its per-language tally live in withdrawal.ts (partitionByWithdrawal); this is the one call.
+      const { open: openCandidates, withdrawn } = partitionByWithdrawal(candidates, facts);
 
       // deck.ts's judgeDeck: peek → rank → bound → budget → resolve, the whole paid-judging pass —
       // see its own doc for #117 must-fix A/1/C/2 and the spend-bound properties it carries.
@@ -969,7 +934,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         ),
         curated: entry.adReq.curated,
       }));
-      const cards = orderCardsForReveal(cardCandidates);
+      // #165: each card carries the level question its OWN advert triggers — see withLanguageLevelAsks.
+      const cards = withLanguageLevelAsks(orderCardsForReveal(cardCandidates), openCandidates, facts);
       // #117 AC3/AC8 — the deck's own card-provenance tally, observable on /ops/spend (server.ts)
       // alongside cost per visitor from the SAME run. pendingCount also rides on the response itself
       // so the client can decide what to do about a still-scoring deck without polling counters —
@@ -988,16 +954,6 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // #22: authed tells the client whether the account wall at the reveal applies — false only
       // for a still-anonymous session, so a returning (claimed) visitor is never re-walled.
       //
-      // #123: `withdrawn` — the reveal's undo line reads this. `byLanguage` names ONLY languages that
-      // actually caused a removal (a decline that removed nothing never appears), sorted desc by
-      // count then language name asc; empty (never omitted) when nothing was withdrawn, so the client
-      // can key "render no notice at all" off an unambiguous empty array rather than a missing field.
-      const withdrawn = {
-        total: withdrawnTotal.count,
-        byLanguage: [...withdrawnByLanguage.entries()]
-          .map(([language, count]) => ({ language, count }))
-          .sort((a, b) => b.count - a.count || a.language.localeCompare(b.language)),
-      };
       return {
         stage: session.stage,
         cards,
@@ -1007,6 +963,18 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         retrieval,
       };
     });
+
+    // #165 — the ladder's answer; write path in languageLevel.ts. Pre-wall, like the deck that fires it.
+    app.post(
+      "/onboarding/language-level",
+      { schema: { body: LanguageLevelBody } },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const r = await answerLanguageLevel(deps.eligibility, session.id, req.body.language, req.body.level);
+        if (!r.ok) return reply.status(r.status).send({ error: { code: r.code, message: r.message } });
+        return { ok: true };
+      },
+    );
 
     app.post(
       "/onboarding/cards/:adId/want",

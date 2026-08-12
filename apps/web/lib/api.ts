@@ -224,6 +224,9 @@ export interface DiscoveryQuestion {
   // #123: the language question only. Typed locally (not yet added to the shared contract) — its
   // presence is the client's branch into the checkbox-group UI (design spec §1).
   multiSelect?: true;
+  // #165: `options` are COMPLETIONS, not the legal answers — the person may keep a word none of them
+  // offered, and the client renders a type-ahead rather than a checkbox list.
+  typeAhead?: true;
   // #123: the consequence of leaving an option unticked, stated in the question itself (AC5).
   // Rendered at full ink weight, never muted like `.sub` — see eligibilitySub's exclusion below.
   consequence?: string;
@@ -343,9 +346,37 @@ export interface WithdrawnSummary {
   byLanguage: Array<{ language: string; count: number }>;
 }
 
+// #165 — the ladder question THIS advert triggers, when the person's level for a language it names
+// is still unknown (apps/api/src/languageLevel.ts). Rides on the card rather than the ask dock
+// because that is the moment it earns its interruption: the reason is this advert, and `why` quotes
+// it. `options` are ordered rungs of concrete situations, lowest first; the lowest ("not-at-all") is
+// the only answer that ever removes jobs, and it takes a deliberate tap. Skipping is "not now" —
+// a later advert testing the same language asks again (ADR-0011 clause 4).
+export interface LanguageLevelAsk {
+  language: string;
+  question: string;
+  why: string;
+  /** What answering costs, shown BEFORE the rungs — #125 decision 4. */
+  consequence: string;
+  options: Array<{ value: string; situation: string }>;
+  skipOption: string;
+}
+
+export function answerLanguageLevel(language: string, level: string): Promise<{ ok: true }> {
+  return jfetch("/api/onboarding/language-level", {
+    method: "POST",
+    body: JSON.stringify({ language, level }),
+  });
+}
+
+/** A card as the deck actually receives it: the frozen JobCardV1 contract plus whatever this
+ *  session-specific advert happens to trigger. Kept separate from JobCard so the contract type stays
+ *  exactly the contract. */
+export type DeckCard = JobCard & { levelAsk?: LanguageLevelAsk };
+
 export interface CardsResponse {
   stage: string;
-  cards: JobCard[];
+  cards: DeckCard[];
   // #22: true once the session is claimed (signed in) — false only for a still-anonymous visitor.
   // Gates the account wall at the reveal: authed ? straight to the deck : the wall.
   authed: boolean;

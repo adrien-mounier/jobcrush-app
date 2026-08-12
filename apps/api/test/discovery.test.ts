@@ -1104,7 +1104,7 @@ describe("#123 the languages question", () => {
   const languageQuestion = (start: DiscoveryState) =>
     start.questions.find((q) => q.eligibility?.dimension === "language")!;
 
-  it("is a multi-select over the pinned four-language list, with the pinned copy and itemId (AC5, AC7)", async () => {
+  it("#165 AC1: is a type-ahead whose options are COMPLETIONS, with the new copy and the same itemId", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
@@ -1112,17 +1112,13 @@ describe("#123 the languages question", () => {
 
     expect(language.itemId).toBe("eligibility-languages");
     expect(language.multiSelect).toBe(true);
-    expect(language.question).toBe(
-      "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.",
-    );
-    // Code-review must-fix 1 (2026-08-04), trimmed by owner correction (2026-08-04): the pinned
-    // first sentence is intact; the second is an added, recorded deviation (see
-    // eligibilityDiscovery.ts's LANGUAGES_CONSEQUENCE doc) biasing an unsure visitor toward ticking,
-    // since a binary multi-select can no longer produce a "some, but not for work" answer. Trimmed to
-    // a three-word nudge after QA flagged the first draft as the longest thing on screen.
+    expect(language.typeAhead).toBe(true);
+    expect(language.question).toBe("Which languages do you speak? Start typing — I'll suggest as you go.");
+    // #165: the consequence no longer threatens a removal, because listing languages no longer causes
+    // one — the only thing that withdraws is a deliberate "I don't speak this one" on the ladder.
     expect(language.consequence).toBe(
-      "A no takes jobs that require that language out of your deck. Tick every one you could run a meeting in." +
-        " Not sure? Tick it.",
+      "Nothing you leave out counts against you: a job wanting a language you didn't list still stays in your deck." +
+        " When one of them matters for a real job, I'll ask how well you speak it, and say why.",
     );
     expect(language.options).toEqual(["English", "Mandarin", "Cantonese", "Vietnamese", DECLINE_OPTION]);
   });
@@ -1136,7 +1132,9 @@ describe("#123 the languages question", () => {
     expect(languageQuestion(startA).options).toEqual(languageQuestion(startB).options);
   });
 
-  it("AC1: a real multi-select answer stores more than one language, and writes the FULL list — every unticked language becomes an explicit 'no'", async () => {
+  // 🚨 #165 AC2, through the real route: what a person leaves out is written NOWHERE. The old shape
+  // recorded "none" for every unticked language and withdrew postings on it.
+  it("#165 AC2: an answer stores only the languages named — the rest stay unknown, never 'none'", async () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
@@ -1146,13 +1144,15 @@ describe("#123 the languages question", () => {
 
     await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "Cantonese"] });
 
-    expect(await eligibility.get(sid, "language", "English")).toMatchObject({ value: "professional" });
-    expect(await eligibility.get(sid, "language", "Cantonese")).toMatchObject({ value: "professional" });
-    expect(await eligibility.get(sid, "language", "Mandarin")).toMatchObject({ value: "none" });
-    expect(await eligibility.get(sid, "language", "Vietnamese")).toMatchObject({ value: "none" });
+    expect(await eligibility.get(sid, "language", "English")).toMatchObject({ value: "declared" });
+    expect(await eligibility.get(sid, "language", "Cantonese")).toMatchObject({ value: "declared" });
+    expect(await eligibility.get(sid, "language", "Mandarin")).toBeNull();
+    expect(await eligibility.get(sid, "language", "Vietnamese")).toBeNull();
   });
 
-  it("answers: [] is a legal answer — every language is stored as an explicit 'no', and the question closes", async () => {
+  // #165 AC1 / #125: a language off the market list is kept as the person's own fact, in their own
+  // spelling. It matches no advert until the list learns it — but it is never refused or dropped.
+  it("#165 AC1: a language outside the known list is kept, in the words the person used", async () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
@@ -1160,11 +1160,25 @@ describe("#123 the languages question", () => {
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
 
-    const answered: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: [] })
-    ).json();
-    expect(answered.questions.some((q) => q.itemId === itemId)).toBe(false); // closed, never re-offered
-    expect(await eligibility.get(sid, "language", "English")).toMatchObject({ value: "none" });
+    const res = await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["French"] });
+    expect(res.statusCode).toBe(200);
+    expect(await eligibility.get(sid, "language", "French")).toMatchObject({ value: "declared" });
+  });
+
+  // #165: answers: [] stays legal and now records nothing at all. The question stays OPEN, because
+  // "answered" is read from a stored fact and there is none — which is the honest state: the person
+  // named no language, so nothing is known about any of them. Nothing is withdrawn either way.
+  it("answers: [] is still a legal answer, and now stores nothing at all", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const itemId = languageQuestion(start).itemId;
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+
+    const res = await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: [] });
+    expect(res.statusCode).toBe(200);
+    expect(await eligibility.get(sid, "language", "English")).toBeNull();
   });
 
   it("a real answer never reaches the claims store (must-fix 1, unchanged by #123)", async () => {
@@ -1191,7 +1205,7 @@ describe("#123 the languages question", () => {
     expect(resumed.questions.some((q) => q.itemId === itemId)).toBe(false);
   });
 
-  it("AC6: re-answering corrects every language's stored value — a previously-'no' language flips to 'professional'", async () => {
+  it("#165: correcting the list adds what was added and RETRACTS what was dropped — never to a 'no'", async () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
@@ -1200,10 +1214,14 @@ describe("#123 the languages question", () => {
     const sid = me.json().id as string;
 
     await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] });
-    expect(await eligibility.get(sid, "language", "Mandarin")).toMatchObject({ value: "none" });
+    expect(await eligibility.get(sid, "language", "Mandarin")).toBeNull();
 
     await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "Mandarin"] });
-    expect(await eligibility.get(sid, "language", "Mandarin")).toMatchObject({ value: "professional" });
+    expect(await eligibility.get(sid, "language", "Mandarin")).toMatchObject({ value: "declared" });
+
+    // Dropping English returns it to UNKNOWN (#125's own AC), which never withdraws anything.
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["Mandarin"] });
+    expect(await eligibility.get(sid, "language", "English")).toBeNull();
   });
 
   it("declining retracts every previously-stored language fact (must-fix 5, applied to the whole list)", async () => {
@@ -1215,7 +1233,7 @@ describe("#123 the languages question", () => {
     const sid = me.json().id as string;
 
     await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "Mandarin"] });
-    expect(await eligibility.get(sid, "language", "Mandarin")).toMatchObject({ value: "professional" });
+    expect(await eligibility.get(sid, "language", "Mandarin")).toMatchObject({ value: "declared" });
 
     const declined: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: DECLINE_OPTION })
@@ -1251,7 +1269,10 @@ describe("#123 the languages question", () => {
     expect(await eligibility.get(sid, "language", "Lao")).toBeNull(); // retracted, not left stale
   });
 
-  it("an answers array containing a language outside the list is a 400 invalid_answer, never silently stored", async () => {
+  // #165: the list is open, so an unrecognised WORD is no longer an error (see the French case
+  // above). What is still refused is input that isn't a word at all — the trust boundary, not the
+  // vocabulary.
+  it("an answers array carrying something that isn't a word is a 400 invalid_answer, never stored", async () => {
     const { app, eligibility } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
@@ -1259,7 +1280,7 @@ describe("#123 the languages question", () => {
     const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = me.json().id as string;
 
-    const res = await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["Klingon"] });
+    const res = await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "   "] });
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({ error: { code: "invalid_answer" } });
     expect(await eligibility.get(sid, "language", "English")).toBeNull(); // never partially written

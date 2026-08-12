@@ -163,6 +163,12 @@ export interface DiscoveryQuestion {
    *  (minus the trailing decline entry) rather than a single tap. Every other question omits this
    *  field entirely, so byte-identical serialization holds for everything that isn't multi-select. */
   multiSelect?: true;
+  /** #165: present (always `true`) only on the languages question. It changes what `options` MEAN —
+   *  from the closed set of legal answers to a list of COMPLETIONS the client offers as the person
+   *  types, with a word outside them kept rather than refused. The wire shape of the answer is
+   *  unchanged (`answers: string[]`, exactly as `multiSelect` already implies), so a client that does
+   *  not know this field still renders a working, if less helpful, control. */
+  typeAhead?: true;
   /** #123: a line rendered between the stem and the options, at full weight — the UI design spec's
    *  requirement that the consequence of leaving an option unticked is stated in the question itself,
    *  never discovered later by a missing job. Present only alongside `multiSelect` today, but is its

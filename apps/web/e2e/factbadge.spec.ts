@@ -212,7 +212,7 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
     location: { area: null, workRights: null },
     languagesQuestion: {
       questionId: "eligibility-languages",
-      question: "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.",
+      question: "Which languages do you speak? Start typing — I'll suggest as you go.",
       consequence: null,
       options: ["English", "Ask me later"],
       answer: null,

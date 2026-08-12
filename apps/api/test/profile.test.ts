@@ -593,6 +593,33 @@ describe("#20 profile screen — the colour law over HTTP", () => {
       expect(langDomains[0].facts[0].answerOnly).toBeUndefined();
     });
 
+    // #165 AC4 / ADR-0008 clause 6: "Mandarin (fluent)" on a CV is READ as a sentence and stored as
+    // one. It must never become a graded level — "fluent" does not answer a situation, and taking it
+    // at face value would place the person on a rung they never chose. The proof is that the
+    // eligibility store stays empty of any language level after the claim is confirmed.
+    it("#165 AC4: a CV's own level word is kept as a sentence and never becomes a graded level", async () => {
+      const claims: CandidateClaim[] = [
+        claim({ id: "acme-led-migration" }),
+        claim({ id: "lang-mandarin", role: "profile", text: "Mandarin (fluent)" }),
+      ];
+      const server = buildServer({ pipeline: { mine: async () => ({ doc: null, claims, roles: 1, needsGrill: 0 }) } });
+      const cookie = await anonSession(server.app);
+      await signIn(server.app, cookie, "e2e-lang-adjective@example.com");
+      const jobId = await mineAndGetJob(server, cookie);
+      await post(server.app, cookie, "/onboarding/deck", { jobId });
+      await post(server.app, cookie, "/onboarding/claims/lang-mandarin/confirm");
+
+      const me = await server.app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+      const sid = me.json().id as string;
+      // The sentence survives, exactly as written…
+      const profile = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      const langDomain = profile.domains.find((d) => d.tag === "lang");
+      expect(langDomain?.facts.map((f) => f.text)).toContain("Mandarin (fluent)");
+      // …and no level exists for it. Not a rung, not a declaration — nothing at all.
+      expect(await server.eligibility.list(sid)).toEqual([]);
+      expect(profile.languagesQuestion.answer).toBeNull();
+    });
+
     it("neither a CV language claim nor a stored answer: no Languages section", async () => {
       const server = buildServer();
       const cookie = await anonSession(server.app);

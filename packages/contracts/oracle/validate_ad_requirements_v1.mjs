@@ -17,6 +17,11 @@ const KINDS = ["blocking", "ordinary"];
 const SECTIONS = ["summary", "experience", "skills", "education"];
 const ELIGIBILITY_DIMENSIONS = ["years-experience", "work-rights", "language", "certification", "degree"];
 const COMPARE_OPS = [">=", "<=", "=="];
+// #165 / ADR-0003 clause 8(a) — the ladder's rungs, kept identical to the zod port's LanguageLevel.
+// Ordered rungs of concrete situations, never a code or an adjective. "not-at-all" is the visitor
+// side only (the explicit "I don't speak this"); the contract accepts it here rather than growing a
+// second enum, and adReader.ts's clamp is what keeps it off a read requirement.
+const LANGUAGE_LEVELS = ["not-at-all", "a-few-words", "gets-by", "meetings", "negotiate", "native"];
 
 function exactKeys(e, value, keys, at) {
   if (!isObject(value)) return;
@@ -67,6 +72,7 @@ export function validateAdRequirementsV1(value) {
         "comparable",
         "eligibilityDimension",
         "eligibilitySubject",
+        "eligibilityLevel",
         "sourceSpan",
       ],
       at,
@@ -96,6 +102,13 @@ export function validateAdRequirementsV1(value) {
     e.require(
       req.eligibilitySubject === undefined || isNonEmptyString(req.eligibilitySubject),
       `${at}.eligibilitySubject must be a non-empty string`,
+    );
+    // #165 — additive v1 field: which rung of the ladder this advert tests. Optional at the CONTRACT
+    // level (an advert that names a language without saying what it needs it for is the common case);
+    // the reader's own clamp decides when it may ride on a requirement at all.
+    e.require(
+      req.eligibilityLevel === undefined || oneOf(req.eligibilityLevel, LANGUAGE_LEVELS),
+      `${at}.eligibilityLevel is invalid`,
     );
     if (req.comparable !== undefined) {
       const c = req.comparable;

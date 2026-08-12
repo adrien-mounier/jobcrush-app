@@ -412,6 +412,15 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
     expect(a).toEqual(b);
   });
 
+  // #165 AC5: an additive contract field is only half the change — every advert ALREADY stored was
+  // read by a prompt that could not produce it. The contract token below is what makes those rows
+  // stale, and the test above is what proves a stale row is re-read exactly once, lazily. Pinning it
+  // means a future contract change that forgets the bump fails here rather than shipping a fleet of
+  // stored reads silently missing the new field.
+  it("the reader's version carries the CURRENT ad-requirements contract token", () => {
+    expect(adReaderVersion()).toContain("adreq/3");
+  });
+
   it("a stale stored version triggers exactly one fresh read (a prompt/contract bump)", async () => {
     const store = new InMemoryAdRequirementsStore();
     await store.put("ad-1", {

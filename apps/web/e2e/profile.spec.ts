@@ -24,9 +24,10 @@ type Fact = ProfileState["domains"][number]["facts"][number];
 // dedicated language-door tests below override it (and `domains`) per case.
 const LANGUAGES_QUESTION: ProfileState["languagesQuestion"] = {
   questionId: "eligibility-languages",
-  question: "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.",
+  question: "Which languages do you speak? Start typing — I'll suggest as you go.",
   consequence:
-    "A no takes jobs that require that language out of your deck. Tick every one you could run a meeting in. Not sure? Tick it.",
+    "Nothing you leave out counts against you: a job wanting a language you didn't list still stays in your deck."
+    + " When one of them matters for a real job, I'll ask how well you speak it, and say why.",
   options: ["English", "Mandarin", "Cantonese", "Vietnamese", "Ask me later"],
   answer: null,
 };

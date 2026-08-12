@@ -114,13 +114,17 @@ function joinList(items: string[]): string {
   if (items.length === 2) return `${items[0]} and ${items[1]}`;
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
-// #123: L3/L4 — the multi-select confirm's own "locked in" line, replacing C23 for this question
-// only (design spec §6 note: C23 never states a removal, and this is the one answer that removes
-// jobs).
+// #123: L3/L4 — the multi-select confirm's own "locked in" line, replacing C23 for this question only.
+//
+// #165 rewrote both branches. They used to announce a removal ("jobs that demand anything else are
+// out of your deck"), which was true then and is a lie now: listing languages no longer withdraws
+// anything, because only a deliberate "I don't speak this one" on the ladder can. Saying it anyway
+// would teach the person to fear a question that is now free, which is the exact anxiety this
+// ticket removed. The second branch names what actually happens next instead.
 function multiSelectLockedIn(ticked: string[]): string {
   return ticked.length === 0
-    ? "Locked in — none of those languages. Jobs that demand one are out of your deck."
-    : `Locked in — ${joinList(ticked)}. Jobs that demand anything else are out of your deck.`;
+    ? "Locked in — no languages listed. Nothing was removed from your deck."
+    : `Locked in — ${joinList(ticked)}. When a job needs one, I'll ask how well you speak it.`;
 }
 // #106: the eligibility `.sub` clarifier — the wire contract carries `.q`/`options` fully worded
 // server-side but no clarifier field (EligibilityAsk in lib/api.ts), so this is the one piece of
@@ -328,6 +332,7 @@ function DiscoveryScreen() {
         options: string[];
         eligibility?: EligibilityAsk;
         multiSelect?: true;
+        typeAhead?: true;
         consequence?: string;
       }
     >
@@ -339,6 +344,7 @@ function DiscoveryScreen() {
         options: q.options,
         eligibility: q.eligibility,
         multiSelect: q.multiSelect,
+        typeAhead: q.typeAhead,
         consequence: q.consequence,
       });
     }
@@ -346,6 +352,7 @@ function DiscoveryScreen() {
   // #123: the ticked-language set for the one multi-select question — lives outside noticeSlot so
   // a failed save keeps every tick exactly as the visitor left it (design spec §10 "in flight").
   const [langSelected, setLangSelected] = useState<Set<string>>(new Set());
+  const [langQuery, setLangQuery] = useState(""); // #165: the languages type-ahead's own input
 
   const loadDiscovery = useCallback(async () => {
     setLoadError(null);
@@ -474,6 +481,20 @@ function DiscoveryScreen() {
       else next.add(name);
       return next;
     });
+  }
+
+  // #165: the languages question is a type-ahead now, so a word the person types is KEPT even when
+  // the suggestion list has never heard of it (a French speaker in Asia has somewhere to say so).
+  // Adding is case-insensitively idempotent but stores THEIR spelling — the server keys the fact on
+  // the words they used, so "french" must not silently become a second entry beside "French".
+  function addLang(raw: string) {
+    const word = raw.trim();
+    if (!word) return;
+    setLangSelected((s) => {
+      if ([...s].some((n) => n.toLowerCase() === word.toLowerCase())) return s;
+      return new Set([...s, word]);
+    });
+    setLangQuery("");
   }
 
   // Fires the scroll+type sequence once the new (empty) line's span has actually mounted (it and
@@ -1048,7 +1069,14 @@ function DiscoveryScreen() {
   // normal ask and its correction re-ask via the onConfirm/onDecline callbacks, so this never needs
   // to know which one it's in beyond the copy/notice differences `isCorrection` controls.
   function renderMultiSelect(
-    q: { itemId: string; question: string; options: string[]; eligibility?: EligibilityAsk; consequence?: string },
+    q: {
+      itemId: string;
+      question: string;
+      options: string[];
+      eligibility?: EligibilityAsk;
+      consequence?: string;
+      typeAhead?: true;
+    },
     opts: {
       isAnswering: boolean;
       isCorrection: boolean;
@@ -1056,12 +1084,25 @@ function DiscoveryScreen() {
       onDecline: () => void;
     },
   ) {
-    // options: N language names, then the decline string last (contract-pinned order).
+    // options: N language names, then the decline string last (contract-pinned order). #165: those N
+    // are COMPLETIONS now, not the legal answers — `orderedTicked` reads the person's own set (which
+    // may hold a word no completion offered), never a filter over the list.
     const languages = q.options.slice(0, -1);
     const decline = q.options[q.options.length - 1] ?? "";
     const anyTicked = langSelected.size > 0;
-    const orderedTicked = languages.filter((name) => langSelected.has(name));
-    const confirmLabel = anyTicked ? "That's all of them" : "I can't work in any of these";
+    const orderedTicked = [...langSelected];
+    const query = langQuery.trim();
+    const matches = languages
+      .filter((name) => !orderedTicked.some((n) => n.toLowerCase() === name.toLowerCase()))
+      .filter((name) => query.length === 0 || name.toLowerCase().includes(query.toLowerCase()))
+      .slice(0, 5);
+    const exactMatch = languages.some((name) => name.toLowerCase() === query.toLowerCase());
+    // #165: with nothing listed there is nothing to store, so `answers: []` would leave the question
+    // open and ask again forever. An empty confirm therefore takes the DECLINE path — which is what
+    // it now means ("not now"), and the one path that genuinely closes the question. Both outcomes
+    // are identical for the person either way: nothing stored, nothing removed from the deck.
+    const confirmEmpty = !anyTicked;
+    const confirmLabel = anyTicked ? "That's all of them" : "I'd rather not list any";
     return (
       <>
         <fieldset className="elig-group" aria-describedby="lang-why">
@@ -1070,34 +1111,95 @@ function DiscoveryScreen() {
           <p className="conseq" id="lang-why">
             {q.consequence}
           </p>
-          <div className="opts">
-            {languages.map((name, i) => {
-              const checked = langSelected.has(name);
-              return (
-                <label className="opt check" key={name}>
-                  <input
-                    type="checkbox"
-                    name="elig-language"
-                    ref={i === 0 ? setFirstControl : undefined}
-                    checked={checked}
-                    disabled={opts.isAnswering}
-                    onChange={() => toggleLang(name)}
-                  />
-                  <span className="lbl">{name}</span>
-                  <span className="state" aria-hidden="true">
-                    {checked ? "YES" : anyTicked ? "NO" : ""}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
+          {q.typeAhead ? (
+            <div className="lang-typeahead">
+              {orderedTicked.length > 0 && (
+                <ul className="chips" aria-label="Languages you've listed">
+                  {orderedTicked.map((name) => (
+                    <li key={name}>
+                      <span className="lbl">{name}</span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${name}`}
+                        disabled={opts.isAnswering}
+                        onClick={() => toggleLang(name)}
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="field">
+                <input
+                  id="lang-input"
+                  ref={setFirstControl}
+                  type="text"
+                  value={langQuery}
+                  placeholder="Type a language"
+                  aria-describedby="lang-why"
+                  disabled={opts.isAnswering}
+                  onChange={(e) => setLangQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    addLang(langQuery);
+                  }}
+                />
+                <button
+                  type="button"
+                  className="go"
+                  disabled={opts.isAnswering || query.length === 0}
+                  onClick={() => addLang(langQuery)}
+                >
+                  Add
+                </button>
+              </div>
+              {(matches.length > 0 || (query.length > 0 && !exactMatch)) && (
+                <div className="sugg" role="status" aria-live="polite">
+                  {matches.map((name) => (
+                    <button key={name} type="button" disabled={opts.isAnswering} onClick={() => addLang(name)}>
+                      {name}
+                    </button>
+                  ))}
+                  {/* #165: the unknown word is offered, never refused — it is kept as the person's own
+                      fact and simply matches no advert until the list learns it. */}
+                  {query.length > 0 && !exactMatch && (
+                    <p className="note">Not on my list — I'll keep &ldquo;{query}&rdquo; as you wrote it.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="opts">
+              {languages.map((name, i) => {
+                const checked = langSelected.has(name);
+                return (
+                  <label className="opt check" key={name}>
+                    <input
+                      type="checkbox"
+                      name="elig-language"
+                      ref={i === 0 ? setFirstControl : undefined}
+                      checked={checked}
+                      disabled={opts.isAnswering}
+                      onChange={() => toggleLang(name)}
+                    />
+                    <span className="lbl">{name}</span>
+                    <span className="state" aria-hidden="true">
+                      {checked ? "YES" : anyTicked ? "NO" : ""}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </fieldset>
         <div className="elig-actions">
           <button
             type="button"
             className="go wide"
             disabled={opts.isAnswering}
-            onClick={() => opts.onConfirm(orderedTicked)}
+            onClick={() => (confirmEmpty ? opts.onDecline() : opts.onConfirm(orderedTicked))}
           >
             {confirmLabel}
           </button>

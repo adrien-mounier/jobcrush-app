@@ -58,6 +58,27 @@ export const EligibilityDimension = z.enum([
   "degree",
 ]);
 
+// #165 / ADR-0003 clause 8(a) — the LADDER: a claimed capability is placed on ordered rungs written
+// as concrete things a person can do, never a code ("B2") and never an adjective ("fluent"). The
+// rungs are the contract's, not one app's, because both sides of the comparison carry one: the
+// visitor's own placement (apps/api/src/languageLevel.ts, stored as an eligibility fact) and — as of
+// this ticket — the bar an advert states.
+//
+// `not-at-all` is the visitor side ONLY: it is the explicit "I don't speak this", the one value that
+// may ever withdraw a posting (apps/api/src/withdrawal.ts). No advert requires it, and adReader.ts's
+// clamp strips it from a read requirement rather than trusting the model not to emit it.
+// The rungs are #125 decision 3's own list, ascending. `not-at-all` is #125's `none`, spelled
+// differently on purpose — see LANGUAGE_LADDER in apps/api/src/languageLevel.ts for why the stored
+// token must not collide with the pre-#165 "none" a mistap used to write.
+export const LanguageLevel = z.enum([
+  "not-at-all",
+  "a-few-words", // knows a few words
+  "gets-by", // gets by day to day
+  "meetings", // can run a meeting in it
+  "negotiate", // can negotiate a contract in it
+  "native", // speaks it like a first language
+]);
+
 export const AdRequirementV1 = z
   .object({
     id: z.string().min(1),
@@ -84,6 +105,17 @@ export const AdRequirementV1 = z
     // silently deleting a winnable job, the exact failure #86 names as the worst this engine can
     // make. Consumed by apps/api/src/withdrawal.ts.
     eligibilitySubject: z.string().min(1).optional(),
+    // #165 — additive v1 extension, same shape as eligibilitySubject above (not a v2: every stored v1
+    // payload still validates unchanged, and no existing field changes meaning). WHICH RUNG of the
+    // ladder this advert actually tests — "run a meeting in Mandarin" is a different bar from "answer
+    // the phone in Mandarin", and until now both read as the bare word "Mandarin". Set only alongside
+    // an `eligibilityDimension` of "language"; absent means the advert named a language without saying
+    // what it needs it FOR, which is the common case and stays honest as an absence.
+    //
+    // It never withdraws anything. Being below an advert's bar is not an explicit "I don't speak
+    // this" (#165: only that withdraws), so this field's whole job is to make the level question the
+    // advert triggers say WHY it is being asked, in the advert's own terms.
+    eligibilityLevel: LanguageLevel.optional(),
     // The advert's own words this requirement was drawn from, so it can be shown to be the advert's
     // and not the model's — the provenance pin. A literal excerpt (this codebase's existing
     // source_quote convention), not a character span: reliable for a model to produce, and directly
@@ -127,5 +159,6 @@ export const AdRequirementsV1 = z
 export type AdRequirementKind = z.infer<typeof AdRequirementKind>;
 export type ComparableValue = z.infer<typeof ComparableValue>;
 export type EligibilityDimension = z.infer<typeof EligibilityDimension>;
+export type LanguageLevel = z.infer<typeof LanguageLevel>;
 export type AdRequirementV1 = z.infer<typeof AdRequirementV1>;
 export type AdRequirementsV1 = z.infer<typeof AdRequirementsV1>;

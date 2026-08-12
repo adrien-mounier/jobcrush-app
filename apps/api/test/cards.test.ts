@@ -923,6 +923,11 @@ const mandarinAdvantage = (adId: string): AdRequirementsV1 => ({
       band: "nice-to-have",
       kind: "ordinary",
       requirement: "Mandarin an advantage",
+      // #165: an ordinary requirement that NAMES a language now carries the dimension and subject
+      // too (ad-reader.md's rule, independent of `kind`) — it still can never withdraw the job, but
+      // it can now trigger the level question, which is where a "plus" actually pays off.
+      eligibilityDimension: "language",
+      eligibilitySubject: "Mandarin",
       sourceSpan: "Mandarin an advantage",
     },
   ],
@@ -954,8 +959,10 @@ describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
     await eligibility.put(sid, {
       dimension: "language",
       familyId: "Mandarin",
-      value: "none",
-      label: "Professional fluency in Mandarin",
+      // #165: the language "no" is the ladder's bottom rung now — a value only a deliberate tap
+      // produces. The pre-#165 "none" (written for every UNTICKED box) no longer withdraws anything.
+      value: "not-at-all",
+      label: "Mandarin — I don't speak this one",
     });
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
@@ -972,8 +979,10 @@ describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
     await eligibility.put(sid, {
       dimension: "language",
       familyId: "Mandarin",
-      value: "none",
-      label: "Professional fluency in Mandarin",
+      // #165: the language "no" is the ladder's bottom rung now — a value only a deliberate tap
+      // produces. The pre-#165 "none" (written for every UNTICKED box) no longer withdraws anything.
+      value: "not-at-all",
+      label: "Mandarin — I don't speak this one",
     });
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
@@ -1039,8 +1048,10 @@ describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
     await eligibility.put(sid, {
       dimension: "language",
       familyId: "Mandarin",
-      value: "none",
-      label: "Professional fluency in Mandarin",
+      // #165: the language "no" is the ladder's bottom rung now — a value only a deliberate tap
+      // produces. The pre-#165 "none" (written for every UNTICKED box) no longer withdraws anything.
+      value: "not-at-all",
+      label: "Mandarin — I don't speak this one",
     });
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
@@ -1181,8 +1192,10 @@ describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
     await eligibility.put(sid, {
       dimension: "language",
       familyId: "Mandarin",
-      value: "none",
-      label: "Professional fluency in Mandarin",
+      // #165: the language "no" is the ladder's bottom rung now — a value only a deliberate tap
+      // produces. The pre-#165 "none" (written for every UNTICKED box) no longer withdraws anything.
+      value: "not-at-all",
+      label: "Mandarin — I don't speak this one",
     });
 
     const before = readCounters()["deck.cards_withdrawn"];
@@ -1205,8 +1218,10 @@ describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
     await eligibility.put(sid, {
       dimension: "language",
       familyId: "Mandarin",
-      value: "none",
-      label: "Professional fluency in Mandarin",
+      // #165: the language "no" is the ladder's bottom rung now — a value only a deliberate tap
+      // produces. The pre-#165 "none" (written for every UNTICKED box) no longer withdraws anything.
+      value: "not-at-all",
+      label: "Mandarin — I don't speak this one",
     });
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
@@ -1251,13 +1266,17 @@ describe("#123 the languages question, driven end to end into #107's withdrawal 
 
     await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "Cantonese"] });
 
-    expect(await eligibility.get(sid, "language", "English")).toMatchObject({ value: "professional" });
-    expect(await eligibility.get(sid, "language", "Cantonese")).toMatchObject({ value: "professional" });
+    expect(await eligibility.get(sid, "language", "English")).toMatchObject({ value: "declared" });
+    expect(await eligibility.get(sid, "language", "Cantonese")).toMatchObject({ value: "declared" });
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     expect(body.cards.map((c) => c.adId)).toContain(target.id); // the Cantonese-blocking posting survives
   });
 
-  it("AC2: a visitor who answers without ticking Mandarin never sees a posting that requires it — driven end to end through the real answer route", async () => {
+  // 🚨 #165 AC2, end to end through the real routes, and the inversion of the #123 test that used to
+  // stand here. Leaving Mandarin off the list USED to withdraw every Mandarin posting — a mistap cost
+  // real jobs. It must now cost nothing at all: the posting stays, and the only route to a withdrawal
+  // is the ladder's own bottom rung, tapped deliberately, which the second half of this test walks.
+  it("#165 AC2: leaving Mandarin off the list withdraws NOTHING — only 'I don't speak this one' does", async () => {
     const target = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
       posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
@@ -1265,10 +1284,33 @@ describe("#123 the languages question, driven end to end into #107's withdrawal 
     const cookie = await anonSession(app);
     const itemId = await languageItemId(app, cookie);
 
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] }); // Mandarin left unticked
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] }); // Mandarin not listed
+
+    const kept = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(kept.cards.map((c) => c.adId)).toContain(target.id);
+
+    // The one deliberate answer that does withdraw it.
+    const said = await post(app, cookie, "/onboarding/language-level", {
+      language: "Mandarin",
+      level: "not-at-all",
+    });
+    expect(said.statusCode).toBe(200);
+    const after = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
+    expect(after.cards.map((c) => c.adId)).not.toContain(target.id);
+  });
+
+  // ADR-0003 clause 8(a) end to end: being BELOW an advert's bar never withdraws.
+  it("#165 AC2: placing yourself on a low rung keeps the posting — below the bar is not a no", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+
+    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "gets-by" });
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
-    expect(body.cards.map((c) => c.adId)).not.toContain(target.id);
+    expect(body.cards.map((c) => c.adId)).toContain(target.id);
   });
 
   it("AC3: the same visitor still sees a posting where Mandarin is only 'an advantage'", async () => {
@@ -1296,19 +1338,18 @@ describe("#123 the languages question, driven end to end into #107's withdrawal 
     expect(body.cards.map((c) => c.adId)).toContain(target.id);
   });
 
-  it("AC6: correcting the answer to include Mandarin brings the withdrawn posting back", async () => {
+  it("AC6: correcting a 'I don't speak this one' to a real rung brings the withdrawn posting back", async () => {
     const target = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
       posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
     const { app } = buildServer({ readAd });
     const cookie = await anonSession(app);
-    const itemId = await languageItemId(app, cookie);
 
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] });
+    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "not-at-all" });
     const withdrawn = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     expect(withdrawn.cards.map((c) => c.adId)).not.toContain(target.id);
 
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "Mandarin"] });
+    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "gets-by" });
     const corrected = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     expect(corrected.cards.map((c) => c.adId)).toContain(target.id);
   });
@@ -1368,8 +1409,7 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
       posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
     const { app } = buildServer({ readAd });
     const cookie = await anonSession(app);
-    const itemId = await languageItemId(app, cookie);
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] }); // Mandarin unticked
+    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "not-at-all" });
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as {
       cards: JobCard[];
@@ -1402,8 +1442,8 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
     };
     const { app } = buildServer({ readAd });
     const cookie = await anonSession(app);
-    const itemId = await languageItemId(app, cookie);
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] }); // neither ticked
+    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "not-at-all" });
+    await post(app, cookie, "/onboarding/language-level", { language: "Cantonese", level: "not-at-all" });
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as {
       cards: JobCard[];
@@ -1426,7 +1466,7 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
     const itemId = await languageItemId(app, cookie);
     await post(app, cookie, "/onboarding/discovery/answer", {
       itemId,
-      answers: ["English", "Mandarin", "Cantonese", "Vietnamese"], // every language ticked
+      answers: ["English", "Mandarin", "Cantonese", "Vietnamese"], // every language listed
     });
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { withdrawn: WithdrawnSummary };
@@ -1445,8 +1485,7 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
     };
     const { app } = buildServer({ readAd });
     const cookie = await anonSession(app);
-    const itemId = await languageItemId(app, cookie);
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English"] });
+    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "not-at-all" });
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as {
       cards: JobCard[];
@@ -1456,6 +1495,90 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
     expect(body.cards.map((c) => c.adId)).not.toContain(mandarinTarget!.id);
     // Only the Mandarin posting counts — the unreadable one was never a candidate to begin with.
     expect(body.withdrawn).toEqual({ total: 1, byLanguage: [{ language: "Mandarin", count: 1 }] });
+  });
+});
+
+// #165 AC3 — the advert-triggered ladder, end to end through GET /onboarding/cards. The question is
+// asked at the moment an advert makes it matter (ADR-0011 clause 1), on the card that makes it
+// matter, with that advert's own words as the reason. Answering closes the language for good.
+describe("#165 AC3 the level question an advert triggers", () => {
+  type CardWithAsk = JobCard & {
+    levelAsk?: { language: string; why: string; options: Array<{ value: string }>; skipOption: string };
+  };
+  const cardsOf = async (app: Parameters<typeof get>[0], cookie: string) =>
+    ((await get(app, cookie, "/onboarding/cards")).json() as { cards: CardWithAsk[] }).cards;
+
+  it("rides on the card whose advert tests Mandarin, and states why that advert cares", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+
+    const cards = await cardsOf(app, cookie);
+    const asked = cards.find((c) => c.adId === target.id)!;
+    expect(asked.levelAsk?.language).toBe("Mandarin");
+    expect(asked.levelAsk?.why).toContain("Mandarin");
+    expect(asked.levelAsk?.skipOption).toBe("Not now");
+    // Every OTHER card in the deck asks nothing — the trigger is the advert, not the session.
+    expect(cards.filter((c) => c.adId !== target.id).every((c) => c.levelAsk === undefined)).toBe(true);
+  });
+
+  it("fires when the advert names Mandarin only as a plus", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinAdvantage(posting.id) : stubRequirements(posting.id);
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+
+    const cards = await cardsOf(app, cookie);
+    expect(cards.find((c) => c.adId === target.id)?.levelAsk?.language).toBe("Mandarin");
+  });
+
+  it("never fires again for that language once answered — on this advert or any other", async () => {
+    const [first, second] = uncachedEnglishPostings();
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === first!.id || posting.id === second!.id
+        ? mandarinAdvantage(posting.id)
+        : stubRequirements(posting.id);
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    expect((await cardsOf(app, cookie)).some((c) => c.levelAsk)).toBe(true);
+
+    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "meetings" });
+
+    const after = await cardsOf(app, cookie);
+    expect(after.every((c) => c.levelAsk === undefined)).toBe(true);
+    // …and being below the advert's bar changed nothing about the deck itself.
+    expect(after.map((c) => c.adId)).toContain(first!.id);
+  });
+
+  // #165 point 6: a language answered under #123's tick-list carries the wrong shape, so the ladder
+  // asks again rather than reading the old binary answer as a level.
+  it("still fires for a language answered under the pre-#165 tick-list", async () => {
+    const target = uncachedEnglishPostings()[0]!;
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
+    const { app, eligibility } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    const sid = await sessionId(app, cookie);
+    await eligibility.put(sid, {
+      dimension: "language",
+      familyId: "Mandarin",
+      value: "professional", // the pre-#165 vocabulary
+      label: "Professional fluency in Mandarin",
+    });
+
+    const cards = await cardsOf(app, cookie);
+    expect(cards.find((c) => c.adId === target.id)?.levelAsk?.language).toBe("Mandarin");
+  });
+
+  it("rejects a level that isn't a rung — a grade is never stored as one", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const res = await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "fluent" });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: { code: "invalid_answer" } });
   });
 });
 
@@ -1472,8 +1595,10 @@ describe("#107 D4 — withdrawal on every surface that renders an advert", () =>
     await eligibility.put(sid, {
       dimension: "language",
       familyId: "Mandarin",
-      value: "none",
-      label: "Professional fluency in Mandarin",
+      // #165: the language "no" is the ladder's bottom rung now — a value only a deliberate tap
+      // produces. The pre-#165 "none" (written for every UNTICKED box) no longer withdraws anything.
+      value: "not-at-all",
+      label: "Mandarin — I don't speak this one",
     });
 
     const res = await post(app, cookie, `/onboarding/cards/${target.id}/want`);
@@ -1500,8 +1625,10 @@ describe("#107 D4 — withdrawal on every surface that renders an advert", () =>
     await eligibility.put(sid, {
       dimension: "language",
       familyId: "Mandarin",
-      value: "none",
-      label: "Professional fluency in Mandarin",
+      // #165: the language "no" is the ladder's bottom rung now — a value only a deliberate tap
+      // produces. The pre-#165 "none" (written for every UNTICKED box) no longer withdraws anything.
+      value: "not-at-all",
+      label: "Mandarin — I don't speak this one",
     });
     const noTargetShape = { error: { code: "no_tailor_target", message: "no job being tailored" } };
 

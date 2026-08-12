@@ -374,6 +374,7 @@ function LanguageDoor({
 }) {
   const [asking, setAsking] = useState(false);
   const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const [langToAdd, setLangToAdd] = useState(""); // #165: the open-list door's own input
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const doorRef = useRef<HTMLButtonElement>(null);
@@ -391,6 +392,7 @@ function LanguageDoor({
 
   function openDoor() {
     setTicked(new Set(languagesQuestion.answer ?? []));
+    setLangToAdd("");
     setError(null);
     setAsking(true);
   }
@@ -408,6 +410,18 @@ function LanguageDoor({
       else next.add(name);
       return next;
     });
+  }
+
+  // #165: a typed language joins the list already ticked, in the person's own spelling — the server
+  // keys the stored fact on the words they used, so "french" must not become a second row beside an
+  // existing "French".
+  function addLanguage() {
+    const word = langToAdd.trim();
+    if (!word) return;
+    setTicked((prev) =>
+      [...prev].some((n) => n.toLowerCase() === word.toLowerCase()) ? prev : new Set([...prev, word]),
+    );
+    setLangToAdd("");
   }
 
   async function save() {
@@ -450,7 +464,21 @@ function LanguageDoor({
   // #186 §A8/discovery precedent: the options array carries N language names then the decline
   // string last (contract-pinned order) — this door renders the tickable languages, matching the
   // same slice the discovery screen's own multi-select uses for the identical list.
-  const languages = languagesQuestion.options.slice(0, -1);
+  //
+  // #165: the options are COMPLETIONS now, not the closed answer set, so a language the person
+  // volunteered ("French") lives in `answer` and in no option. Rendering the options alone would
+  // hide it here and then DELETE it on save — the door would quietly retract a fact the person
+  // stated. The list is therefore the options plus anything already answered that isn't among them.
+  const suggested = languagesQuestion.options.slice(0, -1);
+  const languages = [
+    ...suggested,
+    ...(languagesQuestion.answer ?? []).filter((a) => !suggested.some((s) => s.toLowerCase() === a.toLowerCase())),
+    ...[...ticked].filter(
+      (t) =>
+        !suggested.some((s) => s.toLowerCase() === t.toLowerCase()) &&
+        !(languagesQuestion.answer ?? []).some((a) => a.toLowerCase() === t.toLowerCase()),
+    ),
+  ];
 
   return (
     <div
@@ -483,6 +511,26 @@ function LanguageDoor({
             {name}
           </label>
         ))}
+      </div>
+      {/* #165: the list is open, so this door needs a way IN for a language no suggestion offers —
+          without it, a French speaker can only ever remove languages here, never add one. */}
+      <div className="rbtns">
+        <input
+          type="text"
+          aria-label="Add another language"
+          placeholder="Add another language"
+          value={langToAdd}
+          disabled={saving}
+          onChange={(e) => setLangToAdd(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            addLanguage();
+          }}
+        />
+        <button type="button" className="rbtn" disabled={saving || langToAdd.trim().length === 0} onClick={addLanguage}>
+          Add
+        </button>
       </div>
       <div className="rbtns">
         <button type="button" className="rbtn" disabled={saving} onClick={save}>

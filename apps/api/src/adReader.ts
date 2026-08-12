@@ -22,7 +22,13 @@ const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts
 // #107 (E5 slice 6, D1) bumped 1 -> 2: the prompt now requires eligibilitySubject on a blocking
 // language/certification requirement, so a stored row read under the OLD prompt (which never asked
 // for one) must be treated as stale and re-read, not silently reused with an absent subject.
-const PROMPT_CONTRACT_VERSION = "adreq/2";
+// #165 bumped this from "adreq/2": AdRequirementV1 gained `eligibilityLevel` (which rung of the
+// language ladder an advert actually tests), so every advert already stored under the old contract
+// was read by a prompt that could not produce it. The bump is the ticket's whole re-read cost
+// mechanism — it makes stored reads stale, and makeAdReader re-reads each one LAZILY, at most once,
+// the next time some visitor actually looks at that advert. Nothing is re-read in bulk, and an
+// advert nobody opens is never paid for again.
+const PROMPT_CONTRACT_VERSION = "adreq/3";
 
 let cachedPrompt: string | null = null;
 export function adReaderPrompt(): string {
@@ -85,7 +91,16 @@ const SUBJECT_REQUIRED_DIMENSIONS = new Set<EligibilityDimension>(["language", "
  *  once in the code nothing can talk it out of. */
 function clampBlocking(parsed: AdRequirementsV1): AdRequirementsV1 {
   let clamped = 0;
-  const requirements = parsed.requirements.map((r) => {
+  const requirements = parsed.requirements.map((raw) => {
+    // #165: two ways `eligibilityLevel` can arrive meaningless, both stripped here rather than
+    // trusted to the prompt. A level on a non-language requirement has nothing to grade; a level of
+    // "not-at-all" would have the advert asking for someone who does NOT speak the language — that
+    // rung exists only on the visitor's side of the ladder, as their explicit "I don't speak this".
+    const r =
+      raw.eligibilityLevel !== undefined &&
+      (raw.eligibilityDimension !== "language" || raw.eligibilityLevel === "not-at-all")
+        ? { ...raw, eligibilityLevel: undefined }
+        : raw;
     // T3 (code review): `dimension` re-checked against `undefined` inline in EACH boolean below,
     // rather than computed once and reused behind a `!` assertion — TS narrows it within its own
     // `&&` chain, so a later edit that loosens either guard is a compile error, not a runtime one.

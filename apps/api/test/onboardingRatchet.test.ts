@@ -18,7 +18,10 @@ import { fileURLToPath } from "node:url";
 // #162 lowered this from 1282: the eligibility answer's whole write path moved out of the spine to
 // eligibilityDiscovery.ts (answerEligibilityItem), and the new date-hole answer path went straight
 // into yearsWorked.ts rather than in here.
-const MAX_LINES = 1184;
+// #165 lowered it again from 1184: the deck's withdrawal filter + per-language tally moved to
+// withdrawal.ts (partitionByWithdrawal) and the language ladder's whole rule set went into its own
+// module (languageLevel.ts), so the ticket's new endpoint landed while the spine still shrank.
+const MAX_LINES = 1138;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

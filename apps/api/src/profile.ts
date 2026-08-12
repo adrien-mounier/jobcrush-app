@@ -13,6 +13,7 @@ import type { ClaimRecord } from "./claims.js";
 import type { ContactRecord } from "./contact.js";
 import type { EligibilityStore } from "./eligibility.js";
 import { languagesQuestion, workRightsAnswerLabel, workRightsQuestionFor } from "./eligibilityDiscovery.js";
+import { declaredLanguages } from "./languageLevel.js";
 import { resolveSearchArea } from "./postingRetrieval.js";
 
 // The pinned frontend contract — apps/web/lib/api.ts mirrors these shapes.
@@ -177,11 +178,15 @@ export async function resolveLanguagesQuestion(
   eligibility: Pick<EligibilityStore, "list">,
   sessionId: string,
 ): Promise<ProfileLanguagesQuestion> {
-  const composition = languagesQuestion();
-  const stored = (await eligibility.list(sessionId)).filter((f) => f.dimension === "language");
-  if (stored.length === 0) return UNANSWERED_LANGUAGES_QUESTION;
-  const professional = new Set(stored.filter((f) => f.value === "professional").map((f) => f.familyId));
-  return composeProfileLanguagesQuestion(composition.options.filter((o) => professional.has(o)));
+  const stored = await eligibility.list(sessionId);
+  const declared = declaredLanguages(stored);
+  // #165: the answer is the person's DECLARED languages in their own words — no longer filtered
+  // through the question's option list, because the list is now a set of completions rather than the
+  // set of legal answers, and a volunteered language outside it ("French") must show on their own
+  // profile. Empty reads as unanswered, the same null-means-unknown semantic as before.
+  return declared.length === 0
+    ? UNANSWERED_LANGUAGES_QUESTION
+    : composeProfileLanguagesQuestion(declared);
 }
 
 /** Assembles GET /profile's payload: facts grouped by kind tag in SECTIONS order, coloured by the

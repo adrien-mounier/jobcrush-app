@@ -15,7 +15,7 @@ import {
   eligibilityCandidates,
   isEligibilityItemId,
   isValidLanguageSelection,
-  languageFacts,
+  languageDeclarationPlan,
   languagesUnion,
   mapEligibilityAnswer,
   unresolvedEligibilityQuestions,
@@ -98,27 +98,24 @@ describe("#106 eligibilityCandidates", () => {
     expect(paris.itemId).toBe(parisAgain.itemId); // switching back resolves to the SAME question
   });
 
-  // #123: language is now ONE multi-select question over every supported language
-  // (languagesUnion()), superseding #107 D2's single-English question — the pinned UI design spec
-  // copy, exercised here rather than paraphrased.
-  it("language is a multi-select over languagesUnion(), with its own itemId, question, and consequence", () => {
+  // #165 (AC1): declaring a language is a TYPE-AHEAD over a known list. `options` still carries
+  // languagesUnion() + the decline, but as completions — `typeAhead` is what tells the client they
+  // are not the closed set of legal answers.
+  it("language is a type-ahead over languagesUnion(), with its own itemId, question, and consequence", () => {
     const language = candidates.find((q) => q.eligibility?.dimension === "language")!;
     expect(language.itemId).toBe(LANGUAGE_ITEM_ID);
     expect(language.itemId).not.toBe(candidates.find((q) => q.eligibility?.dimension === "work-rights")!.itemId);
     expect(language.multiSelect).toBe(true);
-    expect(language.question).toBe(
-      "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.",
-    );
-    // Code-review must-fix 1 (2026-08-04), trimmed by owner correction (2026-08-04): the pinned
-    // first sentence stays intact; the second is an ADDED, recorded deviation from the design spec,
-    // biasing an unsure visitor toward ticking (a binary multi-select has no "some, but not for work"
-    // option any more — see the constant's own doc in eligibilityDiscovery.ts and docs/research/
-    // languages-from-the-corpus.md). Kept to a three-word nudge after QA flagged the first draft as
-    // the longest thing on screen.
+    expect(language.typeAhead).toBe(true);
+    expect(language.question).toBe("Which languages do you speak? Start typing — I'll suggest as you go.");
+    // #165: the consequence line no longer warns about a removal, because listing languages no longer
+    // causes one. It states the two things that are true instead — leaving one out costs nothing, and
+    // the level gets asked later, by the advert that needs it.
     expect(language.consequence).toBe(
-      "A no takes jobs that require that language out of your deck. Tick every one you could run a meeting in." +
-        " Not sure? Tick it.",
+      "Nothing you leave out counts against you: a job wanting a language you didn't list still stays in your deck." +
+        " When one of them matters for a real job, I'll ask how well you speak it, and say why.",
     );
+    expect(language.consequence).not.toMatch(/out of your deck/);
     expect(language.options).toEqual([...languagesUnion(), DECLINE_OPTION]);
   });
 
@@ -240,7 +237,7 @@ describe("#106 mapEligibilityAnswer — the store's canonical value for a tapped
 });
 
 // --- #123 — the languages question is market-keyed data, not a hardcoded list ------------------
-describe("#123 languagesUnion / languageFacts / isValidLanguageSelection", () => {
+describe("#123/#165 languagesUnion / languageDeclarationPlan / isValidLanguageSelection", () => {
   it("the union is the owner-approved four-language list, in stable declared order", () => {
     expect(languagesUnion()).toEqual(["English", "Mandarin", "Cantonese", "Vietnamese"]);
   });
@@ -249,29 +246,72 @@ describe("#123 languagesUnion / languageFacts / isValidLanguageSelection", () =>
     expect(languagesUnion()).toEqual(languagesUnion());
   });
 
-  it("languageFacts writes the FULL set every time — every language, not only the selected ones", () => {
-    const facts = languageFacts(["Mandarin"]);
-    expect(facts).toHaveLength(languagesUnion().length);
-    expect(facts.find((f) => f.familyId === "Mandarin")).toMatchObject({
-      value: "professional",
-      label: "Professional fluency in Mandarin",
-    });
-    expect(facts.find((f) => f.familyId === "English")).toMatchObject({ value: "none" });
+  // #165 AC2 — the regression that mattered: nothing a person leaves out may ever be written as a
+  // "no". #123's full-set write did exactly that, and it silently deleted winnable jobs.
+  it("an answer writes ONLY what the person named — no 'none' is ever written for the rest", () => {
+    const plan = languageDeclarationPlan(["Mandarin"], []);
+    expect(plan.put).toEqual([{ familyId: "Mandarin", value: "declared", label: "Speaks Mandarin" }]);
+    expect(plan.remove).toEqual([]);
+    expect(plan.put.some((w) => w.value === "none")).toBe(false);
   });
 
-  it("languageFacts([]) legally marks every language 'none' — ticking nothing is a real answer, not an error", () => {
-    expect(languageFacts([]).every((f) => f.value === "none")).toBe(true);
+  it("dropping a language RETRACTS its fact — back to unknown, never to a 'no'", () => {
+    const stored = [
+      { dimension: "language" as const, familyId: "Mandarin", value: "declared", label: "Speaks Mandarin" },
+      { dimension: "language" as const, familyId: "English", value: "declared", label: "Speaks English" },
+    ];
+    const plan = languageDeclarationPlan(["English"], stored);
+    expect(plan.remove).toEqual(["Mandarin"]);
+    expect(plan.put).toEqual([]);
   });
 
-  it("isValidLanguageSelection accepts any subset of the list, including the empty selection", () => {
+  // 🚨 A placed level is an ANSWER (#125: asked once per language ever), not a declaration, so the
+  // declaring question may never retract one. The dangerous half is the second case: "I don't speak
+  // this one" is deliberately never shown in the declared list, so it is absent from every later
+  // answer by construction — retracting on absence would delete it the moment the person edited
+  // their languages for any other reason, and the ladder would ask them forever.
+  it("never retracts a placed level, even when that language is absent from the answer", () => {
+    const stored = [
+      { dimension: "language" as const, familyId: "Mandarin", value: "meetings", label: "Mandarin" },
+      { dimension: "language" as const, familyId: "Thai", value: "not-at-all", label: "Thai" },
+      { dimension: "language" as const, familyId: "French", value: "declared", label: "Speaks French" },
+    ];
+    const plan = languageDeclarationPlan(["English"], stored);
+    expect(plan.remove).toEqual(["French"]); // only the bare declaration retracts
+    expect(plan.put).toEqual([{ familyId: "English", value: "declared", label: "Speaks English" }]);
+  });
+
+  it("re-answering never knocks a language back down from a level it was already placed at", () => {
+    const stored = [
+      { dimension: "language" as const, familyId: "Mandarin", value: "meetings", label: "Mandarin" },
+    ];
+    const plan = languageDeclarationPlan(["Mandarin", "French"], stored);
+    expect(plan.remove).toEqual([]);
+    expect(plan.put).toEqual([{ familyId: "French", value: "declared", label: "Speaks French" }]);
+  });
+
+  it("answers: [] stays legal, and now records nothing at all rather than a wall of 'no's", () => {
     expect(isValidLanguageSelection([])).toBe(true);
+    expect(languageDeclarationPlan([], [])).toEqual({ put: [], remove: [] });
+  });
+
+  // #165 AC1: a word outside the known list is KEPT, not refused — it simply matches no advert until
+  // languages-by-market.json learns it. This is the French-speaker-in-Asia case (#125).
+  it("isValidLanguageSelection accepts a language the list has never heard of", () => {
     expect(isValidLanguageSelection(["English"])).toBe(true);
     expect(isValidLanguageSelection([...languagesUnion()])).toBe(true);
+    expect(isValidLanguageSelection(["French"])).toBe(true);
+    expect(languageDeclarationPlan(["French"], []).put).toEqual([
+      { familyId: "French", value: "declared", label: "Speaks French" },
+    ]);
   });
 
-  it("isValidLanguageSelection rejects anything outside the list", () => {
-    expect(isValidLanguageSelection(["Klingon"])).toBe(false);
-    expect(isValidLanguageSelection(["English", "Klingon"])).toBe(false);
+  it("isValidLanguageSelection still refuses what isn't a word at all — it is a trust boundary", () => {
+    expect(isValidLanguageSelection([""])).toBe(false);
+    expect(isValidLanguageSelection(["   "])).toBe(false);
+    expect(isValidLanguageSelection(["a".repeat(61)])).toBe(false);
+    expect(isValidLanguageSelection(["Fren\nch"])).toBe(false);
+    expect(isValidLanguageSelection(Array.from({ length: 21 }, (_, i) => `L${i}`))).toBe(false);
   });
 });
 

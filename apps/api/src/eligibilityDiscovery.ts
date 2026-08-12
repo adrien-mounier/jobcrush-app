@@ -34,7 +34,8 @@ import {
   type DiscoveryState,
 } from "./discovery.js";
 import { loadFamilyFloor } from "./e5stub.js";
-import { ANY_FAMILY, type EligibilityStore } from "./eligibility.js";
+import { ANY_FAMILY, type EligibilityFact, type EligibilityStore } from "./eligibility.js";
+import { LANGUAGE_DECLARED, levelOf, MAX_LANGUAGE_WORD } from "./languageLevel.js";
 import { dateHoleQuestions } from "./yearsWorked.js";
 
 export const DECLINE_OPTION = "Ask me later";
@@ -174,30 +175,25 @@ const WORK_RIGHTS_NOT_YET = "Not yet — I'd need sponsorship";
 const WORK_RIGHTS_ELIGIBLE_VALUE = "eligible";
 const WORK_RIGHTS_NEEDS_SPONSORSHIP_VALUE = "needs-sponsorship";
 
-// --- the languages question (#123 UI design spec — pinned copy, do not paraphrase) ---
+// --- the languages question (#165 — supersedes #123's pinned binary copy) -----------------------
 //
-// Code-review must-fix 1 (2026-08-04) — recorded here, not just inferred: a BINARY multi-select
-// (tick = professional, unticked = none) has no third option, so it can never write the store's
-// "conversational" value the way the old three-option single question could. That value is not
-// removed from the vocabulary (withdrawal.ts's isExplicitNo still honours it for any fact stored
-// before this change), but nothing built here can produce it going forward — the owner's sanctioned
-// trade for option (a) over option (b) (per-language yes/no/some), recorded in full in
-// docs/research/languages-from-the-corpus.md's "Decision taken" section. Its real risk: this
-// question's own bar ("Tick every one you could run a meeting in") reads as excluding a visitor with
-// solid-but-imperfect conversational fluency — ticking under that bar now records "professional" (a
-// stronger claim than warranted), but NOT ticking records an explicit "none", which #107 treats as a
-// real no and withdraws every mandatory-language posting. Mitigated below, deliberately, by ADDING to
-// (never softening) the pinned consequence sentence: an unsure visitor is told to tick, because #86's
-// rule is that never silently deleting a winnable job outranks precision — ticking can only ever keep
-// a job in the deck, never remove one. Owner correction (2026-08-04): the first added clause spelled
-// that reasoning out on-screen and QA flagged it as the longest thing on the screen, restating the
-// first sentence in mirror form; trimmed to a three-word nudge that keeps the decision without
-// re-arguing it — the reasoning stays recorded here and in the research doc, not on the visitor's screen.
-const LANGUAGES_QUESTION =
-  "Which of these can you work in professionally? Anything you leave unticked, I'll treat as a no.";
+// #123's question was a closed tick-list whose whole meaning was "unticked = no", and its consequence
+// line said so out loud: *"A no takes jobs that require that language out of your deck."* That was
+// honest about what the code did, and what the code did was the bug — one mistap wrote an explicit
+// "none" and silently removed postings. #165 takes the withdrawal out of this question entirely, so
+// the copy that warned about it has nothing left to warn about and would now be a lie.
+//
+// What replaces it: DECLARING a language is a type-ahead over a known list (languagesUnion() supplies
+// the completions), and a word outside that list is KEPT rather than refused — a French speaker in
+// Asia has somewhere to say so (#125), it simply cannot match an advert until the list learns it. The
+// LEVEL is not asked here at all: it is a ladder an advert triggers at the moment it matters
+// (languageLevel.ts / ADR-0011 clause 1), which is why this question can now be answered carelessly
+// with no cost. The consequence line says exactly that, because "nothing here can hurt you" is the
+// one thing a person needs to know to answer it honestly.
+const LANGUAGES_QUESTION = "Which languages do you speak? Start typing — I'll suggest as you go.";
 const LANGUAGES_CONSEQUENCE =
-  "A no takes jobs that require that language out of your deck. Tick every one you could run a meeting in." +
-  " Not sure? Tick it.";
+  "Nothing you leave out counts against you: a job wanting a language you didn't list still stays in your deck." +
+  " When one of them matters for a real job, I'll ask how well you speak it, and say why.";
 
 function itemId(dimension: EligibilityDimension, familyId: string): string {
   return FAMILY_SCOPED.has(dimension)
@@ -242,16 +238,18 @@ function buildQuestion(
       eligibility: { dimension, familyId: marketId, scopeLabel: null, declineOption: DECLINE_OPTION },
     };
   }
-  // dimension === "language" — #123 supersedes #107 D2's single-English question with ONE
-  // multi-select over every language in languagesUnion(). `anyFamily` is used only as a required
-  // placeholder for EligibilityAsk.familyId below — the route's real per-language writes (a full set
-  // of facts, one per languagesUnion() entry, via languageFacts()) never read this field back.
+  // dimension === "language" — #165: still ONE question producing a set of answers (so the wire shape
+  // and the route's `answers: string[]` path are unchanged), but `typeAhead` now marks `options` as
+  // COMPLETIONS rather than the answer domain: a person may keep a word that isn't in them. `anyFamily`
+  // is used only as a required placeholder for EligibilityAsk.familyId below — the route's real
+  // per-language writes (languageDeclarationPlan()) never read this field back.
   return {
     itemId: LANGUAGE_ITEM_ID,
     question: LANGUAGES_QUESTION,
     consequence: LANGUAGES_CONSEQUENCE,
     options: [...languagesUnion(), DECLINE_OPTION],
     multiSelect: true,
+    typeAhead: true,
     cvSection: "skills",
     eligibility: { dimension, familyId: anyFamily, scopeLabel: null, declineOption: DECLINE_OPTION },
   };
@@ -460,36 +458,75 @@ export function languagesQuestion(): DiscoveryQuestion {
 }
 
 export interface LanguageFactWrite {
-  /** The eligibility store's scope column — the language's own name. */
+  /** The eligibility store's scope column — the language's own name, in the words the person used. */
   familyId: string;
-  value: "professional" | "none";
+  value: string;
   label: string;
 }
 
-/** #123 — every language fact one multi-select answer writes: ONE PER languagesUnion() ENTRY, not
- *  only the ticked ones. This full-set write (never a delta) is what makes a correction work:
- *  re-answering with Mandarin ticked flips its stored "none" back to "professional" in the same
- *  call that leaves every other language's fact untouched (still written, to the same value it
- *  already had) — there is no stale prior write left behind for anything to miss. `selected` need
- *  not be pre-validated; callers check isValidLanguageSelection first so an unrecognized value never
- *  reaches the store, but an unvalidated extra value here would simply be ignored (harmless, since
- *  the return is built by mapping languagesUnion(), never `selected`, into the result). */
-export function languageFacts(selected: readonly string[]): LanguageFactWrite[] {
-  const chosen = new Set(selected);
-  return languagesUnion().map((language) => ({
-    familyId: language,
-    value: chosen.has(language) ? "professional" : "none",
-    label: `Professional fluency in ${language}`,
-  }));
+/** What one answer to the declaring question changes in the store — never a full-set overwrite.
+ *
+ *  #165 deletes #123's full-set write, and the deletion is the point. That write recorded "none" for
+ *  every language the person did NOT tick, and "none" was read as an explicit "I don't speak this",
+ *  which withdrew postings: the machine wrote a hard no the person never said. Here, an answer only
+ *  ever records the languages they DID name.
+ *
+ *  Dropping a language from the list REMOVES its fact, returning it to unknown — never to a "no"
+ *  (#125's own AC: "removing a volunteered language must return it to unknown"). Unknown never
+ *  withdraws, so correcting a list can only ever put jobs back in the deck.
+ *
+ *  A language they keep is left ALONE when a fact for it already exists, which is what protects a
+ *  level they already placed: re-answering the declaring question must not knock Mandarin back down
+ *  from "I can run a meeting in it" to a bare declaration.
+ *
+ *  🚨 And a PLACED LEVEL is never retracted by this question at all, even when the language is absent
+ *  from the answer. Two ways that bites otherwise, and the second is the dangerous one:
+ *    - "I can run a meeting in Mandarin" is an answered question (#125: asked once per language
+ *      EVER). Dropping the word from a list should not un-answer it and start asking again.
+ *    - A deliberate "I don't speak this one" is, by design, NEVER shown in the declared list — so it
+ *      is absent from every subsequent answer by construction. Retracting on absence would delete
+ *      that answer the moment the person edited their languages for any other reason, and the ladder
+ *      would ask them the same question forever.
+ *  Bare declarations still retract on absence, which is what #125's own AC asks for ("removing a
+ *  volunteered language must return it to unknown"). */
+export function languageDeclarationPlan(
+  answers: readonly string[],
+  existing: readonly EligibilityFact[],
+): { put: LanguageFactWrite[]; remove: string[] } {
+  const named = new Map<string, string>(); // normalised -> the person's own words
+  for (const raw of answers) {
+    const word = raw.trim();
+    if (word.length > 0) named.set(word.toLowerCase(), word);
+  }
+  const stored = existing.filter((f) => f.dimension === "language");
+  const alreadyStored = new Set(stored.map((f) => f.familyId.trim().toLowerCase()));
+  return {
+    put: [...named.entries()]
+      .filter(([key]) => !alreadyStored.has(key))
+      .map(([, word]) => ({ familyId: word, value: LANGUAGE_DECLARED, label: `Speaks ${word}` })),
+    remove: stored
+      .filter((f) => levelOf(f.value) === null) // a placed level is an answer, not a declaration
+      .filter((f) => !named.has(f.familyId.trim().toLowerCase()))
+      .map((f) => f.familyId),
+  };
 }
 
-/** True iff every element of `answers` is one of today's supported languages (languagesUnion()) —
- *  anything else (a typo, a stray value, a language this data file doesn't know yet) is a 400 at the
- *  route, never silently stored or silently dropped. An empty array is always valid — "I can't work
- *  in any of these" is a real, legal answer (#123 AC: `answers: []` is legal). */
+/** A person naming forty languages is not a person, it is a script. The per-word cap lives in
+ *  languageLevel.ts (MAX_LANGUAGE_WORD) — both doors into a language fact share it. */
+const MAX_LANGUAGES = 20;
+
+/** #165 — the list is no longer closed, so this no longer checks membership. An unknown word is KEPT
+ *  (a French speaker in Asia, #125): it is stored, it shows on the profile, and it simply matches no
+ *  advert until languages-by-market.json learns it. What is still refused is anything that isn't a
+ *  plausible word at all — this is a trust boundary, and the value becomes a store key.
+ *  An empty array stays legal: "none of these" is a real answer, and it now records nothing at all
+ *  rather than a wall of "no"s. */
 export function isValidLanguageSelection(answers: readonly string[]): boolean {
-  const valid = new Set(languagesUnion());
-  return answers.every((a) => valid.has(a));
+  if (answers.length > MAX_LANGUAGES) return false;
+  return answers.every((a) => {
+    const word = a.trim();
+    return word.length > 0 && word.length <= MAX_LANGUAGE_WORD && !word.includes("\n");
+  });
 }
 
 // --- code-review must-fix 7 (2026-08-03) -----------------------------------------------------
@@ -609,10 +646,14 @@ export async function answerEligibilityItem(
   // #123: the multi-select real-answer path — `body.answers` (the caller checks exactly one of
   // answer/answers is present first). A single-select question never accepts this shape.
   if (!question.multiSelect || !body.answers || !isValidLanguageSelection(body.answers)) return badAnswer;
-  // Write the FULL set on every answer — every language, not only the ticked ones (AC6: this is what
-  // makes a correction work — re-answering with Mandarin ticked flips its stored "none" back to
-  // "professional" in the same call, rather than leaving a stale "none" for nothing to revisit).
-  for (const write of languageFacts(body.answers)) {
+  // #165: a DELTA, not a full-set overwrite — see languageDeclarationPlan for why the overwrite had
+  // to go (it was the thing writing the "no" nobody said). Reads this session's own stored facts so a
+  // language dropped from the list is retracted to unknown and one kept keeps any level already placed.
+  const plan = languageDeclarationPlan(body.answers, await stores.eligibility.list(sessionId));
+  for (const familyId of plan.remove) {
+    await stores.eligibility.remove(sessionId, ask.dimension, familyId);
+  }
+  for (const write of plan.put) {
     await stores.eligibility.put(sessionId, { dimension: ask.dimension, ...write });
   }
   return { ok: true };

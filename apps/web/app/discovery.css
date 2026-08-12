@@ -867,3 +867,76 @@
     order: 4;
   }
 }
+
+/* #165: the languages type-ahead. The list is no longer a closed set of tick-boxes, so the control
+   has to show two things the checkbox group never had to — what you have listed so far (the chips,
+   each removable), and that a word off the suggestion list is kept rather than refused (.note). */
+.discovery .lang-typeahead .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0 0 11px;
+  padding: 0;
+}
+.discovery .lang-typeahead .chips li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--gold);
+  border-radius: 11px;
+  background: #262f3a;
+  font-size: 13px;
+}
+.discovery .lang-typeahead .chips button {
+  appearance: none;
+  border: none;
+  border-radius: 11px;
+  background: none;
+  color: var(--hud-mute);
+  padding: 0 3px;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.discovery .lang-typeahead .chips button:hover:not(:disabled) {
+  color: var(--hud-ink);
+}
+.discovery .lang-typeahead .sugg {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+  border: 1px solid var(--hud-line);
+  border-radius: 11px;
+  overflow: hidden;
+  background: var(--hud-2);
+}
+.discovery .lang-typeahead .sugg button {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid var(--hud-line);
+  border-radius: 0;
+  background: none;
+  color: var(--hud-ink);
+  padding: 11px 14px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+.discovery .lang-typeahead .sugg button:hover:not(:disabled) {
+  background: #262f3a;
+}
+.discovery .lang-typeahead .sugg .note {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--hud-line);
+  font-size: 13px;
+  color: var(--hud-mute);
+}
+.discovery .lang-typeahead .sugg button:last-child:not(:only-child) {
+  border-bottom: none;
+}

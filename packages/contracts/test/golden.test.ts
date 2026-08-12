@@ -154,6 +154,13 @@ describe("Ad requirements v1 (#102)", () => {
       (value) => (value.requirements[0].unknownField = true),
       // #107 (E5 slice 6, D1): eligibilitySubject must be a non-empty string when present.
       (value) => (value.requirements[3].eligibilitySubject = ""),
+      // #165: eligibilityLevel is a rung of the ladder or nothing — never a grade ("B2"), never an
+      // adjective ("fluent"), never an empty string.
+      (value) => (value.requirements[3].eligibilityLevel = "fluent"),
+      (value) => (value.requirements[3].eligibilityLevel = "B2"),
+      (value) => (value.requirements[3].eligibilityLevel = "everyday"), // never a rung
+      (value) => (value.requirements[3].eligibilityLevel = "work"), // never a rung
+      (value) => (value.requirements[3].eligibilityLevel = ""),
     ];
     for (const mutate of mutations) {
       const value = structuredClone(valid);
@@ -216,6 +223,30 @@ describe("Ad requirements v1 (#102)", () => {
     delete withoutSubject.requirements[3].eligibilitySubject;
     expect(validateAdRequirementsV1(withoutSubject).ok).toBe(true); // still a valid v1 payload
     expect(AdRequirementsV1.safeParse(withoutSubject).success).toBe(true);
+  });
+
+  // #165 AC5 — the advert side gains a LEVEL, in both contract homes at once. Additive to v1 exactly
+  // as eligibilitySubject was: every already-stored payload validates unchanged with the field
+  // absent, which is also the honest reading of an advert that names a language without saying what
+  // it needs it for.
+  it("a language requirement may carry the rung it tests, and both homes agree on the vocabulary", () => {
+    const withLevel = structuredClone(valid);
+    withLevel.requirements[3].eligibilityLevel = "meetings";
+    expect(validateAdRequirementsV1(withLevel).ok).toBe(true);
+    expect(AdRequirementsV1.safeParse(withLevel).success).toBe(true);
+    expect(AdRequirementsV1.parse(withLevel).requirements[3]!.eligibilityLevel).toBe("meetings");
+
+    for (const rung of ["not-at-all", "a-few-words", "gets-by", "meetings", "negotiate", "native"]) {
+      const value = structuredClone(valid);
+      value.requirements[3].eligibilityLevel = rung;
+      expect(validateAdRequirementsV1(value).ok).toBe(true);
+      expect(AdRequirementsV1.safeParse(value).success).toBe(true);
+    }
+
+    // Absent is valid, and stays the default: an advert that says "Mandarin" and nothing more has
+    // stated no bar, and the contract must not invent one.
+    expect(validateAdRequirementsV1(valid).ok).toBe(true);
+    expect(AdRequirementsV1.parse(valid).requirements[3]!.eligibilityLevel).toBeUndefined();
   });
 });
 
