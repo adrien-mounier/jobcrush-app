@@ -82,7 +82,7 @@ export default function FrontDoor() {
   const [confirmedChoice, setConfirmedChoice] = useState<Choice | null>(null);
   const [visibleChoice, setVisibleChoice] = useState<Choice | null>(null);
   const [pendingChoice, setPendingChoice] = useState<Choice | null>(null);
-  const [choiceError, setChoiceError] = useState<Choice | null>(null);
+  const [choiceError, setChoiceError] = useState<{ choice: Choice; saved: boolean } | null>(null);
   const [cv, setCv] = useState<CvState>({ phase: "idle" });
   const [conflictValue, setConflictValue] = useState("");
   const [conflictError, setConflictError] = useState(false);
@@ -328,7 +328,7 @@ export default function FrontDoor() {
     } catch {
       if (!saved) setVisibleChoice(confirmedChoice);
       setPendingChoice(null);
-      setChoiceError(choice);
+      setChoiceError({ choice, saved });
       requestAnimationFrame(() => choiceErrorRef.current?.focus());
     }
   };
@@ -411,8 +411,10 @@ export default function FrontDoor() {
             {pendingChoice && <p role="status" aria-live="polite">Saving your choice…</p>}
             {choiceError && (
               <div role="alert" tabIndex={-1} ref={choiceErrorRef}>
-                We couldn’t save that choice.{" "}
-                <button type="button" onClick={() => void choose(choiceError)}>Try again</button>
+                {choiceError.saved
+                  ? "Your choice is saved, but we couldn’t continue."
+                  : "We couldn’t save that choice."}{" "}
+                <button type="button" onClick={() => void choose(choiceError.choice)}>Try again</button>
               </div>
             )}
               </div>

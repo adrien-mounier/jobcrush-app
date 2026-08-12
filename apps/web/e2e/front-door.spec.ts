@@ -265,6 +265,49 @@ test("failed save restores the durable choice and retry persists the intended ch
   expect(sourceEntry).toEqual({ checkpoint: "source_selected", choice: "questions" });
 });
 
+// #201 follow-up: the other half of the same catch — the save SUCCEEDS but the follow-on advance
+// fails. The saved choice must stay pressed (never roll back to the pre-click choice), and the
+// alert must say the truth: saved, couldn't continue.
+test("a saved choice survives a failed continue, says so honestly, and retry continues", async ({ page }) => {
+  let sourceEntry: SourceEntry = { checkpoint: "source_selected", choice: "cv" };
+  await page.route("**/api/sessions/me", async (route) => {
+    await route.fulfill({ json: { sourceEntry } });
+  });
+  await page.route("**/api/sessions/me/source-entry", async (route) => {
+    sourceEntry = route.request().postDataJSON();
+    await route.fulfill({ json: { sourceEntry } });
+  });
+  let stageAttempts = 0;
+  await page.route("**/api/sessions/me/stage", async (route) => {
+    stageAttempts += 1;
+    if (stageAttempts === 1) {
+      await route.fulfill({ status: 503, json: { error: { message: "unavailable" } } });
+      return;
+    }
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.route("**/api/sessions/me/intent", async (route) => {
+    await route.fulfill({
+      json: {
+        intent: { targetRole: null, searchArea: null },
+        missing: ["targetRole", "searchArea"],
+        checkpoint: "intent_needed",
+      },
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /Start questions instead/ }).click();
+
+  const alert = page.getByTestId("source-checkpoint-status").getByRole("alert");
+  await expect(alert).toContainText("Your choice is saved, but we couldn’t continue.");
+  await expect(page.locator('[data-source="questions"]')).toHaveAttribute("aria-pressed", "true");
+  expect(sourceEntry).toEqual({ checkpoint: "source_selected", choice: "questions" });
+
+  await alert.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByLabel("Target role")).toBeVisible();
+});
+
 test("CV reading becomes a compact server-authored proof with equivalent facts shown once", async ({ page }) => {
   await stubSourceEntry(page, { checkpoint: "invited", choice: null });
   await stubCvImport(page, [
