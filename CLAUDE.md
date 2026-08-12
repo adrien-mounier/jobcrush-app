@@ -65,6 +65,14 @@ When a meaningful unit of work lands (see session hygiene):
    `main` to Fly staging on every green push, so a push is a deploy** — the green gate is
    non-negotiable.
 
+**A commit that finishes a ticket closes it: end the message with `Closes #123` on its own line.**
+`(#123)` in the subject only *links* — GitHub closes on the keyword and nothing else, so a bare
+reference leaves finished work sitting on the board as available. `/implement` has no
+tracker step at all (it ends at "commit your work"), so the commit message is the only place this
+can happen. Never `Closes` a parent/map issue from a child's commit — reference it and leave it
+open. Finished but not closable from the commit (a decision, a research pass): close it by hand
+with a comment naming the commit.
+
 Use a branch + PR only for a `/code-review` pass or a change risky enough that staging must stay up
 while it is in progress. Background-job worktree isolation still applies: finish in a worktree,
 fast-forward into `main`, push-when-green (no PR).
