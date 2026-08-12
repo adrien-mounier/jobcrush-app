@@ -1,5 +1,33 @@
 # Lessons — jobcrush-app
 
+## When a ticket says a source is normative, diff your design against that source line by line
+
+#165 named #125 normative — *"all six"*. I read #125's issue body, built a five-rung ladder that felt
+right, and invented a rung. #125 decision 3 pins six, verbatim, **in a comment on the issue, not in
+its body** — and `gh issue view` without `--comments` never shows them. The reviewer found it in
+minutes because it compared a list to a list, which is exactly the check I skipped by reasoning about
+the shape instead of reading it. **Fetch the comments too, and when a normative source enumerates
+anything, paste its enumeration into the code and diff — do not re-derive it.**
+
+## An answer the UI never displays gets deleted by the next unrelated edit
+
+#165 stores *"I don't speak this one"* as a language fact, and deliberately never shows it in the
+person's declared-languages list — it is not a language they have. But the declaring question retracts
+any language *absent* from its answer, and that answer is built from the list. So the deliberate
+answer was **absent by construction**, and any later edit to their languages silently deleted it,
+re-opening a question they had already answered. **Whenever a stored value is hidden from the control
+that writes its neighbours, check what that control does with values it cannot see** — "absent from
+the form" and "the person removed it" are different facts, and a delta write cannot tell them apart.
+
+## A warning deleted because it became false still has to be re-homed if the risk moved
+
+#165 rewrote the languages question's consequence line, correctly: it warned about a removal that the
+new design cannot cause. But the risk did not disappear — it **moved** to the new ladder's bottom
+rung, and that screen shipped with no warning at all, quietly dropping a decision (#125 decision 4:
+*"the screen must say so before she answers, not after"*) that nobody meant to reverse. **When a
+safety line stops being true, find where its danger went before deleting it.** Ask which screen now
+carries the tap that costs something.
+
 ## A ticket's body AND its own impact comment can both be stale — check every AC against HEAD first
 
 #154 arrived with four acceptance criteria. **Three had already landed** with #153/#158 a week earlier,

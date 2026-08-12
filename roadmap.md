@@ -16,6 +16,29 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
 
+**2026-08-13 (session 110) `/implement #165` — the mistap that deleted jobs is gone, structurally.**
+A language and its level are now **two facts** (ADR-0008 clause 6). Declaring is an **open type-ahead**
+whose off-list words are kept in the person's own spelling (#125's French speaker in Asia); the level
+is a **ladder of situations** an advert triggers at the moment it matters, quoting that advert's own
+line — for a required language **and one named only as a plus**, which is where a real level wins a
+job. 🚨 **The bug it kills:** #123's unticked box wrote `"none"`, which `withdrawal.ts` read as *"I
+don't speak this"* — one mistap removed every posting needing that language. **Nothing a person leaves
+alone writes a value now**; the only thing that withdraws is a rung they must deliberately tap, and it
+is offered **last**, because the top of a list is where a distracted thumb lands. ✅ **Being below an
+advert's bar never withdraws** (ADR-0003 clause 8a), and every **pre-#165 value reads as unknown** — so
+the four already-answered languages are **re-asked rather than migrated**, and cannot hurt anyone
+while they wait. ⚠️ **The review caught three things the build did not, and all three were fidelity to
+a normative source, not code quality:** I shipped **five rungs with one invented** where #125 decision
+3 pins six verbatim; a deliberate *"I don't speak this one"* was **silently erased** by any later edit
+to the languages list; and **#125 decision 4 — "the screen must say so BEFORE she answers" — was
+missed outright.** ⭐ **One deliberate departure:** #125 calls the bottom rung `none`, the stored token
+is `not-at-all`, because colliding with the legacy `"none"` would make a mistap indistinguishable from
+a considered answer. ✅ Contract versioned in **both homes** with the `adreq/3` bump driving a **lazy,
+at-most-once** re-read per advert; **ratchet lowered 1184 → 1138** (withdrawal tally extracted). ⚠️
+**Ceiling:** a **skipped** question is remembered per card view, not stored — a reload re-asks on the
+same advert (ADR-0011 clause 4 would prefer otherwise); it needs a per-advert record that does not
+exist yet. Commit `a423a39`.
+
 **2026-08-12 (session 109) `/grilling #154` + build — merge versus outcome is arbitrated, in code.**
 The contradiction #154 filed is closed: **a line built from more than one claim must state what it
 achieved, declare that result in the bullet's own field, and the declared words must appear verbatim

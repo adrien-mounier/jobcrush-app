@@ -2,6 +2,45 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-13 (session 110) `/implement #165` — a language and its level became two facts
+
+The live job-deleting bug is gone, and not by being more careful.
+[#165](https://github.com/adrien-mounier/jobcrush-app/issues/165) — commit `a423a39`.
+
+- 🚨 **What was broken:** #123's languages question was a tick-list, an unticked box wrote the literal
+  `"none"`, and `withdrawal.ts` reads `"none"` as *"I don't speak this"*. **One mistap silently
+  removed every posting requiring that language.** The fix is structural, not defensive: **nothing a
+  person leaves alone writes a value at all.**
+- ✅ **Declaring is a type-ahead**, and a word off the list is **kept in their own spelling** —
+  #125's French-speaker-in-Asia finally has somewhere to say so. Dropping a language retracts it to
+  **unknown**, never to a "no".
+- ✅ **The level is a separate fact on a ladder of situations**, asked by the advert that makes it
+  matter, quoting that advert's own line — for a required language **and one named only as a plus**,
+  which is where a real level wins a job. The ad-reader prompt now names the language on ordinary
+  requirements too, which is what makes the "plus" case reachable at all.
+- 🔑 **Only the deliberately-tapped bottom rung withdraws**, and it is offered **last** — the top of a
+  list is where a distracted thumb lands, and that is how this bug happened once already. Being
+  **below** an advert's bar never withdraws (ADR-0003 clause 8a).
+- ⚡ **Every pre-#165 value reads as unknown**, so the four already-answered languages are **re-asked
+  rather than migrated** — and cannot withdraw anything while they wait. No migration was written.
+- ⚠️ **Caught in review, not in build — the review earned its keep three times:** (1) I shipped
+  **five rungs with one invented**; #125 decision 3 pins **six**, verbatim, and the ticket names #125
+  normative. (2) A deliberate *"I don't speak this one"* was **silently erased** by any later edit to
+  the languages list — it is never shown in that list, so it was absent by construction and got
+  retracted on absence. (3) **#125 decision 4 was missed outright:** *"the screen must say so before
+  she answers, not after"* — the rungs shipped with no consequence line.
+- ⭐ **One token deliberately departs from #125's prose:** its bottom rung is called `none`; the stored
+  value is `not-at-all`. It has to be — a collision with the legacy `"none"` would make a mistap
+  indistinguishable from a considered answer and rebuild the bug in a new shape.
+- ✅ **Contract versioned in both homes** (zod port + `.mjs` oracle, golden-tested), additive to v1 on
+  #107's precedent; the `adreq/3` bump makes stored advert reads stale so each re-reads **lazily, at
+  most once**, when someone next opens it.
+- ✅ **Ratchet lowered 1184 → 1138** — the deck's withdrawal filter and per-language tally moved to
+  `withdrawal.ts` (`partitionByWithdrawal`); the new endpoint landed while the spine shrank.
+- ⚠️ **Ceiling recorded, not hidden:** a **skipped** level question is remembered for that card view
+  only, not stored — a reload re-asks on the same advert, which ADR-0011 clause 4 would rather it did
+  not. Marked in the code; it needs a per-advert record that does not exist yet.
+
 ## 2026-08-12 (session 109) `/grilling #154` — a merged bullet now declares the result it kept
 
 Sixteen questions over eight rounds, then built. [#154](https://github.com/adrien-mounier/jobcrush-app/issues/154)
