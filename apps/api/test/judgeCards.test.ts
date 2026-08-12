@@ -24,7 +24,7 @@ import { InMemoryJudgementStore } from "../src/judgementStore.js";
 import { readCounters } from "../src/counters.js";
 import type { LlmClient } from "../src/llm.js";
 import { CANONICAL_REGRESSION_ROWS } from "./fixtures/judge-regression-rows.js";
-import { DECK_JUDGE_MAX_CARDS } from "../src/routes/onboarding.js";
+import { DECK_JUDGE_MAX_CARDS } from "../src/deck.js";
 
 async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
   const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });

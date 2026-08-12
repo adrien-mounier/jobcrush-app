@@ -4,7 +4,7 @@
 // order, and that a recorded "no" lands in askedClosed (never re-asked, never a gap).
 import { describe, expect, it, vi } from "vitest";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
-import { orderCardsForReveal, withReadTimeout, mapWithConcurrency } from "../src/routes/onboarding.js";
+import { orderCardsForReveal, withReadTimeout, mapWithConcurrency } from "../src/deck.js";
 import { buildServer } from "../src/server.js";
 import { listAdRequirements, loadAdRequirements } from "../src/e5stub.js";
 import { loadPostings, type Posting } from "../src/preview.js";

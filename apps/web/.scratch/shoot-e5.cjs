@@ -1,0 +1,22 @@
+const { chromium } = require("@playwright/test");
+const path = require("path");
+const FILE = "file://" + path.resolve(__dirname, "../prototypes/chunked-ingestion.prototype.html").replace(/\\/g, "/");
+const OUT = process.argv[2];
+(async () => {
+  const b = await chromium.launch();
+  const p = await b.newPage({ viewport: { width: 1280, height: 1000 } });
+  const shot = async (n) => { await p.mouse.move(5, 5); await p.waitForTimeout(250); await p.locator(".phone").screenshot({ path: path.join(OUT, n + ".png") }); };
+  const clickText = async (t) => { await p.click(`text="${t}"`, { timeout: 4000 }); await p.waitForTimeout(450); };
+  await p.goto(FILE + "?variant=A");
+  await shot("v3-a1-home-meter");
+  await clickText("Let's do it");
+  await shot("v3-a2-chunk-meter");
+  await clickText("Yes — I'm still there");
+  await p.waitForTimeout(700);
+  await clickText("Save — 2022");
+  await p.waitForTimeout(900);
+  await clickText("Next: the basics");
+  await shot("v3-a3-chunk2-meter");
+  await b.close();
+  console.log("done");
+})().catch((e) => { console.error(e.message); process.exit(1); });

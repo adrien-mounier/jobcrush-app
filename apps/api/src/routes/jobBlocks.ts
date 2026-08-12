@@ -62,6 +62,19 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
       },
     );
 
+    // #157 Design A — "no action in this flow is irreversible without a visible undo." Corrections
+    // undo by re-correcting to the superseded value; confirm had no reverse until this endpoint.
+    app.post(
+      "/job-blocks/:blockId/unconfirm",
+      { schema: { params: Params } },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const found = await deps.jobBlocks.unconfirm(session.id, req.params.blockId);
+        if (!found) return reply.status(404).send(notFound("unknown job block"));
+        return { ok: true };
+      },
+    );
+
     app.post(
       "/job-blocks/:blockId/correct",
       { schema: { params: Params, body: CorrectBody } },

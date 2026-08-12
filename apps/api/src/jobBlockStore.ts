@@ -101,6 +101,9 @@ export interface JobBlockStore {
   /** Returns false when blockId is unknown for this session — callers surface that as 404, never a
    *  silently-swallowed ok:true. */
   confirm(sessionId: string, blockId: string): Promise<boolean>;
+  /** #157 Design A — "no action in this flow is irreversible without a visible undo." The reverse
+   *  of confirm(): sets confirmed back to false. Returns false when blockId is unknown. */
+  unconfirm(sessionId: string, blockId: string): Promise<boolean>;
   /** A person's correction to one decision — origin becomes "corrected", pointing at what it
    *  superseded (ADR-0004 clause 1a). machine_touch/classification are AI-only judgements and are
    *  cleared, never fabricated for a person-supplied value. Returns false when blockId is unknown. */
@@ -273,6 +276,13 @@ export class InMemoryJobBlockStore implements JobBlockStore {
     return true;
   }
 
+  async unconfirm(sessionId: string, blockId: string): Promise<boolean> {
+    const row = this.forSession(sessionId).get(blockId);
+    if (!row) return false;
+    row.confirmed = false;
+    return true;
+  }
+
   async correct(sessionId: string, blockId: string, key: DecisionKey, value: unknown): Promise<boolean> {
     const row = this.forSession(sessionId).get(blockId);
     if (!row) return false;
@@ -434,6 +444,14 @@ export class PgJobBlockStore implements JobBlockStore {
   async confirm(sessionId: string, blockId: string): Promise<boolean> {
     const res = await this.pool.query(
       `UPDATE job_blocks SET confirmed = true WHERE session_id = $1 AND block_id = $2`,
+      [sessionId, blockId],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async unconfirm(sessionId: string, blockId: string): Promise<boolean> {
+    const res = await this.pool.query(
+      `UPDATE job_blocks SET confirmed = false WHERE session_id = $1 AND block_id = $2`,
       [sessionId, blockId],
     );
     return (res.rowCount ?? 0) > 0;

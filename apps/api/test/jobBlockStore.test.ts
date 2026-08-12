@@ -330,10 +330,24 @@ for (const [name, make] of drivers) {
       expect(await store.list(sid)).toEqual([]);
     });
 
-    // Review fix #9: a correction/confirm/detach on an unknown block must be visible as a miss, not
-    // a silently-swallowed success.
-    it("confirm/correct/detach on an unknown blockId return false, never a silent ok", async () => {
+    // #157 Design A — "no action in this flow is irreversible without a visible undo." unconfirm is
+    // confirm's reverse: a corrected decision undoes by re-correcting to the superseded value, but
+    // confirm had no reverse until this endpoint.
+    it("unconfirm reverses confirm — the block goes back to unconfirmed", async () => {
+      await store.ingest(sid, { schemaVersion: "1", blocks: [job()] }, "raw");
+      await store.confirm(sid, "block-1");
+      expect((await store.list(sid))[0]!.confirmed).toBe(true);
+
+      const ok = await store.unconfirm(sid, "block-1");
+      expect(ok).toBe(true);
+      expect((await store.list(sid))[0]!.confirmed).toBe(false);
+    });
+
+    // Review fix #9: a correction/confirm/unconfirm/detach on an unknown block must be visible as a
+    // miss, not a silently-swallowed success.
+    it("confirm/unconfirm/correct/detach on an unknown blockId return false, never a silent ok", async () => {
       expect(await store.confirm(sid, "nope")).toBe(false);
+      expect(await store.unconfirm(sid, "nope")).toBe(false);
       expect(await store.correct(sid, "nope", "title", "x")).toBe(false);
       expect(await store.detach(sid, "nope")).toBe(false);
     });

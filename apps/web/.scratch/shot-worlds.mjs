@@ -1,0 +1,10 @@
+import { chromium } from "@playwright/test";
+import { pathToFileURL } from "node:url";
+const file = pathToFileURL("C:/Users/adrie/AI/Projects/jobcrush-app/apps/web/prototypes/north-star.prototype.html").href;
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1240, height: 1050 } });
+await page.goto(file);
+await page.waitForTimeout(500);
+await page.screenshot({ path: "C:/Users/adrie/AI/Projects/jobcrush-app/screenshots/northstar-sidebyside.png", fullPage: true });
+await browser.close();
+console.log("done");

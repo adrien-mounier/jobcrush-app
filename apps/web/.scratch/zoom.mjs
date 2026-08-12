@@ -1,0 +1,13 @@
+import { chromium } from "@playwright/test";
+import { pathToFileURL } from "url";
+const OUT = "C:/Users/adrie/AppData/Local/Temp/claude/C--Users-adrie-AI-Projects-jobcrush-app/60400e99-3888-486e-9a22-849bb0a26b3f/scratchpad";
+const FILE = "C:/Users/adrie/AI/Projects/jobcrush-app/apps/web/prototypes/profile-desktop-options.prototype.html";
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+await page.goto(pathToFileURL(FILE).href);
+await page.waitForTimeout(800);
+await page.locator('.seg button[data-view="sky"]').click();
+await page.waitForTimeout(1600);
+await page.screenshot({ path: `${OUT}/A-sky-zoom.png`, clip: { x: 950, y: 250, width: 420, height: 260 } });
+await browser.close();
+console.log("done");

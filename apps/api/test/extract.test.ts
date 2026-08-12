@@ -298,3 +298,52 @@ describe("JC-12 pipeline job (extract stage over the JC-9 machinery)", () => {
     expect((done?.progress.rawCv as { fullText: string }).fullText).toContain("Role A");
   });
 });
+
+// Review fix #6 — an unreadable work history must never fail the whole upload. Binding UX intent:
+// "an unreadable history reads as a question, never as a failure."
+describe("#161 job-block mining failure isolation", () => {
+  it("a job-block miner throw is caught — claims still mine and the job still completes", async () => {
+    const store = new InMemoryJobStore();
+    const job = await store.create("onboarding", "sess-1");
+    let failureRecordedFor: string | null = null;
+    await runOnboardingJob(
+      store,
+      job.id,
+      { type: "paste", text: "Jane Doe\nProject Manager at Acme, 2020-2024" },
+      [],
+      {
+        mineJobBlocks: async () => {
+          throw new Error("miner output failed validation twice");
+        },
+        recordJobBlocksFailed: async (sessionId) => {
+          failureRecordedFor = sessionId;
+        },
+        mine: async () => ({
+          claims: [
+            {
+              id: "acme-pm",
+              semantic_key: "acme-pm",
+              field_key: null,
+              field_value: null,
+              field_label: null,
+              role: "PM - Acme",
+              text: "Project Manager at Acme",
+              machine_touch: "verbatim",
+              classification: "Verified",
+              source_quote: "Project Manager at Acme",
+              needs_grill: false,
+              grill_hint: null,
+            },
+          ],
+          needsGrill: 0,
+          roles: 1,
+        }),
+      },
+    );
+    const done = await store.get(job.id);
+    expect(done?.status).toBe("completed"); // the whole upload did NOT fail
+    expect(failureRecordedFor).toBe("sess-1"); // the failure was recorded, not swallowed silently
+    const feed = done?.progress.feed as string[];
+    expect(feed.some((l) => l.match(/Could not read your work history/))).toBe(true);
+  });
+});

@@ -1,0 +1,584 @@
+// The deck + tailor composition layer — everything that shapes what a visitor sees on a card,
+// extracted verbatim from routes/onboarding.ts (2026-08-12 architecture pass; the ratchet file may
+// only shrink). No behaviour change: card shaping (buildJobCard, orderCardsForReveal), the shared
+// ad-requirements/judgement resolvers with their timeout discipline, the years-shortfall read-time
+// helpers, and the tailor-surface composition (tailorTarget, buildTailorState). The route file
+// orchestrates; this module composes.
+import type { RankBand, AdRequirementsV1 } from "@jobcrush/contracts";
+import type { ClaimRecord } from "./claims.js";
+import type { SessionRecord } from "./sessions.js";
+import { lookupAdRequirements, loadFamilyFloor } from "./e5stub.js";
+import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
+import type { EligibilityFact } from "./eligibility.js";
+import { excludingEligibility, resolveEligibilityFamilyScope } from "./eligibilityDiscovery.js";
+import { readingLanguages, languageEligible } from "./language.js";
+import { incrementCounter, recordReadFailure } from "./counters.js";
+import {
+  matchBreakdown,
+  matchTick,
+  uncoveredRequirements,
+  pickHitClause,
+  NOTHING_OPEN_CLAUSE,
+} from "./matchtick.js";
+import {
+  applyYearsShortfall,
+  judgedBreakdown,
+  judgedMatchTick,
+  judgedPickHitClause,
+  judgedUncoveredRequirements,
+} from "./judgedScore.js";
+import type { JudgeFact, JudgeFn } from "./judge.js";
+import type { JudgementRecord } from "./judgementStore.js";
+import {
+  discoveryCvLines,
+  factCount,
+  resolveFamily,
+  type DiscoveryCvLine,
+} from "./discovery.js";
+import {
+  buildTailorLedger,
+  negativeRequirementIds,
+  tailorCvLines,
+  tailorQuestions,
+  type LedgerLine,
+  type TailorQuestion,
+} from "./tailor.js";
+
+/** #104's reader seam, named once here rather than via OnboardingDeps["readAd"] — structurally the
+ *  same optional function the route deps carry. */
+export type ReadAdFn = (posting: Posting) => Promise<AdRequirementsV1 | null>;
+
+// --- #19 card shape (the pinned frontend contract) -----------------------------------------------
+export interface CardFact {
+  id: string;
+  text: string;
+}
+export interface CardRequirement {
+  id: string;
+  band: RankBand;
+  requirement: string;
+}
+// #117 — the provenance discriminator, pinned identically for the frontend (do not deviate).
+// `pending` and `unscored` were one state ("pending") until the coordinator's must-fix 2 review:
+// a card that missed the shared judging budget IS still coming (the underlying call keeps running
+// and self-heals into the store, same pattern as adReader.ts's read timeout — a later fetch resolves
+// it for free via makeJudgePeek), but a card the bound never even attempted has NOTHING coming
+// unless a later request happens to select it — collapsing the two meant the web deck's poll-while-
+// pendingCount-is-nonzero loop could spin forever on a card that was never going to resolve.
+//   - "judged": a real model verdict backed this card. matchPct/breakdown/bubble/dontYet are the
+//     judged relation's numbers, unchanged from #105.
+//   - "pending": a judge IS wired and a PAID judging attempt was made for this card THIS request,
+//     but it missed the shared budget (DECK_JUDGE_BUDGET_MS) before landing. It is genuinely in
+//     flight — the underlying call is still running and will persist when it completes — so a later
+//     fetch resolves it for free. Counts toward the deck response's `pendingCount`, the signal the
+//     client polls on.
+//   - "unscored": a judge IS wired but this card fell outside DECK_JUDGE_MAX_CARDS's bound — no
+//     judging attempt was made for it at all, deliberately, to cap spend. Nothing is "in flight" for
+//     it; it resolves only if a LATER request's own bound happens to select it (or another visitor's
+//     identical facts pay for it first). Does NOT count toward `pendingCount` — the client must not
+//     poll waiting for something that was never bought.
+//   Both "pending" and "unscored" claim NO number at all: matchPct/breakdown/bubble are null and
+//   dontYet is empty, rather than silently substituting the deterministic scorer's number (the exact
+//   lie AC5 exists to stop).
+//   - "estimated": the deterministic scorer (matchtick.ts) produced the number and this field says
+//     so. Emitted ONLY when no judge is wired at all (deps.judge absent — every pre-#105 test, local
+//     dev with no key) or by the tailor surface's own always-falls-back-to-estimated behaviour
+//     (buildTailorState, unchanged by this ticket). In this state matchPct/breakdown/bubble/dontYet
+//     are byte-for-byte what they were before #117.
+export type CardScoreProvenance = "judged" | "pending" | "unscored" | "estimated";
+
+export interface JobCard {
+  schemaVersion: "1";
+  adId: string;
+  title: string;
+  company: string;
+  place: string;
+  salary: string | null; // absent in the stub postings — always null for now
+  pattern: string | null; // absent in the stub postings — always null for now
+  scored: CardScoreProvenance;
+  matchPct: number | null; // null iff scored is "pending" or "unscored"
+  breakdown: ReturnType<typeof matchBreakdown> | null; // null iff scored is "pending" or "unscored"
+  bubble: { hit: string; open: string } | null; // null iff scored is "pending" or "unscored"
+  fit: CardFact[];
+  dontYet: CardRequirement[]; // [] when pending or unscored
+  askedClosed: CardFact[];
+  adExcerpt: string;
+}
+
+// #117: judged > estimated > pending > unscored. Lower ranks first. Extends #105 review round 4's
+// judged-above-fallback grouping, then must-fix 2's pending/unscored split — a genuinely in-flight
+// card ranks ahead of one that was never even attempted, for the same reason judged ranks ahead of
+// either: they are not comparable states, and a flat score sort would treat them as if they were.
+const SCORE_TIER: Record<CardScoreProvenance, number> = { judged: 0, estimated: 1, pending: 2, unscored: 3 };
+
+/** Score-sort the deck, with two exceptions, applied in order:
+ *  1. #105 review round 4, extended by #117 — cards group by provenance (SCORE_TIER's order) BEFORE
+ *     they're score-sorted within each group. Different provenances come from different scorers (or
+ *     none at all) and are not comparable, so mixing them into one flat score-sorted list is
+ *     apples-to-oranges — a fallback card floating to the top puts the visitor's headline card on the
+ *     ONE job the deck understands least, and a pending/unscored card has no score at all to be
+ *     sorted by (kept stable, per #117's own AC).
+ *  2. The curated-opener promotion (#19, untouched by #105's review — #111/slice 10 owns retiring
+ *     it): the opener is still the best launch-safe card, operating on the grouped-then-scored list
+ *     exactly as it always has — EXCEPT #117 adds one guard: a curated card with no verdict yet
+ *     (pending OR unscored) is never promoted. Promoting it would put the deck's headline card in
+ *     front with no number on it at all, exactly the lie AC5 forbids. Of the two options the ticket
+ *     allows for this case (judge the opener regardless of rank, counted inside the bound — or leave
+ *     it unpromoted), this picks the simpler one: leave it unpromoted, so it stays wherever the group
+ *     sort placed it (the back) rather than adding bound-selection logic that special-cases curated
+ *     ids. */
+export function orderCardsForReveal<T extends { matchPct: number | null; scored: CardScoreProvenance }>(
+  entries: Array<{ card: T; curated: boolean }>,
+): T[] {
+  const scoreSorted = [...entries].sort((a, b) => {
+    const tierDiff = SCORE_TIER[a.card.scored] - SCORE_TIER[b.card.scored];
+    if (tierDiff !== 0) return tierDiff;
+    return (b.card.matchPct ?? 0) - (a.card.matchPct ?? 0);
+  });
+  const openerIndex = scoreSorted.findIndex(
+    (entry) => entry.curated && entry.card.scored !== "pending" && entry.card.scored !== "unscored",
+  );
+  if (openerIndex > 0) {
+    const [opener] = scoreSorted.splice(openerIndex, 1);
+    scoreSorted.unshift(opener!);
+  }
+  return scoreSorted.map((entry) => entry.card);
+}
+
+// #105 review finding 5: the deck route's own concurrency cap over per-posting resolution (read +
+// judge). A small, fixed number — not tuned against a measured provider limit, just enough to turn
+// "one deck request" from an unbounded burst into a bounded one. Revisit alongside live retrieval
+// (#99-#101), which will need real capacity numbers this fixture pool's size never forced.
+export const CARD_RESOLUTION_CONCURRENCY = 6;
+
+// #105 review round 4: a SHARED wall-clock budget for the whole deck's judging phase, not an
+// independent READ_TIMEOUT_MS handed to every card. CARD_RESOLUTION_CONCURRENCY creates WAVES — 15
+// postings at a cap of 6 is three — and each wave used to get its own fresh 15s allowance, so the
+// worst case stacked to wave-count × READ_TIMEOUT_MS (45s for 3 waves), well past the web proxy's 30s
+// deadline, and getting worse as the pool grows. Because the judgement cache is keyed on the
+// visitor's OWN fact set, it never warms across users the way the ad-read cache does — a cold judging
+// phase isn't a rare edge case on staging, it's the ROUTINE case for a first-time visitor. 8s, not
+// 15s and not per-wave: generous enough that a normally-responding judge call (low single-digit
+// seconds against a live provider) still completes, small enough that even added to the read phase's
+// own separate, unchanged worst case there is wide margin under 30s, and — the property that actually
+// matters — a single WALL-CLOCK deadline shared across every card by resolveJudgement's optional
+// `deadlineAt` param, so the total time this phase can spend is bounded by this one number regardless
+// of how many waves the concurrency cap creates or how large the posting pool grows.
+export const DECK_JUDGE_BUDGET_MS = 8_000;
+
+// #117 AC1 — the stated bound: at most this many cards get a REAL judging attempt per deck request,
+// regardless of how large the posting pool grows. It is NOT the pool size and must never be derived
+// from it — AC1 is explicit that the bound has to be a fixed number, because #99-#101 (live
+// retrieval) will grow the pool well past today's ~15 adverts, and a bound that scaled with the pool
+// would stop being a bound at all.
+//
+// 8, chosen by measurement rather than by argument. THREE live staging runs settled it, and the third
+// is the one worth remembering — raising this number makes the first deck WORSE, not better:
+//
+//   cap        cost/visitor   judged on first view   fallback rate   unearned numbers
+//   (pre-#117) $0.29          6 of 15                9/15 (60%)      9 of 15
+//   8          $0.1394        6 of 15                9/15 (60%)      0 of 15
+//   20         $0.2985        3 of 15                12/15 (80%)     0 of 15
+//
+// At 20 nothing is bound-excluded (`judgeBoundHit` 0, `unscored` unreachable), so all ~15 adverts get
+// a paid call — and 12 of them were still IN FLIGHT when DECK_JUDGE_BUDGET_MS expired. CARD_RESOLUTION_
+// CONCURRENCY (6) turns 15 calls into three waves sharing ONE 8s wall, so later waves get almost no
+// time and fewer finish. Buying more judgements moves a card from "never scored" to "not scored yet";
+// it cannot move it to "scored in time". Paying 114% more bought HALF the first-view scores.
+//
+// The lesson this constant exists to carry: **the first-view score count is governed by
+// DECK_JUDGE_BUDGET_MS against per-call latency, not by this bound.** Do not reach for this number to
+// fix a deck that looks empty — it is the wrong lever and it moves the wrong way. The right fix is to
+// stop scoring the whole deck up front and score just ahead of the visitor as they swipe (#121), which
+// also retires the token-overlap pre-filter that currently picks WHICH cards are worth paying for.
+//
+// The bound is still a fixed number and must never be derived from the pool size — AC1 is explicit,
+// and #99-#101 (live retrieval) will grow the pool well past today's ~15 adverts. At 8 it genuinely
+// binds today, so `unscored` is reachable on a real cold deck and the honesty guarantee it carries
+// (a card that claims no number rather than an unearned one) is exercised in production, not only in
+// tests. CARD_RESOLUTION_CONCURRENCY and DECK_JUDGE_BUDGET_MS both still apply on top, unchanged.
+//
+// No logic anywhere is hardcoded around this value — changing this one constant is the whole review
+// surface for a future revision, and OnboardingDeps.judgeMaxCards overrides it for tests that need a
+// pool larger than the ceiling. See that field's own doc: data/sample-postings.json is the LIVE job
+// pool, not a fixture, and must never carry synthetic entries just to make a pool exceed this number.
+export const DECK_JUDGE_MAX_CARDS = 8;
+
+/** A tiny concurrency limiter — no new dependency, not a redesign. Runs `fn` over `items` with at
+ *  most `limit` in flight at once, preserving each result at its original index regardless of which
+ *  worker finished it. Exists because the judgement cache (unlike the ad-read cache) is keyed per
+ *  SESSION fact set and never warms across users, so an uncapped Promise.all here turns concurrent
+ *  visitors into a multiplied burst of model calls (see CARD_RESOLUTION_CONCURRENCY's use above). */
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index]!);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+// #104 review finding 10: an injected reader has no timeout of its own (a real provider call could
+// hang indefinitely), and the deck route awaits every posting's resolution before responding — one
+// hung advert would hang the app's main screen for everyone hitting it, not just the one card.
+// Exported so the race itself is directly testable with a short ms value; a real 15s wait has no
+// place in this suite.
+const READ_TIMEOUT_MS = 15_000;
+
+/** Distinguishes withReadTimeout's OWN manufactured rejection from whatever `promise` itself might
+ *  reject with (#115 AC2/#115 counter split) — resolveAdRequirements below tells a deadline from a
+ *  genuine read failure by `instanceof`, not by matching the error's message text. With the real
+ *  makeAdReader-built reader (adReader.ts), `promise` should never itself reject — every internal
+ *  failure there is already caught and turned into a null return — so in practice this is expected
+ *  to be the only way resolveAdRequirements's catch below fires. That is an expectation about
+ *  today's ONE production wiring, not a guarantee this type enforces: `readAd` is a plain function
+ *  type any implementation (a test fake, a future reader) can satisfy by rejecting, so the catch
+ *  below still handles that case rather than assuming it away. */
+export class ReadTimeoutError extends Error {}
+
+export function withReadTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new ReadTimeoutError(`ad read timed out after ${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+/** #104: the ONE place a posting's requirements resolve — fixture first (hand-curated, pinned),
+ *  else the injected reader. Used by the deck, /want, and tailorTarget so a card the user can see
+ *  is always resolvable the same way everywhere, never a 404/500 for a job the deck itself just
+ *  rendered because a different call site resolved it differently. `readAd` absent (no dep wired)
+ *  or the read itself failing both fall through to "no requirements for this posting" rather than
+ *  throwing — a route 500 is worse than one missing card. A read that hangs past READ_TIMEOUT_MS is
+ *  dropped for THIS request exactly like any other unreadable advert, but it is not counted as one
+ *  (#115): the underlying read (makeAdReader's own promise, still running — nothing here or in
+ *  withReadTimeout cancels it) keeps going after the deadline fires, still validates, and still
+ *  persists to the store on success, so the advert is cached for the next request. That is a slow
+ *  first read, not a failed one — postings.read_failed (the read-failure alarm's numerator) is
+ *  reserved for a read that produced nothing usable at all, same distinction #103 already drew for
+ *  language skips. See counters.ts's header for the full reasoning.
+ *
+ *  #114: fixture resolution is a three-way lookupAdRequirements (e5stub.ts) now, not a bare
+ *  try/catch around loadAdRequirements — a curated fixture that fails validation ("invalid") is no
+ *  longer indistinguishable from an adId nobody ever curated ("missing"). "Invalid" drops the card
+ *  and makes NO model call: the advert was already hand-curated, so re-deriving it from the model
+ *  would be paying to redo work someone already did wrong, not work nobody did. Already counted
+ *  (postings.fixture_invalid, e5stub.ts's buildFixtureIndex) once at index build, not counted again
+ *  here. */
+export async function resolveAdRequirements(
+  adId: string,
+  readAd: ReadAdFn | undefined,
+  posting: Posting,
+): Promise<AdRequirementsV1 | null> {
+  const lookup = lookupAdRequirements(adId);
+  if (lookup.status === "found") return lookup.requirements;
+  if (lookup.status === "invalid") return null; // no fallback to the reader — see doc above
+  // status === "missing" — unchanged fall-through to the injected reader.
+  if (!readAd) return null;
+  try {
+    const result = await withReadTimeout(readAd(posting), READ_TIMEOUT_MS);
+    // Settled before the deadline — whatever it settled to (a real result, or a null already
+    // counted as postings.read_failed inside makeAdReader). This is the timeout alarm's OTHER
+    // half (counters.ts): a promptness signal, deliberately decoupled from validity.
+    incrementCounter("postings.read_in_time");
+    return result;
+  } catch (err) {
+    if (err instanceof ReadTimeoutError) {
+      incrementCounter("postings.read_timed_out");
+      recordReadFailure(adId, "timeout", err.message);
+    } else {
+      // Not the timeout — readAd itself rejected. The production reader never does this (see
+      // ReadTimeoutError's doc above), so this branch is untested territory for it; classified
+      // "reader-rejected" rather than "model-call-error" because this call site has no visibility
+      // into WHY a non-standard readAd implementation rejected, and "model-call-error" is
+      // adReader.ts's own claim about a specific, known cause this site cannot actually vouch for.
+      incrementCounter("postings.read_failed");
+      recordReadFailure(adId, "reader-rejected", err instanceof Error ? err.message : String(err));
+    }
+    return null;
+  }
+}
+
+/** #105: the ONE place a posting's judgement resolves for a session's current fact set — mirrors
+ *  resolveAdRequirements's shape and reuses its withReadTimeout discipline (a hung judgement must not
+ *  hang the whole deck for every card behind it). `judge` absent (no dep wired — every pre-#105 test)
+ *  returns null with NO counter movement, same as deps.readAd being absent: that's a deployment/test
+ *  configuration, not an operational failure. `judge` present but the call rejects (the timeout race)
+ *  OR resolves to null (judge.ts's makeJudge already counted and logged WHY internally) both count
+ *  judge.fallback_used — the fallback rate #105's AC asks to be observable — and both fall back to
+ *  the caller using the deterministic tick rather than dropping the card or fabricating a number.
+ *  judge.fallback_timeout is ADDITIONALLY counted on the timeout race specifically (#105 review,
+ *  cheap fix): a judge hanging on every card and a judge cleanly returning null are different
+ *  operational signals — one says the model/network is slow or down, the other says judging itself
+ *  failed — and folding both into one counter made them indistinguishable, the same distinction
+ *  resolveAdRequirements already draws between postings.read_timed_out and postings.read_failed.
+ *  Note: unlike readAd's negatives param (dropped from judge.ts's own signature entirely — #105
+ *  review finding 2, a negative never reaches the model and never belongs in the judgement cache
+ *  key), this function only ever needs `confirmed`.
+ *
+ *  `deadlineAt` (#105 review round 4): an absolute epoch-ms deadline this call's own timeout budget
+ *  is computed FROM, rather than a fixed READ_TIMEOUT_MS every call gets independently. Defaults to
+ *  "a fresh READ_TIMEOUT_MS from right now" — today's exact single-card behavior — for the tailor
+ *  routes, which resolve one posting per request and have no wave-stacking problem to guard
+ *  against. The deck route passes one deadline computed ONCE, shared across its whole fan-out
+ *  (DECK_JUDGE_BUDGET_MS's own comment has the full reasoning): each call gets whatever's left of
+ *  that ONE shared budget, so a card resolved in a later concurrency-cap wave gets correspondingly
+ *  less time, and a call that starts after the budget is already spent gets ~0ms — an almost-instant
+ *  fallback rather than another full wait. */
+export async function resolveJudgement(
+  adReq: AdRequirementsV1,
+  confirmed: JudgeFact[],
+  judge: JudgeFn | undefined,
+  deadlineAt: number = Date.now() + READ_TIMEOUT_MS,
+): Promise<JudgementRecord | null> {
+  if (!judge) return null;
+  try {
+    const remainingMs = Math.max(0, deadlineAt - Date.now());
+    const result = await withReadTimeout(judge(adReq, confirmed), remainingMs);
+    if (!result) incrementCounter("judge.fallback_used");
+    return result;
+  } catch (err) {
+    incrementCounter("judge.fallback_used");
+    if (err instanceof ReadTimeoutError) incrementCounter("judge.fallback_timeout");
+    return null;
+  }
+}
+
+/** #107 (E5 slice 6, D5) — the ONE place userYears is READ, at the SAME (dimension, familyId) scope
+ *  eligibilityDiscovery.ts's years-experience question WRITES a real answer at
+ *  (resolveEligibilityFamilyScope(session, role)). A mismatched scope would silently find nothing and
+ *  the whole feature would do nothing — this is the single call site every route goes through
+ *  so that can't happen.
+ *
+ *  Reads `facts` — whatever the caller already fetched via discoveryReads — rather than its own
+ *  eligibility.numeric() store call. Code review T1: the tailor path was making THREE serialised
+ *  eligibility-store reads per request (tailorTarget's own list, discoveryReads' list, and this
+ *  function's own numeric() call) for data discoveryReads had already fetched once. Pure now, no IO
+ *  of its own — the same "facts is whatever the caller already read, never fetched here" contract
+ *  withdrawal.ts's own findWithdrawingRequirement is held to.
+ *
+ *  null before Q1 (no role yet, so nothing could have been asked) and whenever the visitor genuinely
+ *  was never asked (no matching fact, or one that fails to parse as a number) both read the same way
+ *  to the caller: "leave the judged verdict untouched" (applyYearsShortfall's own null handling). */
+export function resolveUserYears(
+  facts: readonly EligibilityFact[],
+  session: Pick<SessionRecord, "discovery">,
+  role: string | null,
+): number | null {
+  if (!role) return null;
+  const familyId = resolveEligibilityFamilyScope(session, role).familyId;
+  const fact = facts.find((f) => f.dimension === "years-experience" && f.familyId === familyId);
+  if (!fact) return null;
+  const years = Number(fact.value);
+  return Number.isFinite(years) ? years : null;
+}
+
+/** #107 (D5) — applies judgedScore.ts's applyYearsShortfall (see its own doc for the attenuation
+ *  rule and why it can only ever lower a score) on top of whatever resolveJudgement returned, at READ
+ *  TIME only; never persisted. A plain pass-through when there's nothing to adjust. */
+export function withYearsShortfall(
+  judgement: JudgementRecord | null,
+  adReq: AdRequirementsV1,
+  userYears: number | null,
+): JudgementRecord | null {
+  if (!judgement || userYears === null) return judgement;
+  return { ...judgement, verdicts: applyYearsShortfall(judgement.verdicts, adReq, userYears) };
+}
+
+/** Pure composition, no LLM: matchtick.ts (or, when a judgement is available, judgedScore.ts) scores
+ *  + ranks, this just shapes the pinned JobCard. #105 decision 1: matchPct/breakdown/dontYet/bubble.hit
+ *  all switch to the judged relation together when `judgement` is present, falling back to today's
+ *  deterministic tick, byte-for-byte, when it's null (no judge wired, or this card's judgement fell
+ *  back per resolveJudgement above). This card carries NO floor of its own (buildJobCard's matchPct
+ *  is never clamped against a prior value) — #105 review: an earlier version of this comment claimed
+ *  "never a decreasing floor", which is wrong and was corrected. That guarantee was never true here,
+ *  and the spec deliberately does not want it to be: the OLD unconditional monotonic floor is
+ *  superseded by persistence plus recompute-on-real-change (a correction that genuinely lowers fit
+ *  DOES lower the score — "becomes a lie once corrections are honoured"). The one floor mechanism
+ *  that still exists — buildTailorState's Math.max(…, tailorFloorPct) — is untouched by this slice,
+ *  not extended to buildJobCard, and not removed (#105 out of scope; slice 10 owns retiring it).
+ *  #29: the negative-filter lives HERE, not in the tailor assembly. A requirement answered "no" while
+ *  tailoring is asked-and-closed on every surface that renders this ad — spec #37, "the list of open
+ *  things only ever shrinks". #23 applied it in the tailor assembly alone, deliberately, to keep #19's
+ *  deck payload byte-identical while that shipped; both callers want it now, so it moves down to the
+ *  shared function rather than being duplicated in each. For an ad the visitor never tailored the set
+ *  is empty (tailorClaimId is scoped by adId), so those cards are unchanged. This filter applies
+ *  identically to a judged dontYet list — an explicit negative is answered-and-closed regardless of
+ *  which relation produced the open list it's being filtered out of.
+ *  #117 adds the `scored` provenance discriminator (CardScoreProvenance) and the `unresolvedScored`
+ *  param below: when `judgement` is null, the caller decides whether that means "pending" (a judge
+ *  IS wired and a paid attempt was made this request but missed the shared budget — genuinely in
+ *  flight, no number claimed), "unscored" (a judge is wired but the bound never attempted this card
+ *  at all — nothing claimed, nothing in flight either), or "estimated" (no judge wired at all, or
+ *  the tailor surface's own always-falls-back state — today's deterministic number, labelled
+ *  honestly). matchPct/breakdown/bubble are null for both "pending" and "unscored". */
+export function buildJobCard(
+  posting: Posting,
+  adReq: AdRequirementsV1,
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+  judgement: JudgementRecord | null,
+  // #117 — what to claim when `judgement` is null: "pending"/"unscored" from the deck route when a
+  // judge IS wired (must-fix 2's split — see CardScoreProvenance's own doc for which is which),
+  // "estimated" from the tailor surface always, and from the deck route too when no judge is wired
+  // at all.
+  unresolvedScored: "pending" | "unscored" | "estimated",
+): JobCard {
+  const negativeIds = negativeRequirementIds(adReq, negatives);
+  const base = {
+    schemaVersion: "1" as const,
+    adId: posting.id,
+    title: posting.title,
+    company: posting.company,
+    place: posting.location,
+    salary: null,
+    pattern: null,
+    // #106 code-review D1 (2026-08-03, round 3): unfiltered, this put every eligibility DECLINE on
+    // EVERY card in the deck as if it were that ad's own "asked and closed" gap — an eligibility
+    // decline has nothing to do with any one ad's requirements. `fit` needs the same guard for
+    // symmetry even though nothing eligibility-related is ever in `confirmed` today (must-fix 1: a
+    // real eligibility answer never enters the claims store at all).
+    fit: excludingEligibility(confirmed).map((c) => ({ id: c.id, text: c.text })),
+    askedClosed: excludingEligibility(negatives).map((c) => ({ id: c.id, text: c.text })),
+    adExcerpt: posting.excerpt,
+  };
+  if (!judgement && (unresolvedScored === "pending" || unresolvedScored === "unscored")) {
+    // #117 AC5 — no number at all, rather than silently substituting the deterministic scorer's
+    // number (the exact lie this ticket exists to stop). dontYet is empty, not "every requirement" —
+    // an unscored/pending card has nothing yet to call an open gap either.
+    return { ...base, scored: unresolvedScored, matchPct: null, breakdown: null, bubble: null, dontYet: [] };
+  }
+  const dontYet = (judgement ? judgedUncoveredRequirements(judgement.verdicts, adReq) : uncoveredRequirements(confirmed, adReq))
+    .filter((r) => !negativeIds.has(r.id))
+    .map((r) => ({ id: r.id, band: r.band, requirement: r.requirement }));
+  return {
+    ...base,
+    scored: judgement ? "judged" : "estimated",
+    matchPct: judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
+    breakdown: judgement ? judgedBreakdown(judgement.verdicts, adReq) : matchBreakdown(confirmed, adReq),
+    // #23 D1, now shared: pickOpenClause is negative-blind (it only knows the ad/coverage relation),
+    // so it can keep naming a requirement the visitor just declined. Take the open clause from the
+    // already-filtered dontYet instead — same fallback as pickOpenClause's own.
+    bubble: {
+      hit: judgement ? judgedPickHitClause(judgement.verdicts, adReq, confirmed) : pickHitClause(confirmed, adReq),
+      open: dontYet[0]?.requirement ?? NOTHING_OPEN_CLAUSE,
+    },
+    dontYet,
+  };
+}
+
+// --- #23 tailor shape (the pinned frontend contract) -----------------------------------------------
+export interface TailorState {
+  card: JobCard;
+  questions: TailorQuestion[];
+  ledger: LedgerLine[];
+  cvLines: DiscoveryCvLine[];
+  closedGaps: { closed: number; asked: number };
+  done: boolean;
+  factCount: number;
+}
+
+/** This session's tailor target, resolved to its posting + requirements — or null if either is no
+ *  longer present in the session's posting pool. tailorAdId is PERSISTED session state that can
+ *  outlive the pool entry that validated it at /onboarding/cards/:adId/want time — so a miss here is
+ *  reachable, not impossible, and must fail
+ *  closed with the same 404 that route already uses for an unknown card id. */
+export async function tailorTarget(
+  session: Pick<SessionRecord, "id" | "retrieval">,
+  adId: string,
+  readAd: ReadAdFn | undefined,
+  requestFingerprint: string,
+): Promise<{ posting: Posting; adReq: AdRequirementsV1 } | null> {
+  // #103: same dual gate as the deck and /want — a persisted tailorAdId for a posting (or a
+  // requirement set) this session's languages can no longer read (or never could) fails closed with
+  // the existing "unknown card" 404.
+  const langs = readingLanguages(session);
+  const posting = eligiblePostings(langs, sessionPostings(session, requestFingerprint)).find((p) => p.id === adId);
+  if (!posting) return null;
+  // #104: a card the user can already see must be tailorable — fixture-or-reader via the same
+  // shared resolver as the deck, so a newly-read (not hand-curated) advert doesn't 404 here just
+  // because it never had a fixture.
+  const adReq = await resolveAdRequirements(adId, readAd, posting);
+  if (!adReq || !languageEligible(adReq.language, langs)) return null;
+  return { posting, adReq };
+}
+// #107 (D4/M3, code review): withdrawal is checked by the two callers (GET /onboarding/tailor,
+// POST /onboarding/tailor/answer) instead of here — a target that was resolvable but has since
+// become withdrawn must behave EXACTLY like no target at all (M3), which needs deps.sessions to
+// clear the persisted target, not just a null return this function has no session-mutation access
+// to. Both callers already read this session's eligibility facts via discoveryReads (T1: one read,
+// not tailorTarget's own extra eligibility.list() call), so the check costs nothing extra there.
+
+/** Pure composition of TailorState — same split as buildJobCard: matchtick.ts (or judgedScore.ts,
+ *  when `judgement` is available — #105 decision 1) + tailor.ts score/rank, this shapes the pinned
+ *  response. matchPct obeys the monotonic floor (AC1): never the raw tick/judged score alone.
+ *  tailorQuestions gets the SAME uncovered list buildJobCard's dontYet is built from, passed in
+ *  explicitly (tailor.ts's own optional param) — a requirement the judge already considers met is
+ *  never re-asked as a question just because the token-overlap tick alone wouldn't have covered it.
+ *  The ledger (buildTailorLedger) is deliberately left untouched: it replays confirmed/negative
+ *  answers ONE AT A TIME to say how many were still open at the moment each past answer landed, and a
+ *  holistic per-request judgement has no equivalent historical snapshot to replay against — #105's
+ *  own "explicitly out of scope" list names the ledger's BAND_WEIGHT shares for slice 10; the ledger
+ *  as a whole stays on the deterministic path this slice, for the same reason. */
+export function buildTailorState(
+  posting: Posting,
+  adReq: AdRequirementsV1,
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+  role: string | null,
+  floorPct: number,
+  judgement: JudgementRecord | null,
+): TailorState {
+  const matchPct = Math.max(
+    judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
+    floorPct,
+  );
+  const uncovered = judgement
+    ? judgedUncoveredRequirements(judgement.verdicts, adReq)
+    : uncoveredRequirements(confirmed, adReq);
+  const questions = tailorQuestions(adReq, confirmed, negatives, uncovered);
+  const { ledger, closedGaps } = buildTailorLedger(adReq, confirmed, negatives);
+  // B1 (a "no" closes the gap too, spec #37/#38) and D1 (the bubble's gap clause rewrites with it)
+  // are both buildJobCard's job as of #29 — the deck card needs the same guarantee, so the filter
+  // moved into the shared function instead of being applied here on top.
+  // #117 scope discipline: tailor ALWAYS falls back to "estimated", never "pending" — it judges one
+  // card on demand with a full budget (resolveJudgement's default deadline above), so there is no
+  // bound here to be excluded by; a failed/timed-out call still shows today's deterministic number,
+  // now labelled rather than silent.
+  const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated");
+
+  // B2: "the CV below" must include tailor's own answers, not just discovery's — discoveryCvLines is
+  // the narrow slice of discoveryState's work this needs (no railFill/essentialRemaining/questions
+  // rebuild for fields tailor can't use). Before Q1 (role null — structurally unreachable in tailor,
+  // since reaching it requires discovery's essential band asked, but kept honest) discovery contributes
+  // nothing, same as discoveryState's own empty-skeleton branch.
+  const discoveryLines = role ? discoveryCvLines(role, loadFamilyFloor(resolveFamily(role).family).items, confirmed) : [];
+  const cvLines = [...discoveryLines, ...tailorCvLines(adReq, confirmed)];
+
+  return {
+    card: { ...card, matchPct },
+    questions,
+    ledger,
+    cvLines,
+    closedGaps,
+    done: questions.length === 0,
+    // #106 code-review D1 (2026-08-03, round 3): a decline is a refusal, not a recorded fact.
+    factCount: factCount(excludingEligibility(confirmed), excludingEligibility(negatives)),
+  };
+}
