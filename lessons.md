@@ -1,5 +1,13 @@
 # Lessons — jobcrush-app
 
+## Never `git add -A` in this repo — stage the files you touched, by name
+
+Sessions leave working artifacts at the repo root and under apps/web (screenshots, .scratch scripts,
+council reports, .tokensave/.impeccable state, `.claude/worktrees/` embedded repos). A `git add -A`
+on 2026-08-12 committed and pushed 100+ of them, including two embedded git repos that would break
+clones. The sweep class is gitignored now, but the habit is the real fix: stage explicit paths, and
+treat "145 files changed" on a surgical refactor as a stop sign before pushing.
+
 ## A pointer-drag guard held in React state is already stale when the click fires
 
 The confirm deck guarded its card's `onClick` with `!dragging` — but `setDragging(false)` runs in

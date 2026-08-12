@@ -2,6 +2,34 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-12 (session 104) `/improve-codebase-architecture` — the ratchet file gives up 717 lines and the job card has one definition
+
+Owner-approved architecture pass (report reviewed, all three candidates approved). No behaviour
+change anywhere; full suite + typecheck green on every push.
+
+- **Candidate 3 (`7536d81`)** — the 532 non-routing lines at the tail of `routes/onboarding.ts`
+  moved verbatim to `src/deck.ts` (buildJobCard, orderCardsForReveal, the resolvers + timeout
+  discipline, tailorTarget/buildTailorState). Ratchet 2039 → 1500.
+- **Candidate 1 (`a8b080d`)** — `deckRetrieval.ts` (makeRetrievalCoordinator) now owns the
+  claim/lease/coalescing protocol; `deck.ts` gains judgeDeck (peek → rank → bound → budget →
+  resolve). GET /cards is reads → retrieval → withdraw → judge → shape → respond. Five direct unit
+  tests on the coordinator seam (coalescing, fingerprint change, claim loss, snapshot reuse) —
+  previously reachable only through buildServer + timing. Ratchet 1500 → 1322.
+- **Candidate 2 (`85c0b19`)** — JobCardV1 caught up to the live #117 wire shape (scored-provenance
+  union, AC5 nulls), zod + oracle updated together, same version on purpose (the wire didn't change;
+  the contract stopped lying). `deck.ts` composes the contract type; the web's four hand-mirrored
+  card interfaces are now type-only re-exports of the same definitions. New pending fixture + golden
+  mutations pin the AC5 nulls in both validators.
+- **Cleanup (`bd60d3b`)** — the candidate-3 commit's `git add -A` swept in untracked session
+  leftovers (screenshots, scratch scripts, council reports, .tokensave/.impeccable, two embedded
+  worktree repos). No secrets (checked); untracked again + gitignored. See lessons.md.
+
+**Deliberately not done:** counters seam (report candidate 4), 26-slot BuildOptions grouping
+(candidate 5), discovery ordering absorption (candidate 6) — reviewed, rated worth-exploring, not
+approved-urgent · runtime zod parse in web's jfetch (API composes cards AS the contract type, so
+drift fails typecheck server-side) · job-block view mirror in web lib/api.ts still hand-kept
+(JobBlockView lives in api's jobBlockStore, not contracts — fold when it next changes).
+
 ## 2026-08-12 (session 103) `/orchestrate-team` — #161 SHIPPED WHOLE (both slices) and the deploy gate rides the real stack
 
 The keystone closed: **#161** in two reviewed, QA-GO slices (`bac864c` slice A, `9e83fc5` slice B),
