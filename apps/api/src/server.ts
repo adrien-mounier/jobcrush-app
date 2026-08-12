@@ -50,6 +50,7 @@ import { runWithVisitor } from "./llmVisitorContext.js";
 import { InMemoryUsageLedgerStore, type UsageLedgerStore } from "./usageLedgerStore.js";
 import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
 import type { RetrievalRequest } from "./postingRetrieval.js";
+import { reconcileImport } from "./importReconciliation.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -428,46 +429,15 @@ export function buildServer(opts: BuildOptions = {}) {
       session?.targetTitles ?? [],
       {
         ...pipelineDeps,
+        // ADR-0002: a correction the person already made outranks whatever this re-read found.
+        // The rule itself is importReconciliation.ts (pure, directly tested); this is its IO shell.
         persistImport: async (proof, importedClaims) => {
           const current = await sessions.getById(row.sessionId);
-          const resolutions = current?.importResolutions ?? {};
-          const identity = (claim: (typeof importedClaims)[number]) =>
-            claim.field_key ?? claim.semantic_key;
-          const stableClaims = [
-            ...new Map(
-              importedClaims.map((claim) => [
-                identity(claim),
-                {
-                  ...claim,
-                  id: identity(claim),
-                  text: resolutions[identity(claim)] ?? claim.text,
-                  field_value:
-                    claim.field_key && resolutions[identity(claim)]
-                      ? resolutions[identity(claim)]!
-                      : claim.field_value,
-                },
-              ]),
-            ).values(),
-          ];
-          await claims.seed(row.sessionId, stableClaims);
-          for (const claim of stableClaims) {
-            if (resolutions[identity(claim)] !== undefined) {
-              await claims.add(row.sessionId, claim);
-            }
-          }
-          const resolvedProof = {
-            ...proof,
-            representativeFacts: proof.representativeFacts.map((fact) => ({
-              ...fact,
-              text: resolutions[fact.id] ?? fact.text,
-            })),
-            conflict:
-              proof.conflict && resolutions[proof.conflict.fieldId] === undefined
-                ? proof.conflict
-                : null,
-          };
-          await sessions.setImportProof(row.sessionId, resolvedProof);
-          return resolvedProof;
+          const reconciled = reconcileImport(proof, importedClaims, current?.importResolutions ?? {});
+          await claims.seed(row.sessionId, reconciled.claims);
+          for (const claim of reconciled.corrected) await claims.add(row.sessionId, claim);
+          await sessions.setImportProof(row.sessionId, reconciled.proof);
+          return reconciled.proof;
         },
       },
     );
