@@ -312,15 +312,21 @@ export default function FrontDoor() {
     setVisibleChoice(choice);
     setPendingChoice(choice);
     setChoiceError(null);
+    // #201: `saved` splits the two failures this try covers. Once the save has succeeded the choice
+    // is durable on the server, so a failed follow-on advance must not roll the toggle back to the
+    // pre-click `confirmedChoice` (a stale closure value) — that rollback showed the person the
+    // opposite of what the server stored, and was the CI flake's visible symptom.
+    let saved = false;
     try {
       const result = await saveSourceEntry({ checkpoint: "source_selected", choice });
+      saved = true;
       setConfirmedChoice(result.sourceEntry.choice);
       setVisibleChoice(result.sourceEntry.choice);
       setPendingChoice(null);
       if (choice === "cv") fileInputRef.current?.click();
       else await advanceToIntent(true);
     } catch {
-      setVisibleChoice(confirmedChoice);
+      if (!saved) setVisibleChoice(confirmedChoice);
       setPendingChoice(null);
       setChoiceError(choice);
       requestAnimationFrame(() => choiceErrorRef.current?.focus());

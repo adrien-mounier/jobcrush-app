@@ -240,6 +240,15 @@ test("failed save restores the durable choice and retry persists the intended ch
     sourceEntry = route.request().postDataJSON();
     await route.fulfill({ json: { sourceEntry } });
   });
+  // #201: a successful "questions" retry advances into the intent flow, whose stage/intent calls
+  // this test previously left unmocked — they escaped to the real qa API (no session there), and
+  // the failure's timing relative to the aria-pressed poll was the CI flake. Mocked, the outcome
+  // is deterministic: the retry lands on the intent form.
+  await stubIntent(page, {
+    intent: { targetRole: null, searchArea: null },
+    missing: ["targetRole", "searchArea"],
+    checkpoint: "intent_needed",
+  });
 
   await page.goto("/");
   await expect(page.locator('[data-source="cv"]')).toHaveAttribute("aria-pressed", "true");
@@ -251,8 +260,9 @@ test("failed save restores the durable choice and retry persists the intended ch
   await expect(page.locator('[data-source="questions"]')).toHaveAttribute("aria-pressed", "false");
 
   await alert.getByRole("button", { name: "Try again" }).click();
-  await expect(page.locator('[data-source="questions"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("Target role")).toBeVisible();
   expect(saveAttempts).toBe(2);
+  expect(sourceEntry).toEqual({ checkpoint: "source_selected", choice: "questions" });
 });
 
 test("CV reading becomes a compact server-authored proof with equivalent facts shown once", async ({ page }) => {

@@ -2,6 +2,24 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-12 (session 105) `/implement #201` — the Tier-1 front-door flake is root-caused, not retried
+
+Two defects combined into the CI flake, both fixed; no retry-until-green anywhere.
+
+- **Component (`apps/web/app/page.tsx`)** — `choose()`'s single catch rolled the toggle back to a
+  stale closure `confirmedChoice` even when the save itself had succeeded and only the follow-on
+  advance (stage/intent) failed — showing the person the opposite of what the server durably stored,
+  the exact `aria-pressed:"false"` CI saw. A `saved` flag now confines the rollback to a genuinely
+  failed save.
+- **Spec (`e2e/front-door.spec.ts:228`)** — the test left `/api/sessions/me/stage` and `/intent`
+  unmocked, so a successful retry escaped to the real qa API (no session there) with
+  timing-dependent outcome. Now stubbed via the file's own `stubIntent`; the end state asserts the
+  intent form + the persisted server payload instead of racing a toggle that unmounts.
+- Verified: full front-door spec 26/26 against the CI stack shape (qa-main + web), the fixed test
+  15/15 under 12 parallel workers, zero fake-model calls (Tier-1 invariant), 1,275 unit tests +
+  typecheck green. Both review axes clean. Known cosmetic residual: a saved-choice-then-failed-advance
+  still shows the "couldn't save" copy (recoverable, idempotent retry).
+
 ## 2026-08-12 (session 104) `/improve-codebase-architecture` — the ratchet file gives up 717 lines and the job card has one definition
 
 Owner-approved architecture pass (report reviewed, all three candidates approved). No behaviour
