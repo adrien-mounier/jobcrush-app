@@ -8,7 +8,6 @@
 //     arithmetic (no LLM). The "state machine" is a single `stage` field on the session.
 //   - No claim tiering and no grill yet — every claim is a plain confirm. That intelligence is the
 //     next E3 pass; this slice exists to exercise the untouched spine end to end.
-import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
@@ -16,12 +15,7 @@ import type { CandidateClaim, MinedRole, AdRequirementsV1 } from "@jobcrush/cont
 import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore, ClaimRecord } from "../claims.js";
 import type { JobStore } from "../jobs.js";
-import {
-  RETRIEVAL_CLAIM_LEASE_MS,
-  retrievalClaimWindow,
-  type SessionStore,
-  type SessionRecord,
-} from "../sessions.js";
+import type { SessionStore, SessionRecord } from "../sessions.js";
 import { buildClaimGraph } from "../graph.js";
 import { renderRootCv } from "../rootcv.js";
 import { buildProfileState, resolveProfileLocation, resolveLanguagesQuestion } from "../profile.js";
@@ -50,8 +44,7 @@ import {
   buildJobCard,
   buildTailorState,
   CARD_RESOLUTION_CONCURRENCY,
-  DECK_JUDGE_BUDGET_MS,
-  DECK_JUDGE_MAX_CARDS,
+  judgeDeck,
   mapWithConcurrency,
   orderCardsForReveal,
   resolveAdRequirements,
@@ -60,6 +53,7 @@ import {
   tailorTarget,
   withYearsShortfall,
 } from "../deck.js";
+import { makeRetrievalCoordinator } from "../deckRetrieval.js";
 import { findWithdrawingRequirement, normalizeScope } from "../withdrawal.js";
 import {
   composeCvLine,
@@ -82,8 +76,6 @@ import {
 } from "../adaptiveDiscovery.js";
 import type { ProductionFamilyFloorStore, TestFixtureFamilyFloorStore } from "../familyFloors.js";
 import {
-  isReusableRetrievalSnapshot,
-  logPostingRetrievalFailure,
   resolvedCityFor,
   retrievalRequestForSession,
   retrievalFingerprint,
@@ -182,23 +174,16 @@ export const claimTier = (touch: CandidateClaim["machine_touch"]): DeckTier =>
 
 export function onboardingRoutes(deps: OnboardingDeps) {
   const retrievePostings = deps.retrievePostings ?? unavailablePostingRetrieval;
-  const retrievalsInFlight = new Map<
-    string,
-    { fingerprint: string; startedAtMs: number; result: Promise<PostingRetrievalResultV1> }
-  >();
-  const retrievalInProgress = (): PostingRetrievalResultV1 => ({
-    schemaVersion: "4",
-    outcome: "provider_unavailable",
-    coverage: {
-      providersQueried: [],
-      providersUnavailable: ["retrieval-in-progress"],
-      complete: false,
-    },
-    reason: "posting retrieval is in progress",
-    retryable: true,
-  });
   return async function plugin(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>();
+    // The claim/lease/coalescing protocol lives in deckRetrieval.ts; the route only asks "what may
+    // THIS response say about postings?" — one coordinator per server instance (it owns the
+    // same-process coalescing map).
+    const retrievalCoordinator = makeRetrievalCoordinator({
+      sessions: deps.sessions,
+      retrievePostings,
+      log: app.log,
+    });
 
     const fixtureState = async (
       sessionId: string,
@@ -1013,109 +998,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       const [confirmed, negatives, , facts] = await discoveryReads(session.id);
       const retrievalRequest = retrievalRequestForSession(session, confirmed, negatives);
       const requestFingerprint = retrievalFingerprint(retrievalRequest);
-      let retrieval: PostingRetrievalResultV1;
-      if (isReusableRetrievalSnapshot(session.retrieval, requestFingerprint)) {
-        retrieval = session.retrieval!.result;
-      } else {
-        const existing = retrievalsInFlight.get(session.id);
-        if (
-          existing?.fingerprint === requestFingerprint &&
-          Date.now() - existing.startedAtMs < RETRIEVAL_CLAIM_LEASE_MS
-        ) {
-          retrieval = retrievalInProgress();
-        } else {
-          const generation = session.retrievalGeneration;
-          const expectedSnapshotFingerprint = session.retrievalCoordinationFingerprint;
-          const ownerToken = randomUUID();
-          const claimWindow = retrievalClaimWindow();
-          const result = (async () => {
-            let claimed: boolean;
-            try {
-              claimed = await deps.sessions.beginRetrievalState(
-                session.id,
-                generation,
-                requestFingerprint,
-                expectedSnapshotFingerprint,
-                ownerToken,
-                claimWindow.claimedAt,
-                claimWindow.staleBefore,
-              );
-            } catch {
-              logPostingRetrievalFailure(app.log, "claim_failed");
-              return {
-                schemaVersion: "4" as const,
-                outcome: "provider_unavailable" as const,
-                coverage: {
-                  providersQueried: [],
-                  providersUnavailable: ["retrieval-store"],
-                  complete: false,
-                },
-                reason: "posting retrieval is temporarily unavailable",
-                retryable: true,
-              };
-            }
-            if (!claimed) {
-              try {
-                const latest = await deps.sessions.getById(session.id);
-                if (isReusableRetrievalSnapshot(latest?.retrieval ?? null, requestFingerprint)) {
-                  return latest!.retrieval!.result;
-                }
-              } catch {
-                logPostingRetrievalFailure(app.log, "snapshot_read_failed");
-              }
-              return retrievalInProgress();
-            }
-            let current: PostingRetrievalResultV1;
-            try {
-              current = await retrievePostings(retrievalRequest);
-            } catch {
-              logPostingRetrievalFailure(app.log, "retrieval_failed");
-              current = {
-                schemaVersion: "4",
-                outcome: "provider_unavailable",
-                coverage: {
-                  providersQueried: [],
-                  providersUnavailable: ["retrieval"],
-                  complete: false,
-                },
-                reason: "posting retrieval is temporarily unavailable",
-                retryable: true,
-              };
-            }
-            try {
-              await deps.sessions.reconcileRetrievalState(
-                session.id,
-                generation,
-                requestFingerprint,
-                ownerToken,
-                { requestFingerprint, recordedAt: new Date().toISOString(), result: current },
-              );
-            } catch {
-              logPostingRetrievalFailure(app.log, "reconciliation_failed");
-            }
-            return current;
-          })();
-          retrievalsInFlight.set(session.id, {
-            fingerprint: requestFingerprint,
-            startedAtMs: Date.parse(claimWindow.claimedAt),
-            result,
-          });
-          void result.then(
-            () => {
-              if (retrievalsInFlight.get(session.id)?.result === result) retrievalsInFlight.delete(session.id);
-            },
-            () => {
-              logPostingRetrievalFailure(app.log, "background_failed");
-              if (retrievalsInFlight.get(session.id)?.result === result) retrievalsInFlight.delete(session.id);
-            },
-          );
-          // §2.6 forbids provider latency on the cards request. §2.8's session snapshot is the handoff:
-          // the first uncached read fails closed while this one background task runs; later reads use
-          // its CAS-persisted result. The map coalesces same-process duplicates, while SessionStore's
-          // atomic claim prevents another process from spending for the same observed session state.
-          retrieval = retrievalInProgress();
-        }
-      }
+      // deckRetrieval.ts: a reusable snapshot, an in-progress marker, or an unavailable result —
+      // and the background claim → retrieve → reconcile work when this process should pay for it.
+      const retrieval = retrievalCoordinator.ensureRetrieval(session, retrievalRequest, requestFingerprint);
       // #107 (E5 slice 6, D5): the SAME (dimension, familyId) scope eligibilityDiscovery.ts's
       // years-experience question WRITES a real answer at — see resolveUserYears's own doc for why a
       // mismatched scope would silently do nothing. Reads `facts` (already fetched above by
@@ -1204,72 +1089,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         return false;
       });
 
-      // #117 must-fix A (coordinator review, severe) — the PAID set is ranked over EVERY eligible
-      // candidate, not just whatever peek (below) fails to resolve for free. Ranking over "unresolved"
-      // was the bug: request 1 pays for the top 8, some land in the store; request 2's free peek
-      // resolves those, which — if the paid set were re-derived from "still unresolved" — frees up 8
-      // MORE slots for a fresh paid attempt, and a visitor who simply reloads the deck a few times
-      // walks the paid set down the entire pool, paying for all 15 by the third or fourth poll —
-      // exactly the ~$0.29 cold-deck spend this ticket exists to eliminate. Ranking over EVERY
-      // candidate makes the paid set a PURE FUNCTION of (this fact set, these requirement sets) alone:
-      // unchanged inputs always re-derive the IDENTICAL set, so once its members are stored, a repeat
-      // poll finds all of them cached and pays for nothing further — the poll converges instead of
-      // walking the pool. See DECK_JUDGE_MAX_CARDS's own comment for the bound; see the test
-      // "MF-A: repeated identical polls never pay for more than the bound" for the property this fixes.
-      //
-      // KNOWN WEAKNESS, accepted deliberately: matchTick is the very token-overlap scorer #86/#105
-      // exist to replace — it is blind to meaning (a candidate who "ran weekly steering meetings with
-      // the CFO" scores 0% against "coordinate business and technical stakeholders" on this same
-      // scorer, per #86's own Problem Statement). A genuinely strong match phrased in the candidate's
-      // own words can therefore rank low on vocabulary and never make the paid set. This is a CHEAP
-      // PRE-FILTER deciding what's worth paying to verify, not a verdict on the card itself — fixing
-      // the pre-filter's own blindness is out of scope here and belongs with family-fit ranking
-      // (#107), not this cost ticket.
-      // deps.judgeMaxCards overrides DECK_JUDGE_MAX_CARDS when set (test-only in practice — main.ts
-      // never sets it), so a test can construct a "pool exceeds the ceiling" scenario against the
-      // REAL posting pool instead of adding synthetic entries to product data (#117 review).
-      const judgeMaxCards = deps.judgeMaxCards ?? DECK_JUDGE_MAX_CARDS;
-      const rankedAll = [...openCandidates].sort(
-        (a, b) => matchTick(confirmed, b.adReq) - matchTick(confirmed, a.adReq),
-      );
-      if (rankedAll.length > judgeMaxCards) incrementCounter("deck.judge_bound_hit");
-      const paidSet = new Set(rankedAll.slice(0, judgeMaxCards).map((entry) => entry.adReq.adId));
-
-      // #117 must-fix 1 — peek is UNBOUNDED and runs over EVERY candidate, in or out of the paid set:
-      // a stored judgement (an earlier visit, this exact ad tailored already, or another visitor with
-      // byte-identical facts) costs nothing to read, so it must resolve for free regardless of rank.
-      // deps.judgePeek (judge.ts's makeJudgePeek) is structurally incapable of spending, and absent
-      // (every pre-must-fix-1 test) simply means nothing resolves for free, identical to before this
-      // phase existed.
-      const peeked = await mapWithConcurrency(openCandidates, CARD_RESOLUTION_CONCURRENCY, async (entry) => {
-        const judgement = deps.judgePeek ? await deps.judgePeek(entry.adReq, confirmed) : null;
-        return { ...entry, judgement };
-      });
-
-      // #117 must-fix C — the paid budget starts AFTER the free peek phase, not before it. Peek is up
-      // to two store round-trips per candidate at CARD_RESOLUTION_CONCURRENCY; starting the deadline
-      // earlier (as before this fix) charged that free work against the PAID budget, so a slow store
-      // could exhaust judgeDeadline before a single paid call even began — every bounded card would
-      // then be paid for AND still render `pending` (resolveJudgement's own remainingMs already 0).
-      const judgeDeadline = Date.now() + DECK_JUDGE_BUDGET_MS;
-      // Whether a judge is wired at all is a per-DEPLOYMENT fact (deps.judge), not a per-card one —
-      // it decides whether an unresolved card claims the old deterministic number (today's
-      // `estimated` behaviour, byte-for-byte, when no judge exists to be honest about) or claims none
-      // at all (`pending`/`unscored`, once a judge is wired).
-      const judgeWired = !!deps.judge;
-
-      const resolved = await mapWithConcurrency(peeked, CARD_RESOLUTION_CONCURRENCY, async (entry) => {
-        if (entry.judgement) return { ...entry, attempted: false }; // resolved for free above
-        if (!paidSet.has(entry.adReq.adId)) {
-          // #117 must-fix 2: deliberately never bought this request — `unscored`, not `pending`.
-          return { ...entry, attempted: false };
-        }
-        // #105: judging is a SECOND per-posting async step, resolved only once the ad's own
-        // requirements are known — but now ONLY for a candidate the paid set selected. Absent
-        // deps.judge (or a failed/timed-out judgement) falls back per buildJobCard's own rule.
-        const judgement = await resolveJudgement(entry.adReq, confirmed, deps.judge, judgeDeadline);
-        return { ...entry, judgement, attempted: true };
-      });
+      // deck.ts's judgeDeck: peek → rank → bound → budget → resolve, the whole paid-judging pass —
+      // see its own doc for #117 must-fix A/1/C/2 and the spend-bound properties it carries.
+      const { entries: resolved, judgeWired } = await judgeDeck(openCandidates, confirmed, deps);
       const cardCandidates = resolved.map((entry) => ({
         card: buildJobCard(
           entry.posting,

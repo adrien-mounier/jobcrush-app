@@ -27,7 +27,7 @@ import {
   judgedPickHitClause,
   judgedUncoveredRequirements,
 } from "./judgedScore.js";
-import type { JudgeFact, JudgeFn } from "./judge.js";
+import type { JudgeFact, JudgeFn, JudgePeekFn } from "./judge.js";
 import type { JudgementRecord } from "./judgementStore.js";
 import {
   discoveryCvLines,
@@ -481,6 +481,97 @@ export function buildJobCard(
     },
     dontYet,
   };
+}
+
+export interface DeckJudgingDeps {
+  judge?: JudgeFn;
+  judgePeek?: JudgePeekFn;
+  /** Overrides DECK_JUDGE_MAX_CARDS when set (test-only in practice — main.ts never sets it), so a
+   *  test can construct a "pool exceeds the ceiling" scenario against the REAL posting pool instead
+   *  of adding synthetic entries to product data (#117 review). */
+  judgeMaxCards?: number;
+}
+
+export interface JudgedCandidate {
+  posting: Posting;
+  adReq: AdRequirementsV1;
+  judgement: JudgementRecord | null;
+  /** True only for a REAL paid judging attempt made this request — the pending/unscored split. */
+  attempted: boolean;
+}
+
+/** The deck's whole judging pass — peek → rank → bound → budget → resolve — over candidates that
+ *  already survived language eligibility and withdrawal. Extracted verbatim from GET
+ *  /onboarding/cards (2026-08-12 architecture pass, candidate 1); the spend-bound properties
+ *  (MF-A: repeated identical polls never pay more than the bound; the shared wall-clock budget)
+ *  live here now.
+ *
+ *  #117 must-fix A (coordinator review, severe) — the PAID set is ranked over EVERY eligible
+ *  candidate, not just whatever peek fails to resolve for free. Ranking over "unresolved" was the
+ *  bug: request 1 pays for the top 8, some land in the store; request 2's free peek resolves those,
+ *  which — if the paid set were re-derived from "still unresolved" — frees up 8 MORE slots for a
+ *  fresh paid attempt, and a visitor who simply reloads the deck a few times walks the paid set
+ *  down the entire pool, paying for all 15 by the third or fourth poll — exactly the ~$0.29
+ *  cold-deck spend #117 exists to eliminate. Ranking over EVERY candidate makes the paid set a PURE
+ *  FUNCTION of (this fact set, these requirement sets) alone: unchanged inputs always re-derive the
+ *  IDENTICAL set, so once its members are stored, a repeat poll finds all of them cached and pays
+ *  for nothing further — the poll converges instead of walking the pool.
+ *
+ *  KNOWN WEAKNESS, accepted deliberately: matchTick is the very token-overlap scorer #86/#105 exist
+ *  to replace — it is blind to meaning (a candidate who "ran weekly steering meetings with the CFO"
+ *  scores 0% against "coordinate business and technical stakeholders" on this same scorer, per
+ *  #86's own Problem Statement). A genuinely strong match phrased in the candidate's own words can
+ *  therefore rank low on vocabulary and never make the paid set. This is a CHEAP PRE-FILTER
+ *  deciding what's worth paying to verify, not a verdict on the card itself — fixing the
+ *  pre-filter's own blindness is out of scope here and belongs with family-fit ranking (#107). */
+export async function judgeDeck(
+  openCandidates: Array<{ posting: Posting; adReq: AdRequirementsV1 }>,
+  confirmed: ClaimRecord[],
+  deps: DeckJudgingDeps,
+): Promise<{ entries: JudgedCandidate[]; judgeWired: boolean }> {
+  const judgeMaxCards = deps.judgeMaxCards ?? DECK_JUDGE_MAX_CARDS;
+  const rankedAll = [...openCandidates].sort(
+    (a, b) => matchTick(confirmed, b.adReq) - matchTick(confirmed, a.adReq),
+  );
+  if (rankedAll.length > judgeMaxCards) incrementCounter("deck.judge_bound_hit");
+  const paidSet = new Set(rankedAll.slice(0, judgeMaxCards).map((entry) => entry.adReq.adId));
+
+  // #117 must-fix 1 — peek is UNBOUNDED and runs over EVERY candidate, in or out of the paid set:
+  // a stored judgement (an earlier visit, this exact ad tailored already, or another visitor with
+  // byte-identical facts) costs nothing to read, so it must resolve for free regardless of rank.
+  // deps.judgePeek (judge.ts's makeJudgePeek) is structurally incapable of spending, and absent
+  // (every pre-must-fix-1 test) simply means nothing resolves for free, identical to before this
+  // phase existed.
+  const peeked = await mapWithConcurrency(openCandidates, CARD_RESOLUTION_CONCURRENCY, async (entry) => {
+    const judgement = deps.judgePeek ? await deps.judgePeek(entry.adReq, confirmed) : null;
+    return { ...entry, judgement };
+  });
+
+  // #117 must-fix C — the paid budget starts AFTER the free peek phase, not before it. Peek is up
+  // to two store round-trips per candidate at CARD_RESOLUTION_CONCURRENCY; starting the deadline
+  // earlier (as before this fix) charged that free work against the PAID budget, so a slow store
+  // could exhaust judgeDeadline before a single paid call even began — every bounded card would
+  // then be paid for AND still render `pending` (resolveJudgement's own remainingMs already 0).
+  const judgeDeadline = Date.now() + DECK_JUDGE_BUDGET_MS;
+  // Whether a judge is wired at all is a per-DEPLOYMENT fact (deps.judge), not a per-card one —
+  // it decides whether an unresolved card claims the old deterministic number (today's
+  // `estimated` behaviour, byte-for-byte, when no judge exists to be honest about) or claims none
+  // at all (`pending`/`unscored`, once a judge is wired).
+  const judgeWired = !!deps.judge;
+
+  const entries = await mapWithConcurrency(peeked, CARD_RESOLUTION_CONCURRENCY, async (entry) => {
+    if (entry.judgement) return { ...entry, attempted: false }; // resolved for free above
+    if (!paidSet.has(entry.adReq.adId)) {
+      // #117 must-fix 2: deliberately never bought this request — `unscored`, not `pending`.
+      return { ...entry, attempted: false };
+    }
+    // #105: judging is a SECOND per-posting async step, resolved only once the ad's own
+    // requirements are known — but now ONLY for a candidate the paid set selected. Absent
+    // deps.judge (or a failed/timed-out judgement) falls back per buildJobCard's own rule.
+    const judgement = await resolveJudgement(entry.adReq, confirmed, deps.judge, judgeDeadline);
+    return { ...entry, judgement, attempted: true };
+  });
+  return { entries, judgeWired };
 }
 
 // --- #23 tailor shape (the pinned frontend contract) -----------------------------------------------
