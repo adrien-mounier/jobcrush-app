@@ -22,7 +22,16 @@ import { z } from "zod";
 import type { EligibilityDimension } from "@jobcrush/contracts";
 import type { SessionRecord } from "./sessions.js";
 import type { ClaimRecord } from "./claims.js";
-import { resolveFamily, isDiscoveryClaim, itemIdOf, slug, type DiscoveryQuestion } from "./discovery.js";
+import {
+  resolveFamily,
+  isDiscoveryClaim,
+  itemIdOf,
+  slug,
+  type DiscoveryQuestion,
+  type DiscoveryState,
+} from "./discovery.js";
+import { loadFamilyFloor } from "./e5stub.js";
+import { ANY_FAMILY } from "./eligibility.js";
 
 export const DECLINE_OPTION = "Ask me later";
 
@@ -401,6 +410,57 @@ export function unresolvedEligibilityQuestions(
   return eligibilityCandidates(familyId, anyFamily, scopeLabel, city).filter(
     (q) => !declined.has(q.itemId) && !resolved.has(q.itemId),
   );
+}
+
+/** #106: eligibility questions layered onto discoveryState()'s pure floor-only output, so
+ *  essentialRemaining/railFill's floor-only meaning needs no new carve-out there. Code-review
+ *  must-fix 2 (round 2): these are appended UNCONDITIONALLY (never gated on the essential band),
+ *  and — round 3's funnel-regression fix — inserted right after the essential band and BEFORE the
+ *  standard one, never after it. discoveryState() only ever gates `stage` on the essential band;
+ *  the standard band has always been optional/loopback-reachable, never required to reach the deck.
+ *  Putting eligibility after the WHOLE floor (round 2's shape) meant the ask dock — which only ever
+ *  renders questions[0], one at a time, with no skip — forced a visitor through all 5 standard items
+ *  just to REACH the 3 eligibility ones that actually gate the deck, tripling the pre-deck question
+ *  count nobody asked for. Standard items are moved after eligibility instead; everything else
+ *  (essential items, the reader-only question, in whatever relative order discoveryState()/the route
+ *  already established) stays exactly where it was — only the standard-band entries move.
+ *
+ *  2026-08-12 (architecture pass candidate 6): lifted verbatim out of routes/onboarding.ts, where
+ *  the rule that decides what the visitor is asked NEXT sat in a route-local closure post-processing
+ *  discoveryState()'s output — untestable except through the HTTP funnel, and invisible from the
+ *  module that owns eligibility questions. It lives here, beside unresolvedEligibilityQuestions
+ *  (which generates the very questions it places), rather than in discovery.ts: this module already
+ *  imports discovery.ts, so the reverse direction would be an import cycle.
+ *
+ *  Mutates `state` in place, as it always has — every call site builds a fresh DiscoveryState from
+ *  discoveryState() one line earlier and keeps using it after. */
+export function applyEligibilityQuestions(
+  session: Pick<SessionRecord, "discovery">,
+  role: string,
+  state: DiscoveryState,
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+  rejected: ClaimRecord[],
+  facts: readonly { dimension: EligibilityDimension; familyId: string }[],
+): void {
+  const eligQuestions = unresolvedEligibilityQuestions(
+    session,
+    role,
+    ANY_FAMILY,
+    state.city,
+    confirmed,
+    negatives,
+    rejected,
+    facts,
+  );
+  const { family } = resolveFamily(role);
+  const standardIds = new Set(
+    loadFamilyFloor(family).items.filter((i) => i.rankBand === "standard").map((i) => i.id),
+  );
+  const leading = state.questions.filter((q) => !standardIds.has(q.itemId));
+  const standard = state.questions.filter((q) => standardIds.has(q.itemId));
+  state.questions = [...leading, ...eligQuestions, ...standard];
+  if (eligQuestions.length > 0) state.stage = "discovery";
 }
 
 /** Code-review must-fix 3: a decline ("Ask me later") is a refusal, not a recorded fact, and must not

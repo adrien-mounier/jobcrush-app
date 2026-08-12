@@ -24,8 +24,9 @@ import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "
 import { auditRootCv, type CvAuditor } from "../audit.js";
 import { loadFamilyFloor } from "../e5stub.js";
 import { eligiblePostings, sessionPostings, type Posting } from "../preview.js";
-import { ANY_FAMILY, type EligibilityFact, type EligibilityStore } from "../eligibility.js";
+import { ANY_FAMILY, type EligibilityStore } from "../eligibility.js";
 import {
+  applyEligibilityQuestions,
   eligibilityCandidates,
   excludingEligibility,
   isEligibilityItemId,
@@ -33,7 +34,6 @@ import {
   languageFacts,
   mapEligibilityAnswer,
   resolveEligibilityFamilyScope,
-  unresolvedEligibilityQuestions,
 } from "../eligibilityDiscovery.js";
 import { readingLanguages, languageEligible } from "../language.js";
 import { incrementCounter } from "../counters.js";
@@ -65,7 +65,6 @@ import {
   READER_ROLE_ITEM_ID,
   readerQuestion,
   resolveFamily,
-  type DiscoveryState,
 } from "../discovery.js";
 import { composeTailorLine, tailorClaimId } from "../tailor.js";
 import { FamilyPlacement } from "@jobcrush/contracts";
@@ -642,48 +641,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         deps.eligibility.list(sessionId),
       ]);
 
-    // #106: eligibility questions layered onto discoveryState()'s pure floor-only output, mirroring
-    // the reader-only-question pattern just below rather than touching discoveryState() itself — so
-    // essentialRemaining/railFill's floor-only meaning needs no new carve-out there. Code-review
-    // must-fix 2 (round 2): these are appended UNCONDITIONALLY (never gated on the essential band),
-    // and — round 3's funnel-regression fix — inserted right after the essential band and BEFORE the
-    // standard one, never after it. discoveryState() only ever gates `stage` on the essential band
-    // (below); the standard band has always been optional/loopback-reachable, never required to reach
-    // the deck. Putting eligibility after the WHOLE floor (round 2's shape) meant the ask dock — which
-    // only ever renders questions[0], one at a time, with no skip — forced a visitor through all 5
-    // standard items just to REACH the 3 eligibility ones that actually gate the deck, tripling the
-    // pre-deck question count nobody asked for. Standard items are moved after eligibility instead;
-    // everything else (essential items, the reader-only question, in whatever relative order
-    // discoveryState()/the GET route already established) stays exactly where it was — only the
-    // standard-band entries move.
-    const applyEligibility = (
-      session: SessionRecord,
-      role: string,
-      state: DiscoveryState,
-      confirmed: ClaimRecord[],
-      negatives: ClaimRecord[],
-      rejected: ClaimRecord[],
-      facts: EligibilityFact[],
-    ) => {
-      const eligQuestions = unresolvedEligibilityQuestions(
-        session,
-        role,
-        ANY_FAMILY,
-        state.city,
-        confirmed,
-        negatives,
-        rejected,
-        facts,
-      );
-      const { family } = resolveFamily(role);
-      const standardIds = new Set(
-        loadFamilyFloor(family).items.filter((i) => i.rankBand === "standard").map((i) => i.id),
-      );
-      const leading = state.questions.filter((q) => !standardIds.has(q.itemId));
-      const standard = state.questions.filter((q) => standardIds.has(q.itemId));
-      state.questions = [...leading, ...eligQuestions, ...standard];
-      if (eligQuestions.length > 0) state.stage = "discovery";
-    };
+    // #106: eligibility questions are layered onto discoveryState()'s pure floor-only output by
+    // eligibilityDiscovery.ts's applyEligibilityQuestions — see its own doc for the band-interleaving
+    // rule and the funnel regression that produced it.
 
     // #106: an eligibility answer's own write path. Code-review must-fix 1: a REAL answer (of any
     // kind, including a "no"-shaped one like "Not yet — I'd need sponsorship") never touches the
@@ -836,7 +796,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           const roles = job && job.sessionId === session.id ? minedRoles(job) : [];
           if (roles.length > 0) state.questions = [readerQuestion(roles[0]!), ...state.questions];
         }
-        if (role) applyEligibility(session, role, state, confirmed, negatives, rejected, facts);
+        if (role) applyEligibilityQuestions(session, role, state, confirmed, negatives, rejected, facts);
         // #106 must-fix 3: a decline is a refusal, not a recorded fact — strip it before it inflates
         // the profile badge's "pile that only grows".
         state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
@@ -867,7 +827,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         await deps.sessions.setStage(session.id, "discovery");
         const [confirmed, negatives, rejected, facts] = await discoveryReads(session.id);
         const state = discoveryState(req.body.role, confirmed, negatives, rejected, resolvedCityFor(session.intent.searchArea));
-        applyEligibility(session, req.body.role, state, confirmed, negatives, rejected, facts);
+        applyEligibilityQuestions(session, req.body.role, state, confirmed, negatives, rejected, facts);
         state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
@@ -973,7 +933,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
 
         const [confirmed, negatives, rejected, facts] = await discoveryReads(session.id);
         const state = discoveryState(role, confirmed, negatives, rejected, resolvedCityFor(session.intent.searchArea));
-        applyEligibility(session, role, state, confirmed, negatives, rejected, facts);
+        applyEligibilityQuestions(session, role, state, confirmed, negatives, rejected, facts);
         // #18 AC1 / #106: the essential band fully asked AND every eligibility question closed flips
         // the session to the deck stage, so a reload lands there too. Code-review must-fix 2: the
         // full set of remaining floor + eligibility items is visible from the very first response

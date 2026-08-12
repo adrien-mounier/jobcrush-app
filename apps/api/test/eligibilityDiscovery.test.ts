@@ -10,6 +10,7 @@ import { ANY_FAMILY } from "../src/eligibility.js";
 import {
   DECLINE_OPTION,
   LANGUAGE_ITEM_ID,
+  applyEligibilityQuestions,
   eligibilityCandidates,
   isEligibilityItemId,
   isValidLanguageSelection,
@@ -19,7 +20,8 @@ import {
   unresolvedEligibilityQuestions,
 } from "../src/eligibilityDiscovery.js";
 import type { ClaimRecord } from "../src/claims.js";
-import { discoveryClaimId } from "../src/discovery.js";
+import { discoveryClaimId, discoveryState, resolveFamily } from "../src/discovery.js";
+import { loadFamilyFloor } from "../src/e5stub.js";
 
 const noFloorSession = { discovery: { floor: null, coveredItemIds: [], checkpoint: null } } as const;
 const FAMILY_ID = "it-project-delivery";
@@ -292,5 +294,60 @@ describe("#123 languagesUnion / languageFacts / isValidLanguageSelection", () =>
   it("isValidLanguageSelection rejects anything outside the list", () => {
     expect(isValidLanguageSelection(["Klingon"])).toBe(false);
     expect(isValidLanguageSelection(["English", "Klingon"])).toBe(false);
+  });
+});
+
+// #106 round 3's funnel-regression rule, as a direct unit case. Before the 2026-08-12 architecture
+// pass this ordering lived in a route-local closure post-processing discoveryState()'s output, so
+// the ONLY way to assert it was to walk the HTTP funnel (discovery.test.ts). The rule is: eligibility
+// questions land after the essential band and BEFORE the standard one — the ask dock renders
+// questions[0] one at a time with no skip, so putting eligibility last forced a visitor through every
+// standard item to reach the questions that actually gate the deck.
+describe("#106 applyEligibilityQuestions — band interleaving", () => {
+  const floorItems = loadFamilyFloor(resolveFamily(ROLE).family).items;
+  const standardIds = new Set(floorItems.filter((i) => i.rankBand === "standard").map((i) => i.id));
+  const bandOf = (itemId: string) =>
+    isEligibilityItemId(itemId) ? "eligibility" : standardIds.has(itemId) ? "standard" : "leading";
+
+  it("places every eligibility question after the essential band and before the standard one", () => {
+    const state = discoveryState(ROLE, [], [], [], "Paris");
+    expect(state.questions.some((q) => standardIds.has(q.itemId))).toBe(true); // guard: the fixture has standard items
+
+    applyEligibilityQuestions(noFloorSession, ROLE, state, [], [], [], []);
+
+    const bands = state.questions.map((q) => bandOf(q.itemId));
+    expect(bands).toContain("eligibility");
+    // No standard item may precede any eligibility question, and no leading item may follow one.
+    expect(bands.indexOf("eligibility")).toBeLessThan(bands.indexOf("standard"));
+    expect(bands.lastIndexOf("leading")).toBeLessThan(bands.indexOf("eligibility"));
+    expect(bands.lastIndexOf("eligibility")).toBeLessThan(bands.indexOf("standard"));
+  });
+
+  it("keeps the visitor in discovery while any eligibility question is still open", () => {
+    const state = discoveryState(ROLE, [], [], [], "Paris");
+    applyEligibilityQuestions(noFloorSession, ROLE, state, [], [], [], []);
+    expect(state.stage).toBe("discovery");
+  });
+
+  it("leaves the question order and stage untouched once every eligibility fact is resolved", () => {
+    // The facts are derived from the questions this function itself asks, never from a hand-written
+    // familyId: two of the three dimensions are family-scoped, and a fact stored at a DIFFERENT scope
+    // silently resolves nothing (the same mismatch resolveUserYears's doc warns about). Deriving them
+    // is also the only way this test stays true if the scope derivation ever changes.
+    const probe = discoveryState(ROLE, [], [], [], "Paris");
+    applyEligibilityQuestions(noFloorSession, ROLE, probe, [], [], [], []);
+    const facts = probe.questions
+      .filter((q) => q.eligibility)
+      .map((q) => ({ dimension: q.eligibility!.dimension, familyId: q.eligibility!.familyId }));
+    expect(facts).not.toHaveLength(0);
+
+    const resolved = discoveryState(ROLE, [], [], [], "Paris");
+    const before = [...resolved.questions];
+    const stageBefore = resolved.stage;
+
+    applyEligibilityQuestions(noFloorSession, ROLE, resolved, [], [], [], facts);
+
+    expect(resolved.questions).toEqual(before);
+    expect(resolved.stage).toBe(stageBefore);
   });
 });
