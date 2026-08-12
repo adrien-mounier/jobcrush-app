@@ -14,6 +14,12 @@ import {
 // hand-written translation at this contract boundary.
 const REQUIREMENT_BANDS = ["essential", "standard", "nice-to-have"];
 
+// #117's provenance discriminator. 2026-08-12 (architecture pass candidate 2): the oracle catches up
+// to the shape schemaVersion "1" has ALREADY meant on the wire since #117 shipped — same version on
+// purpose, the wire did not change today. On "pending"/"unscored" a card claims NO number at all
+// (AC5): matchPct/breakdown/bubble null, dontYet empty.
+const SCORE_PROVENANCES = ["judged", "pending", "unscored", "estimated"];
+
 export function validateJobCardV1(card) {
   const e = new Errors();
   if (!isObject(card)) {
@@ -29,29 +35,43 @@ export function validateJobCardV1(card) {
     e.require(isStringOrNull(card[field]), `${field} must be a string or null`);
   }
   e.require(
-    isNumber(card.matchPct) && card.matchPct >= 0 && card.matchPct <= 100,
-    "matchPct must be a number in [0,100]",
+    oneOf(card.scored, SCORE_PROVENANCES),
+    "scored must be judged, pending, unscored, or estimated",
   );
-  e.require(isObject(card.breakdown), "breakdown must be an object");
-  for (const band of ["essential", "desirable"]) {
-    const value = card.breakdown?.[band];
-    e.require(isObject(value), `breakdown.${band} must be an object`);
+  if (card.scored === "pending" || card.scored === "unscored") {
+    e.require(card.matchPct === null, "matchPct must be null on a pending/unscored card");
+    e.require(card.breakdown === null, "breakdown must be null on a pending/unscored card");
+    e.require(card.bubble === null, "bubble must be null on a pending/unscored card");
     e.require(
-      Number.isInteger(value?.met) && value.met >= 0,
-      `breakdown.${band}.met must be a non-negative integer`,
+      isArray(card.dontYet) && card.dontYet.length === 0,
+      "dontYet must be empty on a pending/unscored card",
     );
+  } else {
     e.require(
-      Number.isInteger(value?.total) && value.total >= 0,
-      `breakdown.${band}.total must be a non-negative integer`,
+      isNumber(card.matchPct) && card.matchPct >= 0 && card.matchPct <= 100,
+      "matchPct must be a number in [0,100]",
     );
-    e.require(value?.met <= value?.total, `breakdown.${band}.met must not exceed total`);
+    e.require(isObject(card.breakdown), "breakdown must be an object");
+    for (const band of ["essential", "desirable"]) {
+      const value = card.breakdown?.[band];
+      e.require(isObject(value), `breakdown.${band} must be an object`);
+      e.require(
+        Number.isInteger(value?.met) && value.met >= 0,
+        `breakdown.${band}.met must be a non-negative integer`,
+      );
+      e.require(
+        Number.isInteger(value?.total) && value.total >= 0,
+        `breakdown.${band}.total must be a non-negative integer`,
+      );
+      e.require(value?.met <= value?.total, `breakdown.${band}.met must not exceed total`);
+    }
+    e.require(isObject(card.bubble), "bubble must be an object");
+    e.require(isString(card.bubble?.hit), "bubble.hit must be a string");
+    e.require(isString(card.bubble?.open), "bubble.open must be a string");
+    validateRequirementArray(e, card.dontYet);
   }
-  e.require(isObject(card.bubble), "bubble must be an object");
-  e.require(isString(card.bubble?.hit), "bubble.hit must be a string");
-  e.require(isString(card.bubble?.open), "bubble.open must be a string");
 
   validateFactArray(e, card.fit, "fit");
-  validateRequirementArray(e, card.dontYet);
   validateFactArray(e, card.askedClosed, "askedClosed");
   return result(e);
 }

@@ -4,7 +4,12 @@
 // ad-requirements/judgement resolvers with their timeout discipline, the years-shortfall read-time
 // helpers, and the tailor-surface composition (tailorTarget, buildTailorState). The route file
 // orchestrates; this module composes.
-import type { RankBand, AdRequirementsV1 } from "@jobcrush/contracts";
+import type {
+  AdRequirementsV1,
+  CardScoreProvenance,
+  JobCardV1,
+  ScoredJobCardV1,
+} from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
 import type { SessionRecord } from "./sessions.js";
 import { lookupAdRequirements, loadFamilyFloor } from "./e5stub.js";
@@ -49,15 +54,14 @@ import {
 export type ReadAdFn = (posting: Posting) => Promise<AdRequirementsV1 | null>;
 
 // --- #19 card shape (the pinned frontend contract) -----------------------------------------------
-export interface CardFact {
-  id: string;
-  text: string;
-}
-export interface CardRequirement {
-  id: string;
-  band: RankBand;
-  requirement: string;
-}
+// 2026-08-12 (architecture pass candidate 2): the shape itself now lives in
+// @jobcrush/contracts/src/jobCard.ts — the zod port golden-tested against the .mjs oracle — and this
+// module aliases it. The web client imports the same definitions, so a card change is made once
+// and every consumer follows or fails to type-check, instead of three hand-kept copies drifting.
+export type JobCard = JobCardV1;
+export type ScoredJobCard = ScoredJobCardV1;
+export type { CardScoreProvenance };
+
 // #117 — the provenance discriminator, pinned identically for the frontend (do not deviate).
 // `pending` and `unscored` were one state ("pending") until the coordinator's must-fix 2 review:
 // a card that missed the shared judging budget IS still coming (the underlying call keeps running
@@ -85,25 +89,6 @@ export interface CardRequirement {
 //     dev with no key) or by the tailor surface's own always-falls-back-to-estimated behaviour
 //     (buildTailorState, unchanged by this ticket). In this state matchPct/breakdown/bubble/dontYet
 //     are byte-for-byte what they were before #117.
-export type CardScoreProvenance = "judged" | "pending" | "unscored" | "estimated";
-
-export interface JobCard {
-  schemaVersion: "1";
-  adId: string;
-  title: string;
-  company: string;
-  place: string;
-  salary: string | null; // absent in the stub postings — always null for now
-  pattern: string | null; // absent in the stub postings — always null for now
-  scored: CardScoreProvenance;
-  matchPct: number | null; // null iff scored is "pending" or "unscored"
-  breakdown: ReturnType<typeof matchBreakdown> | null; // null iff scored is "pending" or "unscored"
-  bubble: { hit: string; open: string } | null; // null iff scored is "pending" or "unscored"
-  fit: CardFact[];
-  dontYet: CardRequirement[]; // [] when pending or unscored
-  askedClosed: CardFact[];
-  adExcerpt: string;
-}
 
 // #117: judged > estimated > pending > unscored. Lower ranks first. Extends #105 review round 4's
 // judged-above-fallback grouping, then must-fix 2's pending/unscored split — a genuinely in-flight
@@ -428,6 +413,25 @@ export function withYearsShortfall(
  *  at all — nothing claimed, nothing in flight either), or "estimated" (no judge wired at all, or
  *  the tailor surface's own always-falls-back state — today's deterministic number, labelled
  *  honestly). matchPct/breakdown/bubble are null for both "pending" and "unscored". */
+// Overloaded: a caller that always passes "estimated" (the tailor surface) structurally can never
+// receive a pending/unscored card, and the narrower return type states that invariant — every use
+// of `card.matchPct` there keeps type-checking as a plain number, no `!`/`as`.
+export function buildJobCard(
+  posting: Posting,
+  adReq: AdRequirementsV1,
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+  judgement: JudgementRecord | null,
+  unresolvedScored: "estimated",
+): ScoredJobCard;
+export function buildJobCard(
+  posting: Posting,
+  adReq: AdRequirementsV1,
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+  judgement: JudgementRecord | null,
+  unresolvedScored: "pending" | "unscored" | "estimated",
+): JobCard;
 export function buildJobCard(
   posting: Posting,
   adReq: AdRequirementsV1,
@@ -576,7 +580,10 @@ export async function judgeDeck(
 
 // --- #23 tailor shape (the pinned frontend contract) -----------------------------------------------
 export interface TailorState {
-  card: JobCard;
+  // Narrowed to the scored variant on purpose — tailor always calls buildJobCard with "estimated"
+  // (the overload above), so a pending/unscored card is unrepresentable here, matching the web
+  // client's own TailorState.card: ScoredJobCard.
+  card: ScoredJobCard;
   questions: TailorQuestion[];
   ledger: LedgerLine[];
   cvLines: DiscoveryCvLine[];

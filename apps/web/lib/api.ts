@@ -281,75 +281,40 @@ export function answerDiscoveryMulti(itemId: string, answers: string[]): Promise
 // clauses, the fit/dontYet/askedClosed lists, and their rank order are all composed server-side
 // (matchtick.ts) — this client only renders the shape as-is, never re-derives it.
 
-export interface CardFact {
-  id: string;
-  text: string;
-}
+// 2026-08-12 (architecture pass candidate 2): the card shapes below come from @jobcrush/contracts —
+// the same zod-inferred definitions the API composes cards from (apps/api/src/deck.ts), golden-tested
+// against the .mjs oracle. Type-only imports, so nothing of zod reaches the client bundle. The local
+// aliases keep every existing page/e2e import path (`../lib/api`) working unchanged.
+//
+// On the union itself: a discriminated union on `scored`, not four nullable fields on one interface —
+// narrowing on `card.scored` (or on `card.breakdown`/`card.matchPct` being non-null) gives real
+// non-null types for the other fields, with no `!`/`as` anywhere that reads a card.
+// - Scored: judged against the candidate's evidence, or — only when scoring is switched off entirely
+//   (local dev without a key) — the deterministic fallback scorer. The two render identically;
+//   `scored` is a QA/e2e hook (`data-scored`) only, never a UI affordance.
+// - Pending (#117): cost bounds judging to the first N cards server-side; the rest arrive with no
+//   number yet and fill in via the client's poll (deck/page.tsx). Never render 0 or omit the number
+//   silently — jobcard.tsx's PendingRing em dash is the only honest way to say "not yet".
+// - Unscored (#117b addendum §11): we have not bought a score for this job and will not until the
+//   visitor shows interest — distinct from `pending`, which IS coming, just not yet. Never polled,
+//   never flips to gaveUp (deck/page.tsx's applyMerge only ever swaps a locally-`pending` slot).
+//   Swiping right judges it on demand (see deck/page.tsx's §11.7 handoff fix).
+import type {
+  CardFact as ContractCardFact,
+  CardRequirement as ContractCardRequirement,
+  JobCardV1,
+  PendingJobCardV1,
+  ScoredJobCardV1,
+  UnscoredJobCardV1,
+} from "@jobcrush/contracts";
 
-export interface CardRequirement {
-  id: string;
-  // #102: unified band vocabulary (was "must" | "should" | "nice") — not rendered anywhere in this
-  // app (jobcard.tsx renders only .requirement), so the rename here is type-only.
-  band: "essential" | "standard" | "nice-to-have";
-  requirement: string;
-}
-
-export interface MatchBreakdown {
-  essential: { met: number; total: number };
-  desirable: { met: number; total: number };
-}
-
-// #117: fields every card shape carries, scored or not.
-interface JobCardCommon {
-  schemaVersion: "1";
-  adId: string;
-  title: string;
-  company: string;
-  place: string;
-  salary: string | null;
-  pattern: string | null;
-  fit: CardFact[];
-  dontYet: CardRequirement[];
-  askedClosed: CardFact[];
-  adExcerpt: string;
-}
-
-// A real score: either judged against the candidate's evidence, or — only when scoring is switched
-// off entirely (local dev without a key, every existing test) — the deterministic fallback scorer.
-// The two render identically; `scored` is a QA/e2e hook (`data-scored`) only, never a UI affordance.
-export interface ScoredJobCard extends JobCardCommon {
-  scored: "judged" | "estimated";
-  matchPct: number;
-  breakdown: MatchBreakdown;
-  bubble: { hit: string; open: string };
-}
-
-// #117: cost bounds judging to the first N cards server-side; the rest arrive with no number yet
-// and fill in via the client's poll (deck/page.tsx). Never render 0 or omit the number silently —
-// jobcard.tsx's PendingRing em dash is the only honest way to say "not yet".
-export interface PendingJobCard extends JobCardCommon {
-  scored: "pending";
-  matchPct: null;
-  breakdown: null;
-  bubble: null;
-}
-
-// #117b (addendum §11): we have not bought a score for this job and will not until the visitor
-// shows interest — distinct from `pending`, which IS coming, just not yet. Same null shape as
-// `pending`. Never polled, never flips to gaveUp (deck/page.tsx's applyMerge only ever swaps a
-// locally-`pending` slot, so an `unscored` card is structurally outside that machinery, not just
-// by convention). Swiping right judges it on demand (see deck/page.tsx's §11.7 handoff fix).
-export interface UnscoredJobCard extends JobCardCommon {
-  scored: "unscored";
-  matchPct: null;
-  breakdown: null;
-  bubble: null;
-}
-
-// A discriminated union on `scored`, not four nullable fields on one interface: narrowing on
-// `card.scored` (or on `card.breakdown`/`card.matchPct` being non-null) then gives real non-null
-// types for the other fields too, with no `!`/`as` anywhere that reads a card.
-export type JobCard = ScoredJobCard | PendingJobCard | UnscoredJobCard;
+export type CardFact = ContractCardFact;
+export type CardRequirement = ContractCardRequirement;
+export type MatchBreakdown = ScoredJobCardV1["breakdown"];
+export type ScoredJobCard = ScoredJobCardV1;
+export type PendingJobCard = PendingJobCardV1;
+export type UnscoredJobCard = UnscoredJobCardV1;
+export type JobCard = JobCardV1;
 
 // #123 addendum (2026-08-04): what #107's withdrawal engine dropped on a language ground, so the
 // reveal can say so instead of silently shrinking the count. Typed locally (not yet on the shared

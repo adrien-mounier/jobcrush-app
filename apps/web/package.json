@@ -14,6 +14,7 @@
     "e2e:r2-cors": "node e2e/r2-cors-preflight.mjs"
   },
   "dependencies": {
+    "@jobcrush/contracts": "workspace:*",
     "@jobcrush/ui": "workspace:*",
     "next": "^15.5.0",
     "react": "^19.1.0",

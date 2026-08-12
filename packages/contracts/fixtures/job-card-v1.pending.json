@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1",
+  "adId": "ad-2",
+  "title": "Project Manager",
+  "company": "Example",
+  "place": "Remote",
+  "salary": null,
+  "pattern": null,
+  "scored": "pending",
+  "matchPct": null,
+  "breakdown": null,
+  "bubble": null,
+  "fit": [{ "id": "fact-1", "text": "Led delivery." }],
+  "dontYet": [],
+  "askedClosed": [],
+  "adExcerpt": "Lead project delivery."
+}

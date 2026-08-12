@@ -484,8 +484,14 @@ describe("Contract 3 — enrichment inbox", () => {
 });
 
 describe("JobCard v1", () => {
-  it("valid fixture passes both oracle and zod", () => {
+  it("valid scored fixture passes both oracle and zod", () => {
     const card = fixture("job-card-v1.valid.json");
+    expect(validateJobCardV1(card).ok).toBe(true);
+    expect(JobCardV1.safeParse(card).success).toBe(true);
+  });
+
+  it("valid pending fixture passes both oracle and zod (#117: no number claimed)", () => {
+    const card = fixture("job-card-v1.pending.json");
     expect(validateJobCardV1(card).ok).toBe(true);
     expect(JobCardV1.safeParse(card).success).toBe(true);
   });
@@ -504,9 +510,29 @@ describe("JobCard v1", () => {
       (card) => (card.dontYet[0].band = "critical"),
       (card) => (card.askedClosed = {}),
       (card) => delete card.adExcerpt,
+      // #117 provenance: absent or unknown `scored` is rejected, and a scored card never
+      // carries the not-scored nulls.
+      (card) => delete card.scored,
+      (card) => (card.scored = "maybe"),
+      (card) => ((card.scored = "pending"), void 0), // scored says pending but numbers still present
     ];
     for (const mutate of mutations) {
       const card = fixture("job-card-v1.valid.json");
+      mutate(card);
+      expect(JobCardV1.safeParse(card).success).toBe(validateJobCardV1(card).ok);
+      expect(validateJobCardV1(card).ok).toBe(false);
+    }
+  });
+
+  it("rejects a pending card that claims any number (#117 AC5) in both", () => {
+    const mutations: Array<(card: any) => void> = [
+      (card) => (card.matchPct = 50),
+      (card) => (card.breakdown = { essential: { met: 0, total: 1 }, desirable: { met: 0, total: 0 } }),
+      (card) => (card.bubble = { hit: "x", open: "y" }),
+      (card) => (card.dontYet = [{ id: "r", band: "essential", requirement: "x" }]),
+    ];
+    for (const mutate of mutations) {
+      const card = fixture("job-card-v1.pending.json");
       mutate(card);
       expect(JobCardV1.safeParse(card).success).toBe(validateJobCardV1(card).ok);
       expect(validateJobCardV1(card).ok).toBe(false);

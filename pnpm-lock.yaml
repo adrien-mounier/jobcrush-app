@@ -78,6 +78,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@jobcrush/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@jobcrush/ui':
         specifier: workspace:*
         version: link:../../packages/ui

@@ -6,6 +6,7 @@
   "place": "Remote",
   "salary": null,
   "pattern": null,
+  "scored": "judged",
   "matchPct": 75,
   "breakdown": {
     "essential": { "met": 2, "total": 3 },
