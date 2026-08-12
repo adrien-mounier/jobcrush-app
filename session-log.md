@@ -2,6 +2,47 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-12 (session 108) `/research #196` — the missing cost cell, measured on a real bill
+
+#160's confounded comparison is retired. Four prompt shapes × six corpus CVs × two samples, 48 billed
+calls on the **production API path** (`AnthropicLlm.request()` mirrored field for field — thinking
+disabled, no system prompt, no tools), so this is a bill, not #160's corrected CLI estimate.
+
+- **The cell #196 was commissioned to measure — *per-decision × rich*, the ADR-0003/0004/0008 record —
+  costs `$0.1016/upload` against today's miner's `$0.2105` (0.48×), and `$0.00175/fact` against
+  `$0.00398` (0.44×).** It beat today's miner on **all six** CVs, including the list-heavy Thomas
+  Chauviere CV that was #160's sole exception (1.23× there, 0.38× here).
+- **Neither dial #196 named is the driver, and that is the main result.** Richness costs +23% per
+  upload at fixed granularity. Granularity is near-free — and today's miner is **not** coarse (52.8
+  records/CV vs 58.0); it batches skills only. The cost is **per-record verbosity**: 249.5 output
+  tokens per record vs 103.3, because a ~12-field claim makes the model *compose* (classification,
+  grill hint, rewritten sentence) rather than *copy*. **Cost lives in composition, not field count.**
+- **Serialization share: 34.7%** of the rich output bill (23.3% repeated quote text, 11.4% keys and
+  syntax) — the council's 40–50% was high but directional. The compact variant recovered 62.1%, **and
+  is not recommended**: its line pointer is wrong 5.9% of the time, worst case 11 lines off, and it
+  fails invisibly — which is the one defect the correction story cannot absorb.
+- **Grounding held: 0/336 ungrounded quotes in the rich cell, 0/363 lean.** Today's miner produced
+  **6/277 stitched quotes** (two non-adjacent fragments joined with `...`) — caused by batching, and
+  impossible in a per-decision shape.
+- 🚨 **The cost question is settled; the accuracy question is now the blocker.** The rich prompt
+  systematically reads **fewer achievement bullets** than the lean one — 11 vs 31 on one CV, the same
+  number twice, so it is the prompt not variance. Suspect: asking each achievement to name its
+  *employer* collapses four roles at one company; a back-reference by job *index* is the obvious fix.
+  Skill atomisation also swung 17→44 across two samples of one CV. **Budget a prompt-and-eval pass
+  before #161 freezes the schema** — the harness re-runs for ~$1 a sweep.
+- **Production-relevant:** `thinking:{type:"disabled"}` stops the *feature*, not the model writing
+  reasoning as ordinary output. One call emitted a 24,714-char `<think>` block as plain text — ~70% of
+  its output tokens, 4× its sibling's cost. `extractJson()` recovered the JSON, so it fails as **cost,
+  not breakage**. Worth a cost alarm, not a prompt change.
+- **`counts_as_work` came back `true` on four 2–4 month stints that read like French `stages`**, from
+  a CV that never says so. Defensible from the page, unknowable by machine — direct evidence for
+  ADR-0008 / #157 item 3: it must reach the confirm screen as its own visible decision.
+
+Report: [`docs/research/structured-read-cost.md`](docs/research/structured-read-cost.md) — rewritten
+in place, #160's numbers preserved in a marked appendix so no two documents disagree. Experiment cost
+**$5.66 over 53 calls**. No prototype code landed; prompts, scripts and raw outputs stayed in a scratch
+dir outside the repo.
+
 ## 2026-08-12 (session 107) `/implement #162` — years of experience is worked out, never asked
 
 ADR-0008 clause 2 (the Mei rule) turned from a written rule into an enforced one. Its own falsifiable

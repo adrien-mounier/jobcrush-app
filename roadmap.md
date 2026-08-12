@@ -16,6 +16,26 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
 
+**2026-08-12 (session 108) `/research #196` — the cost question is settled; accuracy is the new
+blocker.** The cell #160 never measured — *per-decision × rich*, the record ADR-0003/0004/0008
+actually require — costs **0.48× today's miner per upload and 0.44× per fact**, measured on the
+**production API path** with thinking disabled (48 billed calls, 4 shapes × 6 CVs × 2 samples, $5.66).
+It won on **all six** CVs, including #160's sole exception. **Neither dial #196 named is the driver:**
+richness is +23%, granularity is near-free, and today's miner is not actually coarse — it batches
+skills only. The cost is **per-record verbosity** (249.5 output tokens/record vs 103.3): a ~12-field
+claim makes the model *compose* opinions, not *copy* values. **Cost lives in composition, not field
+count** — so #161 may spend field slots freely, and should spend per-fact commentary deliberately.
+Serialization is 34.7% of the rich bill; the compact-emission variant recovers 62.1% and is
+**rejected** — its line pointer is wrong 5.9% of the time, invisibly. 🚨 **Carried, and it must travel
+with the cost number:** the rich prompt **loses achievement bullets** (11 vs 31 on one CV, twice —
+suspected employer-name back-reference collapsing same-company roles) and has no stable
+skill-splitting rule (17→44 across samples). **A prompt-and-eval pass is owed before #161's schema
+freezes** (~$1 a sweep on this harness). Also carried: `thinking:{type:"disabled"}` does not stop
+plain-text reasoning (one call, ~70% of output, 4× cost — fails as cost, not breakage) and
+`counts_as_work` fired `true` on four internship-shaped stints, evidence for making it a visible
+confirm-screen decision (#157 item 3). Report: `docs/research/structured-read-cost.md`, rewritten in
+place with #160's numbers preserved in a marked appendix.
+
 **2026-08-12 (session 107) `/implement #162` — years of experience is worked out, never asked.**
 ADR-0008's Mei rule is now enforced in code: the years-experience question is **gone from the
 ask-list** (a falsifiable check in two test files pins it), and the total is computed from the dated
@@ -51,9 +71,11 @@ version persisted append-only (evolve by versioning, never re-parse); the #157 D
 deck ships at `/job-blocks/[jobId]` — swipe-confirm, skip-returns, tap-correct, kind-not-work,
 server-effective undo — QA 56/56 GO after one caught blocker. #199 adds ~10.1 min of real-stack
 journeys gating `deploy-staging` (factbadge-floor cut for measured flakiness, signature recorded).
-**Frontier now: the structured-fact fan-out #162–#171 (all unblocked) · #196 cost baseline · #63 ·
-#109 · #113 · #124.** Known gaps carried: model-asserted source quotes unverified (eval under
-#196) · "potential jobs matching" panel stat awaits a matching-side field.
+**Frontier now: the structured-fact fan-out #162–#171 (all unblocked) · #63 ·
+#109 · #113 · #124.** (#196's cost baseline is measured — see session 108 above.) Known gaps carried:
+"potential jobs matching" panel stat awaits a matching-side field. Source-quote grounding is no longer
+an open gap on the per-decision shapes — measured 0/336 ungrounded under #196 — but today's batched
+miner produced 6/277 **stitched** quotes, which the per-decision shape structurally cannot.
 
 **2026-08-11 (session 102) `/orchestrate-team` — provider jobs are language-safe and actionable; the
 e2e gate has no stale failures** (`46bad69`, `7b0b3b7`). [#113](https://github.com/adrien-mounier/jobcrush-app/issues/113)
