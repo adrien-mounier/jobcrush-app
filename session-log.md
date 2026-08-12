@@ -2,6 +2,51 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-12 (session 109) `/grilling #154` — a merged bullet now declares the result it kept
+
+Sixteen questions over eight rounds, then built. [#154](https://github.com/adrien-mounier/jobcrush-app/issues/154)
+was **stale on arrival**: three of its four acceptance criteria had landed with #153/#158 a week
+earlier and its own impact comment was out of date too. What was genuinely missing: **nothing checked
+that a result survived a merge, nothing bounded how many facts one line could absorb, and the
+held-back list reached no screen at all.**
+
+- 🔑 **[ADR-0012](docs/adr/0012-a-merged-bullet-declares-the-result-it-kept.md)** — a line built from
+  more than one claim must state what was achieved and **declare it in the bullet's own `outcome`
+  field**, and the declared words must appear **verbatim inside the printed text**. Checking that the
+  field is *filled in* would pass a clean result in the data beside a scope list on the page: a
+  passing check and an unchanged CV.
+- 🚨 **The clause that keeps it honest: if no source states a result, do not combine.** Any rule
+  demanding an outcome from duty-only sources hands the machine one way out — **invent one**. The
+  escape hatch is choosing (ADR-0007), never inventing.
+- ⚠️ **The rule is two claims per line; the alarm fires at four.** Enforcement sits deliberately
+  looser than the rule: the miner mines *atomic* claims, so an honest sentence routinely draws on two
+  or three, and a false warning costs the reader's trust in every true one. The owner reversed my
+  recommendation here and was right to.
+- ✅ **The person is now told, on the screen that shows the CV.** One block per job: how many facts the
+  profile holds and why they cannot all print, the held-back facts in the profile's **own** wording
+  behind a `<details>` count, and the over-full line beside the profile's original sentences.
+- 🚨 **A choice and a fault are worded differently, on purpose.** Held back = *"the ones that matter
+  least for this job"*. Over-full line = *"we could not fit these four facts and keep what they
+  achieved"*. The owner asked for the fault to be explained as a relevance decision; that was pushed
+  back on — it would make a silent loss indistinguishable from deliberate compression **in prose**,
+  ADR-0004 clause 1's failure in a new medium.
+- ⚡ **Found while building, not while grilling: #159's loss notices have been sent to the draft screen
+  since it was built and rendered by it never** — they only appeared on the wait screen, scrolling
+  past before the person had seen their CV. The web client's own type did not even list the field.
+  Folded into the same block for free.
+- ⭐ **Vocabulary pinned: "your profile"**, never "your CV" — on the draft screen "your CV" means the
+  document in front of them, and facts arrive from the upload *and* the interview. Both names already
+  existed in the live UI; no third one was invented.
+- **Repo output:** ADR-0012 · amended `cv-authoring-rules.md` + `preview-tailor.md` rule 8 ·
+  `outcome` on the Draft bullet + two checks + `draftDisclosure()` in `preview.ts` · the block on the
+  draft screen · 10 unit tests (`previewMergeOutcome.test.ts`) + 3 route-mocked screen tests
+  (`preview-disclosure.spec.ts`) · #154 body rewritten ·
+  [#203](https://github.com/adrien-mounier/jobcrush-app/issues/203) filed for put-back.
+- 🚨 **Owed: the one live run.** `previewMergeOutcome.live.test.ts` is written and network-gated (never
+  in CI, by decision — a flaky paid gate before every deploy is worse than a slow one). Three attempts
+  all returned **anthropic 529 Overloaded**; nothing certifies that the *real* model obeys amended
+  rule 8 yet. Re-run before pushing.
+
 ## 2026-08-12 (session 108) `/research #196` — the missing cost cell, measured on a real bill
 
 #160's confounded comparison is retired. Four prompt shapes × six corpus CVs × two samples, 48 billed

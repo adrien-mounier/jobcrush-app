@@ -82,9 +82,9 @@ const DRAFT: Draft = {
       location: "Warsaw, Poland",
       dates: "Mar 2021 - Present",
       bullets: [
-        { text: "Led the checkout replatforming, delivered 2 months early", claimIds: ["nrg-led-checkout-replatform"] },
-        { text: "Managed a budget of EUR 1.2M across 3 vendor teams", claimIds: ["nrg-managed-budget"] },
-        { text: "Ran steering committee reporting for the CIO", claimIds: ["nrg-steering-committee-reporting"] },
+        { text: "Led the checkout replatforming, delivered 2 months early", outcome: "", claimIds: ["nrg-led-checkout-replatform"] },
+        { text: "Managed a budget of EUR 1.2M across 3 vendor teams", outcome: "", claimIds: ["nrg-managed-budget"] },
+        { text: "Ran steering committee reporting for the CIO", outcome: "", claimIds: ["nrg-steering-committee-reporting"] },
       ],
       unprinted: [],
     },

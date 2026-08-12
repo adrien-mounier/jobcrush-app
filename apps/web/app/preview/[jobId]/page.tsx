@@ -6,7 +6,66 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { JobSnapshot } from "../../../lib/api";
+import type { JobDisclosure, JobSnapshot } from "../../../lib/api";
+
+// #154: one block per job. Two things live here and they are deliberately worded differently —
+// facts held back are a CHOICE (relevance to this posting, explained as such), an over-full line is
+// a FAULT of ours (compression), and explaining the fault as a choice is exactly what ADR-0004
+// clause 1 forbids. "Your profile", never "your CV": on this screen "your CV" is the draft the
+// person is looking at. Profile wording is printed whole, never trimmed to fit the panel.
+function JobBlock({ d }: { d: JobDisclosure }) {
+  return (
+    <section className="card" style={{ marginTop: 16 }}>
+      <p style={{ marginTop: 0, fontWeight: 600 }}>
+        {d.employer}
+        {d.role ? ` — ${d.role}` : ""}
+      </p>
+      <p className="lede" style={{ marginBottom: 12 }}>
+        Your profile holds <strong>{d.factCount} facts</strong> about this job. They cannot all
+        print at full length, so this draft prints the ones this job rewards most.
+      </p>
+
+      {d.heldBack.length > 0 && (
+        <details style={{ marginBottom: 12 }}>
+          <summary>
+            <strong>
+              {d.heldBack.length} {d.heldBack.length === 1 ? "fact is" : "facts are"} not printed
+            </strong>{" "}
+            — the ones that matter least for this job. Kept for when a job needs them. Show them
+          </summary>
+          <ul style={{ marginTop: 8 }}>
+            {d.heldBack.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {d.overfull.map((o) => (
+        <div key={o.text} role="status" style={{ marginTop: 12 }}>
+          <p style={{ marginBottom: 6 }}>
+            ⚠️ <strong>One printed line carries {o.count} facts at once</strong>
+            {o.lostResult ? ", and states what none of them achieved:" : ":"}
+          </p>
+          <p style={{ margin: "0 0 8px", fontStyle: "italic" }}>“{o.text}”</p>
+          <p className="lede" style={{ margin: "0 0 4px" }}>
+            Your profile says:
+          </p>
+          <ul style={{ marginTop: 0 }}>
+            {o.sources.map((s) => (
+              <li key={s}>{s}</li>
+            ))}
+          </ul>
+          <p style={{ marginBottom: 0 }}>
+            {o.lostResult
+              ? `We could not fit these ${o.count} facts and keep what they achieved. Check this line.`
+              : `We packed ${o.count} facts from your profile into this line. A line carrying this much loses detail. Check it.`}
+          </p>
+        </div>
+      ))}
+    </section>
+  );
+}
 
 export default function PreviewScreen() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -96,6 +155,19 @@ export default function PreviewScreen() {
           </p>
         </>
       )}
+
+      {html && posting?.disclosure?.map((d) => <JobBlock key={`${d.employer}-${d.role}`} d={d} />)}
+
+      {/* #159's loss notices have been sent to this screen since it was built and rendered by it
+          never — they only ever appeared on the wait screen, where they scroll past before the
+          person has seen the CV. Anything the per-job block above does not already cover lands
+          here. */}
+      {html &&
+        posting?.conservationNotices?.map((n) => (
+          <p key={n} className="lede" style={{ marginTop: 16 }} role="status">
+            {n}
+          </p>
+        ))}
 
       <div className="card" style={{ marginTop: 24 }}>
         <p style={{ marginTop: 0, fontWeight: 600 }}>

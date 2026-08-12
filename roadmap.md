@@ -16,6 +16,35 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Current design frontier
 
+**2026-08-12 (session 109) `/grilling #154` + build — merge versus outcome is arbitrated, in code.**
+The contradiction #154 filed is closed: **a line built from more than one claim must state what it
+achieved, declare that result in the bullet's own field, and the declared words must appear verbatim
+in the printed sentence.** Checking that the field is *filled in* — the obvious cheaper design —
+would have passed a clean result in the data beside a scope list on the page. 🚨 **The clause that
+keeps it honest is the refusal:** if no source states a result, **do not combine** — print one, hold
+the other back. Any rule demanding an outcome from duty-only sources invites the machine to invent
+one, and ADR-0007 is what makes the honest way out (choosing) available. ⚠️ **The rule is two claims
+per line; the alarm fires at four** — the miner mines *atomic* claims, so an honest sentence often
+draws on three, and a false warning costs the reader's trust in every true one; the owner reversed
+the recommendation here and the reversal was correct. ✅ **The loss is now disclosed on the screen
+that shows the CV**, per job: the fact count and why they cannot all print, the held-back facts in the
+profile's **own** wording, and the over-full line beside its original sentences. 🚨 **A choice and a
+fault are worded differently on purpose** — explaining the compression as *"these mattered least"*
+was proposed and pushed back on: that makes a silent loss indistinguishable from a deliberate one in
+prose, which is ADR-0004 clause 1's failure in a new medium. ⚡ **Found while building: #159's loss
+notices have been sent to the draft screen since it was built and rendered by it never** — visible
+only on the wait screen, scrolling past before the person saw their CV; the web client's type did not
+list the field. Folded in for free. ⭐ **Vocabulary pinned: "your profile"** for the fact pool (facts
+arrive from the upload *and* the interview), "master CV" for the verified document, "draft" for the
+tailored copy — all three already existed in the live UI. **Ceilings recorded, not hidden:** one
+surviving result per line is guaranteed, **not all of them** (the rest is disclosed, not prevented),
+and a three-claim squish is tolerated silently. Record: [ADR-0012](docs/adr/0012-a-merged-bullet-declares-the-result-it-kept.md).
+Follow-up: [#203](https://github.com/adrien-mounier/jobcrush-app/issues/203) (put a held-back fact
+back, for one application only — it carries the page-budget question #156 owns). 🚨 **Owed before
+push: the one live run** against the real model is written and network-gated, and three attempts
+returned `anthropic 529 Overloaded` — **nothing yet certifies that the real tailor obeys amended rule
+8**, only that the check catches it when it does not.
+
 **2026-08-12 (session 108) `/research #196` — the cost question is settled; accuracy is the new
 blocker.** The cell #160 never measured — *per-decision × rich*, the record ADR-0003/0004/0008
 actually require — costs **0.48× today's miner per upload and 0.44× per fact**, measured on the

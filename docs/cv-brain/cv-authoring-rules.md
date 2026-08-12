@@ -244,6 +244,28 @@ never removes silently, and a removal is reversible per application).
 
 **Merge only two bullets that genuinely say the same thing. Never as a way to make room.**
 
+**A merged bullet must keep a result, and the result must print** (#154). This is the precedence
+between this section and the outcome-led rule above, stated once, here — the tailor prompt carries
+it in full because the writer never sees this file, and cites this section as its source:
+
+- A line built from more than one source claim must state what was achieved, and the writer
+  **declares that outcome in the bullet's own `outcome` field**. The declared outcome must appear
+  **word-for-word in the printed line** — a result named in a field but absent from the sentence is
+  a result the employer never reads, and the check would pass on the very scope-list this rule
+  exists to prevent.
+- **If no source states a result, do not combine.** Print one claim and leave the other in
+  `unprinted`. The escape from a crowded role is choosing (ADR-0007), never inventing an outcome
+  the source does not carry — an invented outcome is a system inference wearing a source-supported
+  fact's clothes, which ADR-0004 clause 1 forbids outright.
+- **The rule is two; the alarm fires at four.** `conservationIssues()` warns only at four or more
+  source claims in one line, where the squish is unarguable — the owner's own BRED case. Three is
+  tolerated silently: atomic mining splits one CV sentence into several claims, so a legitimate
+  line can honestly draw on three, and a false warning costs the reader's trust in every true one.
+
+⚠️ **Honest limit:** this guarantees **one** surviving result per line, not all of them. A line
+combining three claims and keeping one result passes. The rest of the loss is *disclosed* in the
+draft's per-job block, not prevented.
+
 > 🚨 **Why "merge, never drop" is withdrawn as the default.** Measured on the owner's own CV, four
 > source bullets merged into one went from **514 characters to 172 — two thirds of the words gone.**
 > Every keyword survived; **every outcome clause died** (*strengthening customer security*,

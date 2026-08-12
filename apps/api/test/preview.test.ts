@@ -37,9 +37,9 @@ const sampleDraft: Draft = {
       // Claim ids here must be real ids from the recordedClaims() fixture (clean-pdf.json) —
       // conservationIssues() now cross-checks every claimIds entry against it (#158 must-fix 2).
       bullets: [
-        { text: "Led the checkout replatforming, delivered 2 months early", claimIds: ["nrg-led-checkout-replatform"] },
-        { text: "Managed a budget of EUR 1.2M across 3 vendor teams", claimIds: ["nrg-managed-budget"] },
-        { text: "Ran steering committee reporting for the CIO", claimIds: ["nrg-steering-committee-reporting"] },
+        { text: "Led the checkout replatforming, delivered 2 months early", outcome: "", claimIds: ["nrg-led-checkout-replatform"] },
+        { text: "Managed a budget of EUR 1.2M across 3 vendor teams", outcome: "", claimIds: ["nrg-managed-budget"] },
+        { text: "Ran steering committee reporting for the CIO", outcome: "", claimIds: ["nrg-steering-committee-reporting"] },
       ],
       unprinted: [],
     },

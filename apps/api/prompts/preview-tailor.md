@@ -61,6 +61,15 @@ worse CV, whatever the posting says.
      candidate bullet you leave out in that role's `"unprinted"` array instead of just dropping
      them. Merge two bullets only when they genuinely restate the same fact, never as a way to
      fit more in.
+   - **A line built from more than one claim must keep a result, and print it.** Put the surviving
+     result in that bullet's `"outcome"` — and write those exact words inside the bullet's own
+     `"text"`, verbatim. A result stated in `"outcome"` but missing from `"text"` is a result the
+     employer never reads. **If none of the claims you are combining states a result, do not
+     combine them**: print one and put the other's id in `"unprinted"`. Never invent a result to
+     satisfy this — choosing is the honest way out, inventing is not. A bullet drawn from a single
+     claim leaves `"outcome"` as `""`.
+     (Source of truth: `docs/cv-brain/cv-authoring-rules.md`, "When a role has more to say than
+     fits" — change both together.)
    - **Every printed bullet cites the claim(s) it came from.** Each line under `Claims:` is
      prefixed with its own id. Copy the id(s) a bullet draws on into that bullet's
      `"claimIds"` array — more than one id if you merged claims into one line, never zero. A
@@ -122,7 +131,13 @@ Output shape (JSON only, no prose):
       "employer": "…",
       "location": "city, country if stated, else empty",
       "dates": "claim dates, reformatted per rule 13 — start alone when the end is unknown",
-      "bullets": [{ "text": "…", "claimIds": ["…"] }],
+      "bullets": [
+        {
+          "text": "…",
+          "claimIds": ["…"],
+          "outcome": "the result this line keeps, verbatim inside \"text\" — \"\" for a single-claim bullet"
+        }
+      ],
       "unprinted": ["claim id of a candidate bullet that did not make the cut, if any"]
     }
   ],

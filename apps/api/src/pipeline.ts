@@ -9,6 +9,7 @@ import { CandidateClaim } from "@jobcrush/contracts";
 import type { CandidateClaim as CandidateClaimType, MinedJobBlocks } from "@jobcrush/contracts";
 import type { ImportProof } from "./sessions.js";
 import type { JobBlockView } from "./jobBlockStore.js";
+import type { JobDisclosure } from "./preview.js";
 
 export type PipelineInput =
   | { type: "upload"; data: Buffer; kind: CvKind; key: string }
@@ -60,6 +61,8 @@ export interface PipelineDeps {
     postingTitle: string;
     postingCompany: string;
     conservationNotices?: string[];
+    /** #154: per-job disclosure for the draft screen — held-back facts and over-full lines. */
+    disclosure?: JobDisclosure[];
   }>;
   /** #163: this session's stored job records, read once before tailoring so the Roles: block is
    *  fed from the corrected facts instead of the miner's original read (ADR-0002). */
@@ -301,6 +304,10 @@ export async function runOnboardingJob(
                 // ADR-0002 clause 5: a lossy draft's notices travel WITH the preview to the client
                 // (clientView keeps progress.preview), never console-only.
                 conservationNotices,
+                // #154: the disclosure travels WITH the preview for the same reason the notices
+                // do — the draft screen is where the person reads the CV, and a loss they only
+                // saw scroll past on the wait screen is a loss they did not see.
+                disclosure: rendered.disclosure ?? [],
               },
               previewHtml: rendered.html,
             },

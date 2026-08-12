@@ -147,6 +147,12 @@ export function matchPosting(
 const ExperienceBullet = z.object({
   text: z.string().min(1),
   claimIds: z.array(z.string().regex(SLUG)).min(1),
+  // #154: the result a multi-claim line keeps, and it must appear verbatim in `text`. Declaring it
+  // in a field the page never prints would let a scope list pass the check, so conservationIssues()
+  // checks containment, not presence. Absent/"" is correct for a single-claim bullet — the lane for
+  // a merged bullet that omits it is the LOSSY one (ship + tell), never a parse failure, because a
+  // person with a duty-only CV must still get a CV (#154 Q8).
+  outcome: z.string().default(""),
 });
 
 export const Draft = z.object({
@@ -295,6 +301,10 @@ const isLanguageClaim = (c: { id: string; text: string; role: string }) =>
 export interface ConservationIssue {
   message: string;
   visitor: string;
+  /** #154: this issue's visitor surface is the draft screen's per-job block, which says the same
+   *  thing with the person's own profile wording beside it. Kept out of `conservationNotices` so
+   *  the same sentence does not appear twice on one screen; it still drives the retry. */
+  blockCovered?: true;
 }
 
 /**
@@ -457,7 +467,108 @@ export function conservationIssues(
     }
   }
 
+  // #154: the merge/outcome arbitration. Two failures, ONE issue per bullet — a line that trips
+  // both would otherwise produce two near-identical notices about one sentence.
+  //   (1) a line built from >1 claim must keep a result, and the declared result must appear
+  //       verbatim in the printed text (a result named in a field the page never prints is a
+  //       result the employer never reads);
+  //   (2) a line built from 4+ claims is squished on its face. The RULE is two
+  //       (cv-authoring-rules.md); the ALARM is four, because atomic mining splits one CV sentence
+  //       into several claims, so a line honestly drawing on three is common and a false warning
+  //       costs the reader's trust in every true one.
+  // Honest limit: this guarantees ONE surviving result per line, not all of them. The rest of the
+  // loss is disclosed by draftDisclosure() below, not prevented.
+  for (const role of draft.experience) {
+    for (const b of role.bullets) {
+      if (b.claimIds.length < 2) continue;
+      const outcome = b.outcome.trim();
+      const lostResult = outcome === "" || !b.text.toLowerCase().includes(outcome.toLowerCase());
+      const tooMany = b.claimIds.length >= 4;
+      if (!lostResult && !tooMany) continue;
+      const n = b.claimIds.length;
+      issues.push({
+        blockCovered: true,
+        message: lostResult
+          ? `"${role.role}": the bullet "${b.text.slice(0, 120)}" combines ${n} claims ` +
+            `(${b.claimIds.join(", ")}) but ` +
+            (outcome === ""
+              ? `declares no surviving outcome.`
+              : `its declared outcome "${outcome}" is not in the bullet's own text.`) +
+            ` Rewrite it so the result is IN the sentence, or print one claim and put the ` +
+            `other id(s) in "unprinted" — never invent a result.`
+          : `"${role.role}": the bullet "${b.text.slice(0, 120)}" combines ${n} claims ` +
+            `(${b.claimIds.join(", ")}). The rule is two. Print the claims this posting most ` +
+            `rewards whole and put the rest in "unprinted".`,
+        visitor: lostResult
+          ? `We could not fit ${n} facts from your profile into one line under "${role.role}" ` +
+            `and keep what they achieved. Check that line before you send this draft.`
+          : `We packed ${n} facts from your profile into one line under "${role.role}". A line ` +
+            `carrying this much loses detail. Check it before you send this draft.`,
+      });
+    }
+  }
+
   return issues;
+}
+
+/** #154: what one job block on the draft screen has to say for itself. Only jobs with something to
+ *  disclose appear — "your profile holds N facts, they cannot all print" is a false statement about
+ *  a job that printed everything. */
+export interface JobDisclosure {
+  employer: string;
+  role: string;
+  /** Facts the profile holds about this job — the denominator the person is shown. */
+  factCount: number;
+  /** Held-back facts in the profile's OWN wording, never shortened: trimming a person's own
+   *  sentence to fit a panel misrepresents what they wrote (#154 Q10). */
+  heldBack: string[];
+  /** Printed lines carrying more than one fact that we owe an explanation for. */
+  overfull: { text: string; count: number; lostResult: boolean; sources: string[] }[];
+}
+
+/**
+ * #154: the disclosure behind each job on the draft screen. A choice (facts held back for this
+ * posting) and a fault (a line that took on too much) are explained differently and deliberately —
+ * dressing the fault up as a relevance decision is the very thing ADR-0004 clause 1 forbids.
+ */
+export function draftDisclosure(claims: CandidateClaims, draft: Draft): JobDisclosure[] {
+  const byId = new Map(claims.claims.map((c) => [c.id, c.text]));
+  const resolve = (ids: string[]) =>
+    ids.map((id) => byId.get(id)).filter((t): t is string => typeof t === "string");
+  return draft.experience
+    .map((role) => {
+      // The miner writes a claim's `role` as "employer + title as written", so the employer
+      // substring is the only stable join back to a printed entry — the same match
+      // conservationIssues() already uses for corrected job blocks above. When it finds nothing
+      // (a reworded employer), fall back to the ids this entry itself accounts for, so the count
+      // shown is never smaller than the lists under it.
+      const employer = role.employer.trim().toLowerCase();
+      const owned = employer
+        ? claims.claims.filter((c) => c.role.toLowerCase().includes(employer)).length
+        : 0;
+      const accounted = new Set([...role.bullets.flatMap((b) => b.claimIds), ...role.unprinted]);
+      const overfull = role.bullets
+        .filter((b) => b.claimIds.length >= 2)
+        .map((b) => {
+          const outcome = b.outcome.trim();
+          return {
+            text: b.text,
+            count: b.claimIds.length,
+            lostResult: outcome === "" || !b.text.toLowerCase().includes(outcome.toLowerCase()),
+            sources: resolve(b.claimIds),
+          };
+        })
+        // Same thresholds as conservationIssues() above: a result that did not print, or four.
+        .filter((b) => b.lostResult || b.count >= 4);
+      return {
+        employer: role.employer,
+        role: role.role,
+        factCount: Math.max(owned, accounted.size),
+        heldBack: resolve(role.unprinted),
+        overfull,
+      };
+    })
+    .filter((d) => d.heldBack.length > 0 || d.overfull.length > 0);
 }
 
 export interface TailoredDraft {
@@ -493,7 +604,7 @@ export async function tailorDraft(
     const issues = conservationIssues(claims, draft, opts.jobBlocks ?? [], opts.advertTests ?? []);
     if (issues.length === 0) return { draft, conservationNotices: [] };
     fallback = draft;
-    fallbackNotices = issues.map((i) => i.visitor);
+    fallbackNotices = issues.filter((i) => !i.blockCovered).map((i) => i.visitor);
     lastError = issues.map((i) => i.message).join("\n");
   }
   if (fallback) {
@@ -758,6 +869,10 @@ export function makePreviewStep(llm: LlmClient, extras: PreviewStepExtras = {}) 
       postingTitle: posting.title,
       postingCompany: posting.company,
       conservationNotices,
+      // #154: the per-job block. Built here, where the claims are still in hand — the browser only
+      // ever receives the finished document, so a claim id it was handed instead would be
+      // unresolvable and the disclosure would be a list of slugs.
+      disclosure: draftDisclosure(doc, draft),
     };
   };
 }
