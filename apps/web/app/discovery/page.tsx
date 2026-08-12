@@ -695,7 +695,7 @@ function DiscoveryScreen() {
   // applyCorrectionResult, never the no-to-positive branch commitCorrection has to distinguish.
   async function commitMultiCorrection(itemId: string, answers: string[]) {
     if (picked) return;
-    const label = answers.length > 0 ? joinList(answers) : "I can't work in any of these";
+    const label = answers.length > 0 ? joinList(answers) : "no languages listed";
     setPicked({ itemId, answer: label });
     setAskError(null);
     try {
@@ -741,11 +741,11 @@ function DiscoveryScreen() {
   }
 
   // #123: the language question's multi-select confirm — `answers` can legally be `[]` (the
-  // "I can't work in any of these" tap). The fly/notice label is the ticked list itself so it can
+  // empty tap). The fly/notice label is the ticked list itself so it can
   // never collide with the decline string, which travels its own path (answerFloor, unchanged).
   async function answerMultiSelect(item: DiscoveryQuestion, answers: string[]) {
     if (picked) return;
-    const label = answers.length > 0 ? joinList(answers) : "I can't work in any of these";
+    const label = answers.length > 0 ? joinList(answers) : "no languages listed";
     setPicked({ itemId: item.itemId, answer: label });
     setAskError(null);
     setNotice(null);

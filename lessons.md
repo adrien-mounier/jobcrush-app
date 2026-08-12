@@ -1,5 +1,33 @@
 # Lessons — jobcrush-app
 
+## A test that matches a button by its words fails the day the words are right
+
+#165 reworded one button. It broke `years-worked-out-journey` — a tier-2 CI gate about
+years-of-experience, which names no language and asserts nothing about them. The journey walks the
+whole ask-list, matched the languages question's confirm by literal label, and when the label
+changed the walk **stalled on that question and never reached the date question it was actually
+testing**. Four assertions failed, none of them about the thing that changed.
+
+**The tell is the failure's shape:** assertions fail *downstream* of an interaction that silently
+did nothing. A stalled walk reads exactly like a broken feature.
+
+Match a control by role or by a structural selector (`.elig-actions .go`), never by its sentence.
+Copy is the most-edited thing in the product and the least load-bearing — pinning it inverts that.
+This was the **third** copy-pin in one ticket: two stale journeys the QA gate caught, four frozen
+mock payloads, and this. I fixed the first two batches by updating the words, which is why the third
+was still armed. Updating a pinned string fixes today; removing the pin fixes the class.
+
+## Tier 1 green does not mean the e2e gate is green
+
+`pnpm test` runs no browser tests at all. `e2e:mocked` (tier 1, `*.spec.ts`) and `e2e:tier2` (six
+hand-picked real-stack journeys) are **separate** CI jobs, and only tier 2 walks whole funnels — so
+it is the one that catches a change to a question every funnel passes through. I ran tier 1, saw
+131 green, and pushed; CI failed on tier 2 nine minutes later. The QA gate had even named tier 2 as
+unrun. **Before pushing anything that touches a shared step of the sign-up funnel, run
+`node e2e/run-tier2.mjs` — and give it a port nothing else owns** (`SHARED_INFRA.md`: both projects
+default to 3000; my first attempt bound nothing, ran all six journeys against a stranger's server,
+and reported a confident 6/6 failure that meant nothing).
+
 ## When a ticket says a source is normative, diff your design against that source line by line
 
 #165 named #125 normative — *"all six"*. I read #125's issue body, built a five-rung ladder that felt

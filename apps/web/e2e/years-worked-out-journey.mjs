@@ -151,7 +151,10 @@ for (let i = 0; i < 16; i++) {
   if (/when did you leave/i.test(q)) { holeQuestion = q; break; }
   const opts = page.locator('.discovery .opts .opt');
   const later = page.getByRole('button', { name: 'Ask me later', exact: true });
-  const multiDone = page.getByRole('button', { name: /^(That's all of them|I can't work in any of these)$/ });
+  // #165: matched by role in the actions row, never by label. Pinning the words here is what broke
+  // this journey when the languages question's confirm was reworded — the walk stalled on it and
+  // never reached the date question, failing four assertions that had nothing to do with languages.
+  const multiDone = page.locator('.discovery .elig-actions .go');
   if (await multiDone.count()) await qa.click(multiDone.first(), `finish the multi-select "${q}"`);
   else if (await opts.count()) await qa.click(opts.first(), `answer "${q}" with the first option`);
   else if (await later.count()) await qa.click(later.first(), 'ask me later');
