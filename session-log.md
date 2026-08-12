@@ -71,7 +71,27 @@ The live job-deleting bug is gone, and not by being more careful.
   `withdrawal.ts` (`partitionByWithdrawal`); the new endpoint landed while the spine shrank.
 - ⚠️ **Ceiling recorded, not hidden:** a **skipped** level question is remembered for that card view
   only, not stored — a reload re-asks on the same advert, which ADR-0011 clause 4 would rather it did
-  not. Marked in the code; it needs a per-advert record that does not exist yet.
+  not. Marked in the code, and now filed as
+  [#204](https://github.com/adrien-mounier/jobcrush-app/issues/204), placed in the run order right
+  after #169 (it inherits the same persistence work).
+- 🚨 **The QA gate returned NO-GO, and it was right twice.** (1) Declining the languages question
+  **deleted every level already placed**, including the deliberate "I don't speak this one" — and the
+  path was not exotic: the web client routes an empty confirm ("I'd rather not list any") to that
+  decline. I had written *"a placed level is never retracted by this question"* into
+  `languageDeclarationPlan` and left the decline branch, twenty lines above it, removing everything
+  unconditionally. **Shipping one half of a rule reads exactly like shipping the rule.** (2) A
+  pre-#165 `"none"` row **shadowed a real re-declaration** — the screen said "Locked in" while
+  nothing was stored. Both fixed in `61cb799`, re-gated GO against the running app.
+- ⚠️ **The gate also caught the process error that produced them:** I committed before running it,
+  because `/implement` ends with "commit your work" and I let that beat the repo's own lifecycle.
+  CLAUDE.md now says outright that it outranks a skill's closing line, and that `Closes` is written
+  only after a GO.
+- ⚡ **Test-asset debt, found by running the tests nobody runs:** `language-withdrawal-journey.mjs`
+  asserted the harm this ticket deletes and had been permanently red; deleted, superseded by the
+  gate's own `language-ladder-journey.mjs`. The old question stem and consequence were frozen into
+  **four** other journey mocks — screens rendering a promise the product had stopped making.
+  `eligibility-questions-journey.mjs`'s 6 failures were checked and **predate this ticket** (#182/#184);
+  left out of scope rather than quietly absorbed.
 
 ## 2026-08-12 (session 109) `/grilling #154` — a merged bullet now declares the result it kept
 
