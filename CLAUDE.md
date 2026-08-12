@@ -24,10 +24,9 @@ It is a **clean-room repo**: logic is **ported by copying** from the personal-pi
 
 ## Architecture decisions live in `docs/adr/`
 
-Every decided design shape — origins, stretches, projects, printing/withholding, how facts arrive,
-unclassified content, holes — is recorded in `docs/adr/` (0001–0011). **Read the relevant ADR before
-touching capture, render, or the claim graph.** The ADRs are the normative home; most are decided
-but not yet built, so never assume a described check exists in code.
+Every decided design shape is recorded in `docs/adr/`. **Read the relevant ADR before touching
+capture, render, or the claim graph.** The ADRs are the normative home; most are decided but not yet
+built, so confirm in code before relying on any check one describes.
 
 ## Relationship to the JobCrush repo (read this before touching CV logic)
 
