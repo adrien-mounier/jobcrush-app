@@ -41,12 +41,22 @@ not correctness on well-specified work — start no ticket at `max`.
 | 6 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
 | 7 | #64 | The match count survives signup | `/implement` | Opus | medium |
 
-**#205 is built (2026-08-13), pending review + QA gate.** The eligibility journey is green (45/0)
-and now runs in Tier 2, which is 7 journeys / 14 min and all green. Its audit produced **#209**: of
-the 17 journeys in no tier, 12 are green, one was rotted and fixed here, and four cannot run at all
-until someone gives them a stack. **#209 sits below #120, not above it** — the four are not red
-because the product is wrong, and nothing lands on top of them the way #120/#166/#122 land on the
-eligibility questions.
+**#205 shipped 2026-08-13** (`0fe62f3`, `6f8cc64`, `9f5bd5e`; QA gate GO). The eligibility journey
+is green (45/0) and runs in Tier 2 — 7 journeys / 14 min / 253 assertions, all green. Its audit
+produced **#209**: of the 17 journeys in no tier, 12 are green, one was rotted and fixed there, and
+four cannot run at all until someone gives them a stack. Two honest residuals were recorded rather
+than papered over: **no journey now carries a live "no" work-rights answer through to the deck**
+(the question is asked once, and the journey retracts it to prove the correction path), and #209's
+first diagnosis of `job-blocks-confirm` was copied from a stale header and was wrong.
+
+**#209's shape is decided (owner, 2026-08-13): fix three, force the call on the fourth.** Add a
+language-requiring posting to the fixture corpus; add a judge-delay knob to `qa-main.ts`; diagnose
+the confirm-deck failure for real — those three then join Tier 2. The fourth,
+`master-cv-dates-note-journey.mjs`, is **rewritten against the free fake model or deleted, inside
+that ticket** — it was written against the real paid model, so CI can never run it, and it has been
+diagnosed twice already. Accepted cost: Tier 2 goes from ~14 to ~20 min per push. **#209 stays
+below #120** — the four are not red because the product is wrong, and nothing lands on top of them
+the way #120/#166/#122 land on the eligibility questions.
 
 **#202 first, and it is now cheaper and differently shaped** — rewritten 2026-08-13 after the #196
 corpus was re-counted directly. Three of its premises did not survive: the live reader is **not** the
