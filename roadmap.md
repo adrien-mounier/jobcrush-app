@@ -196,8 +196,8 @@ hold it whole) needs no new field and may be truer to *tailor by emphasis, not a
 flexible one — price that before building. ⚠️ **Do not start it assuming #157 covers the display
 half** — #157 is closed and its items were re-homed; check where they landed first.
 
-**#211 and #210 were opened 2026-08-13, out of the #202 decision-2 discussion, and both sit
-immediately before #164.**
+**#211 and #210 were opened 2026-08-13, out of the #202 decision-2 discussion. #211 is now decided
+and closed; #210 alone still sits before #164, and is unblocked.**
 
 - **~~#211~~ — how finely a skill list splits. ✅ DECIDED 2026-08-13** (ADR-0004 clause 10,
   **ADR-0013**). The read takes only the skills inventory; job bullets stay whole. A tool named inside
@@ -217,7 +217,9 @@ immediately before #164.**
   — the polish step over the finished master CV is one-bullet-in-one-bullet-out, enforced in
   `audit.ts`, so a skill list stuffed into a job description prints as a job bullet. The fix is at
   the render, not the miner — #144's boundary, applied to the master CV, which is itself a render.
-  **After #211**, because its worked example is a skill list. **#156 before #167** because #167, #170 and #171 each make CVs longer and nothing
+  **#211 is now decided, so #210 is unblocked** — and **ADR-0013 is what it should be built from**:
+  that ADR is the rule obliging the render to act, and its clause 1 (a fact may reach the section a
+  reader expects it in) is #210's case restated for shape rather than coverage. **#156 before #167** because #167, #170 and #171 each make CVs longer and nothing
 checks length today. **#207 immediately before #168** — #168 decides what prints per application, so
 if #207 is not settled first, #168 answers it by accident. It exists because #202's decision 1 ruled
 that a duty printed under three jobs is **one fact, counted once**; the tailored CV still prints
@@ -318,6 +320,30 @@ spent four years on the objective version and killed it).
 code and the tracker. Phase 4 onward is a value judgement — reorder freely.
 
 ## Current design frontier
+
+**2026-08-13 (session 116) `/grilling 211` — all three candidate rules lost, and the missing one was
+a product promise.** [#211](https://github.com/adrien-mounier/jobcrush-app/issues/211) **closed**
+(`c7d81fb`); **[#213](https://github.com/adrien-mounier/jobcrush-app/issues/213) opened**. The ticket
+offered three ways to split a skill list, each graded on how little the **reader** varies between
+runs, and the recommended one (mine the Skills section only) was refused on a ground the ticket never
+stated: *"the master CV should be **better** than the uploaded CV… a minimum thing is to add C# in the
+SKILLS section — **not for the machine, but for the human who will read it**."* That rule was
+unwritten and is now **ADR-0013**; it had already decided #210 silently. 📐 **ADR-0004 clause 10:** the
+read takes only the skills inventory (bullets stay whole, so its boundary is a fact about the page); a
+tool inside a bullet is **proposed** under the guard *must be an exact string already in the CV*;
+proposals arrive **selected**, one screen, at ingestion; what the person keeps is **permanent**. 🔑
+**The swing is closed by the person, not the reader** — the proposal step is still a model judgement
+and still moves between runs, stated rather than hidden; the CV is read once, pruned once, and a
+second read cannot revise a user-resolved set, so profile, `rootcv.ts` and every tailored draft read
+one list. ❌ **The deterministic option lost on one fact:** a ~90-term curated vocabulary (what both
+large live projects ship) would end the variance outright, but no such list holds **`XrmToolBox`**, and
+that omission is **invisible** — a person cannot audit a skill he was never offered. 🔁 **Two of the
+session's own recommendations were reversed after facts that should have come first:** `rootcv.ts` is
+a **mechanical** renderer, so no writer can "lift" anything and a **record must exist**; and #211 went
+back to decision-only once the ruling grew past the ~1 hour build that was advised. 📉 **AC4 replaced,
+not met:** stability was the wrong number under ADR-0013, so skills join **#202's answer key** and the
+measure is **coverage**. **#164 amended in part and builds all of it** (group labels still open there);
+**#213** covers the CV that names no tools at all — trigger is *a thin result*, not a missing CV.
 
 **2026-08-13 (session 110) `/implement #165` — the mistap that deleted jobs is gone, structurally.**
 A language and its level are now **two facts** (ADR-0008 clause 6). Declaring is an **open type-ahead**
