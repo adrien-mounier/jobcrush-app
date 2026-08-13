@@ -349,6 +349,77 @@ describe("conservation lint — tailor by emphasis, not amputation", () => {
     expect(conservationIssues(claims, valid)).toEqual([]);
   });
 
+  // #208: compound bullets are captured whole and split at WRITING time, so one claim id cited by
+  // two printed bullets is the new legitimate shape — the lint must pass it.
+  //
+  // ⚠️ Read this before trusting the pass: each divided bullet is SINGLE-claim, so #154's
+  // verbatim-result rule (which fires only at claimIds.length >= 2) cannot see it. This test pins
+  // that the shape is accepted; it does NOT pin that a division keeps its result. Nothing does —
+  // the tailor prompt forbids splitting a result away from its action in prose only, and a
+  // division declares no `outcome` field for a check to read. Deliberate gap, recorded in
+  // ADR-0012 clause 4a.
+  it("passes one claim id split across two printed bullets (#208)", async () => {
+    const claims = await recordedClaims();
+    const split: Draft = {
+      ...sampleDraft,
+      experience: [
+        {
+          ...sampleDraft.experience[0]!,
+          bullets: [
+            {
+              text: "Led the checkout replatforming, delivered 2 months early",
+              claimIds: ["nrg-led-checkout-replatform"],
+              outcome: "",
+            },
+            {
+              text: "Coordinated the vendor teams through the replatforming cutover",
+              claimIds: ["nrg-led-checkout-replatform"],
+              outcome: "",
+            },
+          ],
+        },
+      ],
+    };
+    expect(conservationIssues(claims, split)).toEqual([]);
+  });
+
+  // The other half of AC3: #154 must still hold "when a compound line is divided". The real risk is
+  // not that the merge rule stopped working — previewMergeOutcome.test.ts already pins that — it is
+  // that a division sitting in the SAME role could mask it, since both shapes now share one loop.
+  // So: one divided claim and one bad merge in the same draft. The merge must still be caught.
+  it("a division in the same role does not mask a merged line that lost its result (#154 after #208)", async () => {
+    const claims = await recordedClaims();
+    const both: Draft = {
+      ...sampleDraft,
+      experience: [
+        {
+          ...sampleDraft.experience[0]!,
+          bullets: [
+            // the division: one claim, two lines, both single-claim
+            {
+              text: "Led the checkout replatforming, delivered 2 months early",
+              claimIds: ["nrg-led-checkout-replatform"],
+              outcome: "",
+            },
+            {
+              text: "Coordinated vendor teams through the replatforming cutover",
+              claimIds: ["nrg-led-checkout-replatform"],
+              outcome: "",
+            },
+            // the bad merge: declares a result the sentence never prints
+            {
+              text: "Led checkout replatforming and managed the budget across 3 vendor teams",
+              claimIds: ["nrg-led-checkout-replatform", "nrg-managed-budget"],
+              outcome: "delivered 2 months early",
+            },
+          ],
+        },
+      ],
+    };
+    const issues = conservationIssues(claims, both);
+    expect(issues.filter((i) => i.message.includes("is not in the bullet's own text"))).toHaveLength(1);
+  });
+
   it("does not count education diplomas or experience bullets as certifications", async () => {
     const claims = await recordedClaims();
     claims.claims.push(

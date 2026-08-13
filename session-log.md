@@ -2,6 +2,59 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-13 (session 115) `/implement #208` — the reader stops splitting, the writer learns how
+
+The live product did the opposite of #202's decision 2 on every upload: `claim-miner.md` told the
+reader to *"Split compound bullets"*. It now captures the printed line whole, and the tailor — which
+could only ever **merge** claims — gained the ability the ruling depends on.
+
+- ✂️ **Capture whole (`claim-miner.md`, v3).** Rules 1 and 2 changed together, which was the whole
+  reason this was not a one-line edit: rule 2 blessed atomisation as `verbatim`, so cutting rule 1
+  alone would have left the contradiction half-standing. Rule 1 also pins ruling 3 (a page-wrapped
+  sentence is one claim) so the settled unit is stated where the reader reads it.
+- 🆕 **Split at writing time (`preview-tailor.md`).** New rule under the bullet-spend ladder: one
+  claim may print as two bullets when **this posting tests more than one of its actions**, both
+  citing the same id. Two limits, because the ability is a padding risk: never split to fill a role
+  out, and never split a result away from the action that produced it.
+- ✅ **The lint already accepted the new shape** — each split bullet is single-claim, so #154's
+  merged-line rule never fires on it. Confirmed rather than assumed, and pinned by two tests in
+  `preview.test.ts` (the split passes; a division sitting beside a bad merge does not mask it).
+- ⚠️ **A gap the review caught, kept visible instead of closed.** Because #154's rule fires only on
+  multi-claim lines, a **division is checked by nothing**. A merge can be checked because it
+  *declares* the result it kept in a field; a division declares nothing, so "never split a result
+  away from the action that produced it" is enforced by prompt wording alone. The first draft of the
+  test read as if the pass were coverage — it now says the opposite in its own comment, and
+  **ADR-0012 gained clause 4a** to record the gap where the normative home can see it.
+- 🎯 **QA gate: GO**, gates re-run with the turbo cache bypassed (1325 + 46 green, typecheck green,
+  ratchet byte-identical at 1138/1138). **No browser pass, on purpose and stated as such** — every
+  executable line in the diff is a comment; the behaviour lives in LLM instructions, so a run
+  against the test seam's fake model would have proved only that the app boots. The gate bought
+  real evidence where it was free instead: it pushed the split shape through the actual draft
+  schema and the actual lint, which the repo test (a typed object literal) never does.
+- 🚩 **The gate found the padding limit is unchecked too, and that one is NEW.** One claim id printed
+  on five bullets parses and lints clean — pre-#208 those fragments were separate claims, so
+  padding was not a division. ADR-0012 clause 4a now names both unchecked directions, not one.
+- 🩹 **The review also caught three files still asserting the retired rule** and two clauses I had
+  added that nobody asked for. `ADR-0012` clause 4's stated reason for the four-claim alarm was
+  *false* after this change (it justified the gap by atomic mining); `candidateClaims.ts` and
+  `previewMergeOutcome.test.ts` repeated it. All three fixed. My own overreach — *"never fuse two
+  bullets"* (contradicted rule 3's `Derived`) and a prose-splitting carve-out (#167's question, not
+  mine) — deleted rather than defended.
+- 📦 **Claims already stored as fragments are left alone, on purpose.** Re-reading would overwrite
+  corrections people made by hand (ticket item 4's own warning). With no users, the only
+  fragment-shaped rows are dev/staging data and the committed eval recordings — the eval harness
+  validates recordings offline, so a prompt edit breaks nothing and the recordings re-record when
+  someone runs `RECORD_MINER=1`.
+- ⚠️ **Not re-scored against #202's answer key.** That needs live API calls and was not an
+  acceptance criterion. Every reader in the #202 corpus already kept compound lines whole, so the
+  live prompt moved *toward* the key — an argument, not a measurement. Worth folding into the next
+  paid miner run.
+- 📝 The 4-claim alarm's stated reason ("atomic mining splits one sentence into several claims") died
+  with this change. The threshold stayed at four on the false-alarm argument alone, and
+  `cv-authoring-rules.md` + `preview.ts` now say that instead of the old reason.
+
+Gates: 1325 tests green, typecheck green, ratchet untouched.
+
 ## 2026-08-13 (session 114) `/research #202` — the readers finally have a right answer, and today's miner is the joint-best one
 
 #196 compared the four CV readers **against each other**, which cannot say which is right. #202 built

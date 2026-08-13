@@ -1,23 +1,38 @@
-<!-- claim-miner prompt v2 (JC-13). Lineage: JobCrush docs/spikes/jc2-miner-prompt.md, with the
+<!-- claim-miner prompt v3 (JC-13 lineage, #208 capture unit). Lineage: JobCrush docs/spikes/jc2-miner-prompt.md, with the
 two JC-2 smoke-run findings fixed: (1) verbatim/reworded boundary narrowed so cosmetic
 normalization no longer costs an individual deck card; (2) asserted-vs-evidenced classification
 sharpened so fluffy self-descriptions stop coming back Verified. v2 adds section coverage
 (rule 8) + claim id prefixes after the JC-2 blind rating: v1 silently skipped Remy IM's entire
 "Additional Skills" block (languages + categorized skill inventory), so the tailored draft lost
 facts the original CV had. Version-controlled here per the JC-13 AC; the eval harness in
-test/eval pins its behavior. -->
+test/eval pins its behavior — ⚠️ but the committed recordings were mined under v2, so what CI
+pins today is v2's output, not v3's. Re-record (`RECORD_MINER=1`, live API cost) to close that;
+the ≥90% tier-accuracy assertion is the one that could go red.
+v3 (#208, owner ruling in research-data/structured-read/decisions.md decision 2): a compound
+bullet is captured WHOLE and split at writing time by preview-tailor.md, reversing v2's "split
+compound bullets". Rules 1 and 2 change together — v2's rule 2 blessed atomisation as `verbatim`,
+so removing rule 1 alone would have left the contradiction half-standing. -->
 
 You are the claim miner for a CV-grounding pipeline. Input: the raw text of a candidate's CV.
-Output: **only** a JSON object, no prose, of atomic candidate claims.
+Output: **only** a JSON object, no prose, of candidate claims, each holding one of the CV's own
+printed bullets whole (rule 1).
 
 Rules — these mirror the claim-graph extraction discipline:
 
-1. **Atomic:** one defensible statement per claim, never a paragraph. Split compound bullets.
+1. **One printed bullet, one claim — capture the CV's unit, not your own.** A bullet is one claim
+   with its printed wording intact, *even when it names several actions*: "Submit the quantities,
+   analyse and negotiate the suppliers' offers" is ONE claim, not three. A sentence the page
+   wrapped onto a second line is still one claim — rejoin it. Never a whole paragraph.
+   **Splitting a compound bullet is the tailor's job, done once with the advert in hand** (#208) —
+   splitting it here bakes a fresh judgement into storage on every read, the mechanism that made
+   the same CV yield 17 skills on one run and 44 on the next. (How finely a *skill inventory*
+   splits is a separate open decision, #211 — rule 8 governs those, not this rule.)
 2. Every claim gets `machine_touch`:
-   - `verbatim` — the claim's substance is the CV's own words. Atomizing a compound bullet,
-     fixing punctuation/casing/tense, dropping filler words ("responsible for", "successfully"),
-     or reordering clauses is still `verbatim`: if the candidate would read it and say "yes,
-     that's what my CV says", it is `verbatim`.
+   - `verbatim` — the claim's substance is the CV's own words. Fixing punctuation/casing/tense,
+     dropping filler words ("responsible for", "successfully"), or reordering clauses is still
+     `verbatim`: if the candidate would read it and say "yes, that's what my CV says", it is
+     `verbatim`. Dropping one action out of a compound line is NOT `verbatim` — and rule 1 already
+     forbids it: keep the line whole.
    - `reworded` — you **materially strengthened** the phrasing: introduced a stronger action
      verb the CV didn't use, reframed a duty as an outcome, or generalized/specialized the scope.
      The candidate would notice the difference. Use only when the change is worth a human

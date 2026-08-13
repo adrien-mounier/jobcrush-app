@@ -244,6 +244,15 @@ never removes silently, and a removal is reversible per application).
 
 **Merge only two bullets that genuinely say the same thing. Never as a way to make room.**
 
+**Splitting is the writer's job, not the miner's** (#208). A claim holds one printed line of the
+source CV whole, several actions and all — the miner no longer atomises it, because splitting at
+capture re-decides the unit on every read (the mechanism behind the 17→44 skills swing, ADR-0004
+clause 3). The writer splits a compound claim into two bullets when **this advert tests more than
+one of its actions and each stands as its own line**. Both bullets cite the same claim id: one
+claim, two printed lines, which `conservationIssues()` accepts by design. Never split to fill a
+role out, and never split a result away from the action that produced it — the line keeping the
+result keeps the words that state it.
+
 **A merged bullet must keep a result, and the result must print** (#154). This is the precedence
 between this section and the outcome-led rule above, stated once, here — the tailor prompt carries
 it in full because the writer never sees this file, and cites this section as its source:
@@ -259,8 +268,10 @@ it in full because the writer never sees this file, and cites this section as it
   fact's clothes, which ADR-0004 clause 1 forbids outright.
 - **The rule is two; the alarm fires at four.** `conservationIssues()` warns only at four or more
   source claims in one line, where the squish is unarguable — the owner's own BRED case. Three is
-  tolerated silently: atomic mining splits one CV sentence into several claims, so a legitimate
-  line can honestly draw on three, and a false warning costs the reader's trust in every true one.
+  tolerated silently because a false warning costs the reader's trust in every true one. (The
+  original reason was that atomic mining split one CV sentence into several claims, so three was
+  often one sentence reassembled. #208 ended atomic mining; the gap of two was kept anyway, on the
+  false-alarm argument alone. If merged lines get worse, tightening to three is the lever.)
 
 ⚠️ **Honest limit:** this guarantees **one** surviving result per line, not all of them. A line
 combining three claims and keeping one result passes. The rest of the loss is *disclosed* in the

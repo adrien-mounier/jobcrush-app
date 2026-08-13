@@ -34,7 +34,7 @@ not correctness on well-specified work — start no ticket at `max`.
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
 | ~~1~~ | ~~#202~~ | ~~Which bullet count is right — 73 or 114?~~ **DONE 2026-08-13** | — | — | — |
-| 2 | #208 | The reader splits compound bullets; the ruling says don't | `/implement` | Opus | high |
+| ~~2~~ | ~~#208~~ | ~~The reader splits compound bullets; the ruling says don't~~ **DONE 2026-08-13** | — | — | — |
 | 3 | #120 | Durable editor for eligibility answers | `/implement` | Opus | medium |
 | 4 | #209 | Four e2e journeys are in no CI tier and cannot run | `/implement` | Opus | medium |
 | 5 | #124 | Where do you want to work? | `/wayfinder` | Opus | high |
@@ -84,15 +84,28 @@ gate questions work, and three tickets right behind it (#120, #166, #122) all ed
 questions. **Keep this correction visible** — a false urgency argument is worse than none, and it is
 the second premise in this section to be retired by checking rather than assuming.
 
-**#208 third, and it does NOT wait for #202 to finish** — the ruling behind it is already taken
-(decision 2: capture the printed line whole, split at writing time). It sits here rather than inside
-#202 because **#202's own acceptance criteria forbid product code landing**, and this is a live
-prompt on every upload. It is also not the one-line edit it looks like: `claim-miner.md` rules 1 *and*
-2 both bless splitting, `preview-tailor.md` can only **merge** claims and has no way to print two
-bullets from one claim — the ability the ruling depends on does not exist yet — and the conservation
-lint must accept one claim id cited twice. Nothing is lost by waiting, but **every upload in the
-meantime would store fragments in the shape we ruled against** — but with no users that accrual is
-theoretical, which is exactly why it no longer outranks #205. **#205 before #120** — it is test debt, not product work, and it still goes
+**#208 shipped 2026-08-13.** The reader now stores a compound bullet whole and the writer splits it
+with the advert in hand — the ruling is live on every upload. The writer gained an ability it did not
+have (one claim, two printed bullets, both citing the same id); the conservation lint already
+accepted that shape and is now pinned by a test. ⚠️ **One honest gap, found by the review and kept
+rather than papered over:** the lint can check a *merge* because a merged line declares the result
+it kept in a field — a *division* declares nothing, so "never split a result away from the action
+that produced it" is enforced by prompt wording alone. Recorded as ADR-0012 clause 4a, and the test
+says so where someone might read the pass as coverage.
+**Claims already stored as fragments are left alone, deliberately**: a re-read
+would overwrite corrections people made by hand, and with no users the only fragment-shaped rows are
+dev/staging data plus the committed eval recordings, which re-record on demand. One thing not done
+and worth naming: the edited prompt was **not re-scored against #202's answer key** — that needs live
+API calls and was not in the ticket's acceptance criteria. The direction is favourable (every reader
+in the corpus already kept compound lines whole, so the live prompt moved *toward* the key), but that
+is an argument, not a measurement.
+
+**The one correction from #208's ordering worth keeping.** It was first ranked second on urgency —
+*every upload adds rows in the shape we ruled against* — and that cost did not exist: nobody uses the
+app yet, so nothing was accruing. The second premise in this section retired by checking rather than
+assuming. A false urgency argument is worse than none.
+
+**#205 before #120** — it is test debt, not product work, and it still goes
 second on purpose: `eligibility-questions-journey.mjs` is the ONLY end-to-end proof that the gate
 questions work, it has been red and in no CI tier for weeks, and the next three tickets (#120, #166,
 #122) all edit exactly those questions. Landing them on a broken net means the net never catches

@@ -473,9 +473,17 @@ export function conservationIssues(
   //       verbatim in the printed text (a result named in a field the page never prints is a
   //       result the employer never reads);
   //   (2) a line built from 4+ claims is squished on its face. The RULE is two
-  //       (cv-authoring-rules.md); the ALARM is four, because atomic mining splits one CV sentence
-  //       into several claims, so a line honestly drawing on three is common and a false warning
-  //       costs the reader's trust in every true one.
+  //       (cv-authoring-rules.md); the ALARM is four, because a false warning costs the reader's
+  //       trust in every true one. (#208 ended atomic mining — a claim now holds a whole printed
+  //       line — so the "three is often one sentence reassembled" reason is gone; the gap was kept
+  //       on the false-alarm argument alone.)
+  // The reverse shape is deliberately NOT an issue: ONE claim id cited by TWO bullets is the tailor
+  // splitting a compound claim at writing time (#208), each bullet single-claim, so neither trips
+  // the check below. Honest limit, ADR-0012 clause 4a: that also means a DIVISION is unchecked here,
+  // in both directions — neither "never split a result away from its action" nor "never split to pad
+  // a role out" (one id on five bullets lints clean) has a backstop. A merge can be checked because
+  // it declares its surviving `outcome` in a field; a division declares nothing. Both live in
+  // preview-tailor.md as prose and nowhere else. Pinned in preview.test.ts.
   // Honest limit: this guarantees ONE surviving result per line, not all of them. The rest of the
   // loss is disclosed by draftDisclosure() below, not prevented.
   for (const role of draft.experience) {

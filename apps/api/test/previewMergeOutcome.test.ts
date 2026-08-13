@@ -100,9 +100,10 @@ describe("#154 a merged bullet must keep a result, and the result must print", (
   });
 
   it("tolerates three claims in one line, and warns at four", () => {
-    // The rule is two; the alarm is four. Atomic mining splits one CV sentence into several claims,
-    // so a line honestly drawing on three is common — and a false warning costs the reader's trust
-    // in every true one.
+    // The rule is two; the alarm is four — a false warning costs the reader's trust in every true
+    // one. (#208 retired the original reason for the gap: the miner no longer splits a CV sentence
+    // into several claims, so three claims is three facts. Threshold kept anyway — ADR-0012 clause
+    // 4's amendment note records that this is the weaker justification, deliberately accepted.)
     expect(
       conservationIssues(
         bredClaims(),

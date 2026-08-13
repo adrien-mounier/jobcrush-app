@@ -50,11 +50,38 @@ own clause: *the machine never adds silently.* ADR-0007 is what makes the honest
 choosing is legal, and the person is told.
 
 **4. The rule is two claims per line; the alarm is four.** Enforcement deliberately sits looser than
-the rule. The miner mines *atomic* claims and splits compound bullets, so one honest sentence
-routinely draws on two or three claims — "more than one claim" is not evidence of a squish. A false
-warning spends a retry and prints a warning about a line that was fine, and a person who reads two
-false warnings stops reading the true one. Four is where the squish is unarguable; it is the owner's
-own BRED case.
+the rule. A false warning spends a retry and prints a warning about a line that was fine, and a
+person who reads two false warnings stops reading the true one. Four is where the squish is
+unarguable; it is the owner's own BRED case.
+
+> ⚠️ **Amended 2026-08-13 (#208), and the amendment weakens this clause's original reason.** As
+> written on 2026-08-12 the gap of two was justified by the miner: *"the miner mines atomic claims
+> and splits compound bullets, so one honest sentence routinely draws on two or three claims."*
+> **#208 reversed that** — a claim now holds one printed bullet whole, so a line drawing on three
+> claims is genuinely three facts, not one sentence reassembled. The threshold was **kept at four
+> anyway**, on the false-alarm argument alone, which is the weaker of the two reasons. Recorded
+> rather than quietly re-justified: if merged lines get worse, tightening the alarm to three is the
+> lever, and this note is the evidence that nobody has measured whether they did.
+
+**4a. A claim may print as two bullets, and that is not a merge.** #208 moved splitting from capture
+to writing: when an advert tests more than one action inside a compound claim, the writer prints two
+bullets citing the same claim id. Clause 4's counting is unaffected — each divided bullet cites one
+claim, so the merge arbitration above never fires on it.
+
+**The honest consequence: division is checked by nothing, in both directions.** The "keep the result
+in the sentence" guarantee of clauses 1-3 covers *merges only*. `preview-tailor.md` states two limits
+on division and **neither has a mechanical backstop**:
+
+- *never split a result away from the action that produced it* — a divided bullet that amputates the
+  result parses clean and lints clean;
+- *never split to pad a role out* — one claim id may appear on five bullets and nothing objects.
+  This one is a genuinely **new** unchecked shape: under the pre-#208 miner those fragments were
+  separate claims, so padding was not a division. `draftDisclosure()` is silent too — it only
+  surfaces bullets citing two or more claims.
+
+Deliberate, not an oversight. A merge can be checked because it **declares** its surviving outcome in
+a field; a division declares nothing, so there is nothing to check against. Closing either gap means
+giving a divided bullet something to declare — a design question, not a fix to slip in.
 
 **5. A failure ships the CV and tells the person; it never withholds the CV.** These checks sit in
 the lossy lane, not the malformed lane. On a CV where every fact is duty-only the machine will fail

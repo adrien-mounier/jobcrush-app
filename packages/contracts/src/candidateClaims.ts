@@ -1,5 +1,6 @@
 // candidate_claims v0 — NEW schema (drafted for JC-13; Contract-3-shaped per the dev plan).
-// The claim miner's output: a raw CV decomposed into atomic candidate claims, each tagged with
+// The claim miner's output: a raw CV read into candidate claims — one per printed bullet, compound
+// bullets kept whole and split at writing time (#208) — each tagged with
 // how much the machine touched it and pre-classified on the 5-level scale (only the top three
 // levels may be emitted — the miner never invents; see the prompt).
 import { z } from "zod";

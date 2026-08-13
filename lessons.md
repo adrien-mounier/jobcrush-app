@@ -1,5 +1,23 @@
 # Lessons — jobcrush-app
 
+## Bypass the turbo cache with `TURBO_FORCE=1`, never `pnpm test -- --force`
+
+`pnpm test -- --force` forwards `--force` to vitest, which rejects it (`CACError: Unknown option
+--force`) and fails `@jobcrush/contracts#test`. A future agent reads that as a broken build and
+starts debugging a repo that is fine. **Use `TURBO_FORCE=1 pnpm test`** (same for `pnpm typecheck`)
+when a run must not be served from cache — a QA gate re-running gates on a cached "7/7 successful"
+has verified nothing.
+
+## A test that cannot fail on the thing it names is worse than no test
+
+#208 added a test asserting the conservation lint passes when one claim is printed as two bullets.
+It passes — but each divided bullet cites one claim, and the rule it appears to exercise only fires
+at two or more, so the test could never have failed for the reason its name implies. **Before
+writing a test for an interaction, find the line in the code that would flip it red.** If there
+isn't one, the honest output is a comment saying the case is unchecked, not a green assertion that
+reads like coverage. The replacement test puts a division and a bad merge in the same role, which
+does fail if the loop is changed.
+
 ## A ticket's evidence can be one cherry-picked sample, and the fix built on it will fail
 
 #202 asked for a specific fix — back-reference achievements by job index — justified by one variant

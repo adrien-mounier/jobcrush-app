@@ -22,8 +22,9 @@ here, so jobcrush-app has no runtime or authoring dependency on the JobCrush che
 
 ## What the pipeline code implements from this
 
-- `apps/api/prompts/claim-miner.md` — mines a raw CV into atomic claims (implements the classification
-  levels in `tailoring-reasoning.md` §3 and the section-coverage discipline).
+- `apps/api/prompts/claim-miner.md` — mines a raw CV into claims, one per printed line, compound
+  lines kept whole (#208; implements the classification levels in `tailoring-reasoning.md` §3 and
+  the section-coverage discipline).
 - `apps/api/prompts/preview-tailor.md` — tailors the claims into a draft (implements the density,
   conservation, and writing-style rules in `cv-authoring-rules.md` and `tailoring-reasoning.md`).
 - `apps/api/src/preview.ts` — the canonical Draft schema + `conservationIssues()` lint (the mechanical
