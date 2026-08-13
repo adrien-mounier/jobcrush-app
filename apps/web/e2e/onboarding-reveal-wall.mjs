@@ -47,8 +47,16 @@ for (let i = 0; i < 12 && !(await page.locator("fieldset.elig-group").count()); 
   await page.waitForTimeout(1200);
 }
 await qa.note(`answered ${answered} questions before the closing languages multi-select`);
-await qa.expectVisible("fieldset.elig-group", "the final languages question uses the current checkbox group");
-await qa.click(page.locator(".discovery .opt.check").first(), "tick the first supported language");
+await qa.expectVisible("fieldset.elig-group", "the final languages question is on screen");
+// #205: #165 replaced the checkbox list with a type-ahead — a person now TYPES a language and adds
+// it, and the checkbox group only renders as the server-flagged fallback. This journey had been red
+// (and in no CI tier, so unwatched) ever since. Drive whichever shape is actually on screen.
+if (await page.locator(".discovery .lang-typeahead").count()) {
+  await qa.fill("#lang-input", "English", "type the first language into the type-ahead");
+  await qa.click(".discovery .lang-typeahead .field .go", "add it to the list");
+} else {
+  await qa.click(page.locator(".discovery .opt.check").first(), "tick the first supported language");
+}
 
 // #25 AC1: confirming the closing answer flips stage->deck. Click it raw (skipping the driver's trailing pause)
 // so the transient ~800ms handoff bridge is still on screen when the next assertion screenshots it.

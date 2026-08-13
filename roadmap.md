@@ -34,12 +34,19 @@ not correctness on well-specified work — start no ticket at `max`.
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
 | 1 | #202 | Which bullet count is right — 73 or 114? | `—` owner call, then `/research` | Opus | medium |
-| 2 | #205 | The eligibility journey rotted red | `/implement` | Opus | medium |
-| 3 | #208 | The reader splits compound bullets; the ruling says don't | `/implement` | Opus | high |
-| 4 | #120 | Durable editor for eligibility answers | `/implement` | Opus | medium |
+| 2 | #208 | The reader splits compound bullets; the ruling says don't | `/implement` | Opus | high |
+| 3 | #120 | Durable editor for eligibility answers | `/implement` | Opus | medium |
+| 4 | #209 | Four e2e journeys are in no CI tier and cannot run | `/implement` | Opus | medium |
 | 5 | #124 | Where do you want to work? | `/wayfinder` | Opus | high |
 | 6 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
 | 7 | #64 | The match count survives signup | `/implement` | Opus | medium |
+
+**#205 is built (2026-08-13), pending review + QA gate.** The eligibility journey is green (45/0)
+and now runs in Tier 2, which is 7 journeys / 14 min and all green. Its audit produced **#209**: of
+the 17 journeys in no tier, 12 are green, one was rotted and fixed here, and four cannot run at all
+until someone gives them a stack. **#209 sits below #120, not above it** — the four are not red
+because the product is wrong, and nothing lands on top of them the way #120/#166/#122 land on the
+eligibility questions.
 
 **#202 first, and it is now cheaper and differently shaped** — rewritten 2026-08-13 after the #196
 corpus was re-counted directly. Three of its premises did not survive: the live reader is **not** the

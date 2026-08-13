@@ -70,7 +70,8 @@ jobs:
           calls=$(curl -sf http://127.0.0.1:34101/qa/llm-calls)
           echo "qa-main.js call counts: $calls"
           echo "$calls" | grep -q '"mine":0,"tailor":0,"grill":0,"audit":0' || { echo "Tier 1 called the fake model — it should stay route-mocked end to end"; exit 1; }
-      # Tier 2 (#199): five real-stack journeys against the SAME fake-model API + web processes Tier 1
+      # Tier 2 (#199, grown to seven by #162 and #205): real-stack journeys against the SAME
+      # fake-model API + web processes Tier 1
       # just proved healthy — no rebuild, no restart. Real Fastify, real stores, real extraction, real
       # render; only the model is faked. Sequential (qa-driver.mjs's own reasoning: several journeys
       # mint a real magic-link sign-in against auth's 5-per-15-min-per-IP limiter, routes/auth.ts — a

@@ -166,25 +166,41 @@ const groupLabelled = (await page.locator('.discovery .opts').count())
 await assert(groupLabelled === 'ask-q', `a11y: the options group is named by the question line (aria-labelledby="${groupLabelled}")`);
 
 // ---------------------------------------------------------------------------------------------
-// 5. ANSWERING — a real answer, and the confirmation + fix affordance it earns.
+// 5. ANSWERING — a real negative, weighted exactly like a yes, and the confirmation + fix
+//    affordance it earns.
+//
+//    #205: this section used to answer "yes" and prove the "no" on a SECOND work-rights question
+//    at §7. There is no second one — this visitor searches one market, so discovery asks
+//    work-rights exactly once. The "no" is therefore proven on the question that exists, which is
+//    the stronger place for it anyway: the negative now walks the whole rest of the journey. The
+//    "yes" path is still driven end to end by the fresh 360px session at §12.
 // ---------------------------------------------------------------------------------------------
 const badgeBefore = await badgeCount();
-await qa.click(page.getByRole('button', { name: 'Yes — no sponsorship needed', exact: true }), 'answer work-rights: "Yes — no sponsorship needed"');
-countAsk('eligibility: work-rights = "Yes — no sponsorship needed"');
+const NO_LABEL = "Not yet — I'd need sponsorship";
+await assert(/Singapore/.test(firstQ ?? ''), `the work-rights question names the visitor's own city — "${firstQ}"`);
+// AC6/design §4: the "no" is a full-weight option, not the quiet one.
+const noIsQuiet = await hasClass(NO_LABEL, 'quiet');
+await assert(noIsQuiet === false, `AC6/design §4: saying no is styled with the same weight as saying yes — never dimmed (quiet=${noIsQuiet})`);
+await qa.click(page.getByRole('button', { name: NO_LABEL, exact: true }).first(), 'AC6: answer NO — "Not yet — I\'d need sponsorship"');
+countAsk('eligibility: work-rights = NO');
 await page.waitForTimeout(2300);
-await readMeter('answered work-rights (real answer)');
+await readMeter('answered work-rights (a real "no")');
 const notice1 = await txt('.discovery .notice');
-await qa.expectVisible('.discovery .notice', 'the confirmation an answered eligibility question earns');
+await qa.expectVisible('.discovery .notice', 'AC6: a "no" is confirmed like any other answer — no warning, no red, no apology');
 await assert(
   /Locked in — I'll use that on every job, so I won't ask again\./.test(notice1 ?? ''),
-  `AC2/AC3: a real answer confirms it will be reused and never re-asked — "${notice1}"`,
+  `AC2/AC3/AC6: an explicit "no" earns the same reused-and-never-re-asked confirmation as a yes — "${notice1}"`,
+);
+await assert(
+  !/(unfortunately|sorry|disqualif|may not qualify|required|mandatory)/i.test(await page.locator('.discovery').innerText()),
+  'UX intent: nothing on the screen treats a negative answer as a failure',
 );
 await assert(
   (await page.getByRole('button', { name: 'Fix that?' }).count()) > 0,
   'UX intent: an answered eligibility question carries a correction affordance',
 );
 const badgeAfterReal = await badgeCount();
-await qa.note(`fact badge: ${badgeBefore} -> ${badgeAfterReal} after a real eligibility answer`);
+await qa.note(`fact badge: ${badgeBefore} -> ${badgeAfterReal} after a real eligibility answer (a "no")`);
 
 // ---------------------------------------------------------------------------------------------
 // 6. THE RETRACTION — correct that real answer to "Ask me later". The stored fact must go.
@@ -195,7 +211,7 @@ await qa.expectVisible('.discovery .opts', 'the correction re-ask, with the curr
 const premarked = await page.locator('.discovery .opts .opt.picked').allTextContents();
 await qa.note(`the correction opens with the current answer pre-marked: ${JSON.stringify(premarked)}`);
 await assert(
-  premarked.some((t) => t.trim() === 'Yes — no sponsorship needed'),
+  premarked.some((t) => t.trim() === NO_LABEL),
   `the correction opens showing what they said before (pre-marked: ${JSON.stringify(premarked)})`,
 );
 await qa.click(page.getByRole('button', { name: 'Ask me later', exact: true }).first(), 'RETRACT: change the answer to "Ask me later"');
@@ -247,34 +263,31 @@ await assert(
 );
 
 // ---------------------------------------------------------------------------------------------
-// 7. SAYING NO — a real negative, weighted exactly like a yes.
+// 7. AFTER THE RETRACTION — "ask me later" means later, not now.
+//
+// #205: this section used to expect a SECOND work-rights question here, and had been failing (with
+// the five behind it) ever since the question set changed. There is one work-rights question — the
+// visitor searches one market — and retracting its answer to "Ask me later" closes it for
+// discovery: the subtext promised "I'll ask again when a JOB needs it", so re-asking on the very
+// next screen would break that promise. What a real visitor sees next is the languages question.
+// That promise is the thing worth asserting, and it is what this now asserts.
 // ---------------------------------------------------------------------------------------------
 const dim2 = await eligDim();
 await qa.note(`the ask dock right now: ${await dockText()}`);
 await qa.note(`next eligibility question: ${dim2} — ${JSON.stringify(await askQ())}`);
-await assert(dim2 === 'work-rights', `the block continues to work-rights (got "${dim2}")`);
-const wrQ = await askQ();
-const wrOpts = await optLabels();
-await qa.note(`work-rights options: ${JSON.stringify(wrOpts)}`);
-await assert(/Singapore/.test(wrQ ?? ''), `the work-rights question names the visitor's own city — "${wrQ}"`);
-// AC6/design §4: the "no" is a full-weight option, not the quiet one.
-const NO_LABEL = "Not yet — I'd need sponsorship";
-const noIsQuiet = await hasClass(NO_LABEL, 'quiet');
-await assert(noIsQuiet === false, `AC6/design §4: saying no is styled with the same weight as saying yes — never dimmed (quiet=${noIsQuiet})`);
-await qa.click(page.getByRole('button', { name: NO_LABEL, exact: true }).first(), 'AC6: answer NO — "Not yet — I\'d need sponsorship"');
-countAsk('eligibility: work-rights = NO');
-await page.waitForTimeout(2300);
-const notice3 = await txt('.discovery .notice');
-await qa.expectVisible('.discovery .notice', 'AC6: a "no" is confirmed like any other answer — no warning, no red, no apology');
 await assert(
-  /Locked in — I'll use that on every job/.test(notice3 ?? ''),
-  `AC6: an explicit "no" gets the same non-punishing confirmation as a yes — "${notice3}"`,
+  dim2 === 'language',
+  `after retracting work-rights the block moves ON to the next dimension, it does not re-ask (got "${dim2}")`,
+);
+const nextQ = await askQ();
+await assert(
+  !/sponsorship|Singapore/i.test(nextQ ?? ''),
+  `"Ask me later" is honoured: the retracted work-rights question is not put straight back on screen — "${nextQ}"`,
 );
 await assert(
-  !/(unfortunately|sorry|disqualif|may not qualify|required|mandatory)/i.test(await page.locator('.discovery').innerText()),
-  'UX intent: nothing on the screen treats a negative answer as a failure',
+  (await page.getByRole('button', { name: NO_LABEL, exact: true }).count()) === 0,
+  'the work-rights answers are gone from the dock — nothing re-asks a question the visitor deferred',
 );
-await readMeter('answered work-rights = NO');
 
 // ---------------------------------------------------------------------------------------------
 // 8. DECLINING — the last question, refused outright.

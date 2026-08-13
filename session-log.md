@@ -2,6 +2,32 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-13 (session 113) `/implement #205` — the eligibility journey is green and watched, and the audit behind it opened #209
+
+`eligibility-questions-journey.mjs` was 40 passed / 6 failed and had been for weeks, in no CI tier.
+It is now **45 passed / 0 failed and runs in Tier 2** (7 journeys, 14 min, all green).
+
+- 🚨 **Section 7 expected a question that does not exist.** It waited for a SECOND work-rights
+  question after the first was retracted to "Ask me later". This visitor searches one market, so
+  discovery asks work-rights exactly once — the next screen is the languages question, and five
+  assertions fell over behind the first. The "no" it existed to prove is now proven on the question
+  that *does* exist: the journey answers **NO first**, then corrects it to "Ask me later", so the
+  negative walks the whole rest of the flow. The "yes" path is still driven by the fresh 360px
+  session at §12. Section 7 now asserts the promise the product actually makes — *"I'll ask again
+  when a JOB needs it"* — i.e. the retracted question is **not** put straight back on screen.
+- ✅ **In a tier, so it cannot rot unwatched again.** Tier 1 globs `*.spec.ts` and never sees a
+  `.mjs` journey; Tier 2 is hand-picked and this was not in it. Added to `run-tier2.mjs` — measured
+  ~3.5 min, no sign-in, so it spends none of auth's 5-per-15-min budget.
+- 🔍 **The audit (AC4): all 17 untiered journeys run.** 12 green. `onboarding-reveal-wall` was red
+  and is **fixed here** — #165 replaced the languages checkbox list with a type-ahead and the
+  journey still ticked a checkbox that no longer renders. Four cannot run at all and became
+  **#209**: `language-ladder` (no language-requiring posting in the fixture corpus),
+  `job-blocks-confirm` (`qa-main.ts` does not wire the job-block miner), `pending-unscored-card`
+  (needs judging slower than the deck's 8s budget), `master-cv-dates-note` (declares the real paid
+  model, and is separately rotted — "Confirm my facts" now goes to `/job-blocks`, not `/signup`).
+- 🩹 **A silent red is worse than a loud one.** `master-cv-dates-note`'s crash guard exited 1 with
+  zero output when `qa.finish()` itself threw. It prints the error first now.
+
 ## 2026-08-13 (session 112) `/research #202` — three of the ticket's premises were false, and the work shrank
 
 No product change. #202 was a research ticket about a prompt that "loses achievements". Re-counting

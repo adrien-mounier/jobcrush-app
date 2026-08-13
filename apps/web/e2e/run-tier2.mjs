@@ -11,7 +11,7 @@
 // aborts the run) while the other five produced byte-identical PASS verdicts across three separate
 // clean full-stack runs. Re-add it once that hang is root-caused and fixed.
 //
-// Sequential, not parallel: these six (five, post-cut) journeys share one fake-model API process and
+// Sequential, not parallel: these journeys share one fake-model API process and
 // one web process, and several mint real magic-link sign-ins against auth's 5-per-15-min-per-IP
 // limiter (routes/auth.ts) — running them concurrently would burn that budget for no wall-clock win
 // worth the risk. Continues through a failure so every journey still gets its HTML report (the #197
@@ -30,8 +30,16 @@ const e2eDir = fileURLToPath(new URL("./", import.meta.url));
 // for the date question's "why this matters" line passed while the line never reached the screen,
 // because nothing else drives that render. Measured cost: ~90s, no sign-in, so it spends none of
 // auth's 5-per-15-min limiter budget.
+// eligibility-questions-journey.mjs added 2026-08-13 (#205), and it earns its slot on the same rule:
+// it is the ONLY journey that walks the eligibility block as a person does — answer, correct the
+// answer, retract it to "ask me later", and reach the deck — against real stores. It had been red
+// for weeks precisely because it was in no tier: Tier 1 globs *.spec.ts and never sees a .mjs
+// journey, so the single end-to-end proof of the gate questions rotted unwatched. Measured cost:
+// ~3.5min, no sign-in, so it spends none of auth's 5-per-15-min limiter budget (it does mint two
+// anonymous sessions, well inside qa-main.ts's 1000/hr).
 const JOURNEYS = [
   "contact-fact-journey.mjs",
+  "eligibility-questions-journey.mjs",
   "tailor-journey.mjs",
   "search-area-coverage-journey.mjs",
   "factbadge-journey.mjs",
