@@ -102,7 +102,14 @@ same persistence #169 builds for topics; doing it first would mean building that
 It is #165's one disclosed ceiling: a skipped level question lives in screen state, so the same
 advert asks again on reload, which clause 4 forbids. Its sibling — a permanent "stop asking" — is
 deliberately NOT in it, because clause 4 binds that to an undo surface on the profile that #178 has
-not drawn yet. **#156 before #167** because #167, #170 and #171 each make CVs longer and nothing
+not drawn yet. **#164 keeps its slot after #178, and now needs it** — its skill rule was decided
+2026-08-13 (mine tools from job prose as well as the Skills section; the model merges near-duplicate
+spellings; every merge is proposed to the person, never silent). That leaves one open design
+question the order already covers: **volume.** One real CV yields **26 prose-mined skills on top of
+17 listed ones**, and 26 confirmation cards in a row is a different product from one card holding 26
+chips. #178 and the confirm-screen work (#157 item 3) settle that shape first. The rule must also be
+written into ADR-0004 — clause 3's atomisation warning is precisely about prose mining and needs
+re-reading against the decision. **#156 before #167** because #167, #170 and #171 each make CVs longer and nothing
 checks length today. **#207 immediately before #168** — #168 decides what prints per application, so
 if #207 is not settled first, #168 answers it by accident. It exists because #202's decision 1 ruled
 that a duty printed under three jobs is **one fact, counted once**; the tailored CV still prints
