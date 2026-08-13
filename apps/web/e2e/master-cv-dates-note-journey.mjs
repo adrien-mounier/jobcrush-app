@@ -84,9 +84,6 @@ for (const ev of ['uncaughtException', 'unhandledRejection']) {
   process.on(ev, async (e) => {
     if (aborted) return;
     aborted = true;
-    // #205: print BEFORE touching the report. This guard used to exit 1 with no output at all when
-    // qa.finish() itself threw — a silent red is exactly the rot this journey audit was chasing.
-    console.error(`RUN ABORTED (${ev}):`, e);
     try {
       await qa.note(`RUN ABORTED (${ev}): ${e?.message ?? e}`);
       await qa.finish();

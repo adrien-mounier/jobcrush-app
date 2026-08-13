@@ -189,6 +189,11 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
   async function abort(event, error) {
     if (aborting) return;
     aborting = true;
+    // #205: print FIRST, before anything that can throw. A crash whose report write also fails used
+    // to exit 1 with no output at all — a red journey that says nothing is indistinguishable from
+    // one nobody ran, which is the exact rot #205's audit was chasing. Found by that audit:
+    // master-cv-dates-note-journey.mjs died silently and took a rebuild to diagnose.
+    console.error(`RUN ABORTED (${event}):`, error);
     let buf = null;
     try { buf = await highlightShot(null); } catch { /* page may already be gone */ }
     record('run-aborted', '', `RUN ABORTED (${event})`, 'fail', error, buf);
