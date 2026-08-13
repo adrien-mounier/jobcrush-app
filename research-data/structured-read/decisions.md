@@ -56,12 +56,44 @@ nobody has noticed.**
 
 ## Decision 3 — a line that wraps onto a second printed line
 
-Not yet observed as a problem on these CVs, but it will appear. One printed sentence that runs onto a
-second line: one bullet, or two?
+**What it looks like.** One sentence is too wide for the column, so the page breaks it in two. The
+text comes out of the PDF as two separate lines. From Thomas's CV, exactly as extracted:
+
+```
+line 1:  ·Réaliser des plans de positionnement de lattages assurant un parfait alignement des éléments de
+line 2:  fixation
+```
+
+That is **one sentence** — *"Produce batten positioning drawings ensuring perfect alignment of the
+fixing elements"* — printed as two lines. The word `fixation` on its own is not a fact about anyone.
+
+From Giuliana's CV, the same thing in English:
+
+```
+line 1:  • Cost control: Drive a 10% COGS reduction roadmap via negotiation, contract structuring
+line 2:  sourcing
+```
+
+There are 14 of these on Thomas's CV and 4 on Giuliana's.
+
+**What this ruling is for.** It fixes the **unit being counted**, so that two people keying two CVs
+produce comparable numbers, and so a reader that splits a sentence in half is scored as wrong rather
+than as unusually thorough. Without it, "the CV has 93 bullets" is not a checkable statement.
+
+**What it is *not* about, and this is the honest part.** ⚠️ **No reader currently gets this wrong.**
+All four rejoin the two lines and keep the tail — `fixation` is present in every captured version.
+So this ruling is **preventive**: it protects the score's meaning, it does not fix an observed
+defect. If you would rather rule on it only when it actually breaks, that is a defensible answer and
+you should write that down instead.
+
+**Why it still matters for the product, not just the measurement.** Whatever the reader captures is
+what later prints on the tailored CV. A half-sentence stored as a fact becomes a half-sentence
+printed under a job heading — the kind of defect nobody catches in a test but every reader of the CV
+sees immediately.
 
 | | |
 |---|---|
-| **Ruling** | *(one / two)* |
+| **Ruling** | *(one bullet / two bullets / defer until it breaks)* |
 | **Why** | |
 
 ---
