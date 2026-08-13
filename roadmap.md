@@ -62,8 +62,11 @@ missing piece of the QA stack, not a product defect:
   postings, and no language eligibility dimension in the requirements fixtures. Writing three in
   would put fabricated requirements into real employers' adverts, quoted as those adverts' own
   words, on a corpus staging serves to visitors. They live in the QA entry instead, which is pruned
-  from the deployed image. The owner's *goal* (the journey green in Tier 2) is delivered; his
-  *instruction* was overridden, which is his call to ratify, not mine to settle.
+  from the deployed image. **The owner RATIFIED this deviation on 2026-08-13**, after the QA gate
+  raised it: the shipped corpus stays truthful, and the fixture corpus is scheduled to be replaced
+  by #63 anyway, so adding to it is work with a known expiry date. If a hand-demoable language job
+  is ever wanted, it is to be an obviously-invented employer ("Acme Bank, Hong Kong"), never a real
+  one — nobody may mistake a fixture for a job they could apply to.
 - `pending-unscored` — "Still scoring" cannot appear against a judge that answers instantly, so the
   QA judge can now be made deliberately slow.
 - `master-cv-dates-note` — **rewritten, not deleted**, against the fake model and the current

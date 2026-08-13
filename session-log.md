@@ -16,7 +16,8 @@ no product defect was found in any of the four.
 - 🌏 **`language-ladder`: I did not follow the owner's instruction, and this is the reason.** He said
   to add a language-requiring posting to `sample-postings.json`. That corpus is real scraped
   adverts and mentions no language at all — measured, zero hits across all 17 postings, and no
-  language eligibility dimension in the requirements fixtures either. Three fabricated requirements quoted as those employers' own
+  language eligibility dimension in the requirements fixtures either. **The owner ratified the
+  deviation** once the QA gate put it to him as a decision rather than a footnote. Three fabricated requirements quoted as those employers' own
   `sourceSpan`, on a corpus staging serves to visitors, is not a fixture — it is a lie with a real
   company's name on it. They are served from `qa-main.ts` instead (pruned from the Docker image).
   Production is untouched: those three adIds have no fixture, so `main.ts` still reads them for real.
