@@ -171,9 +171,15 @@ await assert(groupLabelled === 'ask-q', `a11y: the options group is named by the
 //
 //    #205: this section used to answer "yes" and prove the "no" on a SECOND work-rights question
 //    at §7. There is no second one — this visitor searches one market, so discovery asks
-//    work-rights exactly once. The "no" is therefore proven on the question that exists, which is
-//    the stronger place for it anyway: the negative now walks the whole rest of the journey. The
-//    "yes" path is still driven end to end by the fresh 360px session at §12.
+//    work-rights exactly once. The "no" is therefore proven on the question that exists.
+//
+//    Be honest about what that costs, because the old §7 did claim more than this one delivers:
+//    §6 retracts this "no" twenty lines below, so the deck at §10 is reached with work-rights
+//    DEFERRED, not answered no — no journey now carries a live "no" all the way to the deck, and
+//    with the question asked once there is no way to do both in one session. What is proven here
+//    is the answer moment itself: the confirmation, the styling, and the fix affordance a "no"
+//    earns. §12 answers "yes" on a fresh 360px session and checks the 360px layout and focus ring;
+//    it stops there and does not reach the deck either.
 // ---------------------------------------------------------------------------------------------
 const badgeBefore = await badgeCount();
 const NO_LABEL = "Not yet — I'd need sponsorship";

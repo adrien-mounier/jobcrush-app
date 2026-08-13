@@ -11,10 +11,14 @@ It is now **45 passed / 0 failed and runs in Tier 2** (7 journeys, 14 min, all g
   question after the first was retracted to "Ask me later". This visitor searches one market, so
   discovery asks work-rights exactly once — the next screen is the languages question, and five
   assertions fell over behind the first. The "no" it existed to prove is now proven on the question
-  that *does* exist: the journey answers **NO first**, then corrects it to "Ask me later", so the
-  negative walks the whole rest of the flow. The "yes" path is still driven by the fresh 360px
-  session at §12. Section 7 now asserts the promise the product actually makes — *"I'll ask again
-  when a JOB needs it"* — i.e. the retracted question is **not** put straight back on screen.
+  that *does* exist: the journey answers **NO first**, then corrects it to "Ask me later". Section 7
+  now asserts the promise the product actually makes — *"I'll ask again when a JOB needs it"* —
+  i.e. the retracted question is **not** put straight back on screen.
+- ⚠️ **Say what that costs.** With work-rights asked once, **no journey carries a live "no" all the
+  way to the deck** — §6 retracts it, so the deck is reached with the answer deferred. What is
+  proven is the answer moment (confirmation, styling, fix affordance), not a "no" flowing through
+  to the cards. The QA gate caught the first draft of this entry claiming more than that; in a
+  ticket about tests that lie about their coverage, that is the same species of defect.
 - ✅ **In a tier, so it cannot rot unwatched again.** Tier 1 globs `*.spec.ts` and never sees a
   `.mjs` journey; Tier 2 is hand-picked and this was not in it. Added to `run-tier2.mjs` — measured
   ~3.5 min, no sign-in, so it spends none of auth's 5-per-15-min budget.
