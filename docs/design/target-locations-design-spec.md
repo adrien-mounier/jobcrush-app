@@ -1,5 +1,14 @@
 # Target locations — design spec (#124)
 
+> **Amended 2026-08-13 during the #214 build (owner decision, recorded on #124's trail): a typed
+> city is now a CITY-LEVEL target, not a synonym for its country.** The chip shows the city name;
+> the deck keeps that city's ads plus ads placeable in the country but in no recognisable city
+> (fail-open, the withdrawal principle), and excludes ads clearly stating a different city.
+> Work-rights stays market-level (visas are national). Hong Kong and Singapore are city-states —
+> always country-level. Everything in this spec that says a typed city "resolves to its country"
+> is superseded to that extent; the stored place shape, the 3-chip cap, the union deck, and the
+> refusal of uncovered entries are unchanged.
+
 Decided 2026-08-13, resolving #124. Research base: `docs/research/target-location-selection.md`.
 Governing decisions inherited (recorded on #124's comment trail): ADR-0001 rule 5 (a target
 location is a **preference** — stored, listable, correctable, and nothing else), ADR-0004 clause 7

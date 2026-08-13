@@ -8,9 +8,15 @@
 //
 // Covers: AC1 (uncovered area blocked at the intent step, and STILL blocked after a cold reload —
 // the slice's worst defect), AC2 (trailing country / alias / punctuation variants resolve and
-// confirm with the canonical market name, across a reload), AC5 (both placeholder examples typed
-// verbatim resolve), AC4 (the work-rights question's city is the resolved search area, never the
+// confirm with the canonical chip label, across a reload), AC5 (the placeholder example typed
+// verbatim resolves), AC4 (the work-rights question's city is the resolved search area, never the
 // city named in the role text).
+//
+// #214 updates (the amendment on #124's trail supersedes parts of #184's original expectations):
+// - a typed CITY confirms back as the CITY label ("Sydney"), no longer its country;
+// - an uncovered entry is REFUSED, never stored — so a cold reload shows a clean form with nothing
+//   kept, rather than re-showing the coverage line for a stored-but-uncovered value;
+// - the placeholder is "e.g. Hong Kong" (remote is not a location).
 
 import { createSession } from './qa-driver.mjs';
 
@@ -49,8 +55,8 @@ await freshVisitor();
 await qa.scrollThrough('read the front door top to bottom');
 await openIntent('IT project manager in Paris');
 await qa.expectVisible(
-  page.locator('#search-area[placeholder="e.g. Hong Kong, or Remote in Vietnam"]'),
-  'AC5: the placeholder suggests only covered markets',
+  page.locator('#search-area[placeholder="e.g. Hong Kong"]'),
+  'AC5 (#214): the placeholder suggests only a covered market — remote is not a location',
 );
 await submitArea('Bangkok');
 await qa.expectText('.intent-coverage', COVERAGE_LINE, 'AC1: the early-access line shows at the intent step');
@@ -60,7 +66,9 @@ await qa.expectVisible('#search-area', 'the typed area is kept so it can be corr
 await qa.goto('/', 'RELOAD the page — the worst defect this slice had');
 await expectAbsent(page.getByRole('heading', { name: 'Got it.' }), 'AC1 reload: still blocked after a cold reload');
 await expectAbsent(page.getByText('Bangkok', { exact: false }).locator('xpath=ancestor-or-self::p[contains(@class,"intent-confirmation")]'), 'AC1 reload: never "We’ll look for … in Bangkok"');
-await qa.expectText('.intent-coverage', COVERAGE_LINE, 'AC1 reload: the coverage line is re-shown on its own');
+// #214: a refused entry is never stored, so a cold reload shows a clean form — no chip, no stored
+// "Bangkok" anywhere — rather than re-showing the coverage line for a kept-but-uncovered value.
+await expectAbsent(page.getByText('Bangkok', { exact: false }), 'AC1 reload (#214): the refused entry was never stored — nothing to re-display');
 await qa.expectVisible('#search-area', 'the area field is still on screen for a correction');
 
 // Adversarial: can the gate be walked around by going straight to the next screen? Recorded as
@@ -75,29 +83,30 @@ await expectAbsent(
 
 // ---------- AC2 + AC5: covered variants resolve to the canonical market, reload included ----------
 
+// #214: a typed CITY now confirms back as the CITY label ("Sydney"), a country/alias as the market.
 const VARIANTS = [
   ['hong kong,', 'Hong Kong', 'AC2: lowercase with a trailing comma'],
-  ['Sydney, Australia', 'Australia', 'AC2: a city with a trailing country'],
+  ['Sydney, Australia', 'Sydney', 'AC2 (#214): a city with a trailing country keeps its city label'],
   ['HK', 'Hong Kong', 'AC2: a common alias'],
-  ['Ho Chi Minh City, Vietnam.', 'Vietnam', 'AC2: city + trailing country + a full stop'],
-  ['Hong Kong', 'Hong Kong', 'AC5: placeholder example 1, typed verbatim'],
-  ['Remote in Vietnam', 'Vietnam', 'AC5: placeholder example 2, typed verbatim'],
+  ['Ho Chi Minh City, Vietnam.', 'Ho Chi Minh City', 'AC2 (#214): city + trailing country + a full stop keeps its city label'],
+  ['Hong Kong', 'Hong Kong', 'AC5: the placeholder example, typed verbatim'],
+  ['Remote in Vietnam', 'Vietnam', 'AC2: a remote phrasing still resolves to its market (remote is not a location)'],
 ];
 
-for (const [typed, market, why] of VARIANTS) {
+for (const [typed, label, why] of VARIANTS) {
   await freshVisitor();
   await openIntent('IT project manager');
   await submitArea(typed);
   await qa.expectText(
     '.intent-confirmation',
-    `We’ll look for IT project manager in ${market}.`,
-    `${why} — confirmed back as "${market}"`,
+    `We’ll look for IT project manager in ${label}.`,
+    `${why} — confirmed back as "${label}"`,
   );
   await qa.goto('/', `reload after "${typed}"`);
   await qa.expectText(
     '.intent-confirmation',
-    `We’ll look for IT project manager in ${market}.`,
-    `the canonical market "${market}" survives a reload, never the raw typed text`,
+    `We’ll look for IT project manager in ${label}.`,
+    `the canonical label "${label}" survives a reload, never the raw typed text`,
   );
 }
 

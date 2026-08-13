@@ -15,6 +15,7 @@ import type { EligibilityStore } from "./eligibility.js";
 import { languagesQuestion, workRightsAnswerLabel, workRightsQuestionFor } from "./eligibilityDiscovery.js";
 import { declaredLanguages } from "./languageLevel.js";
 import { resolveSearchArea } from "./postingRetrieval.js";
+import type { SearchAreaEntry } from "./sessions.js";
 
 // The pinned frontend contract — apps/web/lib/api.ts mirrors these shapes.
 export interface ProfileFact {
@@ -80,14 +81,14 @@ export interface ProfileWorkRights {
   question: string;
   options: string[];
 }
-/** #185: the rail's Location data. `area` is the search area exactly as the person gave it (null
- *  before one is set). `workRights` is null both before an area is set AND when a set area is
- *  uncovered — an uncovered area resolves to no market (postingRetrieval.ts's own resolveSearchArea),
- *  so there is no market to attribute a work-rights answer to, and #182/#184's own discovery flow
- *  never asks a per-market work-rights question for one either. */
+/** #214: the rail's Location data is now a LIST. `areas` are the selected target locations as
+ *  chips — `label` is what the chip displays (the city when a city was typed, else the market),
+ *  `text` the words as typed. `workRights` holds one row per UNIQUE covered market (Melbourne +
+ *  Sydney chips → one Australia row), each with the #185 re-open contract. Both empty before any
+ *  covered area is set. */
 export interface ProfileLocation {
-  area: string | null;
-  workRights: ProfileWorkRights | null;
+  areas: Array<{ text: string; market: string; label: string }>;
+  workRights: ProfileWorkRights[];
 }
 /** #185 code-review contract extension: the SAME re-open contract as ProfileWorkRights, for the
  *  rail's languages door — `answer` reads ONLY the eligibility store (never a CV language claim), so
@@ -117,38 +118,38 @@ const toProfileContactField = (v: ContactRecord["phone"]): ProfileContactField |
   v ? { value: v.value, origin: v.origin } : null;
 
 export const EMPTY_PROFILE_CONTACT: ProfileContact = { phone: null, email: null };
-export const EMPTY_PROFILE_LOCATION: ProfileLocation = { area: null, workRights: null };
+export const EMPTY_PROFILE_LOCATION: ProfileLocation = { areas: [], workRights: [] };
 
-/** #185: the rail's Location data, resolved fresh from the session's own search area + the
- *  eligibility store — never a second copy of either. Reuses postingRetrieval.ts's resolveSearchArea
- *  directly (not resolvedCityFor + a second slug() call) so the eligibility lookup keys on the exact
- *  same marketKey the work-rights question itself was asked and answered under (#182's "one slugging
- *  rule, not two"). */
+/** #214: the rail's Location data, resolved fresh from the session's target locations + the
+ *  eligibility store — never a second copy of either. Work-rights rows are per UNIQUE market; the
+ *  question is composed ONCE per market by the same buildQuestion branch the answer route uses
+ *  (#185's rule), so the store lookup keys on the exact marketKey the question was answered under. */
 export async function resolveProfileLocation(
   eligibility: Pick<EligibilityStore, "get">,
   sessionId: string,
-  searchArea: string | null,
+  searchAreas: readonly SearchAreaEntry[],
 ): Promise<ProfileLocation> {
-  if (!searchArea) return EMPTY_PROFILE_LOCATION;
-  const resolution = resolveSearchArea(searchArea);
-  if (!resolution.covered) return { area: searchArea, workRights: null };
-  // #185 code-review contract extension: the question is composed ONCE, here, by the same
-  // buildQuestion branch the answer route itself uses — `marketId` (the eligibility store's key) is
-  // read back off that composition rather than re-derived, so there is exactly one slug computation
-  // in this whole path, never two landing on the same value by coincidence.
-  const question = workRightsQuestionFor(resolution.market);
-  const marketId = question.eligibility!.familyId;
-  const fact = await eligibility.get(sessionId, "work-rights", marketId);
-  return {
-    area: searchArea,
-    workRights: {
-      market: resolution.market,
+  const areas: ProfileLocation["areas"] = [];
+  const markets: string[] = [];
+  for (const entry of searchAreas) {
+    const resolution = resolveSearchArea(entry.text);
+    if (!resolution.covered) continue; // never stored today; a legacy uncovered value just drops
+    areas.push({ text: entry.text, market: resolution.market, label: resolution.label });
+    if (!markets.includes(resolution.market)) markets.push(resolution.market);
+  }
+  const workRights: ProfileWorkRights[] = [];
+  for (const market of markets) {
+    const question = workRightsQuestionFor(market);
+    const fact = await eligibility.get(sessionId, "work-rights", question.eligibility!.familyId);
+    workRights.push({
+      market,
       answer: fact ? workRightsAnswerLabel(fact.value) : null,
       questionId: question.itemId,
       question: question.question,
       options: question.options,
-    },
-  };
+    });
+  }
+  return { areas, workRights };
 }
 
 const composeProfileLanguagesQuestion = (answer: string[] | null): ProfileLanguagesQuestion => {

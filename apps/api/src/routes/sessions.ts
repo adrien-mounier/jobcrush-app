@@ -2,8 +2,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import { IpRateLimiter, type SessionStore } from "../sessions.js";
-import { resolveSearchArea } from "../postingRetrieval.js";
+import { IpRateLimiter, type SearchAreaEntry, type SearchIntent, type SessionStore } from "../sessions.js";
+import { coveredMarketNames, resolveSearchArea, searchAreaVocabulary } from "../postingRetrieval.js";
 
 export const SESSION_COOKIE = "jc_session";
 
@@ -37,56 +37,68 @@ const importProofSchema = z.object({
     .nullable(),
 });
 
-const intentSchema = z.object({
-  targetRole: z.string().nullable(),
-  searchArea: z.string().nullable(),
+// #214 — the wire shape of one stored target location: the stored entry (words as typed, marketKey,
+// statedAt) plus its display resolution (market, label), resolved fresh from the one vocabulary on
+// every read, never persisted twice.
+const searchAreaStateSchema = z.object({
+  text: z.string(),
+  marketKey: z.string(),
+  statedAt: z.string(),
+  market: z.string(),
+  label: z.string(),
 });
 
+// #214: up to 3 target locations. `searchArea` stays accepted as the legacy one-entry alias so
+// pre-#214 callers (and tests) keep working; `searchAreas` REPLACES the whole list when present.
+const MAX_TARGET_AREAS = 3;
 const intentWriteSchema = z
   .object({
     targetRole: z.string().trim().min(1).optional(),
     searchArea: z.string().trim().min(1).optional(),
+    searchAreas: z.array(z.string().trim().min(1)).max(MAX_TARGET_AREAS).optional(),
   })
   .strict()
-  .refine((value) => value.targetRole !== undefined || value.searchArea !== undefined);
-
-// #184 — the PINNED additive field: resolved fresh from postingRetrieval.ts's live provider registry
-// on every read (never persisted, never a second copy of the coverage list), so a registry edit
-// updates the message with no code change (AC3) — across DEPLOYS; postings.ts's own loader
-// memoizes the parsed file for the lifetime of a running process (postings.ts:41), so a registry
-// edit only takes effect on the next deploy/restart, not the next request against a live one. `null`
-// only when nothing has been typed yet — once `searchArea` is non-null, the visitor is ALWAYS told
-// covered/uncovered, at the intent step, before any retrieval (AC1).
-const searchAreaResolutionSchema = z.union([
-  z.object({ covered: z.literal(true), market: z.string(), marketKey: z.string() }),
-  z.object({ covered: z.literal(false), coverage: z.array(z.string()) }),
-]);
-
-const intentState = (intent: { targetRole: string | null; searchArea: string | null }) => {
-  const searchAreaResolution = intent.searchArea ? resolveSearchArea(intent.searchArea) : null;
-  // #184 spec review must-fix: the coverage gate is SERVER-side, not just the web's refusal to
-  // advance — an uncovered area must never flip the checkpoint to intent_known. The typed text is
-  // still stored and still returned in `intent` (useful for re-display), but it counts as still
-  // "missing" so checkpoint stays intent_needed and the web's restore path (GET, e.g. on reload) can
-  // re-show the coverage message from `searchAreaResolution` rather than the area passing silently
-  // onward once the checkpoint alone said "known".
-  const uncoveredArea = searchAreaResolution !== null && !searchAreaResolution.covered;
-  const missing = (["targetRole", "searchArea"] as const).filter(
-    (field) => intent[field] === null || (field === "searchArea" && uncoveredArea),
+  .refine(
+    (value) =>
+      value.targetRole !== undefined || value.searchArea !== undefined || value.searchAreas !== undefined,
   );
+
+// #184's server-side coverage gate, carried forward: an uncovered entry is REFUSED (reported in
+// `refused`, never stored), and the checkpoint advances only on targetRole + ≥1 covered market.
+// `coverage`/`areaVocabulary` resolve fresh from the live provider registry on every read, so a
+// registry edit updates both with no code change (per-deploy — postings.ts memoizes the file).
+const intentState = (intent: SearchIntent, refused: Array<{ text: string; coverage: string[] }> = []) => {
+  const searchAreas = intent.searchAreas.flatMap((entry) => {
+    const resolution = resolveSearchArea(entry.text);
+    // A stored entry no longer covered (registry shrank) drops from display AND from the gate.
+    return resolution.covered
+      ? [{ ...entry, market: resolution.market, label: resolution.label }]
+      : [];
+  });
+  const missing = [
+    ...(intent.targetRole === null ? (["targetRole"] as const) : []),
+    ...(searchAreas.length === 0 ? (["searchArea"] as const) : []),
+  ];
   return {
-    intent,
+    intent: { targetRole: intent.targetRole, searchAreas },
     missing,
     checkpoint: missing.length === 0 ? ("intent_known" as const) : ("intent_needed" as const),
-    searchAreaResolution,
+    refused,
+    coverage: coveredMarketNames(),
+    areaVocabulary: searchAreaVocabulary(),
   };
 };
 
 const intentStateSchema = z.object({
-  intent: intentSchema,
+  intent: z.object({
+    targetRole: z.string().nullable(),
+    searchAreas: z.array(searchAreaStateSchema),
+  }),
   missing: z.array(z.enum(["targetRole", "searchArea"])),
   checkpoint: z.enum(["intent_needed", "intent_known"]),
-  searchAreaResolution: searchAreaResolutionSchema.nullable(),
+  refused: z.array(z.object({ text: z.string(), coverage: z.array(z.string()) })),
+  coverage: z.array(z.string()),
+  areaVocabulary: z.array(z.object({ alias: z.string(), market: z.string(), label: z.string() })),
 });
 
 export function sessionRoutes(
@@ -179,7 +191,43 @@ export function sessionRoutes(
           .status(401)
           .send({ error: { code: "no_session", message: "no active session" } });
       }
-      return intentState(await sessions.setIntent(req.session.id, req.body));
+      // #214: raw texts resolve here, once, server-side — covered ones become stored entries
+      // (deduped by place: Sydney twice, or Sydney + "Sydney, Australia", is one chip), uncovered
+      // ones are refused and reported, never stored. statedAt survives a re-save of a place the
+      // person already holds — it means "when we learned it", not "when they last pressed save".
+      const texts = req.body.searchAreas ?? (req.body.searchArea !== undefined ? [req.body.searchArea] : undefined);
+      let entries: SearchAreaEntry[] | undefined;
+      const refused: Array<{ text: string; coverage: string[] }> = [];
+      if (texts) {
+        const placeKey = (text: string): string | null => {
+          const resolution = resolveSearchArea(text);
+          return resolution.covered
+            ? `${resolution.marketKey}/${resolution.city ?? ""}`
+            : null;
+        };
+        const now = new Date().toISOString();
+        const prior = new Map(
+          req.session.intent.searchAreas.map((entry) => [placeKey(entry.text), entry.statedAt] as const),
+        );
+        const seen = new Set<string>();
+        entries = [];
+        for (const text of texts) {
+          const resolution = resolveSearchArea(text);
+          if (!resolution.covered) {
+            refused.push({ text, coverage: resolution.coverage });
+            continue;
+          }
+          const key = `${resolution.marketKey}/${resolution.city ?? ""}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          entries.push({ text, marketKey: resolution.marketKey, statedAt: prior.get(key) ?? now });
+        }
+      }
+      const intent = await sessions.setIntent(req.session.id, {
+        ...(req.body.targetRole !== undefined ? { targetRole: req.body.targetRole } : {}),
+        ...(entries !== undefined ? { searchAreas: entries } : {}),
+      });
+      return intentState(intent, refused);
     },
   );
 

@@ -20,6 +20,13 @@ function pgPool() {
   return new Pool();
 }
 
+// #214: setIntent takes already-resolved SearchAreaEntry values (the route resolves raw text).
+const area = (text: string, marketKey: string, statedAt = "2026-08-09T00:00:00.000Z") => ({
+  text,
+  marketKey,
+  statedAt,
+});
+
 const sessionDrivers: [string, () => SessionStore][] = [
   ["in-memory", () => new InMemorySessionStore()],
   ["postgres (pg-mem)", () => new PgSessionStore(pgPool())],
@@ -41,7 +48,7 @@ for (const [name, make] of sessionDrivers) {
       expect(s.sourceEntry).toBeNull();
       expect(s.importProof).toBeNull();
       expect(s.importResolutions).toEqual({});
-      expect(s.intent).toEqual({ targetRole: null, searchArea: null });
+      expect(s.intent).toEqual({ targetRole: null, searchAreas: [] });
       expect(s.discovery).toEqual({
         floor: null,
         coveredItemIds: [],
@@ -157,32 +164,41 @@ for (const [name, make] of sessionDrivers) {
       expect((await store.getById(s.id))?.importProof).toBeNull();
     });
 
-    it("persists intent atomically and merges partial updates", async () => {
+    it("persists intent atomically and merges partial updates (searchAreas replaces the list)", async () => {
       const s = await store.create();
       const both = await store.setIntent(s.id, {
         targetRole: "Programme Manager",
-        searchArea: "Bangkok",
+        searchAreas: [area("Hong Kong", "hong-kong")],
       });
-      expect(both).toEqual({ targetRole: "Programme Manager", searchArea: "Bangkok" });
+      expect(both).toEqual({
+        targetRole: "Programme Manager",
+        searchAreas: [area("Hong Kong", "hong-kong")],
+      });
       expect((await store.getById(s.id))?.intent).toEqual(both);
 
-      const merged = await store.setIntent(s.id, { searchArea: "Remote in Thailand" });
+      // A new searchAreas REPLACES the whole list, and targetRole is preserved when omitted.
+      const merged = await store.setIntent(s.id, {
+        searchAreas: [area("Singapore", "singapore"), area("Sydney", "australia")],
+      });
       expect(merged).toEqual({
         targetRole: "Programme Manager",
-        searchArea: "Remote in Thailand",
+        searchAreas: [area("Singapore", "singapore"), area("Sydney", "australia")],
       });
       expect((await store.getById(s.id))?.intent).toEqual(merged);
 
       const preserved = await store.setIntent(s.id, { targetRole: undefined });
       expect(preserved).toEqual({
         targetRole: "Programme Manager",
-        searchArea: "Remote in Thailand",
+        searchAreas: [area("Singapore", "singapore"), area("Sydney", "australia")],
       });
     });
 
     it("persists retrieval snapshots and invalidates only retrieval when intent actually changes", async () => {
       const s = await store.create();
-      await store.setIntent(s.id, { targetRole: "Programme Manager", searchArea: "Hong Kong" });
+      await store.setIntent(s.id, {
+        targetRole: "Programme Manager",
+        searchAreas: [area("Hong Kong", "hong-kong")],
+      });
       await store.reconcileDiscoveryState(
         s.id,
         { familyId: "it-project-delivery", version: 1 },
@@ -250,9 +266,13 @@ for (const [name, make] of sessionDrivers) {
       await store.setIntent(s.id, { targetRole: "Programme Manager" });
       expect((await store.getById(s.id))?.retrieval).toEqual(snapshot);
 
-      await store.setIntent(s.id, { searchArea: "Singapore" });
+      // Re-saving the SAME list is also not a change — retrieval survives.
+      await store.setIntent(s.id, { searchAreas: [area("Hong Kong", "hong-kong")] });
+      expect((await store.getById(s.id))?.retrieval).toEqual(snapshot);
+
+      await store.setIntent(s.id, { searchAreas: [area("Singapore", "singapore")] });
       expect(await store.getById(s.id)).toMatchObject({
-        intent: { targetRole: "Programme Manager", searchArea: "Singapore" },
+        intent: { targetRole: "Programme Manager", searchAreas: [area("Singapore", "singapore")] },
         retrieval: null,
         retrievalCoordinationFingerprint: null,
         discovery: {
@@ -265,7 +285,10 @@ for (const [name, make] of sessionDrivers) {
 
     it("compare-and-set rejects an old in-flight result after intent changes", async () => {
       const s = await store.create();
-      await store.setIntent(s.id, { targetRole: "Programme Manager", searchArea: "Hong Kong" });
+      await store.setIntent(s.id, {
+        targetRole: "Programme Manager",
+        searchAreas: [area("Hong Kong", "hong-kong")],
+      });
       const before = (await store.getById(s.id))!;
       expect(
         await store.beginRetrievalState(
@@ -279,7 +302,7 @@ for (const [name, make] of sessionDrivers) {
         ),
       ).toBe(true);
 
-      await store.setIntent(s.id, { searchArea: "Singapore" });
+      await store.setIntent(s.id, { searchAreas: [area("Singapore", "singapore")] });
       const accepted = await store.reconcileRetrievalState(
         s.id,
         before.retrievalGeneration,
@@ -297,7 +320,10 @@ for (const [name, make] of sessionDrivers) {
 
     it("a discovery checkpoint transition invalidates retrieval and rejects the older generation", async () => {
       const s = await store.create();
-      await store.setIntent(s.id, { targetRole: "Programme Manager", searchArea: "Hong Kong" });
+      await store.setIntent(s.id, {
+        targetRole: "Programme Manager",
+        searchAreas: [area("Hong Kong", "hong-kong")],
+      });
       await store.reconcileDiscoveryState(
         s.id,
         { familyId: "it-project-delivery", version: 1 },

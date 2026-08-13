@@ -518,18 +518,19 @@ export interface ProfileContact {
   email: ProfileContactField | null;
 }
 
-// #188 (rail's Location section) — mirrored here additively per #186's pinned contract; this
-// ticket does not render it (the rail stays #188's to build). `workRights` is omitted entirely
-// server-side, never a placeholder object, when `area` is null.
+// #214: the rail's Location data is a LIST now — mirrors apps/api/src/profile.ts's ProfileLocation.
+// `areas` are the target-location chips (`label` is what the chip shows — city when a city was
+// typed, else the market); `workRights` is one row per unique covered market.
+export interface ProfileWorkRights {
+  market: string;
+  answer: string | null;
+  questionId: string;
+  question: string;
+  options: string[];
+}
 export interface ProfileLocation {
-  area: string | null;
-  workRights: {
-    market: string;
-    answer: string | null;
-    questionId: string;
-    question: string;
-    options: string[];
-  } | null;
+  areas: Array<{ text: string; market: string; label: string }>;
+  workRights: ProfileWorkRights[];
 }
 
 // #186 review round 2 (must-fix) — the eligibility store's own languages answer, always present on
@@ -605,31 +606,38 @@ export function saveSourceEntry(sourceEntry: Exclude<SourceEntry, null>) {
   });
 }
 
-export interface SearchIntent {
-  targetRole: string | null;
-  searchArea: string | null;
+// #214: a stored target location plus its display resolution — mirrors routes/sessions.ts's
+// searchAreaStateSchema. `label` is what the chip shows (city when a city was typed, else market).
+export interface SearchAreaState {
+  text: string;
+  marketKey: string;
+  statedAt: string;
+  market: string;
+  label: string;
 }
 
-// #184 (#172): the search-area entry gets an on-the-spot answer, resolved server-side against the
-// provider registry's served regions — never re-derived here. `coverage` is the live served-regions
-// list, rendered as-is — never a second hard-coded copy of it.
-export type SearchAreaResolution =
-  | { covered: true; market: string; marketKey: string }
-  | { covered: false; coverage: string[] };
+export interface SearchIntent {
+  targetRole: string | null;
+  searchAreas: SearchAreaState[];
+}
 
 export interface IntentState {
   intent: SearchIntent;
   missing: Array<"targetRole" | "searchArea">;
   checkpoint: "intent_needed" | "intent_known";
-  // Always present on the server's response; null when the last submission never touched the area.
-  searchAreaResolution: SearchAreaResolution | null;
+  /** Entries from the LAST write the server refused as uncovered, with the live coverage list. */
+  refused: Array<{ text: string; coverage: string[] }>;
+  /** The live covered-market names, for the early-access line — never hard-coded client-side. */
+  coverage: string[];
+  /** The completion vocabulary the type-ahead draws from — the server's own matching aliases. */
+  areaVocabulary: Array<{ alias: string; market: string; label: string }>;
 }
 
 export function getIntent(): Promise<IntentState> {
   return jfetch("/api/sessions/me/intent");
 }
 
-export function saveIntent(intent: Partial<Record<keyof SearchIntent, string>>): Promise<IntentState> {
+export function saveIntent(intent: { targetRole?: string; searchAreas?: string[] }): Promise<IntentState> {
   return jfetch("/api/sessions/me/intent", {
     method: "PUT",
     body: JSON.stringify(intent),

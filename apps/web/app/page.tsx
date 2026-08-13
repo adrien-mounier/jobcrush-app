@@ -16,6 +16,7 @@ import {
   type JobSnapshot,
   type SourceEntry,
 } from "../lib/api";
+import { areaSuggestions, matchAreaText } from "../lib/areaMatch";
 
 const L1 = "Answer questions.";
 const L2 = "Collect jobs.";
@@ -481,20 +482,16 @@ function IntentPanel({
   const roleRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLInputElement>(null);
   const [targetRole, setTargetRole] = useState("");
-  const [searchArea, setSearchArea] = useState("");
+  // #214: the search area is now up to 3 target-location CHIPS (the languages type-ahead pattern).
+  // Each chip keeps the words as typed plus the display label the server vocabulary resolved them
+  // to (the city when a city was typed, else the market). Save sends the texts; the server is still
+  // the gate (it re-resolves and refuses uncovered entries).
+  const [areaChips, setAreaChips] = useState<Array<{ text: string; label: string }>>([]);
+  const [areaQuery, setAreaQuery] = useState("");
+  const [refusedArea, setRefusedArea] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ targetRole?: string; searchArea?: string }>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
-  // #184 (#172): the server's own response is the single source of truth for the area resolution —
-  // read on every render below (both the still-needed form and the confirmation), so a cold reload
-  // and a live resubmission render identically instead of drifting apart. `editedArea` is the only
-  // piece of genuinely local state left: it just dismisses a stale coverage line the moment the
-  // person starts retyping, since the server has nothing to say about an edit that hasn't been
-  // submitted yet. `areaOnlyConfirm` is also local — the response carries no "was this round
-  // area-only" flag, so it can only shape the confirmation sentence for the submission that just
-  // happened, not survive a reload (a reload always renders the fuller "We'll look for X in Y."
-  // sentence, still with the canonical market name).
-  const [editedArea, setEditedArea] = useState(false);
   const [areaOnlyConfirm, setAreaOnlyConfirm] = useState(false);
   // `fresh` is a page-navigation flag ("did we land on this screen live, not via a cold restore") —
   // it is NOT "did a submit just happen." A visit can restore straight into this exact form
@@ -511,20 +508,54 @@ function IntentPanel({
   useEffect(() => {
     if (!state) return;
     setTargetRole(state.intent.targetRole ?? "");
-    setSearchArea(state.intent.searchArea ?? "");
-    setEditedArea(false);
+    setAreaChips(state.intent.searchAreas.map((entry) => ({ text: entry.text, label: entry.label })));
+    setAreaQuery("");
+    // #214: the server is the gate — a refusal it reports on a live submit re-shows the coverage
+    // line and puts focus back on the area input.
+    const serverRefused = state.refused[0]?.text ?? null;
+    setRefusedArea(serverRefused);
     const justSubmitted = justSubmittedRef.current;
     justSubmittedRef.current = false;
-    if (justSubmitted && state.searchAreaResolution?.covered === false) {
+    if (justSubmitted && serverRefused) {
       areaRef.current?.focus();
       return;
     }
     if (fresh) headingRef.current?.focus();
   }, [fresh, state]);
 
-  const resolution = state?.searchAreaResolution ?? null;
-  const resolvedMarket = resolution?.covered === true ? resolution.market : null;
-  const areaCoverage = !editedArea && resolution?.covered === false ? resolution.coverage : null;
+  const vocabulary = state?.areaVocabulary ?? [];
+  const atCap = areaChips.length >= 3;
+
+  // #214: the shared matcher over the server-sent vocabulary (lib/areaMatch.ts) — the server still
+  // re-resolves on save. Here an unmatched entry is always refused: the vocabulary arrives with
+  // `state`, so it is present whenever this form renders.
+  const resolveAreaText = (text: string) => matchAreaText(text, vocabulary);
+
+  const addArea = (text: string): boolean => {
+    const trimmed = text.trim();
+    if (!trimmed || atCap) return false;
+    const match = resolveAreaText(trimmed);
+    if (!match) {
+      setRefusedArea(trimmed);
+      return false;
+    }
+    if (!areaChips.some((chip) => chip.label === match.label)) {
+      setAreaChips([...areaChips, { text: trimmed, label: match.label }]);
+    }
+    setAreaQuery("");
+    setRefusedArea(null);
+    setErrors((current) => ({ ...current, searchArea: undefined }));
+    return true;
+  };
+
+  const removeArea = (label: string) => {
+    setAreaChips(areaChips.filter((chip) => chip.label !== label));
+    setRefusedArea(null);
+  };
+
+  const suggestions = atCap
+    ? []
+    : areaSuggestions(areaQuery, vocabulary, areaChips.map((chip) => chip.label));
 
   if (loadError) {
     return (
@@ -548,15 +579,13 @@ function IntentPanel({
   }
 
   if (state.checkpoint === "intent_known") {
-    // #184 MUST-FIX: confirms the canonical resolved market, never the raw typed text — on a live
-    // submit AND on a cold reload alike, since `resolvedMarket` reads straight off this render's
-    // `state.searchAreaResolution` rather than something only a fresh submit ever set. Falls back
-    // to the saved value only if the server genuinely has no resolution for this record (a save
-    // that predates this feature, or one that never touched the area).
-    const areaName = resolvedMarket ?? state.intent.searchArea;
+    // #214: confirms the canonical chip labels (city when a city was typed, else market), never the
+    // raw typed text — live submit and cold reload alike, straight off the server's own resolution.
+    // Oxford-less join, the existing joinCoverage convention.
+    const areaNames = joinCoverage(state.intent.searchAreas.map((entry) => entry.label));
     const confirmation = areaOnlyConfirm
-      ? `We’ll search ${areaName}.`
-      : `We’ll look for ${state.intent.targetRole} in ${areaName}.`;
+      ? `We’ll search ${areaNames}.`
+      : `We’ll look for ${state.intent.targetRole} in ${areaNames}.`;
     return (
       <section className="source-screen intent-screen">
         <p className="wordmark">JobCrush</p>
@@ -584,10 +613,27 @@ function IntentPanel({
 
   const submit = async () => {
     const role = targetRole.trim();
-    const area = searchArea.trim();
+    // #214: text still sitting in the area input is treated as one last chip-add — the way the
+    // languages widget treats Enter — so "typed but never pressed Add" is never silently dropped.
+    let chips = areaChips;
+    if (needsArea && areaQuery.trim()) {
+      const match = resolveAreaText(areaQuery);
+      if (!match) {
+        setRefusedArea(areaQuery.trim());
+        areaRef.current?.focus();
+        return;
+      }
+      if (!atCap && !chips.some((chip) => chip.label === match.label)) {
+        chips = [...chips, { text: areaQuery.trim(), label: match.label }];
+        setAreaChips(chips);
+        setAreaQuery("");
+      }
+    }
     const nextErrors = {
       ...(needsRole && !role ? { targetRole: "Tell us the target role you want next." } : {}),
-      ...(needsArea && !area ? { searchArea: "Tell us where you want JobCrush to look." } : {}),
+      ...(needsArea && chips.length === 0
+        ? { searchArea: "Tell us where you want JobCrush to look." }
+        : {}),
     };
     setErrors(nextErrors);
     if (nextErrors.targetRole) {
@@ -603,15 +649,12 @@ function IntentPanel({
     try {
       const accepted = await saveIntent({
         ...(needsRole ? { targetRole: role } : {}),
-        ...(needsArea ? { searchArea: area } : {}),
+        ...(needsArea ? { searchAreas: chips.map((chip) => chip.text) } : {}),
       });
       setSaving(false);
-      // AC1/MUST-FIX: the server itself now never advances the checkpoint past an uncovered area
-      // (the typed text still stores, so it isn't lost) — this always calls onAccepted and trusts
-      // that checkpoint, rather than re-deciding it here. The coverage line and the resolved-market
-      // confirmation above both derive straight from `state.searchAreaResolution` on the resulting
-      // render, so this only needs to record which shape of confirmation sentence this round wants.
-      setAreaOnlyConfirm(needsArea && !needsRole && accepted.searchAreaResolution?.covered === true);
+      // The server never advances the checkpoint without ≥1 covered market — this trusts its
+      // checkpoint rather than re-deciding it here.
+      setAreaOnlyConfirm(needsArea && !needsRole && accepted.intent.searchAreas.length > 0);
       justSubmittedRef.current = true;
       onAccepted(accepted);
     } catch {
@@ -633,8 +676,10 @@ function IntentPanel({
       >
         <h1 tabIndex={-1} ref={headingRef}>{heading}</h1>
         <p className="source-intro">{intro}</p>
-        {needsRole && !needsArea && state.intent.searchArea && (
-          <p className="intent-summary">Searching in {state.intent.searchArea}</p>
+        {needsRole && !needsArea && state.intent.searchAreas.length > 0 && (
+          <p className="intent-summary">
+            Searching in {joinCoverage(state.intent.searchAreas.map((entry) => entry.label))}
+          </p>
         )}
         {needsArea && !needsRole && state.intent.targetRole && (
           <p className="intent-summary">Looking for {state.intent.targetRole}</p>
@@ -663,36 +708,68 @@ function IntentPanel({
             </div>
           )}
           {needsArea && (
-            <div className="intent-field">
+            <div className="intent-field intent-areas" data-testid="area-chips">
               <label htmlFor="search-area">Search area</label>
+              {areaChips.length > 0 && (
+                <ul className="chips" aria-label="Places you've chosen">
+                  {areaChips.map((chip) => (
+                    <li key={chip.label}>
+                      <span className="lbl">{chip.label}</span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${chip.label}`}
+                        disabled={saving}
+                        onClick={() => removeArea(chip.label)}
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <input
                 id="search-area"
                 ref={areaRef}
-                value={searchArea}
-                disabled={saving}
-                // #184 (AC5): both examples must resolve to a covered market — coordinated with the
-                // backend team, which checks the same provider-registry list.
-                placeholder="e.g. Hong Kong, or Remote in Vietnam"
+                value={areaQuery}
+                // #214: the input disables at the 3-chip cap; the helper line below reads it out.
+                disabled={saving || atCap}
+                placeholder={atCap ? "" : "e.g. Hong Kong"}
                 aria-invalid={Boolean(errors.searchArea)}
                 aria-describedby={[
                   "search-area-helper",
                   errors.searchArea ? "search-area-error" : null,
-                  areaCoverage ? "search-area-coverage" : null,
+                  refusedArea ? "search-area-coverage" : null,
                 ]
                   .filter(Boolean)
                   .join(" ")}
                 onChange={(event) => {
-                  setSearchArea(event.target.value);
-                  setEditedArea(true);
+                  setAreaQuery(event.target.value);
+                  setRefusedArea(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  event.preventDefault();
+                  addArea(areaQuery);
                 }}
               />
               <p id="search-area-helper" className="intent-helper">
-                A city, region, remote preference, or relocation area all work.
+                {atCap
+                  ? "Three places is the limit — remove one to add another."
+                  : "Type a city or country — up to three places."}
               </p>
+              {suggestions.length > 0 && (
+                <div className="sugg" role="status" aria-live="polite">
+                  {suggestions.map((v) => (
+                    <button key={v.label} type="button" disabled={saving} onClick={() => addArea(v.label)}>
+                      {v.label === v.market ? v.label : `${v.label} — ${v.market}`}
+                    </button>
+                  ))}
+                </div>
+              )}
               {errors.searchArea && <p id="search-area-error" className="intent-validation" role="alert">{errors.searchArea}</p>}
-              {areaCoverage && (
+              {refusedArea && (
                 <p id="search-area-coverage" className="intent-coverage" role="status">
-                  {`JobCrush is in early access — we currently cover ${joinCoverage(areaCoverage)}.`}
+                  {`JobCrush is in early access — we currently cover ${joinCoverage(state.coverage)}.`}
                 </p>
               )}
             </div>

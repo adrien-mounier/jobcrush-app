@@ -30,14 +30,14 @@ const SCOPE_LABEL = "IT project delivery";
 const ROLE = "IT project manager in Paris";
 
 describe("#106 eligibilityCandidates", () => {
-  const candidates = eligibilityCandidates(ANY_FAMILY, "Paris");
+  const candidates = eligibilityCandidates(ANY_FAMILY, ["Paris"]);
 
   // ADR-0008's own falsifiable check, in one line: "`years-experience` must never appear in
   // ASK_DIMENSIONS. If a build ticket adds a 'how many years of experience do you have?' question —
   // for any reason, including an unreadable work history — clause 2 was not read."
   it("never asks for a years-of-experience total, for any reason (ADR-0008 clause 2)", () => {
-    for (const city of ["Paris", null] as const) {
-      const qs = eligibilityCandidates(ANY_FAMILY, city);
+    for (const markets of [["Paris"], []] as const) {
+      const qs = eligibilityCandidates(ANY_FAMILY, markets);
       expect(qs.some((q) => q.eligibility?.dimension === "years-experience")).toBe(false);
       expect(qs.some((q) => /how many years/i.test(q.question))).toBe(false);
     }
@@ -74,8 +74,19 @@ describe("#106 eligibilityCandidates", () => {
     ]);
   });
 
-  it("work-rights falls back to ANY_FAMILY and the generic phrasing when no city is given", () => {
-    const [workRights] = eligibilityCandidates(ANY_FAMILY, null);
+  // #214: with N selected markets, work-rights is asked once per market, each at its own scope.
+  it("#214: two markets build two work-rights questions, one per market, in list order", () => {
+    const qs = eligibilityCandidates(ANY_FAMILY, ["Hong Kong", "Australia"]);
+    expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["work-rights", "work-rights", "language"]);
+    expect(qs.slice(0, 2).map((q) => q.eligibility!.familyId)).toEqual(["hong-kong", "australia"]);
+    expect(qs.slice(0, 2).map((q) => q.question)).toEqual([
+      "Can you already work in Hong Kong without visa sponsorship?",
+      "Can you already work in Australia without visa sponsorship?",
+    ]);
+  });
+
+  it("work-rights falls back to ANY_FAMILY and the generic phrasing when no market is known", () => {
+    const [workRights] = eligibilityCandidates(ANY_FAMILY, []);
     expect(workRights!.question).toBe("Can you already work where you're job-hunting, without visa sponsorship?");
     expect(workRights!.eligibility).toMatchObject({ familyId: ANY_FAMILY, scopeLabel: null });
   });
@@ -85,13 +96,13 @@ describe("#106 eligibilityCandidates", () => {
   // never re-asking it. Exercised at this module's own seam (eligibilityCandidates/itemId), since the
   // store-level "which market a fact belongs to" is eligibility.test.ts's job.
   it("#182 AC1/AC2: work-rights gets a DIFFERENT itemId per city, so switching city never re-uses another city's answer", () => {
-    const paris = eligibilityCandidates(ANY_FAMILY, "Paris").find(
+    const paris = eligibilityCandidates(ANY_FAMILY, ["Paris"]).find(
       (q) => q.eligibility?.dimension === "work-rights",
     )!;
-    const hongKong = eligibilityCandidates(ANY_FAMILY, "Hong Kong").find(
+    const hongKong = eligibilityCandidates(ANY_FAMILY, ["Hong Kong"]).find(
       (q) => q.eligibility?.dimension === "work-rights",
     )!;
-    const parisAgain = eligibilityCandidates(ANY_FAMILY, "Paris").find(
+    const parisAgain = eligibilityCandidates(ANY_FAMILY, ["Paris"]).find(
       (q) => q.eligibility?.dimension === "work-rights",
     )!;
     expect(paris.itemId).not.toBe(hongKong.itemId);
@@ -128,7 +139,7 @@ describe("#106 unresolvedEligibilityQuestions — never re-asked", () => {
   // Derives real itemIds from the candidates themselves (never a hand-typed copy of the naming
   // scheme) — the point of this suite is to observe closing behaviour, not to re-encode the id shape.
   const candidateItemId = (dimension: string) =>
-    eligibilityCandidates(ANY_FAMILY, null).find((q) => q.eligibility?.dimension === dimension)!
+    eligibilityCandidates(ANY_FAMILY, []).find((q) => q.eligibility?.dimension === dimension)!
       .itemId;
 
   const closingClaim = (itemId: string): ClaimRecord => ({
@@ -149,22 +160,22 @@ describe("#106 unresolvedEligibilityQuestions — never re-asked", () => {
   });
 
   it("both are unresolved when nothing has been asked", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, null, [], [], [], []);
+    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, [], [], [], [], []);
     expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["work-rights", "language"]);
   });
 
   it("a claims-store decline (confirmed, negative, or rejected — #35's three-way union) never returns, on any bucket", () => {
     const declined = closingClaim(candidateItemId("work-rights"));
-    const inConfirmed = unresolvedEligibilityQuestions(ANY_FAMILY, null, [declined], [], [], []);
-    const inNegatives = unresolvedEligibilityQuestions(ANY_FAMILY, null, [], [declined], [], []);
-    const inRejected = unresolvedEligibilityQuestions(ANY_FAMILY, null, [], [], [declined], []);
+    const inConfirmed = unresolvedEligibilityQuestions(ANY_FAMILY, [], [declined], [], [], []);
+    const inNegatives = unresolvedEligibilityQuestions(ANY_FAMILY, [], [], [declined], [], []);
+    const inRejected = unresolvedEligibilityQuestions(ANY_FAMILY, [], [], [], [declined], []);
     for (const qs of [inConfirmed, inNegatives, inRejected]) {
       expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["language"]);
     }
   });
 
   it("a stored eligibility fact (a real answer) also closes its question, with no claim involved", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, null, [], [], [], [
+    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, [], [], [], [], [
       { dimension: "language", familyId: "English" },
     ]);
     expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["work-rights"]);
@@ -177,7 +188,7 @@ describe("#106 unresolvedEligibilityQuestions — never re-asked", () => {
   // re-asked, the same accepted-pre-launch outcome LANGUAGE_ITEM_ID's own doc records for the itemId
   // change itself.
   it("a language fact at ANY scope (including one recorded under a different language name) closes the one languages question", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, null, [], [], [], [
+    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, [], [], [], [], [
       { dimension: "language", familyId: "Mandarin" },
     ]);
     expect(qs.map((q) => q.eligibility?.dimension)).toEqual(["work-rights"]);
@@ -188,14 +199,14 @@ describe("#106 unresolvedEligibilityQuestions — never re-asked", () => {
   // below is the SLUG a real write actually stores (QA round 3 must-fix) — the raw display city
   // ("Hong Kong"/"Paris") only ever appears in `city` (this fn's 4th arg) and in question text.
   it("#182 AC1: a Paris work-rights answer leaves Hong Kong's question open (unknown, not borrowed)", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, "Hong Kong", [], [], [], [
+    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, ["Hong Kong"], [], [], [], [
       { dimension: "work-rights", familyId: "paris" },
     ]);
     expect(qs.map((q) => q.eligibility?.dimension)).toContain("work-rights");
   });
 
   it("#182 AC2: switching back to Paris finds the stored Paris answer and does not re-ask it", () => {
-    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, "Paris", [], [], [], [
+    const qs = unresolvedEligibilityQuestions(ANY_FAMILY, ["Paris"], [], [], [], [
       { dimension: "work-rights", familyId: "paris" },
     ]);
     expect(qs.map((q) => q.eligibility?.dimension)).not.toContain("work-rights");
@@ -343,7 +354,7 @@ describe("#106 applyEligibilityQuestions — band interleaving", () => {
     const state = discoveryState(ROLE, [], [], [], "Paris");
     expect(state.questions.some((q) => standardIds.has(q.itemId))).toBe(true); // guard: the fixture has standard items
 
-    applyEligibilityQuestions(ROLE, state, [], [], [], []);
+    applyEligibilityQuestions(ROLE, state, [], [], [], [], ["Paris"]);
 
     const bands = state.questions.map((q) => bandOf(q.itemId));
     expect(bands).toContain("eligibility");
@@ -355,7 +366,7 @@ describe("#106 applyEligibilityQuestions — band interleaving", () => {
 
   it("keeps the visitor in discovery while any eligibility question is still open", () => {
     const state = discoveryState(ROLE, [], [], [], "Paris");
-    applyEligibilityQuestions(ROLE, state, [], [], [], []);
+    applyEligibilityQuestions(ROLE, state, [], [], [], [], ["Paris"]);
     expect(state.stage).toBe("discovery");
   });
 
@@ -365,7 +376,7 @@ describe("#106 applyEligibilityQuestions — band interleaving", () => {
     // silently resolves nothing (the same mismatch resolveUserYears's doc warns about). Deriving them
     // is also the only way this test stays true if the scope derivation ever changes.
     const probe = discoveryState(ROLE, [], [], [], "Paris");
-    applyEligibilityQuestions(ROLE, probe, [], [], [], []);
+    applyEligibilityQuestions(ROLE, probe, [], [], [], [], ["Paris"]);
     const facts = probe.questions
       .filter((q) => q.eligibility)
       .map((q) => ({ dimension: q.eligibility!.dimension, familyId: q.eligibility!.familyId }));
@@ -375,7 +386,7 @@ describe("#106 applyEligibilityQuestions — band interleaving", () => {
     const before = [...resolved.questions];
     const stageBefore = resolved.stage;
 
-    applyEligibilityQuestions(ROLE, resolved, [], [], [], facts);
+    applyEligibilityQuestions(ROLE, resolved, [], [], [], facts, ["Paris"]);
 
     expect(resolved.questions).toEqual(before);
     expect(resolved.stage).toBe(stageBefore);

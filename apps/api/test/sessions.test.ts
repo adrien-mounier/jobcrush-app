@@ -105,12 +105,16 @@ describe("JC-10 anonymous sessions", () => {
       headers: { cookie },
     });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
-      intent: { targetRole: null, searchArea: null },
+    const body = response.json();
+    expect(body).toMatchObject({
+      intent: { targetRole: null, searchAreas: [] },
       missing: ["targetRole", "searchArea"],
       checkpoint: "intent_needed",
-      searchAreaResolution: null, // #184: nothing typed yet, nothing to resolve
+      refused: [], // #214: nothing written this request, nothing refused
+      coverage: ["Hong Kong", "Singapore", "Vietnam", "Australia"],
     });
+    expect(Array.isArray(body.areaVocabulary)).toBe(true);
+    expect(body.areaVocabulary.length).toBeGreaterThan(0);
     expect(response.json()).not.toHaveProperty("jobCount");
     expect(response.json()).not.toHaveProperty("matches");
     expect(response.json()).not.toHaveProperty("family");
@@ -127,23 +131,53 @@ describe("JC-10 anonymous sessions", () => {
       payload: { targetRole: "  Programme Manager  ", searchArea: "  Hong Kong  " },
     });
     expect(accepted.statusCode).toBe(200);
-    expect(accepted.json()).toEqual({
-      intent: { targetRole: "Programme Manager", searchArea: "Hong Kong" },
+    expect(accepted.json()).toMatchObject({
+      intent: {
+        targetRole: "Programme Manager",
+        searchAreas: [
+          {
+            text: "Hong Kong",
+            marketKey: "hong-kong",
+            statedAt: expect.any(String),
+            market: "Hong Kong",
+            label: "Hong Kong",
+          },
+        ],
+      },
       missing: [],
       checkpoint: "intent_known",
-      searchAreaResolution: { covered: true, market: "Hong Kong", marketKey: "hong-kong" },
+      refused: [],
     });
+    // #214: `searchAreas` REPLACES the whole list; a city resolves to its own label + country market.
     const updated = await app.inject({
       method: "PUT",
       url: "/sessions/me/intent",
       headers: { cookie },
-      payload: { searchArea: "Singapore" },
+      payload: { searchAreas: ["Singapore", "Sydney"] },
     });
-    expect(updated.json()).toEqual({
-      intent: { targetRole: "Programme Manager", searchArea: "Singapore" },
+    expect(updated.json()).toMatchObject({
+      intent: {
+        targetRole: "Programme Manager",
+        searchAreas: [
+          {
+            text: "Singapore",
+            marketKey: "singapore",
+            statedAt: expect.any(String),
+            market: "Singapore",
+            label: "Singapore",
+          },
+          {
+            text: "Sydney",
+            marketKey: "australia",
+            statedAt: expect.any(String),
+            market: "Australia",
+            label: "Sydney",
+          },
+        ],
+      },
       missing: [],
       checkpoint: "intent_known",
-      searchAreaResolution: { covered: true, market: "Singapore", marketKey: "singapore" },
+      refused: [],
     });
     const restored = await app.inject({
       method: "GET",
@@ -152,15 +186,18 @@ describe("JC-10 anonymous sessions", () => {
     });
     expect(restored.json().intent).toEqual({
       targetRole: "Programme Manager",
-      searchArea: "Singapore",
+      searchAreas: [
+        { text: "Singapore", marketKey: "singapore", statedAt: expect.any(String) },
+        { text: "Sydney", marketKey: "australia", statedAt: expect.any(String) },
+      ],
     });
   });
 
-  // #184 spec review MUST-FIX: the coverage gate is server-side, not just the web's refusal to
-  // advance. Repro this pinned: type "Bangkok" -> early-access message -> reload -> without this fix
-  // the checkpoint had already flipped to intent_known and a reload showed "We'll look for ... in
-  // Bangkok" — the area passing silently onward, the exact #172 complaint.
-  it("an uncovered search area never advances the checkpoint to intent_known (server-side gate)", async () => {
+  // #184's server-side coverage gate, carried forward under #214's semantics: an uncovered area is
+  // now REFUSED — never stored, reported in `refused` on the write that carried it — and the
+  // checkpoint stays intent_needed. Repro pinned: type "Bangkok" -> refusal message -> reload ->
+  // nothing stored, nothing passes silently onward (the exact #172 complaint).
+  it("an uncovered search area is refused, never stored, and never advances the checkpoint (server-side gate)", async () => {
     const { app } = buildServer();
     const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
     const cookie = cookieOf(created);
@@ -173,17 +210,21 @@ describe("JC-10 anonymous sessions", () => {
       payload: { targetRole: "Programme Manager", searchArea: "Bangkok" },
     });
     expect(accepted.statusCode).toBe(200);
-    // Free text is still STORED as typed (capture stays free text) — only the checkpoint gate reacts.
-    expect(accepted.json()).toEqual({
-      intent: { targetRole: "Programme Manager", searchArea: "Bangkok" },
-      missing: ["searchArea"], // still counts as unmet — an uncovered area is not a satisfied intent
+    expect(accepted.json()).toMatchObject({
+      intent: { targetRole: "Programme Manager", searchAreas: [] }, // NOT stored
+      missing: ["searchArea"], // still unmet — a refused area is not a satisfied intent
       checkpoint: "intent_needed", // NEVER intent_known on an uncovered area
-      searchAreaResolution: { covered: false, coverage: COVERAGE },
+      refused: [{ text: "Bangkok", coverage: COVERAGE }],
     });
 
-    // The gate survives a reload too — GET must carry the SAME resolution, never a bare "known".
+    // The gate survives a reload too — GET shows nothing stored (refusals are per-write, so []).
     const reloaded = await app.inject({ method: "GET", url: "/sessions/me/intent", headers: { cookie } });
-    expect(reloaded.json()).toEqual(accepted.json());
+    expect(reloaded.json()).toMatchObject({
+      intent: { targetRole: "Programme Manager", searchAreas: [] },
+      missing: ["searchArea"],
+      checkpoint: "intent_needed",
+      refused: [],
+    });
 
     // Correcting to a covered area is what actually advances the checkpoint.
     const corrected = await app.inject({
@@ -192,11 +233,22 @@ describe("JC-10 anonymous sessions", () => {
       headers: { cookie },
       payload: { searchArea: "Hong Kong" },
     });
-    expect(corrected.json()).toEqual({
-      intent: { targetRole: "Programme Manager", searchArea: "Hong Kong" },
+    expect(corrected.json()).toMatchObject({
+      intent: {
+        targetRole: "Programme Manager",
+        searchAreas: [
+          {
+            text: "Hong Kong",
+            marketKey: "hong-kong",
+            statedAt: expect.any(String),
+            market: "Hong Kong",
+            label: "Hong Kong",
+          },
+        ],
+      },
       missing: [],
       checkpoint: "intent_known",
-      searchAreaResolution: { covered: true, market: "Hong Kong", marketKey: "hong-kong" },
+      refused: [],
     });
   });
 
@@ -218,11 +270,11 @@ describe("JC-10 anonymous sessions", () => {
       url: "/sessions/me/intent",
       headers: { cookie },
     });
-    expect(response.json()).toEqual({
-      intent: { targetRole: "Delivery Lead", searchArea: null },
+    expect(response.json()).toMatchObject({
+      intent: { targetRole: "Delivery Lead", searchAreas: [] },
       missing: ["searchArea"],
       checkpoint: "intent_needed",
-      searchAreaResolution: null,
+      refused: [],
     });
   });
 
@@ -245,7 +297,7 @@ describe("JC-10 anonymous sessions", () => {
       url: "/sessions/me/intent",
       headers: { cookie },
     });
-    expect(response.json().intent).toEqual({ targetRole: null, searchArea: null });
+    expect(response.json().intent).toEqual({ targetRole: null, searchAreas: [] });
   });
 
   it("requires a session and rejects invalid intent writes", async () => {
@@ -262,6 +314,8 @@ describe("JC-10 anonymous sessions", () => {
       { targetRole: "" },
       { searchArea: "   " },
       { targetRole: "PM", extra: true },
+      { searchAreas: ["Hong Kong", "Singapore", "Sydney", "Melbourne"] }, // #214: max 3
+      { searchAreas: [""] },
     ]) {
       const invalid = await app.inject({
         method: "PUT",

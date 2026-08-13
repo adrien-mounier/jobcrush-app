@@ -115,7 +115,7 @@ interface ProfileResponse {
   factCount: number;
   search: { role: string | null; family: string | null; siblingTitles: string[]; openJobs: number | null };
   contact: { phone: ProfileContactField | null; email: ProfileContactField | null };
-  location: { area: string | null; workRights: ProfileWorkRights | null };
+  location: { areas: Array<{ text: string; market: string; label: string }>; workRights: ProfileWorkRights[] };
   languagesQuestion: ProfileLanguagesQuestion;
 }
 
@@ -124,8 +124,8 @@ interface ProfileResponse {
 const EMPTY_SEARCH = (role: string | null) => ({ role, family: null, siblingTitles: [], openJobs: null });
 // #190: honest absence — no contact record yet.
 const EMPTY_CONTACT = { phone: null, email: null };
-// #185: honest absence — no search area set yet, so no market to hold a work-rights answer either.
-const EMPTY_LOCATION = { area: null, workRights: null };
+// #214: honest absence — no target location set yet, so no market to hold a work-rights answer either.
+const EMPTY_LOCATION = { areas: [], workRights: [] };
 // #185 code-review contract extension: the languages question composed the SAME way
 // eligibilityDiscovery.ts's buildQuestion composes it — imported directly (never hand-copied text)
 // so this fixture can never drift from the shipped copy. `answer: null` — the honest never-answered
@@ -431,48 +431,70 @@ describe("#20 profile screen — the colour law over HTTP", () => {
       // asked — never re-composed, never paraphrased — and its questionId is the SAME id the answer
       // route below accepts (the round-trip pin).
       expect(before.location).toEqual({
-        area: "Hong Kong",
-        workRights: {
-          market: "Hong Kong",
-          answer: null,
-          questionId: workRights.itemId,
-          question: workRights.question,
-          options: workRights.options,
-        },
+        areas: [{ text: "Hong Kong", market: "Hong Kong", label: "Hong Kong" }],
+        workRights: [
+          {
+            market: "Hong Kong",
+            answer: null,
+            questionId: workRights.itemId,
+            question: workRights.question,
+            options: workRights.options,
+          },
+        ],
       });
 
       await post(server.app, cookie, "/onboarding/discovery/answer", {
-        itemId: before.location.workRights!.questionId, // the rail's own id, not a client-composed one
+        itemId: before.location.workRights[0].questionId, // the rail's own id, not a client-composed one
         answer: workRights.options[0], // "Yes — no sponsorship needed"
       });
       const afterAnswer = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
       expect(afterAnswer.location).toEqual({
-        area: "Hong Kong",
-        workRights: {
-          market: "Hong Kong",
-          answer: workRights.options[0],
-          questionId: workRights.itemId,
-          question: workRights.question,
-          options: workRights.options,
-        },
+        areas: [{ text: "Hong Kong", market: "Hong Kong", label: "Hong Kong" }],
+        workRights: [
+          {
+            market: "Hong Kong",
+            answer: workRights.options[0],
+            questionId: workRights.itemId,
+            question: workRights.question,
+            options: workRights.options,
+          },
+        ],
       });
 
       // Switch to a different covered market: Singapore's own (unanswered) state shows, with its
       // OWN question identity — never Hong Kong's stored "yes" or Hong Kong's questionId.
       await put(server.app, cookie, "/sessions/me/intent", { searchArea: "Singapore" });
       const afterSwitch = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
-      expect(afterSwitch.location.workRights!.market).toBe("Singapore");
-      expect(afterSwitch.location.workRights!.answer).toBeNull();
-      expect(afterSwitch.location.workRights!.questionId).not.toBe(workRights.itemId);
+      expect(afterSwitch.location.workRights).toHaveLength(1);
+      expect(afterSwitch.location.workRights[0].market).toBe("Singapore");
+      expect(afterSwitch.location.workRights[0].answer).toBeNull();
+      expect(afterSwitch.location.workRights[0].questionId).not.toBe(workRights.itemId);
     });
 
-    it("an uncovered search area has no market to hold a work-rights answer", async () => {
+    // #214: two chips, one work-rights row each — and two chips in the SAME country stay one row.
+    it("#214: one work-rights row per UNIQUE covered market, in chip order", async () => {
       const server = buildServer();
       const cookie = await anonSession(server.app);
-      await put(server.app, cookie, "/sessions/me/intent", { searchArea: "London" });
+      await put(server.app, cookie, "/sessions/me/intent", {
+        searchAreas: ["Sydney", "Melbourne", "Hong Kong"],
+      });
 
       const { location } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
-      expect(location).toEqual({ area: "London", workRights: null });
+      expect(location.areas.map((a) => a.label)).toEqual(["Sydney", "Melbourne", "Hong Kong"]);
+      expect(location.areas.map((a) => a.market)).toEqual(["Australia", "Australia", "Hong Kong"]);
+      // Sydney + Melbourne are one Australia row — visas are national.
+      expect(location.workRights.map((w) => w.market)).toEqual(["Australia", "Hong Kong"]);
+    });
+
+    // #214: an uncovered text is REFUSED — never stored — so the location stays the empty state.
+    it("an uncovered search area is refused and never stored: the location stays empty", async () => {
+      const server = buildServer();
+      const cookie = await anonSession(server.app);
+      const res = await put(server.app, cookie, "/sessions/me/intent", { searchArea: "London" });
+      expect(res.json().refused.map((r: { text: string }) => r.text)).toEqual(["London"]);
+
+      const { location } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
+      expect(location).toEqual({ areas: [], workRights: [] });
     });
   });
 

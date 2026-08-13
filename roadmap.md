@@ -37,7 +37,7 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~2~~ | ~~#208~~ | ~~The reader splits compound bullets; the ruling says don't~~ **DONE 2026-08-13** | — | — | — |
 | ~~3~~ | ~~#209~~ | ~~Four e2e journeys are in no CI tier and cannot run~~ **DONE 2026-08-13** | — | — | — |
 | ~~4~~ | ~~#124~~ | ~~Where do you want to work?~~ **DECIDED 2026-08-13 → build is #214** | — | — | — |
-| 4b | #214 | Target locations: up to three covered-market chips, one deck over the union | `/implement` | Opus | medium |
+| ~~4b~~ | ~~#214~~ | ~~Target locations: up to three chips, one deck over the union~~ **DONE 2026-08-14** (city-level, per the owner decision on #124's trail) | — | — | — |
 | 5 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
 | 6 | #64 | The match count survives signup | `/implement` | Opus | medium |
 

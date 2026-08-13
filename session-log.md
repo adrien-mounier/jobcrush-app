@@ -2,6 +2,29 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-14 (session 119) `/implement 214` — target locations shipped, city-level per a mid-build owner decision
+
+**#214 done — QA gate GO** (this commit). Up to 3 target-location chips, one deck over the union,
+per-market work-rights, profile-rail chips editor, `statedAt` on the stored place shape,
+placeholder loses "or Remote in Vietnam".
+
+- ⚖️ **Owner decision mid-build (recorded on #124's trail + spec amendment):** a typed CITY is a
+  city-level target — "Melbourne" chips as Melbourne and the deck keeps Melbourne ads plus
+  country ads stating no recognisable city (fail-open, option 2 of 3), excluding ads stating a
+  different city. Reverses #124's sub-country out-of-scope line. Work-rights stays national;
+  HK/SG always country-level. Supersedes #184's keep-uncovered-text restore path: a refused
+  place is never stored.
+- 🔬 16 new acceptance tests (`apps/api/test/targetLocations.test.ts`) incl. the #107 regression
+  (HK "needs sponsorship" withdraws only HK; `withdrawal.ts` untouched). Full suite 1350 green;
+  Tier 1 130 green; both location journeys green on the real stack; new
+  `target-locations-journey.mjs` registered in Tier 2.
+- 🚧 **Escalated to owner, open:** the discovery promise line names only the first chip
+  ("…jobs open in Hong Kong right now" with Melbourne also selected). Pluralise like the
+  confirmation sentence, or drop the place? Small either way.
+- 💸 A first QA-gate run died on the monthly Claude spend limit mid-drive; re-run after the raise
+  came back NO-GO (stale `search-area-coverage-journey.mjs` encoding the superseded #184 rules +
+  unregistered new journey), both fixed, re-gate GO.
+
 ## 2026-08-13 (session 118) `/wayfinder 124` — target locations decided, not built; the build is #214
 
 **#124 closed as a recorded decision** (`e0d8cd2`; resolution comment on the ticket). The ticket's

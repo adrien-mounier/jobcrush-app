@@ -73,7 +73,7 @@ import {
 } from "../adaptiveDiscovery.js";
 import type { ProductionFamilyFloorStore, TestFixtureFamilyFloorStore } from "../familyFloors.js";
 import {
-  resolvedCityFor,
+  resolvedAreaLabelsFor, resolvedMarketsFor,
   retrievalRequestForSession,
   retrievalFingerprint,
   unavailablePostingRetrieval,
@@ -620,7 +620,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         session,
         factCount(excludingEligibility(confirmed), excludingEligibility(negatives)),
       );
-      return buildProfileState(facts, confirmed, profileFactCount, session.targetTitles[0] ?? null, await deps.contact.getRecord(session.id), await resolveProfileLocation(deps.eligibility, session.id, session.intent.searchArea), await resolveLanguagesQuestion(deps.eligibility, session.id));
+      return buildProfileState(facts, confirmed, profileFactCount, session.targetTitles[0] ?? null, await deps.contact.getRecord(session.id), await resolveProfileLocation(deps.eligibility, session.id, session.intent.searchAreas), await resolveLanguagesQuestion(deps.eligibility, session.id));
     });
 
     // --- #16 discovery (screen 1a): the answer→CV-line→section-bar loop -------------------------
@@ -660,7 +660,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const session = requireSession(req);
         const role = session.targetTitles[0] ?? null;
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const state = discoveryState(role, confirmed, negatives, rejected, resolvedCityFor(session.intent.searchArea));
+        const state = discoveryState(role, confirmed, negatives, rejected, resolvedAreaLabelsFor(session.intent.searchAreas)[0] ?? null);
 
         const jobId = req.query.job;
         // #35: a deck-rejected reader-role claim still closes the question — same never-re-ask rule
@@ -674,7 +674,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           const roles = job && job.sessionId === session.id ? minedRoles(job) : [];
           if (roles.length > 0) state.questions = [readerQuestion(roles[0]!), ...state.questions];
         }
-        if (role) applyEligibilityQuestions(role, state, confirmed, negatives, rejected, facts, blocks);
+        if (role) applyEligibilityQuestions(role, state, confirmed, negatives, rejected, facts, resolvedMarketsFor(session.intent.searchAreas), blocks);
         // #106 must-fix 3: a decline is a refusal, not a recorded fact — strip it before it inflates
         // the profile badge's "pile that only grows".
         state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
@@ -704,8 +704,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         await deps.sessions.setTargetTitles(session.id, [req.body.role]);
         await deps.sessions.setStage(session.id, "discovery");
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const state = discoveryState(req.body.role, confirmed, negatives, rejected, resolvedCityFor(session.intent.searchArea));
-        applyEligibilityQuestions(req.body.role, state, confirmed, negatives, rejected, facts, blocks);
+        const state = discoveryState(req.body.role, confirmed, negatives, rejected, resolvedAreaLabelsFor(session.intent.searchAreas)[0] ?? null);
+        applyEligibilityQuestions(req.body.role, state, confirmed, negatives, rejected, facts, resolvedMarketsFor(session.intent.searchAreas), blocks);
         state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
@@ -757,7 +757,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           const result = await answerEligibilityItem(
             { eligibility: deps.eligibility, claims: deps.claims },
             session.id,
-            resolvedCityFor(session.intent.searchArea),
+            resolvedMarketsFor(session.intent.searchAreas),
             req.body.itemId,
             req.body,
           );
@@ -832,8 +832,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         }
 
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const state = discoveryState(role, confirmed, negatives, rejected, resolvedCityFor(session.intent.searchArea));
-        applyEligibilityQuestions(role, state, confirmed, negatives, rejected, facts, blocks);
+        const state = discoveryState(role, confirmed, negatives, rejected, resolvedAreaLabelsFor(session.intent.searchAreas)[0] ?? null);
+        applyEligibilityQuestions(role, state, confirmed, negatives, rejected, facts, resolvedMarketsFor(session.intent.searchAreas), blocks);
         // #18 AC1 / #106: the essential band fully asked AND every eligibility question closed flips
         // the session to the deck stage, so a reload lands there too. Code-review must-fix 2: the
         // full set of remaining floor + eligibility items is visible from the very first response

@@ -336,6 +336,69 @@
   font-size: 12.5px;
   line-height: 1.4;
 }
+/* #214 the target-location chips + type-ahead — the languages widget's own shapes (discovery.css
+   .lang-typeahead), re-scoped to the front door's palette. */
+.frontdoor .intent-areas .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0 0 11px;
+  padding: 0;
+}
+.frontdoor .intent-areas .chips li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--hud-line);
+  border-radius: 11px;
+  background: var(--hud-2);
+  font-size: 13px;
+}
+.frontdoor .intent-areas .chips button {
+  appearance: none;
+  border: none;
+  border-radius: 11px;
+  background: none;
+  color: var(--hud-mute);
+  padding: 0 3px;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.frontdoor .intent-areas .chips button:hover:not(:disabled) {
+  color: var(--hud-ink);
+}
+.frontdoor .intent-areas .sugg {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+  border: 1px solid var(--hud-line);
+  border-radius: 11px;
+  overflow: hidden;
+  background: var(--hud-2);
+}
+.frontdoor .intent-areas .sugg button {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid var(--hud-line);
+  border-radius: 0;
+  background: none;
+  color: var(--hud-ink);
+  padding: 11px 14px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.frontdoor .intent-areas .sugg button:last-child {
+  border-bottom: none;
+}
+.frontdoor .intent-areas .sugg button:hover:not(:disabled) {
+  background: #262f3a;
+}
 .frontdoor .intent-summary {
   margin: 18px 0 0;
   color: var(--hud-mute);

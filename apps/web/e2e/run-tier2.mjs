@@ -57,6 +57,9 @@ const JOURNEYS = [
   "eligibility-questions-journey.mjs",
   "tailor-journey.mjs",
   "search-area-coverage-journey.mjs",
+  // #214: the only end-to-end proof that a typed city stays a city-level target (chips, cap,
+  // refusal, per-market work-rights). ~2 min against the fake-model API.
+  "target-locations-journey.mjs",
   "factbadge-journey.mjs",
   "band-vocabulary-journey.mjs",
   "years-worked-out-journey.mjs",

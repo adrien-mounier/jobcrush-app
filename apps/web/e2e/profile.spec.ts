@@ -58,7 +58,7 @@ const PROFILE: ProfileState = {
     },
   ],
   contact: { phone: null, email: null }, // #190's honest-absence default; populated fixtures below
-  location: { area: null, workRights: null }, // #188's rail — types mirrored only, not this ticket's UI
+  location: { areas: [], workRights: [] }, // #188's rail — types mirrored only, not this ticket's UI
   languagesQuestion: LANGUAGES_QUESTION,
 };
 
@@ -1246,7 +1246,8 @@ test("#186 AC7: a two-hundred-fact profile stays navigable, with sticky job head
 // ---------- #188 the rail's Location section: the search area, the area-change door, work rights
 // keyed to the place they're about ----------
 
-type WorkRights = NonNullable<ProfileState["location"]["workRights"]>;
+type WorkRights = ProfileState["location"]["workRights"][number];
+type Area = ProfileState["location"]["areas"][number];
 
 const WR_PARIS: WorkRights = {
   market: "Paris",
@@ -1264,51 +1265,87 @@ const WR_HONG_KONG_UNANSWERED: WorkRights = {
   options: ["Yes — no sponsorship needed", "Not yet — I'd need sponsorship", "Ask me later"],
 };
 
-test("#188 AC1: a set search area shows in the Location section, on desktop rail and phone stack alike", async ({
+// #214 fixture helpers: the intent response's new list shape. Paris is deliberately present in the
+// fixture vocabulary — these tests exercise the DOOR's mechanics, not the real coverage list.
+const FIXTURE_VOCAB = [
+  { alias: "hong kong", market: "Hong Kong", label: "Hong Kong" },
+  { alias: "paris", market: "Paris", label: "Paris" },
+  { alias: "melbourne", market: "Australia", label: "Melbourne" },
+  { alias: "australia", market: "Australia", label: "Australia" },
+];
+const FIXTURE_COVERAGE = ["Hong Kong", "Singapore", "Vietnam", "Australia"];
+
+function fixtureArea(text: string): Area | null {
+  const match = FIXTURE_VOCAB.find((v) => v.alias === text.trim().toLowerCase());
+  return match ? { text, market: match.market, label: match.label } : null;
+}
+
+function intentJson(areas: Area[], refused: Array<{ text: string; coverage: string[] }> = []) {
+  return {
+    intent: {
+      targetRole: null,
+      searchAreas: areas.map((area) => ({
+        text: area.text,
+        marketKey: area.market.toLowerCase().replace(/\s+/g, "-"),
+        statedAt: "2026-08-13T00:00:00.000Z",
+        market: area.market,
+        label: area.label,
+      })),
+    },
+    missing: areas.length > 0 ? [] : ["searchArea"],
+    checkpoint: areas.length > 0 ? "intent_known" : "intent_needed",
+    refused,
+    coverage: FIXTURE_COVERAGE,
+    areaVocabulary: FIXTURE_VOCAB,
+  };
+}
+
+test("#188 AC1: set target locations show as chips in the Location section, on desktop rail and phone stack alike", async ({
   page,
 }) => {
   await stubSession(page);
-  const state: ProfileState = { ...PROFILE, location: { area: "Hong Kong", workRights: null } };
+  const state: ProfileState = {
+    ...PROFILE,
+    location: { areas: [fixtureArea("Hong Kong")!], workRights: [] },
+  };
   await stubProfile(page, state);
   await page.goto("/profile");
 
   const loc = page.locator(".rloc");
-  await expect(loc.locator(".rrole")).toHaveText("Hong Kong");
+  await expect(loc.locator(".rchips .lbl")).toHaveText(["Hong Kong"]);
   await expect(loc.getByRole("button", { name: "Change", exact: true })).toBeVisible();
 });
 
 test("#188 AC1: on phone, Location shows above the collapsed facts sheet", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await stubSession(page);
-  const state: ProfileState = { ...PROFILE, location: { area: "Hong Kong", workRights: null } };
+  const state: ProfileState = {
+    ...PROFILE,
+    location: { areas: [fixtureArea("Hong Kong")!], workRights: [] },
+  };
   await stubProfile(page, state);
   await page.goto("/profile");
 
   const loc = page.locator(".rloc");
   await expect(loc).toBeVisible();
-  await expect(loc.locator(".rrole")).toHaveText("Hong Kong");
+  await expect(loc.locator(".rchips .lbl")).toHaveText(["Hong Kong"]);
 });
 
 test("#188 AC2: an uncovered area shows the early-access coverage message and changes nothing", async ({ page }) => {
   await stubSession(page);
-  const state: ProfileState = { ...PROFILE, location: { area: "Paris", workRights: null } };
+  const state: ProfileState = {
+    ...PROFILE,
+    location: { areas: [fixtureArea("Paris")!], workRights: [] },
+  };
   await stubProfile(page, state);
   await page.route("**/api/sessions/me/intent", async (route) => {
-    await route.fulfill({
-      json: {
-        intent: { targetRole: null, searchArea: "Nowhereland" },
-        missing: [],
-        checkpoint: "intent_needed",
-        searchAreaResolution: { covered: false, coverage: ["Hong Kong", "Singapore", "Vietnam", "Australia"] },
-      },
-    });
+    await route.fulfill({ json: intentJson([fixtureArea("Paris")!]) });
   });
   await page.goto("/profile");
 
   const loc = page.locator(".rloc");
   await loc.getByRole("button", { name: "Change", exact: true }).click();
   const input = page.getByLabel("Where should JobCrush look?");
-  await expect(input).toHaveValue("Paris");
   await input.fill("Nowhereland");
   await loc.getByRole("button", { name: "Search this" }).click();
 
@@ -1324,20 +1361,19 @@ test("#188 AC3: a valid switch shows a deliberate fetching state, distinguishabl
   page,
 }) => {
   await stubSession(page);
-  let current: ProfileState = { ...PROFILE, location: { area: "Paris", workRights: null } };
+  let current: ProfileState = { ...PROFILE, location: { areas: [fixtureArea("Paris")!], workRights: [] } };
   await page.route("**/api/profile", async (route) => {
     await route.fulfill({ json: current });
   });
   await page.route("**/api/sessions/me/intent", async (route) => {
-    current = { ...current, location: { area: "Hong Kong", workRights: null } };
-    await route.fulfill({
-      json: {
-        intent: { targetRole: null, searchArea: "Hong Kong" },
-        missing: [],
-        checkpoint: "intent_known",
-        searchAreaResolution: { covered: true, market: "Hong Kong", marketKey: "hong-kong" },
-      },
-    });
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: intentJson(current.location.areas) });
+      return;
+    }
+    const body = route.request().postDataJSON() as { searchAreas?: string[] };
+    const areas = (body.searchAreas ?? []).map((text) => fixtureArea(text)!).filter(Boolean);
+    current = { ...current, location: { areas, workRights: [] } };
+    await route.fulfill({ json: intentJson(areas) });
   });
   let releaseCards: () => void = () => {};
   const cardsGate = new Promise<void>((resolve) => {
@@ -1351,6 +1387,7 @@ test("#188 AC3: a valid switch shows a deliberate fetching state, distinguishabl
 
   const loc = page.locator(".rloc");
   await loc.getByRole("button", { name: "Change", exact: true }).click();
+  await loc.getByRole("button", { name: "Remove Paris" }).click();
   await page.getByLabel("Where should JobCrush look?").fill("Hong Kong");
   await loc.getByRole("button", { name: "Search this" }).click();
 
@@ -1361,24 +1398,21 @@ test("#188 AC3: a valid switch shows a deliberate fetching state, distinguishabl
   releaseCards();
 
   await expect(page.getByText("Fetching Hong Kong jobs…", { exact: false })).toHaveCount(0);
-  await expect(loc.locator(".rrole")).toHaveText("Hong Kong");
+  await expect(loc.locator(".rchips .lbl")).toHaveText(["Hong Kong"]);
 });
 
 test("#188 AC3: a fetch failure shows a retry door, never an unbounded spinner", async ({ page }) => {
   await stubSession(page);
-  const state: ProfileState = { ...PROFILE, location: { area: "Paris", workRights: null } };
+  const state: ProfileState = { ...PROFILE, location: { areas: [fixtureArea("Paris")!], workRights: [] } };
   await page.route("**/api/profile", async (route) => {
     await route.fulfill({ json: state });
   });
   await page.route("**/api/sessions/me/intent", async (route) => {
-    await route.fulfill({
-      json: {
-        intent: { targetRole: null, searchArea: "Hong Kong" },
-        missing: [],
-        checkpoint: "intent_known",
-        searchAreaResolution: { covered: true, market: "Hong Kong", marketKey: "hong-kong" },
-      },
-    });
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: intentJson(state.location.areas) });
+      return;
+    }
+    await route.fulfill({ json: intentJson([fixtureArea("Hong Kong")!]) });
   });
   let cardsCalls = 0;
   await page.route("**/api/onboarding/cards", async (route) => {
@@ -1393,6 +1427,7 @@ test("#188 AC3: a fetch failure shows a retry door, never an unbounded spinner",
 
   const loc = page.locator(".rloc");
   await loc.getByRole("button", { name: "Change", exact: true }).click();
+  await loc.getByRole("button", { name: "Remove Paris" }).click();
   await page.getByLabel("Where should JobCrush look?").fill("Hong Kong");
   await loc.getByRole("button", { name: "Search this" }).click();
 
@@ -1408,23 +1443,32 @@ test("#188 AC4/AC5/AC6/AC7: work rights are market-keyed — a switch never cred
   page,
 }) => {
   await stubSession(page);
-  let current: ProfileState = { ...PROFILE, location: { area: "Paris", workRights: WR_PARIS } };
+  // The stored answers survive a market removal server-side (#214: the preference goes, the answer
+  // stays) — this fixture mirrors that: `answers` persists per market across switches.
+  const answers = new Map<string, string | null>([["Paris", WR_PARIS.answer], ["Hong Kong", null]]);
+  const rowsFor = (areas: Area[]): WorkRights[] =>
+    areas.map((area) =>
+      area.market === "Paris"
+        ? { ...WR_PARIS, answer: answers.get("Paris") ?? null }
+        : { ...WR_HONG_KONG_UNANSWERED, answer: answers.get("Hong Kong") ?? null },
+    );
+  let currentAreas: Area[] = [fixtureArea("Paris")!];
+  let current: ProfileState = {
+    ...PROFILE,
+    location: { areas: currentAreas, workRights: rowsFor(currentAreas) },
+  };
   await page.route("**/api/profile", async (route) => {
     await route.fulfill({ json: current });
   });
   await page.route("**/api/sessions/me/intent", async (route) => {
-    const body = route.request().postDataJSON() as { searchArea?: string };
-    const area = (body.searchArea ?? "").trim();
-    const workRights = area === "Hong Kong" ? WR_HONG_KONG_UNANSWERED : area === "Paris" ? WR_PARIS : null;
-    current = { ...current, location: { area, workRights } };
-    await route.fulfill({
-      json: {
-        intent: { targetRole: null, searchArea: area },
-        missing: [],
-        checkpoint: "intent_known",
-        searchAreaResolution: { covered: true, market: area, marketKey: area.toLowerCase().replace(/\s+/g, "-") },
-      },
-    });
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: intentJson(currentAreas) });
+      return;
+    }
+    const body = route.request().postDataJSON() as { searchAreas?: string[] };
+    currentAreas = (body.searchAreas ?? []).map((text) => fixtureArea(text)!).filter(Boolean);
+    current = { ...current, location: { areas: currentAreas, workRights: rowsFor(currentAreas) } };
+    await route.fulfill({ json: intentJson(currentAreas) });
   });
   await page.route("**/api/onboarding/cards", async (route) => {
     await route.fulfill({ json: { stage: "deck", cards: [], authed: true, pendingCount: 0 } });
@@ -1433,10 +1477,9 @@ test("#188 AC4/AC5/AC6/AC7: work rights are market-keyed — a switch never cred
   await page.route("**/api/onboarding/discovery/answer", async (route) => {
     const body = route.request().postDataJSON() as { itemId: string; answer?: string };
     answered = { itemId: body.itemId, answer: body.answer ?? "" };
-    current = {
-      ...current,
-      location: { ...current.location, workRights: { ...current.location.workRights!, answer: body.answer ?? null } },
-    };
+    const market = body.itemId === WR_PARIS.questionId ? "Paris" : "Hong Kong";
+    answers.set(market, body.answer ?? null);
+    current = { ...current, location: { areas: currentAreas, workRights: rowsFor(currentAreas) } };
     await route.fulfill({ json: { ok: true } });
   });
   await page.goto("/profile");
@@ -1446,8 +1489,9 @@ test("#188 AC4/AC5/AC6/AC7: work rights are market-keyed — a switch never cred
   await expect(loc.getByText("Yes — no sponsorship needed")).toBeVisible();
   await expect(loc.getByText("You told me this.")).toBeVisible();
 
-  // Switch to Hong Kong.
+  // Switch to Hong Kong: remove the Paris chip, add Hong Kong.
   await loc.getByRole("button", { name: "Change", exact: true }).click();
+  await loc.getByRole("button", { name: "Remove Paris" }).click();
   await page.getByLabel("Where should JobCrush look?").fill("Hong Kong");
   await loc.getByRole("button", { name: "Search this" }).click();
   await expect(page.getByText("Fetching Hong Kong jobs…", { exact: false })).toHaveCount(0);
@@ -1474,6 +1518,7 @@ test("#188 AC4/AC5/AC6/AC7: work rights are market-keyed — a switch never cred
 
   // AC6: switching back to Paris shows the original answer unchanged and not re-asked.
   await loc.getByRole("button", { name: "Change", exact: true }).click();
+  await loc.getByRole("button", { name: "Remove Hong Kong" }).click();
   await page.getByLabel("Where should JobCrush look?").fill("Paris");
   await loc.getByRole("button", { name: "Search this" }).click();
   await expect(page.getByText("Fetching Paris jobs…", { exact: false })).toHaveCount(0);
@@ -1495,14 +1540,17 @@ test("#188 AC7: no in-place editing — the section shows plain values and doors
   await stubSession(page);
   const state: ProfileState = {
     ...PROFILE,
-    location: { area: "Hong Kong", workRights: { ...WR_HONG_KONG_UNANSWERED, answer: "Ask me later" } },
+    location: {
+      areas: [fixtureArea("Hong Kong")!],
+      workRights: [{ ...WR_HONG_KONG_UNANSWERED, answer: "Ask me later" }],
+    },
   };
   await stubProfile(page, state);
   await page.goto("/profile");
 
   const loc = page.locator(".rloc");
   await expect(loc.locator("input")).toHaveCount(0);
-  await expect(loc.locator(".rrole").first()).toHaveText("Hong Kong");
+  await expect(loc.locator(".rchips .lbl")).toHaveText(["Hong Kong"]);
   await expect(loc.getByRole("button", { name: "Change", exact: true })).toBeVisible();
   await expect(loc.getByText("Ask me later")).toBeVisible();
   await expect(loc.getByRole("button", { name: "Change this answer" })).toBeVisible();

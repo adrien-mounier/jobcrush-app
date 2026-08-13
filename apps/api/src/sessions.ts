@@ -8,6 +8,7 @@ import {
   type PostingRetrievalResultV1 as PostingRetrievalResultV1Value,
 } from "@jobcrush/contracts";
 import { getPool, iso } from "./db.js";
+import { resolveSearchArea } from "./postingRetrieval.js";
 
 // Techmap's worst bounded call is two 10s attempts plus one 1s retry backoff and pacing. A 60s
 // lease leaves headroom while still recovering an abandoned background claim promptly.
@@ -28,9 +29,56 @@ export type SourceEntry =
   | { checkpoint: "invited"; choice: null }
   | { checkpoint: "source_selected"; choice: "cv" | "questions" };
 
+/** #214 — one target location, the ADR-0004 place shape plus #124's timestamp decision: the words
+ *  as typed, the resolved country-level marketKey, and statedAt (when we learned it — a preference
+ *  goes stale like "Present" does; no other fact machinery). The city, when the words name one, is
+ *  derived from `text` through resolveSearchArea — never stored twice. */
+export interface SearchAreaEntry {
+  text: string;
+  marketKey: string;
+  statedAt: string;
+}
+
 export interface SearchIntent {
   targetRole: string | null;
-  searchArea: string | null;
+  /** Up to 3 covered target locations; the deck is one deck over the union of their regions. */
+  searchAreas: SearchAreaEntry[];
+}
+
+function searchAreaEntries(value: unknown): SearchAreaEntry[] {
+  if (typeof value === "string") {
+    try {
+      return searchAreaEntries(JSON.parse(value));
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(value)) return [];
+  const entries: SearchAreaEntry[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const entry = item as Record<string, unknown>;
+    if (
+      typeof entry.text === "string" &&
+      entry.text.length > 0 &&
+      typeof entry.marketKey === "string" &&
+      entry.marketKey.length > 0 &&
+      typeof entry.statedAt === "string" &&
+      Number.isFinite(Date.parse(entry.statedAt))
+    ) {
+      entries.push({ text: entry.text, marketKey: entry.marketKey, statedAt: entry.statedAt });
+    }
+  }
+  return entries;
+}
+
+/** #214 back-compat: a pre-existing single search_area reads as a one-entry list (no migration,
+ *  pre-launch). An uncovered legacy value is dropped — the new model never keeps a refused place —
+ *  and statedAt falls back to the session's createdAt, the honest lower bound for when we learned it. */
+function legacySearchAreaEntries(text: string | null, createdAt: string): SearchAreaEntry[] {
+  if (!text) return [];
+  const resolution = resolveSearchArea(text);
+  return resolution.covered ? [{ text, marketKey: resolution.marketKey, statedAt: createdAt }] : [];
 }
 
 export interface ProductionDiscoveryState {
@@ -199,7 +247,10 @@ export interface SessionStore {
   setSourceEntry(id: string, sourceEntry: Exclude<SourceEntry, null>): Promise<void>;
   setImportProof(id: string, proof: ImportProof): Promise<void>;
   setImportResolution(id: string, fieldId: string, value: string): Promise<void>;
-  setIntent(id: string, intent: Partial<SearchIntent>): Promise<SearchIntent>;
+  setIntent(
+    id: string,
+    intent: { targetRole?: string; searchAreas?: SearchAreaEntry[] },
+  ): Promise<SearchIntent>;
   beginRetrievalState(
     id: string,
     generation: number,
@@ -251,7 +302,7 @@ function newSession(): SessionRecord {
     sourceEntry: null,
     importProof: null,
     importResolutions: {},
-    intent: { targetRole: null, searchArea: null },
+    intent: { targetRole: null, searchAreas: [] },
     discovery: { floor: null, coveredItemIds: [], checkpoint: null },
     retrieval: null,
     retrievalCoordinationFingerprint: null,
@@ -314,21 +365,27 @@ export class InMemorySessionStore implements SessionStore {
     if (s) s.importResolutions = { ...s.importResolutions, [fieldId]: value };
   }
 
-  async setIntent(id: string, intent: Partial<SearchIntent>): Promise<SearchIntent> {
+  async setIntent(
+    id: string,
+    intent: { targetRole?: string; searchAreas?: SearchAreaEntry[] },
+  ): Promise<SearchIntent> {
     const s = this.byId.get(id);
     if (!s) throw new Error("session not found");
     const next = {
       targetRole: intent.targetRole ?? s.intent.targetRole,
-      searchArea: intent.searchArea ?? s.intent.searchArea,
+      searchAreas: intent.searchAreas ?? s.intent.searchAreas,
     };
-    if (next.targetRole !== s.intent.targetRole || next.searchArea !== s.intent.searchArea) {
+    if (
+      next.targetRole !== s.intent.targetRole ||
+      JSON.stringify(next.searchAreas) !== JSON.stringify(s.intent.searchAreas)
+    ) {
       s.retrieval = null;
       s.retrievalCoordinationFingerprint = null;
       s.retrievalGeneration += 1;
       this.retrievalsInFlight.delete(id);
     }
-    s.intent = next;
-    return s.intent;
+    s.intent = structuredClone(next);
+    return structuredClone(s.intent);
   }
 
   async beginRetrievalState(
@@ -475,6 +532,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   source_entry       jsonb,
   target_role        text,
   search_area        text,
+  search_areas       jsonb,
   production_discovery jsonb NOT NULL DEFAULT '{"floor":null,"coveredItemIds":[],"checkpoint":null}',
   retrieval                       jsonb,
   retrieval_fingerprint           text,
@@ -500,6 +558,9 @@ const SESSIONS_ALTERS = [
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS source_entry jsonb",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS target_role text",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS search_area text",
+  // #214: the up-to-3 target locations. The legacy search_area column stays readable — toSession
+  // falls back to it as a one-entry list whenever search_areas is still NULL (no migration, pre-launch).
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS search_areas jsonb",
   `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS production_discovery jsonb NOT NULL
    DEFAULT '{"floor":null,"coveredItemIds":[],"checkpoint":null}'`,
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval jsonb",
@@ -529,7 +590,10 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     importResolutions: resolutionMap(r.import_resolutions),
     intent: {
       targetRole: (r.target_role as string) ?? null,
-      searchArea: (r.search_area as string) ?? null,
+      searchAreas:
+        r.search_areas != null
+          ? searchAreaEntries(r.search_areas)
+          : legacySearchAreaEntries((r.search_area as string) ?? null, iso(r.created_at)),
     },
     discovery: discoveryState(r.production_discovery),
     retrieval: retrievalSnapshot(r.retrieval),
@@ -618,43 +682,39 @@ export class PgSessionStore implements SessionStore {
     );
   }
 
-  async setIntent(id: string, intent: Partial<SearchIntent>): Promise<SearchIntent> {
+  async setIntent(
+    id: string,
+    intent: { targetRole?: string; searchAreas?: SearchAreaEntry[] },
+  ): Promise<SearchIntent> {
+    // #214: the change condition compares search_areas as jsonb (semantic equality). A legacy row
+    // (search_areas still NULL) compares against '[]', so its FIRST list-shaped save always counts
+    // as changed and resets the retrieval cache once — one wasted re-fetch, accepted pre-launch;
+    // after that, re-saving an identical list is a no-op. Only ever resets a cache, never loses data.
+    const changed = `(
+      ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
+      OR ($3::jsonb IS NOT NULL AND COALESCE(search_areas, '[]'::jsonb) <> $3::jsonb)
+    )`;
     const { rows } = await this.pool.query(
       `UPDATE sessions
        SET target_role = COALESCE($2, target_role),
-           search_area = COALESCE($3, search_area),
-           retrieval = CASE
-             WHEN ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
-               OR ($3::text IS NOT NULL AND (search_area IS NULL OR search_area <> $3::text))
-             THEN NULL ELSE retrieval END,
-           retrieval_fingerprint = CASE
-             WHEN ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
-               OR ($3::text IS NOT NULL AND (search_area IS NULL OR search_area <> $3::text))
-             THEN NULL ELSE retrieval_fingerprint END,
-           retrieval_generation = CASE
-             WHEN ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
-               OR ($3::text IS NOT NULL AND (search_area IS NULL OR search_area <> $3::text))
-             THEN retrieval_generation + 1 ELSE retrieval_generation END,
-           retrieval_in_flight_fingerprint = CASE
-             WHEN ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
-               OR ($3::text IS NOT NULL AND (search_area IS NULL OR search_area <> $3::text))
-             THEN NULL ELSE retrieval_in_flight_fingerprint END,
-           retrieval_in_flight_owner = CASE
-             WHEN ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
-               OR ($3::text IS NOT NULL AND (search_area IS NULL OR search_area <> $3::text))
-             THEN NULL ELSE retrieval_in_flight_owner END,
-           retrieval_in_flight_claimed_at = CASE
-             WHEN ($2::text IS NOT NULL AND (target_role IS NULL OR target_role <> $2::text))
-               OR ($3::text IS NOT NULL AND (search_area IS NULL OR search_area <> $3::text))
-             THEN NULL ELSE retrieval_in_flight_claimed_at END
+           search_areas = COALESCE($3, search_areas),
+           retrieval = CASE WHEN ${changed} THEN NULL ELSE retrieval END,
+           retrieval_fingerprint = CASE WHEN ${changed} THEN NULL ELSE retrieval_fingerprint END,
+           retrieval_generation = CASE WHEN ${changed} THEN retrieval_generation + 1 ELSE retrieval_generation END,
+           retrieval_in_flight_fingerprint = CASE WHEN ${changed} THEN NULL ELSE retrieval_in_flight_fingerprint END,
+           retrieval_in_flight_owner = CASE WHEN ${changed} THEN NULL ELSE retrieval_in_flight_owner END,
+           retrieval_in_flight_claimed_at = CASE WHEN ${changed} THEN NULL ELSE retrieval_in_flight_claimed_at END
        WHERE id = $1
-       RETURNING target_role, search_area`,
-      [id, intent.targetRole ?? null, intent.searchArea ?? null],
+       RETURNING target_role, search_areas, search_area, created_at`,
+      [id, intent.targetRole ?? null, intent.searchAreas ? JSON.stringify(intent.searchAreas) : null],
     );
     if (!rows[0]) throw new Error("session not found");
     return {
       targetRole: (rows[0].target_role as string) ?? null,
-      searchArea: (rows[0].search_area as string) ?? null,
+      searchAreas:
+        rows[0].search_areas != null
+          ? searchAreaEntries(rows[0].search_areas)
+          : legacySearchAreaEntries((rows[0].search_area as string) ?? null, iso(rows[0].created_at)),
     };
   }
 

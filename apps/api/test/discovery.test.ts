@@ -984,18 +984,18 @@ describe("#106 eligibility questions in discovery", () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     const intent = await put(app, cookie, "/sessions/me/intent", { searchArea: "Sydney, Australia" });
-    expect(intent.json().searchAreaResolution).toEqual({
-      covered: true,
-      market: "Australia",
-      marketKey: "australia",
-    });
+    // #214: the intent response carries the resolved chip list now, not a single resolution.
+    expect(intent.json().intent.searchAreas).toMatchObject([
+      { text: "Sydney, Australia", market: "Australia", marketKey: "australia", label: "Sydney" },
+    ]);
     const start: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/start", { role: "IT project manager in Hong Kong" }) // role deliberately names a DIFFERENT city
     ).json();
     const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
-    // The question follows the CONFIRMED search area (Australia), never the role text (Hong Kong).
+    // The question follows the CONFIRMED search area's market (Australia), never the role text
+    // (Hong Kong). #214: the DISPLAY city is the first chip's label — the typed city, "Sydney".
     expect(workRights.question).toBe("Can you already work in Australia without visa sponsorship?");
-    expect(start.promise!.city).toBe("Australia");
+    expect(start.promise!.city).toBe("Sydney");
   });
 
   // #184 compat story: a #182-era answer keyed by parseCity(role) survives ONLY when the two slugs
@@ -1023,6 +1023,38 @@ describe("#106 eligibility questions in discovery", () => {
     const sydney = await coincides("Sydney");
     expect(sydney.marketKey).not.toBe(sydney.oldParseCitySlug);
     expect(sydney.marketKey).toBe("eligibility-work-rights-australia");
+  });
+
+  // #214: work-rights is asked once per selected MARKET — two markets, two questions, each
+  // independently answerable at its own market's scope; two chips in the SAME country stay one.
+  it("#214: N selected markets produce N work-rights questions; same-country chips produce one", async () => {
+    const { app, eligibility } = buildServer();
+    const cookie = await anonSession(app);
+    await put(app, cookie, "/sessions/me/intent", { searchAreas: ["Hong Kong", "Sydney"] });
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const workRights = start.questions.filter((q) => q.eligibility?.dimension === "work-rights");
+    expect(workRights.map((q) => q.eligibility!.familyId)).toEqual(["hong-kong", "australia"]);
+    expect(workRights.map((q) => q.question)).toEqual([
+      "Can you already work in Hong Kong without visa sponsorship?",
+      "Can you already work in Australia without visa sponsorship?",
+    ]);
+
+    // Each is answerable at its own scope, independently.
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: workRights[0].itemId,
+      answer: "Yes — no sponsorship needed",
+    });
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    const sid = me.json().id as string;
+    expect(await eligibility.get(sid, "work-rights", "hong-kong")).toMatchObject({ value: "eligible" });
+    expect(await eligibility.get(sid, "work-rights", "australia")).toBeNull(); // the other market stays unknown
+
+    // Two chips in the SAME country: still one work-rights question.
+    const cookie2 = await anonSession(app);
+    await put(app, cookie2, "/sessions/me/intent", { searchAreas: ["Sydney", "Melbourne"] });
+    const start2: DiscoveryState = (await post(app, cookie2, "/onboarding/discovery/start", { role: ROLE })).json();
+    const workRights2 = start2.questions.filter((q) => q.eligibility?.dimension === "work-rights");
+    expect(workRights2.map((q) => q.eligibility!.familyId)).toEqual(["australia"]);
   });
 
   it("an unknown eligibility itemId is a 404", async () => {

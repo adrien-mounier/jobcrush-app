@@ -260,8 +260,15 @@ function buildQuestion(
  *  question) needs the full set, not just what remains. `anyFamily` is the eligibility store's
  *  ANY_FAMILY constant, passed in by the caller rather than imported here, so this module stays
  *  decoupled from eligibility.ts's export surface beyond the one string value it needs. */
-export function eligibilityCandidates(anyFamily: string, city: string | null): DiscoveryQuestion[] {
-  return ASK_DIMENSIONS.map((d) => buildQuestion(d, anyFamily, city));
+export function eligibilityCandidates(anyFamily: string, markets: readonly string[]): DiscoveryQuestion[] {
+  // #214: work-rights is asked once per selected MARKET (visas are national — up to 3 instances of
+  // the existing per-market question, each independently answerable/declinable at its own market
+  // scope). With no covered market yet, the single null-city fallback question stays as before.
+  return ASK_DIMENSIONS.flatMap((d) =>
+    d === "work-rights" && markets.length > 0
+      ? markets.map((market) => buildQuestion(d, anyFamily, market))
+      : [buildQuestion(d, anyFamily, null)],
+  );
 }
 
 /** itemIds of every eligibility question DECLINED or otherwise claims-store-closed. A real answer
@@ -322,7 +329,7 @@ function factResolvedItemIds(facts: readonly { dimension: EligibilityDimension; 
  *  the floor" without withholding them from the visible countdown. */
 export function unresolvedEligibilityQuestions(
   anyFamily: string,
-  city: string | null,
+  markets: readonly string[],
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
   rejected: ClaimRecord[],
@@ -330,7 +337,7 @@ export function unresolvedEligibilityQuestions(
 ): DiscoveryQuestion[] {
   const declined = claimsClosedEligibilityItemIds(confirmed, negatives, rejected);
   const resolved = factResolvedItemIds(facts);
-  return eligibilityCandidates(anyFamily, city).filter(
+  return eligibilityCandidates(anyFamily, markets).filter(
     (q) => !declined.has(q.itemId) && !resolved.has(q.itemId),
   );
 }
@@ -369,10 +376,14 @@ export function applyEligibilityQuestions(
   negatives: ClaimRecord[],
   rejected: ClaimRecord[],
   facts: readonly { dimension: EligibilityDimension; familyId: string }[],
+  markets: readonly string[],
   blocks: readonly JobBlockView[] = [],
 ): void {
+  // #214: `markets` (the session's resolved covered markets, up to 3) replaces state.city here —
+  // work-rights is per selected market now, and the display city on `state` is a chip label, not
+  // the visa scope.
   const eligQuestions = [
-    ...unresolvedEligibilityQuestions(ANY_FAMILY, state.city, confirmed, negatives, rejected, facts),
+    ...unresolvedEligibilityQuestions(ANY_FAMILY, markets, confirmed, negatives, rejected, facts),
     ...dateHoleQuestions(blocks),
   ];
   const { family } = resolveFamily(role);
@@ -589,11 +600,11 @@ const badAnswer = { ok: false as const, status: 400, code: "invalid_answer", mes
 export async function answerEligibilityItem(
   stores: EligibilityAnswerStores,
   sessionId: string,
-  city: string | null,
+  markets: readonly string[],
   itemId: string,
   body: { answer?: string; answers?: string[] },
 ): Promise<EligibilityAnswerResult> {
-  const question = eligibilityCandidates(ANY_FAMILY, city).find((q) => q.itemId === itemId);
+  const question = eligibilityCandidates(ANY_FAMILY, markets).find((q) => q.itemId === itemId);
   if (!question) return { ok: false, status: 404, code: "unknown_item", message: "no such floor item" };
   const ask = question.eligibility!;
 

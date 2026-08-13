@@ -209,7 +209,7 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
       },
     ],
     contact: { phone: null, email: null },
-    location: { area: null, workRights: null },
+    location: { areas: [], workRights: [] },
     languagesQuestion: {
       questionId: "eligibility-languages",
       question: "Which languages do you speak? Start typing — I'll suggest as you go.",

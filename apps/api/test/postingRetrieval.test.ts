@@ -70,7 +70,7 @@ const record = (
 
 const request = (over: Partial<RetrievalRequest> = {}): RetrievalRequest => ({
   targetRole: "IT Project Manager",
-  searchArea: "Hong Kong",
+  searchAreas: ["Hong Kong"],
   family: { familyId: "it-project-delivery", version: 1 },
   checkpoint: "essential_floor_covered",
   confirmedEvidence: [{ semanticKey: "risk-control", fieldLabel: "Risk control" }],
@@ -107,26 +107,36 @@ describe("#101 provider routing", () => {
 // #184 — the search-area intent route's resolver: robustness (AC2), the registry-sourced coverage
 // list (AC1/AC3), and the placeholder-city-slug compat note this suite pins the vocabulary for.
 describe("#184 resolveSearchArea", () => {
+  // #214: rows also pin regionCode and the city column — the canonical city when the typed words
+  // name one (HK/SG city-states stay null), and label = city ?? market.
   it.each([
-    ["Hong Kong", "Hong Kong", "hong-kong"],
-    ["Sydney, Australia", "Australia", "australia"], // AC2: trailing country
-    ["hong kong,", "Hong Kong", "hong-kong"], // AC2: stray punctuation + case
-    ["  Singapore  ", "Singapore", "singapore"], // AC2: stray whitespace
-    ["HK", "Hong Kong", "hong-kong"], // AC2: common alias
-    ["Ho Chi Minh City, Vietnam.", "Vietnam", "vietnam"], // AC2: city + trailing country + period
+    ["Hong Kong", "Hong Kong", "hong-kong", "HK", null],
+    ["Sydney, Australia", "Australia", "australia", "AU", "Sydney"], // AC2: trailing country
+    ["hong kong,", "Hong Kong", "hong-kong", "HK", null], // AC2: stray punctuation + case
+    ["  Singapore  ", "Singapore", "singapore", "SG", null], // AC2: stray whitespace
+    ["HK", "Hong Kong", "hong-kong", "HK", null], // AC2: common alias
+    ["Ho Chi Minh City, Vietnam.", "Vietnam", "vietnam", "VN", "Ho Chi Minh City"], // AC2: city + trailing country + period
     // AC5, pinned verbatim (not just a substring check, per spec review): the search-area field's own
     // placeholder text ("e.g. Hong Kong, or Remote in Vietnam", apps/web/app/page.tsx) — both examples
     // the product itself suggests must resolve. "Hong Kong" is already the first case above; listed
     // again here, explicitly, so this row's OWN reason for existing is legible without cross-reading.
-    ["Hong Kong", "Hong Kong", "hong-kong"],
-    ["Remote in Vietnam", "Vietnam", "vietnam"],
+    ["Hong Kong", "Hong Kong", "hong-kong", "HK", null],
+    ["Remote in Vietnam", "Vietnam", "vietnam", "VN", null],
     // #184 QA residual: two named-uncovered inputs from #172's own list — obvious district/airport
-    // aliases, not covered by the city/country names alone.
-    ["Kowloon", "Hong Kong", "hong-kong"],
-    ["HKG", "Hong Kong", "hong-kong"],
-    ["Saigon", "Vietnam", "vietnam"], // flagged alongside the above as an equally clear-cut gap
-  ])("%s resolves and confirms back as its country-level market (AC2)", (typed, market, marketKey) => {
-    expect(resolveSearchArea(typed)).toEqual({ covered: true, market, marketKey });
+    // aliases, not covered by the city/country names alone. "Kowloon" is a district of the one HK
+    // city, deliberately country-level (#214), never a city filter.
+    ["Kowloon", "Hong Kong", "hong-kong", "HK", null],
+    ["HKG", "Hong Kong", "hong-kong", "HK", null],
+    ["Saigon", "Vietnam", "vietnam", "VN", "Ho Chi Minh City"], // flagged alongside the above as an equally clear-cut gap
+  ])("%s resolves and confirms back as its country-level market (AC2)", (typed, market, marketKey, regionCode, city) => {
+    expect(resolveSearchArea(typed)).toEqual({
+      covered: true,
+      market,
+      marketKey,
+      regionCode,
+      city,
+      label: city ?? market,
+    });
   });
 
   it("an uncovered area gets the registry-sourced coverage list (AC1)", () => {
@@ -180,7 +190,7 @@ describe("#101 posting retrieval service", () => {
     [request({ family: null }), "family_not_published"],
     [request({ family: { familyId: "unknown", version: 1 } }), "family_not_published"],
     [request({ checkpoint: "family_confirmed" }), "floor_not_covered"],
-    [request({ searchArea: "Atlantis" }), "search_area_not_covered"],
+    [request({ searchAreas: ["Atlantis"] }), "search_area_not_covered"],
   ] as const)("returns the specific invalid arm", async (input, code) => {
     const { retrieve } = build([policy("one", ["HK"], 1)], []);
     await expect(retrieve(input)).resolves.toEqual({
@@ -286,6 +296,68 @@ describe("#101 posting retrieval service", () => {
     expect(dedupe).toHaveBeenCalledOnce();
     expect(await store.listByProvider("one")).toHaveLength(1);
     expect(await store.listByProvider("two")).toHaveLength(1);
+  });
+
+  // #214: one deck over the UNION of the selected targets' regions — an eligible provider is
+  // fetched once per region it serves out of that union — and option 2's city filter: a city-level
+  // selection keeps records stating that city or no recognisable city, and drops a DIFFERENT city;
+  // a country-level selection keeps everything in its region.
+  it("unions selected regions, fetches once per served region, and applies the city-level filter", async () => {
+    const provider = {
+      providerId: "one",
+      fetch: vi.fn(async ({ regionCode }: { regionCode: string }) => ({
+        ok: true as const,
+        records:
+          regionCode === "AU"
+            ? [
+                record("one", "mel", { location: "Melbourne, Australia" }),
+                record("one", "syd", { location: "Sydney, Australia" }),
+                record("one", "remote-au", { location: "Remote — Australia" }),
+              ]
+            : [record("one", "hk", { location: "Hong Kong" })],
+      })),
+    };
+    const store = new InMemoryPostingStore();
+    const retrieve = makePostingRetriever({
+      registry: [policy("one", ["HK", "AU"], 1)],
+      providers: [provider],
+      store,
+      productionFamilyFloors: initialProductionFamilyFloors(),
+      now,
+    });
+    const result = await retrieve(request({ searchAreas: ["Melbourne", "Hong Kong"] }));
+    expect(provider.fetch.mock.calls.map(([input]) => input.regionCode).sort()).toEqual(["AU", "HK"]);
+    expect(result).toMatchObject({
+      outcome: "relevant_postings",
+      coverage: { providersQueried: ["one"], providersUnavailable: [], complete: true },
+    });
+    const kept = (result as { postings: Array<{ location: string }> }).postings.map((p) => p.location).sort();
+    expect(kept).toEqual(["Hong Kong", "Melbourne, Australia", "Remote — Australia"]);
+  });
+
+  // #214: a provider failing ANY of its per-region fetches counts as that provider failing, and the
+  // failure is retryable when any failed region's failure was retryable.
+  it("counts a provider failing one region of the union as a failed provider", async () => {
+    const provider = {
+      providerId: "one",
+      fetch: vi.fn(async ({ regionCode }: { regionCode: string }) =>
+        regionCode === "AU"
+          ? { ok: false as const, reason: "timeout", retryable: true }
+          : { ok: true as const, records: [record("one", "hk", { location: "Hong Kong" })] },
+      ),
+    };
+    const retrieve = makePostingRetriever({
+      registry: [policy("one", ["HK", "AU"], 1)],
+      providers: [provider],
+      store: new InMemoryPostingStore(),
+      productionFamilyFloors: initialProductionFamilyFloors(),
+      now,
+    });
+    await expect(retrieve(request({ searchAreas: ["Sydney", "Hong Kong"] }))).resolves.toMatchObject({
+      outcome: "provider_unavailable",
+      coverage: { providersQueried: [], providersUnavailable: ["one"], complete: false },
+      retryable: true,
+    });
   });
 
   it("takes the freshness clock after delayed provider I/O", async () => {

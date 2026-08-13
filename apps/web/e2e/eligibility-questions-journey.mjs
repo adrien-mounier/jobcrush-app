@@ -82,7 +82,9 @@ const intent = await page.evaluate(async () => {
   const response = await fetch('/api/sessions/me/intent', {
     method: 'PUT', credentials: 'include',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ targetRole: 'IT project manager', searchArea: 'Singapore' }),
+    // #214: searchAreas is a list of raw texts now (the old { searchArea } survives only as a
+    // legacy one-entry alias) — this journey states one target location, Singapore.
+    body: JSON.stringify({ targetRole: 'IT project manager', searchAreas: ['Singapore'] }),
   });
   return { ok: response.ok, status: response.status };
 });

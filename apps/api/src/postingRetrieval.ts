@@ -25,7 +25,9 @@ export interface RetrievalNegative extends RetrievalSignal {
 
 export interface RetrievalRequest {
   targetRole: string | null;
-  searchArea: string | null;
+  /** #214: the words-as-typed of each selected target location (up to 3) — the deck is one deck
+   *  over the UNION of their region codes, never one deck per market. */
+  searchAreas: string[];
   family: { familyId: string; version: number } | null;
   checkpoint: "family_confirmed" | "essential_floor_covered" | null;
   confirmedEvidence: RetrievalSignal[];
@@ -41,7 +43,7 @@ export function retrievalRequestForSession(
 ): RetrievalRequest {
   return {
     targetRole: session.intent.targetRole,
-    searchArea: session.intent.searchArea,
+    searchAreas: session.intent.searchAreas.map((entry) => entry.text),
     family: session.discovery.floor,
     checkpoint: session.discovery.checkpoint,
     confirmedEvidence: confirmed
@@ -88,6 +90,24 @@ const AREA_REGIONS: Readonly<Record<string, string[]>> = {
   melbourne: ["AU"],
   brisbane: ["AU"],
   perth: ["AU"],
+};
+
+// #214 city-level targets (owner decision on #124's trail, 2026-08-13): alias → the canonical city
+// name, for markets with more than one city. Keys are a SUBSET of AREA_REGIONS' keys (the same
+// vocabulary, one more column — never a second list), so anything here already resolves to a covered
+// region above. Hong Kong and Singapore are city-states — country-level always — so only Vietnam and
+// Australia cities appear. "kowloon" stays country-level on purpose: it is a district of the one HK
+// city, not a second city to filter by.
+const AREA_CITIES: Readonly<Record<string, string>> = {
+  "ho chi minh city": "Ho Chi Minh City",
+  "ho chi minh": "Ho Chi Minh City",
+  hcmc: "Ho Chi Minh City",
+  saigon: "Ho Chi Minh City",
+  hanoi: "Hanoi",
+  sydney: "Sydney",
+  melbourne: "Melbourne",
+  brisbane: "Brisbane",
+  perth: "Perth",
 };
 
 const MAX_QUERY_TERMS = 12;
@@ -158,8 +178,32 @@ export function coveredRegionCodes(
   return [...codes];
 }
 
+/** #214 — which canonical city a free-text location names, or null when it names none we know
+ *  (country-only, "Remote — Australia", a district, an unknown town). Same normalisation and
+ *  substring rule as regionsForLocationText — one scanning idiom, two vocabularies. */
+export function cityForLocationText(location: string): string | null {
+  const lower = location.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-US");
+  const exact = AREA_CITIES[lower];
+  if (exact) return exact;
+  for (const [key, city] of Object.entries(AREA_CITIES)) {
+    if (key.length < 4) continue; // same abbreviation guard as regionsForLocationText
+    if (lower.includes(key)) return city;
+  }
+  return null;
+}
+
 export type SearchAreaResolution =
-  | { covered: true; market: string; marketKey: string }
+  | {
+      covered: true;
+      market: string;
+      marketKey: string;
+      regionCode: string;
+      /** #214: the canonical city when the typed words name one ("Melbourne"); null for a
+       *  country-level target. City-states (HK/SG) are always null. */
+      city: string | null;
+      /** What the chip displays: the city when one was named, else the market. */
+      label: string;
+    }
   | { covered: false; coverage: string[] };
 
 /** #184 — the search-area intent route's own resolver (routes/sessions.ts): free text in, an honest
@@ -184,9 +228,69 @@ export function resolveSearchArea(
   const matched = candidates.find((region) => covered.has(region));
   if (matched) {
     const market = regionDisplayName(matched);
-    return { covered: true, market, marketKey: slug(market) };
+    const city = cityForLocationText(text);
+    return {
+      covered: true,
+      market,
+      marketKey: slug(market),
+      regionCode: matched,
+      city,
+      label: city ?? market,
+    };
   }
   return { covered: false, coverage: [...covered].map(regionDisplayName) };
+}
+
+/** #214 — the covered market names in registry order, for the coverage line and the client's own
+ *  refusal copy. The same coveredRegionCodes()/regionDisplayName pair resolveSearchArea's uncovered
+ *  branch uses — named once so routes never re-derive it. */
+export function coveredMarketNames(
+  registry: PostingProviderPolicyV1[] = loadActivePostingProviders(),
+): string[] {
+  return coveredRegionCodes(registry).map(regionDisplayName);
+}
+
+/** #214 — the front-door/profile type-ahead's completion data: every covered alias in AREA_REGIONS
+ *  paired with the canonical market name it resolves to ("sydney" → "Australia"). Served to the
+ *  client so its suggestions and chip labels come from the ONE vocabulary resolveSearchArea itself
+ *  matches, never a second hand-typed list. Registry-filtered the same way resolveSearchArea is, so
+ *  an uncovered alias never completes. */
+export function searchAreaVocabulary(
+  registry: PostingProviderPolicyV1[] = loadActivePostingProviders(),
+): Array<{ alias: string; market: string; label: string }> {
+  const covered = new Set(coveredRegionCodes(registry));
+  const out: Array<{ alias: string; market: string; label: string }> = [];
+  for (const [alias, codes] of Object.entries(AREA_REGIONS)) {
+    const code = codes.find((c) => covered.has(c));
+    if (code) {
+      const market = regionDisplayName(code);
+      out.push({ alias, market, label: AREA_CITIES[alias] ?? market });
+    }
+  }
+  return out;
+}
+
+/** #214 — the unique canonical market names the session's target locations resolve to, in chip
+ *  order. Work-rights is asked once per MARKET (visas are national — Melbourne + Sydney chips still
+ *  produce one Australia question), so eligibilityDiscovery's per-market questions take this list. */
+export function resolvedMarketsFor(searchAreas: ReadonlyArray<{ text: string }>): string[] {
+  const markets: string[] = [];
+  for (const entry of searchAreas) {
+    const resolution = resolveSearchArea(entry.text);
+    if (resolution.covered && !markets.includes(resolution.market)) markets.push(resolution.market);
+  }
+  return markets;
+}
+
+/** #214 — the unique chip labels (city when a city was typed, else market), in chip order — what
+ *  display copy joins: "We'll look for {role} in Melbourne and Vietnam." */
+export function resolvedAreaLabelsFor(searchAreas: ReadonlyArray<{ text: string }>): string[] {
+  const labels: string[] = [];
+  for (const entry of searchAreas) {
+    const resolution = resolveSearchArea(entry.text);
+    if (resolution.covered && !labels.includes(resolution.label)) labels.push(resolution.label);
+  }
+  return labels;
 }
 
 /** #184: the ONE location signal — a confirmed search area resolved to its covered display name, or
@@ -307,7 +411,7 @@ export function retrievalFingerprint(input: RetrievalRequest): string {
     .update(
       JSON.stringify({
         targetRole: input.targetRole,
-        searchArea: input.searchArea,
+        searchAreas: input.searchAreas,
         family: input.family,
         checkpoint: input.checkpoint,
         confirmedEvidence: input.confirmedEvidence,
@@ -478,7 +582,9 @@ export function makePostingRetriever(
     ((event: PostingFreshnessAuditEvent) => console.info("[ops] posting freshness checked", event));
 
   return async (input) => {
-    if (!input.targetRole?.trim() || !input.searchArea?.trim()) return invalid("missing_intent");
+    if (!input.targetRole?.trim() || input.searchAreas.every((area) => !area.trim())) {
+      return invalid("missing_intent");
+    }
     if (!input.family) return invalid("family_not_published");
     const publication = opts.productionFamilyFloors.get(input.family.familyId, input.family.version);
     if (
@@ -491,9 +597,27 @@ export function makePostingRetriever(
     }
     if (input.checkpoint !== "essential_floor_covered") return invalid("floor_not_covered");
 
-    const regions = resolveSearchAreaToRegions(input.searchArea);
+    // #214: the deck is ONE deck over the UNION of the selected targets' region codes. Selections
+    // that resolve to a city also carry that city for the per-region record filter below.
+    const selections = input.searchAreas
+      .map((area) => resolveSearchArea(area, registry))
+      .filter((resolution): resolution is Extract<SearchAreaResolution, { covered: true }> => resolution.covered);
+    const regions = [...new Set(selections.map((selection) => selection.regionCode))];
     const eligible = providersFor(regions, registry);
     if (regions.length === 0 || eligible.length === 0) return invalid("search_area_not_covered");
+
+    // #214 option 2 (owner decision on #124's trail): with a city-level target active, a record in
+    // that region stays iff it states that city OR states no recognisable city at all (country-only,
+    // remote-in-country) — never punished for information it didn't state, the same fail-open
+    // principle withdrawal.ts uses. A record clearly stating a DIFFERENT city is excluded. A
+    // country-level selection for the region keeps everything.
+    const keepsRecord = (regionCode: string, location: string): boolean => {
+      const regionSelections = selections.filter((selection) => selection.regionCode === regionCode);
+      const recordCity = cityForLocationText(location);
+      return regionSelections.some(
+        (selection) => selection.city === null || recordCity === null || recordCity === selection.city,
+      );
+    };
 
     const keywords = queryKeywords(input);
     const negatives = negativeTerms(input);
@@ -504,19 +628,38 @@ export function makePostingRetriever(
           logFailure(policy.providerId, "driver_missing");
           return { policy, ok: false as const, retryable: false };
         }
-        let result: PostingProviderFetchResult;
+        // #214: one fetch per region this provider serves out of the union — a provider is queried
+        // for every selected market it covers, not just the first.
+        const policyRegions = policy.regionsServed.includes("*")
+          ? regions
+          : regions.filter((region) => policy.regionsServed.includes(region));
+        let fetched: Array<{ regionCode: string; result: PostingProviderFetchResult }>;
         try {
-          result = await provider.fetch({ regionCode: regions[0]!, queryKeywords: keywords });
+          fetched = await Promise.all(
+            policyRegions.map(async (regionCode) => ({
+              regionCode,
+              result: await provider.fetch({ regionCode, queryKeywords: keywords }),
+            })),
+          );
         } catch {
           logFailure(policy.providerId, "provider_failure");
           return { policy, ok: false as const, retryable: true };
         }
-        if (!result.ok) {
+        const failed = fetched.filter(
+          (entry): entry is { regionCode: string; result: Extract<PostingProviderFetchResult, { ok: false }> } =>
+            !entry.result.ok,
+        );
+        if (failed.length > 0) {
           logFailure(policy.providerId, "provider_failure");
-          return { policy, ok: false as const, retryable: result.retryable };
+          return { policy, ok: false as const, retryable: failed.some((entry) => entry.result.retryable) };
         }
         try {
-          const stored = await Promise.all(result.records.map((record) => opts.store.upsert(record)));
+          const records = fetched.flatMap((entry) =>
+            entry.result.ok
+              ? entry.result.records.filter((record) => keepsRecord(entry.regionCode, record.location))
+              : [],
+          );
+          const stored = await Promise.all(records.map((record) => opts.store.upsert(record)));
           return { policy, ok: true as const, records: stored };
         } catch {
           logFailure(policy.providerId, "store_failure");

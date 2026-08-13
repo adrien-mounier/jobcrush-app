@@ -34,17 +34,22 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
   async function authorizedSession(built: ReturnType<typeof buildServer>) {
     const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
     const id = created.json().id as string;
-    await built.sessions.setIntent(id, { targetRole: "Programme Manager", searchArea: "Hong Kong" });
+    const cookie = `jc_session=${created.cookies.find((item) => item.name === "jc_session")!.value}`;
+    // #214: intent writes go through the route — `searchArea` is the legacy one-entry alias the
+    // route still accepts and resolves server-side into a stored searchAreas entry.
+    await built.app.inject({
+      method: "PUT",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+      payload: { targetRole: "Programme Manager", searchArea: "Hong Kong" },
+    });
     await built.sessions.reconcileDiscoveryState(
       id,
       { familyId: "it-project-delivery", version: 1 },
       ["end-to-end-delivery"],
       true,
     );
-    return {
-      id,
-      cookie: `jc_session=${created.cookies.find((item) => item.name === "jc_session")!.value}`,
-    };
+    return { id, cookie };
   }
 
   async function signIn(built: ReturnType<typeof buildServer>, cookie: string, email: string) {
@@ -142,7 +147,12 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
     const sessionId = created.json().id as string;
     const cookie = `jc_session=${created.cookies.find((item) => item.name === "jc_session")!.value}`;
-    await sessions.setIntent(sessionId, { targetRole: "Programme Manager", searchArea: "Hong Kong" });
+    await app.inject({
+      method: "PUT",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+      payload: { targetRole: "Programme Manager", searchArea: "Hong Kong" },
+    });
     await sessions.reconcileDiscoveryState(
       sessionId,
       { familyId: "it-project-delivery", version: 1 },
@@ -172,7 +182,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     expect(retrievePostings).toHaveBeenCalledOnce();
     expect(retrievePostings.mock.calls[0]![0]).toEqual({
       targetRole: "Programme Manager",
-      searchArea: "Hong Kong",
+      searchAreas: ["Hong Kong"],
       family: { familyId: "it-project-delivery", version: 1 },
       checkpoint: "essential_floor_covered",
       confirmedEvidence: [
@@ -603,11 +613,25 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     const { id, cookie } = await authorizedSession(built);
     const oldRequest = built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
     await vi.waitFor(() => expect(retrievePostings).toHaveBeenCalledOnce());
-    await built.sessions.setIntent(id, { searchArea: "Singapore" });
+    await built.app.inject({
+      method: "PUT",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+      payload: { searchArea: "Singapore" },
+    });
     release();
     await oldRequest;
     expect((await built.sessions.getById(id))?.retrieval).toBeNull();
   });
+
+  const putIntent = async (built: ReturnType<typeof buildServer>, cookie: string) => {
+    await built.app.inject({
+      method: "PUT",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+      payload: { targetRole: "Programme Manager", searchArea: "Hong Kong" },
+    });
+  };
 
   it.each([
     {
@@ -617,17 +641,17 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     },
     {
       name: "unpublished or fixture family",
-      arrange: async (sessions: ReturnType<typeof buildServer>["sessions"], id: string) => {
-        await sessions.setIntent(id, { targetRole: "Programme Manager", searchArea: "Hong Kong" });
-        await sessions.reconcileDiscoveryState(id, { familyId: "fixture-only", version: 1 }, [], true);
+      arrange: async (built: ReturnType<typeof buildServer>, id: string, cookie: string) => {
+        await putIntent(built, cookie);
+        await built.sessions.reconcileDiscoveryState(id, { familyId: "fixture-only", version: 1 }, [], true);
       },
       code: "family_not_published",
     },
     {
       name: "incomplete production floor",
-      arrange: async (sessions: ReturnType<typeof buildServer>["sessions"], id: string) => {
-        await sessions.setIntent(id, { targetRole: "Programme Manager", searchArea: "Hong Kong" });
-        await sessions.reconcileDiscoveryState(
+      arrange: async (built: ReturnType<typeof buildServer>, id: string, cookie: string) => {
+        await putIntent(built, cookie);
+        await built.sessions.reconcileDiscoveryState(
           id,
           { familyId: "it-project-delivery", version: 1 },
           ["end-to-end-delivery"],
@@ -637,10 +661,13 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       code: "floor_not_covered",
     },
     {
+      // #214: the intent route now REFUSES an uncovered text outright ("Atlantis" is never stored),
+      // so this arm is reached with a stored area the RETRIEVER's registry doesn't cover — this
+      // test's retriever runs on an empty registry, so "Hong Kong" is exactly that.
       name: "uncovered search area",
-      arrange: async (sessions: ReturnType<typeof buildServer>["sessions"], id: string) => {
-        await sessions.setIntent(id, { targetRole: "Programme Manager", searchArea: "Atlantis" });
-        await sessions.reconcileDiscoveryState(
+      arrange: async (built: ReturnType<typeof buildServer>, id: string, cookie: string) => {
+        await putIntent(built, cookie);
+        await built.sessions.reconcileDiscoveryState(
           id,
           { familyId: "it-project-delivery", version: 1 },
           ["end-to-end-delivery"],
@@ -660,8 +687,8 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     const built = buildServer({ productionFamilyFloors, retrievePostings });
     const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
     const id = created.json().id as string;
-    await arrange(built.sessions, id);
     const cookie = `jc_session=${created.cookies.find((item) => item.name === "jc_session")!.value}`;
+    await arrange(built, id, cookie);
     const response = await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
     expect(response.statusCode).toBe(200);
     expect(response.json().retrieval).toMatchObject({

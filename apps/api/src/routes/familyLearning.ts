@@ -83,12 +83,16 @@ export function familyLearningRoutes(deps: FamilyLearningRouteDeps) {
             },
           });
         }
+        // #214: the learning store and the LLM screen both still take one search-area string —
+        // the words as typed, joined ("Melbourne, Vietnam"), null when none are set.
+        const searchAreaText =
+          session.intent.searchAreas.map((entry) => entry.text).join(", ") || null;
         let screened: FamilyScreeningDecision;
         try {
           const canonicalCandidates = await deps.store.acceptedCanonicalCandidates();
           screened = await deps.screen({
             targetRole: req.body.targetRole,
-            searchArea: session.intent.searchArea,
+            searchArea: searchAreaText,
             canonicalCandidates,
             knownFamilies: deps.knownFamilies ?? [],
           });
@@ -120,7 +124,7 @@ export function familyLearningRoutes(deps: FamilyLearningRouteDeps) {
           session.id,
           req.body.targetRole,
           screened,
-          session.intent.searchArea,
+          searchAreaText,
         );
         reply.status(202);
         return {

@@ -72,11 +72,30 @@ const LANGS = {
   answer: ['English', 'Mandarin'],
 };
 
+// #214: target locations are a list of chips now, and work-rights is one row per selected market.
+const VOCAB = [
+  { alias: 'hong kong', market: 'Hong Kong', label: 'Hong Kong' },
+  { alias: 'singapore', market: 'Singapore', label: 'Singapore' },
+  { alias: 'vietnam', market: 'Vietnam', label: 'Vietnam' },
+  { alias: 'australia', market: 'Australia', label: 'Australia' },
+  { alias: 'sydney', market: 'Australia', label: 'Sydney' },
+  { alias: 'melbourne', market: 'Australia', label: 'Melbourne' },
+];
+const COVERAGE = ['Hong Kong', 'Singapore', 'Vietnam', 'Australia'];
+const resolveArea = (text) => {
+  const lower = String(text).trim().toLowerCase();
+  return VOCAB.find((v) => v.alias === lower) ?? VOCAB.find((v) => v.alias.length >= 4 && lower.includes(v.alias)) ?? null;
+};
+const area = (text) => {
+  const m = resolveArea(text);
+  return { text, market: m?.market ?? text, label: m?.label ?? text };
+};
+
 const MEI = {
   factCount: 12,
   search: { role: 'IT project manager in Hong Kong', family: null, siblingTitles: [], openJobs: null },
   contact: { phone: { value: '+852 1234 5678', origin: 'read' }, email: null },
-  location: { area: 'Hong Kong', workRights: workRights('Hong Kong', null) },
+  location: { areas: [area('Hong Kong')], workRights: [workRights('Hong Kong', null)] },
   languagesQuestion: LANGS,
   domains: [
     {
@@ -133,12 +152,33 @@ let state = structuredClone(MEI);
 let cardsDelayMs = 0;
 
 const syncLocation = () => {
-  const market = state.location.area;
   state = {
     ...state,
-    location: { area: market, workRights: workRights(market, answersByMarket[market] ?? null) },
+    location: {
+      areas: state.location.areas,
+      workRights: state.location.areas.map((a) => workRights(a.market, answersByMarket[a.market] ?? null)),
+    },
   };
 };
+
+// The full #214 intent payload the LocationPanel door reads on open (vocabulary, coverage, chips).
+const intentState = () => ({
+  intent: {
+    targetRole: state.search.role,
+    searchAreas: state.location.areas.map((a) => ({
+      text: a.text,
+      marketKey: a.market.toLowerCase().replace(/\s+/g, '-'),
+      statedAt: '2026-08-13T00:00:00.000Z',
+      market: a.market,
+      label: a.label,
+    })),
+  },
+  missing: [],
+  checkpoint: 'intent_known',
+  refused: [],
+  coverage: COVERAGE,
+  areaVocabulary: VOCAB,
+});
 
 await page.route('**/api/sessions/me', (r) => r.fulfill({ json: { ok: true } }));
 await page.route('**/api/profile', (r) => r.fulfill({ json: state }));
@@ -148,12 +188,14 @@ await page.route('**/api/sessions/me/targets', async (r) => {
   await r.fulfill({ json: { ok: true } });
 });
 await page.route('**/api/sessions/me/intent', async (r) => {
-  if (r.request().method() !== 'PUT') { await r.fulfill({ json: { checkpoint: 'intent_known', searchAreaResolution: null } }); return; }
+  // The door fetches GET on open (for the type-ahead vocabulary); PUT carries raw texts (#214),
+  // with the legacy { searchArea } still accepted as a one-entry alias.
+  if (r.request().method() !== 'PUT') { await r.fulfill({ json: intentState() }); return; }
   const body = r.request().postDataJSON();
-  const market = body.searchArea;
-  state = { ...state, location: { ...state.location, area: market } };
+  const texts = body.searchAreas ?? (body.searchArea ? [body.searchArea] : []);
+  state = { ...state, location: { ...state.location, areas: texts.map(area) } };
   syncLocation();
-  await r.fulfill({ json: { checkpoint: 'intent_known', searchAreaResolution: { covered: true, market, coverage: ['Hong Kong', 'Singapore', 'Vietnam', 'Australia'] } } });
+  await r.fulfill({ json: intentState() });
 });
 await page.route('**/api/onboarding/cards', async (r) => {
   if (cardsDelayMs) await new Promise((res) => setTimeout(res, cardsDelayMs));
@@ -161,7 +203,7 @@ await page.route('**/api/onboarding/cards', async (r) => {
 });
 await page.route('**/api/onboarding/discovery/answer', async (r) => {
   const body = r.request().postDataJSON();
-  const market = state.location.area;
+  const market = state.location.areas[0].market;
   if (String(body.itemId ?? '').startsWith('eligibility:work-rights')) {
     answersByMarket[market] = body.answer;
     syncLocation();
@@ -283,7 +325,7 @@ await qa.expectVisible('#profileview', 'the list is back');
 // =============================================================================================
 
 await qa.expectVisible('.rloc', 'the rail\'s Location section');
-await qa.expectText('.rloc .rrole', 'Hong Kong', 'the rail shows where she is searching');
+await qa.expectText('.rloc .rchips li .lbl', 'Hong Kong', 'the rail shows where she is searching as a place chip (#214)');
 await qa.expectText('.rloc .rlabel', 'Work rights · Hong Kong', 'the work-rights line is LABELLED with the place it is about');
 
 await qa.expectText('.rjob .rrole', 'IT project manager in Hong Kong', 'Job family shows the role exactly as she typed it');
@@ -305,9 +347,9 @@ await qa.press('#role-again', 'Escape', 'back out — nothing is lost');
 await qa.expectText('.rjob .rrole', 'IT project manager in Hong Kong', 'her role is untouched');
 
 await qa.click('.rloc .rdoor >> nth=0', 'open the area door: "Change"');
-await qa.expectVisible('#loc-area-again', 'the original search-area question re-opens');
-const areaPre = await page.locator('#loc-area-again').inputValue();
-await check(areaPre === 'Hong Kong', `the area question is pre-filled with her answer ("${areaPre}")`);
+await qa.expectVisible('#loc-area-again', 'the original search-area question re-opens as a type-ahead');
+const areaPre = await page.locator('.rloc .rq.rareas .chips li .lbl').allTextContents();
+await check(areaPre.join('|') === 'Hong Kong', `the door opens pre-filled with her chosen place as a removable chip ("${areaPre.join(', ')}")`);
 await qa.expectText('.rloc .rnote', 'it can be different from where you live', 'the area door carries its own helper, not a second editor');
 await qa.click('.rloc .rbtns button:has-text("Keep Hong Kong")', 'back out of the area door');
 
@@ -325,6 +367,7 @@ await qa.expectText('.rloc .rrow .rdoor', 'Change this answer', 'and it has a do
 // --- switch the market to Singapore, watching the honest waiting state ---
 cardsDelayMs = 5000;
 await qa.click('.rloc .rline .rdoor', 'she opens the area door to move her search');
+await qa.click(page.getByRole('button', { name: 'Remove Hong Kong' }), 'she removes the Hong Kong chip — a switch, not an addition');
 await qa.fill('#loc-area-again', 'Singapore', 'she types Singapore');
 await qa.click('.rloc .rbtns button:has-text("Search this")', 'and confirms the switch');
 await qa.expectVisible('.rfetch', 'the honest waiting state shows while the new market is fetched');
@@ -333,7 +376,7 @@ await shot('switch-waiting-state.png');
 cardsDelayMs = 0;
 await page.waitForSelector('.rloc .rline', { timeout: 20000 });
 
-await qa.expectText('.rloc .rline .rrole', 'Singapore', 'she is now searching Singapore');
+await qa.expectText('.rloc .rchips li .lbl', 'Singapore', 'she is now searching Singapore — the chip says so');
 await qa.expectText('.rloc .rlabel', 'Work rights · Singapore', 'the work-rights line is relabelled to the new place');
 const sgLine = await page.locator('.rloc .rrow').innerText();
 await check(!/Yes — no sponsorship needed/.test(sgLine), 'FALSIFIABLE: her Hong Kong "yes" is NEVER borrowed as a Singapore answer');
@@ -342,10 +385,11 @@ await qa.expectText('.rloc .rrow .rdoor', 'Answer it now', 'and the Singapore qu
 
 // --- switch back to Hong Kong: the original answer is still there, never re-asked ---
 await qa.click('.rloc .rline .rdoor', 'she changes her search area back');
+await qa.click(page.getByRole('button', { name: 'Remove Singapore' }), 'she removes the Singapore chip');
 await qa.fill('#loc-area-again', 'Hong Kong', 'she types Hong Kong again');
 await qa.click('.rloc .rbtns button:has-text("Search this")', 'and confirms');
 await page.waitForSelector('.rloc .rline', { timeout: 20000 });
-await qa.expectText('.rloc .rline .rrole', 'Hong Kong', 'she is back on Hong Kong');
+await qa.expectText('.rloc .rchips li .lbl', 'Hong Kong', 'she is back on Hong Kong');
 await qa.expectText('.rloc .rlabel', 'Work rights · Hong Kong', 'the work-rights line is labelled Hong Kong again');
 await qa.expectText('.rloc .rrow .rrole', 'Yes — no sponsorship needed', 'her ORIGINAL Hong Kong answer is still there, unchanged');
 await qa.expectText('.rloc .rrow .rdoor', 'Change this answer', 'she is never re-asked a question she already answered');

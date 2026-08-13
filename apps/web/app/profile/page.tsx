@@ -15,11 +15,15 @@ import {
   answerDiscoveryMulti,
   ensureSession,
   getCards,
+  getIntent,
   getProfile,
   saveContact,
   saveIntent,
   saveTargetTitles,
   type IntentState,
+} from "../../lib/api";
+import { areaSuggestions, matchAreaText } from "../../lib/areaMatch";
+import {
   type ProfileContact,
   type ProfileDomain,
   type ProfileFact,
@@ -859,12 +863,17 @@ function LocationPanel({
   onProfileRefreshed: (profile: ProfileState) => void;
   onAnnounce: (message: string) => void;
 }) {
-  // --- the search-area door ---
+  // --- the target-locations door (#214: up to 3 chips, the front door's own widget) ---
   const [areaAsking, setAreaAsking] = useState(false);
-  const [areaValue, setAreaValue] = useState(location.area ?? "");
+  const [areaChips, setAreaChips] = useState<Array<{ text: string; label: string }>>([]);
+  const [areaQuery, setAreaQuery] = useState("");
+  const [refusedArea, setRefusedArea] = useState<string | null>(null);
+  // The completion vocabulary + coverage list are the server's own (the intent response carries
+  // both) — fetched when the door opens, never a hard-coded copy.
+  const [vocabulary, setVocabulary] = useState<IntentState["areaVocabulary"]>([]);
+  const [coverage, setCoverage] = useState<string[]>([]);
   const [areaSaving, setAreaSaving] = useState(false);
   const [areaSaveError, setAreaSaveError] = useState(false);
-  const [areaCoverage, setAreaCoverage] = useState<string[] | null>(null);
   // Fetching/failed persist past the door closing (B2: the area zone is one of line | door |
   // fetching | fetch-failed) so they're their own state, not folded into `areaAsking`.
   const [fetchingMarket, setFetchingMarket] = useState<string | null>(null);
@@ -874,25 +883,55 @@ function LocationPanel({
   // returns to "whichever door-like button is now on screen" (B6).
   const areaDoorRef = useRef<HTMLButtonElement>(null);
   const areaInputRef = useRef<HTMLInputElement>(null);
+  const atCap = areaChips.length >= 3;
 
   useEffect(() => {
     if (areaAsking) {
       areaInputRef.current?.focus();
-      areaInputRef.current?.select();
     }
   }, [areaAsking]);
 
   function openAreaDoor() {
-    setAreaValue(location.area ?? "");
-    setAreaCoverage(null);
+    setAreaChips(location.areas.map((area) => ({ text: area.text, label: area.label })));
+    setAreaQuery("");
+    setRefusedArea(null);
     setAreaSaveError(false);
     setAreaAsking(true);
+    void getIntent()
+      .then((state) => {
+        setVocabulary(state.areaVocabulary);
+        setCoverage(state.coverage);
+      })
+      .catch(() => {
+        // Suggestions stay empty; the save path still works — the server resolves on save.
+      });
   }
   function closeAreaDoor() {
     setAreaAsking(false);
-    setAreaCoverage(null);
+    setRefusedArea(null);
     setAreaSaveError(false);
     requestAnimationFrame(() => areaDoorRef.current?.focus());
+  }
+
+  // The shared matcher (lib/areaMatch.ts). Deliberate divergence from the front door, kept at the
+  // call sites below: this door fetches the vocabulary lazily, so while it is still empty a typed
+  // word is kept as-is and the server's save-time resolution decides.
+  const resolveAreaText = (text: string) => matchAreaText(text, vocabulary);
+
+  function addArea(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || atCap || areaSaving) return;
+    const match = resolveAreaText(trimmed);
+    if (!match && vocabulary.length > 0) {
+      setRefusedArea(trimmed);
+      return;
+    }
+    const label = match?.label ?? trimmed;
+    if (!areaChips.some((chip) => chip.label === label)) {
+      setAreaChips([...areaChips, { text: trimmed, label }]);
+    }
+    setAreaQuery("");
+    setRefusedArea(null);
   }
 
   // #185 decision 5: the profile refresh + the deck-warming request together ARE the honest end
@@ -913,13 +952,29 @@ function LocationPanel({
   }
 
   async function confirmArea() {
-    const value = areaValue.trim();
-    if (!value || areaSaving) return;
+    if (areaSaving) return;
+    // Text still in the input is one last chip-add — never silently dropped (the front door's rule).
+    let chips = areaChips;
+    if (areaQuery.trim()) {
+      const match = resolveAreaText(areaQuery);
+      if (!match && vocabulary.length > 0) {
+        setRefusedArea(areaQuery.trim());
+        requestAnimationFrame(() => areaInputRef.current?.focus());
+        return;
+      }
+      const label = match?.label ?? areaQuery.trim();
+      if (!atCap && !chips.some((chip) => chip.label === label)) {
+        chips = [...chips, { text: areaQuery.trim(), label }];
+      }
+    }
+    if (chips.length === 0) return;
+    setAreaChips(chips);
+    setAreaQuery("");
     setAreaSaving(true);
     setAreaSaveError(false);
     let accepted: IntentState;
     try {
-      accepted = await saveIntent({ searchArea: value });
+      accepted = await saveIntent({ searchAreas: chips.map((chip) => chip.text) });
     } catch {
       setAreaSaving(false);
       setAreaSaveError(true);
@@ -927,67 +982,67 @@ function LocationPanel({
       return;
     }
     setAreaSaving(false);
-    const resolution = accepted.searchAreaResolution;
-    if (resolution && resolution.covered === false) {
-      // AC2: an early-access coverage fact, never the person's mistake — nothing changes, the door
-      // stays open with the typed text and focus kept exactly where they were.
-      setAreaCoverage(resolution.coverage);
+    // The server is the gate: a refusal is an early-access coverage fact, never the person's
+    // mistake — the door stays open, showing what DID store.
+    setAreaChips(accepted.intent.searchAreas.map((entry) => ({ text: entry.text, label: entry.label })));
+    if (accepted.refused.length > 0) {
+      setRefusedArea(accepted.refused[0]!.text);
+      setCoverage(accepted.refused[0]!.coverage);
       requestAnimationFrame(() => areaInputRef.current?.focus());
       return;
     }
-    const market = resolution && resolution.covered === true ? resolution.market : value;
+    const places = joinCoverage(accepted.intent.searchAreas.map((entry) => entry.label));
     setAreaAsking(false);
-    setAreaCoverage(null);
-    onAnnounce(`Now searching ${market}.`);
+    setRefusedArea(null);
+    onAnnounce(`Now searching ${places}.`);
     void getProfile()
       .then(onProfileRefreshed)
       .catch(() => {
         // A refetch failure here is never reported as a save failure (the #183 rule) — the fetching
         // line's own success/failure below is the only honest signal this flow reports on.
       });
-    await runFetch(market);
+    await runFetch(places);
   }
 
-  // --- the work-rights door ---
-  const [wrAsking, setWrAsking] = useState(false);
+  // --- the work-rights doors (#214: one row per covered market, each its own door) ---
+  const [wrOpenMarket, setWrOpenMarket] = useState<string | null>(null);
   const [wrSaving, setWrSaving] = useState(false);
   const [wrError, setWrError] = useState(false);
   const wrDoorRef = useRef<HTMLButtonElement>(null);
   const wrFirstOptRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (wrAsking) wrFirstOptRef.current?.focus();
-  }, [wrAsking]);
+    if (wrOpenMarket) wrFirstOptRef.current?.focus();
+  }, [wrOpenMarket]);
 
-  // A market switch never carries the door's open/closed state across either — an open question
-  // about Paris must not still be sitting open once the rail is showing Hong Kong.
-  const currentMarket = location.workRights?.market ?? null;
-  const prevMarketRef = useRef(currentMarket);
+  // A market list change never carries a door's open state across — an open question about a
+  // removed market must not still be sitting open once the rail no longer lists it.
+  const marketsKey = location.workRights.map((row) => row.market).join("|");
+  const prevMarketsRef = useRef(marketsKey);
   useEffect(() => {
-    if (currentMarket !== prevMarketRef.current) {
-      prevMarketRef.current = currentMarket;
-      setWrAsking(false);
+    if (marketsKey !== prevMarketsRef.current) {
+      prevMarketsRef.current = marketsKey;
+      setWrOpenMarket(null);
       setWrError(false);
     }
-  }, [currentMarket]);
+  }, [marketsKey]);
 
-  function openWrDoor() {
+  function openWrDoor(market: string) {
     setWrError(false);
-    setWrAsking(true);
+    setWrOpenMarket(market);
   }
   function closeWrDoor() {
-    setWrAsking(false);
+    setWrOpenMarket(null);
     setWrError(false);
     requestAnimationFrame(() => wrDoorRef.current?.focus());
   }
 
-  async function pickWorkRights(option: string) {
-    if (wrSaving || !location.workRights) return;
-    const { market, questionId } = location.workRights;
+  async function pickWorkRights(row: ProfileLocation["workRights"][number], option: string) {
+    if (wrSaving) return;
     setWrSaving(true);
     setWrError(false);
     try {
-      await answerDiscovery(questionId, option);
+      await answerDiscovery(row.questionId, option);
     } catch {
       setWrSaving(false);
       setWrError(true);
@@ -999,9 +1054,9 @@ function LocationPanel({
     } catch {
       // Best effort only; the next full load will pick up the fresh answer.
     }
-    onAnnounce(`Work rights for ${market}: ${option}.`);
+    onAnnounce(`Work rights for ${row.market}: ${option}.`);
     setWrSaving(false);
-    setWrAsking(false);
+    setWrOpenMarket(null);
     requestAnimationFrame(() => wrDoorRef.current?.focus());
   }
 
@@ -1024,7 +1079,7 @@ function LocationPanel({
         </div>
       ) : areaAsking ? (
         <div
-          className="rq"
+          className="rq rareas"
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               e.preventDefault();
@@ -1040,38 +1095,74 @@ function LocationPanel({
           <label className="rqq" htmlFor="loc-area-again">
             {LOC_ASK}
           </label>
+          {areaChips.length > 0 && (
+            <ul className="chips" aria-label="Places you've chosen">
+              {areaChips.map((chip) => (
+                <li key={chip.label}>
+                  <span className="lbl">{chip.label}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${chip.label}`}
+                    disabled={areaSaving}
+                    onClick={() => {
+                      setAreaChips(areaChips.filter((c) => c.label !== chip.label));
+                      setRefusedArea(null);
+                    }}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           <input
             id="loc-area-again"
             className="rin"
             ref={areaInputRef}
-            value={areaValue}
-            disabled={areaSaving}
-            aria-describedby={["loc-area-helper", areaCoverage ? "loc-area-coverage" : null].filter(Boolean).join(" ")}
+            value={areaQuery}
+            disabled={areaSaving || atCap}
+            aria-describedby={["loc-area-helper", refusedArea ? "loc-area-coverage" : null].filter(Boolean).join(" ")}
             onChange={(e) => {
-              setAreaValue(e.target.value);
-              setAreaCoverage(null);
+              setAreaQuery(e.target.value);
+              setRefusedArea(null);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                void confirmArea();
+                addArea(areaQuery);
               }
             }}
           />
           <p id="loc-area-helper" className="rnote">
-            {LOC_HELPER}
+            {atCap ? "Three places is the limit — remove one to add another." : LOC_HELPER}
           </p>
-          {areaCoverage && (
+          {!atCap && areaSuggestions(areaQuery, vocabulary, areaChips.map((chip) => chip.label)).length > 0 && (
+            <div className="sugg" role="status" aria-live="polite">
+              {areaSuggestions(areaQuery, vocabulary, areaChips.map((chip) => chip.label)).map((v) => (
+                <button key={v.label} type="button" disabled={areaSaving} onClick={() => addArea(v.label)}>
+                  {v.label === v.market ? v.label : `${v.label} — ${v.market}`}
+                </button>
+              ))}
+            </div>
+          )}
+          {refusedArea && (
             <p id="loc-area-coverage" className="rcover" role="status">
-              {`JobCrush is in early access — we currently cover ${joinCoverage(areaCoverage)}.`}
+              {`JobCrush is in early access — we currently cover ${joinCoverage(coverage)}.`}
             </p>
           )}
           <div className="rbtns">
-            <button type="button" className="rbtn" disabled={areaSaving || !areaValue.trim()} onClick={() => void confirmArea()}>
+            <button
+              type="button"
+              className="rbtn"
+              disabled={areaSaving || (areaChips.length === 0 && !areaQuery.trim())}
+              onClick={() => void confirmArea()}
+            >
               {LOC_CONFIRM}
             </button>
             <button type="button" className="rbtn" disabled={areaSaving} onClick={closeAreaDoor}>
-              {location.area ? `Keep ${location.area}` : "Not now"}
+              {location.areas.length > 0
+                ? `Keep ${joinCoverage(location.areas.map((area) => area.label))}`
+                : "Not now"}
             </button>
           </div>
           {areaSaving && <p className="rbusy">{CX_SAVING}</p>}
@@ -1084,19 +1175,29 @@ function LocationPanel({
         </div>
       ) : (
         <div className="rline">
-          <p className={location.area ? "rrole" : "rrole rmute"}>{location.area ?? R9}</p>
+          {location.areas.length > 0 ? (
+            <ul className="chips rchips" aria-label="Places you're searching">
+              {location.areas.map((area) => (
+                <li key={area.label}>
+                  <span className="lbl">{area.label}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="rrole rmute">{R9}</p>
+          )}
           <button type="button" ref={areaDoorRef} className="rdoor" onClick={openAreaDoor}>
-            {location.area ? "Change" : LOC_ASK}
+            {location.areas.length > 0 ? "Change" : LOC_ASK}
           </button>
         </div>
       )}
 
-      {/* B5: the whole row is absent when there's no valid, covered market to key work rights to —
-          an answer about nowhere has no meaning, and this screen never draws an empty box. */}
-      {location.workRights && (
-        <div className="rrow">
-          <p className="rlabel">{`Work rights · ${location.workRights.market}`}</p>
-          {wrAsking ? (
+      {/* B5: a work-rights row exists only per valid, covered market — an answer about nowhere has
+          no meaning, and this screen never draws an empty box. #214: one row per selected market. */}
+      {location.workRights.map((row) => (
+        <div className="rrow" key={row.market}>
+          <p className="rlabel">{`Work rights · ${row.market}`}</p>
+          {wrOpenMarket === row.market ? (
             <div
               className="rq"
               onKeyDown={(e) => {
@@ -1107,12 +1208,12 @@ function LocationPanel({
                 }
               }}
             >
-              <p className="rqq" id="wr-q">
-                {location.workRights.question}
+              <p className="rqq" id={`wr-q-${row.questionId}`}>
+                {row.question}
               </p>
-              <div className="rbtns" role="group" aria-labelledby="wr-q">
-                {location.workRights.options.map((opt, i) => {
-                  const picked = opt === location.workRights!.answer;
+              <div className="rbtns" role="group" aria-labelledby={`wr-q-${row.questionId}`}>
+                {row.options.map((opt, i) => {
+                  const picked = opt === row.answer;
                   return (
                     <button
                       key={opt}
@@ -1121,7 +1222,7 @@ function LocationPanel({
                       className={`rbtn${picked ? " picked" : ""}`}
                       aria-current={picked ? "true" : undefined}
                       disabled={wrSaving}
-                      onClick={() => void pickWorkRights(opt)}
+                      onClick={() => void pickWorkRights(row, opt)}
                     >
                       {opt}
                     </button>
@@ -1129,7 +1230,7 @@ function LocationPanel({
                 })}
               </div>
               <button type="button" ref={wrDoorRef} className="rdoor" disabled={wrSaving} onClick={closeWrDoor}>
-                {location.workRights.answer !== null ? WR_KEEP : "Not now"}
+                {row.answer !== null ? WR_KEEP : "Not now"}
               </button>
               {wrSaving && <p className="rbusy">{CX_SAVING}</p>}
               {wrError && (
@@ -1139,24 +1240,24 @@ function LocationPanel({
               )}
               {!wrSaving && !wrError && <p className="rnote">{R11}</p>}
             </div>
-          ) : location.workRights.answer !== null ? (
+          ) : row.answer !== null ? (
             <>
-              <p className="rrole">{location.workRights.answer}</p>
+              <p className="rrole">{row.answer}</p>
               <p className="src">{P24}</p>
-              <button type="button" ref={wrDoorRef} className="rdoor" onClick={openWrDoor}>
+              <button type="button" className="rdoor" onClick={() => openWrDoor(row.market)}>
                 {WR_CHANGE}
               </button>
             </>
           ) : (
             <>
-              <p className="rrole rmute">{`${location.workRights.question}${WR_TOLD_TAIL}`}</p>
-              <button type="button" ref={wrDoorRef} className="rdoor" onClick={openWrDoor}>
+              <p className="rrole rmute">{`${row.question}${WR_TOLD_TAIL}`}</p>
+              <button type="button" className="rdoor" onClick={() => openWrDoor(row.market)}>
                 {WR_ASK}
               </button>
             </>
           )}
         </div>
-      )}
+      ))}
     </section>
   );
 }
