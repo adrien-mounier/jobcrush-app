@@ -324,12 +324,16 @@ const fakeLlm: LlmClient = {
 // #209 — the three language adverts language-ladder-journey.mjs drives, served at the app's own
 // pinned reader seam (BuildOptions.readAd) exactly as apps/api/test/cards.test.ts does.
 //
-// WHY NOT IN THE SHIPPED CORPUS: apps/api/data/sample-postings.json is real scraped adverts, and
-// of the whole corpus exactly ONE line mentions a language at all (OKX: "Bilingual (English and
-// Mandarin Chinese) proficiency is PREFERRED"). Nothing in it states a language as MANDATORY, and
-// nothing anywhere mentions Cantonese as a requirement. Writing those requirements into
-// sample-ad-requirements.json would put words into a real employer's advert — a fabricated
-// requirement quoted as that advert's own `sourceSpan`, on a corpus staging serves to visitors.
+// WHY NOT IN THE SHIPPED CORPUS: apps/api/data/sample-postings.json is real scraped adverts, and it
+// mentions no language at ALL — measured 2026-08-13, zero hits for mandarin/cantonese/bilingual/
+// fluent/native-speaker across all 17 postings, and sample-ad-requirements.json carries no language
+// eligibility dimension either (its only three are years-experience). The nearest real thing is one
+// line in the SOURCE advert these fixtures were distilled from, in the separate JobCrush repo
+// (job_offers/2026-07-05_okx_…/offer.md:82, "Bilingual (English and Mandarin Chinese) proficiency
+// is preferred") — and the excerpt in sample-postings.json is truncated well before it, so it is
+// not in this repo at all. Writing these requirements into sample-ad-requirements.json would
+// therefore put words into a real employer's advert — a fabricated requirement quoted as that
+// advert's own `sourceSpan`, on a corpus staging serves to visitors.
 // So the fabrication lives HERE instead, in the QA entry that is pruned from the Docker image and
 // can never reach a deployed process. Production is untouched: these three adIds have no fixture,
 // so main.ts still reads them with the real reader, and every other adId is answered by its
@@ -497,11 +501,25 @@ app.get("/qa/llm-calls", async () => seen);
 // sequentially (its own header says why), so a process-wide switch has exactly one owner at a time,
 // and each journey puts its knob back when it finishes. QA-only, like the route above: it exists on
 // this entry alone, and this entry is pruned from the Docker image.
-app.post<{ Body: { judgeDelayMs?: number; languageAdverts?: boolean } }>("/qa/stack", async (req) => {
+//
+// A junk `judgeDelayMs` is a 400, never a coerced number: `Number("fast")` is NaN, `NaN > 0` is
+// false, and the delay would silently DISARM — the pending journey would then walk a deck of
+// instantly-judged cards, find none of the states it exists to prove, note that judging beat the
+// reveal, and pass. A knob that fails by quietly turning itself off is worse than no knob.
+app.post<{ Body: { judgeDelayMs?: number; languageAdverts?: boolean } }>("/qa/stack", async (req, reply) => {
   if (req.body?.judgeDelayMs !== undefined) {
-    judgeDelayMs = Math.max(0, Math.min(Number(req.body.judgeDelayMs), 60_000));
+    const ms = Number(req.body.judgeDelayMs);
+    if (!Number.isFinite(ms)) {
+      return reply.status(400).send({ error: { code: "bad_request", message: "judgeDelayMs must be a number" } });
+    }
+    judgeDelayMs = Math.max(0, Math.min(ms, 60_000));
   }
-  if (req.body?.languageAdverts !== undefined) languageAdvertsOn = !!req.body.languageAdverts;
+  if (req.body?.languageAdverts !== undefined) {
+    if (typeof req.body.languageAdverts !== "boolean") {
+      return reply.status(400).send({ error: { code: "bad_request", message: "languageAdverts must be a boolean" } });
+    }
+    languageAdvertsOn = req.body.languageAdverts;
+  }
   return { ok: true, judgeDelayMs, languageAdverts: languageAdvertsOn };
 });
 

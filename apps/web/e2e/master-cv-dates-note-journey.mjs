@@ -97,7 +97,12 @@ await qa.click('.jb-done .btn:has-text("Continue")', 'continues towards the veri
 // 3. Through the wall, to the claim deck.
 // ---------------------------------------------------------------------------------------------
 await page.waitForURL((u) => /\/signup/.test(u.toString()) || /\/deck\//.test(u.toString()), { timeout: 60_000 });
-if (/\/signup/.test(page.url())) {
+// Asserted, not merely branched on: this visitor is anonymous, so the wall is the whole point of the
+// screen between the draft and the verified CV. Landing straight on /deck/ would mean an anonymous
+// person reached the confirmed-facts deck — a wall regression, and the `if` that used to guard this
+// block would have skipped every wall assertion and still passed (#209 code review).
+await assert(/\/signup/.test(page.url()), `an anonymous visitor meets the wall first — landed on ${page.url()}`);
+{
   await qa.expectVisible('input[aria-label="Email address"]', 'the signup wall stands between the draft and the verified CV');
   await qa.fill('input[aria-label="Email address"]', `qa159+${Date.now()}@example.com`, 'gives an email address');
   await qa.click('button:has-text("Email me a sign-in link")', 'asks for the sign-in link');

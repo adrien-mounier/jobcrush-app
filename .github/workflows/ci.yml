@@ -80,8 +80,9 @@ jobs:
       # render; only the model is faked. Sequential (qa-driver.mjs's own reasoning: several journeys
       # mint a real magic-link sign-in against auth's 5-per-15-min-per-IP limiter, routes/auth.ts — a
       # single job run only ever spends 4 of that budget, comfortably under the cap; no session-cap or
-      # rate-limit override was needed beyond qa-main.ts's own generous IpRateLimiter, already landed
-      # by #198). factbadge-floor-journey.mjs is deliberately excluded — see run-tier2.mjs's header for
+      # limiter budget is now overridden: #209 took Tier 2 to six sign-ins in one run, past auth's
+      # 5-per-15-min-per-IP cap, so qa-main.ts passes a generous authRateLimiter — see its own comment
+      # and server.ts's BuildOptions. The production default in routes/auth.ts is untouched). factbadge-floor-journey.mjs is deliberately excluded — see run-tier2.mjs's header for
       # the measured reason. Continues through a failure so every journey still gets its HTML report,
       # then fails the step (and so the job, and so the deploy) if any journey failed.
       - run: BASE_URL=http://127.0.0.1:3000 pnpm --filter @jobcrush/web e2e:tier2

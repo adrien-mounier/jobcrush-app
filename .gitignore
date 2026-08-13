@@ -39,3 +39,4 @@ council-report-*.html
 council-transcript-*.md
 apps/web/.scratch/
 apps/web/e2e_debug/
+.claude/.qa-gate-GO

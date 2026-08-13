@@ -68,9 +68,12 @@ const deck = () => page.evaluate(async () => {
 
 // #209: arm qa-main.ts's canned language adverts for THIS run only, and put them back at the end.
 // They are off by default because serving three extra adverts reshapes every OTHER journey's deck —
-// measured: tailor-journey.mjs then tailors one of them. Silently ignored against any API that does
-// not serve the route (a real deployment), and the deck half below still self-skips if the adverts
-// never arrive, so an unarmed run degrades exactly as it did before rather than lying.
+// measured: tailor-journey.mjs then tailors one of them.
+//
+// The arming is ASSERTED, not noted. The deck half below self-skips when the adverts are absent, so
+// a silently-failed arm would leave this journey green while proving none of what it exists for —
+// which is precisely the "a journey no tier runs is not coverage" failure #209 was opened to end,
+// rebuilt one level down. A run that cannot arm the stack must go red.
 const setLanguageAdverts = (on) =>
   page.evaluate(
     (languageAdverts) => fetch('/api/qa/stack', {
@@ -83,7 +86,9 @@ const setLanguageAdverts = (on) =>
 // 1. The front door.
 // -------------------------------------------------------------------------------------------
 await qa.goto('/', 'the front door — where a real visitor starts');
-await qa.note(`armed the QA language adverts for this run: HTTP ${await setLanguageAdverts(true)}`);
+const armed = await setLanguageAdverts(true);
+await qa.note(`armed the QA language adverts for this run: HTTP ${armed}`);
+await assert(armed === 200, `the QA stack accepted the arming call (got ${armed}) — without it the deck half below proves nothing`);
 await qa.scrollThrough('read the front door top to bottom');
 
 // -------------------------------------------------------------------------------------------

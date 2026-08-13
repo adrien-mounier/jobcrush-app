@@ -188,6 +188,7 @@ const served = await page.evaluate(async () => {
     adId: c.adId,
     matchPct: c.matchPct,
     breakdown: c.breakdown,
+    scored: c.scored,
     bands: c.dontYet.map((r) => r.band),
   }));
 });
@@ -196,9 +197,22 @@ await qa.note(`API /onboarding/cards — ${served.length} cards; every dontYet b
 // A card with no honest number carries NO breakdown at all (#117: `unscored` — the spend cap never
 // bought it — and `pending`), and that is the product being honest, not a gap in the payload. Read
 // straight through it and this line crashes on `null.essential`, which is exactly what it did the
-// first time a judge was wired into the QA stack (#209). Counted and named instead, so a deck that
-// quietly stopped carrying breakdowns at all still reads as the change it would be.
+// first time a judge was wired into the QA stack (#209).
+//
+// Filtering alone would WEAKEN this gate — a deck that quietly stopped carrying breakdowns would
+// pass with an empty set. So the missing ones are pinned to the only two states allowed to lack a
+// number, which makes the check stricter than the version that crashed: a `judged` or `estimated`
+// card with no breakdown is now a failure, and it was previously only a TypeError.
 const withBreakdown = served.filter((c) => c.breakdown);
+const missingBreakdown = served.filter((c) => !c.breakdown);
+await assert(
+  missingBreakdown.every((c) => c.scored === 'pending' || c.scored === 'unscored'),
+  `only a card claiming no number may lack a breakdown — offenders: ${JSON.stringify(missingBreakdown.map((c) => [c.adId, c.scored]))}`,
+);
+await assert(
+  withBreakdown.every((c) => c.scored === 'judged' || c.scored === 'estimated'),
+  `every card carrying a breakdown claims a real number — offenders: ${JSON.stringify(withBreakdown.map((c) => c.scored).filter((v) => v !== 'judged' && v !== 'estimated'))}`,
+);
 await qa.note(
   `API match numbers (${withBreakdown.length} of ${served.length} cards carry a breakdown; the rest ` +
     `claim no number, so they carry none): ${withBreakdown

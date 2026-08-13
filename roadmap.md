@@ -57,11 +57,13 @@ missing piece of the QA stack, not a product defect:
   unwired `mineJobBlocks`; **that was never true**, and this ticket's own first diagnosis repeated
   it. The header now says so, in place, for the next reader.
 - `language-ladder` — no advert in the shipped corpus states a language requirement of any kind.
-  **The owner's instruction was to add one to `sample-postings.json`; I did not.** Of the whole real
-  corpus exactly one line mentions a language ("Mandarin… is preferred"), and nothing anywhere makes
-  one mandatory — writing three into the shipped fixtures would put fabricated requirements into
-  real employers' adverts, quoted as those adverts' own words, on a corpus staging serves to
-  visitors. They live in the QA entry instead, which is pruned from the deployed image.
+  **The owner's instruction was to add one to `sample-postings.json`; I did not, and this needs his
+  yes or no.** Measured: the shipped corpus mentions no language at all — zero hits across all 17
+  postings, and no language eligibility dimension in the requirements fixtures. Writing three in
+  would put fabricated requirements into real employers' adverts, quoted as those adverts' own
+  words, on a corpus staging serves to visitors. They live in the QA entry instead, which is pruned
+  from the deployed image. The owner's *goal* (the journey green in Tier 2) is delivered; his
+  *instruction* was overridden, which is his call to ratify, not mine to settle.
 - `pending-unscored` — "Still scoring" cannot appear against a judge that answers instantly, so the
   QA judge can now be made deliberately slow.
 - `master-cv-dates-note` — **rewritten, not deleted**, against the fake model and the current

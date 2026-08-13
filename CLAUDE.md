@@ -128,6 +128,14 @@ real app in a browser with evidence — commit only on GO.
   the current branch" and names neither a gate nor a tracker — it is written for repos with
   neither. The instruction in front of you is not the outer one.
 
+  **A ticket is not done at "the code works" — it is done at GO.** `/implement` → `/code-review`
+  → `/qa-gate` is one unit of work: carry it to the end yourself, and let the gate verdict be the
+  next thing you bring the owner. A status report handed over mid-lifecycle reads as "finished"
+  for work nothing has verified. Bring the owner a decision — GO/NO-GO, or a genuine blocker.
+
+  **Enforced, not written:** a commit hook refuses any `git commit` touching code until
+  `/qa-gate` has recorded a GO for the current HEAD. Docs-only commits pass freely.
+
 - **Issue tracker:** specs and tickets are GitHub Issues in `adrien-mounier/jobcrush-app` (via
   `gh`). See `docs/agents/issue-tracker.md`. Labels: `ready-for-agent`, `wayfinder:*`.
 - **Domain docs:** glossary in `CONTEXT.md`, decisions in `docs/adr/`. See `docs/agents/domain.md`.
