@@ -34,8 +34,8 @@ not correctness on well-specified work — start no ticket at `max`.
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
 | 1 | #202 | Which bullet count is right — 73 or 114? | `—` owner call, then `/research` | Opus | medium |
-| 2 | #208 | The reader splits compound bullets; the ruling says don't | `/implement` | Opus | high |
-| 3 | #205 | The eligibility journey rotted red | `/implement` | Opus | medium |
+| 2 | #205 | The eligibility journey rotted red | `/implement` | Opus | medium |
+| 3 | #208 | The reader splits compound bullets; the ruling says don't | `/implement` | Opus | high |
 | 4 | #120 | Durable editor for eligibility answers | `/implement` | Opus | medium |
 | 5 | #124 | Where do you want to work? | `/wayfinder` | Opus | high |
 | 6 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
@@ -53,15 +53,23 @@ and nobody has ruled on whether that is one fact or two. **It starts as an owner
 measurement. It also surfaced a live contradiction: `claim-miner.md` line 15 says "split compound
 bullets"; every measured prompt keeps them whole.
 
-**#208 second, and it does NOT wait for #202 to finish** — the ruling behind it is already taken
+**#208 was ranked second on a cost that does not exist, and has been moved below #205.** The claim
+was that every upload adds rows in the shape we ruled against. ⚠️ **Nobody uses the app yet, and will
+not soon** (owner, 2026-08-13) — so nothing accrues and there is no bleeding to stop. With urgency
+gone, #205 goes first on its own merit: it is ~2 points, it restores the only end-to-end proof the
+gate questions work, and three tickets right behind it (#120, #166, #122) all edit exactly those
+questions. **Keep this correction visible** — a false urgency argument is worse than none, and it is
+the second premise in this section to be retired by checking rather than assuming.
+
+**#208 third, and it does NOT wait for #202 to finish** — the ruling behind it is already taken
 (decision 2: capture the printed line whole, split at writing time). It sits here rather than inside
 #202 because **#202's own acceptance criteria forbid product code landing**, and this is a live
 prompt on every upload. It is also not the one-line edit it looks like: `claim-miner.md` rules 1 *and*
 2 both bless splitting, `preview-tailor.md` can only **merge** claims and has no way to print two
 bullets from one claim — the ability the ruling depends on does not exist yet — and the conservation
 lint must accept one claim id cited twice. Nothing is lost by waiting, but **every upload in the
-meantime stores fragments in the shape we ruled against**, so the two-shapes-in-one-store problem
-grows daily. That accrual is the only reason it outranks #205. **#205 before #120** — it is test debt, not product work, and it still goes
+meantime would store fragments in the shape we ruled against** — but with no users that accrual is
+theoretical, which is exactly why it no longer outranks #205. **#205 before #120** — it is test debt, not product work, and it still goes
 second on purpose: `eligibility-questions-journey.mjs` is the ONLY end-to-end proof that the gate
 questions work, it has been red and in no CI tier for weeks, and the next three tickets (#120, #166,
 #122) all edit exactly those questions. Landing them on a broken net means the net never catches
