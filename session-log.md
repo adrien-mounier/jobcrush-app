@@ -2,6 +2,64 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-13 (session 112) `/research #202` — three of the ticket's premises were false, and the work shrank
+
+No product change. #202 was a research ticket about a prompt that "loses achievements". Re-counting
+the #196 corpus directly — 6 CVs x 4 prompts, 53 stored responses, **no new API calls, no money** —
+retired three of its premises and turned half a day of hand-counting into three owner decisions.
+
+- 🚨 **The live reader is not the broken one.** Only "tag each bullet with the employer NAME alone"
+  collapses, and only on the one CV with four titles under one employer: 11 captured of ~33.
+  `claim-miner.md` tags by **employer + title** — 33/32 on that same CV. I had warned that production
+  might be dropping people's achievements; **that was wrong and is retracted in the ticket and the
+  commit, not quietly dropped.**
+- 🚨 **#202's own proposed fix was the second-worst option measured.** It asked for a back-reference
+  by job *index* — the least stable column on the board (25/11/11 on Giuliana, 93/114/93 on Thomas).
+  Its justification cited the 25 without noting it was **sample 1 of 3**.
+- **#161 was already closed and shipped**, so no schema freeze was being blocked.
+- ✅ **The real finding: the disagreement was never a defect.** Thomas's CV prints the **same bullet
+  list twice**, under two jobs at two employers — 93 printed lines, 73 distinct texts. 73 and 93 are
+  both correct answers to different questions. The 114 outlier was also explained (and my "more than
+  the page contains" framing retracted): it captured the 93 plus ~21 items unpacked from a prose
+  `Projets: …` line. Nothing invented.
+
+**Four owner decisions taken** (`research-data/structured-read/decisions.md`):
+
+1. **Count once** — a duty under three jobs is one fact, extended by the owner to semantically
+   equivalent wordings. Consequence: the true count is 73 **or lower**, and the answer key now needs
+   a judgement pass rather than a mechanical copy.
+2. **Capture whole, split when writing.** Checked before ruling: nothing downstream needs pre-split
+   facts — `card-judge.md` scores by meaning, not shared words. Against that, splitting at capture is
+   the operation behind the 17→44 skill swing.
+3. **One bullet** for a page-wrapped sentence. Confirms existing behaviour.
+4. **Skills: mine job prose too** — "the user might forget it or overlook it" — with the model
+   merging near-duplicate spellings and **every merge proposed, never silent.**
+
+**Three tickets split out, one decision recorded:**
+
+- **#206** — an achievement and a duty are stored the same way (order 15).
+- **#207** — one fact, three jobs: where does it print, and when is repeating it earned? Opened by
+  ruling 1 (order 18, immediately before #168, which would otherwise answer it by accident).
+- **#208** — the reader splits compound bullets; ruling 2 says don't (order 3). **It could not live
+  inside #202**, whose own acceptance criteria forbid product code landing. Sized before placing: two
+  prompts change, and `preview-tailor.md` can only *merge* claims — printing two bullets from one
+  claim does not exist yet.
+- **#164** — the skill decision recorded on the ticket, with my own wrong example corrected: the
+  17→44 swing is **prose mining**, not comma-splitting. Run A captured Remy's 17 listed skills
+  exactly; run B added 26 tools named only inside job descriptions.
+
+**Also this session:** the #196 corpus was made durable and **committed** at
+`research-data/structured-read/` on the owner's explicit instruction, with git's permanence raised
+first and reaffirmed (private repo; the CVs are the owner's and close friends' with their knowledge).
+Scanned for key-shaped strings before staging.
+
+**Commits:** `5cecf3f` `14dfb9d` `167bcea` `1da6cb2` `e85fd0b` `d8396f4` `773cbab` — all pushed,
+`pnpm test` (1323 passed) and `pnpm typecheck` green.
+
+**Next session:** `/implement #205` — the eligibility journey has been red for weeks and three
+tickets behind it (#120, #166, #122) edit exactly those questions. Then `#208`, then #202 closes as
+one small measurement of the reader actually shipped. **#202 needs nothing from the owner.**
+
 ## 2026-08-13 (session 111) `/triage` + planning — the board now says what is true, and in what order
 
 No product change. The board did not match the code, and the ordering advice given off it was wrong

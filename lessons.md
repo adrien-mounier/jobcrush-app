@@ -1,5 +1,46 @@
 # Lessons — jobcrush-app
 
+## A ticket's evidence can be one cherry-picked sample, and the fix built on it will fail
+
+#202 asked for a specific fix — back-reference achievements by job index — justified by one variant
+scoring 25 bullets where the others scored 11. **That 25 was sample 1 of 3. The other two scored 11.**
+The fix had already failed twice in the data the ticket was written from, and nobody noticed because
+only the good number reached the prose.
+
+Re-counting the raw outputs took twenty minutes and retired three of the ticket's premises, including
+one I had repeated to the owner as a live production risk. **Before building a fix a ticket names,
+re-derive its headline number from the raw data.** Numbers that travel into prose lose their sample
+count, and a mean is not a measurement when n=3 and the spread is 2.3x.
+
+## Ask whether variance hurts the product or only the measurement
+
+I argued against mining skills out of job prose because the count swung 17→44 between two runs of the
+same CV. The owner's answer retired it in one line: **a CV is read once.** A judgement that would
+differ between two hypothetical runs is never visible to anyone, because the second run never happens.
+
+The instability is real and still matters — for *grading*, which is why skills stay out of #202's
+answer key. It does not matter for the product. **"This is non-deterministic" is only an objection
+when something re-runs it.** Check which side of that line you are on before spending the objection.
+
+## A research ticket that forbids product code cannot hold a product fix
+
+#202's acceptance criteria say no prototype code may land in the pipeline. Its task list then asked
+for a live prompt to be changed. Both were mine, written an hour apart, and the owner caught it.
+
+The fix became #208. **When a research pass discovers a product defect, it files it — it does not
+adopt it.** The tell is a task that would leave `git status` dirty in a ticket whose closing criterion
+is a clean one.
+
+## An urgency argument needs a user to be real
+
+#208 was ranked above the test-debt ticket because "every upload adds rows in the shape we ruled
+against". The owner: nobody uses the app yet, and will not soon. **Nothing accrues, so there was no
+bleeding to stop**, and the cheaper ticket that unblocks three others went first instead.
+
+Accrual, drift and data-shape arguments all assume traffic. In a pre-launch repo they are worth
+recording as future costs and worth **nothing** as ordering arguments. The correction is left visible
+in `roadmap.md` — a false urgency argument is worse than none, because it looks like diligence.
+
 ## A test that matches a button by its words fails the day the words are right
 
 #165 reworded one button. It broke `years-worked-out-journey` — a tier-2 CI gate about
