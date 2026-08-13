@@ -153,7 +153,7 @@ sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not lab
 | 11.1 | #120 | Eligibility answers can only be corrected in the moment | `/implement` | Opus | medium |
 | 12 | #166 | Degrees & certifications asked when silent | `/implement` | Opus | low |
 | 13 | #122 | An unasked requirement reads as a question | `/implement` | Opus | medium |
-| 13.1 | #211 | How finely is a skill list split? (owner decision — see Owner tasks) | `/grilling` | Opus | medium |
+| ~~13.1~~ | ~~#211~~ | ~~How finely is a skill list split?~~ ✅ decided 2026-08-13 — ADR-0004 clause 10 + ADR-0013; **#164 builds it** | — | — | — |
 | 13.2 | #210 | A messy bullet stays messy on the master CV | `/implement` | Opus | medium |
 | 13.3 | #212 | A partly printed compound line is a silent loss | `/grilling` | Opus | high |
 | 14 | #164 | Skills become records in your own words | `/implement` | Opus | medium |
@@ -174,14 +174,17 @@ same persistence #169 builds for topics; doing it first would mean building that
 It is #165's one disclosed ceiling: a skipped level question lives in screen state, so the same
 advert asks again on reload, which clause 4 forbids. Its sibling — a permanent "stop asking" — is
 deliberately NOT in it, because clause 4 binds that to an undo surface on the profile that #178 has
-not drawn yet. **#164 keeps its slot after #178, and now needs it** — its skill rule was decided
-2026-08-13 (mine tools from job prose as well as the Skills section; the model merges near-duplicate
-spellings; every merge is proposed to the person, never silent). That leaves one open design
-question the order already covers: **volume.** One real CV yields **26 prose-mined skills on top of
-17 listed ones**, and 26 confirmation cards in a row is a different product from one card holding 26
-chips. #178 and the confirm-screen work (#157 item 3) settle that shape first. The rule must also be
-written into ADR-0004 — clause 3's atomisation warning is precisely about prose mining and needs
-re-reading against the decision.
+not drawn yet. **#164 keeps its slot after #178, and its rule is now fully settled** — decided
+2026-08-13 and **amended in part the same day by #211** (ADR-0004 clause 10). What stands: tools are
+taken from job prose as well as the Skills section, and every addition is proposed to the person,
+never silent. What changed: prose tools are **proposed at ingestion under an exact-string guard**
+rather than mined by the read, and **near-duplicate spellings merge by dictionary, not by model** —
+a fresh model judgement is the thing that made the reader swing 17→44 on one CV. **Volume is settled
+too:** ~26 prose proposals arrive as **one screen of removable items, pre-selected**, not 26 cards;
+#178 draws that screen. Still open and handed to #164: **the group labels** the Skills section prints
+under (today the model invents them and no two CVs share one). ADR-0004 now carries the rule as
+clause 10 — clause 3's atomisation note was **refined, not amended**: it binds the bullet, which is
+never destroyed, and a proposed record beside it is not atomisation.
 
 **#212 was opened 2026-08-13, immediately after #208 shipped, by probing rather than reviewing.**
 It sits at 13.3 rather than higher for one reason only: **nobody uses the app**, so no real CV is
@@ -196,13 +199,19 @@ half** — #157 is closed and its items were re-homed; check where they landed f
 **#211 and #210 were opened 2026-08-13, out of the #202 decision-2 discussion, and both sit
 immediately before #164.**
 
-- **#211 — how finely a skill list splits.** *Where* to mine skills from is decided (#164, prose as
-  well as the Skills section). **How many records `(C#, XrmToolBox, Git)` becomes is not**, and that
-  is the largest measured instability in the reader: 17 records on one run, 44 on the next, same CV.
-  Three candidate rules are worked in `docs/research/202-accuracy-prep.md`; the prep note recommends
-  the section-based one, **which #164's decision appears to contradict** — the ticket must reconcile
-  the two or say which it is not settling. It is why #202 excluded skills from its answer key.
-  Whichever rule wins amends ADR-0004 clause 3. **Before #164**, or #164 answers it by accident.
+- **~~#211~~ — how finely a skill list splits. ✅ DECIDED 2026-08-13** (ADR-0004 clause 10,
+  **ADR-0013**). The read takes only the skills inventory; job bullets stay whole. A tool named inside
+  a bullet is **proposed** as a skill, guarded by *must be an exact string already in the CV*, arriving
+  **selected** on one screen at ingestion. What the person keeps is permanent — and that, not the read,
+  is what ends the 17→44 swing: the CV is read once, pruned once, and the set is then his.
+  **The lesson worth keeping:** the question was framed as *how many records does the reader make*, and
+  the rule that won on that framing produced a master CV with no `C#` in its Skills section. The owner
+  rejected all three candidates for that reason. **ADR-0013 is the rule that was missing** — the master
+  CV must be better than the file the person uploaded — and it had already silently decided #210 too.
+  A hand-curated vocabulary was the deterministic option and lost on one fact: no ninety-term list
+  contains `XrmToolBox`, and its absence would be invisible. **#164 builds all of it**; #211 was
+  re-scoped mid-session from "grow a small build" back to decision-only once the ruling grew.
+  Skills now join #202's answer key, measuring **coverage**, not stability.
 - **#210 — a messy bullet stays messy on the master CV.** The owner's question: if we store the
   person's line as written (#202 decision 2), does the person see their own mess back? Today **yes**
   — the polish step over the finished master CV is one-bullet-in-one-bullet-out, enforced in
@@ -272,6 +281,7 @@ One provider serves all four markets today, with no registry-level fallback (#17
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
 | 40 | #134 | Classify a job into a kind of work | `/grill-with-docs` | Opus | high |
+| 40.1 | #213 | A CV that names no tools yields no skills | `/grilling` | Opus | medium |
 | 41 | #179 | Real job-family data for the profile rail | `/implement` | Opus | medium |
 | 42 | #119 | Ops dashboard: cost per user | `/implement` | Opus | medium |
 | 43 | #142 | Application history | `/wayfinder` | Opus | high |
@@ -280,12 +290,24 @@ One provider serves all four markets today, with no registry-level fallback (#17
 **#134 precedes #179** and also settles the compromise #162 shipped with: `resolveFamily()` returns a
 constant, so every visitor is scoped to one placeholder family.
 
+**#213 sits immediately after #134 and cannot move before it** — opened 2026-08-13 out of #211's
+grilling. #211 covers skills that came out of a document; #213 covers the person whose document does
+not carry them. **Its trigger is a thin result, not a missing CV** — a manager whose bullets read
+*"Led a team of five developers"* has a CV, has history, and yields zero skills, because #211's
+exact-string guard correctly refuses to invent one. The answer is to offer the **family floor** as a
+question — which is why it needs #134: `resolveFamily()` returns a constant today, so nothing can
+conclude *"this person is a developer"*. Two rules invert against #211 and the inversion is the safety
+argument: the items arrive **unselected** and the record says the fact arrived **asked**, because here
+the machine suggests a word the person never wrote. It must also amend **ADR-0004 clause 2**, which
+says `Never ask` of skills — narrowly, keeping the refusal of self-**rating** intact (r = .29; LinkedIn
+spent four years on the objective version and killed it).
+
 ### Owner tasks and parents
 
 | # | What | Note |
 |---|---|---|
 | ~~#32~~ | ~~Spending alert + verify vitacairn's Fly token scope~~ | ✅ **DONE 2026-08-13.** vitacairn's token was org-wide as suspected — fixed to one token per app, three account-wide tokens revoked, both projects verified deploying green. Cloudflare budget alert set at 10 USD. **Fly has no billing alerts and no spending cap** — that half of the ticket asked for a feature that does not exist; do not re-open it. |
-| #211 | How finely is a skill list split? | ~20 min of owner deciding, no build. **Takeable any time**; the deadline is #164 (order 14), which answers it by accident otherwise. Also listed at 13.1 so the deadline is visible in the queue. |
+| ~~#211~~ | ~~How finely is a skill list split?~~ | ✅ **DECIDED 2026-08-13.** ADR-0004 clause 10 + **ADR-0013**. The read stays narrow (skills inventory only, bullets whole); tools inside bullets are **proposed** with an exact-string guard, arrive selected on one screen at ingestion, and what the person keeps is permanent — that, not the read, ends the 17→44 swing. **#164 builds it**; the estimate on the row above was for a smaller ruling than the one taken. Spawned **#213** (a CV that names no tools). |
 | #127 | Map: the CV as structured data | Parent — closes when #164–#171 close |
 | #86 | Spec: per-ad understanding | Parent — closes when #108–#111 close |
 | #54 | Spec: first-run onboarding | Parent — closes when #63–#69 close |

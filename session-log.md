@@ -2,6 +2,57 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-13 (session 116) `/grilling 211` — three candidate rules, and the owner rejected all three
+
+**#211 decided and closed. The session's value was the rejection, not the ruling.** The ticket
+offered three ways to split a skill list, and I recommended the one that varied least between runs
+(Rule B: mine only the Skills section, bullets yield nothing). The owner refused it on a product
+ground the ticket never stated: *"what I expect is that the master CV should be **better** than the
+uploaded CV… A minimum thing is to add C# in the SKILLS section. Not for the machine, but for the
+human who will read it."* Rule B gives Remy a master CV with **no `C#` in Skills**, and a profile
+screen with a visible hole. All three candidates answered *how many records does the reader make*;
+the real question was *what does the page show a human*.
+
+- 🆕 **ADR-0013 — the master CV improves on the document it came from.** The rule that was missing.
+  It had already decided #210 silently and nearly lost #211 by not being present. Three clauses: a
+  fact stated anywhere may reach the section a reader expects it in; improvement never means
+  invention; the improvement is proposed and the person owns it.
+- 📐 **ADR-0004 clause 10 — the skills ruling.** The read stays narrow (skills inventory only;
+  bullets stay whole, so the boundary is a fact about the page). A tool inside a bullet is
+  **proposed**, guarded by *must be an exact string already in the CV*. Proposals arrive
+  **selected**, one screen, at ingestion. What the person keeps is permanent.
+- 🔑 **The swing is ended by the person, not by the reader.** 17→44 records on one CV was the
+  ticket's headline defect. Clause b is still a model judgement and still moves between runs — stated
+  plainly rather than hidden. Clause d makes it survivable: read once, prune once, and the set is a
+  user-resolved fact a second read cannot revise. Three surfaces (profile, `rootcv.ts`, every
+  tailored draft) then read one list and cannot disagree.
+- ❌ **The deterministic option lost on one fact.** A hand-curated vocabulary (~90 terms, what both
+  large live projects ship) would remove the variance outright. Remy's CV names `XrmToolBox`. No
+  ninety-term list holds it, and the omission would be **invisible** — the person cannot audit a
+  skill he was never offered. A visible list he prunes beats an invisible one he cannot.
+- 🔁 **Two of my own recommendations were reversed mid-session, both after facts I should have had
+  first.** (1) I pitched "the writer lifts tools into the Skills section" before reading
+  `rootcv.ts` — the master CV renderer is **mechanical**, and the profile uses the same records, so
+  no writer can lift anything and a **record must exist**. (2) I advised growing #211 into a ~1-hour
+  build; once the ruling grew to include a proposal step, a permanent record and a screen, it went
+  back to decision-only with **#164 building it** — which is what the roadmap said before I touched it.
+- 📉 **The measure changed with the rule.** #211's AC asked for the same *count* on two reads. Under
+  ADR-0013 a low count is the defect and a high one is not, so the criterion is **replaced**, not met:
+  skills join **#202's answer key** and the number is **coverage** — how many tools written anywhere
+  on the CV reach the Skills section.
+- 🧾 **#164 amended in part** (prose tools proposed under a guard, not mined by the read; spelling
+  merges by dictionary, not model), **clause 3 refined not amended** (its *"do not atomise"* binds the
+  bullet, which is never destroyed), **volume settled** (one screen, not 26 cards), **group labels
+  handed to #164**.
+- 🆕 **#213 opened**, blocked by **#134**. The owner's question forced its trigger to change before
+  filing: not *"a person with no CV"* — the half CV is #211's **best** case — but *"the read produced
+  few or no skills"*, which also catches the manager whose bullets name no tools at all. Its defaults
+  invert (**unselected**, arrival `asked`) because there is no source text to guard against, and it
+  must narrowly amend ADR-0004 clause 2's `Never ask`.
+
+Docs only, no code. `docs/adr/0013-…`, ADR-0004 clause 10 + clause 3 note, `roadmap.md`,
+`session-log.md`, `lessons.md`.
+
 ## 2026-08-13 (session 115) `/implement #208` — the reader stops splitting, the writer learns how
 
 The live product did the opposite of #202's decision 2 on every upload: `claim-miner.md` told the

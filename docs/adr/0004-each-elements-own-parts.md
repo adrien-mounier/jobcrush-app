@@ -135,6 +135,13 @@ tool selection)"* is the risky half, and the right answer there is **not to atom
 guardrail and *the most common fabrication pattern*. Atomising `(C#, XrmToolBox, Git)` is precisely
 the operation that strips the verb.
 
+> ⚠️ **Refined 2026-08-13 ([#211](https://github.com/adrien-mounier/jobcrush-app/issues/211)).**
+> *"Not to atomise it at all"* binds the **bullet**, and only the bullet. The sentence is never
+> replaced by its terms, never loses its verb, and remains the record. Clause 10 additionally allows a
+> tool name found inside that sentence to be **proposed as a separate skill record beside it** — the
+> bullet survives untouched, so nothing this note warns about occurs. The alias-lookup half of this
+> note is now binding rather than illustrative: spelling merges are a dictionary, never a model.
+
 ### 4. ADR-0003 clause 8's ladder holds; its *trigger* does not scale
 
 The ladder's **shape** is unchanged and correct. What breaks is **when we ask**:
@@ -277,6 +284,74 @@ both:
 
 **This closes #126's AC5.** It was recorded as *"will not be met as written"*; the resolution is that
 the criterion conflated two states, and separating them satisfies its intent.
+
+### 10. The reader mines the Skills list; a tool inside a bullet is *proposed*, and the person owns the list
+
+*Added 2026-08-13, [#211](https://github.com/adrien-mounier/jobcrush-app/issues/211) (owner
+grilling). Depends on [ADR-0013](0013-the-master-cv-improves-on-the-document-it-came-from.md), which
+is the requirement this clause serves.*
+
+**The defect this closes:** nothing decided how many records `(C#, XrmToolBox, Git)` becomes. The
+reader therefore decided afresh on every run, and the same CV (`Resume_Remy_IM_IT.pdf`) yielded **17
+skill records on one read and 44 on the next** — a 2.6× swing on an unchanged document
+(`docs/research/structured-read-cost.md`). The instruction it was following is not disobeyed, it is
+*permissive*: `claim-miner.md` rule 8 says one claim per group **is fine**, which licenses both
+answers.
+
+**a. The read is narrow, and its boundary is a fact about the page.** Skill records come from the
+CV's skills inventory: one record per delimiter-separated item under a skills heading. **Job bullets
+yield no skill records at the read.** "Which section is this text in" is a property of the document;
+every judgement we ask the reader to make fresh is a thing that moves between runs, and movement is
+the defect being removed.
+
+**b. A tool named inside a job bullet is proposed as a skill, not read as one.** The model reads the
+confirmed bullets and proposes the tool names in them. **Every proposal must be an exact string
+already present in the CV** — the mechanical guard against invention, and the only guard that does
+not itself require a judgement. The bullet is untouched and remains the record (clause 3's note).
+
+Rejecting the alternative matters more than choosing this one: a hand-curated vocabulary is
+deterministic and would end the swing outright, and both large live projects ship one (~90 terms,
+`last30days-skill-shape.md`). It fails on the long tail that real CVs are made of. Remy's CV names
+**`XrmToolBox`**. No ninety-term list contains `XrmToolBox`, and its absence would be **silent** —
+the person cannot see a skill that was never offered. A visible list the person prunes beats an
+invisible list he cannot audit.
+
+**c. The proposals arrive selected, as one screen, at ingestion.** The person removes what he does
+not want. This is not a silent add — *"the machine never adds silently"* forbids the invisible, not
+the pre-filled, and the screen is the visibility. Arriving **unselected** would mean a person who
+closes the screen keeps a master CV no better than his upload, which is ADR-0013's whole prohibition.
+Batched items cost nothing against `claim-miner.md` rule 9's ≤15 individual decisions, so one screen
+of ~26 items is affordable at ingestion — and ingestion is the right moment, because a later offer
+means the **first** master CV he ever sees is the weak one.
+
+**d. What the person keeps is a permanent record, and this — not the read — is what ends the swing.**
+An accepted skill becomes a user-resolved fact. The CV is read once; the person prunes once; the set
+is then his. A second read cannot revise it. The profile screen, the master CV
+(`apps/api/src/rootcv.ts`) and every tailored draft read that one list, so the three surfaces cannot
+disagree.
+
+**e. Spelling merges are a dictionary. Never a model.** `JS` / `JavaScript` / `Javascript`, and the
+five spellings of `C#`, resolve by alias lookup (clause 3's note). The printed form is the person's
+own spelling.
+
+**What this costs, stated plainly.** The read still moves between runs — clause b is a model
+judgement, and a hand-curated vocabulary was the only candidate that removed it. Clause d makes the
+movement survivable rather than absent: it happens once, in front of a person, who closes it. **So
+the measure changes with the rule.** #211's own acceptance criterion asked for the same *count* on
+two reads; under ADR-0013 a low count is the defect and a high one is not. The number to measure is
+**coverage** — how many tools written anywhere on the CV reach the Skills section — and it is measured
+by adding skills to #202's answer key, which excluded them precisely because this clause did not
+exist.
+
+**Amends [#164](https://github.com/adrien-mounier/jobcrush-app/issues/164) in part**, and the ticket
+records it: its *"the model merges near-duplicate spellings"* becomes clause e's dictionary; its
+prose-mining stays with the model but moves from the read to clause b's guarded proposal. #164
+remains the build ticket for all of clause 10.
+
+**Does not decide** the person whose CV names no tools at all, and therefore yields nothing for
+clause b to propose — a different source, no possible guard, and the opposite default. That is
+[#213](https://github.com/adrien-mounier/jobcrush-app/issues/213), blocked by #134. Nor the group
+labels the Skills section prints under (#164).
 
 ## Corrections to what this repo previously believed
 

@@ -1,5 +1,29 @@
 # Lessons — jobcrush-app
 
+## When every option on the table loses, the missing rule is a product promise nobody wrote down
+
+#211 offered three ways to split a skill list. All three were graded on *reader stability*, and the
+owner rejected all three — because the winner produced a master CV missing a skill the person's own
+CV mentions. The criterion that decided it, **the master CV must be better than the file uploaded**,
+existed only in his head. It had already decided #210 silently.
+
+**A ticket that presents candidates which are all wrong is usually complete on its own terms and
+missing an outer one.** Before recommending, ask what the *page* has to look like, not what the store
+has to hold — this repo's questions arrive framed as storage and are almost always about output.
+The tell is a recommendation whose stated cost is *"the person just won't see X"*. It is now
+**ADR-0013**, so the next ticket argues from it instead of re-deriving it.
+
+## Read the renderer before promising the renderer will do it
+
+Mid-#211 I recommended *"the writer lifts tool names into the Skills section"* — a clean answer that
+kept the reader stable and the bullet whole. `apps/api/src/rootcv.ts` is **mechanical**: it groups
+confirmed records by kind tag and prints them. No model, no lifting. The profile screen uses the same
+records and the same section list. So the answer was impossible, and the real constraint was the
+opposite: **for anything to appear on the master CV or the profile, a record must exist.**
+
+Two renderers exist and they behave differently — `preview-tailor.md` is an LLM and can compose;
+`rootcv.ts` cannot. **Check which one your design is asking to be clever before you pitch it.**
+
 ## Bypass the turbo cache with `TURBO_FORCE=1`, never `pnpm test -- --force`
 
 `pnpm test -- --force` forwards `--force` to vitest, which rejects it (`CACError: Unknown option
