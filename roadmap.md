@@ -16,7 +16,7 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Run order — what to build next
 
-_Ordered 2026-08-13 over all 46 open issues. **This goes stale on every landing** — when a ticket
+_Ordered 2026-08-13 over all 48 open issues. **This goes stale on every landing** — when a ticket
 closes, strike it here in the same commit, and when a dependency claim below stops being true, fix
 it rather than working around it._
 
@@ -34,11 +34,12 @@ not correctness on well-specified work — start no ticket at `max`.
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
 | 1 | #202 | Which bullet count is right — 73 or 114? | `—` owner call, then `/research` | Opus | medium |
-| 2 | #205 | The eligibility journey rotted red | `/implement` | Opus | medium |
-| 3 | #120 | Durable editor for eligibility answers | `/implement` | Opus | medium |
-| 4 | #124 | Where do you want to work? | `/wayfinder` | Opus | high |
-| 5 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
-| 6 | #64 | The match count survives signup | `/implement` | Opus | medium |
+| 2 | #208 | The reader splits compound bullets; the ruling says don't | `/implement` | Opus | high |
+| 3 | #205 | The eligibility journey rotted red | `/implement` | Opus | medium |
+| 4 | #120 | Durable editor for eligibility answers | `/implement` | Opus | medium |
+| 5 | #124 | Where do you want to work? | `/wayfinder` | Opus | high |
+| 6 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
+| 7 | #64 | The match count survives signup | `/implement` | Opus | medium |
 
 **#202 first, and it is now cheaper and differently shaped** — rewritten 2026-08-13 after the #196
 corpus was re-counted directly. Three of its premises did not survive: the live reader is **not** the
@@ -50,7 +51,17 @@ French CV, and every answer is defensible, because that CV prints the same duty 
 and nobody has ruled on whether that is one fact or two. **It starts as an owner decision** —
 `research-data/structured-read/decisions.md`, three rulings, ~20 minutes — and only then a
 measurement. It also surfaced a live contradiction: `claim-miner.md` line 15 says "split compound
-bullets"; every measured prompt keeps them whole. **#205 before #120** — it is test debt, not product work, and it still goes
+bullets"; every measured prompt keeps them whole.
+
+**#208 second, and it does NOT wait for #202 to finish** — the ruling behind it is already taken
+(decision 2: capture the printed line whole, split at writing time). It sits here rather than inside
+#202 because **#202's own acceptance criteria forbid product code landing**, and this is a live
+prompt on every upload. It is also not the one-line edit it looks like: `claim-miner.md` rules 1 *and*
+2 both bless splitting, `preview-tailor.md` can only **merge** claims and has no way to print two
+bullets from one claim — the ability the ruling depends on does not exist yet — and the conservation
+lint must accept one claim id cited twice. Nothing is lost by waiting, but **every upload in the
+meantime stores fragments in the shape we ruled against**, so the two-shapes-in-one-store problem
+grows daily. That accrual is the only reason it outranks #205. **#205 before #120** — it is test debt, not product work, and it still goes
 second on purpose: `eligibility-questions-journey.mjs` is the ONLY end-to-end proof that the gate
 questions work, it has been red and in no CI tier for weeks, and the next three tickets (#120, #166,
 #122) all edit exactly those questions. Landing them on a broken net means the net never catches
@@ -67,21 +78,21 @@ sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not lab
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 7 | #176 | Desktop profile layout | `/prototype` | Opus | high |
-| 8 | #178 | Which sections the profile has | `/prototype` | Opus | medium |
-| 9 | #169 | Questions come in short, resumable topics | `/implement` | Fable | high |
-| 10 | #204 | A skipped question stays skipped for that advert | `/implement` | Opus | medium |
-| 11 | #166 | Degrees & certifications asked when silent | `/implement` | Opus | low |
-| 12 | #122 | An unasked requirement reads as a question | `/implement` | Opus | medium |
-| 13 | #164 | Skills become records in your own words | `/implement` | Opus | medium |
-| 14 | #206 | An achievement and a duty are stored the same | `/grill-with-docs` | Opus | high |
-| 15 | #156 | Something finally checks the two-page rule | `/implement` | Opus | medium |
-| 16 | #167 | Projects get their own CV section | `/implement` | Opus | medium |
-| 17 | #207 | One fact, three jobs — where does it print? | `/grilling` | Opus | high |
-| 18 | #168 | What prints is decided per market | `/implement` | Fable | high |
-| 19 | #203 | Put a held-back fact back, for one application | `/implement` | Opus | medium |
-| 20 | #170 | Unclassifiable content kept and printed faithfully | `/implement` | Fable | medium |
-| 21 | #171 | Stretches proposed and approved per advert | `/implement` | Fable | xhigh |
+| 8 | #176 | Desktop profile layout | `/prototype` | Opus | high |
+| 9 | #178 | Which sections the profile has | `/prototype` | Opus | medium |
+| 10 | #169 | Questions come in short, resumable topics | `/implement` | Fable | high |
+| 11 | #204 | A skipped question stays skipped for that advert | `/implement` | Opus | medium |
+| 12 | #166 | Degrees & certifications asked when silent | `/implement` | Opus | low |
+| 13 | #122 | An unasked requirement reads as a question | `/implement` | Opus | medium |
+| 14 | #164 | Skills become records in your own words | `/implement` | Opus | medium |
+| 15 | #206 | An achievement and a duty are stored the same | `/grill-with-docs` | Opus | high |
+| 16 | #156 | Something finally checks the two-page rule | `/implement` | Opus | medium |
+| 17 | #167 | Projects get their own CV section | `/implement` | Opus | medium |
+| 18 | #207 | One fact, three jobs — where does it print? | `/grilling` | Opus | high |
+| 19 | #168 | What prints is decided per market | `/implement` | Fable | high |
+| 20 | #203 | Put a held-back fact back, for one application | `/implement` | Opus | medium |
+| 21 | #170 | Unclassifiable content kept and printed faithfully | `/implement` | Fable | medium |
+| 22 | #171 | Stretches proposed and approved per advert | `/implement` | Fable | xhigh |
 
 **#176 and #178 first** — they decide where everything below lands on screen, and #178's audit
 already found three authorities disagreeing about which sections exist. **#169 before #166** so its
@@ -110,15 +121,15 @@ whether the distinction is even reliably visible on the page.
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 22 | #121 | Score jobs just ahead of the swipe | `/wayfinder` | Opus | high |
-| 23 | #116 | Deck appears instantly and fills in | `/implement` | Opus | medium |
-| 24 | #108 | The card's highlight sentence | `/implement` | Opus | medium |
-| 25 | #109 | "3 jobs just got better" | `/implement` | Opus | medium |
-| 26 | #110 | Choose the judging model by measuring it | `/implement` | Opus | high |
-| 27 | #177 | Tier thresholds 50/75/90 | `—` owner call | Opus | medium |
-| 28 | #175 | Job card desktop | `/prototype` | Opus | high |
-| 29 | #111 | Take the safety nets off | `/implement` | Opus | medium |
-| 30 | #200 | Cut cost per upload | `/implement` | Opus | medium |
+| 23 | #121 | Score jobs just ahead of the swipe | `/wayfinder` | Opus | high |
+| 24 | #116 | Deck appears instantly and fills in | `/implement` | Opus | medium |
+| 25 | #108 | The card's highlight sentence | `/implement` | Opus | medium |
+| 26 | #109 | "3 jobs just got better" | `/implement` | Opus | medium |
+| 27 | #110 | Choose the judging model by measuring it | `/implement` | Opus | high |
+| 28 | #177 | Tier thresholds 50/75/90 | `—` owner call | Opus | medium |
+| 29 | #175 | Job card desktop | `/prototype` | Opus | high |
+| 30 | #111 | Take the safety nets off | `/implement` | Opus | medium |
+| 31 | #200 | Cut cost per upload | `/implement` | Opus | medium |
 
 **The hard chain is #110 → #177 → #175.** #177's own timing line forbids the metal ladder shipping
 to users on any surface before the thresholds are checked against real distributions, and those
@@ -129,11 +140,11 @@ change.
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 31 | #67 | Slow and failed work resumes | `/implement` | Opus | medium |
-| 32 | #68 | Delete-my-data, expiry, consent | `/implement` | Opus | high |
-| 33 | #65 | The card separates offer, coverage, gaps | `/implement` | Opus | medium |
-| 34 | #66 | Card evidence carries into the tailored CV | `/implement` | Opus | high |
-| 35 | #69 | Pilot measurement and release gates | `/implement` | Opus | medium |
+| 32 | #67 | Slow and failed work resumes | `/implement` | Opus | medium |
+| 33 | #68 | Delete-my-data, expiry, consent | `/implement` | Opus | high |
+| 34 | #65 | The card separates offer, coverage, gaps | `/implement` | Opus | medium |
+| 35 | #66 | Card evidence carries into the tailored CV | `/implement` | Opus | high |
+| 36 | #69 | Pilot measurement and release gates | `/implement` | Opus | medium |
 
 **Re-read each against the code before building** — all five predate work that shipped underneath
 them; the concrete overlaps are recorded on #54. #67 is much cheaper than its 5 points (the
@@ -144,9 +155,9 @@ checkpoint rule is already live in `jobs.ts` and `pipeline.ts`); #68 has a seam 
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 36 | #92 | How often providers duplicate the same job | `/research` | Opus | medium |
-| 37 | #94 | South Korea needs its own provider | `/research` | Opus | medium |
-| 38 | #93 | Does JobCrush work in Japanese/Chinese at all | `/grill-with-docs` | Opus | high |
+| 37 | #92 | How often providers duplicate the same job | `/research` | Opus | medium |
+| 38 | #94 | South Korea needs its own provider | `/research` | Opus | medium |
+| 39 | #93 | Does JobCrush work in Japanese/Chinese at all | `/grill-with-docs` | Opus | high |
 
 One provider serves all four markets today, with no registry-level fallback (#174).
 
@@ -154,11 +165,11 @@ One provider serves all four markets today, with no registry-level fallback (#17
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 39 | #134 | Classify a job into a kind of work | `/grill-with-docs` | Opus | high |
-| 40 | #179 | Real job-family data for the profile rail | `/implement` | Opus | medium |
-| 41 | #119 | Ops dashboard: cost per user | `/implement` | Opus | medium |
-| 42 | #142 | Application history | `/wayfinder` | Opus | high |
-| 43 | #195 | Phone profile revisit | `/prototype` | Opus | medium |
+| 40 | #134 | Classify a job into a kind of work | `/grill-with-docs` | Opus | high |
+| 41 | #179 | Real job-family data for the profile rail | `/implement` | Opus | medium |
+| 42 | #119 | Ops dashboard: cost per user | `/implement` | Opus | medium |
+| 43 | #142 | Application history | `/wayfinder` | Opus | high |
+| 44 | #195 | Phone profile revisit | `/prototype` | Opus | medium |
 
 **#134 precedes #179** and also settles the compromise #162 shipped with: `resolveFamily()` returns a
 constant, so every visitor is scoped to one placeholder family.
