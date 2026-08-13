@@ -77,10 +77,11 @@ sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not lab
 | 14 | #206 | An achievement and a duty are stored the same | `/grill-with-docs` | Opus | high |
 | 15 | #156 | Something finally checks the two-page rule | `/implement` | Opus | medium |
 | 16 | #167 | Projects get their own CV section | `/implement` | Opus | medium |
-| 17 | #168 | What prints is decided per market | `/implement` | Fable | high |
-| 18 | #203 | Put a held-back fact back, for one application | `/implement` | Opus | medium |
-| 19 | #170 | Unclassifiable content kept and printed faithfully | `/implement` | Fable | medium |
-| 20 | #171 | Stretches proposed and approved per advert | `/implement` | Fable | xhigh |
+| 17 | #207 | One fact, three jobs — where does it print? | `/grilling` | Opus | high |
+| 18 | #168 | What prints is decided per market | `/implement` | Fable | high |
+| 19 | #203 | Put a held-back fact back, for one application | `/implement` | Opus | medium |
+| 20 | #170 | Unclassifiable content kept and printed faithfully | `/implement` | Fable | medium |
+| 21 | #171 | Stretches proposed and approved per advert | `/implement` | Fable | xhigh |
 
 **#176 and #178 first** — they decide where everything below lands on screen, and #178's audit
 already found three authorities disagreeing about which sections exist. **#169 before #166** so its
@@ -91,7 +92,13 @@ It is #165's one disclosed ceiling: a skipped level question lives in screen sta
 advert asks again on reload, which clause 4 forbids. Its sibling — a permanent "stop asking" — is
 deliberately NOT in it, because clause 4 binds that to an undo surface on the profile that #178 has
 not drawn yet. **#156 before #167** because #167, #170 and #171 each make CVs longer and nothing
-checks length today. **#206 after #202, before the four tickets that spend bullets** (#156, #167,
+checks length today. **#207 immediately before #168** — #168 decides what prints per application, so
+if #207 is not settled first, #168 answers it by accident. It exists because #202's decision 1 ruled
+that a duty printed under three jobs is **one fact, counted once**; the tailored CV still prints
+bullets under a job heading, so something must decide which heading — and whether repeating a fact
+across dated roles is how a page says "ten years of this". It also spends the bullet budget #153
+settled and the page length #156 checks, so it lands after both. **#206 after #202, before the four
+tickets that spend bullets** (#156, #167,
 #168, #171): it decides whether an achievement and a duty are stored differently at all, and those
 four each choose which bullets print without being able to tell the two apart. It is a decision, not
 a build — cheap to take, expensive to retrofit, because adding a field later means re-reading every
@@ -103,15 +110,15 @@ whether the distinction is even reliably visible on the page.
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 21 | #121 | Score jobs just ahead of the swipe | `/wayfinder` | Opus | high |
-| 22 | #116 | Deck appears instantly and fills in | `/implement` | Opus | medium |
-| 23 | #108 | The card's highlight sentence | `/implement` | Opus | medium |
-| 24 | #109 | "3 jobs just got better" | `/implement` | Opus | medium |
-| 25 | #110 | Choose the judging model by measuring it | `/implement` | Opus | high |
-| 26 | #177 | Tier thresholds 50/75/90 | `—` owner call | Opus | medium |
-| 27 | #175 | Job card desktop | `/prototype` | Opus | high |
-| 28 | #111 | Take the safety nets off | `/implement` | Opus | medium |
-| 29 | #200 | Cut cost per upload | `/implement` | Opus | medium |
+| 22 | #121 | Score jobs just ahead of the swipe | `/wayfinder` | Opus | high |
+| 23 | #116 | Deck appears instantly and fills in | `/implement` | Opus | medium |
+| 24 | #108 | The card's highlight sentence | `/implement` | Opus | medium |
+| 25 | #109 | "3 jobs just got better" | `/implement` | Opus | medium |
+| 26 | #110 | Choose the judging model by measuring it | `/implement` | Opus | high |
+| 27 | #177 | Tier thresholds 50/75/90 | `—` owner call | Opus | medium |
+| 28 | #175 | Job card desktop | `/prototype` | Opus | high |
+| 29 | #111 | Take the safety nets off | `/implement` | Opus | medium |
+| 30 | #200 | Cut cost per upload | `/implement` | Opus | medium |
 
 **The hard chain is #110 → #177 → #175.** #177's own timing line forbids the metal ladder shipping
 to users on any surface before the thresholds are checked against real distributions, and those
@@ -122,11 +129,11 @@ change.
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 30 | #67 | Slow and failed work resumes | `/implement` | Opus | medium |
-| 31 | #68 | Delete-my-data, expiry, consent | `/implement` | Opus | high |
-| 32 | #65 | The card separates offer, coverage, gaps | `/implement` | Opus | medium |
-| 33 | #66 | Card evidence carries into the tailored CV | `/implement` | Opus | high |
-| 34 | #69 | Pilot measurement and release gates | `/implement` | Opus | medium |
+| 31 | #67 | Slow and failed work resumes | `/implement` | Opus | medium |
+| 32 | #68 | Delete-my-data, expiry, consent | `/implement` | Opus | high |
+| 33 | #65 | The card separates offer, coverage, gaps | `/implement` | Opus | medium |
+| 34 | #66 | Card evidence carries into the tailored CV | `/implement` | Opus | high |
+| 35 | #69 | Pilot measurement and release gates | `/implement` | Opus | medium |
 
 **Re-read each against the code before building** — all five predate work that shipped underneath
 them; the concrete overlaps are recorded on #54. #67 is much cheaper than its 5 points (the
@@ -137,9 +144,9 @@ checkpoint rule is already live in `jobs.ts` and `pipeline.ts`); #68 has a seam 
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 35 | #92 | How often providers duplicate the same job | `/research` | Opus | medium |
-| 36 | #94 | South Korea needs its own provider | `/research` | Opus | medium |
-| 37 | #93 | Does JobCrush work in Japanese/Chinese at all | `/grill-with-docs` | Opus | high |
+| 36 | #92 | How often providers duplicate the same job | `/research` | Opus | medium |
+| 37 | #94 | South Korea needs its own provider | `/research` | Opus | medium |
+| 38 | #93 | Does JobCrush work in Japanese/Chinese at all | `/grill-with-docs` | Opus | high |
 
 One provider serves all four markets today, with no registry-level fallback (#174).
 
@@ -147,11 +154,11 @@ One provider serves all four markets today, with no registry-level fallback (#17
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 38 | #134 | Classify a job into a kind of work | `/grill-with-docs` | Opus | high |
-| 39 | #179 | Real job-family data for the profile rail | `/implement` | Opus | medium |
-| 40 | #119 | Ops dashboard: cost per user | `/implement` | Opus | medium |
-| 41 | #142 | Application history | `/wayfinder` | Opus | high |
-| 42 | #195 | Phone profile revisit | `/prototype` | Opus | medium |
+| 39 | #134 | Classify a job into a kind of work | `/grill-with-docs` | Opus | high |
+| 40 | #179 | Real job-family data for the profile rail | `/implement` | Opus | medium |
+| 41 | #119 | Ops dashboard: cost per user | `/implement` | Opus | medium |
+| 42 | #142 | Application history | `/wayfinder` | Opus | high |
+| 43 | #195 | Phone profile revisit | `/prototype` | Opus | medium |
 
 **#134 precedes #179** and also settles the compromise #162 shipped with: `resolveFamily()` returns a
 constant, so every visitor is scoped to one placeholder family.

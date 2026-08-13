@@ -33,8 +33,8 @@ is 73, something later has to decide which job a shared duty prints under, or it
 
 | | |
 |---|---|
-| **Ruling** | *(once / per job)* |
-| **Why** | |
+| **Ruling** | To me, it should be counted once. Because it's one fact about him. He can repeat this fact under 3 different jobs if he wants, but it's still the same fact. Additional remark: I count on the LLM to judge 3 facts that would not be written word for word identically but saying the same fact to count it once too. Example: if thomas said: "Réaliser des plans de soumissions pour Appels d'Offres (Autocad)" and "a produit des plans de soumissions pour Appels d'Offres (Autocad)" it should be counted as 1 same fact. |
+| **Why** | Because if the purpose here is to collect/identify facts, then we should count it once, not per job. If I miss understood something let me know. |
 
 ---
 
@@ -49,8 +49,8 @@ nobody has noticed.**
 
 | | |
 |---|---|
-| **Ruling** | *(keep whole / split into separate facts)* |
-| **Why** | |
+| **Ruling** |to me it should be splited into separate facts for better data processing in our product. |
+| **Why** | I am not sure of the context or the goal here, but it seems to me that if we split separate facts, it will be easier for us in the product to compare, run analysis and rewrite proper tailored line for the user. If I miss understood something let me know.|
 
 ---
 
@@ -93,8 +93,25 @@ sees immediately.
 
 | | |
 |---|---|
-| **Ruling** | *(one bullet / two bullets / defer until it breaks)* |
-| **Why** | |
+| **Ruling** | In this example, it should be considered as one bullet only. Not sure to understand why this is a question/decision, it seems pretty obvious to me. If I missed something let me know.  |
+| **Why** |I don't really understand why this is question, it's straightforward to me and a LLM should be able to see it as straightforward than me I believe. It's the same sentence, that has been returned to the line because of the space on the page that can't contain the whole sentence straight on one line. |
+
+---
+
+---
+
+## Settled — 2026-08-13
+
+| # | Ruling | What it changes |
+|---|---|---|
+| 1 | **Count once.** One fact about the person, however many jobs print it. Semantically equivalent wordings count as the same fact, not just identical strings. | The true count for Thomas is **73 or lower**, not 73 exactly. Exact repeats a machine can spot; "these two say the same thing" is a judgement, so **the answer key needs a judgement pass and is no longer a pure copy job.** Opened [#207](https://github.com/adrien-mounier/jobcrush-app/issues/207) for the question this creates: which job heading a shared fact prints under, and when repeating it is earned. |
+| 2 | **Capture whole, split when writing.** The printed line is stored as one verbatim fact; the tailor splits it when it rewrites for a specific advert. | Resolves the live contradiction: `claim-miner.md` line 15 currently says *"Split compound bullets"* and must change. **Checked before ruling:** nothing downstream needs pre-split facts — `card-judge.md` scores by **meaning, not shared words** (its first rule, replacing the old token-overlap scorer), so one line carrying three actions can support three requirements uncut. The fallback word-overlap scorer is *helped* by longer lines, not hurt. Follows the decided capture-versus-render boundary (#144). Avoids the mechanism that made skills swing 17→44 between runs on the same CV (ADR-0004 clause 3). |
+| 3 | **One bullet.** A sentence wrapped by the page is one fact. | Confirms current behaviour — all four readers already rejoin wrapped lines and keep the tail. Recorded so the key is reproducible by someone other than the owner. |
+
+**Also explained while ruling:** the 114-bullet sample was not inventing content. It captured the 93
+printed bullets **plus** ~21 items unpacked from prose the CV prints as a run-on line
+(`Projets: Grands Bois (…) ; Vieusseux (…)`) and two client names. Real content, on the page, not
+printed as bullets. Whether projects are capturable facts is a fourth question and belongs to #167.
 
 ---
 
