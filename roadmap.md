@@ -33,15 +33,24 @@ not correctness on well-specified work — start no ticket at `max`.
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 1 | #202 | Fix the structured read's accuracy | `/research` | Opus | high |
+| 1 | #202 | Which bullet count is right — 73 or 114? | `—` owner call, then `/research` | Opus | medium |
 | 2 | #205 | The eligibility journey rotted red | `/implement` | Opus | medium |
 | 3 | #120 | Durable editor for eligibility answers | `/implement` | Opus | medium |
 | 4 | #124 | Where do you want to work? | `/wayfinder` | Opus | high |
 | 5 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
 | 6 | #64 | The match count survives signup | `/implement` | Opus | medium |
 
-**#202 first** — every ticket below inherits that read, and #196 settled its cost while finding it
-reads *less* completely. **#205 before #120** — it is test debt, not product work, and it still goes
+**#202 first, and it is now cheaper and differently shaped** — rewritten 2026-08-13 after the #196
+corpus was re-counted directly. Three of its premises did not survive: the live reader is **not** the
+one that loses bullets (it tags by employer *and* title, the shape that holds; only employer-name-alone
+collapses, and only on the one CV with four roles at one employer); the fix it proposed — tag by job
+index — is the **least stable** column measured, so it must not be built; and #161 is closed, so no
+freeze is being blocked. What survives is real: the readers disagree by **73 vs 114 bullets** on the
+French CV, and every answer is defensible, because that CV prints the same duty list under two jobs
+and nobody has ruled on whether that is one fact or two. **It starts as an owner decision** —
+`research-data/structured-read/decisions.md`, three rulings, ~20 minutes — and only then a
+measurement. It also surfaced a live contradiction: `claim-miner.md` line 15 says "split compound
+bullets"; every measured prompt keeps them whole. **#205 before #120** — it is test debt, not product work, and it still goes
 second on purpose: `eligibility-questions-journey.mjs` is the ONLY end-to-end proof that the gate
 questions work, it has been red and in no CI tier for weeks, and the next three tickets (#120, #166,
 #122) all edit exactly those questions. Landing them on a broken net means the net never catches
