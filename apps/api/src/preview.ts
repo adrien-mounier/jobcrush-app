@@ -467,6 +467,65 @@ export function conservationIssues(
     }
   }
 
+  // #208 division guards. Printing ONE claim as TWO bullets is legal — it is how a compound CV line
+  // reaches a posting that tests two of its actions — but unlike a merge it declares nothing, so
+  // without these two limits it is unchecked in both directions (ADR-0012 clause 4a). Counted PER
+  // ROLE on purpose: the same fact printed under two different job headings is #207's open question,
+  // not a division, and must not be flagged as one here.
+  //   (1) At most TWO bullets per claim. Three lines out of one source line is padding on its face,
+  //       and padding is the shape splitting newly made possible.
+  //   (2) A split claims completeness — "I am rendering this whole line across two bullets" — so the
+  //       claim's own numbers must survive somewhere across them. Numbers are the cheapest honest
+  //       proxy for the result a division must not amputate (same technique as audit.ts's
+  //       no-new-facts guard). Applied ONLY when every citing bullet is single-claim: once a merge
+  //       is involved, #154 below owns the line and deliberately guarantees just ONE surviving
+  //       result, so demanding all of them here would fire on lines that rule calls fine.
+  // ⚠️ Honest limit, kept out of the docs' promises: a result carrying no digit ("strengthening
+  // customer security") is invisible to this check. Covering that needs a division to declare what
+  // it dropped, which is its own ticket, not a patch.
+  const numbersIn = (s: string) => s.match(/\d+(?:[.,]\d+)*/g) ?? [];
+  for (const role of draft.experience) {
+    const citedBy = new Map<string, { text: string; single: boolean }[]>();
+    for (const b of role.bullets) {
+      for (const id of new Set(b.claimIds)) {
+        const entry = { text: b.text, single: b.claimIds.length === 1 };
+        const seen = citedBy.get(id);
+        if (seen) seen.push(entry);
+        else citedBy.set(id, [entry]);
+      }
+    }
+    for (const [id, printedAs] of citedBy) {
+      if (printedAs.length < 2) continue;
+      const claim = claims.claims.find((c) => c.id === id);
+      if (!claim) continue; // a fabricated id is already reported by the provenance loop above
+      if (printedAs.length > 2) {
+        issues.push({
+          message:
+            `"${role.role}": claim "${id}" is printed on ${printedAs.length} separate bullets. One ` +
+            `source line may split into at most two — beyond that it is padding the role, not ` +
+            `serving the posting. Print two and hold the rest back in "unprinted".`,
+          visitor:
+            `One line from your CV was spread across ${printedAs.length} bullets under ` +
+            `"${role.role}". Check that section before you send this draft.`,
+        });
+      }
+      if (!printedAs.every((b) => b.single)) continue;
+      const printed = printedAs.map((b) => b.text).join(" ");
+      const lost = numbersIn(claim.text).filter((n) => !printed.includes(n));
+      if (lost.length > 0) {
+        issues.push({
+          message:
+            `"${role.role}": claim "${id}" is split across ${printedAs.length} bullets but ${lost.join(", ")} ` +
+            `from "${claim.text.slice(0, 120)}" appears on none of them. Splitting a line renders it ` +
+            `in full — keep its figures, or print the claim as one bullet instead.`,
+          visitor:
+            `A line from your CV was split into ${printedAs.length} bullets and "${lost[0]}" from it did not ` +
+            `make either one. Check that line before you send this draft.`,
+        });
+      }
+    }
+  }
+
   // #154: the merge/outcome arbitration. Two failures, ONE issue per bullet — a line that trips
   // both would otherwise produce two near-identical notices about one sentence.
   //   (1) a line built from >1 claim must keep a result, and the declared result must appear
@@ -479,11 +538,9 @@ export function conservationIssues(
   //       on the false-alarm argument alone.)
   // The reverse shape is deliberately NOT an issue: ONE claim id cited by TWO bullets is the tailor
   // splitting a compound claim at writing time (#208), each bullet single-claim, so neither trips
-  // the check below. Honest limit, ADR-0012 clause 4a: that also means a DIVISION is unchecked here,
-  // in both directions — neither "never split a result away from its action" nor "never split to pad
-  // a role out" (one id on five bullets lints clean) has a backstop. A merge can be checked because
-  // it declares its surviving `outcome` in a field; a division declares nothing. Both live in
-  // preview-tailor.md as prose and nowhere else. Pinned in preview.test.ts.
+  // the check below. A division is guarded instead by the #208 block above — a two-bullet cap and a
+  // numbers-survive check — because it declares no `outcome` for this one to read. What that block
+  // cannot see is a result with no digit in it; that gap is ADR-0012 clause 4a and its own ticket.
   // Honest limit: this guarantees ONE surviving result per line, not all of them. The rest of the
   // loss is disclosed by draftDisclosure() below, not prevented.
   for (const role of draft.experience) {

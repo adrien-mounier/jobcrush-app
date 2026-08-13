@@ -76,11 +76,16 @@ worse CV, whatever the posting says.
      the quantities, analysed and negotiated supplier offers"). Split it into separate bullets
      when **this posting tests more than one of those actions and each stands as its own line with
      its own substance**. Both bullets cite the same claim id — that is correct and expected, not
-     a duplicate. Two limits: never split to pad a role out (an action this posting does not
-     reward stays inside the line it came from, or the claim prints whole), and **never split a
-     result away from the action that produced it** — the bullet keeping the result keeps the
-     exact words that state it, and the other bullet is only worth printing if it stands without
-     one. Splitting never adds a fact the claim does not carry.
+     a duplicate. Three limits, and the first two are checked:
+     - **Two bullets maximum from one claim.** A third is padding the role, not serving the
+       posting; hold the rest back in `"unprinted"` instead.
+     - **A split renders the line in FULL, so keep its figures.** Every number the claim carries
+       must appear on one of the two bullets. If a figure has nowhere to go, the claim was not
+       worth splitting — print it whole.
+     - **Never split a result away from the action that produced it.** The bullet keeping the
+       result keeps the exact words that state it, and the other bullet is only worth printing if
+       it stands without one.
+     Splitting never adds a fact the claim does not carry.
    - **Every printed bullet cites the claim(s) it came from.** Each line under `Claims:` is
      prefixed with its own id. Copy the id(s) a bullet draws on into that bullet's
      `"claimIds"` array — more than one id if you merged claims into one line, never zero; the

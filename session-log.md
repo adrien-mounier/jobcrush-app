@@ -33,7 +33,22 @@ could only ever **merge** claims — gained the ability the ruling depends on.
   schema and the actual lint, which the repo test (a typed object literal) never does.
 - 🚩 **The gate found the padding limit is unchecked too, and that one is NEW.** One claim id printed
   on five bullets parses and lints clean — pre-#208 those fragments were separate claims, so
-  padding was not a division. ADR-0012 clause 4a now names both unchecked directions, not one.
+  padding was not a division.
+- 🔒 **The owner asked what a checker would cost, and took the two cheap ones.** Shipped in the same
+  session: a **two-bullet cap** per claim (per role, so #207's shared-fact question is not mistaken
+  for a division) and a **numbers-survive check** (splitting asserts the line is rendered in full,
+  so its figures must land on one of the two bullets — applied only when every citing bullet is
+  single-claim, since a merge is #154's business and that rule deliberately guarantees just one
+  surviving result). Four tests. The tailor prompt now states them as checked limits, not advice.
+- 🚨 **Probing for the answer found something worse than the gap being discussed, and it is now
+  [#212](https://github.com/adrien-mounier/jobcrush-app/issues/212).** A **partially printed**
+  compound claim is invisible to everything: print one action out of three, the id is still cited,
+  `conservationIssues()` returns 0 and `draftDisclosure()` returns `[]`. Pre-#208 the two that did
+  not print landed in `unprinted` and the person was shown them. **So ADR-0007 clause 4 — *the
+  machine never removes silently, and a removal is reversible per application* — is currently false
+  for any CV line carrying more than one action.** #208 traded granular disclosure for stable
+  storage; the trade was right and nobody priced this half. **Found by running the code, not by
+  reading the diff** — three review passes had already been over it.
 - 🩹 **The review also caught three files still asserting the retired rule** and two clauses I had
   added that nobody asked for. `ADR-0012` clause 4's stated reason for the four-claim alarm was
   *false* after this change (it justified the gap by atomic mining); `candidateClaims.ts` and

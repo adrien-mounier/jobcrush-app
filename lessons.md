@@ -8,6 +8,19 @@ starts debugging a repo that is fine. **Use `TURBO_FORCE=1 pnpm test`** (same fo
 when a run must not be served from cache — a QA gate re-running gates on a cached "7/7 successful"
 has verified nothing.
 
+## Run the code to find the gap; reading the diff finds the gap you already thought of
+
+Three review passes went over #208 — two axes plus a QA gate — and all three converged on the same
+disclosed hole: *a split can amputate its result*. A five-line script calling the real functions
+found a different and worse one in two minutes: a **partially printed** compound claim reports
+nothing at all, which silently breaks a promise the ADRs make in writing.
+
+Reviewers reason about the diff, so they find refinements of what the diff already discusses. **A
+probe asks the code a question the diff never raised.** When a change alters what a stored unit
+*is*, write the throwaway script and try the shapes nobody wrote a test for — especially the ones
+that look like non-events (one bullet, one id, nothing anomalous). Cost: two minutes. It produced
+[#212](https://github.com/adrien-mounier/jobcrush-app/issues/212).
+
 ## A test that cannot fail on the thing it names is worse than no test
 
 #208 added a test asserting the conservation lint passes when one claim is printed as two bullets.

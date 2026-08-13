@@ -86,12 +86,19 @@ the second premise in this section to be retired by checking rather than assumin
 
 **#208 shipped 2026-08-13.** The reader now stores a compound bullet whole and the writer splits it
 with the advert in hand — the ruling is live on every upload. The writer gained an ability it did not
-have (one claim, two printed bullets, both citing the same id); the conservation lint already
-accepted that shape and is now pinned by a test. ⚠️ **One honest gap, found by the review and kept
-rather than papered over:** the lint can check a *merge* because a merged line declares the result
-it kept in a field — a *division* declares nothing, so "never split a result away from the action
-that produced it" is enforced by prompt wording alone. Recorded as ADR-0012 clause 4a, and the test
-says so where someone might read the pass as coverage.
+have (one claim, two printed bullets, both citing the same id). **Two guards on that new ability
+shipped the same day**, after the owner asked what a checker would cost: a **two-bullet cap** per
+claim (kills the padding shape splitting made possible) and a **numbers-survive check** (a split
+asserts it renders the line in full, so its figures must land on one of the two bullets). Four
+tests. The tailor prompt states both as checked limits, not advice.
+
+⚠️ **What the guards cannot reach became [#212](https://github.com/adrien-mounier/jobcrush-app/issues/212), and it is the more serious half.** A result with no
+digit in it is invisible to a numbers check — and a **partially printed** compound claim is
+invisible to everything: print one action out of three, the claim id is still cited, and nothing
+reports a loss. Pre-#208 those were separate claims and the unprinted ones were shown to the person.
+**So ADR-0007 clause 4 — *the machine never removes silently* — is currently false for any CV line
+carrying more than one action.** Found by probe, not by the review chain. #208 traded granular
+disclosure for stable storage; the trade was right and #212 pays the other half of the bill.
 **Claims already stored as fragments are left alone, deliberately**: a re-read
 would overwrite corrections people made by hand, and with no users the only fragment-shaped rows are
 dev/staging data plus the committed eval recordings, which re-record on demand. One thing not done
@@ -130,6 +137,7 @@ sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not lab
 | 13 | #122 | An unasked requirement reads as a question | `/implement` | Opus | medium |
 | 13.1 | #211 | How finely is a skill list split? (owner decision — see Owner tasks) | `/grilling` | Opus | medium |
 | 13.2 | #210 | A messy bullet stays messy on the master CV | `/implement` | Opus | medium |
+| 13.3 | #212 | A partly printed compound line is a silent loss | `/grilling` | Opus | high |
 | 14 | #164 | Skills become records in your own words | `/implement` | Opus | medium |
 | 15 | #206 | An achievement and a duty are stored the same | `/grill-with-docs` | Opus | high |
 | 16 | #156 | Something finally checks the two-page rule | `/implement` | Opus | medium |
@@ -156,6 +164,16 @@ question the order already covers: **volume.** One real CV yields **26 prose-min
 chips. #178 and the confirm-screen work (#157 item 3) settle that shape first. The rule must also be
 written into ADR-0004 — clause 3's atomisation warning is precisely about prose mining and needs
 re-reading against the decision.
+
+**#212 was opened 2026-08-13, immediately after #208 shipped, by probing rather than reviewing.**
+It sits at 13.3 rather than higher for one reason only: **nobody uses the app**, so no real CV is
+losing anything today. It must be true before anyone's real CV goes through, because it is the one
+failure this product's architecture refuses on principle — a person cannot correct what they are
+never shown. It is `/grilling` and not `/implement` because the first question is an owner call, not
+a build: whether a compound line may print in part **at all**. The strict answer (print it whole or
+hold it whole) needs no new field and may be truer to *tailor by emphasis, not amputation* than the
+flexible one — price that before building. ⚠️ **Do not start it assuming #157 covers the display
+half** — #157 is closed and its items were re-homed; check where they landed first.
 
 **#211 and #210 were opened 2026-08-13, out of the #202 decision-2 discussion, and both sit
 immediately before #164.**

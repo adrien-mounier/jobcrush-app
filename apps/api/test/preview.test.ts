@@ -353,11 +353,9 @@ describe("conservation lint — tailor by emphasis, not amputation", () => {
   // two printed bullets is the new legitimate shape — the lint must pass it.
   //
   // ⚠️ Read this before trusting the pass: each divided bullet is SINGLE-claim, so #154's
-  // verbatim-result rule (which fires only at claimIds.length >= 2) cannot see it. This test pins
-  // that the shape is accepted; it does NOT pin that a division keeps its result. Nothing does —
-  // the tailor prompt forbids splitting a result away from its action in prose only, and a
-  // division declares no `outcome` field for a check to read. Deliberate gap, recorded in
-  // ADR-0012 clause 4a.
+  // verbatim-result rule (which fires only at claimIds.length >= 2) cannot see it. A division is
+  // guarded by the #208 block instead — the two-bullet cap and the numbers-survive check below.
+  // What neither can see is a result carrying no digit; that residue is ADR-0012 clause 4a.
   it("passes one claim id split across two printed bullets (#208)", async () => {
     const claims = await recordedClaims();
     const split: Draft = {
@@ -418,6 +416,73 @@ describe("conservation lint — tailor by emphasis, not amputation", () => {
     };
     const issues = conservationIssues(claims, both);
     expect(issues.filter((i) => i.message.includes("is not in the bullet's own text"))).toHaveLength(1);
+  });
+
+  // #208 division guards. A split says "I am rendering this whole line across two bullets", so the
+  // line's figures must survive it — and one source line may not become three, which is padding.
+  // Fixture claim: "Managed a budget of EUR 1.2M across 3 vendor teams." (numbers 1.2 and 3).
+  const splitBudget = (texts: string[], extra: Draft["experience"][number]["bullets"] = []): Draft => ({
+    ...sampleDraft,
+    experience: [
+      {
+        ...sampleDraft.experience[0]!,
+        bullets: [
+          ...texts.map((text) => ({ text, claimIds: ["nrg-managed-budget"], outcome: "" })),
+          ...extra,
+        ],
+      },
+    ],
+  });
+
+  it("passes a split that carries the line's figures across both bullets", async () => {
+    const issues = conservationIssues(
+      await recordedClaims(),
+      splitBudget(["Managed a EUR 1.2M project budget", "Coordinated 3 vendor teams to delivery"]),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags a split that drops the line's figures on the way (#208)", async () => {
+    const issues = conservationIssues(
+      await recordedClaims(),
+      splitBudget(["Managed the project budget", "Coordinated the vendor teams to delivery"]),
+    );
+    const lost = issues.filter((i) => i.message.includes("appears on none of them"));
+    expect(lost).toHaveLength(1);
+    expect(lost[0]!.message).toContain("1.2, 3");
+    // The person is told in their own terms, not ours — this one is NOT blockCovered, because
+    // draftDisclosure() says nothing about divisions.
+    expect(lost[0]!.blockCovered).toBeUndefined();
+    expect(lost[0]!.visitor).toContain("split into 2 bullets");
+  });
+
+  it("flags one source line printed as three bullets — the padding shape splitting made possible", async () => {
+    const issues = conservationIssues(
+      await recordedClaims(),
+      splitBudget([
+        "Managed a EUR 1.2M project budget",
+        "Coordinated 3 vendor teams to delivery",
+        "Owned the vendor relationship end to end",
+      ]),
+    );
+    const padded = issues.filter((i) => i.message.includes("printed on 3 separate bullets"));
+    expect(padded).toHaveLength(1);
+  });
+
+  // Once a merge is in play, #154 owns the line and deliberately guarantees only ONE surviving
+  // result. Demanding every figure there would fire on lines that rule calls fine.
+  it("leaves the figures check alone when one of the citing bullets is a merge", async () => {
+    const issues = conservationIssues(
+      await recordedClaims(),
+      splitBudget(["Managed the project budget"], [
+        {
+          text: "Ran vendor reporting for the CIO",
+          claimIds: ["nrg-managed-budget", "nrg-steering-committee-reporting"],
+          outcome: "",
+        },
+      ]),
+    );
+    expect(issues.some((i) => i.message.includes("appears on none of them"))).toBe(false);
   });
 
   it("does not count education diplomas or experience bullets as certifications", async () => {

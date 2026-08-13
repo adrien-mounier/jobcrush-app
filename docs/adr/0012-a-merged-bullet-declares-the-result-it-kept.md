@@ -68,20 +68,27 @@ to writing: when an advert tests more than one action inside a compound claim, t
 bullets citing the same claim id. Clause 4's counting is unaffected — each divided bullet cites one
 claim, so the merge arbitration above never fires on it.
 
-**The honest consequence: division is checked by nothing, in both directions.** The "keep the result
-in the sentence" guarantee of clauses 1-3 covers *merges only*. `preview-tailor.md` states two limits
-on division and **neither has a mechanical backstop**:
+The "keep the result in the sentence" guarantee of clauses 1-3 covers *merges only* — a merge can be
+checked because it **declares** its surviving outcome in a field, and a division declares nothing.
+Division is therefore guarded by two checks that need no declaration (`conservationIssues()`, #208):
 
-- *never split a result away from the action that produced it* — a divided bullet that amputates the
-  result parses clean and lints clean;
-- *never split to pad a role out* — one claim id may appear on five bullets and nothing objects.
-  This one is a genuinely **new** unchecked shape: under the pre-#208 miner those fragments were
-  separate claims, so padding was not a division. `draftDisclosure()` is silent too — it only
-  surfaces bullets citing two or more claims.
+- **Two bullets maximum from one claim, per role.** Three lines out of one source line is padding —
+  the shape splitting newly made possible, since pre-#208 those fragments were separate claims.
+  Counted per role so a fact printed under two job headings stays [#207](https://github.com/adrien-mounier/jobcrush-app/issues/207)'s open question, not a false division.
+- **The claim's numbers must survive the split.** Splitting asserts *"I am rendering this whole line
+  across two bullets"*, so its figures must land on one of them. Applied only when every citing
+  bullet is single-claim: once a merge is involved, clause 4's looser arbitration owns the line.
 
-Deliberate, not an oversight. A merge can be checked because it **declares** its surviving outcome in
-a field; a division declares nothing, so there is nothing to check against. Closing either gap means
-giving a divided bullet something to declare — a design question, not a fix to slip in.
+**⚠️ What is still unchecked, stated rather than implied.** A result carrying **no digit** —
+*"strengthening customer security"* — is invisible to the numbers check, and that is the exact class
+of loss the BRED evidence below is about. Worse, a **partially printed** claim is invisible to
+everything: print one action out of three and the claim id is still cited, so `conservationIssues()`
+sees a fact accounted for and `draftDisclosure()` reports nothing held back. Pre-#208 those were
+separate claims and the two that did not print landed in `unprinted`, where ADR-0007 clause 4's
+promise — *the machine never removes silently, and a removal is reversible per application* — could
+reach them. **That promise is currently false for a partially printed compound claim.** Closing it
+means giving a bullet a way to declare the part of its claim that did not print; filed as its own
+ticket rather than patched in, because it changes what the person is shown.
 
 **5. A failure ships the CV and tells the person; it never withholds the CV.** These checks sit in
 the lossy lane, not the malformed lane. On a CV where every fact is duty-only the machine will fail

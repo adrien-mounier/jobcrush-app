@@ -249,9 +249,13 @@ source CV whole, several actions and all — the miner no longer atomises it, be
 capture re-decides the unit on every read (the mechanism behind the 17→44 skills swing, ADR-0004
 clause 3). The writer splits a compound claim into two bullets when **this advert tests more than
 one of its actions and each stands as its own line**. Both bullets cite the same claim id: one
-claim, two printed lines, which `conservationIssues()` accepts by design. Never split to fill a
-role out, and never split a result away from the action that produced it — the line keeping the
-result keeps the words that state it.
+claim, two printed lines, which `conservationIssues()` accepts by design.
+
+Three limits, and the first two are enforced (#208): **two bullets maximum from one claim** — a
+third is padding the role; **a split keeps the line's figures**, because splitting is a claim to be
+rendering the line in full, so every number in the claim must land on one of the two bullets; and
+**never split a result away from the action that produced it**, which is writing discipline the
+lint cannot see when the result carries no digit.
 
 **A merged bullet must keep a result, and the result must print** (#154). This is the precedence
 between this section and the outcome-led rule above, stated once, here — the tailor prompt carries
