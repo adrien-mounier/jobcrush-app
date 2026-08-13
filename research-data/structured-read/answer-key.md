@@ -1,7 +1,13 @@
 # Answer key — #202 AC3
 
 **Built by:** the Claude agent (`claude-opus-5`), 2026-08-13.
-**Effort:** ~35 minutes wall-clock, unattended. **No human has adjudicated it yet.**
+**Effort:** ~35 minutes wall-clock, unattended.
+**Adjudicated by the owner, 2026-08-13:** all 7 semantic merges in the appendix were reviewed row by
+row and **accepted as drafted** — including the one flagged as weakest (Thomas, `éléments structures
+INSITU` / `éléments de structure infra et super`). The key stands at **Thomas 67 / Giuliana 22**.
+The one condition that would reopen it is unchanged: if [#206](https://github.com/adrien-mounier/jobcrush-app/issues/206) rules a duty and an
+achievement are different records, Giuliana's three duty↔achievement merges reverse together and her
+key becomes 25.
 **Source:** `cvs.json` — the cached raw PDF text extract, the same bytes every graded reader saw.
 **Not used as a source:** any reader output in `out/`, the live `claim-miner.md`, or any LLM pass.
 The mechanical half (line split, page-wrap rejoin, exact-duplicate collapse) is `key-draft.mjs`;

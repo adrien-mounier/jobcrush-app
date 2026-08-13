@@ -295,9 +295,12 @@ from any reader's output.** Full key, the job-by-job breakdown and the appendix 
 beside it — measurement code only; **nothing was added or changed under `apps/` or `packages/`**).
 
 **Who built it and how long it took:** the Claude agent (`claude-opus-5`), **~35 minutes wall-clock,
-unattended**. The prep note budgeted 2–3 hours of owner attention for the same job. **No human has
-adjudicated the key yet** — the judgement calls it required are listed individually in the appendix
-so they can be overturned one at a time.
+unattended**. The prep note budgeted 2–3 hours of owner attention for the same job. **The owner
+adjudicated it on 2026-08-13** — all 7 judgement calls were reviewed row by row in the appendix and
+**accepted as drafted**, the one flagged as weakest included. The key stands at **Thomas 67 /
+Giuliana 22**. One condition would reopen it: if [#206](https://github.com/adrien-mounier/jobcrush-app/issues/206) rules a duty and an achievement
+are different records, Giuliana's three duty↔achievement merges reverse together and her key becomes
+**25** — a ~2-point shift that changes no reader's rank.
 
 It applies the three rulings settled in `research-data/structured-read/decisions.md`: **count once**
 (a duty printed under several jobs is one fact, including semantically equivalent wordings),

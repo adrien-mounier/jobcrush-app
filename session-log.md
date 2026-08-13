@@ -13,8 +13,10 @@ re-scored on disk.
 
 - 📏 **The key.** Thomas: 93 printed bullets → **67 distinct facts**. Giuliana: 25 printed →
   **22 distinct**. Under the three settled rulings (count once / capture whole / one bullet).
-  Built by the agent in ~35 min against a 2–3 h owner budget — **no human has adjudicated it yet**,
-  so every judgement call is listed individually and can be overturned one at a time.
+  Built by the agent in ~35 min against a 2–3 h owner budget, then **adjudicated by the owner the
+  same day** — all 7 semantic merges reviewed row by row and accepted as drafted, the weakest
+  included. One condition reopens it: if #206 rules a duty and an achievement are different records,
+  Giuliana's three duty↔achievement merges reverse and her key becomes 25.
 - 🚨 **Today's live miner is joint-best: 99%/90% Thomas, 100%/100% Giuliana.** #196's "half the cost"
   result stands; the unstated half of that pitch — *"and it reads at least as well"* — does not. The
   cheap alternative scores 75% on Thomas and **50% on Giuliana**. The saving is not available until
@@ -43,8 +45,9 @@ re-scored on disk.
 - ❌ **Not graded, and cannot be:** `counts_as_work`, `resolved_country`, certificate validity. They
   are judgements about the page, not text on it — confirm screen, #157 item 3.
 
-**#202 stays open**: the key needs a human pass, and AC4's finding (the collapse is not fixed) is
-reported, not resolved.
+**#202 closed by hand** — all seven acceptance criteria met and the key adjudicated. AC4's finding
+(the Giuliana collapse is not fixed) is **reported, not resolved**: the ticket only ever asked
+whether it was, and the prompt rewrite that would fix it is not in scope here.
 
 ## 2026-08-13 (session 113) `/implement #205` — the eligibility journey is green and watched, and the audit behind it opened #209
 

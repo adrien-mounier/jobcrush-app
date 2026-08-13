@@ -33,7 +33,7 @@ not correctness on well-specified work — start no ticket at `max`.
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 1 | #202 | Which bullet count is right — 73 or 114? (owner call DONE) | `/research` | Opus | medium |
+| ~~1~~ | ~~#202~~ | ~~Which bullet count is right — 73 or 114?~~ **DONE 2026-08-13** | — | — | — |
 | 2 | #208 | The reader splits compound bullets; the ruling says don't | `/implement` | Opus | high |
 | 3 | #120 | Durable editor for eligibility answers | `/implement` | Opus | medium |
 | 4 | #209 | Four e2e journeys are in no CI tier and cannot run | `/implement` | Opus | medium |
@@ -58,27 +58,23 @@ diagnosed twice already. Accepted cost: Tier 2 goes from ~14 to ~20 min per push
 below #120** — the four are not red because the product is wrong, and nothing lands on top of them
 the way #120/#166/#122 land on the eligibility questions.
 
-**#202's owner half is DONE (2026-08-13)** — all three rulings are filled in with stated reasons in
-`research-data/structured-read/decisions.md`, under a "Settled" summary: (1) count once, semantic
-equivalence included; (2) capture whole, split at writing time; (3) a wrapped line is one bullet.
-**Nobody needs to ask the owner anything to start #202** — what remains is AC3-AC6, the measurement:
-build the answer key for Thomas and Giuliana under those rulings and score the four prompts against
-it. ⚠️ One loose end for whoever picks it up: `decisions.md` explains the 114-bullet sample in its
-"Also explained while ruling" note (93 printed + ~21 unpacked from a run-on prose line + 2 client
-names) but its older closing section still says the 114 is "not yet explained". AC2 is satisfied by
-the first; delete the second when you touch the file.
+**#202 is DONE (2026-08-13, commit `8c9a00a` + follow-up).** All three rulings are settled in
+`research-data/structured-read/decisions.md`; the answer key is built from the raw CV text and
+**adjudicated by the owner** (`research-data/structured-read/answer-key.md`, Thomas 67 / Giuliana 22);
+all four prompts are scored against it in `docs/research/structured-read-cost.md`. What it leaves
+behind, and what the rest of this plan must respect:
 
-**#202 first, and it is now cheaper and differently shaped** — rewritten 2026-08-13 after the #196
-corpus was re-counted directly. Three of its premises did not survive: the live reader is **not** the
-one that loses bullets (it tags by employer *and* title, the shape that holds; only employer-name-alone
-collapses, and only on the one CV with four roles at one employer); the fix it proposed — tag by job
-index — is the **least stable** column measured, so it must not be built; and #161 is closed, so no
-freeze is being blocked. What survives is real: the readers disagree by **73 vs 114 bullets** on the
-French CV, and every answer is defensible, because that CV prints the same duty list under two jobs
-and nobody has ruled on whether that is one fact or two. **It starts as an owner decision** —
-`research-data/structured-read/decisions.md`, three rulings, ~20 minutes — and only then a
-measurement. It also surfaced a live contradiction: `claim-miner.md` line 15 says "split compound
-bullets"; every measured prompt keeps them whole.
+- 🚨 **Today's live miner is the joint-best reader** — 99%/90% Thomas, 100%/100% Giuliana. #196's
+  "half the cost" result stands, but the unstated half of that pitch, *"and it reads at least as
+  well"*, does **not**: the cheap alternative scores 75% and 50%. **No prompt swap on cost grounds
+  until it is rewritten and re-measured.** This retires the third #202 premise to die by checking.
+- 🔍 **The Giuliana collapse is diagnosed, not fixed.** It is **not** four roles at one employer. The
+  failing reader captures every line under a *"Key Achievements"* heading and no plain duty bullets —
+  it reads the page's own headings literally, and on Thomas it dropped a whole job printed under
+  project names. The fix is a prompt rewrite. The originally proposed fix (tag by job index) is
+  **disproven** — the reader that already does it collapses identically on two of three samples.
+- ⚠️ **If #206 rules a duty and an achievement are different records**, Giuliana's three
+  duty↔achievement merges reverse and her key becomes 25 — ~2 points, no rank change. The key says so.
 
 **#208 was ranked second on a cost that does not exist, and has been moved below #205.** The claim
 was that every upload adds rows in the shape we ruled against. ⚠️ **Nobody uses the app yet, and will
