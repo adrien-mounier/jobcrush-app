@@ -1,0 +1,22 @@
+{
+  "cell": "compact",
+  "cv": "Giuliana_DELRE_Resume V3.pdf",
+  "sample": 2,
+  "text": "```json\n{\"v\":1,\n\"j\":[\n[\"PROVA ASIA Ltd.\",\"Purchasing Manager - Ingredient & Packaging\",\"Bangkok\",\"Thailand\",\"2025\",\"P\",1,14],\n[\"PROVA ASIA Ltd.\",\"Purchasing & Supplier Scheduling Supervisor - Industrial Ramp-Up Phase\",\"Bangkok\",\"Thailand\",\"2024\",\"2025\",1,29],\n[\"PROVA ASIA Ltd.\",\"Purchasing & Supplier Scheduling Officer – Industrial Start-Up Phase\",\"Bangkok\",\"Thailand\",\"2023\",\"2024\",1,44],\n[\"PROVA SAS\",\"Junior Purchasing Officer – Direct Raw Materials\",\"Montreuil, France\",\"France\",\"2022\",\"2023\",1,56]\n],\n\"a\":[\n[\"Completed factory ramp-up, enabling 98% of expected sales production capability\",0,25],\n[\"Built and developed a performance-driven purchasing team\",0,26],\n[\"Implemented a purchasing dashboard to improve operational visibility\",0,27],\n[\"Managed supplier relationships to ensure timely delivery of products and services\",0,28],\n[\"Executed first raw material imports (US, Europe, Asia) within the Thai FDA/FTZ frameworks\",1,40],\n[\"Built inter-company flows (more than 30% of raw material volumes)\",1,41],\n[\"Structured safety stock and shortage management monitoring\",1,42],\n[\"Managed packaging sourcing and mold-development project\",1,43],\n[\"Created foundation for the operational supply chain stability in emerging industrial environment\",2,52],\n[\"Structured the supplier selection and onboarding process for oversea purchasing activities\",2,53],\n[\"Sourced locally carriers\",2,54]\n],\n\"e\":[\n[\"ISTOM, Angers, France\",\"Master's Degree in Engineering\",\"International Agro-Development\",\"\",\"\",\"2022-01\",75]\n],\n\"s\":[\n[\"Purchasing strategy & International Sourcing\",\"\",61],\n[\"Cost reduction & price negotiation\",\"\",62],\n[\"Supply risk mitigation\",\"\",63],\n[\"International manufacturing exposure\",\"\",64],\n[\"Supplier relationship management\",\"\",65],\n[\"Purchase order management & Safety Stock Structuring\",\"\",66],\n[\"Cross-functional Coordination\",\"\",68],\n[\"Sage\",\"ERP\",69],\n[\"Tasco\",\"ERP\",69],\n[\"SEI (Sage Enterprise Intelligence)\",\"\",70],\n[\"PLM (Product lifecycle management solution)\",\"PLM\",71],\n[\"Microsoft Office Suite\",\"Microsoft Office\",72]\n],\n\"c\":[],\n\"l\":[\n[\"English\",\"fluent\",73],\n[\"French\",\"native\",73]\n]\n}\n```",
+  "usage": {
+    "input_tokens": 2877,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 895,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  },
+  "stop_reason": "end_turn"
+}

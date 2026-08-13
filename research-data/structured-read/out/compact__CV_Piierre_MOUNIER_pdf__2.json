@@ -1,0 +1,22 @@
+{
+  "cell": "compact",
+  "cv": "CV_Piierre_MOUNIER.pdf",
+  "sample": 2,
+  "text": "```json\n{\"v\":1,\n\"j\":[\n[\"MoveWORK\",\"Customer Success Specialist | Digital Platform Support\",\"Lisboa\",\"Portugal\",\"2025-10\",\"P\",1,17],\n[\"Uber\",\"Subject Matter Expert (SME) – French Driver Market\",\"Lisbon\",\"Portugal\",\"2024-07\",\"2025-06\",1,31],\n[\"Uber\",\"Customer Service Representative – French Driver Market\",\"Lisbon\",\"Portugal\",\"2022-05\",\"2024-07\",1,40],\n[\"Euroclair\",\"Sales Representative\",\"Paris\",\"France\",\"2020-06\",\"2022-04\",1,48]\n],\n\"a\":[\n[\"Responded promptly to client inquiries via email, phone, and live chat, resolving technical issues related to the MoveWORK digital platform for facility services management.\",0,20],\n[\"Provided expert guidance on platform features, troubleshooting workflows, and optimizing usage to enhance client productivity and satisfaction.\",0,22],\n[\"Handled bug reports and technical support tickets, escalating complex issues to development teams while maintaining detailed records of resolutions.\",0,24],\n[\"Maintained high service levels by diagnosing platform problems, creating knowledge base updates, and collaborating cross-functionally to prevent recurring issues.\",0,27],\n[\"Supported client onboarding and training, contributing to efficient adoption of MoveWORK's tools for facility management.\",0,29],\n[\"Acted as a key expert for the French B2B driver market, ensuring policy adherence and operational efficiency.\",1,33],\n[\"Supported and coached teams on complex cases to improve conversion and retention.\",1,35],\n[\"Analyzed data and trends to identify new opportunities and contribute to market growth.\",1,36],\n[\"Led training sessions and enhanced sales & customer success skills within the team.\",1,37],\n[\"Collaborated cross-functionally to implement solutions that boosted service quality.\",1,38],\n[\"Partnered with sales and product teams to drive lead conversion and customer retention.\",1,39],\n[\"Onboarded and supported new French drivers, ensuring smooth adoption of the platform.\",2,42],\n[\"Prospected and managed a portfolio of drivers, providing proactive communication and follow-up.\",2,43],\n[\"Applied strong discipline to consistently hit performance KPIs in a fast-paced environment.\",2,45],\n[\"Contributed to growth by driving high retention and customer satisfaction.\",2,46],\n[\"Worked closely with sales and product teams to optimize support processes.\",2,47],\n[\"Managed both inbound and outbound sales activities, handling customer inquiries and qualifying leads.\",3,50],\n[\"Conducted 40+ cold calls per day, consistently booking 2–3 meetings per week.\",3,52],\n[\"Oversaw the full sales cycle from prospecting to closing, ensuring follow-up and customer satisfaction.\",3,53],\n[\"Maintained accurate pipeline tracking in Salesforce and Outreach to monitor performance against KPIs.\",3,55]\n],\n\"e\":[\n[\"University of Paris Est Créteil\",\"Technical University Diploma\",\"accounting and management of companies and adminstrations\",\"\",\"2014-09\",\"2017-07\",9],\n[\"Marcel Pagnol High School\",\"Leaving Certificate\",\"Science Technology and Management of Accounting and Finance of Companies\",\"\",\"2010-09\",\"2012-07\",12]\n],\n\"s\":[\n[\"Outbound & inbound prospecting (calls, email, LinkedIn)\",\"\",67],\n[\"Lead qualification & pipeline management\",\"\",70],\n[\"Salesforce & Outreach (CRM & Sales Engagement Tools)\",\"Salesforce\",72],\n[\"Customer success & retention strategies\",\"\",74],\n[\"Negotiation & deal closing\",\"\",76],\n[\"Strong communication & KPI discipline\",\"\",77]\n],\n\"c\":[],\n\"l\":[\n[\"French\",\"Native\",58],\n[\"English\",\"Professional working proficiency\",60],\n[\"Portuguese\",\"Advanced\",62],\n[\"Spanish\",\"Advanced\",64]\n]\n}\n```",
+  "usage": {
+    "input_tokens": 2881,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 1325,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global"
+  },
+  "stop_reason": "end_turn"
+}
