@@ -189,6 +189,19 @@ TOTAL_STAGES=3
 
 FLY_BIN="${FLY_BIN:-$HOME/.fly/bin/fly}"
 
+# open_url override for Git Bash on Windows. The library tries explorer.exe,
+# which returns a non-zero exit code even when it succeeds — so the wizard
+# reports "couldn't open a browser" every time — and MSYS rewrites the '/' in a
+# URL path into a Windows path before explorer sees it. PowerShell has neither
+# problem. Measured on this machine 2026-08-13; the library itself is untouched.
+if command -v powershell.exe >/dev/null 2>&1; then
+  open_url() {
+    printf '  %s↗ opening%s %s\n' "$GREEN" "$RESET" "$1"
+    MSYS2_ARG_CONV_EXCL='*' powershell.exe -NoProfile -Command "Start-Process '$1'" \
+      >/dev/null 2>&1 || warn "couldn't open a browser — visit it manually: $1"
+  }
+fi
+
 banner "Shared infra — spend alerts and Fly token scope (#32)"
 
 # ── Stage 1 — Cloudflare budget alert ─────────────────────────────────────

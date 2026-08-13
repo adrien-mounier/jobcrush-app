@@ -35,11 +35,10 @@ not correctness on well-specified work — start no ticket at `max`.
 |---|---|---|---|---|---|
 | ~~1~~ | ~~#202~~ | ~~Which bullet count is right — 73 or 114?~~ **DONE 2026-08-13** | — | — | — |
 | ~~2~~ | ~~#208~~ | ~~The reader splits compound bullets; the ruling says don't~~ **DONE 2026-08-13** | — | — | — |
-| 3 | #120 | Durable editor for eligibility answers | `/implement` | Opus | medium |
-| 4 | #209 | Four e2e journeys are in no CI tier and cannot run | `/implement` | Opus | medium |
-| 5 | #124 | Where do you want to work? | `/wayfinder` | Opus | high |
-| 6 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
-| 7 | #64 | The match count survives signup | `/implement` | Opus | medium |
+| 3 | #209 | Four e2e journeys are in no CI tier and cannot run | `/implement` | Opus | medium |
+| 4 | #124 | Where do you want to work? | `/wayfinder` | Opus | high |
+| 5 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
+| 6 | #64 | The match count survives signup | `/implement` | Opus | medium |
 
 **#205 shipped 2026-08-13** (`0fe62f3`, `6f8cc64`, `9f5bd5e`; QA gate GO). The eligibility journey
 is green (45/0) and runs in Tier 2 — 7 journeys / 14 min / 253 assertions, all green. Its audit
@@ -112,14 +111,32 @@ is an argument, not a measurement.
 app yet, so nothing was accruing. The second premise in this section retired by checking rather than
 assuming. A false urgency argument is worse than none.
 
-**#205 before #120** — it is test debt, not product work, and it still goes
+🚚 **#120 moved OUT of Phase 1 to 11.1, owner decision 2026-08-13 — and this is the second time the
+same decision has been taken.** It sat at order 3, which contradicted the ticket's own hard block:
+on **2026-08-04** the owner declined the offered split and chose to wait for the whole #127 model,
+*"I am not comfortable developing something for specific cases."* Asked again on 2026-08-13 with the
+premises re-checked — the model is now decided (twelve ADRs) and partly built (#161, #163 shipped),
+so the original reason to wait has largely expired — **the owner held the same line: the general
+surface first, the one-off button never.** Recorded twice now, so no third session re-litigates it.
+
+**Why 11.1 and not straight after #178.** The design gate is #176/#178, but the *build* gate is
+#169 + #204: #120's real work is server-side — exposing a prior answer so a question can re-render
+pre-filled — and that is the same persistence #169 builds for resumable topics and #204 for skips.
+Landing #120 first would build that store a third time. It stays **before #166**, which adds two
+more answers the product calls permanent.
+
+⚠️ **The live harm is carried knowingly for the whole distance, and the distance just got longer.**
+Since #123 shipped, a mistap on the language question withdraws postings from that person's deck
+with **no undo, permanently for that session** — and because that question is always last, the one
+correction affordance never renders at all. The reason it is acceptable: **nobody uses the app.**
+That is the only thing making this safe, and it stops being true the day someone signs up. If a real
+visitor ever reaches the deck before 11.1 lands, this jumps the queue.
+
+**#205 before the eligibility tickets** — it is test debt, not product work, and it still went
 second on purpose: `eligibility-questions-journey.mjs` is the ONLY end-to-end proof that the gate
-questions work, it has been red and in no CI tier for weeks, and the next three tickets (#120, #166,
+questions work, it has been red and in no CI tier for weeks, and three tickets (#120, #166,
 #122) all edit exactly those questions. Landing them on a broken net means the net never catches
-anything. It is ~2 points and it buys back the regression cover for three tickets. **#120 before
-#166** adds two more answers it calls permanent: an eligibility answer has no CV line to tap, the
-correction affordance reaches one answer back, and the *last* answer loses it inside 800ms. #165
-landing now makes that live. **#124 before #63** or the
+anything. It is ~2 points and it buys back the regression cover for three tickets. **#124 before #63** or the
 first live deck knowingly serves jobs the visitor cannot legally take — retrieval shipped with no
 location parameter and #107's right-to-work answer is stored globally, so a visitor needing
 sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not labelled
@@ -133,6 +150,7 @@ sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not lab
 | 9 | #178 | Which sections the profile has | `/prototype` | Opus | medium |
 | 10 | #169 | Questions come in short, resumable topics | `/implement` | Fable | high |
 | 11 | #204 | A skipped question stays skipped for that advert | `/implement` | Opus | medium |
+| 11.1 | #120 | Eligibility answers can only be corrected in the moment | `/implement` | Opus | medium |
 | 12 | #166 | Degrees & certifications asked when silent | `/implement` | Opus | low |
 | 13 | #122 | An unasked requirement reads as a question | `/implement` | Opus | medium |
 | 13.1 | #211 | How finely is a skill list split? (owner decision — see Owner tasks) | `/grilling` | Opus | medium |
@@ -266,7 +284,7 @@ constant, so every visitor is scoped to one placeholder family.
 
 | # | What | Note |
 |---|---|---|
-| #32 | Spending alert + verify vitacairn's Fly token scope | `ready-for-human` — needs dashboard access |
+| ~~#32~~ | ~~Spending alert + verify vitacairn's Fly token scope~~ | ✅ **DONE 2026-08-13.** vitacairn's token was org-wide as suspected — fixed to one token per app, three account-wide tokens revoked, both projects verified deploying green. Cloudflare budget alert set at 10 USD. **Fly has no billing alerts and no spending cap** — that half of the ticket asked for a feature that does not exist; do not re-open it. |
 | #211 | How finely is a skill list split? | ~20 min of owner deciding, no build. **Takeable any time**; the deadline is #164 (order 14), which answers it by accident otherwise. Also listed at 13.1 so the deadline is visible in the queue. |
 | #127 | Map: the CV as structured data | Parent — closes when #164–#171 close |
 | #86 | Spec: per-ad understanding | Parent — closes when #108–#111 close |
