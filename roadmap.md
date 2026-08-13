@@ -33,7 +33,7 @@ not correctness on well-specified work — start no ticket at `max`.
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 1 | #202 | Which bullet count is right — 73 or 114? | `—` owner call, then `/research` | Opus | medium |
+| 1 | #202 | Which bullet count is right — 73 or 114? (owner call DONE) | `/research` | Opus | medium |
 | 2 | #208 | The reader splits compound bullets; the ruling says don't | `/implement` | Opus | high |
 | 3 | #120 | Durable editor for eligibility answers | `/implement` | Opus | medium |
 | 4 | #209 | Four e2e journeys are in no CI tier and cannot run | `/implement` | Opus | medium |
@@ -57,6 +57,16 @@ that ticket** — it was written against the real paid model, so CI can never ru
 diagnosed twice already. Accepted cost: Tier 2 goes from ~14 to ~20 min per push. **#209 stays
 below #120** — the four are not red because the product is wrong, and nothing lands on top of them
 the way #120/#166/#122 land on the eligibility questions.
+
+**#202's owner half is DONE (2026-08-13)** — all three rulings are filled in with stated reasons in
+`research-data/structured-read/decisions.md`, under a "Settled" summary: (1) count once, semantic
+equivalence included; (2) capture whole, split at writing time; (3) a wrapped line is one bullet.
+**Nobody needs to ask the owner anything to start #202** — what remains is AC3-AC6, the measurement:
+build the answer key for Thomas and Giuliana under those rulings and score the four prompts against
+it. ⚠️ One loose end for whoever picks it up: `decisions.md` explains the 114-bullet sample in its
+"Also explained while ruling" note (93 printed + ~21 unpacked from a run-on prose line + 2 client
+names) but its older closing section still says the 114 is "not yet explained". AC2 is satisfied by
+the first; delete the second when you touch the file.
 
 **#202 first, and it is now cheaper and differently shaped** — rewritten 2026-08-13 after the #196
 corpus was re-counted directly. Three of its premises did not survive: the live reader is **not** the
