@@ -36,9 +36,21 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~1~~ | ~~#202~~ | ~~Which bullet count is right — 73 or 114?~~ **DONE 2026-08-13** | — | — | — |
 | ~~2~~ | ~~#208~~ | ~~The reader splits compound bullets; the ruling says don't~~ **DONE 2026-08-13** | — | — | — |
 | ~~3~~ | ~~#209~~ | ~~Four e2e journeys are in no CI tier and cannot run~~ **DONE 2026-08-13** | — | — | — |
-| 4 | #124 | Where do you want to work? | `/wayfinder` | Opus | high |
+| ~~4~~ | ~~#124~~ | ~~Where do you want to work?~~ **DECIDED 2026-08-13 → build is #214** | — | — | — |
+| 4b | #214 | Target locations: up to three covered-market chips, one deck over the union | `/implement` | Opus | medium |
 | 5 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
 | 6 | #64 | The match count survives signup | `/implement` | Opus | medium |
+
+**#124 is DECIDED (2026-08-13, `e0d8cd2`) — a recorded decision, not a build.** The ticket's own
+premise was partly stale: #182/#184 already built the single search area, per-market right-to-work
+storage, and per-posting withdrawal matching. What was decided: **multi-select saved preference,
+hard cap 3, covered-market (country) granularity, remote is a separate future axis not a location,
+right-to-work stays per-market (one question per selected market), and a preference now carries
+`statedAt`** — the edge #139 flagged that no ADR had decided. Research
+(`docs/research/target-location-selection.md`) grounds each answer in what LinkedIn, SEEK/JobsDB,
+104, Indeed and VietnamWorks actually do; the design spec
+(`docs/design/target-locations-design-spec.md`) reuses the languages chips widget, no new screens.
+The build is **#214** — and the "#124 before #63" ordering rule below now reads "#214 before #63".
 
 **#205 shipped 2026-08-13** (`0fe62f3`, `6f8cc64`, `9f5bd5e`; QA gate GO). The eligibility journey
 is green (45/0) and runs in Tier 2 — 7 journeys / 14 min / 253 assertions, all green. Its audit

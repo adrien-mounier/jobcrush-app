@@ -2,6 +2,30 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-13 (session 118) `/wayfinder 124` — target locations decided, not built; the build is #214
+
+**#124 closed as a recorded decision** (`e0d8cd2`; resolution comment on the ticket). The ticket's
+premise was partly stale — #182/#184 had already built the single search area, per-market
+right-to-work storage, and per-posting withdrawal matching — so the real question was only the
+plural intake.
+
+- 🔬 **Research** (`docs/research/target-location-selection.md`, background agent): saved
+  preferences are plural everywhere modern (LinkedIn, SEEK-family, 104); documented caps cluster
+  at **5**; granularity converges on city→country with continents banned; **remote is a separate
+  workplace-type axis**, not a location; right-to-work is asked per job's country, never globally.
+- ⚖️ **Decided**: multi-select saved preference, **hard cap 3**, covered-market granularity
+  (checked against the pool's 9 real location strings — everything resolves to a country or fails
+  open), remote out of scope as a future axis, right-to-work one question per selected market
+  (`withdrawal.ts` needs no change), and **a preference carries `statedAt`** — the open edge #139
+  flagged that no ADR had decided.
+- 📐 **Design spec** (`docs/design/target-locations-design-spec.md`): the languages chips +
+  type-ahead widget at the front-door intent step, canonical market names on chips, uncovered
+  entries refused with the existing coverage line, cap line at 3, profile-rail door. No new screens.
+- 🎫 **Build ticket #214** created `ready-for-agent` with ACs, including the regression test #107's
+  failure story earns: a Hong Kong "needs sponsorship" withdraws only Hong Kong postings.
+- 📝 Noted, not adopted: SEEK auto-adds applied-to locations into preferences — machine-adding
+  silently, so if it ever comes here it comes as a visible proposal.
+
 ## 2026-08-13 (session 117) `/implement 209` — the four unwatched journeys are all green and in Tier 2
 
 **All four are fixed and in the gate; none was retired.** Tier 2 goes from 7 journeys / ~14 min to
