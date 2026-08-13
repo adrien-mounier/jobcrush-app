@@ -18,7 +18,10 @@
 //
 // Requires an API whose judging is SLOWER than the deck's 8s budget for the pending half to be
 // observable at all (otherwise every card lands judged before the reveal is dismissed, which is
-// the happy path and is asserted as such). Run:
+// the happy path and is asserted as such). qa-main.ts's fake judge can be MADE slow for exactly this
+// reason (#209), and this journey arms that knob for its own run — which is what puts it in Tier 2 at
+// all; before it, it declared a stack this repo could not run and sat red in no tier.
+// Run:
 //   BASE_URL=http://127.0.0.1:3007 node e2e/pending-unscored-card-journey.mjs
 // Set QA_ESTIMATED_URL to a second web origin whose API has NO judge wired to cover the
 // "Estimate" caption; omitted, that section is reported as not covered rather than silently passed.
@@ -53,9 +56,39 @@ const ringText = () => page.$eval(`${S.card} .score .n`, (el) => el.textContent.
 
 // 1) Land, seed real confirmed facts and sign in over the real API (wanting a job is post-wall).
 await qa.goto("/discovery", "land on discovery — the anonymous session is created here");
+
+// #209: arm qa-main.ts's judge delay for THIS run only. It is off by default because a slow judge
+// puts every deck's top card in `pending`, which has no score ring — and tailor-journey.mjs asserts
+// that ring. Put back on the last line of this file. A crash before that leaves it armed for the
+// next journey — acceptable, because a crashed journey already fails the whole gate, so nobody reads
+// the run after it as green. Silently ignored against any API that does not serve the route (a real
+// deployment), exactly like the rest of this journey's environment assumptions.
+//
+// It arms the canned language adverts (#209) at the same time, for a reason that has nothing to do
+// with languages: "Not scored" only exists for a card OUTSIDE DECK_JUDGE_MAX_CARDS, so the pool has
+// to be bigger than the bound. The shipped fixture corpus resolves to exactly 8 cards and the bound
+// IS 8 — measured 2026-08-13, that deck came back {"judged":8} with nothing unscored at all, and
+// this journey walked off the end of it. The three extra adverts take the pool to 11.
+const armStack = (knobs) =>
+  page.evaluate(
+    (body) => fetch("/api/qa/stack", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    }).then((r) => r.status).catch(() => "unreachable"),
+    knobs,
+  );
+const setJudgeDelay = (ms) => armStack({ judgeDelayMs: ms, languageAdverts: ms > 0 });
+// 20s, not 9: the budget is only the floor. The in-flight card is read by several separate
+// assertions after its atomic snapshot, and the window has to outlast the reading, not merely open.
+await qa.note(`armed the QA stack for this run (slow judge + a pool bigger than the bound): HTTP ${await setJudgeDelay(20_000)}`);
 await qa.scrollThrough("read the discovery screen the way a first-time visitor does");
 
-const seed = await page.evaluate(async (role) => {
+// #209: the seeded fact carries a run-unique tail on purpose. A judgement is cached against the
+// FACTS that produced it (judge.ts's judgementFingerprint), and the QA judgement store lives for the
+// life of the API process — so a byte-identical fact set makes the SECOND run of this journey in one
+// process resolve every card for free from that cache, and the pending state it exists to observe
+// can never appear. Unique facts keep every run genuinely cold.
+const RUN_TAG = `run ${Date.now()}`;
+const seed = await page.evaluate(async ({ role, runTag }) => {
   const post = (url, body) =>
     fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
       .then((r) => r.status);
@@ -63,7 +96,7 @@ const seed = await page.evaluate(async (role) => {
   codes.push(await post("/api/onboarding/discovery/start", { role }));
   codes.push(await post("/api/onboarding/discovery/answer", {
     itemId: "reader-role",
-    answer: "I owned a EUR 2M project budget and led end-to-end delivery with senior stakeholders.",
+    answer: `I owned a EUR 2M project budget and led end-to-end delivery with senior stakeholders (${runTag}).`,
   }));
   const link = await fetch("/api/auth/request-link", {
     method: "POST", headers: { "content-type": "application/json" },
@@ -75,8 +108,8 @@ const seed = await page.evaluate(async (role) => {
     body: JSON.stringify({ token }),
   }).then((r) => r.status));
   return codes;
-}, ROLE);
-qa.note(`seeded discovery + signed in over the real API — status codes: ${seed.join(", ")}`);
+}, { role: ROLE, runTag: RUN_TAG });
+await qa.note(`seeded discovery + signed in over the real API — status codes: ${seed.join(", ")}`);
 
 // 2) The cold deck. The reveal is the few seconds the poll is designed to hide behind.
 const t0 = Date.now();
@@ -110,8 +143,8 @@ if (sawPending) {
       showsAnyPercent: /\d+%/.test(c.querySelector(".score")?.textContent ?? ""),
     };
   });
-  qa.note(`IN-FLIGHT CARD, one atomic frame: ${JSON.stringify(inflight)}`);
-  qa.note(
+  await qa.note(`IN-FLIGHT CARD, one atomic frame: ${JSON.stringify(inflight)}`);
+  await qa.note(
     `  aria-busy="${inflight?.ariaBusy}" (must be "true") · glyph "${inflight?.glyph}" (must be an em dash, never a digit) · ` +
       `Try again present: ${inflight?.hasRetry} (must be false while in flight) · spinner: ${inflight?.hasSpin} · ` +
       `shows a percentage: ${inflight?.showsAnyPercent} (must be false)`,
@@ -133,7 +166,7 @@ if (sawPending) {
     }
     return out;
   });
-  qa.note(
+  await qa.note(
     retrySample.length
       ? `"Try again" appeared on state(s): ${[...new Set(retrySample.map((r) => r.scored))].join(", ")} — must only ever be "pending"`
       : `"Try again" never appeared — the number landed inside the poll's attempt budget`,
@@ -146,32 +179,36 @@ if (sawPending) {
   await qa.expectVisible(S.judgedCard, "the same card is now judged — filled in place, no reload, no reorder");
   await qa.expectVisible(`${S.judgedCard}:not([aria-busy])`, "aria-busy is GONE once it is no longer working");
   const live = await page.$eval(S.live, (el) => el.textContent.trim()).catch(() => "");
-  qa.note(`live region after the landing: "${live}" (announced once, for the on-screen card only)`);
+  await qa.note(`live region after the landing: "${live}" (announced once, for the on-screen card only)`);
 } else {
-  qa.note(`top card was "${await scoredOf()}" not "pending" — judging beat the reveal; the pending half is not observable in this run`);
+  await qa.note(`top card was "${await scoredOf()}" not "pending" — judging beat the reveal; the pending half is not observable in this run`);
 }
 
 // What the server decided for this visitor — read now that the pending window has been observed.
 const cold = await page.evaluate(() => fetch("/api/onboarding/cards").then((r) => r.json()));
 const tally = cold.cards.reduce((a, c) => ((a[c.scored] = (a[c.scored] ?? 0) + 1), a), {});
-qa.note(`deck shape: ${cold.cards.length} cards ${JSON.stringify(tally)} · pendingCount=${cold.pendingCount}`);
-qa.note(
+await qa.note(`deck shape: ${cold.cards.length} cards ${JSON.stringify(tally)} · pendingCount=${cold.pendingCount}`);
+await qa.note(
   `pendingCount counts ONLY in-flight cards: pending=${cold.cards.filter((c) => c.scored === "pending").length}, ` +
     `unscored=${cold.cards.filter((c) => c.scored === "unscored").length}, pendingCount=${cold.pendingCount}`,
 );
 // No card that claims no number may leak one — the exact lie this ticket exists to kill.
 const leaked = cold.cards.filter((c) => (c.scored === "pending" || c.scored === "unscored") && c.matchPct !== null);
-qa.note(`cards claiming no score but carrying a number: ${leaked.length} (must be 0)`);
+await qa.note(`cards claiming no score but carrying a number: ${leaked.length} (must be 0)`);
 
 // 5) Walk to an unscored card — the ones the spend cap deliberately never bought.
 let hops = 0;
+// Stops at the end of the deck rather than clicking a button that is no longer there: a deck with
+// no unscored card at all is a real (if uninteresting) outcome — the pool fitting inside the judge
+// bound — and it must read as "not reached", never as a crash 30 seconds later.
 while ((await scoredOf()) !== "unscored" && hops < 14) {
+  if (!(await page.locator(S.next).count())) break;
   await page.click(S.next);
   await page.waitForTimeout(600);
   hops++;
 }
 const reachedUnscored = (await scoredOf()) === "unscored";
-qa.note(`advanced ${hops} cards to reach the first unscored one: ${reachedUnscored ? "reached" : "NOT reached"}`);
+await qa.note(`advanced ${hops} cards to reach the first unscored one: ${reachedUnscored ? "reached" : "NOT reached"}`);
 
 if (reachedUnscored) {
   await qa.expectVisible(S.unscoredCard, "an unscored card — deliberately not bought, and it claims nothing");
@@ -195,7 +232,7 @@ if (reachedUnscored) {
     if (!el) return "no ring";
     return getComputedStyle(el).animationName;
   });
-  qa.note(`computed animation-name on the unscored ring: "${spinCheck}" (must be none)`);
+  await qa.note(`computed animation-name on the unscored ring: "${spinCheck}" (must be none)`);
 
   // 6) The tailor handoff — swiping right buys a cold, on-demand judgement.
   const tWant = Date.now();
@@ -223,11 +260,11 @@ if (reachedUnscored) {
   const frames = await bridgeWatch.catch(() => []);
   const withBridge = frames.filter((f) => f.bridge);
   const blank = frames.filter((f) => !f.bridge && !f.card && f.chars < 40);
-  qa.note(
+  await qa.note(
     `after the swipe: ${frames.length} frames sampled over ${frames.at(-1)?.t ?? 0}s · ` +
       `frames showing the handoff bridge: ${withBridge.length} · frames showing NOTHING: ${blank.length}`,
   );
-  qa.note(`bridge copy seen: ${[...new Set(withBridge.map((f) => f.bridge))].join(" | ") || "(bridge never rendered)"}`);
+  await qa.note(`bridge copy seen: ${[...new Set(withBridge.map((f) => f.bridge))].join(" | ") || "(bridge never rendered)"}`);
   if (withBridge.length === 0)
     await qa.expectVisible("#handoff-bridge-never-rendered", "DEFECT: the visitor was left with no bridge after swiping right");
   await page.waitForURL("**/tailor", { timeout: 120_000 })
@@ -236,10 +273,10 @@ if (reachedUnscored) {
   // The tailor screen is where the on-demand judgement is actually paid for, so this is the wait a
   // real visitor sits through. Name it, and time it.
   const loading = await page.locator(".loadstate").first().textContent().catch(() => null);
-  qa.note(`tailor loading line while the cold judgement runs: "${(loading || "").trim()}"`);
+  await qa.note(`tailor loading line while the cold judgement runs: "${(loading || "").trim()}"`);
   const tCard = Date.now();
   await page.locator(".live-card, .jobcard").first().waitFor({ state: "visible", timeout: 180_000 }).catch(() => {});
-  qa.note(`the tailored card appeared ${((Date.now() - tCard) / 1000).toFixed(1)}s after landing on /tailor · ` +
+  await qa.note(`the tailored card appeared ${((Date.now() - tCard) / 1000).toFixed(1)}s after landing on /tailor · ` +
     `${((Date.now() - tWant) / 1000).toFixed(1)}s total from the swipe`);
   await qa.expectVisible(".live-card, .jobcard", "the tailor screen renders a real card — the visitor never saw a blank screen");
   await qa.scrollThrough("read the tailored job the way the visitor would");
@@ -254,7 +291,7 @@ const moved = after.cards.filter((c) => {
   const was = beforeMap.get(c.adId);
   return was !== undefined && was !== null && c.matchPct !== null && was !== c.matchPct;
 });
-qa.note(`numbers that changed between two views of the same deck: ${moved.length} — ${moved.map((m) => `${m.adId}: ${beforeMap.get(m.adId)}%->${m.matchPct}%`).join(", ") || "none"}`);
+await qa.note(`numbers that changed between two views of the same deck: ${moved.length} — ${moved.map((m) => `${m.adId}: ${beforeMap.get(m.adId)}%->${m.matchPct}%`).join(", ") || "none"}`);
 if (moved.length > 0) await qa.expectVisible("#no-number-may-ever-move", `DEFECT: ${moved.length} card number(s) changed between views`);
 
 // 8) Reduced motion: nothing may spin. Measured against the real stylesheet on a probe element
@@ -298,17 +335,18 @@ if (ESTIMATED_URL || ESTIMATE_HERE) {
     const el = document.querySelector(".scoreslot .est");
     return el ? getComputedStyle(el).color : null;
   });
-  qa.note(`Estimate caption colour: ${estStyle} (must be the muted micro-label, never gold and never an alarm colour)`);
+  await qa.note(`Estimate caption colour: ${estStyle} (must be the muted micro-label, never gold and never an alarm colour)`);
   await qa.scrollThrough("read the estimated card");
   } catch (err) {
     // A second origin being unreachable is a rig problem, never a product verdict — record it and
     // let the rest of the report stand rather than aborting the run on it.
-    qa.note(`Estimate section could not run against ${ESTIMATED_URL}: ${String(err).slice(0, 160)}`);
+    await qa.note(`Estimate section could not run against ${ESTIMATED_URL}: ${String(err).slice(0, 160)}`);
   }
 } else {
-  qa.note("neither QA_ESTIMATED_URL nor QA_ESTIMATE_HERE set — the Estimate caption was NOT covered by this run");
+  await qa.note("neither QA_ESTIMATED_URL nor QA_ESTIMATE_HERE set — the Estimate caption was NOT covered by this run");
 }
 
+await qa.note(`put the QA stack back for the journeys after this one: HTTP ${await setJudgeDelay(0)}`);
 const ok = await qa.finish();
 // The deck polls on a timer, so a stray in-flight action can settle after the browser closes —
 // never let that turn a clean run into an uncaught rejection and a false red in CI.

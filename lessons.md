@@ -1,5 +1,29 @@
 # Lessons — jobcrush-app
 
+## A QA report is written relative to the CWD — `apps/web/qa-results`, not `apps/web/e2e/qa-results`
+
+Both directories exist. `apps/web/e2e/qa-results/` holds runs someone once started from inside
+`e2e/`, and its newest report is from **June**. Journeys are run from `apps/web`, so today's reports
+land in `apps/web/qa-results/`. During #209 I spent close to an hour diagnosing a "failure" that had
+already been fixed, because `ls -dt e2e/qa-results/…| head -1` cheerfully returned a two-month-old
+report every time and I read its verdict as the run I had just done. The API logs said the deck had
+11 cards; the "report" said 8; I went looking for a caching bug that did not exist.
+
+**The journey prints its own report path on the last line — read that, never a glob.** And when a
+server-side measurement and a report disagree flatly, suspect the report you are reading is not the
+run you just made before suspecting the product.
+
+## A green journey can be a journey that skipped its own point
+
+`language-ladder-journey.mjs` printed **"35 passed, 0 failed"** both when its deck half ran and when
+it self-skipped with `SKIPPING the deck half: the API is not serving the language adverts this
+journey needs`. The skip is a `qa.note`, and a note is never a failure. So the summary line is not
+evidence of coverage — it is evidence of no contradiction.
+
+**Grep the report for the journey's own skip notes before believing a pass**, and prefer a skip that
+FAILS when the run was supposed to cover that half. This is the same shape as the repo's standing
+"found-nothing vs did-not-run" rule (ADR-0010), one level up: at the journey, not the assertion.
+
 ## When every option on the table loses, the missing rule is a product promise nobody wrote down
 
 #211 offered three ways to split a skill list. All three were graded on *reader stability*, and the

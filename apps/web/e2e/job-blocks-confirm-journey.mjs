@@ -8,11 +8,15 @@
 // change the kind and watch the consequence copy answer honestly -> UNDO and RELOAD to prove the
 // undo reached the server -> finish the deck and hand over to /deck/<jobId>.
 //
-// ⚠️ CI note: apps/api/src/qa-main.ts does NOT wire the job-block miner step (`mineJobBlocks`), so
-// against today's QA entry the deck is always empty and this flow cannot run. Wiring that one step
-// into qa-main.ts is all this flow needs to become a CI regression asset.
+// This header used to claim qa-main.ts does not wire the job-block miner. THAT WAS NEVER TRUE —
+// `mineJobBlocks` has been wired there since #199 — and the false claim was copied into ticket #209
+// and read by two people before anyone checked the code. What actually broke (fixed in #209): the
+// fake answered every job-block prompt with the same three block ids, so section 11b's SECOND
+// upload was all id-collisions, ingest() skipped every row, and the deck stood empty. The fake now
+// answers a CV carrying "SECOND UPLOAD" with a re-read that includes one ambiguous row, and one
+// carrying "FAILTHISREAD" with an unreadable payload — both markers this journey types itself.
 //
-// Run it:
+// Run it (Tier 2 runs it against the shared fake-model stack ci.yml already has up):
 //   PORT=34877 node apps/api/dist/qa-main.js
 //   cd apps/web && API_URL=http://127.0.0.1:34877 npx next build && npx next start -p 34878
 //   BASE_URL=http://127.0.0.1:34878 node apps/web/e2e/job-blocks-confirm-journey.mjs

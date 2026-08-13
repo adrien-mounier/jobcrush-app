@@ -2,6 +2,66 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-13 (session 117) `/implement 209` — the four unwatched journeys are all green and in Tier 2
+
+**All four are fixed and in the gate; none was retired.** Tier 2 goes from 7 journeys / ~14 min to
+**11 / ~25 min**, the wall-clock the owner accepted. Every fix was a missing piece of the QA stack —
+no product defect was found in any of the four.
+
+- 🔍 **`job-blocks-confirm`: the diagnosis in the ticket was wrong, and the code said so.** Not an
+  unwired `mineJobBlocks` (wired since #199) — the fake answered every re-upload with the SAME three
+  block ids, `ingest()` skipped them all as collisions, and the second upload's deck stood empty.
+  The fake now answers a CV carrying `SECOND UPLOAD` with a re-read containing one ambiguous row,
+  and `FAILTHISREAD` with an unreadable payload. **Reproduced first, then fixed.** 54/0.
+- 🌏 **`language-ladder`: I did not follow the owner's instruction, and this is the reason.** He said
+  to add a language-requiring posting to `sample-postings.json`. That corpus is real scraped
+  adverts; exactly one line in it mentions a language, as a preference, and nothing mentions
+  Cantonese as a requirement at all. Three fabricated requirements quoted as those employers' own
+  `sourceSpan`, on a corpus staging serves to visitors, is not a fixture — it is a lie with a real
+  company's name on it. They are served from `qa-main.ts` instead (pruned from the Docker image).
+  Production is untouched: those three adIds have no fixture, so `main.ts` still reads them for real.
+  35/0, with the deck half genuinely running.
+- ⏱️ **`pending-unscored`: the judge-delay knob the owner asked for.** The fake judge can be made
+  slower than the deck's own 8s budget, so "Still scoring" is observable, the number fills in with no
+  reload, and `unscored` cards exist. 15/0.
+- ✍️ **`master-cv-dates-note`: rewritten, not deleted.** It rode the real paid model (CI could never
+  run it) AND was rotted — "Confirm my facts" has gone to `/job-blocks` since #157. It now walks
+  preview → work history → wall → claim deck → grill → master CV on the fake, and the passive
+  missing-dates note renders: *"1 role is missing dates."* 11/0. **What it no longer proves is said
+  in its header**: the shipped date question is LLM-phrased, so the "never invites an approximate
+  answer" check now grades the fake — it is recorded as a note, never as a pass.
+
+- 💥 **Making the QA stack production-shaped broke two green journeys, twice.** Wiring a judge and
+  three extra adverts put `tailor-journey` on an advert it was never written for and crashed
+  `band-vocabulary` on `null.essential`. Both new capabilities are now **off by default and armed by
+  the journey that needs them**, through a QA-only `/qa/stack` route; Tier 2 is sequential, so there
+  is one owner at a time and each journey puts the knob back. **One of the two crashes was a real
+  journey bug** — an `unscored` card carries no breakdown on staging either, so that journey would
+  have crashed against the real product; it is guarded and counts what it skipped.
+- 🔐 **A real product protection turned the whole gate red, and the fix went in the QA entry.** Auth
+  allows **5 magic links per 15 min per IP** (`routes/auth.ts`). Tier 2 used to mint four; with two
+  more journeys signing in it mints six, so the sixth journey simply never got its link and the gate
+  failed on a limiter doing exactly its job. `buildServer` now takes an `authRateLimiter` override —
+  the same seam `sessionRateLimiter` already had, for the same reason — and **only `qa-main.ts` sets
+  it**. The production default in `routes/auth.ts` is untouched.
+- 🕳️ **An hour lost to a stale report directory.** `apps/web/e2e/qa-results/` holds runs from June;
+  today's land in `apps/web/qa-results/`. I read a two-month-old verdict as the run I had just made
+  and went hunting a caching bug that did not exist. Both this and "a green journey can be one that
+  skipped its own point" are in `lessons.md`.
+- 📉 **Residual, stated rather than papered over:** the pending journey's "Estimate" section (what a
+  deployment with NO judge shows) still needs a second web origin, and that needs a second
+  `next build`. It reports itself as not covered.
+
+- 🧾 **The Tier 1 gate's own claim needed correcting, not tightening.** `qa-main.ts` said Tier 1
+  "never exercises this fake at all". Measured: after a Tier 1 run `judge` is **~8**, because a spec
+  reaches the deck route unmocked and that route now calls the fake judge. It is free and instant, so
+  the CI zero-assertion still covers the four PAID stages only — and both the file header and
+  `ci.yml` now say that, plus what to fix before anyone adds `"judge":0` to the check.
+
+Gates: `pnpm test` 1329 passed / 11 skipped · `pnpm typecheck` clean · Tier 1 128 passed / 1 skipped
+· Tier 2 11/11 green (one incumbent, `band-vocabulary`, hit a transient `Failed to fetch` on one
+suite run and passed standalone immediately after — a known flake shape, not a new one).
+
 ## 2026-08-13 (session 116) `/grilling 211` — three candidate rules, and the owner rejected all three
 
 **#211 decided and closed. The session's value was the rejection, not the ruling.** The ticket

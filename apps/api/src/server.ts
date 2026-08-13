@@ -67,6 +67,12 @@ export interface BuildOptions {
    *  default window; qa-main.ts passes a generous limiter here rather than raising the production
    *  default in sessions.ts. Absent → sessionRoutes' own default, unchanged for every other caller. */
   sessionRateLimiter?: IpRateLimiter;
+  /** The same seam for authRoutes' own default (5 magic links / 15 min per IP) — test-only in
+   *  practice, main.ts never sets it. #209: Tier 2 grew past four sign-ins in one run, so the whole
+   *  gate started failing on a real product protection doing its job. qa-main.ts passes a generous
+   *  limiter here rather than raising the production default in routes/auth.ts. Absent → authRoutes'
+   *  own default, unchanged for every other caller. */
+  authRateLimiter?: IpRateLimiter;
   blobs?: BlobStorage;
   uploads?: InMemoryUploadStore;
   /** LLM-backed pipeline steps (mine, preview). Absent steps are skipped — tests inject fakes. */
@@ -469,7 +475,7 @@ export function buildServer(opts: BuildOptions = {}) {
     judgePeek: opts.judgePeek,
     judgeMaxCards: opts.judgeMaxCards,
   }));
-  app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail }));
+  app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail, limiter: opts.authRateLimiter }));
   app.register(
     familyLearningRoutes({
       store: familyLearning,

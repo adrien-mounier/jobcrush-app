@@ -193,10 +193,17 @@ const served = await page.evaluate(async () => {
 });
 const allBands = [...new Set(served.flatMap((c) => c.bands))];
 await qa.note(`API /onboarding/cards — ${served.length} cards; every dontYet band seen: ${JSON.stringify(allBands)}`);
+// A card with no honest number carries NO breakdown at all (#117: `unscored` — the spend cap never
+// bought it — and `pending`), and that is the product being honest, not a gap in the payload. Read
+// straight through it and this line crashes on `null.essential`, which is exactly what it did the
+// first time a judge was wired into the QA stack (#209). Counted and named instead, so a deck that
+// quietly stopped carrying breakdowns at all still reads as the change it would be.
+const withBreakdown = served.filter((c) => c.breakdown);
 await qa.note(
-  `API match numbers: ${served
-    .map((c) => `${c.matchPct}% (E ${c.breakdown.essential.met}/${c.breakdown.essential.total}, D ${c.breakdown.desirable.met}/${c.breakdown.desirable.total})`)
-    .join(' · ')}`,
+  `API match numbers (${withBreakdown.length} of ${served.length} cards carry a breakdown; the rest ` +
+    `claim no number, so they carry none): ${withBreakdown
+      .map((c) => `${c.matchPct}% (E ${c.breakdown.essential.met}/${c.breakdown.essential.total}, D ${c.breakdown.desirable.met}/${c.breakdown.desirable.total})`)
+      .join(' · ')}`,
 );
 await assert(
   allBands.every((b) => INTERNAL_BANDS.includes(b)),
@@ -207,12 +214,13 @@ await assert(
   'AC3: no retired v0 band name (must/should/nice) survives in the served payload',
 );
 await assert(
-  served.every((c) => c.breakdown.essential.met <= c.breakdown.essential.total && c.breakdown.desirable.met <= c.breakdown.desirable.total),
+  withBreakdown.every((c) => c.breakdown.essential.met <= c.breakdown.essential.total && c.breakdown.desirable.met <= c.breakdown.desirable.total),
   'every card\'s met count is within its total — the rollup is internally consistent',
 );
 await assert(
-  served.every((c) => c.breakdown.essential.total + c.breakdown.desirable.total > 0),
-  'every card scores against a non-empty requirement list (the fail-closed pin holds in the live app)',
+  withBreakdown.length > 0
+    && withBreakdown.every((c) => c.breakdown.essential.total + c.breakdown.desirable.total > 0),
+  'every card that carries a number scores against a non-empty requirement list (the fail-closed pin holds in the live app)',
 );
 
 // -------------------------------------------------------------------------------------------

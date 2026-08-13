@@ -13,15 +13,20 @@
 //     * a language named only as a PLUS triggers the question too,
 //     * and only the deliberately-tapped bottom rung ("I don't speak this one") ever removes a job.
 //
-//   PORT=34191 node <scratch>/qa-api-165.mjs          # fake model, readAd seam wired
-//   cd apps/web && API_URL=http://127.0.0.1:34191 npx next build && npx next start -p 34190
+//   PORT=34101 node apps/api/dist/qa-main.js          # fake model, readAd seam wired (#209)
+//   cd apps/web && API_URL=http://127.0.0.1:34101 npx next build && npx next start -p 34190
 //   BASE_URL=http://127.0.0.1:34190 node apps/web/e2e/language-ladder-journey.mjs
 //
-// ADVERT NOTE, up front: apps/api/data/sample-postings.json carries NO language requirement of any
-// kind, so the shipped corpus cannot produce either a withdrawal or a level question through this
-// UI. Like language-withdrawal-journey.mjs, this flow expects the API to be serving adverts supplied
-// at the app's own pinned reader seam (BuildOptions.readAd), exactly as apps/api/test/cards.test.ts
-// does. The VISITOR's side is never seeded — every language fact in this run is typed in the browser
+// ADVERT NOTE, up front, REWRITTEN 2026-08-13 (#209): apps/api/data/sample-postings.json carries NO
+// language requirement of any kind — of the whole real corpus exactly one line mentions a language,
+// as a preference — so the shipped corpus cannot produce either a withdrawal or a level question
+// through this UI. It used to need a scratch fake API that was never checked in, which is why it ran
+// in no tier and rotted. Three canned adverts now live in qa-main.ts and are served at the app's own
+// pinned reader seam (BuildOptions.readAd), exactly as apps/api/test/cards.test.ts does — armed by
+// this journey, for this run only (see setLanguageAdverts below). They are NOT in the shipped
+// fixture corpus on purpose: writing fabricated requirements into real employers' adverts, quoted as
+// those adverts' own words, on a corpus staging serves to visitors, is not a fixture.
+// The VISITOR's side is never seeded — every language fact in this run is typed in the browser
 // through the real routes. When those adverts are absent, the deck assertions self-skip with a note.
 //
 // Ports are deliberately not 3000/3001 — another project on this machine defaults to those and the
@@ -61,10 +66,24 @@ const deck = () => page.evaluate(async () => {
   };
 });
 
+// #209: arm qa-main.ts's canned language adverts for THIS run only, and put them back at the end.
+// They are off by default because serving three extra adverts reshapes every OTHER journey's deck —
+// measured: tailor-journey.mjs then tailors one of them. Silently ignored against any API that does
+// not serve the route (a real deployment), and the deck half below still self-skips if the adverts
+// never arrive, so an unarmed run degrades exactly as it did before rather than lying.
+const setLanguageAdverts = (on) =>
+  page.evaluate(
+    (languageAdverts) => fetch('/api/qa/stack', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ languageAdverts }),
+    }).then((r) => r.status).catch(() => 'unreachable'),
+    on,
+  );
+
 // -------------------------------------------------------------------------------------------
 // 1. The front door.
 // -------------------------------------------------------------------------------------------
 await qa.goto('/', 'the front door — where a real visitor starts');
+await qa.note(`armed the QA language adverts for this run: HTTP ${await setLanguageAdverts(true)}`);
 await qa.scrollThrough('read the front door top to bottom');
 
 // -------------------------------------------------------------------------------------------
@@ -355,5 +374,6 @@ await page.waitForTimeout(1000);
 const addField = page.getByRole('textbox', { name: 'Add another language' });
 await qa.expectVisible(addField, '#165: the profile door has a way IN for a language no suggestion offers');
 
+await qa.note(`put the QA language adverts back for the journeys after this one: HTTP ${await setLanguageAdverts(false)}`);
 const ok = await qa.finish();
 process.exit(ok ? 0 : 1);

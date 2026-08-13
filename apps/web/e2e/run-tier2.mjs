@@ -37,6 +37,21 @@ const e2eDir = fileURLToPath(new URL("./", import.meta.url));
 // journey, so the single end-to-end proof of the gate questions rotted unwatched. Measured cost:
 // ~3.5min, no sign-in, so it spends none of auth's 5-per-15-min limiter budget (it does mint two
 // anonymous sessions, well inside qa-main.ts's 1000/hr).
+// The four journeys added 2026-08-13 (#209) were the last ones sitting in NO tier — each declared a
+// stack this repo could not run, so each rotted unwatched, and two had header comments that were
+// simply false by the time anyone read them. What each one needed, and now has, is in qa-main.ts:
+//   job-blocks-confirm  — the fake job-block miner answered every re-upload with the SAME block ids,
+//                         so the second upload was all id-collisions and the deck stood empty. (Its
+//                         old header blamed an unwired `mineJobBlocks`; that was never true.)
+//   language-ladder     — no advert in the shipped corpus states a language requirement of any kind,
+//                         so the deck half could not run. Three canned ones are served at the app's
+//                         own readAd seam, in the QA entry only.
+//   pending-unscored    — "Still scoring" is unobservable against a judge that answers instantly, so
+//                         the fake judge is deliberately slower than the deck's own budget.
+//   master-cv-dates-note — was written against the REAL paid model and was separately rotted (#157
+//                         moved the door it clicked). Rewritten against the fake.
+// Measured on this machine 2026-08-13, they add roughly 6 minutes between them — the wall-clock the
+// ticket's owner accepted when they asked for all four to be fixed rather than retired.
 const JOURNEYS = [
   "contact-fact-journey.mjs",
   "eligibility-questions-journey.mjs",
@@ -45,6 +60,10 @@ const JOURNEYS = [
   "factbadge-journey.mjs",
   "band-vocabulary-journey.mjs",
   "years-worked-out-journey.mjs",
+  "job-blocks-confirm-journey.mjs",
+  "language-ladder-journey.mjs",
+  "pending-unscored-card-journey.mjs",
+  "master-cv-dates-note-journey.mjs",
 ];
 
 let failed = 0;

@@ -62,9 +62,12 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:3000/ > /dev/null && break; sleep 1; done
           curl -sf http://127.0.0.1:3000/ || { echo "next start did not become healthy"; cat /tmp/qa-web.log; exit 1; }
       - run: E2E_BASE_URL=http://127.0.0.1:3000 pnpm --filter @jobcrush/web e2e:mocked
-      # All 8 Tier 1 specs route-mock every pipeline call — this run must never actually reach the
-      # fake model. A non-zero count here means a spec started hitting the real fake unmocked, which
-      # is a gate-scope change that deserves its own look, not a silent pass.
+      # All 8 Tier 1 specs route-mock every PAID pipeline call — this run must never actually reach
+      # the fake model on mine/tailor/grill/audit. A non-zero count here means a spec started hitting
+      # the real fake unmocked, which is a gate-scope change that deserves its own look, not a silent
+      # pass. `judge` is deliberately NOT in this check: measured 2026-08-13 (#209), a Tier 1 run
+      # leaves it at ~8, because a spec reaches the deck route unmocked and that route now calls the
+      # (free, instant) fake judge. See qa-main.ts's header before tightening this.
       - name: assert Tier 1 never touched the fake model
         run: |
           calls=$(curl -sf http://127.0.0.1:34101/qa/llm-calls)

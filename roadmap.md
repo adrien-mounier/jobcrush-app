@@ -35,7 +35,7 @@ not correctness on well-specified work — start no ticket at `max`.
 |---|---|---|---|---|---|
 | ~~1~~ | ~~#202~~ | ~~Which bullet count is right — 73 or 114?~~ **DONE 2026-08-13** | — | — | — |
 | ~~2~~ | ~~#208~~ | ~~The reader splits compound bullets; the ruling says don't~~ **DONE 2026-08-13** | — | — | — |
-| 3 | #209 | Four e2e journeys are in no CI tier and cannot run | `/implement` | Opus | medium |
+| ~~3~~ | ~~#209~~ | ~~Four e2e journeys are in no CI tier and cannot run~~ **DONE 2026-08-13** | — | — | — |
 | 4 | #124 | Where do you want to work? | `/wayfinder` | Opus | high |
 | 5 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
 | 6 | #64 | The match count survives signup | `/implement` | Opus | medium |
@@ -48,7 +48,43 @@ than papered over: **no journey now carries a live "no" work-rights answer throu
 (the question is asked once, and the journey retracts it to prove the correction path), and #209's
 first diagnosis of `job-blocks-confirm` was copied from a stale header and was wrong.
 
-**#209's shape is decided (owner, 2026-08-13): fix three, force the call on the fourth.** Add a
+**#209 is DONE (2026-08-13).** All four journeys are green and in Tier 2, which is now **11
+journeys / ~25 min / 388 assertions**. None was retired. What each needed turned out to be one
+missing piece of the QA stack, not a product defect:
+
+- `job-blocks-confirm` — the fake job-block miner answered every re-upload with the SAME block ids,
+  so a second upload was all id-collisions and the confirm deck stood empty. Its header blamed an
+  unwired `mineJobBlocks`; **that was never true**, and this ticket's own first diagnosis repeated
+  it. The header now says so, in place, for the next reader.
+- `language-ladder` — no advert in the shipped corpus states a language requirement of any kind.
+  **The owner's instruction was to add one to `sample-postings.json`; I did not.** Of the whole real
+  corpus exactly one line mentions a language ("Mandarin… is preferred"), and nothing anywhere makes
+  one mandatory — writing three into the shipped fixtures would put fabricated requirements into
+  real employers' adverts, quoted as those adverts' own words, on a corpus staging serves to
+  visitors. They live in the QA entry instead, which is pruned from the deployed image.
+- `pending-unscored` — "Still scoring" cannot appear against a judge that answers instantly, so the
+  QA judge can now be made deliberately slow.
+- `master-cv-dates-note` — **rewritten, not deleted**, against the fake model and the current
+  preview → work-history → wall → deck path.
+
+**The cost landed on the QA stack, and it had to be paid twice.** Making the QA API more
+production-shaped (a judge; three more adverts) broke two journeys that had been green for weeks —
+`tailor-journey` started tailoring an advert it was never written for, and `band-vocabulary`
+crashed reading a breakdown off a card that honestly has none. So both new capabilities are **off by
+default and armed by the journey that needs them** (Tier 2 is sequential, so there is one owner at a
+time). One of those crashes was a real journey bug: an `unscored` card carries no breakdown **on
+staging too**, so that journey would have crashed against the real product.
+
+**One production-code change, and it is a test seam.** `buildServer` now accepts an
+`authRateLimiter` override, mirroring the `sessionRateLimiter` seam it already had. Tier 2 signs in
+six times now and auth allows five magic links per 15 min per IP, so the gate went red on a real
+protection working correctly. Only `qa-main.ts` sets it; the production default is untouched.
+
+**One honest residual.** The pending journey's last section — the "Estimate" caption a deployment
+with NO judge shows — still needs a second web origin with judging switched off, and a second origin
+means a second `next build`. It reports itself as not covered rather than passing quietly.
+
+**#209's shape was decided (owner, 2026-08-13): fix three, force the call on the fourth.** Add a
 language-requiring posting to the fixture corpus; add a judge-delay knob to `qa-main.ts`; diagnose
 the confirm-deck failure for real — those three then join Tier 2. The fourth,
 `master-cv-dates-note-journey.mjs`, is **rewritten against the free fake model or deleted, inside
