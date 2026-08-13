@@ -115,7 +115,7 @@ sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not lab
 | 11 | #204 | A skipped question stays skipped for that advert | `/implement` | Opus | medium |
 | 12 | #166 | Degrees & certifications asked when silent | `/implement` | Opus | low |
 | 13 | #122 | An unasked requirement reads as a question | `/implement` | Opus | medium |
-| 13.1 | #211 | How finely is a skill list split? | `/grilling` | Opus | medium |
+| 13.1 | #211 | How finely is a skill list split? (owner decision — see Owner tasks) | `/grilling` | Opus | medium |
 | 13.2 | #210 | A messy bullet stays messy on the master CV | `/implement` | Opus | medium |
 | 14 | #164 | Skills become records in your own words | `/implement` | Opus | medium |
 | 15 | #206 | An achievement and a duty are stored the same | `/grill-with-docs` | Opus | high |
@@ -236,6 +236,7 @@ constant, so every visitor is scoped to one placeholder family.
 | # | What | Note |
 |---|---|---|
 | #32 | Spending alert + verify vitacairn's Fly token scope | `ready-for-human` — needs dashboard access |
+| #211 | How finely is a skill list split? | ~20 min of owner deciding, no build. **Takeable any time**; the deadline is #164 (order 14), which answers it by accident otherwise. Also listed at 13.1 so the deadline is visible in the queue. |
 | #127 | Map: the CV as structured data | Parent — closes when #164–#171 close |
 | #86 | Spec: per-ad understanding | Parent — closes when #108–#111 close |
 | #54 | Spec: first-run onboarding | Parent — closes when #63–#69 close |
