@@ -119,6 +119,8 @@ sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not lab
 | 11 | #204 | A skipped question stays skipped for that advert | `/implement` | Opus | medium |
 | 12 | #166 | Degrees & certifications asked when silent | `/implement` | Opus | low |
 | 13 | #122 | An unasked requirement reads as a question | `/implement` | Opus | medium |
+| 13.1 | #211 | How finely is a skill list split? | `/grilling` | Opus | medium |
+| 13.2 | #210 | A messy bullet stays messy on the master CV | `/implement` | Opus | medium |
 | 14 | #164 | Skills become records in your own words | `/implement` | Opus | medium |
 | 15 | #206 | An achievement and a duty are stored the same | `/grill-with-docs` | Opus | high |
 | 16 | #156 | Something finally checks the two-page rule | `/implement` | Opus | medium |
@@ -144,7 +146,24 @@ question the order already covers: **volume.** One real CV yields **26 prose-min
 17 listed ones**, and 26 confirmation cards in a row is a different product from one card holding 26
 chips. #178 and the confirm-screen work (#157 item 3) settle that shape first. The rule must also be
 written into ADR-0004 — clause 3's atomisation warning is precisely about prose mining and needs
-re-reading against the decision. **#156 before #167** because #167, #170 and #171 each make CVs longer and nothing
+re-reading against the decision.
+
+**#211 and #210 were opened 2026-08-13, out of the #202 decision-2 discussion, and both sit
+immediately before #164.**
+
+- **#211 — how finely a skill list splits.** *Where* to mine skills from is decided (#164, prose as
+  well as the Skills section). **How many records `(C#, XrmToolBox, Git)` becomes is not**, and that
+  is the largest measured instability in the reader: 17 records on one run, 44 on the next, same CV.
+  Three candidate rules are worked in `docs/research/202-accuracy-prep.md`; the prep note recommends
+  the section-based one, **which #164's decision appears to contradict** — the ticket must reconcile
+  the two or say which it is not settling. It is why #202 excluded skills from its answer key.
+  Whichever rule wins amends ADR-0004 clause 3. **Before #164**, or #164 answers it by accident.
+- **#210 — a messy bullet stays messy on the master CV.** The owner's question: if we store the
+  person's line as written (#202 decision 2), does the person see their own mess back? Today **yes**
+  — the polish step over the finished master CV is one-bullet-in-one-bullet-out, enforced in
+  `audit.ts`, so a skill list stuffed into a job description prints as a job bullet. The fix is at
+  the render, not the miner — #144's boundary, applied to the master CV, which is itself a render.
+  **After #211**, because its worked example is a skill list. **#156 before #167** because #167, #170 and #171 each make CVs longer and nothing
 checks length today. **#207 immediately before #168** — #168 decides what prints per application, so
 if #207 is not settled first, #168 answers it by accident. It exists because #202's decision 1 ruled
 that a duty printed under three jobs is **one fact, counted once**; the tailored CV still prints

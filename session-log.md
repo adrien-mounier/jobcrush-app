@@ -2,6 +2,50 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-13 (session 114) `/research #202` — the readers finally have a right answer, and today's miner is the joint-best one
+
+#196 compared the four CV readers **against each other**, which cannot say which is right. #202 built
+an **answer key from the raw CV text** — never from any reader's output — and scored all four against
+it. `docs/research/structured-read-cost.md` is amended in place (one document, as the ticket
+required); the key, the job-by-job breakdown and the appendix of judgement calls are
+`research-data/structured-read/answer-key.md`. No API call, no money: the 53 stored responses were
+re-scored on disk.
+
+- 📏 **The key.** Thomas: 93 printed bullets → **67 distinct facts**. Giuliana: 25 printed →
+  **22 distinct**. Under the three settled rulings (count once / capture whole / one bullet).
+  Built by the agent in ~35 min against a 2–3 h owner budget — **no human has adjudicated it yet**,
+  so every judgement call is listed individually and can be overturned one at a time.
+- 🚨 **Today's live miner is joint-best: 99%/90% Thomas, 100%/100% Giuliana.** #196's "half the cost"
+  result stands; the unstated half of that pitch — *"and it reads at least as well"* — does not. The
+  cheap alternative scores 75% on Thomas and **50% on Giuliana**. The saving is not available until
+  the prompt is rewritten and re-measured, and the cost headline can no longer travel without this.
+- 🔍 **Giuliana's collapse: cause found, previous diagnosis wrong.** It is **not** four titles at one
+  employer. The failing reader captured every line under her CV's *"Key Achievements"* heading and
+  none of the plain duty bullets — it reads the page's own headings literally. On Thomas it dropped a
+  whole job whose bullets sat under project names. So the fix is a **prompt rewrite**, and the
+  originally recommended fix (job back-reference by index) is **disproven** — the reader that already
+  does that collapses identically on two of three samples.
+- 📉 The old document's "36 bullets" for Giuliana was unsourced and wrong. It is **25**.
+- ⚠️ **`claim-miner.md` line 15 still says "Split compound bullets"**, which decision 2 now
+  contradicts. Product file, deliberately untouched — changing it changes what every upload stores,
+  so the moment is the owner's call.
+- ⚠️ **The CV corpus is committed, contrary to the prep note's claim that it is git-ignored.**
+  `research-data/structured-read/cvs.json` holds the full extracted text of all six CVs, including
+  names, phone numbers and email addresses, and it is already in history. Repo is private. Owner's
+  call whether to keep it; the note is wrong either way.
+- 🆕 **#211 and #210 opened from the decision-2 discussion**, both placed before #164.
+  **#211** — how finely a skill list splits, still undecided and the reader's largest instability
+  (17 vs 44 records on one CV); the prep note's recommended rule **appears to contradict #164's
+  own 2026-08-13 skills decision**, and reconciling them is an acceptance criterion.
+  **#210** — the owner's worry that a person who stuffs a skill list into a job description sees it
+  back on their master CV. Confirmed in code: `audit.ts` enforces one-bullet-in-one-bullet-out, so
+  the polish step can re-word but never re-shape. Fix belongs at the render (#144), not the miner.
+- ❌ **Not graded, and cannot be:** `counts_as_work`, `resolved_country`, certificate validity. They
+  are judgements about the page, not text on it — confirm screen, #157 item 3.
+
+**#202 stays open**: the key needs a human pass, and AC4's finding (the collapse is not fixed) is
+reported, not resolved.
+
 ## 2026-08-13 (session 113) `/implement #205` — the eligibility journey is green and watched, and the audit behind it opened #209
 
 `eligibility-questions-journey.mjs` was 40 passed / 6 failed and had been for weeks, in no CI tier.

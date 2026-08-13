@@ -15,6 +15,14 @@
 > costs **$0.1016 per upload against today's miner's $0.2105**, i.e. **less than half**, on 48 real
 > API calls with thinking disabled.
 >
+> 🚨 **Amended 2026-08-13 by [#202](https://github.com/adrien-mounier/jobcrush-app/issues/202) with
+> the accuracy result, which changes the recommendation.** Measured against an answer key rather than
+> against each other, **the fuller reader captures 75% of one contested CV and 50% of the other,
+> while today's live miner captures 99% and 100%.** The cheap reader is not yet the accurate one. See
+> [Accuracy against an answer key](#accuracy-against-an-answer-key-202). Two statements #196 made
+> about that loss — the "36 bullets" figure and the job-index fix — were wrong and are corrected
+> there.
+>
 > **And #196's own framing needed one correction, recorded here rather than buried:** today's miner
 > is *not* meaningfully "few records" overall (52.8 records per CV against the rich reader's 58.0).
 > It batches **only skill inventories**. The cost gap is not granularity and not richness — it is
@@ -246,25 +254,154 @@ line, and it fails *invisibly* — the expanded record looks perfectly well-form
 ### 🚨 The one finding that should change the build plan
 
 **The rich prompt systematically reads fewer achievement bullets than the lean prompt**, and on one
-CV it is severe:
+CV it is severe. Raw record counts, as observed in #196:
 
-| CV | bullets in CV | lean | rich | compact |
-|---|---:|---:|---:|---:|
-| Giuliana_DELRE_Resume V3.pdf | 36 | 31 | **11** | 25 |
-| 2024-Thomas Chauviere CV.pdf | 96 | 79 / 91 | 73 / 73 | 93 / 114 |
-| ADRIEN MOUNIER … CV 2026.pdf | 3 (dense prose) | 39 / 39 | 34 / 31 | 37 / 37 |
+| CV | lean | rich | compact |
+|---|---:|---:|---:|
+| Giuliana_DELRE_Resume V3.pdf | 31 / 30 | **11 / 11** | 25 / 11 / 11 |
+| 2024-Thomas Chauviere CV.pdf | 79 / 91 | 73 / 73 | 93 / 114 / 93 |
+| ADRIEN MOUNIER … CV 2026.pdf | 39 / 39 | 34 / 31 | 37 / 37 / 34 |
 
-The Giuliana case returned **11 both times**, so it is a property of the prompt, not variance. The
-likely cause is identifiable: that CV has **four roles at the same employer**, and the rich schema
-asks every achievement to name its employer — the reader attributed all 11 bullets to a single
-employer string and stopped enumerating. **A back-reference by employer *name* is the suspect;
-a back-reference by job *index* (which the compact variant used, and which lost far less) is the
-obvious thing to try.**
+The Giuliana case returned **11 both times**, so it is a property of the prompt, not variance.
+
+> ⚠️ **Two claims made here in #196 were wrong, and are corrected by
+> [#202](https://github.com/adrien-mounier/jobcrush-app/issues/202) below.**
+> **(a)** This table originally carried a *"bullets in CV"* column reading **36** for Giuliana and
+> **96** for Thomas. Both were unsourced. The counted figures are **25** and **93**.
+> **(b)** This section originally named the cause as *"four roles at the same employer"* and
+> recommended a **back-reference by job index** as "the obvious thing to try". **Do not build it.**
+> The compact variant already uses a job index and collapses to 11 on two of its three samples —
+> the 25 was sample 1 of 3. The measured cause is different and is described in
+> [Accuracy against an answer key](#accuracy-against-an-answer-key-202) below.
 
 A second instability, same family: skill atomisation swung from **17 to 44 records** across two
 samples of the same CV in the rich cell (and 18 → 42 in compact) — the reader has no stable rule for
 how finely to split a parenthesised skill list. Lean was stable at 14. ADR-0004 clause 3's warning
 about atomising `(C#, XrmToolBox, Git)` is visible in the data.
+
+## Accuracy against an answer key (#202)
+
+> ✅ **Added 2026-08-13 by [#202](https://github.com/adrien-mounier/jobcrush-app/issues/202).** #196
+> compared the prompts **against each other**, which cannot say which one is right. This section
+> compares them **against a key built from the raw CV text**, so recall is an absolute number.
+> **No API call was made and no money was spent** — the 53 stored responses were re-scored on disk.
+
+### What the key is
+
+A per-fact list of what the two contested CVs actually print, built from the cached PDF text extract
+in `research-data/structured-read/cvs.json` — **the same bytes every graded reader saw, and never
+from any reader's output.** Full key, the job-by-job breakdown and the appendix of judgement calls:
+`research-data/structured-read/answer-key.md` (the scripts are `key-draft.mjs` and `score.mjs`
+beside it — measurement code only; **nothing was added or changed under `apps/` or `packages/`**).
+
+**Who built it and how long it took:** the Claude agent (`claude-opus-5`), **~35 minutes wall-clock,
+unattended**. The prep note budgeted 2–3 hours of owner attention for the same job. **No human has
+adjudicated the key yet** — the judgement calls it required are listed individually in the appendix
+so they can be overturned one at a time.
+
+It applies the three rulings settled in `research-data/structured-read/decisions.md`: **count once**
+(a duty printed under several jobs is one fact, including semantically equivalent wordings),
+**capture whole** (a line with three actions is one fact), **one bullet** (a page-wrapped sentence is
+rejoined).
+
+| | Thomas | Giuliana |
+|---|---:|---:|
+| Bullet lines printed under a job | 93 | 25 |
+| …after exact duplicate collapse | 71 | 25 |
+| **…after semantic merges — the key** | **67** | **22** |
+| Jobs / Education / Certifications / Languages | 8 / 4 / 1 / 3 | 4 / 1 / 0 / 2 |
+
+The 93 confirms `decisions.md` exactly. Thomas's distinct count is **71, not 73** — two pairs the
+earlier hand count separated are the same text under the rulings (a stray trailing full stop, and one
+page-wrap whose tail begins with a capital: `…selon les normes` / `SIA)`).
+
+### Recall — every sample, not an average
+
+**Read down the column, not across.** Each cell is *facts from the key found anywhere in that
+response*, matched on ≥60% content-word overlap and deliberately generous: it asks "is the fact in
+the output at all", not "is it in the right field".
+
+| Prompt | Thomas s1 | s2 | s3 | Giuliana s1 | s2 | s3 |
+|---|---:|---:|---:|---:|---:|---:|
+| **today's live miner** (`batched-rich`) | **66/67 · 99%** | 60/67 · 90% | — | **22/22 · 100%** | **22/22 · 100%** | — |
+| **the fuller reader** (`perdecision-rich`) | 50/67 · 75% | 50/67 · 75% | — | **11/22 · 50%** | **11/22 · 50%** | — |
+| the stripped reader (`perdecision-lean`) | **67/67 · 100%** | **67/67 · 100%** | — | **22/22 · 100%** | **22/22 · 100%** | — |
+| the shorthand reader (`compact`) | **67/67 · 100%** | **67/67 · 100%** | 66/67 · 99% | **22/22 · 100%** | 11/22 · 50% | 11/22 · 50% |
+
+**Structural fields, against the key** (jobs / education / certifications / languages):
+
+- Thomas 8/4/1/3 — matched by every sample except **today's miner's sample 2, which returned 12 roles
+  instead of 8**, and the fuller reader's sample 1, which returned 5 education entries and 0
+  certifications.
+- Giuliana 4/1/0/2 — matched by every sample. The stripped reader returns 3 education entries by
+  promoting the thesis and specialisation bullets to entries of their own; that is a defensible
+  reading, flagged rather than scored.
+
+### 🚨 Is the Giuliana collapse fixed? **No — and the diagnosis in #196 was wrong.**
+
+**The fuller reader still captures exactly half of Giuliana's CV, on both samples.** Nothing has been
+changed to fix it, and this measurement shows the previously suspected cause is not the cause.
+
+Scoring the misses individually shows the loss is not random and not about employers at all. On
+Giuliana the fuller reader captured **every line printed under a `Key Achievements:` sub-heading —
+all 11 — and not one of the 11 unlabelled duty bullets above them.** Job 4 has no `Key Achievements`
+heading and contributed nothing. On Thomas the same reader dropped **one entire job's bullets** —
+all 23 under BTM Consultant, which are printed under `Projet:` headings rather than an employer
+heading — and captured the other seven jobs cleanly.
+
+> **The mechanism is the word *achievement*, not the employer back-reference.** The fuller prompt
+> asks for "achievements", and the reader takes the CV's own headings literally: it collects what the
+> page labels as an achievement or prints directly under a job, and skips everything else. The
+> collapse is a **section-recognition** failure, not an attribution failure.
+
+That matters for the fix. #196 recommended switching the back-reference from employer name to job
+index; the measurement shows the index variant fails the same way (`compact` samples 2 and 3, 11/22),
+so **the recommended fix would not have worked.** Rewording the prompt to ask for every bullet line
+under a job — duty or achievement, labelled or not — is the change worth testing, and it is a prompt
+edit rather than a schema change.
+
+**The uncomfortable result: today's production miner is the joint-best reader in this test** — 99%
+and 100% on the two hardest CVs, beaten only by its own instability (12 roles instead of 8 on one
+sample). #196's "the fuller reader is cheaper" stands; **"and it reads at least as well" does not.**
+The cost result must keep travelling with this one.
+
+### What was NOT graded, and why
+
+**`counts_as_work`, `resolved_country` and certificate `validity` were not scored, and cannot be.**
+They are not printed on the page — they are judgements about it. Thomas's CV never uses the word
+`stage`, yet four of his entries are 2–4 month stints that read like French internships; whether they
+count as work experience moves his years-of-experience and therefore his eligibility, and **only he
+can say.** Same for a country the CV never names and a certificate whose expiry it never states.
+Grading them would mean inventing a truth and then measuring agreement with the invention. They
+belong on the confirm screen as visible decisions —
+[#157](https://github.com/adrien-mounier/jobcrush-app/issues/157) item 3, ADR-0008 — which is where
+this measurement leaves them.
+
+**Skills were not keyed either**, because the splitting rule is undecided (the 17→44 swing above).
+`docs/research/202-accuracy-prep.md` proposes three candidate rules and recommends the section-based
+one; whichever is picked amends ADR-0004 clause 3.
+
+### One live contradiction this leaves open
+
+`apps/api/prompts/claim-miner.md` line 15 still reads **"Split compound bullets"**, which ruling 2
+("capture whole, split when writing") now contradicts. **#202 deliberately did not edit it** — it is
+a product file and changing it changes what every upload stores. It needs a decision on timing.
+
+### Limits of this accuracy result
+
+- **Two CVs, not six.** Thomas and Giuliana were keyed because they are where the readers disagree.
+- **The key is machine-built and unreviewed by a human.** Its judgement calls — 7 semantic merges,
+  and the job↔bullet assignment on Thomas's out-of-order text layer — are listed individually in
+  `answer-key.md` so each can be checked. Reversing any single merge moves the key by one fact and
+  changes no prompt's rank.
+- **Recall only.** Nothing here scores precision: a reader that emits the right facts plus twenty
+  invented ones scores 100%. Grounding — whether emitted facts point at real words — is measured
+  separately above, and both per-decision cells were perfect on it.
+- **Whether a line is an achievement or a duty is not graded** — that is
+  [#206](https://github.com/adrien-mounier/jobcrush-app/issues/206). Three of the Giuliana merges
+  pair a duty with an achievement; if #206 rules they are different records, that key becomes 25 and
+  no prompt's rank changes.
+- **Nothing was re-run.** These are #196's stored responses, re-scored.
 
 ## A production-relevant robustness finding
 
@@ -375,6 +512,11 @@ lived in a scratch directory outside the repository and are not checked in.
    achievement bullets on at least one real CV and has no stable skill-splitting rule. **Budget a
    prompt-and-eval pass before #161's schema is frozen**, and reuse this harness — it is 6 CVs and
    about $1 per full rich sweep.
+   **Updated by #202:** the accuracy pass has now run and the loss is **measured, not fixed** —
+   75% and 50% recall against the key. The cause is the word *achievement* making the reader read
+   only the CV's labelled achievement sections, so **the fix is a prompt rewrite, not a schema
+   change, and it is cheap to test**. Until it is tested and measured, today's miner is the better
+   reader and the cost saving is not available.
 4. **This measurement supports making `counts_as_work` a visible confirm-screen decision.** It was
    set `true` on four entries that look like internships, from a document that never says so. Cheap
    to get wrong, and it moves eligibility.
