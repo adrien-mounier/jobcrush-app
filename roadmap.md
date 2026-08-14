@@ -38,7 +38,7 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~3~~ | ~~#209~~ | ~~Four e2e journeys are in no CI tier and cannot run~~ **DONE 2026-08-13** | — | — | — |
 | ~~4~~ | ~~#124~~ | ~~Where do you want to work?~~ **DECIDED 2026-08-13 → build is #214** | — | — | — |
 | ~~4b~~ | ~~#214~~ | ~~Target locations: up to three chips, one deck over the union~~ **DONE 2026-08-14** (city-level, per the owner decision on #124's trail) | — | — | — |
-| 5 | #134 | Classify a job into a kind of work — **DESIGNED 2026-08-15 (ADR-0014)**, next: slice | `/to-spec` → `/to-tickets` | Opus | high |
+| 5 | #134 | Classify a job into a kind of work — **SPECCED + TICKETED 2026-08-15**: spec #219 → slices #220 → #221 → #222 → #223 (frontier: #220) | `/implement 220` | Opus | high |
 | 6 | #216 | Discovery asks the family floor the reveal is earned from | `/implement` | Opus | high |
 | 7 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
 | 8 | #64 | The match count survives signup | `/implement` | Opus | medium |

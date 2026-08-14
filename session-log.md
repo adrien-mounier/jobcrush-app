@@ -16,6 +16,10 @@ for is decided. Normative record: **ADR-0014** (`docs/adr/0014-the-job-labeler.m
 - ⚖️ Trusted only after a ~60-case hand-labeled grid at the existing publish bars (0.95/0.90/0.05)
   — note: the "#86 60-pair grid" never existed in code; this creates it. Placements keep their
   family version; no mass relabeling.
+- 📋 Same session, carried to buildable: spec **#219** (`/to-spec`, seams owner-approved: API
+  surface with fake LLM, table-driven years, grid as separate eval) → tickets **#220 → #221 →
+  #222 → #223** (`/to-tickets`, native dependency edges, `ready-for-agent`; grid merged into #220
+  per ADR-0014's measured-before-trusted; granularity delegated to the agent). Frontier: **#220**.
 - 🎫 Follow-ups filed: **#217** (industry labeler) and **#218** (pilot vocabulary-growth process:
   unmapped labels → autonomous research → owner-approved additions). Design-pass comment on #134;
   ticket is now ready for `/to-spec` → `/to-tickets`.
