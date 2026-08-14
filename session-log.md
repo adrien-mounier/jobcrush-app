@@ -16,19 +16,21 @@ filed and wired; owner chose option A (prerequisites first).
 - 🚨 **Cause 1 — placement is never wired.** `main.ts` never passes `placeFamily`; `server.ts`'s
   default returns `unmapped` for every session; `/onboarding/discovery/production/evaluate` 409s
   forever; `session.discovery.floor`/`checkpoint` have exactly one writer (`productionResponse`) and
-  it is unreachable. → **#215**, open and unblocked.
+  it is unreachable. → **#134**, open and unblocked (not yet specced).
 - 🚨 **Cause 2 — the shipped screen asks a different floor than the gate checks.** Discovery serves
   `sample-family-floors.json`; the reward gate requires `it-project-delivery-v1.json`. The item sets
   are **disjoint**. Two parallel discovery engines exist; `apps/web` calls the reward-eligible one
-  **zero** times. → **#216**, blocked by #215.
-- ⚖️ **Owner decisions this session:** (1) option A, prerequisites first — chain wired as native
-  GitHub dependencies #215 → #216 → #63; (2) the `empty_pool` state offers **adjustment only**, no
-  "notify me" (the re-check job it would promise does not exist); (3) **no dev-only fixture escape
-  hatch** — local demos need a real Techmap key.
-- ✂️ **Deliberate narrowing, stated not hidden:** #215 is the target-role slice of #134, not all of
-  #134. #134 is not sliceable (needs a design pass) and covers past-job classification, the industry
-  axis, label storage/correction and an accuracy grid #63 does not need; blocking #63–#69 behind it
-  would stall the whole #54 chain. #134's scope is unchanged; a comment there records the carve-out.
+  **zero** times. → **#216**, blocked by #134.
+- ⚖️ **Owner decisions this session:** (1) option A, prerequisites first; (2) **take #134 whole** —
+  chain wired as native GitHub dependencies **#134 → #216 → #63**; (3) the `empty_pool` state offers
+  **adjustment only**, no "notify me" (the re-check job it would promise does not exist); (4) **no
+  dev-only fixture escape hatch** — local demos need a real Techmap key.
+- ✂️→↩️ **A carve-out proposed and then reversed, both on purpose.** I first filed **#215** (the
+  target-role placement half of #134) so #63–#69 would not stall behind an unsliced design ticket.
+  The owner reversed it — one session building the whole classifier beats three building thirds —
+  so **#215 is closed**, every acceptance criterion folded into #134 as a comment, and the
+  dependencies re-pointed. ⚠️ The cost, accepted knowingly: **#63 now waits behind a ticket that is
+  not yet specced.** #134 is not `ready-for-agent`; its design pass is the next real step.
 - 📝 Findings recorded on #63 (two comments), #134, and in `roadmap.md` — the repo's own recorded
   failure mode is a decision written into a doc and never turned into a tracker fact.
 

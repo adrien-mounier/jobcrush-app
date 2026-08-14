@@ -38,7 +38,7 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~3~~ | ~~#209~~ | ~~Four e2e journeys are in no CI tier and cannot run~~ **DONE 2026-08-13** | — | — | — |
 | ~~4~~ | ~~#124~~ | ~~Where do you want to work?~~ **DECIDED 2026-08-13 → build is #214** | — | — | — |
 | ~~4b~~ | ~~#214~~ | ~~Target locations: up to three chips, one deck over the union~~ **DONE 2026-08-14** (city-level, per the owner decision on #124's trail) | — | — | — |
-| 5 | #215 | Place a target role in a published job family | `/grill-with-docs` → `/implement` | Opus | high |
+| 5 | #134 | Classify a job into a kind of work — the whole cluster-engine label question | `/grill-with-docs` → `/to-spec` → `/to-tickets` | Opus | high |
 | 6 | #216 | Discovery asks the family floor the reveal is earned from | `/implement` | Opus | high |
 | 7 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
 | 8 | #64 | The match count survives signup | `/implement` | Opus | medium |
@@ -66,21 +66,25 @@ Two independent causes, both now filed:
 
 - **Placement is never wired.** `main.ts` does not pass `placeFamily`, so `server.ts`'s default
   returns `unmapped` for every session, so `/onboarding/discovery/production/evaluate` 409s forever
-  and `session.discovery` is never written. → **#215** (open, unblocked, next to build).
+  and `session.discovery` is never written. → **#134** (open, unblocked, next — but it needs its
+  design pass before it can be sliced).
 - **The shipped screen asks a different floor than the gate checks.** Discovery serves
   `data/sample-family-floors.json` (`budget-accountability`, `cross-functional-leadership`, …) while
   the reward gate requires `research/it-project-delivery-v1.json`
   (`end-to-end-delivery`, `stakeholder-coordination`, `risk-dependency-control`,
   `delivery-communication`). The sets are **disjoint** — answering every question on screen covers
   none of the gate's items. Two parallel discovery engines exist and `apps/web` calls the
-  reward-eligible one **zero** times. → **#216** (blocked by #215).
+  reward-eligible one **zero** times. → **#216** (blocked by #134).
 
-**Owner decision 2026-08-14: option A — prerequisites first.** Chain wired as native GitHub
-dependencies: #215 → #216 → #63 (`blocked_by: 1` on both children). #215 is deliberately a **slice**
-of #134, not all of it: #134 is not sliceable (its own body says it needs a design pass) and covers
-past-job classification, the industry axis, label storage/correction and an accuracy grid that #63
-does not need — blocking six tickets (#63–#69) behind that would stall the whole #54 chain. #134's
-scope is unchanged and a comment there records the carve-out.
+**Owner decision 2026-08-14: option A — prerequisites first, and take #134 whole.** Chain wired as
+native GitHub dependencies: **#134 → #216 → #63** (#63 `blocked_by: 2`). I first carved the
+target-role placement half out as **#215**, so #63–#69 would not stall behind an unsliced design
+ticket; **the owner reversed that and #215 is closed**, folded back into #134 with every acceptance
+criterion preserved there. The reason is efficiency, and it is the owner's call to make: one session
+building the whole classifier beats three sessions building thirds of it, even though it means #63
+now waits behind a ticket that is **not yet specced**. ⚠️ **#134 is not `ready-for-agent` — it needs
+its design pass first, and two tickets now sit behind that pass.** Ticket boundaries are not session
+boundaries: one session can carry #134 → #216 → #63 end to end.
 
 **Two #63 scope answers already given by the owner, valid whichever way the prerequisites land:** the
 `empty_pool` state offers **adjustment only** (no "notify me" — the re-check job it would promise does
