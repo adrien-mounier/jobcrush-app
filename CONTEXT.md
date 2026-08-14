@@ -123,6 +123,19 @@ scope, so it needs no change. Until then, a years bar on an out-of-family advert
 career total — too generous, never too strict, so it can add a job to a deck but never delete one.
 _Avoid_: Screening answer, source-supported fact
 
+**Family placement**:
+The judgement placing a person's target role or one of their dated job records in a job family:
+confirmed, needs clarification (two or more choices, put to the user), or unmapped — never the
+nearest family. It is worked out, stored on the job record as a correctable fact, and a correction
+is never overwritten by a re-read (#134, ADR-0014).
+_Avoid_: Job label, classification, posting family fit
+
+**Industry**:
+The kind of business an employer is (banking, finance) — the second axis of a job, distinct from
+the job family (kind of work). Drawn from a closed vocabulary whose entries carry relatedness
+(banking is near finance, far from chemicals). Designed in ADR-0014; its labeler is future work.
+_Avoid_: Sector, kind of employer, employer type
+
 **Posting family fit**:
 The judgement of whether a live posting belongs to a job family at all, carried with the posting
 alongside a confidence. Producing it is part of reading the advert; deciding what a weak verdict

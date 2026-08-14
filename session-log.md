@@ -2,6 +2,24 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-15 (session 121) `/grill-with-docs 134` — the job labeler is designed; #134 is ready to slice
+
+**Docs only.** Full grill session with the owner; every design question the ticket was held open
+for is decided. Normative record: **ADR-0014** (`docs/adr/0014-the-job-labeler.md`); glossary:
+`CONTEXT.md` gains **Family placement** and **Industry**.
+
+- ⚖️ Closed, versioned vocabularies on both axes; "kind of employer" is now called **industry**,
+  designed (seventh fact, relatedness between entries) but built later — no empty field meanwhile.
+- ⚖️ LLM classifier against the closed family list → the existing `FamilyPlacement` union; label is
+  a sixth correctable fact on the job block (rides #128 machinery); asking allowed only when it
+  can't be worked out, batched on the review screen; unmapped never lowers a number.
+- ⚖️ Trusted only after a ~60-case hand-labeled grid at the existing publish bars (0.95/0.90/0.05)
+  — note: the "#86 60-pair grid" never existed in code; this creates it. Placements keep their
+  family version; no mass relabeling.
+- 🎫 Follow-ups filed: **#217** (industry labeler) and **#218** (pilot vocabulary-growth process:
+  unmapped labels → autonomous research → owner-approved additions). Design-pass comment on #134;
+  ticket is now ready for `/to-spec` → `/to-tickets`.
+
 ## 2026-08-14 (session 120) `/implement 63` — stopped at the gate: nobody can earn the job reveal
 
 **No code changed. #63 is blocked, and the blocker is older than #63.** Two prerequisite tickets

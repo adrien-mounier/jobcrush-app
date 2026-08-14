@@ -38,7 +38,7 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~3~~ | ~~#209~~ | ~~Four e2e journeys are in no CI tier and cannot run~~ **DONE 2026-08-13** | — | — | — |
 | ~~4~~ | ~~#124~~ | ~~Where do you want to work?~~ **DECIDED 2026-08-13 → build is #214** | — | — | — |
 | ~~4b~~ | ~~#214~~ | ~~Target locations: up to three chips, one deck over the union~~ **DONE 2026-08-14** (city-level, per the owner decision on #124's trail) | — | — | — |
-| 5 | #134 | Classify a job into a kind of work — the whole cluster-engine label question | `/grill-with-docs` → `/to-spec` → `/to-tickets` | Opus | high |
+| 5 | #134 | Classify a job into a kind of work — **DESIGNED 2026-08-15 (ADR-0014)**, next: slice | `/to-spec` → `/to-tickets` | Opus | high |
 | 6 | #216 | Discovery asks the family floor the reveal is earned from | `/implement` | Opus | high |
 | 7 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
 | 8 | #64 | The match count survives signup | `/implement` | Opus | medium |
@@ -82,9 +82,11 @@ target-role placement half out as **#215**, so #63–#69 would not stall behind 
 ticket; **the owner reversed that and #215 is closed**, folded back into #134 with every acceptance
 criterion preserved there. The reason is efficiency, and it is the owner's call to make: one session
 building the whole classifier beats three sessions building thirds of it, even though it means #63
-now waits behind a ticket that is **not yet specced**. ⚠️ **#134 is not `ready-for-agent` — it needs
-its design pass first, and two tickets now sit behind that pass.** Ticket boundaries are not session
-boundaries: one session can carry #134 → #216 → #63 end to end.
+now waits behind a ticket that is **not yet specced**. ⚠️ **#134's design pass is DONE
+(2026-08-15, ADR-0014 + design comment on the ticket; follow-ups #217 industry labeler, #218
+vocabulary-growth process). Next step is `/to-spec` → `/to-tickets`; it is still not
+`ready-for-agent` until sliced.** Ticket boundaries are not session boundaries: one session can
+carry #134 → #216 → #63 end to end.
 
 **Two #63 scope answers already given by the owner, valid whichever way the prerequisites land:** the
 `empty_pool` state offers **adjustment only** (no "notify me" — the re-check job it would promise does
