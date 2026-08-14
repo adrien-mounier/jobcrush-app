@@ -125,10 +125,12 @@ await qa.goto('/discovery', 'walk on into discovery');
 await qa.fill('#q1-role', 'IT project manager in Paris', 'answer Q1 with a role naming Paris again');
 await qa.click('button.go.wide', "confirm the role — \"That's me\"");
 await qa.scrollThrough('read the page the way a person would');
-await qa.expectText(
-  'body',
-  'jobs are open in Hong Kong right now',
-  'AC4: the discovery promise counts jobs in the RESOLVED SEARCH AREA, not the city in the role text',
+// #214 owner decision: the promise sentence names NO place — with up to 3 selected places, naming
+// one was a half-truth. The location signal is proven by the work-rights question below instead.
+await qa.expectText('body', 'jobs are open right now', 'the discovery promise counts jobs without naming a place');
+await expectAbsent(
+  page.getByText('jobs are open in', { exact: false }),
+  'AC4 (#214): the promise never names one place while several can be selected',
 );
 
 // Answer the questions one at a time, the way the screen serves them, until the work-rights

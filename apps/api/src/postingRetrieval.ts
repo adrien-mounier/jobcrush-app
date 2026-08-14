@@ -282,17 +282,6 @@ export function resolvedMarketsFor(searchAreas: ReadonlyArray<{ text: string }>)
   return markets;
 }
 
-/** #214 — the unique chip labels (city when a city was typed, else market), in chip order — what
- *  display copy joins: "We'll look for {role} in Melbourne and Vietnam." */
-export function resolvedAreaLabelsFor(searchAreas: ReadonlyArray<{ text: string }>): string[] {
-  const labels: string[] = [];
-  for (const entry of searchAreas) {
-    const resolution = resolveSearchArea(entry.text);
-    if (resolution.covered && !labels.includes(resolution.label)) labels.push(resolution.label);
-  }
-  return labels;
-}
-
 /** #184: the ONE location signal — a confirmed search area resolved to its covered display name, or
  *  null when unset/uncovered. Replaces parseCity(role) at every site that used to guess a city from
  *  the job title text (routes/onboarding.ts's discoveryState/eligibility-question call sites, which

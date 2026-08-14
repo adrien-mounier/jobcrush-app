@@ -248,12 +248,14 @@ describe("#16 discovery routes", () => {
     const cookie = await anonSession(app);
     await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
     const s: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    expect(s).toMatchObject({ role: ROLE, family: "IT Project Manager", city: "Hong Kong" });
+    // #214 owner decision (post-GO follow-up): with up to 3 selected places, the promise sentence
+    // no longer names one of them — the display city is always null now.
+    expect(s).toMatchObject({ role: ROLE, family: "IT Project Manager", city: null });
     // #179: the count is real now — the postings in the live pool (sample-postings.json) whose
     // read-stamped familyFit (sample-ad-requirements.json, joined by adId) names this family.
     // 10 of the 17 pool postings carry a stamp today, all "IT Project Manager". If this fails
     // after a pool/fixture change, recount the join — never hand-tune the number back.
-    expect(s.promise).toMatchObject({ family: "IT Project Manager", city: "Hong Kong", count: 10 });
+    expect(s.promise).toMatchObject({ family: "IT Project Manager", city: null, count: 10 });
     expect(s.essentialRemaining).toBe(3); // 3 essential items in the stub floor
     expect(s.questions.map((q) => q.itemId)).not.toContain("headline-focus"); // nice-to-have not asked
     // #106 code-review must-fix 2: the eligibility questions are visible from Q1 too, appended
@@ -993,9 +995,10 @@ describe("#106 eligibility questions in discovery", () => {
     ).json();
     const workRights = start.questions.find((q) => q.eligibility?.dimension === "work-rights")!;
     // The question follows the CONFIRMED search area's market (Australia), never the role text
-    // (Hong Kong). #214: the DISPLAY city is the first chip's label — the typed city, "Sydney".
+    // (Hong Kong). #214 owner decision: the promise sentence names no place at all — with several
+    // selected places, naming one was a half-truth.
     expect(workRights.question).toBe("Can you already work in Australia without visa sponsorship?");
-    expect(start.promise!.city).toBe("Sydney");
+    expect(start.promise!.city).toBeNull();
   });
 
   // #184 compat story: a #182-era answer keyed by parseCity(role) survives ONLY when the two slugs

@@ -73,7 +73,7 @@ import {
 } from "../adaptiveDiscovery.js";
 import type { ProductionFamilyFloorStore, TestFixtureFamilyFloorStore } from "../familyFloors.js";
 import {
-  resolvedAreaLabelsFor, resolvedMarketsFor,
+  resolvedMarketsFor,
   retrievalRequestForSession,
   retrievalFingerprint,
   unavailablePostingRetrieval,
@@ -660,7 +660,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const session = requireSession(req);
         const role = session.targetTitles[0] ?? null;
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const state = discoveryState(role, confirmed, negatives, rejected, resolvedAreaLabelsFor(session.intent.searchAreas)[0] ?? null);
+        const state = discoveryState(role, confirmed, negatives, rejected, null);
 
         const jobId = req.query.job;
         // #35: a deck-rejected reader-role claim still closes the question — same never-re-ask rule
@@ -704,7 +704,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         await deps.sessions.setTargetTitles(session.id, [req.body.role]);
         await deps.sessions.setStage(session.id, "discovery");
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const state = discoveryState(req.body.role, confirmed, negatives, rejected, resolvedAreaLabelsFor(session.intent.searchAreas)[0] ?? null);
+        const state = discoveryState(req.body.role, confirmed, negatives, rejected, null);
         applyEligibilityQuestions(req.body.role, state, confirmed, negatives, rejected, facts, resolvedMarketsFor(session.intent.searchAreas), blocks);
         state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
@@ -832,7 +832,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         }
 
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const state = discoveryState(role, confirmed, negatives, rejected, resolvedAreaLabelsFor(session.intent.searchAreas)[0] ?? null);
+        const state = discoveryState(role, confirmed, negatives, rejected, null);
         applyEligibilityQuestions(role, state, confirmed, negatives, rejected, facts, resolvedMarketsFor(session.intent.searchAreas), blocks);
         // #18 AC1 / #106: the essential band fully asked AND every eligibility question closed flips
         // the session to the deck stage, so a reload lands there too. Code-review must-fix 2: the

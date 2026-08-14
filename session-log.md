@@ -18,9 +18,10 @@ placeholder loses "or Remote in Vietnam".
   (HK "needs sponsorship" withdraws only HK; `withdrawal.ts` untouched). Full suite 1350 green;
   Tier 1 130 green; both location journeys green on the real stack; new
   `target-locations-journey.mjs` registered in Tier 2.
-- 🚧 **Escalated to owner, open:** the discovery promise line names only the first chip
-  ("…jobs open in Hong Kong right now" with Melbourne also selected). Pluralise like the
-  confirmation sentence, or drop the place? Small either way.
+- ⚖️ **Owner decided (follow-up commit, same session):** the discovery promise line names NO
+  place — "…jobs are open right now." The location signal lives in the per-market work-rights
+  questions, where it can be honest. `resolvedAreaLabelsFor` became dead code and was deleted.
+  Scoped QA re-gate GO with a rendered two-places proof.
 - 💸 A first QA-gate run died on the monthly Claude spend limit mid-drive; re-run after the raise
   came back NO-GO (stale `search-area-coverage-journey.mjs` encoding the superseded #184 rules +
   unregistered new journey), both fixed, re-gate GO.

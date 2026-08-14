@@ -8,7 +8,6 @@ import {
   cityForLocationText,
   makePostingRetriever,
   resolveSearchArea,
-  resolvedAreaLabelsFor,
   resolvedMarketsFor,
   type RetrievalRequest,
 } from "../src/postingRetrieval.js";
@@ -119,10 +118,9 @@ describe("#214 resolveSearchArea — city-level targets", () => {
     expect(cityForLocationText("Wan Chai District, Hong Kong SAR")).toBeNull();
   });
 
-  it("resolvedMarketsFor dedupes two cities of one country to one market; labels stay distinct", () => {
+  it("resolvedMarketsFor dedupes two cities of one country to one market", () => {
     const entries = [{ text: "Melbourne" }, { text: "Sydney" }, { text: "Vietnam" }];
     expect(resolvedMarketsFor(entries)).toEqual(["Australia", "Vietnam"]);
-    expect(resolvedAreaLabelsFor(entries)).toEqual(["Melbourne", "Sydney", "Vietnam"]);
   });
 });
 
