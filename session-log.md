@@ -33,6 +33,11 @@ production discovery checkpoint, which has answered 409 to every visitor since #
   That wiring is **#216**, per spec #219. The e2e flow left in `apps/web/e2e/` asserts the gap
   deliberately and will start failing when #216 closes it.
 - 🔎 **The harness lied twice before it told the truth** — see `lessons.md`. Ratchet 1138 → 1135.
+- 🎫 **#224 filed** (roadmap 27.1, Phase 3, `/grill-with-docs`): choose the **CV brain's** model by
+  measuring it. The owner asked whether the model question had been turned into a ticket — it had
+  not, which would have been the third time this repo let a decision die in conversation. Correction
+  made while filing: mining **does** already have a graded harness (JC-13); the tailor has none, and
+  that missing grader is the ticket's real substance. #110 already covers judging.
 
 ## 2026-08-15 (session 121) `/grill-with-docs 134` — the job labeler is designed; #134 is ready to slice
 

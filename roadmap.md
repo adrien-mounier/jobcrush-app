@@ -344,6 +344,7 @@ whether the distinction is even reliably visible on the page.
 | 25 | #108 | The card's highlight sentence | `/implement` | Opus | medium |
 | 26 | #109 | "3 jobs just got better" | `/implement` | Opus | medium |
 | 27 | #110 | Choose the judging model by measuring it | `/implement` | Opus | high |
+| 27.1 | #224 | Choose the **CV brain's** model by measuring it — the tailor needs a grader first | `/grill-with-docs` | Opus | high |
 | 28 | #177 | Tier thresholds 50/75/90 | `—` owner call | Opus | medium |
 | 29 | #175 | Job card desktop | `/prototype` | Opus | high |
 | 30 | #111 | Take the safety nets off | `/implement` | Opus | medium |
@@ -353,6 +354,24 @@ whether the distinction is even reliably visible on the page.
 to users on any surface before the thresholds are checked against real distributions, and those
 distributions come from #110. #111 follows #110. #200 waits for #202 or it optimises a read about to
 change.
+
+**#224 is the third of the same shape, and the only one whose measurement does not exist yet.** The
+repo now settles model choice by measuring it, not by preference — #220 did it for the labeler (8
+models × a 60-case grid → MiniMax M3 via Fireworks), #110 does it for judging (the 3 CV × 20 advert
+grid). #224 covers the two stages nobody can decide yet: **claim mining and preview tailoring**.
+Mining already has a graded harness (`test/eval/miner-eval.test.ts`, JC-13) that nothing has ever run
+across models; **the tailor has no grader at all** — `conservationIssues()` catches structural loss,
+not whether the writing is any good. Filed `/grill-with-docs`, not `/implement`, because the design
+question comes first: what does *a good draft* mean, mechanically enough to score? Until that
+exists, no honest answer to "which model writes the CV" is available at any price.
+
+🔑 **The finding that makes this worth doing, measured on #220:** eight models landed **within five
+points of each other while their prices spread 27×**. If that holds for the CV brain, the app's
+dominant per-visitor cost is being paid for nothing. If it does not hold, that is the more important
+result — and today nobody can tell which. **Cheapness is never a reason to move a CV-brain stage; a
+passing grade is** — this is where a weak model invents experience or drops the achievement that
+would have won the job, which is the exact harm ADR-0004/0005 exist to prevent. Pairs with #200 (cut
+cost per upload), which attacks the same bill from the other side.
 
 ### Phase 4 — finish the live-jobs chain (#54)
 
