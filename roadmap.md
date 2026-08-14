@@ -38,8 +38,10 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~3~~ | ~~#209~~ | ~~Four e2e journeys are in no CI tier and cannot run~~ **DONE 2026-08-13** | — | — | — |
 | ~~4~~ | ~~#124~~ | ~~Where do you want to work?~~ **DECIDED 2026-08-13 → build is #214** | — | — | — |
 | ~~4b~~ | ~~#214~~ | ~~Target locations: up to three chips, one deck over the union~~ **DONE 2026-08-14** (city-level, per the owner decision on #124's trail) | — | — | — |
-| 5 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
-| 6 | #64 | The match count survives signup | `/implement` | Opus | medium |
+| 5 | #215 | Place a target role in a published job family | `/grill-with-docs` → `/implement` | Opus | high |
+| 6 | #216 | Discovery asks the family floor the reveal is earned from | `/implement` | Opus | high |
+| 7 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
+| 8 | #64 | The match count survives signup | `/implement` | Opus | medium |
 
 **#124 is DECIDED (2026-08-13, `e0d8cd2`) — a recorded decision, not a build.** The ticket's own
 premise was partly stale: #182/#184 already built the single search area, per-market right-to-work
@@ -51,6 +53,39 @@ right-to-work stays per-market (one question per selected market), and a prefere
 104, Indeed and VietnamWorks actually do; the design spec
 (`docs/design/target-locations-design-spec.md`) reuses the languages chips widget, no new screens.
 The build is **#214** — and the "#124 before #63" ordering rule below now reads "#214 before #63".
+
+**🚨 #63 is BLOCKED again (2026-08-14) — the reward gate is unreachable, and always has been.**
+`/implement 63` stopped before any code change. Verified by driving the real web-facing flow end to
+end, not by reading: a visitor who sets a target role and a search area and answers **all seven**
+discovery questions positively still produces `{ family: null, checkpoint: null }`, and the real
+retriever's verdict on that request is `invalid_request / family_not_published`. The deck then
+returns **8 fixture cards anyway**. ⇒ **every job any visitor has ever seen on the deck is a
+fixture**, and #63 implemented as written would make the deck permanently empty for everyone.
+
+Two independent causes, both now filed:
+
+- **Placement is never wired.** `main.ts` does not pass `placeFamily`, so `server.ts`'s default
+  returns `unmapped` for every session, so `/onboarding/discovery/production/evaluate` 409s forever
+  and `session.discovery` is never written. → **#215** (open, unblocked, next to build).
+- **The shipped screen asks a different floor than the gate checks.** Discovery serves
+  `data/sample-family-floors.json` (`budget-accountability`, `cross-functional-leadership`, …) while
+  the reward gate requires `research/it-project-delivery-v1.json`
+  (`end-to-end-delivery`, `stakeholder-coordination`, `risk-dependency-control`,
+  `delivery-communication`). The sets are **disjoint** — answering every question on screen covers
+  none of the gate's items. Two parallel discovery engines exist and `apps/web` calls the
+  reward-eligible one **zero** times. → **#216** (blocked by #215).
+
+**Owner decision 2026-08-14: option A — prerequisites first.** Chain wired as native GitHub
+dependencies: #215 → #216 → #63 (`blocked_by: 1` on both children). #215 is deliberately a **slice**
+of #134, not all of it: #134 is not sliceable (its own body says it needs a design pass) and covers
+past-job classification, the industry axis, label storage/correction and an accuracy grid that #63
+does not need — blocking six tickets (#63–#69) behind that would stall the whole #54 chain. #134's
+scope is unchanged and a comment there records the carve-out.
+
+**Two #63 scope answers already given by the owner, valid whichever way the prerequisites land:** the
+`empty_pool` state offers **adjustment only** (no "notify me" — the re-check job it would promise does
+not exist), and there is **no dev-only fixture escape hatch** (a flag letting fixtures authorize a
+reveal is the exact failure #63 exists to close; local demos need a real Techmap key).
 
 **#205 shipped 2026-08-13** (`0fe62f3`, `6f8cc64`, `9f5bd5e`; QA gate GO). The eligibility journey
 is green (45/0) and runs in Tier 2 — 7 journeys / 14 min / 253 assertions, all green. Its audit

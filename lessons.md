@@ -1,5 +1,24 @@
 # Lessons — jobcrush-app
 
+## Before building a gate, drive the flow that has to pass it — and ask "who has ever passed it?"
+
+#63's job was to let a real reveal through a gate the server already owned. The retrieval engine was
+finished, the four outcomes were contracted, the ACs were crisp; everything read as ready. It was
+ready. **The gate had simply never been passable by anyone.** Placement was never wired in `main.ts`,
+so `server.ts`'s default answered `unmapped` for every visitor; and the shipped discovery screen asks
+one floor's items while the gate checks a completely different floor's. Both were plainly visible in
+the code and neither is visible in a ticket.
+
+Reading found it, but only slowly and only because I got suspicious. **A 40-line throwaway probe
+that drove the real flow and printed the request the gate receives settled it in one run** — with the
+gate's own verdict (`invalid_request / family_not_published`) and the deck's 8 fixture cards in the
+same output. That probe would have been the *cheapest first move*, not the confirmation step.
+
+**The generalisable question: for a feature gated on earned state, name a visitor who has reached
+that state.** If the answer comes from reading code paths rather than from a run, produce the run.
+Related shape, already in this file: a green journey that skipped its own point — "no contradiction"
+is not "covered". Here it was "the gate is implemented" mistaken for "the gate is reachable".
+
 ## A QA report is written relative to the CWD — `apps/web/qa-results`, not `apps/web/e2e/qa-results`
 
 Both directories exist. `apps/web/e2e/qa-results/` holds runs someone once started from inside

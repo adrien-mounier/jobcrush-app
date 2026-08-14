@@ -2,6 +2,36 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-14 (session 120) `/implement 63` — stopped at the gate: nobody can earn the job reveal
+
+**No code changed. #63 is blocked, and the blocker is older than #63.** Two prerequisite tickets
+filed and wired; owner chose option A (prerequisites first).
+
+- 🔬 **Verified by driving the real flow, not by reading** (throwaway probe, deleted): a visitor sets
+  a target role + search area and answers **all seven** discovery questions positively → the
+  server-owned retrieval request is still `{ family: null, checkpoint: null }` → the real retriever
+  answers `invalid_request / family_not_published` → **the deck returns 8 fixture cards anyway.**
+  So every job any visitor has ever seen on the deck is a fixture, and #63 as written would make the
+  deck permanently empty for everyone.
+- 🚨 **Cause 1 — placement is never wired.** `main.ts` never passes `placeFamily`; `server.ts`'s
+  default returns `unmapped` for every session; `/onboarding/discovery/production/evaluate` 409s
+  forever; `session.discovery.floor`/`checkpoint` have exactly one writer (`productionResponse`) and
+  it is unreachable. → **#215**, open and unblocked.
+- 🚨 **Cause 2 — the shipped screen asks a different floor than the gate checks.** Discovery serves
+  `sample-family-floors.json`; the reward gate requires `it-project-delivery-v1.json`. The item sets
+  are **disjoint**. Two parallel discovery engines exist; `apps/web` calls the reward-eligible one
+  **zero** times. → **#216**, blocked by #215.
+- ⚖️ **Owner decisions this session:** (1) option A, prerequisites first — chain wired as native
+  GitHub dependencies #215 → #216 → #63; (2) the `empty_pool` state offers **adjustment only**, no
+  "notify me" (the re-check job it would promise does not exist); (3) **no dev-only fixture escape
+  hatch** — local demos need a real Techmap key.
+- ✂️ **Deliberate narrowing, stated not hidden:** #215 is the target-role slice of #134, not all of
+  #134. #134 is not sliceable (needs a design pass) and covers past-job classification, the industry
+  axis, label storage/correction and an accuracy grid #63 does not need; blocking #63–#69 behind it
+  would stall the whole #54 chain. #134's scope is unchanged; a comment there records the carve-out.
+- 📝 Findings recorded on #63 (two comments), #134, and in `roadmap.md` — the repo's own recorded
+  failure mode is a decision written into a doc and never turned into a tracker fact.
+
 ## 2026-08-14 (session 119) `/implement 214` — target locations shipped, city-level per a mid-build owner decision
 
 **#214 done — QA gate GO** (this commit). Up to 3 target-location chips, one deck over the union,
