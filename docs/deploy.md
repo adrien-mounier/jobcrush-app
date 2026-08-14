@@ -1,5 +1,20 @@
 # JC-6 — infra bootstrap
 
+> **`FIREWORKS_API_KEY` — the second model provider, and the first non-Anthropic one (#220).** The
+> job labeler (which kind of work a visitor's target role is) runs on **MiniMax M3 via Fireworks**,
+> not on the app's Claude client. It was chosen by measurement, not preference: eight models over the
+> same 60-case grid (`apps/api/eval/modelBakeoff.eval.ts`) landed within five points of each other
+> while their prices spread 27×, so the labeler costs about **$0.81 per thousand visitors instead of
+> roughly $5**. Read once by `src/llm.ts`'s `familyPlacementLlm()`; the model id is overridable with
+> `FAMILY_PLACEMENT_MODEL`.
+> **Without the key the labeler still works — it falls back to the app's Claude client, which this
+> grid has never measured, at ~6× the cost.** It fails soft on purpose (a missing key must never take
+> discovery down), which is exactly why nothing will alarm if you forget it. Set it with:
+> `fly secrets set FIREWORKS_API_KEY=<key> -a jobcrush-api-staging`.
+> Changing `FAMILY_PLACEMENT_MODEL` is only honest after re-running the gate against the new model:
+> `pnpm --filter @jobcrush/api eval:labeler`.
+> Also recorded in `SHARED_INFRA.md`'s third-party credentials inventory — update both if rotated.
+
 > **`TECHMAP_RAPIDAPI_KEY` — the first paid third-party dependency (#100).** Techmap's Jobs API
 > (jobdatafeeds.com, accessed via RapidAPI) is the live-posting provider (§1/§2 of
 > `docs/research/live-posting-retrieval-contract.md`). The key is read once by

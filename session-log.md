@@ -2,6 +2,38 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-15 (session 122) `/implement 220` — the labeler ships, and the app gets a second model provider
+
+**Slice 1 of the job labeler (#220) — QA gate GO.** A visitor's typed target role is now placed in a
+real job family by an LLM against the closed published list, wired into the production server. The
+production discovery checkpoint, which has answered 409 to every visitor since #61, opens.
+
+- ✅ **All nine ACs pass**, proven adversarially: the QA gate booted the real `main.js` with a broken
+  key (visitor unblocked, nothing authorized, 409 in 184ms) and threw 16 hostile model outputs at the
+  labeler — hallucinated ids, prompt injection, a `nearestFamily` nudge — and never got a guess out.
+- 🎯 **Measured before trusted (ADR-0014 decision 6):** a 60-case hand-labeled grid
+  (`apps/api/eval/`), 9 cases owner-arbitrated, run outside the fast lane. Live result over 4 runs:
+  **97.6 / 95.1 / 97.6 / 97.6%** comparable accuracy (bar 95), 100% stranger recall, 0% false-unknown.
+- ⚖️ **Owner decision, mid-session: the app gets a second model provider.** The owner asked for a
+  bake-off rather than buying an Anthropic key. Eight models over the same grid landed **within five
+  points of each other while prices spread 27×** — for closed-list classification the model barely
+  matters. Owner picked **MiniMax M3 via Fireworks**: ~$0.81 per 1,000 visitors against ~$5 on
+  Sonnet. `FireworksLlm` is in `src/llm.ts` but is deliberately NOT what `llmFromEnv` returns — the
+  CV brain stays on Claude until it has its own measured grid.
+- ⚖️ **Owner re-arbitrated 4 grid cases** after the bake-off: all eight models called
+  "Product Delivery Manager"-shaped titles plain delivery jobs, against my label of "ambiguous". The
+  models were right (the word is the subject, not a second craft); titles genuinely joining two
+  crafts with "and"/"/" every model already got right. Disclosed in the grid's own notes — the gate
+  was partly graded to the answers, and the margin is now **one case**.
+- 🚨 **`FIREWORKS_API_KEY` is not set on Fly.** It fails SOFT — the labeler falls back to Claude,
+  unmeasured, ~6× cost, and nothing alarms. Recorded in `docs/deploy.md` + `SHARED_INFRA.md`. Must be
+  set before #216 ships.
+- ⚠️ **Nothing a visitor can see, yet.** The QA gate proved exhaustively that no client reaches
+  `discovery/production/evaluate` — the web app talks to the other (non-reward-eligible) engine.
+  That wiring is **#216**, per spec #219. The e2e flow left in `apps/web/e2e/` asserts the gap
+  deliberately and will start failing when #216 closes it.
+- 🔎 **The harness lied twice before it told the truth** — see `lessons.md`. Ratchet 1138 → 1135.
+
 ## 2026-08-15 (session 121) `/grill-with-docs 134` — the job labeler is designed; #134 is ready to slice
 
 **Docs only.** Full grill session with the owner; every design question the ticket was held open

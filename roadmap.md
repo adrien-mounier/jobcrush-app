@@ -38,7 +38,7 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~3~~ | ~~#209~~ | ~~Four e2e journeys are in no CI tier and cannot run~~ **DONE 2026-08-13** | — | — | — |
 | ~~4~~ | ~~#124~~ | ~~Where do you want to work?~~ **DECIDED 2026-08-13 → build is #214** | — | — | — |
 | ~~4b~~ | ~~#214~~ | ~~Target locations: up to three chips, one deck over the union~~ **DONE 2026-08-14** (city-level, per the owner decision on #124's trail) | — | — | — |
-| 5 | #134 | Classify a job into a kind of work — **SPECCED + TICKETED 2026-08-15**: spec #219 → slices #220 → #221 → #222 → #223 (frontier: #220) | `/implement 220` | Opus | high |
+| 5 | #134 | Classify a job into a kind of work — spec #219 → slices #220 ✅ → #221 → #222 → #223. **#220 DONE 2026-08-15 (QA GO)**: target roles are placed for real, production discovery opens at the API, measured 97.6% on a 60-case grid. Frontier: **#221** | `/implement 221` | Opus | high |
 | 6 | #216 | Discovery asks the family floor the reveal is earned from | `/implement` | Opus | high |
 | 7 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
 | 8 | #64 | The match count survives signup | `/implement` | Opus | medium |
@@ -64,17 +64,24 @@ fixture**, and #63 implemented as written would make the deck permanently empty 
 
 Two independent causes, both now filed:
 
-- **Placement is never wired.** `main.ts` does not pass `placeFamily`, so `server.ts`'s default
-  returns `unmapped` for every session, so `/onboarding/discovery/production/evaluate` 409s forever
-  and `session.discovery` is never written. → **#134** (open, unblocked, next — but it needs its
-  design pass before it can be sliced).
+- ~~**Placement is never wired.**~~ **FIXED 2026-08-15 (#220, QA GO).** `main.ts` now wires the real
+  labeler (MiniMax M3 via Fireworks, chosen by measurement — see `docs/deploy.md`), so a visitor
+  whose typed target role belongs to a published family gets `confirmed`,
+  `/onboarding/discovery/production/evaluate` answers 200, and `session.discovery` is written. An
+  unplaceable role gets an honest `unmapped` plus the family-research door, never a nearest guess.
+  Measured before trusted: 97.6% comparable accuracy on a 60-case owner-arbitrated grid
+  (`apps/api/eval/`, bars 95/90/5). ⚠️ Needs `FIREWORKS_API_KEY` on Fly or it falls back, unmeasured,
+  to Claude at ~6× the cost — and fails soft, so nothing will tell you.
 - **The shipped screen asks a different floor than the gate checks.** Discovery serves
   `data/sample-family-floors.json` (`budget-accountability`, `cross-functional-leadership`, …) while
   the reward gate requires `research/it-project-delivery-v1.json`
   (`end-to-end-delivery`, `stakeholder-coordination`, `risk-dependency-control`,
   `delivery-communication`). The sets are **disjoint** — answering every question on screen covers
   none of the gate's items. Two parallel discovery engines exist and `apps/web` calls the
-  reward-eligible one **zero** times. → **#216** (blocked by #134).
+  reward-eligible one **zero** times. → **#216** (unblocked by #220). **Still true after #220** — the
+  QA gate re-proved it by capturing what the live discovery screen actually requests. The reward-
+  eligible engine now works; nobody is routed to it. This is the remaining half of "the deck is all
+  fixtures", and `apps/web/e2e/family-placement-journey.mjs` asserts the gap until #216 closes it.
 
 **Owner decision 2026-08-14: option A — prerequisites first, and take #134 whole.** Chain wired as
 native GitHub dependencies: **#134 → #216 → #63** (#63 `blocked_by: 2`). I first carved the

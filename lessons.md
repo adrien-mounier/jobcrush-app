@@ -1,5 +1,54 @@
 # Lessons — jobcrush-app
 
+## A measurement harness that can't tell "the model answered X" from "the call failed" will lie to you confidently
+
+Building #220's 60-case accuracy grid, five model calls ran concurrently through the local Claude
+Code CLI. Roughly a third of them failed — and the labeler, correctly, degrades an unusable answer to
+`unmapped`. So the report came back saying the labeler had turned away *"Senior IT Project Manager"*.
+It hadn't: asked on its own, that exact role answered perfectly. A later run on the same prompt
+confirmed **"Sous chef"** as IT project delivery. Two runs, opposite pathologies, same code. I tuned
+the prompt twice against noise before spotting it.
+
+**The tell was available immediately and I missed it: no competent model confirms a sous chef as a
+project manager.** When a measured result implies the thing under test is not merely wrong but
+*absurd*, suspect the instrument before the subject.
+
+The fix is structural, not procedural. A grid entry now counts **its own** calls through a per-case
+wrapper, so "used its retry and still came back unmapped" is recorded as `degraded`, and the run
+**refuses to report any score at all** if a single case degraded. Two properties worth copying to
+the next eval: the failure mode and the honest answer must not share a representation, and a harness
+must be able to fail *loudly about itself*, not just about its subject.
+
+Corollary, cheap and separate: a paid ten-minute run whose only record is stdout is one `| tail -5`
+away from being paid for twice. It was. Evals write their results to disk.
+
+## The model barely matters for mechanical work — measure it instead of assuming
+
+Eight models (GLM 5.2, Kimi K2.6, DeepSeek V4 Pro/Flash, Qwen 3.7 Plus, MiniMax M3, GPT-OSS 120B,
+Nemotron 3.5) over the identical 60-case grid landed **within five points of each other — while
+their prices spread 27×**. For closed-list classification with a short strict-JSON answer, paying
+frontier rates buys nothing measurable. Speed varied more usefully than accuracy: GLM and Kimi took
+245s and 368s for 60 calls against ~40s for the others, which matters on a call a visitor waits for.
+
+Two things that make this transferable rather than a one-off: the bake-off is ~80 lines because the
+grid already existed (`eval/harness.ts` runs any `LlmClient`), and **it does not generalise to the CV
+brain** — mining and tailoring have no grader yet, and that is exactly where a weaker model does the
+damage this product exists to prevent. Cheap model per measured stage, never per assumption.
+
+## When every model disagrees with your test, suspect the test
+
+All eight bake-off models called "Product Delivery Manager", "Technical Product Delivery Lead" and
+friends plain delivery jobs; my grid said "ambiguous, ask the visitor". Eight independent models from
+five labs agreeing against one hand-written label is evidence about the label. They were right —
+"product" there is *what is delivered*, not a second craft — and the titles that genuinely join two
+crafts ("Head of Product **&** Delivery", "Product Owner **/** Delivery Lead") every model already
+flagged correctly, which is what proved the mechanism worked and only the labels were wrong.
+
+The trap on the other side is real and worth naming: correcting a grid *after* seeing what failed is
+one step from grading to the answers. Two guards used here — the owner arbitrated the change rather
+than the author, and each corrected case carries its own note saying what it was, what it became, and
+how many models dissented. The residue is honest: the pass margin is now a single case.
+
 ## Before building a gate, drive the flow that has to pass it — and ask "who has ever passed it?"
 
 #63's job was to let a real reveal through a gate the server already owned. The retrieval engine was

@@ -66,6 +66,7 @@ import { makePreviewStep, type Draft } from "./preview.js";
 import { makeGrillPhraser } from "./grill.js";
 import { makeCvAuditor } from "./audit.js";
 import { initialProductionFamilyFloors } from "./familyFloors.js";
+import { makeFamilyPlacer, publishedFamilies } from "./familyLabeler.js";
 import { makeFamilyCandidateScreen } from "./familyLearning.js";
 import { makeJudge, makeJudgePeek } from "./judge.js";
 // InMemoryJudgementStore directly, never judgementStoreFromEnv(): that helper reads ambient
@@ -126,7 +127,7 @@ const DRAFT: Draft = {
   additional: [{ label: "Languages", value: "Polish (Native), English (Fluent)" }],
 };
 
-const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, jobBlocks: 0, judge: 0, unknown: 0 };
+const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, jobBlocks: 0, judge: 0, familyPlacement: 0, unknown: 0 };
 
 // A canned, contract-valid MinedJobBlocks doc (#161): three dated blocks exercising the shapes the
 // confirm deck cares about — a month-precision ended job, a year-precision ongoing job, and an
@@ -296,6 +297,20 @@ const fakeLlm: LlmClient = {
         })),
       });
     }
+    // family-labeler.md's own opening line (#220). Deliberately NOT always-confirmed: a QA journey
+    // has to be able to walk both ends of this — discovery opening for a visitor the vocabulary
+    // covers, and the honest "we don't cover this kind of work yet" for one it doesn't — and a fake
+    // that confirmed everything would make the second path unreachable.
+    if (prompt.includes("You place a job title into a job family")) {
+      seen.familyPlacement += 1;
+      // \s+ rather than \n\n: prompts/family-labeler.md is read straight off disk, and this repo's
+      // git checkout rewrites line endings on Windows — a literal \n\n would quietly stop matching
+      // there and place every role as unmapped.
+      const role = (/## The role to place\s+(.+)/.exec(prompt) ?? [, ""])[1]!.toLowerCase();
+      return /project|programme|program|delivery|scrum|\bpm\b/.test(role)
+        ? JSON.stringify({ outcome: "confirmed", familyId: "it-project-delivery" })
+        : JSON.stringify({ outcome: "unmapped" });
+    }
     if (prompt.includes("Rephrase each item below")) {
       seen.grill += 1;
       const n = trailingArrayLength(prompt);
@@ -445,6 +460,10 @@ const judgements = new InMemoryJudgementStore();
 
 const blobs = new LocalDiskStorage(process.env.QA_UPLOAD_DIR ?? join(process.cwd(), "qa-uploads"));
 
+// One store, read twice below: the routes serve floors from it, and #220's labeler places roles into
+// the same published vocabulary. Two calls would build two catalogs that only happen to agree.
+const qaProductionFamilyFloors = initialProductionFamilyFloors();
+
 const { app } = buildServer({
   // Test-only: the production default (12 anonymous sessions/IP/hour, apps/api/src/sessions.ts) is
   // unchanged for main.ts and every other caller. A full Playwright run mints one real session per
@@ -458,7 +477,11 @@ const { app } = buildServer({
   // link and the gate went red on a protection working exactly as designed. Raised HERE, in the
   // entry that never ships, never in routes/auth.ts.
   authRateLimiter: new IpRateLimiter(1000, 60 * 60 * 1000),
-  productionFamilyFloors: initialProductionFamilyFloors(),
+  productionFamilyFloors: qaProductionFamilyFloors,
+  // #220: the real job labeler over the fake model, against the real published vocabulary — so a QA
+  // journey can walk the production discovery checkpoint (open for a confirmed visitor, honestly
+  // closed for an unmapped one) end to end without a paid call. Same seam main.ts uses.
+  placeFamily: makeFamilyPlacer(fakeLlm, publishedFamilies(qaProductionFamilyFloors)),
   screenFamilyCandidate: makeFamilyCandidateScreen(fakeLlm),
   familyLearningOperatorKey: "qa-operator-key",
   // DevMailer directly, never mailerFromEnv(): that helper reads ambient RESEND_API_KEY

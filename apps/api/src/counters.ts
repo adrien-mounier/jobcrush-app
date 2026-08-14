@@ -290,6 +290,19 @@ const counts = {
   // A recompute that disagrees with it is a real event (a correction that never reached the copy, or
   // a copy written by something that should not have): counted, never silently absorbed.
   "years.drift_detected": 0,
+  // #220 (labeler slice 1) adds five, namespaced familyLabeler.*. The first three are the outcome
+  // split the whole ticket is measured on — a labeler that quietly stopped confirming anyone, or
+  // started confirming everyone, looks identical from every other surface. output_invalid and
+  // call_failed are the two failure classes kept apart for the same reason adReader.ts keeps
+  // model-output-invalid apart from model-call-error: one says the prompt/contract is drifting, the
+  // other says the provider call itself failed, and they need different fixes. Both end in an
+  // unmapped placement, so familyLabeler.unmapped also counts every output_invalid — the honest
+  // reading is "unmapped, of which output_invalid were degradations rather than real answers".
+  "familyLabeler.confirmed": 0,
+  "familyLabeler.needs_clarification": 0,
+  "familyLabeler.unmapped": 0,
+  "familyLabeler.output_invalid": 0,
+  "familyLabeler.call_failed": 0,
 };
 
 export type CounterName = keyof typeof counts;
@@ -387,6 +400,52 @@ export function recordReadFailure(adId: string, cls: ReadFailureClass, message: 
  *  applied, neither alone (#115 finding 3). */
 export function recentReadFailuresList(): ReadFailureEntry[] {
   return [...recentReadFailures];
+}
+
+// --- unmapped labels (#220 AC7, feed for #218) ----------------------------------------------------
+// An unmapped placement is the closed vocabulary's gap surfacing (ADR-0014 decisions 1 + 5), and
+// #218's vocabulary-growth process needs the ROLES, not just how many there were — a count says the
+// list has holes, this says which holes. Same bounded, in-process, reset-on-restart shape as the
+// read-failure buffer above, and the same console.error alongside it so the roles land in Fly's logs
+// even when nobody polls the route.
+//
+// KNOWN LIMIT, accepted for this slice and named rather than left to be discovered: this is the
+// EPHEMERAL half of the feed. A restart loses whatever has not been harvested. The durable half for
+// target roles already exists and is untouched here — the family research candidate path
+// (routes/familyLearning.ts) persists an attempt, with the visitor's own consent, for the roles a
+// person actually chooses to pursue. #218 is where the two become one harvested feed; standing up a
+// persisted table before that ticket has decided its shape would be building the wrong thing early.
+export interface UnmappedLabelEntry {
+  /** The role text exactly as the visitor typed it — the thing the vocabulary is missing a word for. */
+  role: string;
+  reason: string;
+  at: string; // ISO timestamp
+}
+
+const UNMAPPED_LABEL_LIMIT = 200;
+const UNMAPPED_LABEL_TEXT_LIMIT = 200;
+const recentUnmappedLabels: UnmappedLabelEntry[] = [];
+
+export function recordUnmappedLabel(role: string, reason: string): void {
+  const entry: UnmappedLabelEntry = {
+    role: role.trim().slice(0, UNMAPPED_LABEL_TEXT_LIMIT),
+    reason: reason.slice(0, UNMAPPED_LABEL_TEXT_LIMIT),
+    at: new Date().toISOString(),
+  };
+  recentUnmappedLabels.push(entry);
+  if (recentUnmappedLabels.length > UNMAPPED_LABEL_LIMIT) recentUnmappedLabels.shift();
+  // The ROLE TEXT is deliberately not in this line. It is visitor-typed free text, and
+  // CODING_STANDARDS' "no full PII in log lines" applies to Fly's logs exactly as OPS_KEY applies to
+  // the route below — gating one and printing the other into an ungated log would be the same leak
+  // through a different door. The log says an unmapped happened and why; the words themselves are
+  // readable only through /ops/unmapped-labels, behind the key.
+  console.error(`[ops] family placement unmapped (${entry.reason})`);
+}
+
+/** A fresh snapshot, oldest first. Carries visitor-typed text, so its HTTP route is OPS_KEY-gated
+ *  exactly like /ops/read-failures — never the always-open /ops/counters. */
+export function recentUnmappedLabelsList(): UnmappedLabelEntry[] {
+  return [...recentUnmappedLabels];
 }
 
 // --- the read-failure alarm (AC: "an alarm exists" on a rising read-failure rate) ----------------
@@ -511,4 +570,5 @@ export function resetCountersForTest(): void {
   alarmWasFiring = false;
   timeoutAlarmWasFiring = false;
   recentReadFailures.length = 0;
+  recentUnmappedLabels.length = 0;
 }

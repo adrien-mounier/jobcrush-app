@@ -1,0 +1,176 @@
+{
+  "about": "Labeler model bake-off, run 2026-08-15 (#220). Eight models over the same 60-case grid, to answer the owner's question of which model should back the labeler. Outcome: MiniMax M3 picked — joint-best score, never wrongly answered unknown, ~40s per 60 calls, about $0.81 per thousand visitors against roughly $5 on the frontier tier.",
+  "measuredAgainstGrid": "THE PRE-ARBITRATION GRID. Every model failed the same four cases (amb-01/02/06/07), the owner then ruled those four were mislabelled by me, not by the models, and the grid was corrected. So the `expected` values inside these rows are the OLD ones and no longer match eval/family-labeler-grid.json. Kept as the record of WHY the correction was made; it is history, not a current score. The current score is the gate: eval/familyLabeler.eval.ts.",
+  "results": [
+    {
+      "model": "GLM 5.2",
+      "passes": false,
+      "comparableAccuracy": 0.9024390243902439,
+      "strangerRecall": 1,
+      "falseUnknownRate": 0.024390243902439025,
+      "degraded": 1,
+      "retried": 1,
+      "inputTokens": 80504,
+      "outputTokens": 41782,
+      "usdPer60": 0.29655,
+      "usdPer1000Visitors": 4.942,
+      "seconds": 245,
+      "misses": [
+        "MISS amb-01 \"Technical Product Delivery Lead\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-02 \"Product Delivery Manager\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-06 \"Product Implementation Manager\": expected needs_clarification, got confirmed (it-project-delivery) [owner-arbitrated case]",
+        "MISS amb-07 \"Delivery & Product Operations Lead\": expected needs_clarification, got unmapped"
+      ]
+    },
+    {
+      "model": "Kimi K2.6",
+      "passes": false,
+      "comparableAccuracy": 0.926829268292683,
+      "strangerRecall": 1,
+      "falseUnknownRate": 0.024390243902439025,
+      "degraded": 1,
+      "retried": 1,
+      "inputTokens": 79657,
+      "outputTokens": 81192,
+      "usdPer60": 0.40044,
+      "usdPer1000Visitors": 6.674,
+      "seconds": 368,
+      "misses": [
+        "MISS amb-01 \"Technical Product Delivery Lead\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-06 \"Product Implementation Manager\": expected needs_clarification, got confirmed (it-project-delivery) [owner-arbitrated case]",
+        "MISS amb-07 \"Delivery & Product Operations Lead\": expected needs_clarification, got unmapped"
+      ]
+    },
+    {
+      "model": "DeepSeek V4 Pro",
+      "passes": false,
+      "comparableAccuracy": 0.8780487804878049,
+      "strangerRecall": 1,
+      "falseUnknownRate": 0.024390243902439025,
+      "degraded": 0,
+      "retried": 0,
+      "inputTokens": 78699,
+      "outputTokens": 26691,
+      "usdPer60": 0.22982,
+      "usdPer1000Visitors": 3.83,
+      "seconds": 84,
+      "misses": [
+        "MISS amb-01 \"Technical Product Delivery Lead\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-02 \"Product Delivery Manager\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-06 \"Product Implementation Manager\": expected needs_clarification, got confirmed (it-project-delivery) [owner-arbitrated case]",
+        "MISS amb-07 \"Delivery & Product Operations Lead\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS fit-26 \"PMO Lead\": expected confirmed (it-project-delivery), got unmapped [owner-arbitrated case]"
+      ]
+    },
+    {
+      "model": "DeepSeek V4 Flash",
+      "passes": false,
+      "comparableAccuracy": 0.8780487804878049,
+      "strangerRecall": 1,
+      "falseUnknownRate": 0.024390243902439025,
+      "degraded": 0,
+      "retried": 0,
+      "inputTokens": 78699,
+      "outputTokens": 15072,
+      "usdPer60": 0.01524,
+      "usdPer1000Visitors": 0.254,
+      "seconds": 41,
+      "misses": [
+        "MISS amb-01 \"Technical Product Delivery Lead\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-02 \"Product Delivery Manager\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-06 \"Product Implementation Manager\": expected needs_clarification, got confirmed (it-project-delivery) [owner-arbitrated case]",
+        "MISS amb-07 \"Delivery & Product Operations Lead\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS fit-26 \"PMO Lead\": expected confirmed (it-project-delivery), got unmapped [owner-arbitrated case]"
+      ]
+    },
+    {
+      "model": "Qwen 3.7 Plus",
+      "passes": false,
+      "comparableAccuracy": 0.926829268292683,
+      "strangerRecall": 1,
+      "falseUnknownRate": 0,
+      "degraded": 0,
+      "retried": 0,
+      "inputTokens": 80175,
+      "outputTokens": 39025,
+      "usdPer60": 0.09451,
+      "usdPer1000Visitors": 1.575,
+      "seconds": 39,
+      "misses": [
+        "MISS amb-01 \"Technical Product Delivery Lead\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-02 \"Product Delivery Manager\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-06 \"Product Implementation Manager\": expected needs_clarification, got confirmed (it-project-delivery) [owner-arbitrated case]"
+      ]
+    },
+    {
+      "model": "MiniMax M3",
+      "passes": false,
+      "comparableAccuracy": 0.926829268292683,
+      "strangerRecall": 1,
+      "falseUnknownRate": 0,
+      "degraded": 0,
+      "retried": 0,
+      "inputTokens": 84753,
+      "outputTokens": 19557,
+      "usdPer60": 0.04889,
+      "usdPer1000Visitors": 0.815,
+      "seconds": 42,
+      "misses": [
+        "MISS amb-01 \"Technical Product Delivery Lead\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-02 \"Product Delivery Manager\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-06 \"Product Implementation Manager\": expected needs_clarification, got confirmed (it-project-delivery) [owner-arbitrated case]"
+      ]
+    },
+    {
+      "model": "GPT-OSS 120B",
+      "passes": false,
+      "comparableAccuracy": 0.8780487804878049,
+      "strangerRecall": 0.9473684210526315,
+      "falseUnknownRate": 0.024390243902439025,
+      "degraded": 0,
+      "retried": 0,
+      "inputTokens": 82653,
+      "outputTokens": 11211,
+      "usdPer60": 0.01912,
+      "usdPer1000Visitors": 0.319,
+      "seconds": 12,
+      "misses": [
+        "MISS amb-01 \"Technical Product Delivery Lead\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-02 \"Product Delivery Manager\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-06 \"Product Implementation Manager\": expected needs_clarification, got confirmed (it-project-delivery) [owner-arbitrated case]",
+        "MISS amb-07 \"Delivery & Product Operations Lead\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS fit-26 \"PMO Lead\": expected confirmed (it-project-delivery), got unmapped [owner-arbitrated case]",
+        "MISS str-12 \"Engineering Manager\": expected unmapped, got confirmed (it-project-delivery) [owner-arbitrated case]"
+      ]
+    },
+    {
+      "model": "Nemotron 3.5 Lightning 30B",
+      "passes": false,
+      "comparableAccuracy": 0.9024390243902439,
+      "strangerRecall": 0.9473684210526315,
+      "falseUnknownRate": 0.024390243902439025,
+      "degraded": 0,
+      "retried": 0,
+      "inputTokens": 80356,
+      "outputTokens": 131793,
+      "usdPer60": 0.03038,
+      "usdPer1000Visitors": 0.506,
+      "seconds": 51,
+      "misses": [
+        "MISS amb-01 \"Technical Product Delivery Lead\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-02 \"Product Delivery Manager\": expected needs_clarification, got confirmed (it-project-delivery)",
+        "MISS amb-06 \"Product Implementation Manager\": expected needs_clarification, got confirmed (it-project-delivery) [owner-arbitrated case]",
+        "MISS fit-26 \"PMO Lead\": expected confirmed (it-project-delivery), got unmapped [owner-arbitrated case]",
+        "MISS str-12 \"Engineering Manager\": expected unmapped, got confirmed (it-project-delivery) [owner-arbitrated case]"
+      ]
+    },
+    {
+      "model": "Claude Sonnet 5 (API)",
+      "skipped": true
+    },
+    {
+      "model": "Claude Sonnet (local CLI)",
+      "skipped": true
+    }
+  ]
+}

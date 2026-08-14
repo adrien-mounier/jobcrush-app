@@ -21,7 +21,10 @@ import { fileURLToPath } from "node:url";
 // #165 lowered it again from 1184: the deck's withdrawal filter + per-language tally moved to
 // withdrawal.ts (partitionByWithdrawal) and the language ladder's whole rule set went into its own
 // module (languageLevel.ts), so the ticket's new endpoint landed while the spine still shrank.
-const MAX_LINES = 1138;
+// #220 lowered it from 1138: the production discovery route's non-confirmed 409 body moved out to
+// familyLabeler.ts (placementRejection) — what a needs_clarification or unmapped placement offers a
+// visitor next is the labeler's business, not the spine's.
+const MAX_LINES = 1135;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

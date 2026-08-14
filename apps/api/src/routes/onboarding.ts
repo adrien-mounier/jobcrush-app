@@ -65,6 +65,7 @@ import {
   resolveFamily,
 } from "../discovery.js";
 import { composeTailorLine, tailorClaimId } from "../tailor.js";
+import { placementRejection } from "../familyLabeler.js";
 import { FamilyPlacement } from "@jobcrush/contracts";
 import {
   adaptiveDiscoveryState,
@@ -289,12 +290,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       async (req, reply) => {
         const session = requireSession(req);
         const placement = await deps.placeFamily(session);
-        if (placement.outcome !== "confirmed") {
-          return reply.status(409).send({
-            error: { code: "placement_not_confirmed", message: "confirmed family placement required" },
-            rewardEligible: false,
-          });
-        }
+        if (placement.outcome !== "confirmed")
+          return reply.status(409).send(placementRejection(placement));
         if (
           session.discovery.floor &&
           (session.discovery.floor.familyId !== placement.family.familyId ||

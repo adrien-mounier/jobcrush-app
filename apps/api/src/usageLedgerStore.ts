@@ -26,7 +26,10 @@ export type LlmStage =
   | "preview-tailor"
   | "grill"
   | "cv-audit"
-  | "family-screen";
+  | "family-screen"
+  // #220: placing a target role into a job family — its own stage, not folded into family-screen
+  // (which is the research-candidate screening call, a different question at a different moment).
+  | "family-placement";
 
 /** One completed model call. `visitorId` is a pseudonym (a session id) or null for an unattributed
  *  call — never dropped, never guessed. `inputTokens`/`outputTokens`/`costUsd` are null together

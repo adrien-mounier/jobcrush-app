@@ -15,8 +15,14 @@ export type PricingTable = Record<string, PricingRate>;
 // introductory discount running through 2026-08-31 — a default tied to a promotion would quietly go
 // stale the day it ends. Override via LLM_PRICING_JSON below to reflect the discount, or whenever
 // Anthropic re-prices the model — either way, no code change.
+// #220 adds the second: the job labeler runs on MiniMax M3 via Fireworks (llm.ts's
+// FAMILY_PLACEMENT_MODEL), keyed by the full Fireworks model id because that is the string the
+// driver reports as .model and therefore what the ledger records. Rate read from
+// docs.fireworks.ai/serverless/pricing on 2026-08-15; same standing rule as the Anthropic line
+// above — when it moves, LLM_PRICING_JSON, not a code change.
 export const DEFAULT_PRICING: PricingTable = {
   "claude-sonnet-5": { inputPerMillionUsd: 3.0, outputPerMillionUsd: 15.0 },
+  "accounts/fireworks/models/minimax-m3": { inputPerMillionUsd: 0.3, outputPerMillionUsd: 1.2 },
 };
 
 /** A JSON object in the `{key: value}` sense — not null, not an array. `JSON.parse` happily returns

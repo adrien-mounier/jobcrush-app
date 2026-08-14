@@ -42,6 +42,15 @@ export class TestFixtureFamilyFloorStore {
 const ProductionFloor = z.object({
   schemaVersion: z.literal("1"),
   familyId: z.string().min(1),
+  // #220: the family's visitor-facing name. Published data, not derived from the id and never
+  // model-authored — a clarification choice ("which kind of work is this?") is display copy a person
+  // reads and picks from, so it belongs to the publication the same way its floor items do.
+  label: z.string().trim().min(1),
+  // #220: what this family covers, and where its edge is. Also published data, and load-bearing:
+  // measured on the grid, a family described only by its evidence questions has no findable
+  // boundary — the labeler swung from taking in event managers to turning away cloud migration
+  // managers on the same evidence. A closed vocabulary has to say what its words mean.
+  scope: z.string().trim().min(1),
   version: z.number().int().positive(),
   source: z.literal("production_research"),
   productionRewardEligible: z.literal(true),
@@ -229,6 +238,13 @@ export class ProductionFamilyFloorStore {
     return this.publications.get(keyOf(familyId, version)) ?? null;
   }
 
+  /** Every family at its ACTIVE version — the closed vocabulary #220's labeler places roles into.
+   *  Superseded versions are deliberately excluded: a stored placement keeps the version it was made
+   *  with (ADR-0014 decision 7), but a NEW placement is only ever made against what is current. */
+  activePublications(): ProductionFamilyPublicationValue[] {
+    return Array.from(this.activeVersions, ([familyId, version]) => this.get(familyId, version))
+      .filter((publication): publication is ProductionFamilyPublicationValue => publication !== null);
+  }
 }
 
 export function initialProductionFamilyFloors(): ProductionFamilyFloorStore {

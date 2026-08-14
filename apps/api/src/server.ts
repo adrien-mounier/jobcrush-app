@@ -42,7 +42,13 @@ import {
   type FamilyLearningStore,
 } from "./familyLearning.js";
 import { familyLearningRoutes } from "./routes/familyLearning.js";
-import { readCounters, readFailureAlarm, readTimeoutAlarm, recentReadFailuresList } from "./counters.js";
+import {
+  readCounters,
+  readFailureAlarm,
+  readTimeoutAlarm,
+  recentReadFailuresList,
+  recentUnmappedLabelsList,
+} from "./counters.js";
 import type { Posting } from "./preview.js";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
 import type { JudgeFn, JudgePeekFn } from "./judge.js";
@@ -260,6 +266,16 @@ export function buildServer(opts: BuildOptions = {}) {
         error: { code: "forbidden", message: "set OPS_KEY and pass ?key=… to read failure detail" },
       });
     return { entries: recentReadFailuresList() };
+  });
+  // #220 AC7 — the roles the closed vocabulary had no family for, as feed for #218's
+  // vocabulary-growth process. Same OPS_KEY gate and same reasoning as /ops/read-failures above:
+  // these entries carry visitor-typed free text, which has no business on an open URL.
+  app.get("/ops/unmapped-labels", async (req, reply) => {
+    if (!opsKeyOk(req))
+      return reply.status(403).send({
+        error: { code: "forbidden", message: "set OPS_KEY and pass ?key=… to read unmapped labels" },
+      });
+    return { entries: recentUnmappedLabelsList() };
   });
   // #117 AC4/AC6/AC8 — the ONE place cost-per-visitor and the deck's cold-fallback rate are reported
   // TOGETHER, from the same run — the ticket's own closing AC. Same OPS_KEY gate as /ops/read-failures

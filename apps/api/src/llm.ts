@@ -133,6 +133,79 @@ export class ClaudeCliLlm implements LlmClient {
   }
 }
 
+/**
+ * Fireworks driver (#220). Second provider in the app, added because the labeler bake-off measured
+ * one: eight models over the same 60-case grid landed within five points of each other while their
+ * prices spread 27×, so paying frontier rates to pick one item off a closed list buys nothing. It
+ * speaks the OpenAI chat-completions shape, so this is one POST and a usage block.
+ *
+ * Deliberately NOT what llmFromEnv returns. The CV brain — mining a CV into facts, writing the
+ * tailored draft — has no measurement behind it yet, and those are the stages where a weaker model
+ * does the damage this product exists to prevent (inventing experience, dropping a real
+ * achievement). A stage moves here only after its own grid says it can.
+ */
+export class FireworksLlm implements LlmClient {
+  constructor(
+    public readonly model: string,
+    private apiKey: string,
+  ) {}
+
+  async complete(prompt: string, opts: { maxTokens?: number } = {}): Promise<string> {
+    return (await this.completeWithUsage(prompt, opts)).text;
+  }
+
+  async completeWithUsage(
+    prompt: string,
+    opts: { maxTokens?: number } = {},
+  ): Promise<{ text: string; usage: { inputTokens: number; outputTokens: number } }> {
+    const res = await fetch("https://api.fireworks.ai/inference/v1/chat/completions", {
+      method: "POST",
+      // A provider that ERRORS is already safe (the caller degrades to unmapped in milliseconds);
+      // a provider that HANGS would otherwise hold a visitor's request for undici's ~5-minute
+      // default. ClaudeCliLlm has carried its own explicit deadline since it was written — this is
+      // the same guard, sized for a call that normally answers in a second or two.
+      signal: AbortSignal.timeout(60_000),
+      headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
+      body: JSON.stringify({
+        model: this.model,
+        // Headroom: several of these models reason before the JSON, and a truncated answer would
+        // read as a labeler failure when it is really a max_tokens failure.
+        max_tokens: opts.maxTokens ?? 8000,
+        temperature: 0,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!res.ok) throw new Error(`fireworks ${this.model} ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    const body = (await res.json()) as {
+      choices: Array<{ message?: { content?: string | null } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    return {
+      text: body.choices?.[0]?.message?.content ?? "",
+      usage: {
+        inputTokens: body.usage?.prompt_tokens ?? 0,
+        outputTokens: body.usage?.completion_tokens ?? 0,
+      },
+    };
+  }
+}
+
+/** The model behind the job labeler (#220 bake-off, owner pick 2026-08-15): joint-best score of the
+ *  eight measured, never wrongly answered "unknown", ~40s for 60 calls, and about $0.81 per thousand
+ *  visitors against roughly $5 on the frontier tier. Overridable without a code change, the same
+ *  rule JUDGE_MODEL follows — but a change here is only honest once the grid has been re-run
+ *  against the new model (`pnpm --filter @jobcrush/api eval:labeler`). */
+export const FAMILY_PLACEMENT_MODEL =
+  process.env.FAMILY_PLACEMENT_MODEL ?? "accounts/fireworks/models/minimax-m3";
+
+/** The labeler's client, or null when no Fireworks key is configured — callers fall back to their
+ *  ordinary llmFromEnv() client, so an environment without the key still labels (on a model the
+ *  grid did not measure) rather than losing discovery entirely. */
+export function familyPlacementLlm(): LlmClient | null {
+  const key = process.env.FIREWORKS_API_KEY;
+  return key ? new FireworksLlm(FAMILY_PLACEMENT_MODEL, key) : null;
+}
+
 /** Pick the driver from the environment: API key wins; CLI is the local fallback. `model`, when
  *  given, overrides each driver's own default (#105 AC: which model does a task is configuration,
  *  never a code change — e.g. main.ts's `llmFromEnv(process.env.JUDGE_MODEL)` for the card judge).

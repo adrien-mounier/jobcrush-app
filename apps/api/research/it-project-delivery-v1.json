@@ -5,6 +5,8 @@
   "floor": {
     "schemaVersion": "1",
     "familyId": "it-project-delivery",
+    "label": "IT project delivery",
+    "scope": "Running the delivery of technology work — software, systems, platforms, data or IT infrastructure — from planning through completion: scope and plan, timeline and budget, risks and dependencies, coordinating the business and technical groups involved, and reporting progress. The thing delivered is technology; the employer's industry is irrelevant. Covers every seniority from coordinator to director, one delivery or a portfolio of them, and any working method — the agile equivalents of this job (scrum master, agile coach, delivery lead, release manager) are inside this family, not beside it. A delivery, project, programme, implementation, migration, rollout or release title that does not name what is being delivered belongs here: technology is the ordinary subject of those titles, and the title does not have to say so. Outside it: running the delivery of something that is not technology, however similar the craft; and technology roles whose own work is building, designing, analysing or deciding what to build rather than running its delivery.",
     "version": 1,
     "source": "production_research",
     "productionRewardEligible": true,

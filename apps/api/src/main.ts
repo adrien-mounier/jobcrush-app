@@ -3,7 +3,7 @@
 import { join } from "node:path";
 import { buildServer } from "./server.js";
 import { storageFromEnv } from "./storage.js";
-import { llmFromEnv } from "./llm.js";
+import { familyPlacementLlm, llmFromEnv } from "./llm.js";
 import { makeMineStep } from "./miner.js";
 import { makePreviewStep } from "./preview.js";
 import { makeGrillPhraser } from "./grill.js";
@@ -37,6 +37,7 @@ import {
   storeBackedPostingProvidersFor,
 } from "./postingRetrieval.js";
 import { initialProductionFamilyFloors } from "./familyFloors.js";
+import { makeFamilyPlacer, publishedFamilies } from "./familyLabeler.js";
 import { pricingTableFromEnv } from "./llmPricing.js";
 import { meterLlm } from "./llmMeter.js";
 import type { LlmClient } from "./llm.js";
@@ -127,6 +128,18 @@ const { app } = buildServer({
   eligibility,
   contact,
   productionFamilyFloors,
+  // #220: the real job labeler, against the closed published vocabulary — the seam buildServer has
+  // defaulted to unmapped-for-everyone since #61, which is why production discovery has answered 409
+  // for every visitor who ever reached it. Wired here only (never a buildServer default), the same
+  // rule readAd/judge follow: every test that doesn't inject its own placement stays at exactly
+  // today's behaviour, and nothing makes a live placement call unless main.ts wires it.
+  // The model is the one the #220 bake-off measured (MiniMax M3 via Fireworks), not the app's
+  // default Claude client — see familyPlacementLlm's own doc. No key configured → falls back to
+  // `llm`, so discovery still works, on a model this grid never measured.
+  placeFamily: makeFamilyPlacer(
+    metered("family-placement", familyPlacementLlm() ?? llm),
+    publishedFamilies(productionFamilyFloors),
+  ),
   retrievePostings,
   auth,
   familyLearning,
