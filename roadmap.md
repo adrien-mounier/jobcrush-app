@@ -41,12 +41,19 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~5~~ | ~~#220~~ | ~~Labeler slice 1: the target role is placed in a real family, measured before trusted~~ **DONE 2026-08-15 (QA GO)** — 97.6% comparable accuracy on the 60-case grid; production discovery opens at the API | — | — | — |
 | ~~5b~~ | ~~#221~~ | ~~Labeler slice 2: every past job carries a correctable family label~~ **DONE 2026-08-15 (QA GO)** — every mined job is placed; the review screen asks, batched, only about the ones it could not call | — | — | — |
 | ~~5b.1~~ | ~~#225~~ | ~~Decide deliberately: is a job in ONE family, or honestly several?~~ **DECIDED 2026-08-15** — several, nobody is asked, confidence rides the ranking. ADR-0014 amendment 1 | — | — | — |
-| 5b.2 | #231 | Labeler slice 2b: several families per job, nobody is asked, confidence rides the ranking | `/implement` | Opus | high |
+| 5b.2 | #231 | Labeler slice 2b: several families per job, nobody is asked, confidence rides the ranking — **the target role stays single here, on purpose (see #232)** | `/implement` | Opus | high |
+| 5b.3 | #227 | A null placement is a call we never made — a retry, not a question | `/implement` | Sonnet | low |
 | 5c | #222 | Labeler slice 3: years per family, read at the advert's own scope | `/implement` | Opus | high |
+| 5c.1 | #230 | 🔒 **GRILL BEFORE BUILDING** — an unmapped target role gets no adverts at all. Decides floor selection when there is no family, and whether retrieval may proceed without one. **Gates #232, #223, #63** | `/grilling` | Opus | high |
+| 5c.2 | #228 | 🔒 **GRILL BEFORE BUILDING** — fallback when the target family's adverts run out. A fallback may mean a second live provider search on the same quota. **Gates #63** | `/grilling` | Opus | medium |
+| 5c.3 | #232 | The target role's several families: discovery asks the essential items of each floor — ADR-0014 amendment 1 d7 | `/implement` | Opus | high |
 | 5d | #223 | Labeler slice 4: the stub retires — one discovery engine | `/implement` | Opus | medium |
 | 6 | #216 | Discovery asks the family floor the reveal is earned from | `/implement` | Opus | high |
+| 6b | #229 | The career changer is scored honestly but told nothing — the "new to this family" sentence | `/implement` | Opus | medium |
 | 7 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
+| 7b | #218 | Pilot vocabulary-growth: unmapped labels harvested, researched, proposed for approval — **publishes the second family, which is what makes multi-family reachable in production at all** | `/implement` | Opus | high |
 | 8 | #64 | The match count survives signup | `/implement` | Opus | medium |
+| 8b | #217 | Industry — the second label axis: closed vocabulary with relatedness, seventh fact, its own labeler | `/to-spec` | Opus | high |
 
 **#124 is DECIDED (2026-08-13, `e0d8cd2`) — a recorded decision, not a build.** The ticket's own
 premise was partly stale: #182/#184 already built the single search area, per-market right-to-work
@@ -136,6 +143,30 @@ total, so #222's generous fallback narrows to genuinely unaccounted years. **#22
 this family" sentence a career changer is owed (**#229**), the unmapped **target role** that still
 gets no adverts at all (**#230** — the one place ranking cannot save us, because the family is what
 we search *with*), and the fallback when a family's adverts run out (**#228**).
+
+🔒 **The ordering rule for this cluster, and why rows 5c.1–5c.3 sit where they do.** Two of the
+tickets #225 produced are **decisions, not builds**, and both land upstream of code that would
+otherwise be written around an assumption they may reverse. Ranking them last — the natural instinct,
+since neither ships anything — is the trap:
+
+- **#230 gates #232 and #223.** All three rewrite the same rule: *which family floor is a session
+  asked?* #232 merges the floors of a plural target role, #223 deletes the `resolveFamily()` stub
+  that selects one today, and #230 decides what happens when there is no family to select from at
+  all. Decide it after either build and the same selection logic is written twice.
+- **#230 and #228 both gate #63.** #230 decides whether retrieval may proceed without a published
+  family; #228 may add a second live provider search under the same monthly quota. #63 is the ticket
+  that builds retrieval for real — it cannot be built around gates still under discussion.
+- **#232 was missing entirely** until this review (filed 2026-08-15). Amendment 1 decision 7 — the
+  target role follows the same plural rule — had no work behind it, and #231 makes the placement
+  contract plural for *both* paths at once. So **#231 explicitly holds the target role at one
+  family**, with a test pinning it, and #232 lifts that constraint once #230 has settled the rule.
+  Without this, #231 would have shipped a plural target role into a floor selector that takes one —
+  silently picking a family, which is the exact failure the whole pass exists to remove.
+
+Everything else in the cluster is genuinely safe to build first: **#222** (years arithmetic) touches
+no gate either grill can move, **#226** (the cluster engine map) cannot invalidate stored placements
+because they carry their own family version and are never mass-relabelled (ADR-0014 d7), and
+**#217** (industry) is an additive seventh fact on a separate axis.
 
 📍 **#226 maps where families come from at all** — filed 2026-08-15 because `e5stub.ts` has always
 pointed at *"the real cluster engine (S3/JC-31)"* and **that was a season-plan reference that never

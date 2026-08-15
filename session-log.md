@@ -33,6 +33,16 @@ Newest first. One entry per working session. Ticket + commit refs so the plan st
   adverts at all — retrieval is gated on a published family, and ranking cannot save a list that was
   never fetched), **#228** (fallback when a family runs out), **#227** (filed mid-pass; largely
   dissolved by "nobody is asked", its null-placement half survives as a retry question).
+- 🔒 **Owner review caught the ranking, and it caught a missing ticket.** The grill tickets were
+  filed but never ranked, and two of them sit UPSTREAM of builds: **#230** decides floor selection
+  with no family (the same rule **#232** and **#223** both rewrite) and whether retrieval may
+  proceed without a published family (**#63**); **#228** may add a second live provider search on
+  the same quota (**#63** again). Ranking a decision last because it ships nothing is the trap.
+  Worse — **#232 did not exist**: amendment 1 decision 7 (the target role is plural too) had no work
+  behind it, and #231 makes the contract plural for *both* placement paths at once, so it would have
+  shipped a two-family target role into a floor selector that takes one and silently picks. **#231
+  now holds the target role at one family with a test pinning it**; #232 lifts it after #230.
+  #217/#218 also had no roadmap rows at all — only prose. All ranked now.
 - 📐 **Prototype built** to answer "show me this screen" — the work-history review deck as it exists,
   what one tap costs Sofia in advert terms, and three ways to surface a placement. Outcome: **show
   nothing**. The family is internal from end to end.
