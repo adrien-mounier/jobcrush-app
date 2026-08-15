@@ -1,5 +1,31 @@
 # Lessons — jobcrush-app
 
+## A test double that speaks a dialect the real parser rejects reports the feature MISSING, and CI stays green
+
+#231 changed the labeler's answer shape (`familyId` string → `familyIds` array, plus a required
+confidence). Every real caller and every test was updated. The one thing missed was the fake model in
+`qa-main.ts` — the stack a live QA drive actually runs against. It kept emitting the old shape, so
+the real parser rejected every answer, retried once, and degraded to `unmapped`. Against the QA
+stack, **no job and no target role could be placed at all.**
+
+Nothing went red. Not the 1400-test suite, not typecheck, not tier-1, not tier-2 — because no tier
+drives `qa-main.js`. It took a human-paced browser drive to notice. And the failure mode is the worst
+shape available: a rejected dialect does not throw, it degrades to the same honest-looking answer the
+feature gives when it legitimately finds nothing. The screen said "we couldn't place this", which is
+a real, expected, correct-looking state. **A broken fake does not look broken; it looks like the
+feature working and finding nothing.**
+
+The root cause was not the stale line — it was that nothing *could* test it: `qa-main.ts` starts a
+server at import, so the fake was unreachable from any test. The fix was to move the answer into its
+own module (`qaFamilyAnswer.ts`) and drive it through the *real* labeler, contract and published
+registry in a test.
+
+**The check to run: when you change a shape a model answers in, grep for every fake that produces
+it — the ones outside the test suite most of all.** And make the guard assert the **mechanism**, not
+the string: any rejected dialect shows up as *two* model calls (the retry) ending in `unmapped`, so
+asserting `calls === 1` catches the whole class, where asserting the JSON only catches today's
+instance. The same hazard sits in every `e5stub`/recording/fake in this repo.
+
 ## When a stored value is also a checkpoint, persisting a fallback makes the failure permanent
 
 #221's labeler skips any block that already has a placement — that skip IS the "a retry never

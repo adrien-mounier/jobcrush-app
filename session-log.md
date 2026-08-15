@@ -2,6 +2,45 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-15 (session 125) `/implement 231` — several families per job, nobody is asked, confidence on the ranking
+
+**Shipped — `34bdd3c`, QA gate GO.** #231 built amendment 1. #222 is now unblocked and is the next
+build.
+
+- **The contract went plural, by version.** `FamilyPlacement` v2 carries one *or more* families plus
+  an ordinal confidence; `needs_clarification` is deleted. Zod port and `.mjs` oracle moved together
+  (CLAUDE.md's rule), golden-tested. **No cap on the count, deliberately** — a clamp would hide the
+  signal amendment 1 decision 3 wants watched, so `familyLabeler.multi_family` counts it instead.
+- **Stale placements self-heal rather than migrate.** The store re-parses stored jsonb through the
+  contract; anything not v2 reads as *not placed*, so the labeler places it again. Chosen over a
+  migration because v1 rows only ever existed on staging (#221 shipped the same day). Named cost: a
+  #221-era *correction* is discarded, and #231 removed the surface that would ask again.
+- **The end-of-deck panel is gone**, with its helpers, CSS, and the published-family list on the deck
+  payload. The e2e spec that proved the panel existed is *inverted*, not deleted — it now proves the
+  review screen has no family question anywhere.
+- 🔑 **AC6 is half-delivered, on purpose and disclosed.** "Never the years fact" is real and tested.
+  "Lowers the card's score" has **no production caller** — the site is #222, which this ticket
+  unblocks and which cannot land before it. The rule ships tested because the ordinal is stored from
+  today. **The three weights (1 / 0.9 / 0.75) are the agent's choice, not the owner's** — amendment 1
+  pins the shape, not the magnitudes. Confirm when #222 makes them visible in a real deck.
+- **Named cost of the scope boundary:** the target role stays single until #232, so a dual-craft
+  target role now lands on family research instead of being asked to pick. One guard
+  (`soleConfirmedFamily`) is the single chokepoint every floor-selection path routes through.
+- **AC3 measured, not asserted:** the eval grid ran against the real production model. 64 cases,
+  comparable accuracy 97.8–100% (bar 95), stranger recall 100% (bar 90), false-unknown 0% (bar 5),
+  and exactly the dual cases named two families — every "product is the subject, not a second craft"
+  control stayed single.
+- 🩹 **The QA gate earned its keep, and CI could not have.** `qa-main.ts`'s fake labeler still
+  answered in the deleted format, so against the QA stack **no job and no target role could be placed
+  at all** — every placement failed validation twice and degraded to unmapped — while *every* CI tier
+  stayed green, because no tier drives qa-main. Only a human-paced browser drive found it. Root cause
+  was untestability, not the line: qa-main starts a server on import, so nothing could ever test what
+  its fake said. The answer moved to `qaFamilyAnswer.ts` with a guard that drives it through the real
+  labeler and asserts **one** call — a rejected dialect always shows up as `calls=2 → unmapped`, so
+  the test fails on the mechanism, not on one string. See `lessons.md`.
+- Second blocker: the #221 journey `job-blocks-family-journey.mjs` still expected the deleted panel
+  and crashed. In no tier, so it never reddened. Deleted; replaced by the gate's own journey.
+
 ## 2026-08-15 (session 124) `/grilling 225` — a job can be in several families, and nobody is asked
 
 **Decided, no code.** Recorded as **ADR-0014 amendment 1**; #225 closed by hand. The cardinality

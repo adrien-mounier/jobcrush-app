@@ -41,7 +41,7 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~5~~ | ~~#220~~ | ~~Labeler slice 1: the target role is placed in a real family, measured before trusted~~ **DONE 2026-08-15 (QA GO)** — 97.6% comparable accuracy on the 60-case grid; production discovery opens at the API | — | — | — |
 | ~~5b~~ | ~~#221~~ | ~~Labeler slice 2: every past job carries a correctable family label~~ **DONE 2026-08-15 (QA GO)** — every mined job is placed; the review screen asks, batched, only about the ones it could not call | — | — | — |
 | ~~5b.1~~ | ~~#225~~ | ~~Decide deliberately: is a job in ONE family, or honestly several?~~ **DECIDED 2026-08-15** — several, nobody is asked, confidence rides the ranking. ADR-0014 amendment 1 | — | — | — |
-| 5b.2 | #231 | Labeler slice 2b: several families per job, nobody is asked, confidence rides the ranking — **the target role stays single here, on purpose (see #232)** | `/implement` | Opus | high |
+| ~~5b.2~~ | ~~#231~~ | ~~Labeler slice 2b: several families per job, nobody is asked, confidence rides the ranking~~ **DONE 2026-08-15 (QA GO, `34bdd3c`)** — placement contract is v2 and plural, `needs_clarification` deleted, end-of-deck panel gone, confidence stored. **The target role is still single (#232 lifts it)**, and **confidence does not yet reach a card's score — that caller is #222** | — | — | — |
 | 5b.3 | #227 | A null placement is a call we never made — a retry, not a question | `/implement` | Sonnet | low |
 | 5c | #222 | Labeler slice 3: years per family, read at the advert's own scope | `/implement` | Opus | high |
 | 5c.1 | #230 | 🔒 **GRILL BEFORE BUILDING** — an unmapped target role gets no adverts at all. Decides floor selection when there is no family, and whether retrieval may proceed without one. **Gates #232, #223, #63** | `/grilling` | Opus | high |
@@ -104,8 +104,9 @@ building the whole classifier beats three sessions building thirds of it.
 
 ✅ **All of that is now delivered** (2026-08-15): design pass → **ADR-0014**, spec → **#219**, slices
 → **#220–#223** (rows 5–5d), follow-ups **#217** (industry labeler) and **#218** (vocabulary-growth
-process) filed. **#220 and #221 are done.** The chain to real jobs is now **#222 → #223 → #216 → #63**
-(with **#225** gating #222 — see below).
+process) filed. **#220, #221 and #231 are done.** The chain to real jobs is now
+**#222 → #223 → #216 → #63**, and **#222 is no longer blocked** — #225 decided it and #231 built the
+plural placement it needs.
 
 🔑 **#225 — the one decision in this chain that a later change cannot undo cheaply.** Raised by the
 owner mid-`/implement 221`: *we are shaping what a "job" is before the engine that discovers job
@@ -124,8 +125,8 @@ only a second published family: a Technical Program Manager who genuinely splits
 product-management years, so an advert asking *"3+ years product management"* scores a winnable job at
 nothing — #86's own worst failure. **#221 shipped unblocked** (its shape is the forgiving one either
 way — one placement per job, correctable, and a needs-clarification answer stored rather than
-resolved); **#222 is blocked**, because that is where per-family years stop being a default and become
-arithmetic a visitor is judged on.
+resolved); **#222 was blocked**, because that is where per-family years stop being a default and become
+arithmetic a visitor is judged on. **Unblocked 2026-08-15** by #225 (the decision) and #231 (the build).
 
 ✅ **#225 is decided (2026-08-15, owner grilling pass) — ADR-0014 amendment 1.** A job may hold
 **several** families and its years count **fully** toward each, never split; the family numbers
@@ -139,7 +140,11 @@ filtered out. 🔑 **Uncertainty is not proportion:** a job we are unsure about 
 *full* years; only the card sinks. 🔑 **And the owner's own catch — a known zero is not an unknown:**
 when every job is placed and none is in the advert's family the answer is **zero**, not her career
 total, so #222's generous fallback narrows to genuinely unaccounted years. **#222's ACs updated;
-#231 is the implementation and now gates it.** Deferred on purpose, each with a ticket: the "new to
+#231 was the implementation and shipped 2026-08-15 (`34bdd3c`), so #222 is clear to build.** One
+thread #231 deliberately left hanging for it: the confidence ordinal is **stored** from today but
+**nothing scores against it yet** — #222 is where it starts attenuating a card, and the three weights
+(1 / 0.9 / 0.75) are the agent's choice, not the owner's, so they want confirming once a real deck
+shows them. Deferred on purpose, each with a ticket: the "new to
 this family" sentence a career changer is owed (**#229**), the unmapped **target role** that still
 gets no adverts at all (**#230** — the one place ranking cannot save us, because the family is what
 we search *with*), and the fallback when a family's adverts run out (**#228**).
