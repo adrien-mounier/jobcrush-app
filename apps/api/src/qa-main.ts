@@ -68,6 +68,7 @@ import { makeCvAuditor } from "./audit.js";
 import { initialProductionFamilyFloors } from "./familyFloors.js";
 import { makeFamilyPlacer, makeJobBlockLabeler, publishedFamilies } from "./familyLabeler.js";
 import { InMemoryJobBlockStore } from "./jobBlockStore.js";
+import { InMemoryEligibilityStore } from "./eligibility.js";
 import { makeFamilyCandidateScreen } from "./familyLearning.js";
 import { makeJudge, makeJudgePeek } from "./judge.js";
 // InMemoryJudgementStore directly, never judgementStoreFromEnv(): that helper reads ambient
@@ -463,6 +464,10 @@ const qaProductionFamilyFloors = initialProductionFamilyFloors();
 // route reads back, so both must be handed the one instance.
 const qaJobBlocks = new InMemoryJobBlockStore();
 
+// #222: same reasoning again — the labeler now re-derives the per-family years facts, so it must
+// write into the very eligibility store the deck routes read, not a private one.
+const qaEligibility = new InMemoryEligibilityStore();
+
 const { app } = buildServer({
   // Test-only: the production default (12 anonymous sessions/IP/hour, apps/api/src/sessions.ts) is
   // unchanged for main.ts and every other caller. A full Playwright run mints one real session per
@@ -484,6 +489,7 @@ const { app } = buildServer({
   // #221: the labeler needs the same store the routes read, so the QA entry owns it explicitly
   // instead of letting buildServer make its own.
   jobBlocks: qaJobBlocks,
+  eligibility: qaEligibility,
   screenFamilyCandidate: makeFamilyCandidateScreen(fakeLlm),
   familyLearningOperatorKey: "qa-operator-key",
   // DevMailer directly, never mailerFromEnv(): that helper reads ambient RESEND_API_KEY
@@ -501,7 +507,7 @@ const { app } = buildServer({
     // #221: past-job labeling over the fake model — the canned CV mines to two placeable jobs and
     // one degree the vocabulary does not cover, so a QA journey can walk both the confident case
     // (no question asked) and the "we couldn't place this" question on the review screen.
-    labelJobBlocks: makeJobBlockLabeler(fakeLlm, publishedFamilies(qaProductionFamilyFloors), qaJobBlocks),
+    labelJobBlocks: makeJobBlockLabeler(fakeLlm, publishedFamilies(qaProductionFamilyFloors), qaJobBlocks, qaEligibility),
     preview: makePreviewStep(fakeLlm),
   },
   phraseGrill: makeGrillPhraser(fakeLlm),

@@ -11,9 +11,15 @@
 //   2. dateHoleQuestions / parseEndAnswer / answerJobDateHole — the ask-for-the-dates-underneath flow.
 //   3. syncWorkedYears — the stored total is a regenerable COPY (#128 §4): recomputed at every door
 //      that can change a job record, with a disagreement counted, never silently absorbed.
-import type { DeckSummary, JobBlockView, MinedDate, MinedEndValue } from "@jobcrush/contracts";
+import type {
+  DeckSummary,
+  JobBlockView,
+  MinedDate,
+  MinedEndValue,
+  PlacementConfidence,
+} from "@jobcrush/contracts";
 import type { DiscoveryQuestion } from "./discovery.js";
-import { ANY_FAMILY, type EligibilityStore } from "./eligibility.js";
+import { ANY_FAMILY, type EligibilityFact, type EligibilityStore } from "./eligibility.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 import { incrementCounter } from "./counters.js";
 
@@ -56,6 +62,20 @@ function span(block: JobBlockView, now: Date): { from: number; to: number } | nu
   return { from, to };
 }
 
+/** Merged calendar years from a set of half-open month intervals: overlaps counted once, gaps zero.
+ *  One decimal — the number a card compares against a "5+ years" bar, not a precision claim. */
+function mergedYears(spans: Array<{ from: number; to: number }>): number {
+  spans.sort((a, b) => a.from - b.from);
+  let months = 0;
+  let cursor = -Infinity;
+  for (const s of spans) {
+    const from = Math.max(s.from, cursor);
+    if (s.to > from) months += s.to - from;
+    cursor = Math.max(cursor, s.to);
+  }
+  return Math.round((months / 12) * 10) / 10;
+}
+
 /** Calendar time actually worked: overlapping months counted ONCE, gaps counted zero, part-time
  *  counted in full (nothing here reads hours), and only blocks whose kind counts as work included
  *  (countsTowardExperience — jobBlock.ts owns that rule; an education block contributes nothing).
@@ -75,18 +95,73 @@ export function computeYearsWorked(
   const unknownEnds = counting.filter((b) => b.end.value.state === "unknown").length;
   const spans = counting
     .map((b) => span(b, now))
-    .filter((s): s is { from: number; to: number } => s !== null)
-    .sort((a, b) => a.from - b.from);
+    .filter((s): s is { from: number; to: number } => s !== null);
+  return { state: "computed", years: mergedYears(spans), unknownEnds };
+}
 
-  let months = 0;
-  let cursor = -Infinity;
-  for (const s of spans) {
-    const from = Math.max(s.from, cursor);
-    if (s.to > from) months += s.to - from;
-    cursor = Math.max(cursor, s.to);
+// --- years per family (#222, ADR-0014 amendment 1) --------------------------------------------
+
+/** The families a block's CURRENT label places it in — the corrected value when one exists (the
+ *  view already resolves that), empty for unmapped, never-labeled, or any non-confirmed shape. */
+export function confirmedFamilies(block: JobBlockView): string[] {
+  // `?.` although the view type requires `family`: a pre-#221 stored view (and many hand-built test
+  // fixtures) has no family slot at all, and the honest reading of that is "not placed", not a crash.
+  const placement = block.family?.value;
+  if (!placement || placement.outcome !== "confirmed") return [];
+  return [...new Set(placement.families.map((family) => family.familyId))];
+}
+
+/** True when some of this person's worked years are genuinely unaccounted for at the family scope:
+ *  at least one counting block carries no confirmed placement (never labeled, labeler failed, or an
+ *  honest unmapped). This is the condition ADR-0014 amendment 1 decision 6 hangs the career-total
+ *  fallback on — NOT "the advert's family has no fact", which is a known zero when everything is
+ *  placed. */
+export function hasUnplacedWork(blocks: readonly JobBlockView[]): boolean {
+  return blocks.some((b) => b.countsTowardExperience && confirmedFamilies(b).length === 0);
+}
+
+/** Years per family: for each family any counting block is confirmed into, the merged calendar
+ *  time of THOSE blocks — a job in two families contributes its full length to both (amendment 1
+ *  decision 4: splitting invents a precision nobody has), so these numbers deliberately do NOT sum
+ *  to the career total and no surface may present such a sum. A block with an unknown end
+ *  contributes zero here exactly as it does to the total — the date-hole question is the remedy,
+ *  not a guessed length. */
+export function computeFamilyYears(
+  blocks: readonly JobBlockView[],
+  now: Date = new Date(),
+): Map<string, number> {
+  const byFamily = new Map<string, Array<{ from: number; to: number }>>();
+  for (const block of blocks) {
+    if (!block.countsTowardExperience) continue;
+    for (const familyId of confirmedFamilies(block)) {
+      if (!byFamily.has(familyId)) byFamily.set(familyId, []);
+      const s = span(block, now);
+      if (s) byFamily.get(familyId)!.push(s);
+    }
   }
-  // One decimal: the number a card compares against a "5+ years" bar, not a precision claim.
-  return { state: "computed", years: Math.round((months / 12) * 10) / 10, unknownEnds };
+  return new Map([...byFamily].map(([familyId, spans]) => [familyId, mergedYears(spans)]));
+}
+
+const ORDINAL: Record<PlacementConfidence, number> = { certain: 3, likely: 2, possible: 1 };
+
+/** The confidence a family's years number rides on: the WEAKEST level among the placements that
+ *  contributed to it (coarse and conservative — the merged number is only as sure as its least sure
+ *  contributor). Null when no counting block is confirmed into this family.
+ *  ponytail: min over contributors can over-attenuate when a short `possible` job joins a long
+ *  `certain` career in the same family — recompute the bar per confidence level if that ever bites. */
+export function familyPlacementConfidence(
+  blocks: readonly JobBlockView[],
+  familyId: string,
+): PlacementConfidence | null {
+  let weakest: PlacementConfidence | null = null;
+  for (const block of blocks) {
+    if (!block.countsTowardExperience) continue;
+    const placement = block.family?.value;
+    if (!placement || placement.outcome !== "confirmed") continue;
+    if (!placement.families.some((family) => family.familyId === familyId)) continue;
+    if (!weakest || ORDINAL[placement.confidence] < ORDINAL[weakest]) weakest = placement.confidence;
+  }
+  return weakest;
 }
 
 // --- the question underneath (ADR-0008 clause 3, #143) ----------------------------------------
@@ -171,6 +246,13 @@ export function parseEndAnswer(answer: string): MinedEndValue | null {
 /** The label the stored copy renders under. Names its own origin: nobody typed this number. */
 export const WORKED_YEARS_LABEL = "Years of experience (worked out from your dated jobs)";
 
+/** The per-family copy's label. Carries the family ID rather than its display name on purpose: the
+ *  pretty label lives on the publication registry, and any surface that renders per-family years
+ *  will have that registry in hand — plumbing display copy through every years door just to store a
+ *  duplicate of it would be a second home for the same string. */
+const familyYearsLabel = (familyId: string) =>
+  `Years of experience in ${familyId} (worked out from your dated jobs)`;
+
 /** AC5's backstop. The stored eligibility fact is a regenerable COPY (#128 §4) — the job records
  *  underneath always win — so this recomputes from those records, COMPARES against the stored copy,
  *  counts any disagreement (`years.drift_detected`) and writes the fresh value over it. Called at
@@ -194,24 +276,45 @@ export async function syncWorkedYears(
 ): Promise<WorkedYears> {
   const worked = computeYearsWorked(blocks, read, now);
   if (worked.state === "untestable") return worked;
-  const stored = await eligibility.get(sessionId, "years-experience", ANY_FAMILY);
-  const fresh = String(worked.years);
-  if (countDrift && stored && stored.value !== fresh) incrementCounter("years.drift_detected");
-  if (!stored || stored.value !== fresh) {
+
+  // #222 — ONE writer for every scope: the career total at ANY_FAMILY plus one fact per family with
+  // at least one counting block (full credit to each family a job carries — the numbers do not sum
+  // to the total, by design). All existing years facts are read in one list() so stale family rows
+  // (a label corrected away) are removed, not left telling a number the records no longer support.
+  const familyYears = computeFamilyYears(blocks, now);
+  const fresh = new Map<string, string>([[ANY_FAMILY, String(worked.years)]]);
+  for (const [familyId, years] of familyYears) fresh.set(familyId, String(years));
+
+  const stored = new Map<string, EligibilityFact>(
+    (await eligibility.list(sessionId))
+      .filter((fact) => fact.dimension === "years-experience")
+      .map((fact) => [fact.familyId, fact]),
+  );
+  let drifted = false;
+  for (const [familyId, value] of fresh) {
+    const prior = stored.get(familyId);
+    if (prior?.value === value) continue;
+    if (prior) drifted = true;
     await eligibility.put(sessionId, {
       dimension: "years-experience",
-      familyId: ANY_FAMILY,
-      value: fresh,
-      label: WORKED_YEARS_LABEL,
+      familyId,
+      value,
+      label: familyId === ANY_FAMILY ? WORKED_YEARS_LABEL : familyYearsLabel(familyId),
     });
   }
+  for (const familyId of stored.keys()) {
+    if (fresh.has(familyId)) continue;
+    drifted = true;
+    await eligibility.remove(sessionId, "years-experience", familyId);
+  }
+  if (countDrift && drifted) incrementCounter("years.drift_detected");
   return worked;
 }
 
 /** Reads the records and re-derives the total — the shape every mutation door wants. A new number is
  *  expected here (a record just changed), so this never counts drift. */
 export async function refreshWorkedYears(
-  jobBlocks: JobBlockStore,
+  jobBlocks: Pick<JobBlockStore, "list" | "summary">,
   eligibility: EligibilityStore,
   sessionId: string,
 ): Promise<WorkedYears> {

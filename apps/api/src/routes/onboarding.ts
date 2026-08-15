@@ -38,6 +38,7 @@ import { matchTick } from "../matchtick.js";
 import { judgedMatchTick } from "../judgedScore.js";
 import type { JudgeFn, JudgePeekFn } from "../judge.js";
 import {
+  advertFamilyIdFor,
   buildJobCard,
   buildTailorState,
   CARD_RESOLUTION_CONCURRENCY,
@@ -46,7 +47,7 @@ import {
   orderCardsForReveal,
   resolveAdRequirements,
   resolveJudgement,
-  resolveUserYears,
+  resolveSessionYears,
   tailorTarget,
   withYearsShortfall,
 } from "../deck.js";
@@ -852,19 +853,18 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // session's confirmed/negative claims — no LLM, no IO beyond the two fixture loads.
     app.get("/onboarding/cards", async (req) => {
       const session = requireSession(req);
-      const [confirmed, negatives, , facts] = await discoveryReads(session.id);
+      const [confirmed, negatives, , facts, blocks] = await discoveryReads(session.id);
       const retrievalRequest = retrievalRequestForSession(session, confirmed, negatives);
       const requestFingerprint = retrievalFingerprint(retrievalRequest);
       // deckRetrieval.ts: a reusable snapshot, an in-progress marker, or an unavailable result —
       // and the background claim → retrieve → reconcile work when this process should pay for it.
       const retrieval = retrievalCoordinator.ensureRetrieval(session, retrievalRequest, requestFingerprint);
-      // #107 (E5 slice 6, D5): the SAME (dimension, familyId) scope eligibilityDiscovery.ts's
-      // years-experience question WRITES a real answer at — see resolveUserYears's own doc for why a
-      // mismatched scope would silently do nothing. Reads `facts` (already fetched above by
-      // discoveryReads) rather than a second store call — T1 (code review): one eligibility read per
-      // request, not one per thing that needs it.
+      // #222: years at BOTH scopes — the advert's family (advertFamilyIdFor: the confirmed floor,
+      // else the target-role placement) and the career total. Known zero vs unmapped fallback is
+      // resolveSessionYears's rule (deck.ts / ADR-0014 amendment 1 decision 6). Reads `facts` +
+      // `blocks` already fetched above by discoveryReads — one eligibility read per request.
       const role = session.targetTitles[0] ?? null;
-      const userYears = resolveUserYears(facts);
+      const years = resolveSessionYears(facts, blocks, await advertFamilyIdFor(session, deps.placeFamily));
       const langs = readingLanguages(session);
       const postings = eligiblePostings(langs, sessionPostings(session, requestFingerprint));
       // #104: every eligible posting gets a requirement set now, not only the hand-curated ones —
@@ -922,12 +922,12 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           // #107 (D5): the years-experience shortfall, applied at read time — see withYearsShortfall's
           // own doc. A no-op pass-through when there's no judgement or the visitor's years were never
           // asked, so every pre-#107 case is byte-for-byte unchanged.
-          withYearsShortfall(entry.judgement, entry.adReq, userYears),
+          withYearsShortfall(entry.judgement, entry.adReq, years),
           // #117 must-fix 2: a real paid attempt that missed the budget is `pending` (genuinely in
           // flight, will self-heal into the store); one the bound never attempted at all is
           // `unscored` (nothing coming unless a later request's own bound selects it).
           !judgeWired ? "estimated" : entry.attempted ? "pending" : "unscored",
-          userYears !== null, // #162 AC6: no usable history → the years bar reads as untested, not unmet
+          years, // #162 AC6 untested-bar display + #222 confidence attenuation, both inside buildJobCard
         ),
         curated: entry.adReq.curated,
       }));
@@ -1015,7 +1015,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         return reply
           .status(409)
           .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-      const [confirmed, negatives, , facts] = await discoveryReads(session.id);
+      const [confirmed, negatives, , facts, blocks] = await discoveryReads(session.id);
       const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
       const target = await tailorTarget(session, adId, deps.readAd, fingerprint);
       if (!target)
@@ -1033,13 +1033,13 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       }
       const role = session.targetTitles[0] ?? null;
       const rawJudgement = await resolveJudgement(adReq, confirmed, deps.judge);
-      // #107 (D5): the years-experience shortfall, applied at read time — see applyYearsShortfall's
-      // own doc (judgedScore.ts). Reads `facts` already fetched above — T1: one eligibility read.
+      // #107 (D5) / #222: the years shortfall at the bar's own scope — see applyYearsShortfall
+      // (judgedScore.ts) + resolveSessionYears (deck.ts). Reads `facts` + `blocks` fetched above.
       // #162 AC6: null years means no readable work history, so this surface must report the years
       // bar untested exactly as the deck card does.
-      const userYears = resolveUserYears(facts);
-      const judgement = withYearsShortfall(rawJudgement, adReq, userYears);
-      const state = buildTailorState(posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, userYears !== null);
+      const years = resolveSessionYears(facts, blocks, await advertFamilyIdFor(session, deps.placeFamily));
+      const judgement = withYearsShortfall(rawJudgement, adReq, years);
+      const state = buildTailorState(posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, years);
       state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
       return state;
     });
@@ -1095,7 +1095,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         if (no) await deps.claims.answerNegative(session.id, claim);
         else await deps.claims.add(session.id, claim);
 
-        const [confirmed, negatives, , facts] = await discoveryReads(session.id);
+        const [confirmed, negatives, , facts, blocks] = await discoveryReads(session.id);
         // #107 (M3, code review): a target that has become withdrawn (this answer's own claim is
         // still recorded — harmless, tied to this ad's own claim id) behaves EXACTLY like no target
         // at all from here on: no rejection message, nothing further asserted about a job the visitor
@@ -1111,15 +1111,15 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         // — the answer just added changed the fact set, so this is a fresh (adId, fingerprint), never
         // a cache hit reusing a stale judgement. Falls back to matchTick when no judge is wired.
         const rawJudgement = await resolveJudgement(adReq, confirmed, deps.judge);
-        // #107 (D5): the years-experience shortfall, applied at read time — see applyYearsShortfall's
-        // own doc (judgedScore.ts). Reads `facts` already fetched above — T1: one eligibility read.
-        const userYears = resolveUserYears(facts);
-        const judgement = withYearsShortfall(rawJudgement, adReq, userYears);
+        // #107 (D5) / #222: the years-experience shortfall at the bar's own scope — see
+        // applyYearsShortfall (judgedScore.ts). Reads `facts` + `blocks` already fetched above.
+        const years = resolveSessionYears(facts, blocks, await advertFamilyIdFor(session, deps.placeFamily));
+        const judgement = withYearsShortfall(rawJudgement, adReq, years);
         await deps.sessions.raiseTailorFloor(
           session.id,
           judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
         );
-        const state = buildTailorState(posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, userYears !== null);
+        const state = buildTailorState(posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, years);
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },

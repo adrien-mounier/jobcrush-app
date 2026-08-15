@@ -158,6 +158,9 @@ const { app } = buildServer({
       metered("family-placement", familyPlacementLlm() ?? llm),
       publishedFamilies(productionFamilyFloors),
       jobBlocks,
+      // #222: labeling changes what the per-family years facts should say — the labeler re-derives
+      // them itself, like every other door that changes a job record.
+      eligibility,
     ),
     // #163: the preview step reads which dimensions the matched posting gates on (a presentation
     // read of the ad-requirements store — never a fresh model call) so a declared fact the advert

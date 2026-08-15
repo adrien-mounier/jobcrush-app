@@ -171,10 +171,14 @@ describe("#107 applyYearsShortfall", () => {
     sourceSpan: "8+ years of IT experience",
   };
   const adWithYears: AdRequirementsV1 = { ...AD, requirements: [...AD.requirements, yearsReq] };
+  // #222: the shortfall now reads years AT THE BAR'S OWN SCOPE. These pre-#222 cases state no
+  // yearsScope (= family scope), so the same number at both scopes reproduces the old single-number
+  // behaviour exactly.
+  const at = (years: number | null) => ({ family: years, total: years });
 
   it("leaves every verdict untouched when userYears is null (never asked) — an unknown is never a penalty", () => {
     const verdicts = [verdict("own-budget", 1), verdict("lead-team", 1), verdict("certification", 1), verdict("years-bar", 0.5)];
-    expect(applyYearsShortfall(verdicts, adWithYears, null)).toEqual(verdicts);
+    expect(applyYearsShortfall(verdicts, adWithYears, at(null))).toEqual(verdicts);
   });
 
   // code-review M2: ATTENUATES the model's own fit (modelFit * min(1, years/bar)), never replaces
@@ -182,15 +186,15 @@ describe("#107 applyYearsShortfall", () => {
   // replace would give 0.5 regardless of the base; attenuation gives 0.8 * 0.5 = 0.4.
   it("multiplies the model's own fit by min(1, userYears/bar) — attenuates, never replaces", () => {
     const verdicts = [verdict("years-bar", 0.8)];
-    const [adjusted] = applyYearsShortfall(verdicts, adWithYears, 4);
+    const [adjusted] = applyYearsShortfall(verdicts, adWithYears, at(4));
     expect(adjusted!.fit).toBeCloseTo(0.4); // 0.8 * (4/8)
   });
 
   // AC4's own case: 5 years and 9 years never score identically for the same non-zero model fit.
   it("5 years and 9 years never score identically, for the same non-zero model fit — neither is zero", () => {
     const modestFit = [verdict("years-bar", 0.3)]; // a real, non-zero judged read
-    const five = applyYearsShortfall(modestFit, adWithYears, 5)[0]!.fit;
-    const nine = applyYearsShortfall(modestFit, adWithYears, 9)[0]!.fit;
+    const five = applyYearsShortfall(modestFit, adWithYears, at(5))[0]!.fit;
+    const nine = applyYearsShortfall(modestFit, adWithYears, at(9))[0]!.fit;
     expect(five).toBeGreaterThan(0);
     expect(nine).toBeGreaterThan(0);
     expect(five).not.toBe(nine);
@@ -202,8 +206,8 @@ describe("#107 applyYearsShortfall", () => {
   // over the bar is left EXACTLY as the model scored it, never raised.
   it("leaves the model's own fit EXACTLY unmodified at or over the bar — never inflates a low judged score", () => {
     const lowJudgedFit = [verdict("years-bar", 0.2)]; // the judge scored this low on its own merits
-    const nine = applyYearsShortfall(lowJudgedFit, adWithYears, 9)[0]!.fit; // >= bar (8)
-    const ten = applyYearsShortfall(lowJudgedFit, adWithYears, 10)[0]!.fit; // further over the bar
+    const nine = applyYearsShortfall(lowJudgedFit, adWithYears, at(9))[0]!.fit; // >= bar (8)
+    const ten = applyYearsShortfall(lowJudgedFit, adWithYears, at(10))[0]!.fit; // further over the bar
     expect(nine).toBe(0.2);
     expect(ten).toBe(0.2);
   });
@@ -219,7 +223,7 @@ describe("#107 applyYearsShortfall", () => {
     };
     const adWithZeroBar: AdRequirementsV1 = { ...AD, requirements: [...AD.requirements, zeroBarReq] };
     const verdicts = [verdict("years-zero-bar", 0.5)];
-    expect(applyYearsShortfall(verdicts, adWithZeroBar, 5)).toEqual(verdicts);
+    expect(applyYearsShortfall(verdicts, adWithZeroBar, at(5))).toEqual(verdicts);
   });
 
   // A negative comparable.value is impossible in practice, but the oracle's `isNumber` never rules it
@@ -232,18 +236,18 @@ describe("#107 applyYearsShortfall", () => {
       comparable: { op: ">=", value: -5 },
     };
     const adWithNegativeBar: AdRequirementsV1 = { ...AD, requirements: [...AD.requirements, negativeBarReq] };
-    const [adjusted] = applyYearsShortfall([verdict("years-negative-bar", 0.9)], adWithNegativeBar, 5);
+    const [adjusted] = applyYearsShortfall([verdict("years-negative-bar", 0.9)], adWithNegativeBar, at(5));
     expect(adjusted!.fit).toBe(0);
   });
 
   it("zero years fully zeroes the fit (a 0 multiplier), regardless of the model's own fit", () => {
-    const [adjusted] = applyYearsShortfall([verdict("years-bar", 0.9)], adWithYears, 0);
+    const [adjusted] = applyYearsShortfall([verdict("years-bar", 0.9)], adWithYears, at(0));
     expect(adjusted!.fit).toBe(0);
   });
 
   it("leaves a non-years-experience requirement's verdict untouched", () => {
     const verdicts = [verdict("own-budget", 0.4)];
-    expect(applyYearsShortfall(verdicts, adWithYears, 5)).toEqual(verdicts);
+    expect(applyYearsShortfall(verdicts, adWithYears, at(5))).toEqual(verdicts);
   });
 
   it("leaves a years-experience requirement with a '<=' or '==' bar untouched — no MINIMUM demand to score a shortfall against", () => {
@@ -257,7 +261,7 @@ describe("#107 applyYearsShortfall", () => {
     };
     const adWithLte: AdRequirementsV1 = { ...AD, requirements: [...AD.requirements, lteReq] };
     const verdicts = [verdict("years-lte", 0.7)];
-    expect(applyYearsShortfall(verdicts, adWithLte, 5)).toEqual(verdicts);
+    expect(applyYearsShortfall(verdicts, adWithLte, at(5))).toEqual(verdicts);
   });
 
   it("leaves a years-experience requirement with no comparable bar at all untouched", () => {
@@ -270,13 +274,42 @@ describe("#107 applyYearsShortfall", () => {
     };
     const adNoBar: AdRequirementsV1 = { ...AD, requirements: [...AD.requirements, noBarReq] };
     const verdicts = [verdict("years-no-bar", 0.3)];
-    expect(applyYearsShortfall(verdicts, adNoBar, 5)).toEqual(verdicts);
+    expect(applyYearsShortfall(verdicts, adNoBar, at(5))).toEqual(verdicts);
   });
 
   it("leaves reason and supportingFactId untouched — only fit changes", () => {
     const verdicts = [verdict("years-bar", 0.9, "some-fact")];
-    const [adjusted] = applyYearsShortfall(verdicts, adWithYears, 4);
+    const [adjusted] = applyYearsShortfall(verdicts, adWithYears, at(4));
     expect(adjusted!.supportingFactId).toBe("some-fact");
     expect(adjusted!.reason).toBe("test reason");
+  });
+
+  // #222 — each bar reads its OWN scope; a compound advert (two scoped requirements) sees both
+  // numbers at once. A null at one scope leaves only that scope's bars untouched.
+  describe("#222 scoped reading", () => {
+    const familyBar: AdRequirementV1 = { ...yearsReq, id: "family-bar", comparable: { op: ">=", value: 5 } };
+    const totalBar: AdRequirementV1 = { ...yearsReq, id: "total-bar", yearsScope: "total" };
+    const compoundAd: AdRequirementsV1 = { ...AD, requirements: [familyBar, totalBar] };
+
+    it("a family bar reads the family number, a total bar the total — both at once", () => {
+      const verdicts = [verdict("family-bar", 1), verdict("total-bar", 1)];
+      const adjusted = applyYearsShortfall(verdicts, compoundAd, { family: 4, total: 10 });
+      expect(adjusted.find((v) => v.requirementId === "family-bar")!.fit).toBeCloseTo(0.8); // 4/5
+      expect(adjusted.find((v) => v.requirementId === "total-bar")!.fit).toBe(1); // 10 >= 8
+    });
+
+    it("a known ZERO at the family scope zeroes the family bar and leaves the total bar alone", () => {
+      const verdicts = [verdict("family-bar", 1), verdict("total-bar", 1)];
+      const adjusted = applyYearsShortfall(verdicts, compoundAd, { family: 0, total: 10 });
+      expect(adjusted.find((v) => v.requirementId === "family-bar")!.fit).toBe(0);
+      expect(adjusted.find((v) => v.requirementId === "total-bar")!.fit).toBe(1);
+    });
+
+    it("a null at one scope leaves that scope's bars untouched — an unknown is never a penalty", () => {
+      const verdicts = [verdict("family-bar", 0.6), verdict("total-bar", 0.6)];
+      const adjusted = applyYearsShortfall(verdicts, compoundAd, { family: null, total: 4 });
+      expect(adjusted.find((v) => v.requirementId === "family-bar")!.fit).toBe(0.6); // untouched
+      expect(adjusted.find((v) => v.requirementId === "total-bar")!.fit).toBeCloseTo(0.3); // 0.6 * 4/8
+    });
   });
 });

@@ -67,6 +67,11 @@ const JOURNEYS = [
   "language-ladder-journey.mjs",
   "pending-unscored-card-journey.mjs",
   "master-cv-dates-note-journey.mjs",
+  // #222: the only journey that can catch the family-scoped years reading going dead on the
+  // shipped journey — the exact regression its own QA gate found once already (a production
+  // caller whose guard could never be true). A/B: a placed target role reads family years, an
+  // unmapped one falls back to the career total. ~3 min against the fake-model API.
+  "family-years-scope-journey.mjs",
 ];
 
 let failed = 0;

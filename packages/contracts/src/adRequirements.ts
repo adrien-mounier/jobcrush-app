@@ -116,6 +116,14 @@ export const AdRequirementV1 = z
     // this" (#165: only that withdraws), so this field's whole job is to make the level question the
     // advert triggers say WHY it is being asked, in the advert's own terms.
     eligibilityLevel: LanguageLevel.optional(),
+    // #222 — additive v1 extension, same shape as the two above (not a v2: every stored v1 payload
+    // still validates unchanged). WHICH SCOPE of the visitor's worked-out years a years bar tests:
+    // "family" (years doing this advert's kind of work — the plain reading of "5+ years' experience"
+    // on a role advert, and the default when absent) or "total" (the whole career — "8+ years of
+    // professional/IT experience"). Set only alongside eligibilityDimension "years-experience". A
+    // compound sentence ("8+ years of IT including 5+ as a PM") is TWO requirements, one per scope —
+    // that is how a compound bar sees both numbers at once (ADR-0014 consequences).
+    yearsScope: z.enum(["family", "total"]).optional(),
     // The advert's own words this requirement was drawn from, so it can be shown to be the advert's
     // and not the model's — the provenance pin. A literal excerpt (this codebase's existing
     // source_quote convention), not a character span: reliable for a model to produce, and directly

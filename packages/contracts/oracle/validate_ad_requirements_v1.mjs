@@ -22,6 +22,8 @@ const COMPARE_OPS = [">=", "<=", "=="];
 // side only (the explicit "I don't speak this"); the contract accepts it here rather than growing a
 // second enum, and adReader.ts's clamp is what keeps it off a read requirement.
 const LANGUAGE_LEVELS = ["not-at-all", "a-few-words", "gets-by", "meetings", "negotiate", "native"];
+// #222 — the two scopes a years bar can test (see the yearsScope check below).
+const YEARS_SCOPES = ["family", "total"];
 
 function exactKeys(e, value, keys, at) {
   if (!isObject(value)) return;
@@ -73,6 +75,7 @@ export function validateAdRequirementsV1(value) {
         "eligibilityDimension",
         "eligibilitySubject",
         "eligibilityLevel",
+        "yearsScope",
         "sourceSpan",
       ],
       at,
@@ -109,6 +112,14 @@ export function validateAdRequirementsV1(value) {
     e.require(
       req.eligibilityLevel === undefined || oneOf(req.eligibilityLevel, LANGUAGE_LEVELS),
       `${at}.eligibilityLevel is invalid`,
+    );
+    // #222 — additive v1 field: which scope of the visitor's worked-out years a years bar tests
+    // ("family" = years doing this advert's kind of work, the default when absent; "total" = the
+    // whole career). Optional at the CONTRACT level; only meaningful beside a years-experience
+    // eligibilityDimension.
+    e.require(
+      req.yearsScope === undefined || oneOf(req.yearsScope, YEARS_SCOPES),
+      `${at}.yearsScope is invalid`,
     );
     if (req.comparable !== undefined) {
       const c = req.comparable;

@@ -28,6 +28,8 @@ import type { LlmClient } from "./llm.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 import type { SessionRecord } from "./sessions.js";
+import type { EligibilityStore } from "./eligibility.js";
+import { refreshWorkedYears } from "./yearsWorked.js";
 import { incrementCounter, recordUnmappedLabel } from "./counters.js";
 
 const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts", "family-labeler.md");
@@ -188,15 +190,10 @@ function assemble(
  *  A finer curve would be inventing precision the ordinal does not carry, which is the same mistake
  *  decision 5 rejects a float for.
  *
- *  NO PRODUCTION CALLER YET, and that is a known half-delivery rather than an oversight. #231 AC6
- *  ("a lower confidence level lowers the card's score and never the years fact") asks for this rule,
- *  but the site that would apply it — scoring an advert against the visitor's years IN THAT ADVERT'S
- *  FAMILY — is #222, which this ticket unblocks and which cannot land before it. The other half of
- *  AC6 is real today and tested: nothing about confidence reaches the years fact.
- *
- *  It ships now rather than with #222 because the ordinal is STORED from today: a placement written
- *  this week is read by #222's arithmetic next week, so the curve those stored levels will be judged
- *  against has to be decided once, here, beside the thing that produces them.
+ *  The production caller is buildJobCard (deck.ts, #222): when a card's score leaned on a
+ *  per-family years fact, the weakest contributing placement's level sinks the card's matchPct.
+ *  Both halves of #231 AC6 are now real and tested — the card sinks, and nothing about confidence
+ *  ever reaches the years fact.
  *
  *  THE WEIGHTS ARE THE OWNER'S (2026-08-15), not a default to tune away. Proposed here, then
  *  confirmed against the worked case: an 80% card reads 72% at `likely` and 60% at `possible`, which
@@ -358,9 +355,14 @@ export function makeFamilyPlacer(
 export function makeJobBlockLabeler(
   llm: LlmClient,
   families: PublishedFamily[],
-  store: Pick<JobBlockStore, "list" | "label">,
+  store: Pick<JobBlockStore, "list" | "label" | "summary">,
+  // #222 — labeling IS a door that changes a job record (the sixth fact), so the per-family years
+  // facts are re-derived after it like after any other door. Optional so pre-#222 test builds that
+  // only assert placements keep working unchanged; production wiring passes it.
+  eligibility?: EligibilityStore,
 ): (sessionId: string) => Promise<void> {
   return async (sessionId) => {
+    let labeled = false;
     for (const block of await store.list(sessionId)) {
       if (block.kind !== "job") continue; // its CORRECTED kind — see this function's own doc
       if (block.family.value) continue; // already answered (labeled or corrected) — never re-spent
@@ -374,7 +376,10 @@ export function makeJobBlockLabeler(
         // so persisting an unmapped the model never actually gave would make one bad minute
         // permanent. Left unlabeled instead: reads as unmapped (#221 AC3) and is placed for real on
         // the next run.
-        if (!degraded) await store.label(sessionId, block.id, placement);
+        if (!degraded) {
+          await store.label(sessionId, block.id, placement);
+          labeled = true;
+        }
       } catch (err) {
         incrementCounter("familyLabeler.call_failed");
         console.error(
@@ -382,6 +387,10 @@ export function makeJobBlockLabeler(
         );
       }
     }
+    // #222 — re-derive the per-family years facts the labels just made true. Without this, the deck
+    // read between labeling and the next correction door would see no family facts at all and score
+    // every advert against a "known zero" that is really an unsynced copy.
+    if (labeled && eligibility) await refreshWorkedYears(store, eligibility, sessionId);
   };
 }
 

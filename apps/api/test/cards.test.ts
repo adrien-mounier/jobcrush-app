@@ -341,9 +341,11 @@ describe("#19 GET /onboarding/cards", () => {
         matchPct: 42,
         breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 1, total: 5 } },
       },
+      // #222: the compound years sentence became two scoped bars (total 8 / family 5), so this ad
+      // carries one more desirable requirement than before and the token tick shifts with it.
       "2026-07-05_endava-vietnam_senior-project-manager": {
-        matchPct: 29,
-        breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 4 } },
+        matchPct: 31,
+        breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 5 } },
       },
       "2026-07-05_hire-feed_project-manager-remote": {
         matchPct: 49,

@@ -115,9 +115,19 @@
       {
         "id": "it-experience-years",
         "band": "nice-to-have",
-        "requirement": "8+ years of IT experience including 5+ years as a Project Manager",
+        "requirement": "8+ years of IT experience",
         "comparable": { "op": ">=", "value": 8 },
         "eligibilityDimension": "years-experience",
+        "yearsScope": "total",
+        "sourceSpan": "8+ years of IT experience, including 5+ years in Project Manager role."
+      },
+      {
+        "id": "project-manager-years",
+        "band": "nice-to-have",
+        "requirement": "5+ years as a Project Manager",
+        "comparable": { "op": ">=", "value": 5 },
+        "eligibilityDimension": "years-experience",
+        "yearsScope": "family",
         "sourceSpan": "8+ years of IT experience, including 5+ years in Project Manager role."
       }
     ]

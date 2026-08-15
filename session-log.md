@@ -2,6 +2,50 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-15 (session 126) `/implement 222` — years per family, read at the advert's own scope
+
+**Shipped — QA gate GO on the re-run, after a real NO-GO.** All 14 ACs pass; 1416 tests + typecheck
+green; browser journey left in Tier 2.
+
+- **The single writer went per-family.** `syncWorkedYears` now writes one `years-experience` fact
+  per family with a dated job plus the career total at `ANY_FAMILY`, removes stale family rows (a
+  label corrected away), and every door re-derives — including a NEW door: the labeler itself
+  (`makeJobBlockLabeler` refreshes after writing placements, or the deck would have read a false
+  known-zero between labeling and the next correction).
+- **Bars are scoped by the contract, not guessed.** Additive v1 field `yearsScope`
+  ("family" default / "total"), zod + oracle moved together, golden-tested. The ad-reader prompt now
+  splits a compound sentence into two scoped requirements; the motivating endava fixture was split
+  accordingly (its pinned card characterization moved 29 → 31, denominator +1).
+- **The advert's family is NOT `familyFit`.** That field is the ad reader's free text — keying a
+  closed-vocabulary fact on it would be word-matching, the weakness ADR-0014 d1 exists to remove.
+  Resolution: the session's pinned floor, else the target-role placement via the existing
+  `placeFamily` seam (`advertFamilyIdFor`, deck.ts) — the one point to swap when adverts gain real
+  placements.
+- 🔑 **The first gate run was NO-GO, and the finding was exactly this ticket's own warning one level
+  down.** The scoped reading originally keyed on `session.discovery.floor`, written only by the
+  production-discovery routes — which the shipped web client never calls. Every test passed because
+  each seeded the floor itself; on the real journey the guard was permanently false, so AC13's
+  "production caller" had a caller whose guard could never be true. Fixed via the target-role
+  placement fallback; the gate re-verified **empirically** (A/B in the browser: placed role scored
+  47% where the unmapped control scored 49% on the same CV — the bar read family years).
+- **Confidence attenuation is live** at the owner's weights (x1.0/x0.9/x0.75), applied to the deck
+  card's matchPct when the score leaned on a family fact; nothing filtered, fact untouched, level
+  never printed. Aggregation across several placed jobs: the WEAKEST contributor (marked with its
+  ceiling in `familyPlacementConfidence`).
+- **Tier 2 gains `family-years-scope-journey.mjs`** — the only journey that can catch the scoped
+  reading going dead on the shipped journey again (~3 min).
+- **Two decisions escalated to the owner, recorded here per the gate's disagreement rule:**
+  1. **Deck vs tailor divergence (now live, not latent).** The deck attenuates by confidence; the
+     tailor deliberately does not (`buildTailorState` strips it — the tailor floor stores the raw
+     judged number and would swallow it anyway). Same advert can read 75% on the deck and 100% on
+     tailor once a placement comes back `likely`/`possible`. Decide: attenuate the tailor floor too,
+     or accept and record the divergence.
+  2. **New paid call on the deck route.** Resolving the target-role placement costs one metered
+     `family-placement` model call per session (cached per session+role; degraded answers retried).
+     Previously that call only happened on the unreachable production-discovery route.
+  - Recorded, not escalated: a family job with an unknown end writes a family fact of 0 (same
+    behaviour as the total; the date-hole question is the remedy).
+
 ## 2026-08-15 (session 125) `/implement 231` — several families per job, nobody is asked, confidence on the ranking
 
 **Shipped — `34bdd3c`, QA gate GO.** #231 built amendment 1. #222 is now unblocked and is the next

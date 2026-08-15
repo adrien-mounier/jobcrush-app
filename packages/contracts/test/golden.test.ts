@@ -260,6 +260,30 @@ describe("Ad requirements v1 (#102)", () => {
     expect(validateAdRequirementsV1(valid).ok).toBe(true);
     expect(AdRequirementsV1.parse(valid).requirements[3]!.eligibilityLevel).toBeUndefined();
   });
+
+  // #222 — a years bar may name WHICH SCOPE of the visitor's worked-out years it tests ("family" =
+  // years doing this advert's kind of work, "total" = the whole career). Additive to v1 exactly as
+  // eligibilitySubject/eligibilityLevel were: every already-stored payload validates unchanged with
+  // the field absent (which reads as family scope — the plain meaning of a years bar on a role
+  // advert).
+  it("a years bar may carry its scope, and both homes agree on the vocabulary", () => {
+    for (const scope of ["family", "total"]) {
+      const value = structuredClone(valid);
+      value.requirements[2].yearsScope = scope;
+      expect(validateAdRequirementsV1(value).ok).toBe(true);
+      expect(AdRequirementsV1.safeParse(value).success).toBe(true);
+      expect(AdRequirementsV1.parse(value).requirements[2]!.yearsScope).toBe(scope);
+    }
+
+    const junk = structuredClone(valid);
+    junk.requirements[2].yearsScope = "career";
+    expect(validateAdRequirementsV1(junk).ok).toBe(false);
+    expect(AdRequirementsV1.safeParse(junk).success).toBe(false);
+
+    // Absent is valid — the shape every pre-#222 stored payload has.
+    expect(validateAdRequirementsV1(valid).ok).toBe(true);
+    expect(AdRequirementsV1.parse(valid).requirements[2]!.yearsScope).toBeUndefined();
+  });
 });
 
 describe("CandidateClaims v1", () => {

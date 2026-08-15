@@ -7,11 +7,16 @@
 import type {
   AdRequirementsV1,
   CardScoreProvenance,
+  FamilyPlacement,
   JobCardV1,
+  PlacementConfidence,
   ScoredJobCardV1,
 } from "@jobcrush/contracts";
+import { soleConfirmedFamily } from "./adaptiveDiscovery.js";
 import type { ClaimRecord } from "./claims.js";
+import type { JobBlockView } from "./jobBlockStore.js";
 import type { SessionRecord } from "./sessions.js";
+import { familyPlacementConfidence, hasUnplacedWork } from "./yearsWorked.js";
 import { lookupAdRequirements, loadFamilyFloor } from "./e5stub.js";
 import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
@@ -27,11 +32,14 @@ import {
 } from "./matchtick.js";
 import {
   applyYearsShortfall,
+  isFamilyScopeYearsBar,
   judgedBreakdown,
   judgedMatchTick,
   judgedPickHitClause,
   judgedUncoveredRequirements,
+  type YearsAtScopes,
 } from "./judgedScore.js";
+import { attenuateForConfidence } from "./familyLabeler.js";
 import type { JudgeFact, JudgeFn, JudgePeekFn } from "./judge.js";
 import type { JudgementRecord } from "./judgementStore.js";
 import {
@@ -349,8 +357,7 @@ export async function resolveJudgement(
  *
  *  #162: the value is no longer a band the visitor tapped at a job-family scope; it is WORKED OUT
  *  from the dated job records (yearsWorked.ts) and stored as a regenerable copy at the GLOBAL scope
- *  (ANY_FAMILY) — a career total, not a per-family one (#126 AC2 deferred the scope). So this reads
- *  that one fact, and needs neither the session nor the role.
+ *  (ANY_FAMILY) — the career total. #222 layers the family scope on top: see resolveSessionYears.
  *
  *  Reads `facts` — whatever the caller already fetched via discoveryReads — rather than its own
  *  eligibility.numeric() store call. Code review T1: the tailor path was making THREE serialised
@@ -369,16 +376,84 @@ export function resolveUserYears(facts: readonly EligibilityFact[]): number | nu
   return Number.isFinite(years) ? years : null;
 }
 
+/** #222 — the visitor's years AT BOTH SCOPES, plus what the family number rests on. The one
+ *  resolution of ADR-0014 amendment 1 decision 6, computed once per request and handed to every
+ *  card. `familySource` says which rule produced `family`:
+ *    - "fact":     the advert's family has a per-family years fact — placements back this number,
+ *                  so their confidence (`familyConfidence`) may attenuate the CARD's score
+ *                  (never the fact itself).
+ *    - "zero":     every counting job is placed and none in the advert's family — a KNOWN zero,
+ *                  scored as the real number it is, never softened to the career total.
+ *    - "fallback": at least one counting job is unplaced/unmapped, so some years are genuinely
+ *                  unaccounted for — the career total stands in (too generous, never too strict;
+ *                  an unknown never lowers anything).
+ *    - "unscoped": no advert family to read at (no confirmed session family) — the pre-#222
+ *                  career-total reading, unchanged.
+ *
+ *  `advertFamilyId` comes from advertFamilyIdFor (below): the confirmed floor when one is pinned,
+ *  else the target-role placement — the only closed-vocabulary family a session's deck carries
+ *  today. `adRequirements.familyFit` is deliberately NOT used: it is the ad reader's own free
+ *  text, and keying a fact on it would be word-matching across vocabularies — the exact weakness
+ *  ADR-0014 decision 1 exists to remove. When adverts gain a closed-vocabulary placement of their
+ *  own, these two functions are the one resolution point to swap. */
+export interface SessionYears extends YearsAtScopes {
+  familySource: "fact" | "zero" | "fallback" | "unscoped";
+  familyConfidence: PlacementConfidence | null;
+}
+
+/** #222 QA finding 1 — the advert's family must be resolvable on the SHIPPED journey, not only
+ *  after the production-discovery flow (which the current web client never walks). The confirmed
+ *  floor wins when the production checkpoint pinned one; otherwise the TARGET-ROLE placement from
+ *  the same placeFamily seam the production checkpoint itself uses (makeFamilyPlacer: cached per
+ *  session+role, degrades to unmapped on any failure, never throws). Null = no closed-vocabulary
+ *  family for this session → resolveSessionYears's "unscoped" career-total fallback, the pre-#222
+ *  reading. The deck being the target role's deck is the same assumption retrieval itself makes. */
+export async function advertFamilyIdFor(
+  session: Readonly<SessionRecord>,
+  placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>,
+): Promise<string | null> {
+  if (session.discovery.floor) return session.discovery.floor.familyId;
+  return soleConfirmedFamily(await placeFamily(session))?.familyId ?? null;
+}
+
+export function resolveSessionYears(
+  facts: readonly EligibilityFact[],
+  blocks: readonly JobBlockView[],
+  advertFamilyId: string | null,
+): SessionYears {
+  const total = resolveUserYears(facts);
+  if (total === null) return { total, family: null, familySource: "unscoped", familyConfidence: null };
+  if (advertFamilyId === null) {
+    return { total, family: total, familySource: "unscoped", familyConfidence: null };
+  }
+  const fact = facts.find(
+    (f) => f.dimension === "years-experience" && f.familyId === advertFamilyId,
+  );
+  const factYears = fact === undefined ? null : Number(fact.value);
+  if (factYears !== null && Number.isFinite(factYears)) {
+    return {
+      total,
+      family: factYears,
+      familySource: "fact",
+      familyConfidence: familyPlacementConfidence(blocks, advertFamilyId),
+    };
+  }
+  if (hasUnplacedWork(blocks)) {
+    return { total, family: total, familySource: "fallback", familyConfidence: null };
+  }
+  return { total, family: 0, familySource: "zero", familyConfidence: null };
+}
+
 /** #107 (D5) — applies judgedScore.ts's applyYearsShortfall (see its own doc for the attenuation
  *  rule and why it can only ever lower a score) on top of whatever resolveJudgement returned, at READ
  *  TIME only; never persisted. A plain pass-through when there's nothing to adjust. */
 export function withYearsShortfall(
   judgement: JudgementRecord | null,
   adReq: AdRequirementsV1,
-  userYears: number | null,
+  years: SessionYears,
 ): JudgementRecord | null {
-  if (!judgement || userYears === null) return judgement;
-  return { ...judgement, verdicts: applyYearsShortfall(judgement.verdicts, adReq, userYears) };
+  if (!judgement || (years.family === null && years.total === null)) return judgement;
+  return { ...judgement, verdicts: applyYearsShortfall(judgement.verdicts, adReq, years) };
 }
 
 /** Pure composition, no LLM: matchtick.ts (or, when a judgement is available, judgedScore.ts) scores
@@ -418,7 +493,7 @@ export function buildJobCard(
   negatives: ClaimRecord[],
   judgement: JudgementRecord | null,
   unresolvedScored: "estimated",
-  yearsTested?: boolean,
+  years?: SessionYears,
 ): ScoredJobCard;
 export function buildJobCard(
   posting: Posting,
@@ -427,7 +502,7 @@ export function buildJobCard(
   negatives: ClaimRecord[],
   judgement: JudgementRecord | null,
   unresolvedScored: "pending" | "unscored" | "estimated",
-  yearsTested?: boolean,
+  years?: SessionYears,
 ): JobCard;
 export function buildJobCard(
   posting: Posting,
@@ -440,11 +515,13 @@ export function buildJobCard(
   // "estimated" from the tailor surface always, and from the deck route too when no judge is wired
   // at all.
   unresolvedScored: "pending" | "unscored" | "estimated",
-  // #162 AC6 — false when this session has NO usable work history (resolveUserYears === null), so
-  // every years-of-experience bar on this advert went untested rather than unmet. Defaults true:
-  // a caller that never had a reason to think otherwise claims nothing new.
-  yearsTested = true,
+  // #222 — the visitor's years at both scopes (resolveSessionYears). Absent = a caller with no
+  // years context, which claims nothing new: every bar reads as tested (the pre-#162 default).
+  // total === null is #162 AC6's "no usable work history": every years bar on this advert went
+  // untested rather than unmet.
+  years?: SessionYears,
 ): JobCard {
+  const yearsTested = years === undefined || years.total !== null;
   const negativeIds = negativeRequirementIds(adReq, negatives);
   // Named on the card, never folded into the score: an unknown is not a shortfall.
   const notTested = yearsTested
@@ -485,10 +562,24 @@ export function buildJobCard(
   const dontYet = (judgement ? judgedUncoveredRequirements(judgement.verdicts, adReq) : uncoveredRequirements(confirmed, adReq))
     .filter((r) => !negativeIds.has(r.id) && !notTestedIds.has(r.id))
     .map((r) => ({ id: r.id, band: r.band, requirement: r.requirement }));
+  // #222 / ADR-0014 amendment 1 decision 5 — the confidence attenuation's PRODUCTION CALLER (#231
+  // AC6's other half). When this card's score leaned on a per-family years FACT (a family-scope
+  // years bar tested against real placements), the weakest contributing placement's ordinal sinks
+  // the whole card's score at the owner's weights (x1.0 / x0.9 / x0.75): an 80% card reads 72% at
+  // `likely`, 60% at `possible`. Ranking only — the years fact is untouched, nothing is filtered,
+  // and no surface prints the level. A zero, fallback, or unscoped family number rests on no
+  // placement, so there is nothing for a confidence to hedge — left alone. Judged path only:
+  // family-scoped years never reach the deterministic estimated tick.
+  const leansOnFamilyFact =
+    years?.familySource === "fact" &&
+    years.familyConfidence !== null &&
+    adReq.requirements.some(isFamilyScopeYearsBar);
+  const attenuate = (pct: number): number =>
+    leansOnFamilyFact && years?.familyConfidence ? attenuateForConfidence(pct, years.familyConfidence) : pct;
   return {
     ...base,
     scored: judgement ? "judged" : "estimated",
-    matchPct: judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
+    matchPct: judgement ? attenuate(judgedMatchTick(judgement.verdicts, adReq)) : matchTick(confirmed, adReq),
     breakdown: judgement ? judgedBreakdown(judgement.verdicts, adReq) : matchBreakdown(confirmed, adReq),
     // #23 D1, now shared: pickOpenClause is negative-blind (it only knows the ad/coverage relation),
     // so it can keep naming a requirement the visitor just declined. Take the open clause from the
@@ -659,7 +750,9 @@ export function buildTailorState(
   // #162 AC6, review must-fix: the tailor surface renders the SAME advert as the deck, so it must
   // reach the same verdict on whether the years bar could be tested. Without this it defaulted to
   // "tested" and one visitor saw the bar named untested on the deck and silently missing here.
-  yearsTested = true,
+  // #222: now the full years-at-scopes resolution, so family-scope bars test the same number here
+  // as on the deck (the route applies withYearsShortfall before passing `judgement` in).
+  years?: SessionYears,
 ): TailorState {
   const matchPct = Math.max(
     judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
@@ -677,7 +770,12 @@ export function buildTailorState(
   // card on demand with a full budget (resolveJudgement's default deadline above), so there is no
   // bound here to be excluded by; a failed/timed-out call still shows today's deterministic number,
   // now labelled rather than silent.
-  const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated", yearsTested);
+  // Confidence deliberately STRIPPED here: attenuation is a deck-RANKING device (ADR-0014
+  // amendment 1 decision 5), and the tailor's monotonic floor (raiseTailorFloor stores the raw
+  // judged number) would silently swallow it anyway — an attenuated card score under a raw floor
+  // reads as the floor. One surface, one number.
+  const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated",
+    years && { ...years, familyConfidence: null });
 
   // B2: "the CV below" must include tailor's own answers, not just discovery's — discoveryCvLines is
   // the narrow slice of discoveryState's work this needs (no railFill/essentialRemaining/questions

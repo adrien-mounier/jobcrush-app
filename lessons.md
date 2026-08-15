@@ -1,5 +1,24 @@
 # Lessons — jobcrush-app
 
+## A production caller whose guard can never be true is the same failure as no caller — and tests that seed state prove wiring, not reachability
+
+#222 wired the family-scoped years reading to `session.discovery.floor` — a field written only by
+the production-discovery routes, which the shipped web client never calls. Every test passed,
+because every test seeded the floor itself; on the real journey the guard was permanently false and
+the whole feature (scoped bars, known zero, confidence attenuation) silently degraded to the old
+career-total reading. This is the exact failure mode #222's own AC13 was written against ("a tested
+helper with no caller is what let this go missing once already"), reproduced one level down: the
+caller existed, its precondition didn't.
+
+Two checks that catch it:
+1. **For every session-state field a new feature reads, trace who WRITES it and whether the shipped
+   client ever reaches that writer.** A field only integration tests populate is a stub in disguise.
+2. **The QA gate must drive the shipped journey and A/B the feature's effect** (here: same CV, one
+   role that places vs one that doesn't — 47% vs 49% proved the scope was read). A browser pass that
+   only re-walks the happy path would have shown a working deck and missed it; the gate caught it
+   precisely by asking "what does the product actually leave in `discovery.floor`?" after a full
+   real walk.
+
 ## A test double that speaks a dialect the real parser rejects reports the feature MISSING, and CI stays green
 
 #231 changed the labeler's answer shape (`familyId` string → `familyIds` array, plus a required

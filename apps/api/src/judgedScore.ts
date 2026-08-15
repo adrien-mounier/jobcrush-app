@@ -92,27 +92,44 @@ export function judgedUncoveredRequirements(
  *  fact. A `"<="`/`"=="` bar states no MINIMUM demand, so there is nothing a shortfall could mean
  *  against it — left untouched too, out of this ticket's scope.
  *
- *  ACCEPTED RESIDUAL, restated for #162 (recorded, not fixed here): userYears is no longer a
- *  family-scoped ANSWER at all — it is the WORKED-OUT CAREER TOTAL (yearsWorked.ts, stored at
- *  ANY_FAMILY), applied to every judged advert's years bar whatever family that advert belongs to.
- *  The number is therefore GENEROUS on an out-of-family advert rather than mis-scoped: 12 years of
- *  retail plus 4 of delivery reads as 16 against a "5+ years of delivery" bar. It could not be built
- *  any other way today — resolveFamily() returns a constant, so there is exactly ONE family in the
- *  system and a per-family total would be identical to this one for every visitor (#126 §5). The
- *  classifier that closes it is #134, which carries the full follow-up. Acceptable meanwhile for the
- *  same reason as before: this rule can only ever LOWER or hold a score, so a generous reading can
- *  leave a job on the deck but never silently delete one — the failure #86 ranks worst.
+ *  #222 closed #162's recorded residual: the years are now read AT THE BAR'S OWN SCOPE. Each bar
+ *  tests either the visitor's years in the advert's family (`yearsScope` absent or "family" — the
+ *  plain reading of "5+ years' experience" on a role advert) or the career total (`yearsScope:
+ *  "total"` — "8+ years of professional experience"). A compound sentence is two requirements, one
+ *  per scope, so it sees both numbers at once. WHAT the family number is (a real fact, the honest
+ *  known zero when every job is placed elsewhere, or the old generous career-total fallback while
+ *  years are genuinely unaccounted for) is the caller's resolution — deck.ts's resolveSessionYears,
+ *  ADR-0014 amendment 1 decision 6. A null at either scope means UNTESTABLE and leaves the verdict
+ *  untouched — an unknown is never a penalty (#86 decision 3), same as before.
  *
  *  Pure — no IO, called at READ TIME by the route (routes/onboarding.ts), never persisted: the cached
  *  judgement describes the advert and the fact set it was judged against; years-experience is session
  *  state that can change independently of that cache. Judged path only — matchTick/matchtick.ts (the
  *  deterministic `estimated` scorer) is untouched; slice 10 (#111) retires it separately. */
+export interface YearsAtScopes {
+  /** Years tested by a family-scope bar. Null = untestable (no usable work history). */
+  family: number | null;
+  /** Years tested by a total-scope bar — the career total. Null = untestable. */
+  total: number | null;
+}
+
+/** The ONE definition of "a years bar that tests the family scope" — shared with buildJobCard's
+ *  attenuation guard (deck.ts) so the two sites can never drift on what counts as one. Absent
+ *  yearsScope reads as family: the plain meaning of a years bar on a role advert. */
+export function isFamilyScopeYearsBar(req: AdRequirementV1): boolean {
+  return (
+    req.eligibilityDimension === "years-experience" &&
+    req.comparable?.op === ">=" &&
+    req.yearsScope !== "total"
+  );
+}
+
 export function applyYearsShortfall(
   verdicts: JudgeVerdict[],
   adRequirements: AdRequirementsV1,
-  userYears: number | null,
+  years: YearsAtScopes,
 ): JudgeVerdict[] {
-  if (userYears === null) return verdicts;
+  if (years.family === null && years.total === null) return verdicts;
   const byId = new Map(adRequirements.requirements.map((r) => [r.id, r]));
   return verdicts.map((v) => {
     const req = byId.get(v.requirementId);
@@ -120,6 +137,8 @@ export function applyYearsShortfall(
     if (!req || req.eligibilityDimension !== "years-experience" || req.comparable?.op !== ">=" || !bar) {
       return v;
     }
+    const userYears = req.yearsScope === "total" ? years.total : years.family;
+    if (userYears === null) return v;
     // Clamped to [0,1], not just capped at 1: the contract's `comparable.value` is any `number` (the
     // oracle never rules out a negative one), and years/NEGATIVE_BAR is itself negative — an
     // uncapped-below multiplier would send `fit` negative and render as a negative matchPct. An

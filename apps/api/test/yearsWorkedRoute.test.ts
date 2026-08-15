@@ -174,8 +174,11 @@ describe("#162 an untested bar is named once, on every surface", () => {
     ],
   } as AdRequirementsV1;
 
+  // #222: "no usable work history" is now the whole years-at-scopes struct with a null total.
+  const UNTESTABLE = { total: null, family: null, familySource: "unscoped", familyConfidence: null } as const;
+
   it("the deck card lists it under notTested and NOT under dontYet", () => {
-    const untested = buildJobCard(posting, adReq, [], [], null, "estimated", false);
+    const untested = buildJobCard(posting, adReq, [], [], null, "estimated", UNTESTABLE);
     expect(untested.notTested?.map((r) => r.id)).toEqual(["years"]);
     expect(untested.dontYet.map((r) => r.id)).not.toContain("years");
     expect(untested.dontYet.map((r) => r.id)).toContain("english"); // every other gap still shows
@@ -183,14 +186,14 @@ describe("#162 an untested bar is named once, on every surface", () => {
 
   it("leaves the score exactly where a tested session would find it — nothing is lowered", () => {
     const tested = buildJobCard(posting, adReq, [], [], null, "estimated");
-    const untested = buildJobCard(posting, adReq, [], [], null, "estimated", false);
+    const untested = buildJobCard(posting, adReq, [], [], null, "estimated", UNTESTABLE);
     expect(untested.matchPct).toBe(tested.matchPct);
     expect(untested.breakdown).toEqual(tested.breakdown);
     expect(tested.notTested).toBeUndefined(); // omitted entirely when there is nothing untested
   });
 
   it("the tailor surface reaches the same verdict as the deck", () => {
-    const state = buildTailorState(posting, adReq, [], [], null, 0, null, false);
+    const state = buildTailorState(posting, adReq, [], [], null, 0, null, UNTESTABLE);
     expect(state.card.notTested?.map((r) => r.id)).toEqual(["years"]);
     expect(state.card.dontYet.map((r) => r.id)).not.toContain("years");
   });
