@@ -50,7 +50,12 @@ Three things worth carrying:
 3. **A cost fix that ships at 90% consumed is a fix for next cycle.** The `paths-ignore` work is
    correct and will halve the burn — but only from the next allowance. Between the block and the
    reset, `main` accepts pushes, closes issues, and **deploys nothing**, so the git log and the board
-   both read "shipped" while staging stays on the last green build (2026-08-15 08:51, `docs(#225)`).
+   both read "shipped" while staging stays on the last green build (`85cda41`, 2026-08-15 08:51).
+   Three slices are sitting in that gap — #231, #222, #234 — and **#231 is the one that shows how
+   this hides**: its code (`34bdd3c`) was pushed together with a docs commit, so it never got a CI
+   run of its own. `gh run list` shows no row for that sha at all, which reads as "nothing to see"
+   rather than "blocked". **Count undeployed work by diffing `main` against the last green
+   `deploy-staging` sha, never by scanning the run list for failures.**
    The only ways out are to wait for the reset or to add a payment method and raise the limit above
    $0 — which is the moment CI stops being free.
    ⚠️ **The reset DATE is not verified here.** A free account's allowance resets at the start of its

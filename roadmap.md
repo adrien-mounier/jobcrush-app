@@ -1,6 +1,26 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-08-15_
+_Last updated: 2026-08-16_
+
+> 🚨 **NOTHING HAS DEPLOYED SINCE 2026-08-15 08:51 UTC. Read this before trusting any "DONE" below.**
+> GitHub Actions is blocked account-wide: the free minute allowance is spent and the default spending
+> limit is **$0**, which refuses jobs at the platform level (~3s, no logs). It reports as *"recent
+> account payments have failed"* — **no payment failed; there is no payment method on the account.**
+>
+> `main` still accepts pushes and `Closes #123` still closes issues, so **the board and the git log
+> read "shipped" while staging does not have the code.** Three feature slices are affected:
+>
+> | Slice | On `main` | On staging |
+> |---|---|---|
+> | **#231** a job can be several families (`34bdd3c`) | ✅ | ❌ — pushed with a docs commit, so its CI run is `8a95b42`'s, which was blocked |
+> | **#222** years per family (`0505f6b`) | ✅ | ❌ |
+> | **#234** question floors / search family split (`5b08d7e`) | ✅ | ❌ |
+>
+> **Staging runs the tree at `85cda41`** (`docs(#225)`, the last green `deploy-staging`).
+> **Owner decision, not a fix:** wait for the allowance to reset (date unverified — the token cannot
+> read GitHub's billing endpoint; read it off Billing & plans), or add a payment method and raise the
+> limit above $0, which is when CI stops being free. Diagnosis in `lessons.md` (first entry);
+> tracked as an owner task below. **Delete this banner the day a green `deploy-staging` runs.**
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
@@ -97,11 +117,11 @@ all three: `xhigh` buys tension-holding, and these tickets carry decided rules, 
 | ~~5~~ | ~~#220~~ | ~~Labeler slice 1: the target role is placed in a real family, measured before trusted~~ **DONE 2026-08-15 (QA GO)** — 97.6% comparable accuracy on the 60-case grid; production discovery opens at the API | — | — | — |
 | ~~5b~~ | ~~#221~~ | ~~Labeler slice 2: every past job carries a correctable family label~~ **DONE 2026-08-15 (QA GO)** — every mined job is placed; the review screen asks, batched, only about the ones it could not call | — | — | — |
 | ~~5b.1~~ | ~~#225~~ | ~~Decide deliberately: is a job in ONE family, or honestly several?~~ **DECIDED 2026-08-15** — several, nobody is asked, confidence rides the ranking. ADR-0014 amendment 1 | — | — | — |
-| ~~5b.2~~ | ~~#231~~ | ~~Labeler slice 2b: several families per job, nobody is asked, confidence rides the ranking~~ **DONE 2026-08-15 (QA GO, `34bdd3c`)** — placement contract is v2 and plural, `needs_clarification` deleted, end-of-deck panel gone, confidence stored. **The target role is still single (#232 lifts it)**, and **confidence does not yet reach a card's score — that caller is #222** | — | — | — |
+| ~~5b.2~~ | ~~#231~~ | ~~Labeler slice 2b: several families per job, nobody is asked, confidence rides the ranking~~ **DONE 2026-08-15 (QA GO, `34bdd3c`) · ⚠️ NOT ON STAGING (CI blocked — see the banner)** — placement contract is v2 and plural, `needs_clarification` deleted, end-of-deck panel gone, confidence stored. **The target role is still single (#232 lifts it)**, and **confidence does not yet reach a card's score — that caller is #222** | — | — | — |
 | ~~5b.3~~ | ~~#227~~ | ~~A null placement is a call we never made — a retry, not a question~~ **MOSTLY DISSOLVED BY #231 (2026-08-15)** — #227 was "an unmapped job is offered the whole published list". `familyChoicesFor()`, the end-of-deck panel and the published-list payload are all deleted, so nothing offers a list to anything. **Remnant, verified small:** `labelJobBlocks` runs only inside the upload pipeline (`pipeline.ts`), so a null placement is retried on the next upload and never otherwise. Owner call: close, or keep as a one-line retry ticket | — | — | — |
-| ~~5c~~ | ~~#222~~ | ~~Labeler slice 3: years per family, read at the advert's own scope~~ **DONE 2026-08-15 (QA GO on re-run)** — one years fact per family + the total; bars scoped via the additive `yearsScope` contract field (compound sentences split); known zero ≠ unknown; confidence attenuation live at the owner's weights. First gate run was **NO-GO**: the scoped reading keyed on the production-discovery floor no shipped journey ever sets — fixed by resolving the advert's family from the target-role placement (`advertFamilyIdFor`), verified A/B in the browser. **Two owner decisions escalated, recorded in session-log** | — | — | — |
+| ~~5c~~ | ~~#222~~ | ~~Labeler slice 3: years per family, read at the advert's own scope~~ **DONE 2026-08-15 (QA GO on re-run, `0505f6b`) · ⚠️ NOT ON STAGING (CI blocked — see the banner)** — one years fact per family + the total; bars scoped via the additive `yearsScope` contract field (compound sentences split); known zero ≠ unknown; confidence attenuation live at the owner's weights. First gate run was **NO-GO**: the scoped reading keyed on the production-discovery floor no shipped journey ever sets — fixed by resolving the advert's family from the target-role placement (`advertFamilyIdFor`), verified A/B in the browser. **Two owner decisions escalated, recorded in session-log** | — | — | — |
 | ~~5c.1~~ | ~~#230~~ | ~~🔒 **GRILL BEFORE BUILDING** — an unmapped target role gets no adverts at all~~ **DECIDED 2026-08-15** — retrieval opens: no usable published floor ⇒ search her typed words. Interview on up to two of her CV's floors, silent throughout (no sentence, no card mark, no research message), same scoring path, same provider budget. Spec **#233** → slices **#234 → #235 → #236**. Handed on: exhaustion to #228, autonomous research to #218 | — | — | — |
-| ~~5c.1a~~ | ~~#234~~ | ~~Question floors and the search family become two facts, chosen by one plan~~ **DONE 2026-08-16 (QA GO)** — `discoveryPlan()` in `adaptiveDiscovery.ts` decides both; the unmapped ranking rule is built and tested but unreachable until #235 deletes the route's guard. Nothing visible moved (1429 tests, browser A/B on the deck). Ratchet lowered 1135 → 1132. ADR-0014 amended, `CONTEXT.md` gained **word search**. ⚠️ **#235 must guard `questionFloors[0]!`** — an empty floor list becomes legitimate there and the `!` hides it | — | — | — |
+| ~~5c.1a~~ | ~~#234~~ | ~~Question floors and the search family become two facts, chosen by one plan~~ **DONE 2026-08-16 (QA GO, `5b08d7e`) · ⚠️ NOT ON STAGING (CI blocked — see the banner)** — `discoveryPlan()` in `adaptiveDiscovery.ts` decides both; the unmapped ranking rule is built and tested but unreachable until #235 deletes the route's guard. Nothing visible moved (1429 tests, browser A/B on the deck). Ratchet lowered 1135 → 1132. ADR-0014 amended, `CONTEXT.md` gained **word search**. ⚠️ **#235 must guard `questionFloors[0]!`** — an empty floor list becomes legitimate there and the `!` hides it | — | — | — |
 | 5c.1b | #235 | The unmapped target role is interviewed on her CV's floors and gets a word-search deck, including the honest empty state. **This is the retrieval-gate change #63 was waiting on** | `/implement` | **Fable** | high |
 | 5c.1c | #236 | The candidate screen runs on that path — research starts itself, and `covered_role` recovers a family the labeler missed | `/implement` | Opus | medium |
 | 5c.2 | #228 | 🔒 **GRILL BEFORE BUILDING** — fallback when the target family's adverts run out. A fallback may mean a second live provider search on the same quota. **Also owns step 3 of the unmapped fallback** (#230 stopped at the first deck so "the deck ran out" is defined once, here). **Gates #63** | `/grilling` | Opus | medium |
@@ -602,6 +622,7 @@ spent four years on the objective version and killed it).
 
 | # | What | Note |
 |---|---|---|
+| 🚨 **CI** | **GitHub Actions is blocked — nothing deploys** | **OPEN, blocking both repos since 2026-08-15 08:58.** Free minute allowance spent + default **$0 spending limit** = a hard stop at the platform level. GitHub's wording (*"recent account payments have failed"*) is misleading: **there is no payment method on the account**, and 201 runs since 1 Aug report **0 billable ms**. Two ways out, both owner-only: wait for the reset (date unverified — needs the `user` token scope to read, so check Billing & plans), or add a payment method and raise the limit above $0. The `paths-ignore` fix (`fdd7b8e`, ~halves the burn) landed one commit too late to help this cycle. Full write-up: `lessons.md` first entry; also in `../SHARED_INFRA.md`. |
 | ~~#32~~ | ~~Spending alert + verify vitacairn's Fly token scope~~ | ✅ **DONE 2026-08-13.** vitacairn's token was org-wide as suspected — fixed to one token per app, three account-wide tokens revoked, both projects verified deploying green. Cloudflare budget alert set at 10 USD. **Fly has no billing alerts and no spending cap** — that half of the ticket asked for a feature that does not exist; do not re-open it. |
 | ~~#211~~ | ~~How finely is a skill list split?~~ | ✅ **DECIDED 2026-08-13.** ADR-0004 clause 10 + **ADR-0013**. The read stays narrow (skills inventory only, bullets whole); tools inside bullets are **proposed** with an exact-string guard, arrive selected on one screen at ingestion, and what the person keeps is permanent — that, not the read, ends the 17→44 swing. **#164 builds it**; the estimate on the row above was for a smaller ruling than the one taken. Spawned **#213** (a CV that names no tools). |
 | #127 | Map: the CV as structured data | Parent — closes when #164–#171 close |

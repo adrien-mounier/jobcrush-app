@@ -48,7 +48,9 @@ module-level function, `discoveryPlan(placement, blocks, publishedRegistry)` in
   job on the account since 2026-08-15 08:58 — the free-tier minute allowance is spent and the default
   **$0 spending limit is a hard stop**. It reports as *"recent account payments have failed"*, but
   **there is no payment method on the account**; nothing failed. Staging still runs the last green
-  build (`docs(#225)`, 08:51). **#222 is in the same state** — on `main`, closed, not deployed. Full
+  build (`85cda41`, `docs(#225)`, 08:51). **#231 and #222 are in the same state** — on `main`, closed,
+  not deployed; #231's code (`34bdd3c`) was pushed alongside a docs commit, so it has no CI run of its
+  own at all and rode `8a95b42`'s blocked one. Three undeployed slices, not one. Full
   diagnosis and the two traps in `lessons.md`; owner decision needed: wait for the allowance to reset
   (date unverified — the token cannot read GitHub's billing endpoint), or add a payment method and
   raise the limit above $0.
