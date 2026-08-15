@@ -29,6 +29,24 @@ wrong and still green (invariants that must hold by construction, restraint rule
 accuracy is a real-world claim); Opus everywhere else. Effort buys holding constraints in tension,
 not correctness on well-specified work — start no ticket at `max`.
 
+_Re-scored 2026-08-15 — **#222 Opus → Fable**, effort unchanged at `high`._ It grew when #231's
+orphaned confidence criterion moved onto it, and re-reading it against the rule above, it was
+mis-scored even before that: **every one of its failure modes is silent.** A years number that is
+wrong is still a plausible number — nothing crashes, no card disappears, the deck renders and scores
+exactly as it does today. It carries two invariants that must hold *by construction* (confidence
+never reaches the years fact; a job's years count fully toward each family while the career total
+counts it once) and two restraint rules (no surface sums the family numbers; no card is ever
+withdrawn by confidence). That is three of this rule's four named Fable triggers in one ticket, and
+`lessons.md` already records this exact scoring code shipping subtly wrong once.
+
+Effort stays `high` and deliberately does **not** rise: the ticket is now heavily specified —
+fourteen acceptance criteria, worked examples, decided magnitudes — and effort buys tension-holding,
+not correctness on well-specified work. The tension that justifies `high` is real but bounded
+(generous-vs-honest in the known-zero rule, full-credit-per-family vs counted-once in the total).
+
+**Do not split the attenuation back out to make it smaller.** Splitting it off is what produced the
+orphan in the first place, and the two halves share one call site.
+
 ### Phase 1 — make the live deck honest before it exists
 
 | Order | # | What | Skill | Model | Effort |
@@ -43,7 +61,7 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~5b.1~~ | ~~#225~~ | ~~Decide deliberately: is a job in ONE family, or honestly several?~~ **DECIDED 2026-08-15** — several, nobody is asked, confidence rides the ranking. ADR-0014 amendment 1 | — | — | — |
 | ~~5b.2~~ | ~~#231~~ | ~~Labeler slice 2b: several families per job, nobody is asked, confidence rides the ranking~~ **DONE 2026-08-15 (QA GO, `34bdd3c`)** — placement contract is v2 and plural, `needs_clarification` deleted, end-of-deck panel gone, confidence stored. **The target role is still single (#232 lifts it)**, and **confidence does not yet reach a card's score — that caller is #222** | — | — | — |
 | ~~5b.3~~ | ~~#227~~ | ~~A null placement is a call we never made — a retry, not a question~~ **MOSTLY DISSOLVED BY #231 (2026-08-15)** — #227 was "an unmapped job is offered the whole published list". `familyChoicesFor()`, the end-of-deck panel and the published-list payload are all deleted, so nothing offers a list to anything. **Remnant, verified small:** `labelJobBlocks` runs only inside the upload pipeline (`pipeline.ts`), so a null placement is retried on the next upload and never otherwise. Owner call: close, or keep as a one-line retry ticket | — | — | — |
-| 5c | #222 | Labeler slice 3: years per family, read at the advert's own scope | `/implement` | Opus | high |
+| 5c | #222 | Labeler slice 3: years per family, read at the advert's own scope — **also owns the confidence attenuation, moved here from #231 (2026-08-15)** | `/implement` | **Fable** | high |
 | 5c.1 | #230 | 🔒 **GRILL BEFORE BUILDING** — an unmapped target role gets no adverts at all. Decides floor selection when there is no family, and whether retrieval may proceed without one. **Gates #232, #223, #63** | `/grilling` | Opus | high |
 | 5c.2 | #228 | 🔒 **GRILL BEFORE BUILDING** — fallback when the target family's adverts run out. A fallback may mean a second live provider search on the same quota. **Gates #63** | `/grilling` | Opus | medium |
 | 5c.3 | #232 | The target role's several families: discovery asks the essential items of each floor — ADR-0014 amendment 1 d7 | `/implement` | Opus | high |
