@@ -72,6 +72,13 @@ const JOURNEYS = [
   // caller whose guard could never be true). A/B: a placed target role reads family years, an
   // unmapped one falls back to the career total. ~3 min against the fake-model API.
   "family-years-scope-journey.mjs",
+  // #234: the only journey that walks the production-discovery route the question-floor/search-family
+  // split rewrote, on a real visitor's own session — including `production_discovery_not_started`
+  // and the pin invariant, whose route branches have no unit coverage anywhere in the repo. It also
+  // pins the OPPOSITE direction: an unmapped visitor must keep being refused with the identical
+  // `placement_not_confirmed` body until #235/#236 ship, so premature word-search or candidate-screen
+  // wiring turns it red. ~2 min against the fake-model API; one magic-link sign-in.
+  "discovery-plan-split-journey.mjs",
 ];
 
 let failed = 0;

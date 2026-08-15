@@ -16,6 +16,8 @@ const placement = {
   confidence: "certain" as const,
 };
 const placedFamily = placement.families[0]!;
+// #234: a mapped target role's plan — the same family as the one question floor and the search family.
+const mappedPlan = { questionFloors: [placedFamily], searchFamily: placedFamily };
 
 const imported = (
   itemId: string,
@@ -84,7 +86,7 @@ describe("#61 production discovery HTTP seam", () => {
       progress: { complete: 1, remaining: 3 },
     });
     expect((await sessions.getById(sessionId))?.discovery).toEqual({
-      floor: placedFamily,
+      ...mappedPlan,
       coveredItemIds: ["end-to-end-delivery"],
       checkpoint: "family_confirmed",
     });
@@ -185,12 +187,7 @@ describe("#61 production discovery HTTP seam", () => {
       });
       const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
       const cookie = `jc_session=${created.cookies.find((value) => value.name === "jc_session")!.value}`;
-      await built.sessions.reconcileDiscoveryState(
-        created.json().id,
-        placedFamily,
-        [],
-        false,
-      );
+      await built.sessions.reconcileDiscoveryState(created.json().id, mappedPlan, [], false);
       const before = (await built.sessions.getById(created.json().id))!.discovery;
 
       const response = await built.app.inject({
@@ -394,7 +391,7 @@ describe("#61 production discovery HTTP seam", () => {
       progress: { complete: 0, remaining: 4 },
     });
     expect((await covered.sessions.getById(covered.sessionId))?.discovery).toEqual({
-      floor: placedFamily,
+      ...mappedPlan,
       coveredItemIds: [],
       checkpoint: "family_confirmed",
     });
@@ -405,7 +402,7 @@ describe("#61 production discovery HTTP seam", () => {
       progress: { complete: 0, remaining: 4 },
     });
     expect((await covered.sessions.getById(covered.sessionId))?.discovery).toEqual({
-      floor: placedFamily,
+      ...mappedPlan,
       coveredItemIds: [],
       checkpoint: "family_confirmed",
     });
@@ -447,7 +444,8 @@ describe("#61 production discovery HTTP seam", () => {
     await pool.query("UPDATE sessions SET production_discovery = $2 WHERE id = $1", [
       created.json().id,
       JSON.stringify({
-        floor: { familyId: "", version: 0 },
+        questionFloors: [{ familyId: "", version: 0 }],
+        searchFamily: null,
         coveredItemIds: [42],
         checkpoint: "essential_floor_covered",
       }),
@@ -462,7 +460,7 @@ describe("#61 production discovery HTTP seam", () => {
     await pool.query("UPDATE sessions SET production_discovery = $2 WHERE id = $1", [
       created.json().id,
       JSON.stringify({
-        floor: placedFamily,
+        ...mappedPlan,
         coveredItemIds: [],
         checkpoint: "essential_floor_covered",
       }),

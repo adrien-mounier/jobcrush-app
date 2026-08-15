@@ -16,6 +16,7 @@ import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { InMemoryEligibilityStore, ANY_FAMILY } from "../src/eligibility.js";
 import { InMemorySessionStore } from "../src/sessions.js";
 import {
+  computeFamilyRecency,
   computeFamilyYears,
   familyPlacementConfidence,
   hasUnplacedWork,
@@ -113,7 +114,13 @@ async function seededDeck(
   // directly here, so the facts are re-derived the same way.
   await refreshWorkedYears(jobBlocks, eligibility, sessionId);
   if (family === "floor") {
-    await sessions.reconcileDiscoveryState(sessionId, { familyId: FAMILY, version: 1 }, [], false);
+    const pinned = { familyId: FAMILY, version: 1 };
+    await sessions.reconcileDiscoveryState(
+      sessionId,
+      { questionFloors: [pinned], searchFamily: pinned },
+      [],
+      false,
+    );
   }
   return { app: server.app, cookie, sessionId, jobBlocks, eligibility };
 }
@@ -178,6 +185,30 @@ describe("#222 computeFamilyYears", () => {
   it("every job placed → nothing unaccounted", async () => {
     const view = await viewOf([block("b1", 2018, 2023)], { b1: placed([FAMILY]) });
     expect(hasUnplacedWork(view)).toBe(false);
+  });
+});
+
+// #234 — the discovery plan's tie-break when two families carry the same years.
+describe("#234 computeFamilyRecency", () => {
+  const now = new Date(Date.UTC(2026, 0, 1));
+
+  it("reads each family at its most recent job, and a job in two families at both", async () => {
+    const view = await viewOf([block("b1", 2010, 2012), block("b2", 2018, 2020)], {
+      b1: placed([FAMILY]),
+      b2: placed([FAMILY, OTHER]),
+    });
+    const olderOnly = await viewOf([block("b1", 2010, 2012)], { b1: placed([FAMILY]) });
+    const recency = computeFamilyRecency(view, now);
+    expect(recency.get(FAMILY)).toBe(recency.get(OTHER)); // the shared job dates both families
+    expect(recency.get(FAMILY)!).toBeGreaterThan(computeFamilyRecency(olderOnly, now).get(FAMILY)!);
+  });
+
+  it("clamps a future end date to today, so a typo cannot outrank a real job (#162 QA finding 2)", async () => {
+    const far = await viewOf([block("b1", 2010, 9999)], { b1: placed([FAMILY]) });
+    const near = await viewOf([block("b1", 2010, 2100)], { b1: placed([OTHER]) });
+    // Both land on the same month — today — instead of ranking by the year somebody typed.
+    expect(computeFamilyRecency(far, now).get(FAMILY)).toBe(computeFamilyRecency(near, now).get(OTHER));
+    expect(computeFamilyRecency(far, now).get(FAMILY)!).toBeLessThan(2027 * 12);
   });
 });
 

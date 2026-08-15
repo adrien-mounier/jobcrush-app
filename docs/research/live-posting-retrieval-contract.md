@@ -415,7 +415,7 @@ Unchanged in substance from the prior draft. Read from the session record (`Sess
 |---|---|---|
 | Target role | `session.intent.targetRole` | yes, non-null |
 | Search area | `session.intent.searchArea`, resolved to region codes via §2.3's `resolveSearchAreaToRegions` | yes, non-null |
-| Confirmed published job family version | `session.discovery.floor` (must resolve via `ProductionFamilyFloorStore.get()` to a publication with `publicationStatus === "published"` — the same `eligibleProductionPublication` check `onboarding.ts` already applies) | yes |
+| Confirmed published job family version | `session.discovery.searchFamily` (renamed from `discovery.floor` by #234, which split the question floors from the search family; must resolve via `ProductionFamilyFloorStore.get()` to a publication with `publicationStatus === "published"` — the same `eligiblePublication` check `onboarding.ts` already applies) | yes |
 | Essential floor covered | `session.discovery.checkpoint === "essential_floor_covered"` | yes |
 | Source-supported evidence | Derived server-side from `claims.confirmed(sessionId)` — reduced to search keywords/requirement labels, never raw free text (privacy, §2.9) | used to build each provider's query, not sent verbatim |
 | Explicit negatives | `claims.negatives(sessionId)` | used as a server-side post-filter/suppressor, never a positive signal |
@@ -504,7 +504,7 @@ this shape, only what's inside the snapshot's `postings`/`coverage` fields.
   `targetRole` or `searchArea` must clear `session.retrieval` (forcing a fresh retrieval, including a
   fresh region resolution and provider routing, on next read). It must **not** touch `claims`
   (confirmed/negative evidence), `session.discovery` (floor pin, coverage checkpoint), or anything else.
-- Family placement (`session.discovery.floor`) is pinned once via `reconcileDiscoveryState`'s existing
+- Family placement (`session.discovery.searchFamily`, `discovery.floor` before #234) is pinned once via `reconcileDiscoveryState`'s existing
   guard and does not change on intent edits at this layer.
 
 ### 2.9 Cost, rate-limit, retry, privacy — per provider, read from §2.2's registry

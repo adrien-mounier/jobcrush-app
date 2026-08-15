@@ -27,6 +27,11 @@ const area = (text: string, marketKey: string, statedAt = "2026-08-09T00:00:00.0
   statedAt,
 });
 
+// #234: the discovery record holds question floors and a search family separately. Every session in
+// this file is a mapped target role, whose plan is the same one family in both slots.
+const ITPD = { familyId: "it-project-delivery", version: 1 };
+const mappedPlan = { questionFloors: [ITPD], searchFamily: ITPD };
+
 const sessionDrivers: [string, () => SessionStore][] = [
   ["in-memory", () => new InMemorySessionStore()],
   ["postgres (pg-mem)", () => new PgSessionStore(pgPool())],
@@ -50,7 +55,8 @@ for (const [name, make] of sessionDrivers) {
       expect(s.importResolutions).toEqual({});
       expect(s.intent).toEqual({ targetRole: null, searchAreas: [] });
       expect(s.discovery).toEqual({
-        floor: null,
+        questionFloors: [],
+        searchFamily: null,
         coveredItemIds: [],
         checkpoint: null,
       });
@@ -201,7 +207,7 @@ for (const [name, make] of sessionDrivers) {
       });
       await store.reconcileDiscoveryState(
         s.id,
-        { familyId: "it-project-delivery", version: 1 },
+        mappedPlan,
         ["end-to-end-delivery"],
         true,
       );
@@ -276,7 +282,7 @@ for (const [name, make] of sessionDrivers) {
         retrieval: null,
         retrievalCoordinationFingerprint: null,
         discovery: {
-          floor: { familyId: "it-project-delivery", version: 1 },
+          ...mappedPlan,
           coveredItemIds: ["end-to-end-delivery"],
           checkpoint: "essential_floor_covered",
         },
@@ -326,7 +332,7 @@ for (const [name, make] of sessionDrivers) {
       });
       await store.reconcileDiscoveryState(
         s.id,
-        { familyId: "it-project-delivery", version: 1 },
+        mappedPlan,
         ["end-to-end-delivery"],
         false,
       );
@@ -344,7 +350,7 @@ for (const [name, make] of sessionDrivers) {
       ).toBe(true);
       await store.reconcileDiscoveryState(
         s.id,
-        { familyId: "it-project-delivery", version: 1 },
+        mappedPlan,
         ["end-to-end-delivery", "stakeholder-coordination"],
         true,
       );
@@ -429,36 +435,36 @@ for (const [name, make] of sessionDrivers) {
       const s = await store.create();
       await store.reconcileDiscoveryState(
         s.id,
-        { familyId: "it-project-delivery", version: 1 },
+        mappedPlan,
         ["end-to-end-delivery"],
         false,
       );
       expect((await store.getById(s.id))?.discovery).toEqual({
-        floor: { familyId: "it-project-delivery", version: 1 },
+        ...mappedPlan,
         coveredItemIds: ["end-to-end-delivery"],
         checkpoint: "family_confirmed",
       });
 
       await store.reconcileDiscoveryState(
         s.id,
-        { familyId: "it-project-delivery", version: 1 },
+        mappedPlan,
         ["stakeholder-coordination"],
         true,
       );
       expect((await store.getByToken(s.token))?.discovery).toEqual({
-        floor: { familyId: "it-project-delivery", version: 1 },
+        ...mappedPlan,
         coveredItemIds: ["stakeholder-coordination"],
         checkpoint: "essential_floor_covered",
       });
 
       await store.reconcileDiscoveryState(
         s.id,
-        { familyId: "it-project-delivery", version: 1 },
+        mappedPlan,
         [],
         false,
       );
       expect((await store.getById(s.id))?.discovery).toEqual({
-        floor: { familyId: "it-project-delivery", version: 1 },
+        ...mappedPlan,
         coveredItemIds: [],
         checkpoint: "family_confirmed",
       });
@@ -466,19 +472,20 @@ for (const [name, make] of sessionDrivers) {
       await Promise.all([
         store.reconcileDiscoveryState(
           s.id,
-          { familyId: "it-project-delivery", version: 1 },
+          mappedPlan,
           ["end-to-end-delivery"],
           false,
         ),
         store.reconcileDiscoveryState(
           s.id,
-          { familyId: "it-project-delivery", version: 1 },
+          mappedPlan,
           ["risk-dependency-control"],
           true,
         ),
       ]);
       const concurrent = (await store.getById(s.id))!.discovery;
-      expect(concurrent.floor).toEqual({ familyId: "it-project-delivery", version: 1 });
+      expect(concurrent.questionFloors).toEqual([ITPD]);
+      expect(concurrent.searchFamily).toEqual(ITPD);
       expect([
         {
           coveredItemIds: ["end-to-end-delivery"],
@@ -492,6 +499,29 @@ for (const [name, make] of sessionDrivers) {
         coveredItemIds: concurrent.coveredItemIds,
         checkpoint: concurrent.checkpoint,
       });
+    });
+
+    // #234: the "floor already pinned" invariant now covers the PAIR — a session's plan does not
+    // change under it once chosen, whichever half of the pair the second plan disagrees on.
+    it("refuses a second, different discovery plan once one is pinned", async () => {
+      const s = await store.create();
+      await store.reconcileDiscoveryState(s.id, mappedPlan, ["end-to-end-delivery"], false);
+
+      const other = { familyId: "field-marketing", version: 1 };
+      await expect(
+        store.reconcileDiscoveryState(s.id, { questionFloors: [other], searchFamily: other }, [], false),
+      ).rejects.toThrow(/already pinned/);
+      await expect(
+        store.reconcileDiscoveryState(s.id, { questionFloors: [ITPD], searchFamily: null }, [], false),
+      ).rejects.toThrow(/already pinned/);
+      await expect(
+        store.reconcileDiscoveryState(s.id, { questionFloors: [ITPD, other], searchFamily: ITPD }, [], false),
+      ).rejects.toThrow(/already pinned/);
+
+      // The same plan still reconciles — coverage advances under a pinned plan, as it always did.
+      expect(
+        await store.reconcileDiscoveryState(s.id, mappedPlan, ["end-to-end-delivery"], true),
+      ).toEqual({ ...mappedPlan, coveredItemIds: ["end-to-end-delivery"], checkpoint: "essential_floor_covered" });
     });
 
     it("setStage + setTargetTitles persist", async () => {

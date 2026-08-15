@@ -144,12 +144,20 @@ which is the failure #86 ranks worst.
 
 ## What is deliberately not decided here
 
-- **The target-role gate.** Posting retrieval today hard-refuses an unmapped target role
-  (`family_not_published`) and routes to family research. That gate is the one place "never discard,
-  only rank" is not true, and it cannot be, since the family is what we search *with*. Recorded
-  intent for when it is taken: search her typed words, and meanwhile ask the floor questions of the
-  families her **CV** proves — we do not know what she is aiming at, but we do know what she has
-  done. Own ticket.
+- **The target-role gate.** ~~Posting retrieval today hard-refuses an unmapped target role
+  (`family_not_published`) and routes to family research.~~ **Decided in #230 (2026-08-15), exactly
+  as the recorded intent below said it should be: when there is no usable published family floor,
+  retrieval stops refusing and searches the words she typed, while discovery asks the floors of the
+  families her **CV** proves — at most two, strongest by years first. She is never told any of it;
+  a search that returns nothing shows the ordinary "no jobs found" state, which reports her own
+  result and never our vocabulary. Spec: #233. Built in #234 (the two facts split apart), #235 (the
+  word search opens) and #236 (the background family-candidate screen). What happens when a
+  word-search deck runs out stays undecided and belongs to #228.**
+
+  The gate was the one place "never discard, only rank" was not true, and it could not be, since
+  the family is what we search *with*. The answer is not to rank the unrankable but to search
+  something else — the closed vocabulary (decision 1) is permanent, so unmapped target roles are its
+  permanent cost, and this is the permanent shape of paying it, not a stopgap.
 - **The "new to this family" sentence.** A career changer with a known zero now ranks low and
   honestly, but is told nothing about why. The score stays generous and the words carry the truth —
   never the reverse. Own ticket.

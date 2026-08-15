@@ -58,6 +58,14 @@ A target role that does not meet the acceptance threshold for any known job fami
 forced into whichever family happens to be nearest.
 _Avoid_: Unknown job, nearest family
 
+**Word search**:
+The posting search run on the words the visitor typed as her target role, used whenever there is no
+usable published **family floor** to search with — an unmapped placement, a placement naming several
+families, or a named family not yet published. It is an ordinary deck: same scoring, same ordering,
+same provider budget, and no sentence, mark or message anywhere tells her which kind of search she
+got. Decided in #230; the opposite of it is a **family search**.
+_Avoid_: Fallback search, keyword fallback, degraded search, title search
+
 **Family research request**:
 The asynchronous work initiated for an unmapped target role to construct and validate a reusable job
 family before discovery continues.

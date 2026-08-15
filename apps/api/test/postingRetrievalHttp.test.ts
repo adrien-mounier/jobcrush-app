@@ -13,6 +13,13 @@ import { loadPostings, type Posting } from "../src/preview.js";
 import { buildServer } from "../src/server.js";
 import { RETRIEVAL_CLAIM_LEASE_MS } from "../src/sessions.js";
 
+// #234: the discovery record holds question floors and a search family separately. Every session
+// here is a mapped target role, whose plan is the same one family in both slots.
+const mappedPlan = (family: { familyId: string; version: number }) => ({
+  questionFloors: [family],
+  searchFamily: family,
+});
+
 const claim = (id: string, text: string, fieldLabel: string): CandidateClaim => ({
   id,
   semantic_key: id,
@@ -45,7 +52,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     });
     await built.sessions.reconcileDiscoveryState(
       id,
-      { familyId: "it-project-delivery", version: 1 },
+      mappedPlan({ familyId: "it-project-delivery", version: 1 }),
       ["end-to-end-delivery"],
       true,
     );
@@ -155,7 +162,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     });
     await sessions.reconcileDiscoveryState(
       sessionId,
-      { familyId: "it-project-delivery", version: 1 },
+      mappedPlan({ familyId: "it-project-delivery", version: 1 }),
       ["end-to-end-delivery"],
       true,
     );
@@ -643,7 +650,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       name: "unpublished or fixture family",
       arrange: async (built: ReturnType<typeof buildServer>, id: string, cookie: string) => {
         await putIntent(built, cookie);
-        await built.sessions.reconcileDiscoveryState(id, { familyId: "fixture-only", version: 1 }, [], true);
+        await built.sessions.reconcileDiscoveryState(id, mappedPlan({ familyId: "fixture-only", version: 1 }), [], true);
       },
       code: "family_not_published",
     },
@@ -653,7 +660,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
         await putIntent(built, cookie);
         await built.sessions.reconcileDiscoveryState(
           id,
-          { familyId: "it-project-delivery", version: 1 },
+          mappedPlan({ familyId: "it-project-delivery", version: 1 }),
           ["end-to-end-delivery"],
           false,
         );
@@ -669,7 +676,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
         await putIntent(built, cookie);
         await built.sessions.reconcileDiscoveryState(
           id,
-          { familyId: "it-project-delivery", version: 1 },
+          mappedPlan({ familyId: "it-project-delivery", version: 1 }),
           ["end-to-end-delivery"],
           true,
         );

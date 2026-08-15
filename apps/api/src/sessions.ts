@@ -81,8 +81,38 @@ function legacySearchAreaEntries(text: string | null, createdAt: string): Search
   return resolution.covered ? [{ text, marketKey: resolution.marketKey, statedAt: createdAt }] : [];
 }
 
-export interface ProductionDiscoveryState {
-  floor: { familyId: string; version: number } | null;
+/** One published family floor, named by id and the version it was chosen at. */
+export type FamilyReference = { familyId: string; version: number };
+
+/** #234 (#230's decision, spec #233 decision 1) — the two facts one stored reference used to do at
+ *  once. It selected the family floor whose essential items discovery asks AND named the family
+ *  retrieval searches with; for a mapped target role those are the same family, so nothing ever
+ *  separated them. They are separate here so a visitor whose target role we cannot place can be
+ *  interviewed on the families her CV proves and searched on her own typed words (#235).
+ *    - `questionFloors` — the floors the interview asks, in the order they are asked;
+ *    - `searchFamily`   — the family retrieval searches with, or null for the word search.
+ *  adaptiveDiscovery.ts's `discoveryPlan` is the one function that decides both. */
+export interface DiscoveryPlan {
+  questionFloors: FamilyReference[];
+  searchFamily: FamilyReference | null;
+}
+
+const sameReference = (a: FamilyReference | null | undefined, b: FamilyReference | null | undefined) =>
+  a == null || b == null
+    ? a == null && b == null
+    : a.familyId === b.familyId && a.version === b.version;
+
+/** The "floor already pinned" invariant, extended from the single floor to the pair: a plan counts
+ *  as chosen the moment anything is in it, and once chosen it does not change under the session. */
+export const planPinned = (plan: DiscoveryPlan): boolean =>
+  plan.questionFloors.length > 0 || plan.searchFamily !== null;
+
+export const samePlan = (a: DiscoveryPlan, b: DiscoveryPlan): boolean =>
+  a.questionFloors.length === b.questionFloors.length &&
+  a.questionFloors.every((reference, index) => sameReference(reference, b.questionFloors[index])) &&
+  sameReference(a.searchFamily, b.searchFamily);
+
+export interface ProductionDiscoveryState extends DiscoveryPlan {
   coveredItemIds: string[];
   checkpoint: "family_confirmed" | "essential_floor_covered" | null;
 }
@@ -118,6 +148,28 @@ function retrievalSnapshot(value: unknown): RetrievalSnapshot | null {
     : null;
 }
 
+function familyReference(value: unknown): FamilyReference | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  return Object.keys(record).sort().join(",") === "familyId,version" &&
+    typeof record.familyId === "string" &&
+    record.familyId.length > 0 &&
+    Number.isInteger(record.version) &&
+    (record.version as number) > 0
+    ? { familyId: record.familyId, version: record.version as number }
+    : null;
+}
+
+const emptyDiscovery = (): ProductionDiscoveryState => ({
+  questionFloors: [],
+  searchFamily: null,
+  coveredItemIds: [],
+  checkpoint: null,
+});
+
+/** #234: a row written before the split carries `floor` and no plan, so it fails the key check here
+ *  and reads as the empty state — which is the whole migration (the product has no live users, so
+ *  the shape changes outright and a session re-derives its plan on the next touch). */
 function discoveryState(value: unknown): ProductionDiscoveryState {
   if (typeof value === "string") {
     try {
@@ -126,23 +178,20 @@ function discoveryState(value: unknown): ProductionDiscoveryState {
       // Fall through to the safe empty state.
     }
   }
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { floor: null, coveredItemIds: [], checkpoint: null };
-  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return emptyDiscovery();
   const state = value as Record<string, unknown>;
   const stateKeys = Object.keys(state).sort();
-  const floor = state.floor;
-  const floorRecord =
-    floor !== null && typeof floor === "object" && !Array.isArray(floor)
-      ? (floor as Record<string, unknown>)
+  const rawFloors = state.questionFloors;
+  const parsedFloors = Array.isArray(rawFloors) ? rawFloors.map(familyReference) : null;
+  const questionFloors =
+    parsedFloors !== null &&
+    parsedFloors.every((reference) => reference !== null) &&
+    // One family cannot be its own second floor — the same fail-closed reading coveredItemIds gets.
+    new Set(parsedFloors.map((reference) => reference?.familyId)).size === parsedFloors.length
+      ? (parsedFloors as FamilyReference[])
       : null;
-  const validFloor =
-    floorRecord !== null &&
-    Object.keys(floorRecord).sort().join(",") === "familyId,version" &&
-    typeof floorRecord.familyId === "string" &&
-    floorRecord.familyId.length > 0 &&
-    Number.isInteger(floorRecord.version) &&
-    (floorRecord.version as number) > 0;
+  const searchFamily = state.searchFamily === null ? null : familyReference(state.searchFamily);
+  const validSearchFamily = state.searchFamily === null || searchFamily !== null;
   const coveredItemIds = state.coveredItemIds;
   const checkpoint = state.checkpoint;
   const validCovered =
@@ -153,20 +202,26 @@ function discoveryState(value: unknown): ProductionDiscoveryState {
     checkpoint === null ||
     checkpoint === "family_confirmed" ||
     checkpoint === "essential_floor_covered";
+  const chosen = questionFloors !== null && planPinned({ questionFloors, searchFamily });
   const coherent =
-    (floor === null && checkpoint === null && validCovered && coveredItemIds.length === 0) ||
-    (validFloor && checkpoint !== null && validCovered);
+    questionFloors !== null &&
+    validSearchFamily &&
+    validCovered &&
+    (chosen
+      ? checkpoint !== null
+      : checkpoint === null && (coveredItemIds as string[]).length === 0);
   if (
-    stateKeys.join(",") !== "checkpoint,coveredItemIds,floor" ||
+    stateKeys.join(",") !== "checkpoint,coveredItemIds,questionFloors,searchFamily" ||
     !validCheckpoint ||
     !coherent
   ) {
-    return { floor: null, coveredItemIds: [], checkpoint: null };
+    return emptyDiscovery();
   }
   return {
-    floor: floor as NonNullable<ProductionDiscoveryState["floor"]>,
+    questionFloors: questionFloors!,
+    searchFamily,
     coveredItemIds: coveredItemIds as string[],
-    checkpoint: checkpoint as NonNullable<ProductionDiscoveryState["checkpoint"]>,
+    checkpoint: checkpoint as ProductionDiscoveryState["checkpoint"],
   };
 }
 
@@ -269,7 +324,7 @@ export interface SessionStore {
   ): Promise<boolean>;
   reconcileDiscoveryState(
     id: string,
-    floor: NonNullable<ProductionDiscoveryState["floor"]>,
+    plan: DiscoveryPlan,
     coveredItemIds: string[],
     complete: boolean,
   ): Promise<ProductionDiscoveryState>;
@@ -303,7 +358,7 @@ function newSession(): SessionRecord {
     importProof: null,
     importResolutions: {},
     intent: { targetRole: null, searchAreas: [] },
-    discovery: { floor: null, coveredItemIds: [], checkpoint: null },
+    discovery: emptyDiscovery(),
     retrieval: null,
     retrievalCoordinationFingerprint: null,
     retrievalGeneration: 0,
@@ -439,20 +494,18 @@ export class InMemorySessionStore implements SessionStore {
 
   async reconcileDiscoveryState(
     id: string,
-    floor: NonNullable<ProductionDiscoveryState["floor"]>,
+    plan: DiscoveryPlan,
     coveredItemIds: string[],
     complete: boolean,
   ): Promise<ProductionDiscoveryState> {
     const s = this.byId.get(id);
     if (!s) throw new Error("session not found");
-    if (
-      s.discovery.floor &&
-      (s.discovery.floor.familyId !== floor.familyId || s.discovery.floor.version !== floor.version)
-    ) {
-      throw new Error("production discovery floor already pinned");
+    if (planPinned(s.discovery) && !samePlan(s.discovery, plan)) {
+      throw new Error("production discovery plan already pinned");
     }
     const discovery: ProductionDiscoveryState = {
-      floor: structuredClone(floor),
+      questionFloors: structuredClone(plan.questionFloors),
+      searchFamily: structuredClone(plan.searchFamily),
       coveredItemIds: [...coveredItemIds],
       checkpoint: complete ? "essential_floor_covered" : "family_confirmed",
     };
@@ -533,7 +586,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   target_role        text,
   search_area        text,
   search_areas       jsonb,
-  production_discovery jsonb NOT NULL DEFAULT '{"floor":null,"coveredItemIds":[],"checkpoint":null}',
+  production_discovery jsonb NOT NULL DEFAULT '{"questionFloors":[],"searchFamily":null,"coveredItemIds":[],"checkpoint":null}',
   retrieval                       jsonb,
   retrieval_fingerprint           text,
   retrieval_generation            integer NOT NULL DEFAULT 0,
@@ -562,7 +615,13 @@ const SESSIONS_ALTERS = [
   // falls back to it as a one-entry list whenever search_areas is still NULL (no migration, pre-launch).
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS search_areas jsonb",
   `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS production_discovery jsonb NOT NULL
-   DEFAULT '{"floor":null,"coveredItemIds":[],"checkpoint":null}'`,
+   DEFAULT '{"questionFloors":[],"searchFamily":null,"coveredItemIds":[],"checkpoint":null}'`,
+  // #234: ADD COLUMN IF NOT EXISTS leaves an already-created column's default alone, so a deployed
+  // database would keep stamping new rows with the pre-split `floor` shape. Those rows read as the
+  // empty state and re-derive, so nothing breaks — this just stops them being born malformed. No
+  // backfill of existing rows: the shape changes outright (no live users), by decision.
+  `ALTER TABLE sessions ALTER COLUMN production_discovery SET
+   DEFAULT '{"questionFloors":[],"searchFamily":null,"coveredItemIds":[],"checkpoint":null}'`,
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval jsonb",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval_fingerprint text",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval_generation integer NOT NULL DEFAULT 0",
@@ -763,7 +822,7 @@ export class PgSessionStore implements SessionStore {
 
   async reconcileDiscoveryState(
     id: string,
-    floor: NonNullable<ProductionDiscoveryState["floor"]>,
+    plan: DiscoveryPlan,
     coveredItemIds: string[],
     complete: boolean,
   ): Promise<ProductionDiscoveryState> {
@@ -776,14 +835,12 @@ export class PgSessionStore implements SessionStore {
       );
       if (!rows[0]) throw new Error("session not found");
       const current = discoveryState(rows[0].production_discovery);
-      if (
-        current.floor &&
-        (current.floor.familyId !== floor.familyId || current.floor.version !== floor.version)
-      ) {
-        throw new Error("production discovery floor already pinned");
+      if (planPinned(current) && !samePlan(current, plan)) {
+        throw new Error("production discovery plan already pinned");
       }
       const discovery: ProductionDiscoveryState = {
-        floor,
+        questionFloors: plan.questionFloors,
+        searchFamily: plan.searchFamily,
         coveredItemIds: [...coveredItemIds],
         checkpoint: complete ? "essential_floor_covered" : "family_confirmed",
       };

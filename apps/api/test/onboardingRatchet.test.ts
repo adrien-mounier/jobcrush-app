@@ -24,7 +24,10 @@ import { fileURLToPath } from "node:url";
 // #220 lowered it from 1138: the production discovery route's non-confirmed 409 body moved out to
 // familyLabeler.ts (placementRejection) — what an unconfirmed placement offers a visitor next is the
 // labeler's business, not the spine's.
-const MAX_LINES = 1135;
+// #234 lowered it from 1135: the route's own "is this publication usable?" helper moved to
+// familyFloors.ts (eligiblePublication), where the discovery plan reuses it — the ticket's new
+// floor-selection seam landed in adaptiveDiscovery.ts and the spine still shrank.
+const MAX_LINES = 1132;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

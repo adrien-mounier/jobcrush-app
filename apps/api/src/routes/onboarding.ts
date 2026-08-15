@@ -15,7 +15,7 @@ import type { CandidateClaim, MinedRole, AdRequirementsV1 } from "@jobcrush/cont
 import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore, ClaimRecord } from "../claims.js";
 import type { JobStore } from "../jobs.js";
-import type { SessionStore, SessionRecord } from "../sessions.js";
+import { planPinned, samePlan, type DiscoveryPlan, type SessionStore, type SessionRecord } from "../sessions.js";
 import { buildClaimGraph } from "../graph.js";
 import { renderRootCv } from "../rootcv.js";
 import { buildProfileState, resolveProfileLocation, resolveLanguagesQuestion } from "../profile.js";
@@ -70,9 +70,11 @@ import { placementRejection } from "../familyLabeler.js";
 import { FamilyPlacement } from "@jobcrush/contracts";
 import {
   adaptiveDiscoveryState,
+  discoveryPlan,
   soleConfirmedFamily,
   fixtureDiscoveryClaimId,
 } from "../adaptiveDiscovery.js";
+import { eligiblePublication } from "../familyFloors.js";
 import type { ProductionFamilyFloorStore, TestFixtureFamilyFloorStore } from "../familyFloors.js";
 import {
   resolvedMarketsFor,
@@ -247,29 +249,23 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       return { state, coveredItemIds, checkpoint };
     };
 
-    const eligibleProductionPublication = (
-      reference: { familyId: string; version: number },
-    ) => {
-      const publication = deps.productionFamilyFloors.get(reference.familyId, reference.version);
-      return publication?.publicationStatus === "published" &&
-        publication.floor.source === "production_research" &&
-        publication.floor.productionRewardEligible
-        ? publication
-        : null;
-    };
+    const eligibleProductionPublication = (reference: { familyId: string; version: number }) =>
+      eligiblePublication(deps.productionFamilyFloors.get(reference.familyId, reference.version));
 
     const productionResponse = async (
       session: SessionRecord,
-      reference: { familyId: string; version: number },
+      plan: DiscoveryPlan,
       reply: FastifyReply,
       persist: boolean,
     ) => {
-      const calculated = await calculateProductionState(session, reference, reply);
+      // #234: exactly one question floor today — every caller below guarantees it (a mapped target
+      // role, or a plan already pinned with one). #235 asks across the list.
+      const calculated = await calculateProductionState(session, plan.questionFloors[0]!, reply);
       if ("sent" in calculated) return calculated;
       if (!persist) return { ...calculated.state, checkpoint: calculated.checkpoint };
       const discovery = await deps.sessions.reconcileDiscoveryState(
         session.id,
-        reference,
+        plan,
         calculated.coveredItemIds,
         calculated.checkpoint === "essential_floor_covered",
       );
@@ -290,26 +286,27 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       {},
       async (req, reply) => {
         const session = requireSession(req);
-        // #231: one family or nothing — soleConfirmedFamily is the guard (see its own doc).
-        const family = soleConfirmedFamily(await deps.placeFamily(session));
-        if (!family) return reply.status(409).send(placementRejection());
-        if (
-          session.discovery.floor &&
-          (session.discovery.floor.familyId !== family.familyId ||
-            session.discovery.floor.version !== family.version)
-        ) {
+        // #234: the plan decides both facts; a null search family is still the refusal today (an
+        // unmapped or plural placement), and #235 is what turns it into a word search instead.
+        const plan = discoveryPlan(
+          await deps.placeFamily(session),
+          await deps.jobBlocks.list(session.id),
+          deps.productionFamilyFloors,
+        );
+        if (!plan.searchFamily) return reply.status(409).send(placementRejection());
+        if (planPinned(session.discovery) && !samePlan(session.discovery, plan)) {
           return reply.status(409).send({
             error: { code: "production_floor_already_pinned", message: "production family version already selected" },
             rewardEligible: false,
           });
         }
-        return productionResponse(session, family, reply, true);
+        return productionResponse(session, plan, reply, true);
       },
     );
 
     app.get("/onboarding/discovery/production", async (req, reply) => {
       const session = requireSession(req);
-      if (!session.discovery.floor) {
+      if (session.discovery.questionFloors.length === 0) {
         return reply.status(409).send({
           error: { code: "production_discovery_not_started", message: "production discovery not started" },
           rewardEligible: false,
@@ -317,7 +314,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       }
       // Resume re-derives coverage from authoritative claims and reconciles the durable snapshot.
       // This is idempotent, but prevents a previously covered checkpoint surviving a correction.
-      return productionResponse(session, session.discovery.floor, reply, true);
+      return productionResponse(session, session.discovery, reply, true);
     });
 
     app.post(
@@ -332,7 +329,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       },
       async (req, reply) => {
         const session = requireSession(req);
-        const reference = session.discovery.floor;
+        const reference = session.discovery.questionFloors[0];
         if (!reference) {
           return reply.status(409).send({
             error: { code: "production_discovery_not_started", message: "production discovery not started" },
@@ -371,13 +368,13 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         };
         if (isNoAnswer(req.body.answer)) await deps.claims.answerNegative(session.id, claim);
         else await deps.claims.add(session.id, claim);
-        return productionResponse(session, reference, reply, true);
+        return productionResponse(session, session.discovery, reply, true);
       },
     );
 
     app.post("/onboarding/discovery/production/complete", async (req, reply) => {
       const session = requireSession(req);
-      const reference = session.discovery.floor;
+      const reference = session.discovery.questionFloors[0];
       if (!reference) {
         return reply.status(409).send({
           error: { code: "essential_floor_not_covered", message: "essential family floor not covered" },

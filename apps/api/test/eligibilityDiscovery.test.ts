@@ -24,7 +24,6 @@ import type { ClaimRecord } from "../src/claims.js";
 import { discoveryClaimId, discoveryState, resolveFamily } from "../src/discovery.js";
 import { loadFamilyFloor } from "../src/e5stub.js";
 
-const noFloorSession = { discovery: { floor: null, coveredItemIds: [], checkpoint: null } } as const;
 const FAMILY_ID = "it-project-delivery";
 const SCOPE_LABEL = "IT project delivery";
 const ROLE = "IT project manager in Paris";

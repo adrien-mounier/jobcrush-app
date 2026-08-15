@@ -239,7 +239,7 @@ await assertTrue(
 // ---------------------------------------------------------------------------------------------
 const me = await json('/sessions/me');
 await qa.note(
-  `session.discovery.floor: ${JSON.stringify(me.discovery?.floor)} — null, as on every shipped ` +
+  `session.discovery.searchFamily: ${JSON.stringify(me.discovery?.searchFamily)} — null, as on every shipped ` +
   'journey (no production-discovery route is reachable from the web client). The scope must come ' +
   'from the target-role placement instead.',
 );

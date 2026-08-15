@@ -247,6 +247,20 @@ export class ProductionFamilyFloorStore {
   }
 }
 
+/** #234 — the one "may this family be used?" test, shared by the discovery route (which looks a
+ *  stored version up by number) and the discovery plan (which looks today's active version up by
+ *  family). `publish` already enforces all three, but a catalog adapter injected in a test — or a
+ *  future non-publishing source — does not, so the check stays at the point of use. */
+export function eligiblePublication(
+  publication: ProductionFamilyPublicationValue | null | undefined,
+): ProductionFamilyPublicationValue | null {
+  return publication?.publicationStatus === "published" &&
+    publication.floor.source === "production_research" &&
+    publication.floor.productionRewardEligible
+    ? publication
+    : null;
+}
+
 export function initialProductionFamilyFloors(): ProductionFamilyFloorStore {
   const store = new ProductionFamilyFloorStore();
   store.publish(

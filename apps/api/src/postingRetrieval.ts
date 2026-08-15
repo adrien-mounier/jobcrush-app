@@ -44,7 +44,7 @@ export function retrievalRequestForSession(
   return {
     targetRole: session.intent.targetRole,
     searchAreas: session.intent.searchAreas.map((entry) => entry.text),
-    family: session.discovery.floor,
+    family: session.discovery.searchFamily,
     checkpoint: session.discovery.checkpoint,
     confirmedEvidence: confirmed
       .filter((claim) => !isTailorClaimId(claim.id))

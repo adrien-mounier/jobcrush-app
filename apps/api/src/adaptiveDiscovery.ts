@@ -1,5 +1,8 @@
-import type { FamilyFloorV1, FamilyPlacement } from "@jobcrush/contracts";
+import type { FamilyFloorV1, FamilyPlacement, JobBlockView } from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
+import { eligiblePublication, type ProductionFamilyFloorStore } from "./familyFloors.js";
+import type { DiscoveryPlan } from "./sessions.js";
+import { computeFamilyRecency, computeFamilyYears } from "./yearsWorked.js";
 
 type AdaptiveDiscoveryFloor = Pick<
   FamilyFloorV1,
@@ -103,4 +106,54 @@ export function soleConfirmedFamily(
   return placement.outcome === "confirmed" && placement.families.length === 1
     ? placement.families[0]!
     : null;
+}
+
+/** #230 decision 2 / spec #233 decision 3: at most two floors. A third buys little evidence and
+ *  delays the deck; floor answers are true for ever, so the two she does answer are never wasted. */
+export const MAX_QUESTION_FLOORS = 2;
+
+const byDescending = (a: number, b: number) => (a === b ? 0 : a > b ? -1 : 1);
+
+/** #234 — the ONE function that decides which floors the interview asks and which family retrieval
+ *  searches with (spec #233 decision 2). It takes the target role's family placement, the visitor's
+ *  dated job records with their own placements, and the published floor registry, and lives here
+ *  beside floor selection rather than in a route.
+ *
+ *  A mapped target role returns that family as both, which is every visitor today — this ticket
+ *  changes nobody's behaviour. Deliberately NOT checked here: whether that family is published and
+ *  reward-eligible. The discovery route already tests that itself and answers with the accurate
+ *  `production_floor_unavailable`; folding it in would turn that into "we cannot place you", which
+ *  is a different and wrong thing to say. #235 is where an unpublished named family reaches the
+ *  word search instead.
+ *
+ *  Anything else — unmapped, or a placement naming several families (until #232) — is interviewed
+ *  on the families her own dated job records prove, at today's ACTIVE published version of each,
+ *  and searched on her typed words (`searchFamily: null`, which #235 acts on). Zero candidates is a
+ *  legitimate outcome, not a failure. */
+export function discoveryPlan(
+  placement: FamilyPlacement,
+  blocks: readonly JobBlockView[],
+  published: Pick<ProductionFamilyFloorStore, "active">,
+): DiscoveryPlan {
+  const target = soleConfirmedFamily(placement);
+  if (target) return { questionFloors: [target], searchFamily: target };
+
+  // Both maps are keyed by the families her COUNTING job records are confirmed into — a job
+  // carrying two families counts fully toward each (ADR-0014 amendment 1 decision 4), so the years
+  // read here are the same per-family numbers every other surface reads.
+  const years = computeFamilyYears(blocks);
+  const recency = computeFamilyRecency(blocks);
+  const questionFloors = [...years.keys()]
+    .flatMap((familyId) => {
+      const publication = eligiblePublication(published.active(familyId));
+      return publication ? [{ familyId, version: publication.floor.version }] : [];
+    })
+    .sort(
+      (a, b) =>
+        byDescending(years.get(a.familyId)!, years.get(b.familyId)!) ||
+        byDescending(recency.get(a.familyId) ?? -Infinity, recency.get(b.familyId) ?? -Infinity) ||
+        a.familyId.localeCompare(b.familyId, "en-US"),
+    )
+    .slice(0, MAX_QUESTION_FLOORS);
+  return { questionFloors, searchFamily: null };
 }

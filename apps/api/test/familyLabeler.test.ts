@@ -245,7 +245,8 @@ describe("#220 production discovery, with the real labeler wired", () => {
       checkpoint: "family_confirmed",
     });
     expect((await sessions.getById(sessionId))?.discovery).toMatchObject({
-      floor: { familyId: "it-project-delivery", version: 1 },
+      questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
+      searchFamily: { familyId: "it-project-delivery", version: 1 },
       checkpoint: "family_confirmed",
     });
   });
@@ -274,7 +275,10 @@ describe("#220 production discovery, with the real labeler wired", () => {
       familyResearch: { path: "/family-learning/candidates" },
       rewardEligible: false,
     });
-    expect((await built.sessions.getById(sessionId))?.discovery.floor).toBeNull();
+    expect((await built.sessions.getById(sessionId))?.discovery).toMatchObject({
+      questionFloors: [],
+      searchFamily: null,
+    });
   });
 
   it("offers family research to an unmapped visitor, never the nearest family", async () => {
@@ -290,7 +294,10 @@ describe("#220 production discovery, with the real labeler wired", () => {
       rewardEligible: false,
     });
     // Nothing was pinned on an unconfirmed placement.
-    expect((await sessions.getById(sessionId))?.discovery.floor).toBeNull();
+    expect((await sessions.getById(sessionId))?.discovery).toMatchObject({
+      questionFloors: [],
+      searchFamily: null,
+    });
   });
 
   it("does not block the visitor when the model is unavailable, and authorizes nothing", async () => {

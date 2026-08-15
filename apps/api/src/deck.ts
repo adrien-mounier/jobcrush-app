@@ -412,7 +412,9 @@ export async function advertFamilyIdFor(
   session: Readonly<SessionRecord>,
   placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>,
 ): Promise<string | null> {
-  if (session.discovery.floor) return session.discovery.floor.familyId;
+  // #234: the SEARCH family, not the question floors — this resolves the family the deck's adverts
+  // are about, and #235's word-search visitor is interviewed on floors nothing was searched with.
+  if (session.discovery.searchFamily) return session.discovery.searchFamily.familyId;
   return soleConfirmedFamily(await placeFamily(session))?.familyId ?? null;
 }
 

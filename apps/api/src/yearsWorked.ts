@@ -142,6 +142,37 @@ export function computeFamilyYears(
   return new Map([...byFamily].map(([familyId, spans]) => [familyId, mergedYears(spans)]));
 }
 
+/** #234 — how recent each family's most recent job is, as a sortable month number. Only ever
+ *  COMPARED (the discovery plan's tie-break when two families carry the same years), never shown.
+ *  A job whose end nobody stated reads at its start, the only month it actually carries.
+ *
+ *  CLAMPED TO TODAY, exactly as span() above is and for the same #162 QA reason: nobody has worked a
+ *  month that has not happened yet, so a typo'd "December 9999" must not outrank a real job here
+ *  either. An ongoing job therefore reads as today and ties with one that ended this month — which
+ *  is the honest answer, since neither is more recent than the other. */
+export function computeFamilyRecency(
+  blocks: readonly JobBlockView[],
+  now: Date = new Date(),
+): Map<string, number> {
+  const today = nowMonthExclusive(now);
+  const byFamily = new Map<string, number>();
+  for (const block of blocks) {
+    if (!block.countsTowardExperience) continue;
+    const end = block.end.value;
+    const stated =
+      end.state === "ongoing"
+        ? today
+        : end.state === "ended"
+          ? endMonthExclusive(end.date)
+          : startMonth(block.start.value);
+    const at = Math.min(stated, today);
+    for (const familyId of confirmedFamilies(block)) {
+      byFamily.set(familyId, Math.max(byFamily.get(familyId) ?? -Infinity, at));
+    }
+  }
+  return byFamily;
+}
+
 const ORDINAL: Record<PlacementConfidence, number> = { certain: 3, likely: 2, possible: 1 };
 
 /** The confidence a family's years number rides on: the WEAKEST level among the placements that

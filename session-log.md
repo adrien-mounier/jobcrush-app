@@ -2,6 +2,49 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 128) `/implement 234` — one stored fact becomes two, and nobody notices
+
+**Shipped, QA GO.** The prefactor #230's decision needed: the session's discovery record held one
+**job family** doing two jobs — selecting the **family floor** the interview asks from, and naming
+the family retrieval searches with. Identical for a mapped **target role**, which is why nothing
+ever separated them. Now `questionFloors` (ordered) and `searchFamily` (or none), decided by one
+module-level function, `discoveryPlan(placement, blocks, publishedRegistry)` in
+`adaptiveDiscovery.ts`. Every visitor behaves exactly as before; that is the whole deliverable.
+
+- **The unmapped rule is built but not reachable.** For an unmapped or plural placement the function
+  returns the families her dated job records prove — published and reward-eligible only, at most two,
+  years descending, ties by the most recent job then family id — and no search family. The route
+  still refuses on a null search family, so nothing visible changed. #235 deletes that guard, and
+  that is the whole of #235's entry point.
+- 🔑 **The one AC that is deliberately not literally true.** "A family that is not published is never
+  offered as a question floor" is enforced for the CV-derived families only. A *mapped* target role
+  is passed through unfiltered on purpose: the route already answers `production_floor_unavailable`
+  for an unpublished family, and filtering inside the plan would turn that into
+  `placement_not_confirmed` — a worse, wronger sentence, and a red test. Recorded in the function's
+  own doc comment. #235 is where an unpublished named family reaches the word search instead.
+- **"No assertion changed" is partial, unavoidably.** Assertions naming the stored *shape* changed in
+  six files, because the shape is what this ticket splits. No status code, body, score or count moved
+  — the QA gate diffed each one.
+- **Owner decision (2026-08-16):** the `ALTER COLUMN production_discovery SET DEFAULT` stays. A
+  reviewer read it as database work under "no migration"; it changes no existing row and moves no
+  data — it stops the already-deployed staging column handing new sessions the pre-split shape, so
+  the schema stops contradicting the same file's own `CREATE TABLE`.
+- **Consequence on deploy:** existing staging sessions carry the pre-split shape, read as "nothing
+  chosen", restart production discovery and drop their retrieval snapshot. Exactly what the ticket
+  decided (no live users); flagged because it is visible in staging, not because it is a fault.
+- **Two review findings fixed.** `computeFamilyRecency` now clamps a future end date to today, the
+  same #162 QA rule `span()` already follows — a typo'd "December 9999" would otherwise have won
+  every recency tie-break. And the publication-eligibility test moved to one place
+  (`familyFloors.ts`'s `eligiblePublication`), shared by the route and the plan.
+- **Ratchet lowered 1135 → 1132.** The route's own eligibility helper moved out; the new seam landed
+  in `adaptiveDiscovery.ts`.
+- ⚠️ **Landmine filed on #235:** `onboarding.ts` reads `plan.questionFloors[0]!`. Spec #233 decision 6
+  makes an EMPTY floor list legitimate the moment #235 lands, and the `!` hides that from the
+  typechecker — a 500, not a type error. #235 needs a guard, not a comment.
+- **Docs closed with the code:** ADR-0014's *target-role gate* bullet is amended to point at #230,
+  and `CONTEXT.md` gains **word search** as the single name, with an `_Avoid_` list closing off
+  rivals.
+
 ## 2026-08-15 (session 127) `/grilling 230` → `/to-spec` → `/to-tickets` — the retrieval gate opens, silently
 
 **Decided, specced and sliced. No code.** #230 was the one place "never discard, only rank" was not
