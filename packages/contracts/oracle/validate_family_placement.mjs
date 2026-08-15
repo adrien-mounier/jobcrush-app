@@ -1,6 +1,8 @@
 import { Errors, isArray, isCliMain, isObject, isString, oneOf, printResult, readJsonArg, result } from "./_lib.mjs";
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SCHEMA_VERSION = "2";
+const CONFIDENCE = ["certain", "likely", "possible"];
 
 function exactKeys(e, value, keys, at) {
   if (!isObject(value)) return;
@@ -9,38 +11,31 @@ function exactKeys(e, value, keys, at) {
   }
 }
 
-function validateReference(e, value, at, withLabel = false) {
+function validateReference(e, value, at) {
   if (!isObject(value)) {
     e.add(`${at} must be an object`);
     return;
   }
-  exactKeys(e, value, withLabel ? ["familyId", "version", "label"] : ["familyId", "version"], at);
+  exactKeys(e, value, ["familyId", "version"], at);
   e.require(isString(value.familyId) && SLUG.test(value.familyId), `${at}.familyId must be a slug`);
   e.require(Number.isInteger(value.version) && value.version > 0, `${at}.version must be a positive integer`);
-  if (withLabel) e.require(isString(value.label) && value.label.length > 0, `${at}.label must be non-empty`);
 }
 
 export function validateFamilyPlacement(value) {
   const e = new Errors();
   if (!e.require(isObject(value), "placement must be an object")) return result(e);
-  e.require(value.schemaVersion === "1", 'schemaVersion must be "1"');
-  e.require(
-    oneOf(value.outcome, ["confirmed", "needs_clarification", "unmapped"]),
-    "outcome must be confirmed, needs_clarification, or unmapped",
-  );
+  e.require(value.schemaVersion === SCHEMA_VERSION, `schemaVersion must be "${SCHEMA_VERSION}"`);
+  e.require(oneOf(value.outcome, ["confirmed", "unmapped"]), "outcome must be confirmed or unmapped");
 
   if (value.outcome === "confirmed") {
-    exactKeys(e, value, ["schemaVersion", "outcome", "family"], "placement");
-    validateReference(e, value.family, "family");
-  } else if (value.outcome === "needs_clarification") {
-    exactKeys(e, value, ["schemaVersion", "outcome", "choices"], "placement");
-    if (e.require(isArray(value.choices) && value.choices.length >= 2, "choices must contain at least two families")) {
-      value.choices.forEach((choice, index) => validateReference(e, choice, `choices[${index}]`, true));
-      const refs = value.choices
-        .filter(isObject)
-        .map((choice) => `${choice.familyId}@${choice.version}`);
-      e.require(new Set(refs).size === refs.length, "choices must reference distinct family versions");
+    exactKeys(e, value, ["schemaVersion", "outcome", "families", "confidence"], "placement");
+    // No upper bound on the count — see the zod port's own note: a cap would hide the signal.
+    if (e.require(isArray(value.families) && value.families.length >= 1, "families must contain at least one family")) {
+      value.families.forEach((family, index) => validateReference(e, family, `families[${index}]`));
+      const refs = value.families.filter(isObject).map((family) => `${family.familyId}@${family.version}`);
+      e.require(new Set(refs).size === refs.length, "a placement must reference distinct family versions");
     }
+    e.require(oneOf(value.confidence, CONFIDENCE), `confidence must be one of ${CONFIDENCE.join(", ")}`);
   } else if (value.outcome === "unmapped") {
     exactKeys(e, value, ["schemaVersion", "outcome"], "placement");
   }

@@ -1,13 +1,20 @@
 <!--
-#220 (labeler slice 1) — places a job title into a job family from the CLOSED published list.
-Read ADR-0014 before changing a word here: the whole point of a closed vocabulary is that a job's
-label and an advert's requirement come from the SAME list, so "nearest family" is not a kindness,
-it is the bug. Every wording change here must be re-measured against eval/family-labeler-grid.json
-(`pnpm --filter @jobcrush/api eval:labeler`) — that grid is the gate, not a vibe check.
+#220 (labeler slice 1), amended by #231 — places a job title into one or more job families from the
+CLOSED published list. Read ADR-0014 and its amendment 1 before changing a word here: the whole
+point of a closed vocabulary is that a job's label and an advert's requirement come from the SAME
+list, so "nearest family" is not a kindness, it is the bug. Every wording change here must be
+re-measured against eval/family-labeler-grid.json (`pnpm --filter @jobcrush/api eval:labeler`) —
+that grid is the gate, not a vibe check.
 
-The model chooses ids only. Versions, display labels and schemaVersion are OURS to fill in
-(familyLabeler.ts assembles the contract answer), the same discipline ad-reader.md follows for
-adId/curated — a model must never invent a version number a visitor's numbers are pinned to.
+#231: NOBODY IS ASKED any more. There is no clarification outcome and no panel behind it, so a
+two-kinds-of-work title is ANSWERED with both families rather than handed back as a question. The
+{{CARDINALITY}} block below is the one thing that differs between the two callers: a past job may
+carry several families, the target role must carry exactly one until #232 merges the floors.
+
+The model chooses ids and a confidence level only. Versions, display labels and schemaVersion are
+OURS to fill in (familyLabeler.ts assembles the contract answer), the same discipline ad-reader.md
+follows for adId/curated — a model must never invent a version number a visitor's numbers are
+pinned to.
 -->
 You place a job title into a job family.
 
@@ -54,14 +61,10 @@ names no work at all — "consultant", "specialist", an employer's name, gibberi
 place. **Being unsure is not a reason to answer unmapped.** Unmapped is for a role whose core work
 is genuinely something else.
 
-**Step 2 — answer by how many families you collected.**
+**Step 2 — answer by what you collected.**
 
-- **exactly one → confirmed.** That family, by its id.
-- **two or more → needs_clarification.** This is not uncertainty about one family; it is a role
-  that genuinely does two kinds of work, and only the person can say which one they mean. Do NOT
-  break the tie by picking the better fit, the more common one, or the one the title mentions
-  first. List them and let the person choose. A title that names two kinds of work
-  ("X and Y manager", "X / Y lead") is the ordinary case for this answer, not a rare one.
+{{CARDINALITY}}
+
 - **none → unmapped.** This is a correct, useful, expected answer — say it plainly rather than
   reaching for the closest family. It is for a role whose core work is genuinely SOMETHING ELSE
   than every family listed, however near it looks, and for a role that names no work at all
@@ -70,15 +73,23 @@ is genuinely something else.
 
 Never invent a family id. Never output an id that is not on the list above.
 
+**Step 3 — say how sure you are.** One word, on the placement as a whole:
+
+- **certain** — the role plainly does this family's work; anyone reading the title would agree.
+- **likely** — the ordinary reading puts it here, but the title leaves room for another reading.
+- **possible** — you are placing it on the balance of what such a title usually means, and you can
+  see how it could be work this family does not cover.
+
+Confidence is about the LABEL, not about the person. It never shrinks anyone's experience — it only
+decides how loudly we lean on the label. So do not hedge to be safe: an honest "certain" is what
+lets a good match be shown as one, and an honest "possible" is what stops a shaky one being trusted.
+
 ## Output
 
 One JSON object, nothing else — no prose, no code fence.
 
-Confirmed:
-{"outcome":"confirmed","familyId":"<one id from the list>","why":"<one short sentence>"}
-
-Needs clarification:
-{"outcome":"needs_clarification","familyIds":["<id>","<id>"],"why":"<one short sentence>"}
+Placed:
+{"outcome":"confirmed","familyIds":[{{IDS_EXAMPLE}}],"confidence":"certain|likely|possible","why":"<one short sentence>"}
 
 Unmapped:
 {"outcome":"unmapped","why":"<one short sentence>"}

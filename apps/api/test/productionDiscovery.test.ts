@@ -10,10 +10,12 @@ import {
 import { buildServer } from "../src/server.js";
 
 const placement = {
-  schemaVersion: "1" as const,
+  schemaVersion: "2" as const,
   outcome: "confirmed" as const,
-  family: { familyId: "it-project-delivery", version: 1 },
+  families: [{ familyId: "it-project-delivery", version: 1 }],
+  confidence: "certain" as const,
 };
+const placedFamily = placement.families[0]!;
 
 const imported = (
   itemId: string,
@@ -77,12 +79,12 @@ describe("#61 production discovery HTTP seam", () => {
     const started = await evaluate(app, cookie);
     expect(started.statusCode).toBe(200);
     expect(started.json()).toMatchObject({
-      floor: placement.family,
+      floor: placedFamily,
       checkpoint: "family_confirmed",
       progress: { complete: 1, remaining: 3 },
     });
     expect((await sessions.getById(sessionId))?.discovery).toEqual({
-      floor: placement.family,
+      floor: placedFamily,
       coveredItemIds: ["end-to-end-delivery"],
       checkpoint: "family_confirmed",
     });
@@ -116,24 +118,29 @@ describe("#61 production discovery HTTP seam", () => {
   });
 
   it.each([
+    { schemaVersion: "2", outcome: "unmapped" },
     {
-      schemaVersion: "1",
-      outcome: "needs_clarification",
-      choices: [
-        { familyId: "it-project-delivery", version: 1, label: "IT delivery" },
-        { familyId: "product-management", version: 1, label: "Product" },
+      schemaVersion: "2",
+      outcome: "confirmed",
+      families: [{ familyId: "it-project-delivery", version: 99 }],
+      confidence: "certain",
+    },
+    {
+      schemaVersion: "2",
+      outcome: "confirmed",
+      families: [{ familyId: "delivery-leadership-example", version: 1 }],
+      confidence: "certain",
+    },
+    // #231 — a PLURAL placement never reaches floor selection: a floor is one family's questions,
+    // and picking one of two on the visitor's behalf is the thing ADR-0014 forbids. #232 lifts this.
+    {
+      schemaVersion: "2",
+      outcome: "confirmed",
+      families: [
+        { familyId: "it-project-delivery", version: 1 },
+        { familyId: "product-management", version: 1 },
       ],
-    },
-    { schemaVersion: "1", outcome: "unmapped" },
-    {
-      schemaVersion: "1",
-      outcome: "confirmed",
-      family: { familyId: "it-project-delivery", version: 99 },
-    },
-    {
-      schemaVersion: "1",
-      outcome: "confirmed",
-      family: { familyId: "delivery-leadership-example", version: 1 },
+      confidence: "likely",
     },
   ])("rejects non-production placement %#", async (invalidPlacement) => {
     const { app, cookie } = await setup([], "memory", invalidPlacement as typeof placement);
@@ -180,7 +187,7 @@ describe("#61 production discovery HTTP seam", () => {
       const cookie = `jc_session=${created.cookies.find((value) => value.name === "jc_session")!.value}`;
       await built.sessions.reconcileDiscoveryState(
         created.json().id,
-        placement.family,
+        placedFamily,
         [],
         false,
       );
@@ -249,7 +256,7 @@ describe("#61 production discovery HTTP seam", () => {
     });
     expect(answered.statusCode).toBe(200);
     expect(answered.json()).toMatchObject({
-      floor: placement.family,
+      floor: placedFamily,
       progress: { complete: 1, remaining: 3 },
       nextQuestion: { itemId: "stakeholder-coordination" },
     });
@@ -355,7 +362,7 @@ describe("#61 production discovery HTTP seam", () => {
     expect(completed.statusCode).toBe(200);
     expect(completed.json()).toEqual({
       checkpoint: "essential_floor_covered",
-      floor: placement.family,
+      floor: placedFamily,
     });
 
     for (const itemId of [
@@ -387,7 +394,7 @@ describe("#61 production discovery HTTP seam", () => {
       progress: { complete: 0, remaining: 4 },
     });
     expect((await covered.sessions.getById(covered.sessionId))?.discovery).toEqual({
-      floor: placement.family,
+      floor: placedFamily,
       coveredItemIds: [],
       checkpoint: "family_confirmed",
     });
@@ -398,7 +405,7 @@ describe("#61 production discovery HTTP seam", () => {
       progress: { complete: 0, remaining: 4 },
     });
     expect((await covered.sessions.getById(covered.sessionId))?.discovery).toEqual({
-      floor: placement.family,
+      floor: placedFamily,
       coveredItemIds: [],
       checkpoint: "family_confirmed",
     });
@@ -455,7 +462,7 @@ describe("#61 production discovery HTTP seam", () => {
     await pool.query("UPDATE sessions SET production_discovery = $2 WHERE id = $1", [
       created.json().id,
       JSON.stringify({
-        floor: placement.family,
+        floor: placedFamily,
         coveredItemIds: [],
         checkpoint: "essential_floor_covered",
       }),

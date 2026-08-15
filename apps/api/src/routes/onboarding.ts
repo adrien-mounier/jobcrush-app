@@ -69,7 +69,7 @@ import { placementRejection } from "../familyLabeler.js";
 import { FamilyPlacement } from "@jobcrush/contracts";
 import {
   adaptiveDiscoveryState,
-  confirmedFixtureFloorReference,
+  soleConfirmedFamily,
   fixtureDiscoveryClaimId,
 } from "../adaptiveDiscovery.js";
 import type { ProductionFamilyFloorStore, TestFixtureFamilyFloorStore } from "../familyFloors.js";
@@ -191,7 +191,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       placement: FamilyPlacement,
       reply: FastifyReply,
     ) => {
-      const reference = confirmedFixtureFloorReference(placement);
+      const reference = soleConfirmedFamily(placement);
       if (!reference) {
         return reply.status(409).send({
           error: { code: "placement_not_confirmed", message: "confirmed family placement required" },
@@ -289,20 +289,20 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       {},
       async (req, reply) => {
         const session = requireSession(req);
-        const placement = await deps.placeFamily(session);
-        if (placement.outcome !== "confirmed")
-          return reply.status(409).send(placementRejection(placement));
+        // #231: one family or nothing — soleConfirmedFamily is the guard (see its own doc).
+        const family = soleConfirmedFamily(await deps.placeFamily(session));
+        if (!family) return reply.status(409).send(placementRejection());
         if (
           session.discovery.floor &&
-          (session.discovery.floor.familyId !== placement.family.familyId ||
-            session.discovery.floor.version !== placement.family.version)
+          (session.discovery.floor.familyId !== family.familyId ||
+            session.discovery.floor.version !== family.version)
         ) {
           return reply.status(409).send({
             error: { code: "production_floor_already_pinned", message: "production family version already selected" },
             rewardEligible: false,
           });
         }
-        return productionResponse(session, placement.family, reply, true);
+        return productionResponse(session, family, reply, true);
       },
     );
 
@@ -413,7 +413,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       },
       async (req, reply) => {
         const session = requireSession(req);
-        const reference = confirmedFixtureFloorReference(req.body.placement);
+        const reference = soleConfirmedFamily(req.body.placement);
         if (!reference) return fixtureState(session.id, req.body.placement, reply);
         const floor = deps.familyFloors.get(reference.familyId, reference.version);
         const item = floor?.essentialItems.find((candidate) => candidate.id === req.body.itemId);

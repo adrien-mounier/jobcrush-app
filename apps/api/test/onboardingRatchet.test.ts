@@ -22,8 +22,8 @@ import { fileURLToPath } from "node:url";
 // withdrawal.ts (partitionByWithdrawal) and the language ladder's whole rule set went into its own
 // module (languageLevel.ts), so the ticket's new endpoint landed while the spine still shrank.
 // #220 lowered it from 1138: the production discovery route's non-confirmed 409 body moved out to
-// familyLabeler.ts (placementRejection) — what a needs_clarification or unmapped placement offers a
-// visitor next is the labeler's business, not the spine's.
+// familyLabeler.ts (placementRejection) — what an unconfirmed placement offers a visitor next is the
+// labeler's business, not the spine's.
 const MAX_LINES = 1135;
 
 describe("onboarding.ts ratchet", () => {

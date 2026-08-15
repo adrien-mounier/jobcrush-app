@@ -77,6 +77,7 @@ import { DevMailer } from "./mailer.js";
 import { createGuestbook } from "./guestbook.js";
 import { IpRateLimiter } from "./sessions.js";
 import type { LlmClient } from "./llm.js";
+import { qaFamilyAnswer, roleFromLabelerPrompt } from "./qaFamilyAnswer.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -298,24 +299,12 @@ const fakeLlm: LlmClient = {
         })),
       });
     }
-    // family-labeler.md's own opening line (#220). Deliberately NOT always-confirmed: a QA journey
-    // has to be able to walk both ends of this — discovery opening for a visitor the vocabulary
-    // covers, and the honest "we don't cover this kind of work yet" for one it doesn't — and a fake
-    // that confirmed everything would make the second path unreachable.
+    // family-labeler.md's own opening line (#220). The answer itself lives in qaFamilyAnswer.ts —
+    // #231 moved it there so it could be parsed by the real contract in a test, after this fake
+    // spent a commit answering in a shape the parser rejected with nothing to catch it.
     if (prompt.includes("You place a job title into a job family")) {
       seen.familyPlacement += 1;
-      // \s+ rather than \n\n: prompts/family-labeler.md is read straight off disk, and this repo's
-      // git checkout rewrites line endings on Windows — a literal \n\n would quietly stop matching
-      // there and place every role as unmapped.
-      const role = (/## The role to place\s+(.+)/.exec(prompt) ?? [, ""])[1]!.toLowerCase();
-      // #221: "coordinator" is the one canned job title deliberately left UNPLACED. Every other job
-      // in the canned CV places cleanly, and a fake that placed them all would make the review
-      // screen's batched "what kind of work was this?" question unreachable in a live drive. No
-      // journey types a coordinator TARGET role, so the target-role path is untouched by this.
-      if (/coordinator/.test(role)) return JSON.stringify({ outcome: "unmapped" });
-      return /project|programme|program|delivery|scrum|\bpm\b/.test(role)
-        ? JSON.stringify({ outcome: "confirmed", familyId: "it-project-delivery" })
-        : JSON.stringify({ outcome: "unmapped" });
+      return qaFamilyAnswer(roleFromLabelerPrompt(prompt));
     }
     if (prompt.includes("Rephrase each item below")) {
       seen.grill += 1;

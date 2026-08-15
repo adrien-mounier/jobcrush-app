@@ -4,15 +4,17 @@ import { buildServer } from "../src/server.js";
 import { TestFixtureFamilyFloorStore } from "../src/familyFloors.js";
 
 const placement = {
-  schemaVersion: "1" as const,
+  schemaVersion: "2" as const,
   outcome: "confirmed" as const,
-  family: { familyId: "delivery-leadership-example", version: 1 },
+  families: [{ familyId: "delivery-leadership-example", version: 1 }],
+  confidence: "certain" as const,
 };
+const [placedFamily] = placement.families;
 
 const floor = (count: number): FamilyFloorV1 => ({
   schemaVersion: "1",
-  familyId: placement.family.familyId,
-  version: placement.family.version,
+  familyId: placedFamily!.familyId,
+  version: placedFamily!.version,
   source: "test_fixture",
   productionRewardEligible: false,
   essentialItems: Array.from({ length: count }, (_, index) => ({
@@ -161,7 +163,7 @@ describe("#59 fixture-driven adaptive discovery HTTP seam", () => {
     const { app, cookie } = await setup(3, ["requirement-1"]);
     const response = await evaluate(app, cookie, {
       placement: {
-        schemaVersion: "1",
+        schemaVersion: "2",
         outcome: "unmapped",
       },
     });

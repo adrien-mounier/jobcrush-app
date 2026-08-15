@@ -125,10 +125,19 @@ _Avoid_: Screening answer, source-supported fact
 
 **Family placement**:
 The judgement placing a person's target role or one of their dated job records in a job family:
-confirmed, needs clarification (two or more choices, put to the user), or unmapped — never the
-nearest family. It is worked out, stored on the job record as a correctable fact, and a correction
-is never overwritten by a re-read (#134, ADR-0014).
-_Avoid_: Job label, classification, posting family fit
+confirmed or unmapped — never the nearest family. A confirmed placement names **one or more**
+families (a job can genuinely be two kinds of work) and carries an ordinal **placement confidence**.
+Nobody is ever asked to choose between families. It is worked out, stored on the job record as a
+correctable fact, and a correction is never overwritten by a re-read (#134, ADR-0014 + amendment 1).
+_Note_: the target role still holds exactly one family until #232 merges several families' floors.
+_Avoid_: Job label, classification, posting family fit, needs clarification (deleted in #231)
+
+**Placement confidence**:
+How sure the labeler is about a family placement — *certain / likely / possible*, an ordinal, never
+a number. It attenuates the **ranking** (a job we are less sure about sinks in the deck) and never
+the years fact, which stays a whole honest number. Nothing is ever filtered out by it. A person's
+own correction is always certain (ADR-0014 amendment 1 decision 5).
+_Avoid_: Confidence score, probability, match strength
 
 **Industry**:
 The kind of business an employer is (banking, finance) — the second axis of a job, distinct from

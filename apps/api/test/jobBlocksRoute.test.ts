@@ -22,12 +22,11 @@ describe("GET /job-blocks", () => {
     const cookie = await anonSession(server.app);
     const res = await server.app.inject({ method: "GET", url: "/job-blocks", headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    // #221: the published families travel with the deck (the review screen offers them for a job
-    // nobody could place) — served even on an empty deck, straight off the production registry.
+    // #231: the deck no longer carries the published families. They were here so the review screen
+    // could offer choices for an unplaced job; nobody is asked any more, so nothing read them.
     expect(res.json()).toEqual({
       blocks: [],
       summary: { totalBlocks: 0, confirmedBlocks: 0, read: { status: "not_run" } },
-      families: [{ familyId: "it-project-delivery", version: 1, label: "IT project delivery" }],
     });
   });
 });

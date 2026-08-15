@@ -51,6 +51,7 @@ import {
 } from "./counters.js";
 import type { Posting } from "./preview.js";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
+import { PLACEMENT_SCHEMA_VERSION } from "@jobcrush/contracts";
 import type { JudgeFn, JudgePeekFn } from "./judge.js";
 import { runWithVisitor } from "./llmVisitorContext.js";
 import { InMemoryUsageLedgerStore, type UsageLedgerStore } from "./usageLedgerStore.js";
@@ -175,7 +176,7 @@ export function buildServer(opts: BuildOptions = {}) {
     opts.productionFamilyFloors ?? initialProductionFamilyFloors();
   const placeFamily =
     opts.placeFamily ??
-    (async () => ({ schemaVersion: "1" as const, outcome: "unmapped" as const }));
+    (async () => ({ schemaVersion: PLACEMENT_SCHEMA_VERSION, outcome: "unmapped" as const }));
   const auth = opts.auth ?? new InMemoryAuthStore();
   const mailer = opts.mailer ?? new DevMailer();
   const guestbook = opts.guestbook ?? createGuestbook(process.env.DATABASE_URL);

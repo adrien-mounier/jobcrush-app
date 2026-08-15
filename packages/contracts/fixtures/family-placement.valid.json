@@ -1,19 +1,21 @@
 [
   {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "outcome": "confirmed",
-    "family": { "familyId": "delivery-leadership-example", "version": 1 }
+    "families": [{ "familyId": "delivery-leadership-example", "version": 1 }],
+    "confidence": "certain"
   },
   {
-    "schemaVersion": "1",
-    "outcome": "needs_clarification",
-    "choices": [
-      { "familyId": "delivery-leadership-example", "version": 1, "label": "Delivery leadership" },
-      { "familyId": "business-change-example", "version": 2, "label": "Business change" }
-    ]
+    "schemaVersion": "2",
+    "outcome": "confirmed",
+    "families": [
+      { "familyId": "delivery-leadership-example", "version": 1 },
+      { "familyId": "business-change-example", "version": 2 }
+    ],
+    "confidence": "likely"
   },
   {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "outcome": "unmapped"
   }
 ]

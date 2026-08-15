@@ -673,19 +673,9 @@ import type {
   DeckSummary as JobBlocksSummary,
 } from "@jobcrush/contracts";
 
-/** #221 — one published job family, as the review screen offers it: what a person picks between
- *  when the machine could not place a job (or placed it two ways). Served with the deck rather than
- *  hand-kept here, so a newly published family appears with no client change. */
-export interface JobFamilyChoice {
-  familyId: string;
-  version: number;
-  label: string;
-}
-
 export function getJobBlocks(): Promise<{
   blocks: JobBlockView[];
   summary: JobBlocksSummary;
-  families: JobFamilyChoice[];
 }> {
   return jfetch("/api/job-blocks");
 }
@@ -707,7 +697,8 @@ export type JobBlockCorrection =
   | { key: "end"; value: MinedEndValue }
   | { key: "kind"; value: JobBlockKind }
   // #221: the person's own answer to "what kind of work is this?" — a reference into the published
-  // list the deck was served with, never free text.
+  // list, never free text. #231 removed the screen that ASKED it; the family stays a correctable
+  // fact, so this door stays open for the correction surface that #128's machinery already has.
   | { key: "family"; value: { familyId: string; version: number } };
 
 // #163: `held` — confirmed sentences this correction contradicted, now held aside with a precise

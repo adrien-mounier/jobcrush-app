@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { LlmClient } from "../src/llm.js";
 import { initialProductionFamilyFloors } from "../src/familyFloors.js";
-import { placeTargetRole, publishedFamilies, type PublishedFamily } from "../src/familyLabeler.js";
+import { placeJobTitle, publishedFamilies, type PublishedFamily } from "../src/familyLabeler.js";
 
 const GRID_PATH = join(dirname(fileURLToPath(import.meta.url)), "family-labeler-grid.json");
 
@@ -20,8 +20,16 @@ export interface GridCase {
   id: string;
   targetRole: string;
   vocabulary: "published" | "two-family";
-  expected: "confirmed" | "needs_clarification" | "unmapped";
-  expectedFamilyId?: string;
+  expected: "confirmed" | "unmapped";
+  /** Every family the case should come back with, in any order. #231: a job can be in more than
+   *  one, so this is a SET — a placement that names the right families plus a spurious extra is a
+   *  miss, exactly as a wrong single family always was. */
+  expectedFamilies?: string[];
+  /** #231 — asserted where the right answer is not in doubt, and reported as its own rate rather
+   *  than folded into `hit`. The families are the gate; confidence is measured beside it, so a
+   *  labeler that places perfectly but hedges everything is visible without failing the run on an
+   *  ordinal one step out. */
+  expectedConfidence?: "certain" | "likely" | "possible";
   arbitration?: boolean;
   note?: string;
 }
@@ -54,7 +62,8 @@ export const TWO_FAMILIES: PublishedFamily[] = [
 
 export interface GridResult extends GridCase {
   observed: string;
-  observedFamilyId?: string;
+  observedFamilies?: string[];
+  observedConfidence?: string;
   hit: boolean;
   /** The answer came out of the retry path — the model's first attempt was unusable. */
   retried: boolean;
@@ -78,6 +87,13 @@ export interface GridRates {
   comparableAccuracy: number;
   strangerRecall: number;
   falseUnknownRate: number;
+  /** #231 — of the cases that declare an expected confidence, how many got it exactly. Reported,
+   *  not barred: see GridCase.expectedConfidence. */
+  confidenceAccuracy: number;
+  /** #231 — how many placements named more than one family. The number amendment 1 decision 3
+   *  wants watched: no cap is enforced anywhere, so this is what says whether the instruction is
+   *  actually holding the line at two. */
+  multiFamilyCount: number;
 }
 
 /** Wraps a shared client so ONE case's calls and tokens are counted on their own, whatever else is
@@ -112,12 +128,18 @@ export async function runGrid(
         const families = item.vocabulary === "two-family" ? TWO_FAMILIES : PUBLISHED;
         const { wrapped, tally } = perCase(llm);
         let observed = "unmapped";
-        let observedFamilyId: string | undefined;
+        let observedFamilies: string[] | undefined;
+        let observedConfidence: string | undefined;
         let error: string | undefined;
         try {
-          const placement = await placeTargetRole(item.targetRole, families, wrapped);
+          // The PLURAL path, deliberately: it is the one a visitor's job records go through, and
+          // the target-role path is a constrained special case of it until #232.
+          const placement = await placeJobTitle(item.targetRole, families, wrapped);
           observed = placement.outcome;
-          observedFamilyId = placement.outcome === "confirmed" ? placement.family.familyId : undefined;
+          if (placement.outcome === "confirmed") {
+            observedFamilies = placement.families.map((family) => family.familyId);
+            observedConfidence = placement.confidence;
+          }
         } catch (err) {
           // The driver itself threw (network, auth, rate limit). Never a labeler result.
           error = err instanceof Error ? err.message : String(err);
@@ -125,12 +147,14 @@ export async function runGrid(
         results.push({
           ...item,
           observed,
-          observedFamilyId,
-          // A confirmation into the WRONG family is a miss, not partial credit.
+          observedFamilies,
+          observedConfidence,
+          // A confirmation into the WRONG families is a miss, not partial credit — and so is one
+          // that names the right family plus a second the work does not actually include.
           hit:
             !error &&
             observed === item.expected &&
-            (item.expected !== "confirmed" || observedFamilyId === item.expectedFamilyId),
+            (item.expected !== "confirmed" || sameSet(observedFamilies, item.expectedFamilies)),
           retried: tally.calls > 1,
           degraded: !!error || (tally.calls > 1 && observed === "unmapped"),
           inputTokens: tally.inputTokens,
@@ -143,14 +167,22 @@ export async function runGrid(
   return results.sort((a, b) => a.id.localeCompare(b.id));
 }
 
+const sameSet = (a: string[] | undefined, b: string[] | undefined): boolean =>
+  !!a && !!b && a.length === b.length && [...a].sort().join("|") === [...b].sort().join("|");
+
 export function rateGrid(results: GridResult[]): GridRates {
   const comparable = results.filter((item) => item.expected !== "unmapped");
   const strangers = results.filter((item) => item.expected === "unmapped");
+  const graded = results.filter((item) => item.expectedConfidence);
   return {
     comparableAccuracy: comparable.filter((item) => item.hit).length / comparable.length,
     strangerRecall: strangers.filter((item) => item.hit).length / strangers.length,
     falseUnknownRate:
       comparable.filter((item) => item.observed === "unmapped").length / comparable.length,
+    confidenceAccuracy: graded.length
+      ? graded.filter((item) => item.observedConfidence === item.expectedConfidence).length / graded.length
+      : 1,
+    multiFamilyCount: results.filter((item) => (item.observedFamilies?.length ?? 0) > 1).length,
   };
 }
 
@@ -159,6 +191,6 @@ export function describeMisses(results: GridResult[]): string[] {
     .filter((item) => !item.hit)
     .map(
       (item) =>
-        `MISS ${item.id} "${item.targetRole}": expected ${item.expected}${item.expectedFamilyId ? ` (${item.expectedFamilyId})` : ""}, got ${item.error ? `ERROR ${item.error.slice(0, 120)}` : `${item.observed}${item.observedFamilyId ? ` (${item.observedFamilyId})` : ""}`}${item.arbitration ? " [owner-arbitrated case]" : ""}`,
+        `MISS ${item.id} "${item.targetRole}": expected ${item.expected}${item.expectedFamilies ? ` (${item.expectedFamilies.join(" + ")})` : ""}, got ${item.error ? `ERROR ${item.error.slice(0, 120)}` : `${item.observed}${item.observedFamilies ? ` (${item.observedFamilies.join(" + ")})` : ""}`}${item.arbitration ? " [owner-arbitrated case]" : ""}`,
     );
 }

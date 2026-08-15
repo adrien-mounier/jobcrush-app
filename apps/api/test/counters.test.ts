@@ -66,7 +66,7 @@ describe("#103 posting-pool counters", () => {
       "usageLedger.write_failed": 0,
       "years.drift_detected": 0,
       "familyLabeler.confirmed": 0,
-      "familyLabeler.needs_clarification": 0,
+      "familyLabeler.multi_family": 0,
       "familyLabeler.unmapped": 0,
       "familyLabeler.output_invalid": 0,
       "familyLabeler.call_failed": 0,

@@ -4,7 +4,14 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import { FamilyVersionReference, MinedDate, MinedEndValue, KINDS, countsTowardExperience } from "@jobcrush/contracts";
+import {
+  FamilyVersionReference,
+  MinedDate,
+  MinedEndValue,
+  KINDS,
+  countsTowardExperience,
+  PLACEMENT_SCHEMA_VERSION,
+} from "@jobcrush/contracts";
 import type { FamilyPlacement, Kind, HeldSentence } from "@jobcrush/contracts";
 import { holdContradictingSentences } from "../heldSentences.js";
 import { requireSession } from "../server.js";
@@ -84,8 +91,9 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
     // every door that can change a record, with a disagreement counted (yearsWorked.ts).
     const reworkYears = (sessionId: string) => refreshWorkedYears(deps.jobBlocks, deps.eligibility, sessionId);
 
-    // #221: only what a person needs to pick between — id, version and the display name. The rest of
-    // a publication (scope, evidence, floor questions) is the labeler's business, not the screen's.
+    // #221: id, version and the display name. The rest of a publication (scope, evidence, floor
+    // questions) is the labeler's business. #231 left this as the correction door's own guard: it is
+    // what makes "only a PUBLISHED family may be stored" true outside the screen.
     const publishedChoices = () =>
       (deps.families?.() ?? []).map(({ familyId, version, label }) => ({ familyId, version, label }));
 
@@ -105,10 +113,11 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
       // mutated a record without re-deriving. Counted and repaired, never silently absorbed. The
       // records are already in hand, so this costs one eligibility read (and a write only on drift).
       await verifyWorkedYears(deps.eligibility, session.id, blocks, summary.read);
-      // #221: the published families travel WITH the deck. The review screen has to offer real
-      // choices for a job nobody could place, and the only honest source for them is the registry
-      // that publishes them — a hand-kept list in the client would drift the moment one is published.
-      return { blocks, summary, families: publishedChoices() };
+      // #231: the published families no longer travel with the deck. They were here so the review
+      // screen could offer choices for a job nobody could place — nobody is asked any more, so this
+      // was a list nothing read. The list itself still guards the CORRECTION door below, where the
+      // closed vocabulary is actually enforced.
+      return { blocks, summary };
     });
 
     app.post(
@@ -163,9 +172,18 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
           }
           familyLabel = known.label;
           stored = {
-            schemaVersion: "1",
+            schemaVersion: PLACEMENT_SCHEMA_VERSION,
             outcome: "confirmed",
-            family: { familyId: known.familyId, version: known.version },
+            families: [{ familyId: known.familyId, version: known.version }],
+            // #231 — a person's own answer is the one placement nothing is unsure about, so it is
+            // never attenuated in the ranking. The machine's doubt was about the machine.
+            confidence: "certain",
+            // KNOWN LIMIT, deliberate: the contract went plural, this door did not. A correction
+            // names ONE family and supersedes whatever was there, so a person correcting a job the
+            // machine placed in two families narrows it to one. That is the right reading of the
+            // only correction anything can currently express ("this job is X"), and #231 scopes
+            // #128's correction machinery as untouched — but nothing can yet say "it is both".
+            // Widen this door when a surface exists that can ask for two.
           } satisfies FamilyPlacement;
         }
         const found = await deps.jobBlocks.correct(session.id, req.params.blockId, key, stored);

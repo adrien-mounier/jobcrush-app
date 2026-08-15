@@ -26,7 +26,7 @@ import type {
   MinedJobBlock,
   ReadStatus,
 } from "@jobcrush/contracts";
-import { countsTowardExperience } from "@jobcrush/contracts";
+import { countsTowardExperience, FamilyPlacement as FamilyPlacementContract } from "@jobcrush/contracts";
 import { getPool } from "./db.js";
 
 // #163: the view shapes moved to @jobcrush/contracts (jobBlockView.ts) so the web client stops
@@ -149,15 +149,35 @@ function decisionView<T>(blockId: string, key: MinedKey, raw: MinedJobBlock[Mine
   };
 }
 
+/** #231 — a stored placement the CURRENT contract accepts, or null. One written under an earlier
+ *  version reads as NOT PLACED, so the labeler simply places it again — the already-handled "never
+ *  run yet" path — and a stale row self-heals instead of reaching a screen that expects a shape it
+ *  does not have. Chosen over a migration deliberately: v1 placements only ever existed on staging
+ *  (#221 shipped the same day #231 changed it), and a migration would be more code than the thing
+ *  it protects.
+ *
+ *  Parsed, not cast: this is a read out of jsonb, which is a trust boundary like any other, and the
+ *  contract is the only thing that actually knows what a valid placement is. A row that is stamped
+ *  v2 but malformed is refused here rather than asserted onto the client. */
+function placementIfCurrentVersion(placement: unknown): FamilyPlacement | null {
+  return FamilyPlacementContract.safeParse(placement).data ?? null;
+}
+
 /** #221 — the sixth fact's own view. Not decisionView's shape: there is no source quote to fall back
  *  on (nothing in a CV states a job family) and machine_touch/classification are judgements about
  *  QUOTED text, so both stay null here rather than being invented for a decision that quotes nothing. */
 function familyView(blockId: string, stored: StoredBlock): DecisionView<FamilyPlacement | null> {
-  const corrected = "family" in stored.corrections;
+  // A stale CORRECTION reads as no correction at all, rather than as a corrected null: the block is
+  // simply unplaced again and the machine re-places it. Say the cost plainly — a #221-era
+  // correction is DISCARDED, and #231 removed the screen that would have asked again, so nothing
+  // invites the person to restate it. Accepted because such rows only ever existed on staging
+  // (#221 shipped the same day this changed); it would not be acceptable against real visitors.
+  const correction = placementIfCurrentVersion(stored.corrections.family);
+  const placement = placementIfCurrentVersion(stored.placement);
   return {
     id: `${blockId}:family`,
-    value: (corrected ? stored.corrections.family : stored.placement) as FamilyPlacement | null,
-    origin: corrected ? { kind: "corrected", supersededValue: stored.placement } : { kind: "worked_out" },
+    value: correction ?? placement,
+    origin: correction ? { kind: "corrected", supersededValue: placement } : { kind: "worked_out" },
     machine_touch: null,
     classification: null,
   };

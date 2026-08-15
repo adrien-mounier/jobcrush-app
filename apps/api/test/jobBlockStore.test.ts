@@ -88,16 +88,17 @@ for (const [name, make] of drivers) {
       await store.ingest(sid, { schemaVersion: "1", blocks: [job({ id: "a" })] }, "raw");
       expect((await store.list(sid))[0]!.family.value).toBeNull(); // unlabeled until the labeler runs
 
-      const unmapped = { schemaVersion: "1", outcome: "unmapped" } as const;
+      const unmapped = { schemaVersion: "2", outcome: "unmapped" } as const;
       expect(await store.label(sid, "a", unmapped)).toBe(true);
       const labeled = (await store.list(sid))[0]!.family;
       expect(labeled.value).toEqual(unmapped);
       expect(labeled.origin).toEqual({ kind: "worked_out" });
 
       const picked = {
-        schemaVersion: "1",
+        schemaVersion: "2",
         outcome: "confirmed",
-        family: { familyId: "it-project-delivery", version: 1 },
+        families: [{ familyId: "it-project-delivery", version: 1 }],
+        confidence: "certain",
       } as const;
       await store.correct(sid, "a", "family", picked);
       // A later run of the labeler writes the machine's answer — and is still not what she reads.

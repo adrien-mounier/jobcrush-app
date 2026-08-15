@@ -88,8 +88,19 @@ export function adaptiveDiscoveryState(
   };
 }
 
-export function confirmedFixtureFloorReference(
+/** The one family a floor can be selected for, or null.
+ *
+ *  #231 — a placement now carries one OR MORE families, but floor selection takes exactly one
+ *  (`loadFamilyFloor(...)`, and a floor's essential items are what discovery asks). So a plural
+ *  placement is refused here rather than silently reduced to its first entry: quietly picking one
+ *  would pin a visitor's whole interview to a family nothing chose. This is the mechanical half of
+ *  #231's scope boundary — every floor-selection path in the app goes through this function, so
+ *  none of them can receive a plural placement. #232 merges the floors of several families and is
+ *  where this stops being a constraint. */
+export function soleConfirmedFamily(
   placement: FamilyPlacement,
 ): { familyId: string; version: number } | null {
-  return placement.outcome === "confirmed" ? placement.family : null;
+  return placement.outcome === "confirmed" && placement.families.length === 1
+    ? placement.families[0]!
+    : null;
 }

@@ -46,7 +46,7 @@ async function setTarget(
   await server.sessions.setIntent(session!.id, { targetRole, searchArea });
 }
 
-const unmappedPlacement = { schemaVersion: "1", outcome: "unmapped" };
+const unmappedPlacement = { schemaVersion: "2", outcome: "unmapped" };
 const acceptedScreen: FamilyCandidateScreen = async () => ({
   outcome: "accepted",
   rationale: "credible novel employment target",

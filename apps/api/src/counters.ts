@@ -298,8 +298,14 @@ const counts = {
   // other says the provider call itself failed, and they need different fixes. Both end in an
   // unmapped placement, so familyLabeler.unmapped also counts every output_invalid — the honest
   // reading is "unmapped, of which output_invalid were degradations rather than real answers".
+  // #231 retired familyLabeler.needs_clarification (the outcome no longer exists — nobody is asked)
+  // and put familyLabeler.multi_family in its place: how often a job is placed in more than one
+  // family. ADR-0014 amendment 1 decision 3 deliberately puts NO cap on the count in the contract,
+  // precisely so this number stays honest — a labeler drifting toward "everything is two kinds of
+  // work" means our families are drawn too narrow, and a clamp would have hidden exactly that. A
+  // subset of familyLabeler.confirmed, never a separate outcome.
   "familyLabeler.confirmed": 0,
-  "familyLabeler.needs_clarification": 0,
+  "familyLabeler.multi_family": 0,
   "familyLabeler.unmapped": 0,
   "familyLabeler.output_invalid": 0,
   "familyLabeler.call_failed": 0,

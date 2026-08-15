@@ -48,7 +48,11 @@ describe("#220 the labeler measurement grid", () => {
       const rates = rateGrid(results);
       for (const line of describeMisses(results)) console.error(line);
       console.log(
-        `\n${results.length} cases | comparable accuracy ${(rates.comparableAccuracy * 100).toFixed(1)}% (bar 95) | stranger recall ${(rates.strangerRecall * 100).toFixed(1)}% (bar 90) | false-unknown ${(rates.falseUnknownRate * 100).toFixed(1)}% (bar 5)\n`,
+        `\n${results.length} cases | comparable accuracy ${(rates.comparableAccuracy * 100).toFixed(1)}% (bar 95) | stranger recall ${(rates.strangerRecall * 100).toFixed(1)}% (bar 90) | false-unknown ${(rates.falseUnknownRate * 100).toFixed(1)}% (bar 5)` +
+          // #231: reported, never barred. Confidence is measured so a labeler that hedges
+          // everything is visible; multi-family count is amendment 1 decision 3's own signal —
+          // nothing caps it, so this is what says whether the instruction holds the line at two.
+          ` | confidence ${(rates.confidenceAccuracy * 100).toFixed(1)}% (reported, no bar) | ${rates.multiFamilyCount} placements named more than one family\n`,
       );
 
       expect(rates.comparableAccuracy).toBeGreaterThanOrEqual(BARS.comparableAccuracy);

@@ -41,30 +41,46 @@ const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string) =>
   JSON.parse(readFileSync(join(here, "..", "fixtures", name), "utf8"));
 
-describe("Family placement v1", () => {
+describe("Family placement v2", () => {
   const placements = fixture("family-placement.valid.json");
 
-  it("accepts only confirmed, needs_clarification, and unmapped outcomes in oracle and zod", () => {
+  it("accepts only confirmed and unmapped outcomes in oracle and zod", () => {
     for (const placement of placements) {
       expect(validateFamilyPlacement(placement).ok).toBe(true);
       expect(FamilyPlacement.safeParse(placement).success).toBe(true);
     }
   });
 
-  it("confirmed references exactly one immutable family version", () => {
-    const confirmed = placements[0];
-    expect(confirmed.family).toEqual({
-      familyId: "delivery-leadership-example",
-      version: 1,
-    });
+  // #231 — a job can be in several families. The one thing the contract still refuses is an
+  // ambiguous or unversioned reference; the COUNT is deliberately unbounded (ADR-0014 amendment 1
+  // decision 3), so a three-family answer must be accepted and stay visible rather than clamped.
+  it("carries one or more immutable family versions, distinct, with an ordinal confidence", () => {
+    const [single, dual] = placements;
+    expect(single.families).toEqual([{ familyId: "delivery-leadership-example", version: 1 }]);
+    expect(dual.families).toHaveLength(2);
+
+    const three = structuredClone(dual);
+    three.families.push({ familyId: "third-family-example", version: 1 });
+    expect(validateFamilyPlacement(three).ok).toBe(true);
+    expect(FamilyPlacement.safeParse(three).success).toBe(true);
+
     for (const mutate of [
-      (value: any) => delete value.family.version,
-      (value: any) => (value.family = null),
-      (value: any) => (value.family = "delivery-leadership-example"),
-      (value: any) => (value.families = [value.family]),
+      (value: any) => delete value.families[0].version,
+      (value: any) => (value.families = []),
+      (value: any) => (value.families = null),
+      (value: any) => (value.families = [null]),
+      (value: any) => (value.families = "delivery-leadership-example"),
+      // v1's singular key is not silently tolerated — a stale placement must FAIL, not half-parse.
+      (value: any) => ((value.family = value.families[0]), delete value.families),
+      (value: any) => (value.families = [value.families[0], { ...value.families[0] }]),
+      (value: any) => (value.schemaVersion = "1"),
+      (value: any) => (value.outcome = "needs_clarification"),
       (value: any) => (value.outcome = "retrieval_match"),
+      (value: any) => delete value.confidence,
+      (value: any) => (value.confidence = 0.8),
+      (value: any) => (value.confidence = "quite sure"),
     ]) {
-      const value = structuredClone(confirmed);
+      const value = structuredClone(single);
       mutate(value);
       expect(FamilyPlacement.safeParse(value).success).toBe(
         validateFamilyPlacement(value).ok,
@@ -73,18 +89,14 @@ describe("Family placement v1", () => {
     }
   });
 
-  it("clarification requires explicit versioned choices and unmapped cannot borrow questions", () => {
-    const oneChoice = structuredClone(placements[1]);
-    oneChoice.choices.pop();
-    const nullChoice = structuredClone(placements[1]);
-    nullChoice.choices[0] = null;
-    const duplicateChoice = structuredClone(placements[1]);
-    duplicateChoice.choices[1] = {
-      ...duplicateChoice.choices[0],
-      label: "Same version under another label",
-    };
-    const borrowed = { ...placements[2], questions: ["Nearest family's question"] };
-    for (const value of [oneChoice, nullChoice, duplicateChoice, borrowed]) {
+  it("unmapped carries nothing at all — no families, no confidence, no borrowed questions", () => {
+    for (const mutate of [
+      (value: any) => (value.questions = ["Nearest family's question"]),
+      (value: any) => (value.confidence = "possible"),
+      (value: any) => (value.families = [{ familyId: "delivery-leadership-example", version: 1 }]),
+    ]) {
+      const value = structuredClone(placements[2]);
+      mutate(value);
       expect(FamilyPlacement.safeParse(value).success).toBe(
         validateFamilyPlacement(value).ok,
       );
