@@ -198,9 +198,12 @@ function assemble(
  *  this week is read by #222's arithmetic next week, so the curve those stored levels will be judged
  *  against has to be decided once, here, beside the thing that produces them.
  *
- *  The three weights are this ticket's own choice, not the owner's: ADR-0014 amendment 1 decision 5
- *  pins the SHAPE (an ordinal, attenuating the ranking, never the fact) and deliberately says
- *  nothing about magnitudes. Worth confirming when #222 makes them visible in a real deck. */
+ *  THE WEIGHTS ARE THE OWNER'S (2026-08-15), not a default to tune away. Proposed here, then
+ *  confirmed against the worked case: an 80% card reads 72% at `likely` and 60% at `possible`, which
+ *  in a deck clustering around 60-85% drops it out of the top handful. That is the point — "this is
+ *  reflecting reality and a score that is meaningful, that's what I want as a user." Softening these
+ *  so cards look better reverses a decision; it is not tuning. ADR-0014 amendment 1 decision 5
+ *  carries the table and the reasoning. */
 export const CONFIDENCE_WEIGHT: Record<PlacementConfidence, number> = {
   certain: 1,
   likely: 0.9,
