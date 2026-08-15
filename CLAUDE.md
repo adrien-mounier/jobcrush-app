@@ -64,6 +64,13 @@ When a meaningful unit of work lands (see session hygiene):
    `main` to Fly staging on every green push, so a push is a deploy** — the green gate is
    non-negotiable.
 
+   One exception, added 2026-08-15 to stop burning the month's CI budget on prose: **a push touching
+   ONLY `docs/**`, root-level `*.md`, `.claude/**` or `screenshots/**` runs no CI and does not
+   deploy** (`.github/workflows/ci.yml` `paths-ignore`). Everything else — including
+   `apps/api/prompts/*.md`, which are the product, not documentation — is code and still gates the
+   deploy. Run the pipeline by hand on a skipped push with the workflow's `workflow_dispatch`.
+   **A superseded run is now cancelled**, so pushing again supersedes the previous push's checks.
+
 **`Closes #123` on its own line ends a finishing commit — written only after `/qa-gate` returns
 GO.** The keyword acts on push, the same moment the deploy does, so a `Closes` written earlier
 marks the board done for work nothing verified. `(#123)` alone links and never closes: the git log

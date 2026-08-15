@@ -1,5 +1,29 @@
 # Lessons — jobcrush-app
 
+## The CI budget went on prose, and the fix that looks obvious would have switched off the wrong tests
+
+At 90% of the month's GitHub Actions minutes with two weeks left, the burn was ~120 min/day against a
+2,000/month allowance — about **1.5 days of runway**, not the 17 the alert implied. The cause was not
+a slow suite in general: `test` is ~3 minutes and `e2e` is **~27**, and **132 of that cycle's 237
+commits touched nothing but prose**, each paying full price. Nothing cancelled superseded runs either,
+so three pushes in ten minutes ran three complete pipelines.
+
+**The trap in the obvious fix:** `paths-ignore: ['**/*.md']`. In this repo markdown is not a synonym
+for documentation — `apps/api/prompts/*.md` ARE the product (family-labeler.md decides how a
+visitor's job is classified) and `research-data/**` backs the eval lane. That one-line pattern would
+have silently switched CI off for the change most able to break a visitor's results. The filter has
+to be an **explicit allowlist of inert paths**, never a file-extension pattern. `*.md` without `**`
+matches root level only (GitHub: "`*` does not match `/`"), which is what makes it safe.
+
+**The trap in the second fix:** workflow-level `cancel-in-progress`. It would also cancel
+`deploy-staging` mid-`fly deploy`, and that job's own concurrency group exists precisely so an
+in-flight deploy FINISHES. Cancellation belongs on the pre-deploy jobs only.
+
+**The check to run before any paths filter: for every extension you are about to skip, list the files
+matching it that are read at RUNTIME.** If that list is non-empty, you need an allowlist, not a
+pattern. The verification that actually settles it is enumerating `git ls-files` against the filter —
+72 of 487 files ignored, and every prompt and fixture still gated — not eyeballing the pattern.
+
 ## A production caller whose guard can never be true is the same failure as no caller — and tests that seed state prove wiring, not reachability
 
 #222 wired the family-scoped years reading to `session.discovery.floor` — a field written only by

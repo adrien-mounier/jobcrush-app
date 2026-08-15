@@ -2,11 +2,44 @@ name: ci
 on:
   push:
     branches: [main]
+    # A docs-only push runs nothing. Measured 2026-08-15, at 90% of the month's Actions minutes with
+    # two weeks left: **132 of 237 commits that cycle touched nothing but prose**, and every one paid
+    # for the full ~27-minute e2e job. Markdown cannot fail a test, so this is free money.
+    #
+    # ⚠️ NEVER widen this to `**/*.md`. `apps/api/prompts/*.md` ARE the product — family-labeler.md
+    # decides how a visitor's job is classified — and `research-data/**` backs the eval lane. A
+    # blanket markdown skip would turn CI off for exactly the change most able to break a visitor's
+    # results, silently. This list is therefore an explicit allowlist of INERT paths, not a pattern.
+    # `*.md` (no `**`) matches root-level files only — roadmap, session-log, lessons, CONTEXT,
+    # CLAUDE, CODING_STANDARDS, README — never apps/api/prompts/*.md.
+    #
+    # A docs-only push therefore also does not DEPLOY, which is correct: nothing in here is served.
+    # Need a run anyway? `workflow_dispatch` below, or push any code change.
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - '.claude/**'
+      - 'screenshots/**'
+      - 'LICENSE'
   pull_request:
+  # The manual escape hatch, so "skipped by paths-ignore" is never a dead end.
+  workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Supersede, don't queue: pushing three times in ten minutes (ordinary in an agent session) used
+    # to run three FULL pipelines to completion, two of them already irrelevant. Scoped per ref, so a
+    # PR and main never cancel each other.
+    #
+    # Deliberately per-JOB and NOT at workflow level: a workflow-level cancel would also kill
+    # deploy-staging mid-`fly deploy`, and that job's own `concurrency: deploy-main` exists precisely
+    # to let an in-flight deploy FINISH. Cancelling only the two pre-deploy jobs also makes the race
+    # that comment warns about (an older build landing last) strictly less likely, because a
+    # superseded run never reaches its deploy at all.
+    concurrency:
+      group: ci-test-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       # Actions are held at their current major. v4 of all three targeted the retired Node 20
       # runtime: GitHub was force-running them on Node 24 and warning on every build, and that
@@ -31,6 +64,11 @@ jobs:
   # wall-clock down — deploy-staging waits on both below.
   e2e:
     runs-on: ubuntu-latest
+    # Same supersede rule as `test`, and this is the job that makes it worth having: ~27 minutes
+    # against test's ~3, so a cancelled superseded run gives back nearly a whole run's cost.
+    concurrency:
+      group: ci-e2e-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
