@@ -1,5 +1,22 @@
 # Lessons — jobcrush-app
 
+## When a stored value is also a checkpoint, persisting a fallback makes the failure permanent
+
+#221's labeler skips any block that already has a placement — that skip IS the "a retry never
+re-spends a completed call" rule, and it is the cheapest possible checkpoint. But `place()` degrades
+an unusable model answer to `unmapped`, and the first cut stored that like any other answer. The two
+correct-looking decisions compose into a bug neither one has: the block now *has* a placement, so it
+is never asked again, so one bad minute is frozen into the record forever.
+
+The target-role path in the very same file already carried the rule — *"a degraded answer is never
+remembered … one bad minute would follow a visitor around"* — and the new caller simply did not
+honour it, because from the caller's side the degraded flag looks like optional detail.
+
+**The check to run: for every value you persist, ask what reads it as "already done".** If a fallback
+lands in a field that gates re-attempting, the fallback must not be written — leave the absence.
+Absence is retryable; a default is not. This applies to every checkpointed step in `pipeline.ts` and
+to any `?? DEFAULT` written into a store.
+
 ## A measurement harness that can't tell "the model answered X" from "the call failed" will lie to you confidently
 
 Building #220's 60-case accuracy grid, five model calls ran concurrently through the local Claude
