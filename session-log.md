@@ -33,6 +33,17 @@ production discovery checkpoint, which has answered 409 to every visitor since #
   That wiring is **#216**, per spec #219. The e2e flow left in `apps/web/e2e/` asserts the gap
   deliberately and will start failing when #216 closes it.
 - 🔎 **The harness lied twice before it told the truth** — see `lessons.md`. Ratchet 1138 → 1135.
+- 🎫 **#225 + #226 filed** from the owner's question *"are we shaping the data model for a job before
+  the engine that defines job families exists?"* — a good question with two different answers.
+  **#225** (roadmap 5b.1, `/grilling`, **gates #222**): most of the model is protected by design —
+  versioned placements, a swappable producer seam, derived years, correctable labels, and a stored
+  *union* rather than a bare id (unions grow by addition, ADR-0001's cheap direction). **The
+  cardinality is not**: "one job → one family" was inherited from the contract's shape, nobody
+  decided it, and ADR-0001 says this class must be decided when the fact is first shaped. #221 is not
+  blocked; #222 is. **#226** (roadmap 44.1, `/wayfinder`): the cluster engine `e5stub.ts` has pointed
+  at since #12 (*"S3/JC-31"*) was a season-plan reference that **never became work** — the third
+  instance of this repo's twice-recorded failure, found the same way as the other two (the owner
+  asked whether a ticket existed).
 - 🎫 **#224 filed** (roadmap 27.1, Phase 3, `/grill-with-docs`): choose the **CV brain's** model by
   measuring it. The owner asked whether the model question had been turned into a ticket — it had
   not, which would have been the third time this repo let a decision die in conversation. Correction

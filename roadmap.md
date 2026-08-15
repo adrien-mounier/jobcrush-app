@@ -39,7 +39,8 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~4~~ | ~~#124~~ | ~~Where do you want to work?~~ **DECIDED 2026-08-13 → build is #214** | — | — | — |
 | ~~4b~~ | ~~#214~~ | ~~Target locations: up to three chips, one deck over the union~~ **DONE 2026-08-14** (city-level, per the owner decision on #124's trail) | — | — | — |
 | ~~5~~ | ~~#220~~ | ~~Labeler slice 1: the target role is placed in a real family, measured before trusted~~ **DONE 2026-08-15 (QA GO)** — 97.6% comparable accuracy on the 60-case grid; production discovery opens at the API | — | — | — |
-| 5b | #221 | Labeler slice 2: every past job carries a correctable family label | `/implement` | Opus | high |
+| 5b | #221 | Labeler slice 2: every past job carries a correctable family label — **IN PROGRESS 2026-08-15** | `/implement` | Opus | high |
+| 5b.1 | #225 | **Decide deliberately: is a job in ONE family, or honestly several?** Gates #222 — see below | `/grilling` | Opus | medium |
 | 5c | #222 | Labeler slice 3: years per family, read at the advert's own scope | `/implement` | Opus | high |
 | 5d | #223 | Labeler slice 4: the stub retires — one discovery engine | `/implement` | Opus | medium |
 | 6 | #216 | Discovery asks the family floor the reveal is earned from | `/implement` | Opus | high |
@@ -96,6 +97,35 @@ building the whole classifier beats three sessions building thirds of it.
 ✅ **All of that is now delivered** (2026-08-15): design pass → **ADR-0014**, spec → **#219**, slices
 → **#220–#223** (rows 5–5d), follow-ups **#217** (industry labeler) and **#218** (vocabulary-growth
 process) filed. **#220 is done.** The chain to real jobs is **#221 → #222 → #223 → #216 → #63**.
+
+🔑 **#225 — the one decision in this chain that a later change cannot undo cheaply.** Raised by the
+owner mid-`/implement 221`: *we are shaping what a "job" is before the engine that discovers job
+families exists — what if that engine tells us the shape is wrong?* Most of the model is protected and
+deliberately so: placements carry the version they were made with and are never mass-relabelled
+(ADR-0014 d7), the labeler sits behind a swappable seam, years are **derived** and recomputed at every
+door, and a label is a correctable fact with history. 🔑 **The stored shape is also more forgiving
+than it looks** — a block holds a whole `FamilyPlacement` union, *not* a bare id string, and a union
+grows by **addition**, which ADR-0001 rule 2 makes the cheap direction.
+
+**What is NOT protected is the cardinality: one job → at most one family.** Nobody decided that; it
+was inherited from the contract's shape, and `makeJobBlockLabeler` is writing it now. ADR-0001 is
+explicit that this class of decision *"must be decided when that fact is first shaped — changing your
+mind later is a migration, and this rule will not save you."* The live case needs no cluster engine,
+only a second published family: a Technical Program Manager who genuinely splits the week has **zero**
+product-management years, so an advert asking *"3+ years product management"* scores a winnable job at
+nothing — #86's own worst failure. **#221 is not blocked** (its shape is the forgiving one either
+way); **#222 is**, because that is where per-family years stop being a default and become arithmetic a
+visitor is judged on.
+
+📍 **#226 maps where families come from at all** — filed 2026-08-15 because `e5stub.ts` has always
+pointed at *"the real cluster engine (S3/JC-31)"* and **that was a season-plan reference that never
+became work**, the third instance of this repo's twice-recorded failure. Today: exactly **one**
+published family, hand-made through a real gate (3+ employers of posting evidence, a pinned dataset
+whose hash must regenerate, 0.95/0.90/0.05 thresholds), with #218 as the pilot growth path. The map's
+question is not *"build clustering"* — it is **"how many families does this product need, and is that
+a number a person can curate?"** A recorded *"hand-curation is enough, and here is the count that
+would change that"* is a perfectly good and much cheaper outcome. Sits in Phase 6 (row 44.1); nothing
+in Phase 1 waits on it.
 
 ⚠️ **One sequencing note taken 2026-08-15, worth not re-deciding:** #216 is *technically* unblocked
 by #220 alone — its own "blocked by" was "a session needs a confirmed placement before it can be
@@ -418,6 +448,7 @@ One provider serves all four markets today, with no registry-level fallback (#17
 | 42 | #119 | Ops dashboard: cost per user | `/implement` | Opus | medium |
 | 43 | #142 | Application history | `/wayfinder` | Opus | high |
 | 44 | #195 | Phone profile revisit | `/prototype` | Opus | medium |
+| 44.1 | #226 | **Map: where job families come from at scale** — the cluster engine `e5stub.ts` has always pointed at and nobody ever filed | `/wayfinder` | Opus | high |
 
 **#134 precedes #179** and also settles the compromise #162 shipped with: `resolveFamily()` returns a
 constant, so every visitor is scoped to one placeholder family. **Half true as of 2026-08-15:** #220
