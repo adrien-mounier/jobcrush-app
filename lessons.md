@@ -47,12 +47,16 @@ Three things worth carrying:
 2. **The billable-minutes API cannot measure free-tier burn** — it reads 0 for work that really ran.
    Anyone estimating runway must sum `run_duration_ms`, not billable time. The earlier "90% of the
    month's minutes" figure came from the alert email, and the API would have flatly contradicted it.
-3. **A cost fix that ships at 90% consumed is a fix for next month.** The `paths-ignore` work is
-   correct and will halve the burn — from a cycle that starts on **1 September**. Between the block
-   and the reset, `main` accepts pushes, closes issues, and **deploys nothing**, so the git log and
-   the board both read "shipped" while staging stays on the last green build (2026-08-15 08:51,
-   `docs(#225)`). The only ways out are to wait for the reset or to add a payment method and raise
-   the limit above $0 — which is the moment CI stops being free.
+3. **A cost fix that ships at 90% consumed is a fix for next cycle.** The `paths-ignore` work is
+   correct and will halve the burn — but only from the next allowance. Between the block and the
+   reset, `main` accepts pushes, closes issues, and **deploys nothing**, so the git log and the board
+   both read "shipped" while staging stays on the last green build (2026-08-15 08:51, `docs(#225)`).
+   The only ways out are to wait for the reset or to add a payment method and raise the limit above
+   $0 — which is the moment CI stops being free.
+   ⚠️ **The reset DATE is not verified here.** A free account's allowance resets at the start of its
+   billing cycle, which is normally the 1st, but `gh` cannot confirm it: the billing endpoint needs
+   the `user` token scope and this token has `admin:public_key, gist, read:org, repo` only. Read it
+   off the Billing & plans page rather than trusting a date in this file.
 
 **The generalisation: when a platform stops your pipeline, find out whether the constraint is money
 you owe or money you have not agreed to spend.** They produce the same message and need opposite

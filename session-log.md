@@ -49,8 +49,9 @@ module-level function, `discoveryPlan(placement, blocks, publishedRegistry)` in
   **$0 spending limit is a hard stop**. It reports as *"recent account payments have failed"*, but
   **there is no payment method on the account**; nothing failed. Staging still runs the last green
   build (`docs(#225)`, 08:51). **#222 is in the same state** — on `main`, closed, not deployed. Full
-  diagnosis and the two traps in `lessons.md`; owner decision needed: wait for the 1 September reset,
-  or add a payment method and raise the limit above $0.
+  diagnosis and the two traps in `lessons.md`; owner decision needed: wait for the allowance to reset
+  (date unverified — the token cannot read GitHub's billing endpoint), or add a payment method and
+  raise the limit above $0.
 
 ## 2026-08-15 (session 127) `/grilling 230` → `/to-spec` → `/to-tickets` — the retrieval gate opens, silently
 
