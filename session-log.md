@@ -27,6 +27,20 @@ build.
   mentioned confidence nowhere, so the behaviour was one ticket away from vanishing between two
   individually-complete tickets. Root cause was not ranking — #225 was correctly taken before #231 —
   it was an AC filed against a ticket that could not satisfy it.
+- **Board audit the same day, prompted by the owner asking "which ticket is actually next".** Three
+  gaps found, all the same shape as the AC one — a dependency that was *decided in prose* but never
+  written where a picker would look:
+  - **#223's blocked-by did not carry #232**, though #232's body says "Blocks #223". #223 would have
+    read as buildable the moment #222 landed, and its floor-selection rewrite would have been written
+    twice. Fixed on the tracker.
+  - **#63's blocked-by did not carry #230 or #228**, though roadmap.md's own ordering note has said
+    both gate it since 2026-08-15. Fixed.
+  - **#227 is mostly dissolved by #231** — `familyChoicesFor()`, the panel and the published-list
+    payload are all deleted, so the bug it describes cannot occur. Remnant verified small:
+    `labelJobBlocks` is wired only inside the upload pipeline, so a failed placement retries on the
+    next upload and never otherwise. Documented on the issue; close-or-shrink is the owner's call.
+  🔑 The lesson generalises past this cluster: **prose in the roadmap is not a dependency.** A gate
+  only holds if it is in the blocked-by list of the ticket it gates.
 - **Named cost of the scope boundary:** the target role stays single until #232, so a dual-craft
   target role now lands on family research instead of being asked to pick. One guard
   (`soleConfirmedFamily`) is the single chokepoint every floor-selection path routes through.
