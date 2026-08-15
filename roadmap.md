@@ -39,7 +39,7 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~4~~ | ~~#124~~ | ~~Where do you want to work?~~ **DECIDED 2026-08-13 → build is #214** | — | — | — |
 | ~~4b~~ | ~~#214~~ | ~~Target locations: up to three chips, one deck over the union~~ **DONE 2026-08-14** (city-level, per the owner decision on #124's trail) | — | — | — |
 | ~~5~~ | ~~#220~~ | ~~Labeler slice 1: the target role is placed in a real family, measured before trusted~~ **DONE 2026-08-15 (QA GO)** — 97.6% comparable accuracy on the 60-case grid; production discovery opens at the API | — | — | — |
-| 5b | #221 | Labeler slice 2: every past job carries a correctable family label — **IN PROGRESS 2026-08-15** | `/implement` | Opus | high |
+| ~~5b~~ | ~~#221~~ | ~~Labeler slice 2: every past job carries a correctable family label~~ **DONE 2026-08-15 (QA GO)** — every mined job is placed; the review screen asks, batched, only about the ones it could not call | — | — | — |
 | 5b.1 | #225 | **Decide deliberately: is a job in ONE family, or honestly several?** Gates #222 — see below | `/grilling` | Opus | medium |
 | 5c | #222 | Labeler slice 3: years per family, read at the advert's own scope | `/implement` | Opus | high |
 | 5d | #223 | Labeler slice 4: the stub retires — one discovery engine | `/implement` | Opus | medium |
@@ -96,7 +96,8 @@ building the whole classifier beats three sessions building thirds of it.
 
 ✅ **All of that is now delivered** (2026-08-15): design pass → **ADR-0014**, spec → **#219**, slices
 → **#220–#223** (rows 5–5d), follow-ups **#217** (industry labeler) and **#218** (vocabulary-growth
-process) filed. **#220 is done.** The chain to real jobs is **#221 → #222 → #223 → #216 → #63**.
+process) filed. **#220 and #221 are done.** The chain to real jobs is now **#222 → #223 → #216 → #63**
+(with **#225** gating #222 — see below).
 
 🔑 **#225 — the one decision in this chain that a later change cannot undo cheaply.** Raised by the
 owner mid-`/implement 221`: *we are shaping what a "job" is before the engine that discovers job
@@ -113,9 +114,10 @@ explicit that this class of decision *"must be decided when that fact is first s
 mind later is a migration, and this rule will not save you."* The live case needs no cluster engine,
 only a second published family: a Technical Program Manager who genuinely splits the week has **zero**
 product-management years, so an advert asking *"3+ years product management"* scores a winnable job at
-nothing — #86's own worst failure. **#221 is not blocked** (its shape is the forgiving one either
-way); **#222 is**, because that is where per-family years stop being a default and become arithmetic a
-visitor is judged on.
+nothing — #86's own worst failure. **#221 shipped unblocked** (its shape is the forgiving one either
+way — one placement per job, correctable, and a needs-clarification answer stored rather than
+resolved); **#222 is blocked**, because that is where per-family years stop being a default and become
+arithmetic a visitor is judged on.
 
 📍 **#226 maps where families come from at all** — filed 2026-08-15 because `e5stub.ts` has always
 pointed at *"the real cluster engine (S3/JC-31)"* and **that was a season-plan reference that never

@@ -2,6 +2,34 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-15 (session 123) `/implement 221` — every past job carries a family label the visitor owns
+
+**Slice 2 of the job labeler (#221) — QA gate GO, committed `02dd0d3`, pushed.** Each dated JOB
+record mined from a CV is now placed in a job family, and the work-history review screen asks —
+batched, at the end, never mid-card — only about the ones the machine could not call.
+
+- ✅ **All eight ACs pass.** Gates forced (typecheck 7/7, 1379 API tests), Playwright Tier 1 (134)
+  and Tier 2 (all 11 journeys) green. Live evidence journey left behind:
+  `apps/web/e2e/job-blocks-family-journey.mjs` (28 steps, 59 screenshots).
+- 🧱 **The checkpoint is the stored placement, per block** — not a step flag. A retry re-executes no
+  completed call; a block arriving new on a later read is still placed; a corrected block is skipped
+  entirely, so a re-run can never overwrite a person's pick.
+- 🩹 **`/code-review` caught the one that mattered:** a DEGRADED answer (model output failed
+  validation twice) was being stored, and since a stored placement is what stops a block being asked
+  again, one bad minute would have frozen that job as unplaceable forever. Now left unlabeled and
+  re-attempted. `place()`'s own doc had already written this rule for the target-role path — the
+  past-job path had quietly not honoured it.
+- 💸 **Jobs only.** The first cut placed every block kind; the spec reviewer pointed out the
+  justification was self-defeating (the screen filters to jobs anyway), so a degree now costs no call.
+- 🧪 **Store contract covers both drivers.** The QA gate flagged that `label()` and the new
+  `placement` column had no test in the two-driver suite while production runs Postgres — added
+  before commit (51 tests, both drivers).
+- ⚠️ **Known and deliberate:** AC6's "counts as unmapped for every number" is vacuously true — no
+  number reads a block's placement yet. #222 makes it arithmetic and must carry that test.
+- ⚠️ **Handover:** the new `.mjs` journey is in no CI tier (Tier 1 globs `*.spec.ts`, Tier 2 is a
+  hand-picked list). Add it to `run-tier2.mjs` if it should be watched — ~90s, no sign-in. The
+  render itself IS gated, by `apps/web/e2e/job-blocks-family.spec.ts` (Tier 1, 4 tests).
+
 ## 2026-08-15 (session 122) `/implement 220` — the labeler ships, and the app gets a second model provider
 
 **Slice 1 of the job labeler (#220) — QA gate GO.** A visitor's typed target role is now placed in a
