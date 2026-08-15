@@ -87,6 +87,11 @@ export interface PipelineDeps {
    *  throw into the run: an unreadable work history is a question the store surfaces, never a
    *  reason to fail the whole upload (binding UX intent — claims mining still proceeds). */
   recordJobBlocksFailed?: (sessionId: string) => Promise<void>;
+  /** #221: places every not-yet-placed job record of this session in a job family. Its own step,
+   *  with its own checkpoint (the stored placement per block — familyLabeler.ts's own doc), so a
+   *  retry re-spends nothing. Optional like the steps above; absent → blocks stay unlabeled, which
+   *  reads as unmapped everywhere. */
+  labelJobBlocks?: (sessionId: string) => Promise<void>;
   /** Best-effort guestbook write; called once on any terminal state. Never throws into the run. */
   recordVisit?: (visit: VisitRecord) => Promise<void>;
 }
@@ -239,6 +244,20 @@ export async function runOnboardingJob(
           );
         }
         await store.update(jobId, { progress: { jobBlocks: true } });
+      }
+    }
+
+    // Step 1.6 — family labels (#221): what KIND OF WORK each dated block is, worked out against
+    // the closed published vocabulary. Deliberately outside the checkpoint above: its own checkpoint
+    // is per block, in the store, so this runs on a retry only for the blocks still unanswered — and
+    // it must still run when 1.5 was already done in an earlier attempt. A failure here is recorded
+    // by the labeler and never fails the upload; the blocks simply stay unlabeled (= unmapped).
+    if (deps.labelJobBlocks && job?.sessionId) {
+      await appendFeed(store, jobId, "Working out what kind of work each job is…");
+      try {
+        await deps.labelJobBlocks(job.sessionId);
+      } catch (err) {
+        console.error("[pipeline] job-block labeling failed", err);
       }
     }
 

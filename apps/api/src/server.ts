@@ -58,6 +58,7 @@ import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
 import type { RetrievalRequest } from "./postingRetrieval.js";
 import { reconcileImport } from "./importReconciliation.js";
 import { refreshWorkedYears } from "./yearsWorked.js";
+import { publishedFamilies } from "./familyLabeler.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -472,7 +473,16 @@ export function buildServer(opts: BuildOptions = {}) {
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps }));
   app.register(contactRoutes({ contact }));
-  app.register(jobBlocksRoutes({ jobBlocks, claims, eligibility }));
+  // #221: the same production registry the labeler places against backs the review screen's choices
+  // and the family-correction check — one closed vocabulary, read in one place.
+  app.register(
+    jobBlocksRoutes({
+      jobBlocks,
+      claims,
+      eligibility,
+      families: () => publishedFamilies(productionFamilyFloors),
+    }),
+  );
   app.register(onboardingRoutes({
     claims,
     store,

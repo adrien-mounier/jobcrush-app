@@ -81,6 +81,34 @@ for (const [name, make] of drivers) {
       }
     });
 
+    // #221 — the sixth fact, on BOTH drivers: production runs the Postgres one whenever
+    // DATABASE_URL is set, so a placement that only round-trips in memory is a label that quietly
+    // vanishes in production.
+    it("a family placement round-trips, and a person's correction outranks a later re-label", async () => {
+      await store.ingest(sid, { schemaVersion: "1", blocks: [job({ id: "a" })] }, "raw");
+      expect((await store.list(sid))[0]!.family.value).toBeNull(); // unlabeled until the labeler runs
+
+      const unmapped = { schemaVersion: "1", outcome: "unmapped" } as const;
+      expect(await store.label(sid, "a", unmapped)).toBe(true);
+      const labeled = (await store.list(sid))[0]!.family;
+      expect(labeled.value).toEqual(unmapped);
+      expect(labeled.origin).toEqual({ kind: "worked_out" });
+
+      const picked = {
+        schemaVersion: "1",
+        outcome: "confirmed",
+        family: { familyId: "it-project-delivery", version: 1 },
+      } as const;
+      await store.correct(sid, "a", "family", picked);
+      // A later run of the labeler writes the machine's answer — and is still not what she reads.
+      await store.label(sid, "a", unmapped);
+      const corrected = (await store.list(sid))[0]!.family;
+      expect(corrected.value).toEqual(picked);
+      expect(corrected.origin).toEqual({ kind: "corrected", supersededValue: unmapped });
+
+      expect(await store.label(sid, "no-such-block", unmapped)).toBe(false);
+    });
+
     it("year-level precision stores no invented month", async () => {
       await store.ingest(
         sid,

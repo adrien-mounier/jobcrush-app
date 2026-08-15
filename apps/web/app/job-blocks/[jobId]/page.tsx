@@ -29,10 +29,12 @@ import {
   getJobBlocks,
   resolveJobBlockMatch,
   unconfirmJobBlock,
+  type FamilyPlacement,
   type JobBlockCorrection,
   type JobBlockKind,
   type JobBlockView,
   type JobBlocksReadStatus,
+  type JobFamilyChoice,
   type MinedDate,
   type MinedEndValue,
 } from "../../../lib/api";
@@ -140,7 +142,35 @@ interface UndoAction {
   local: LocalSnapshot;
 }
 
-function revertValue(key: JobBlockCorrection["key"], original: JobBlockView): JobBlockCorrection {
+// ---- #221 the sixth fact: what kind of work each job is ----
+// A job is only "placed" when the machine confirmed ONE family. Never placed (null — the labeler
+// hasn't run or its call failed), placed as unmapped, or left as two choices all read the same way
+// here: this one is still the person's to answer. Everything else is left alone — a job the machine
+// is confident about is never turned into a question (#221 AC4).
+function needsFamilyAnswer(block: JobBlockView): boolean {
+  return block.family.value?.outcome !== "confirmed";
+}
+
+/** What to offer for one unanswered job: the machine's own two-or-more choices when it narrowed it
+ *  that far, otherwise the whole published list. The machine never picks between its own choices —
+ *  it shows them (#221 AC4/ADR-0014). */
+function familyChoicesFor(block: JobBlockView, families: JobFamilyChoice[]): JobFamilyChoice[] {
+  const placement = block.family.value;
+  return placement?.outcome === "needs_clarification" ? placement.choices : families;
+}
+
+function confirmedPlacement(choice: JobFamilyChoice): FamilyPlacement {
+  return {
+    schemaVersion: "1",
+    outcome: "confirmed",
+    family: { familyId: choice.familyId, version: choice.version },
+  };
+}
+
+// `family` is deliberately not revertable here: it is answered on its own (below), outside the
+// card's draft-and-undo flow, because a job that was never placed has no earlier value to revert to
+// — an undo offered for it would have to lie.
+function revertValue(key: Exclude<JobBlockCorrection["key"], "family">, original: JobBlockView): JobBlockCorrection {
   if (key === "employer") return { key, value: original.employer.value };
   if (key === "title") return { key, value: original.title.value };
   if (key === "start") return { key, value: original.start.value };
@@ -153,6 +183,7 @@ export default function JobBlocksScreen() {
   const router = useRouter();
 
   const [blocks, setBlocks] = useState<JobBlockView[] | null>(null);
+  const [families, setFamilies] = useState<JobFamilyChoice[]>([]);
   const [readStatus, setReadStatus] = useState<JobBlocksReadStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -203,6 +234,7 @@ export default function JobBlocksScreen() {
       await ensureSession();
       const res = await getJobBlocks();
       setBlocks(res.blocks);
+      setFamilies(res.families ?? []);
       setReadStatus(res.summary.read);
       setConfirmedIds(new Set(res.blocks.filter((b) => b.confirmed).map((b) => b.id)));
       setQueue(res.blocks.filter((b) => !b.confirmed).map((b) => b.id));
@@ -337,7 +369,7 @@ export default function JobBlocksScreen() {
   const saveBack = useCallback(async () => {
     const original = originalRef.current;
     if (!original || !draft || busy) return;
-    const changed: JobBlockCorrection[] = [];
+    const changed: Array<Exclude<JobBlockCorrection, { key: "family" }>> = [];
     if (draft.employer.value !== original.employer.value) changed.push({ key: "employer", value: draft.employer.value });
     if (draft.title.value !== original.title.value) changed.push({ key: "title", value: draft.title.value });
     if (JSON.stringify(draft.start.value) !== JSON.stringify(original.start.value))
@@ -433,6 +465,43 @@ export default function JobBlocksScreen() {
     [current, busy, fireReward],
   );
 
+  // #221 AC5 — the person's answer to "what kind of work is this?" is a correction like any other:
+  // it supersedes the machine's placement, survives a re-read of the CV, and is never overwritten by
+  // a later run of the labeler. Saved on the tap, outside the card's draft flow (see revertValue).
+  const setFamily = useCallback(
+    async (blockId: string, choice: JobFamilyChoice) => {
+      if (busy) return;
+      setActionError(null);
+      setBusy(true);
+      try {
+        await correctJobBlock(blockId, {
+          key: "family",
+          value: { familyId: choice.familyId, version: choice.version },
+        });
+        setBlocks((bs) =>
+          (bs ?? []).map((b) =>
+            b.id === blockId
+              ? {
+                  ...b,
+                  family: {
+                    ...b.family,
+                    value: confirmedPlacement(choice),
+                    origin: { kind: "corrected", supersededValue: b.family.value },
+                  },
+                }
+              : b,
+          ),
+        );
+        setLiveMessage(`Saved. We'll count that as ${choice.label}.`);
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : "couldn't save that — try again");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy],
+  );
+
   const onUndo = useCallback(async () => {
     if (!undo || busy) return;
     setActionError(null);
@@ -520,6 +589,10 @@ export default function JobBlocksScreen() {
   const checked = confirmedIds.size;
   const skippedPending = [...skippedIds].filter((id) => !confirmedIds.has(id)).length;
   const done = queue.length === 0;
+  // #221 AC4 — batched, and only at the end: the family questions never interrupt a card. Jobs only
+  // (a degree belongs to no job family, and asking would be nonsense) — an unplaced education block
+  // is simply left alone.
+  const unanswered = blocks.filter((b) => b.kind === "job" && needsFamilyAnswer(b));
 
   if (total === 0) {
     const copy = emptyCopy(readStatus);
@@ -549,6 +622,56 @@ export default function JobBlocksScreen() {
         <div className="jb-deckarea">
           {done ? (
             <div className="jb-done">
+              {unanswered.length > 0 && (
+                <section className="jb-familyask">
+                  <h2>What kind of work {unanswered.length === 1 ? "was this?" : "were these?"}</h2>
+                  <p className="jb-kicker">
+                    We put every job into a kind of work, so your experience counts where it belongs.
+                    {unanswered.length === 1 ? " This one we" : " These we"} couldn&apos;t work out — only you
+                    can say.
+                  </p>
+                  {unanswered.map((block) => (
+                    <div key={block.id} className="jb-fgrp">
+                      <p className="jb-readback">
+                        <b>{block.title.value}</b>
+                        {block.employer.value ? (
+                          <>
+                            {" "}
+                            at <b>{block.employer.value}</b>
+                          </>
+                        ) : null}
+                        , {fmtRange(block.start.value, block.end.value)} —{" "}
+                        {block.family.value?.outcome === "needs_clarification"
+                          ? "this could be either of these."
+                          : "we couldn't place this one."}
+                      </p>
+                      <div className="jb-choice">
+                        {familyChoicesFor(block, families).map((choice) => (
+                          <button
+                            key={`${choice.familyId}@${choice.version}`}
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setFamily(block.id, choice)}
+                          >
+                            <strong>{choice.label}</strong>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <p className="jb-note">
+                    Leave any of these if you&apos;re not sure — we&apos;ll never guess one for you.
+                  </p>
+                  {/* The deck's own error line lives in the not-done branch, which this panel is
+                      never rendered beside — without this, a failed answer is silent: the button
+                      simply re-enables and the person is never told it did not save. */}
+                  {actionError && (
+                    <p className="error" role="alert">
+                      {actionError}
+                    </p>
+                  )}
+                </section>
+              )}
               <h2>That&apos;s your history straight.</h2>
               <p className="jb-kicker">
                 {yearsStr(confirmedMonths)} confirmed

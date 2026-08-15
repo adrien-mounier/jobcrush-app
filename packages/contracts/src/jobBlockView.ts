@@ -4,15 +4,20 @@
 // MinedJobBlock contract (jobBlock.ts), not a wire contract with an .mjs oracle. Precedent:
 // jobCard.ts (85c0b19) — the contract owns the shape, the API composes it, the web re-exports
 // type-only, and drift fails typecheck instead of rendering undefined.
+import type { FamilyPlacement } from "./familyPlacement.js";
 import type { Kind, MinedDate, MinedEndValue, MinedJobBlock } from "./jobBlock.js";
 
 export type MatchState = "new" | "matched" | "ambiguous";
 
 export type DecisionOrigin =
   | { kind: "read"; source_quote: string }
+  // #221 — a decision the machine WORKED OUT rather than read: it quotes no source words, because
+  // no CV says "this is IT project delivery". Distinct from "read" so the screen never has to
+  // invent a quote for it, and from "corrected" so a person's pick still supersedes visibly.
+  | { kind: "worked_out" }
   | { kind: "corrected"; supersededValue: unknown };
 
-export type DecisionKey = "employer" | "title" | "start" | "end" | "kind";
+export type DecisionKey = "employer" | "title" | "start" | "end" | "kind" | "family";
 
 /** One atomic machine decision, addressable by a stable id a correction can target. The value is
  *  typed per key (a corrected value is validated against the same per-key shape at the correction
@@ -34,6 +39,12 @@ export interface JobBlockView {
   start: DecisionView<MinedDate>;
   end: DecisionView<MinedEndValue>;
   kindDecision: DecisionView<Kind>;
+  /** #221 — the sixth correctable fact: which job family this block's work belongs to. `null` until
+   *  the labeler has answered for this block (never run yet, or its call failed): a null reads as
+   *  UNMAPPED everywhere a number is worked out, and as "we couldn't place this" on the screen. The
+   *  null is kept rather than collapsed to an unmapped placement so the pipeline can tell a call it
+   *  has already made from one it has not — that distinction is the labeling step's checkpoint. */
+  family: DecisionView<FamilyPlacement | null>;
   confirmed: boolean;
   matchState: MatchState;
   /** Populated only when matchState === "ambiguous" — the existing block ids this one might be the

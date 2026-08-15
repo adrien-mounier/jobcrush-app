@@ -19,6 +19,7 @@ import type {
   DecisionKey,
   DecisionView,
   DeckSummary,
+  FamilyPlacement,
   JobBlockView,
   Kind,
   MatchState,
@@ -34,9 +35,18 @@ export type { DecisionKey, DecisionOrigin, DecisionView, DeckSummary, JobBlockVi
 
 export type MatchResolution = { type: "same"; matchedBlockId: string } | { type: "different" };
 
+/** The five decisions the MINER produces. `family` (#221) is the sixth fact on the view but is not
+ *  one of these — nothing in the CV states it, so it is worked out afterwards and stored beside the
+ *  mined block rather than inside it. */
+type MinedKey = Exclude<DecisionKey, "family">;
+
 interface StoredBlock {
   block: MinedJobBlock;
   corrections: Partial<Record<DecisionKey, unknown>>; // superseded-by-value marker; presence flips origin
+  /** #221 — the labeler's answer for this block. null = not labeled yet (never run, or its call
+   *  failed), which reads as unmapped. A correction lives in `corrections.family` and supersedes
+   *  this without erasing it, so a re-run of the labeler can never overwrite a person's pick. */
+  placement: FamilyPlacement | null;
   confirmed: boolean;
   matchState: MatchState;
   candidateBlockIds: string[];
@@ -76,6 +86,10 @@ export interface JobBlockStore {
    *  superseded (ADR-0004 clause 1a). machine_touch/classification are AI-only judgements and are
    *  cleared, never fabricated for a person-supplied value. Returns false when blockId is unknown. */
   correct(sessionId: string, blockId: string, key: DecisionKey, value: unknown): Promise<boolean>;
+  /** #221 — records the labeler's family placement for one block. Writes ONLY the machine's answer:
+   *  a correction sitting in `corrections.family` keeps winning at the view, so re-labeling can
+   *  never overwrite what a person told us. Returns false when blockId is unknown. */
+  label(sessionId: string, blockId: string, placement: FamilyPlacement): Promise<boolean>;
   /** ADR-0004 clause 7 — detaches, never deletes; the block's sentences (claims) are untouched.
    *  Returns false when blockId is unknown. */
   detach(sessionId: string, blockId: string): Promise<boolean>;
@@ -122,7 +136,7 @@ function classifyIncoming(
 
 // The per-key value cast is sound: a mined value is contract-validated, and a corrected value is
 // validated against the same per-key shape at the correction door (routes/jobBlocks.ts CorrectBody).
-function decisionView<T>(blockId: string, key: DecisionKey, raw: MinedJobBlock[DecisionKey], stored: StoredBlock): DecisionView<T> {
+function decisionView<T>(blockId: string, key: MinedKey, raw: MinedJobBlock[MinedKey], stored: StoredBlock): DecisionView<T> {
   const corrected = key in stored.corrections;
   return {
     id: `${blockId}:${key}`,
@@ -132,6 +146,20 @@ function decisionView<T>(blockId: string, key: DecisionKey, raw: MinedJobBlock[D
       : { kind: "read", source_quote: (raw as { source_quote: string | null }).source_quote ?? "" },
     machine_touch: corrected ? null : raw.machine_touch,
     classification: corrected ? null : raw.classification,
+  };
+}
+
+/** #221 — the sixth fact's own view. Not decisionView's shape: there is no source quote to fall back
+ *  on (nothing in a CV states a job family) and machine_touch/classification are judgements about
+ *  QUOTED text, so both stay null here rather than being invented for a decision that quotes nothing. */
+function familyView(blockId: string, stored: StoredBlock): DecisionView<FamilyPlacement | null> {
+  const corrected = "family" in stored.corrections;
+  return {
+    id: `${blockId}:family`,
+    value: (corrected ? stored.corrections.family : stored.placement) as FamilyPlacement | null,
+    origin: corrected ? { kind: "corrected", supersededValue: stored.placement } : { kind: "worked_out" },
+    machine_touch: null,
+    classification: null,
   };
 }
 
@@ -147,6 +175,7 @@ function toView(id: string, stored: StoredBlock): JobBlockView {
     start: decisionView(id, "start", b.start, stored),
     end: decisionView(id, "end", b.end, stored),
     kindDecision: decisionView(id, "kind", b.kind, stored),
+    family: familyView(id, stored),
     confirmed: stored.confirmed,
     matchState: stored.matchState,
     candidateBlockIds: stored.candidateBlockIds,
@@ -192,6 +221,7 @@ export class InMemoryJobBlockStore implements JobBlockStore {
       existing.set(incoming.id, {
         block: incoming,
         corrections: {},
+        placement: null, // #221: labeled by its own pipeline step, after mining
         confirmed: false,
         matchState: verdict.kind === "ambiguous" ? "ambiguous" : "new",
         candidateBlockIds: verdict.kind === "ambiguous" ? verdict.candidateBlockIds : [],
@@ -260,6 +290,13 @@ export class InMemoryJobBlockStore implements JobBlockStore {
     return true;
   }
 
+  async label(sessionId: string, blockId: string, placement: FamilyPlacement): Promise<boolean> {
+    const row = this.forSession(sessionId).get(blockId);
+    if (!row) return false;
+    row.placement = placement;
+    return true;
+  }
+
   async detach(sessionId: string, blockId: string): Promise<boolean> {
     return this.forSession(sessionId).delete(blockId);
   }
@@ -294,8 +331,12 @@ CREATE TABLE IF NOT EXISTS job_blocks (
   confirmed      boolean NOT NULL DEFAULT false,
   match_state    text NOT NULL,
   candidate_block_ids jsonb NOT NULL DEFAULT '[]',
+  placement      jsonb,
   PRIMARY KEY (session_id, block_id)
 )`;
+
+// #221 — for databases created before the labeler existed. Same idiom as claims.ts/sessions.ts.
+const JOB_BLOCKS_ALTERS = ["ALTER TABLE job_blocks ADD COLUMN IF NOT EXISTS placement jsonb"];
 
 // One row PER RUN (never upserted/overwritten) — a re-upload's raw output must never erase an
 // earlier run's, because blocks that earlier run produced can still be sitting in job_blocks.
@@ -314,6 +355,7 @@ function rowToStored(r: Record<string, unknown>): StoredBlock {
   return {
     block: r.block as MinedJobBlock,
     corrections: (r.corrections as Partial<Record<DecisionKey, unknown>>) ?? {},
+    placement: (r.placement as FamilyPlacement | null) ?? null,
     confirmed: r.confirmed as boolean,
     matchState: r.match_state as MatchState,
     candidateBlockIds: (r.candidate_block_ids as string[] | null) ?? [],
@@ -326,6 +368,7 @@ export class PgJobBlockStore implements JobBlockStore {
 
   async init(): Promise<void> {
     await this.pool.query(JOB_BLOCKS_TABLE);
+    for (const alter of JOB_BLOCKS_ALTERS) await this.pool.query(alter);
     await this.pool.query(JOB_BLOCK_RUNS_TABLE);
   }
 
@@ -442,6 +485,14 @@ export class PgJobBlockStore implements JobBlockStore {
       [sessionId, blockId, JSON.stringify(merged)],
     );
     return true;
+  }
+
+  async label(sessionId: string, blockId: string, placement: FamilyPlacement): Promise<boolean> {
+    const res = await this.pool.query(
+      `UPDATE job_blocks SET placement = $3 WHERE session_id = $1 AND block_id = $2`,
+      [sessionId, blockId, JSON.stringify(placement)],
+    );
+    return (res.rowCount ?? 0) > 0;
   }
 
   async detach(sessionId: string, blockId: string): Promise<boolean> {

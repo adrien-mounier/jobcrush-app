@@ -662,6 +662,7 @@ export type {
   ReadStatus as JobBlocksReadStatus,
   DeckSummary as JobBlocksSummary,
   HeldSentence,
+  FamilyPlacement,
 } from "@jobcrush/contracts";
 import type {
   Kind as JobBlockKind,
@@ -672,7 +673,20 @@ import type {
   DeckSummary as JobBlocksSummary,
 } from "@jobcrush/contracts";
 
-export function getJobBlocks(): Promise<{ blocks: JobBlockView[]; summary: JobBlocksSummary }> {
+/** #221 — one published job family, as the review screen offers it: what a person picks between
+ *  when the machine could not place a job (or placed it two ways). Served with the deck rather than
+ *  hand-kept here, so a newly published family appears with no client change. */
+export interface JobFamilyChoice {
+  familyId: string;
+  version: number;
+  label: string;
+}
+
+export function getJobBlocks(): Promise<{
+  blocks: JobBlockView[];
+  summary: JobBlocksSummary;
+  families: JobFamilyChoice[];
+}> {
   return jfetch("/api/job-blocks");
 }
 
@@ -691,7 +705,10 @@ export type JobBlockCorrection =
   | { key: "title"; value: string }
   | { key: "start"; value: MinedDate }
   | { key: "end"; value: MinedEndValue }
-  | { key: "kind"; value: JobBlockKind };
+  | { key: "kind"; value: JobBlockKind }
+  // #221: the person's own answer to "what kind of work is this?" — a reference into the published
+  // list the deck was served with, never free text.
+  | { key: "family"; value: { familyId: string; version: number } };
 
 // #163: `held` — confirmed sentences this correction contradicted, now held aside with a precise
 // question each (ADR-0002 clause 3); they return to the CV when the person answers. `downstream`

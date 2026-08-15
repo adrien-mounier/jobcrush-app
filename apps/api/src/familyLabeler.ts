@@ -21,6 +21,7 @@ import { z } from "zod";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
+import type { JobBlockStore } from "./jobBlockStore.js";
 import type { SessionRecord } from "./sessions.js";
 import { incrementCounter, recordUnmappedLabel } from "./counters.js";
 
@@ -238,6 +239,53 @@ export function makeFamilyPlacer(
       incrementCounter("familyLabeler.call_failed");
       console.error(`[ops] family placement call failed: ${err instanceof Error ? err.message : String(err)}`);
       return UNMAPPED;
+    }
+  };
+}
+
+/**
+ * #221 — the labeler's PAST-JOB half: one pipeline step that places every dated job record this
+ * session has, so each one carries a family the visitor can see and correct.
+ *
+ * The checkpoint is the store itself, not a flag on the run: a block whose placement has landed is
+ * skipped, so a pipeline retry re-executes no completed labeler call (#221 AC2) — at per-call
+ * granularity, which a step-level flag could not give (a crash halfway through eight blocks would
+ * re-spend all eight). A correction is a placement too, so a corrected block is skipped for the same
+ * reason — a re-run never overwrites what a person told us (#221 AC5).
+ *
+ * One failed block is recorded and stepped over, never fatal (#221 AC3): it stays unlabeled, reads
+ * as unmapped, and the next block is still placed. The step as a whole never throws into the run.
+ *
+ * JOBS only. A degree belongs to no job family, and paying for a call that can only ever come back
+ * unmapped is waste — one per education/project/client/volunteering block, on every upload. Nothing
+ * is stranded by this: a block a person later corrects INTO a job simply arrives on the review
+ * screen unanswered, with the same choices as any other unplaced job.
+ */
+export function makeJobBlockLabeler(
+  llm: LlmClient,
+  families: PublishedFamily[],
+  store: Pick<JobBlockStore, "list" | "label">,
+): (sessionId: string) => Promise<void> {
+  return async (sessionId) => {
+    for (const block of await store.list(sessionId)) {
+      if (block.kind !== "job") continue; // its CORRECTED kind — see this function's own doc
+      if (block.family.value) continue; // already answered (labeled or corrected) — never re-spent
+      try {
+        // The TITLE is what gets placed: it is the block's own statement of what the work was, and
+        // it is the field the visitor can already correct if the miner read it wrong.
+        const { placement, degraded } = await place(block.title.value, families, llm);
+        // A DEGRADED answer is never stored — the same rule makeFamilyPlacer's cache follows, and it
+        // matters more here: a stored placement is exactly what stops this block being asked again,
+        // so persisting an unmapped the model never actually gave would make one bad minute
+        // permanent. Left unlabeled instead: reads as unmapped (#221 AC3) and is placed for real on
+        // the next run.
+        if (!degraded) await store.label(sessionId, block.id, placement);
+      } catch (err) {
+        incrementCounter("familyLabeler.call_failed");
+        console.error(
+          `[ops] job-block family placement call failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
   };
 }

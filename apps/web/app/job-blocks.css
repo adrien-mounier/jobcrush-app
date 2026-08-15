@@ -410,6 +410,23 @@
   letter-spacing: -0.02em;
 }
 
+/* #221 — the batched family questions, shown once the deck is checked. Left-aligned inside the
+   centred done panel: each row is something to read and answer, not a headline. Everything else is
+   the existing correction controls (.jb-fgrp / .jb-choice / .jb-note) reused unchanged. */
+.jobblocks .jb-familyask {
+  text-align: left;
+  margin-bottom: var(--jc-sp-lg);
+  padding-bottom: var(--jc-sp-md);
+  border-bottom: 1px solid var(--jc-line);
+}
+.jobblocks .jb-familyask h2,
+.jobblocks .jb-familyask .jb-kicker {
+  text-align: center;
+}
+.jobblocks .jb-familyask .jb-readback {
+  margin-bottom: 8px;
+}
+
 /* ---------- the flying reward chip — factbadge.css's .factchip idiom, light-register colours ---------- */
 .jobblocks .jb-chip {
   position: fixed;

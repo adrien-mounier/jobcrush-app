@@ -66,7 +66,8 @@ import { makePreviewStep, type Draft } from "./preview.js";
 import { makeGrillPhraser } from "./grill.js";
 import { makeCvAuditor } from "./audit.js";
 import { initialProductionFamilyFloors } from "./familyFloors.js";
-import { makeFamilyPlacer, publishedFamilies } from "./familyLabeler.js";
+import { makeFamilyPlacer, makeJobBlockLabeler, publishedFamilies } from "./familyLabeler.js";
+import { InMemoryJobBlockStore } from "./jobBlockStore.js";
 import { makeFamilyCandidateScreen } from "./familyLearning.js";
 import { makeJudge, makeJudgePeek } from "./judge.js";
 // InMemoryJudgementStore directly, never judgementStoreFromEnv(): that helper reads ambient
@@ -307,6 +308,11 @@ const fakeLlm: LlmClient = {
       // git checkout rewrites line endings on Windows — a literal \n\n would quietly stop matching
       // there and place every role as unmapped.
       const role = (/## The role to place\s+(.+)/.exec(prompt) ?? [, ""])[1]!.toLowerCase();
+      // #221: "coordinator" is the one canned job title deliberately left UNPLACED. Every other job
+      // in the canned CV places cleanly, and a fake that placed them all would make the review
+      // screen's batched "what kind of work was this?" question unreachable in a live drive. No
+      // journey types a coordinator TARGET role, so the target-role path is untouched by this.
+      if (/coordinator/.test(role)) return JSON.stringify({ outcome: "unmapped" });
       return /project|programme|program|delivery|scrum|\bpm\b/.test(role)
         ? JSON.stringify({ outcome: "confirmed", familyId: "it-project-delivery" })
         : JSON.stringify({ outcome: "unmapped" });
@@ -464,6 +470,10 @@ const blobs = new LocalDiskStorage(process.env.QA_UPLOAD_DIR ?? join(process.cwd
 // the same published vocabulary. Two calls would build two catalogs that only happen to agree.
 const qaProductionFamilyFloors = initialProductionFamilyFloors();
 
+// #221: same reasoning — the labeling step writes placements into the very store the /job-blocks
+// route reads back, so both must be handed the one instance.
+const qaJobBlocks = new InMemoryJobBlockStore();
+
 const { app } = buildServer({
   // Test-only: the production default (12 anonymous sessions/IP/hour, apps/api/src/sessions.ts) is
   // unchanged for main.ts and every other caller. A full Playwright run mints one real session per
@@ -482,6 +492,9 @@ const { app } = buildServer({
   // journey can walk the production discovery checkpoint (open for a confirmed visitor, honestly
   // closed for an unmapped one) end to end without a paid call. Same seam main.ts uses.
   placeFamily: makeFamilyPlacer(fakeLlm, publishedFamilies(qaProductionFamilyFloors)),
+  // #221: the labeler needs the same store the routes read, so the QA entry owns it explicitly
+  // instead of letting buildServer make its own.
+  jobBlocks: qaJobBlocks,
   screenFamilyCandidate: makeFamilyCandidateScreen(fakeLlm),
   familyLearningOperatorKey: "qa-operator-key",
   // DevMailer directly, never mailerFromEnv(): that helper reads ambient RESEND_API_KEY
@@ -496,6 +509,10 @@ const { app } = buildServer({
   pipeline: {
     mine: makeMineStep(fakeLlm),
     mineJobBlocks: makeMineJobBlocksStep(fakeLlm),
+    // #221: past-job labeling over the fake model — the canned CV mines to two placeable jobs and
+    // one degree the vocabulary does not cover, so a QA journey can walk both the confident case
+    // (no question asked) and the "we couldn't place this" question on the review screen.
+    labelJobBlocks: makeJobBlockLabeler(fakeLlm, publishedFamilies(qaProductionFamilyFloors), qaJobBlocks),
     preview: makePreviewStep(fakeLlm),
   },
   phraseGrill: makeGrillPhraser(fakeLlm),

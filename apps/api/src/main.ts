@@ -37,7 +37,7 @@ import {
   storeBackedPostingProvidersFor,
 } from "./postingRetrieval.js";
 import { initialProductionFamilyFloors } from "./familyFloors.js";
-import { makeFamilyPlacer, publishedFamilies } from "./familyLabeler.js";
+import { makeFamilyPlacer, makeJobBlockLabeler, publishedFamilies } from "./familyLabeler.js";
 import { pricingTableFromEnv } from "./llmPricing.js";
 import { meterLlm } from "./llmMeter.js";
 import type { LlmClient } from "./llm.js";
@@ -151,6 +151,14 @@ const { app } = buildServer({
   pipeline: {
     mine: makeMineStep(metered("claim-mining", llm)),
     mineJobBlocks: makeMineJobBlocksStep(metered("job-block-mining", llm)),
+    // #221: every mined job record is placed in a job family, on the same model the #220 grid
+    // measured. Wired here only, like placeFamily above — a test that doesn't inject it leaves
+    // every block unlabeled, which is exactly today's behaviour.
+    labelJobBlocks: makeJobBlockLabeler(
+      metered("family-placement", familyPlacementLlm() ?? llm),
+      publishedFamilies(productionFamilyFloors),
+      jobBlocks,
+    ),
     // #163: the preview step reads which dimensions the matched posting gates on (a presentation
     // read of the ad-requirements store — never a fresh model call) so a declared fact the advert
     // tests can rise into the summary (ADR-0002 clause 4).

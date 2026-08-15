@@ -4,8 +4,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import { MinedDate, MinedEndValue, KINDS, countsTowardExperience } from "@jobcrush/contracts";
-import type { Kind, HeldSentence } from "@jobcrush/contracts";
+import { FamilyVersionReference, MinedDate, MinedEndValue, KINDS, countsTowardExperience } from "@jobcrush/contracts";
+import type { FamilyPlacement, Kind, HeldSentence } from "@jobcrush/contracts";
 import { holdContradictingSentences } from "../heldSentences.js";
 import { requireSession } from "../server.js";
 import type { DecisionKey, JobBlockStore, JobBlockView } from "../jobBlockStore.js";
@@ -22,6 +22,12 @@ export interface JobBlocksDeps {
    *  these records — re-derived after each change so a read anywhere else sees the correction.
    *  Required, not optional: an absent store would silently drop AC5's drift backstop. */
   eligibility: EligibilityStore;
+  /** #221: the closed published vocabulary, read fresh per request (a family published mid-session
+   *  is offerable immediately). It is BOTH what the review screen offers for a job nobody could
+   *  place AND what a family correction is checked against — the vocabulary is only closed if
+   *  something outside the screen enforces it. Absent → no families offered and every family
+   *  correction is refused, which is the correct behaviour for a build with no registry wired. */
+  families?: () => Array<{ familyId: string; version: number; label: string }>;
 }
 
 const Params = z.object({ blockId: z.string() });
@@ -36,6 +42,10 @@ const CorrectBody = z.discriminatedUnion("key", [
   z.object({ key: z.literal("start"), value: MinedDate }),
   z.object({ key: z.literal("end"), value: MinedEndValue }),
   z.object({ key: z.literal("kind"), value: z.enum(KINDS) }),
+  // #221: the visitor's own answer to "what kind of work is this?" — a reference into the closed
+  // published list, never free text. Which family versions actually exist is checked in the handler
+  // (the contract can only police the shape).
+  z.object({ key: z.literal("family"), value: FamilyVersionReference }),
 ]);
 
 const ResolveMatchBody = z.discriminatedUnion("resolution", [
@@ -50,7 +60,7 @@ const notFound = (message: string) => ({ error: { code: "not_found", message } }
 // reworkYears below) but still does not QUOTE it here: no route exposes the total and no screen
 // renders it yet, so naming a number would promise a readback that does not exist. The consequence
 // is named instead, which is what the ticket asked for.
-const downstreamMessage = (key: DecisionKey, value: unknown, before: JobBlockView): string => {
+const downstreamMessage = (key: Exclude<DecisionKey, "family">, value: unknown, before: JobBlockView): string => {
   if (key === "kind") {
     const now = countsTowardExperience(value as Kind);
     if (before.countsTowardExperience !== now) {
@@ -74,6 +84,11 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
     // every door that can change a record, with a disagreement counted (yearsWorked.ts).
     const reworkYears = (sessionId: string) => refreshWorkedYears(deps.jobBlocks, deps.eligibility, sessionId);
 
+    // #221: only what a person needs to pick between — id, version and the display name. The rest of
+    // a publication (scope, evidence, floor questions) is the labeler's business, not the screen's.
+    const publishedChoices = () =>
+      (deps.families?.() ?? []).map(({ familyId, version, label }) => ({ familyId, version, label }));
+
     // The confirm deck's own read: every dated block, each of its five decisions (value + origin +
     // machine_touch + classification + a stable per-decision id a correction can target), whether
     // it counts toward experience (derived, never asked), an ambiguous block's candidate ids, plus
@@ -90,7 +105,10 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
       // mutated a record without re-deriving. Counted and repaired, never silently absorbed. The
       // records are already in hand, so this costs one eligibility read (and a write only on drift).
       await verifyWorkedYears(deps.eligibility, session.id, blocks, summary.read);
-      return { blocks, summary };
+      // #221: the published families travel WITH the deck. The review screen has to offer real
+      // choices for a job nobody could place, and the only honest source for them is the registry
+      // that publishes them — a hand-kept list in the client would drift the moment one is published.
+      return { blocks, summary, families: publishedChoices() };
     });
 
     app.post(
@@ -128,7 +146,29 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
         const before = (await deps.jobBlocks.list(session.id)).find(
           (b: JobBlockView) => b.id === req.params.blockId,
         );
-        const found = await deps.jobBlocks.correct(session.id, req.params.blockId, key, value);
+        // #221: a family correction names a family version, and only a PUBLISHED one may be stored —
+        // an unknown id would pin this person's per-family numbers to a family that does not exist.
+        // What lands is the contract's own confirmed placement, so a corrected label and a
+        // machine-placed one are the same shape everywhere downstream.
+        let stored: unknown = value;
+        let familyLabel: string | null = null;
+        if (key === "family") {
+          const known = publishedChoices().find(
+            (family) => family.familyId === value.familyId && family.version === value.version,
+          );
+          if (!known) {
+            return reply
+              .status(400)
+              .send({ error: { code: "unknown_family", message: "no such published job family" } });
+          }
+          familyLabel = known.label;
+          stored = {
+            schemaVersion: "1",
+            outcome: "confirmed",
+            family: { familyId: known.familyId, version: known.version },
+          } satisfies FamilyPlacement;
+        }
+        const found = await deps.jobBlocks.correct(session.id, req.params.blockId, key, stored);
         if (!found) return reply.status(404).send(notFound("unknown job block"));
         let held: HeldSentence[] = [];
         if (deps.claims && before) {
@@ -140,7 +180,9 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
             kind: before.kindDecision,
           } as const;
           // `kind` is excluded: its values ("job", …) are generic words that would false-match.
-          if (key !== "kind") {
+          // `family` is excluded for a stronger reason: it quotes no source words at all, so no
+          // confirmed sentence can be carrying the value it supersedes.
+          if (key !== "kind" && key !== "family") {
             held = await holdContradictingSentences(
               deps.claims,
               session.id,
@@ -152,7 +194,16 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
         }
         await reworkYears(session.id);
         // `before` exists whenever correct() found the block; null only on a delete race.
-        return { ok: true, held, downstream: before ? downstreamMessage(key, value, before) : null };
+        const downstream =
+          key === "family"
+            ? // Deliberately says only what is true TODAY. Naming a per-family years number here
+              // would promise a readback nothing computes yet (that is #222) — the same rule
+              // downstreamMessage below already follows for the total.
+              `We'll count this job as ${familyLabel} from now on.`
+            : before
+              ? downstreamMessage(key, value, before)
+              : null;
+        return { ok: true, held, downstream };
       },
     );
 
