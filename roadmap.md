@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-08-12_
+_Last updated: 2026-08-15_
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
@@ -89,13 +89,16 @@ the board stops meaning anything. **The line drawn, and it is new:**
 | ~~5b.2~~ | ~~#231~~ | ~~Labeler slice 2b: several families per job, nobody is asked, confidence rides the ranking~~ **DONE 2026-08-15 (QA GO, `34bdd3c`)** — placement contract is v2 and plural, `needs_clarification` deleted, end-of-deck panel gone, confidence stored. **The target role is still single (#232 lifts it)**, and **confidence does not yet reach a card's score — that caller is #222** | — | — | — |
 | ~~5b.3~~ | ~~#227~~ | ~~A null placement is a call we never made — a retry, not a question~~ **MOSTLY DISSOLVED BY #231 (2026-08-15)** — #227 was "an unmapped job is offered the whole published list". `familyChoicesFor()`, the end-of-deck panel and the published-list payload are all deleted, so nothing offers a list to anything. **Remnant, verified small:** `labelJobBlocks` runs only inside the upload pipeline (`pipeline.ts`), so a null placement is retried on the next upload and never otherwise. Owner call: close, or keep as a one-line retry ticket | — | — | — |
 | ~~5c~~ | ~~#222~~ | ~~Labeler slice 3: years per family, read at the advert's own scope~~ **DONE 2026-08-15 (QA GO on re-run)** — one years fact per family + the total; bars scoped via the additive `yearsScope` contract field (compound sentences split); known zero ≠ unknown; confidence attenuation live at the owner's weights. First gate run was **NO-GO**: the scoped reading keyed on the production-discovery floor no shipped journey ever sets — fixed by resolving the advert's family from the target-role placement (`advertFamilyIdFor`), verified A/B in the browser. **Two owner decisions escalated, recorded in session-log** | — | — | — |
-| 5c.1 | #230 | 🔒 **GRILL BEFORE BUILDING** — an unmapped target role gets no adverts at all. Decides floor selection when there is no family, and whether retrieval may proceed without one. **Gates #232, #223, #63** | `/grilling` | Opus | high |
-| 5c.2 | #228 | 🔒 **GRILL BEFORE BUILDING** — fallback when the target family's adverts run out. A fallback may mean a second live provider search on the same quota. **Gates #63** | `/grilling` | Opus | medium |
-| 5c.3 | #232 | The target role's several families: discovery asks the essential items of each floor — ADR-0014 amendment 1 d7 | `/implement` | Opus | high |
+| ~~5c.1~~ | ~~#230~~ | ~~🔒 **GRILL BEFORE BUILDING** — an unmapped target role gets no adverts at all~~ **DECIDED 2026-08-15** — retrieval opens: no usable published floor ⇒ search her typed words. Interview on up to two of her CV's floors, silent throughout (no sentence, no card mark, no research message), same scoring path, same provider budget. Spec **#233** → slices **#234 → #235 → #236**. Handed on: exhaustion to #228, autonomous research to #218 | — | — | — |
+| 5c.1a | #234 | Question floors and the search family become two facts, chosen by one plan — prefactor, nothing visible; its proof is that every existing test passes unchanged. **#232 now hangs off this, not off #230** | `/implement` | Opus | high |
+| 5c.1b | #235 | The unmapped target role is interviewed on her CV's floors and gets a word-search deck, including the honest empty state. **This is the retrieval-gate change #63 was waiting on** | `/implement` | Opus | high |
+| 5c.1c | #236 | The candidate screen runs on that path — research starts itself, and `covered_role` recovers a family the labeler missed | `/implement` | Opus | medium |
+| 5c.2 | #228 | 🔒 **GRILL BEFORE BUILDING** — fallback when the target family's adverts run out. A fallback may mean a second live provider search on the same quota. **Also owns step 3 of the unmapped fallback** (#230 stopped at the first deck so "the deck ran out" is defined once, here). **Gates #63** | `/grilling` | Opus | medium |
+| 5c.3 | #232 | The target role's several families: discovery asks the essential items of each floor — ADR-0014 amendment 1 d7. **Blocked by #234** (it changes what that plan returns) | `/implement` | Opus | high |
 | 5d | #223 | Labeler slice 4: the stub retires — one discovery engine | `/implement` | Opus | **high** |
 | 6 | #216 | Discovery asks the family floor the reveal is earned from | `/implement` | Opus | high |
 | 6b | #229 | The career changer is scored honestly but told nothing — the "new to this family" sentence | `/implement` | **Fable** | high |
-| 7 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
+| 7 | #63 | Real live jobs replace the fixture deck. **Waits on #235** (the retrieval gate) **and #228** (a second live search on the same quota) | `/implement` | Opus | high |
 | 7b | #218 | Pilot vocabulary-growth: unmapped labels harvested, researched, proposed for approval — **publishes the second family, which is what makes multi-family reachable in production at all** | `/implement` | **Fable** | high |
 | 8 | #64 | The match count survives signup | `/implement` | Opus | medium |
 | 8b | #217 | Industry — the second label axis: closed vocabulary with relatedness, seventh fact, its own labeler | `/to-spec` | Opus | high |
@@ -116,7 +119,9 @@ The build is **#214** — and the "#124 before #63" ordering rule below now read
 end, not by reading: a visitor who sets a target role and a search area and answers **all seven**
 discovery questions positively still produces `{ family: null, checkpoint: null }`, and the real
 retriever's verdict on that request is `invalid_request / family_not_published`. The deck then
-returns **8 fixture cards anyway**. ⇒ **every job any visitor has ever seen on the deck is a
+returns **8 fixture cards anyway**. (**#235 removes that verdict** from every visitor path — a
+session with no family now gets a word search rather than a refusal. It does not fix the second
+cause below.) ⇒ **every job any visitor has ever seen on the deck is a
 fixture**, and #63 implemented as written would make the deck permanently empty for everyone.
 
 Two independent causes, both now filed:
@@ -194,26 +199,34 @@ thread #231 deliberately left hanging for it: the confidence ordinal is **stored
 2026-08-15 — they mentioned confidence nowhere, so the behaviour was about to fall between two
 individually-complete tickets), and the weights are **owner-decided**: certain x1.0, likely x0.9,
 possible x0.75. An 80% card reads 60% at *possible*, and that is the intent, not a side effect. Deferred on purpose, each with a ticket: the "new to
-this family" sentence a career changer is owed (**#229**), the unmapped **target role** that still
-gets no adverts at all (**#230** — the one place ranking cannot save us, because the family is what
-we search *with*), and the fallback when a family's adverts run out (**#228**).
+this family" sentence a career changer is owed (**#229**), the unmapped **target role** that got no
+adverts at all (**#230** — the one place ranking cannot save us, because the family is what we search
+*with*; **decided 2026-08-15**, spec #233, slices #234–#236), and the fallback when a family's
+adverts run out (**#228**).
 
 🔒 **The ordering rule for this cluster, and why rows 5c.1–5c.3 sit where they do.** Two of the
-tickets #225 produced are **decisions, not builds**, and both land upstream of code that would
+tickets #225 produced were **decisions, not builds**, and both land upstream of code that would
 otherwise be written around an assumption they may reverse. Ranking them last — the natural instinct,
-since neither ships anything — is the trap:
+since neither ships anything — is the trap. **#230 is now decided (2026-08-15) and #228 is not**, so
+one bullet below is history and one is live; both are kept, because the rule they encode is what put
+them first:
 
-- **#230 gates #232 and #223.** All three rewrite the same rule: *which family floor is a session
-  asked?* #232 merges the floors of a plural target role, #223 deletes the `resolveFamily()` stub
-  that selects one today, and #230 decides what happens when there is no family to select from at
-  all. Decide it after either build and the same selection logic is written twice.
-- **#230 and #228 both gate #63.** #230 decides whether retrieval may proceed without a published
-  family; #228 may add a second live provider search under the same monthly quota. #63 is the ticket
-  that builds retrieval for real — it cannot be built around gates still under discussion.
+- ~~**#230 gates #232 and #223.**~~ **Settled 2026-08-15 — the gate moved from a decision to a
+  build.** All three rewrite the same rule: *which family floor is a session asked?* #230's answer
+  is that the question is two questions — *which floors do we ask from* and *which family do we
+  search with* — and **#234 splits them behind one plan function**. So the edge is now **#234 →
+  #232** (and #234 before #223): #232 changes what that function returns for a plural target role,
+  #223 deletes the `resolveFamily()` stub that selects one today. Building either before #234 writes
+  the selection logic twice, exactly as before — only the blocker's number changed.
+- ~~**#230 and #228 both gate #63.**~~ **Half settled.** #230 decided that retrieval may proceed
+  without a published family, and **#235 is the build that opens it** — so #63 now waits on #235
+  rather than on a discussion. #228 is still an open grill and still gates #63: it may add a second
+  live provider search under the same monthly quota.
 - **#232 was missing entirely** until this review (filed 2026-08-15). Amendment 1 decision 7 — the
   target role follows the same plural rule — had no work behind it, and #231 makes the placement
   contract plural for *both* paths at once. So **#231 explicitly holds the target role at one
-  family**, with a test pinning it, and #232 lifts that constraint once #230 has settled the rule.
+  family**, with a test pinning it, and #232 lifts that constraint once **#234** has split floor
+  selection from search selection (#230 settled the rule; #234 is the code).
   Without this, #231 would have shipped a plural target role into a floor selector that takes one —
   silently picking a family, which is the exact failure the whole pass exists to remove.
 

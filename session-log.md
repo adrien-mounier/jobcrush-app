@@ -2,6 +2,41 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-15 (session 127) `/grilling 230` → `/to-spec` → `/to-tickets` — the retrieval gate opens, silently
+
+**Decided, specced and sliced. No code.** #230 was the one place "never discard, only rank" was not
+true: an **unmapped target role** got no adverts at all, routed to a family-research path that only
+advances when the owner personally acts (#218 is neither built nor specced). Fourteen decisions,
+recorded on #230; spec **#233**; slices **#234 → #235 → #236**, all `ready-for-agent`.
+
+- **The rule.** No usable published **family floor** ⇒ retrieval searches her typed words instead of
+  refusing. One path for all three causes (`unmapped`, plural placement until #232, family not
+  published). Permanent shape, not a stopgap — the closed vocabulary is permanent, so its gaps are.
+- **Questions come from her CV.** Eligibility facts, then the floors of at most two families her
+  dated job records prove, strongest by years. Those answers are reusable for ever, so they are
+  never wasted; a third floor buys little and delays the deck.
+- 🔑 **The structural finding.** One stored fact was doing two jobs — selecting the floor we ask
+  questions from, and naming the family we search with. Identical for a mapped role, which is why
+  nobody noticed. #234 splits them, and **#232 now hangs off #234, not off #230**.
+- 🔑 **The owner reversed my copy recommendations, and the principle generalises.** I proposed a
+  pre-deck sentence ("we don't know this title, results are rougher") and a "we started learning
+  this role" line. Both refused: *the user never sees our kitchen*. Either cause — nonsense input or
+  a family we have not built — is something she can do nothing about, so naming it only makes the
+  product look weak. Saved as a standing rule for future copy. Her own result is not kitchen: an
+  empty deck still says so and invites another job title (today's line, *"answer a few more
+  questions"*, is false when there are none left — folded into #235).
+- **Free win found in the code.** The family-candidate screen already exists and returns
+  `covered_role` — a published family the labeler missed. #236 uses it to recover a real family
+  search instead of a word search, at no extra cost.
+- **Reversal on the notification (Q6→Q14).** First "send the email", then "no email", then back:
+  the existing message says *new jobs match your search* and never mentions research, so it obeys
+  the rule. Owner adds it as a future marketing channel.
+- **Handed on so no rule is decided twice:** exhaustion of the word deck → #228 (commented there),
+  autonomous research → #218. Two doc follow-ups ride on #234: the ADR-0014 amendment and a
+  `CONTEXT.md` name for the word search.
+- **Owner constraint, recorded on #234:** no live users, so no back-compat reader and no migration —
+  the stored shape changes outright.
+
 ## 2026-08-15 (session 126) `/implement 222` — years per family, read at the advert's own scope
 
 **Shipped — QA gate GO on the re-run, after a real NO-GO.** All 14 ACs pass; 1416 tests + typecheck
