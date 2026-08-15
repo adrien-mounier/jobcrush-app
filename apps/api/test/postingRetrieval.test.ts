@@ -72,11 +72,16 @@ const request = (over: Partial<RetrievalRequest> = {}): RetrievalRequest => ({
   targetRole: "IT Project Manager",
   searchAreas: ["Hong Kong"],
   family: { familyId: "it-project-delivery", version: 1 },
+  questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
   checkpoint: "essential_floor_covered",
   confirmedEvidence: [{ semanticKey: "risk-control", fieldLabel: "Risk control" }],
   explicitNegatives: [],
   ...over,
 });
+
+// #235: the word search — no search family; the interview floors came from her CV.
+const wordRequest = (over: Partial<RetrievalRequest> = {}): RetrievalRequest =>
+  request({ family: null, ...over });
 
 describe("#101 provider routing", () => {
   it.each([
@@ -187,10 +192,15 @@ describe("#101 posting retrieval service", () => {
 
   it.each([
     [request({ targetRole: null }), "missing_intent"],
-    [request({ family: null }), "family_not_published"],
     [request({ family: { familyId: "unknown", version: 1 } }), "family_not_published"],
     [request({ checkpoint: "family_confirmed" }), "floor_not_covered"],
     [request({ searchAreas: ["Atlantis"] }), "search_area_not_covered"],
+    // #235: the word search keeps every non-family gate — intent, the coverage checkpoint over its
+    // question floors, and the search area still refuse with today's codes.
+    [wordRequest({ targetRole: null }), "missing_intent"],
+    [wordRequest({ checkpoint: "family_confirmed" }), "floor_not_covered"],
+    [wordRequest({ checkpoint: null }), "floor_not_covered"],
+    [wordRequest({ searchAreas: ["Atlantis"] }), "search_area_not_covered"],
   ] as const)("returns the specific invalid arm", async (input, code) => {
     const { retrieve } = build([policy("one", ["HK"], 1)], []);
     await expect(retrieve(input)).resolves.toEqual({
@@ -198,6 +208,47 @@ describe("#101 posting retrieval service", () => {
       outcome: "invalid_request",
       code,
     });
+  });
+
+  // #235 (spec #233 decision 4): no search family is the word search, not a refusal —
+  // `family_not_published` is no longer produced on any visitor path.
+  it("word mode returns adverts for a visitor with no family, through the same providers", async () => {
+    const registry = [policy("one", ["HK"], 1)];
+    const providers = [new TestFixturePostingProvider("one", { ok: true, records: [record("one", "a")] })];
+    const { retrieve } = build(registry, providers);
+
+    const word = await retrieve(wordRequest());
+    expect(word).toMatchObject({
+      outcome: "relevant_postings",
+      coverage: { providersQueried: ["one"], providersUnavailable: [], complete: true },
+    });
+
+    // The same providers, the same shared budget path — no second cap, no second failure message:
+    // family mode over the identical registry queries the identical provider set.
+    const family = await build(registry, providers).retrieve(request());
+    expect(family).toMatchObject({
+      outcome: "relevant_postings",
+      coverage: { providersQueried: ["one"], providersUnavailable: [], complete: true },
+    });
+  });
+
+  it("a visitor with no question floors reaches word retrieval once her intent is stated", async () => {
+    const { retrieve } = build(
+      [policy("one", ["HK"], 1)],
+      [new TestFixturePostingProvider("one", { ok: true, records: [record("one", "a")] })],
+    );
+    await expect(
+      retrieve(wordRequest({ questionFloors: [], checkpoint: null })),
+    ).resolves.toMatchObject({ outcome: "relevant_postings" });
+  });
+
+  // #235 (spec #233 decision 5): the fingerprint covers the mode and the question floors, so a
+  // session that gains a search family — or a floor — can never be served its stale word snapshot.
+  it("fingerprints a word search differently from a family search, and covers the floors", () => {
+    expect(retrievalFingerprint(wordRequest())).not.toBe(retrievalFingerprint(request()));
+    expect(retrievalFingerprint(wordRequest({ questionFloors: [] }))).not.toBe(
+      retrievalFingerprint(wordRequest()),
+    );
   });
 
   it("audits every fresh/stale decision with stable metadata and no record text", async () => {

@@ -142,6 +142,84 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     return { built, cookie, id, liveId, requestFingerprint, retrievePostings };
   }
 
+  // #235: a session with no search family (the word search) reaches retrieval through the same
+  // route, with the same coordinator and the same provider path — never a family refusal.
+  it("retrieves and serves a live deck for a word-plan session with no search family", async () => {
+    const fixturePosting = loadPostings().find((posting) => posting.language === "en")!;
+    const canonicalKey = canonicalKeyOf(fixturePosting.company, fixturePosting.location, fixturePosting.title);
+    const retrievePostings = vi.fn(async () => {
+      const now = new Date().toISOString();
+      return {
+        schemaVersion: "4" as const,
+        outcome: "relevant_postings" as const,
+        postings: [{
+          schemaVersion: "4" as const,
+          id: `posting:${canonicalKey}`,
+          canonicalKey,
+          title: fixturePosting.title,
+          company: fixturePosting.company,
+          location: fixturePosting.location,
+          sourceUrl: "https://example.com/word-search-posting",
+          excerpt: "We are hiring a project manager to lead delivery in Hong Kong.",
+          postedAt: "2026-08-11T00:00:00.000Z",
+          capturedAt: now,
+          verifiedLiveAt: now,
+          expiresAt: null,
+          attribution: [],
+          sources: [{ providerId: "techmap", providerPostingId: "word-search-posting" }],
+          skills: ["Project management"],
+          language: "en",
+        }],
+        coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
+        retrievedAt: now,
+      };
+    });
+    // The live posting needs a readable requirement set to become a card, same as the harness below.
+    const readAd = async (posting: Posting): Promise<AdRequirementsV1> => ({
+      schemaVersion: "1",
+      adId: posting.id,
+      curated: false,
+      language: posting.language,
+      familyFit: { family: "IT Project Manager", confidence: 0.9 },
+      requirements: [{
+        id: "project-delivery",
+        band: "essential",
+        kind: "ordinary",
+        requirement: "Deliver technology projects",
+        sourceSpan: "project manager",
+      }],
+    });
+    const built = buildServer({ retrievePostings, readAd });
+    const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const id = created.json().id as string;
+    const cookie = `jc_session=${created.cookies.find((item) => item.name === "jc_session")!.value}`;
+    await built.app.inject({
+      method: "PUT",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+      payload: { targetRole: "Orbital Farm Planner", searchArea: "Hong Kong" },
+    });
+    const floor = { familyId: "it-project-delivery", version: 1 };
+    await built.sessions.reconcileDiscoveryState(
+      id,
+      { questionFloors: [floor], searchFamily: null },
+      ["end-to-end-delivery"],
+      true,
+    );
+
+    await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    await vi.waitFor(async () =>
+      expect((await built.sessions.getById(id))?.retrieval?.result.outcome).toBe("relevant_postings"),
+    );
+    expect(retrievePostings).toHaveBeenCalledWith(
+      expect.objectContaining({ family: null, questionFloors: [floor] }),
+    );
+
+    const current = await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    const liveId = current.json().retrieval.postings[0].id as string;
+    expect(current.json().cards.map((card: { adId: string }) => card.adId)).toContain(liveId);
+  });
+
   it("uses only session/server state, persists the result, and ignores client override fields", async () => {
     const retrievePostings = vi.fn(async () => ({
       schemaVersion: "4" as const,
@@ -191,6 +269,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       targetRole: "Programme Manager",
       searchAreas: ["Hong Kong"],
       family: { familyId: "it-project-delivery", version: 1 },
+      questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
       checkpoint: "essential_floor_covered",
       confirmedEvidence: [
         { semanticKey: "banking-delivery", fieldLabel: "Banking delivery" },

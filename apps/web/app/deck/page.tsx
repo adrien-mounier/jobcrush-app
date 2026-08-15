@@ -46,6 +46,9 @@ const L1 = "Lining up your jobs…";
 const E1 = "Couldn't line up your jobs.";
 const Z1 = "No matches yet.";
 const Z2 = "Answer a few more questions and I'll widen the net.";
+// #235: shown instead of Z2 when no question is left to answer — her own result, and her own way to
+// change it. Deliberately names no job family, no vocabulary and no research (spec #233 decision 8).
+const Z3 = "Try a different job title.";
 
 // #22 the account wall at the reveal — copy per design-22-wall.md §3 (deck-context copy, never the
 // S2 /signup draft copy, even where the strings happen to be close).
@@ -123,6 +126,9 @@ export default function DeckPage() {
   // #123 addendum: set once from the initial load — withdrawal is decided before scoring (the ad
   // pool is filtered, not re-judged), so a later poll's applyMerge never needs to touch this.
   const [withdrawn, setWithdrawn] = useState<WithdrawnSummary | null>(null);
+  // #235: true while another discovery question exists — picks the empty state's second line
+  // (Z2 vs Z3). Defaults to the pre-#235 line so a missing field never invites a dead end.
+  const [moreQuestions, setMoreQuestions] = useState(true);
   // Declared here (not near the render below) because the reveal-entry effect further down needs
   // it in its dependency array, and a `const` can't be read before its own declaration.
   const withdrawalCopy = withdrawn ? withdrawnLine(withdrawn) : null;
@@ -317,6 +323,7 @@ export default function DeckPage() {
       setCards(res.cards);
       setAuthed(res.authed);
       setWithdrawn(res.withdrawn ?? null);
+      setMoreQuestions(res.moreQuestions ?? true);
       if (res.cards.length === 0) {
         setScreen("empty");
         return;
@@ -539,7 +546,7 @@ export default function DeckPage() {
       {screen === "empty" && (
         <div className="loadstate">
           <p className="big">{Z1}</p>
-          <p>{Z2}</p>
+          <p>{moreQuestions ? Z2 : Z3}</p>
         </div>
       )}
 

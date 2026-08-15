@@ -27,7 +27,10 @@ import { fileURLToPath } from "node:url";
 // #234 lowered it from 1135: the route's own "is this publication usable?" helper moved to
 // familyFloors.ts (eligiblePublication), where the discovery plan reuses it — the ticket's new
 // floor-selection seam landed in adaptiveDiscovery.ts and the spine still shrank.
-const MAX_LINES = 1132;
+// #235 lowered it from 1132: the per-floor coverage computation moved to adaptiveDiscovery.ts
+// (planDiscoveryState / questionFloorItem) and the empty-deck question rule to deck.ts
+// (hasOpenDiscoveryQuestions) — the word-search path landed while the spine shrank again.
+const MAX_LINES = 1119;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

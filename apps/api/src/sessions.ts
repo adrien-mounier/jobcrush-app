@@ -112,6 +112,15 @@ export const samePlan = (a: DiscoveryPlan, b: DiscoveryPlan): boolean =>
   a.questionFloors.every((reference, index) => sameReference(reference, b.questionFloors[index])) &&
   sameReference(a.searchFamily, b.searchFamily);
 
+/** #235 — the ONE exception to the pin: a word-search plan (no search family) may be replaced by a
+ *  plan that HAS one. This is the returning visitor whose role has since been published as a family:
+ *  re-entering discovery re-derives the better plan, and she answers its floor before the family
+ *  search runs (the coverage checkpoint resets with the plan). It only ever fires on her own
+ *  discovery entry — nothing re-derives a plan while she is browsing a deck — and it is one-way:
+ *  a family plan never downgrades to a word plan, and never swaps to a different family. */
+export const planUpgradable = (current: DiscoveryPlan, next: DiscoveryPlan): boolean =>
+  current.searchFamily === null && next.searchFamily !== null;
+
 export interface ProductionDiscoveryState extends DiscoveryPlan {
   coveredItemIds: string[];
   checkpoint: "family_confirmed" | "essential_floor_covered" | null;
@@ -500,7 +509,7 @@ export class InMemorySessionStore implements SessionStore {
   ): Promise<ProductionDiscoveryState> {
     const s = this.byId.get(id);
     if (!s) throw new Error("session not found");
-    if (planPinned(s.discovery) && !samePlan(s.discovery, plan)) {
+    if (planPinned(s.discovery) && !samePlan(s.discovery, plan) && !planUpgradable(s.discovery, plan)) {
       throw new Error("production discovery plan already pinned");
     }
     const discovery: ProductionDiscoveryState = {
@@ -835,7 +844,7 @@ export class PgSessionStore implements SessionStore {
       );
       if (!rows[0]) throw new Error("session not found");
       const current = discoveryState(rows[0].production_discovery);
-      if (planPinned(current) && !samePlan(current, plan)) {
+      if (planPinned(current) && !samePlan(current, plan) && !planUpgradable(current, plan)) {
         throw new Error("production discovery plan already pinned");
       }
       const discovery: ProductionDiscoveryState = {

@@ -51,8 +51,8 @@ async function stubSession(page: Page) {
   });
 }
 
-async function stubCards(page: Page, cards: JobCard[]) {
-  const body: CardsResponse = { stage: "deck", cards, authed: true, pendingCount: 0 };
+async function stubCards(page: Page, cards: JobCard[], moreQuestions?: boolean) {
+  const body: CardsResponse = { stage: "deck", cards, authed: true, pendingCount: 0, ...(moreQuestions === undefined ? {} : { moreQuestions }) };
   await page.route("**/api/onboarding/cards", async (route) => {
     await route.fulfill({ json: body });
   });
@@ -351,4 +351,28 @@ test("screen 2b: a want auth failure shows generic fixed copy, never the raw env
   await expect(page.getByRole("alert").filter({ hasText: "Couldn't start tailoring this job — try again." })).toBeVisible();
   await expect(page.getByText("sign in first")).toHaveCount(0);
   await expect(want).toBeFocused();
+});
+
+// #235 — the empty deck's second line is honest about whether a question actually remains: the
+// "answer a few more questions" invitation only appears when one does; otherwise her own way to
+// change the result — a different job title — is offered instead. No family, vocabulary or
+// research is ever named.
+test("an empty deck with no questions left invites a different job title, not more questions", async ({
+  page,
+}) => {
+  await stubSession(page);
+  await stubCards(page, [], false);
+  await page.goto("/deck");
+  await expect(page.getByText("No matches yet.")).toBeVisible();
+  await expect(page.getByText("Try a different job title.")).toBeVisible();
+  await expect(page.getByText("Answer a few more questions and I'll widen the net.")).toHaveCount(0);
+});
+
+test("an empty deck with questions still open keeps inviting them", async ({ page }) => {
+  await stubSession(page);
+  await stubCards(page, [], true);
+  await page.goto("/deck");
+  await expect(page.getByText("No matches yet.")).toBeVisible();
+  await expect(page.getByText("Answer a few more questions and I'll widen the net.")).toBeVisible();
+  await expect(page.getByText("Try a different job title.")).toHaveCount(0);
 });

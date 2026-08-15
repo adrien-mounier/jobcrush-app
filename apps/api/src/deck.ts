@@ -20,7 +20,7 @@ import { familyPlacementConfidence, hasUnplacedWork } from "./yearsWorked.js";
 import { lookupAdRequirements, loadFamilyFloor } from "./e5stub.js";
 import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
-import { excludingEligibility } from "./eligibilityDiscovery.js";
+import { applyEligibilityQuestions, excludingEligibility } from "./eligibilityDiscovery.js";
 import { readingLanguages, languageEligible } from "./language.js";
 import { incrementCounter, recordReadFailure } from "./counters.js";
 import {
@@ -44,10 +44,12 @@ import type { JudgeFact, JudgeFn, JudgePeekFn } from "./judge.js";
 import type { JudgementRecord } from "./judgementStore.js";
 import {
   discoveryCvLines,
+  discoveryState,
   factCount,
   resolveFamily,
   type DiscoveryCvLine,
 } from "./discovery.js";
+import { resolvedMarketsFor } from "./postingRetrieval.js";
 import {
   buildTailorLedger,
   negativeRequirementIds,
@@ -797,4 +799,41 @@ export function buildTailorState(
     // #106 code-review D1 (2026-08-03, round 3): a decline is a refusal, not a recorded fact.
     factCount: factCount(excludingEligibility(confirmed), excludingEligibility(negatives)),
   };
+}
+
+/** #235 — is there genuinely another discovery question this session could answer? Governs the empty
+ *  deck's copy: "answer a few more questions and I'll widen the net" may only be shown when a
+ *  question actually exists — a visitor whose word search returned nothing and whose questions are
+ *  all answered is invited to try a different job title instead, never sent to an empty ask screen.
+ *  Deck policy, so it lives here: the union of the fixture discovery loop's open questions (floor +
+ *  eligibility, the same composition GET /onboarding/discovery serves) and an uncovered production
+ *  question-floor checkpoint. */
+export function hasOpenDiscoveryQuestions(
+  session: Pick<SessionRecord, "targetTitles" | "intent" | "discovery">,
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+  rejected: ClaimRecord[],
+  facts: readonly EligibilityFact[],
+  blocks: readonly JobBlockView[],
+): boolean {
+  if (
+    session.discovery.questionFloors.length > 0 &&
+    session.discovery.checkpoint !== "essential_floor_covered"
+  ) {
+    return true;
+  }
+  const role = session.targetTitles[0] ?? null;
+  if (!role) return true; // question 1 itself is still open
+  const state = discoveryState(role, confirmed, negatives, rejected, null);
+  applyEligibilityQuestions(
+    role,
+    state,
+    confirmed,
+    negatives,
+    rejected,
+    facts,
+    resolvedMarketsFor(session.intent.searchAreas),
+    blocks,
+  );
+  return state.questions.length > 0;
 }

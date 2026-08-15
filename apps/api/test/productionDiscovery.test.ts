@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { CandidateClaim } from "@jobcrush/contracts";
+import type { CandidateClaim, FamilyPlacement, MinedJobBlock } from "@jobcrush/contracts";
 import { newDb } from "pg-mem";
 import { PgClaimStore } from "../src/claims.js";
 import { PgSessionStore } from "../src/sessions.js";
 import {
   initialProductionFamilyFloors,
   type ProductionFamilyFloorStore,
+  type ProductionFamilyPublicationValue,
 } from "../src/familyFloors.js";
+import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { buildServer } from "../src/server.js";
 
 const placement = {
@@ -119,6 +121,10 @@ describe("#61 production discovery HTTP seam", () => {
     );
   });
 
+  // #235: what used to refuse (unmapped, an unknown version, an unpublished family, a plural
+  // placement) now takes the word-search path — one path, three causes. With no dated job records
+  // there is nothing to interview on either: the response is the completed empty interview, nothing
+  // is pinned, and rewardEligible stays false.
   it.each([
     { schemaVersion: "2", outcome: "unmapped" },
     {
@@ -144,14 +150,26 @@ describe("#61 production discovery HTTP seam", () => {
       ],
       confidence: "likely",
     },
-  ])("rejects non-production placement %#", async (invalidPlacement) => {
-    const { app, cookie } = await setup([], "memory", invalidPlacement as typeof placement);
+  ])("sends non-production placement %# to the word path with an empty interview", async (wordPlacement) => {
+    const { app, sessions, cookie, sessionId } = await setup([], "memory", wordPlacement as typeof placement);
     const response = await evaluate(app, cookie);
-    expect(response.statusCode).toBe(409);
-    expect(response.json()).toMatchObject({ rewardEligible: false });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      rewardEligible: false,
+      floor: null,
+      progress: { complete: 0, remaining: 0 },
+      nextQuestion: null,
+      checkpoint: "essential_floor_covered",
+    });
+    expect((await sessions.getById(sessionId))?.discovery).toEqual({
+      questionFloors: [],
+      searchFamily: null,
+      coveredItemIds: [],
+      checkpoint: null,
+    });
   });
 
-  it("rejects a provisional publication even when a catalog adapter exposes it", async () => {
+  it("a provisional publication exposed by a catalog adapter is never pinned — the word path serves instead", async () => {
     const published = initialProductionFamilyFloors().get("it-project-delivery", 1)!;
     const provisional = {
       ...published,
@@ -167,11 +185,14 @@ describe("#61 production discovery HTTP seam", () => {
     const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
     const cookie = `jc_session=${created.cookies.find((value) => value.name === "jc_session")!.value}`;
     const response = await evaluate(built.app, cookie);
-    expect(response.statusCode).toBe(409);
+    expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
-      error: { code: "production_floor_unavailable" },
       rewardEligible: false,
+      floor: null,
+      nextQuestion: null,
+      checkpoint: "essential_floor_covered",
     });
+    expect((await built.sessions.getById(created.json().id))?.discovery.questionFloors).toEqual([]);
   });
 
   it.each(["Yes, I led delivery", "No"])(
@@ -208,8 +229,8 @@ describe("#61 production discovery HTTP seam", () => {
     },
   );
 
-  it("rejects a client-manufactured confirmed placement", async () => {
-    const built = buildServer();
+  it("ignores a client-manufactured confirmed placement — the server's own placement decides", async () => {
+    const built = buildServer(); // default placeFamily: unmapped
     const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
     const cookie = `jc_session=${created.cookies.find((value) => value.name === "jc_session")!.value}`;
     const response = await built.app.inject({
@@ -218,25 +239,26 @@ describe("#61 production discovery HTTP seam", () => {
       headers: { cookie },
       payload: { placement },
     });
-    expect(response.statusCode).toBe(409);
-    expect(response.json()).toMatchObject({
-      error: { code: "placement_not_confirmed" },
-      rewardEligible: false,
-    });
+    // #235: the server's unmapped placement takes the word path — the client's payload never pins
+    // its manufactured family.
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ rewardEligible: false, floor: null });
+    expect((await built.sessions.getById(created.json().id))?.discovery.searchFamily).toBeNull();
   });
 
   it.each(["IT Project Manager", "Product Manager", "Orbital Farm Planner"])(
-    "keeps default composition honestly unavailable for %s",
+    "default composition serves the word path, never a reward, for %s",
     async (targetRole) => {
       const built = buildServer();
       const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
       const cookie = `jc_session=${created.cookies.find((value) => value.name === "jc_session")!.value}`;
       await built.sessions.setIntent(created.json().id, { targetRole });
       const response = await evaluate(built.app, cookie);
-      expect(response.statusCode).toBe(409);
+      expect(response.statusCode).toBe(200);
       expect(response.json()).toMatchObject({
-        error: { code: "placement_not_confirmed" },
         rewardEligible: false,
+        floor: null,
+        checkpoint: "essential_floor_covered",
       });
     },
   );
@@ -474,6 +496,180 @@ describe("#61 production discovery HTTP seam", () => {
     expect(forgedCompletion.json()).toMatchObject({
       error: { code: "essential_floor_not_covered" },
       rewardEligible: false,
+    });
+  });
+});
+
+// #235 — the word-search interview: an unmapped target role is asked the floors her own dated job
+// records prove (at most two), de-duplicated by item id, with coverage spanning every floor.
+describe("#235 the word-search interview", () => {
+  const REAL = initialProductionFamilyFloors().get("it-project-delivery", 1)!;
+  const ITEM_IDS = REAL.floor.essentialItems.map((item) => item.id);
+
+  const publicationFor = (
+    familyId: string,
+    essentialItems = REAL.floor.essentialItems,
+  ): ProductionFamilyPublicationValue => ({
+    ...REAL,
+    floor: { ...REAL.floor, familyId, essentialItems },
+  });
+
+  const catalog = (...publications: ProductionFamilyPublicationValue[]) =>
+    ({
+      active: (familyId: string) =>
+        publications.find((p) => p.floor.familyId === familyId) ?? null,
+      get: (familyId: string, version: number) =>
+        publications.find((p) => p.floor.familyId === familyId && p.floor.version === version) ??
+        null,
+    }) as unknown as ProductionFamilyFloorStore;
+
+  const decision = (value: string) => ({
+    value,
+    source_quote: value,
+    machine_touch: "verbatim" as const,
+    classification: "Verified" as const,
+  });
+
+  const minedBlock = (id: string, startYear: number, endYear: number): MinedJobBlock => ({
+    id,
+    employer: decision(`Employer ${id}`),
+    title: decision("Regional PM"),
+    start: {
+      value: { year: startYear, month: 1, precision: "month" },
+      source_quote: `Jan ${startYear}`,
+      machine_touch: "verbatim",
+      classification: "Verified",
+    },
+    end: {
+      value: { state: "ended", date: { year: endYear, month: 12, precision: "month" } },
+      source_quote: `Dec ${endYear}`,
+      machine_touch: "verbatim",
+      classification: "Verified",
+    },
+    kind: decision("job") as MinedJobBlock["kind"],
+  });
+
+  const confirmedInto = (familyId: string): FamilyPlacement => ({
+    schemaVersion: "2",
+    outcome: "confirmed",
+    families: [{ familyId, version: 1 }],
+    confidence: "certain",
+  });
+
+  async function wordSetup(
+    productionFamilyFloors: ProductionFamilyFloorStore,
+    placeFamily: () => Promise<FamilyPlacement>,
+    labeled: Array<{ block: MinedJobBlock; familyId: string }>,
+  ) {
+    const jobBlocks = new InMemoryJobBlockStore();
+    await jobBlocks.init();
+    const built = buildServer({ jobBlocks, productionFamilyFloors, placeFamily });
+    const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const sessionId = created.json().id as string;
+    const cookie = `jc_session=${created.cookies.find((value) => value.name === "jc_session")!.value}`;
+    await jobBlocks.ingest(
+      sessionId,
+      { schemaVersion: "1", blocks: labeled.map((entry) => entry.block) },
+      "{}",
+    );
+    for (const entry of labeled) {
+      await jobBlocks.label(sessionId, entry.block.id, confirmedInto(entry.familyId));
+    }
+    return { built, cookie, sessionId };
+  }
+
+  const answer = (
+    built: ReturnType<typeof buildServer>,
+    cookie: string,
+    itemId: string,
+    answerText: string,
+  ) =>
+    built.app.inject({
+      method: "POST",
+      url: "/onboarding/discovery/production/answer",
+      headers: { cookie },
+      payload: { itemId, answer: answerText },
+    });
+
+  it("asks her CV's floors, de-duplicates items across them, and covers the checkpoint over all of them", async () => {
+    const betaOnly = { ...REAL.floor.essentialItems[1]!, id: "beta-only-item" };
+    const { built, cookie, sessionId } = await wordSetup(
+      catalog(
+        publicationFor("alpha"),
+        publicationFor("beta", [REAL.floor.essentialItems[0]!, betaOnly]),
+      ),
+      async () => ({ schemaVersion: "2", outcome: "unmapped" }),
+      [
+        { block: minedBlock("b1", 2010, 2018), familyId: "alpha" }, // 9 years — strongest first
+        { block: minedBlock("b2", 2020, 2021), familyId: "beta" },
+      ],
+    );
+
+    const started = await evaluate(built.app, cookie);
+    expect(started.statusCode).toBe(200);
+    // 4 alpha items + beta's one own item; beta's shared first item is de-duplicated, never asked twice.
+    expect(started.json()).toMatchObject({
+      floor: { familyId: "alpha", version: REAL.floor.version },
+      progress: { complete: 0, remaining: 5 },
+      checkpoint: "family_confirmed",
+    });
+    expect((await built.sessions.getById(sessionId))?.discovery).toMatchObject({
+      questionFloors: [
+        { familyId: "alpha", version: REAL.floor.version },
+        { familyId: "beta", version: REAL.floor.version },
+      ],
+      searchFamily: null,
+    });
+
+    // The shared item, answered once, is covered for BOTH floors.
+    const shared = await answer(built, cookie, ITEM_IDS[0]!, "Yes, across two programmes");
+    expect(shared.json()).toMatchObject({ progress: { complete: 1, remaining: 4 } });
+
+    for (const itemId of ITEM_IDS.slice(1)) {
+      await answer(built, cookie, itemId, "Yes");
+    }
+    // An explicit negative covers too — the checkpoint spans every floor's items.
+    const last = await answer(built, cookie, "beta-only-item", "No");
+    expect(last.json()).toMatchObject({
+      progress: { complete: 5, remaining: 0 },
+      checkpoint: "essential_floor_covered",
+    });
+    expect((await built.sessions.getById(sessionId))?.discovery.checkpoint).toBe(
+      "essential_floor_covered",
+    );
+  });
+
+  it("upgrades a pinned word plan when her family is later published, and only ever in that direction", async () => {
+    let placementNow: FamilyPlacement = { schemaVersion: "2", outcome: "unmapped" };
+    const { built, cookie, sessionId } = await wordSetup(
+      catalog(publicationFor("alpha"), REAL),
+      async () => placementNow,
+      [{ block: minedBlock("b1", 2015, 2020), familyId: "alpha" }],
+    );
+
+    await evaluate(built.app, cookie);
+    expect((await built.sessions.getById(sessionId))?.discovery).toMatchObject({
+      questionFloors: [{ familyId: "alpha", version: REAL.floor.version }],
+      searchFamily: null,
+    });
+
+    // Her role is published as a family. Re-entering discovery re-derives the better plan; she
+    // answers ITS floor before the family search runs (the checkpoint resets with the plan).
+    placementNow = confirmedInto("it-project-delivery");
+    const upgraded = await evaluate(built.app, cookie);
+    expect(upgraded.statusCode).toBe(200);
+    expect((await built.sessions.getById(sessionId))?.discovery).toMatchObject({
+      questionFloors: [{ familyId: "it-project-delivery", version: REAL.floor.version }],
+      searchFamily: { familyId: "it-project-delivery", version: REAL.floor.version },
+      checkpoint: "family_confirmed",
+    });
+
+    // The other direction stays pinned: a family plan never downgrades back to a word plan.
+    placementNow = { schemaVersion: "2", outcome: "unmapped" };
+    const downgraded = await evaluate(built.app, cookie);
+    expect(downgraded.statusCode).toBe(409);
+    expect(downgraded.json()).toMatchObject({
+      error: { code: "production_floor_already_pinned" },
     });
   });
 });

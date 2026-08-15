@@ -15,7 +15,7 @@ import type { CandidateClaim, MinedRole, AdRequirementsV1 } from "@jobcrush/cont
 import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore, ClaimRecord } from "../claims.js";
 import type { JobStore } from "../jobs.js";
-import { planPinned, samePlan, type DiscoveryPlan, type SessionStore, type SessionRecord } from "../sessions.js";
+import { planPinned, planUpgradable, samePlan, type DiscoveryPlan, type SessionStore, type SessionRecord } from "../sessions.js";
 import { buildClaimGraph } from "../graph.js";
 import { renderRootCv } from "../rootcv.js";
 import { buildProfileState, resolveProfileLocation, resolveLanguagesQuestion } from "../profile.js";
@@ -42,6 +42,7 @@ import {
   buildJobCard,
   buildTailorState,
   CARD_RESOLUTION_CONCURRENCY,
+  hasOpenDiscoveryQuestions,
   judgeDeck,
   mapWithConcurrency,
   orderCardsForReveal,
@@ -66,11 +67,12 @@ import {
   resolveFamily,
 } from "../discovery.js";
 import { composeTailorLine, tailorClaimId } from "../tailor.js";
-import { placementRejection } from "../familyLabeler.js";
 import { FamilyPlacement } from "@jobcrush/contracts";
 import {
   adaptiveDiscoveryState,
   discoveryPlan,
+  planDiscoveryState,
+  questionFloorItem,
   soleConfirmedFamily,
   fixtureDiscoveryClaimId,
 } from "../adaptiveDiscovery.js";
@@ -215,54 +217,42 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       return adaptiveDiscoveryState(floor, claims, negatives);
     };
 
-    const calculateProductionState = async (
-      session: SessionRecord,
-      reference: { familyId: string; version: number },
-      reply: FastifyReply,
-    ) => {
-      const publication = eligibleProductionPublication(reference);
-      if (!publication) {
+    // #235: the interview spans the WHOLE plan (planDiscoveryState — items de-duplicated by id,
+    // coverage across every floor). Any floor whose publication has been pulled since the pin fails
+    // closed here, before any claim or discovery write.
+    const planFloors = (plan: DiscoveryPlan, reply: FastifyReply) => {
+      const publications = plan.questionFloors.map((reference) =>
+        eligiblePublication(deps.productionFamilyFloors.get(reference.familyId, reference.version)),
+      );
+      if (publications.some((publication) => !publication)) {
         return reply.status(409).send({
           error: { code: "production_floor_unavailable", message: "published family version required" },
           rewardEligible: false,
         });
       }
+      return publications.map((publication) => publication!.floor);
+    };
+
+    const planState = async (session: SessionRecord, plan: DiscoveryPlan, reply: FastifyReply) => {
+      const floors = planFloors(plan, reply);
+      if ("sent" in floors) return floors;
       const [claims, negatives] = await Promise.all([
         deps.claims.list(session.id),
         deps.claims.negatives(session.id),
       ]);
-      const state = adaptiveDiscoveryState(publication.floor, claims, negatives);
-      const coveredItemIds = publication.floor.essentialItems
-        .filter((item) =>
-          state.positiveEvidence.some((evidence) => evidence.itemId === item.id) ||
-          negatives.some(
-            (claim) =>
-              claim.semantic_key === item.id ||
-              claim.id === fixtureDiscoveryClaimId(reference.familyId, reference.version, item.id),
-          ),
-        )
-        .map((item) => item.id);
-      const checkpoint =
-        coveredItemIds.length === publication.floor.essentialItems.length
-          ? ("essential_floor_covered" as const)
-          : ("family_confirmed" as const);
-      return { state, coveredItemIds, checkpoint };
+      return planDiscoveryState(floors, claims, negatives);
     };
-
-    const eligibleProductionPublication = (reference: { familyId: string; version: number }) =>
-      eligiblePublication(deps.productionFamilyFloors.get(reference.familyId, reference.version));
 
     const productionResponse = async (
       session: SessionRecord,
       plan: DiscoveryPlan,
       reply: FastifyReply,
-      persist: boolean,
     ) => {
-      // #234: exactly one question floor today — every caller below guarantees it (a mapped target
-      // role, or a plan already pinned with one). #235 asks across the list.
-      const calculated = await calculateProductionState(session, plan.questionFloors[0]!, reply);
+      const calculated = await planState(session, plan, reply);
       if ("sent" in calculated) return calculated;
-      if (!persist) return { ...calculated.state, checkpoint: calculated.checkpoint };
+      // An empty plan (no floors, no search family — the zero-history word search) has nothing to
+      // pin; its coverage is complete by definition and never persisted.
+      if (!planPinned(plan)) return { ...calculated.state, checkpoint: calculated.checkpoint };
       const discovery = await deps.sessions.reconcileDiscoveryState(
         session.id,
         plan,
@@ -286,21 +276,26 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       {},
       async (req, reply) => {
         const session = requireSession(req);
-        // #234: the plan decides both facts; a null search family is still the refusal today (an
-        // unmapped or plural placement), and #235 is what turns it into a word search instead.
+        // #235: the plan decides both facts, and a null search family is the WORD SEARCH now, not a
+        // refusal — an unmapped, plural or unpublished placement is interviewed on the floors her
+        // CV proves. A pinned plan still holds, with one exception: a word plan may gain a search
+        // family (planUpgradable — the returning visitor whose family has since been published).
         const plan = discoveryPlan(
           await deps.placeFamily(session),
           await deps.jobBlocks.list(session.id),
           deps.productionFamilyFloors,
         );
-        if (!plan.searchFamily) return reply.status(409).send(placementRejection());
-        if (planPinned(session.discovery) && !samePlan(session.discovery, plan)) {
+        if (
+          planPinned(session.discovery) &&
+          !samePlan(session.discovery, plan) &&
+          !planUpgradable(session.discovery, plan)
+        ) {
           return reply.status(409).send({
             error: { code: "production_floor_already_pinned", message: "production family version already selected" },
             rewardEligible: false,
           });
         }
-        return productionResponse(session, plan, reply, true);
+        return productionResponse(session, plan, reply);
       },
     );
 
@@ -314,7 +309,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       }
       // Resume re-derives coverage from authoritative claims and reconciles the durable snapshot.
       // This is idempotent, but prevents a previously covered checkpoint surviving a correction.
-      return productionResponse(session, session.discovery, reply, true);
+      return productionResponse(session, session.discovery, reply);
     });
 
     app.post(
@@ -329,31 +324,26 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       },
       async (req, reply) => {
         const session = requireSession(req);
-        const reference = session.discovery.questionFloors[0];
-        if (!reference) {
+        if (session.discovery.questionFloors.length === 0) {
           return reply.status(409).send({
             error: { code: "production_discovery_not_started", message: "production discovery not started" },
             rewardEligible: false,
           });
         }
-        const publication = eligibleProductionPublication(reference);
-        const item = publication?.floor.essentialItems.find(
-          (candidate) => candidate.id === req.body.itemId,
-        );
-        if (!publication) {
-          return reply.status(409).send({
-            error: { code: "production_floor_unavailable", message: "published family version required" },
-            rewardEligible: false,
-          });
-        }
-        if (!item) {
+        const floors = planFloors(session.discovery, reply);
+        if ("sent" in floors) return floors;
+        // #235: the answer lands on the FIRST floor carrying the item id — the same first-floor-wins
+        // rule the merged interview de-duplicates by.
+        const found = questionFloorItem(floors, req.body.itemId);
+        if (!found) {
           return reply.status(404).send({
             error: { code: "production_item_not_found", message: "selected production item not found" },
             rewardEligible: false,
           });
         }
+        const { floor, item } = found;
         const claim: CandidateClaim = {
-          id: fixtureDiscoveryClaimId(reference.familyId, reference.version, item.id),
+          id: fixtureDiscoveryClaimId(floor.familyId, floor.version, item.id),
           semantic_key: item.id,
           field_key: null,
           field_value: null,
@@ -368,7 +358,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         };
         if (isNoAnswer(req.body.answer)) await deps.claims.answerNegative(session.id, claim);
         else await deps.claims.add(session.id, claim);
-        return productionResponse(session, session.discovery, reply, true);
+        return productionResponse(session, session.discovery, reply);
       },
     );
 
@@ -381,17 +371,11 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           rewardEligible: false,
         });
       }
-      const calculated = await calculateProductionState(session, reference, reply);
+      const calculated = await planState(session, session.discovery, reply);
       if ("sent" in calculated) return calculated;
       if (calculated.checkpoint !== "essential_floor_covered") {
         return reply.status(409).send({
           error: { code: "essential_floor_not_covered", message: "essential family floor not covered" },
-          rewardEligible: false,
-        });
-      }
-      if (!eligibleProductionPublication(reference)) {
-        return reply.status(409).send({
-          error: { code: "production_floor_unavailable", message: "published family version required" },
           rewardEligible: false,
         });
       }
@@ -850,7 +834,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // session's confirmed/negative claims — no LLM, no IO beyond the two fixture loads.
     app.get("/onboarding/cards", async (req) => {
       const session = requireSession(req);
-      const [confirmed, negatives, , facts, blocks] = await discoveryReads(session.id);
+      const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
       const retrievalRequest = retrievalRequestForSession(session, confirmed, negatives);
       const requestFingerprint = retrievalFingerprint(retrievalRequest);
       // deckRetrieval.ts: a reusable snapshot, an in-progress marker, or an unavailable result —
@@ -955,6 +939,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         authed: session.claimedByUserId !== null,
         withdrawn,
         retrieval,
+        // #235: whether any discovery question is genuinely still open — the empty deck's "answer a
+        // few more questions" line may only be shown when one exists (deck.ts owns the rule).
+        moreQuestions: hasOpenDiscoveryQuestions(session, confirmed, negatives, rejected, facts, blocks),
       };
     });
 

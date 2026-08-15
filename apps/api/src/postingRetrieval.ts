@@ -28,7 +28,14 @@ export interface RetrievalRequest {
   /** #214: the words-as-typed of each selected target location (up to 3) — the deck is one deck
    *  over the UNION of their region codes, never one deck per market. */
   searchAreas: string[];
+  /** The family retrieval searches with. Null is the WORD SEARCH (#235, spec #233 decision 4):
+   *  the family checks are skipped and the typed target role plus confirmed evidence are the whole
+   *  query — the same keyword builder every search already uses. */
   family: { familyId: string; version: number } | null;
+  /** #235 (spec #233 decision 5): the floors the interview asks. In the request so the fingerprint
+   *  covers the whole discovery plan — a session that gains a search family (or a floor) can never
+   *  be served its stale word-search snapshot. */
+  questionFloors: Array<{ familyId: string; version: number }>;
   checkpoint: "family_confirmed" | "essential_floor_covered" | null;
   confirmedEvidence: RetrievalSignal[];
   explicitNegatives: RetrievalNegative[];
@@ -45,6 +52,7 @@ export function retrievalRequestForSession(
     targetRole: session.intent.targetRole,
     searchAreas: session.intent.searchAreas.map((entry) => entry.text),
     family: session.discovery.searchFamily,
+    questionFloors: session.discovery.questionFloors,
     checkpoint: session.discovery.checkpoint,
     confirmedEvidence: confirmed
       .filter((claim) => !isTailorClaimId(claim.id))
@@ -402,6 +410,7 @@ export function retrievalFingerprint(input: RetrievalRequest): string {
         targetRole: input.targetRole,
         searchAreas: input.searchAreas,
         family: input.family,
+        questionFloors: input.questionFloors,
         checkpoint: input.checkpoint,
         confirmedEvidence: input.confirmedEvidence,
         explicitNegatives: input.explicitNegatives,
@@ -574,17 +583,31 @@ export function makePostingRetriever(
     if (!input.targetRole?.trim() || input.searchAreas.every((area) => !area.trim())) {
       return invalid("missing_intent");
     }
-    if (!input.family) return invalid("family_not_published");
-    const publication = opts.productionFamilyFloors.get(input.family.familyId, input.family.version);
-    if (
-      !publication ||
-      publication.publicationStatus !== "published" ||
-      publication.floor.source !== "production_research" ||
-      !publication.floor.productionRewardEligible
-    ) {
-      return invalid("family_not_published");
+    // #235 (spec #233 decision 4): no search family is the WORD SEARCH, not a refusal — the family
+    // checks below are skipped and the typed words carry the query. `family_not_published` is no
+    // longer reachable on any visitor path (the discovery plan only ever names an eligible published
+    // family); the check stays for family mode so a publication pulled AFTER a pin still fails
+    // closed, and the code stays in the frozen contract enum — no contract version moves.
+    if (input.family) {
+      const publication = opts.productionFamilyFloors.get(input.family.familyId, input.family.version);
+      if (
+        !publication ||
+        publication.publicationStatus !== "published" ||
+        publication.floor.source !== "production_research" ||
+        !publication.floor.productionRewardEligible
+      ) {
+        return invalid("family_not_published");
+      }
     }
-    if (input.checkpoint !== "essential_floor_covered") return invalid("floor_not_covered");
+    // #235 (spec #233 decision 6): the coverage checkpoint spans the question floors, and an EMPTY
+    // floor list is covered by definition — a visitor with no usable job history reaches retrieval
+    // once her intent is stated. Every plan with anything to ask still gates exactly as today.
+    if (
+      (input.family !== null || input.questionFloors.length > 0) &&
+      input.checkpoint !== "essential_floor_covered"
+    ) {
+      return invalid("floor_not_covered");
+    }
 
     // #214: the deck is ONE deck over the UNION of the selected targets' region codes. Selections
     // that resolve to a city also carry that city for the per-region record filter below.

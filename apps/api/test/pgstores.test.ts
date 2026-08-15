@@ -524,6 +524,37 @@ for (const [name, make] of sessionDrivers) {
       ).toEqual({ ...mappedPlan, coveredItemIds: ["end-to-end-delivery"], checkpoint: "essential_floor_covered" });
     });
 
+    // #235: the ONE exception to the pin — a word plan (no search family) may gain one, the
+    // returning visitor whose role has since been published. Never the other direction.
+    it("lets a pinned word plan gain a search family, and re-pins it there", async () => {
+      const s = await store.create();
+      const other = { familyId: "field-marketing", version: 1 };
+      await store.reconcileDiscoveryState(
+        s.id,
+        { questionFloors: [ITPD], searchFamily: null },
+        ["end-to-end-delivery"],
+        false,
+      );
+
+      const upgraded = await store.reconcileDiscoveryState(
+        s.id,
+        { questionFloors: [other], searchFamily: other },
+        [],
+        false,
+      );
+      expect(upgraded).toEqual({
+        questionFloors: [other],
+        searchFamily: other,
+        coveredItemIds: [],
+        checkpoint: "family_confirmed",
+      });
+
+      // Once a family plan holds, dropping back to a word plan is refused like any other change.
+      await expect(
+        store.reconcileDiscoveryState(s.id, { questionFloors: [ITPD], searchFamily: null }, [], false),
+      ).rejects.toThrow(/already pinned/);
+    });
+
     it("setStage + setTargetTitles persist", async () => {
       const s = await store.create();
       await store.setStage(s.id, "ready");

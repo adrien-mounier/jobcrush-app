@@ -79,20 +79,44 @@ const publication = (
   },
 });
 
-const registry = (...publications: ProductionFamilyPublicationValue[]): Pick<ProductionFamilyFloorStore, "active"> => ({
+const registry = (...publications: ProductionFamilyPublicationValue[]): Pick<ProductionFamilyFloorStore, "active" | "get"> => ({
   active: (familyId) => publications.find((p) => p.floor.familyId === familyId) ?? null,
+  get: (familyId, version) =>
+    publications.find((p) => p.floor.familyId === familyId && p.floor.version === version) ?? null,
 });
 
 const ids = (plan: ReturnType<typeof discoveryPlan>) => plan.questionFloors.map((f) => f.familyId);
 
 describe("#234 the discovery plan", () => {
   it("gives a mapped target role that family as both the question floor and the search family", () => {
-    const plan = discoveryPlan(placed(["it-project-delivery"]), [], registry());
+    const plan = discoveryPlan(
+      placed(["it-project-delivery"]),
+      [],
+      registry(publication("it-project-delivery")),
+    );
 
     expect(plan).toEqual({
       questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
       searchFamily: { familyId: "it-project-delivery", version: 1 },
     });
+  });
+
+  // #235 (spec #233): one path, three causes — a NAMED family that is unpublished, reward-ineligible
+  // or simply absent at the placed version behaves exactly like an unmapped role: interviewed on her
+  // CV's floors, searched on her typed words.
+  it.each([
+    ["provisional", registry(publication("it-project-delivery", 1, { publicationStatus: "provisional" as const }), publication("alpha"))],
+    ["reward-ineligible", registry(publication("it-project-delivery", 1, { productionRewardEligible: false }), publication("alpha"))],
+    ["absent at the placed version", registry(publication("it-project-delivery", 2), publication("alpha"))],
+  ])("sends a mapped role whose family is %s to the word search on her CV's floors", (_case, published) => {
+    const plan = discoveryPlan(
+      placed(["it-project-delivery"]),
+      [block("b1", ["alpha"], 2015, 2020)],
+      published,
+    );
+
+    expect(ids(plan)).toEqual(["alpha"]);
+    expect(plan.searchFamily).toBeNull();
   });
 
   it("interviews an unmapped visitor on the two CV families she has the most years in, strongest first", () => {

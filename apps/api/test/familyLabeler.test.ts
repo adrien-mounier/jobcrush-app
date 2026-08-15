@@ -269,31 +269,31 @@ describe("#220 production discovery, with the real labeler wired", () => {
 
     const response = await evaluate(built.app, cookie);
 
-    expect(response.statusCode).toBe(409);
-    expect(response.json()).toMatchObject({
-      error: { code: "placement_not_confirmed" },
-      familyResearch: { path: "/family-learning/candidates" },
-      rewardEligible: false,
-    });
+    // #235: a two-family role takes the word path (until #232) — never one family picked for her,
+    // and never a search family pinned.
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ rewardEligible: false, floor: null });
     expect((await built.sessions.getById(sessionId))?.discovery).toMatchObject({
       questionFloors: [],
       searchFamily: null,
     });
   });
 
-  it("offers family research to an unmapped visitor, never the nearest family", async () => {
+  it("serves an unmapped visitor the word path, never the nearest family", async () => {
     const { llm } = fakeLlm(['{"outcome":"unmapped"}']);
     const { app, sessions, cookie, sessionId } = await setup(llm, "paediatric nurse practitioner");
 
     const response = await evaluate(app, cookie);
 
-    expect(response.statusCode).toBe(409);
+    // #235: no refusal and no research offer on her screen — the word search serves instead, and
+    // she is told nothing about the vocabulary (#236 wires the background candidate screen).
+    expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
-      error: { code: "placement_not_confirmed" },
-      familyResearch: { path: "/family-learning/candidates" },
       rewardEligible: false,
+      floor: null,
+      checkpoint: "essential_floor_covered",
     });
-    // Nothing was pinned on an unconfirmed placement.
+    // No family was pinned on an unconfirmed placement.
     expect((await sessions.getById(sessionId))?.discovery).toMatchObject({
       questionFloors: [],
       searchFamily: null,
@@ -310,8 +310,12 @@ describe("#220 production discovery, with the real labeler wired", () => {
 
     const response = await evaluate(app, cookie);
 
-    expect(response.statusCode).toBe(409); // an honest "not yet", never a 500
-    expect(response.json()).toMatchObject({ rewardEligible: false });
+    // #235: an outage degrades to the word path (never a 500, never a visible outage) — and
+    // authorizes nothing: no reward, no pinned family. Degraded answers are never remembered, so
+    // the next visit re-places and a recovered model's family plan can still take over (the
+    // word-to-family upgrade is the one allowed plan change).
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ rewardEligible: false, floor: null });
     expect(readCounters()["familyLabeler.call_failed"]).toBe(1);
 
     // The rest of onboarding is untouched by a labeler outage.
@@ -351,9 +355,13 @@ describe("#220 production discovery, with the real labeler wired", () => {
     };
     const { app, cookie } = await setup(llm);
 
-    expect((await evaluate(app, cookie)).statusCode).toBe(409);
+    // #235: the failing call serves the word path (floor: null) but its degraded answer is never
+    // remembered — the recovered model's real placement pins the family on the very next call.
+    expect((await evaluate(app, cookie)).json()).toMatchObject({ floor: null });
     failing = false;
-    expect((await evaluate(app, cookie)).statusCode).toBe(200);
+    expect((await evaluate(app, cookie)).json()).toMatchObject({
+      floor: { familyId: "it-project-delivery", version: 1 },
+    });
   });
 
   it("exposes unmapped roles as feed for the vocabulary-growth process, key-gated", async () => {

@@ -2,6 +2,40 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 129) `/implement 235` — the retrieval gate opens, silently
+
+**Shipped, QA GO. Not deployed — CI is still billing-blocked (see session 128).** The behaviour
+#230 decided: a visitor whose **target role** we cannot place — unmapped, plural (until #232), or a
+named family not published/reward-eligible — no longer gets a refusal. Retrieval's **word search**
+opens (`searchFamily: null` ⇒ family checks skipped, her typed words + confirmed evidence are the
+query via the existing keyword builder), discovery interviews her on up to two of her CV's floors
+de-duplicated by item id, and zero floors is covered by definition. `family_not_published` is gone
+from every reachable visitor path; the code stays in the frozen enum.
+
+- **The one deviation, filed as #237:** retrieval keeps the family-mode publication check, so a
+  family pinned and *then* unpublished still fails closed at the retrieval seam (spec #233 decision
+  4's own words). The same pull can strand a pinned plan entirely — pre-existing for mapped
+  visitors, now a wider population. #237 carries both for the owner to ratify.
+- **The pin gained its one exception** (`planUpgradable`, both stores): a word plan may gain a
+  search family — the returning visitor whose family got published answers its floor before the
+  family search runs (checkpoint resets with the plan). One-way; never a downgrade, never a swap.
+- **A labeler outage now serves the word path instead of a 409** — never cached (degraded answers
+  were already never remembered), so the recovered model's real placement takes over on the next
+  visit via that same upgrade. An internal fault stops being a visible one.
+- **The honest empty deck:** cards response carries `moreQuestions` (deck.ts's
+  `hasOpenDiscoveryQuestions` — production floors ∪ the real fixture/eligibility question list);
+  empty + nothing left to answer ⇒ "Try a different job title." instead of "answer a few more
+  questions". Proven in the browser (QA's own drive + two route-mocked specs in `deck.spec.ts`).
+- **Fingerprint covers mode + question floors**, so a session gaining a search family can never be
+  served its stale word-search snapshot. #234's `questionFloors[0]!` landmine cleared — the empty
+  plan is never persisted, so the stored-shape reader needed no change.
+- Ratchet lowered 1132 → 1119 (`planDiscoveryState`/`questionFloorItem` → `adaptiveDiscovery.ts`,
+  the empty-deck rule → `deck.ts`); `placementRejection()` deleted. 1447 API tests green, typecheck
+  green, e2e deck suite green (route-mocked tier).
+- QA benign observations left as-is: `production/complete` + GET still 409 a zero-floor visitor
+  (no caller exists — the deck path never uses them), and `hasOpenDiscoveryQuestions` ignores the
+  optional `?job=` reader question (errs toward the honest line).
+
 ## 2026-08-16 (session 128) `/implement 234` — one stored fact becomes two, and nobody notices
 
 **Shipped, QA GO.** The prefactor #230's decision needed: the session's discovery record held one

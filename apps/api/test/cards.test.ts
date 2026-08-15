@@ -4,9 +4,9 @@
 // order, and that a recorded "no" lands in askedClosed (never re-asked, never a gap).
 import { describe, expect, it, vi } from "vitest";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
-import { orderCardsForReveal, withReadTimeout, mapWithConcurrency } from "../src/deck.js";
+import { hasOpenDiscoveryQuestions, orderCardsForReveal, withReadTimeout, mapWithConcurrency } from "../src/deck.js";
 import { buildServer } from "../src/server.js";
-import { listAdRequirements, loadAdRequirements } from "../src/e5stub.js";
+import { listAdRequirements, loadAdRequirements, loadFamilyFloor } from "../src/e5stub.js";
 import { loadPostings, type Posting } from "../src/preview.js";
 import { languageEligible } from "../src/language.js";
 import { makeAdReader } from "../src/adReader.js";
@@ -14,7 +14,9 @@ import { InMemoryAdRequirementsStore } from "../src/adRequirementsStore.js";
 import { readCounters } from "../src/counters.js";
 import type { LlmClient } from "../src/llm.js";
 import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
-import { ANY_FAMILY } from "../src/eligibility.js";
+import { ANY_FAMILY, type EligibilityFact } from "../src/eligibility.js";
+import { discoveryClaimId, resolveFamily } from "../src/discovery.js";
+import type { ClaimRecord } from "../src/claims.js";
 
 async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
   const res = await app.inject({ method: "POST", url: "/sessions/anonymous" });
@@ -1694,5 +1696,70 @@ describe("#107 D5 — the years shortfall (AC4)", () => {
     expect(nine).toBeGreaterThan(0);
     expect(five).not.toBe(nine);
     expect(five).toBeLessThan(nine);
+  });
+});
+
+// #235 — the empty deck's own question: is another discovery question genuinely still open? The
+// deck's "answer a few more questions and I'll widen the net" line may only be shown when one is.
+describe("#235 hasOpenDiscoveryQuestions", () => {
+  const ROLE = "IT project manager";
+  const session = (
+    over: Partial<Parameters<typeof hasOpenDiscoveryQuestions>[0]> = {},
+  ): Parameters<typeof hasOpenDiscoveryQuestions>[0] => ({
+    targetTitles: [ROLE],
+    intent: { targetRole: ROLE, searchAreas: [] },
+    discovery: { questionFloors: [], searchFamily: null, coveredItemIds: [], checkpoint: null },
+    ...over,
+  });
+  const answered = (itemId: string): ClaimRecord => ({
+    id: discoveryClaimId(itemId),
+    role: "profile",
+    text: `${itemId} answered`,
+    machine_touch: "verbatim",
+    classification: "Verified",
+    source_quote: "answer",
+    needs_grill: false,
+    grill_hint: null,
+    decision: "confirmed",
+    origin: "user-authored",
+  });
+
+  it("an uncovered production question floor is an open question", () => {
+    expect(
+      hasOpenDiscoveryQuestions(
+        session({
+          discovery: {
+            questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
+            searchFamily: null,
+            coveredItemIds: [],
+            checkpoint: "family_confirmed",
+          },
+        }),
+        [], [], [], [], [],
+      ),
+    ).toBe(true);
+  });
+
+  it("a fresh role still has its floor and eligibility questions open", () => {
+    expect(hasOpenDiscoveryQuestions(session(), [], [], [], [], [])).toBe(true);
+  });
+
+  it("no role means question 1 itself is open", () => {
+    expect(
+      hasOpenDiscoveryQuestions(
+        session({ targetTitles: [], intent: { targetRole: null, searchAreas: [] } }),
+        [], [], [], [], [],
+      ),
+    ).toBe(true);
+  });
+
+  it("with every floor item answered and eligibility closed, nothing is open", () => {
+    const items = loadFamilyFloor(resolveFamily(ROLE).family).items;
+    const confirmed = items.map((item) => answered(item.id));
+    const facts: EligibilityFact[] = [
+      { dimension: "work-rights", familyId: ANY_FAMILY, value: "yes", label: "Right to work" },
+      { dimension: "language", familyId: ANY_FAMILY, value: "English", label: "Languages" },
+    ];
+    expect(hasOpenDiscoveryQuestions(session(), confirmed, [], [], facts, [])).toBe(false);
   });
 });

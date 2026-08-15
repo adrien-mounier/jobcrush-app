@@ -91,6 +91,71 @@ export function adaptiveDiscoveryState(
   };
 }
 
+/** #235 — the interview across ALL of a plan's question floors, spec #233 decision 6: one merged
+ *  state whose essential items are the floors' items de-duplicated by item id (first floor wins —
+ *  an answer recorded under either floor covers both, via the claim's semantic key), and whose
+ *  checkpoint means every item across every floor is covered, positively or by an explicit
+ *  negative. Zero floors is covered by definition — a visitor with no usable job history reaches
+ *  retrieval as soon as her intent is stated. Also carries the covered ids the route persists,
+ *  moved here from the route (the ratchet: the spine orchestrates, this module computes). */
+export function planDiscoveryState(
+  floors: AdaptiveDiscoveryFloor[],
+  claims: ClaimRecord[],
+  negatives: ClaimRecord[],
+): {
+  state: Omit<AdaptiveDiscoveryState, "floor"> & { floor: { familyId: string; version: number } | null };
+  coveredItemIds: string[];
+  checkpoint: "family_confirmed" | "essential_floor_covered";
+} {
+  const seen = new Set<string>();
+  const perFloor = floors.map((floor) => {
+    const unseen = floor.essentialItems.filter((item) => !seen.has(item.id));
+    for (const item of unseen) seen.add(item.id);
+    const scoped = { familyId: floor.familyId, version: floor.version, essentialItems: unseen };
+    const state = adaptiveDiscoveryState(scoped, claims, negatives);
+    return {
+      state,
+      coveredItemIds: unseen
+        .filter(
+          (item) =>
+            state.positiveEvidence.some((evidence) => evidence.itemId === item.id) ||
+            negatives.some((claim) => supports(claim, scoped, item.id)),
+        )
+        .map((item) => item.id),
+    };
+  });
+  const remaining = perFloor.reduce((sum, entry) => sum + entry.state.progress.remaining, 0);
+  return {
+    state: {
+      rewardEligible: false,
+      floor: floors.length > 0 ? { familyId: floors[0]!.familyId, version: floors[0]!.version } : null,
+      progress: {
+        complete: perFloor.reduce((sum, entry) => sum + entry.state.progress.complete, 0),
+        remaining,
+      },
+      positiveEvidence: perFloor.flatMap((entry) => entry.state.positiveEvidence),
+      rootCvLines: perFloor.flatMap((entry) => entry.state.rootCvLines),
+      nextQuestion: perFloor.find((entry) => entry.state.nextQuestion)?.state.nextQuestion ?? null,
+    },
+    coveredItemIds: perFloor.flatMap((entry) => entry.coveredItemIds),
+    checkpoint: remaining === 0 ? "essential_floor_covered" : "family_confirmed",
+  };
+}
+
+/** #235 — which floor an answered item belongs to: the FIRST floor carrying that item id, the same
+ *  first-floor-wins rule planDiscoveryState de-duplicates by, so the stored claim's identity always
+ *  matches the floor the question was asked under. */
+export function questionFloorItem<F extends AdaptiveDiscoveryFloor>(
+  floors: F[],
+  itemId: string,
+): { floor: F; item: F["essentialItems"][number] } | null {
+  for (const floor of floors) {
+    const item = floor.essentialItems.find((candidate) => candidate.id === itemId);
+    if (item) return { floor, item };
+  }
+  return null;
+}
+
 /** The one family a floor can be selected for, or null.
  *
  *  #231 — a placement now carries one OR MORE families, but floor selection takes exactly one
@@ -119,24 +184,23 @@ const byDescending = (a: number, b: number) => (a === b ? 0 : a > b ? -1 : 1);
  *  dated job records with their own placements, and the published floor registry, and lives here
  *  beside floor selection rather than in a route.
  *
- *  A mapped target role returns that family as both, which is every visitor today — this ticket
- *  changes nobody's behaviour. Deliberately NOT checked here: whether that family is published and
- *  reward-eligible. The discovery route already tests that itself and answers with the accurate
- *  `production_floor_unavailable`; folding it in would turn that into "we cannot place you", which
- *  is a different and wrong thing to say. #235 is where an unpublished named family reaches the
- *  word search instead.
+ *  A mapped target role whose family is published and reward-eligible returns that family as both —
+ *  every mapped visitor today, unchanged.
  *
- *  Anything else — unmapped, or a placement naming several families (until #232) — is interviewed
- *  on the families her own dated job records prove, at today's ACTIVE published version of each,
- *  and searched on her typed words (`searchFamily: null`, which #235 acts on). Zero candidates is a
+ *  Anything else — unmapped, a placement naming several families (until #232), or a named family
+ *  that is not published or not reward-eligible (#235: one path, three causes) — is interviewed on
+ *  the families her own dated job records prove, at today's ACTIVE published version of each, and
+ *  searched on her typed words (`searchFamily: null`, the word search). Zero candidates is a
  *  legitimate outcome, not a failure. */
 export function discoveryPlan(
   placement: FamilyPlacement,
   blocks: readonly JobBlockView[],
-  published: Pick<ProductionFamilyFloorStore, "active">,
+  published: Pick<ProductionFamilyFloorStore, "active" | "get">,
 ): DiscoveryPlan {
   const target = soleConfirmedFamily(placement);
-  if (target) return { questionFloors: [target], searchFamily: target };
+  if (target && eligiblePublication(published.get(target.familyId, target.version))) {
+    return { questionFloors: [target], searchFamily: target };
+  }
 
   // Both maps are keyed by the families her COUNTING job records are confirmed into — a job
   // carrying two families counts fully toward each (ADR-0014 amendment 1 decision 4), so the years

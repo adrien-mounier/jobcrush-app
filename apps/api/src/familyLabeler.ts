@@ -394,23 +394,6 @@ export function makeJobBlockLabeler(
   };
 }
 
-/** The 409 body for a placement that cannot start production discovery. Lives here rather than in
- *  routes/onboarding.ts so the spine stays thin (the ratchet), and because WHAT a non-confirmed
- *  placement offers the visitor next is the labeler's business, not the route's: it points at the
- *  family research candidate path rather than the nearest family (#220 AC3). rewardEligible stays
- *  false — nothing is authorized on an unconfirmed placement.
- *
- *  #231 collapsed this to one branch. It used to have a second, handing back the labeler's own two
- *  choices for the visitor to pick between; with `needs_clarification` gone there is nothing to
- *  pick between. It is also reached by a NEW case until #232: a target role the labeler reads as
- *  two kinds of work is now unmapped rather than a question, so a genuinely dual-craft visitor
- *  lands on family research. Named as the cost of the sequencing, not hidden. */
-export function placementRejection() {
-  return {
-    error: { code: "placement_not_confirmed", message: "confirmed family placement required" },
-    // The path that already exists for a role no published family covers
-    // (routes/familyLearning.ts) — offered, never a silent dead end.
-    familyResearch: { path: "/family-learning/candidates" },
-    rewardEligible: false,
-  };
-}
+// #235 deleted placementRejection() here: an unconfirmed placement no longer refuses production
+// discovery — it takes the word-search path instead, and the family-research offer it carried is
+// replaced by #236's silent background candidate screen.
