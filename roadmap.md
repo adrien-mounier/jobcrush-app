@@ -38,7 +38,10 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~3~~ | ~~#209~~ | ~~Four e2e journeys are in no CI tier and cannot run~~ **DONE 2026-08-13** | — | — | — |
 | ~~4~~ | ~~#124~~ | ~~Where do you want to work?~~ **DECIDED 2026-08-13 → build is #214** | — | — | — |
 | ~~4b~~ | ~~#214~~ | ~~Target locations: up to three chips, one deck over the union~~ **DONE 2026-08-14** (city-level, per the owner decision on #124's trail) | — | — | — |
-| 5 | #134 | Classify a job into a kind of work — spec #219 → slices #220 ✅ → #221 → #222 → #223. **#220 DONE 2026-08-15 (QA GO)**: target roles are placed for real, production discovery opens at the API, measured 97.6% on a 60-case grid. Frontier: **#221** | `/implement 221` | Opus | high |
+| ~~5~~ | ~~#220~~ | ~~Labeler slice 1: the target role is placed in a real family, measured before trusted~~ **DONE 2026-08-15 (QA GO)** — 97.6% comparable accuracy on the 60-case grid; production discovery opens at the API | — | — | — |
+| 5b | #221 | Labeler slice 2: every past job carries a correctable family label | `/implement` | Opus | high |
+| 5c | #222 | Labeler slice 3: years per family, read at the advert's own scope | `/implement` | Opus | high |
+| 5d | #223 | Labeler slice 4: the stub retires — one discovery engine | `/implement` | Opus | medium |
 | 6 | #216 | Discovery asks the family floor the reveal is earned from | `/implement` | Opus | high |
 | 7 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
 | 8 | #64 | The match count survives signup | `/implement` | Opus | medium |
@@ -88,12 +91,19 @@ native GitHub dependencies: **#134 → #216 → #63** (#63 `blocked_by: 2`). I f
 target-role placement half out as **#215**, so #63–#69 would not stall behind an unsliced design
 ticket; **the owner reversed that and #215 is closed**, folded back into #134 with every acceptance
 criterion preserved there. The reason is efficiency, and it is the owner's call to make: one session
-building the whole classifier beats three sessions building thirds of it, even though it means #63
-now waits behind a ticket that is **not yet specced**. ⚠️ **#134's design pass is DONE
-(2026-08-15, ADR-0014 + design comment on the ticket; follow-ups #217 industry labeler, #218
-vocabulary-growth process). Next step is `/to-spec` → `/to-tickets`; it is still not
-`ready-for-agent` until sliced.** Ticket boundaries are not session boundaries: one session can
-carry #134 → #216 → #63 end to end.
+building the whole classifier beats three sessions building thirds of it.
+
+✅ **All of that is now delivered** (2026-08-15): design pass → **ADR-0014**, spec → **#219**, slices
+→ **#220–#223** (rows 5–5d), follow-ups **#217** (industry labeler) and **#218** (vocabulary-growth
+process) filed. **#220 is done.** The chain to real jobs is **#221 → #222 → #223 → #216 → #63**.
+
+⚠️ **One sequencing note taken 2026-08-15, worth not re-deciding:** #216 is *technically* unblocked
+by #220 alone — its own "blocked by" was "a session needs a confirmed placement before it can be
+asked a family's floor", which #220 delivered. It is still ordered **after** #223 on purpose: #216
+and #223 both attack the two-engine problem through the same call site (discovery picks its questions
+via the `resolveFamily()` stub that #223 deletes), so converging the engines before the vocabulary
+behind them is finished means designing against a moving target. With no users on the app, there is
+no harm being paid down by rushing it. Take #216 early only to walk the product yourself.
 
 **Two #63 scope answers already given by the owner, valid whichever way the prerequisites land:** the
 `empty_pool` state offers **adjustment only** (no "notify me" — the re-check job it would promise does
@@ -402,7 +412,7 @@ One provider serves all four markets today, with no registry-level fallback (#17
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| 40 | #134 | Classify a job into a kind of work | `/grill-with-docs` | Opus | high |
+| ~~40~~ | ~~#134~~ | ~~Classify a job into a kind of work~~ **moved to Phase 1** (rows 5–5d) — designed 2026-08-15, sliced #220–#223, slice 1 done. It stopped being a Phase 6 "next product" the moment it became the thing #216 and #63 wait on | — | — | — |
 | 40.1 | #213 | A CV that names no tools yields no skills | `/grilling` | Opus | medium |
 | 41 | #179 | Real job-family data for the profile rail | `/implement` | Opus | medium |
 | 42 | #119 | Ops dashboard: cost per user | `/implement` | Opus | medium |
@@ -410,7 +420,10 @@ One provider serves all four markets today, with no registry-level fallback (#17
 | 44 | #195 | Phone profile revisit | `/prototype` | Opus | medium |
 
 **#134 precedes #179** and also settles the compromise #162 shipped with: `resolveFamily()` returns a
-constant, so every visitor is scoped to one placeholder family.
+constant, so every visitor is scoped to one placeholder family. **Half true as of 2026-08-15:** #220
+placed the *target role* for real, but the stub still answers everywhere else and dies in **#223**;
+the years-per-family number #162 was denied lands in **#222**. Neither #179 nor #213 can move before
+those two.
 
 **#213 sits immediately after #134 and cannot move before it** — opened 2026-08-13 out of #211's
 grilling. #211 covers skills that came out of a document; #213 covers the person whose document does
@@ -431,6 +444,7 @@ spent four years on the objective version and killed it).
 | ~~#32~~ | ~~Spending alert + verify vitacairn's Fly token scope~~ | ✅ **DONE 2026-08-13.** vitacairn's token was org-wide as suspected — fixed to one token per app, three account-wide tokens revoked, both projects verified deploying green. Cloudflare budget alert set at 10 USD. **Fly has no billing alerts and no spending cap** — that half of the ticket asked for a feature that does not exist; do not re-open it. |
 | ~~#211~~ | ~~How finely is a skill list split?~~ | ✅ **DECIDED 2026-08-13.** ADR-0004 clause 10 + **ADR-0013**. The read stays narrow (skills inventory only, bullets whole); tools inside bullets are **proposed** with an exact-string guard, arrive selected on one screen at ingestion, and what the person keeps is permanent — that, not the read, ends the 17→44 swing. **#164 builds it**; the estimate on the row above was for a smaller ruling than the one taken. Spawned **#213** (a CV that names no tools). |
 | #127 | Map: the CV as structured data | Parent — closes when #164–#171 close |
+| #134 | Classify a job into a kind of work | Parent — closes when #220–#223 close. Designed 2026-08-15 (**ADR-0014**), specced as **#219**, sliced into #220–#223. Rows 5–5d. |
 | #86 | Spec: per-ad understanding | Parent — closes when #108–#111 close |
 | #54 | Spec: first-run onboarding | Parent — closes when #63–#69 close |
 
