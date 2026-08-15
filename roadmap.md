@@ -74,6 +74,17 @@ the board stops meaning anything. **The line drawn, and it is new:**
   thresholds are pilot measurements not code), **#232** (floor merging is mechanical and its growth
   is bounded by an asserted test). Revisit #111 if #110 lands weak.
 
+_Scored 2026-08-15 when #230's slices were filed — **#235 Opus → Fable**, effort `high`._ **A
+word-search deck is the failure mode this rule was written for: every wrong version of it renders.**
+Wrong keywords, floors from the wrong families, a stale snapshot served after a family lands, a score
+that is systematically low for a reason nobody can see — in each case the deck loads, the cards
+order, the percentages look plausible, and no test and no reviewer has an oracle for what the "right"
+deck was. There is nothing to crash and nothing to compare against, which is the whole trigger.
+**#234 and #236 stay on Opus deliberately**, and the contrast is the point: #234's proof is that the
+existing suite passes unchanged (a wrong split goes RED), and #236's five verdicts each have one
+decided outcome to assert. Loud failures both — Fable buys nothing there. Effort stays `high` across
+all three: `xhigh` buys tension-holding, and these tickets carry decided rules, not open ones.
+
 ### Phase 1 — make the live deck honest before it exists
 
 | Order | # | What | Skill | Model | Effort |
@@ -91,7 +102,7 @@ the board stops meaning anything. **The line drawn, and it is new:**
 | ~~5c~~ | ~~#222~~ | ~~Labeler slice 3: years per family, read at the advert's own scope~~ **DONE 2026-08-15 (QA GO on re-run)** — one years fact per family + the total; bars scoped via the additive `yearsScope` contract field (compound sentences split); known zero ≠ unknown; confidence attenuation live at the owner's weights. First gate run was **NO-GO**: the scoped reading keyed on the production-discovery floor no shipped journey ever sets — fixed by resolving the advert's family from the target-role placement (`advertFamilyIdFor`), verified A/B in the browser. **Two owner decisions escalated, recorded in session-log** | — | — | — |
 | ~~5c.1~~ | ~~#230~~ | ~~🔒 **GRILL BEFORE BUILDING** — an unmapped target role gets no adverts at all~~ **DECIDED 2026-08-15** — retrieval opens: no usable published floor ⇒ search her typed words. Interview on up to two of her CV's floors, silent throughout (no sentence, no card mark, no research message), same scoring path, same provider budget. Spec **#233** → slices **#234 → #235 → #236**. Handed on: exhaustion to #228, autonomous research to #218 | — | — | — |
 | 5c.1a | #234 | Question floors and the search family become two facts, chosen by one plan — prefactor, nothing visible; its proof is that every existing test passes unchanged. **#232 now hangs off this, not off #230** | `/implement` | Opus | high |
-| 5c.1b | #235 | The unmapped target role is interviewed on her CV's floors and gets a word-search deck, including the honest empty state. **This is the retrieval-gate change #63 was waiting on** | `/implement` | Opus | high |
+| 5c.1b | #235 | The unmapped target role is interviewed on her CV's floors and gets a word-search deck, including the honest empty state. **This is the retrieval-gate change #63 was waiting on** | `/implement` | **Fable** | high |
 | 5c.1c | #236 | The candidate screen runs on that path — research starts itself, and `covered_role` recovers a family the labeler missed | `/implement` | Opus | medium |
 | 5c.2 | #228 | 🔒 **GRILL BEFORE BUILDING** — fallback when the target family's adverts run out. A fallback may mean a second live provider search on the same quota. **Also owns step 3 of the unmapped fallback** (#230 stopped at the first deck so "the deck ran out" is defined once, here). **Gates #63** | `/grilling` | Opus | medium |
 | 5c.3 | #232 | The target role's several families: discovery asks the essential items of each floor — ADR-0014 amendment 1 d7. **Blocked by #234** (it changes what that plan returns) | `/implement` | Opus | high |
