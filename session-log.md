@@ -41,6 +41,17 @@ build.
     next upload and never otherwise. Documented on the issue; close-or-shrink is the owner's call.
   🔑 The lesson generalises past this cluster: **prose in the roadmap is not a dependency.** A gate
   only holds if it is in the blocked-by list of the ticket it gates.
+- **Model/effort re-scored across every open row** (owner asked for the #222 pass applied board-wide).
+  Seven moved, forty-three left alone. New line written into the roadmap legend, and it is the useful
+  output of the pass: **Fable is for builds, not for grills, specs or wayfinders** — in a grill the
+  owner is in the room and IS the verification loop, so a wrong turn is caught in the next exchange;
+  a build has no such loop, which is exactly when "ships subtly wrong and still green" bites. That
+  only writes down existing practice (every pre-existing Fable row is an `/implement`) but it settles
+  half a dozen borderline calls at once. To Fable: #218, #68, #66, #229, #210, #164 — the thread
+  common to all of them is that **the wrong output looks better than the right one**, so neither a
+  reviewer nor a test flags it. Effort moved once: #223 medium → high (converging two discovery
+  engines without changing behaviour is tension-holding). Left on Opus after consideration: #111
+  (guards come off only behind #110's measurement gate — the gate is the check), #69, #232.
 - **Named cost of the scope boundary:** the target role stays single until #232, so a dual-craft
   target role now lands on family research instead of being asked to pick. One guard
   (`soleConfirmedFamily`) is the single chokepoint every floor-selection path routes through.

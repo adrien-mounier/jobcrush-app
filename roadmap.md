@@ -47,6 +47,33 @@ not correctness on well-specified work. The tension that justifies `high` is rea
 **Do not split the attenuation back out to make it smaller.** Splitting it off is what produced the
 orphan in the first place, and the two halves share one call site.
 
+_Full re-score of every open row, 2026-08-15 (owner asked for the same pass across the board)._
+Seven rows moved; forty-three were left alone, which is the point — a Fable set that grows to half
+the board stops meaning anything. **The line drawn, and it is new:**
+
+- **Fable is for BUILDS, not for grills, specs or wayfinders.** In a `/grilling` or `/grill-with-docs`
+  session the owner is in the room and IS the verification loop — a wrong turn gets caught in the
+  next exchange. A build has no such loop, which is exactly when "ships subtly wrong and still green"
+  bites. Every pre-existing Fable row (#168–#171) is an `/implement`, so this only writes down what
+  was already practice. It keeps #207, #212, #213, #206, #93 and #217 on Opus despite subject matter
+  that would otherwise qualify.
+- **Moved to Fable:** **#218** (autonomously proposes a *published job family* — a real-world claim
+  that silently mis-sorts every future visitor if drawn wrong), **#68** (consent, expiry and deletion
+  — invariants that must hold by construction, and a deletion that quietly does not delete is green
+  forever), **#66** (the conservation principle in its own words: *"not converted to positive
+  substance or hidden as satisfied"*), **#229** (ADR-0014's restraint rule verbatim — *"the score
+  stays generous; the words carry the truth. Never the reverse"*), **#210** (the near-twin of #170,
+  already Fable — the polish step may not re-shape her words) and **#164** (*"never a level I didn't
+  claim or a term a taxonomy substituted"*). The common thread in all six: **the wrong output looks
+  better than the right one**, so no reviewer and no test flags it.
+- **Effort moved once:** **#223** medium → high. It deletes `resolveFamily()` and converges two
+  discovery engines into one *without changing behaviour* — holding two implementations in tension
+  until they agree, which is precisely what the effort column is for.
+- **Considered and deliberately left on Opus:** **#111** (takes two guards off, but only behind
+  #110's measurement gate — the gate is the check), **#69** (release gates; instrumentation, and its
+  thresholds are pilot measurements not code), **#232** (floor merging is mechanical and its growth
+  is bounded by an asserted test). Revisit #111 if #110 lands weak.
+
 ### Phase 1 — make the live deck honest before it exists
 
 | Order | # | What | Skill | Model | Effort |
@@ -65,11 +92,11 @@ orphan in the first place, and the two halves share one call site.
 | 5c.1 | #230 | 🔒 **GRILL BEFORE BUILDING** — an unmapped target role gets no adverts at all. Decides floor selection when there is no family, and whether retrieval may proceed without one. **Gates #232, #223, #63** | `/grilling` | Opus | high |
 | 5c.2 | #228 | 🔒 **GRILL BEFORE BUILDING** — fallback when the target family's adverts run out. A fallback may mean a second live provider search on the same quota. **Gates #63** | `/grilling` | Opus | medium |
 | 5c.3 | #232 | The target role's several families: discovery asks the essential items of each floor — ADR-0014 amendment 1 d7 | `/implement` | Opus | high |
-| 5d | #223 | Labeler slice 4: the stub retires — one discovery engine | `/implement` | Opus | medium |
+| 5d | #223 | Labeler slice 4: the stub retires — one discovery engine | `/implement` | Opus | **high** |
 | 6 | #216 | Discovery asks the family floor the reveal is earned from | `/implement` | Opus | high |
-| 6b | #229 | The career changer is scored honestly but told nothing — the "new to this family" sentence | `/implement` | Opus | medium |
+| 6b | #229 | The career changer is scored honestly but told nothing — the "new to this family" sentence | `/implement` | **Fable** | high |
 | 7 | #63 | Real live jobs replace the fixture deck | `/implement` | Opus | high |
-| 7b | #218 | Pilot vocabulary-growth: unmapped labels harvested, researched, proposed for approval — **publishes the second family, which is what makes multi-family reachable in production at all** | `/implement` | Opus | high |
+| 7b | #218 | Pilot vocabulary-growth: unmapped labels harvested, researched, proposed for approval — **publishes the second family, which is what makes multi-family reachable in production at all** | `/implement` | **Fable** | high |
 | 8 | #64 | The match count survives signup | `/implement` | Opus | medium |
 | 8b | #217 | Industry — the second label axis: closed vocabulary with relatedness, seventh fact, its own labeler | `/to-spec` | Opus | high |
 
@@ -373,9 +400,9 @@ sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not lab
 | 12 | #166 | Degrees & certifications asked when silent | `/implement` | Opus | low |
 | 13 | #122 | An unasked requirement reads as a question | `/implement` | Opus | medium |
 | ~~13.1~~ | ~~#211~~ | ~~How finely is a skill list split?~~ ✅ decided 2026-08-13 — ADR-0004 clause 10 + ADR-0013; **#164 builds it** | — | — | — |
-| 13.2 | #210 | A messy bullet stays messy on the master CV | `/implement` | Opus | medium |
+| 13.2 | #210 | A messy bullet stays messy on the master CV | `/implement` | **Fable** | medium |
 | 13.3 | #212 | A partly printed compound line is a silent loss | `/grilling` | Opus | high |
-| 14 | #164 | Skills become records in your own words | `/implement` | Opus | medium |
+| 14 | #164 | Skills become records in your own words | `/implement` | **Fable** | medium |
 | 15 | #206 | An achievement and a duty are stored the same | `/grill-with-docs` | Opus | high |
 | 16 | #156 | Something finally checks the two-page rule | `/implement` | Opus | medium |
 | 17 | #167 | Projects get their own CV section | `/implement` | Opus | medium |
@@ -496,9 +523,9 @@ cost per upload), which attacks the same bill from the other side.
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
 | 32 | #67 | Slow and failed work resumes | `/implement` | Opus | medium |
-| 33 | #68 | Delete-my-data, expiry, consent | `/implement` | Opus | high |
+| 33 | #68 | Delete-my-data, expiry, consent | `/implement` | **Fable** | high |
 | 34 | #65 | The card separates offer, coverage, gaps | `/implement` | Opus | medium |
-| 35 | #66 | Card evidence carries into the tailored CV | `/implement` | Opus | high |
+| 35 | #66 | Card evidence carries into the tailored CV | `/implement` | **Fable** | high |
 | 36 | #69 | Pilot measurement and release gates | `/implement` | Opus | medium |
 
 **Re-read each against the code before building** — all five predate work that shipped underneath
