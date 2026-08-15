@@ -111,6 +111,26 @@ which is the failure #86 ranks worst.
    its *full* years to product management, and sinks in the deck. Only our confidence in the label
    is attenuated, never the length of the work.
 
+   **The magnitudes — decided by the owner 2026-08-15, after #231 shipped the ordinal.** This
+   decision originally pinned the shape and stopped, which left the numbers to whoever built it
+   first; #231 proposed them and they are now confirmed as the owner's:
+
+   | level | weight on the card's score |
+   |---|---|
+   | certain | ×1.0 |
+   | likely | ×0.9 |
+   | possible | ×0.75 |
+
+   Confirmed against the worked case rather than in the abstract: an 80% card reads 72% at *likely*
+   and 60% at *possible*, which in a deck clustering around 60–85% moves it out of the top handful.
+   **That is the intent, not an accepted side effect** — the owner's own words: *"this is reflecting
+   reality and a score that is meaningful, that's what I want as a user."* A future pass that
+   softens these to make cards look better is reversing the decision, not tuning it.
+
+   The attenuation's implementation lives in **#222**, not #231 — the ordinal is produced and stored
+   by the labeler, but the only place a card is scored against a visitor's years in a family is the
+   per-family arithmetic. #231 shipped the rule with no caller; #222 owns wiring it.
+
 6. **A known zero is not an unknown.** Refines decision 5 of the original and corrects an
    acceptance criterion in #222. Falling back to the career total is right only when some of her
    years are genuinely unaccounted for — an `unmapped` job. When every job record is placed and none

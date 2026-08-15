@@ -136,7 +136,9 @@ _Avoid_: Job label, classification, posting family fit, needs clarification (del
 How sure the labeler is about a family placement — *certain / likely / possible*, an ordinal, never
 a number. It attenuates the **ranking** (a job we are less sure about sinks in the deck) and never
 the years fact, which stays a whole honest number. Nothing is ever filtered out by it. A person's
-own correction is always certain (ADR-0014 amendment 1 decision 5).
+own correction is always certain. Owner-decided weights: certain x1.0, likely x0.9, possible x0.75 —
+an 80% card reads 60% at *possible*, deliberately (ADR-0014 amendment 1 decision 5). Stored by #231,
+applied to a card's score by #222.
 _Avoid_: Confidence score, probability, match strength
 
 **Industry**:

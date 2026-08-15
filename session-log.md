@@ -21,8 +21,12 @@ build.
 - 🔑 **AC6 is half-delivered, on purpose and disclosed.** "Never the years fact" is real and tested.
   "Lowers the card's score" has **no production caller** — the site is #222, which this ticket
   unblocks and which cannot land before it. The rule ships tested because the ordinal is stored from
-  today. **The three weights (1 / 0.9 / 0.75) are the agent's choice, not the owner's** — amendment 1
-  pins the shape, not the magnitudes. Confirm when #222 makes them visible in a real deck.
+  today. **Followed up the same day:** the owner confirmed the weights (certain x1.0, likely x0.9,
+  possible x0.75 — "reflecting reality and a score that is meaningful"), so they are now recorded in
+  ADR-0014 amendment 1 decision 5 as decided, and **#222's ACs were amended to own the wiring**. They
+  mentioned confidence nowhere, so the behaviour was one ticket away from vanishing between two
+  individually-complete tickets. Root cause was not ranking — #225 was correctly taken before #231 —
+  it was an AC filed against a ticket that could not satisfy it.
 - **Named cost of the scope boundary:** the target role stays single until #232, so a dual-craft
   target role now lands on family research instead of being asked to pick. One guard
   (`soleConfirmedFamily`) is the single chokepoint every floor-selection path routes through.

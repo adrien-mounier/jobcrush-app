@@ -142,9 +142,10 @@ when every job is placed and none is in the advert's family the answer is **zero
 total, so #222's generous fallback narrows to genuinely unaccounted years. **#222's ACs updated;
 #231 was the implementation and shipped 2026-08-15 (`34bdd3c`), so #222 is clear to build.** One
 thread #231 deliberately left hanging for it: the confidence ordinal is **stored** from today but
-**nothing scores against it yet** — #222 is where it starts attenuating a card, and the three weights
-(1 / 0.9 / 0.75) are the agent's choice, not the owner's, so they want confirming once a real deck
-shows them. Deferred on purpose, each with a ticket: the "new to
+**nothing scores against it yet**. #222 now OWNS that wiring explicitly (its ACs were amended
+2026-08-15 — they mentioned confidence nowhere, so the behaviour was about to fall between two
+individually-complete tickets), and the weights are **owner-decided**: certain x1.0, likely x0.9,
+possible x0.75. An 80% card reads 60% at *possible*, and that is the intent, not a side effect. Deferred on purpose, each with a ticket: the "new to
 this family" sentence a career changer is owed (**#229**), the unmapped **target role** that still
 gets no adverts at all (**#230** — the one place ranking cannot save us, because the family is what
 we search *with*), and the fallback when a family's adverts run out (**#228**).
