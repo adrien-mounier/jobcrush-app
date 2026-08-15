@@ -24,6 +24,40 @@ matching it that are read at RUNTIME.** If that list is non-empty, you need an a
 pattern. The verification that actually settles it is enumerating `git ls-files` against the filter —
 72 of 487 files ignored, and every prompt and fixture still gated — not eyeballing the pattern.
 
+**Coda, same day (2026-08-15 ~08:58): the allowance ran out anyway, and the fix landed one commit
+too late.** CI has been dead on every push since — including the very commit that added the filter.
+Read the failure carefully, because GitHub's wording sends you to the wrong place:
+
+> *The job was not started because recent account payments have failed or your spending limit needs
+> to be increased.*
+
+**No payment ever failed. There is no payment method on the account at all.** Checked at the time:
+201 workflow runs since 1 August across both repos, and the billing API reports **0 billable
+milliseconds** — a run that visibly took 28.7 minutes reports `duration_ms: 0` for every job. That is
+what a free-tier account looks like: the 2,000 free minutes are consumed, the default spending limit
+is **$0**, and a $0 limit is a **hard stop**, not a warning. GitHub then reports it in the vocabulary
+of a billing failure, which is how three sessions in a row went looking for a broken workflow.
+
+Three things worth carrying:
+
+1. **A $0 spending limit is a circuit breaker, and it does its job silently and completely.** It
+   blocks at the platform level *before a runner starts*, so there are no logs, the job "fails" in
+   3 seconds, and every commit fails identically regardless of content. **0-second jobs with no logs
+   = an account block, never a code fault.** Check `gh run view <id>` for the ANNOTATION, not the log.
+2. **The billable-minutes API cannot measure free-tier burn** — it reads 0 for work that really ran.
+   Anyone estimating runway must sum `run_duration_ms`, not billable time. The earlier "90% of the
+   month's minutes" figure came from the alert email, and the API would have flatly contradicted it.
+3. **A cost fix that ships at 90% consumed is a fix for next month.** The `paths-ignore` work is
+   correct and will halve the burn — from a cycle that starts on **1 September**. Between the block
+   and the reset, `main` accepts pushes, closes issues, and **deploys nothing**, so the git log and
+   the board both read "shipped" while staging stays on the last green build (2026-08-15 08:51,
+   `docs(#225)`). The only ways out are to wait for the reset or to add a payment method and raise
+   the limit above $0 — which is the moment CI stops being free.
+
+**The generalisation: when a platform stops your pipeline, find out whether the constraint is money
+you owe or money you have not agreed to spend.** They produce the same message and need opposite
+actions — one is a dashboard fix, the other is a decision about whether to start paying.
+
 ## A production caller whose guard can never be true is the same failure as no caller — and tests that seed state prove wiring, not reachability
 
 #222 wired the family-scoped years reading to `session.discovery.floor` — a field written only by

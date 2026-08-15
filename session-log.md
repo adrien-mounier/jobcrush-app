@@ -44,6 +44,13 @@ module-level function, `discoveryPlan(placement, blocks, publishedRegistry)` in
 - **Docs closed with the code:** ADR-0014's *target-role gate* bullet is amended to point at #230,
   and `CONTEXT.md` gains **word search** as the single name, with an `_Avoid_` list closing off
   rivals.
+- 🚨 **Pushed (`5b08d7e`), closed on the board, and NOT deployed.** GitHub Actions has blocked every
+  job on the account since 2026-08-15 08:58 — the free-tier minute allowance is spent and the default
+  **$0 spending limit is a hard stop**. It reports as *"recent account payments have failed"*, but
+  **there is no payment method on the account**; nothing failed. Staging still runs the last green
+  build (`docs(#225)`, 08:51). **#222 is in the same state** — on `main`, closed, not deployed. Full
+  diagnosis and the two traps in `lessons.md`; owner decision needed: wait for the 1 September reset,
+  or add a payment method and raise the limit above $0.
 
 ## 2026-08-15 (session 127) `/grilling 230` → `/to-spec` → `/to-tickets` — the retrieval gate opens, silently
 
