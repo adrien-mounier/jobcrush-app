@@ -40,7 +40,8 @@ not correctness on well-specified work — start no ticket at `max`.
 | ~~4b~~ | ~~#214~~ | ~~Target locations: up to three chips, one deck over the union~~ **DONE 2026-08-14** (city-level, per the owner decision on #124's trail) | — | — | — |
 | ~~5~~ | ~~#220~~ | ~~Labeler slice 1: the target role is placed in a real family, measured before trusted~~ **DONE 2026-08-15 (QA GO)** — 97.6% comparable accuracy on the 60-case grid; production discovery opens at the API | — | — | — |
 | ~~5b~~ | ~~#221~~ | ~~Labeler slice 2: every past job carries a correctable family label~~ **DONE 2026-08-15 (QA GO)** — every mined job is placed; the review screen asks, batched, only about the ones it could not call | — | — | — |
-| 5b.1 | #225 | **Decide deliberately: is a job in ONE family, or honestly several?** Gates #222 — see below | `/grilling` | Opus | medium |
+| ~~5b.1~~ | ~~#225~~ | ~~Decide deliberately: is a job in ONE family, or honestly several?~~ **DECIDED 2026-08-15** — several, nobody is asked, confidence rides the ranking. ADR-0014 amendment 1 | — | — | — |
+| 5b.2 | #231 | Labeler slice 2b: several families per job, nobody is asked, confidence rides the ranking | `/implement` | Opus | high |
 | 5c | #222 | Labeler slice 3: years per family, read at the advert's own scope | `/implement` | Opus | high |
 | 5d | #223 | Labeler slice 4: the stub retires — one discovery engine | `/implement` | Opus | medium |
 | 6 | #216 | Discovery asks the family floor the reveal is earned from | `/implement` | Opus | high |
@@ -118,6 +119,23 @@ nothing — #86's own worst failure. **#221 shipped unblocked** (its shape is th
 way — one placement per job, correctable, and a needs-clarification answer stored rather than
 resolved); **#222 is blocked**, because that is where per-family years stop being a default and become
 arithmetic a visitor is judged on.
+
+✅ **#225 is decided (2026-08-15, owner grilling pass) — ADR-0014 amendment 1.** A job may hold
+**several** families and its years count **fully** toward each, never split; the family numbers
+therefore no longer sum to the career total, and no surface may show that sum. **The labeler never
+asks the user anything** — `needs_clarification` is deleted, and #221's end-of-deck panel with it —
+because the question is unanswerable: nobody can know whether their own job meets our definition of a
+family, and an unsure person picks both out of fear of missing adverts. Our doubt is carried instead
+by an **ordinal confidence (certain / likely / possible) that attenuates the card's score and never
+the years fact** — facts stay printable and true, uncertainty lives in the ordering, nothing is ever
+filtered out. 🔑 **Uncertainty is not proportion:** a job we are unsure about still contributes its
+*full* years; only the card sinks. 🔑 **And the owner's own catch — a known zero is not an unknown:**
+when every job is placed and none is in the advert's family the answer is **zero**, not her career
+total, so #222's generous fallback narrows to genuinely unaccounted years. **#222's ACs updated;
+#231 is the implementation and now gates it.** Deferred on purpose, each with a ticket: the "new to
+this family" sentence a career changer is owed (**#229**), the unmapped **target role** that still
+gets no adverts at all (**#230** — the one place ranking cannot save us, because the family is what
+we search *with*), and the fallback when a family's adverts run out (**#228**).
 
 📍 **#226 maps where families come from at all** — filed 2026-08-15 because `e5stub.ts` has always
 pointed at *"the real cluster engine (S3/JC-31)"* and **that was a season-plan reference that never

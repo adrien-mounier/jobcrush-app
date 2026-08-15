@@ -2,6 +2,41 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-15 (session 124) `/grilling 225` — a job can be in several families, and nobody is asked
+
+**Decided, no code.** Recorded as **ADR-0014 amendment 1**; #225 closed by hand. The cardinality
+#221 was writing by default is now taken on purpose, and #222 unblocks behind #231.
+
+- 🔑 **Several families per job, full years to each, never split.** The Technical Program Manager
+  keeps both careers. Accepted consequence: family numbers no longer sum to the career total, so no
+  surface may ever present that sum.
+- 🔑 **The labeler never asks the user** — reverses ADR-0014 d4, deletes `needs_clarification`, and
+  removes the end-of-deck panel #221 shipped two days ago. The owner's reasoning, which is the real
+  finding of the session: *the question is unanswerable.* Nobody can know whether their own job meets
+  our definition of a family, the names mean different things to different people, and someone unsure
+  picks both out of fear of missing adverts — an answer that tells us nothing. A question we cannot
+  trust the answer to is worse than no question.
+- 🔑 **Confidence rides the ranking, never the fact.** Ordinal (certain / likely / possible), not a
+  float — an LLM's float is badly calibrated, drifts with every prompt edit, and the eval grid cannot
+  test it. It attenuates the card's score; the years fact stays a whole printable number. **This is
+  already the codebase's architecture**, which was the session's other useful discovery: a years
+  shortfall has always *multiplied* a score rather than filtered a card, only an explicit "no" on
+  work rights or language ever withdraws, and the deck already ranks by how well it understands a
+  card. The owner proposed the shipped design without knowing it was shipped.
+- 🩹 **Owner correction, and I was wrong:** I defended #222's "no fact in the family → fall back to
+  the career total" as a conflict with his own generosity rule. It is not — it is a rule written for
+  a world with **one** family, where a family number and the career total are the same number. Once
+  every job is placed, "zero years in family C" is a **fact**, not an unknown. Fallback now narrows
+  to genuinely unaccounted years (at least one unmapped job). #222's ACs changed for it.
+- 🧭 **Deferred with tickets rather than prose** — the failure this repo has recorded three times:
+  **#229** (career changer scored honestly, told nothing), **#230** (unmapped target role gets no
+  adverts at all — retrieval is gated on a published family, and ranking cannot save a list that was
+  never fetched), **#228** (fallback when a family runs out), **#227** (filed mid-pass; largely
+  dissolved by "nobody is asked", its null-placement half survives as a retry question).
+- 📐 **Prototype built** to answer "show me this screen" — the work-history review deck as it exists,
+  what one tap costs Sofia in advert terms, and three ways to surface a placement. Outcome: **show
+  nothing**. The family is internal from end to end.
+
 ## 2026-08-15 (session 123) `/implement 221` — every past job carries a family label the visitor owns
 
 **Slice 2 of the job labeler (#221) — QA gate GO, committed `02dd0d3`, pushed.** Each dated JOB

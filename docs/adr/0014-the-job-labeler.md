@@ -29,10 +29,11 @@ re-spend.
    correction supersedes, a re-read never overwrites it. Its origin is *worked out* (like the
    years number); it quotes no CV text.
 
-4. **Asking the user is allowed only when the machine cannot work it out** — a genuine
+4. ~~**Asking the user is allowed only when the machine cannot work it out** — a genuine
    2+-family ambiguity or broken-looking data (a university name in the employer slot). It
    never asks to double-check a confident placement; the accuracy bar exists so it doesn't
-   have to. All such questions land batched on the review-your-jobs screen, never mid-flow.
+   have to. All such questions land batched on the review-your-jobs screen, never mid-flow.~~
+   **Superseded by amendment 1 (#225): the labeler never asks. See below.**
 
 5. **Unmapped never lowers a number.** An unmapped job counts toward total years and toward
    no family's years; boundaries beside it are never guessed at. It is shown honestly
@@ -57,3 +58,89 @@ years of IT including 5+ as a PM" is two bars at two scopes). `resolveUserYears`
 advert's own family scope. The `resolveFamily()` stub retires. #216 and #63 unblock behind
 this. Follow-up tickets: the industry labeler; the pilot vocabulary-growth process
 (autonomous research on unmapped labels → owner-approved additions).
+
+---
+
+# Amendment 1 — a job can be in several families, the machine never asks, and doubt is carried by the ranking
+
+Status: accepted (owner design pass, 2026-08-15, issue #225)
+
+The original ADR left **cardinality** undecided. One placement per job record made "a job belongs
+to one family" the standing answer by inheritance rather than by decision, and #222 was about to
+turn that default into arithmetic a visitor is scored on. This amendment decides it.
+
+The case it is decided against: a Technical Program Manager who runs delivery half the week and
+decides the product the other half. Placed in one family, four years of the other vanish. An advert
+asking for those years then scores her at nothing — a job she could win, scored as one she cannot,
+which is the failure #86 ranks worst.
+
+## The decisions
+
+1. **The labeler never asks the user anything.** Reverses decision 4. Placement is an internal
+   judgement from end to end. The rationale is not cost — it is that the question is unanswerable:
+   a person cannot be expected to know whether their own job meets our definition of a job family,
+   the family names mean different things to different people, and a person who is unsure will pick
+   both out of fear of missing adverts, which tells us nothing. A question whose answer we cannot
+   trust is worse than no question. The batched end-of-deck panel shipped by #221 is removed.
+
+2. **A job record may hold more than one family.** `confirmed` carries one *or more*
+   `FamilyVersionReference`s. `needs_clarification` is deleted with no replacement — with nobody to
+   ask, "we cannot tell between A and B" and "it is genuinely both" produce the same arithmetic.
+   Two outcomes remain: `confirmed` and `unmapped`. Contract change, so the zod port and the `.mjs`
+   oracle move together by version (CLAUDE.md).
+
+3. **No cap on families per job in the contract.** The instruction to the labeler holds the line at
+   two, and the eval grid measures it. A refused write would hide the signal a hard cap exists to
+   catch: if three families are named often, our families are drawn too narrow.
+
+4. **Years count fully toward every family a job carries, never split.** Splitting invents a
+   precision nobody has. The consequence is accepted and load-bearing: **the family numbers no
+   longer sum to the career total** (six years of dual work reads as six in each), so no surface may
+   ever present a sum of families as a figure. The career total stays separately derived, each job
+   counted once.
+
+5. **Confidence rides on the ranking, never on the fact.** The labeler returns an ordinal level —
+   *certain / likely / possible* — not a float. A float invites false precision, is badly calibrated
+   coming from an LLM, drifts with every prompt edit, and cannot be tested by the grid. The level
+   **attenuates the card's score**, so a job we are less sure about sinks in the deck; it never
+   changes the years fact, which stays a whole honest number the product can print. This preserves
+   the separation the codebase already keeps everywhere else: facts stay true, uncertainty lives in
+   the ordering. Nothing is ever filtered out — the deck's own shipped rule.
+
+   **Uncertainty is not proportion.** A job we are 40% sure was product management still contributes
+   its *full* years to product management, and sinks in the deck. Only our confidence in the label
+   is attenuated, never the length of the work.
+
+6. **A known zero is not an unknown.** Refines decision 5 of the original and corrects an
+   acceptance criterion in #222. Falling back to the career total is right only when some of her
+   years are genuinely unaccounted for — an `unmapped` job. When every job record is placed and none
+   is in the advert's family, we **know** the answer is zero, and zero is what the scoring uses. The
+   generous fallback exists to protect a person from being deleted by an unknown, not to tell them
+   they are experienced in work they have never done.
+
+7. **The target role follows the same rule.** It may hold several families, and it selects the
+   *essential* items of each family's floor, de-duplicated. The cost is a longer discovery interview,
+   accepted: a question not asked is evidence that cannot be recovered once she has left.
+
+## What is deliberately not decided here
+
+- **The target-role gate.** Posting retrieval today hard-refuses an unmapped target role
+  (`family_not_published`) and routes to family research. That gate is the one place "never discard,
+  only rank" is not true, and it cannot be, since the family is what we search *with*. Recorded
+  intent for when it is taken: search her typed words, and meanwhile ask the floor questions of the
+  families her **CV** proves — we do not know what she is aiming at, but we do know what she has
+  done. Own ticket.
+- **The "new to this family" sentence.** A career changer with a known zero now ranks low and
+  honestly, but is told nothing about why. The score stays generous and the words carry the truth —
+  never the reverse. Own ticket.
+- **What happens when a family's adverts run out** (#228).
+- **The clustering engine.** Still has no ticket. The pilot path remains #218.
+
+## Consequences
+
+#222's acceptance criteria change: years are written per family with full credit to each, the
+career-total fallback narrows to genuinely-unaccounted years, and no surface sums the families.
+#221's end-of-deck family panel is deleted along with `needs_clarification`. #227 (an unmapped job
+offered the whole published list) is largely dissolved by decision 1 — with nobody asked, there is
+no list to offer — but its second half survives: a null placement is a call we have not made, and
+belongs to a retry, not a question.
