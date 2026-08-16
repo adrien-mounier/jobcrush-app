@@ -24,6 +24,10 @@ tests). Final forced gates passed 1,550 tests with 11 configured skips, all 7 ty
 so the real Fastify HTTP seam proves two question floors, a five-item de-duplicated essential union,
 one answer for the shared item, and merged checkpoint completion. Code: `3dfd307`.
 
+**Deployment residual:** pushed with closeout commit `b40d2e0`; GitHub closed #232, but CI run
+`31953528467` started zero jobs because of the existing account payment/spending-limit blockage.
+The change is on `main`, not staging.
+
 ## 2026-08-16 (session 139) `/research 239` — empty-result copy now has a source-backed string family
 
 **The bare dead end was checked against real product language.** The research note
