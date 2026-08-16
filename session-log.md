@@ -47,11 +47,19 @@ wrote a second journey covering the branches the first missed —
 `apps/web/e2e/fallback-offer-empty-result-journey.mjs` (accepted-but-empty, reload mid-widening,
 offer suppressed while cards remain).
 
-**One residual the owner should see, pre-existing but now carrying a price:** the deck screen shows
-the dead end whenever it has zero cards — *including the seconds while the FIRST search is still
-running*, and it does not poll there. A visitor who taps "Yes, look" in that window is latched out
-of the family she asked for and spends the extra call before her own search ever returned. Belongs
-with whoever owns the empty screen's retrieval-in-progress state.
+**One residual the owner should see, pre-existing but now carrying a price — filed as #245:** the
+deck screen shows the dead end whenever it has zero cards, *including the seconds while the FIRST
+search is still running*, and it does not poll there. A visitor who taps "Yes, look" in that window
+is latched out of the family she asked for and spends the extra call before her own search ever
+returned. Not a #228 defect — decision 4 rightly makes empty-pool and swiped-through the same state;
+the bug is one level down, where "the deck came back empty" is itself two states.
+
+**#228's own record amended when it closed.** Acceptance criterion 5 and decision 3 still said the
+fallback covers "both CV floors in one query", which the spec pass overturned before implementation
+(one family, so an advert can be attributed to a family and her years scored at that family's
+scope). Both are struck through with an amendment note at the foot of the ticket, alongside the two
+implementation deviations. The cost ceiling #63 builds against is unchanged: one extra search per
+session, on consent only.
 
 ## 2026-08-16 (session 135) `/implement 240` — the search asks for a job title, not any word (QA GO, `2d8eb58`)
 
