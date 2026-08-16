@@ -5,10 +5,12 @@ import { describe, expect, it } from "vitest";
 import {
   generateFamilyEvaluation,
   initialProductionFamilyFloors,
+  productionDiscoveryFamily,
   ProductionFamilyFloorStore,
   TestFixtureFamilyFloorStore,
 } from "../src/familyFloors.js";
 import { buildServer } from "../src/server.js";
+import { discoveryFamilyForSessionPlan } from "../src/legacyDiscovery.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = () =>
@@ -113,6 +115,76 @@ describe("production family floor publication", () => {
     const store = new ProductionFamilyFloorStore();
     const publication = store.publish(productionPublication());
     expect(store.active("it-project-delivery")).toEqual(publication);
+  });
+
+  it("adapts explicit question-floor references in order and de-duplicates shared items (#223)", () => {
+    const base = productionPublication();
+    const shared = { ...base.floor.essentialItems[0], id: "shared-item" };
+    const alphaOnly = { ...base.floor.essentialItems[1], id: "alpha-only" };
+    const betaOnly = { ...base.floor.essentialItems[2], id: "beta-only" };
+    const publicationFor = (familyId: string, label: string, title: string, items: unknown[]) => {
+      const publication = productionPublication();
+      return {
+        ...publication,
+        floor: { ...publication.floor, familyId, label, essentialItems: items },
+        marketSearchTitles: { HK: [{ title, adverts: 1, measuredOn: "2026-08-16" }] },
+      };
+    };
+    const alpha = publicationFor("alpha", "Alpha", "alpha title", [shared, alphaOnly]);
+    const beta = publicationFor("beta", "Beta", "beta title", [shared, betaOnly]);
+    const catalog = {
+      activePublications: () => [alpha, beta],
+      get: (familyId: string) => ({ alpha, beta })[familyId as "alpha" | "beta"] ?? null,
+    };
+
+    const adapted = productionDiscoveryFamily(catalog, [
+      { familyId: "beta", version: 1 },
+      { familyId: "alpha", version: 1 },
+    ]);
+
+    expect(adapted).toMatchObject({ familyId: "beta", label: "Beta" });
+    expect(adapted?.suggestions).toEqual(["beta title", "alpha title"]);
+    expect(adapted?.items.map((item) => item.id)).toEqual(["shared-item", "beta-only", "alpha-only"]);
+  });
+
+  it("adapts the discovery plan's question floors instead of the first active publication (#223)", () => {
+    const publicationFor = (familyId: string, label: string, title: string) => {
+      const publication = productionPublication();
+      return {
+        ...publication,
+        floor: { ...publication.floor, familyId, label },
+        marketSearchTitles: { HK: [{ title, adverts: 1, measuredOn: "2026-08-16" }] },
+      };
+    };
+    const alpha = publicationFor("alpha", "Alpha", "alpha title");
+    const beta = publicationFor("beta", "Beta", "beta title");
+    const catalog = {
+      activePublications: () => [alpha, beta],
+      get: (familyId: string) => ({ alpha, beta })[familyId as "alpha" | "beta"] ?? null,
+    } as unknown as ProductionFamilyFloorStore;
+
+    const adapted = discoveryFamilyForSessionPlan(
+      {
+        discovery: {
+          questionFloors: [],
+          searchFamily: null,
+          coveredItemIds: [],
+          checkpoint: null,
+          fallback: { declined: false, family: null },
+        },
+      },
+      {
+        schemaVersion: "2",
+        outcome: "confirmed",
+        families: [{ familyId: "beta", version: 1 }],
+        confidence: "certain",
+      },
+      [],
+      catalog,
+    );
+
+    expect(adapted).toMatchObject({ familyId: "beta", label: "Beta" });
+    expect(adapted?.suggestions).toEqual(["beta title"]);
   });
 
   it("counts employer diversity after trimming and case folding", () => {

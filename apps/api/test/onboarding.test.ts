@@ -3,7 +3,7 @@
 // paste → mine → open deck → confirm/edit/reject → build → `ready`, root CV traces clean.
 import { describe, expect, it } from "vitest";
 import type { CandidateClaim } from "@jobcrush/contracts";
-import { buildServer } from "../src/server.js";
+import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
 import { isTerminal } from "../src/jobs.js";
 
 const claim = (over: Partial<CandidateClaim>): CandidateClaim => ({
@@ -28,6 +28,8 @@ const MINED: CandidateClaim[] = [
   claim({ id: "cert-pmp", role: "profile", text: "PMP, 2021." }),
   claim({ id: "skill-jira", role: "profile", text: "Jira" }),
 ];
+const END_TO_END = "end-to-end-delivery";
+const END_TO_END_CLAIM = `discovery-${END_TO_END}`;
 
 function fakePipeline() {
   return { mine: async () => ({ doc: null, claims: MINED, roles: 1, needsGrill: 0 }) };
@@ -249,7 +251,7 @@ describe("JC-21/27/31 onboarding deck → build loop", () => {
       method: "POST",
       url: "/onboarding/discovery/answer",
       headers: { cookie },
-      payload: { itemId: "budget-accountability", answer: "Yes, over $1M" },
+      payload: { itemId: END_TO_END, answer: "Yes" },
     });
 
     const jobId = await mineAndGetJob(server, cookie);
@@ -263,10 +265,8 @@ describe("JC-21/27/31 onboarding deck → build loop", () => {
     const claims = deck.json().claims as Array<{ id: string; decision: string }>;
     const ids = claims.map((c) => c.id).sort();
     // Both the discovery answer and every mined claim are present — the bug dropped the mined ones.
-    expect(ids).toEqual(
-      ["acme-led-migration", "cert-pmp", "discovery-budget-accountability", "skill-jira"].sort(),
-    );
-    const discoveryClaim = claims.find((c) => c.id === "discovery-budget-accountability")!;
+    expect(ids).toEqual(["acme-led-migration", "cert-pmp", END_TO_END_CLAIM, "skill-jira"].sort());
+    const discoveryClaim = claims.find((c) => c.id === END_TO_END_CLAIM)!;
     expect(discoveryClaim.decision).toBe("confirmed"); // its prior decision, untouched by the seed
 
     // Decide a MINED claim, then re-run the deck. This is the assertion that actually exercises
@@ -287,9 +287,7 @@ describe("JC-21/27/31 onboarding deck → build loop", () => {
     const claimsAgain = again.json().claims as Array<{ id: string; decision: string }>;
     expect(claimsAgain.map((c) => c.id).sort()).toEqual(ids);
     expect(claimsAgain.find((c) => c.id === "acme-led-migration")!.decision).toBe("rejected");
-    expect(claimsAgain.find((c) => c.id === "discovery-budget-accountability")!.decision).toBe(
-      "confirmed",
-    );
+    expect(claimsAgain.find((c) => c.id === END_TO_END_CLAIM)!.decision).toBe("confirmed");
   });
 
   it("the deck is session-scoped: another session cannot open your job", async () => {

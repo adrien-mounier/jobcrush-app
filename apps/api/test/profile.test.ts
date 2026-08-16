@@ -3,7 +3,7 @@
 // (anonSession/signIn helpers for pre-wall vs post-wall routes).
 import { describe, expect, it } from "vitest";
 import type { CandidateClaim } from "@jobcrush/contracts";
-import { buildServer } from "../src/server.js";
+import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
 import { isTerminal } from "../src/jobs.js";
 import { DECLINE_OPTION, languagesQuestion as composeLanguagesQuestion } from "../src/eligibilityDiscovery.js";
 
@@ -83,6 +83,8 @@ async function mineAndGetJob(server: ReturnType<typeof buildServer>, cookie: str
 }
 
 const ROLE = "IT project manager in Paris, mostly ERP";
+const END_TO_END = "end-to-end-delivery";
+const END_TO_END_CLAIM = `discovery-${END_TO_END}`;
 
 interface ProfileFact {
   id: string;
@@ -120,7 +122,7 @@ interface ProfileResponse {
 }
 
 // #179: until E5 places typed roles into families, the search block is the honest empty state for
-// everyone — role exactly as typed, and NO family/siblings/count (never the resolveFamily stub).
+// everyone — role exactly as typed, and NO family/siblings/count from an internal floor assumption.
 const EMPTY_SEARCH = (role: string | null) => ({ role, family: null, siblingTitles: [], openJobs: null });
 // #190: honest absence — no contact record yet.
 const EMPTY_CONTACT = { phone: null, email: null };
@@ -202,13 +204,13 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     const cookie = await anonSession(server.app);
     await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
     const answered = await post(server.app, cookie, "/onboarding/discovery/answer", {
-      itemId: "budget-accountability",
-      answer: "Yes, over $1M",
+      itemId: END_TO_END,
+      answer: "Yes",
     });
     expect(answered.json().factCount).toBe(1);
 
     await signIn(server.app, cookie, "e2e3@example.com");
-    await post(server.app, cookie, "/onboarding/claims/discovery-budget-accountability/reject");
+    await post(server.app, cookie, `/onboarding/claims/${END_TO_END_CLAIM}/reject`);
 
     const res = await get(server.app, cookie, "/profile");
     expect(res.statusCode).toBe(200);
@@ -238,9 +240,9 @@ describe("#20 profile screen — the colour law over HTTP", () => {
   });
 
   // #179 decision (2026-08-09): the rail's Job family data. Until E5 (#86) places roles, the
-  // machine displays no family it cannot honestly attribute — the internal resolveFamily() stub
-  // (which places EVERY role in "IT Project Manager") must never leak into this payload.
-  it("#179: search carries the role exactly as typed and no stub family", async () => {
+  // machine displays no family it cannot honestly attribute; discovery's internal floor selection
+  // must never leak into this payload.
+  it("#179: search carries the role exactly as typed and no assumed family", async () => {
     const server = buildServer();
     const cookie = await anonSession(server.app);
     await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
@@ -248,7 +250,7 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     const { search } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
     expect(search).toEqual(EMPTY_SEARCH(ROLE));
     expect(search.role).toBe("IT project manager in Paris, mostly ERP"); // verbatim, never cleaned
-    expect(search.family).not.toBe("IT Project Manager"); // the stub's one answer must not surface
+    expect(search.family).not.toBe("IT project delivery"); // internal discovery floor must not surface
   });
 
   // #106 code-review D1 (2026-08-03, round 3): a decline used to write a claim /profile's factCount
@@ -401,13 +403,13 @@ describe("#20 profile screen — the colour law over HTTP", () => {
     const cookie = await anonSession(server.app);
     await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await post(server.app, cookie, "/onboarding/discovery/answer", {
-      itemId: "budget-accountability",
+      itemId: END_TO_END,
       answer: "No",
     });
 
     const { domains } = (await get(server.app, cookie, "/profile")).json() as ProfileResponse;
     const allIds = domains.flatMap((d) => d.facts.map((f) => f.id));
-    expect(allIds).not.toContain("discovery-budget-accountability");
+    expect(allIds).not.toContain(END_TO_END_CLAIM);
   });
 
   // #185 AC: the rail's Location data reads the work-rights answer keyed to the CURRENT search

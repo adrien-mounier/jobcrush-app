@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { FamilyFloorV1, type FamilyFloorV1 as FamilyFloorV1Value } from "@jobcrush/contracts";
+import { FamilyFloorV1, type FamilyFloorV1 as FamilyFloorV1Value, type FloorItem } from "@jobcrush/contracts";
 import { z } from "zod";
+import type { DiscoveryFamily } from "./discovery.js";
 // Safe direction: postingRetrieval's own import of this module is type-only (erased at compile),
 // so this runtime edge creates no cycle — keep it that way if that import ever changes.
 import { coveredRegionCodes } from "./postingRetrieval.js";
@@ -71,7 +72,9 @@ const ProductionFloor = z.object({
   ),
 });
 
-const PlacementOutcome = z.enum(["confirmed", "clarification", "unmapped"]);
+// Historical calibration bucket only. This is not the public FamilyPlacement outcome; ADR-0014
+// amendment #231 deleted `needs_clarification` from that contract.
+const PlacementOutcome = z.enum(["confirmed", "needs_clarification", "unmapped"]);
 
 const RawEvaluationCase = z.object({
   id: z.string().min(1),
@@ -168,7 +171,7 @@ export function generateFamilyEvaluation(
       const observed = supportScore < 0.6 || neighborhoodDensity < 0.35
         ? "unmapped"
         : supportScore - runnerUpSupportScore < 0.15
-          ? "clarification"
+          ? "needs_clarification"
           : "confirmed";
       return { id: item.id, supportScore, runnerUpSupportScore, neighborhoodDensity, observed };
     }),
@@ -231,7 +234,7 @@ export class ProductionFamilyFloorStore {
         .map((item) => item.expected),
     );
     if (!heldOutExpectations.has("confirmed")
-      || !heldOutExpectations.has("clarification")
+      || !heldOutExpectations.has("needs_clarification")
       || !heldOutExpectations.has("unmapped")) {
       throw new Error(
         "held-out evaluation must record comparable, ambiguous, and near-OOD outcomes",
@@ -324,4 +327,65 @@ export function initialProductionFamilyFloors(): ProductionFamilyFloorStore {
     ),
   );
   return store;
+}
+
+function productionFloorItem(item: FamilyFloorV1Value["essentialItems"][number]): FloorItem {
+  return {
+    id: item.id,
+    rankBand: "essential",
+    question: item.question.prompt,
+    options: item.question.options.map((option) => option.label),
+    cvSection: item.evidenceDestination.section,
+    noIsFatal: true,
+  };
+}
+
+/** #223 — the legacy discovery surface now gets its single-family data from the production
+ *  registry. The production floor contract only carries essential items, so no hand-authored
+ *  standard/triggered list is merged back in here; additional families still contribute only their
+ *  essential items through discoveryPlan(). */
+type DiscoveryFamilyReference = { familyId: string; version: number };
+
+export function productionDiscoveryFamily(
+  floors: Pick<ProductionFamilyFloorStore, "activePublications" | "get">,
+  references?: readonly DiscoveryFamilyReference[],
+): DiscoveryFamily | null {
+  const referenced = references?.map((reference) =>
+    eligiblePublication(floors.get(reference.familyId, reference.version))
+  );
+  if (referenced?.some((publication) => !publication)) return null;
+  const publications = referenced
+    ? (referenced as ProductionFamilyPublicationValue[])
+    : floors.activePublications()
+      .sort((a, b) => a.floor.familyId.localeCompare(b.floor.familyId, "en-US"))
+      .slice(0, 1);
+  if (publications.length === 0) return null;
+  const suggestions: string[] = [];
+  const seenSuggestions = new Set<string>();
+  for (const publication of publications) {
+    for (const entries of Object.values(publication.marketSearchTitles)) {
+      for (const entry of entries) {
+        const key = entry.title.trim().toLocaleLowerCase("en-US");
+        if (!key || seenSuggestions.has(key)) continue;
+        seenSuggestions.add(key);
+        suggestions.push(entry.title);
+      }
+    }
+  }
+  const items: FloorItem[] = [];
+  const seenItems = new Set<string>();
+  for (const publication of publications) {
+    for (const item of publication.floor.essentialItems) {
+      if (seenItems.has(item.id)) continue;
+      seenItems.add(item.id);
+      items.push(productionFloorItem(item));
+    }
+  }
+  const primary = publications[0]!;
+  return {
+    label: primary.floor.label,
+    familyId: primary.floor.familyId,
+    items,
+    suggestions,
+  };
 }

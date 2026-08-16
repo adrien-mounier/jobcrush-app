@@ -9,6 +9,7 @@ import type {
   CandidateClaim,
   CardScoreProvenance,
   FamilyPlacement,
+  FloorItem,
   JobCardV1,
   PlacementConfidence,
   ScoredJobCardV1,
@@ -18,7 +19,7 @@ import type { ClaimRecord } from "./claims.js";
 import type { JobBlockView } from "./jobBlockStore.js";
 import type { SessionRecord } from "./sessions.js";
 import { familyPlacementConfidence, hasUnplacedWork } from "./yearsWorked.js";
-import { lookupAdRequirements, loadFamilyFloor } from "./e5stub.js";
+import { lookupAdRequirements } from "./e5stub.js";
 import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
 import { applyEligibilityQuestions, excludingEligibility } from "./eligibilityDiscovery.js";
@@ -47,7 +48,7 @@ import {
   discoveryCvLines,
   discoveryState,
   factCount,
-  resolveFamily,
+  type DiscoveryFamily,
   type DiscoveryCvLine,
 } from "./discovery.js";
 import { resolvedMarketsFor } from "./postingRetrieval.js";
@@ -884,6 +885,7 @@ export function buildTailorState(
   // #222: now the full years-at-scopes resolution, so family-scope bars test the same number here
   // as on the deck (the route applies withYearsShortfall before passing `judgement` in).
   years?: SessionYears,
+  discoveryFloor: readonly FloorItem[] = [],
 ): TailorState {
   const matchPct = Math.max(
     judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
@@ -913,7 +915,7 @@ export function buildTailorState(
   // rebuild for fields tailor can't use). Before Q1 (role null — structurally unreachable in tailor,
   // since reaching it requires discovery's essential band asked, but kept honest) discovery contributes
   // nothing, same as discoveryState's own empty-skeleton branch.
-  const discoveryLines = role ? discoveryCvLines(role, loadFamilyFloor(resolveFamily(role).family).items, confirmed) : [];
+  const discoveryLines = role ? discoveryCvLines(role, discoveryFloor, confirmed) : [];
   const cvLines = [...discoveryLines, ...tailorCvLines(adReq, confirmed)];
 
   return {
@@ -942,6 +944,7 @@ export function hasOpenDiscoveryQuestions(
   rejected: ClaimRecord[],
   facts: readonly EligibilityFact[],
   blocks: readonly JobBlockView[],
+  discoveryFamily: DiscoveryFamily | null,
 ): boolean {
   if (
     session.discovery.questionFloors.length > 0 &&
@@ -951,15 +954,15 @@ export function hasOpenDiscoveryQuestions(
   }
   const role = session.targetTitles[0] ?? null;
   if (!role) return true; // question 1 itself is still open
-  const state = discoveryState(role, confirmed, negatives, rejected, null);
+  const state = discoveryState(role, confirmed, negatives, rejected, null, discoveryFamily);
   applyEligibilityQuestions(
-    role,
     state,
     confirmed,
     negatives,
     rejected,
     facts,
     resolvedMarketsFor(session.intent.searchAreas),
+    discoveryFamily?.items ?? [],
     blocks,
   );
   return state.questions.length > 0;

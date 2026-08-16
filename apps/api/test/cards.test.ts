@@ -6,7 +6,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
 import { hasOpenDiscoveryQuestions, orderCardsForReveal, withReadTimeout, mapWithConcurrency } from "../src/deck.js";
 import { buildServer } from "../src/server.js";
-import { listAdRequirements, loadAdRequirements, loadFamilyFloor } from "../src/e5stub.js";
+import { buildItProjectDeliveryServer } from "./placedServer.js";
+import { listAdRequirements, loadAdRequirements } from "../src/e5stub.js";
 import { loadPostings, type Posting } from "../src/preview.js";
 import { languageEligible } from "../src/language.js";
 import { makeAdReader } from "../src/adReader.js";
@@ -15,7 +16,8 @@ import { readCounters } from "../src/counters.js";
 import type { LlmClient } from "../src/llm.js";
 import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
 import { ANY_FAMILY, type EligibilityFact } from "../src/eligibility.js";
-import { discoveryClaimId, resolveFamily } from "../src/discovery.js";
+import { discoveryClaimId } from "../src/discovery.js";
+import { initialProductionFamilyFloors, productionDiscoveryFamily } from "../src/familyFloors.js";
 import type { ClaimRecord } from "../src/claims.js";
 
 async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<string> {
@@ -34,6 +36,10 @@ const post = (
 
 const ROLE = "IT project manager in Paris";
 const VALID_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
+const DISCOVERY_FAMILY = productionDiscoveryFamily(initialProductionFamilyFloors())!;
+const END_TO_END = "end-to-end-delivery";
+const STAKEHOLDERS = "stakeholder-coordination";
+const RISKS = "risk-dependency-control";
 
 async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string, email: string): Promise<void> {
   const link = await post(app, cookie, "/auth/request-link", { email });
@@ -198,29 +204,29 @@ describe("#19 GET /onboarding/cards", () => {
   });
 
   it("card shape, score-sorted order, and a recorded 'no' surfacing in askedClosed", async () => {
-    const { app } = buildServer();
+    const { app } = buildItProjectDeliveryServer();
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
 
     // Two essential "yes" answers → confirmed facts (fit); one essential "no" → a negative
-    // (askedClosed). This also closes the essential band, flipping the session to "deck" (#18).
+    // (askedClosed).
     await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: "budget-accountability",
-      answer: "Yes, over $1M",
+      itemId: END_TO_END,
+      answer: "Yes",
     });
     await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: "cross-functional-leadership",
-      answer: "Yes, multiple teams",
+      itemId: STAKEHOLDERS,
+      answer: "Business, engineering, and vendors",
     });
     await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: "stakeholder-reporting",
+      itemId: RISKS,
       answer: "No",
     });
 
     const res = await get(app, cookie, "/onboarding/cards");
     expect(res.statusCode).toBe(200);
     const body = res.json() as { stage: string; cards: JobCard[] };
-    // #106: stage no longer flips to deck on the essential band alone — three eligibility questions
+    // #106: stage no longer flips to deck on the essential band alone — eligibility questions
     // are now pending and none were answered here. /onboarding/cards itself is never gated on stage
     // (comment a few lines below, unchanged), so this is a pure echo-of-session-state check.
     expect(body.stage).toBe("discovery");
@@ -267,15 +273,15 @@ describe("#19 GET /onboarding/cards", () => {
 
     // The two "yes" answers are confirmed positives → every card's fit list.
     const fitIds = body.cards[0]!.fit.map((f) => f.id);
-    expect(fitIds).toContain("discovery-budget-accountability");
-    expect(fitIds).toContain("discovery-cross-functional-leadership");
+    expect(fitIds).toContain(discoveryClaimId(END_TO_END));
+    expect(fitIds).toContain(discoveryClaimId(STAKEHOLDERS));
 
     // The recorded "no" shows up in askedClosed on every card — a closed question, not a gap:
     // it's never confirmed (fit) and it's not what dontYet renders (dontYet is the AD's own
     // requirements, not discovery items).
     for (const card of body.cards) {
-      expect(card.askedClosed.map((f) => f.id)).toContain("discovery-stakeholder-reporting");
-      expect(card.fit.map((f) => f.id)).not.toContain("discovery-stakeholder-reporting");
+      expect(card.askedClosed.map((f) => f.id)).toContain(discoveryClaimId(RISKS));
+      expect(card.fit.map((f) => f.id)).not.toContain(discoveryClaimId(RISKS));
     }
   });
 
@@ -311,19 +317,19 @@ describe("#19 GET /onboarding/cards", () => {
   // the scorer and is EXPECTED to move them on purpose — that forced, conscious re-baseline is the
   // point of this test, not a maintenance cost to avoid.
   it("characterization: pins the exact matchPct and breakdown per card for the known fixture deck", async () => {
-    const { app } = buildServer();
+    const { app } = buildItProjectDeliveryServer();
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: "budget-accountability",
-      answer: "Yes, over $1M",
+      itemId: END_TO_END,
+      answer: "Yes",
     });
     await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: "cross-functional-leadership",
-      answer: "Yes, multiple teams",
+      itemId: STAKEHOLDERS,
+      answer: "Business, engineering, and vendors",
     });
     await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: "stakeholder-reporting",
+      itemId: RISKS,
       answer: "No",
     });
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
@@ -332,37 +338,37 @@ describe("#19 GET /onboarding/cards", () => {
     );
     expect(byAdId).toEqual({
       "2026-06-30_schneider-electric_senior-project-manager": {
-        matchPct: 54,
-        breakdown: { essential: { met: 1, total: 3 }, desirable: { met: 1, total: 4 } },
+        matchPct: 32,
+        breakdown: { essential: { met: 1, total: 3 }, desirable: { met: 0, total: 4 } },
       },
       "2026-07-01_transunion_senior-project-manager-6-months-contract": {
-        matchPct: 35,
+        matchPct: 34,
         breakdown: { essential: { met: 0, total: 4 }, desirable: { met: 0, total: 4 } },
       },
       "2026-07-05_computershare-hong-kong_business-readiness-senior-project-manager-9-month-contract": {
-        matchPct: 42,
-        breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 1, total: 5 } },
+        matchPct: 22,
+        breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 5 } },
       },
       // #222: the compound years sentence became two scoped bars (total 8 / family 5), so this ad
       // carries one more desirable requirement than before and the token tick shifts with it.
       "2026-07-05_endava-vietnam_senior-project-manager": {
-        matchPct: 31,
+        matchPct: 24,
         breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 5 } },
       },
       "2026-07-05_hire-feed_project-manager-remote": {
-        matchPct: 49,
+        matchPct: 30,
         breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 4 } },
       },
       "2026-07-05_manulife_senior-it-project-manager-delivery-manager": {
-        matchPct: 33,
+        matchPct: 32,
         breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 5 } },
       },
       "2026-07-05_synpulse_business-analyst-project-manager-wealth-management-data": {
-        matchPct: 26,
+        matchPct: 22,
         breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 5 } },
       },
       "2026-07-09_luvo-talent_senior-project-manager": {
-        matchPct: 26,
+        matchPct: 24,
         breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 4 } },
       },
     });
@@ -372,10 +378,10 @@ describe("#19 GET /onboarding/cards", () => {
   // too — spec #37, "the list of open things only ever shrinks". #23 filtered negatives in the tailor
   // assembly only, deliberately, so #19's deck payload stayed byte-identical while it shipped.
   it("a requirement answered 'no' in Tailor leaves that ad's deck card gaps, and only that ad's", async () => {
-    const { app } = buildServer();
+    const { app } = buildItProjectDeliveryServer();
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    for (const itemId of ["budget-accountability", "cross-functional-leadership", "stakeholder-reporting"]) {
+    for (const itemId of DISCOVERY_FAMILY.items.map((item) => item.id)) {
       await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: "Yes, definitely" });
     }
     await signIn(app, cookie, "tailor-no-hides-gap@example.com"); // the want/tailor routes are post-wall
@@ -1742,31 +1748,39 @@ describe("#235 hasOpenDiscoveryQuestions", () => {
             checkpoint: "family_confirmed",
           },
         }),
-        [], [], [], [], [],
+        [], [], [], [], [], DISCOVERY_FAMILY,
       ),
     ).toBe(true);
   });
 
   it("a fresh role still has its floor and eligibility questions open", () => {
-    expect(hasOpenDiscoveryQuestions(session(), [], [], [], [], [])).toBe(true);
+    expect(hasOpenDiscoveryQuestions(session(), [], [], [], [], [], DISCOVERY_FAMILY)).toBe(true);
   });
 
   it("no role means question 1 itself is open", () => {
     expect(
       hasOpenDiscoveryQuestions(
         session({ targetTitles: [], intent: { targetRole: null, searchAreas: [] } }),
-        [], [], [], [], [],
+        [], [], [], [], [], DISCOVERY_FAMILY,
       ),
     ).toBe(true);
   });
 
   it("with every floor item answered and eligibility closed, nothing is open", () => {
-    const items = loadFamilyFloor(resolveFamily(ROLE).family).items;
+    const items = DISCOVERY_FAMILY.items;
     const confirmed = items.map((item) => answered(item.id));
     const facts: EligibilityFact[] = [
       { dimension: "work-rights", familyId: ANY_FAMILY, value: "yes", label: "Right to work" },
       { dimension: "language", familyId: ANY_FAMILY, value: "English", label: "Languages" },
     ];
-    expect(hasOpenDiscoveryQuestions(session(), confirmed, [], [], facts, [])).toBe(false);
+    expect(hasOpenDiscoveryQuestions(session(), confirmed, [], [], facts, [], DISCOVERY_FAMILY)).toBe(false);
+  });
+
+  it("a floorless plan with eligibility closed has no phantom questions open", () => {
+    const facts: EligibilityFact[] = [
+      { dimension: "work-rights", familyId: ANY_FAMILY, value: "yes", label: "Right to work" },
+      { dimension: "language", familyId: ANY_FAMILY, value: "English", label: "Languages" },
+    ];
+    expect(hasOpenDiscoveryQuestions(session(), [], [], [], facts, [], null)).toBe(false);
   });
 });

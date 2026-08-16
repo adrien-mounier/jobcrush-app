@@ -345,8 +345,8 @@ this file removes it from the active registry immediately**, with no other code 
 `JobCardV1` grows an attribution field (closing the gap) or the flag is reverted. This is #99's own
 "known gap — resolve or record" item, resolved here by recording it, not by building the card field.
 
-Lives at `apps/api/data/posting-providers.json`, zod-validated on load — same pattern as
-`sample-family-floors.json`/`sample-ad-requirements.json` (`e5stub.ts`). It is a new file under `data/`,
+Lives at `apps/api/data/posting-providers.json`, zod-validated on load — same read-and-validate
+pattern as `sample-ad-requirements.json` (`e5stub.ts`) and the production family publications. It is a new file under `data/`,
 so it needs `git add -f` (the directory is gitignored by default; `lessons.md` already documents this
 exact trap from #12's fixtures).
 

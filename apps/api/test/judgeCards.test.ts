@@ -14,7 +14,7 @@
 // would matter if this file ever tried to certify real judgement — it must not, judge.live.test.ts
 // owns that, against HOLD_OUT_REGRESSION_ROWS.
 import { describe, expect, it } from "vitest";
-import type { AdRequirementsV1 } from "@jobcrush/contracts";
+import type { AdRequirementsV1, CandidateClaim } from "@jobcrush/contracts";
 import { buildServer } from "../src/server.js";
 import { loadPostings, type Posting } from "../src/preview.js";
 import { loadAdRequirements } from "../src/e5stub.js";
@@ -43,6 +43,10 @@ async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string
   const token = new URL("http://x" + link.json().devLink).searchParams.get("token")!;
   await post(app, cookie, "/auth/verify", { token });
 }
+async function sessionId(app: ReturnType<typeof buildServer>["app"], cookie: string): Promise<string> {
+  const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+  return me.json().id as string;
+}
 
 interface JobCard {
   adId: string;
@@ -53,6 +57,7 @@ interface JobCard {
 }
 
 const ROLE = "IT project manager in Paris";
+const STAKEHOLDERS = "stakeholder-coordination";
 
 const uncachedEnglishPostings = () =>
   loadPostings()
@@ -622,7 +627,7 @@ describe("#117 AC2: a grown fact set re-purchases only the still-open requiremen
       },
     };
     const store = new InMemoryJudgementStore();
-    const { app } = buildServer({ readAd, judge: makeJudge(llm, store) });
+    const { app, claims } = buildServer({ readAd, judge: makeJudge(llm, store) });
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     await post(app, cookie, "/onboarding/discovery/answer", {
@@ -644,12 +649,24 @@ describe("#117 AC2: a grown fact set re-purchases only the still-open requiremen
     const targetCallsAfterFirst = targetCalls().length;
     expect(targetCallsAfterFirst).toBe(1); // one full call, both requirements
 
-    // A genuinely NEW fact (a different discovery item, not an edit of the reader-role answer) — the
-    // fact set GROWS, it doesn't change.
-    await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: "cross-functional-leadership",
-      answer: "Yes, multiple teams",
-    });
+    // A genuinely NEW fact, standing in for a second discovery answer. This test isolates deck
+    // judgement reuse, so it grows the claim store directly instead of depending on floor selection.
+    await claims.add(await sessionId(app, cookie), {
+      id: discoveryClaimId(STAKEHOLDERS),
+      semantic_key: STAKEHOLDERS,
+      field_key: null,
+      field_value: null,
+      field_label: null,
+      role: "profile",
+      text: "Coordinated business, engineering, and vendors.",
+      machine_touch: "verbatim",
+      classification: "Verified",
+      source_quote: "Business, engineering, and vendors",
+      needs_grill: false,
+      grill_hint: null,
+      decision: "confirmed",
+      origin: "user-authored",
+    } satisfies CandidateClaim);
 
     const second = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     const secondCard = second.cards.find((c) => c.adId === targetPosting.id)!;

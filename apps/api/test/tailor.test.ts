@@ -4,7 +4,7 @@
 // the ledger, done, and drop losing the job but never a claim.
 import { describe, expect, it } from "vitest";
 import type { AdRequirementV1, AdRequirementsV1, CandidateClaim } from "@jobcrush/contracts";
-import { buildServer } from "../src/server.js";
+import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
 import type { ClaimRecord } from "../src/claims.js";
 import { loadAdRequirements } from "../src/e5stub.js";
 import { matchTick } from "../src/matchtick.js";
@@ -308,6 +308,10 @@ async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string
 
 const ROLE = "IT project manager in Paris";
 const VALID_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
+const END_TO_END = "end-to-end-delivery";
+const STAKEHOLDERS = "stakeholder-coordination";
+const RISKS = "risk-dependency-control";
+const COMMUNICATION = "delivery-communication";
 const minedClaimFor = (req: AdRequirementV1): CandidateClaim => ({
   id: `mined-${req.id}`,
   role: "profile",
@@ -319,13 +323,20 @@ const minedClaimFor = (req: AdRequirementV1): CandidateClaim => ({
   grill_hint: null,
 });
 
-/** Discovery (3 essential answers, closing the band) -> deck -> sign in -> want -> tailor. Exact prior
+/** Discovery (production essential answers, closing the band) -> deck -> sign in -> want -> tailor. Exact prior
  *  art: cards.test.ts's own flow, plus discovery.test.ts's known essential item ids. */
 async function reachTailor(app: ReturnType<typeof buildServer>["app"], cookie: string, email: string) {
   await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: "cross-functional-leadership", answer: "Yes, multiple teams" });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" });
+  await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
+  await post(app, cookie, "/onboarding/discovery/answer", {
+    itemId: STAKEHOLDERS,
+    answer: "Business, engineering, and vendors",
+  });
+  await post(app, cookie, "/onboarding/discovery/answer", { itemId: RISKS, answer: "No" });
+  await post(app, cookie, "/onboarding/discovery/answer", {
+    itemId: COMMUNICATION,
+    answer: "Weekly steering updates",
+  });
   await signIn(app, cookie, email);
   await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
 }
@@ -333,9 +344,16 @@ async function reachTailor(app: ReturnType<typeof buildServer>["app"], cookie: s
 async function reachTailorWithSeededDeck(server: ReturnType<typeof buildServer>, cookie: string, email: string) {
   const { app, store } = server;
   await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: "cross-functional-leadership", answer: "Yes, multiple teams" });
-  await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" });
+  await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
+  await post(app, cookie, "/onboarding/discovery/answer", {
+    itemId: STAKEHOLDERS,
+    answer: "Business, engineering, and vendors",
+  });
+  await post(app, cookie, "/onboarding/discovery/answer", { itemId: RISKS, answer: "No" });
+  await post(app, cookie, "/onboarding/discovery/answer", {
+    itemId: COMMUNICATION,
+    answer: "Weekly steering updates",
+  });
   await signIn(app, cookie, email);
 
   const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
@@ -376,7 +394,7 @@ describe("#23 GET /onboarding/tailor", () => {
     expect(Array.isArray(state.cvLines)).toBe(true);
     expect(state.cvLines.some((l: { itemId: string }) => l.itemId === "role")).toBe(true);
     expect(typeof state.factCount).toBe("number");
-    expect(state.factCount).toBeGreaterThanOrEqual(3); // the 3 discovery answers already recorded
+    expect(state.factCount).toBeGreaterThanOrEqual(4); // the 4 discovery answers already recorded
   });
 });
 
@@ -519,20 +537,20 @@ describe("#23 POST /onboarding/tailor/answer", () => {
     const sid = (await get(app, cookie, "/sessions/me")).json().id as string;
 
     // One genuinely new tailor answer, so peak (4) sits strictly above what the post-reject raw count
-    // (3) will be — otherwise a dropped floor on the tailor seam would coincidentally still read 3 and
-    // this test wouldn't catch it (raw alone would already equal a peak of "just the 3 discovery answers").
+    // (4) will be — otherwise a dropped floor on the tailor seam would coincidentally still read 4 and
+    // this test wouldn't catch it (raw alone would already equal a peak of "just the 4 discovery answers").
     const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
     const q = s0.questions[0];
     const afterTailorAnswer = (
       await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" })
     ).json();
-    const peak = afterTailorAnswer.factCount; // 3 discovery answers + this new tailor one
+    const peak = afterTailorAnswer.factCount; // 4 discovery answers + this new tailor one
 
     // Reject one of the discovery claims in the deck — the raw count really does shrink. Assert the
     // reject actually landed on the store (not just a 200 — InMemoryClaimStore.reject is a silent
     // no-op on an unknown id), or a broken claim-id scheme would make this test pass for the wrong
     // reason — exactly the "floor keyed to the wrong thing silently stops firing" failure #31 warned about.
-    const claimId = discoveryClaimId("budget-accountability");
+    const claimId = discoveryClaimId(END_TO_END);
     expect((await claims.confirmed(sid)).map((c) => c.id)).toContain(claimId); // present before...
     const rejectRes = await post(app, cookie, `/onboarding/claims/${claimId}/reject`);
     expect(rejectRes.statusCode).toBe(200);
@@ -553,8 +571,8 @@ describe("#23 POST /onboarding/tailor/answer", () => {
         "POST /onboarding/discovery/answer",
         () =>
           post(app, cookie, "/onboarding/discovery/answer", {
-            itemId: "cross-functional-leadership",
-            answer: "Yes, multiple teams",
+            itemId: STAKEHOLDERS,
+            answer: "Business, engineering, and vendors",
           }).then((r) => r.json()),
       ],
       [

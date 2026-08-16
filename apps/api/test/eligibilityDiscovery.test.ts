@@ -7,6 +7,7 @@
 // #162: the years-experience question is GONE — worked out, never asked (ADR-0008 clause 2). The
 // ADR's own falsifiable check is the first case below.
 import { describe, expect, it } from "vitest";
+import type { FloorItem } from "@jobcrush/contracts";
 import { ANY_FAMILY } from "../src/eligibility.js";
 import {
   DECLINE_OPTION,
@@ -21,12 +22,38 @@ import {
   unresolvedEligibilityQuestions,
 } from "../src/eligibilityDiscovery.js";
 import type { ClaimRecord } from "../src/claims.js";
-import { discoveryClaimId, discoveryState, resolveFamily } from "../src/discovery.js";
-import { loadFamilyFloor } from "../src/e5stub.js";
+import { discoveryClaimId, discoveryState, type DiscoveryFamily } from "../src/discovery.js";
 
 const FAMILY_ID = "it-project-delivery";
 const SCOPE_LABEL = "IT project delivery";
 const ROLE = "IT project manager in Paris";
+
+const floorItem = (over: Partial<FloorItem>): FloorItem => ({
+  id: "x",
+  rankBand: "essential",
+  question: "Have you owned delivery from planning through completion?",
+  options: ["Yes", "No"],
+  cvSection: "experience",
+  noIsFatal: true,
+  ...over,
+});
+
+const INTERLEAVING_FAMILY: DiscoveryFamily = {
+  label: SCOPE_LABEL,
+  familyId: FAMILY_ID,
+  suggestions: [],
+  items: [
+    floorItem({ id: "essential-one" }),
+    floorItem({
+      id: "standard-one",
+      rankBand: "standard",
+      question: "Which delivery method did you use?",
+      options: ["Agile", "Waterfall"],
+      cvSection: "skills",
+      noIsFatal: false,
+    }),
+  ],
+};
 
 describe("#106 eligibilityCandidates", () => {
   const candidates = eligibilityCandidates(ANY_FAMILY, ["Paris"]);
@@ -128,7 +155,7 @@ describe("#106 eligibilityCandidates", () => {
     expect(language.options).toEqual([...languagesUnion(), DECLINE_OPTION]);
   });
 
-  it("certification and degree are never built — both are already asked by the live floor", () => {
+  it("certification and degree are never built — credentials belong to family floors", () => {
     expect(candidates.some((q) => q.eligibility?.dimension === "certification")).toBe(false);
     expect(candidates.some((q) => q.eligibility?.dimension === "degree")).toBe(false);
   });
@@ -344,16 +371,16 @@ describe("#123/#165 languagesUnion / languageDeclarationPlan / isValidLanguageSe
 // questions[0] one at a time with no skip, so putting eligibility last forced a visitor through every
 // standard item to reach the questions that actually gate the deck.
 describe("#106 applyEligibilityQuestions — band interleaving", () => {
-  const floorItems = loadFamilyFloor(resolveFamily(ROLE).family).items;
+  const floorItems = INTERLEAVING_FAMILY.items;
   const standardIds = new Set(floorItems.filter((i) => i.rankBand === "standard").map((i) => i.id));
   const bandOf = (itemId: string) =>
     isEligibilityItemId(itemId) ? "eligibility" : standardIds.has(itemId) ? "standard" : "leading";
 
   it("places every eligibility question after the essential band and before the standard one", () => {
-    const state = discoveryState(ROLE, [], [], [], "Paris");
+    const state = discoveryState(ROLE, [], [], [], "Paris", INTERLEAVING_FAMILY);
     expect(state.questions.some((q) => standardIds.has(q.itemId))).toBe(true); // guard: the fixture has standard items
 
-    applyEligibilityQuestions(ROLE, state, [], [], [], [], ["Paris"]);
+    applyEligibilityQuestions(state, [], [], [], [], ["Paris"], floorItems);
 
     const bands = state.questions.map((q) => bandOf(q.itemId));
     expect(bands).toContain("eligibility");
@@ -364,8 +391,8 @@ describe("#106 applyEligibilityQuestions — band interleaving", () => {
   });
 
   it("keeps the visitor in discovery while any eligibility question is still open", () => {
-    const state = discoveryState(ROLE, [], [], [], "Paris");
-    applyEligibilityQuestions(ROLE, state, [], [], [], [], ["Paris"]);
+    const state = discoveryState(ROLE, [], [], [], "Paris", INTERLEAVING_FAMILY);
+    applyEligibilityQuestions(state, [], [], [], [], ["Paris"], floorItems);
     expect(state.stage).toBe("discovery");
   });
 
@@ -374,18 +401,18 @@ describe("#106 applyEligibilityQuestions — band interleaving", () => {
     // familyId: two of the three dimensions are family-scoped, and a fact stored at a DIFFERENT scope
     // silently resolves nothing (the same mismatch resolveUserYears's doc warns about). Deriving them
     // is also the only way this test stays true if the scope derivation ever changes.
-    const probe = discoveryState(ROLE, [], [], [], "Paris");
-    applyEligibilityQuestions(ROLE, probe, [], [], [], [], ["Paris"]);
+    const probe = discoveryState(ROLE, [], [], [], "Paris", INTERLEAVING_FAMILY);
+    applyEligibilityQuestions(probe, [], [], [], [], ["Paris"], floorItems);
     const facts = probe.questions
       .filter((q) => q.eligibility)
       .map((q) => ({ dimension: q.eligibility!.dimension, familyId: q.eligibility!.familyId }));
     expect(facts).not.toHaveLength(0);
 
-    const resolved = discoveryState(ROLE, [], [], [], "Paris");
+    const resolved = discoveryState(ROLE, [], [], [], "Paris", INTERLEAVING_FAMILY);
     const before = [...resolved.questions];
     const stageBefore = resolved.stage;
 
-    applyEligibilityQuestions(ROLE, resolved, [], [], [], facts, ["Paris"]);
+    applyEligibilityQuestions(resolved, [], [], [], facts, ["Paris"], floorItems);
 
     expect(resolved.questions).toEqual(before);
     expect(resolved.stage).toBe(stageBefore);

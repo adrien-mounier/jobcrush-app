@@ -100,15 +100,12 @@ count deliberately excludes.
 
 - **`years-experience` — ask.** 6/17, the strongest signal in the corpus, and not asked anywhere else
   in the current discovery flow.
-- **`certification` — do not ask.** The live discovery floor (`apps/api/data/sample-family-floors.json`,
-  the `"IT Project Manager"` family the discovery routes actually load) already has a standard-band
-  item for it — `pm-certification`: _"Do you hold a project management certification?"_. Asking again
-  would violate "never twice" regardless of the corpus's own 1/17 count. (The published
-  `it-project-delivery` production floor, `apps/api/research/it-project-delivery-v1.json`, does not ask
-  it — but the LIVE floor does, and that is the one this ticket must not duplicate.)
-- **`degree` — do not ask**, for the identical reason: the live floor already asks
-  `education-related-field` — _"Do you hold a degree in a related field (business, IT, engineering)?"_.
-  The corpus count (4/17) would otherwise have supported asking; the floor already covers it.
+- **`certification` — do not ask here.** #223 retired the old sample floor that asked
+  `pm-certification`; credential questions now belong to the production family-floor vocabulary when a
+  family needs them, not to this cross-floor eligibility layer.
+- **`degree` — do not ask here**, for the identical reason. The corpus count (4/17) can justify a
+  future family-floor question, but this eligibility layer remains limited to facts that apply across
+  floors or markets.
 - **`language` — ask.** 2/17 is the weakest signal kept, but "a dimension nobody asks for is not
   asked" is a zero bar, not a frequency threshold, and CONTEXT.md's own eligibility-fact examples name
   language fluency explicitly. Both postings that raise it name English specifically, so the one

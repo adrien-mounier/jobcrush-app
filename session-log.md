@@ -2,6 +2,36 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 142) `/implement 223` - discovery stub retired (QA GO)
+
+**One discovery engine remains.** The old `resolveFamily()`/constant-family resolver and
+`sample-family-floors.json` hand list are gone. Former consumers now read the production family
+registry through the plan-selected `questionFloors`: discovery start/resume/answer, cards,
+tailor, profile, and the legacy family lookup route. Production floor items are adapted from the
+published family floor registry, preserve explicit plan order, de-duplicate shared items, and keep
+the route under the line-count ratchet at 1058/1058.
+
+**The naming mismatch is closed.** The historical calibration bucket now uses
+`needs_clarification`, matching the contract wording used around the labeler work; the public
+placement contract itself remains the v2 `confirmed`/`unmapped` shape.
+
+**Review fixes before QA:** standards review caught a trust-boundary bug where malformed
+`/onboarding/discovery/answer` payloads could spend a family-placement call before body validation;
+that validation now runs first. Spec review caught a no-floor path where the deck could claim
+`moreQuestions: true` after eligibility was closed even though the production plan had no floor;
+`hasOpenDiscoveryQuestions` now evaluates the real floorless question queue instead. A plan-level
+regression test now proves the adapter uses the selected `questionFloors`, not the first active
+publication.
+
+**Review + QA:** code review findings were fixed and re-run. Independent QA returned GO. Full
+`pnpm test` passed with API 70 files passed / 2 skipped, 1507 tests passed / 11 skipped; contracts
+47/47 passed; turbo 7/7 tasks successful. `pnpm typecheck` passed 7/7 tasks. Browser evidence was
+explicitly judged non-material because #223 is a pure health slice with no intended
+visitor-visible behavior change; the product risk is stale symbols and API wiring, covered by the
+Fastify route tests and full suite. #230 is closed on GitHub as of 2026-08-16T15:22:00Z, so the
+roadmap dependency prose was updated; next implementation pointer is #216 after a live dependency
+check.
+
 ## 2026-08-16 (session 141) `/implement 227` — failed family placements retry outside upload (QA GO)
 
 **A null past-job family placement is no longer stranded until re-upload.** The existing

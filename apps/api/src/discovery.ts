@@ -5,9 +5,6 @@
 //   - composeCvLine / composeRoleLine — cheap, deterministic CV text from an answer (spec §8.2:
 //     "composed cheaply from my answer, polished later" — a later audit pass rewrites; prior art
 //     grill.ts's answerToClaim, which composes claim text locally the same way).
-//   - resolveFamily — the family-placement stub (the real family classifier is a clustering model,
-//     out of scope — spec "the flow uses a hand list stand-in"). Behind a function so E5 can replace
-//     the producer, exactly like e5stub.ts's loadFamilyFloor.
 //   - parseCity — #184 SUBORDINATED, not deleted: discoveryState/the eligibility questions no longer
 //     call it (the ONE location signal is now the resolved search area — routes/onboarding.ts passes
 //     it in, resolved via postingRetrieval.ts's resolveSearchArea over session.intent.searchArea).
@@ -17,7 +14,7 @@
 //     question), so GET /discovery resumes with no client state.
 import type { FloorItem, CvSection, MinedRole, EligibilityDimension } from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
-import { loadFamilyFloor, lookupAdRequirements } from "./e5stub.js";
+import { lookupAdRequirements } from "./e5stub.js";
 import { loadPostings } from "./preview.js";
 
 export const CV_SECTIONS = ["summary", "experience", "skills", "education"] as const;
@@ -29,24 +26,11 @@ export const discoveryClaimId = (itemId: string) => `${DISCOVERY_PREFIX}${itemId
 export const itemIdOf = (claimId: string) => claimId.slice(DISCOVERY_PREFIX.length);
 export const isDiscoveryClaim = (claimId: string) => claimId.startsWith(DISCOVERY_PREFIX);
 
-// --- the E5 family-placement stub (hand stand-in; one family for now, like sample-family-floors.json) ---
-const STUB_FAMILY = "IT Project Manager";
-// #243: the published production family the stub family stands in for. The curated pool's
-// familyFit stamps (sample-ad-requirements.json) now speak the PUBLISHED vocabulary — the reader's
-// closed list — so promiseCount must be asked in that vocabulary too; asking with STUB_FAMILY
-// (a fixture floor name, not a published id) would honestly answer 0. Dies with the stub (#86/E5).
-const STUB_FAMILY_PUBLISHED_ID = "it-project-delivery";
-const KIN_TITLES = [
-  "IT project manager",
-  "programme manager",
-  "delivery manager",
-  "project lead",
-  "PMO lead",
-];
-/** Q1 free text → its job family + the kin titles we search ("same kind of job"). A title that matches
- *  nothing is still placed (spec story #16: accepted in silence) — the stub always returns the family. */
-export function resolveFamily(text: string): { family: string; suggestions: string[] } {
-  return { family: STUB_FAMILY, suggestions: text.trim() ? KIN_TITLES : [] };
+export interface DiscoveryFamily {
+  label: string;
+  familyId: string;
+  items: readonly FloorItem[];
+  suggestions: readonly string[];
 }
 
 /** The visitor's city, regex-guessed from the words after "in" in their typed job title. "…in Paris"
@@ -251,7 +235,7 @@ const asked = (i: FloorItem) => i.rankBand === "essential" || i.rankBand === "st
  *  than re-derived so discoveryState itself doesn't load+parse the family floor twice. */
 export function discoveryCvLines(
   role: string,
-  floor: FloorItem[],
+  floor: readonly FloorItem[],
   confirmed: ClaimRecord[],
 ): DiscoveryCvLine[] {
   const positives = confirmed.filter((c) => isDiscoveryClaim(c.id));
@@ -290,6 +274,7 @@ export function discoveryState(
   negatives: ClaimRecord[],
   rejected: ClaimRecord[] = [],
   resolvedCity: string | null = null,
+  family: DiscoveryFamily | null = null,
 ): DiscoveryState {
   if (!role) {
     return {
@@ -306,9 +291,8 @@ export function discoveryState(
     };
   }
 
-  const { family } = resolveFamily(role);
   const city = resolvedCity;
-  const floor = loadFamilyFloor(family).items;
+  const floor = family?.items ?? [];
   const byId = new Map(floor.map((i) => [i.id, i]));
 
   // An item is answered by a positive, a "no", OR a deck-rejected claim (#35 — all three close it).
@@ -354,9 +338,9 @@ export function discoveryState(
   return {
     stage: essentialRemaining === 0 ? "deck" : "discovery",
     role,
-    family,
+    family: family?.label ?? null,
     city,
-    promise: { family, city, count: promiseCount(STUB_FAMILY_PUBLISHED_ID) },
+    promise: family ? { family: family.label, city, count: promiseCount(family.familyId) } : null,
     questions,
     railFill,
     essentialRemaining,

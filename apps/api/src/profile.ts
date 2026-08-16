@@ -44,9 +44,8 @@ export interface ProfileDomain {
 }
 /** #179: what the profile rail's Job family section draws. Until E5 (#86) places typed roles into
  *  families, `family` is null for EVERYONE — the rail shows the honest empty state (the role as
- *  typed + the "Not the job you meant?" door), never the resolveFamily() stub, which attributes
- *  the same family to every visitor. The stub keeps its internal jobs (floor selection,
- *  eligibility scoping); it must not reach a display again (#179 decision, 2026-08-09).
+ *  typed + the "Not the job you meant?" door), never an internally assumed family. Discovery's
+ *  production floor selection must not become displayed placement truth (#179 decision, 2026-08-09).
  *  When E5 lands, this is the seam that lights up: `family` from placement, `siblingTitles` from
  *  the family record (never containing `role` as typed), and `openJobs` from discovery.ts's
  *  promiseCount(family) — the same producer as the onboarding promise count, per #179's third

@@ -5,27 +5,10 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { FamilyFloor, AdRequirementsV1 } from "@jobcrush/contracts";
+import { AdRequirementsV1 } from "@jobcrush/contracts";
 import { incrementCounter } from "./counters.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-
-let cachedFamilyFloors: FamilyFloor[] | null = null;
-function loadFamilyFloors(): FamilyFloor[] {
-  if (!cachedFamilyFloors) {
-    cachedFamilyFloors = JSON.parse(
-      readFileSync(join(here, "..", "data", "sample-family-floors.json"), "utf8"),
-    ) as FamilyFloor[];
-  }
-  return cachedFamilyFloors;
-}
-
-/** Finds the stubbed floor for `family` and validates it against the FamilyFloor schema. */
-export function loadFamilyFloor(family: string): FamilyFloor {
-  const found = loadFamilyFloors().find((f) => f.family === family);
-  if (!found) throw new Error(`no family floor stubbed for family: ${family}`);
-  return FamilyFloor.parse(found);
-}
 
 let cachedAdRequirements: unknown[] | null = null;
 function loadAllAdRequirements(): unknown[] {

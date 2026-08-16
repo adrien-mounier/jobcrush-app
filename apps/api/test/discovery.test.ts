@@ -4,11 +4,12 @@
 import { describe, expect, it } from "vitest";
 import { newDb } from "pg-mem";
 import type { FloorItem } from "@jobcrush/contracts";
-import { buildServer } from "../src/server.js";
+import { buildItProjectDeliveryServer as buildServer, IT_PROJECT_DELIVERY_PLACEMENT } from "./placedServer.js";
 import type { ClaimRecord } from "../src/claims.js";
 import {
   composeCvLine,
   composeRoleLine,
+  type DiscoveryFamily,
   discoveryClaimId,
   discoveryState,
   factCount,
@@ -16,12 +17,12 @@ import {
   parseCity,
   promiseCount,
   readerQuestion,
-  resolveFamily,
   slug,
   type DiscoveryState,
 } from "../src/discovery.js";
 import { ANY_FAMILY, PgEligibilityStore, type EligibilityStore } from "../src/eligibility.js";
 import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
+import { initialProductionFamilyFloors, productionDiscoveryFamily } from "../src/familyFloors.js";
 
 const item = (over: Partial<FloorItem>): FloorItem => ({
   id: "x",
@@ -32,6 +33,30 @@ const item = (over: Partial<FloorItem>): FloorItem => ({
   noIsFatal: true,
   ...over,
 });
+
+const PURE_DISCOVERY_FAMILY: DiscoveryFamily = {
+  label: "IT project delivery",
+  familyId: "it-project-delivery",
+  suggestions: [],
+  items: [
+    item({ id: "budget-accountability" }),
+    item({ id: "cross-functional-leadership", question: "Have you led a cross-functional or vendor team?" }),
+    item({
+      id: "stakeholder-reporting",
+      question: "Have you reported project status to senior stakeholders or a steering committee?",
+    }),
+    item({
+      id: "budget-employer-dates",
+      rankBand: "standard",
+      question: "Nice — which job was that, and roughly when?",
+      options: [],
+      noIsFatal: false,
+      triggeredBy: "budget-accountability",
+    }),
+  ],
+};
+
+const PRODUCTION_DISCOVERY_FAMILY = productionDiscoveryFamily(initialProductionFamilyFloors())!;
 
 // #18 — a discovery answer ClaimRecord, keyed by discoveryClaimId(itemId) as the routes persist it.
 // Which array (confirmed vs negatives) it's passed in is what discoveryState reads, not `decision`.
@@ -82,10 +107,18 @@ describe("#16 discovery pure helpers", () => {
     expect(parseCity("project manager")).toBeNull();
   });
 
-  it("resolveFamily places any title into the family (silent no-match); empty query → no suggestions", () => {
-    expect(resolveFamily("nurse practitioner").family).toBe("IT Project Manager"); // stub: one family
-    expect(resolveFamily("anything").suggestions.length).toBeGreaterThan(0);
-    expect(resolveFamily("").suggestions).toEqual([]);
+  it("productionDiscoveryFamily reads the active registry family and market titles", () => {
+    expect(PRODUCTION_DISCOVERY_FAMILY).toMatchObject({
+      familyId: "it-project-delivery",
+      label: "IT project delivery",
+    });
+    expect(PRODUCTION_DISCOVERY_FAMILY.items.map((floorItem) => floorItem.id)).toEqual([
+      "end-to-end-delivery",
+      "stakeholder-coordination",
+      "risk-dependency-control",
+      "delivery-communication",
+    ]);
+    expect(PRODUCTION_DISCOVERY_FAMILY.suggestions).toEqual(["project manager", "delivery manager"]);
   });
 
   it("isNoAnswer matches only a bare 'no' — a hedged 'No, but …' asserts a fact and is conserved", () => {
@@ -128,6 +161,9 @@ describe("#16 discovery pure helpers", () => {
       role,
       [discoveryClaim("budget-accountability"), discoveryClaim("cross-functional-leadership")],
       [],
+      [],
+      null,
+      PURE_DISCOVERY_FAMILY,
     );
     expect(partial.stage).toBe("discovery");
     expect(partial.essentialRemaining).toBe(1);
@@ -137,6 +173,9 @@ describe("#16 discovery pure helpers", () => {
       role,
       [discoveryClaim("budget-accountability"), discoveryClaim("cross-functional-leadership")],
       [discoveryClaim("stakeholder-reporting")],
+      [],
+      null,
+      PURE_DISCOVERY_FAMILY,
     );
     expect(done.stage).toBe("deck");
     expect(done.essentialRemaining).toBe(0);
@@ -152,6 +191,8 @@ describe("#16 discovery pure helpers", () => {
       [discoveryClaim("cross-functional-leadership")],
       [],
       [discoveryClaim("budget-accountability")],
+      null,
+      PURE_DISCOVERY_FAMILY,
     );
     expect(rejected.essentialRemaining).toBe(1); // budget-accountability + cross-functional both closed
     expect(rejected.questions.map((q) => q.itemId)).not.toContain("budget-accountability");
@@ -164,13 +205,13 @@ describe("#16 discovery pure helpers", () => {
   // POSITIVELY; a "no" on the trigger leaves it un-surfaced.
   it("a triggered item is excluded from questions/railFill until its trigger is answered POSITIVELY", () => {
     const role = "IT project manager in Paris";
-    const untriggered = discoveryState(role, [], []);
+    const untriggered = discoveryState(role, [], [], [], null, PURE_DISCOVERY_FAMILY);
     expect(untriggered.questions.map((q) => q.itemId)).not.toContain("budget-employer-dates");
 
-    const noOnTrigger = discoveryState(role, [], [discoveryClaim("budget-accountability")]);
+    const noOnTrigger = discoveryState(role, [], [discoveryClaim("budget-accountability")], [], null, PURE_DISCOVERY_FAMILY);
     expect(noOnTrigger.questions.map((q) => q.itemId)).not.toContain("budget-employer-dates");
 
-    const yesOnTrigger = discoveryState(role, [discoveryClaim("budget-accountability")], []);
+    const yesOnTrigger = discoveryState(role, [discoveryClaim("budget-accountability")], [], [], null, PURE_DISCOVERY_FAMILY);
     expect(yesOnTrigger.questions.map((q) => q.itemId)).toContain("budget-employer-dates");
     // Surfaced but unanswered → counts against railFill's denominator, not its numerator.
     const beforeCount = untriggered.railFill.experience;
@@ -212,6 +253,10 @@ async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string
 }
 
 const ROLE = "IT project manager in Paris, mostly ERP";
+const END_TO_END = "end-to-end-delivery";
+const STAKEHOLDERS = "stakeholder-coordination";
+const RISKS = "risk-dependency-control";
+const COMMUNICATION = "delivery-communication";
 
 describe("#16 discovery routes", () => {
   it("GET /onboarding/discovery before Q1 → the empty skeleton, on the anonymous session (no wall)", async () => {
@@ -234,37 +279,44 @@ describe("#16 discovery routes", () => {
     expect(promiseCount("")).toBe(0);
   });
 
-  it("family lookup returns the family + kin titles; an empty query is silent", async () => {
+  it("family lookup returns the active production family + market titles; an empty query is silent", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     const hit = (await get(app, cookie, "/onboarding/discovery/family?q=project%20manager")).json();
-    expect(hit.family).toBe("IT Project Manager");
-    expect(hit.suggestions.length).toBeGreaterThan(0);
+    expect(hit.family).toBe("IT project delivery");
+    expect(hit.suggestions).toEqual(["project manager", "delivery manager"]);
     const empty = (await get(app, cookie, "/onboarding/discovery/family?q=")).json();
     expect(empty.suggestions).toEqual([]);
   });
 
   // #184: city now comes from the confirmed search area, not role text (ROLE names Paris, which
   // isn't even covered) — the intent route is set first, a covered market, to seed it.
-  it("start seeds family/city/promise + the asked floor (essential+standard, no nice-to-have) + the role line", async () => {
+  it("start seeds family/city/promise + the production essential floor + the role line", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
     const s: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
     // #214 owner decision (post-GO follow-up): with up to 3 selected places, the promise sentence
     // no longer names one of them — the display city is always null now.
-    expect(s).toMatchObject({ role: ROLE, family: "IT Project Manager", city: null });
+    expect(s).toMatchObject({ role: ROLE, family: "IT project delivery", city: null });
     // #179: the count is real now — the postings in the live pool (sample-postings.json) whose
     // read-stamped familyFit (sample-ad-requirements.json, joined by adId) names this family.
-    // 10 of the 17 pool postings carry a stamp today, all "IT Project Manager". If this fails
+    // 10 of the 17 pool postings carry a stamp today for the published family. If this fails
     // after a pool/fixture change, recount the join — never hand-tune the number back.
-    expect(s.promise).toMatchObject({ family: "IT Project Manager", city: null, count: 10 });
-    expect(s.essentialRemaining).toBe(3); // 3 essential items in the stub floor
-    expect(s.questions.map((q) => q.itemId)).not.toContain("headline-focus"); // nice-to-have not asked
+    expect(s.promise).toMatchObject({ family: "IT project delivery", city: null, count: 10 });
+    expect(s.essentialRemaining).toBe(4); // 4 essential items in the production floor
+    expect(s.questions.map((q) => q.itemId)).toEqual([
+      END_TO_END,
+      STAKEHOLDERS,
+      RISKS,
+      COMMUNICATION,
+      "eligibility-work-rights-hong-kong",
+      "eligibility-languages",
+    ]);
     // #106 code-review must-fix 2: the eligibility questions are visible from Q1 too, appended
-    // after the 7 floor questions (never withheld until the essential band is covered). #162 removed
+    // after the 4 production floor questions (never withheld until the essential band is covered). #162 removed
     // the years-experience one — worked out, never asked.
-    expect(s.questions).toHaveLength(9); // 3 essential + 4 standard + 2 eligibility
+    expect(s.questions).toHaveLength(6); // 4 essential + 2 eligibility
     expect(s.cvLines[0]).toMatchObject({ itemId: "role", text: "IT project manager in Paris" });
   });
 
@@ -274,14 +326,14 @@ describe("#16 discovery routes", () => {
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     const s: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", {
-        itemId: "budget-accountability",
-        answer: "Yes, over $1M",
+        itemId: END_TO_END,
+        answer: "Yes",
       })
     ).json();
-    expect(s.cvLines.some((l) => l.itemId === "budget-accountability" && /over \$1M/.test(l.text))).toBe(true);
-    expect(s.essentialRemaining).toBe(2); // one essential closed
+    expect(s.cvLines.some((l) => l.itemId === END_TO_END && /Owned delivery/.test(l.text))).toBe(true);
+    expect(s.essentialRemaining).toBe(3); // one essential closed
     expect(s.railFill.experience).toBeGreaterThan(0);
-    expect(s.questions.map((q) => q.itemId)).not.toContain("budget-accountability"); // never re-offered
+    expect(s.questions.map((q) => q.itemId)).not.toContain(END_TO_END); // never re-offered
     expect(s.factCount).toBe(1); // #17/#23: one recorded answer so far
   });
 
@@ -291,18 +343,18 @@ describe("#16 discovery routes", () => {
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     const s: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", {
-        itemId: "stakeholder-reporting",
+        itemId: RISKS,
         answer: "No",
       })
     ).json();
-    expect(s.essentialRemaining).toBe(2); // the "no" still closed it
-    expect(s.cvLines.some((l) => l.itemId === "stakeholder-reporting")).toBe(false); // no line for a "no"
-    expect(s.questions.map((q) => q.itemId)).not.toContain("stakeholder-reporting");
+    expect(s.essentialRemaining).toBe(3); // the "no" still closed it
+    expect(s.cvLines.some((l) => l.itemId === RISKS)).toBe(false); // no line for a "no"
+    expect(s.questions.map((q) => q.itemId)).not.toContain(RISKS);
     // persisted as a negative (the #13 write path), not a confirmed positive:
     const session = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = session.json().id as string;
-    expect((await claims.negatives(sid)).map((c) => c.id)).toContain("discovery-stakeholder-reporting");
-    expect((await claims.confirmed(sid)).map((c) => c.id)).not.toContain("discovery-stakeholder-reporting");
+    expect((await claims.negatives(sid)).map((c) => c.id)).toContain(discoveryClaimId(RISKS));
+    expect((await claims.confirmed(sid)).map((c) => c.id)).not.toContain(discoveryClaimId(RISKS));
   });
 
   it("a hedged 'No, but …' answer is conserved as a CV line — never dropped as a negative (conservation)", async () => {
@@ -311,28 +363,31 @@ describe("#16 discovery routes", () => {
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     const s: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", {
-        itemId: "education-related-field",
+        itemId: COMMUNICATION,
         answer: "No, but a related certification",
       })
     ).json();
     // the qualification is a real fact → a positive CV line in its section, NOT a negative claim.
-    expect(s.cvLines.some((l) => l.itemId === "education-related-field")).toBe(true);
+    expect(s.cvLines.some((l) => l.itemId === COMMUNICATION)).toBe(true);
     const session = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
     const sid = session.json().id as string;
-    expect((await claims.confirmed(sid)).map((c) => c.id)).toContain("discovery-education-related-field");
-    expect((await claims.negatives(sid)).map((c) => c.id)).not.toContain("discovery-education-related-field");
+    expect((await claims.confirmed(sid)).map((c) => c.id)).toContain(discoveryClaimId(COMMUNICATION));
+    expect((await claims.negatives(sid)).map((c) => c.id)).not.toContain(discoveryClaimId(COMMUNICATION));
   });
 
   it("answers persist server-side — a reload (fresh GET) resumes with the lines, not re-derived from the client", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "pm-certification", answer: "PMP" });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: STAKEHOLDERS,
+      answer: "Business, engineering, and vendors",
+    });
 
     const resumed: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
     expect(resumed.role).toBe(ROLE);
-    expect(resumed.cvLines.map((l) => l.itemId)).toEqual(["role", "budget-accountability", "pm-certification"]);
+    expect(resumed.cvLines.map((l) => l.itemId)).toEqual(["role", END_TO_END, STAKEHOLDERS]);
     expect(resumed.essentialRemaining).toBe(2);
   });
 
@@ -341,19 +396,42 @@ describe("#16 discovery routes", () => {
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     expect((await post(app, cookie, "/onboarding/discovery/answer", { itemId: "nope", answer: "x" })).statusCode).toBe(404);
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
     const corrected: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, under $1M" })
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes, under $1M" })
     ).json();
-    expect(corrected.essentialRemaining).toBe(2); // still closed once — not double-counted
-    expect(corrected.cvLines.find((l) => l.itemId === "budget-accountability")?.text).toMatch(/under \$1M/);
+    expect(corrected.essentialRemaining).toBe(3); // still closed once — not double-counted
+    expect(corrected.cvLines.find((l) => l.itemId === END_TO_END)?.text).toMatch(/under \$1M/);
   });
 
   it("answering before Q1 (no role) is a 409, not a write", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
-    const res = await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes" });
+    const res = await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
     expect(res.statusCode).toBe(409);
+  });
+
+  it("rejects malformed answer payloads before family placement", async () => {
+    let placements = 0;
+    const { app } = buildServer({
+      placeFamily: async () => {
+        placements += 1;
+        return IT_PROJECT_DELIVERY_PLACEMENT;
+      },
+    });
+    const cookie = await anonSession(app);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    placements = 0;
+
+    const res = await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: END_TO_END,
+      answer: "Yes",
+      answers: ["Yes"],
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: { code: "invalid_answer" } });
+    expect(placements).toBe(0);
   });
 
   // #18 AC1 — the gate: the last essential item answered flips stage to "deck", and it's PERSISTED
@@ -365,18 +443,22 @@ describe("#16 discovery routes", () => {
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
 
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: STAKEHOLDERS,
+      answer: "Business, engineering, and vendors",
+    });
     const mid: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", {
-        itemId: "cross-functional-leadership",
-        answer: "Yes, one team",
+        itemId: RISKS,
+        answer: "Yes",
       })
     ).json();
     expect(mid.stage).toBe("discovery"); // one essential item still open
 
     // The last essential item — closed by a bare "no" ("not necessarily satisfied", AC1's own wording).
     const last: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" })
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: COMMUNICATION, answer: "No" })
     ).json();
     expect(last.essentialRemaining).toBe(0);
     expect(last.stage).toBe("discovery"); // #106: the eligibility questions are now pending
@@ -401,11 +483,11 @@ describe("#16 discovery routes", () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "risk-register", answer: "No" });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: RISKS, answer: "No" });
 
     const resumed: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
-    expect(resumed.questions.map((q) => q.itemId)).not.toContain("risk-register");
-    expect(resumed.cvLines.some((l) => l.itemId === "risk-register")).toBe(false);
+    expect(resumed.questions.map((q) => q.itemId)).not.toContain(RISKS);
+    expect(resumed.cvLines.some((l) => l.itemId === RISKS)).toBe(false);
   });
 
   // #18 AC4 — correction, both directions: an accidental "no" fixed to a real "yes,…" gains a CV
@@ -415,54 +497,30 @@ describe("#16 discovery routes", () => {
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
 
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "pm-certification", answer: "No" });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: COMMUNICATION, answer: "No" });
     const fixed: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: "pm-certification", answer: "PMP" })
+      await post(app, cookie, "/onboarding/discovery/answer", {
+        itemId: COMMUNICATION,
+        answer: "Reported weekly steering updates",
+      })
     ).json();
-    expect(fixed.cvLines.find((l) => l.itemId === "pm-certification")?.text).toMatch(/PMP/);
+    expect(fixed.cvLines.find((l) => l.itemId === COMMUNICATION)?.text).toMatch(/weekly steering updates/);
 
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "risk-register", answer: "Yes" });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: RISKS, answer: "Yes" });
     const reverted: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: "risk-register", answer: "No" })
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: RISKS, answer: "No" })
     ).json();
-    expect(reverted.cvLines.some((l) => l.itemId === "risk-register")).toBe(false);
+    expect(reverted.cvLines.some((l) => l.itemId === RISKS)).toBe(false);
   });
 
-  // #18 AC5 — the triggered item stays out of `questions` until its trigger is answered POSITIVELY;
-  // a "no" on the trigger does not surface it. Once surfaced and answered, it's a normal CV line.
-  it("a 'no' on the trigger does not surface the triggered item", async () => {
+  it("the route uses the production floor only — no old triggered stub item is surfaced", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
     expect(start.questions.map((q) => q.itemId)).not.toContain("budget-employer-dates");
-
-    const noTrigger: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "No" })
-    ).json();
-    expect(noTrigger.questions.map((q) => q.itemId)).not.toContain("budget-employer-dates");
-  });
-
-  it("a positive on the trigger surfaces the triggered item; answering it lands a CV line and closes it", async () => {
-    const { app } = buildServer();
-    const cookie = await anonSession(app);
-    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-
-    const yesTrigger: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", {
-        itemId: "budget-accountability",
-        answer: "Yes, over $1M",
-      })
-    ).json();
-    expect(yesTrigger.questions.map((q) => q.itemId)).toContain("budget-employer-dates");
-
-    const answered: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", {
-        itemId: "budget-employer-dates",
-        answer: "Acme Corp, around 2021",
-      })
-    ).json();
-    expect(answered.questions.map((q) => q.itemId)).not.toContain("budget-employer-dates");
-    expect(answered.cvLines.find((l) => l.itemId === "budget-employer-dates")?.text).toMatch(/Acme Corp/);
+    expect((await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-employer-dates", answer: "x" })).statusCode).toBe(
+      404,
+    );
   });
 
   // #18 AC6 — the reader-only question: a job with mined roles, owned by this session, gets ONE
@@ -523,13 +581,14 @@ describe("#16 discovery routes", () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
     await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: "cross-functional-leadership",
-      answer: "Yes, multiple teams",
+      itemId: STAKEHOLDERS,
+      answer: "Business, engineering, and vendors",
     });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: RISKS, answer: "No" });
     const before: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" })
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: COMMUNICATION, answer: "No" })
     ).json();
     expect(before.essentialRemaining).toBe(0); // essential band fully asked
     // #106: stage no longer flips to deck on the essential band alone — eligibility is now pending.
@@ -540,53 +599,48 @@ describe("#16 discovery routes", () => {
     await signIn(app, cookie, "reject-reopens@example.com");
     const rejectRes = await app.inject({
       method: "POST",
-      url: `/onboarding/claims/${discoveryClaimId("budget-accountability")}/reject`,
+      url: `/onboarding/claims/${discoveryClaimId(END_TO_END)}/reject`,
       headers: { cookie },
     });
     expect(rejectRes.statusCode).toBe(200);
 
     const after: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
     // AC1: the question does not come back.
-    expect(after.questions.map((q) => q.itemId)).not.toContain("budget-accountability");
+    expect(after.questions.map((q) => q.itemId)).not.toContain(END_TO_END);
     // AC2: railFill for that section never decreases. Pinned to the literal as well as the AC's own
     // >= shape: a bare >= also passes when the value RISES because the denominator shrank (askable
     // losing an item), which is the failure mode the sibling trigger test below exists to catch.
-    expect(railBefore).toBe(0.6);
-    expect(after.railFill.experience).toBe(0.75);
+    expect(railBefore).toBe(1);
+    expect(after.railFill.experience).toBe(1);
     expect(after.railFill.experience).toBeGreaterThanOrEqual(railBefore);
     // AC3: essentialRemaining never increases.
     expect(after.essentialRemaining).toBeLessThanOrEqual(before.essentialRemaining);
   });
 
-  // Review fix (both axes): rejecting a TRIGGER claim must not evict its already-answered follow-up
-  // from railFill's denominator — isTriggered keyed off `positives` alone (pre-fix) loses the trigger
-  // the moment the claim moves out of `confirmed`, and "un-surfacing" an already-answered item shrinks
-  // BOTH numerator and denominator, which can mask a regression behind toBeGreaterThanOrEqual. Pin the
-  // literal value (0.4 both times), not just "not decreased".
-  it("rejecting a trigger claim does not evict its already-answered triggered follow-up from railFill (#35)", async () => {
+  it("rejecting a claim does not evict the answered production item from railFill (#35)", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
     const before: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", {
-        itemId: "budget-employer-dates",
-        answer: "Acme Corp, around 2021",
+        itemId: STAKEHOLDERS,
+        answer: "Business, engineering, and vendors",
       })
     ).json();
-    expect(before.railFill.experience).toBe(0.4); // 2 of 5 askable experience items answered
+    expect(before.railFill.experience).toBe(2 / 3); // 2 of 3 production experience items answered
 
     await signIn(app, cookie, "reject-trigger@example.com");
     const rejectRes = await app.inject({
       method: "POST",
-      url: `/onboarding/claims/${discoveryClaimId("budget-accountability")}/reject`,
+      url: `/onboarding/claims/${discoveryClaimId(END_TO_END)}/reject`,
       headers: { cookie },
     });
     expect(rejectRes.statusCode).toBe(200);
 
     const after: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
-    expect(after.questions.map((q) => q.itemId)).not.toContain("budget-employer-dates"); // still not re-asked
-    expect(after.railFill.experience).toBe(0.4); // unchanged, not just non-decreasing
+    expect(after.questions.map((q) => q.itemId)).not.toContain(END_TO_END); // still not re-asked
+    expect(after.railFill.experience).toBe(2 / 3); // unchanged, not just non-decreasing
   });
 
   // Review fix (Spec axis): the reader-only question (#18 AC6) has its own answered-check independent
@@ -654,21 +708,16 @@ describe("#106 eligibility questions in discovery", () => {
     expect(await eligibility.get(sid, "language")).toBeNull();
   });
 
-  it("appears in questions from Q1, positioned right after the essential band and before the standard one (must-fix 2, corrected in round 3)", async () => {
+  it("appears in questions from Q1, after the production essential band (must-fix 2, corrected in round 3)", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
-    expect(start.essentialRemaining).toBe(3); // essential band completely untouched
-    expect(start.questions).toHaveLength(9); // 3 essential + 2 eligibility + 4 standard (untriggered)
+    expect(start.essentialRemaining).toBe(4); // essential band completely untouched
+    expect(start.questions).toHaveLength(6); // 4 production essentials + 2 eligibility
 
-    // Round 2 put eligibility after the WHOLE floor (essential+standard) — a funnel regression (round
-    // 3): the ask dock renders questions[0] only, so a visitor had to clear the entire standard band
-    // just to REACH the eligibility questions that gate the deck. Round 3's fix: eligibility slots in
-    // between essential and standard, never after standard.
     const eligDimensions = start.questions.map((q) => q.eligibility?.dimension ?? null);
-    expect(eligDimensions.slice(0, 3)).toEqual([null, null, null]); // the 3 essential items
-    expect(eligDimensions.slice(3, 5)).toEqual(["work-rights", "language"]);
-    expect(eligDimensions.slice(5)).toEqual([null, null, null, null]); // the 4 standard items, still last
+    expect(eligDimensions.slice(0, 4)).toEqual([null, null, null, null]); // the 4 essential items
+    expect(eligDimensions.slice(4)).toEqual(["work-rights", "language"]);
   });
 
   // Code-review round 3, the regression QA flagged directly: pins the funnel length so this can't
@@ -685,21 +734,21 @@ describe("#106 eligibility questions in discovery", () => {
     for (const itemId of eligIds) {
       state = (await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: DECLINE_OPTION })).json();
     }
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
     await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: "cross-functional-leadership",
-      answer: "Yes, one team",
+      itemId: END_TO_END,
+      answer: "Yes",
     });
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: STAKEHOLDERS,
+      answer: "Business, engineering, and vendors",
+    });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: RISKS, answer: "No" });
     const last: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" })
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: COMMUNICATION, answer: "No" })
     ).json();
 
-    expect(last.stage).toBe("deck"); // reached with only essential (3) + eligibility (2) = 5 answers
-    // None of the standard band's items were ever answered — they were never required.
-    const standardFloorIds = ["delivery-methodology", "pm-certification", "risk-register", "education-related-field"];
-    for (const itemId of standardFloorIds) {
-      expect(last.cvLines.some((l) => l.itemId === itemId)).toBe(false);
-    }
+    expect(last.stage).toBe("deck"); // reached with only production essentials (4) + eligibility (2) = 6 answers
+    expect(last.questions.map((q) => q.itemId)).not.toContain("budget-employer-dates");
   });
 
   it("does not enter essentialRemaining or railFill — the floor-only meaning is unchanged", async () => {
@@ -712,8 +761,8 @@ describe("#106 eligibility questions in discovery", () => {
     const sid = me.json().id as string;
     const [confirmed, negatives] = await Promise.all([claims.confirmed(sid), claims.negatives(sid)]);
     // Same underlying (empty) floor answers, computed WITHOUT the eligibility layer — must match
-    // exactly: three eligibility questions sitting in `questions` moved nothing.
-    const floorOnly = discoveryState(ROLE, confirmed, negatives, []);
+    // exactly: eligibility questions sitting in `questions` moved nothing.
+    const floorOnly = discoveryState(ROLE, confirmed, negatives, [], null, PRODUCTION_DISCOVERY_FAMILY);
     expect(start.railFill).toEqual(floorOnly.railFill);
     expect(start.essentialRemaining).toBe(floorOnly.essentialRemaining);
   });
@@ -734,17 +783,21 @@ describe("#106 eligibility questions in discovery", () => {
       expect(state.stage).toBe("discovery"); // essential band still fully open
     }
 
-    await post(app, cookie, "/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" });
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: STAKEHOLDERS,
+      answer: "Business, engineering, and vendors",
+    });
     const mid: DiscoveryState = (
       await post(app, cookie, "/onboarding/discovery/answer", {
-        itemId: "cross-functional-leadership",
-        answer: "Yes, one team",
+        itemId: RISKS,
+        answer: "Yes",
       })
     ).json();
     expect(mid.stage).toBe("discovery"); // one essential item still open
 
     const last: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" })
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: COMMUNICATION, answer: "No" })
     ).json();
     expect(last.stage).toBe("deck"); // both bands closed now, whichever order they closed in
   });

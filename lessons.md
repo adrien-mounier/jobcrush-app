@@ -1,5 +1,16 @@
 # Lessons — jobcrush-app
 
+## Reading the registry is not the same as obeying the plan
+
+#223 could have deleted the stub and still been wrong: a caller can read the production family
+registry while quietly falling back to the first active publication instead of the session's
+`questionFloors`. That would pass every single-family fixture and only fail when the plan points at
+a non-first family or at no floor at all.
+
+When a migration replaces a stub with a real registry, pin both facts in tests: **which catalog was
+read** and **which selected reference chose the item order**. Add at least one non-first active
+publication case, and one empty/no-floor case if the production plan allows it.
+
 ## Empty data is not necessarily an empty result
 
 An asynchronous read can return an empty collection while the work that fills it is still running.

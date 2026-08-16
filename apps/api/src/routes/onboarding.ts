@@ -22,15 +22,19 @@ import { buildProfileState, resolveProfileLocation, resolveLanguagesQuestion } f
 import { runGate } from "../gate.js";
 import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
-import { loadFamilyFloor } from "../e5stub.js";
 import { eligiblePostings, sessionPostings, type Posting } from "../preview.js";
 import { ANY_FAMILY, type EligibilityStore } from "../eligibility.js";
 import {
   answerEligibilityItem,
-  applyEligibilityQuestions,
   excludingEligibility,
   isEligibilityItemId,
 } from "../eligibilityDiscovery.js";
+import {
+  buildDiscoveryRouteState,
+  currentDiscoveryFamily,
+  prependReaderQuestionFromJob,
+  productionDiscoveryFamilyLookup,
+} from "../legacyDiscovery.js";
 import { answerJobDateHole, isJobDateItemId } from "../yearsWorked.js";
 import { readingLanguages, languageEligible } from "../language.js";
 import { matchTick } from "../matchtick.js";
@@ -57,13 +61,10 @@ import { findWithdrawingRequirement, partitionByWithdrawal } from "../withdrawal
 import {
   composeCvLine,
   discoveryClaimId,
-  discoveryState,
   factCount,
   freeTextLine,
   isNoAnswer,
   READER_ROLE_ITEM_ID,
-  readerQuestion,
-  resolveFamily,
 } from "../discovery.js";
 import { composeTailorLine, tailorClaimId } from "../tailor.js";
 import { FamilyPlacement } from "@jobcrush/contracts";
@@ -178,6 +179,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       retrievePostings,
       log: app.log,
     });
+    const currentFamily = (session: SessionRecord) =>
+      currentDiscoveryFamily(session, deps.placeFamily, (id) => deps.jobBlocks.list(id), deps.productionFamilyFloors);
 
     const fixtureState = async (
       sessionId: string,
@@ -629,24 +632,12 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const session = requireSession(req);
         const role = session.targetTitles[0] ?? null;
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const state = discoveryState(role, confirmed, negatives, rejected, null);
-
-        const jobId = req.query.job;
+        const family = role ? await currentFamily(session) : null;
+        const state = buildDiscoveryRouteState(role, confirmed, negatives, rejected, facts, session, family, blocks);
         // #35: a deck-rejected reader-role claim still closes the question — same never-re-ask rule
         // discoveryState now applies internally; this check is separate (the reader question isn't a
         // floor item) so it needs its own look at `rejected`.
-        const readerAnswered = [...confirmed, ...rejected].some(
-          (c) => c.id === discoveryClaimId(READER_ROLE_ITEM_ID),
-        );
-        if (jobId && !readerAnswered) {
-          const job = await deps.store.get(jobId);
-          const roles = job && job.sessionId === session.id ? minedRoles(job) : [];
-          if (roles.length > 0) state.questions = [readerQuestion(roles[0]!), ...state.questions];
-        }
-        if (role) applyEligibilityQuestions(role, state, confirmed, negatives, rejected, facts, resolvedMarketsFor(session.intent.searchAreas), blocks);
-        // #106 must-fix 3: a decline is a refusal, not a recorded fact — strip it before it inflates
-        // the profile badge's "pile that only grows".
-        state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
+        await prependReaderQuestionFromJob(state, req.query.job, deps.store, session, confirmed, rejected);
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
@@ -659,7 +650,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       { schema: { querystring: z.object({ q: z.string() }) } },
       async (req) => {
         requireSession(req);
-        return resolveFamily(req.query.q);
+        return productionDiscoveryFamilyLookup(deps.productionFamilyFloors, req.query.q);
       },
     );
 
@@ -671,11 +662,12 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       async (req) => {
         const session = requireSession(req);
         await deps.sessions.setTargetTitles(session.id, [req.body.role]);
+        const intent = await deps.sessions.setIntent(session.id, { targetRole: req.body.role });
         await deps.sessions.setStage(session.id, "discovery");
+        const sessionWithRole = { ...session, intent, targetTitles: [req.body.role] };
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const state = discoveryState(req.body.role, confirmed, negatives, rejected, null);
-        applyEligibilityQuestions(req.body.role, state, confirmed, negatives, rejected, facts, resolvedMarketsFor(session.intent.searchAreas), blocks);
-        state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
+        const family = await currentFamily(sessionWithRole);
+        const state = buildDiscoveryRouteState(req.body.role, confirmed, negatives, rejected, facts, session, family, blocks);
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
@@ -710,7 +702,6 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const role = session.targetTitles[0] ?? null;
         if (!role)
           return reply.status(409).send({ error: { code: "no_role", message: "answer question 1 first" } });
-
         const hasAnswer = req.body.answer !== undefined;
         const hasAnswers = req.body.answers !== undefined;
         if (hasAnswer === hasAnswers) {
@@ -718,6 +709,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
             error: { code: "invalid_answer", message: "exactly one of answer or answers is required" },
           });
         }
+        let family: Awaited<ReturnType<typeof currentFamily>> | undefined;
 
         if (isEligibilityItemId(req.body.itemId)) {
           // #162 (architecture pass): the whole eligibility write path now lives beside the module
@@ -775,15 +767,15 @@ export function onboardingRoutes(deps: OnboardingDeps) {
               grill_hint: null,
             };
           } else {
-            const { family } = resolveFamily(role);
-            const item = loadFamilyFloor(family).items.find((i) => i.id === req.body.itemId);
+            family = await currentFamily(session);
+            const item = family?.items.find((i) => i.id === req.body.itemId);
             if (!item)
               return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
 
             no = isNoAnswer(answer);
             claim = {
               id: discoveryClaimId(item.id),
-              semantic_key: discoveryClaimId(item.id),
+              semantic_key: item.id,
               field_key: null,
               field_value: null,
               field_label: null,
@@ -801,8 +793,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         }
 
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const state = discoveryState(role, confirmed, negatives, rejected, null);
-        applyEligibilityQuestions(role, state, confirmed, negatives, rejected, facts, resolvedMarketsFor(session.intent.searchAreas), blocks);
+        const routeFamily = family === undefined ? await currentFamily(session) : family;
+        const state = buildDiscoveryRouteState(role, confirmed, negatives, rejected, facts, session, routeFamily, blocks);
         // #18 AC1 / #106: the essential band fully asked AND every eligibility question closed flips
         // the session to the deck stage, so a reload lands there too. Code-review must-fix 2: the
         // full set of remaining floor + eligibility items is visible from the very first response
@@ -810,7 +802,6 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         // items are answered — it can no longer jump back up the way withholding eligibility until
         // essentialRemaining hit 0 once did.
         if (state.stage === "deck") await deps.sessions.setStage(session.id, "deck");
-        state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
@@ -843,9 +834,16 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         { confirmed, negatives, facts, years, deckFamilyId, langs },
         deps,
       );
-      // #235: whether any discovery question is genuinely still open — the empty deck's "answer a
-      // few more questions" line may only be shown when one exists (deck.ts owns the rule).
-      const moreQuestions = hasOpenDiscoveryQuestions(session, confirmed, negatives, rejected, facts, blocks);
+      // #235: whether the empty deck may say "answer a few more questions" (deck.ts owns the rule).
+      const moreQuestions = hasOpenDiscoveryQuestions(
+        session,
+        confirmed,
+        negatives,
+        rejected,
+        facts,
+        blocks,
+        await currentFamily(session),
+      );
       // #22: authed tells the client whether the account wall at the reveal applies — false only
       // for a still-anonymous session, so a returning (claimed) visitor is never re-walled.
       return {
@@ -962,7 +960,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // bar untested exactly as the deck card does.
       const years = resolveSessionYears(facts, blocks, await advertFamilyIdFor(session, deps.placeFamily));
       const judgement = withYearsShortfall(rawJudgement, adReq, years);
-      const state = buildTailorState(posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, years);
+      const family = role ? await currentFamily(session) : null;
+      const state = buildTailorState(posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, years, family?.items ?? []);
       state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
       return state;
     });
@@ -1042,7 +1041,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           session.id,
           judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
         );
-        const state = buildTailorState(posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, years);
+        const family = role ? await currentFamily(session) : null;
+        const state = buildTailorState(posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, years, family?.items ?? []);
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },

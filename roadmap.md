@@ -132,14 +132,13 @@ versions, coverage, checkpoint, and open-deck snapshot when a newer version is p
 research is done and closed** (`11edd8b`, `docs/research/empty-result-wording.md`, plus Reed evidence
 screenshot under `screenshots/research-239/`): the recommendation is to replace the bare "Try a
 different job title." with a small `No jobs found` / `No more jobs ... right now` string family, keep
-#228's explicit consent gate, and keep #245's wait state separate. **#232 and #227 are now done; next is #223.**
+#228's explicit consent gate, and keep #245's wait state separate. **#232, #227 and #223 are now done; next is #216.**
 **#116 still owns the broader fill-in problem** — #245 fills an initially empty
-deck after provider retrieval, not an open deck as individual advert reads finish. **#63 is still blocked** — GitHub
-records **three** open dependencies on it: **#216, #134, #230**. ⚠️ **#230 is stale on the tracker**:
-it is a decision ticket, decided 2026-08-15, and everything it produced has shipped (spec #233 →
-#234, #235, #236, plus its step 3 handed to #228). Per the repo's own rule a decision closes by
-hand — **it needs closing before #63's dependency list means anything.** Re-check with `gh api
-repos/adrien-mounier/jobcrush-app/issues/63/dependencies/blocked_by` rather than trusting prose.**_
+deck after provider retrieval, not an open deck as individual advert reads finish. **#63 is still blocked**:
+#230 is closed on GitHub as of 2026-08-16T15:22:00Z, so older text listing it as open is stale. Treat
+the material open blockers as **#216** (the reveal's family floor) and **#134** (classify a job into a
+kind of work), and still re-check `gh api repos/adrien-mounier/jobcrush-app/issues/63/dependencies/blocked_by`
+rather than trusting prose.**_
 
 - **#242 → Fable.** It writes a **real-world claim into a published vocabulary**: "in Hong Kong this
   family is called *project manager*". Drawn wrong, nothing crashes and no test fails — every visitor
@@ -206,10 +205,10 @@ all three: `xhigh` buys tension-holding, and these tickets carry decided rules, 
 | ~~5c.2b~~ | ~~#239~~ | ~~The empty-result wording is ours alone — check "Try a different job title." against what LinkedIn and Tinder actually show at zero results, then propose one family of strings for every dead end~~ **DONE 2026-08-16 (`11edd8b`, closed by hand)** — `docs/research/empty-result-wording.md` cites first-party LinkedIn, Tinder and Reed evidence, maps the four #239 dead ends, and recommends a plain `No jobs found` / `No more jobs ... right now` family of strings; #228's widening remains explicit consent, and #245's "still searching" stays a separate wait state | — | — | — |
 | ~~5c.3~~ | ~~#232~~ | ~~The target role's several families: discovery asks the essential items of each floor~~ **DONE 2026-08-16 (QA GO, `3dfd307`) · ⚠️ NOT ON STAGING (CI run `31953528467` started zero jobs: existing billing/spending-limit blockage)** — plural target placements retain every usable family as an ordered `questionFloor`; production asks the de-duplicated essential union and covers one merged checkpoint, while the first family remains the sole `searchFamily`. If any family is unusable, the plan falls back as one unit. **Owner scope decision:** #223 still owns the legacy standard/triggered engine convergence | — | — | — |
 | ~~5c.4~~ | ~~#227~~ | ~~A failed family placement is only retried by a re-upload~~ **DONE 2026-08-16 (QA GO)** — `labelJobBlocks` is now wired as a best-effort retry on non-upload reads that depend on past-job placements: `/job-blocks`, production discovery evaluation, `/onboarding/cards`, and `/onboarding/cards/fallback`. The existing labeler checkpoint remains the guardrail: null jobs are retried; confirmed, unmapped, and corrected jobs are skipped. Regression tests prove both the no-reupload review read and #228's two-family ranking trap, where the recovered strongest family beats the shorter second-best fallback family | — | — | — |
-| 5d | #223 | Labeler slice 4: the stub retires — one discovery engine. **Unblocked 2026-08-16** — it deleted `resolveFamily()` into a selector that took one family; #234 has now split selection from search | `/implement` | Opus | **high** |
+| ~~5d~~ | ~~#223~~ | ~~Labeler slice 4: the stub retires — one discovery engine~~ **DONE 2026-08-16 (QA GO)** — the `resolveFamily()`/constant-family stub and hand-authored sample floor are gone; former consumers now read the production floor registry and the plan-selected `questionFloors`; internal calibration names `needs_clarification`. Pure health slice: no intended visitor-visible change, full suite green | — | — | — |
 | 6 | #216 | Discovery asks the family floor the reveal is earned from | `/implement` | Opus | high |
 | 6b | #229 | The career changer is scored honestly but told nothing — the "new to this family" sentence | `/implement` | **Fable** | high |
-| 7 | #63 | Real live jobs replace the fixture deck. ~~Waits on #235 (the retrieval gate)~~ ~~still waits on #228~~ ~~⚠️ **NOW BLOCKED ON #240 (2026-08-16)**~~ ✅ **RETRIEVAL GATE CLEARED 2026-08-16 — #240 done (`2d8eb58`). Build against a query that is quoted job-title phrases, one call per region, at a per-call cost measured at ~USD 0.01.** ⚠️ **STILL BLOCKED, and not by retrieval:** GitHub now records **three open dependencies** on #63 — **#216** (the reveal's family floor), **#134** (classify a job into a kind of work), **#230** (an unmapped role gets no adverts — **decided 2026-08-15 and fully shipped; stale on the tracker, needs closing by hand**). ~~#228~~ **cleared 2026-08-16 (`16537fd`): the fallback shipped, and the cost ceiling it fixed is real rather than merely decided — at most one extra provider search per session, one query, on consent only.** "#240 is the ONE gate left" below was only ever true of the retrieval gates; **do not read it as #63 being next** — #228 is. Re-check `gh api repos/adrien-mounier/jobcrush-app/issues/63/dependencies/blocked_by` before picking this up, rather than trusting any prose here — #235 landed and #228's cost ceiling is decided (**at most one extra provider call per session, one search, consent only** — build against that number). ⚠️ **THREE gates now (2026-08-16, after #240's grilling): #242 → #240, and #243 in parallel — #242 DONE (`ad853e7`) and #243 DONE (`5f3c701`), both 2026-08-16; #240 is the ONE gate left.** #240's live probe proved the query is sent **unquoted**, so the provider matches *any word* — `project manager` returns **438** HK adverts where `"project manager"` returns **22**; #63 would have built its drivers on that. **The cost ceiling is now measured, not assumed:** several quoted titles OR together inside **one** call (22+10−1=31), so a family's whole market word list is free — the per-session budget stays at one call per region plus #228's single consented fallback | `/implement` | Opus | high |
+| 7 | #63 | Real live jobs replace the fixture deck. **Still blocked, not by retrieval:** #235/#228/#240/#242/#243/#244 are shipped, #230 is closed (2026-08-16T15:22:00Z), and the remaining material blockers are **#216** (the reveal's family floor) and **#134** (classify a job into a kind of work). The retrieval cost ceiling is measured: quoted job-title phrases, one call per region, ~USD 0.01 per call, plus #228's one consented fallback search. Re-check live GitHub dependencies before implementation | `/implement` | Opus | high |
 | 7b | #218 | Pilot vocabulary-growth: unmapped labels harvested, researched, proposed for approval — **publishes the second family, which is what makes multi-family reachable in production at all** | `/implement` | **Fable** | high |
 | 8 | #64 | The match count survives signup | `/implement` | Opus | medium |
 | 8b | #217 | Industry — the second label axis: closed vocabulary with relatedness, seventh fact, its own labeler | `/to-spec` | Opus | high |
@@ -245,16 +244,13 @@ Two independent causes, both now filed:
   Measured before trusted: 97.6% comparable accuracy on a 60-case owner-arbitrated grid
   (`apps/api/eval/`, bars 95/90/5). ⚠️ Needs `FIREWORKS_API_KEY` on Fly or it falls back, unmeasured,
   to Claude at ~6× the cost — and fails soft, so nothing will tell you.
-- **The shipped screen asks a different floor than the gate checks.** Discovery serves
-  `data/sample-family-floors.json` (`budget-accountability`, `cross-functional-leadership`, …) while
-  the reward gate requires `research/it-project-delivery-v1.json`
-  (`end-to-end-delivery`, `stakeholder-coordination`, `risk-dependency-control`,
-  `delivery-communication`). The sets are **disjoint** — answering every question on screen covers
-  none of the gate's items. Two parallel discovery engines exist and `apps/web` calls the
-  reward-eligible one **zero** times. → **#216** (unblocked by #220). **Still true after #220** — the
-  QA gate re-proved it by capturing what the live discovery screen actually requests. The reward-
-  eligible engine now works; nobody is routed to it. This is the remaining half of "the deck is all
-  fixtures", and `apps/web/e2e/family-placement-journey.mjs` asserts the gap until #216 closes it.
+- ~~**The shipped screen asks a different floor than the gate checks.**~~ **Narrowed by #223; #216
+  still owns reveal reconciliation.** The shipped discovery routes now read the production registry
+  and the plan-selected `questionFloors`, so `data/sample-family-floors.json` is gone. What remains
+  for #216 is the product-path reconciliation #223 deliberately did not claim: as floor items are
+  answered, `session.discovery` must store the floor reference, reach/drop
+  `essential_floor_covered`, and give `/onboarding/cards` the non-null family/checkpoint state #63
+  requires. The reward-eligible engine exists; #216 makes the visitor's path earn that reveal.
 
 **Owner decision 2026-08-14: option A — prerequisites first, and take #134 whole.** Chain wired as
 native GitHub dependencies: **#134 → #216 → #63** (#63 `blocked_by: 2`). I first carved the
@@ -265,8 +261,8 @@ building the whole classifier beats three sessions building thirds of it.
 
 ✅ **All of that is now delivered** (2026-08-15): design pass → **ADR-0014**, spec → **#219**, slices
 → **#220–#223** (rows 5–5d), follow-ups **#217** (industry labeler) and **#218** (vocabulary-growth
-process) filed. **#220, #221, #231 and #232 are done.** The chain to real jobs is now
-**#222 → #223 → #216 → #63** after #230 and #232 shipped, and **#222 is no longer blocked** — #225
+process) filed. **#220, #221, #222, #223, #231 and #232 are done.** The chain to real jobs is now
+**#216 → #63**, with **#134** still a parallel blocker; #230 is closed and **#222 is no longer blocked** — #225
 decided it and #231 built the plural placement it needs. The historical bracket mattered: #232's body said it blocks
 #223, but **#223's own blocked-by list did not carry it** until this was checked (2026-08-15, now
 fixed on the tracker, along with #230/#228 missing from #63's). Left alone, #223 would have read as
@@ -373,13 +369,11 @@ a number a person can curate?"** A recorded *"hand-curation is enough, and here 
 would change that"* is a perfectly good and much cheaper outcome. Sits in Phase 6 (row 44.1); nothing
 in Phase 1 waits on it.
 
-⚠️ **One sequencing note taken 2026-08-15, worth not re-deciding:** #216 is *technically* unblocked
+⚠️ **One sequencing note taken 2026-08-15, now spent:** #216 is *technically* unblocked
 by #220 alone — its own "blocked by" was "a session needs a confirmed placement before it can be
-asked a family's floor", which #220 delivered. It is still ordered **after** #223 on purpose: #216
-and #223 both attack the two-engine problem through the same call site (discovery picks its questions
-via the `resolveFamily()` stub that #223 deletes), so converging the engines before the vocabulary
-behind them is finished means designing against a moving target. With no users on the app, there is
-no harm being paid down by rushing it. Take #216 early only to walk the product yourself.
+asked a family's floor", which #220 delivered. It was deliberately held until #223 removed the
+`resolveFamily()` stub and converged the former consumers on the production registry. That condition
+is now met; take #216 next only after re-checking live GitHub dependencies.
 
 **Two #63 scope answers already given by the owner, valid whichever way the prerequisites land:** the
 `empty_pool` state offers **adjustment only** (no "notify me" — the re-check job it would promise does
@@ -689,7 +683,7 @@ One provider serves all four markets today, with no registry-level fallback (#17
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| ~~40~~ | ~~#134~~ | ~~Classify a job into a kind of work~~ **moved to Phase 1** (rows 5–5d) — designed 2026-08-15, sliced #220–#223, slice 1 done. It stopped being a Phase 6 "next product" the moment it became the thing #216 and #63 wait on | — | — | — |
+| ~~40~~ | ~~#134~~ | ~~Classify a job into a kind of work~~ **moved to Phase 1** (rows 5–5d) — designed 2026-08-15, sliced #220–#223, and those slices are now done. It stopped being a Phase 6 "next product" the moment it became the thing #216 and #63 wait on | — | — | — |
 | 40.1 | #213 | A CV that names no tools yields no skills | `/grilling` | Opus | medium |
 | 41 | #179 | Real job-family data for the profile rail | `/implement` | Opus | medium |
 | 42 | #119 | Ops dashboard: cost per user | `/implement` | Opus | medium |

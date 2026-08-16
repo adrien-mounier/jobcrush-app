@@ -22,18 +22,16 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import type { EligibilityDimension, JobBlockView } from "@jobcrush/contracts";
+import type { EligibilityDimension, FloorItem, JobBlockView } from "@jobcrush/contracts";
 import type { ClaimRecord, ClaimStore } from "./claims.js";
 import {
   discoveryClaimId,
-  resolveFamily,
   isDiscoveryClaim,
   itemIdOf,
   slug,
   type DiscoveryQuestion,
   type DiscoveryState,
 } from "./discovery.js";
-import { loadFamilyFloor } from "./e5stub.js";
 import { ANY_FAMILY, type EligibilityFact, type EligibilityStore } from "./eligibility.js";
 import { isDeclaredValue, LANGUAGE_DECLARED, levelOf, MAX_LANGUAGE_WORD } from "./languageLevel.js";
 import { dateHoleQuestions } from "./yearsWorked.js";
@@ -136,8 +134,9 @@ export const LANGUAGE_ITEM_ID = `${ELIGIBILITY_ITEM_PREFIX}languages`;
 
 // Step 1 derivation (docs/research/eligibility-dimensions-from-the-corpus.md): work-rights (0/17,
 // included as a deliberate, owner-approved deviation — see the doc) and language (2/17) are asked;
-// certification (1/17) and degree (4/17) are excluded because the live discovery floor
-// (sample-family-floors.json) already asks both. Order matches the UI design spec's block order.
+// certification (1/17) and degree (4/17) are excluded because credential questions belong to
+// family floors when a family needs them, not to this cross-floor eligibility layer.
+// Order matches the UI design spec's block order.
 //
 // 🚨 #162 / ADR-0008 clause 2 (the Mei rule) — `years-experience` MUST NEVER APPEAR HERE, for any
 // reason, INCLUDING an unreadable work history. It is a WORKED-OUT value (apps/api/src/yearsWorked.ts
@@ -370,13 +369,13 @@ export function unresolvedEligibilityQuestions(
  *  underneath, asked where the answer it replaces used to be — and ADR-0011 clause 1's "asked now"
  *  channel: the answer moves the total, so it belongs before the deck, not after it. */
 export function applyEligibilityQuestions(
-  role: string,
   state: DiscoveryState,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
   rejected: ClaimRecord[],
   facts: readonly { dimension: EligibilityDimension; familyId: string }[],
   markets: readonly string[],
+  floor: readonly FloorItem[],
   blocks: readonly JobBlockView[] = [],
 ): void {
   // #214: `markets` (the session's resolved covered markets, up to 3) replaces state.city here —
@@ -386,9 +385,8 @@ export function applyEligibilityQuestions(
     ...unresolvedEligibilityQuestions(ANY_FAMILY, markets, confirmed, negatives, rejected, facts),
     ...dateHoleQuestions(blocks),
   ];
-  const { family } = resolveFamily(role);
   const standardIds = new Set(
-    loadFamilyFloor(family).items.filter((i) => i.rankBand === "standard").map((i) => i.id),
+    floor.filter((i) => i.rankBand === "standard").map((i) => i.id),
   );
   const leading = state.questions.filter((q) => !standardIds.has(q.itemId));
   const standard = state.questions.filter((q) => standardIds.has(q.itemId));
