@@ -2,6 +2,29 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 133) `/implement 242` — the family's market words exist (QA GO, `ad853e7`)
+
+**#242 done and closed.** The published family now carries `marketSearchTitles` — per region code
+(HK/SG/VN/AU), the job titles that market actually advertises the family's work under, each with the
+probe measurement that put it on the list (quoted title, one market, advert count, sampled day).
+Filled straight from the measured research: HK/SG/VN say "project manager" (22 / 21 / 13), Australia
+also "delivery manager" (70 + 5). The publish gate now refuses a publication whose served markets
+lack search words — and "served" is the live provider registry (`coveredRegionCodes()`), not a
+hand-typed list: QA proved it by adding a market to a scratch copy's registry and watching boot die
+naming it. TDD at the gate seam (5 new tests, red first); full suite 1461 passed; independent QA GO
+with live boot / boot-refusal probes; no browser surface (nothing visitor-visible until #240 sends
+these words).
+
+- **By design, now recorded in the gate comment:** adding a region to the provider registry refuses
+  API boot until every published family names that market's words — loud, never a quietly empty
+  market.
+- **Residuals for the owner (both flagged by review + QA, neither a defect):** the gate re-checks
+  the word list at every publication but cannot force a re-*measurement* — a freshness rule would be
+  the calendar mechanism decision 4 forbids, so drift protection stays procedural; and no new probe
+  was run — HK/SG/VN carry exactly one title each until someone measures candidates ("scrum master"
+  was never measured in any market).
+- **#240 is unblocked** (#243 was already independent). #63 still waits on both.
+
 ## 2026-08-16 (session 132) `/grilling 240` — the search asks for any word, and 438 adverts come back
 
 **No code. Three tickets, one live probe, one defect found.** #240 said the job family should widen
