@@ -2,6 +2,28 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 133b) `/implement 244` — copied measurements cannot publish (QA GO, `f73c61a`)
+
+**#242's residual 1, closed the same afternoon after the owner corrected the story.** The residual
+said re-measurement was "a human habit"; the owner pointed out the March-2027 publisher is not a
+human — it is **#218's machinery** — so the habit framing was wrong and the protection must be
+mechanical. Two artifacts came out of that correction:
+
+- **#218's body now carries the requirement** (owner-directed, "make sure to write it in the
+  dedicated ticket"): every republication proposal must include freshly re-run provider
+  measurements for the family's market words, and must budget provider calls for it.
+- **#244 filed and built:** the publish gate refuses a new family version unless each served
+  market's newest `measuredOn` is strictly newer than the previous **active** version's. Copied
+  rows keep their dates and cannot publish — the machine that forgot to re-probe cannot ship, by
+  construction. First publications and newly served markets exempt. QA GO: 22/22 adversarial
+  probes; its **mutation check** earned its keep — the previous-active anchor was the one behavior
+  no test pinned (anchoring on v1 would have passed the whole suite), and a three-version test now
+  pins it.
+- **Residuals, both #218's to close:** the gate checks dates *moved*, not that they are *honest* —
+  one freshly measured title launders its market's older rows (as #244 specifies), and a
+  hand-edited date passes. The machinery's own discipline (re-run every title) is where that ends.
+- ⚠️ On `main`, **not on staging** — same CI billing blockage.
+
 ## 2026-08-16 (session 133) `/implement 242` — the family's market words exist (QA GO, `ad853e7`)
 
 **#242 done and closed.** The published family now carries `marketSearchTitles` — per region code
