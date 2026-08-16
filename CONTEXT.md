@@ -125,7 +125,8 @@ confirmed or unmapped — never the nearest family. A confirmed placement names 
 families (a job can genuinely be two kinds of work) and carries an ordinal **placement confidence**.
 Nobody is ever asked to choose between families. It is worked out, stored on the job record as a
 correctable fact, and a correction is never overwritten by a re-read (#134, ADR-0014 + amendment 1).
-_Note_: the target role still holds exactly one family until #232 merges several families' floors.
+For a plural target role, discovery asks the de-duplicated essential items of every usable family
+floor in placement order; the first family remains the single downstream search family (#232).
 _Avoid_: Job label, classification, posting family fit, needs clarification (deleted in #231)
 
 **Placement confidence**:

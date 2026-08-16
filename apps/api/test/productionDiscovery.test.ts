@@ -190,8 +190,8 @@ describe("#61 production discovery HTTP seam", () => {
     );
   });
 
-  // #235: what used to refuse (unmapped, an unknown version, an unpublished family, a plural
-  // placement) now takes the word-search path — one path, three causes. With no dated job records
+  // #235: what used to refuse (unmapped, an unknown version or an unpublished family) now takes the
+  // word-search path. With no dated job records
   // there is nothing to interview on either: the response is the completed empty interview, nothing
   // is pinned, and rewardEligible stays false.
   it.each([
@@ -207,17 +207,6 @@ describe("#61 production discovery HTTP seam", () => {
       outcome: "confirmed",
       families: [{ familyId: "delivery-leadership-example", version: 1 }],
       confidence: "certain",
-    },
-    // #231 — a PLURAL placement never reaches floor selection: a floor is one family's questions,
-    // and picking one of two on the visitor's behalf is the thing ADR-0014 forbids. #232 lifts this.
-    {
-      schemaVersion: "2",
-      outcome: "confirmed",
-      families: [
-        { familyId: "it-project-delivery", version: 1 },
-        { familyId: "product-management", version: 1 },
-      ],
-      confidence: "likely",
     },
   ])("sends non-production placement %# to the word path with an empty interview", async (wordPlacement) => {
     const { app, sessions, cookie, sessionId } = await setup([], "memory", wordPlacement as typeof placement);
@@ -663,6 +652,53 @@ describe("#235 the word-search interview", () => {
       headers: { cookie },
       payload: { itemId, answer: answerText },
     });
+
+  it("merges a plural target's essential floors and covers the checkpoint across their union", async () => {
+    const betaOnly = { ...REAL.floor.essentialItems[1]!, id: "beta-only-item" };
+    const { built, cookie, sessionId } = await wordSetup(
+      catalog(
+        publicationFor("alpha"),
+        publicationFor("beta", [REAL.floor.essentialItems[0]!, betaOnly]),
+      ),
+      async () => ({
+        schemaVersion: "2",
+        outcome: "confirmed",
+        families: [
+          { familyId: "alpha", version: REAL.floor.version },
+          { familyId: "beta", version: REAL.floor.version },
+        ],
+        confidence: "likely",
+      }),
+      [],
+    );
+
+    const started = await evaluate(built.app, cookie);
+    expect(started.statusCode).toBe(200);
+    expect(started.json()).toMatchObject({
+      floor: { familyId: "alpha", version: REAL.floor.version },
+      progress: { complete: 0, remaining: 5 },
+      checkpoint: "family_confirmed",
+    });
+    expect((await built.sessions.getById(sessionId))?.discovery).toMatchObject({
+      questionFloors: [
+        { familyId: "alpha", version: REAL.floor.version },
+        { familyId: "beta", version: REAL.floor.version },
+      ],
+      searchFamily: { familyId: "alpha", version: REAL.floor.version },
+    });
+
+    await answer(built, cookie, ITEM_IDS[0]!, "Yes, across two programmes");
+    for (const itemId of ITEM_IDS.slice(1)) await answer(built, cookie, itemId, "Yes");
+    const completed = await answer(built, cookie, "beta-only-item", "No");
+
+    expect(completed.json()).toMatchObject({
+      progress: { complete: 5, remaining: 0 },
+      checkpoint: "essential_floor_covered",
+    });
+    expect((await built.sessions.getById(sessionId))?.discovery.checkpoint).toBe(
+      "essential_floor_covered",
+    );
+  });
 
   it("asks her CV's floors, de-duplicates items across them, and covers the checkpoint over all of them", async () => {
     const betaOnly = { ...REAL.floor.essentialItems[1]!, id: "beta-only-item" };

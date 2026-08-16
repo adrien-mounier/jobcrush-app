@@ -53,7 +53,7 @@ describe("#231 the QA stack's fake labeler answers in a shape the real labeler a
     expect(calls()).toBe(1);
   });
 
-  it("places a target role first time too — the single-family shape accepts the same answer", async () => {
+  it("places a target role first time too", async () => {
     const { llm, calls } = counting();
     const placement = await placeTargetRole("IT Project Manager", PUBLISHED, llm);
 

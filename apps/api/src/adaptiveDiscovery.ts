@@ -156,15 +156,10 @@ export function questionFloorItem<F extends AdaptiveDiscoveryFloor>(
   return null;
 }
 
-/** The one family a floor can be selected for, or null.
+/** The one confirmed family accepted by legacy single-floor callers, or null.
  *
- *  #231 — a placement now carries one OR MORE families, but floor selection takes exactly one
- *  (`loadFamilyFloor(...)`, and a floor's essential items are what discovery asks). So a plural
- *  placement is refused here rather than silently reduced to its first entry: quietly picking one
- *  would pin a visitor's whole interview to a family nothing chose. This is the mechanical half of
- *  #231's scope boundary — every floor-selection path in the app goes through this function, so
- *  none of them can receive a plural placement. #232 merges the floors of several families and is
- *  where this stops being a constraint. */
+ *  #232's production discovery plan handles plural placements below. Fixture discovery and the
+ *  unpinned legacy deck fallback still require one floor and must never silently pick one. */
 export function soleConfirmedFamily(
   placement: FamilyPlacement,
 ): { familyId: string; version: number } | null {
@@ -184,11 +179,12 @@ const byDescending = (a: number, b: number) => (a === b ? 0 : a > b ? -1 : 1);
  *  dated job records with their own placements, and the published floor registry, and lives here
  *  beside floor selection rather than in a route.
  *
- *  A mapped target role whose family is published and reward-eligible returns that family as both —
- *  every mapped visitor today, unchanged.
+ *  A mapped target role whose families are all published and reward-eligible asks every target
+ *  floor in placement order. Its first family remains the search family, bounding standard and
+ *  triggered follow-ups to the same one-family path as before.
  *
- *  Anything else — unmapped, a placement naming several families (until #232), or a named family
- *  that is not published or not reward-eligible (#235: one path, three causes) — is interviewed on
+ *  Anything else — unmapped, or any named family that is not published or not reward-eligible
+ *  (#235: one fallback path) — is interviewed on
  *  the families her own dated job records prove, at today's ACTIVE published version of each, and
  *  searched on her typed words (`searchFamily: null`, the word search). Zero candidates is a
  *  legitimate outcome, not a failure. */
@@ -197,9 +193,12 @@ export function discoveryPlan(
   blocks: readonly JobBlockView[],
   published: Pick<ProductionFamilyFloorStore, "active" | "get">,
 ): DiscoveryPlan {
-  const target = soleConfirmedFamily(placement);
-  if (target && eligiblePublication(published.get(target.familyId, target.version))) {
-    return { questionFloors: [target], searchFamily: target };
+  const targets = placement.outcome === "confirmed" ? placement.families : [];
+  if (
+    targets.length > 0 &&
+    targets.every((target) => eligiblePublication(published.get(target.familyId, target.version)))
+  ) {
+    return { questionFloors: targets, searchFamily: targets[0]! };
   }
   return {
     questionFloors: cvProvenFloors(blocks, published).slice(0, MAX_QUESTION_FLOORS),

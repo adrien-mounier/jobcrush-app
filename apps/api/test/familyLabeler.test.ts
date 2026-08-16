@@ -142,22 +142,23 @@ describe("#220 placing a target role in a job family", () => {
     expect(readCounters()["familyLabeler.confirmed"]).toBe(1);
   });
 
-  // #231 scope boundary — the target role picks a discovery FLOOR, and a floor takes exactly one
-  // family. Until #232 merges floors, a two-family answer is refused rather than reduced to its
-  // first entry (which would be the machine picking). Delete this test when #232 lands.
-  it("keeps the target role to exactly one family, and never silently picks one of two", async () => {
+  it("keeps every substantial family on a plural target role", async () => {
     const { llm, prompts } = fakeLlm([
       confirmed(["it-project-delivery", "product-management"], "likely"),
     ]);
 
     expect(await placeTargetRole("head of product and delivery", TWO_FAMILIES, llm)).toEqual({
       schemaVersion: "2",
-      outcome: "unmapped",
+      outcome: "confirmed",
+      families: [
+        { familyId: "it-project-delivery", version: 1 },
+        { familyId: "product-management", version: 2 },
+      ],
+      confidence: "likely",
     });
-    expect(prompts[1]).toContain("exactly one family");
-    // …and the prompt it was given never invited two in the first place.
-    expect(prompts[0]).toContain("two or more → unmapped");
-    expect(prompts[0]).not.toContain("naming BOTH");
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain("naming BOTH");
+    expect(readCounters()["familyLabeler.multi_family"]).toBe(1);
   });
 
   it("stays unmapped for a role no family covers, and records it as vocabulary feed", async () => {
@@ -251,10 +252,9 @@ describe("#220 production discovery, with the real labeler wired", () => {
     });
   });
 
-  // #231: a target role the labeler reads as two kinds of work no longer becomes a question — it is
-  // refused, and routed to family research like any other role we cannot place. The named cost of
-  // keeping the target role single until #232 merges the floors, asserted so it is not a surprise.
-  it("never starts discovery on a two-family target role, and pins no floor", async () => {
+  // The labeler accepts both families, but only one has a published production floor in this server.
+  // The plan falls back as a unit rather than silently discarding the unpublished half.
+  it("uses the word path when any family on a plural target has no published floor", async () => {
     const { llm } = fakeLlm([confirmed(["it-project-delivery", "product-management"], "likely")]);
     const built = buildServer({ placeFamily: makeFamilyPlacer(llm, TWO_FAMILIES) });
     const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
@@ -269,8 +269,6 @@ describe("#220 production discovery, with the real labeler wired", () => {
 
     const response = await evaluate(built.app, cookie);
 
-    // #235: a two-family role takes the word path (until #232) — never one family picked for her,
-    // and never a search family pinned.
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ rewardEligible: false, floor: null });
     expect((await built.sessions.getById(sessionId))?.discovery).toMatchObject({

@@ -134,11 +134,31 @@ describe("#234 the discovery plan", () => {
     expect(plan.searchFamily).toBeNull();
   });
 
-  it("treats a plural placement as unmapped until #232 merges several families' floors", () => {
+  it("asks every usable target floor in placement order and follows the first family downstream", () => {
     const plan = discoveryPlan(
       placed(["it-project-delivery", "field-marketing"]),
       [block("b1", ["alpha"], 2015, 2020)],
-      registry(publication("alpha")),
+      registry(
+        publication("it-project-delivery"),
+        publication("field-marketing"),
+        publication("alpha"),
+      ),
+    );
+
+    expect(plan).toEqual({
+      questionFloors: [
+        { familyId: "it-project-delivery", version: 1 },
+        { familyId: "field-marketing", version: 1 },
+      ],
+      searchFamily: { familyId: "it-project-delivery", version: 1 },
+    });
+  });
+
+  it("falls back as one unit when any family in a plural target has no usable floor", () => {
+    const plan = discoveryPlan(
+      placed(["it-project-delivery", "field-marketing"]),
+      [block("b1", ["alpha"], 2015, 2020)],
+      registry(publication("it-project-delivery"), publication("alpha")),
     );
 
     expect(ids(plan)).toEqual(["alpha"]);

@@ -13,8 +13,8 @@
 /** The family this QA stack can actually place into: qa-main runs the REAL production registry, and
  *  it publishes exactly one family. Naming any other id (even a plausible second family) fails the
  *  closed-vocabulary check in familyLabeler.ts and degrades to unmapped — the same silent failure
- *  this module exists to prevent. A live drive that needs a two-family job injects it at the deck
- *  endpoint instead, until #232 publishes a second family. */
+ *  this module exists to prevent. A live drive that needs a two-family placement must inject a
+ *  second published family as well as the answer. */
 export const QA_FAMILY_ID = "it-project-delivery";
 
 /** Reads the role out of a rendered family-labeler prompt. `\s+` rather than `\n\n`:

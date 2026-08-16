@@ -6,10 +6,9 @@ list, so "nearest family" is not a kindness, it is the bug. Every wording change
 re-measured against eval/family-labeler-grid.json (`pnpm --filter @jobcrush/api eval:labeler`) —
 that grid is the gate, not a vibe check.
 
-#231: NOBODY IS ASKED any more. There is no clarification outcome and no panel behind it, so a
-two-kinds-of-work title is ANSWERED with both families rather than handed back as a question. The
-{{CARDINALITY}} block below is the one thing that differs between the two callers: a past job may
-carry several families, the target role must carry exactly one until #232 merges the floors.
+#231 / #232: NOBODY IS ASKED. There is no clarification outcome and no panel behind it, so a
+two-kinds-of-work title or target role is ANSWERED with both families rather than handed back as a
+question.
 
 The model chooses ids and a confidence level only. Versions, display labels and schemaVersion are
 OURS to fill in (familyLabeler.ts assembles the contract answer), the same discipline ad-reader.md

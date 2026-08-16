@@ -91,16 +91,9 @@ function describeFamilies(families: PublishedFamily[]): string {
     .join("\n\n");
 }
 
-/** #231 — the ONE thing that differs between the labeler's two callers. A past job may hold several
- *  families; the target role must hold exactly one, because floor selection takes exactly one
- *  (`loadFamilyFloor(...)`) and #232 is what merges floors and lifts this. Held as prompt text plus
- *  a hard check in assemble() below, not as a truncation: silently keeping the first of two would
- *  be the machine picking, which is the one thing ADR-0014 never allows. */
-export type PlacementShape = "plural" | "single";
-
-const CARDINALITY: Record<PlacementShape, { rule: string; idsExample: string }> = {
-  plural: {
-    rule: `- **exactly one → confirmed**, naming that family.
+/** #231 / #232 — both labeler callers may hold several families. */
+const CARDINALITY = {
+  rule: `- **exactly one → confirmed**, naming that family.
 - **two → confirmed, naming BOTH.** A job can genuinely be two kinds of work, and nobody will be
   asked to choose: name both, and each family counts the work in full. Name a second family ONLY
   when **both parts are substantial** — a real, standing half of the job, not a flavour of the
@@ -109,21 +102,12 @@ const CARDINALITY: Record<PlacementShape, { rule: string; idsExample: string }> 
   manager" — delivery work, done on a product) is ONE family, not two.
 - **more than two → name them all**, but read that as a signal you are counting flavours as jobs:
   go back through step 1 before you answer.`,
-    idsExample: `"<id from the list>","<a second id, ONLY if that second kind of work is substantial>"`,
-  },
-  single: {
-    rule: `- **exactly one → confirmed**, naming that family.
-- **two or more → unmapped.** This role is used to choose the questions we will ask, and that takes
-  a single family today, so a role that is genuinely two kinds of work in equal measure cannot be
-  held yet. Say unmapped rather than pick one — never guess which half was meant.`,
-    idsExample: `"<one id from the list>"`,
-  },
+  idsExample: `"<id from the list>","<a second id, ONLY if that second kind of work is substantial>"`,
 };
 
 export function buildFamilyLabelerInput(
   role: string,
   families: PublishedFamily[],
-  shape: PlacementShape,
 ): string {
   // Function replacers: the substituted text is published data and visitor free text, neither of
   // which this repo controls, and a string replacer would treat "$&"/"$1" in it as a pattern
@@ -131,8 +115,8 @@ export function buildFamilyLabelerInput(
   return familyLabelerPrompt()
     .replace("{{FAMILIES}}", () => describeFamilies(families))
     .replace("{{ROLE}}", () => role.trim())
-    .replace("{{CARDINALITY}}", () => CARDINALITY[shape].rule)
-    .replace("{{IDS_EXAMPLE}}", () => CARDINALITY[shape].idsExample);
+    .replace("{{CARDINALITY}}", () => CARDINALITY.rule)
+    .replace("{{IDS_EXAMPLE}}", () => CARDINALITY.idsExample);
 }
 
 // What the model is asked for — ids and one ordinal. Non-strict on purpose: the prompt asks for a
@@ -155,18 +139,12 @@ export const UNMAPPED: FamilyPlacement = Object.freeze({
 });
 
 /** Turns the model's ids into the contract answer, filling versions from the published list.
- *  Throws (→ one retry, then unmapped) when the model names a family that is not published, or
- *  names more than one where the caller can only hold one: the closed vocabulary and the
- *  single-family constraint are only real if something enforces them outside the prompt. */
+ *  Throws (→ one retry, then unmapped) when the model names a family that is not published. */
 function assemble(
   answer: z.infer<typeof LabelerAnswer>,
   families: PublishedFamily[],
-  shape: PlacementShape,
 ): FamilyPlacement {
   if (answer.outcome === "unmapped") return UNMAPPED;
-  if (shape === "single" && answer.familyIds.length !== 1) {
-    throw new Error("this role must be placed in exactly one family, or left unmapped");
-  }
   return {
     schemaVersion: PLACEMENT_SCHEMA_VERSION,
     outcome: "confirmed",
@@ -222,20 +200,16 @@ export async function placeTargetRole(
   families: PublishedFamily[],
   llm: LlmClient,
 ): Promise<FamilyPlacement> {
-  // #231 scope boundary: SINGLE. A plural target role would reach floor selection, which takes
-  // exactly one family — #232 merges the floors and lifts this.
-  return (await place(role, families, llm, "single")).placement;
+  return (await place(role, families, llm)).placement;
 }
 
-/** #231 — the same call the labeler makes, in its PLURAL shape: a job may be several kinds of work
- *  at once. Exported for the eval grid, which measures the plural labeler because that is the one
- *  a visitor's job records actually go through. */
+/** #231 — exported for the eval grid, which measures the plural labeler. */
 export async function placeJobTitle(
   title: string,
   families: PublishedFamily[],
   llm: LlmClient,
 ): Promise<FamilyPlacement> {
-  return (await place(title, families, llm, "plural")).placement;
+  return (await place(title, families, llm)).placement;
 }
 
 /** placeTargetRole's own body, plus whether the answer was a DEGRADATION rather than a real one.
@@ -246,14 +220,13 @@ async function place(
   role: string,
   families: PublishedFamily[],
   llm: LlmClient,
-  shape: PlacementShape,
 ): Promise<{ placement: FamilyPlacement; degraded: boolean }> {
   // Nothing typed, or no vocabulary published at all: unmapped, with no model call to pay for.
   if (!role.trim() || families.length === 0) return { placement: UNMAPPED, degraded: false };
 
   let lastError = "";
   for (let attempt = 0; attempt < 2; attempt++) {
-    const base = buildFamilyLabelerInput(role, families, shape);
+    const base = buildFamilyLabelerInput(role, families);
     const input =
       attempt === 0
         ? base
@@ -261,7 +234,7 @@ async function place(
     const text = await llm.complete(input);
     try {
       const placement = FamilyPlacement.parse(
-        assemble(LabelerAnswer.parse(extractJson(text)), families, shape),
+        assemble(LabelerAnswer.parse(extractJson(text)), families),
       );
       incrementCounter(
         placement.outcome === "confirmed" ? "familyLabeler.confirmed" : "familyLabeler.unmapped",
@@ -313,7 +286,7 @@ export function makeFamilyPlacer(
     const remembered = answered.get(key);
     if (remembered) return remembered;
     try {
-      const { placement, degraded } = await place(role, families, llm, "single");
+      const { placement, degraded } = await place(role, families, llm);
       // A degraded answer is never remembered — see place()'s own doc.
       if (!degraded) {
         answered.set(key, placement);
@@ -370,7 +343,7 @@ export function makeJobBlockLabeler(
         // The TITLE is what gets placed: it is the block's own statement of what the work was, and
         // it is the field the visitor can already correct if the miner read it wrong.
         // PLURAL (#231): a past job may genuinely be two kinds of work, and nobody is asked which.
-        const { placement, degraded } = await place(block.title.value, families, llm, "plural");
+        const { placement, degraded } = await place(block.title.value, families, llm);
         // A DEGRADED answer is never stored — the same rule makeFamilyPlacer's cache follows, and it
         // matters more here: a stored placement is exactly what stops this block being asked again,
         // so persisting an unmapped the model never actually gave would make one bad minute
