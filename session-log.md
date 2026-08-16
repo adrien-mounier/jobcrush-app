@@ -36,7 +36,11 @@ cap. At techmap's recorded rate USD 10 *is* the entire 1,000-call month.
 
 **Residuals:** AC4's "deck is not empty" is proven at the retrieval result, not the rendered screen
 — no browser-runnable config reaches this code (`qa-main.ts` wires no provider registry at all), so
-the first staging run with the key live is where a person should look. An over-long word inside a
+the first staging run with the key live is where a person should look. **That check is registered in
+`roadmap.md`'s staging banner** ("On the first green `deploy-staging`, a person must LOOK at these"),
+next to #243's `adReader.family_clamped` watch — a residual in a struck-through DONE row is one
+nobody re-reads, and the banner is what gets read the day staging returns. The same pass found the
+banner itself claiming three undeployed slices when there are nine; it now lists all nine. An over-long word inside a
 title is dropped but its neighbours still join (`Senior <41 chars> Manager` → `"Senior Manager"`).
 A degenerate typed role reducing to no titles sends no `title` param and searches the whole country
 — **pre-existing, identical under HEAD**, and it belongs to #63's spend conversation.

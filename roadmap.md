@@ -8,19 +8,46 @@ _Last updated: 2026-08-16_
 > account payments have failed"* — **no payment failed; there is no payment method on the account.**
 >
 > `main` still accepts pushes and `Closes #123` still closes issues, so **the board and the git log
-> read "shipped" while staging does not have the code.** Three feature slices are affected:
+> read "shipped" while staging does not have the code.** **Nine** feature slices are affected — the
+> count grows with every slice finished while this stands, so add a row when you add a DONE:
 >
 > | Slice | On `main` | On staging |
 > |---|---|---|
 > | **#231** a job can be several families (`34bdd3c`) | ✅ | ❌ — pushed with a docs commit, so its CI run is `8a95b42`'s, which was blocked |
 > | **#222** years per family (`0505f6b`) | ✅ | ❌ |
 > | **#234** question floors / search family split (`5b08d7e`) | ✅ | ❌ |
+> | **#235** word-search deck + honest empty state | ✅ | ❌ |
+> | **#236** candidate screen runs on that path (`bd1f3d0`) | ✅ | ❌ |
+> | **#242** a family carries its market's words (`ad853e7`) | ✅ | ❌ |
+> | **#244** re-publication must re-measure those words (`f73c61a`) | ✅ | ❌ |
+> | **#243** the advert's family reaches the deck (`5f3c701`) | ✅ | ❌ |
+> | **#240** the search asks for a job title, not any word (`2d8eb58`) | ✅ | ❌ |
 >
 > **Staging runs the tree at `85cda41`** (`docs(#225)`, the last green `deploy-staging`).
 > **Owner decision, not a fix:** wait for the allowance to reset (date unverified — the token cannot
 > read GitHub's billing endpoint; read it off Billing & plans), or add a payment method and raise the
 > limit above $0, which is when CI stops being free. Diagnosis in `lessons.md` (first entry);
-> tracked as an owner task below. **Delete this banner the day a green `deploy-staging` runs.**
+> tracked as an owner task below.
+>
+> ### 👀 On the first green `deploy-staging`, a person must LOOK at these
+>
+> Each one is a promise a QA gate could only verify up to the edge of what runs locally. They are
+> **not** open defects — they are the parts of finished work that no local configuration can show on
+> a screen. Check them in one sitting the day staging returns, then delete the item.
+>
+> - **#240 — is the deck actually full?** The "her deck is not empty" promise is proven at the
+>   *retrieval result* (10 real postings came back live), never as a rendered deck: no
+>   browser-runnable config reaches this code, because `apps/api/src/qa-main.ts` wires **no posting
+>   provider or registry at all**, and the real stack needs both `TECHMAP_RAPIDAPI_KEY` and durable
+>   Postgres. With the key live on staging, run a search and **look at the deck**. Do it for a target
+>   role the market does not use ("delivery lead", Hong Kong) — that is the case the whole ticket
+>   exists for, and the one with no local proof.
+> - **#243 — watch `adReader.family_clamped` on `/ops/counters`.** The real model has never once been
+>   asked for a family `id`; every test used a fake. If it answers with a label instead of an id,
+>   every read clamps to "none of these" and **family decks empty out**. A rising counter is the tell.
+>
+> **Delete this banner the day a green `deploy-staging` runs** — but carry the two checks above out
+> first, and move any that fail into a real ticket rather than deleting them with the banner.
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
