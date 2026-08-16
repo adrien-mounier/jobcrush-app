@@ -13,7 +13,8 @@ lack search words — and "served" is the live provider registry (`coveredRegion
 hand-typed list: QA proved it by adding a market to a scratch copy's registry and watching boot die
 naming it. TDD at the gate seam (5 new tests, red first); full suite 1461 passed; independent QA GO
 with live boot / boot-refusal probes; no browser surface (nothing visitor-visible until #240 sends
-these words).
+these words). ⚠️ On `main`, **not on staging** — `ad853e7`'s CI run died on the known Actions billing
+blockage (see the roadmap banner), same as every push since `85cda41`.
 
 - **By design, now recorded in the gate comment:** adding a region to the provider registry refuses
   API boot until every published family names that market's words — loud, never a quietly empty
