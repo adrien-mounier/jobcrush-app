@@ -37,7 +37,11 @@ import { fileURLToPath } from "node:url";
 // #243 lowered it from 1110: the deck's card-provenance tally moved to deck.ts
 // (tallyCardProvenance), beside the rest of the card-shaping policy — the family-fit deletion +
 // confidence ranking landed as deck.ts calls and the spine still shrank.
-const MAX_LINES = 1108;
+// #228 lowered it from 1108: the deck's whole card-assembly pass (read → delete wrong-family →
+// withdraw → judge → shape + order) moved to deck.ts (buildDeckCards), beside the card-shaping
+// policy it composes — the widening offer landed as a new endpoint plus one deckFallback.ts call,
+// and the spine shrank by fifty lines.
+const MAX_LINES = 1058;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

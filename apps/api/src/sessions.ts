@@ -129,9 +129,21 @@ export const planUpgradable = (current: DiscoveryPlan, next: DiscoveryPlan): boo
 export const pinnedOrDerived = (stored: DiscoveryPlan, derived: DiscoveryPlan): DiscoveryPlan =>
   stored.searchFamily !== null && derived.searchFamily === null ? stored : derived;
 
+/** #228 (spec #241 decisions 1/7) — the widening the visitor was OFFERED at the dead end and what
+ *  she answered. `declined` is remembered so a reload never re-raises a question she has already
+ *  said no to (the offer stays reachable on the screen instead). `family` is set only by an explicit
+ *  acceptance and is a ONE-WAY LATCH for the session: it names the family the fallback deck is
+ *  searched with, which keeps the retrieval fingerprint stable — so a reload returns the same deck
+ *  and a second acceptance buys no second search. */
+export interface DiscoveryFallback {
+  declined: boolean;
+  family: FamilyReference | null;
+}
+
 export interface ProductionDiscoveryState extends DiscoveryPlan {
   coveredItemIds: string[];
   checkpoint: "family_confirmed" | "essential_floor_covered" | null;
+  fallback: DiscoveryFallback;
 }
 
 export interface RetrievalSnapshot {
@@ -182,7 +194,20 @@ const emptyDiscovery = (): ProductionDiscoveryState => ({
   searchFamily: null,
   coveredItemIds: [],
   checkpoint: null,
+  fallback: { declined: false, family: null },
 });
+
+/** #228: read leniently, unlike its siblings — a row written before the fallback existed simply has
+ *  no offer on it, which is exactly "not offered, not declined". Anything malformed reads the same
+ *  way, so a corrupt value can never pin a session into a family she never accepted. */
+function discoveryFallback(value: unknown): DiscoveryFallback {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { declined: false, family: null };
+  const record = value as Record<string, unknown>;
+  return {
+    declined: record.declined === true,
+    family: record.family == null ? null : familyReference(record.family),
+  };
+}
 
 /** #234: a row written before the split carries `floor` and no plan, so it fails the key check here
  *  and reads as the empty state — which is the whole migration (the product has no live users, so
@@ -228,7 +253,11 @@ function discoveryState(value: unknown): ProductionDiscoveryState {
       ? checkpoint !== null
       : checkpoint === null && (coveredItemIds as string[]).length === 0);
   if (
-    stateKeys.join(",") !== "checkpoint,coveredItemIds,questionFloors,searchFamily" ||
+    // #228: `fallback` is OPTIONAL in this key check — a row written before it existed is a valid
+    // pinned plan with no offer on it, not a corrupt one to be reset (the checked keys are unchanged
+    // for every other field, so a genuinely malformed row still fails closed).
+    stateKeys.filter((key) => key !== "fallback").join(",") !==
+      "checkpoint,coveredItemIds,questionFloors,searchFamily" ||
     !validCheckpoint ||
     !coherent
   ) {
@@ -239,6 +268,7 @@ function discoveryState(value: unknown): ProductionDiscoveryState {
     searchFamily,
     coveredItemIds: coveredItemIds as string[],
     checkpoint: checkpoint as ProductionDiscoveryState["checkpoint"],
+    fallback: discoveryFallback(state.fallback),
   };
 }
 
@@ -345,6 +375,9 @@ export interface SessionStore {
     coveredItemIds: string[],
     complete: boolean,
   ): Promise<ProductionDiscoveryState>;
+  /** #228: record the visitor's answer to the widening offer. Writes what it is given — the one-way
+   *  latch (an accepted family is never re-chosen, never unset) is deckFallback.ts's rule. */
+  setDiscoveryFallback(id: string, fallback: DiscoveryFallback): Promise<ProductionDiscoveryState>;
   resolveImport(id: string, fieldId: string, value: string): Promise<ImportProof>;
   setTailorTarget(id: string, adId: string): Promise<void>;
   /** #23 drop: exit tailor back to the deck, clearing the target. Never touches claims. */
@@ -525,6 +558,9 @@ export class InMemorySessionStore implements SessionStore {
       searchFamily: structuredClone(plan.searchFamily),
       coveredItemIds: [...coveredItemIds],
       checkpoint: complete ? "essential_floor_covered" : "family_confirmed",
+      // #228: the fallback answer is the VISITOR's, not the plan's — re-deriving the plan (she
+      // answers another question) must never quietly undo the widening she asked for.
+      fallback: structuredClone(s.discovery.fallback),
     };
     if (JSON.stringify(discovery) !== JSON.stringify(s.discovery)) {
       s.retrieval = null;
@@ -535,6 +571,14 @@ export class InMemorySessionStore implements SessionStore {
     s.discovery = discovery;
     return structuredClone(s.discovery);
   }
+
+  async setDiscoveryFallback(id: string, fallback: DiscoveryFallback): Promise<ProductionDiscoveryState> {
+    const s = this.byId.get(id);
+    if (!s) throw new Error("session not found");
+    s.discovery = { ...s.discovery, fallback: structuredClone(fallback) };
+    return structuredClone(s.discovery);
+  }
+
   async resolveImport(
     id: string,
     fieldId: string,
@@ -860,6 +904,7 @@ export class PgSessionStore implements SessionStore {
         searchFamily: plan.searchFamily,
         coveredItemIds: [...coveredItemIds],
         checkpoint: complete ? "essential_floor_covered" : "family_confirmed",
+        fallback: current.fallback, // #228: the visitor's own answer survives a plan re-derivation.
       };
       const changed = JSON.stringify(discovery) !== JSON.stringify(current);
       await client.query(
@@ -873,6 +918,30 @@ export class PgSessionStore implements SessionStore {
          WHERE id = $1`,
         [id, JSON.stringify(discovery), changed],
       );
+      await client.query("COMMIT");
+      return discovery;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async setDiscoveryFallback(id: string, fallback: DiscoveryFallback): Promise<ProductionDiscoveryState> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query(
+        "SELECT production_discovery FROM sessions WHERE id = $1 FOR UPDATE",
+        [id],
+      );
+      if (!rows[0]) throw new Error("session not found");
+      const discovery: ProductionDiscoveryState = { ...discoveryState(rows[0].production_discovery), fallback };
+      await client.query("UPDATE sessions SET production_discovery = $2 WHERE id = $1", [
+        id,
+        JSON.stringify(discovery),
+      ]);
       await client.query("COMMIT");
       return discovery;
     } catch (error) {

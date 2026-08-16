@@ -1708,7 +1708,13 @@ describe("#235 hasOpenDiscoveryQuestions", () => {
   ): Parameters<typeof hasOpenDiscoveryQuestions>[0] => ({
     targetTitles: [ROLE],
     intent: { targetRole: ROLE, searchAreas: [] },
-    discovery: { questionFloors: [], searchFamily: null, coveredItemIds: [], checkpoint: null },
+    discovery: {
+      questionFloors: [],
+      searchFamily: null,
+      coveredItemIds: [],
+      checkpoint: null,
+      fallback: { declined: false, family: null },
+    },
     ...over,
   });
   const answered = (itemId: string): ClaimRecord => ({
@@ -1732,6 +1738,7 @@ describe("#235 hasOpenDiscoveryQuestions", () => {
             questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
             searchFamily: null,
             coveredItemIds: [],
+            fallback: { declined: false, family: null },
             checkpoint: "family_confirmed",
           },
         }),

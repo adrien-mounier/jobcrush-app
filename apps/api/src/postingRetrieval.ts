@@ -32,6 +32,11 @@ export interface RetrievalRequest {
    *  the family checks are skipped and the typed target role plus confirmed evidence are the whole
    *  query — the same keyword builder every search already uses. */
   family: { familyId: string; version: number } | null;
+  /** #228 (spec #241 decision 5): this deck is the WIDENING the visitor accepted, so `family` above
+   *  is the family her CV proves rather than her target role's. Everything downstream — providers,
+   *  regions, freshness, negatives, de-duplication — is untouched; only the query words and the
+   *  interview-coverage gate read this (see makePostingRetriever). */
+  fallback: boolean;
   /** #235 (spec #233 decision 5): the floors the interview asks. In the request so the fingerprint
    *  covers the whole discovery plan — a session that gains a search family (or a floor) can never
    *  be served its stale word-search snapshot. */
@@ -48,10 +53,15 @@ export function retrievalRequestForSession(
   confirmed: ReadonlyArray<Pick<ClaimRecord, "id" | "semantic_key" | "field_label">>,
   negatives: ReadonlyArray<Pick<ClaimRecord, "id" | "semantic_key" | "field_label" | "field_value">>,
 ): RetrievalRequest {
+  // #228: an accepted widening replaces the search family for the rest of the session. It is a NEW
+  // fingerprint, which is the whole "exactly one extra search" mechanism: the first read after the
+  // acceptance retrieves once, and every later read reuses that snapshot (spec #241 decision 6).
+  const fallbackFamily = session.discovery.fallback.family;
   return {
     targetRole: session.intent.targetRole,
     searchAreas: session.intent.searchAreas.map((entry) => entry.text),
-    family: session.discovery.searchFamily,
+    family: fallbackFamily ?? session.discovery.searchFamily,
+    fallback: fallbackFamily !== null,
     questionFloors: session.discovery.questionFloors,
     checkpoint: session.discovery.checkpoint,
     confirmedEvidence: confirmed
@@ -426,6 +436,7 @@ export function retrievalFingerprint(input: RetrievalRequest): string {
         targetRole: input.targetRole,
         searchAreas: input.searchAreas,
         family: input.family,
+        fallback: input.fallback,
         questionFloors: input.questionFloors,
         checkpoint: input.checkpoint,
         confirmedEvidence: input.confirmedEvidence,
@@ -627,8 +638,11 @@ export function makePostingRetriever(
     // #235 (spec #233 decision 6): the coverage checkpoint spans the question floors, and an EMPTY
     // floor list is covered by definition — a visitor with no usable job history reaches retrieval
     // once her intent is stated. Every plan with anything to ask still gates exactly as today.
+    // #228: a fallback family is NOT the family she was interviewed on, so it cannot be gated on a
+    // checkpoint for it — the offer is only ever made where no question is left to ask, and her own
+    // question floors (if she has any) are still gated exactly as before.
     if (
-      (input.family !== null || input.questionFloors.length > 0) &&
+      ((input.family !== null && !input.fallback) || input.questionFloors.length > 0) &&
       input.checkpoint !== "essential_floor_covered"
     ) {
       return invalid("floor_not_covered");
@@ -664,9 +678,13 @@ export function makePostingRetriever(
     // Unconditional: no "only if her title is rare" branch. Confirmed evidence is deliberately
     // ABSENT — under the old any-word matching every label widened the net; her facts decide the
     // SCORE (deck.ts), never the catch.
+    // #228: on a FALLBACK deck her typed role leads nothing — those words are the ones that just ran
+    // out, and an advert they caught would be deleted on arrival anyway (deck.ts compares every card
+    // to the family THIS deck was searched for). The fallback family's own market titles are the
+    // whole query; a published family always has titles for every served market (familyFloors.ts).
     const titlesFor = (regionCode: string): string[] =>
       boundedTitles([
-        input.targetRole ?? "",
+        ...(input.fallback ? [] : [input.targetRole ?? ""]),
         ...(publication?.marketSearchTitles[regionCode] ?? []).map((entry) => entry.title),
       ]);
     const negatives = negativeTerms(input);

@@ -1,7 +1,7 @@
 import type { FamilyFloorV1, FamilyPlacement, JobBlockView } from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
 import { eligiblePublication, type ProductionFamilyFloorStore } from "./familyFloors.js";
-import type { DiscoveryPlan } from "./sessions.js";
+import type { DiscoveryPlan, FamilyReference } from "./sessions.js";
 import { computeFamilyRecency, computeFamilyYears } from "./yearsWorked.js";
 
 type AdaptiveDiscoveryFloor = Pick<
@@ -201,13 +201,28 @@ export function discoveryPlan(
   if (target && eligiblePublication(published.get(target.familyId, target.version))) {
     return { questionFloors: [target], searchFamily: target };
   }
+  return {
+    questionFloors: cvProvenFloors(blocks, published).slice(0, MAX_QUESTION_FLOORS),
+    searchFamily: null,
+  };
+}
 
-  // Both maps are keyed by the families her COUNTING job records are confirmed into — a job
-  // carrying two families counts fully toward each (ADR-0014 amendment 1 decision 4), so the years
-  // read here are the same per-family numbers every other surface reads.
+/** #228 (spec #241 decision 4) — the families the visitor's own dated job records PROVE, at today's
+ *  active published version of each, strongest first: by years, then recency, then id. Extracted
+ *  from discoveryPlan (which takes its first MAX_QUESTION_FLOORS as the interview) so the fallback
+ *  deck can take the first WITHOUT a second ranking rule: a career changer's interview is her TARGET
+ *  family, so her CV's families are nowhere in her stored plan and cannot be read back off it.
+ *
+ *  Both maps are keyed by the families her COUNTING job records are confirmed into — a job carrying
+ *  two families counts fully toward each (ADR-0014 amendment 1 decision 4), so the years read here
+ *  are the same per-family numbers every other surface reads. */
+export function cvProvenFloors(
+  blocks: readonly JobBlockView[],
+  published: Pick<ProductionFamilyFloorStore, "active">,
+): FamilyReference[] {
   const years = computeFamilyYears(blocks);
   const recency = computeFamilyRecency(blocks);
-  const questionFloors = [...years.keys()]
+  return [...years.keys()]
     .flatMap((familyId) => {
       const publication = eligiblePublication(published.active(familyId));
       return publication ? [{ familyId, version: publication.floor.version }] : [];
@@ -217,7 +232,19 @@ export function discoveryPlan(
         byDescending(years.get(a.familyId)!, years.get(b.familyId)!) ||
         byDescending(recency.get(a.familyId) ?? -Infinity, recency.get(b.familyId) ?? -Infinity) ||
         a.familyId.localeCompare(b.familyId, "en-US"),
-    )
-    .slice(0, MAX_QUESTION_FLOORS);
-  return { questionFloors, searchFamily: null };
+    );
+}
+
+/** #228 — the ONE family a fallback deck is searched with, or null when there is nothing to offer
+ *  (spec #241 decision 2's last clause: no eligible family, no offer). Her strongest CV family,
+ *  EXCEPT the one the deck already searched — offering to re-run the search she just exhausted
+ *  would spend a provider call to return the deck she has already seen. */
+export function fallbackFamilyFor(
+  blocks: readonly JobBlockView[],
+  published: Pick<ProductionFamilyFloorStore, "active">,
+  searched: FamilyReference | null,
+): FamilyReference | null {
+  return (
+    cvProvenFloors(blocks, published).find((floor) => floor.familyId !== searched?.familyId) ?? null
+  );
 }

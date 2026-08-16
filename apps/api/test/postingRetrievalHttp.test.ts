@@ -269,6 +269,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       targetRole: "Programme Manager",
       searchAreas: ["Hong Kong"],
       family: { familyId: "it-project-delivery", version: 1 },
+      fallback: false,
       questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
       checkpoint: "essential_floor_covered",
       confirmedEvidence: [

@@ -64,7 +64,10 @@ const C18 = "Leave it as is";
 const C19 = "That's all I need to ask.";
 const C20 = "Now I'll line these jobs up against everything you told me.";
 const C21 = "Changing your answer.";
-const C22 = "I scored the three closest — tell me more and I'll widen the net";
+// #228 (spec #241 decision 13): answering changes how her jobs SCORE and sort, never how many there
+// are — the deck only sends her here while a question genuinely remains, and this says what that is
+// worth without promising adverts it cannot produce.
+const C22 = "I scored the three closest — tell me more and I'll score them better";
 // #106: eligibility questions at the tail of the floor loop (design spec §2 "Shared") — the
 // confirmation pair and the fix-button label for a declined answer. C16 ("Fix that?") is reused for
 // a real answer's fix button, unchanged.

@@ -38,22 +38,18 @@ import { judgedMatchTick } from "../judgedScore.js";
 import type { JudgeFn, JudgePeekFn } from "../judge.js";
 import {
   advertFamilyIdFor,
+  buildDeckCards,
   buildJobCard,
   buildTailorState,
-  CARD_RESOLUTION_CONCURRENCY,
   claimTier,
   hasOpenDiscoveryQuestions,
-  judgeDeck,
-  mapWithConcurrency,
-  orderCardsForReveal,
-  partitionByFamilyFit,
   resolveAdRequirements,
   resolveJudgement,
   resolveSessionYears,
   tailorTarget,
-  tallyCardProvenance,
   withYearsShortfall,
 } from "../deck.js";
+import { applyFallbackChoice, fallbackOffer } from "../deckFallback.js";
 import { makeRetrievalCoordinator } from "../deckRetrieval.js";
 import { answerLanguageLevel, LanguageLevelBody, withLanguageLevelAsks } from "../languageLevel.js";
 import { findWithdrawingRequirement, partitionByWithdrawal } from "../withdrawal.js";
@@ -842,85 +838,18 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       const years = resolveSessionYears(facts, blocks, deckFamilyId);
       const langs = readingLanguages(session);
       const postings = eligiblePostings(langs, sessionPostings(session, requestFingerprint));
-      // #104: every eligible posting gets a requirement set now, not only the hand-curated ones —
-      // resolveAdRequirements is fixture-first, reader-second, so the demo-8-cards-to-16 growth is
-      // exactly this loop widening from "the fixture set" to "every posting the session can read".
-      // #105 review finding 5: unlike the ad-read cache (shared across every session that sees a
-      // given advert — one visitor's read warms the cache for the next), the judgement cache is keyed
-      // per-SESSION fact set and never warms across users. An uncapped Promise.all here turns "N
-      // concurrent visitors load the deck" into N × pool-size simultaneous model calls, and the
-      // failure mode is what makes this worth capping now rather than at the live-retrieval ticket: a
-      // rate-limit storm makes judging fail, which silently falls back to the deterministic tick,
-      // exactly under the load where the honest number matters most. mapWithConcurrency below is a
-      // small local limiter, not a redesign — it still resolves every posting, just not all at once.
-      //
-      // #105 review round 4: that same concurrency cap creates WAVES (15 postings at a cap of 6 is
-      // three), and each wave used to get its own fresh READ_TIMEOUT_MS allowance for judging — worst
-      // case, wave-count × READ_TIMEOUT_MS, comfortably over the web proxy's 30s deadline, and getting
-      // WORSE as the pool grows. judgeDeadline (computed below, AFTER the free peek phase — #117
-      // must-fix C) is a single wall-clock budget for the PAID judging phase, passed to every
-      // resolveJudgement call — see DECK_JUDGE_BUDGET_MS's own comment for the number and why. Ad
-      // reads keep their own unchanged per-call READ_TIMEOUT_MS (they warm across every session that
-      // sees a given advert, so a cold read is the rare case this fix isn't targeting, not the
-      // routine one judging's per-session cache guarantees on every new visitor).
-      // Phase 1, unchanged from before #117: resolve EVERY eligible posting's OWN requirements.
-      // Reading an advert is shared across every visitor who ever sees it (adRequirementsStore's own
-      // cache), so there is no cost reason to bound THIS step — only the per-session judging step
-      // below is capped.
-      const resolvedReqs = await mapWithConcurrency(postings, CARD_RESOLUTION_CONCURRENCY, async (posting) => {
-        const adReq = await resolveAdRequirements(posting.id, deps.readAd, posting);
-        // Same dual gate as before #104: the posting's own language (already true via
-        // eligiblePostings) AND, separately, the requirement set's OWN stated language (#103 code
-        // review finding 5) — unchanged by widening the source from "fixtures only" to
-        // "fixture or freshly read".
-        if (!adReq || !languageEligible(adReq.language, langs)) return null;
-        return { posting, adReq };
-      });
-      const candidates = resolvedReqs.filter(
-        (entry): entry is { posting: Posting; adReq: AdRequirementsV1 } => entry !== null,
+      // deck.ts's buildDeckCards: read → delete wrong-family → withdraw → judge within the paid
+      // bound → shape + order. See its own doc (and judgeDeck's) for the spend-bound properties.
+      const { cards, pendingCount, withdrawn } = await buildDeckCards(
+        postings,
+        { confirmed, negatives, facts, years, deckFamilyId, langs },
+        deps,
       );
-
-      // #243 — a wrong-family advert leaves the deck here, before withdrawal, ranking or judging
-      // spend a thing on it (deck.ts's partitionByFamilyFit owns the rule + the deleted count).
-      const { kept } = partitionByFamilyFit(candidates, deckFamilyId);
-
-      // #107 (E5 slice 6, D3/D4) — withdraw a posting from THIS session's deck BEFORE it costs
-      // anything: before ranking, the free peek, or a paid judging attempt ever sees it. The rule and
-      // its per-language tally live in withdrawal.ts (partitionByWithdrawal); this is the one call.
-      const { open: openCandidates, withdrawn } = partitionByWithdrawal(kept, facts);
-
-      // deck.ts's judgeDeck: peek → rank → bound → budget → resolve, the whole paid-judging pass —
-      // see its own doc for #117 must-fix A/1/C/2 and the spend-bound properties it carries.
-      const { entries: resolved, judgeWired } = await judgeDeck(openCandidates, confirmed, deps);
-      const cardCandidates = resolved.map((entry) => ({
-        card: buildJobCard(
-          entry.posting,
-          entry.adReq,
-          confirmed,
-          negatives,
-          // #107 (D5): the years-experience shortfall, applied at read time — see withYearsShortfall's
-          // own doc. A no-op pass-through when there's no judgement or the visitor's years were never
-          // asked, so every pre-#107 case is byte-for-byte unchanged.
-          withYearsShortfall(entry.judgement, entry.adReq, years),
-          // #117 must-fix 2: a real paid attempt that missed the budget is `pending` (genuinely in
-          // flight, will self-heal into the store); one the bound never attempted at all is
-          // `unscored` (nothing coming unless a later request's own bound selects it).
-          !judgeWired ? "estimated" : entry.attempted ? "pending" : "unscored",
-          years, // #162 AC6 untested-bar display + #222 confidence attenuation, both inside buildJobCard
-        ),
-        curated: entry.adReq.curated,
-        // #243 decision 2: on a family deck, a weak family-fit confidence sinks the card's RANK.
-        ...(deckFamilyId === null ? {} : { familyConfidence: entry.adReq.familyFit.confidence }),
-      }));
-      // #165: each card carries the level question its OWN advert triggers — see withLanguageLevelAsks.
-      const cards = withLanguageLevelAsks(orderCardsForReveal(cardCandidates), openCandidates, facts);
-      // #117 AC3/AC8 — the deck's card-provenance tally (deck.ts, tallyCardProvenance). The
-      // returned pendingCount rides on the response so the client can poll a still-scoring deck
-      // and terminate: in-flight `pending` cards only, never `unscored` ones (#117 must-fix 2).
-      const pendingCount = tallyCardProvenance(cards);
+      // #235: whether any discovery question is genuinely still open — the empty deck's "answer a
+      // few more questions" line may only be shown when one exists (deck.ts owns the rule).
+      const moreQuestions = hasOpenDiscoveryQuestions(session, confirmed, negatives, rejected, facts, blocks);
       // #22: authed tells the client whether the account wall at the reveal applies — false only
       // for a still-anonymous session, so a returning (claimed) visitor is never re-walled.
-      //
       return {
         stage: session.stage,
         cards,
@@ -928,11 +857,32 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         authed: session.claimedByUserId !== null,
         withdrawn,
         retrieval,
-        // #235: whether any discovery question is genuinely still open — the empty deck's "answer a
-        // few more questions" line may only be shown when one exists (deck.ts owns the rule).
-        moreQuestions: hasOpenDiscoveryQuestions(session, confirmed, negatives, rejected, facts, blocks),
+        moreQuestions,
+        // #228: the dead end's offer — server-owned, so the screen renders and never decides
+        // (deckFallback.ts owns the four preconditions).
+        fallback: fallbackOffer(session, moreQuestions, blocks, deps.productionFamilyFloors),
       };
     });
+
+    // #228: her answer to that offer. No provider call here — accepting only records the choice, and
+    // the next deck read pays for the one extra search it implies (deckFallback.ts).
+    app.post(
+      "/onboarding/cards/fallback",
+      { schema: { body: z.object({ accepted: z.boolean() }) } },
+      async (req) => {
+        const session = requireSession(req);
+        const blocks = await deps.jobBlocks.list(session.id);
+        return {
+          fallback: await applyFallbackChoice(
+            deps.sessions,
+            session,
+            req.body.accepted,
+            blocks,
+            deps.productionFamilyFloors,
+          ),
+        };
+      },
+    );
 
     // #165 — the ladder's answer; write path in languageLevel.ts. Pre-wall, like the deck that fires it.
     app.post(

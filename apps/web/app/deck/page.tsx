@@ -27,12 +27,14 @@ import "../deck.css";
 import { CardBody, useReducedMotion } from "../jobcard";
 import {
   ensureSession,
+  chooseFallback,
   getCards,
   requestLink,
   setStage,
   answerLanguageLevel,
   wantCard,
   type DeckCard,
+  type DeckFallbackState,
   type JobCard,
   type LanguageLevelAsk,
   type ScoredJobCard,
@@ -49,6 +51,21 @@ const Z2 = "Answer a few more questions and I'll widen the net.";
 // #235: shown instead of Z2 when no question is left to answer — her own result, and her own way to
 // change it. Deliberately names no job family, no vocabulary and no research (spec #233 decision 8).
 const Z3 = "Try a different job title.";
+// #228 (spec #241 decision 12) — the dead end becomes a question. It names her OWN typed words and
+// nothing else: no job family, no vocabulary, no research, and no count of jobs, because at the
+// moment it is shown nothing has been looked for yet. It asks; it never promises.
+const F1 = (role: string | null) =>
+  role ? `There are no more jobs for "${role}".` : "There are no more jobs for the words you typed.";
+const F2 = "Your CV also proves other work. Do you want me to look there?";
+const F3 = "Yes, look";
+const F4 = "No thanks";
+// AC 9: after a no, the offer stays reachable on the same screen — changing her mind must never
+// mean guessing how to get back — but it is never re-raised by itself.
+const F5 = "Look at the other work my CV proves";
+const F6 = "Looking for the other work your CV proves…";
+const F7 = "Couldn't look right now — try again.";
+const FALLBACK_POLL_MS = 1200;
+const FALLBACK_POLL_MAX = 8;
 
 // #22 the account wall at the reveal — copy per design-22-wall.md §3 (deck-context copy, never the
 // S2 /signup draft copy, even where the strings happen to be close).
@@ -66,7 +83,11 @@ const W12 = "Google sign-in didn't finish — try again, or use your email below
 const W13 = "Google sign-in isn't available right now — use your email below.";
 const WALL_LIVE = "Sign in to see your matches.";
 const SWIPE_MS = 340;
-const LOOPBACK_COPY = "I scored the three closest — tell me more and I'll widen the net";
+// #228 (spec #241 decision 13) — this line may only promise what answering can genuinely deliver.
+// More answers change the SCORE and the order of the jobs she has; they never add adverts, so the
+// old "and I'll widen the net" was a promise the product could not keep. The loopback itself is now
+// only reached while a question actually remains (onLeft below).
+const LOOPBACK_COPY = "I scored the three closest — tell me more and I'll score them better";
 const WANT_UNKNOWN = "That job is no longer available. Pick another one.";
 const WANT_FAILED = "Couldn't start tailoring this job — try again.";
 const TAILORHANDOFF_DEFAULT = "Tell me more and this CV gets stronger for this job.";
@@ -129,6 +150,17 @@ export default function DeckPage() {
   // #235: true while another discovery question exists — picks the empty state's second line
   // (Z2 vs Z3). Defaults to the pre-#235 line so a missing field never invites a dead end.
   const [moreQuestions, setMoreQuestions] = useState(true);
+  // #228: the server's offer state, and the two things this screen alone owns — whether she re-opened
+  // an offer she had already declined, and whether the accepted search is still running.
+  const [fallback, setFallback] = useState<DeckFallbackState | null>(null);
+  const [offerReopened, setOfferReopened] = useState(false);
+  const [widening, setWidening] = useState(false);
+  const [fallbackError, setFallbackError] = useState<string | null>(null);
+  // The widening wait can run for ~10s of its own timers, so it gets the same discipline #117's poll
+  // has: one cancel flag, checked at every hop, set on unmount — a chain must not outlive its screen.
+  const fallbackCancelledRef = useRef(false);
+  const reopenButtonRef = useRef<HTMLButtonElement>(null);
+  const focusReopenRef = useRef(false);
   // Declared here (not near the render below) because the reveal-entry effect further down needs
   // it in its dependency array, and a `const` can't be read before its own declaration.
   const withdrawalCopy = withdrawn ? withdrawnLine(withdrawn) : null;
@@ -324,6 +356,7 @@ export default function DeckPage() {
       setAuthed(res.authed);
       setWithdrawn(res.withdrawn ?? null);
       setMoreQuestions(res.moreQuestions ?? true);
+      setFallback(res.fallback ?? null);
       if (res.cards.length === 0) {
         setScreen("empty");
         return;
@@ -407,6 +440,18 @@ export default function DeckPage() {
     setLiveMessage(WALL_LIVE);
   }, [screen]);
 
+  // #228: the widening wait dies with the screen that started it.
+  useEffect(() => () => {
+    fallbackCancelledRef.current = true;
+  }, []);
+
+  // #228 a11y: after a decline, focus lands on the way back — the button she pressed is gone.
+  useEffect(() => {
+    if (!focusReopenRef.current || !reopenButtonRef.current) return;
+    focusReopenRef.current = false;
+    reopenButtonRef.current.focus();
+  }, [fallback]);
+
   useEffect(() => {
     if (screen !== "deck" || !focusNextHeadingRef.current) return;
     focusNextHeadingRef.current = false;
@@ -443,6 +488,54 @@ export default function DeckPage() {
     setScreen(authed ? "deck" : "wall");
   }, [authed]);
 
+  // #228 — her answer to the widening offer. A "no" costs nothing and is remembered (the offer stays
+  // reachable below). A "yes" records the choice, then waits on the ONE extra search it implies: the
+  // next deck read carries it, and the result replaces this deck. Nothing came back → the honest
+  // dead end, with no further search offered (AC 8).
+  const onFallbackChoice = useCallback(async (accepted: boolean) => {
+    setFallbackError(null);
+    setOfferReopened(false);
+    try {
+      const { fallback: answered } = await chooseFallback(accepted);
+      if (fallbackCancelledRef.current) return;
+      setFallback(answered);
+      if (!accepted || !answered.active) {
+        // The offer she just declined is gone from the screen; the way back takes the focus she
+        // was holding, rather than dropping it on the document.
+        focusReopenRef.current = true;
+        return;
+      }
+      setWidening(true);
+      setLiveMessage(F6);
+      for (let attempt = 0; attempt < FALLBACK_POLL_MAX; attempt += 1) {
+        const res = await getCards();
+        // #117's own rule, applied here: a chain must not outlive the screen that started it — this
+        // one can run for ten seconds, so every hop checks before it touches state.
+        if (fallbackCancelledRef.current) return;
+        setFallback(res.fallback ?? answered);
+        setMoreQuestions(res.moreQuestions ?? true);
+        if (res.cards.length > 0) {
+          setCards(res.cards);
+          setWithdrawn(res.withdrawn ?? null);
+          setCurrentIndex(0);
+          setSwipeStatus("idle");
+          setWidening(false);
+          // She is long past the reveal and the wall by the time she reaches a dead end, so the new
+          // deck opens directly rather than re-running the curtain.
+          setScreen("deck");
+          setLiveMessage(`Showing job 1 of ${res.cards.length}.`);
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, FALLBACK_POLL_MS));
+      }
+      setWidening(false);
+      setLiveMessage(Z3);
+    } catch {
+      setWidening(false);
+      setFallbackError(F7);
+    }
+  }, []);
+
   const runLoopback = useCallback(async () => {
     setDeckError(null);
     setSwipeStatus("committing");
@@ -469,8 +562,18 @@ export default function DeckPage() {
       setLiveMessage(`Showing job ${nextIndex + 1} of ${cards.length}.`);
       return;
     }
+    // #228 (AC 1/2): the deck is exhausted. With a question left she goes back to the interview,
+    // exactly as before — that is the cheap improvement, tried first. With nothing left to ask, the
+    // loopback would send her to an empty ask screen, so she reaches the dead end here, where the
+    // widening is offered instead.
+    if (!moreQuestions) {
+      setSwipeStatus("idle");
+      setScreen("empty");
+      setLiveMessage(Z1);
+      return;
+    }
     await runLoopback();
-  }, [cards.length, currentIndex, runLoopback, swipeStatus, waitForSwipe]);
+  }, [cards.length, currentIndex, moreQuestions, runLoopback, swipeStatus, waitForSwipe]);
 
   const onRight = useCallback(async () => {
     const card = cards[currentIndex];
@@ -525,6 +628,10 @@ export default function DeckPage() {
 
   const n = cards.length;
   const currentCard = cards[currentIndex];
+  // #228: the offer is shown when the server says it can be honoured, or when she declined it and
+  // asked for it back. Never while the accepted search is still running.
+  const showFallbackOffer =
+    !widening && !!fallback && !fallback.active && (fallback.offered || (fallback.declined && offerReopened));
 
   return (
     <div className="jobdeck">
@@ -543,10 +650,38 @@ export default function DeckPage() {
         </div>
       )}
 
+      {/* #228: the dead end — reached either because nothing was found or because she swiped past
+          the last card, which are deliberately the same state (spec #241 decision 4). The offer is
+          the server's decision; whether the deck is finished is this screen's. */}
       {screen === "empty" && (
         <div className="loadstate">
           <p className="big">{Z1}</p>
-          <p>{moreQuestions ? Z2 : Z3}</p>
+          {widening ? (
+            <p>{F6}</p>
+          ) : showFallbackOffer ? (
+            <>
+              <p>{F1(fallback?.targetRole ?? null)}</p>
+              <p>{F2}</p>
+              <button type="button" onClick={() => onFallbackChoice(true)}>
+                {F3}
+              </button>
+              <button type="button" onClick={() => onFallbackChoice(false)}>
+                {F4}
+              </button>
+            </>
+          ) : (
+            <>
+              <p>{moreQuestions ? Z2 : Z3}</p>
+              {/* AC 9: she said no, and the way back is on the screen rather than something to
+                  guess at — but the question itself is never raised again by itself. */}
+              {fallback?.declined && !fallback.active && (
+                <button type="button" ref={reopenButtonRef} onClick={() => setOfferReopened(true)}>
+                  {F5}
+                </button>
+              )}
+            </>
+          )}
+          {fallbackError && <p role="alert">{fallbackError}</p>}
         </div>
       )}
 

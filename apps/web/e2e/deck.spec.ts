@@ -299,7 +299,7 @@ test("screen 2b: exhausting the deck loops back to discovery with the widen-net 
 
   await page.waitForURL("/discovery?loop=deck-exhausted");
   expect(postedStage()).toBe("discovery");
-  await expect(page.getByText("I scored the three closest — tell me more and I'll widen the net")).toBeVisible();
+  await expect(page.getByText("I scored the three closest — tell me more and I'll score them better")).toBeVisible();
   await expect(page.getByText("5 to 10 years of experience as a project manager.", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Yes", exact: true })).toBeFocused();
 });
@@ -312,7 +312,7 @@ test("screen 2b: deck-exhausted discovery stage still shows an answering retry, 
 
   await page.goto("/discovery?loop=deck-exhausted");
 
-  await expect(page.getByText("I scored the three closest — tell me more and I'll widen the net")).toBeVisible();
+  await expect(page.getByText("I scored the three closest — tell me more and I'll score them better")).toBeVisible();
   await expect(page.getByText("That's all I need to ask.")).toHaveCount(0);
   const retry = page.getByRole("button", { name: "Answer more questions" });
   await expect(retry).toBeVisible();
@@ -375,4 +375,124 @@ test("an empty deck with questions still open keeps inviting them", async ({ pag
   await expect(page.getByText("No matches yet.")).toBeVisible();
   await expect(page.getByText("Answer a few more questions and I'll widen the net.")).toBeVisible();
   await expect(page.getByText("Try a different job title.")).toHaveCount(0);
+});
+
+// #228 (spec #241) — the dead end becomes a choice. The offer is rendered from the server's own
+// `fallback` state; the screen decides only WHEN the deck is finished. These are the durable twins
+// of the human-paced journey in e2e/fallback-offer-journey.mjs.
+const OFFER_QUESTION = "Your CV also proves other work. Do you want me to look there?";
+
+async function stubFallbackCards(
+  page: Page,
+  cards: JobCard[],
+  fallback: CardsResponse["fallback"],
+) {
+  const body: CardsResponse = { stage: "deck", cards, authed: true, pendingCount: 0, moreQuestions: false, fallback };
+  await page.route("**/api/onboarding/cards", async (route) => {
+    await route.fulfill({ json: body });
+  });
+}
+
+test("the dead end asks whether to look at the work her CV proves, naming only her own words", async ({
+  page,
+}) => {
+  await stubSession(page);
+  await stubFallbackCards(page, [], {
+    offered: true,
+    declined: false,
+    active: false,
+    targetRole: "Product Analytics Manager",
+  });
+  await page.goto("/deck");
+  await expect(page.getByText('There are no more jobs for "Product Analytics Manager".')).toBeVisible();
+  await expect(page.getByText(OFFER_QUESTION)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Yes, look" })).toBeVisible();
+  // It promises no jobs and names no job family, vocabulary or research (AC 3).
+  const body = (await page.locator("body").innerText()).toLowerCase();
+  for (const word of ["family", "vocabulary", "research", "strong matches"]) {
+    expect(body).not.toContain(word);
+  }
+});
+
+test("declining shows the honest dead end and leaves the offer reachable, without re-asking", async ({
+  page,
+}) => {
+  await stubSession(page);
+  await stubFallbackCards(page, [], {
+    offered: true,
+    declined: false,
+    active: false,
+    targetRole: "Product Analytics Manager",
+  });
+  await page.route("**/api/onboarding/cards/fallback", async (route) => {
+    await route.fulfill({
+      json: { fallback: { offered: false, declined: true, active: false, targetRole: "Product Analytics Manager" } },
+    });
+  });
+  await page.goto("/deck");
+  await page.getByRole("button", { name: "No thanks" }).click();
+
+  await expect(page.getByText("Try a different job title.")).toBeVisible();
+  await expect(page.getByText(OFFER_QUESTION)).toHaveCount(0);
+  const back = page.getByRole("button", { name: "Look at the other work my CV proves" });
+  await expect(back).toBeVisible();
+  await back.click();
+  await expect(page.getByText(OFFER_QUESTION)).toBeVisible();
+});
+
+test("accepting replaces the deck with the jobs her CV proves", async ({ page }) => {
+  await stubSession(page);
+  let accepted = false;
+  await page.route("**/api/onboarding/cards/fallback", async (route) => {
+    accepted = true;
+    await route.fulfill({
+      json: { fallback: { offered: false, declined: false, active: true, targetRole: "Product Analytics Manager" } },
+    });
+  });
+  await page.route("**/api/onboarding/cards", async (route) => {
+    const body: CardsResponse = {
+      stage: "deck",
+      cards: accepted ? [card("ad-widened", "Delivery Manager", 74)] : [],
+      authed: true,
+      pendingCount: 0,
+      moreQuestions: false,
+      fallback: {
+        offered: !accepted,
+        declined: false,
+        active: accepted,
+        targetRole: "Product Analytics Manager",
+      },
+    };
+    await route.fulfill({ json: body });
+  });
+  await page.goto("/deck");
+  await page.getByRole("button", { name: "Yes, look" }).click();
+
+  await expect(page.getByRole("heading", { name: "Delivery Manager" })).toBeVisible();
+  await expect(page.getByText(OFFER_QUESTION)).toHaveCount(0);
+});
+
+// The one decision this ticket puts on the CLIENT: the server says whether the offer CAN be
+// honoured, the screen says when the deck is finished. So a visitor who still has cards must never
+// see the offer, even though the payload says it is available.
+test("cards still on screen never show the offer, however available the server says it is", async ({
+  page,
+}) => {
+  await stubSession(page);
+  await stubFallbackCards(page, [card("ad-1", "IT Project Manager", 82)], {
+    offered: true,
+    declined: false,
+    active: false,
+    targetRole: "Product Analytics Manager",
+  });
+  await page.goto("/deck");
+  await page.getByRole("button", { name: "See them" }).click();
+
+  await expect(page.getByRole("heading", { name: "IT Project Manager" })).toBeVisible();
+  await expect(page.getByText(OFFER_QUESTION)).toHaveCount(0);
+  await expect(page.getByText("No matches yet.")).toHaveCount(0);
+
+  // …and it appears the moment she swipes past the last one — the same dead end an empty pool gives.
+  await page.getByRole("button", { name: "Not for me, show next job" }).click();
+  await expect(page.getByText(OFFER_QUESTION)).toBeVisible();
 });

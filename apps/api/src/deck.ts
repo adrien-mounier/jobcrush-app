@@ -51,6 +51,8 @@ import {
   type DiscoveryCvLine,
 } from "./discovery.js";
 import { resolvedMarketsFor } from "./postingRetrieval.js";
+import { withLanguageLevelAsks } from "./languageLevel.js";
+import { partitionByWithdrawal } from "./withdrawal.js";
 import {
   buildTailorLedger,
   negativeRequirementIds,
@@ -434,6 +436,11 @@ export async function advertFamilyIdFor(
   session: Readonly<SessionRecord>,
   placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>,
 ): Promise<string | null> {
+  // #228 (spec #241 decision 9): an accepted widening searched a DIFFERENT family, so that family is
+  // what its adverts are about — her real years in it are what they are scored against, and it is
+  // what the family-fit gate compares them to. Without this the fallback deck is compared to her
+  // target family and every card in it is deleted on arrival.
+  if (session.discovery.fallback.family) return session.discovery.fallback.family.familyId;
   // #234: the SEARCH family, not the question floors — this resolves the family the deck's adverts
   // are about, and #235's word-search visitor is interviewed on floors nothing was searched with.
   if (session.discovery.searchFamily) return session.discovery.searchFamily.familyId;
@@ -652,6 +659,68 @@ export function tallyCardProvenance(cards: Array<{ scored: CardScoreProvenance }
     }
   }
   return pendingCount;
+}
+
+/** The deck's whole card-assembly pass — read every eligible advert, delete the wrong-family ones,
+ *  withdraw the ones she cannot take, judge what is left within the paid bound, and shape + order
+ *  the cards. Extracted from GET /onboarding/cards by #228 (the ratchet's own remedy: extraction,
+ *  not comment-shaving), unchanged in behaviour. The route orchestrates; this composes.
+ *
+ *  #104: every eligible posting gets a requirement set, not only the hand-curated ones —
+ *  resolveAdRequirements is fixture-first, reader-second. Reading an advert is shared across every
+ *  visitor who ever sees it (adRequirementsStore's own cache), so there is no cost reason to bound
+ *  THIS step — only the per-session judging step (judgeDeck) is capped. Cards are dropped for their
+ *  OWN stated language as well as the posting's (#103 code review finding 5). */
+export async function buildDeckCards(
+  postings: Posting[],
+  input: {
+    confirmed: ClaimRecord[];
+    negatives: ClaimRecord[];
+    facts: readonly EligibilityFact[];
+    years: SessionYears;
+    deckFamilyId: string | null;
+    langs: string[];
+  },
+  deps: DeckJudgingDeps & { readAd?: ReadAdFn },
+) {
+  const resolvedReqs = await mapWithConcurrency(postings, CARD_RESOLUTION_CONCURRENCY, async (posting) => {
+    const adReq = await resolveAdRequirements(posting.id, deps.readAd, posting);
+    if (!adReq || !languageEligible(adReq.language, input.langs)) return null;
+    return { posting, adReq };
+  });
+  const candidates = resolvedReqs.filter(
+    (entry): entry is { posting: Posting; adReq: AdRequirementsV1 } => entry !== null,
+  );
+
+  // #243 — a wrong-family advert leaves the deck here, before withdrawal, ranking or judging spend a
+  // thing on it (partitionByFamilyFit owns the rule + the deleted count).
+  const { kept } = partitionByFamilyFit(candidates, input.deckFamilyId);
+  // #107 (E5 slice 6, D3/D4) — withdraw a posting from THIS session's deck BEFORE it costs anything:
+  // before ranking, the free peek, or a paid judging attempt ever sees it (withdrawal.ts).
+  const { open: openCandidates, withdrawn } = partitionByWithdrawal(kept, input.facts);
+  // judgeDeck: peek → rank → bound → budget → resolve, the whole paid-judging pass — see its own doc
+  // for #117 must-fix A/1/C/2 and the spend-bound properties it carries.
+  const { entries: resolved, judgeWired } = await judgeDeck(openCandidates, input.confirmed, deps);
+  const cardCandidates = resolved.map((entry) => ({
+    card: buildJobCard(
+      entry.posting,
+      entry.adReq,
+      input.confirmed,
+      input.negatives,
+      // #107 (D5): the years-experience shortfall, applied at read time — see withYearsShortfall.
+      withYearsShortfall(entry.judgement, entry.adReq, input.years),
+      // #117 must-fix 2: a real paid attempt that missed the budget is `pending` (genuinely in
+      // flight, will self-heal into the store); one the bound never attempted at all is `unscored`.
+      !judgeWired ? "estimated" : entry.attempted ? "pending" : "unscored",
+      input.years, // #162 AC6 untested-bar display + #222 confidence attenuation, both in buildJobCard
+    ),
+    curated: entry.adReq.curated,
+    // #243 decision 2: on a family deck, a weak family-fit confidence sinks the card's RANK.
+    ...(input.deckFamilyId === null ? {} : { familyConfidence: entry.adReq.familyFit.confidence }),
+  }));
+  // #165: each card carries the level question its OWN advert triggers — see withLanguageLevelAsks.
+  const cards = withLanguageLevelAsks(orderCardsForReveal(cardCandidates), openCandidates, input.facts);
+  return { cards, pendingCount: tallyCardProvenance(cards), withdrawn };
 }
 
 export interface DeckJudgingDeps {

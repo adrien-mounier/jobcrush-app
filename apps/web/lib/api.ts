@@ -389,10 +389,31 @@ export interface CardsResponse {
   // invites a different job title instead. Optional defensively — an absent field falls back to the
   // pre-#235 line, never a dead-end invitation.
   moreQuestions?: boolean;
+  // #228: the widening offered at the dead end. Server-owned — this screen renders it and never
+  // decides. Optional defensively: an absent field is "no offer", today's dead end unchanged.
+  fallback?: DeckFallbackState;
+}
+
+/** #228 — whether to offer the work her CV proves, and what she has already answered. */
+export interface DeckFallbackState {
+  offered: boolean;
+  declined: boolean;
+  active: boolean;
+  /** Her own typed words — the only thing the offer is allowed to name. */
+  targetRole: string | null;
 }
 
 export function getCards(): Promise<CardsResponse> {
   return jfetch("/api/onboarding/cards");
+}
+
+/** #228: her yes/no to the widening. Nothing is retrieved here — accepting only records the choice,
+ *  and the next deck read carries the one extra search it implies. */
+export function chooseFallback(accepted: boolean): Promise<{ fallback: DeckFallbackState }> {
+  return jfetch("/api/onboarding/cards/fallback", {
+    method: "POST",
+    body: JSON.stringify({ accepted }),
+  });
 }
 
 export interface WantCardResult {

@@ -91,6 +91,7 @@ describe("#61 production discovery HTTP seam", () => {
       ...mappedPlan,
       coveredItemIds: ["end-to-end-delivery"],
       checkpoint: "family_confirmed",
+      fallback: { declined: false, family: null },
     });
 
     const resumed = await app.inject({
@@ -165,6 +166,7 @@ describe("#61 production discovery HTTP seam", () => {
       questionFloors: [],
       searchFamily: null,
       coveredItemIds: [],
+      fallback: { declined: false, family: null },
       checkpoint: null,
     });
   });
@@ -415,6 +417,7 @@ describe("#61 production discovery HTTP seam", () => {
     expect((await covered.sessions.getById(covered.sessionId))?.discovery).toEqual({
       ...mappedPlan,
       coveredItemIds: [],
+      fallback: { declined: false, family: null },
       checkpoint: "family_confirmed",
     });
     const reconciled = await evaluate(covered.app, covered.cookie);
@@ -426,6 +429,7 @@ describe("#61 production discovery HTTP seam", () => {
     expect((await covered.sessions.getById(covered.sessionId))?.discovery).toEqual({
       ...mappedPlan,
       coveredItemIds: [],
+      fallback: { declined: false, family: null },
       checkpoint: "family_confirmed",
     });
   });
@@ -484,6 +488,7 @@ describe("#61 production discovery HTTP seam", () => {
       JSON.stringify({
         ...mappedPlan,
         coveredItemIds: [],
+        fallback: { declined: false, family: null },
         checkpoint: "essential_floor_covered",
       }),
     ]);

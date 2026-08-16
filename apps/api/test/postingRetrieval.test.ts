@@ -72,6 +72,7 @@ const request = (over: Partial<RetrievalRequest> = {}): RetrievalRequest => ({
   targetRole: "IT Project Manager",
   searchAreas: ["Hong Kong"],
   family: { familyId: "it-project-delivery", version: 1 },
+  fallback: false,
   questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
   checkpoint: "essential_floor_covered",
   confirmedEvidence: [{ semanticKey: "risk-control", fieldLabel: "Risk control" }],
@@ -676,6 +677,39 @@ describe("#101 posting retrieval service", () => {
     });
     await retrieve(wordRequest({ targetRole: "Delivery Lead", questionFloors: [] }));
     expect(provider.fetch.mock.calls[0]![0].queryKeywords).toEqual(["Delivery Lead"]);
+  });
+
+  // #228 (spec #241 decision 5): the widening she accepted is an ordinary FAMILY search run with a
+  // different family. Her typed role is deliberately absent — those are the words that just ran out,
+  // and an advert they caught would be deleted on arrival (the deck compares every card against the
+  // family THIS deck was searched for). The fallback family's own market titles are the whole query.
+  it("sends the fallback family's market titles alone, never the typed role that ran out", async () => {
+    const provider = { providerId: "one", fetch: vi.fn(async () => ({ ok: true as const, records: [] })) };
+    const retrieve = makePostingRetriever({
+      registry: [policy("one", ["HK"], 1)],
+      providers: [provider],
+      store: new InMemoryPostingStore(),
+      productionFamilyFloors: initialProductionFamilyFloors(),
+      now,
+    });
+    await retrieve(request({ targetRole: "Delivery Lead", fallback: true }));
+    expect(provider.fetch.mock.calls[0]![0].queryKeywords).toEqual(["project manager"]);
+  });
+
+  // The fallback family is NOT the family she was interviewed on, so it cannot be gated on a
+  // checkpoint for it — a visitor whose plan asks nothing (no question floors) still reaches it.
+  it("does not gate a fallback family search on an interview checkpoint it has no floors for", async () => {
+    const { retrieve } = build(
+      [policy("one", ["HK"], 1)],
+      [new TestFixturePostingProvider("one", { ok: true, records: [record("one", "a")] })],
+    );
+    await expect(
+      retrieve(request({ fallback: true, questionFloors: [], checkpoint: null })),
+    ).resolves.toMatchObject({ outcome: "relevant_postings" });
+    // Her own floors still gate exactly as before — an uncovered interview is not widened past.
+    await expect(
+      retrieve(request({ fallback: true, checkpoint: "family_confirmed" })),
+    ).resolves.toMatchObject({ outcome: "invalid_request", code: "floor_not_covered" });
   });
 
   it("bounds an adversarial typed role to whole words, and never sends a field value", async () => {

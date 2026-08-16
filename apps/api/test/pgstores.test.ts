@@ -58,6 +58,7 @@ for (const [name, make] of sessionDrivers) {
         questionFloors: [],
         searchFamily: null,
         coveredItemIds: [],
+        fallback: { declined: false, family: null },
         checkpoint: null,
       });
       expect(s.retrieval).toBeNull();
@@ -443,6 +444,7 @@ for (const [name, make] of sessionDrivers) {
         ...mappedPlan,
         coveredItemIds: ["end-to-end-delivery"],
         checkpoint: "family_confirmed",
+        fallback: { declined: false, family: null },
       });
 
       await store.reconcileDiscoveryState(
@@ -455,6 +457,7 @@ for (const [name, make] of sessionDrivers) {
         ...mappedPlan,
         coveredItemIds: ["stakeholder-coordination"],
         checkpoint: "essential_floor_covered",
+        fallback: { declined: false, family: null },
       });
 
       await store.reconcileDiscoveryState(
@@ -466,6 +469,7 @@ for (const [name, make] of sessionDrivers) {
       expect((await store.getById(s.id))?.discovery).toEqual({
         ...mappedPlan,
         coveredItemIds: [],
+        fallback: { declined: false, family: null },
         checkpoint: "family_confirmed",
       });
 
@@ -521,7 +525,12 @@ for (const [name, make] of sessionDrivers) {
       // The same plan still reconciles — coverage advances under a pinned plan, as it always did.
       expect(
         await store.reconcileDiscoveryState(s.id, mappedPlan, ["end-to-end-delivery"], true),
-      ).toEqual({ ...mappedPlan, coveredItemIds: ["end-to-end-delivery"], checkpoint: "essential_floor_covered" });
+      ).toEqual({
+        ...mappedPlan,
+        coveredItemIds: ["end-to-end-delivery"],
+        checkpoint: "essential_floor_covered",
+        fallback: { declined: false, family: null },
+      });
     });
 
     // #235: the ONE exception to the pin — a word plan (no search family) may gain one, the
@@ -546,6 +555,7 @@ for (const [name, make] of sessionDrivers) {
         questionFloors: [other],
         searchFamily: other,
         coveredItemIds: [],
+        fallback: { declined: false, family: null },
         checkpoint: "family_confirmed",
       });
 
