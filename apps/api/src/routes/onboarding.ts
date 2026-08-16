@@ -14,8 +14,8 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import type { CandidateClaim, MinedRole, AdRequirementsV1 } from "@jobcrush/contracts";
 import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore, ClaimRecord } from "../claims.js";
-import type { JobStore } from "../jobs.js";
-import { planPinned, planUpgradable, samePlan, type DiscoveryPlan, type SessionStore, type SessionRecord } from "../sessions.js";
+import { minedRoles, type JobStore } from "../jobs.js";
+import { pinnedOrDerived, planPinned, planUpgradable, samePlan, type DiscoveryPlan, type SessionStore, type SessionRecord } from "../sessions.js";
 import { buildClaimGraph } from "../graph.js";
 import { renderRootCv } from "../rootcv.js";
 import { buildProfileState, resolveProfileLocation, resolveLanguagesQuestion } from "../profile.js";
@@ -42,6 +42,7 @@ import {
   buildJobCard,
   buildTailorState,
   CARD_RESOLUTION_CONCURRENCY,
+  claimTier,
   hasOpenDiscoveryQuestions,
   judgeDeck,
   mapWithConcurrency,
@@ -102,6 +103,9 @@ export interface OnboardingDeps {
   productionFamilyFloors: ProductionFamilyFloorStore;
   placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>;
   retrievePostings?: (input: RetrievalRequest) => Promise<PostingRetrievalResultV1>;
+  /** #236: fire-and-forget judgement of the word-search visitor's target role (makeFamilyCandidateWatch
+   *  in familyCandidateIntake.ts). Never awaited, never visible; absent → nothing is screened. */
+  watchFamilyCandidate?: (session: Readonly<SessionRecord>) => void;
   /** JC-24: LLM phrasing for grill questions. Absent → template phrasing (tests + the safe fallback). */
   phraseGrill?: GrillPhraser;
   /** S2 decision #6: LLM wording audit of the built root CV. Absent → the CV ships unaudited. */
@@ -131,10 +135,6 @@ export interface OnboardingDeps {
    *  should the owner want that later. */
   judgeMaxCards?: number;
 }
-
-/** The miner stores its full doc (incl. per-role date flags) under progress.miner.doc. */
-const minedRoles = (job: { progress: Record<string, unknown> }): MinedRole[] =>
-  ((job.progress.miner as { doc?: { roles?: MinedRole[] } } | undefined)?.doc?.roles) ?? [];
 
 // #13 never-re-ask: a gap is closed by EITHER a confirmed "yes" or a persisted "no" — pending/rejected
 // must NOT count, or a reopen() (a corrected "no") would stay silently answered instead of resurfacing.
@@ -166,17 +166,6 @@ async function withFactFloor(sessions: SessionStore, session: SessionRecord, com
 // it without importing a routes module. Every route below composes readingLanguages(session) with
 // eligiblePostings, and — for a card's requirement set — languageEligible(adReq.language, ...)
 // directly (#103 code review finding 5): no other "=== 'en'" check exists anywhere in this file.
-
-// The deck's tiering policy (JC-22, kickoff decision #3). A claim copied verbatim from the CV
-// batch-approves as part of its section; anything the machine reworded or inferred gets an individual
-// review card — those are the claims we might have gotten wrong. This lives here, not in the store,
-// because it is deck policy (the store deliberately bakes none).
-// ponytail: machine_touch split only; stakes-weighted ranking (titles/dates > tools) is the upgrade
-// IF a CV ever overflows ~15 individual cards — the miner eval keeps the touched count under that, so
-// there is nothing to rank yet.
-export type DeckTier = "individual" | "batch";
-export const claimTier = (touch: CandidateClaim["machine_touch"]): DeckTier =>
-  touch === "verbatim" ? "batch" : "individual";
 
 export function onboardingRoutes(deps: OnboardingDeps) {
   const retrievePostings = deps.retrievePostings ?? unavailablePostingRetrieval;
@@ -280,11 +269,12 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         // refusal — an unmapped, plural or unpublished placement is interviewed on the floors her
         // CV proves. A pinned plan still holds, with one exception: a word plan may gain a search
         // family (planUpgradable — the returning visitor whose family has since been published).
-        const plan = discoveryPlan(
+        // #236: a family already pinned outranks a derivation that lost it — see pinnedOrDerived.
+        const plan = pinnedOrDerived(session.discovery, discoveryPlan(
           await deps.placeFamily(session),
           await deps.jobBlocks.list(session.id),
           deps.productionFamilyFloors,
-        );
+        ));
         if (
           planPinned(session.discovery) &&
           !samePlan(session.discovery, plan) &&
@@ -834,6 +824,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // session's confirmed/negative claims — no LLM, no IO beyond the two fixture loads.
     app.get("/onboarding/cards", async (req) => {
       const session = requireSession(req);
+      deps.watchFamilyCandidate?.(session); // #236 — background, never awaited, never user-visible.
       const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
       const retrievalRequest = retrievalRequestForSession(session, confirmed, negatives);
       const requestFingerprint = retrievalFingerprint(retrievalRequest);

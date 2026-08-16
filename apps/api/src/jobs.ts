@@ -4,6 +4,7 @@
 // retry never re-executes a completed LLM call (the spine's orchestratorRuntime checkpoint rule).
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
+import type { MinedRole } from "@jobcrush/contracts";
 
 export type JobStatus = "queued" | "running" | "completed" | "failed";
 
@@ -72,6 +73,11 @@ export class InMemoryJobStore implements JobStore {
     return () => this.emitter.off(id, listener);
   }
 }
+
+/** The miner stores its full doc (incl. per-role date flags) under progress.miner.doc. Reads a job
+ *  record's own shape, so it lives with the record (moved out of the route spine by #236). */
+export const minedRoles = (job: { progress: Record<string, unknown> }): MinedRole[] =>
+  ((job.progress.miner as { doc?: { roles?: MinedRole[] } } | undefined)?.doc?.roles) ?? [];
 
 export function isTerminal(status: JobStatus): boolean {
   return status === "completed" || status === "failed";

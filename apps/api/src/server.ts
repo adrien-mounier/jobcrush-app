@@ -42,6 +42,7 @@ import {
   type FamilyLearningStore,
 } from "./familyLearning.js";
 import { familyLearningRoutes } from "./routes/familyLearning.js";
+import { makeFamilyCandidateWatch } from "./familyCandidateIntake.js";
 import {
   readCounters,
   readFailureAlarm,
@@ -484,6 +485,11 @@ export function buildServer(opts: BuildOptions = {}) {
       families: () => publishedFamilies(productionFamilyFloors),
     }),
   );
+  // #236: the screen judges a target role against the WHOLE published list, read fresh each call so
+  // a family published mid-session is immediately recognisable. Explicit opts override for tests.
+  const familyLearningKnownFamilies = () =>
+    opts.familyLearningKnownFamilies ??
+    publishedFamilies(productionFamilyFloors).map(({ familyId, version }) => ({ familyId, version }));
   app.register(onboardingRoutes({
     claims,
     store,
@@ -501,6 +507,17 @@ export function buildServer(opts: BuildOptions = {}) {
     judge: opts.judge,
     judgePeek: opts.judgePeek,
     judgeMaxCards: opts.judgeMaxCards,
+    // #236: only wired when a real screen exists — absent, the word-search deck screens nothing,
+    // exactly as before this ticket.
+    watchFamilyCandidate: opts.screenFamilyCandidate
+      ? makeFamilyCandidateWatch({
+          store: familyLearning,
+          screen: opts.screenFamilyCandidate,
+          knownFamilies: familyLearningKnownFamilies,
+          sessions,
+          log: app.log,
+        })
+      : undefined,
   }));
   app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail, limiter: opts.authRateLimiter }));
   app.register(
@@ -508,7 +525,7 @@ export function buildServer(opts: BuildOptions = {}) {
       store: familyLearning,
       screen: opts.screenFamilyCandidate,
       operatorKey: opts.familyLearningOperatorKey,
-      knownFamilies: opts.familyLearningKnownFamilies,
+      knownFamilies: familyLearningKnownFamilies,
       notify:
         opts.notifyFamilyMatch ??
         (async (attempt, { idempotencyKey }) => {

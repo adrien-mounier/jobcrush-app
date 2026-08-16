@@ -7,10 +7,15 @@ import type {
   FamilyCandidateScreen,
   FamilyMatchNotifier,
   FamilyLearningAttempt,
-  FamilyScreeningDecision,
   FamilyLearningStore,
 } from "../familyLearning.js";
 import { progressFamilyLearning } from "../familyLearning.js";
+import {
+  FamilyScreeningUnavailable,
+  intakeFamilyCandidate,
+  searchAreaText,
+} from "../familyCandidateIntake.js";
+import type { FamilyReference } from "../sessions.js";
 
 const safeAttempt = (attempt: FamilyLearningAttempt) => ({
   id: attempt.id,
@@ -31,7 +36,8 @@ export interface FamilyLearningRouteDeps {
   screen?: FamilyCandidateScreen;
   operatorKey?: string;
   notify?: FamilyMatchNotifier;
-  knownFamilies?: Array<{ familyId: string; version: number }>;
+  /** Read at call time (#236) — publishing a family changes the list under a long-lived server. */
+  knownFamilies: () => FamilyReference[];
 }
 
 const notificationPromise =
@@ -83,36 +89,24 @@ export function familyLearningRoutes(deps: FamilyLearningRouteDeps) {
             },
           });
         }
-        // #214: the learning store and the LLM screen both still take one search-area string —
-        // the words as typed, joined ("Melbourne, Vietnam"), null when none are set.
-        const searchAreaText =
-          session.intent.searchAreas.map((entry) => entry.text).join(", ") || null;
-        let screened: FamilyScreeningDecision;
+        // #236: screening, dedupe and attempt creation are one shared function — the same one the
+        // word-search deck's background watch calls, so the two paths cannot drift apart.
+        let attempt: FamilyLearningAttempt;
         try {
-          const canonicalCandidates = await deps.store.acceptedCanonicalCandidates();
-          screened = await deps.screen({
-            targetRole: req.body.targetRole,
-            searchArea: searchAreaText,
-            canonicalCandidates,
-            knownFamilies: deps.knownFamilies ?? [],
-          });
-          if (
-            screened.outcome === "equivalent" &&
-            !canonicalCandidates.some((candidate) => candidate.id === screened.canonicalAttemptId)
-          ) {
-            throw new Error("screening referenced unknown canonical attempt");
-          }
-          if (
-            screened.outcome === "covered_role" &&
-            !(deps.knownFamilies ?? []).some(
-              (family) =>
-                family.familyId === screened.coveredFamily?.familyId &&
-                family.version === screened.coveredFamily.version,
-            )
-          ) {
-            throw new Error("screening referenced unknown family");
-          }
-        } catch {
+          const intake = await intakeFamilyCandidate(
+            { store: deps.store, screen: deps.screen, knownFamilies: deps.knownFamilies },
+            {
+              sessionId: session.id,
+              targetRole: req.body.targetRole,
+              searchArea: searchAreaText(session),
+              // The explicit ask is answered WITH its rejection, so every outcome is recorded.
+              persistDiscarded: true,
+            },
+          );
+          if (!intake.attempt) throw new Error("family candidate intake recorded no attempt");
+          attempt = intake.attempt;
+        } catch (error) {
+          if (!(error instanceof FamilyScreeningUnavailable)) throw error;
           return reply.status(503).send({
             error: {
               code: "family_screening_unavailable",
@@ -120,12 +114,6 @@ export function familyLearningRoutes(deps: FamilyLearningRouteDeps) {
             },
           });
         }
-        const attempt = await deps.store.submit(
-          session.id,
-          req.body.targetRole,
-          screened,
-          searchAreaText,
-        );
         reply.status(202);
         return {
           discoveryStopped: true,

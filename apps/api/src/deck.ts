@@ -6,6 +6,7 @@
 // orchestrates; this module composes.
 import type {
   AdRequirementsV1,
+  CandidateClaim,
   CardScoreProvenance,
   FamilyPlacement,
   JobCardV1,
@@ -71,6 +72,17 @@ export type ReadAdFn = (posting: Posting) => Promise<AdRequirementsV1 | null>;
 export type JobCard = JobCardV1;
 export type ScoredJobCard = ScoredJobCardV1;
 export type { CardScoreProvenance };
+
+// The deck's tiering policy (JC-22, kickoff decision #3), moved out of the spine by #236. A claim
+// copied verbatim from the CV batch-approves as part of its section; anything the machine reworded
+// or inferred gets an individual review card — those are the claims we might have gotten wrong.
+// This lives here, not in the store, because it is deck policy (the store deliberately bakes none).
+// ponytail: machine_touch split only; stakes-weighted ranking (titles/dates > tools) is the upgrade
+// IF a CV ever overflows ~15 individual cards — the miner eval keeps the touched count under that, so
+// there is nothing to rank yet.
+export type DeckTier = "individual" | "batch";
+export const claimTier = (touch: CandidateClaim["machine_touch"]): DeckTier =>
+  touch === "verbatim" ? "batch" : "individual";
 
 // #117 — the provenance discriminator, pinned identically for the frontend (do not deviate).
 // `pending` and `unscored` were one state ("pending") until the coordinator's must-fix 2 review:

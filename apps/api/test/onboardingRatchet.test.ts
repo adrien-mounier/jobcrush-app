@@ -30,7 +30,11 @@ import { fileURLToPath } from "node:url";
 // #235 lowered it from 1132: the per-floor coverage computation moved to adaptiveDiscovery.ts
 // (planDiscoveryState / questionFloorItem) and the empty-deck question rule to deck.ts
 // (hasOpenDiscoveryQuestions) — the word-search path landed while the spine shrank again.
-const MAX_LINES = 1119;
+// #236 lowered it from 1119: the deck's claim-tiering policy (DeckTier / claimTier) moved to
+// deck.ts, where the rest of the card-shaping policy already lives, and the miner's `minedRoles`
+// accessor to jobs.ts, beside the record it reads — the background family-candidate screen landed
+// as one injected dep call and the spine still shrank.
+const MAX_LINES = 1110;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

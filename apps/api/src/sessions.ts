@@ -121,6 +121,14 @@ export const samePlan = (a: DiscoveryPlan, b: DiscoveryPlan): boolean =>
 export const planUpgradable = (current: DiscoveryPlan, next: DiscoveryPlan): boolean =>
   current.searchFamily === null && next.searchFamily !== null;
 
+/** #236 — the other side of that one-way rule. A stored family pin OUTRANKS a fresh derivation that
+ *  lost it: the candidate screen pins families the labeler still cannot place (that is the whole
+ *  point of covered_role), so re-deriving from the labeler alone would answer "unmapped" forever and
+ *  turn the invariant into a 409 on the visitor's own interview. The pin holds and she carries on;
+ *  a derivation naming a DIFFERENT family is still a real conflict and still fails closed. */
+export const pinnedOrDerived = (stored: DiscoveryPlan, derived: DiscoveryPlan): DiscoveryPlan =>
+  stored.searchFamily !== null && derived.searchFamily === null ? stored : derived;
+
 export interface ProductionDiscoveryState extends DiscoveryPlan {
   coveredItemIds: string[];
   checkpoint: "family_confirmed" | "essential_floor_covered" | null;

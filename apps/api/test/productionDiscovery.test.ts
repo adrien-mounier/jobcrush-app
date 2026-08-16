@@ -664,12 +664,16 @@ describe("#235 the word-search interview", () => {
       checkpoint: "family_confirmed",
     });
 
-    // The other direction stays pinned: a family plan never downgrades back to a word plan.
+    // The other direction stays pinned: a family plan never downgrades back to a word plan. #236
+    // changed HOW that holds — the pin simply wins and she carries on, instead of a 409 on her own
+    // interview. The candidate screen pins families the labeler still answers "unmapped" for, so
+    // erroring here would break the recovered visitor's normal family search.
     placementNow = { schemaVersion: "2", outcome: "unmapped" };
     const downgraded = await evaluate(built.app, cookie);
-    expect(downgraded.statusCode).toBe(409);
-    expect(downgraded.json()).toMatchObject({
-      error: { code: "production_floor_already_pinned" },
+    expect(downgraded.statusCode).toBe(200);
+    expect((await built.sessions.getById(sessionId))?.discovery).toMatchObject({
+      questionFloors: [{ familyId: "it-project-delivery", version: REAL.floor.version }],
+      searchFamily: { familyId: "it-project-delivery", version: REAL.floor.version },
     });
   });
 });
