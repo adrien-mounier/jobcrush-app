@@ -18,8 +18,12 @@ export interface PostingProviderFetchInput {
   /** ISO 3166-1 alpha-2 region code, already resolved by the caller — resolving a search area to a
    *  region is #101's `resolveSearchAreaToRegions`, not this file's job. */
   regionCode: string;
-  /** Reduced structured query terms only (role keywords) — never raw CV/claim text (§2.9 privacy:
-   *  confirmed evidence is reduced to keywords before it leaves the server, for every provider). */
+  /** #240: JOB TITLES, one per entry — "project manager", not "project" and "manager". A driver
+   *  sends each as a QUOTED PHRASE; unquoted, Techmap matches ANY word in the list, which is a
+   *  twenty-fold difference in what comes back (measured live 2026-08-14, Hong Kong — the figures
+   *  are pinned in techmapProvider.test.ts, so they live in one place). Never raw CV/claim text,
+   *  and since #240 never evidence field labels either (§2.9 privacy holds a fortiori: the query is
+   *  the typed target role plus the family's published market titles, nothing else). */
   queryKeywords: string[];
   page?: number;
   // #133 item 4: `size` deliberately REMOVED, not left as a no-op parameter. Measured live on
@@ -547,7 +551,14 @@ export class TechmapPostingProvider implements PostingProvider {
     url.searchParams.set("countryCode", input.regionCode.toLowerCase());
     url.searchParams.set("page", String(input.page ?? 0));
     url.searchParams.set("size", String(TECHMAP_PAGE_SIZE)); // #133 item 4: fixed, never caller-chosen
-    if (input.queryKeywords.length > 0) url.searchParams.set("title", input.queryKeywords.join(" "));
+    // #240: each title is sent QUOTED, so the vendor matches the PHRASE, and several quoted phrases
+    // in one `title` value OR together — so a family's whole market word list still costs exactly
+    // one call (both behaviours measured live; techmapProvider.test.ts carries the numbers). No
+    // vendor escape syntax is documented for an embedded double quote, and it would end the phrase
+    // early, so it is DELETED — "sen\"ior pm" asks for "senior pm", not the unmatchable "sen ior pm".
+    if (input.queryKeywords.length > 0) {
+      url.searchParams.set("title", input.queryKeywords.map((title) => `"${title.replace(/"/g, "")}"`).join(" "));
+    }
 
     const res = await fetchImpl(url.toString(), {
       headers: { "x-rapidapi-key": apiKey, "x-rapidapi-host": TECHMAP_HOST },

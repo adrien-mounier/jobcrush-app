@@ -75,7 +75,8 @@ const policy = {
 // #133 item 4: no `size` field — the client no longer accepts one (Techmap ignores it and always
 // returns TECHMAP_PAGE_SIZE items per page; see postingProvider.ts's own comment). The sample is
 // therefore exactly one page's worth, whatever that measures to be.
-const REQUEST = { regionCode: 'HK', queryKeywords: ['project', 'manager'], page: 0 };
+// #240: one QUOTED job title, matching what the client now sends (a phrase, not two words).
+const REQUEST = { regionCode: 'HK', queryKeywords: ['project manager'], page: 0 };
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -108,7 +109,7 @@ async function main() {
   url.searchParams.set('countryCode', 'hk');
   url.searchParams.set('page', '0');
   url.searchParams.set('size', String(TECHMAP_PAGE_SIZE));
-  url.searchParams.set('title', 'project manager');
+  url.searchParams.set('title', '"project manager"'); // #240: same quoted phrase the client sends
   const now = new Date();
   const yearMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
   if (!(await postingStore.reserveMonthlyCall(policy.providerId, yearMonth, policy.rateLimit.perMonth))) {

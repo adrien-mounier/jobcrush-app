@@ -370,7 +370,7 @@ describe("TechmapPostingProvider.fetch (#100, §2.9, §2.10)", () => {
     });
     const provider = new TechmapPostingProvider({ apiKey: "secret-key-123", policy: noPacing, fetchImpl });
 
-    await provider.fetch({ regionCode: "HK", queryKeywords: ["project", "manager"], page: 0 });
+    await provider.fetch({ regionCode: "HK", queryKeywords: ["project manager"], page: 0 });
 
     expect(calls).toHaveLength(1);
     const [{ url, init }] = calls;
@@ -379,11 +379,37 @@ describe("TechmapPostingProvider.fetch (#100, §2.9, §2.10)", () => {
     expect(url).toContain("countryCode=hk");
     expect(url).toContain("page=0");
     expect(url).toContain(`size=${TECHMAP_PAGE_SIZE}`);
-    expect(url).toContain("title=project+manager");
+    // #240 AC1: the phrase travels QUOTED — unquoted, the vendor matches ANY of its words.
+    expect(url).toContain("title=%22project+manager%22");
     expect(url).not.toContain("secret-key-123"); // the key never travels in the URL
     const headers = init.headers as Record<string, string>;
     expect(headers["x-rapidapi-key"]).toBe("secret-key-123");
     expect(headers["x-rapidapi-host"]).toBe("daily-international-job-postings.p.rapidapi.com");
+  });
+
+  // #240: several quoted phrases OR together inside ONE `title` value — measured live 2026-08-14
+  // (`"project manager" "business analyst"` = 31 adverts = 22 + 10, one overlap) — so a family's
+  // whole market word list still costs exactly one call. An embedded quote cannot end a phrase early.
+  it("sends every job title as its own quoted phrase in a single call", async () => {
+    const calls: string[] = [];
+    const fetchImpl = vi.fn(async (url: string | URL) => {
+      calls.push(String(url));
+      return jsonResponse(200, { result: [] });
+    });
+    const provider = new TechmapPostingProvider({ apiKey: "k", policy: noPacing, fetchImpl });
+
+    await provider.fetch({
+      regionCode: "HK",
+      queryKeywords: ["delivery lead", "C&B Project Manager", 'sen"ior pm'],
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(new URL(calls[0]!).searchParams.get("title")).toBe(
+      // Punctuation inside a title survives — "C&B Project Manager" is a real Hong Kong result from
+      // the probe. An embedded quote is deleted, not turned into a space: "senior pm" is what was
+      // meant, and "sen ior pm" would match nothing.
+      '"delivery lead" "C&B Project Manager" "senior pm"',
+    );
   });
 
   // #133 item 4: `size` is a fixed vendor constant (measured live on staging 2026-08-04: size=1,

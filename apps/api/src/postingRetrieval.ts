@@ -118,8 +118,10 @@ const AREA_CITIES: Readonly<Record<string, string>> = {
   perth: "Perth",
 };
 
-const MAX_QUERY_TERMS = 12;
-const MAX_QUERY_TERM_LENGTH = 40;
+// #240: these bound TITLES now, not words — a "term" was the old shredded-word unit. Renamed with
+// the shredder so the names cannot outlive the thing they described.
+const MAX_QUERY_TITLES = 12;
+const MAX_QUERY_TITLE_LENGTH = 40;
 // This is a coordination cache, not a replacement for provider freshness checks. It is deliberately
 // far shorter than every active policy's TTL; a newly activated shorter-TTL policy must lower it.
 const SNAPSHOT_REUSE_MS = 5 * 60 * 1000;
@@ -354,27 +356,41 @@ function words(value: string): string[] {
   return value.match(/[\p{L}\p{N}]+/gu) ?? [];
 }
 
-function boundedKeywords(values: string[]): string[] {
+/** #240: the query is a list of JOB TITLE PHRASES, never a bag of words. Each value keeps its own
+ *  words together, and WHITESPACE IS THE ONLY THING NORMALISED — punctuation stays exactly as the
+ *  market wrote it. The probe's own Hong Kong results include "C&B Project Manager"; stripping
+ *  punctuation would send `"C B Project Manager"`, a quoted phrase no advert can match. Decision 1
+ *  asked to QUOTE the titles, not to rewrite them. Still bounded the way the old word list was
+ *  (length, count, case-insensitive de-duplication), because the values include visitor-typed text.
+ *
+ *  The length bound drops WHOLE WORDS, never half of one. A phrase is sent quoted, so a title cut
+ *  mid-word ("Senior Technical Program Manager, Enterprise", 43 chars) is not a clipped-but-usable
+ *  prefix the way a cut WORD was under the old per-word bound — it is a phrase no advert can match,
+ *  and it would empty her deck in silence. A single word longer than the bound yields nothing and
+ *  is dropped, which is the honest outcome: there is no shorter phrase that still means it. */
+function boundedTitles(values: string[]): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const value of values) {
-    for (const word of words(value)) {
-      const term = word.slice(0, MAX_QUERY_TERM_LENGTH);
-      const key = term.toLocaleLowerCase("en-US");
-      if (key.length < 2 || seen.has(key)) continue;
-      seen.add(key);
-      out.push(term);
-      if (out.length === MAX_QUERY_TERMS) return out;
-    }
+    const title = value
+      .trim()
+      .replace(/\s+/g, " ")
+      .split(" ")
+      .reduce<string>((kept, word) => {
+        const extended = kept ? `${kept} ${word}` : word;
+        return extended.length <= MAX_QUERY_TITLE_LENGTH ? extended : kept;
+      }, "")
+      // Punctuation is kept INSIDE a title ("C&B Project Manager") but never left dangling at
+      // either end — a phrase ending in the comma of a title the bound just cut ("Senior Technical
+      // Program Manager,") is one the vendor cannot match.
+      .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+    const key = title.toLocaleLowerCase("en-US");
+    if (key.length < 2 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(title);
+    if (out.length === MAX_QUERY_TITLES) return out;
   }
   return out;
-}
-
-function queryKeywords(input: RetrievalRequest): string[] {
-  return boundedKeywords([
-    input.targetRole ?? "",
-    ...input.confirmedEvidence.map((item) => item.fieldLabel ?? item.semanticKey),
-  ]);
 }
 
 function negativeTerms(input: RetrievalRequest): string[] {
@@ -490,20 +506,26 @@ export class StoreBackedCuratedPostingProvider implements PostingProvider {
     if (!Number.isFinite(checkedAtMs) || checkedAtMs > nowMs || nowMs - checkedAtMs > ttlMs) {
       return { ok: false, reason: "curated region has no fresh operator refresh", retryable: false };
     }
-    const keywords = boundedKeywords(input.queryKeywords).map((keyword) => keyword.toLocaleLowerCase("en-US"));
-    if (keywords.length === 0) return { ok: true, records: [] };
-    const requiredMatches = keywords.length === 1 ? 1 : 2;
+    // #240: the same rule the live provider follows — each query value is a job title matched as a
+    // whole PHRASE against the advert's own title, and several phrases OR together. The previous
+    // "any 2 of the shredded words, anywhere in title/excerpt/skills" rule made this pool answer a
+    // different question from the live one, so a curated region and a live region could never be
+    // compared. Padding both sides with spaces keeps the match on word boundaries ("manager" does
+    // not match "managerial").
+    // Both sides go through the SAME reduction — lower-cased, punctuation folded to word breaks —
+    // so "C&B Project Manager" as a query phrase still finds "C&B Project Manager" as an advert.
+    // The live provider does its own matching, so what travels to IT keeps its punctuation
+    // (boundedTitles); this fold exists only to compare two strings we hold ourselves.
+    const comparable = (value: string) => ` ${words(value).join(" ").toLocaleLowerCase("en-US")} `;
+    const phrases = boundedTitles(input.queryKeywords).map(comparable);
+    if (phrases.length === 0) return { ok: true, records: [] };
     const records = await this.store.listByProvider(this.providerId);
     return {
       ok: true,
       records: records.filter((record) => {
         if (!resolveSearchAreaToRegions(record.location).includes(input.regionCode)) return false;
-        const searchable = new Set(
-          words([record.title, record.excerpt, ...record.skills].join(" ")).map((word) =>
-            word.toLocaleLowerCase("en-US"),
-          ),
-        );
-        return keywords.filter((keyword) => searchable.has(keyword)).length >= requiredMatches;
+        const title = comparable(record.title);
+        return phrases.some((phrase) => title.includes(phrase));
       }),
     };
   }
@@ -588,16 +610,19 @@ export function makePostingRetriever(
     // longer reachable on any visitor path (the discovery plan only ever names an eligible published
     // family); the check stays for family mode so a publication pulled AFTER a pin still fails
     // closed, and the code stays in the frozen contract enum — no contract version moves.
-    if (input.family) {
-      const publication = opts.productionFamilyFloors.get(input.family.familyId, input.family.version);
-      if (
-        !publication ||
+    // Read once, up here, because #240's per-market query words come off the SAME publication this
+    // gate validates — never a second lookup that could disagree with the one that passed the gate.
+    const publication = input.family
+      ? opts.productionFamilyFloors.get(input.family.familyId, input.family.version)
+      : null;
+    if (
+      input.family &&
+      (!publication ||
         publication.publicationStatus !== "published" ||
         publication.floor.source !== "production_research" ||
-        !publication.floor.productionRewardEligible
-      ) {
-        return invalid("family_not_published");
-      }
+        !publication.floor.productionRewardEligible)
+    ) {
+      return invalid("family_not_published");
     }
     // #235 (spec #233 decision 6): the coverage checkpoint spans the question floors, and an EMPTY
     // floor list is covered by definition — a visitor with no usable job history reaches retrieval
@@ -631,7 +656,19 @@ export function makePostingRetriever(
       );
     };
 
-    const keywords = queryKeywords(input);
+    // #240: the query is per REGION, because the words a market uses are per market (#242). Her own
+    // typed target role always leads and is never dropped — the family's published titles for that
+    // market simply ride in the same call, de-duplicated against it (Sofia types "project manager",
+    // Hong Kong's list says "project manager": one phrase, nothing changes for her; Mei types
+    // "delivery lead", which Hong Kong does not use, and still reaches her family's adverts).
+    // Unconditional: no "only if her title is rare" branch. Confirmed evidence is deliberately
+    // ABSENT — under the old any-word matching every label widened the net; her facts decide the
+    // SCORE (deck.ts), never the catch.
+    const titlesFor = (regionCode: string): string[] =>
+      boundedTitles([
+        input.targetRole ?? "",
+        ...(publication?.marketSearchTitles[regionCode] ?? []).map((entry) => entry.title),
+      ]);
     const negatives = negativeTerms(input);
     const outcomes = await Promise.all(
       eligible.map(async (policy) => {
@@ -650,7 +687,7 @@ export function makePostingRetriever(
           fetched = await Promise.all(
             policyRegions.map(async (regionCode) => ({
               regionCode,
-              result: await provider.fetch({ regionCode, queryKeywords: keywords }),
+              result: await provider.fetch({ regionCode, queryKeywords: titlesFor(regionCode) }),
             })),
           );
         } catch {

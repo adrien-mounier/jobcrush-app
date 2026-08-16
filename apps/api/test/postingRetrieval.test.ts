@@ -20,7 +20,7 @@ import {
   StoreBackedCuratedPostingProvider,
   type RetrievalRequest,
 } from "../src/postingRetrieval.js";
-import { TestFixturePostingProvider } from "../src/postingProvider.js";
+import { TestFixturePostingProvider, type PostingProvider } from "../src/postingProvider.js";
 import { InMemoryPostingStore } from "../src/postingStore.js";
 import { dedupePostings, loadActivePostingProviders } from "../src/postings.js";
 
@@ -556,7 +556,7 @@ describe("#101 posting retrieval service", () => {
     });
   });
 
-  it("sends only structured role and evidence labels, never raw claim text, and negatives only suppress", async () => {
+  it("sends job titles only — never evidence labels (#240 AC3) or raw claim text — and negatives only suppress", async () => {
     const provider = {
       providerId: "one",
       fetch: vi.fn(async (input) => ({
@@ -582,13 +582,103 @@ describe("#101 posting retrieval service", () => {
       }),
     );
     const sent = JSON.stringify(provider.fetch.mock.calls[0]);
-    expect(sent).toContain("Banking");
+    expect(sent).toContain("IT Project Manager");
+    expect(sent).not.toContain("Banking"); // #240 decision 3: her facts decide the score, not the catch
     expect(sent).not.toContain("Java");
     expect(sent).not.toContain("raw secret claim text");
     expect(result).toMatchObject({ outcome: "relevant_postings", postings: [{ title: "IT Project Manager" }] });
   });
 
-  it("bounds and deduplicates adversarial structured query terms without using field values", async () => {
+  // #240 AC4/AC5: the query carries her typed target role PLUS her family's titles for THAT market,
+  // de-duplicated — one rule, no "only if her title is rare" branch, and one call per region.
+  it.each([
+    ["Delivery Lead", ["Delivery Lead", "project manager"]], // Mei: a title Hong Kong does not use
+    ["Project Manager", ["Project Manager"]], // Sofia: hers already IS the market's word — no duplicate
+  ])("carries the family's market job titles alongside the typed role %s", async (targetRole, expected) => {
+    const provider = { providerId: "one", fetch: vi.fn(async () => ({ ok: true as const, records: [] })) };
+    const retrieve = makePostingRetriever({
+      registry: [policy("one", ["HK"], 1)],
+      providers: [provider],
+      store: new InMemoryPostingStore(),
+      productionFamilyFloors: initialProductionFamilyFloors(),
+      now,
+    });
+    await retrieve(request({ targetRole }));
+    expect(provider.fetch.mock.calls).toHaveLength(1);
+    expect(provider.fetch.mock.calls[0]![0].queryKeywords).toEqual(expected);
+  });
+
+  it("asks each market with its own words, in one call per region", async () => {
+    const provider = { providerId: "one", fetch: vi.fn(async () => ({ ok: true as const, records: [] })) };
+    const retrieve = makePostingRetriever({
+      registry: [policy("one", ["HK", "AU"], 1)],
+      providers: [provider],
+      store: new InMemoryPostingStore(),
+      productionFamilyFloors: initialProductionFamilyFloors(),
+      now,
+    });
+    await retrieve(request({ targetRole: "Delivery Lead", searchAreas: ["Hong Kong", "Sydney"] }));
+    expect(provider.fetch.mock.calls.map((call) => [call[0].regionCode, call[0].queryKeywords])).toEqual([
+      ["HK", ["Delivery Lead", "project manager"]],
+      // Australia's own measured list is longer — "delivery manager" exists there, Hong Kong's does not.
+      ["AU", ["Delivery Lead", "project manager", "delivery manager"]],
+    ]);
+  });
+
+  // #240 AC4, the whole point of the ticket: Mei types "delivery lead" — a phrase Hong Kong does
+  // not use (0 adverts, measured) — and her DECK IS NOT EMPTY, because her family's market titles
+  // ride in the same call. The stub matches phrases the way the vendor does, so the contrast is
+  // real: the same typed role with no family behind it returns nothing at all.
+  it("fills the deck for a typed role the market does not use, and cannot without the family", async () => {
+    const phraseMatchingProvider = () => ({
+      providerId: "one",
+      fetch: vi.fn(async (input: { queryKeywords: string[] }) => ({
+        ok: true as const,
+        records: [record("one", "hk")].filter((item) =>
+          input.queryKeywords.some((phrase) =>
+            item.title.toLocaleLowerCase("en-US").includes(phrase.toLocaleLowerCase("en-US")),
+          ),
+        ),
+      })),
+    });
+    const retrieveWith = (provider: PostingProvider) =>
+      makePostingRetriever({
+        registry: [policy("one", ["HK"], 1)],
+        providers: [provider],
+        store: new InMemoryPostingStore(),
+        productionFamilyFloors: initialProductionFamilyFloors(),
+        now,
+      });
+
+    await expect(
+      retrieveWith(phraseMatchingProvider())(request({ targetRole: "Delivery Lead" })),
+    ).resolves.toMatchObject({
+      outcome: "relevant_postings",
+      postings: [{ title: "IT Project Manager" }],
+    });
+
+    await expect(
+      retrieveWith(phraseMatchingProvider())(
+        wordRequest({ targetRole: "Delivery Lead", questionFloors: [] }),
+      ),
+    ).resolves.toMatchObject({ outcome: "empty_pool" });
+  });
+
+  // #235: no search family means no published market words — her typed words are the whole query.
+  it("sends the typed role alone in the word search", async () => {
+    const provider = { providerId: "one", fetch: vi.fn(async () => ({ ok: true as const, records: [] })) };
+    const retrieve = makePostingRetriever({
+      registry: [policy("one", ["HK"], 1)],
+      providers: [provider],
+      store: new InMemoryPostingStore(),
+      productionFamilyFloors: initialProductionFamilyFloors(),
+      now,
+    });
+    await retrieve(wordRequest({ targetRole: "Delivery Lead", questionFloors: [] }));
+    expect(provider.fetch.mock.calls[0]![0].queryKeywords).toEqual(["Delivery Lead"]);
+  });
+
+  it("bounds an adversarial typed role to whole words, and never sends a field value", async () => {
     const provider = { providerId: "one", fetch: vi.fn(async () => ({ ok: true as const, records: [] })) };
     const retrieve = makePostingRetriever({
       registry: [policy("one", ["HK"], 1)],
@@ -607,10 +697,51 @@ describe("#101 posting retrieval service", () => {
       }),
     );
     const terms = provider.fetch.mock.calls[0]![0].queryKeywords;
-    expect(terms.length).toBeLessThanOrEqual(12);
-    expect(Math.max(...terms.map((term: string) => term.length))).toBeLessThanOrEqual(40);
-    expect(new Set(terms.map((term: string) => term.toLowerCase())).size).toBe(terms.length);
+    // The 200-character word is dropped WHOLE — a phrase ending in half a word matches nothing.
+    expect(terms).toEqual(["Programme Programme Manager", "project manager"]);
     expect(JSON.stringify(terms)).not.toContain("SECRET-FIELD-VALUE");
+  });
+
+  // The 12-title cap needs a family with more market words than the fixture has. Only `get` is ever
+  // called on the store here, so a literal publication stands in for one.
+  it("caps a long market title list and keeps a cut title matchable", async () => {
+    const publication = {
+      publicationStatus: "published",
+      floor: {
+        familyId: "it-project-delivery",
+        version: 1,
+        source: "production_research",
+        productionRewardEligible: true,
+      },
+      marketSearchTitles: {
+        HK: [
+          { title: "Senior Technical Program Manager, Enterprise Delivery", adverts: 1, measuredOn: "2026-08-14" },
+          { title: "C&B Project Manager", adverts: 1, measuredOn: "2026-08-14" },
+          ...Array.from({ length: 20 }, (_, index) => ({
+            title: `market title ${index}`,
+            adverts: 1,
+            measuredOn: "2026-08-14",
+          })),
+        ],
+      },
+    };
+    const provider = { providerId: "one", fetch: vi.fn(async () => ({ ok: true as const, records: [] })) };
+    const retrieve = makePostingRetriever({
+      registry: [policy("one", ["HK"], 1)],
+      providers: [provider],
+      store: new InMemoryPostingStore(),
+      productionFamilyFloors: { get: () => publication } as unknown as ProductionFamilyFloorStore,
+      now,
+    });
+    await retrieve(request({ targetRole: "Delivery Lead" }));
+
+    const terms: string[] = provider.fetch.mock.calls[0]![0].queryKeywords;
+    expect(terms).toHaveLength(12);
+    expect(Math.max(...terms.map((term) => term.length))).toBeLessThanOrEqual(40);
+    // Whole words only, and no comma left dangling where the bound cut the title.
+    expect(terms).toContain("Senior Technical Program Manager");
+    // Punctuation INSIDE a title survives — "C&B Project Manager" is a real Hong Kong result.
+    expect(terms).toContain("C&B Project Manager");
   });
 
   it("the curated driver cannot certify a region without a fresh durable operator marker", async () => {
@@ -671,15 +802,31 @@ describe("#101 posting retrieval service", () => {
       ok: true,
       records: [],
     });
-    await expect(provider.fetch({ regionCode: "HK", queryKeywords: ["Project", "Manager"] })).resolves.toMatchObject({
+    // #240 AC6: PHRASES, matched against the advert's title, exactly as the live provider matches
+    // them. "Project Manager" keeps the two adverts apart; the old shredded-word rule matched
+    // "Retail Bank Manager" on the word "manager" alone.
+    await expect(provider.fetch({ regionCode: "HK", queryKeywords: ["Project Manager"] })).resolves.toMatchObject({
       ok: true,
       records: [{ providerPostingId: "hk" }],
     });
-    await expect(provider.fetch({ regionCode: "HK", queryKeywords: ["IT", "Project", "Manager"] })).resolves.toMatchObject({
+    // Several phrases OR together, same as one quoted list sent live.
+    await expect(
+      provider.fetch({ regionCode: "HK", queryKeywords: ["Project Manager", "Retail Bank Manager"] }),
+    ).resolves.toMatchObject({
       ok: true,
-      records: [{ providerPostingId: "hk" }],
+      records: [{ providerPostingId: "hk" }, { providerPostingId: "unrelated" }],
     });
-    await expect(provider.fetch({ regionCode: "HK", queryKeywords: ["retail"] })).resolves.toMatchObject({
+    // A phrase the market does not use catches nothing — it does not fall back to its loose words.
+    await expect(provider.fetch({ regionCode: "HK", queryKeywords: ["Delivery Lead"] })).resolves.toMatchObject({
+      ok: true,
+      records: [],
+    });
+    // Word boundaries hold: "manage" is not "manager".
+    await expect(provider.fetch({ regionCode: "HK", queryKeywords: ["manage"] })).resolves.toMatchObject({
+      ok: true,
+      records: [],
+    });
+    await expect(provider.fetch({ regionCode: "HK", queryKeywords: ["retail bank manager"] })).resolves.toMatchObject({
       ok: true,
       records: [{ providerPostingId: "unrelated" }],
     });
