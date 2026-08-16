@@ -255,6 +255,26 @@ export class ProductionFamilyFloorStore {
     if (activeVersion !== undefined && publication.floor.version <= activeVersion) {
       throw new Error("family floor version must increase monotonically");
     }
+    // #244: a re-publication must carry re-measured market words — copied rows keep their dates
+    // and are refused, so a publisher (a person today, #218's machinery tomorrow) that skipped the
+    // provider re-run CANNOT publish. Per served market the previous version also carries: the new
+    // version's newest measuredOn must be strictly newer than the old one's. ISO dates compare
+    // lexicographically. A first publication, or a newly served market, has nothing to compare.
+    const previous = this.active(publication.floor.familyId);
+    if (previous) {
+      const newestMeasuredOn = (entries: ReadonlyArray<{ measuredOn: string }>) =>
+        entries.reduce((max, entry) => (entry.measuredOn > max ? entry.measuredOn : max), "");
+      const staleMarkets = coveredRegionCodes().filter((code) => {
+        const prior = previous.marketSearchTitles[code];
+        return prior !== undefined && prior.length > 0 &&
+          newestMeasuredOn(publication.marketSearchTitles[code] ?? []) <= newestMeasuredOn(prior);
+      });
+      if (staleMarkets.length > 0) {
+        throw new Error(
+          `family market words were not re-measured since the previous publication: ${staleMarkets.join(", ")}`,
+        );
+      }
+    }
     const frozen = deepFreeze(publication);
     this.publications.set(key, frozen);
     this.activeVersions.set(publication.floor.familyId, publication.floor.version);

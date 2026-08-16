@@ -74,6 +74,18 @@ describe("test-fixture family floor store", () => {
 const productionPublication = () =>
   JSON.parse(readFileSync(join(here, "..", "research", "it-project-delivery-v1.json"), "utf8"));
 
+// #244: a re-publication must carry re-measured market words, so a v2 fixture bumps its dates.
+const remeasure = (
+  input: ReturnType<typeof productionPublication>,
+  date: string,
+  markets?: string[],
+) => {
+  for (const [code, entries] of Object.entries(input.marketSearchTitles)) {
+    if (markets && !markets.includes(code)) continue;
+    for (const entry of entries as Array<{ measuredOn: string }>) entry.measuredOn = date;
+  }
+};
+
 describe("production family floor publication", () => {
   it("serves only the active production version at the HTTP seam", async () => {
     const { app } = buildServer({
@@ -207,6 +219,7 @@ describe("production family floor publication", () => {
     const next = productionPublication();
     next.floor.version = 2;
     next.floor.essentialItems[0].question.prompt = "Have you owned end-to-end delivery?";
+    remeasure(next, "2026-08-16");
     store.publish(next);
     expect(first.floor.version).toBe(1);
     expect(first.floor.essentialItems[0].question.prompt).not.toBe(next.floor.essentialItems[0].question.prompt);
@@ -266,7 +279,55 @@ describe("market search vocabulary (#242)", () => {
     );
     const complete = productionPublication();
     complete.floor.version = 2;
+    remeasure(complete, "2026-08-16");
     store.publish(complete);
+    expect(store.active("it-project-delivery")?.floor.version).toBe(2);
+  });
+
+  it("refuses a re-publication whose market words were not re-measured (#244)", () => {
+    const store = new ProductionFamilyFloorStore();
+    store.publish(productionPublication());
+    const copied = productionPublication();
+    copied.floor.version = 2;
+    expect(() => store.publish(copied)).toThrow(
+      /family market words were not re-measured since the previous publication: HK, SG, VN, AU$/,
+    );
+    expect(store.active("it-project-delivery")?.floor.version).toBe(1);
+  });
+
+  it("refuses a re-publication naming only the markets whose words were copied (#244)", () => {
+    const store = new ProductionFamilyFloorStore();
+    store.publish(productionPublication());
+    const partial = productionPublication();
+    partial.floor.version = 2;
+    remeasure(partial, "2026-08-16", ["HK", "SG", "VN"]);
+    expect(() => store.publish(partial)).toThrow(
+      /family market words were not re-measured since the previous publication: AU$/,
+    );
+  });
+
+  it("anchors freshness on the previous ACTIVE version, never the first (#244)", () => {
+    const store = new ProductionFamilyFloorStore();
+    store.publish(productionPublication());
+    const second = productionPublication();
+    second.floor.version = 2;
+    remeasure(second, "2026-08-16");
+    store.publish(second);
+    const between = productionPublication();
+    between.floor.version = 3;
+    remeasure(between, "2026-08-15"); // newer than v1's dates, older than active v2's
+    expect(() => store.publish(between)).toThrow(
+      /family market words were not re-measured since the previous publication: HK, SG, VN, AU$/,
+    );
+  });
+
+  it("publishes a re-publication whose every served market was re-measured (#244)", () => {
+    const store = new ProductionFamilyFloorStore();
+    store.publish(productionPublication());
+    const fresh = productionPublication();
+    fresh.floor.version = 2;
+    remeasure(fresh, "2026-08-16");
+    store.publish(fresh);
     expect(store.active("it-project-delivery")?.floor.version).toBe(2);
   });
 });
