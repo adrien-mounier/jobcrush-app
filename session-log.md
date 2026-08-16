@@ -2,6 +2,28 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 140) `/implement 232` - plural target roles ask every essential floor (QA GO)
+
+**A target role can now keep every substantial family the labeler returns.** When every named
+family has a published, reward-eligible floor, `discoveryPlan()` preserves those families in
+placement order as `questionFloors` and keeps the first as the sole downstream `searchFamily`.
+Production discovery therefore asks the de-duplicated union of their essential items, asks a shared
+item once, and reaches `essential_floor_covered` only after the merged floor is complete. If any
+named family is unusable, the plan falls back as one unit instead of silently dropping that family.
+
+**Scope decision:** the initial QA gate found that standard and triggered questions still live in
+the legacy `resolveFamily()` fixture engine and cannot be connected to a plural production placement
+by this slice. The owner selected option 1 on #232: this ticket owns the post-#234
+`DiscoveryPlan` boundary; #223 retains convergence of that legacy engine. The decision is recorded
+on the live issue before closeout.
+
+**Review + QA:** Standards PASS with no findings. Spec review and the first QA pass raised the same
+AC3 ownership conflict; after the owner clarification, the scoped re-gate was GO (60/60 affected
+tests). Final forced gates passed 1,550 tests with 11 configured skips, all 7 typecheck tasks, and all
+5 build tasks. A browser plural flow is not constructible while production publishes only one family,
+so the real Fastify HTTP seam proves two question floors, a five-item de-duplicated essential union,
+one answer for the shared item, and merged checkpoint completion. Code: `3dfd307`.
+
 ## 2026-08-16 (session 139) `/research 239` — empty-result copy now has a source-backed string family
 
 **The bare dead end was checked against real product language.** The research note
