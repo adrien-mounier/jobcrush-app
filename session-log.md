@@ -2,6 +2,57 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 136) `/implement 228` — the target family ran out: she is offered the work her CV proves, and chooses (QA GO)
+
+**The dead end became a question.** When a visitor's chosen family runs out *and* nothing is left to
+ask, the screen no longer just says "Try a different job title." — it asks: *"There are no more jobs
+for {her typed words}. Your CV also proves other work. Do you want me to look there?"* It names no
+job family, promises no jobs, and costs nothing until she answers. "No" is remembered (never
+re-raised) with the way back on the same screen; "yes" buys **exactly one** more provider search,
+against the family her own dated job records prove most strongly, and that deck **replaces** hers.
+
+**How the one-search bound is built: no counter.** The accepted family goes on the session as a
+one-way latch, the retrieval request carries it, and that is a **new fingerprint** — so the next
+deck read retrieves once and every later read reuses the snapshot. A second acceptance re-reads the
+same latched family and writes nothing. The counting-retriever test proves the bill: decline → 1
+call, accept → 2, then three polls and a second acceptance → still 2.
+
+**The #243 trap was live and is closed.** `advertFamilyIdFor` now answers with the fallback family
+first, so the fallback deck is compared *and year-scored* against the family it was searched for.
+Without it every card would have been deleted on arrival, and her nine years would have scored as
+the zero she has in the family she left (regression test pins 9 vs 0).
+
+**Two judged deviations from the spec, both recorded on the issue:**
+
+- **D2's "no job card remains" moved to the screen.** The server cannot know she swiped to the last
+  card of a non-empty payload, so it now answers only *can this be honoured* and the screen answers
+  *is the deck finished*. Both dead ends — empty pool, swiped through — behave identically, which is
+  decision 4. The client-side half has its own browser test.
+- **D4 gained one exclusion:** the fallback family is her strongest CV family *except* the one the
+  deck already searched. Offering that would spend a call to return the deck she just swiped through.
+  Cost: a visitor whose only proven family IS her target family gets today's plain dead end.
+
+**The loopback stopped over-promising (decision 2a).** "…and I'll widen the net" became "…and I'll
+score them better" in both places, and the loopback door itself is now only reachable while a
+question genuinely remains — swiping past the last card with nothing left to ask lands on the dead
+end, where the offer lives, instead of an empty ask screen.
+
+**Ratchet lowered 1108 → 1058:** the deck's whole card-assembly pass (read → delete wrong-family →
+withdraw → judge → shape + order) moved to `deck.ts` (`buildDeckCards`); the new endpoint landed as
+a thin entry plus one `deckFallback.ts` call, and the spine still shrank by fifty lines.
+
+**QA GO, USD 0.00 spent** (fake-model API, mocked deck payloads — no live provider is wired
+locally). Gates force-bypassed: api 1499 pass, contracts 47, mocked e2e 138 pass / 1 skipped. QA
+wrote a second journey covering the branches the first missed —
+`apps/web/e2e/fallback-offer-empty-result-journey.mjs` (accepted-but-empty, reload mid-widening,
+offer suppressed while cards remain).
+
+**One residual the owner should see, pre-existing but now carrying a price:** the deck screen shows
+the dead end whenever it has zero cards — *including the seconds while the FIRST search is still
+running*, and it does not poll there. A visitor who taps "Yes, look" in that window is latched out
+of the family she asked for and spends the extra call before her own search ever returned. Belongs
+with whoever owns the empty screen's retrieval-in-progress state.
+
 ## 2026-08-16 (session 135) `/implement 240` — the search asks for a job title, not any word (QA GO, `2d8eb58`)
 
 **#63's last gate is cleared.** The query is now a list of quoted job-title phrases built per

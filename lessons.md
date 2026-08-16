@@ -1,5 +1,38 @@
 # Lessons — jobcrush-app
 
+## A spend bound is a fingerprint, not a counter
+
+#228 had to guarantee "at most one extra provider search per session, ever". The obvious build is a
+counter on the session, and it would have been wrong in three ways at once: it needs a write on the
+paying path, it double-counts a retried failure, and nothing stops a poll from spending under it.
+
+The bound that actually held was already in the machinery. Retrieval keys its snapshot on a
+**fingerprint of the request**, and the session holds one snapshot per fingerprint. So: latch the
+accepted family onto the session, let it ride the request, and a new fingerprint appears exactly
+once — one retrieval, then reuse for every later read, with the *latch* (not a number) making a
+second acceptance a no-op. No counter, no bookkeeping, and the property is provable by counting
+calls to a fake retriever rather than by reading a variable.
+
+The general shape: **when a ticket asks you to bound how often something happens, look first for the
+identity the system already caches on.** If repeating the work would produce the same key, the cache
+is the bound — and it cannot drift out of sync with reality the way a counter can.
+
+## The server cannot see the end of a list it handed over
+
+#228's spec put four conditions on the offer, and one of them — "no job card remains" — turned out
+to be unanswerable on the server: it hands over a full deck and never learns that she swiped past
+the last card. Implementing the rule as written would have served the *empty pool* case and silently
+missed the *exhausted deck* case, which is the one the ticket is named after.
+
+The split that worked: the server answers **"can this be honoured?"** (every eligibility question —
+her CV, her interview, her session state), and the screen answers **"is it time?"** (a fact only it
+holds). The rule "the screen renders, it does not decide" survives intact, because the screen still
+decides nothing about whether the offer is *possible*.
+
+Worth noticing before writing a server-owned state field: **ask which side actually holds each fact
+the condition needs.** A condition mixing the two is a sign the field belongs on both sides of the
+wire, split by who can see what — not that one side should guess.
+
 ## A bound outlives the unit it was written for
 
 `MAX_QUERY_TERM_LENGTH = 40` was a **per-word** cap. #240 changed the unit the query is made of from
