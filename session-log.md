@@ -20,10 +20,10 @@ state. Tinder logged-in UI was not driven; first-party Help and app payload evid
 Reed produced the only usable local screenshot, saved under the repo's ignored evidence area:
 `screenshots/research-239/reed-zero-results.png` (force-add if it needs to travel with the commit).
 
-**Roadmap:** row 5c.2b is marked research-written-local, not closed; the progress paragraph no
-longer points to #239 as next. Next implementation pointer is #232 **after** #239 is committed/closed
-and live issue dependencies still agree. No context-file sync was run; this was a research + tracking
-update only. No commit yet.
+**Roadmap + tracker:** row 5c.2b is marked done, #239 was closed by hand with a comment naming
+research commit `11edd8b`, and the progress paragraph no longer points to #239 as next. Next
+implementation pointer is #232 once live issue dependencies still agree. No context-file sync was
+run; this was a research + tracking update only.
 
 ## 2026-08-16 (session 138) `/implement 237` — publishing v2 no longer strands sessions pinned to v1 (QA GO)
 
