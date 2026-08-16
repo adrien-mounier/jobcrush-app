@@ -96,6 +96,8 @@ the board stops meaning anything. **The line drawn, and it is new:**
 
 _Scored 2026-08-16 when #240's grilling filed #242 and #243 — **both Fable, effort `high`; #240 stays
 Opus `high`.**_ Rows 5c.1f–5c.1h run **#242 ∥ #243 → #240**, and all three sit in front of #63.
+_Progress 2026-08-16 (same day): **#242 done (`ad853e7`), #244 done (`f73c61a`, filed out of #242's
+residual). Next in sequence: #243, then #240.**_
 
 - **#242 → Fable.** It writes a **real-world claim into a published vocabulary**: "in Hong Kong this
   family is called *project manager*". Drawn wrong, nothing crashes and no test fails — every visitor
