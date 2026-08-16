@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { FamilyFloorV1, type FamilyFloorV1 as FamilyFloorV1Value } from "@jobcrush/contracts";
 import { z } from "zod";
+// Safe direction: postingRetrieval's own import of this module is type-only (erased at compile),
+// so this runtime edge creates no cycle — keep it that way if that import ever changes.
+import { coveredRegionCodes } from "./postingRetrieval.js";
 
 const keyOf = (familyId: string, version: number) => `${familyId}@${version}`;
 
@@ -106,6 +109,21 @@ export const ProductionFamilyPublication = z.object({
       capturedAt: z.string().trim().date(),
       normalizedRequirements: z.array(z.string().trim().min(1)).min(1),
   })).min(3),
+  // #242: search area → the job titles that market actually uses for this family's work. Keys are
+  // the registry's region codes (the same vocabulary regionsServed and the provider fetch use).
+  // Each title carries the probe measurement that put it on the list — quoted title, one market,
+  // advert count — so a word the market does not use ("delivery lead" in Hong Kong: 0 adverts)
+  // cannot be published as a search word. `measuredOn` is the advert day the probe sampled, not
+  // the day it ran. The field holds the truth about the market; what a search SENDS is #240's
+  // rule, kept deliberately out of this field.
+  marketSearchTitles: z.record(
+    z.string().regex(/^[A-Z]{2}$/),
+    z.array(z.object({
+      title: z.string().trim().min(1),
+      adverts: z.number().int().positive(),
+      measuredOn: z.string().trim().date(),
+    })).min(1),
+  ),
   evaluation: z.object({
     evaluator: z.object({
       engine: z.literal("calibrated-family-placement"),
@@ -188,6 +206,20 @@ export class ProductionFamilyFloorStore {
       publication.postingEvidence.map((item) => item.employer.trim().toLocaleLowerCase("en-US")),
     ).size < 3) {
       throw new Error("production family requires at least three employers");
+    }
+    // #242 decision 5: a served market with no search words would surface as a quietly empty deck,
+    // never an error — so the gap refuses the publication instead. Served is the registry retrieval
+    // already trusts, and the check runs on every (re-)publication: that re-check at the gate is
+    // what keeps a family's market words from going stale silently (decision 4). Consequence, by
+    // design: adding a region to the provider registry refuses boot until every published family
+    // names that market's words — loud, never a quietly empty market.
+    const missingMarkets = coveredRegionCodes().filter(
+      (code) => !publication.marketSearchTitles[code]?.length,
+    );
+    if (missingMarkets.length > 0) {
+      throw new Error(
+        `family cannot be published for served markets with no search words: ${missingMarkets.join(", ")}`,
+      );
     }
     const regenerated = generateFamilyEvaluation(publication.evaluation.rawCases);
     if (JSON.stringify(publication.evaluation.generated) !== JSON.stringify(regenerated)) {

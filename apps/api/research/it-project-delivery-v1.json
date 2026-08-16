@@ -23,6 +23,21 @@
     { "employer": "Scale AI", "roleTitle": "Technical Program Manager, Enterprise", "location": "London, UK", "sourceUrl": "https://boards-api.greenhouse.io/v1/boards/scaleai/jobs/4711993005", "capturedAt": "2026-07-28", "normalizedRequirements": ["Own timelines, milestones, risks and dependencies", "Drive end-to-end cross-functional execution", "Translate technical complexity for engineers and executives", "Proactively mitigate delivery risk"] },
     { "employer": "Asana", "roleTitle": "Senior Technical Program Manager", "location": "Vancouver, BC", "sourceUrl": "https://boards-api.greenhouse.io/v1/boards/asana/jobs/8082909", "capturedAt": "2026-07-28", "normalizedRequirements": ["Lead end-to-end cross-functional programmes", "Coordinate engineering, product, design, research and business", "Combine technical depth with business judgement", "Deliver measurable customer outcomes"] }
   ],
+  "marketSearchTitles": {
+    "HK": [
+      { "title": "project manager", "adverts": 22, "measuredOn": "2026-08-14" }
+    ],
+    "SG": [
+      { "title": "project manager", "adverts": 21, "measuredOn": "2026-07-30" }
+    ],
+    "VN": [
+      { "title": "project manager", "adverts": 13, "measuredOn": "2026-07-30" }
+    ],
+    "AU": [
+      { "title": "project manager", "adverts": 70, "measuredOn": "2026-07-30" },
+      { "title": "delivery manager", "adverts": 5, "measuredOn": "2026-07-30" }
+    ]
+  },
   "evaluation": {
     "evaluator": { "engine": "calibrated-family-placement", "version": "1" },
     "thresholds": { "comparableAccuracy": 0.95, "unfamiliarRecall": 0.9, "familiarFalseUnknownRate": 0.05 },

@@ -225,3 +225,48 @@ describe("production family floor publication", () => {
     expect(store.active("it-project-delivery")?.floor.version).toBe(2);
   });
 });
+
+describe("market search vocabulary (#242)", () => {
+  it("a published family carries the job titles each served market uses", () => {
+    const publication = initialProductionFamilyFloors().active("it-project-delivery")!;
+    expect(Object.keys(publication.marketSearchTitles).sort()).toEqual(["AU", "HK", "SG", "VN"]);
+    expect(publication.marketSearchTitles.HK.map((item) => item.title)).toContain("project manager");
+  });
+
+  it("refuses publication for a served market with no search words", () => {
+    const input = productionPublication();
+    delete input.marketSearchTitles.HK;
+    expect(() => new ProductionFamilyFloorStore().publish(input)).toThrow(
+      "family cannot be published for served markets with no search words: HK",
+    );
+  });
+
+  it("refuses an empty title list for a market", () => {
+    const emptied = productionPublication();
+    emptied.marketSearchTitles.VN = [];
+    expect(() => new ProductionFamilyFloorStore().publish(emptied)).toThrow(/at least 1/);
+  });
+
+  it("refuses a title measured to catch no adverts", () => {
+    const unmeasured = productionPublication();
+    unmeasured.marketSearchTitles.HK = [
+      { title: "delivery lead", adverts: 0, measuredOn: "2026-08-14" },
+    ];
+    expect(() => new ProductionFamilyFloorStore().publish(unmeasured)).toThrow(/greater than 0/);
+  });
+
+  it("re-runs the market-words gate on every re-publication", () => {
+    const store = new ProductionFamilyFloorStore();
+    store.publish(productionPublication());
+    const gapped = productionPublication();
+    gapped.floor.version = 2;
+    delete gapped.marketSearchTitles.VN;
+    expect(() => store.publish(gapped)).toThrow(
+      "family cannot be published for served markets with no search words: VN",
+    );
+    const complete = productionPublication();
+    complete.floor.version = 2;
+    store.publish(complete);
+    expect(store.active("it-project-delivery")?.floor.version).toBe(2);
+  });
+});
