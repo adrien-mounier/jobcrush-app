@@ -2,6 +2,52 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 132) `/grilling 240` — the search asks for any word, and 438 adverts come back
+
+**No code. Three tickets, one live probe, one defect found.** #240 said the job family should widen
+the search into its sibling titles. The grilling reversed the premise and, on the way, measured the
+provider for the first time.
+
+- **The probe (13 Techmap calls, HK, `dateCreated` 2026-08-14, owner-approved).** The query is sent
+  **unquoted**, and the provider matches **any word**: `project manager` → **438** adverts (Marketing
+  Manager, PR Manager, Business Development Manager), `"project manager"` → **22**, all real. Proven
+  by adding an unrelated word — `project manager nurse` → 456, exactly the nurse adverts. Word order
+  is irrelevant. **`"delivery lead"` → 0.** **Several quoted phrases OR together in one call**
+  (`"project manager" "business analyst"` → 31 = 22+10−1), so a market word list costs no extra call.
+  The 13 bypassed our own ledger — the internal monthly counter reads 13 low for 2026-08.
+- **The original premise was wrong twice.** "Expand into sibling titles" is a British/Australian
+  assumption the provider research already refuted on 2026-08-01 (Finding 3: "delivery manager",
+  "programme manager" effectively absent in HK/SG/VN). And the measured problem for a common title is
+  *precision*, not recall — six or seven in ten are construction. The real recall hole is the reverse
+  visitor: **Mei types "delivery lead" and gets zero**, while her family's adverts sit under "project
+  manager".
+- **#242 filed** — a job family carries the titles its market uses. The need was written into the
+  research 15 days ago and never became work (the same failure #226 exists to name). The data we hold
+  cannot answer it: the published family's four evidence titles come from Singapore, "Hybrid",
+  **London** and **Vancouver**. Owner decided: one or more per market, **no cap**, filtered by
+  research not code; re-checked at every publication; **a family may not be published for a market
+  with no search words**.
+- **#243 filed — the owner's own proposal.** The advert's family fit is produced on every read
+  (#86 d1) and thrown away, because `makeAdReader` gets its closed list from **`e5stub`'s test
+  fixture** — `["IT Project Manager"]` — while the published family is `it-project-delivery`.
+  `deck.ts` refuses it in as many words and points at **#107, which is closed and about withdrawal**.
+  Nobody owned it. Owner decided: unrelated adverts **leave the deck**, and **identity decides
+  deletion while confidence decides order** — no threshold to defend, nothing unsure destroyed
+  silently.
+- **#240 rewritten** — quote every job title, send the family's market titles unconditionally
+  alongside her own, **drop evidence field labels from the query entirely**, zero extra calls.
+- **#228 promoted to a main path.** 22/day is the whole HK catch; ~7–10 survive #243; the deck judges
+  8. One visitor consumes about one day of Hong Kong in one sitting.
+- **#92 gained a lead** — the provider already returns `isDuplicate`, `occupation`, `industry`,
+  `careerLevel` on every item and our normaliser reads none of them. Flagged as a vendor claim to
+  measure, not to trust, and almost certainly *within*-provider where #92's problem is *across*.
+- **Correction recorded:** I argued for sinking rather than deleting by citing the "nothing is ever
+  filtered out by it" rule. That rule governs **placement confidence** — a person's job record.
+  **Posting family fit** is a separate glossary entry that explicitly parked this decision. No
+  glossary revision was needed; the owner's call fills the gap rather than overturning a rule.
+
+Order: **#242 ∥ #243 → #240 → #63 → #228**. Commit: docs-only.
+
 ## 2026-08-16 (session 130) `/implement 236` — the screen judges her in the background, and she never knows
 
 **Shipped, QA GO (`bd1f3d0`). Not deployed — CI is still billing-blocked (see session 128).** While

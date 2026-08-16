@@ -1,5 +1,38 @@
 # Lessons — jobcrush-app
 
+## Thirteen provider calls answered a question five rounds of reasoning could not
+
+Grilling #240 spent five rounds arguing about how to send several job titles to Techmap — phrases or
+words, one call or many, how her own wording survives dilution. Every branch rested on an assumption
+nobody had ever tested: **what does the `title` parameter actually do with more than one word?**
+
+Thirteen live calls (~1.3% of the month's 1,000, HK, one day) collapsed the whole tree:
+
+- **Unquoted, it matches ANY word.** `project manager` → **438** Hong Kong adverts, top results
+  Marketing Manager, PR Manager, Business Development Manager. `"project manager"` → **22**, all
+  real. Confirmed by adding a word: `project manager nurse` → 456, exactly the nurse adverts.
+- **Word order is irrelevant.** `manager project` returned byte-identical results.
+- **Several quoted phrases OR together in one call** — 22 + 10 − 1 = 31. The multi-title cost
+  question, argued over three rounds, did not exist.
+
+Two takeaways, and the second is the one that generalises.
+
+**A vendor's query semantics are a fact, not a design input.** Ours had been assumed for a month.
+`boundedKeywords()` shreds titles into words *and* the driver sends them unquoted — a search for
+project managers is a search across 438 adverts. Not user-visible (fixtures), but #63 was about to
+build provider drivers on top of it.
+
+**When a design fork rests on an unmeasured external behaviour, buy the measurement first.** The
+probe cost thirteen calls and one script. It killed three questions outright, reversed a
+recommendation I had already made twice (a one-title cap, argued on cost grounds that turned out not
+to exist), and produced the number — 22 adverts/day is the whole HK catch — that promoted #228 from
+edge case to main path. Ask for the call earlier than feels justified.
+
+**Also found in passing, because the payload was printed:** every Techmap item carries `isDuplicate`,
+`occupation`, `industry`, `careerLevel`, `portal`, `isDirect` — and `normalizeTechmapItem` reads none
+of them. `isDuplicate` is what #92 is chartered to measure. Printing one raw response is cheap; a
+year of not printing it is not.
+
 ## The CI budget went on prose, and the fix that looks obvious would have switched off the wrong tests
 
 At 90% of the month's GitHub Actions minutes with two weeks left, the burn was ~120 min/day against a
