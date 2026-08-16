@@ -16,15 +16,16 @@ object, no prose.
 
 ## The advert's job family
 
-Decide which ONE of these known job families this posting belongs to, or "none of these" if it
-genuinely does not fit any of them — never invent a family name that isn't in this list:
+Decide which ONE of these known job families this posting belongs to. Each family below states what
+it covers — THAT decides the family, not a word match on the title. Answer with the family's `id`,
+copied exactly as written, or the exact string "none of these" if the posting genuinely fits none
+of them — never a family's display name, and never a family name that isn't in this list:
 
 {{KNOWN_FAMILIES}}
-- none of these
 
 Give a confidence from 0 (no idea) to 1 (certain). A posting that is clearly not that kind of role
-(e.g. construction, retail, healthcare, when the only known families are IT-flavored) should get a
-low confidence rather than being forced into the nearest family.
+(e.g. construction, retail, healthcare, when the only known families are IT-flavored) is "none of
+these" — never forced into the nearest family with a low confidence.
 
 ## Requirements
 
@@ -115,7 +116,7 @@ Report the language the advert is written in as `language` — a BCP-47 primary 
 ```json
 {
   "language": "en",
-  "familyFit": { "family": "IT Project Manager", "confidence": 0.85 },
+  "familyFit": { "family": "<a family id from the list, or none of these>", "confidence": 0.85 },
   "requirements": [
     {
       "id": "kebab-slug",

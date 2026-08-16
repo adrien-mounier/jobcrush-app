@@ -4,7 +4,7 @@
     "adId": "2026-07-05_manulife_senior-it-project-manager-delivery-manager",
     "curated": true,
     "language": "en",
-    "familyFit": { "family": "IT Project Manager", "confidence": 0.9 },
+    "familyFit": { "family": "it-project-delivery", "confidence": 0.9 },
     "requirements": [
       {
         "id": "manage-full-project-lifecycle",
@@ -68,7 +68,7 @@
     "adId": "2026-07-05_endava-vietnam_senior-project-manager",
     "curated": true,
     "language": "en",
-    "familyFit": { "family": "IT Project Manager", "confidence": 0.9 },
+    "familyFit": { "family": "it-project-delivery", "confidence": 0.9 },
     "requirements": [
       {
         "id": "lead-agile-delivery",
@@ -137,7 +137,7 @@
     "adId": "2026-07-09_luvo-talent_senior-project-manager",
     "curated": true,
     "language": "en",
-    "familyFit": { "family": "IT Project Manager", "confidence": 0.9 },
+    "familyFit": { "family": "it-project-delivery", "confidence": 0.9 },
     "requirements": [
       {
         "id": "end-to-end-transformation-delivery",
@@ -193,7 +193,7 @@
     "adId": "2026-06-30_schneider-electric_senior-project-manager",
     "curated": true,
     "language": "en",
-    "familyFit": { "family": "IT Project Manager", "confidence": 0.9 },
+    "familyFit": { "family": "it-project-delivery", "confidence": 0.9 },
     "requirements": [
       {
         "id": "end-to-end-customer-projects",
@@ -250,7 +250,7 @@
     "adId": "2026-07-01_transunion_senior-project-manager-6-months-contract",
     "curated": true,
     "language": "en",
-    "familyFit": { "family": "IT Project Manager", "confidence": 0.9 },
+    "familyFit": { "family": "it-project-delivery", "confidence": 0.9 },
     "requirements": [
       {
         "id": "concurrent-end-to-end-delivery",
@@ -314,7 +314,7 @@
     "adId": "2026-07-05_computershare-hong-kong_business-readiness-senior-project-manager-9-month-contract",
     "curated": true,
     "language": "en",
-    "familyFit": { "family": "IT Project Manager", "confidence": 0.9 },
+    "familyFit": { "family": "it-project-delivery", "confidence": 0.9 },
     "requirements": [
       {
         "id": "business-readiness-lead",
@@ -378,7 +378,7 @@
     "adId": "2026-07-05_synpulse_business-analyst-project-manager-wealth-management-data",
     "curated": true,
     "language": "en",
-    "familyFit": { "family": "IT Project Manager", "confidence": 0.9 },
+    "familyFit": { "family": "it-project-delivery", "confidence": 0.9 },
     "requirements": [
       {
         "id": "data-migration-lifecycle",
@@ -441,7 +441,7 @@
     "adId": "2026-07-05_hire-feed_project-manager-remote",
     "curated": true,
     "language": "en",
-    "familyFit": { "family": "IT Project Manager", "confidence": 0.9 },
+    "familyFit": { "family": "it-project-delivery", "confidence": 0.9 },
     "requirements": [
       {
         "id": "full-project-lifecycle",
@@ -499,7 +499,7 @@
     "adId": "2026-07-10_huaxin-tech-shenzhen_it-xiangmu-jingli",
     "curated": false,
     "language": "zh",
-    "familyFit": { "family": "IT Project Manager", "confidence": 0.85 },
+    "familyFit": { "family": "it-project-delivery", "confidence": 0.85 },
     "requirements": [
       {
         "id": "end-to-end-project-management",
@@ -530,7 +530,7 @@
     "adId": "2026-07-01_hays_senior-front-office-project-manager-top-tier-investment",
     "curated": false,
     "language": "zh",
-    "familyFit": { "family": "IT Project Manager", "confidence": 0.6 },
+    "familyFit": { "family": "it-project-delivery", "confidence": 0.6 },
     "requirements": [
       {
         "id": "years-experience-8plus-hays",

@@ -8,7 +8,6 @@ import { InMemoryUsageLedgerStore } from "../src/usageLedgerStore.js";
 import { InMemoryAdRequirementsStore } from "../src/adRequirementsStore.js";
 import { makeAdReader } from "../src/adReader.js";
 import { buildServer } from "../src/server.js";
-import { knownFamilies } from "../src/e5stub.js";
 import type { LlmClient } from "../src/llm.js";
 import type { PricingTable } from "../src/llmPricing.js";
 
@@ -213,7 +212,9 @@ describe("meterLlm through the real HTTP seam", () => {
     const meteredReader = meterLlm(rawLlm, "advert-reading", ledger, pricing);
 
     const { app } = buildServer({
-      readAd: makeAdReader(meteredReader, new InMemoryAdRequirementsStore(), knownFamilies()),
+      readAd: makeAdReader(meteredReader, new InMemoryAdRequirementsStore(), [
+        { familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" },
+      ]),
     });
 
     const anon = await app.inject({ method: "POST", url: "/sessions/anonymous" });

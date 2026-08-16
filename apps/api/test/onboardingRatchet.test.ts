@@ -34,7 +34,10 @@ import { fileURLToPath } from "node:url";
 // deck.ts, where the rest of the card-shaping policy already lives, and the miner's `minedRoles`
 // accessor to jobs.ts, beside the record it reads — the background family-candidate screen landed
 // as one injected dep call and the spine still shrank.
-const MAX_LINES = 1110;
+// #243 lowered it from 1110: the deck's card-provenance tally moved to deck.ts
+// (tallyCardProvenance), beside the rest of the card-shaping policy — the family-fit deletion +
+// confidence ranking landed as deck.ts calls and the spine still shrank.
+const MAX_LINES = 1108;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

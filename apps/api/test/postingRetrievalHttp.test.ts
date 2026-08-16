@@ -110,7 +110,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       adId: posting.id,
       curated: false,
       language: posting.language,
-      familyFit: { family: "IT Project Manager", confidence: 0.9 },
+      familyFit: { family: "it-project-delivery", confidence: 0.9 },
       requirements: [{
         id: "project-delivery",
         band: "essential",
@@ -180,7 +180,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       adId: posting.id,
       curated: false,
       language: posting.language,
-      familyFit: { family: "IT Project Manager", confidence: 0.9 },
+      familyFit: { family: "it-project-delivery", confidence: 0.9 },
       requirements: [{
         id: "project-delivery",
         band: "essential",
@@ -373,7 +373,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       adId: posting.id,
       curated: false,
       language: posting.language,
-      familyFit: { family: "IT Project Manager", confidence: 0.9 },
+      familyFit: { family: "it-project-delivery", confidence: 0.9 },
       requirements: [
         {
           id: "project-delivery",

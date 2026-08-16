@@ -113,8 +113,8 @@ answer the person typed. **Length of experience is experience in a family, plus 
 counts fully toward each, so the family numbers do not sum to the total and no surface may present
 that sum — and the total at the global scope, each job counted once. A years bar is tested at its
 own scope (`yearsScope` on the requirement): family bars against the advert's family's number — the
-session's pinned floor, else its target-role placement, since an advert's free-text `familyFit` is
-not the closed vocabulary — total bars against the total. A **known zero is not an
+session's pinned floor, else its target-role placement; the advert's own `familyFit` decides deck
+membership (#243), never which years fact a bar tests — total bars against the total. A **known zero is not an
 unknown**: every job placed and none in the advert's family scores against zero; the career-total
 fallback applies only while some years are genuinely unaccounted for (an unmapped job).
 _Avoid_: Screening answer, source-supported fact
@@ -145,6 +145,10 @@ _Avoid_: Sector, kind of employer, employer type
 
 **Posting family fit**:
 The judgement of whether a live posting belongs to a job family at all, carried with the posting
-alongside a confidence. Producing it is part of reading the advert; deciding what a weak verdict
-means for the feed is a separate decision that does not belong to the engine that produced it.
+alongside a confidence — a published family id or "none of these" (#243), never free text.
+Producing it is part of reading the advert; what a verdict means for the feed is decided separately
+(#243): **identity deletes, confidence orders** — an advert naming another family (or none) leaves
+the deck it doesn't belong to entirely, and a weak confidence on the right family sinks the card's
+rank without ever removing it or touching its score. The family compared against is the one the
+deck was searched for, never the visitor's own.
 _Avoid_: Relevance score, title match, family placement

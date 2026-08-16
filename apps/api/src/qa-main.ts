@@ -361,7 +361,7 @@ const QA_LANGUAGE_ADVERTS: Record<string, unknown> = {
     adId: "2026-07-05_okx_senior-strategy-project-manager-vip-institutions",
     curated: true,
     language: "en",
-    familyFit: { family: "IT Project Manager", confidence: 0.85 },
+    familyFit: { family: "it-project-delivery", confidence: 0.85 },
     requirements: [
       {
         id: "strategic-initiatives-vip",
@@ -388,7 +388,7 @@ const QA_LANGUAGE_ADVERTS: Record<string, unknown> = {
     adId: "2026-07-09_bnp-paribas_project-manager-lead-business-analyst-regulatory-reporting",
     curated: true,
     language: "en",
-    familyFit: { family: "IT Project Manager", confidence: 0.85 },
+    familyFit: { family: "it-project-delivery", confidence: 0.85 },
     requirements: [
       {
         id: "regulatory-reporting-delivery",
@@ -415,7 +415,7 @@ const QA_LANGUAGE_ADVERTS: Record<string, unknown> = {
     adId: "2026-07-13_bnp-paribas_senior-project-manager",
     curated: true,
     language: "en",
-    familyFit: { family: "IT Project Manager", confidence: 0.85 },
+    familyFit: { family: "it-project-delivery", confidence: 0.85 },
     requirements: [
       {
         id: "run-drive-projects-end-to-end",

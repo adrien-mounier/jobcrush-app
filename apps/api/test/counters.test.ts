@@ -43,6 +43,7 @@ describe("#103 posting-pool counters", () => {
       "adReader.requirements_produced": 0,
       "adReader.requirements_blocking": 0,
       "adReader.blocking_clamped": 0,
+      "adReader.family_clamped": 0,
       "adReader.cost_reads_recorded": 0,
       "adReader.cost_input_tokens_total": 0,
       "adReader.cost_output_tokens_total": 0,
@@ -80,6 +81,7 @@ describe("#103 posting-pool counters", () => {
       "deck.judge_bound_hit": 0,
       // #107 — see counters.ts's own header for what this means.
       "deck.cards_withdrawn": 0,
+      "deck.family_dropped": 0,
       // #100 — see counters.ts's own header for what these mean.
       "postings.techmap_calls_made": 0,
       "postings.techmap_calls_failed": 0,

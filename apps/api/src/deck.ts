@@ -23,7 +23,7 @@ import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
 import { applyEligibilityQuestions, excludingEligibility } from "./eligibilityDiscovery.js";
 import { readingLanguages, languageEligible } from "./language.js";
-import { incrementCounter, recordReadFailure } from "./counters.js";
+import { addToCounter, incrementCounter, recordReadFailure } from "./counters.js";
 import {
   matchBreakdown,
   matchTick,
@@ -135,12 +135,19 @@ const SCORE_TIER: Record<CardScoreProvenance, number> = { judged: 0, estimated: 
  *     sort placed it (the back) rather than adding bound-selection logic that special-cases curated
  *     ids. */
 export function orderCardsForReveal<T extends { matchPct: number | null; scored: CardScoreProvenance }>(
-  entries: Array<{ card: T; curated: boolean }>,
+  // #243 decision 2's second half — confidence decides ORDER (identity already decided deletion,
+  // partitionByFamilyFit below). `familyConfidence` is the reader's own familyFit confidence,
+  // passed only when this deck HAS a family (a word-search deck ranks exactly as before): within a
+  // provenance tier a card ranks by matchPct × confidence, so an advert we are UNSURE belongs here
+  // is shown last rather than destroyed — the displayed matchPct itself is never touched.
+  entries: Array<{ card: T; curated: boolean; familyConfidence?: number }>,
 ): T[] {
+  const rank = (entry: { card: T; familyConfidence?: number }) =>
+    (entry.card.matchPct ?? 0) * (entry.familyConfidence ?? 1);
   const scoreSorted = [...entries].sort((a, b) => {
     const tierDiff = SCORE_TIER[a.card.scored] - SCORE_TIER[b.card.scored];
     if (tierDiff !== 0) return tierDiff;
-    return (b.card.matchPct ?? 0) - (a.card.matchPct ?? 0);
+    return rank(b) - rank(a);
   });
   const openerIndex = scoreSorted.findIndex(
     (entry) => entry.curated && entry.card.scored !== "pending" && entry.card.scored !== "unscored",
@@ -405,11 +412,12 @@ export function resolveUserYears(facts: readonly EligibilityFact[]): number | nu
  *                  career-total reading, unchanged.
  *
  *  `advertFamilyId` comes from advertFamilyIdFor (below): the confirmed floor when one is pinned,
- *  else the target-role placement — the only closed-vocabulary family a session's deck carries
- *  today. `adRequirements.familyFit` is deliberately NOT used: it is the ad reader's own free
- *  text, and keying a fact on it would be word-matching across vocabularies — the exact weakness
- *  ADR-0014 decision 1 exists to remove. When adverts gain a closed-vocabulary placement of their
- *  own, these two functions are the one resolution point to swap. */
+ *  else the target-role placement — the deck's own closed-vocabulary family. `adRequirements
+ *  .familyFit` is still deliberately NOT used for the YEARS fact: #243 made it a closed-vocabulary
+ *  answer (validated against the published list, so word-matching is no longer the objection) and
+ *  consumes it for deck MEMBERSHIP and order (partitionByFamilyFit / orderCardsForReveal), but a
+ *  years fact keys on the family the deck was searched for, which stays these two functions'
+ *  resolution. */
 export interface SessionYears extends YearsAtScopes {
   familySource: "fact" | "zero" | "fallback" | "unscoped";
   familyConfidence: PlacementConfidence | null;
@@ -606,6 +614,44 @@ export function buildJobCard(
     },
     dontYet,
   };
+}
+
+/** #243 decision 1/2 — identity decides DELETION: an advert whose read-stamped familyFit names
+ *  another family, or "none of these", leaves the deck entirely (the owner rejected the sink-only
+ *  shape: a construction job in an IT deck reads as a broken product). Confidence never deletes —
+ *  an advert naming THIS deck's family is kept whatever its confidence, and a weak one sinks in the
+ *  ranking instead (orderCardsForReveal). `deckFamilyId` is the family THIS DECK WAS SEARCHED FOR
+ *  (advertFamilyIdFor — decision 4: #228's fallback deck is a different family on purpose, so its
+ *  own cards survive); null (word search, no confirmed placement) compares nothing and keeps all.
+ *  The dropped count is the ticket's own "without a number we will believe this worked" AC —
+ *  counted on deck.family_dropped, observable on /ops/counters. */
+export function partitionByFamilyFit<T extends { adReq: AdRequirementsV1 }>(
+  candidates: T[],
+  deckFamilyId: string | null,
+): { kept: T[]; dropped: number } {
+  if (deckFamilyId === null) return { kept: candidates, dropped: 0 };
+  const kept = candidates.filter((entry) => entry.adReq.familyFit.family === deckFamilyId);
+  const dropped = candidates.length - kept.length;
+  if (dropped > 0) addToCounter("deck.family_dropped", dropped);
+  return { kept, dropped };
+}
+
+/** The deck response's per-card provenance tally (#117 AC3/AC8), moved out of the route by #243 —
+ *  observable on /ops/spend alongside cost per visitor. Returns pendingCount: ONLY genuinely
+ *  in-flight (`pending`) cards, never `unscored` ones, so a client polling on it terminates
+ *  instead of waiting forever on a card that was never bought (#117 must-fix 2). */
+export function tallyCardProvenance(cards: Array<{ scored: CardScoreProvenance }>): number {
+  let pendingCount = 0;
+  for (const card of cards) {
+    if (card.scored === "judged") incrementCounter("deck.cards_judged");
+    else if (card.scored === "estimated") incrementCounter("deck.cards_estimated");
+    else if (card.scored === "unscored") incrementCounter("deck.cards_unscored");
+    else {
+      incrementCounter("deck.cards_pending");
+      pendingCount++;
+    }
+  }
+  return pendingCount;
 }
 
 export interface DeckJudgingDeps {

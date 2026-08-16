@@ -145,7 +145,7 @@ describe("#114 GET /onboarding/cards — the negative cache bounds a repeatedly-
         });
       },
     };
-    const { app } = buildServer({ readAd: makeAdReader(llm, store, ["IT Project Manager"]) });
+    const { app } = buildServer({ readAd: makeAdReader(llm, store, [{ familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" }]) });
 
     const beforeSuppressed = readCounters()["adReader.read_suppressed"];
     const cookie1 = await anonSession(app);

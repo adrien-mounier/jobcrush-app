@@ -12,6 +12,7 @@ import {
   computeSuppressionBackoffMs,
   isSuppressionActive,
   makeAdReader,
+  NO_KNOWN_FAMILY,
   readAdvert,
   SUPPRESSION_BASE_MS,
   SUPPRESSION_MAX_MS,
@@ -31,6 +32,13 @@ const posting = (over: Partial<Posting> = {}): Posting => ({
   language: "en",
   ...over,
 });
+
+// #243: the reader's closed list is ReaderFamily entries (the published production vocabulary in
+// production — main.ts wires publishedFamilies()). The familyId doubles as the value the model
+// must answer, so these tests keep the historical "IT Project Manager" string as the id.
+const FAMILIES = [
+  { familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" },
+];
 
 const validDoc = {
   language: "en",
@@ -88,9 +96,11 @@ function flakyStore(opts: { onGet?: boolean; onPut?: boolean }): AdRequirementsS
 }
 
 describe("#104 adReader prompt plumbing", () => {
-  it("embeds the known families list and the advert text after the prompt", () => {
-    const input = buildAdReaderInput(posting(), ["IT Project Manager"]);
-    expect(input).toContain("- IT Project Manager");
+  it("embeds the known families list (label, id, scope) and the advert text after the prompt", () => {
+    const input = buildAdReaderInput(posting(), FAMILIES);
+    expect(input).toContain("### IT Project Manager");
+    expect(input).toContain("id: IT Project Manager");
+    expect(input).toContain("covers: Delivering IT projects");
     expect(input).toContain("Senior Project Manager at Acme (Sydney, Australia)");
     expect(input).toContain("Manage a $2M budget");
     expect(input).not.toContain("<!--"); // human header stripped
@@ -99,8 +109,11 @@ describe("#104 adReader prompt plumbing", () => {
   // A function replacer, not a string one (#104 review, "also fix, cheap") — a string replacer
   // would treat "$&"/"$1"/etc. in a family name as replacement patterns instead of literal text.
   it("treats a family name containing a $-pattern as literal text, not a replacement pattern", () => {
-    const input = buildAdReaderInput(posting(), ["Data $& Analytics"]);
-    expect(input).toContain("- Data $& Analytics");
+    const input = buildAdReaderInput(posting(), [
+      { familyId: "data-analytics", label: "Data $& Analytics", scope: "Analytics $1 work" },
+    ]);
+    expect(input).toContain("### Data $& Analytics");
+    expect(input).toContain("covers: Analytics $1 work");
   });
 
   // Contract-pin: this wording is measured, not incidental (see ad-reader.md's own header) — a
@@ -136,7 +149,7 @@ describe("#104 readAdvert", () => {
   it("skips a non-served-language posting with no model call, counted as a skip not a failure", async () => {
     const before = readCounters()["adReader.language_skipped"];
     const llm = fakeLlm([]);
-    const result = await readAdvert(posting({ language: "zh" }), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting({ language: "zh" }), llm, FAMILIES);
     expect(result).toBeNull();
     expect(llm.calls).toHaveLength(0);
     expect(readCounters()["adReader.language_skipped"]).toBe(before + 1);
@@ -144,7 +157,7 @@ describe("#104 readAdvert", () => {
 
   it("parses a valid response, producing familyFit and requirements from ONE call", async () => {
     const llm = fakeLlm([JSON.stringify(validDoc)]);
-    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
     expect(llm.calls).toHaveLength(1);
     expect(result?.requirements.schemaVersion).toBe("1");
     expect(result?.requirements.adId).toBe("ad-1"); // set by the reader, not trusted from the model
@@ -159,7 +172,7 @@ describe("#104 readAdvert", () => {
   it("the model cannot override adId/curated/schemaVersion by echoing them back", async () => {
     const doc = { ...validDoc, adId: "totally-different-id", curated: true, schemaVersion: "999" };
     const llm = fakeLlm([JSON.stringify(doc)]);
-    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
     expect(result?.requirements.adId).toBe("ad-1"); // posting.id wins, never the model's echo
     expect(result?.requirements.curated).toBe(false); // never promoted by an echoed field
     expect(result?.requirements.schemaVersion).toBe("1");
@@ -167,7 +180,7 @@ describe("#104 readAdvert", () => {
 
   it("retries once with the validation error, then succeeds", async () => {
     const llm = fakeLlm(["not json at all", JSON.stringify(validDoc)]);
-    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
     expect(result).not.toBeNull();
     expect(llm.calls).toHaveLength(2);
     expect(llm.calls[1]).toContain("===RETRY===");
@@ -175,7 +188,7 @@ describe("#104 readAdvert", () => {
 
   it("fails after two invalid answers instead of shipping junk", async () => {
     const llm = fakeLlm(["{}", "{}"]);
-    await expect(readAdvert(posting(), llm, ["IT Project Manager"])).rejects.toThrow(
+    await expect(readAdvert(posting(), llm, FAMILIES)).rejects.toThrow(
       /failed validation twice/,
     );
   });
@@ -197,7 +210,7 @@ describe("#104 readAdvert", () => {
       ],
     };
     const llm = fakeLlm([JSON.stringify(doc)]);
-    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
     expect(result?.requirements.requirements[0]?.kind).toBe("ordinary");
     expect(readCounters()["adReader.blocking_clamped"]).toBe(before + 1);
   });
@@ -219,7 +232,7 @@ describe("#104 readAdvert", () => {
       ],
     };
     const llm = fakeLlm([JSON.stringify(doc)]);
-    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
     expect(result?.requirements.requirements[0]?.kind).toBe("ordinary");
     expect(readCounters()["adReader.blocking_clamped"]).toBe(before);
   });
@@ -243,7 +256,7 @@ describe("#104 readAdvert", () => {
       ],
     };
     const llm = fakeLlm([JSON.stringify(doc)]);
-    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
     expect(result?.requirements.requirements[0]?.kind).toBe("blocking");
     expect(result?.requirements.requirements[0]?.eligibilitySubject).toBe("Cantonese");
   });
@@ -268,7 +281,7 @@ describe("#104 readAdvert", () => {
       ],
     };
     const llm = fakeLlm([JSON.stringify(doc)]);
-    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
     expect(result?.requirements.requirements[0]?.kind).toBe("ordinary");
     expect(readCounters()["adReader.blocking_clamped"]).toBe(before + 1);
   });
@@ -290,7 +303,7 @@ describe("#104 readAdvert", () => {
       ],
     };
     const llm = fakeLlm([JSON.stringify(doc)]);
-    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
     expect(result?.requirements.requirements[0]?.kind).toBe("blocking");
   });
 
@@ -312,13 +325,13 @@ describe("#104 readAdvert", () => {
       ],
     };
     const llm = fakeLlm([JSON.stringify(doc)]);
-    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
     expect(result?.requirements.requirements[0]?.kind).toBe("ordinary");
   });
 
   it("uses completeWithUsage and records real token counts when the driver offers it", async () => {
     const llm = fakeLlm([JSON.stringify(validDoc)], { withUsage: true, model: "claude-sonnet-5" });
-    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
     expect(result?.cost).toEqual({ model: "claude-sonnet-5", inputTokens: 1000, outputTokens: 200 });
   });
 
@@ -331,7 +344,7 @@ describe("#104 readAdvert", () => {
       output: readCounters()["adReader.cost_output_tokens_total"],
     };
     const llm = fakeLlm([JSON.stringify(validDoc)], { withUsage: true, model: "claude-sonnet-5" });
-    await readAdvert(posting(), llm, ["IT Project Manager"]);
+    await readAdvert(posting(), llm, FAMILIES);
     expect(readCounters()["adReader.cost_reads_recorded"]).toBe(before.reads + 1);
     expect(readCounters()["adReader.cost_input_tokens_total"]).toBe(before.input + 1000);
     expect(readCounters()["adReader.cost_output_tokens_total"]).toBe(before.output + 200);
@@ -340,13 +353,13 @@ describe("#104 readAdvert", () => {
   it("an unmeasured read (no completeWithUsage) does not move the cost aggregate counters", async () => {
     const before = readCounters()["adReader.cost_reads_recorded"];
     const llm = fakeLlm([JSON.stringify(validDoc)], { model: "sonnet" });
-    await readAdvert(posting(), llm, ["IT Project Manager"]);
+    await readAdvert(posting(), llm, FAMILIES);
     expect(readCounters()["adReader.cost_reads_recorded"]).toBe(before); // stays unmeasured, not zero-costed
   });
 
   it("falls back to complete() and stores null token counts — never an estimate — when usage isn't offered", async () => {
     const llm = fakeLlm([JSON.stringify(validDoc)], { model: "sonnet" });
-    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
     // "sonnet" (the CLI driver's alias) canonicalizes to the same name AnthropicLlm reports, so
     // cost never silently splits across two model names (#104 review, "also fix, cheap").
     expect(result?.cost).toEqual({ model: "claude-sonnet-5", inputTokens: null, outputTokens: null });
@@ -373,7 +386,7 @@ describe("#104 readAdvert", () => {
         return { text, usage: usages[callCount - 1]! };
       },
     };
-    const result = await readAdvert(posting(), llm, ["IT Project Manager"]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
     expect(calls).toHaveLength(2);
     expect(result?.cost).toEqual({ model: "claude-sonnet-5", inputTokens: 1100, outputTokens: 130 });
   });
@@ -383,19 +396,19 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
   it("a first read calls the model and persists the result", async () => {
     const store = new InMemoryAdRequirementsStore();
     const llm = fakeLlm([JSON.stringify(validDoc)]);
-    const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+    const readAd = makeAdReader(llm, store, FAMILIES);
     const result = await readAd(posting());
     expect(llm.calls).toHaveLength(1);
     expect(result?.adId).toBe("ad-1");
     const stored = await store.get("ad-1");
-    expect(stored?.version).toBe(adReaderVersion());
+    expect(stored?.version).toBe(adReaderVersion(FAMILIES));
     expect(stored?.requirements).toEqual(result);
   });
 
   it("a second read of the same ad reuses the store — no additional model call", async () => {
     const store = new InMemoryAdRequirementsStore();
     const llm = fakeLlm([JSON.stringify(validDoc)]);
-    const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+    const readAd = makeAdReader(llm, store, FAMILIES);
     await readAd(posting());
     await readAd(posting());
     expect(llm.calls).toHaveLength(1);
@@ -406,7 +419,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
   it("concurrent cold reads for the same advert share one in-flight read", async () => {
     const store = new InMemoryAdRequirementsStore();
     const llm = fakeLlm([JSON.stringify(validDoc)]);
-    const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+    const readAd = makeAdReader(llm, store, FAMILIES);
     const [a, b] = await Promise.all([readAd(posting()), readAd(posting())]);
     expect(llm.calls).toHaveLength(1);
     expect(a).toEqual(b);
@@ -418,7 +431,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
   // means a future contract change that forgets the bump fails here rather than shipping a fleet of
   // stored reads silently missing the new field.
   it("the reader's version carries the CURRENT ad-requirements contract token", () => {
-    expect(adReaderVersion()).toContain("adreq/3");
+    expect(adReaderVersion(FAMILIES)).toContain("adreq/3");
   });
 
   it("a stale stored version triggers exactly one fresh read (a prompt/contract bump)", async () => {
@@ -429,10 +442,10 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
       cost: { model: "sonnet", inputTokens: null, outputTokens: null, readAt: "2020-01-01T00:00:00.000Z" },
     });
     const llm = fakeLlm([JSON.stringify(validDoc)]);
-    const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+    const readAd = makeAdReader(llm, store, FAMILIES);
     await readAd(posting());
     expect(llm.calls).toHaveLength(1); // re-read triggered by the version mismatch
-    expect((await store.get("ad-1"))?.version).toBe(adReaderVersion());
+    expect((await store.get("ad-1"))?.version).toBe(adReaderVersion(FAMILIES));
   });
 
   // #104 review finding 3: a row written under a prior contract that the CURRENT schema now
@@ -446,18 +459,18 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
       cost: { model: "sonnet", inputTokens: null, outputTokens: null, readAt: "2020-01-01T00:00:00.000Z" },
     });
     const llm = fakeLlm([JSON.stringify(validDoc)]);
-    const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+    const readAd = makeAdReader(llm, store, FAMILIES);
     const result = await readAd(posting());
     expect(llm.calls).toHaveLength(1);
     expect(result?.adId).toBe("ad-1");
-    expect((await store.get("ad-1"))?.version).toBe(adReaderVersion()); // the broken row is replaced
+    expect((await store.get("ad-1"))?.version).toBe(adReaderVersion(FAMILIES)); // the broken row is replaced
   });
 
   it("a read that fails twice never throws out of makeAdReader — drops the card, counts the failure, and records why", async () => {
     const before = readCounters()["postings.read_failed"];
     const store = new InMemoryAdRequirementsStore();
     const llm = fakeLlm(["not json", "still not json"]);
-    const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+    const readAd = makeAdReader(llm, store, FAMILIES);
     const result = await readAd(posting());
     expect(result).toBeNull();
     expect(await store.get("ad-1")).toBeNull(); // nothing checkpointed for a failed read
@@ -480,7 +493,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
         throw new Error("network blip");
       },
     };
-    const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+    const readAd = makeAdReader(llm, store, FAMILIES);
     const result = await readAd(posting());
     expect(result).toBeNull();
     expect(readCounters()["postings.read_failed"]).toBe(before + 1);
@@ -496,7 +509,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
     const before = readCounters()["postings.read_failed"];
     const store = flakyStore({ onGet: true });
     const llm = fakeLlm([JSON.stringify(validDoc)]);
-    const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+    const readAd = makeAdReader(llm, store, FAMILIES);
     const result = await readAd(posting());
     expect(result).toBeNull();
     expect(llm.calls).toHaveLength(0);
@@ -508,7 +521,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
     const before = readCounters()["postings.read_failed"];
     const store = flakyStore({ onPut: true });
     const llm = fakeLlm([JSON.stringify(validDoc)]);
-    const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+    const readAd = makeAdReader(llm, store, FAMILIES);
     const result = await readAd(posting());
     expect(result?.adId).toBe("ad-1"); // the paid read isn't thrown away over a storage outage
     expect(readCounters()["postings.read_failed"]).toBe(before + 1);
@@ -525,7 +538,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
       };
       const store = new InMemoryAdRequirementsStore();
       const llm = fakeLlm(["not json", "still not json"]);
-      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      const readAd = makeAdReader(llm, store, FAMILIES);
       const first = await readAd(posting());
       expect(first).toBeNull();
       expect(llm.calls).toHaveLength(2); // the two-attempt readAdvert loop
@@ -545,7 +558,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
           throw new Error("network blip");
         },
       };
-      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      const readAd = makeAdReader(llm, store, FAMILIES);
       await readAd(posting());
       expect(callCount).toBe(1);
       await readAd(posting());
@@ -556,7 +569,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
       const before = readCounters()["adReader.read_suppressed"];
       const store = flakyStore({ onGet: true });
       const llm = fakeLlm([JSON.stringify(validDoc), JSON.stringify(validDoc)]);
-      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      const readAd = makeAdReader(llm, store, FAMILIES);
       await readAd(posting()); // store.get() throws before any model call
       expect(llm.calls).toHaveLength(0);
       await readAd(posting()); // still a store outage — never suppressed, so this attempts again too
@@ -567,7 +580,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
     it("retries exactly once after the backoff window passes — not suppressed forever, not a stampede", async () => {
       const store = new InMemoryAdRequirementsStore();
       const llm = fakeLlm(["not json", "still not json", JSON.stringify(validDoc)]);
-      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      const readAd = makeAdReader(llm, store, FAMILIES);
       const start = Date.now();
       const nowSpy = vi.spyOn(Date, "now").mockReturnValue(start);
       try {
@@ -592,7 +605,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
     it("escalates the backoff on a second consecutive failure rather than resetting it", async () => {
       const store = new InMemoryAdRequirementsStore();
       const llm = fakeLlm(["nope", "nope", "nope", "nope"]);
-      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      const readAd = makeAdReader(llm, store, FAMILIES);
       const start = Date.now();
       const nowSpy = vi.spyOn(Date, "now").mockReturnValue(start);
       try {
@@ -616,7 +629,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
       const before = readCounters()["adReader.read_suppression_lifted"];
       const store = new InMemoryAdRequirementsStore();
       const llm = fakeLlm(["nope", "nope", JSON.stringify(validDoc)]);
-      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      const readAd = makeAdReader(llm, store, FAMILIES);
       const start = Date.now();
       const nowSpy = vi.spyOn(Date, "now").mockReturnValue(start);
       try {
@@ -640,7 +653,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
     it("clears the suppression entry on a genuine success, so a subsequent store.put failure does not resurrect it as a stale 'lift'", async () => {
       const store = flakyStore({ onPut: true });
       const llm = fakeLlm(["nope", "nope", JSON.stringify(validDoc), JSON.stringify(validDoc)]);
-      const readAd = makeAdReader(llm, store, ["IT Project Manager"]);
+      const readAd = makeAdReader(llm, store, FAMILIES);
       const start = Date.now();
       const nowSpy = vi.spyOn(Date, "now").mockReturnValue(start);
       try {
@@ -675,7 +688,7 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
     });
 
     // #114 review: the version check is defense-in-depth, not the live AC4 guarantee (see
-    // isSuppressionActive's own doc) — adReaderVersion() can't move within a running process today,
+    // isSuppressionActive's own doc) — the reader's version can't move within a running process today,
     // so this asserts the LOGIC is correct as code, not that production ever exercises this branch.
     // AC4's actual operative guarantee is the expired-retryAt case just below: SUPPRESSION_MAX_MS
     // caps the backoff, so every suppressed advert is retried within the hour regardless of version.
@@ -685,5 +698,59 @@ describe("#104 makeAdReader — the shared, persisted, version-aware cache", () 
       expect(isSuppressionActive(entry, "v1", 1_000)).toBe(false); // AC3: exactly at the deadline, expired
       expect(isSuppressionActive(entry, "v2", 999)).toBe(false); // defense-in-depth: a version mismatch also lifts it
     });
+  });
+});
+
+// #243 — the reader answers into the ONE closed vocabulary the rest of the system speaks: the
+// published production family ids. AC1: the family it names is one from the published vocabulary
+// or "none of these" — never invented free text. AC5: a change to the published family list makes
+// every stored read stale, so it is re-read (lazily, at most once) the next time it is needed.
+describe("#243 closed-vocabulary family fit", () => {
+  it("clamps a familyFit outside the closed list to NO_KNOWN_FAMILY, counted — never free text", async () => {
+    const before = readCounters()["adReader.family_clamped"];
+    const doc = { ...validDoc, familyFit: { family: "Construction Manager", confidence: 0.95 } };
+    const llm = fakeLlm([JSON.stringify(doc)]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
+    expect(llm.calls).toHaveLength(1); // a clamp, not a retry — the read itself was good
+    expect(result?.requirements.familyFit).toEqual({ family: NO_KNOWN_FAMILY, confidence: 0.95 });
+    expect(readCounters()["adReader.family_clamped"]).toBe(before + 1);
+  });
+
+  it('accepts the literal "none of these" unclamped', async () => {
+    const before = readCounters()["adReader.family_clamped"];
+    const doc = { ...validDoc, familyFit: { family: NO_KNOWN_FAMILY, confidence: 0.4 } };
+    const llm = fakeLlm([JSON.stringify(doc)]);
+    const result = await readAdvert(posting(), llm, FAMILIES);
+    expect(result?.requirements.familyFit.family).toBe(NO_KNOWN_FAMILY);
+    expect(readCounters()["adReader.family_clamped"]).toBe(before);
+  });
+
+  it("folds the family list into the reader version — a different list is a different version", () => {
+    const other = [
+      ...FAMILIES,
+      { familyId: "data-analytics", label: "Data analytics", scope: "Analytics work" },
+    ];
+    expect(adReaderVersion(other)).not.toBe(adReaderVersion(FAMILIES));
+    expect(adReaderVersion(other)).toContain("adreq/3"); // the contract half is untouched by the list
+  });
+
+  // AC5 end-to-end at the reader seam: a read stored under the OLD family list is stale under the
+  // new one — exactly one fresh read, persisted under the new version, same lazy machinery as a
+  // prompt/contract bump.
+  it("re-reads a stored read from a previous family list exactly once", async () => {
+    const oldFamilies = [{ familyId: "old-family", label: "Old family", scope: "The old world" }];
+    const store = new InMemoryAdRequirementsStore();
+    const firstLlm = fakeLlm([JSON.stringify({ ...validDoc, familyFit: { family: "old-family", confidence: 0.9 } })]);
+    await makeAdReader(firstLlm, store, oldFamilies)(posting());
+    expect((await store.get("ad-1"))?.version).toBe(adReaderVersion(oldFamilies));
+
+    const secondLlm = fakeLlm([JSON.stringify(validDoc)]);
+    const readAd = makeAdReader(secondLlm, store, FAMILIES);
+    const reread = await readAd(posting());
+    expect(secondLlm.calls).toHaveLength(1); // stale under the new list — re-read
+    expect(reread?.familyFit.family).toBe("IT Project Manager");
+    expect((await store.get("ad-1"))?.version).toBe(adReaderVersion(FAMILIES));
+    await readAd(posting());
+    expect(secondLlm.calls).toHaveLength(1); // and only once — the fresh row is current again
   });
 });

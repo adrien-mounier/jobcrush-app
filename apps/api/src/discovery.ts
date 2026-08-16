@@ -31,6 +31,11 @@ export const isDiscoveryClaim = (claimId: string) => claimId.startsWith(DISCOVER
 
 // --- the E5 family-placement stub (hand stand-in; one family for now, like sample-family-floors.json) ---
 const STUB_FAMILY = "IT Project Manager";
+// #243: the published production family the stub family stands in for. The curated pool's
+// familyFit stamps (sample-ad-requirements.json) now speak the PUBLISHED vocabulary — the reader's
+// closed list — so promiseCount must be asked in that vocabulary too; asking with STUB_FAMILY
+// (a fixture floor name, not a published id) would honestly answer 0. Dies with the stub (#86/E5).
+const STUB_FAMILY_PUBLISHED_ID = "it-project-delivery";
 const KIN_TITLES = [
   "IT project manager",
   "programme manager",
@@ -83,7 +88,8 @@ export function slug(label: string): string {
 
 /** #179: the open-jobs count per family — ONE producer for the onboarding promise and the profile
  *  rail's Job family section, replacing the hand STUB_COUNT (142). Counts postings in the live pool
- *  (preview.ts's loadPostings — the ingest point) whose read-stamped family fit names this family;
+ *  (preview.ts's loadPostings — the ingest point) whose read-stamped family fit names this family —
+ *  a PUBLISHED familyId since #243, the reader's closed vocabulary;
  *  the stamp is #104's ad-reader output, hand fixtures today (e5stub). A posting never read, or read
  *  into another family, does not count. Confidence is deliberately not thresholded: deciding what a
  *  weak family-fit verdict means for the feed is a separate decision that does not belong here
@@ -350,7 +356,7 @@ export function discoveryState(
     role,
     family,
     city,
-    promise: { family, city, count: promiseCount(family) },
+    promise: { family, city, count: promiseCount(STUB_FAMILY_PUBLISHED_ID) },
     questions,
     railFill,
     essentialRemaining,

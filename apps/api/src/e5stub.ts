@@ -27,12 +27,6 @@ export function loadFamilyFloor(family: string): FamilyFloor {
   return FamilyFloor.parse(found);
 }
 
-/** Every known family name — the closed list #104's ad-reader prompt offers the model, so it picks
- *  from real families instead of inventing free-form ones. */
-export function knownFamilies(): string[] {
-  return loadFamilyFloors().map((f) => f.family);
-}
-
 let cachedAdRequirements: unknown[] | null = null;
 function loadAllAdRequirements(): unknown[] {
   if (!cachedAdRequirements) {

@@ -19,7 +19,6 @@ import { adRequirementsStoreFromEnv } from "./adRequirementsStore.js";
 import { makeAdReader } from "./adReader.js";
 import { judgementStoreFromEnv } from "./judgementStore.js";
 import { makeJudge, makeJudgePeek } from "./judge.js";
-import { knownFamilies } from "./e5stub.js";
 import {
   familyLearningStoreFromEnv,
   makeFamilyCandidateScreen,
@@ -173,7 +172,14 @@ const { app } = buildServer({
   auditCv: makeCvAuditor(metered("cv-audit", llm)),
   // #104: real reads only in production — never a buildServer default, so every test that doesn't
   // wire its own fake stays exactly at today's fixture-only behaviour.
-  readAd: makeAdReader(metered("advert-reading", llm), adRequirements, knownFamilies()),
+  // #243: the reader's closed family list is the PUBLISHED production vocabulary — the same
+  // registry placeFamily above answers from — never e5stub's fixture names, so the reader's
+  // familyFit and the deck's own family finally speak one vocabulary.
+  readAd: makeAdReader(
+    metered("advert-reading", llm),
+    adRequirements,
+    publishedFamilies(productionFamilyFloors),
+  ),
   // #105: same rule — real judging only in production; every test that doesn't wire its own fake
   // stays exactly at today's deterministic-tick behaviour. judgeLlm, not llm: JUDGE_MODEL can name a
   // different model than mine/preview/grill/audit/adReader use, with no code change.

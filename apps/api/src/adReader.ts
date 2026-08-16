@@ -39,7 +39,29 @@ export function adReaderPrompt(): string {
   return cachedPrompt;
 }
 
-let cachedVersion: string | null = null;
+/** #243 — one entry of the reader's closed family list: the PUBLISHED production vocabulary
+ *  (familyLabeler.ts's publishedFamilies satisfies this structurally), never e5stub's fixture
+ *  names. The model answers with `familyId`; label + scope exist so it can actually classify. */
+export interface ReaderFamily {
+  familyId: string;
+  label: string;
+  scope: string;
+}
+
+/** #243 — the reader's own "no family fits" answer, offered by the prompt and enforced by
+ *  clampFamilyFit below. deck.ts needs no special case for it: it can never equal a deck's
+ *  published familyId, so the identity filter deletes it like any other mismatch. */
+export const NO_KNOWN_FAMILY = "none of these";
+
+/** The families block substituted into the prompt — hashed into adReaderVersion below, so it is
+ *  rendered in exactly one place. Same heading/id/covers shape familyLabeler.ts's
+ *  describeFamilies uses: the model reads the label and scope, and answers the id. */
+function familiesBlock(families: ReaderFamily[]): string {
+  return families
+    .map((f) => [`### ${f.label}`, `id: ${f.familyId}`, `covers: ${f.scope}`].join("\n"))
+    .join("\n\n");
+}
+
 /**
  * The version stored alongside each read. Bumping it is what triggers re-reading; an ordinary read
  * never does. The prompt half is a hash of the exact post-strip text sent to the model (#104 review
@@ -47,21 +69,26 @@ let cachedVersion: string | null = null;
  * comment (already stripped before the hash) can't accidentally trigger a full paid re-read of
  * every advert, but a real wording change always does, with nobody needing to remember to bump
  * anything. The contract half stays the explicit PROMPT_CONTRACT_VERSION above.
+ *
+ * #243: the substituted family list is IN the hash — the ticket's named trap was hashing only the
+ * pre-substitution template, which let a vocabulary change leave every stored read answering from
+ * the OLD closed list forever. Now a published-family change stales stored reads exactly like a
+ * prompt edit, and the lazy re-read machinery does the rest, one advert at a time, at most once.
  */
-export function adReaderVersion(): string {
-  if (!cachedVersion) {
-    const hash = createHash("sha256").update(adReaderPrompt()).digest("hex").slice(0, 8);
-    cachedVersion = `ad-reader/${hash}+${PROMPT_CONTRACT_VERSION}`;
-  }
-  return cachedVersion;
+export function adReaderVersion(families: ReaderFamily[]): string {
+  const hash = createHash("sha256")
+    .update(adReaderPrompt())
+    .update(familiesBlock(families))
+    .digest("hex")
+    .slice(0, 8);
+  return `ad-reader/${hash}+${PROMPT_CONTRACT_VERSION}`;
 }
 
-export function buildAdReaderInput(posting: Posting, knownFamilies: string[]): string {
-  const families = knownFamilies.map((f) => `- ${f}`).join("\n");
+export function buildAdReaderInput(posting: Posting, families: ReaderFamily[]): string {
   // A function replacer — a string replacer treats "$&"/"$'"/"$1" etc. in the replacement text as
-  // special patterns, and a family name is free-form input the repo doesn't control (#104 review:
-  // "also fix, cheap"). families here never contains those sequences, but nothing enforces that.
-  const prompt = adReaderPrompt().replace("{{KNOWN_FAMILIES}}", () => families);
+  // special patterns, and a family label/scope is published free text the repo doesn't control
+  // (#104 review: "also fix, cheap").
+  const prompt = adReaderPrompt().replace("{{KNOWN_FAMILIES}}", () => familiesBlock(families));
   return `${prompt}\n${posting.title} at ${posting.company} (${posting.location})\n\n${posting.excerpt}\n`;
 }
 
@@ -115,6 +142,18 @@ function clampBlocking(parsed: AdRequirementsV1): AdRequirementsV1 {
   });
   if (clamped > 0) addToCounter("adReader.blocking_clamped", clamped);
   return { ...parsed, requirements };
+}
+
+/** #243 AC1 — the closed vocabulary enforced in code, not only in the prompt (clampBlocking's own
+ *  discipline): a familyFit naming anything that is neither a published familyId nor the literal
+ *  "none of these" is stored AS "none of these", never as free text a later consumer would
+ *  word-match against. Counted, so a model that keeps answering labels instead of ids is visible
+ *  on /ops/counters rather than silently emptying decks. */
+function clampFamilyFit(parsed: AdRequirementsV1, families: ReaderFamily[]): AdRequirementsV1 {
+  const family = parsed.familyFit.family;
+  if (family === NO_KNOWN_FAMILY || families.some((f) => f.familyId === family)) return parsed;
+  incrementCounter("adReader.family_clamped");
+  return { ...parsed, familyFit: { ...parsed.familyFit, family: NO_KNOWN_FAMILY } };
 }
 
 export interface AdReadCost {
@@ -232,7 +271,7 @@ export class AdReadValidationError extends Error {}
 export async function readAdvert(
   posting: Posting,
   llm: LlmClient,
-  knownFamilies: string[],
+  families: ReaderFamily[],
 ): Promise<AdReadResult | null> {
   if (!languageEligible(posting.language, SERVED_LANGUAGES)) {
     incrementCounter("adReader.language_skipped");
@@ -246,8 +285,8 @@ export async function readAdvert(
   for (let attempt = 0; attempt < 2; attempt++) {
     const input =
       attempt === 0
-        ? buildAdReaderInput(posting, knownFamilies)
-        : `${buildAdReaderInput(posting, knownFamilies)}\n\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
+        ? buildAdReaderInput(posting, families)
+        : `${buildAdReaderInput(posting, families)}\n\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
     const { text, cost } = await completeWithCost(llm, input);
     costModel = cost.model;
     // Every attempt spent real tokens, including a discarded first attempt that failed validation —
@@ -266,7 +305,7 @@ export async function readAdvert(
         adId: posting.id,
         curated: false,
       };
-      const parsed = clampBlocking(AdRequirementsV1.parse(assembled));
+      const parsed = clampFamilyFit(clampBlocking(AdRequirementsV1.parse(assembled)), families);
       addToCounter("adReader.requirements_produced", parsed.requirements.length);
       addToCounter(
         "adReader.requirements_blocking",
@@ -309,8 +348,11 @@ export async function readAdvert(
 export function makeAdReader(
   llm: LlmClient,
   store: AdRequirementsStore,
-  knownFamilies: string[],
+  families: ReaderFamily[],
 ): (posting: Posting) => Promise<AdRequirementsV1 | null> {
+  // Computed once: the prompt file and the published vocabulary are both fixed for this process's
+  // lifetime (a vocabulary change ships as a redeploy), so hashing per read would buy nothing.
+  const version = adReaderVersion(families);
   // Concurrent deck requests landing at cold start can both miss the store for the SAME advert
   // before either has persisted a result — without this, "nobody pays twice" only held
   // sequentially. Keyed by adId, cleared once the read settles either way (#104 review finding 7).
@@ -326,9 +368,9 @@ export function makeAdReader(
     // A failure at a DIFFERENT version than the last one recorded starts the backoff over at 1 —
     // the previous failure count was measured against a prompt/contract that no longer applies, so
     // it says nothing about how likely THIS version is to keep failing.
-    const failureCount = existing && existing.version === adReaderVersion() ? existing.failureCount + 1 : 1;
+    const failureCount = existing && existing.version === version ? existing.failureCount + 1 : 1;
     negativeCache.set(adId, {
-      version: adReaderVersion(),
+      version,
       retryAt: Date.now() + computeSuppressionBackoffMs(failureCount),
       failureCount,
     });
@@ -357,11 +399,11 @@ export function makeAdReader(
       recordReadFailure(posting.id, "store-unavailable", err instanceof Error ? err.message : String(err));
       return null;
     }
-    if (cached && cached.version === adReaderVersion()) return cached.requirements;
+    if (cached && cached.version === version) return cached.requirements;
 
     const suppressed = negativeCache.get(posting.id);
     if (suppressed) {
-      if (isSuppressionActive(suppressed, adReaderVersion(), Date.now())) {
+      if (isSuppressionActive(suppressed, version, Date.now())) {
         incrementCounter("adReader.read_suppressed");
         return null;
       }
@@ -379,7 +421,7 @@ export function makeAdReader(
 
     let result: AdReadResult | null;
     try {
-      result = await readAdvert(posting, llm, knownFamilies);
+      result = await readAdvert(posting, llm, families);
     } catch (err) {
       incrementCounter("postings.read_failed");
       recordReadFailure(
@@ -404,7 +446,7 @@ export function makeAdReader(
     try {
       await store.put(posting.id, {
         requirements: result.requirements,
-        version: adReaderVersion(),
+        version,
         cost: { ...result.cost, readAt: new Date().toISOString() },
       });
     } catch (err) {

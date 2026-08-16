@@ -3,7 +3,6 @@
 // seam, so these lean on the schemas (packages/contracts/test/stubSchemas.test.ts) for shape.
 import { describe, expect, it } from "vitest";
 import {
-  knownFamilies,
   listAdRequirements,
   loadFamilyFloor,
   loadAdRequirements,
@@ -76,9 +75,8 @@ describe("E5 stub providers (#12)", () => {
     expect(all.filter((ad) => ad.curated).length).toBeGreaterThan(3);
   });
 
-  it("knownFamilies returns every family name from the stubbed floors", () => {
-    expect(knownFamilies()).toEqual(["IT Project Manager"]);
-  });
+  // #243 deleted knownFamilies() here: the ad reader's closed list now comes from the PUBLISHED
+  // production vocabulary (familyLabeler.ts's publishedFamilies), never these fixture floor names.
 
   // #104 carry-forward from the #102 review: listAdRequirements() used to map(parse) across every
   // advert, so one unparseable entry threw out of the .map() and took the WHOLE list down. Fixed to

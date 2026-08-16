@@ -33,7 +33,6 @@ import {
 } from "../eligibilityDiscovery.js";
 import { answerJobDateHole, isJobDateItemId } from "../yearsWorked.js";
 import { readingLanguages, languageEligible } from "../language.js";
-import { incrementCounter } from "../counters.js";
 import { matchTick } from "../matchtick.js";
 import { judgedMatchTick } from "../judgedScore.js";
 import type { JudgeFn, JudgePeekFn } from "../judge.js";
@@ -47,10 +46,12 @@ import {
   judgeDeck,
   mapWithConcurrency,
   orderCardsForReveal,
+  partitionByFamilyFit,
   resolveAdRequirements,
   resolveJudgement,
   resolveSessionYears,
   tailorTarget,
+  tallyCardProvenance,
   withYearsShortfall,
 } from "../deck.js";
 import { makeRetrievalCoordinator } from "../deckRetrieval.js";
@@ -836,7 +837,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // resolveSessionYears's rule (deck.ts / ADR-0014 amendment 1 decision 6). Reads `facts` +
       // `blocks` already fetched above by discoveryReads — one eligibility read per request.
       const role = session.targetTitles[0] ?? null;
-      const years = resolveSessionYears(facts, blocks, await advertFamilyIdFor(session, deps.placeFamily));
+      // #243: the deck's family — read by the years scope AND the family-fit deletion/ranking.
+      const deckFamilyId = await advertFamilyIdFor(session, deps.placeFamily);
+      const years = resolveSessionYears(facts, blocks, deckFamilyId);
       const langs = readingLanguages(session);
       const postings = eligiblePostings(langs, sessionPostings(session, requestFingerprint));
       // #104: every eligible posting gets a requirement set now, not only the hand-curated ones —
@@ -877,10 +880,14 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         (entry): entry is { posting: Posting; adReq: AdRequirementsV1 } => entry !== null,
       );
 
+      // #243 — a wrong-family advert leaves the deck here, before withdrawal, ranking or judging
+      // spend a thing on it (deck.ts's partitionByFamilyFit owns the rule + the deleted count).
+      const { kept } = partitionByFamilyFit(candidates, deckFamilyId);
+
       // #107 (E5 slice 6, D3/D4) — withdraw a posting from THIS session's deck BEFORE it costs
       // anything: before ranking, the free peek, or a paid judging attempt ever sees it. The rule and
       // its per-language tally live in withdrawal.ts (partitionByWithdrawal); this is the one call.
-      const { open: openCandidates, withdrawn } = partitionByWithdrawal(candidates, facts);
+      const { open: openCandidates, withdrawn } = partitionByWithdrawal(kept, facts);
 
       // deck.ts's judgeDeck: peek → rank → bound → budget → resolve, the whole paid-judging pass —
       // see its own doc for #117 must-fix A/1/C/2 and the spend-bound properties it carries.
@@ -902,24 +909,15 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           years, // #162 AC6 untested-bar display + #222 confidence attenuation, both inside buildJobCard
         ),
         curated: entry.adReq.curated,
+        // #243 decision 2: on a family deck, a weak family-fit confidence sinks the card's RANK.
+        ...(deckFamilyId === null ? {} : { familyConfidence: entry.adReq.familyFit.confidence }),
       }));
       // #165: each card carries the level question its OWN advert triggers — see withLanguageLevelAsks.
       const cards = withLanguageLevelAsks(orderCardsForReveal(cardCandidates), openCandidates, facts);
-      // #117 AC3/AC8 — the deck's own card-provenance tally, observable on /ops/spend (server.ts)
-      // alongside cost per visitor from the SAME run. pendingCount also rides on the response itself
-      // so the client can decide what to do about a still-scoring deck without polling counters —
-      // must-fix 2: it counts ONLY genuinely in-flight (`pending`) cards, never `unscored` ones, so a
-      // client polling on it terminates instead of waiting forever on a card that was never bought.
-      let pendingCount = 0;
-      for (const card of cards) {
-        if (card.scored === "judged") incrementCounter("deck.cards_judged");
-        else if (card.scored === "estimated") incrementCounter("deck.cards_estimated");
-        else if (card.scored === "unscored") incrementCounter("deck.cards_unscored");
-        else {
-          incrementCounter("deck.cards_pending");
-          pendingCount++;
-        }
-      }
+      // #117 AC3/AC8 — the deck's card-provenance tally (deck.ts, tallyCardProvenance). The
+      // returned pendingCount rides on the response so the client can poll a still-scoring deck
+      // and terminate: in-flight `pending` cards only, never `unscored` ones (#117 must-fix 2).
+      const pendingCount = tallyCardProvenance(cards);
       // #22: authed tells the client whether the account wall at the reveal applies — false only
       // for a still-anonymous session, so a returning (claimed) visitor is never re-walled.
       //

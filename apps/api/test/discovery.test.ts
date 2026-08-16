@@ -226,7 +226,10 @@ describe("#16 discovery routes", () => {
   // the profile rail both read it. It counts pool postings whose read-stamped familyFit names the
   // family; a family nothing is stamped for gets a real 0, never a hand number.
   it("#179: promiseCount counts read-stamped pool postings per family, 0 for an unstamped family", () => {
-    expect(promiseCount("IT Project Manager")).toBe(10); // see the /start test's join note
+    // #243: the stamps speak the PUBLISHED vocabulary now — asking with the fixture floor name is
+    // an honest 0, and the published id is what discoveryState's promise asks with.
+    expect(promiseCount("it-project-delivery")).toBe(10); // see the /start test's join note
+    expect(promiseCount("IT Project Manager")).toBe(0);
     expect(promiseCount("Business Analysis")).toBe(0);
     expect(promiseCount("")).toBe(0);
   });
