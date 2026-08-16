@@ -2,6 +2,48 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 135) `/implement 240` — the search asks for a job title, not any word (QA GO, `2d8eb58`)
+
+**#63's last gate is cleared.** The query is now a list of quoted job-title phrases built per
+region: her typed target role leads and is never dropped, #242's `marketSearchTitles` for that
+market ride in the same call, confirmed evidence labels leave the query entirely, and it is still
+exactly one provider call per region. `boundedKeywords`' word-shredder is gone; `boundedTitles`
+replaces it. The curated pool matches the same phrases against the advert title, so both providers
+answer the same question — its old "any 2 shredded words across title/excerpt/skills" rule matched
+a Retail Bank Manager on the word "manager".
+
+**The two review findings were both silent deck-emptiers, and neither was in the ticket:**
+
+- **The 40-char bound was a per-WORD bound.** Applied to a phrase it cut real job titles in half,
+  and a quoted half-title matches nothing — "Senior Technical Program Manager, Enterprise" (43
+  chars) would have gone out as `"…Manager Enterp"`. It now drops whole words. Under the old
+  shredder the same input worked fine, which is exactly why nothing caught it.
+- **Punctuation was being stripped from titles.** The probe's own Hong Kong results include
+  **"C&B Project Manager"**; folding punctuation sent `"C B Project Manager"`, unmatchable. Decision
+  1 said *quote* the titles, not rewrite them. Whitespace is now the only thing normalised.
+
+**QA ran against the live vendor** (8 calls, ~USD 0.08) under the owner's new petty-cash approval —
+the first time this repo has proven a provider behaviour rather than asserted it. Old query **445**
+adverts vs new **22**. Mei's `"Delivery Lead"` alone → 0 → `empty_pool`; with her family → 22 → 10
+postings. Sydney's three phrases → **one** call. `"manage"` → 0, so the vendor honours word
+boundaries. Two semantics the whole ticket rested on are now measured: quoted phrases **OR**
+together (HK: 0 + 22 = 22, an AND would have given 0), and phrases match on word boundaries.
+
+**Owner decision recorded this session, in `AI/Projects/CLAUDE.md`:** paid testing runs on a **USD
+10 petty cash float** — spend it when a paid path is the only honest proof, ask above it, price it
+from the provider's own cost model first, and watch that calls (not dollars) is usually the tighter
+cap. At techmap's recorded rate USD 10 *is* the entire 1,000-call month.
+
+**Residuals:** AC4's "deck is not empty" is proven at the retrieval result, not the rendered screen
+— no browser-runnable config reaches this code (`qa-main.ts` wires no provider registry at all), so
+the first staging run with the key live is where a person should look. An over-long word inside a
+title is dropped but its neighbours still join (`Senior <41 chars> Manager` → `"Senior Manager"`).
+A degenerate typed role reducing to no titles sends no `title` param and searches the whole country
+— **pre-existing, identical under HEAD**, and it belongs to #63's spend conversation.
+
+**Ledger drift:** those 8 calls bypassed our own counter, so the internal 2026-08 tally reads 8 low
+against the vendor's, on top of the ticket's 13. Total known drift for the month: **21 calls**.
+
 ## 2026-08-16 (session 134) `/implement 243` — the advert's family reaches the deck (QA GO, `5f3c701`)
 
 **The Sofia fix: construction jobs leave the IT deck.** The reader's closed family list now comes

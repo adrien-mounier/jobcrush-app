@@ -1,5 +1,38 @@
 # Lessons — jobcrush-app
 
+## A bound outlives the unit it was written for
+
+`MAX_QUERY_TERM_LENGTH = 40` was a **per-word** cap. #240 changed the unit the query is made of from
+words to phrases, and the constant kept applying itself — silently, correctly by its own logic,
+and now wrongly. A 43-character job title went out as a quoted half-title matching nothing: not an
+error, not a shorter result, an **empty deck**. The old shredder handled the same input fine, which
+is why no existing test failed.
+
+The general shape: **when a change alters the unit a collection holds, every bound, comparison and
+loop over that collection changes meaning too, whether or not it changes code.** A truncation that
+was a harmless clip becomes a corruption; a "contains a word" check becomes "contains a substring".
+Both reviewers found this independently, and neither found it from the diff of the constant — they
+found it by asking what the *new* unit does when it hits the *old* rule. When you change a unit,
+grep the constants and go read each one against the new meaning, even where the line is untouched.
+
+The same pass caught its sibling: normalisation that was invisible under shredding (stripping
+punctuation, since words were compared individually) became destructive under phrases — the real
+Hong Kong title **"C&B Project Manager"** shipped as the unmatchable "C B Project Manager".
+
+## Ask the vendor before you fold the fake to match it
+
+#240's curated pool had to match "the same phrases the live provider does". The lazy reading is to
+copy what our own driver sends and call it parity. QA instead spent ~USD 0.08 asking the vendor
+directly, and two assumptions the entire ticket rested on turned out to be *load-bearing and
+untested*: that several quoted phrases **OR** together rather than AND (Hong Kong: `"Delivery
+Lead"` = 0, `"project manager"` = 22, both = 22 — an AND would have returned 0 and emptied every
+expanded search), and that a quoted phrase respects word boundaries (`"manage"` → 0, so it does not
+substring-match "manager").
+
+Both were *stated as fact* in the ticket from an earlier probe, and both were being re-derived from
+memory rather than re-measured. A cent's worth of calls converts a design assumption into a fact
+you can build on. See the owner's petty-cash rule in `AI/Projects/CLAUDE.md`.
+
 ## Thirteen provider calls answered a question five rounds of reasoning could not
 
 Grilling #240 spent five rounds arguing about how to send several job titles to Techmap — phrases or
