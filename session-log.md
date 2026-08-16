@@ -54,6 +54,13 @@ is latched out of the family she asked for and spends the extra call before her 
 returned. Not a #228 defect — decision 4 rightly makes empty-pool and swiped-through the same state;
 the bug is one level down, where "the deck came back empty" is itself two states.
 
+**Ordering decision, owner, end of session: #245 is next, ahead of #237.** The roadmap's own list
+had #237 (5c.1e) in front; the owner moved #245 there instead. The reasoning is recorded in both
+rows so it is not re-litigated: #245 fires by itself on the ordinary path and, since #228, the same
+screen can spend a provider call while moving a visitor off the work she asked for in one click —
+#237's fault cannot bite until a family version is published, and nothing is scheduled to publish
+one. #237 stays the thing to build *before* the next publication.
+
 **#228's own record amended when it closed.** Acceptance criterion 5 and decision 3 still said the
 fallback covers "both CV floors in one query", which the spec pass overturned before implementation
 (one family, so an advert can be attributed to a family and her years scored at that family's
