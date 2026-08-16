@@ -3,7 +3,7 @@
 // in CI without a live DB). If the SQL is wrong, these fail here — before it reaches staging.
 import { beforeEach, describe, expect, it } from "vitest";
 import { newDb } from "pg-mem";
-import type { CandidateClaim, ProviderPostingRecordV1 } from "@jobcrush/contracts";
+import { canonicalKeyOf, type CandidateClaim, type ProviderPostingRecordV1 } from "@jobcrush/contracts";
 import {
   InMemorySessionStore,
   PgSessionStore,
@@ -530,6 +530,93 @@ for (const [name, make] of sessionDrivers) {
         coveredItemIds: ["end-to-end-delivery"],
         checkpoint: "essential_floor_covered",
         fallback: { declined: false, family: null },
+      });
+    });
+
+    it("keeps every pinned family version when a newer version is derived", async () => {
+      const s = await store.create();
+      const fieldMarketingReference = { familyId: "field-marketing", version: 3 };
+      const pinned = { questionFloors: [ITPD, fieldMarketingReference], searchFamily: ITPD };
+      await store.reconcileDiscoveryState(s.id, pinned, ["end-to-end-delivery"], true);
+      const generation = (await store.getById(s.id))!.retrievalGeneration;
+      const deckCanonicalKey = canonicalKeyOf("Live Co", "Hong Kong", "Programme Manager");
+      const snapshot = {
+        requestFingerprint: "pinned-plan",
+        recordedAt: "2026-08-16T00:00:00.000Z",
+        result: {
+          schemaVersion: "4" as const,
+          outcome: "relevant_postings" as const,
+          postings: [{
+            schemaVersion: "4" as const,
+            id: `posting:${deckCanonicalKey}`,
+            canonicalKey: deckCanonicalKey,
+            title: "Programme Manager",
+            company: "Live Co",
+            location: "Hong Kong",
+            sourceUrl: "https://example.com/pinned-plan",
+            excerpt: "An advert already open in her deck.",
+            postedAt: "2026-08-15T00:00:00.000Z",
+            capturedAt: "2026-08-16T00:00:00.000Z",
+            verifiedLiveAt: "2026-08-16T00:00:00.000Z",
+            expiresAt: null,
+            attribution: [],
+            sources: [{ providerId: "techmap", providerPostingId: "pinned-plan" }],
+            skills: ["Delivery"],
+            language: "en",
+          }],
+          coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
+          retrievedAt: "2026-08-16T00:00:00.000Z",
+        },
+      };
+      expect(
+        await store.beginRetrievalState(
+          s.id,
+          generation,
+          "pinned-plan",
+          null,
+          "owner-pinned-plan",
+          "2026-08-16T00:00:00.000Z",
+          "2026-08-15T23:59:00.000Z",
+        ),
+      ).toBe(true);
+      expect(
+        await store.reconcileRetrievalState(
+          s.id,
+          generation,
+          "pinned-plan",
+          "owner-pinned-plan",
+          snapshot,
+        ),
+      ).toBe(true);
+
+      const searchOnly = await store.reconcileDiscoveryState(
+        s.id,
+        { questionFloors: [ITPD, fieldMarketingReference], searchFamily: { ...ITPD, version: 2 } },
+        ["end-to-end-delivery"],
+        true,
+      );
+      expect(searchOnly.searchFamily).toEqual(ITPD);
+
+      const reconciled = await store.reconcileDiscoveryState(
+        s.id,
+        {
+          questionFloors: [
+            { ...ITPD, version: 2 },
+            fieldMarketingReference,
+          ],
+          searchFamily: { ...ITPD, version: 2 },
+        },
+        ["end-to-end-delivery"],
+        true,
+      );
+
+      expect(reconciled).toMatchObject(pinned);
+      expect(reconciled.coveredItemIds).toEqual(["end-to-end-delivery"]);
+      expect(reconciled.checkpoint).toBe("essential_floor_covered");
+      expect(await store.getById(s.id)).toMatchObject({
+        retrievalGeneration: generation,
+        retrieval: snapshot,
+        retrievalCoordinationFingerprint: "pinned-plan",
       });
     });
 

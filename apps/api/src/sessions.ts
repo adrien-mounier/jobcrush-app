@@ -125,9 +125,24 @@ export const planUpgradable = (current: DiscoveryPlan, next: DiscoveryPlan): boo
  *  lost it: the candidate screen pins families the labeler still cannot place (that is the whole
  *  point of covered_role), so re-deriving from the labeler alone would answer "unmapped" forever and
  *  turn the invariant into a 409 on the visitor's own interview. The pin holds and she carries on;
- *  a derivation naming a DIFFERENT family is still a real conflict and still fails closed. */
+ *  a derivation naming a DIFFERENT family is still a real conflict and still fails closed.
+ *  #237 — publishing a newer version of the SAME family also leaves each pinned reference intact. */
+const pinnedVersionsOrDerived = (stored: DiscoveryPlan, derived: DiscoveryPlan): DiscoveryPlan => {
+  const pinnedReference = (reference: FamilyReference) =>
+    stored.questionFloors.find((pinned) => pinned.familyId === reference.familyId) ?? reference;
+  return {
+    questionFloors: derived.questionFloors.map(pinnedReference),
+    searchFamily:
+      stored.searchFamily?.familyId === derived.searchFamily?.familyId
+        ? stored.searchFamily
+        : derived.searchFamily,
+  };
+};
+
 export const pinnedOrDerived = (stored: DiscoveryPlan, derived: DiscoveryPlan): DiscoveryPlan =>
-  stored.searchFamily !== null && derived.searchFamily === null ? stored : derived;
+  stored.searchFamily !== null && derived.searchFamily === null
+    ? stored
+    : pinnedVersionsOrDerived(stored, derived);
 
 /** #228 (spec #241 decisions 1/7) — the widening the visitor was OFFERED at the dead end and what
  *  she answered. `declined` is remembered so a reload never re-raises a question she has already
@@ -550,12 +565,13 @@ export class InMemorySessionStore implements SessionStore {
   ): Promise<ProductionDiscoveryState> {
     const s = this.byId.get(id);
     if (!s) throw new Error("session not found");
-    if (planPinned(s.discovery) && !samePlan(s.discovery, plan) && !planUpgradable(s.discovery, plan)) {
+    const reconciledPlan = pinnedVersionsOrDerived(s.discovery, plan);
+    if (planPinned(s.discovery) && !samePlan(s.discovery, reconciledPlan) && !planUpgradable(s.discovery, reconciledPlan)) {
       throw new Error("production discovery plan already pinned");
     }
     const discovery: ProductionDiscoveryState = {
-      questionFloors: structuredClone(plan.questionFloors),
-      searchFamily: structuredClone(plan.searchFamily),
+      questionFloors: structuredClone(reconciledPlan.questionFloors),
+      searchFamily: structuredClone(reconciledPlan.searchFamily),
       coveredItemIds: [...coveredItemIds],
       checkpoint: complete ? "essential_floor_covered" : "family_confirmed",
       // #228: the fallback answer is the VISITOR's, not the plan's — re-deriving the plan (she
@@ -896,12 +912,13 @@ export class PgSessionStore implements SessionStore {
       );
       if (!rows[0]) throw new Error("session not found");
       const current = discoveryState(rows[0].production_discovery);
-      if (planPinned(current) && !samePlan(current, plan) && !planUpgradable(current, plan)) {
+      const reconciledPlan = pinnedVersionsOrDerived(current, plan);
+      if (planPinned(current) && !samePlan(current, reconciledPlan) && !planUpgradable(current, reconciledPlan)) {
         throw new Error("production discovery plan already pinned");
       }
       const discovery: ProductionDiscoveryState = {
-        questionFloors: plan.questionFloors,
-        searchFamily: plan.searchFamily,
+        questionFloors: reconciledPlan.questionFloors,
+        searchFamily: reconciledPlan.searchFamily,
         coveredItemIds: [...coveredItemIds],
         checkpoint: complete ? "essential_floor_covered" : "family_confirmed",
         fallback: current.fallback, // #228: the visitor's own answer survives a plan re-derivation.

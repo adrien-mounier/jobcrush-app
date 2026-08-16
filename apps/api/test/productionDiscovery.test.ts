@@ -103,6 +103,74 @@ describe("#61 production discovery HTTP seam", () => {
     expect(resumed.json()).toEqual(started.json());
   });
 
+  it("continues an open interview on its pinned version after a newer version is published", async () => {
+    const v1 = initialProductionFamilyFloors().get("it-project-delivery", 1)!;
+    const v2 = {
+      ...v1,
+      floor: {
+        ...v1.floor,
+        version: 2,
+        essentialItems: v1.floor.essentialItems.map((item, index) =>
+          index === 1 ? { ...item, id: "v2-only-question" } : item,
+        ),
+      },
+    };
+    let active = v1;
+    const productionFamilyFloors = {
+      active: () => active,
+      get: (_familyId: string, version: number) => (version === 1 ? v1 : v2),
+    } as unknown as ProductionFamilyFloorStore;
+    const built = buildServer({
+      productionFamilyFloors,
+      placeFamily: async () => ({
+        ...placement,
+        families: [{ familyId: "it-project-delivery", version: active.floor.version }],
+      }),
+    });
+    const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const sessionId = created.json().id as string;
+    const cookie = `jc_session=${created.cookies.find((value) => value.name === "jc_session")!.value}`;
+    await built.claims.seed(sessionId, [imported("end-to-end-delivery")]);
+
+    const started = await evaluate(built.app, cookie);
+    const before = (await built.sessions.getById(sessionId))!;
+    active = v2;
+
+    const reevaluated = await evaluate(built.app, cookie);
+    const resumed = await built.app.inject({
+      method: "GET",
+      url: "/onboarding/discovery/production",
+      headers: { cookie },
+    });
+    const answered = await built.app.inject({
+      method: "POST",
+      url: "/onboarding/discovery/production/answer",
+      headers: { cookie },
+      payload: { itemId: "stakeholder-coordination", answer: "Yes" },
+    });
+
+    expect([reevaluated.statusCode, resumed.statusCode, answered.statusCode]).toEqual([200, 200, 200]);
+    expect(reevaluated.json()).toMatchObject({
+      floor: { familyId: "it-project-delivery", version: 1 },
+      progress: { complete: 1, remaining: 3 },
+      nextQuestion: { itemId: "stakeholder-coordination" },
+    });
+    expect(resumed.json()).toEqual(reevaluated.json());
+    expect(answered.json()).toMatchObject({
+      floor: { familyId: "it-project-delivery", version: 1 },
+      progress: { complete: 2, remaining: 2 },
+      nextQuestion: { itemId: "risk-dependency-control" },
+    });
+    const after = (await built.sessions.getById(sessionId))!;
+    expect(after.discovery).toMatchObject({
+      ...mappedPlan,
+      coveredItemIds: ["end-to-end-delivery", "stakeholder-coordination"],
+      checkpoint: "family_confirmed",
+    });
+    expect(after.retrievalGeneration).toBe(before.retrievalGeneration);
+    expect(started.json().floor).toEqual(reevaluated.json().floor);
+  });
+
   it("writes essential_floor_covered only when every item has allowed coverage", async () => {
     const { app, sessions, cookie, sessionId } = await setup([
       "end-to-end-delivery",
