@@ -33,6 +33,7 @@ import {
   setStage,
   answerLanguageLevel,
   wantCard,
+  type CardsResponse,
   type DeckCard,
   type DeckFallbackState,
   type JobCard,
@@ -41,10 +42,11 @@ import {
   type WithdrawnSummary,
 } from "../../lib/api";
 
-type Screen = "loading" | "error" | "empty" | "reveal" | "wall" | "deck" | "tailorHandoff" | "loopback";
+type Screen = "loading" | "searching" | "error" | "empty" | "reveal" | "wall" | "deck" | "tailorHandoff" | "loopback";
 type SwipeStatus = "idle" | "leaving-left" | "leaving-right" | "committing";
 
 const L1 = "Lining up your jobs…";
+const S1 = "Still looking for your jobs…";
 const E1 = "Couldn't line up your jobs.";
 const Z1 = "No matches yet.";
 const Z2 = "Answer a few more questions and I'll widen the net.";
@@ -66,6 +68,7 @@ const F6 = "Looking for the other work your CV proves…";
 const F7 = "Couldn't look right now — try again.";
 const FALLBACK_POLL_MS = 1200;
 const FALLBACK_POLL_MAX = 8;
+const SEARCH_POLL_MS = 1200;
 
 // #22 the account wall at the reveal — copy per design-22-wall.md §3 (deck-context copy, never the
 // S2 /signup draft copy, even where the strings happen to be close).
@@ -330,24 +333,7 @@ export default function DeckPage() {
     runPoll();
   }, [runPoll]);
 
-  const load = useCallback(async () => {
-    setScreen("loading");
-    setCurrentIndex(0);
-    setSwipeStatus("idle");
-    setDeckError(null);
-    // #117: a fresh load starts a fresh poll cycle. Explicitly tear down anything still running
-    // from a previous load() (the error screen's "Try again" can re-run this) rather than only
-    // resetting the cancel flag — a stray timer left ticking would otherwise coexist with the new
-    // cycle once one starts (Standards review: a chain must not be able to outlive a screen change).
-    pollCancelledRef.current = false;
-    if (pollTimerRef.current) {
-      clearTimeout(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-    pollActiveRef.current = false;
-    try {
-      await ensureSession();
-      const res = await getCards();
+  const applyCardsResponse = useCallback((res: CardsResponse) => {
       // #117: the server now returns cards already correctly ordered — judged, then estimated, then
       // pending, score-sorted within each group, curated-opener promotion applied. A client re-sort
       // by matchPct both fails to type-check (matchPct is null on a pending card) and would destroy
@@ -358,7 +344,7 @@ export default function DeckPage() {
       setMoreQuestions(res.moreQuestions ?? true);
       setFallback(res.fallback ?? null);
       if (res.cards.length === 0) {
-        setScreen("empty");
+        setScreen(res.searching ? "searching" : "empty");
         return;
       }
       // #117: start chasing the still-pending cards now, during the reveal/wall the visitor is
@@ -379,11 +365,58 @@ export default function DeckPage() {
       } else {
         setScreen("reveal");
       }
+  }, [startPolling]);
+
+  const load = useCallback(async () => {
+    setScreen("loading");
+    setCurrentIndex(0);
+    setSwipeStatus("idle");
+    setDeckError(null);
+    // #117: a fresh load starts a fresh poll cycle. Explicitly tear down anything still running
+    // from a previous load() (the error screen's "Try again" can re-run this) rather than only
+    // resetting the cancel flag — a stray timer left ticking would otherwise coexist with the new
+    // cycle once one starts (Standards review: a chain must not be able to outlive a screen change).
+    pollCancelledRef.current = false;
+    if (pollTimerRef.current) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    pollActiveRef.current = false;
+    try {
+      await ensureSession();
+      applyCardsResponse(await getCards());
     } catch {
       // E1 is fixed copy (design §2's copy table), not the raw fetch error.
       setScreen("error");
     }
-  }, [startPolling]);
+  }, [applyCardsResponse]);
+
+  // #245: the cards route never waits on provider latency. While the server says that first
+  // retrieval is still running, keep the honest waiting screen mounted and ask again until the
+  // response becomes either a real deck or a genuinely finished empty result. A recursive timeout
+  // keeps requests sequential; cleanup prevents the chain outliving this screen or the component.
+  useEffect(() => {
+    if (screen !== "searching") return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const poll = () => {
+      timer = setTimeout(async () => {
+        try {
+          const res = await getCards();
+          if (cancelled) return;
+          applyCardsResponse(res);
+          if (res.searching && res.cards.length === 0) poll();
+        } catch {
+          if (!cancelled) setScreen("error");
+        }
+      }, SEARCH_POLL_MS);
+    };
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [applyCardsResponse, screen]);
 
   // #117: "Try again" on a card that gave up. One immediate fetch, then — if still pending — three
   // more scheduled attempts via the same runPoll chain (a fresh 0..3 count, not a second 0..6 cold
@@ -640,6 +673,8 @@ export default function DeckPage() {
       </div>
 
       {screen === "loading" && <div className="loadstate">{L1}</div>}
+
+      {screen === "searching" && <div className="loadstate">{S1}</div>}
 
       {screen === "error" && (
         <div className="loadstate">

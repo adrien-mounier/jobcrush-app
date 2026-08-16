@@ -384,6 +384,9 @@ export interface CardsResponse {
   // number is as the poll's start/stop condition — it is deliberately never rendered (design §6).
   pendingCount: number;
   withdrawn?: WithdrawnSummary;
+  // #245: true only while the server is actively retrieving the first deck. An empty response with
+  // false/absent is a finished empty result and keeps the existing dead end unchanged.
+  searching?: boolean;
   // #235: whether any discovery question is genuinely still open for this session. The empty deck's
   // "answer a few more questions" line is only honest when one exists; otherwise the empty state
   // invites a different job title instead. Optional defensively — an absent field falls back to the

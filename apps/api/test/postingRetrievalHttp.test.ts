@@ -283,11 +283,14 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       outcome: "provider_unavailable",
       reason: "posting retrieval is in progress",
     });
+    expect(response.json().searching).toBe(true);
     await vi.waitFor(async () =>
       expect((await sessions.getById(sessionId))?.retrieval).toMatchObject({
         result: { outcome: "provider_unavailable", reason: "test outage" },
       }),
     );
+    const settled = await app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    expect(settled.json().searching).toBe(false);
   });
 
   it("defaults to a provider_unavailable result rather than fixture retrieval", async () => {

@@ -50,7 +50,7 @@ import {
   withYearsShortfall,
 } from "../deck.js";
 import { applyFallbackChoice, fallbackOffer } from "../deckFallback.js";
-import { makeRetrievalCoordinator } from "../deckRetrieval.js";
+import { makeRetrievalCoordinator, retrievalIsInProgress } from "../deckRetrieval.js";
 import { answerLanguageLevel, LanguageLevelBody, withLanguageLevelAsks } from "../languageLevel.js";
 import { findWithdrawingRequirement, partitionByWithdrawal } from "../withdrawal.js";
 import {
@@ -825,8 +825,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
       const retrievalRequest = retrievalRequestForSession(session, confirmed, negatives);
       const requestFingerprint = retrievalFingerprint(retrievalRequest);
-      // deckRetrieval.ts: a reusable snapshot, an in-progress marker, or an unavailable result —
-      // and the background claim → retrieve → reconcile work when this process should pay for it.
+      // deckRetrieval.ts returns the response snapshot and starts background work when this process owns it.
       const retrieval = retrievalCoordinator.ensureRetrieval(session, retrievalRequest, requestFingerprint);
       // #222: years at BOTH scopes — the advert's family (advertFamilyIdFor: the confirmed floor,
       // else the target-role placement) and the career total. Known zero vs unmapped fallback is
@@ -857,6 +856,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         authed: session.claimedByUserId !== null,
         withdrawn,
         retrieval,
+        searching: retrievalIsInProgress(retrieval),
         moreQuestions,
         // #228: the dead end's offer — server-owned, so the screen renders and never decides
         // (deckFallback.ts owns the four preconditions).

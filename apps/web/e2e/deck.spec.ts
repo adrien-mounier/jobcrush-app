@@ -377,6 +377,85 @@ test("an empty deck with questions still open keeps inviting them", async ({ pag
   await expect(page.getByText("Try a different job title.")).toHaveCount(0);
 });
 
+test("a retrieval still running waits for her original deck without showing a dead end or widening", async ({
+  page,
+}) => {
+  await stubSession(page);
+  let calls = 0;
+  await page.route("**/api/onboarding/cards", async (route) => {
+    calls += 1;
+    await route.fulfill({
+      json: calls === 1
+        ? {
+            stage: "deck",
+            cards: [],
+            authed: true,
+            pendingCount: 0,
+            searching: true,
+            moreQuestions: false,
+            fallback: {
+              offered: true,
+              declined: false,
+              active: false,
+              targetRole: "Product Analytics Manager",
+            },
+          }
+        : {
+            stage: "deck",
+            cards: [card("ad-original", "Product Analytics Manager", 82)],
+            authed: true,
+            pendingCount: 0,
+            searching: false,
+            moreQuestions: false,
+          },
+    });
+  });
+
+  await page.goto("/deck");
+  await expect(page.getByText("Still looking for your jobs…")).toBeVisible();
+  await expect(page.getByText("No matches yet.")).toHaveCount(0);
+  await expect(page.getByText(OFFER_QUESTION)).toHaveCount(0);
+
+  await expect(page.getByRole("heading", { name: "1 job just matched you" })).toBeVisible();
+  await page.getByRole("button", { name: "See them" }).click();
+  await expect(page.getByRole("heading", { name: "Product Analytics Manager" })).toBeVisible();
+  expect(calls).toBeGreaterThanOrEqual(2);
+});
+
+test("a retrieval that finishes empty restores the existing dead end and eligible widening offer", async ({
+  page,
+}) => {
+  await stubSession(page);
+  let calls = 0;
+  await page.route("**/api/onboarding/cards", async (route) => {
+    calls += 1;
+    await route.fulfill({
+      json: {
+        stage: "deck",
+        cards: [],
+        authed: true,
+        pendingCount: 0,
+        searching: calls === 1,
+        moreQuestions: false,
+        fallback: {
+          offered: true,
+          declined: false,
+          active: false,
+          targetRole: "Product Analytics Manager",
+        },
+      },
+    });
+  });
+
+  await page.goto("/deck");
+  await expect(page.getByText("Still looking for your jobs…")).toBeVisible();
+  await expect(page.getByText("No matches yet.")).toHaveCount(0);
+
+  await expect(page.getByText("No matches yet.")).toBeVisible();
+  await expect(page.getByText(OFFER_QUESTION)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Yes, look" })).toBeVisible();
+});
+
 // #228 (spec #241) — the dead end becomes a choice. The offer is rendered from the server's own
 // `fallback` state; the screen decides only WHEN the deck is finished. These are the durable twins
 // of the human-paced journey in e2e/fallback-offer-journey.mjs.

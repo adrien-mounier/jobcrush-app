@@ -39,6 +39,11 @@ const retrievalInProgress = (): PostingRetrievalResultV1 => ({
   retryable: true,
 });
 
+/** #245: the one transient result that means work is active, not that retrieval has finished. */
+export function retrievalIsInProgress(result: PostingRetrievalResultV1): boolean {
+  return "coverage" in result && result.coverage.providersUnavailable.includes("retrieval-in-progress");
+}
+
 /** One coordinator per server instance (it owns the same-process coalescing map the plugin closure
  *  used to hold). §2.6 forbids provider latency on the cards request. §2.8's session snapshot is the
  *  handoff: the first uncached read fails closed while one background task runs; later reads use its
