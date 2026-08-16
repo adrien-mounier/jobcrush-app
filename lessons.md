@@ -1,5 +1,17 @@
 # Lessons — jobcrush-app
 
+## Empty data is not necessarily an empty result
+
+An asynchronous read can return an empty collection while the work that fills it is still running.
+If the client treats only the collection length as truth, it turns latency into a false dead end —
+and any action attached to that dead end can fire on evidence the product does not have yet.
+
+Keep the distinction server-owned and plain: **work active** versus **work settled**, not a client
+interpretation of provider outcome enums. Render the active state as its own screen, poll
+sequentially with cleanup and a terminal error path, and prove both transitions in the browser:
+active → data and active → settled empty. A payload assertion alone cannot catch a dead-end or
+CTA flashing on the rendered screen.
+
 ## A spend bound is a fingerprint, not a counter
 
 #228 had to guarantee "at most one extra provider search per session, ever". The obvious build is a

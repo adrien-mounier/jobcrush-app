@@ -2,6 +2,27 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 137) `/implement 245` — an empty deck now waits when the answer is still running (QA GO)
+
+**"Still looking" is no longer rendered as "nothing found".** The cards response now carries a
+server-owned `searching` bit only for the retrieval coordinator's `retrieval-in-progress` marker.
+An empty deck in that state shows *"Still looking for your jobs…"* and polls sequentially until the
+visitor's original deck arrives, without a reload. The dead end and #228 widening offer are not
+mounted while that work is active, so the visitor cannot spend the fallback call before her own
+search has answered.
+
+**Finished-empty behavior did not move.** When retrieval settles with no postings, the existing
+*"No matches yet"* state returns, including #228's offer where eligible. Other failures never claim
+that work is active; a polling request failure lands on the existing fixed-copy error and retry.
+This is the narrow #245 subset of #116: it fills an initially empty deck after provider retrieval,
+not a non-empty open deck as individual advert reads finish.
+
+**Review + QA:** Standards PASS and Spec PASS after two findings were closed (a terminal polling
+error state and rendered proof of `searching → settled empty`). Binding QA GO: 1,546 tests passed,
+11 configured live tests skipped; 7/7 uncached typecheck tasks; mocked browser gate 140 passed / 1
+skipped; human-paced two-sequence journey 9/9. No live provider/model spend. Product commit
+`ee16d21`.
+
 ## 2026-08-16 (session 136) `/implement 228` — the target family ran out: she is offered the work her CV proves, and chooses (QA GO)
 
 **The dead end became a question.** When a visitor's chosen family runs out *and* nothing is left to
