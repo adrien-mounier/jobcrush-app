@@ -2950,3 +2950,24 @@ harmless. The cap (top N by existing score) belongs in the ticket that introduce
 later optimisation pass, because by then the cost is in production and the fix is a behaviour change
 rather than a constant. Whenever a per-item cost meets a set that is about to grow by two orders of
 magnitude, size the rule for the future set while it is still cheap to write down.
+
+## A model answer stored under a hash of the unsubstituted prompt goes silently stale
+
+The ad reader versions each stored answer by hashing its prompt file — but the hash was computed
+BEFORE the `{{KNOWN_FAMILIES}}` list was substituted in, so changing the vocabulary the model
+answers FROM invalidated nothing: every advert kept its answer from the old closed list forever,
+and no test can catch it because every individual read is correct at the moment it is made. The
+rule: **whatever the model actually read belongs in the version hash** — template AND substituted
+data — or the substituted data needs its own hand-bumped token. Same trap anywhere a cached LLM
+answer depends on a list, a registry, or config spliced into the prompt at call time (#243; the
+judge's fingerprint already got this right by hashing the rendered input).
+
+## Two LLM surfaces that must agree on a vocabulary should be wired from one expression
+
+The reader answered families from a test fixture (`["IT Project Manager"]`) while the placer
+answered from the published registry (`it-project-delivery`) — so the field connecting them
+compared unequal strings for a year and the code that consumed it had to be written NOT to
+(#243's whole defect). The repair that makes the class of bug unrepresentable is wiring both
+call sites from the same `publishedFamilies(store)` expression in main.ts: any family one surface
+can name, the other can match, with no mapping table to drift. When a review later claimed a
+"word-search decks get emptied" hole, the shared-source argument was the two-line disproof.

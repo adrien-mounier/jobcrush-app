@@ -2,6 +2,38 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 134) `/implement 243` — the advert's family reaches the deck (QA GO, `5f3c701`)
+
+**The Sofia fix: construction jobs leave the IT deck.** The reader's closed family list now comes
+from the published production vocabulary — the *same* `publishedFamilies()` call `placeFamily`
+answers from, so the placer and the reader structurally cannot drift into different vocabularies
+again (the code-review's "word-search decks get emptied" concern dissolved on exactly this point).
+Owner decisions 1–4 landed as specified:
+
+- **Identity deletes:** `partitionByFamilyFit` (deck.ts) removes a wrong-family advert before
+  withdrawal/ranking/judging spend anything on it; counted on `deck.family_dropped`. An answer
+  outside the closed list is clamped to "none of these" in code (`adReader.family_clamped`) —
+  never stored free text.
+- **Confidence orders:** rank = `matchPct × familyFit.confidence` within a provenance tier, family
+  decks only — score, membership, and word-search decks untouched.
+- **The trap closed the durable way:** the family list is folded into `adReaderVersion`'s hash, so
+  any vocabulary change stales every stored read (lazy re-read, at most once) with nobody needing
+  to remember a bump.
+- **Vocabulary migration:** curated pool + qa-main stamps → `it-project-delivery`; `promiseCount`
+  asked with the published id (both directions pinned in tests). `e5stub.knownFamilies()` deleted.
+- Spine: card-provenance tally moved out to deck.ts; ratchet lowered 1110 → 1108.
+
+QA GO with a live Tier-2 browser run (12/12): family deck 15 → 8 cards with the deleted **7** read
+off `/ops/counters`; word deck unfiltered; four weak 100%-match cards sunk below a 31% card while
+still *showing* 100%. New journey `apps/web/e2e/deck-family-fit-journey.mjs` — **not** added to
+run-tier2's hand-picked list (~2.5 min CI; owner's call).
+
+**Residuals:** ⚠️ the real model has never been asked for a family *id* (fakes only here) — **watch
+`adReader.family_clamped` after the next staging deploy**; label-answering would clamp everything
+and empty family decks. First deploy re-reads every stored advert once, by design. #228 must pin
+`searchFamily` on its fallback deck or every fallback card is deleted on arrival — recorded as a
+comment on #228. ⚠️ On `main`, **not on staging** — same CI billing blockage as #242/#244.
+
 ## 2026-08-16 (session 133b) `/implement 244` — copied measurements cannot publish (QA GO, `f73c61a`)
 
 **#242's residual 1, closed the same afternoon after the owner corrected the story.** The residual
