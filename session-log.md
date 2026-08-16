@@ -2,6 +2,27 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 141) `/implement 227` — failed family placements retry outside upload (QA GO)
+
+**A null past-job family placement is no longer stranded until re-upload.** The existing
+checkpointed `labelJobBlocks` step is now reused as a best-effort retry before non-upload reads
+that depend on job-family placement: `/job-blocks`, production discovery evaluation,
+`/onboarding/cards`, and `/onboarding/cards/fallback`. The labeler still owns idempotency, so only
+`family.value === null` jobs are retried; confirmed, honestly unmapped, and user-corrected
+placements are skipped and never turned back into questions.
+
+**The #228 consequence is pinned.** The fallback route test now covers the actual failure mode, not
+just "a retry happened": one shorter already-placed second-best family exists, while the longer
+strongest family starts null. Accepting fallback retries first and retrieves the recovered strongest
+family, so the visitor is not silently handed the second-best work her CV proves.
+
+**Review + QA:** Standards review found no hard violations. Spec review found one coverage gap
+(missing two-family ranking proof), fixed before QA. Independent QA returned GO: targeted API
+tests passed 34/34; forced full suite passed API 1,506 tests with 11 skips plus contracts 47/47;
+forced typecheck passed 7/7 tasks; lint has no configured tasks. No browser run was useful here:
+the old UI was deleted and #228 intentionally hides the chosen fallback family, so the Fastify API
+route seams are the product evidence.
+
 ## 2026-08-16 (session 140) `/implement 232` - plural target roles ask every essential floor (QA GO)
 
 **A target role can now keep every substantial family the labeler returns.** When every named

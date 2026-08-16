@@ -36,6 +36,7 @@ import type { Posting } from "../src/preview.js";
 
 const TARGET = "field-marketing"; // the family she TYPED her way into — the deck that runs out
 const PROVEN = "it-project-delivery"; // the one really published family — what her CV proves
+const SECOND_BEST = "product-management";
 
 const placed = (familyIds: string[]): FamilyPlacement => ({
   schemaVersion: "2",
@@ -251,7 +252,7 @@ describe("#228 years are read at the fallback family's scope (spec decision 9)",
 
 // The money. Everything above is arithmetic; this is the bill (AC 4/5/6, stories 22/23).
 describe("#228 what a fallback costs, at the deck route", () => {
-  function minedBlock(id: string): MinedJobBlock {
+  function minedBlock(id: string, startYear = 2010, endYear = 2019): MinedJobBlock {
     const stamp = (value: string) => ({
       value,
       source_quote: value,
@@ -263,14 +264,14 @@ describe("#228 what a fallback costs, at the deck route", () => {
       employer: stamp("Employer"),
       title: stamp("Regional PM"),
       start: {
-        value: { year: 2010, month: 1, precision: "month" },
-        source_quote: "Jan 2010",
+        value: { year: startYear, month: 1, precision: "month" },
+        source_quote: `Jan ${startYear}`,
         machine_touch: "verbatim",
         classification: "Verified",
       },
       end: {
-        value: { state: "ended", date: { year: 2019, month: 12, precision: "month" } },
-        source_quote: "Dec 2019",
+        value: { state: "ended", date: { year: endYear, month: 12, precision: "month" } },
+        source_quote: `Dec ${endYear}`,
         machine_touch: "verbatim",
         classification: "Verified",
       },
@@ -377,6 +378,68 @@ describe("#228 what a fallback costs, at the deck route", () => {
     return { app, cookie, calls, cards, choose };
   }
 
+  async function retryHarness({ secondBest = false }: { secondBest?: boolean } = {}) {
+    const jobBlocks = new InMemoryJobBlockStore();
+    const eligibility = new InMemoryEligibilityStore();
+    const sessions = new InMemorySessionStore();
+    await jobBlocks.init();
+    const { calls, retrievePostings } = countingRetriever();
+    const labelJobBlocks = async (sessionId: string) => {
+      await jobBlocks.label(sessionId, "b1", placed([PROVEN]));
+      await refreshWorkedYears(jobBlocks, eligibility, sessionId);
+    };
+    const { app } = buildServer({
+      jobBlocks,
+      eligibility,
+      sessions,
+      retrievePostings,
+      readAd,
+      productionFamilyFloors: secondBest
+        ? ({
+            active: (familyId: string) =>
+              familyId === SECOND_BEST ? publication(SECOND_BEST) : PUBLISHED.active(familyId),
+          } as ProductionFamilyFloorStore)
+        : undefined,
+      pipeline: { labelJobBlocks },
+    });
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = `jc_session=${created.cookies.find((c) => c.name === "jc_session")!.value}`;
+    const sessionId = created.json().id as string;
+    await app.inject({
+      method: "PUT",
+      url: "/sessions/me/intent",
+      headers: { cookie },
+      payload: { targetRole: "Product Analytics Manager", searchArea: "Hong Kong" },
+    });
+    await sessions.setTargetTitles(sessionId, ["Product Analytics Manager"]);
+    await jobBlocks.ingest(
+      sessionId,
+      { schemaVersion: "1", blocks: secondBest ? [minedBlock("b1"), minedBlock("b2", 2022, 2023)] : [minedBlock("b1")] },
+      "{}",
+    );
+    if (secondBest) {
+      await jobBlocks.label(sessionId, "b2", placed([SECOND_BEST]));
+      await refreshWorkedYears(jobBlocks, eligibility, sessionId);
+    }
+    const pinned = { familyId: TARGET, version: 1 };
+    await sessions.reconcileDiscoveryState(sessionId, { questionFloors: [pinned], searchFamily: pinned }, [], true);
+
+    const cards = async () =>
+      (
+        await app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } })
+      ).json() as { fallback: { offered: boolean; active: boolean } };
+    const choose = async (accepted: boolean) =>
+      (
+        await app.inject({
+          method: "POST",
+          url: "/onboarding/cards/fallback",
+          headers: { cookie },
+          payload: { accepted },
+        })
+      ).json() as { fallback: { active: boolean } };
+    return { calls, cards, choose };
+  }
+
   it("a decline pays for nothing, and an acceptance pays for exactly one search — ever", async () => {
     const { calls, cards, choose } = await harness();
     expect(calls).toEqual([{ familyId: TARGET, fallback: false }]);
@@ -414,5 +477,21 @@ describe("#228 what a fallback costs, at the deck route", () => {
     const after = await cards();
     expect(after.cards.some((card) => card.adId === `posting:${PROVEN}`)).toBe(true);
     expect(after.cards.some((card) => card.adId === `posting:${TARGET}`)).toBe(false);
+  });
+
+  it("retries a null placement before accepting fallback work", async () => {
+    const { calls, cards, choose } = await retryHarness();
+
+    expect(await choose(true)).toMatchObject({ fallback: { active: true } });
+    await cards();
+    await vi.waitFor(() => expect(calls).toEqual([{ familyId: PROVEN, fallback: true }]));
+  });
+
+  it("retries before ranking fallback families, so the recovered strongest family wins", async () => {
+    const { calls, cards, choose } = await retryHarness({ secondBest: true });
+
+    expect(await choose(true)).toMatchObject({ fallback: { active: true } });
+    await cards();
+    await vi.waitFor(() => expect(calls).toEqual([{ familyId: PROVEN, fallback: true }]));
   });
 });

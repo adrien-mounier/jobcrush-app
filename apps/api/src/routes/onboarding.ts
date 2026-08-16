@@ -52,6 +52,7 @@ import {
 import { applyFallbackChoice, fallbackOffer } from "../deckFallback.js";
 import { makeRetrievalCoordinator, retrievalIsInProgress } from "../deckRetrieval.js";
 import { answerLanguageLevel, LanguageLevelBody, withLanguageLevelAsks } from "../languageLevel.js";
+import { retryJobBlockLabels } from "../jobBlockPlacementRetry.js";
 import { findWithdrawingRequirement, partitionByWithdrawal } from "../withdrawal.js";
 import {
   composeCvLine,
@@ -103,6 +104,7 @@ export interface OnboardingDeps {
   /** #236: fire-and-forget judgement of the word-search visitor's target role (makeFamilyCandidateWatch
    *  in familyCandidateIntake.ts). Never awaited, never visible; absent → nothing is screened. */
   watchFamilyCandidate?: (session: Readonly<SessionRecord>) => void;
+  retryJobBlockLabels?: (sessionId: string) => Promise<void>;
   /** JC-24: LLM phrasing for grill questions. Absent → template phrasing (tests + the safe fallback). */
   phraseGrill?: GrillPhraser;
   /** S2 decision #6: LLM wording audit of the built root CV. Absent → the CV ships unaudited. */
@@ -262,6 +264,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       {},
       async (req, reply) => {
         const session = requireSession(req);
+        await retryJobBlockLabels(deps.retryJobBlockLabels, session.id, fastify.log);
         // #235: the plan decides both facts, and a null search family is the WORD SEARCH now, not a
         // refusal — an unmapped, plural or unpublished placement is interviewed on the floors her
         // CV proves. A pinned plan still holds, with one exception: a word plan may gain a search
@@ -813,15 +816,11 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       },
     );
 
-    // --- #19 the reveal + the job card (screen 2a): instant-tick, score-sorted card deck --------
-    // Rides the anonymous session like discovery (requireSession, not requireUser — the wall is
-    // after the reveal). Meaningful once session.stage === "deck", but never gated server-side:
-    // the client decides when to show it. Cards = every posting with a stubbed AdRequirementsV1
-    // entry (the E5 boundary, e5stub.ts), joined by adId and scored by matchtick.ts against this
-    // session's confirmed/negative claims — no LLM, no IO beyond the two fixture loads.
+    // --- #19 the reveal + the job card (screen 2a): score-sorted card deck ----------------------
     app.get("/onboarding/cards", async (req) => {
       const session = requireSession(req);
       deps.watchFamilyCandidate?.(session); // #236 — background, never awaited, never user-visible.
+      await retryJobBlockLabels(deps.retryJobBlockLabels, session.id, fastify.log);
       const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
       const retrievalRequest = retrievalRequestForSession(session, confirmed, negatives);
       const requestFingerprint = retrievalFingerprint(retrievalRequest);
@@ -871,6 +870,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       { schema: { body: z.object({ accepted: z.boolean() }) } },
       async (req) => {
         const session = requireSession(req);
+        await retryJobBlockLabels(deps.retryJobBlockLabels, session.id, fastify.log);
         const blocks = await deps.jobBlocks.list(session.id);
         return {
           fallback: await applyFallbackChoice(

@@ -483,6 +483,7 @@ export function buildServer(opts: BuildOptions = {}) {
       claims,
       eligibility,
       families: () => publishedFamilies(productionFamilyFloors),
+      retryJobBlockLabels: pipelineDeps.labelJobBlocks,
     }),
   );
   // #236: the screen judges a target role against the WHOLE published list, read fresh each call so
@@ -507,6 +508,7 @@ export function buildServer(opts: BuildOptions = {}) {
     judge: opts.judge,
     judgePeek: opts.judgePeek,
     judgeMaxCards: opts.judgeMaxCards,
+    retryJobBlockLabels: pipelineDeps.labelJobBlocks,
     // #236: only wired when a real screen exists — absent, the word-search deck screens nothing,
     // exactly as before this ticket.
     watchFamilyCandidate: opts.screenFamilyCandidate

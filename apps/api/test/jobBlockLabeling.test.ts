@@ -72,13 +72,14 @@ async function stack(options: {
   families?: PublishedFamily[];
   blocks?: MinedJobBlock[];
   labeler?: (sessionId: string) => Promise<void>;
+  routeRetries?: boolean;
 }) {
   const jobBlocks = new InMemoryJobBlockStore();
   await jobBlocks.init();
   const { llm, roles } = fakeLlm(options.answerFor);
   const labelJobBlocks =
     options.labeler ?? makeJobBlockLabeler(llm, options.families ?? PUBLISHED, jobBlocks);
-  const server = buildServer({ jobBlocks });
+  const server = buildServer({ jobBlocks, pipeline: options.routeRetries ? { labelJobBlocks } : undefined });
   const res = await server.app.inject({ method: "POST", url: "/sessions/anonymous" });
   const cookie = `jc_session=${res.cookies.find((c) => c.name === "jc_session")!.value}`;
   const sessionId = (
@@ -218,6 +219,20 @@ describe("#221 AC3 — a labeler failure is recorded, not fatal", () => {
     answer = CONFIRMED; // the model comes back
     await s.mine();
     expect(familyOf((await s.read()).blocks, "nordic-pm").value?.outcome).toBe("confirmed");
+  });
+
+  it("retries an unplaced job on the review read, without requiring another upload", async () => {
+    let answer = "not json at all";
+    const s = await stack({ answerFor: () => answer, routeRetries: true });
+    await s.mine([minedBlock("nordic-pm", "IT Project Manager")]);
+
+    expect(familyOf((await s.read()).blocks, "nordic-pm").value).toBeNull();
+
+    answer = CONFIRMED;
+    expect(familyOf((await s.read()).blocks, "nordic-pm").value).toMatchObject({
+      schemaVersion: "2",
+      outcome: "confirmed",
+    });
   });
 
   it("a labeling step that throws outright never fails the upload either", async () => {

@@ -19,6 +19,7 @@ import type { DecisionKey, JobBlockStore, JobBlockView } from "../jobBlockStore.
 import type { ClaimStore } from "../claims.js";
 import type { EligibilityStore } from "../eligibility.js";
 import { refreshWorkedYears, verifyWorkedYears } from "../yearsWorked.js";
+import { retryJobBlockLabels } from "../jobBlockPlacementRetry.js";
 
 export interface JobBlocksDeps {
   jobBlocks: JobBlockStore;
@@ -35,6 +36,7 @@ export interface JobBlocksDeps {
    *  something outside the screen enforces it. Absent → no families offered and every family
    *  correction is refused, which is the correct behaviour for a build with no registry wired. */
   families?: () => Array<{ familyId: string; version: number; label: string }>;
+  retryJobBlockLabels?: (sessionId: string) => Promise<void>;
 }
 
 const Params = z.object({ blockId: z.string() });
@@ -104,6 +106,7 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
     // here — "failed" is distinct from "ok, blocksFound: 0").
     app.get("/job-blocks", async (req) => {
       const session = requireSession(req);
+      await retryJobBlockLabels(deps.retryJobBlockLabels, session.id, fastify.log);
       const [blocks, summary] = await Promise.all([
         deps.jobBlocks.list(session.id),
         deps.jobBlocks.summary(session.id),
