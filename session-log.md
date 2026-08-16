@@ -2,6 +2,24 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 138) `/implement 237` — publishing v2 no longer strands sessions pinned to v1 (QA GO)
+
+**The pin now means what it says.** When discovery re-derives the same family at a newer version,
+both session stores retain the already-pinned reference for every question floor and for the search
+family. A genuinely different family still fails closed, while #235's word-to-family upgrade and
+#236's stored-family-over-unmapped rule keep their existing behavior.
+
+The regression follows a visitor through `evaluate`, resume, and `answer` after v2 becomes active:
+all three continue serving v1's questions without re-asking covered evidence. The shared memory and
+Postgres store contract additionally proves a completed checkpoint, a mixed multi-floor plan, the
+retrieval generation/fingerprint, and a valid open-deck posting snapshot all survive unchanged.
+
+**Review + QA:** Standards PASS (0 findings) and Spec PASS (0 findings) after closing review gaps
+around family-identity matching and literal open-deck evidence. Final gates: 1,549 tests passed,
+11 live tests skipped; all 7 typecheck tasks and all 5 build tasks passed. Browser evidence was not
+applicable because family publication has no browser-facing route; the affected visitor behavior is
+covered at the public Fastify HTTP seam. Code: `159c4bc`.
+
 ## 2026-08-16 (session 137) `/implement 245` — an empty deck now waits when the answer is still running (QA GO)
 
 **"Still looking" is no longer rendered as "nothing found".** The cards response now carries a
