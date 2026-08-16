@@ -2,6 +2,45 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 130) `/implement 236` — the screen judges her in the background, and she never knows
+
+**Shipped, QA GO (`bd1f3d0`). Not deployed — CI is still billing-blocked (see session 128).** While
+an unplaceable visitor browses her word-search deck, the family-candidate screen judges her target
+role once per session, fire-and-forget. Nothing about it reaches her: no message, no delay, no
+change to the deck.
+
+- **accepted** → a family learning attempt opens by itself, no operator action.
+- **covered_role** → the recognised family is pinned as BOTH question floor and search family, so
+  she gets the normal family interview and the normal family search. The free second chance at
+  placement: the screen sees the whole published list, the labeler saw only its own answer.
+- **equivalent** → attaches to the canonical attempt, no duplicate. **abuse/non_job** and a failed
+  or unavailable screen persist nothing, are logged, and leave her deck untouched.
+- **One shared function** (`familyCandidateIntake.ts` — screen → validate → record) is called by
+  both the explicit candidate route and the background watch; the route's inline copy is deleted.
+  A screen naming a canonical attempt or family it was never shown throws `FamilyScreeningUnavailable`
+  and records nothing.
+- **The bug the spec review caught, and the rule it moved:** the `covered_role` pin would have 409'd
+  her very next discovery step, because the route re-derives the plan from the labeler — which still
+  answers "unmapped", that being why the screen was needed. New `pinnedOrDerived` (sessions.ts): a
+  stored family pin outranks a derivation that lost it. #235's invariant is unchanged (never
+  downgrade to a word plan, never swap family); only the response changes, from a refusal to
+  carrying on. #235's own test updated to assert the pin holds instead of a 409.
+  **This softens the pulled-publication half of #237** — that failure now lands at retrieval rather
+  than at the interview. Roadmap note added under #237; the owner decision itself is unchanged.
+- Standards review also fixed: a storage fault no longer reports itself as "screening unavailable"
+  (it rethrows, 500), one producer for the joined search-area text instead of two copies, and the
+  *equivalent* no-duplicate case now runs through the shared function instead of around it.
+- Ratchet lowered 1119 → 1110: `claimTier`/`DeckTier` → `deck.ts` (card-shaping policy, where the
+  rest of it lives), `minedRoles` → `jobs.ts` (it reads a job record's own shape). The ticket's own
+  addition to the spine is one injected dep and one call.
+- 1503 tests green, typecheck + build green. QA drove the visitor-visible half live (8/8): the
+  screen failed, wrote its warning to our log, and left no trace on her screen or in her record.
+  Live journey left at `apps/web/e2e/background-family-screen-journey.mjs`.
+- **QA observations not blocking, worth knowing:** an anonymous `GET /onboarding/cards` with an
+  unmapped role now triggers one metered-but-uncapped model call per session per process — anyone
+  minting sessions can drive that spend. And the QA fake model has no candidate-screen branch, so
+  the QA stack can only exercise this feature's failure path, not its happy one.
+
 ## 2026-08-16 (session 129) `/implement 235` — the retrieval gate opens, silently
 
 **Shipped, QA GO. Not deployed — CI is still billing-blocked (see session 128).** The behaviour
