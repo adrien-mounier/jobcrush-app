@@ -20,6 +20,11 @@ around family-identity matching and literal open-deck evidence. Final gates: 1,5
 applicable because family publication has no browser-facing route; the affected visitor behavior is
 covered at the public Fastify HTTP seam. Code: `159c4bc`.
 
+**Deployment residual:** pushed in `998be0a`; #237 closed, but CI run `31950377847` started zero
+steps. GitHub annotated both test and e2e jobs with the account payment/spending-limit failure, so
+deploy-staging was skipped. This is the existing billing blockage, not a product failure; #237 is
+not yet on staging.
+
 ## 2026-08-16 (session 137) `/implement 245` — an empty deck now waits when the answer is still running (QA GO)
 
 **"Still looking" is no longer rendered as "nothing found".** The cards response now carries a
