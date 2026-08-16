@@ -2,6 +2,29 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-16 (session 139) `/research 239` — empty-result copy now has a source-backed string family
+
+**The bare dead end was checked against real product language.** The research note
+[`docs/research/empty-result-wording.md`](docs/research/empty-result-wording.md) now records first-
+party LinkedIn, Tinder, and Reed evidence for zero-result / no-new-profiles states. The consistent
+pattern is not a lone command: state what happened, then offer one concrete next action.
+
+**Recommendation for the JobCrush family of strings:** replace the bare *"Try a different job
+title."* moment with a small `No jobs found` / `No more jobs ... right now` family, preserve #228's
+explicit consent gate for looking at other work in the CV, and keep #245's *"Still looking..."*
+state separate from finished-empty copy.
+
+**Evidence limits:** LinkedIn exact zero-result text was captured from the public guest Jobs HTML,
+but Playwright rendered a broadened/signed-out results page rather than the text-only zero-result
+state. Tinder logged-in UI was not driven; first-party Help and app payload evidence were used.
+Reed produced the only usable local screenshot, saved under the repo's ignored evidence area:
+`screenshots/research-239/reed-zero-results.png` (force-add if it needs to travel with the commit).
+
+**Roadmap:** row 5c.2b is marked research-written-local, not closed; the progress paragraph no
+longer points to #239 as next. Next implementation pointer is #232 **after** #239 is committed/closed
+and live issue dependencies still agree. No context-file sync was run; this was a research + tracking
+update only. No commit yet.
+
 ## 2026-08-16 (session 138) `/implement 237` — publishing v2 no longer strands sessions pinned to v1 (QA GO)
 
 **The pin now means what it says.** When discovery re-derives the same family at a newer version,
