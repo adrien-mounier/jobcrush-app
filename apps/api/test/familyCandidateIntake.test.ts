@@ -81,15 +81,23 @@ describe("#236 the candidate screen on the word-search path", () => {
     await new Promise((resolve) => setImmediate(resolve));
     expect(calls).toHaveLength(1);
 
-    // …and she gets the NORMAL family interview on it. The labeler still says "unmapped" (that is
-    // why the screen was needed), so this is the case that used to 409 on her own discovery.
-    const evaluated = await server.app.inject({
+    // …and she gets the NORMAL family interview on it, on the shipped screen (#216). The labeler
+    // still says "unmapped" (that is why the screen was needed), so this is the case that used to
+    // 409 on her own discovery: the pin wins and the interview opens on the recognised family.
+    const discovery = await server.app.inject({
       method: "POST",
-      url: "/onboarding/discovery/production/evaluate",
+      url: "/onboarding/discovery/start",
       headers: { cookie },
+      payload: { role: "Orbital Farm Planner" },
     });
-    expect(evaluated.statusCode).toBe(200);
-    expect(evaluated.json()).toMatchObject({ floor: PUBLISHED, checkpoint: "family_confirmed" });
+    expect(discovery.statusCode).toBe(200);
+    expect(discovery.json().questions.length).toBeGreaterThan(0);
+    const pinned = (await server.sessions.getById(sessionId))!.discovery;
+    expect(pinned).toMatchObject({
+      questionFloors: [PUBLISHED],
+      searchFamily: PUBLISHED,
+      checkpoint: "family_confirmed",
+    });
   });
 
   it("equivalent attaches to the existing attempt and creates no duplicate", async () => {

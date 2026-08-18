@@ -136,8 +136,13 @@ await expectAbsent(
 // Answer the questions one at a time, the way the screen serves them, until the work-rights
 // question is the one on screen.
 const workRights = page.locator('.opts[data-elig="work-rights"]');
+// #216: the researched floor mixes tap-an-option and type-your-own items, so a loop that only
+// clicks `.opts .opt` stalls on the free-text ones. answerVisibleQuestion handles both shapes.
 for (let i = 0; i < 8 && (await workRights.count()) === 0; i += 1) {
-  await qa.click('.opts .opt', `answer the question on screen (step ${i + 1}) to reach work rights`);
+  const answered = await qa.answerVisibleQuestion({
+    note: `answer the question on screen (step ${i + 1}) to reach work rights`,
+  });
+  if (!answered) break;
 }
 await qa.expectVisible(workRights, 'the work-rights question is now the one being asked');
 await qa.expectText(

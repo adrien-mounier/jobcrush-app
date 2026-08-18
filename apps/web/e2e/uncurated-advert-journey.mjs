@@ -51,12 +51,12 @@ const seed = await page.evaluate(async (role) => {
       .then((r) => r.status);
   const codes = [];
   codes.push(await post("/api/onboarding/discovery/start", { role }));
-  codes.push(await post("/api/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" }));
-  codes.push(await post("/api/onboarding/discovery/answer", { itemId: "cross-functional-leadership", answer: "Yes, multiple teams" }));
-  codes.push(await post("/api/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" }));
   return codes;
 }, ROLE);
-qa.note(`seeded the essential band over the real API — POST status codes: ${seed.join(", ")}`);
+// #216: the floor items are READ off the live state, never hard-coded - qa-driver's own note
+// on seedFloorAnswers records what hard-coding them cost the last time.
+const seededItems = await qa.seedFloorAnswers({ yes: "Yes, over $1M", no: true });
+qa.note(`seeded the essential band over the real API — start ${seed.join(", ")}, floor answered: ${seededItems.join(", ") || "nothing"}`);
 
 // 2) Sign in (magic-link dev token) so the reveal's account wall doesn't stand between us and the
 //    deck — wanting a job requires an account (S2), and this journey ends in the tailor.

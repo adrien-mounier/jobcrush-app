@@ -72,13 +72,21 @@ const JOURNEYS = [
   // caller whose guard could never be true). A/B: a placed target role reads family years, an
   // unmapped one falls back to the career total. ~3 min against the fake-model API.
   "family-years-scope-journey.mjs",
-  // #234: the only journey that walks the production-discovery route the question-floor/search-family
-  // split rewrote, on a real visitor's own session — including `production_discovery_not_started`
-  // and the pin invariant, whose route branches have no unit coverage anywhere in the repo. It also
-  // pins the OPPOSITE direction: an unmapped visitor must keep being refused with the identical
-  // `placement_not_confirmed` body until #235/#236 ship, so premature word-search or candidate-screen
-  // wiring turns it red. ~2 min against the fake-model API; one magic-link sign-in.
+  // #216 (over #234): the only journey that walks the shipped discovery screen and then reads back
+  // the record HER OWN answers wrote - the plan pinned to her session and the coverage checkpoint
+  // the reveal is gated on. It is the guard against the two engines growing back (it asserts the
+  // retired /onboarding/discovery/production/* routes are gone) and against #235's word search
+  // regressing into a refusal for the visitor no published family covers. ~2 min against the
+  // fake-model API; one magic-link sign-in.
   "discovery-plan-split-journey.mjs",
+  // #216: the only journey that answers every floor question by PRESSING THE SCREEN'S OWN BUTTONS
+  // (option buttons and the free-text items alike) and then reads back the record those presses
+  // wrote. That is the ticket's whole claim - the questions she is asked are the questions the
+  // reveal is earned from - and a payload-level POST cannot prove it, which is exactly why the
+  // defect survived a green suite for so long. Also drives BOTH ends of the labeler in real
+  // browsers and probes #59's fixture seam for a reveal it must not be able to authorize.
+  // Measured ~3 min against the fake-model API; one magic-link sign-in.
+  "discovery-earns-reveal-gate.mjs",
 ];
 
 let failed = 0;

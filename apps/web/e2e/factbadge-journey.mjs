@@ -110,10 +110,24 @@ await qa.expectVisible('a.prof', 'the badge at 1 fact — count plus the word "f
 // ---------------------------------------------------------------------------------------------
 // 4. AC1 on a "no" — it types no CV line, so the chip is its only reward.
 // ---------------------------------------------------------------------------------------------
+// #216: this step needs a "No" specifically, and the researched floor alternates shapes - items 1
+// and 3 are tap-an-option (Yes/No), items 2 and 4 are type-your-own. After item 1 the question on
+// screen is a free-text one with no buttons at all, so waiting for a "No" here timed out at 8s and
+// took three dependent assertions down with it. Clear the free-text item first - and only THEN
+// reset the chips and read the badge, because this step's assertions are that ONE "no" flew ONE
+// chip and grew the pile by exactly one. Counting the clearing answer would break both.
+let noBtn = page.getByRole('button', { name: 'No', exact: true });
+if ((await noBtn.count()) === 0) {
+  await qa.answerVisibleQuestion({
+    freeText: 'I ran the weekly steering update myself',
+    note: 'clear the type-your-own question to reach the next yes/no one',
+  });
+  await page.waitForTimeout(1800);
+  noBtn = page.getByRole('button', { name: 'No', exact: true });
+}
 await resetChips();
-const noBtn = page.getByRole('button', { name: 'No', exact: true });
 const beforeNo = (await badge()).count;
-await qa.click(noBtn, 'answer "No" — no CV line types, so the chip is the whole reward');
+await qa.click(noBtn, 'answer "No" - no CV line types, so the chip is the whole reward');
 await page.waitForTimeout(1800);
 const cNo = await chips();
 const bNo = await badge();
@@ -130,8 +144,18 @@ const fixLine = page.getByRole('button', { name: /Fix this line/i }).first();
 if (await fixLine.count()) {
   const beforeC = (await badge()).count;
   await qa.click(fixLine, 'open a correction on an answered CV line');
+  // #216: the researched floor mixes tap-an-option and type-your-own items, so the control this
+  // correction reopens is whichever shape the answered line used. A bare option click stalls 8s and
+  // aborts the run on a free-text line.
   const alt = page.locator('.discovery .opts .opt').nth(1);
-  await qa.click(alt, 'commit the correction with a different option');
+  if (await alt.count()) {
+    await qa.click(alt, 'commit the correction with a different option');
+  } else {
+    await qa.answerVisibleQuestion({
+      freeText: 'Corrected: two programmes, not one',
+      note: 'commit the correction by retyping the answer',
+    });
+  }
   await page.waitForTimeout(2000);
   const cC = await chips();
   const bC = await badge();
@@ -187,10 +211,10 @@ await watchChips();
 await page.waitForTimeout(1200);
 let discPeak = (await badge())?.count ?? 0;
 for (let i = 0; i < 5; i++) {
-  const opt = page.locator('.discovery .opts .opt').first();
-  if (!(await opt.count())) break;
   await resetChips();
-  await opt.click();
+  // #216: answer whichever shape is on screen - the old option-only click quietly stopped the loop
+  // at the first free-text item, so the floor was never finished and the peak was under-reported.
+  if (!(await qa.answerVisibleQuestion({ note: `finish the floor (step ${i + 1})` }))) break;
   await page.waitForTimeout(2200);
   if (!page.url().includes('/discovery')) break; // the floor is done — discovery hands off to /deck
   const b = await badge();

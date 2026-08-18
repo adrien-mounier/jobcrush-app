@@ -81,21 +81,29 @@ await page.waitForTimeout(700);
 await qa.expectVisible('body', 'discovery is up on the live API (no mocks anywhere in this flow)');
 
 await qa.note('seed the discovery floor + sign in over the real magic-link path');
+await page.evaluate(
+  async ({ role }) => {
+    await fetch('/api/onboarding/discovery/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+  },
+  { role: ROLE },
+);
+// #216: the floor items are READ off the live state, never hard-coded - qa-driver's own note on
+// seedFloorAnswers records why. `no: true` keeps the closed-with-a-No fact this journey needs.
+const seededItems = await qa.seedFloorAnswers({ yes: 'Yes, over $1M', no: true });
+if (seededItems.length === 0) throw new Error('no floor questions were served - the session was never placed');
+await qa.note(`seeded the floor her placed family actually asks: ${seededItems.join(', ')}`);
 const seeded = await page.evaluate(
-  async ({ role, email }) => {
+  async ({ email }) => {
     const post = (url, body) =>
       fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
-    await post('/api/onboarding/discovery/start', { role });
-    await post('/api/onboarding/discovery/answer', { itemId: 'budget-accountability', answer: 'Yes, over $1M' });
-    await post('/api/onboarding/discovery/answer', {
-      itemId: 'cross-functional-leadership',
-      answer: 'Yes, multiple teams',
-    });
-    await post('/api/onboarding/discovery/answer', { itemId: 'stakeholder-reporting', answer: 'No' });
     const res = await post('/api/auth/request-link', { email });
     const link = await res.json();
     // /auth/request-link is rate-limited 5 per 15 min per IP — a 429 silently leaves the session
@@ -105,7 +113,7 @@ const seeded = await page.evaluate(
     await post('/api/auth/verify', { token });
     return 'ok';
   },
-  { role: ROLE, email: EMAIL },
+  { email: EMAIL },
 );
 if (seeded !== 'ok') throw new Error(`could not seed the session: ${seeded}`);
 await qa.note('signed in — the deck is now reachable');

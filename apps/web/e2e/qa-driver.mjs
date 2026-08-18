@@ -113,6 +113,130 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
   const api = {
     page, context, runDir,
 
+    /** #216 - the floor questions a session is CURRENTLY being asked, newest state first.
+     *
+     *  READ, never hard-coded. The floor is the visitor's placed job family's published research
+     *  (#223 retired the seven-item stub; #216 made the shipped screen serve the researched floor),
+     *  so a journey carrying a literal list of item ids is asserting whichever question set
+     *  happened to ship the day it was written. That is not hypothetical: seven journeys did
+     *  exactly that, every POST answered 404 `unknown_item`, no fact was recorded, and each one
+     *  failed later and further away on a deck card whose "Where you fit" list was empty. Read the
+     *  ids and the rot cannot come back.
+     *
+     *  Eligibility, date-hole and reader questions ride the same list and are deliberately excluded
+     *  - they are not floor items and have their own journeys. */
+    floorQuestions: async () => {
+      const state = await page.evaluate(async () => {
+        const res = await fetch('/api/onboarding/discovery', { credentials: 'same-origin' });
+        return res.ok ? res.json() : null;
+      });
+      return (state?.questions ?? []).filter((q) => !q.eligibility);
+    },
+
+    /** #216 - seed this session's floor answers over the wire. Runs in-page, not via
+     *  `page.request`: the session cookie is Secure, and Playwright's request context (correctly)
+     *  will not attach a Secure cookie over http://127.0.0.1, while the real browser page gets the
+     *  loopback "potentially trustworthy origin" exception - same reason every other in-page fetch
+     *  in these journeys exists.
+     *
+     *  `no: true` answers the LAST floor item with a bare "No", so a journey can still exercise the
+     *  asked-and-closed path the retired stub's hard-coded "No" used to give it. Returns the ids
+     *  answered, so a caller can assert what it actually seeded. */
+    seedFloorAnswers: async ({ yes = 'Yes, across three vendor teams', no = false } = {}) => {
+      const ids = (await api.floorQuestions()).map((q) => q.itemId);
+      if (ids.length === 0) return [];
+      return page.evaluate(
+        async ([itemIds, yesText, wantNo]) => {
+          const answered = [];
+          const refused = [];
+          for (let i = 0; i < itemIds.length; i += 1) {
+            const last = i === itemIds.length - 1;
+            const res = await fetch('/api/onboarding/discovery/answer', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                itemId: itemIds[i],
+                answer: wantNo && last ? 'No' : yesText,
+              }),
+            });
+            // A 404 here means the ids went stale again. Collect the failures rather than seeding
+            // nothing quietly - a short list is how the last drift stayed invisible for weeks.
+            if (res.ok) answered.push(itemIds[i]);
+            else refused.push(`${itemIds[i]} -> ${res.status}`);
+          }
+          if (refused.length > 0) throw new Error(`discovery refused ${refused.length} floor answer(s): ${refused.join(', ')}`);
+          return answered;
+        },
+        [ids, yes, no],
+      );
+    },
+
+    /** #216 - answer WHICHEVER question is currently on screen, whatever shape its control is.
+     *
+     *  The researched family floor mixes tap-an-option items with type-your-own ones (2 of the 4 in
+     *  `it-project-delivery` v1 are free text). The retired seven-item stub was all options, so
+     *  every journey that walked the screen by clicking `.opts .opt` in a loop now stalls the moment
+     *  a free-text item comes up - 8s per attempt, then a run that aborts far from the cause. Use
+     *  this instead of a bare click when the point is "keep answering until X appears".
+     *
+     *  Returns true if it answered something, false if no answerable control was on screen. */
+    answerVisibleQuestion: async ({ freeText = 'Yes, across three vendor teams', note } = {}) => {
+      const opts = page.locator('.opts button.opt, .opts .opt');
+      const free = page.locator('#floor-free');
+      if (await opts.count()) {
+        const count = await opts.count();
+        let chosen = opts.first();
+        for (let k = 0; k < count; k += 1) {
+          if (!/^no[.!]?$/i.test((await opts.nth(k).innerText()).trim())) { chosen = opts.nth(k); break; }
+        }
+        await api.click(chosen, note || `she presses "${(await chosen.innerText()).trim()}"`);
+        return true;
+      }
+      if (await free.count()) {
+        await api.fill('#floor-free', freeText, note || 'she types her own answer');
+        await api.click('.ask button.go', 'Continue - she sends her typed answer');
+        return true;
+      }
+      return false;
+    },
+
+    /** #216 - answer the floor by pressing the screen's OWN controls, the way a person does.
+     *  Slower than seedFloorAnswers and worth it wherever the claim under test is "the button she
+     *  presses is what moves her record". Handles both shapes the researched floor uses:
+     *  tap-an-option and type-your-own - the retired stub was all options, which is why every
+     *  journey looping on `.opts .opt` alone now stalls on the free-text items. */
+    answerFloorOnScreen: async ({ limit = 8, freeText = 'Yes, across three vendor teams' } = {}) => {
+      const asked = [];
+      for (let i = 0; i < limit; i += 1) {
+        const next = (await api.floorQuestions())[0];
+        if (!next) break;
+        // The screen types the answered item's CV line out before rendering the next question, so
+        // the control lands a beat after the state does.
+        try {
+          await page.locator('.opts button.opt, #floor-free').first().waitFor({ state: 'visible', timeout: 20000 });
+        } catch {
+          await api.note(`the screen never offered a control for "${next.itemId}" - stopping the answer loop`);
+          break;
+        }
+        const opts = page.locator('.opts button.opt');
+        const count = await opts.count();
+        if (count > 0) {
+          let chosen = opts.first();
+          for (let k = 0; k < count; k += 1) {
+            if (!/^no[.!]?$/i.test((await opts.nth(k).innerText()).trim())) { chosen = opts.nth(k); break; }
+          }
+          await api.click(chosen, `she is asked "${next.question.slice(0, 70)}" - she presses "${(await chosen.innerText()).trim()}"`);
+        } else {
+          await api.fill('#floor-free', freeText, `she is asked "${next.question.slice(0, 70)}" - she types her own answer`);
+          await api.click('.ask button.go', 'Continue - she sends her typed answer');
+        }
+        await page.waitForTimeout(1200);
+        asked.push(next.itemId);
+      }
+      return asked;
+    },
+
     goto: (url, note) =>
       act('goto', null, note || `navigate to ${url}`, async () => {
         await page.goto(url, { waitUntil: 'domcontentloaded' });

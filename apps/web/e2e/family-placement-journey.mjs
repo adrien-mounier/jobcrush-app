@@ -1,25 +1,17 @@
 // #220 (labeler slice 1) — what a real visitor can actually reach of the job labeler.
 //
-// This journey deliberately records TWO things, because the honest answer is two things:
+// #216 CLOSED the gap this journey was written to record. It used to say: the browser reaches the
+// front door's "Target role" box, and NO client reaches the placement's own interview — the web
+// app's /discovery screen talked to a second engine that was not reward-eligible and never asked
+// for a family placement. That second engine is gone. The shipped screen now serves the placed
+// family's published floor and writes the plan, so this journey drives ONE path:
 //
-//   1. The half a visitor DOES touch in a browser: the front door's "Target role" box. That free
-//      text is the only input the labeler ever reads (familyLabeler.ts's makeFamilyPlacer reads
-//      session.intent.targetRole), so this drives it for real — Ready? -> Start questions instead
-//      -> type a role -> Save and continue -> "Got it."
+//   Ready? -> Start questions instead -> type a role -> Save and continue -> "Got it."
+//   -> /discovery -> answer question 1 -> the placed family's floor questions appear
+//   -> the plan and checkpoint are readable off the visitor's own session.
 //
-//   2. The half NO client reaches: POST /onboarding/discovery/production/evaluate. Measured
-//      2026-08-15 — apps/web has exactly two fetch call sites (lib/api.ts and preview/[jobId]),
-//      and not one of the ~40 paths they can build is this route; apps/mobile is a README;
-//      packages/api-client is a 37-line stub nothing imports. The web app's /discovery screen
-//      talks to the OTHER discovery engine (/onboarding/discovery/{start,answer}), which is not
-//      reward-eligible and never asks for a family placement. So the journey ASSERTS that gap
-//      (every /api request the browser makes is captured and checked), then exercises the route
-//      over the wire from inside the very browser session the visitor just created — same cookie,
-//      same server — and screenshots the answer it gives that visitor.
-//
-// When #216 wires the production engine into the UI, step 2's fetch should be replaced by a real
-// click, and the "no client reaches it" assertion below should start FAILING. That failure is the
-// signal the gap closed, not a broken test — delete it then.
+// The old "no client reaches it" assertion is inverted below: the discovery screen MUST now reach
+// the routes that write the plan. If it stops doing so, the two engines have grown back.
 //
 //   OPS_KEY=qa-ops-key node apps/api/dist/qa-main.js                       # API on :34101
 //   cd apps/web && API_URL=http://127.0.0.1:34101 npx next build && npx next start -p 30180
@@ -103,50 +95,55 @@ await frontDoorTypingRole('IT project manager', 'a brand-new visitor lands on th
 
 apiCalls.length = 0;
 await qa.goto('/discovery', 'walk on to the discovery screen, the only discovery UI that exists');
+await qa.fill('#q1-role', 'IT project manager', 'answer question 1 — the role she is going for');
+await qa.click('button.go.wide', 'send question 1');
+await page.waitForTimeout(2500);
 await qa.scrollThrough('read the discovery screen the way a visitor would');
 
-const reachedProduction = apiCalls.some((call) => call.includes('discovery/production'));
+// #216, the inversion: the screen a visitor actually walks IS the interview now. Before this
+// ticket the assertion here read the other way round, and that gap was the whole defect.
 await assert(
-  !reachedProduction,
-  `#220 GAP, recorded not hidden: no browser surface calls the production discovery route. ` +
-    `The discovery screen asked for: ${[...new Set(apiCalls)].join(', ') || '(nothing)'}`,
+  apiCalls.some((call) => call.includes('/onboarding/discovery')),
+  `#216: the discovery screen drives the interview that writes the plan. ` +
+    `It asked for: ${[...new Set(apiCalls)].join(', ') || '(nothing)'}`,
+);
+await assert(
+  !apiCalls.some((call) => call.includes('discovery/production')),
+  'AC6: there is no second discovery engine left for any client to call',
 );
 
-// AC1 + AC5 — the route the ticket opens, driven over the wire from this visitor's own session.
-await qa.note(
-  'AC1/AC5: asking the production discovery route from inside this visitor\'s own browser session — ' +
-    'the route that answered 409 for every visitor who ever reached it',
-);
-const confirmed = await callAsVisitor('POST', '/onboarding/discovery/production/evaluate');
-await qa.expectVisible('#qa-wire', 'the server\'s answer to this visitor, verbatim');
-await assert(confirmed.status === 200, `AC5: the production evaluate route answers 200, not 409 (got ${confirmed.status})`);
-const confirmedBody = JSON.parse(confirmed.body);
+// AC1 + AC5 — read off the durable record her own answers produced.
+const pinned = (await callAsVisitor('GET', '/sessions/me')).body;
+await qa.expectVisible('#qa-wire', "the visitor's own stored discovery record, verbatim");
+const plan = JSON.parse(pinned).discovery;
 await assert(
-  confirmedBody.floor?.familyId === 'it-project-delivery' && confirmedBody.floor?.version === 1,
-  `AC1: the placement carries the family id AND its version (${JSON.stringify(confirmedBody.floor)})`,
+  plan?.questionFloors?.[0]?.familyId === 'it-project-delivery' &&
+    plan?.questionFloors?.[0]?.version === 1,
+  `AC1: the interview is pinned to the placed family, id AND version (${JSON.stringify(plan?.questionFloors)})`,
 );
 await assert(
-  confirmedBody.checkpoint === 'family_confirmed',
-  `AC5: the checkpoint is written (${confirmedBody.checkpoint})`,
+  plan?.searchFamily?.familyId === 'it-project-delivery',
+  `AC5: the search family is written, so her deck retrieves on it (${JSON.stringify(plan?.searchFamily)})`,
 );
 await assert(
-  typeof confirmedBody.nextQuestion?.prompt === 'string',
-  `AC5: discovery has a real next question to ask — the floor is live: "${confirmedBody.nextQuestion?.prompt}"`,
+  plan?.checkpoint === 'family_confirmed',
+  `AC5: the checkpoint is written by her own screen (${plan?.checkpoint})`,
 );
 
-// AC1's "no extra question": the placement came off the role already typed on the front door — the
-// visitor was asked nothing between typing it and the family being confirmed.
+// AC1's "no extra question": the placement came off the role already typed — the visitor was asked
+// nothing between typing it and the family's own questions appearing.
 await assert(
   !apiCalls.some((call) => call.includes('placement') || call.includes('family/confirm')),
   'AC1: no extra question was put to the visitor — the placement was made from the role they already typed',
 );
 
 // The floor survives a resume, so it was genuinely written and not just returned.
-const resumed = await callAsVisitor('GET', '/onboarding/discovery/production');
-await qa.expectVisible('#qa-wire', 'AC5: resuming reads the same written floor and checkpoint back');
+const resumed = await callAsVisitor('GET', '/onboarding/discovery');
+await qa.expectVisible('#qa-wire', 'AC5: resuming reads the same live floor questions back');
+const resumedBody = resumed.status === 200 ? JSON.parse(resumed.body) : null;
 await assert(
-  resumed.status === 200 && JSON.parse(resumed.body).checkpoint === 'family_confirmed',
-  `AC5: the floor and checkpoint were WRITTEN — a fresh read gives them back (${resumed.status})`,
+  resumed.status === 200 && (resumedBody?.questions ?? []).some((q) => !q.eligibility),
+  `AC5: the interview was WRITTEN — a fresh read gives the same floor questions back (${resumed.status})`,
 );
 
 // ==================================================== 2. a visitor the vocabulary does not cover
@@ -157,21 +154,24 @@ await frontDoorTypingRole(
   'a second, brand-new visitor lands on the front door',
 );
 
-await qa.note('AC3: what the honest "we have no family for this" answer gives that visitor');
-const unmapped = await callAsVisitor('POST', '/onboarding/discovery/production/evaluate');
-await qa.expectVisible('#qa-wire', 'the server\'s answer to an unmapped visitor, verbatim');
-const unmappedBody = JSON.parse(unmapped.body);
+await qa.note('AC3: what an unplaceable role gets — #235 serves her the word search, never a refusal');
+const unmapped = await callAsVisitor('POST', '/onboarding/discovery/start', {
+  role: 'Paediatric nurse practitioner',
+});
+await qa.expectVisible('#qa-wire', "the server's answer to an unmapped visitor, verbatim");
+const unmappedBody = unmapped.status === 200 ? JSON.parse(unmapped.body) : null;
 await assert(
-  unmapped.status === 409 && unmappedBody.error?.code === 'placement_not_confirmed',
-  `AC3: an unmapped role is answered honestly, never placed in the nearest family (${unmapped.status} ${unmappedBody.error?.code})`,
+  unmapped.status === 200,
+  `AC3: an unmapped role is served, never refused and never placed in the nearest family (${unmapped.status})`,
 );
 await assert(
-  unmappedBody.familyResearch?.path === '/family-learning/candidates',
-  `AC3: the family research candidate path is OFFERED (${JSON.stringify(unmappedBody.familyResearch)})`,
+  unmappedBody?.family === null,
+  `AC3: no family is claimed for her — the screen names none (${JSON.stringify(unmappedBody?.family)})`,
 );
+const unmappedPlan = JSON.parse((await callAsVisitor('GET', '/sessions/me')).body).discovery;
 await assert(
-  unmappedBody.rewardEligible === false,
-  'AC4/AC3: nothing is authorized on an unconfirmed placement',
+  unmappedPlan?.searchFamily === null,
+  `AC4: nothing is authorized on an unconfirmed placement — retrieval searches her own words (${JSON.stringify(unmappedPlan?.searchFamily)})`,
 );
 
 // AC4 — the visitor is not blocked: the rest of onboarding still answers for them.

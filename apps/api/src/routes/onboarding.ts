@@ -15,7 +15,7 @@ import type { CandidateClaim, MinedRole, AdRequirementsV1 } from "@jobcrush/cont
 import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore, ClaimRecord } from "../claims.js";
 import { minedRoles, type JobStore } from "../jobs.js";
-import { pinnedOrDerived, planPinned, planUpgradable, samePlan, type DiscoveryPlan, type SessionStore, type SessionRecord } from "../sessions.js";
+import type { SessionStore, SessionRecord } from "../sessions.js";
 import { buildClaimGraph } from "../graph.js";
 import { renderRootCv } from "../rootcv.js";
 import { buildProfileState, resolveProfileLocation, resolveLanguagesQuestion } from "../profile.js";
@@ -34,7 +34,8 @@ import {
   currentDiscoveryFamily,
   prependReaderQuestionFromJob,
   productionDiscoveryFamilyLookup,
-} from "../legacyDiscovery.js";
+  reconcileSessionDiscovery,
+} from "../discoveryEngine.js";
 import { answerJobDateHole, isJobDateItemId } from "../yearsWorked.js";
 import { readingLanguages, languageEligible } from "../language.js";
 import { matchTick } from "../matchtick.js";
@@ -70,13 +71,9 @@ import { composeTailorLine, tailorClaimId } from "../tailor.js";
 import { FamilyPlacement } from "@jobcrush/contracts";
 import {
   adaptiveDiscoveryState,
-  discoveryPlan,
-  planDiscoveryState,
-  questionFloorItem,
   soleConfirmedFamily,
   fixtureDiscoveryClaimId,
 } from "../adaptiveDiscovery.js";
-import { eligiblePublication } from "../familyFloors.js";
 import type { ProductionFamilyFloorStore, TestFixtureFamilyFloorStore } from "../familyFloors.js";
 import {
   resolvedMarketsFor,
@@ -179,8 +176,14 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       retrievePostings,
       log: app.log,
     });
-    const currentFamily = (session: SessionRecord) =>
-      currentDiscoveryFamily(session, deps.placeFamily, (id) => deps.jobBlocks.list(id), deps.productionFamilyFloors);
+    // Two reads of the same plan. `currentFamily` touches nothing - it is what the deck, the job
+    // card and the tailor use, because #235's rule is that nothing re-derives a plan while she is
+    // browsing. `reconciledFamily` is the interview's own read: #216, it also pins the plan and
+    // writes the coverage her answers have earned. The three discovery routes below are the only
+    // place a visitor's own ANSWERS move her discovery record - discoveryEngine.ts's header names
+    // the two other writers and the different facts they own.
+    const currentFamily = (session: SessionRecord) => currentDiscoveryFamily(session, deps);
+    const reconciledFamily = (session: SessionRecord) => reconcileSessionDiscovery(session, deps);
 
     const fixtureState = async (
       sessionId: string,
@@ -208,51 +211,10 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       return adaptiveDiscoveryState(floor, claims, negatives);
     };
 
-    // #235: the interview spans the WHOLE plan (planDiscoveryState — items de-duplicated by id,
-    // coverage across every floor). Any floor whose publication has been pulled since the pin fails
-    // closed here, before any claim or discovery write.
-    const planFloors = (plan: DiscoveryPlan, reply: FastifyReply) => {
-      const publications = plan.questionFloors.map((reference) =>
-        eligiblePublication(deps.productionFamilyFloors.get(reference.familyId, reference.version)),
-      );
-      if (publications.some((publication) => !publication)) {
-        return reply.status(409).send({
-          error: { code: "production_floor_unavailable", message: "published family version required" },
-          rewardEligible: false,
-        });
-      }
-      return publications.map((publication) => publication!.floor);
-    };
-
-    const planState = async (session: SessionRecord, plan: DiscoveryPlan, reply: FastifyReply) => {
-      const floors = planFloors(plan, reply);
-      if ("sent" in floors) return floors;
-      const [claims, negatives] = await Promise.all([
-        deps.claims.list(session.id),
-        deps.claims.negatives(session.id),
-      ]);
-      return planDiscoveryState(floors, claims, negatives);
-    };
-
-    const productionResponse = async (
-      session: SessionRecord,
-      plan: DiscoveryPlan,
-      reply: FastifyReply,
-    ) => {
-      const calculated = await planState(session, plan, reply);
-      if ("sent" in calculated) return calculated;
-      // An empty plan (no floors, no search family — the zero-history word search) has nothing to
-      // pin; its coverage is complete by definition and never persisted.
-      if (!planPinned(plan)) return { ...calculated.state, checkpoint: calculated.checkpoint };
-      const discovery = await deps.sessions.reconcileDiscoveryState(
-        session.id,
-        plan,
-        calculated.coveredItemIds,
-        calculated.checkpoint === "essential_floor_covered",
-      );
-      return { ...calculated.state, checkpoint: discovery.checkpoint };
-    };
-
+    // #59's fixture seam — NOT a visitor surface and never a second discovery engine: it answers
+    // only for a placement handed to it in the request body, reads the isolated fixture catalog
+    // (empty in production — main.ts never populates it), and can never authorize a reward. The
+    // visitor's own interview is the /onboarding/discovery routes below, and only those.
     app.post(
       "/onboarding/discovery/fixture/evaluate",
       { schema: { body: z.object({ placement: FamilyPlacement }) } },
@@ -261,119 +223,6 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         return fixtureState(session.id, req.body.placement, reply);
       },
     );
-
-    app.post(
-      "/onboarding/discovery/production/evaluate",
-      {},
-      async (req, reply) => {
-        const session = requireSession(req);
-        await retryJobBlockLabels(deps.retryJobBlockLabels, session.id, fastify.log);
-        // #235: the plan decides both facts, and a null search family is the WORD SEARCH now, not a
-        // refusal — an unmapped, plural or unpublished placement is interviewed on the floors her
-        // CV proves. A pinned plan still holds, with one exception: a word plan may gain a search
-        // family (planUpgradable — the returning visitor whose family has since been published).
-        // #236: a family already pinned outranks a derivation that lost it — see pinnedOrDerived.
-        const plan = pinnedOrDerived(session.discovery, discoveryPlan(
-          await deps.placeFamily(session),
-          await deps.jobBlocks.list(session.id),
-          deps.productionFamilyFloors,
-        ));
-        if (
-          planPinned(session.discovery) &&
-          !samePlan(session.discovery, plan) &&
-          !planUpgradable(session.discovery, plan)
-        ) {
-          return reply.status(409).send({
-            error: { code: "production_floor_already_pinned", message: "production family version already selected" },
-            rewardEligible: false,
-          });
-        }
-        return productionResponse(session, plan, reply);
-      },
-    );
-
-    app.get("/onboarding/discovery/production", async (req, reply) => {
-      const session = requireSession(req);
-      if (session.discovery.questionFloors.length === 0) {
-        return reply.status(409).send({
-          error: { code: "production_discovery_not_started", message: "production discovery not started" },
-          rewardEligible: false,
-        });
-      }
-      // Resume re-derives coverage from authoritative claims and reconciles the durable snapshot.
-      // This is idempotent, but prevents a previously covered checkpoint surviving a correction.
-      return productionResponse(session, session.discovery, reply);
-    });
-
-    app.post(
-      "/onboarding/discovery/production/answer",
-      {
-        schema: {
-          body: z.object({
-            itemId: z.string().min(1),
-            answer: z.string().trim().min(1),
-          }),
-        },
-      },
-      async (req, reply) => {
-        const session = requireSession(req);
-        if (session.discovery.questionFloors.length === 0) {
-          return reply.status(409).send({
-            error: { code: "production_discovery_not_started", message: "production discovery not started" },
-            rewardEligible: false,
-          });
-        }
-        const floors = planFloors(session.discovery, reply);
-        if ("sent" in floors) return floors;
-        // #235: the answer lands on the FIRST floor carrying the item id — the same first-floor-wins
-        // rule the merged interview de-duplicates by.
-        const found = questionFloorItem(floors, req.body.itemId);
-        if (!found) {
-          return reply.status(404).send({
-            error: { code: "production_item_not_found", message: "selected production item not found" },
-            rewardEligible: false,
-          });
-        }
-        const { floor, item } = found;
-        const claim: CandidateClaim = {
-          id: fixtureDiscoveryClaimId(floor.familyId, floor.version, item.id),
-          semantic_key: item.id,
-          field_key: null,
-          field_value: null,
-          field_label: null,
-          role: "profile",
-          text: req.body.answer,
-          machine_touch: "verbatim",
-          classification: "Verified",
-          source_quote: req.body.answer.slice(0, 200),
-          needs_grill: false,
-          grill_hint: null,
-        };
-        if (isNoAnswer(req.body.answer)) await deps.claims.answerNegative(session.id, claim);
-        else await deps.claims.add(session.id, claim);
-        return productionResponse(session, session.discovery, reply);
-      },
-    );
-
-    app.post("/onboarding/discovery/production/complete", async (req, reply) => {
-      const session = requireSession(req);
-      const reference = session.discovery.questionFloors[0];
-      if (!reference) {
-        return reply.status(409).send({
-          error: { code: "essential_floor_not_covered", message: "essential family floor not covered" },
-          rewardEligible: false,
-        });
-      }
-      const calculated = await planState(session, session.discovery, reply);
-      if ("sent" in calculated) return calculated;
-      if (calculated.checkpoint !== "essential_floor_covered") {
-        return reply.status(409).send({
-          error: { code: "essential_floor_not_covered", message: "essential family floor not covered" },
-          rewardEligible: false,
-        });
-      }
-      return { checkpoint: "essential_floor_covered", floor: reference };
-    });
 
     app.post(
       "/onboarding/discovery/fixture/answer",
@@ -632,7 +481,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const session = requireSession(req);
         const role = session.targetTitles[0] ?? null;
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const family = role ? await currentFamily(session) : null;
+        const family = role ? await reconciledFamily(session) : null;
         const state = buildDiscoveryRouteState(role, confirmed, negatives, rejected, facts, session, family, blocks);
         // #35: a deck-rejected reader-role claim still closes the question — same never-re-ask rule
         // discoveryState now applies internally; this check is separate (the reader question isn't a
@@ -666,7 +515,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         await deps.sessions.setStage(session.id, "discovery");
         const sessionWithRole = { ...session, intent, targetTitles: [req.body.role] };
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const family = await currentFamily(sessionWithRole);
+        const family = await reconciledFamily(sessionWithRole);
         const state = buildDiscoveryRouteState(req.body.role, confirmed, negatives, rejected, facts, session, family, blocks);
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
@@ -709,7 +558,6 @@ export function onboardingRoutes(deps: OnboardingDeps) {
             error: { code: "invalid_answer", message: "exactly one of answer or answers is required" },
           });
         }
-        let family: Awaited<ReturnType<typeof currentFamily>> | undefined;
 
         if (isEligibilityItemId(req.body.itemId)) {
           // #162 (architecture pass): the whole eligibility write path now lives beside the module
@@ -767,7 +615,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
               grill_hint: null,
             };
           } else {
-            family = await currentFamily(session);
+            const family = await currentFamily(session);
             const item = family?.items.find((i) => i.id === req.body.itemId);
             if (!item)
               return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
@@ -793,7 +641,11 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         }
 
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const routeFamily = family === undefined ? await currentFamily(session) : family;
+        // #216: the closing read is the reconciling one, whichever branch above ran — the answer
+        // just recorded is what moves coverage, so the session's checkpoint is rewritten from it
+        // before this response leaves. placeFamily is cached per session+role (familyLabeler.ts),
+        // so the second derivation on the floor-item branch costs nothing.
+        const routeFamily = await reconciledFamily(session);
         const state = buildDiscoveryRouteState(role, confirmed, negatives, rejected, facts, session, routeFamily, blocks);
         // #18 AC1 / #106: the essential band fully asked AND every eligibility question closed flips
         // the session to the deck stage, so a reload lands there too. Code-review must-fix 2: the

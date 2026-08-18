@@ -198,12 +198,21 @@ async function seedNonTrivialCard(page: Page) {
     const post = (url: string, body: unknown) =>
       fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     await post("/api/onboarding/discovery/start", { role });
-    await post("/api/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" });
-    await post("/api/onboarding/discovery/answer", {
-      itemId: "cross-functional-leadership",
-      answer: "Yes, multiple teams",
-    });
-    await post("/api/onboarding/discovery/answer", { itemId: "stakeholder-reporting", answer: "No" });
+    // #216: the floor items are READ off the live state, never hard-coded. This spec used to name
+    // the retired seven-item stub's ids; every one answered 404 `unknown_item`, so no fact was
+    // recorded and the card below rendered with an empty "Where you fit". The floor is the placed
+    // family's published research now, and it changes when the research does.
+    const state = await (await fetch("/api/onboarding/discovery")).json();
+    const floor = (state.questions ?? [])
+      .filter((q: { eligibility?: unknown }) => !q.eligibility)
+      .map((q: { itemId: string }) => q.itemId);
+    for (let i = 0; i < floor.length; i += 1) {
+      // The last item answered "No" keeps this spec's asked-and-closed fact.
+      await post("/api/onboarding/discovery/answer", {
+        itemId: floor[i],
+        answer: i === floor.length - 1 ? "No" : "Yes, over $1M across multiple teams",
+      });
+    }
     // #22: the reveal now walls an anonymous "See them" (that gate is covered by wall.spec.ts). This
     // is the 2a card-anatomy test, so it must reach the card — claim THIS session (which holds the
     // answers above) via the real magic-link path so GET /onboarding/cards returns authed:true. Done

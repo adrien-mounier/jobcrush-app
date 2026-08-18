@@ -222,29 +222,31 @@ const setup = async (llm: LlmClient, targetRole: string | null = "IT project man
       headers: { cookie },
       payload: { targetRole },
     });
+    // #216: the shipped screen reads question 1 off the session's target title. Set directly rather
+    // than through POST /onboarding/discovery/start so the placement is not spent before the test
+    // asks for it — several of these count the model calls exactly.
+    await built.sessions.setTargetTitles(created.json().id, [targetRole]);
   }
   return { ...built, cookie, sessionId: created.json().id as string };
 };
 
+// #216: the visitor's own discovery screen — the one surface the interview is served through.
 const evaluate = (app: Awaited<ReturnType<typeof setup>>["app"], cookie: string) =>
   app.inject({
-    method: "POST",
-    url: "/onboarding/discovery/production/evaluate",
+    method: "GET",
+    url: "/onboarding/discovery",
     headers: { cookie },
   });
 
-describe("#220 production discovery, with the real labeler wired", () => {
-  it("opens for a confirmed visitor — floor and checkpoint are written", async () => {
+describe("#220 discovery with the real labeler wired", () => {
+  it("opens for a confirmed visitor — the plan and checkpoint are written", async () => {
     const { llm } = fakeLlm([confirmed(["it-project-delivery"])]);
     const { app, sessions, cookie, sessionId } = await setup(llm);
 
     const response = await evaluate(app, cookie);
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({
-      floor: { familyId: "it-project-delivery", version: 1 },
-      checkpoint: "family_confirmed",
-    });
+    expect(response.json()).toMatchObject({ family: "IT project delivery" });
     expect((await sessions.getById(sessionId))?.discovery).toMatchObject({
       questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
       searchFamily: { familyId: "it-project-delivery", version: 1 },
@@ -266,11 +268,12 @@ describe("#220 production discovery, with the real labeler wired", () => {
       headers: { cookie },
       payload: { targetRole: "head of product and delivery" },
     });
+    await built.sessions.setTargetTitles(sessionId, ["head of product and delivery"]);
 
     const response = await evaluate(built.app, cookie);
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ rewardEligible: false, floor: null });
+    expect(response.json()).toMatchObject({ family: null });
     expect((await built.sessions.getById(sessionId))?.discovery).toMatchObject({
       questionFloors: [],
       searchFamily: null,
@@ -286,15 +289,12 @@ describe("#220 production discovery, with the real labeler wired", () => {
     // #235: no refusal and no research offer on her screen — the word search serves instead, and
     // she is told nothing about the vocabulary (#236 wires the background candidate screen).
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({
-      rewardEligible: false,
-      floor: null,
-      checkpoint: "essential_floor_covered",
-    });
+    expect(response.json()).toMatchObject({ family: null });
     // No family was pinned on an unconfirmed placement.
     expect((await sessions.getById(sessionId))?.discovery).toMatchObject({
       questionFloors: [],
       searchFamily: null,
+      checkpoint: null,
     });
   });
 
@@ -313,16 +313,16 @@ describe("#220 production discovery, with the real labeler wired", () => {
     // the next visit re-places and a recovered model's family plan can still take over (the
     // word-to-family upgrade is the one allowed plan change).
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ rewardEligible: false, floor: null });
+    expect(response.json()).toMatchObject({ family: null });
     expect(readCounters()["familyLabeler.call_failed"]).toBe(1);
 
     // The rest of onboarding is untouched by a labeler outage.
-    const discovery = await app.inject({
+    const cards = await app.inject({
       method: "GET",
-      url: "/onboarding/discovery",
+      url: "/onboarding/cards",
       headers: { cookie },
     });
-    expect(discovery.statusCode).toBe(200);
+    expect(cards.statusCode).toBe(200);
   });
 
   it("does not pay twice for the same visitor's same role, and places again when they change it", async () => {
@@ -355,10 +355,10 @@ describe("#220 production discovery, with the real labeler wired", () => {
 
     // #235: the failing call serves the word path (floor: null) but its degraded answer is never
     // remembered — the recovered model's real placement pins the family on the very next call.
-    expect((await evaluate(app, cookie)).json()).toMatchObject({ floor: null });
+    expect((await evaluate(app, cookie)).json()).toMatchObject({ family: null });
     failing = false;
     expect((await evaluate(app, cookie)).json()).toMatchObject({
-      floor: { familyId: "it-project-delivery", version: 1 },
+      family: "IT project delivery",
     });
   });
 

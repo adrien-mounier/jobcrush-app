@@ -1,5 +1,15 @@
-// #234 (spec #233 decision 1, decided in #230) — the prefactor that must change NOTHING a visitor
-// can see.
+// #216 (over #234's split, spec #233 decision 1) — the visitor's own interview is the one the
+// reveal is gated on.
+//
+// #234 SPLIT the stored fact; #216 closed the gap underneath it. Until #216 the product asked one
+// question set and gated the reveal on another: the shipped screen drove /onboarding/discovery/*,
+// which never wrote `session.discovery`, while a parallel /onboarding/discovery/production/*
+// interview — the only writer — had no client at all. A visitor could answer every question
+// truthfully and still reach the deck with `{ family: null, checkpoint: null }`. The production
+// surface is gone; the shipped routes reconcile. This journey walks the funnel a person walks and
+// then reads the durable record her OWN answers produced.
+//
+// #234's original claim, kept below: the split itself must change nothing she can see.
 //
 // One stored fact used to do two jobs: it selected the family floor whose essential items discovery
 // asks, AND named the family retrieval searches with. #234 splits it into `questionFloors` (a list)
@@ -10,15 +20,12 @@
 // That is exactly the kind of change a unit suite cannot vouch for. The record this reshapes is read
 // by the deck's scoring (the advert-family scope for the years bars) and by posting retrieval, so a
 // silent regression shows up as a changed or blank deck, not as a red test. So this journey drives
-// the whole shipped funnel in a browser and then, from inside that same visitor's session, walks the
-// production-discovery route the split rewrote — including the refusal codes whose CONDITIONS were
-// rewritten (`production_discovery_not_started` and `production_floor_already_pinned` had, and still
-// have, no unit coverage at all: measured 2026-08-15, they appear nowhere outside onboarding.ts).
+// the whole shipped funnel in a browser and then reads the record back off the visitor's own
+// session — never through a second interview surface, because there is no longer one.
 //
-// It is also the guard against the OPPOSITE failure. #235 opens the word search and #236 wires the
-// background family-candidate screen; until they land, an unmapped visitor must still be refused
-// with the identical `placement_not_confirmed` body and offered the family-research path. If that
-// stops being true before those tickets ship, this journey goes red — which is the point.
+// It is also the guard against the OPPOSITE failure. #235's word search must keep serving the
+// visitor no published family covers: she is never refused, nothing is pinned for her, and no
+// error surface reaches her screen. If that stops being true, this journey goes red.
 //
 // Run it:
 //   OPS_KEY=qa-ops-key node apps/api/dist/qa-main.js                       # API on :34101
@@ -36,8 +43,7 @@ import { request } from '@playwright/test';
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:30234';
 // A role the published vocabulary covers — the mapped case, i.e. every visitor today.
 const ROLE = 'IT project manager';
-// A role it does not cover. #235/#236 give her a word search; until then she must be refused exactly
-// as she is on main.
+// A role it does not cover. #235 gives her a word search — never a refusal.
 const UNMAPPED_ROLE = 'sous vide pastry chef';
 const AREA = 'Singapore';
 const FAMILY = 'it-project-delivery';
@@ -138,13 +144,24 @@ await qa.click('button.go.wide', 'answer the role question');
 await page.waitForTimeout(2500);
 await qa.scrollThrough('read the discovery screen the way a real visitor would');
 
-for (const a of [
-  { itemId: 'budget-accountability', answer: 'Yes, over $1M' },
-  { itemId: 'cross-functional-leadership', answer: 'Yes, multiple teams' },
-  { itemId: 'stakeholder-reporting', answer: 'Yes, monthly to the steering group' },
-]) {
-  await callAsVisitor('POST', '/onboarding/discovery/answer', a);
+// Answer every floor question the screen actually puts to her. The ids are READ OFF the state, not
+// hard-coded: the whole point of #216 is that these come from her placed family's published floor,
+// so a hard-coded list would be asserting yesterday's question set (it did — this journey carried
+// the retired stub's ids until #216).
+const asked = [];
+for (let i = 0; i < 12; i += 1) {
+  const state = await json('/onboarding/discovery');
+  const ask = (state?.questions ?? []).find((q) => !q.eligibility);
+  if (!ask) break;
+  const option = (ask.options ?? []).find((o) => !/^no[.!]?$/i.test(o.trim())) ?? 'Yes';
+  asked.push(ask.itemId);
+  await callAsVisitor('POST', '/onboarding/discovery/answer', { itemId: ask.itemId, answer: option });
 }
+await qa.note(`the questions her own screen put to her, in order: ${asked.join(', ') || '(none)'}`);
+await assertTrue(
+  asked.length >= 4,
+  `AC1 — the shipped screen asked her the published family floor, not a stub (${asked.length} items: ${asked.join(', ')})`,
+);
 await qa.goto('/discovery', 'back to discovery — her answers are in');
 await qa.scrollThrough('read the answered discovery screen');
 
@@ -173,52 +190,18 @@ await qa.note(`the deck she reached: ${deckBefore.length} cards — ${scoresBefo
 await assertTrue(deckBefore.length > 0, 'the deck is not empty — she has cards to act on');
 
 // =============================================================================================
-// 2. The production-discovery route the split rewrote, driven from THIS visitor's session.
-//
-//    No browser surface reaches it (recorded in family-placement-journey.mjs), so it is driven over
-//    the wire on her own cookie — the same server, the same session record the deck above reads.
+// 2. The record HER OWN answers wrote. This is #216: one engine, and the interview she walked is
+//    the one the reveal is gated on. Read straight off her session — there is no second surface
+//    to walk any more, and the assertions below would all have been null before this ticket.
 // =============================================================================================
-await qa.note('AC1/AC3/AC5 — walking the production-discovery route on this visitor\'s own session');
+await qa.note(`AC1/AC2/AC6 — reading the discovery record this visitor's own answers produced`);
 
-// The two refusals whose CONDITION this ticket rewrote (`!discovery.floor` became
-// `discovery.questionFloors.length === 0`). Nothing else in the repo exercises them.
-const notStartedGet = await callAsVisitor('GET', '/onboarding/discovery/production');
-await assertTrue(
-  notStartedGet.status === 409 && notStartedGet.json?.error?.code === 'production_discovery_not_started',
-  `nothing pinned yet, so resuming discovery refuses exactly as it always has: ${notStartedGet.status} ${notStartedGet.json?.error?.code}`,
-);
-const notStartedAnswer = await callAsVisitor('POST', '/onboarding/discovery/production/answer', {
-  itemId: 'end-to-end-delivery', answer: 'Yes',
-});
-await assertTrue(
-  notStartedAnswer.status === 409 && notStartedAnswer.json?.error?.code === 'production_discovery_not_started',
-  `answering before starting refuses the same way: ${notStartedAnswer.status} ${notStartedAnswer.json?.error?.code}`,
-);
-const notCovered = await callAsVisitor('POST', '/onboarding/discovery/production/complete');
-await assertTrue(
-  notCovered.status === 409 && notCovered.json?.error?.code === 'essential_floor_not_covered',
-  `completing before starting refuses the same way: ${notCovered.status} ${notCovered.json?.error?.code}`,
-);
-
-const evaluated = await callAsVisitor('POST', '/onboarding/discovery/production/evaluate');
-await assertTrue(evaluated.status === 200, `a mapped target role is accepted: ${evaluated.status}`);
-await assertTrue(
-  evaluated.json?.floor?.familyId === FAMILY && evaluated.json?.floor?.version === 1,
-  `AC5 — the answer on the wire is unchanged: it still carries floor=${JSON.stringify(evaluated.json?.floor)}`,
-);
-await assertTrue(
-  evaluated.json?.checkpoint === 'family_confirmed' && typeof evaluated.json?.nextQuestion?.prompt === 'string',
-  `discovery has a real next question to ask — the floor is live: "${evaluated.json?.nextQuestion?.prompt}"`,
-);
-
-// AC1 + AC5, read off the stored record: TWO facts now, and for a mapped role both name the one
-// family. This is the assertion that would fail if the split had changed a mapped visitor's plan.
 const pinned = (await json('/sessions/me'))?.discovery;
 await qa.note(`the stored discovery record: ${JSON.stringify(pinned)}`);
 await assertTrue(
   Array.isArray(pinned?.questionFloors) && pinned.questionFloors.length === 1 &&
     pinned.questionFloors[0].familyId === FAMILY && pinned.questionFloors[0].version === 1,
-  'AC1 — the record holds an ordered list of question floors, and a mapped role puts exactly one in it',
+  `AC1 — the questions she was asked came from her placed family's published floor, pinned to her session`,
 );
 await assertTrue(
   pinned?.searchFamily?.familyId === FAMILY && pinned?.searchFamily?.version === 1,
@@ -226,48 +209,53 @@ await assertTrue(
 );
 await assertTrue(
   !('floor' in (pinned ?? {})),
-  'AC2 — the single fact that did both jobs is gone from the record outright; no old key is kept alongside',
+  '#234 — the single fact that did both jobs is gone from the record outright; no old key is kept alongside',
+);
+await assertTrue(
+  pinned?.checkpoint === 'essential_floor_covered',
+  `AC2 — answering the questions on her own screen is what earned the checkpoint (${pinned?.checkpoint})`,
+);
+await assertTrue(
+  Array.isArray(pinned?.coveredItemIds) && asked.every((id) => pinned.coveredItemIds.includes(id)),
+  `AC2 — every item she answered is recorded against her session (${JSON.stringify(pinned?.coveredItemIds)})`,
 );
 
-// Answer the whole floor, the way discovery would ask it, then complete.
-for (let i = 0; i < 10; i += 1) {
-  const state = await json('/onboarding/discovery/production');
-  if (!state?.nextQuestion) break;
-  if (i === 0) {
-    const halfway = await callAsVisitor('POST', '/onboarding/discovery/production/complete');
-    await assertTrue(
-      halfway.status === 409 && halfway.json?.error?.code === 'essential_floor_not_covered',
-      `the coverage checkpoint still holds mid-interview: ${halfway.status} ${halfway.json?.error?.code}`,
-    );
-  }
-  await callAsVisitor('POST', '/onboarding/discovery/production/answer', {
-    itemId: state.nextQuestion.itemId,
-    answer: 'Yes, on several programmes',
-  });
+// AC6 — ONE engine. The parallel interview is gone from the server, not merely unused by the client.
+for (const [method, path] of [
+  ['GET', '/onboarding/discovery/production'],
+  ['POST', '/onboarding/discovery/production/evaluate'],
+  ['POST', '/onboarding/discovery/production/answer'],
+  ['POST', '/onboarding/discovery/production/complete'],
+]) {
+  const gone = await callAsVisitor(method, path, method === 'POST' ? {} : undefined);
+  await assertTrue(
+    gone.status === 404,
+    `AC6: ${method} ${path} no longer exists — one discovery engine remains (${gone.status})`,
+  );
 }
-const completed = await callAsVisitor('POST', '/onboarding/discovery/production/complete');
+
+// The pin holds under a re-entry: re-deriving the same plan reconciles coverage, it never moves the
+// plan and never errors on her own screen.
+await qa.goto('/discovery', 'she re-enters discovery, the way anyone reloads a page');
+await page.waitForTimeout(1500);
+const afterReentry = (await json('/sessions/me'))?.discovery;
 await assertTrue(
-  completed.status === 200 && completed.json?.checkpoint === 'essential_floor_covered' &&
-    completed.json?.floor?.familyId === FAMILY,
-  `AC5 — the floor completes and answers with the same shape as before: ${completed.status} ${completed.body.slice(0, 120)}`,
+  JSON.stringify(afterReentry?.questionFloors) === JSON.stringify(pinned?.questionFloors) &&
+    JSON.stringify(afterReentry?.searchFamily) === JSON.stringify(pinned?.searchFamily) &&
+    afterReentry?.checkpoint === 'essential_floor_covered',
+  'once pinned, the plan does not change under the session, and re-reading does not lose the checkpoint',
 );
 
-// AC3 — the pin invariant, extended to the pair: re-deriving the same plan is allowed (coverage
-// advances under it), and the plan itself does not move.
-const reEvaluated = await callAsVisitor('POST', '/onboarding/discovery/production/evaluate');
+// A correction: she changes one answer to a plain "No". #235 (spec #233 decision 6) decided that an
+// explicit "no" is a real ANSWER, not a gap — it closes the item and the checkpoint holds. Recorded
+// here because #216's own acceptance text, written before that decision, says the opposite.
+const correctedItem = asked[0];
+await callAsVisitor('POST', '/onboarding/discovery/answer', { itemId: correctedItem, answer: 'No' });
+const afterCorrection = (await json('/sessions/me'))?.discovery;
 await assertTrue(
-  reEvaluated.status === 200,
-  `AC3 — re-deriving the SAME plan reconciles rather than refusing: ${reEvaluated.status}`,
-);
-const afterComplete = (await json('/sessions/me'))?.discovery;
-await assertTrue(
-  JSON.stringify(afterComplete?.questionFloors) === JSON.stringify(pinned?.questionFloors) &&
-    JSON.stringify(afterComplete?.searchFamily) === JSON.stringify(pinned?.searchFamily),
-  'AC3 — once pinned, the plan does not change under the session (both halves of the pair are the same as before)',
-);
-await assertTrue(
-  afterComplete?.checkpoint === 'essential_floor_covered',
-  'the coverage checkpoint advanced under the pinned plan, exactly as it always did',
+  afterCorrection?.coveredItemIds?.includes(correctedItem) &&
+    afterCorrection?.checkpoint === 'essential_floor_covered',
+  `correcting "${correctedItem}" to a plain "No" keeps it covered — an honest no is an answer, not a hole (${afterCorrection?.checkpoint})`,
 );
 
 // =============================================================================================
@@ -303,9 +291,10 @@ await assertTrue(
 );
 
 // =============================================================================================
-// 4. The visitor #235/#236 are FOR must still be refused today, byte for byte.
+// 4. The visitor no published family covers. #235: she is served, never refused - and #216 must
+//    not pin a family for her behind her back.
 // =============================================================================================
-await qa.note('the unmapped visitor — she is #235/#236\'s subject, and until they ship she must be refused exactly as on main');
+await qa.note('the unmapped visitor - the word search serves her, and nothing is pinned for her');
 const other = await request.newContext({ baseURL: BASE });
 const asOther = async (method, path, data) => {
   const res = await other.fetch(`${BASE}/api${path}`, { method, ...(data ? { data } : {}) });
@@ -318,22 +307,28 @@ await asOther('POST', '/sessions/anonymous');
 await asOther('PUT', '/sessions/me/intent', { targetRole: UNMAPPED_ROLE, searchArea: AREA });
 await asOther('POST', '/cv/paste', { text: CV_TEXT });
 
-const refused = await asOther('POST', '/onboarding/discovery/production/evaluate');
-await qa.note(`the unmapped visitor's answer, verbatim: HTTP ${refused.status} ${refused.body.slice(0, 200)}`);
+const served = await asOther('POST', '/onboarding/discovery/start', { role: UNMAPPED_ROLE });
+await qa.note(`the unmapped visitor's answer, verbatim: HTTP ${served.status} ${served.body.slice(0, 200)}`);
 await assertTrue(
-  refused.status === 409 && refused.json?.error?.code === 'placement_not_confirmed',
-  `an unmapped target role is still refused with the same code: ${refused.status} ${refused.json?.error?.code}`,
+  served.status === 200,
+  `AC4: an unmapped target role is SERVED, never refused (${served.status} ${served.json?.error?.code ?? ''})`,
 );
+// #235 (spec #233 decision 3): her CV PROVES a family even though her typed role cannot be placed,
+// so she is interviewed on that family's floor and her screen legitimately names it. What must stay
+// null is the family she is SEARCHED on - that is the half that would be a reveal she never earned.
 await assertTrue(
-  refused.json?.familyResearch?.path === '/family-learning/candidates' && refused.json?.rewardEligible === false,
-  'the refusal still offers the family-research path and still authorizes no reward — an unchanged body, not a new one',
+  (served.json?.questions ?? []).some((q) => !q.eligibility),
+  `AC4: she is asked real questions rather than dead-ended - the floors her own CV proves (${(served.json?.questions ?? []).length} on screen)`,
 );
 const otherRecord = (await asOther('GET', '/sessions/me')).json?.discovery;
 await qa.note(`her stored discovery record: ${JSON.stringify(otherRecord)}`);
 await assertTrue(
-  Array.isArray(otherRecord?.questionFloors) && otherRecord.questionFloors.length === 0 &&
-    otherRecord.searchFamily === null,
-  'AC1 — nothing was pinned for her: no question floors, no search family (the CV floors #235 will ask are NOT pinned by this ticket)',
+  otherRecord?.searchFamily === null,
+  `AC4: no family reveal is authorized for her - retrieval searches her own words (${JSON.stringify(otherRecord?.searchFamily)})`,
+);
+await assertTrue(
+  otherRecord?.checkpoint !== 'essential_floor_covered' || (otherRecord?.questionFloors?.length ?? 0) === 0,
+  `AC4: a covered checkpoint is only ever written against floors she was actually asked (${JSON.stringify(otherRecord)})`,
 );
 await other.dispose();
 

@@ -56,13 +56,14 @@ const seed = await page.evaluate(async (role) => {
       .then((r) => r.status);
   const codes = [];
   codes.push(await post("/api/onboarding/discovery/start", { role }));
-  // Deliberately in the candidate's OWN words, never the adverts' phrasing — the exact shape the
-  // old token-overlap scorer scored 0 on and a meaning-aware judge is supposed to recognise.
-  codes.push(await post("/api/onboarding/discovery/answer", { itemId: "budget-accountability", answer: "Yes, over $1M" }));
-  codes.push(await post("/api/onboarding/discovery/answer", { itemId: "cross-functional-leadership", answer: "Yes, multiple teams" }));
   return codes;
 }, ROLE);
-qa.note(`seeded discovery over the real API — POST status codes: ${seed.join(", ")}`);
+// #216: the floor items are READ off the live state, never hard-coded - qa-driver's own note
+// on seedFloorAnswers records what hard-coding them cost the last time.
+// The answers stay deliberately in the candidate's OWN words, never the adverts' phrasing - the
+// exact shape the old token-overlap scorer scored 0 on and a meaning-aware judge should recognise.
+const seededItems = await qa.seedFloorAnswers({ yes: "Yes, over $1M across cross-functional teams" });
+qa.note(`seeded discovery over the real API — start ${seed.join(", ")}, floor answered: ${seededItems.join(", ") || "nothing"}`);
 
 // 2) Sign in (magic-link dev token): wanting a job is post-wall (S2), and this journey ends in the
 //    tailor.

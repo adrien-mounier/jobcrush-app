@@ -10,7 +10,7 @@ import {
   TestFixtureFamilyFloorStore,
 } from "../src/familyFloors.js";
 import { buildServer } from "../src/server.js";
-import { discoveryFamilyForSessionPlan } from "../src/legacyDiscovery.js";
+import { discoveryPlan } from "../src/adaptiveDiscovery.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = () =>
@@ -163,24 +163,18 @@ describe("production family floor publication", () => {
       get: (familyId: string) => ({ alpha, beta })[familyId as "alpha" | "beta"] ?? null,
     } as unknown as ProductionFamilyFloorStore;
 
-    const adapted = discoveryFamilyForSessionPlan(
-      {
-        discovery: {
-          questionFloors: [],
-          searchFamily: null,
-          coveredItemIds: [],
-          checkpoint: null,
-          fallback: { declined: false, family: null },
-        },
-      },
-      {
-        schemaVersion: "2",
-        outcome: "confirmed",
-        families: [{ familyId: "beta", version: 1 }],
-        confidence: "certain",
-      },
-      [],
+    const adapted = productionDiscoveryFamily(
       catalog,
+      discoveryPlan(
+        {
+          schemaVersion: "2",
+          outcome: "confirmed",
+          families: [{ familyId: "beta", version: 1 }],
+          confidence: "certain",
+        },
+        [],
+        catalog,
+      ).questionFloors,
     );
 
     expect(adapted).toMatchObject({ familyId: "beta", label: "Beta" });

@@ -47,12 +47,18 @@ const AREA = 'Singapore';
 // The corrections that make the two readings disagree: a few months in the family, a long career.
 const FAMILY_START = { year: 2026, month: 1, precision: 'month' };
 const CAREER_START = { year: 1998, month: 1, precision: 'month' };
-// Identical in both arms of the A/B — the typed role must be the only variable between them.
-const DISCOVERY_ANSWERS = [
-  { itemId: 'budget-accountability', answer: 'Yes, over $1M' },
-  { itemId: 'cross-functional-leadership', answer: 'Yes, multiple teams' },
-  { itemId: 'stakeholder-reporting', answer: 'No' },
-];
+// #216: the floor is READ, not hard-coded. Identical RULE in both arms of the A/B - two positives
+// then a "No" - applied to whichever floor each arm is actually served, so the typed role stays the
+// only variable between them even though the two arms are placed into different families.
+// qa-driver's seedFloorAnswers note records what hard-coding these ids cost the last time.
+const answerFloorWith = async (fetchState, post) => {
+  const state = await fetchState();
+  const ids = (state?.questions ?? []).filter((q) => !q.eligibility).map((q) => q.itemId);
+  for (let i = 0; i < ids.length; i += 1) {
+    await post({ itemId: ids[i], answer: i === ids.length - 1 ? 'No' : 'Yes, over $1M' });
+  }
+  return ids;
+};
 // The motivating advert (spec #219): "8+ years of IT experience including 5+ years as a Project
 // Manager" — since #222 that is TWO scoped bars, total >= 8 and family >= 5.
 const COMPOUND_AD = '2026-07-05_endava-vietnam_senior-project-manager';
@@ -180,10 +186,15 @@ await qa.scrollThrough('read the discovery screen the way a real visitor would')
 // These exact three answers are replayed verbatim by the CONTROL visitor below: the A/B is only
 // worth anything if the fact set is identical in both arms and the typed ROLE is the sole variable.
 // (Prior art: band-vocabulary-journey seeds discovery the same way.)
-for (const a of DISCOVERY_ANSWERS) {
-  await api('POST', '/onboarding/discovery/answer', a);
-}
-await qa.note(`answered the discovery floor: ${DISCOVERY_ANSWERS.map((a) => `${a.itemId}="${a.answer}"`).join(', ')}`);
+const answeredFloor = await answerFloorWith(
+  () => json('/onboarding/discovery'),
+  (body) => api('POST', '/onboarding/discovery/answer', body),
+);
+await assertTrue(
+  answeredFloor.length > 0,
+  `the placed arm was served a real family floor to answer (${answeredFloor.join(', ') || 'nothing'})`,
+);
+await qa.note(`answered the discovery floor her placed family asks: ${answeredFloor.join(', ')}`);
 await qa.goto('/discovery', 'back to discovery — the answers are in');
 await qa.scrollThrough('read the answered discovery screen');
 
@@ -271,7 +282,10 @@ const ctlUnmapped = ctlBlocks.find((b) => b.family?.value?.outcome === 'unmapped
 if (ctlPlaced) await cjson(`/job-blocks/${ctlPlaced.id}/correct`, 'POST', { key: 'start', value: FAMILY_START });
 if (ctlUnmapped) await cjson(`/job-blocks/${ctlUnmapped.id}/correct`, 'POST', { key: 'start', value: CAREER_START });
 await cjson('/onboarding/discovery/start', 'POST', { role: UNPLACEABLE_ROLE });
-for (const a of DISCOVERY_ANSWERS) await cjson('/onboarding/discovery/answer', 'POST', a);
+await answerFloorWith(
+  () => cjson('/onboarding/discovery'),
+  (body) => cjson('/onboarding/discovery/answer', 'POST', body),
+);
 const ctlCard = (await cjson('/onboarding/cards')).cards?.find((c) => c.adId === COMPOUND_AD);
 await ctl.dispose();
 

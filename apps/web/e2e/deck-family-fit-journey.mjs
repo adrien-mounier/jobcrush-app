@@ -53,10 +53,16 @@ const stampingReader = (family, confidenceFor = () => 0.9, requirements) => asyn
 });
 
 // The two essential-band items the harness decks answer, so cards score against real confirmed
-// facts (an all-null deck has no ranking to sink a card in — see the confidence server below).
+// facts (an all-null deck has no ranking to sink a card in - see the confidence server below).
+//
+// #216: these are ADVERT requirement ids this harness authors - not discovery floor ids - but they
+// have to NAME what the visitor is actually asked, or nothing she confirms meets them and every
+// card scores identically. They carried the retired stub's ids until the researched floor made the
+// pairing dead: the confidence deck came back with four cards at 74% and no 100% cohort to rank
+// them against. If the published floor's item ids change again, these follow.
 const SCORING_REQS = [
-  { id: "budget-accountability", band: "essential", kind: "ordinary", requirement: "Own a project budget", sourceSpan: "budget" },
-  { id: "cross-functional-leadership", band: "essential", kind: "ordinary", requirement: "Lead cross-functional teams", sourceSpan: "teams" },
+  { id: "end-to-end-delivery", band: "essential", kind: "ordinary", requirement: "Own delivery end to end", sourceSpan: "delivery" },
+  { id: "risk-dependency-control", band: "essential", kind: "ordinary", requirement: "Control risks and dependencies", sourceSpan: "risk" },
 ];
 
 const WEAK = /bnp|mri|pwc/; // which adverts the confidence server calls itself unsure about
@@ -107,15 +113,17 @@ const seeded = await page.evaluate(async () => {
   const codes = {};
   codes.intent = await send("/api/sessions/me/intent", "PUT", { targetRole: "IT project manager", searchArea: "Hong Kong" });
   codes.start = await send("/api/onboarding/discovery/start", "POST", { role: "IT project manager in Hong Kong" });
-  codes.a1 = await send("/api/onboarding/discovery/answer", "POST", { itemId: "budget-accountability", answer: "Yes, over $1M" });
-  codes.a2 = await send("/api/onboarding/discovery/answer", "POST", { itemId: "cross-functional-leadership", answer: "Yes, multiple teams" });
-  codes.a3 = await send("/api/onboarding/discovery/answer", "POST", { itemId: "stakeholder-reporting", answer: "Yes, to the board" });
   // Arm the QA stack's three canned live-read adverts, so the deck holds adverts the READER
   // stamped, not only hand-authored fixtures.
   codes.stack = await send("/api/qa/stack", "POST", { languageAdverts: true });
   return codes;
 });
-qa.note(`seeded over the real API — intent ${seeded.intent}, discovery start ${seeded.start}, answers ${seeded.a1}/${seeded.a2}/${seeded.a3}, reader armed ${seeded.stack}`);
+// #216: the floor items are READ off the live state, never hard-coded - qa-driver's own note
+// on seedFloorAnswers records what hard-coding them cost the last time.
+// NOTE: SCORING_REQS above keeps its own ids on purpose - those are this harness's ADVERT
+// requirement ids, which this journey authors itself. Only the DISCOVERY floor is read.
+const seededItems = await qa.seedFloorAnswers({ yes: "Yes, over $1M across cross-functional teams" });
+qa.note(`seeded over the real API — intent ${seeded.intent}, discovery start ${seeded.start}, floor answered: ${seededItems.join(", ") || "nothing"}, reader armed ${seeded.stack}`);
 
 const shipped = await page.evaluate(async () => {
   const before = (await fetch("/api/ops/counters").then((r) => r.json()))["deck.family_dropped"];
@@ -202,12 +210,16 @@ const confidenceDeck = await page.evaluate(async (base) => {
   await fetch(`${base}/sessions/anonymous`, { method: "POST", credentials: "include" });
   const json = { "content-type": "application/json" };
   await fetch(`${base}/onboarding/discovery/start`, { method: "POST", headers: json, credentials: "include", body: JSON.stringify({ role: "IT project manager in Hong Kong" }) });
-  for (const [itemId, answer] of [
-    ["budget-accountability", "Yes, over $1M"],
-    ["cross-functional-leadership", "Yes, multiple teams"],
-    ["stakeholder-reporting", "Yes, to the board"],
-  ]) {
-    await fetch(`${base}/onboarding/discovery/answer`, { method: "POST", headers: json, credentials: "include", body: JSON.stringify({ itemId, answer }) });
+  // #216: read the floor this session is actually served rather than naming ids. This is a second
+  // API on its own port, so it cannot use qa-driver's seedFloorAnswers (which is same-origin).
+  const state = await fetch(`${base}/onboarding/discovery`, { credentials: "include" }).then((r) => r.json());
+  for (const q of (state.questions ?? []).filter((item) => !item.eligibility)) {
+    await fetch(`${base}/onboarding/discovery/answer`, {
+      method: "POST",
+      headers: json,
+      credentials: "include",
+      body: JSON.stringify({ itemId: q.itemId, answer: "Yes, over $1M across multiple teams" }),
+    });
   }
   const deck = await fetch(`${base}/onboarding/cards`, { credentials: "include" }).then((r) => r.json());
   return deck.cards.map((c, i) => ({ i, adId: c.adId, matchPct: c.matchPct }));

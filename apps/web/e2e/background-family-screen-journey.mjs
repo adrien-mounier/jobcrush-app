@@ -119,10 +119,12 @@ await assertTrue(
   learningReturn.status === 404 || learningReturn.json?.attempt == null,
   `AC6: the failed screen recorded nothing against her session (${learningReturn.status} ${learningReturn.body.slice(0, 80)})`,
 );
-const production = await callAsVisitor('GET', '/onboarding/discovery/production');
+// #216: `session.discovery` has ONE writer now — her own discovery screen — so the durable record
+// read straight off her session is the whole answer to "did anything pin behind her back?".
+const plan = (await json('/sessions/me'))?.discovery;
 await assertTrue(
-  production.status === 409,
-  `AC6: her plan is untouched — no family was pinned by a screen that never answered (${production.status} ${production.json?.error?.code})`,
+  plan?.questionFloors?.length === 0 && plan?.searchFamily === null && plan?.checkpoint === null,
+  `AC6: her plan is untouched — no family was pinned by a screen that never answered (${JSON.stringify(plan)})`,
 );
 
 // AC7: nothing on her screen, and nothing in the payload behind it, names any of this.
@@ -148,9 +150,10 @@ await page.waitForTimeout(2000);
 await qa.scrollThrough('the second look at her deck — unchanged');
 const deck2 = await callAsVisitor('GET', '/onboarding/cards');
 await assertTrue(deck2.status === 200, `AC5: her deck still answers ${deck2.status} on a second visit`);
+const planAgain = (await json('/sessions/me'))?.discovery;
 await assertTrue(
-  (await callAsVisitor('GET', '/onboarding/discovery/production')).status === 409,
-  'AC6: still no family pinned behind her back after a second deck load',
+  planAgain?.questionFloors?.length === 0 && planAgain?.searchFamily === null,
+  `AC6: still no family pinned behind her back after a second deck load (${JSON.stringify(planAgain)})`,
 );
 
 const ok = await qa.finish();

@@ -108,8 +108,13 @@ await qa.click('button.go.wide', 'confirm the role — "That’s me"');
 await qa.scrollThrough('read the discovery page the way a person would');
 
 const workRights = page.locator('.opts[data-elig="work-rights"]');
+// #216: the researched floor mixes tap-an-option and type-your-own items, so a loop that only
+// clicks `.opts .opt` stalls on the free-text ones. answerVisibleQuestion handles both shapes.
 for (let i = 0; i < 10 && (await workRights.count()) === 0; i += 1) {
-  await qa.click('.opts .opt', `answer the question on screen (step ${i + 1}) to reach work rights`);
+  const answered = await qa.answerVisibleQuestion({
+    note: `answer the question on screen (step ${i + 1}) to reach work rights`,
+  });
+  if (!answered) break;
 }
 await qa.expectVisible(workRights, 'AC4: a work-rights question is reached');
 await qa.note(

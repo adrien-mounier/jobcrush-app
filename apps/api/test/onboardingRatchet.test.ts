@@ -41,7 +41,11 @@ import { fileURLToPath } from "node:url";
 // withdraw → judge → shape + order) moved to deck.ts (buildDeckCards), beside the card-shaping
 // policy it composes — the widening offer landed as a new endpoint plus one deckFallback.ts call,
 // and the spine shrank by fifty lines.
-const MAX_LINES = 1058;
+// #216 lowered it from 1058: the parallel /onboarding/discovery/production/* interview — a second
+// discovery engine no client ever called — is gone outright, and the reconciliation it alone
+// performed moved to discoveryEngine.ts (reconcileSessionDiscovery), beside the routes the visitor
+// actually walks. One engine, and the spine shrank by nearly 150 lines.
+const MAX_LINES = 910;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {
