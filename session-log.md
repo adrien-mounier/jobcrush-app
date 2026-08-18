@@ -2,6 +2,77 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-19 (session 143) `/implement 216` - the questions she is asked are the ones the reveal is earned from (QA GO, 4th gate run)
+
+**One discovery engine, and it is the one on screen.** `82102bc`, closes #216.
+
+The defect: the product asked one set of questions and gated the reveal on another. The shipped
+screen drove `/onboarding/discovery/*`, which never wrote `session.discovery`; a parallel
+`/onboarding/discovery/production/*` interview was its only writer and no client ever called it. A
+visitor could answer every question truthfully and reach the deck with
+`{ family: null, checkpoint: null }`.
+
+**The design call** (#216 left it open): teach the shipped route to reconcile, delete the other one.
+Moving the web client onto the production routes was the alternative and was rejected - that engine
+could not build the screen (CV lines, rail fill, eligibility questions, the promise), so it would
+have meant rebuilding all of it to keep a surface nothing called. `legacyDiscovery.ts` ->
+`discoveryEngine.ts`; ratchet 1058 -> 910.
+
+**One policy change #216 did not ask for.** A re-derived plan that CONFLICTS with an already pinned
+one now loses to the pin and the visitor carries on. The retired surface answered that with a 409,
+which on the screen she is actually walking is a dead end mid-interview - and the pinned plan is the
+one her recorded answers belong to. The pin stays one-way either way (`planUpgradable`). Recorded
+here because a policy change that lives only in a code comment is not recorded.
+
+**AC3 is superseded, and deliberately not signed off by me or by the QA agent.** #216 asks that
+correcting an answer to "no" drops the checkpoint back. Spec #233 decision 6, decided after #216 was
+filed, says the opposite verbatim: coverage means every item covered *"positively or by an explicit
+negative"*. The decided rule shipped. The half of AC3 that is real - the checkpoint is recomputed
+from claims on every read, never latched - is built and tested. **Waiting on the owner to amend the
+ticket text or correct me.**
+
+**The journey migration, which was the bulk of the work.** #223 replaced seven stub floor items with
+four researched ones. Ten journeys still answered the retired ids: every POST returned 404
+`unknown_item`, no fact was recorded, and each failed later and further away on a deck card with an
+empty "Where you fit". Two of the four researched items are FREE TEXT where the stub was all option
+buttons, so journeys looping on `.opts .opt` stalled 8s per attempt and aborted. CI never reported
+any of it - the Actions spending-limit blockage means the last six runs failed without executing.
+
+I initially called this out of scope and flagged it rather than fixing it. That was wrong twice
+over: #216's own estimate names *"the discovery test and journey migration that follows the item-id
+change"*, and the QA gate then proved the damage was seven CI-gated files, not the one I had seen.
+Fixed at the root rather than by substituting new ids - `qa-driver.mjs` gained `floorQuestions` /
+`seedFloorAnswers` / `answerVisibleQuestion` / `answerFloorOnScreen`, and every journey now READS
+the ids off `GET /onboarding/discovery`. `seedFloorAnswers` throws on a refused id: its first cut
+swallowed the 404, which is the same silence that hid the original rot.
+
+**The QA gate ran four times and was right every time.**
+- Run 1 NO-GO: my own rewritten assertion in `discovery-plan-split-journey.mjs` claimed the
+  unplaceable visitor is shown no family. Wrong - #233 decision 3 interviews her on the family her
+  CV proves; only her SEARCH family is null. It would have gone red in CI and blocked the deploy.
+- Run 2 NO-GO: the seven-journey migration above.
+- Run 3 NO-GO: `factbadge-journey` waits for a "No" button on a free-text question. Its diagnosis
+  included the trap that the obvious fix was wrong, because `answerVisibleQuestion` deliberately
+  avoids "No" and that step exists to test one. Fixing it, I then put `resetChips()`/`beforeNo`
+  before the clearing answer, which would have counted the setup into the assertion; caught before
+  dispatch and confirmed by the gate.
+- Run 4 **GO**: gates cold 7/7, api 1507 passed, contracts 47 passed, Tier 1 140/0/1, Tier 2 15/15.
+  USD 0.00 - the fake-model stack served every call.
+
+**New Tier 2 member:** `apps/web/e2e/discovery-earns-reveal-gate.mjs`, written by the QA agent. It
+answers every floor question by pressing the screen's own controls, including the free-text ones the
+existing journey POSTed past, drives both ends of the labeler, and probes #59's fixture seam for a
+reveal it must not authorize. ~3 min on a ~27 min job; the owner can cut it.
+
+**Two defects found and filed, not folded in** (both pre-existing, both verified red at `eb8f508`):
+- **#246** - the word-search visitor is promised *"10 IT project delivery jobs are open right now"*:
+  a family she never named, and jobs she will not be shown, because her deck searches her own words.
+  Breaks spec #233 decision 8. **Needs an owner decision on what she is told instead.**
+- **#247** - `deck-family-fit-journey` claims more than its harness can prove and gates nothing.
+
+**Not on staging.** Committed, not pushed. Like everything since 2026-08-16, the Actions billing
+blockage means no CI run has executed, so none of this has been deployed or seen a real provider.
+
 ## 2026-08-16 (session 142) `/implement 223` - discovery stub retired (QA GO)
 
 **One discovery engine remains.** The old `resolveFamily()`/constant-family resolver and

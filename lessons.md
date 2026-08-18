@@ -1,5 +1,53 @@
 # Lessons — jobcrush-app
 
+## A test that NAMES the data instead of reading it is rot with a delay fuse
+
+#223 replaced seven stub discovery items with four researched ones. Ten journeys named the old ids
+in literals. Every answer POST came back 404 `unknown_item`, so no fact was recorded, and each
+journey failed later and somewhere else entirely - on a deck card whose "Where you fit" list was
+empty. The cause and the symptom were a whole screen apart.
+
+The fix that feels obvious - substitute the new ids - rebuilds the same trap for whoever changes the
+questions next. The fix that holds is to READ the ids off the live surface
+(`GET /onboarding/discovery`) so the test asks the product what it asks rather than asserting a
+snapshot of a decision someone else owns.
+
+Corollary, same ticket: a seeding helper that swallows a 404 and returns a short list is the exact
+silence that let this hide. Ours now throws with the offending ids. **If a helper's comment says it
+surfaces failures, make it actually throw** - a comment is not a mechanism.
+
+## Data that a fixture and the product must AGREE on has to be derived from one of them
+
+The same ticket's last red journey (`deck-family-fit`, now #247) authors its own mock job adverts and
+scores a visitor's answers against them. Both halves were hand-written constants, so when the real
+questions changed, the adverts kept asking for things she is never asked - and every card scored the
+same, leaving the ranking assertion with no cohort to compare. Naming the new ids moved the score
+74% -> 91% and still did not fix it, because only reader-stamped adverts pick the ids up.
+
+Two hand-written lists that must match are one list too many. Derive the fixture's expectations from
+the product's own vocabulary, or accept that the test decays silently the first time the vocabulary
+moves.
+
+## A stale acceptance criterion is a decision to escalate, not a judgement call to make
+
+#216's AC3 said correcting an answer to "no" must drop the reveal. Spec #233 decision 6, decided
+afterwards, said coverage counts an explicit negative. Both are the owner's words; only one can
+ship. Neither the implementer nor the QA gate is the right party to retire the older one - so build
+the decided rule, assert it that way, and put the contradiction in front of the owner quoted from
+both sources. "The AC is stale" asserted without finding the superseding decision is just a
+convenient reading of a criterion you failed.
+
+## An independent gate earns its cost on the run where it contradicts you
+
+Four gate runs on one ticket, three NO-GOs, and every one was correct. The first caught an assertion
+I had just written and believed. The second caught a seven-file blast radius I had dismissed in
+writing as "pre-existing, not mine" - which was true about the cause and wrong about the
+responsibility, because the ticket's own estimate had budgeted for it. The third caught a defect
+whose obvious fix was also wrong, and flagged why.
+
+The pattern: the runs that mattered were the ones where the gate disagreed with something I had
+already told the owner. A gate that only confirms is worth its cost only on the day it doesn't.
+
 ## Reading the registry is not the same as obeying the plan
 
 #223 could have deleted the stub and still been wrong: a caller can read the production family
