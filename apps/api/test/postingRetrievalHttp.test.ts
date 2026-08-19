@@ -738,19 +738,6 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       code: "family_not_published",
     },
     {
-      name: "incomplete production floor",
-      arrange: async (built: ReturnType<typeof buildServer>, id: string, cookie: string) => {
-        await putIntent(built, cookie);
-        await built.sessions.reconcileDiscoveryState(
-          id,
-          mappedPlan({ familyId: "it-project-delivery", version: 1 }),
-          ["end-to-end-delivery"],
-          false,
-        );
-      },
-      code: "floor_not_covered",
-    },
-    {
       // #214: the intent route now REFUSES an uncovered text outright ("Atlantis" is never stored),
       // so this arm is reached with a stored area the RETRIEVER's registry doesn't cover — this
       // test's retriever runs on an empty registry, so "Hong Kong" is exactly that.
@@ -802,5 +789,44 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       outcome: "invalid_request",
       code,
     });
+  });
+
+  // #248: `floor_not_covered` left the table above because it is no longer a fetch-time refusal.
+  // The deck answers it itself, on the spot — so there is no background retrieval, no claim and no
+  // in-progress round trip to wait for. Strictly better than the dance the other arms still do, and
+  // a different enough shape that sharing their body would have meant a branch inside it.
+  it("refuses an uncovered floor on the spot, without starting any retrieval", async () => {
+    const productionFamilyFloors = initialProductionFamilyFloors();
+    const retrievePostings = vi.fn(
+      makePostingRetriever({
+        registry: [],
+        providers: [],
+        store: new InMemoryPostingStore(),
+        productionFamilyFloors,
+      }),
+    );
+    const built = buildServer({ productionFamilyFloors, retrievePostings });
+    const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const id = created.json().id as string;
+    const cookie = `jc_session=${created.cookies.find((item) => item.name === "jc_session")!.value}`;
+    await putIntent(built, cookie);
+    await built.sessions.reconcileDiscoveryState(
+      id,
+      mappedPlan({ familyId: "it-project-delivery", version: 1 }),
+      ["end-to-end-delivery"],
+      false,
+    );
+
+    const response = await built.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().retrieval).toEqual({
+      schemaVersion: "4",
+      outcome: "invalid_request",
+      code: "floor_not_covered",
+    });
+    // Nothing fetched, nothing claimed, nothing stored: an unearned deck does not start work.
+    expect(retrievePostings).not.toHaveBeenCalled();
+    expect((await built.sessions.getById(id))?.retrieval).toBeNull();
   });
 });

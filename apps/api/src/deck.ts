@@ -835,7 +835,10 @@ export interface TailorState {
  *  reachable, not impossible, and must fail
  *  closed with the same 404 that route already uses for an unknown card id. */
 export async function tailorTarget(
-  session: Pick<SessionRecord, "id" | "retrieval">,
+  // #248: `discovery` is here because sessionPostings now reads it to answer "may she be shown
+  // retrieved postings at all?" — the tailor target is one of the three doors onto that pool, and
+  // widening the type is what makes it impossible for this one to skip the check.
+  session: Pick<SessionRecord, "id" | "retrieval" | "discovery">,
   adId: string,
   readAd: ReadAdFn | undefined,
   requestFingerprint: string,

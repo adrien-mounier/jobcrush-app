@@ -24,7 +24,7 @@ import { EMAIL_RE, PHONE_RE, type RawCv } from "./extract.js";
 import { detectLanguage, languageEligible, SERVED_LANGUAGES } from "./language.js";
 import { incrementCounter } from "./counters.js";
 import type { SessionRecord } from "./sessions.js";
-import { isReusableRetrievalSnapshot } from "./postingRetrieval.js";
+import { isReusableRetrievalSnapshot, sessionDeckIsAuthorized } from "./postingRetrieval.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -84,7 +84,7 @@ export function eligiblePostings(languages: string[], postings = loadPostings())
  * relevant-postings snapshot can widen the fixture pool; every other state stays fixture-only. A
  * live row replaces a fixture row with the same canonical identity, so its selectable id wins. */
 export function sessionPostings(
-  session: Pick<SessionRecord, "retrieval">,
+  session: Pick<SessionRecord, "retrieval" | "discovery">,
   requestFingerprint: string,
 ): Posting[] {
   const byCanonicalKey = new Map(
@@ -93,7 +93,15 @@ export function sessionPostings(
       posting,
     ]),
   );
+  // #248: the reveal check belongs HERE, not only on the retrieval status the deck route reads.
+  // This is the one door all three posting readers pass through - the deck, the want route and the
+  // tailor target - so a guard here cannot be forgotten by a caller. It is a no-op today (an
+  // uncovered session's stored snapshot IS the refusal, so the outcome test below already rejects
+  // it) and it is what keeps #246 honest: once the promise fetches at question 1, a real
+  // relevant-postings snapshot exists BEFORE she has earned anything, and only this stops it
+  // becoming her deck.
   if (
+    !sessionDeckIsAuthorized(session) ||
     !isReusableRetrievalSnapshot(session.retrieval, requestFingerprint) ||
     session.retrieval?.result.outcome !== "relevant_postings"
   ) return [...byCanonicalKey.values()];

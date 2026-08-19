@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
 import { makeRetrievalCoordinator, type RetrievalCoordinatorDeps } from "../src/deckRetrieval.js";
+import type { RetrievalRequest } from "../src/postingRetrieval.js";
 
 const unavailable: PostingRetrievalResultV1 = {
   schemaVersion: "4",
@@ -13,7 +14,29 @@ const unavailable: PostingRetrievalResultV1 = {
   retryable: true,
 };
 
-const request = {} as never; // ensureRetrieval passes it through untouched
+// #248: ensureRetrieval no longer passes this through untouched. It READS the coverage fields first,
+// to decide whether this deck may be served at all — before it so much as looks at the snapshot.
+// This fixture is an AUTHORIZED request (#235's empty plan, covered by definition), so the tests
+// below stay about claiming, coalescing and spending rather than about authorization. The
+// unauthorized case has its own test at the bottom of this file.
+const request: RetrievalRequest = {
+  targetRole: "IT project manager",
+  searchAreas: ["Hong Kong"],
+  family: null,
+  fallback: false,
+  questionFloors: [],
+  checkpoint: null,
+  confirmedEvidence: [],
+  explicitNegatives: [],
+};
+
+/** A visitor who has not covered her floor: a family plan whose checkpoint has not got there. */
+const unauthorizedRequest: RetrievalRequest = {
+  ...request,
+  family: { familyId: "it-project-delivery", version: 1 },
+  questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
+  checkpoint: "family_confirmed",
+};
 
 function session(over: Partial<Record<string, unknown>> = {}) {
   return {
@@ -114,5 +137,43 @@ describe("makeRetrievalCoordinator", () => {
     expect(result).toBe(unavailable);
     expect(calls.begin).toBe(0);
     expect(calls.retrieve).toBe(0);
+  });
+  // #248 — the property the move exists for. A snapshot is DATA, not permission: it can now be
+  // fetched before she has earned anything (#246 fetches at question 1 so the promise can state a
+  // true count), so the deck has to refuse on its own account, every read, snapshot or no. While the
+  // coverage test lived inside the fetch this was unwritable — nothing could put a snapshot there.
+  it("refuses an uncovered deck even when a reusable snapshot is already sitting there", () => {
+    const { deps, calls } = makeDeps();
+    const c = makeRetrievalCoordinator(deps);
+    // The SAME snapshot shape the reusable-snapshot test above proves is honoured — otherwise this
+    // test would pass for the boring reason that there was nothing usable there anyway.
+    const snapshot = { requestFingerprint: "fp-1", recordedAt: new Date().toISOString(), result: unavailable };
+    expect(c.ensureRetrieval(session({ retrieval: snapshot }), request, "fp-1")).toBe(unavailable);
+
+    const result = c.ensureRetrieval(session({ retrieval: snapshot }), unauthorizedRequest, "fp-1");
+
+    expect(result).toEqual({
+      schemaVersion: "4",
+      outcome: "invalid_request",
+      code: "floor_not_covered",
+    });
+    // And it spends nothing to say so: no claim, no provider call.
+    expect(calls).toMatchObject({ begin: 0, retrieve: 0 });
+  });
+
+  it("serves the same session the moment its floor is covered", () => {
+    const { deps } = makeDeps();
+    const c = makeRetrievalCoordinator(deps);
+    const snapshot = { requestFingerprint: "fp-1", recordedAt: new Date().toISOString(), result: unavailable };
+
+    const covered = c.ensureRetrieval(
+      session({ retrieval: snapshot }),
+      { ...unauthorizedRequest, checkpoint: "essential_floor_covered" },
+      "fp-1",
+    );
+
+    // The very same snapshot the previous test refused to serve — coverage is the only thing that
+    // changed, which is what makes it the authorization and not the snapshot.
+    expect(covered).toBe(unavailable);
   });
 });

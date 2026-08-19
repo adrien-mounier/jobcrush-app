@@ -61,6 +61,28 @@ describe("JC-10 anonymous sessions", () => {
     expect(me.json().targetTitles).toEqual(["IT Project Manager", "Product Owner"]);
   });
 
+  // #248 — the session a visitor can read in her own browser carries NO retrieved postings. The
+  // field held the whole live advert list (titles, companies, source URLs) and no client reads it;
+  // left in, it is a door onto the posting pool that none of the three authorization guards cover.
+  // Unreachable while nothing fetches before coverage — #246 fetches at question 1 on purpose, and
+  // would hand every unearned visitor the full job list in devtools. A QA mutation proved putting
+  // the field back left the whole api suite green, so this is the twelve-second signal for it.
+  it("never hands the visitor her own retrieved posting pool", async () => {
+    const { app, sessions } = buildServer();
+    const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
+    const cookie = cookieOf(created);
+
+    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(me.statusCode).toBe(200);
+    expect(me.json()).not.toHaveProperty("retrieval");
+    expect(me.json()).not.toHaveProperty("token");
+    // The record itself still HAS the field — this is a withholding at the door, not a data change,
+    // so a test asserting the store forgot it would be asserting the wrong thing.
+    expect(await sessions.getById(created.json().id)).toHaveProperty("retrieval");
+    // What the route does still serve is unchanged: the discovery record journeys read off it.
+    expect(me.json()).toHaveProperty("discovery");
+  });
+
   it("persists and restores the anonymous source-entry checkpoint", async () => {
     const { app } = buildServer();
     const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });

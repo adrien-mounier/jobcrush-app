@@ -10,6 +10,7 @@ import {
 import {
   assertEveryActiveProviderIsImplemented,
   coveredRegionCodes,
+  deckReadIsAuthorized,
   makePostingRetriever,
   providersFor,
   retrievalFingerprint,
@@ -22,6 +23,8 @@ import {
 } from "../src/postingRetrieval.js";
 import { TestFixturePostingProvider, type PostingProvider } from "../src/postingProvider.js";
 import { InMemoryPostingStore } from "../src/postingStore.js";
+import { loadPostings, sessionPostings } from "../src/preview.js";
+import type { SessionRecord } from "../src/sessions.js";
 import { dedupePostings, loadActivePostingProviders } from "../src/postings.js";
 
 const policy = (
@@ -194,13 +197,13 @@ describe("#101 posting retrieval service", () => {
   it.each([
     [request({ targetRole: null }), "missing_intent"],
     [request({ family: { familyId: "unknown", version: 1 } }), "family_not_published"],
-    [request({ checkpoint: "family_confirmed" }), "floor_not_covered"],
     [request({ searchAreas: ["Atlantis"] }), "search_area_not_covered"],
-    // #235: the word search keeps every non-family gate — intent, the coverage checkpoint over its
-    // question floors, and the search area still refuse with today's codes.
+    // #235: the word search keeps every non-family gate — intent and the search area still refuse
+    // with today's codes.
+    // #248: `floor_not_covered` is NOT among them any more. Whether she has earned her reveal is no
+    // longer asked here — the fetch answers "may I fetch?", the deck answers "may she see it?".
+    // The coverage arm moved to deckReadIsAuthorized and is tested below and in deckRetrieval.test.
     [wordRequest({ targetRole: null }), "missing_intent"],
-    [wordRequest({ checkpoint: "family_confirmed" }), "floor_not_covered"],
-    [wordRequest({ checkpoint: null }), "floor_not_covered"],
     [wordRequest({ searchAreas: ["Atlantis"] }), "search_area_not_covered"],
   ] as const)("returns the specific invalid arm", async (input, code) => {
     const { retrieve } = build([policy("one", ["HK"], 1)], []);
@@ -698,6 +701,10 @@ describe("#101 posting retrieval service", () => {
 
   // The fallback family is NOT the family she was interviewed on, so it cannot be gated on a
   // checkpoint for it — a visitor whose plan asks nothing (no question floors) still reaches it.
+  // #248: this is now a test of the PREDICATE, not of the fetch. The rules it encodes are unchanged;
+  // only who asks them moved. A fetch is no longer refused for an uncovered floor at all, which is
+  // the entire point — #246 fetches at question 1, before she has answered anything, so that the
+  // promise on her first screen can state a count that is true.
   it("does not gate a fallback family search on an interview checkpoint it has no floors for", async () => {
     const { retrieve } = build(
       [policy("one", ["HK"], 1)],
@@ -706,10 +713,44 @@ describe("#101 posting retrieval service", () => {
     await expect(
       retrieve(request({ fallback: true, questionFloors: [], checkpoint: null })),
     ).resolves.toMatchObject({ outcome: "relevant_postings" });
-    // Her own floors still gate exactly as before — an uncovered interview is not widened past.
-    await expect(
-      retrieve(request({ fallback: true, checkpoint: "family_confirmed" })),
-    ).resolves.toMatchObject({ outcome: "invalid_request", code: "floor_not_covered" });
+    // #228: a fallback with no floors of its own is authorized without a checkpoint...
+    expect(deckReadIsAuthorized(request({ fallback: true, questionFloors: [], checkpoint: null }))).toBe(true);
+    // ...but her own question floors still gate exactly as before.
+    expect(deckReadIsAuthorized(request({ fallback: true, checkpoint: "family_confirmed" }))).toBe(false);
+  });
+
+  // #248 AC5 — the FETCH must no longer refuse an uncovered request. This is the half #246 depends
+  // on: it searches at question 1, before she has answered anything, so the promise on her first
+  // screen can state a count that is true. Without this test the whole move silently reverts — a
+  // QA mutation proved that putting the refusal back inside makePostingRetriever left the entire
+  // suite green, and #246 would then quietly show her nothing.
+  it("fetches for an uncovered request — earning the reveal is no longer the fetch's question", async () => {
+    const { retrieve } = build(
+      [policy("one", ["HK"], 1)],
+      [new TestFixturePostingProvider("one", { ok: true, records: [record("one", "a")] })],
+    );
+    await expect(retrieve(request({ checkpoint: "family_confirmed" }))).resolves.toMatchObject({
+      outcome: "relevant_postings",
+    });
+    await expect(retrieve(request({ checkpoint: null }))).resolves.toMatchObject({
+      outcome: "relevant_postings",
+    });
+    // ...and the deck still refuses to SHOW her either of them.
+    expect(deckReadIsAuthorized(request({ checkpoint: "family_confirmed" }))).toBe(false);
+  });
+
+  // #248 — the coverage rules, now asked by the deck. Same truth table as the arm that used to live
+  // inside the fetch; #235's empty-floor case and #228's fallback case are the two that are easy to
+  // break by "simplifying" this predicate.
+  it.each([
+    ["a covered family plan is authorized", request({ checkpoint: "essential_floor_covered" }), true],
+    ["an uncovered family plan is not", request({ checkpoint: "family_confirmed" }), false],
+    ["a family plan with no checkpoint at all is not", request({ checkpoint: null }), false],
+    ["#235: an empty plan is covered by definition", wordRequest({ questionFloors: [], checkpoint: null }), true],
+    ["an uncovered word plan WITH floors is not", wordRequest({ checkpoint: "family_confirmed" }), false],
+    ["a covered word plan is", wordRequest({ checkpoint: "essential_floor_covered" }), true],
+  ] as const)("deckReadIsAuthorized: %s", (_name, input, expected) => {
+    expect(deckReadIsAuthorized(input)).toBe(expected);
   });
 
   it("bounds an adversarial typed role to whole words, and never sends a field value", async () => {
@@ -1006,5 +1047,73 @@ describe("#101 posting retrieval service", () => {
     expect(
       isReusableRetrievalSnapshot(snapshot, "fingerprint", registry, Date.parse("2026-08-09T12:01:01.000Z")),
     ).toBe(false);
+  });
+});
+
+// #248 — the hole BOTH review axes found in this ticket's first cut, and the only test that proves
+// it shut. The guard was put on `ensureRetrieval`, which decides the payload's `retrieval` field —
+// but the CARDS come from `sessionPostings`, which reads the snapshot itself. #246 fetches at
+// question 1, so a real relevant-postings snapshot will exist AT THE UNCOVERED CHECKPOINT: same
+// checkpoint, therefore same fingerprint, therefore reusable. Without a guard here those postings
+// render as her deck while the status field politely says the floor is not covered.
+describe("#248 a snapshot is data, not permission", () => {
+  const FINGERPRINT = "fp-uncovered";
+  const family = { familyId: "it-project-delivery", version: 1 };
+  // Freshness is a SEPARATE gate (isReusableRetrievalSnapshot checks verifiedLiveAt against the
+  // provider TTL). Stamp everything now, or the snapshot is unusable for that reason instead and
+  // this whole test passes without exercising the authorization at all — which is exactly what the
+  // first draft did, and what the covered half below is here to catch.
+  const NOW = new Date().toISOString();
+  const live = {
+    schemaVersion: "4" as const,
+    id: "posting:live-one",
+    canonicalKey: "live-one",
+    title: "Delivery Manager",
+    company: "Example Ltd",
+    location: "Hong Kong",
+    sourceUrl: "https://example.com/live-one",
+    excerpt: "Lead delivery.",
+    postedAt: NOW,
+    capturedAt: NOW,
+    verifiedLiveAt: NOW,
+    expiresAt: null,
+    attribution: [],
+    sources: [{ providerId: "techmap", providerPostingId: "live-one" }],
+    skills: ["Delivery"],
+    language: "en",
+  };
+
+  const sessionAt = (checkpoint: "family_confirmed" | "essential_floor_covered") =>
+    ({
+      retrieval: {
+        requestFingerprint: FINGERPRINT,
+        recordedAt: NOW,
+        result: {
+          schemaVersion: "4",
+          outcome: "relevant_postings",
+          postings: [live],
+          coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
+          retrievedAt: NOW,
+        },
+      },
+      discovery: {
+        questionFloors: [family],
+        searchFamily: family,
+        coveredItemIds: [],
+        checkpoint,
+        fallback: { declined: false, family: null },
+      },
+    }) as unknown as SessionRecord;
+
+  it("keeps a pre-coverage snapshot out of the pool, and lets the SAME snapshot in once covered", () => {
+    const uncovered = sessionPostings(sessionAt("family_confirmed"), FINGERPRINT);
+    expect(uncovered.some((posting) => posting.id === live.id)).toBe(false);
+    expect(uncovered).toHaveLength(loadPostings().length); // the fixture pool, untouched
+
+    // The same snapshot, the same fingerprint, the same everything except that she has now earned
+    // it. If this half failed, the half above would be passing for the boring reason that the
+    // snapshot was never usable in the first place.
+    const covered = sessionPostings(sessionAt("essential_floor_covered"), FINGERPRINT);
+    expect(covered.some((posting) => posting.id === live.id)).toBe(true);
   });
 });

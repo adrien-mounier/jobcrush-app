@@ -87,6 +87,14 @@ const JOURNEYS = [
   // browsers and probes #59's fixture seam for a reveal it must not be able to authorize.
   // Measured ~3 min against the fake-model API; one magic-link sign-in.
   "discovery-earns-reveal-gate.mjs",
+  // #248: the only journey that attacks the reveal authorization instead of walking it. It plants a
+  // real, fresh, fingerprint-matching advert snapshot on a session whose floor is NOT covered - the
+  // state #246 creates on purpose - and then tries every door onto the posting pool: the deck, a
+  // guessed advert id at the want route, the tailor target, and her own session record. The guard
+  // was wrong once in exactly this way (it covered the deck's status field but not its cards), so
+  // the property needs a journey that would go red rather than a reviewer who happens to look.
+  // ~2 min against the fake-model API; one magic-link sign-in.
+  "snapshot-is-not-permission-journey.mjs",
 ];
 
 let failed = 0;

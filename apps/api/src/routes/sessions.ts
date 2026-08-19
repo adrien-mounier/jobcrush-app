@@ -140,7 +140,15 @@ export function sessionRoutes(
       if (!req.session) {
         return reply.status(401).send({ error: { code: "no_session", message: "no active session" } });
       }
-      const { token: _token, ...safe } = req.session;
+      // #248: `retrieval` is withheld, not just untyped away. It carries the whole live advert list
+      // (titles, companies, source URLs) and NO client reads it — apps/web calls this route for the
+      // session id, intent and discovery record only. Left in, it is a fourth door onto the posting
+      // pool that no authorization guards: the deck, the want route and the tailor target all pass
+      // through sessionPostings, and this one would not. Unreachable today because nothing fetches
+      // before coverage; #246 fetches at question 1 on purpose, and would put every uncovered
+      // visitor's whole job list in her browser. Withholding it closes the door for good rather
+      // than adding a fourth guard for someone to forget.
+      const { token: _token, retrieval: _retrieval, ...safe } = req.session;
     return safe;
   });
 

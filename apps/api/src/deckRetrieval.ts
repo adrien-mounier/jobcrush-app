@@ -14,6 +14,8 @@ import {
   type SessionStore,
 } from "./sessions.js";
 import {
+  deckReadIsAuthorized,
+  floorNotCoveredResult,
   isReusableRetrievalSnapshot,
   logPostingRetrievalFailure,
   type RetrievalRequest,
@@ -63,6 +65,11 @@ export function makeRetrievalCoordinator(deps: RetrievalCoordinatorDeps) {
     retrievalRequest: RetrievalRequest,
     requestFingerprint: string,
   ): PostingRetrievalResultV1 {
+    // #248: FIRST, before the snapshot is even looked at, so an early snapshot cannot report itself
+    // as a finished retrieval. This is only HALF the guard, and on its own it would be decoration:
+    // it decides the payload's `retrieval` field, never the cards. The cards are gated in
+    // preview.ts's sessionPostings, which every posting reader passes through.
+    if (!deckReadIsAuthorized(retrievalRequest)) return floorNotCoveredResult();
     if (isReusableRetrievalSnapshot(session.retrieval, requestFingerprint)) {
       return session.retrieval!.result;
     }
