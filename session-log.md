@@ -70,6 +70,20 @@ reveal it must not authorize. ~3 min on a ~27 min job; the owner can cut it.
   Breaks spec #233 decision 8. **Needs an owner decision on what she is told instead.**
 - **#247** - `deck-family-fit-journey` claims more than its harness can prove and gates nothing.
 
+**Owner decisions, taken the same day (2026-08-19):**
+- **#216 AC3 RETIRED - option B.** An explicit "no" is an answer, not a hole. The visitor keeps her
+  deck; the consequence lands on the scoring (the card shows the gap, a blocking requirement
+  withdraws the job). Closing the reveal on an honest correction would teach her not to correct
+  herself. Criterion struck on the ticket with the reasoning; the code already shipped this way.
+- **#246 - the promise names no job family, to anyone.** e.g. "10 new jobs are open right now".
+  The owner had already made the identical call for the PLACE on 2026-08-13 (session 118 follow-up:
+  "the discovery promise line names NO place... the location signal lives in the per-market
+  work-rights questions, where it can be honest"). One rule, both halves of the sentence: if the
+  promise cannot be said honestly to everyone, it is not said. STILL OPEN: the NUMBER -
+  `promiseCount` counts the first question floor's family, honest for a placed visitor and wrong for
+  a word-search one. Three options costed on the ticket; recommendation is a family-agnostic count
+  of the live pool in her search area.
+
 **Not on staging.** Committed, not pushed. Like everything since 2026-08-16, the Actions billing
 blockage means no CI run has executed, so none of this has been deployed or seen a real provider.
 
