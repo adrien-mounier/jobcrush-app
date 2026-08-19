@@ -85,10 +85,32 @@ she can be told that and then, three screens later, "we couldn't look"). And the
 says *"Written against a real posting"*, naming a fixture employer (`matchPosting` — no retrieval, no
 liveness check).
 
-⚠️ **Three journeys are in no tier and will rot unwatched:** `credible-reveal-journey.mjs` (#63's own
-acceptance evidence, 29/0) and `stale-search-tailor-return-journey.mjs` (the D2 regression), both
-left by QA, plus the pre-existing `deck-family-fit-journey.mjs`. Adding them to `run-tier2.mjs` is
-the owner's call (~2.5 min CI each), the same way #243 recorded it.
+**Owner decisions taken after the gate, same session.** ✅ **The two #63 journeys now gate the
+deploy** (`748caad`) — `credible-reveal-journey.mjs` (that ticket's acceptance evidence, and the only
+test anywhere that renders the empty-pool and outage screens) and `stale-search-tailor-return-journey.mjs`
+(the lost-tailor-target regression, provable only in a browser because the fix is a redirect).
+Verified by running the whole suite with them in, not alone: **all 18 journeys passed**, the 16 older
+ones each at their existing counts. `deck-family-fit-journey.mjs` stays out — still the owner's call,
+still tracked by #247. ✅ **#249 filed** — the CV preview calls a stored posting *"a real posting"* and
+names a real employer beside the word; no retrieval, no liveness check. Not a #63 regression, but #63
+left it as the last surface presenting stored adverts as live jobs, on the first job-shaped screen a
+visitor sees. It needs an owner decision because it is a cost trade: retrieving for the preview spends
+a provider call **before signup, on every paste**.
+
+🚨 **Three tickets had no roadmap row at all** — #246, #247 (banner prose only) and then #249, which I
+filed and failed to add a row for, immediately after fixing that same fault for the other two. Twice
+caught by the owner, not by me. All three now have rows (7a, 7c, 7d). The frontier is read off the
+table, so a ticket with no row is invisible however decided and unblocked it is — #246 had been
+schedulable for a day and nobody could see it. `lessons.md` now carries the coverage check as a
+**runnable command, verified to run as written**, rather than as an intention.
+
+⚠️ **#246's body said "Open question for the owner" and the question had been answered a day earlier.**
+I read it, believed it, and carried a decision to the owner he had already made; he asked what I
+expected of him, which is how it surfaced. The section is now struck on the ticket with both halves
+of the decision written out, #248 named as what unblocked it, and a warning to build on top of #63
+rather than `main` — AC4 ("the promise is consistent with the deck she is then served") is only
+meaningful against #63's deck, and would otherwise pass while proving the wrong thing. Also labelled
+`ready-for-agent`, which it was missing, so a frontier query can find it.
 
 ## 2026-08-19 (session 144) `/implement 229` — the career changer is told (QA GO)
 
