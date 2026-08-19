@@ -3241,3 +3241,27 @@ compared unequal strings for a year and the code that consumed it had to be writ
 call sites from the same `publishedFamilies(store)` expression in main.ts: any family one surface
 can name, the other can match, with no mapping table to drift. When a review later claimed a
 "word-search decks get emptied" hole, the shared-source argument was the two-line disproof.
+
+## A new fetch on an anonymous, un-earned route is a spend endpoint before it is a feature
+
+#246 made question 1 buy a real provider search so its promise could state a true count — correct,
+and the owner's own decision. What nobody wrote down is that `/onboarding/discovery/start` is
+anonymous, requires nothing earned, and keys its query on a free-text job title, so **every distinct
+string a visitor types is a distinct paid call**. QA measured four searches from one session just by
+retyping. Against a hard 1000-calls-a-month supplier cap that is one IP draining the month for
+everyone in ~40 minutes. Both code-review axes read the same diff and neither saw it: the diff shows
+a fetch being *added*, never the fact that the route in front of it has no gate. **When a ticket
+moves a paid call to an earlier, cheaper-to-reach route, the question is not "is the call correct?"
+but "how many times per session, per IP, per free-text variant can a stranger make it?"** — and the
+answer belongs in a test with a counting seam, not in a comment.
+
+## A test that asserts "nothing has happened yet" rots the moment something legitimately does
+
+Two assertions in `snapshot-is-not-permission-journey.mjs` have now had to be corrected for the same
+reason — `retrievalGeneration === 0`, then `retrievalCoordinationFingerprint === null`. Both read a
+coordination value that had *already moved* on the visitor's way to the screen under test, and both
+were written as absolute state ("no work was ever done") when what they meant was differential ("this
+read did no work"). The fix each time is the same shape: **capture the value before the action and
+assert it does not MOVE**, which survives any legitimate earlier writer. The tell that you are about
+to write one of these is an assertion comparing persisted state to its zero value rather than to a
+snapshot you took yourself.

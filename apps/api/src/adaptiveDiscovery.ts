@@ -1,6 +1,10 @@
 import type { FamilyFloorV1, FamilyPlacement, JobBlockView } from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
-import { eligiblePublication, type ProductionFamilyFloorStore } from "./familyFloors.js";
+import {
+  eligiblePublication,
+  type ProductionFamilyFloorStore,
+  type TestFixtureFamilyFloorStore,
+} from "./familyFloors.js";
 import type { DiscoveryPlan, FamilyReference } from "./sessions.js";
 import { computeFamilyRecency, computeFamilyYears } from "./yearsWorked.js";
 
@@ -166,6 +170,55 @@ export function soleConfirmedFamily(
   return placement.outcome === "confirmed" && placement.families.length === 1
     ? placement.families[0]!
     : null;
+}
+
+/** The refusal half of `fixtureDiscoveryState` — the route sends it, this module decides it (the
+ *  same shape familyLabeler.ts's `placementRejection` established: a body and a status, never a
+ *  reply object reaching down here). */
+export interface FixtureDiscoveryRefusal {
+  status: 404 | 409;
+  body: { error: { code: string; message: string }; rewardEligible: false };
+}
+
+/** #59's fixture seam — NOT a visitor surface and never a second discovery engine: it answers only
+ *  for a placement handed to it in the request body, reads the isolated fixture catalog (empty in
+ *  production — main.ts never populates it), and can never authorize a reward. The visitor's own
+ *  interview is /onboarding/discovery, and only that.
+ *
+ *  #246 moved this out of routes/onboarding.ts: it is a whole evaluate-and-refuse policy, it lives
+ *  next to the `adaptiveDiscoveryState` / `soleConfirmedFamily` / `fixtureDiscoveryClaimId` trio it
+ *  is built from, and the spine paid for #246's own line with it. */
+export async function fixtureDiscoveryState(
+  sessionId: string,
+  placement: FamilyPlacement,
+  floors: Pick<TestFixtureFamilyFloorStore, "get">,
+  claims: {
+    list(sessionId: string): Promise<ClaimRecord[]>;
+    negatives(sessionId: string): Promise<ClaimRecord[]>;
+  },
+): Promise<AdaptiveDiscoveryState | FixtureDiscoveryRefusal> {
+  const reference = soleConfirmedFamily(placement);
+  if (!reference) {
+    return {
+      status: 409,
+      body: {
+        error: { code: "placement_not_confirmed", message: "confirmed family placement required" },
+        rewardEligible: false,
+      },
+    };
+  }
+  const floor = floors.get(reference.familyId, reference.version);
+  if (!floor) {
+    return {
+      status: 404,
+      body: {
+        error: { code: "fixture_floor_not_found", message: "selected fixture floor not found" },
+        rewardEligible: false,
+      },
+    };
+  }
+  const [claimRecords, negatives] = await Promise.all([claims.list(sessionId), claims.negatives(sessionId)]);
+  return adaptiveDiscoveryState(floor, claimRecords, negatives);
 }
 
 /** #230 decision 2 / spec #233 decision 3: at most two floors. A third buys little evidence and

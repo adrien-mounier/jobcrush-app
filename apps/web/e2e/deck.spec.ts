@@ -158,7 +158,7 @@ async function stubLoopbackDiscovery(page: Page, overrides: Partial<DiscoverySta
     role: "IT Project Manager",
     family: "project manager",
     city: "Paris",
-    promise: { family: "project manager", city: "Paris", count: 142 },
+    promise: { count: 142 },
     questions: [
       {
         itemId: "budget",

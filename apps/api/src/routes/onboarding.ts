@@ -15,6 +15,7 @@ import type { CandidateClaim, MinedRole, AdRequirementsV1 } from "@jobcrush/cont
 import { requireUser, requireSession } from "../server.js";
 import type { ClaimStore } from "../claims.js";
 import { minedRoles, type JobStore } from "../jobs.js";
+import { withFactFloor } from "../sessions.js";
 import type { SessionStore, SessionRecord } from "../sessions.js";
 import { buildClaimGraph } from "../graph.js";
 import { renderRootCv } from "../rootcv.js";
@@ -35,6 +36,7 @@ import {
   prependReaderQuestionFromJob,
   productionDiscoveryFamilyLookup,
   reconcileSessionDiscovery,
+  searchAtQuestionOne,
 } from "../discoveryEngine.js";
 import { answerJobDateHole, isJobDateItemId } from "../yearsWorked.js";
 import { readingLanguages, languageEligible } from "../language.js";
@@ -71,9 +73,9 @@ import {
 import { composeTailorLine, tailorClaimId } from "../tailor.js";
 import { FamilyPlacement } from "@jobcrush/contracts";
 import {
-  adaptiveDiscoveryState,
-  soleConfirmedFamily,
   fixtureDiscoveryClaimId,
+  fixtureDiscoveryState,
+  soleConfirmedFamily,
 } from "../adaptiveDiscovery.js";
 import type { ProductionFamilyFloorStore, TestFixtureFamilyFloorStore } from "../familyFloors.js";
 import {
@@ -134,18 +136,6 @@ export interface OnboardingDeps {
   judgeMaxCards?: number;
 }
 
-// #33: the profile badge's factCount is a session-wide monotonic floor, same pattern as #23's tailor
-// match floor — raise then clamp at every emission point, so a claim rejected in the S2 deck (which
-// really does lower confirmed+negatives) can never make a fresh read (discovery OR tailor) show a
-// drop. `session.factFloor` is a snapshot taken before the raise — on Pg that's pre-raise, on the
-// in-memory store `raiseFactFloor` mutates the same object so it's already post-raise by the time we
-// read it — but Math.max(computed, session.factFloor) gives the identical, correct result either way,
-// so no re-fetch is needed on either driver.
-async function withFactFloor(sessions: SessionStore, session: SessionRecord, computed: number): Promise<number> {
-  await sessions.raiseFactFloor(session.id, computed);
-  return Math.max(computed, session.factFloor);
-}
-
 // #103 (E5 slice 2): the pool-application half of the gate (eligiblePostings) lives beside
 // loadPostings in preview.ts, not here — #103 code review finding 6, so slice 3's reader can reuse
 // it without importing a routes module. Every route below composes readingLanguages(session) with
@@ -173,36 +163,13 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     const currentFamily = (session: SessionRecord) => currentDiscoveryFamily(session, deps);
     const reconciledFamily = (session: SessionRecord) => reconcileSessionDiscovery(session, deps);
 
-    const fixtureState = async (
-      sessionId: string,
-      placement: FamilyPlacement,
-      reply: FastifyReply,
-    ) => {
-      const reference = soleConfirmedFamily(placement);
-      if (!reference) {
-        return reply.status(409).send({
-          error: { code: "placement_not_confirmed", message: "confirmed family placement required" },
-          rewardEligible: false,
-        });
-      }
-      const floor = deps.familyFloors.get(reference.familyId, reference.version);
-      if (!floor) {
-        return reply.status(404).send({
-          error: { code: "fixture_floor_not_found", message: "selected fixture floor not found" },
-          rewardEligible: false,
-        });
-      }
-      const [claims, negatives] = await Promise.all([
-        deps.claims.list(sessionId),
-        deps.claims.negatives(sessionId),
-      ]);
-      return adaptiveDiscoveryState(floor, claims, negatives);
+    // #59's fixture seam — the policy lives in adaptiveDiscovery.ts (fixtureDiscoveryState); this
+    // only turns its refusal into a reply.
+    const fixtureState = async (sessionId: string, placement: FamilyPlacement, reply: FastifyReply) => {
+      const state = await fixtureDiscoveryState(sessionId, placement, deps.familyFloors, deps.claims);
+      return "status" in state ? reply.status(state.status).send(state.body) : state;
     };
 
-    // #59's fixture seam — NOT a visitor surface and never a second discovery engine: it answers
-    // only for a placement handed to it in the request body, reads the isolated fixture catalog
-    // (empty in production — main.ts never populates it), and can never authorize a reward. The
-    // visitor's own interview is the /onboarding/discovery routes below, and only those.
     app.post(
       "/onboarding/discovery/fixture/evaluate",
       { schema: { body: z.object({ placement: FamilyPlacement }) } },
@@ -498,13 +465,16 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       { schema: { body: z.object({ role: z.string().trim().min(1) }) } },
       async (req) => {
         const session = requireSession(req);
+        // #246 QA finding 2: read BEFORE the write below — this is the only thing that tells a
+        // genuine first question 1 from a re-submit, and only the first one may buy a search.
+        const firstAsk = session.targetTitles.length === 0;
         await deps.sessions.setTargetTitles(session.id, [req.body.role]);
         const intent = await deps.sessions.setIntent(session.id, { targetRole: req.body.role });
         await deps.sessions.setStage(session.id, "discovery");
         const sessionWithRole = { ...session, intent, targetTitles: [req.body.role] };
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const family = await reconciledFamily(sessionWithRole);
-        const state = buildDiscoveryRouteState(req.body.role, confirmed, negatives, rejected, facts, session, family, blocks);
+        const searched = await searchAtQuestionOne(sessionWithRole, confirmed, negatives, deps, retrievalCoordinator, firstAsk);
+        const state = buildDiscoveryRouteState(req.body.role, confirmed, negatives, rejected, facts, searched.session, searched.family, blocks);
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },

@@ -238,10 +238,11 @@ export interface DiscoveryCvLine {
   text: string;
 }
 
+// #246: a number and nothing else — how many adverts HER OWN search returned. The sentence around
+// it names no job family and no place, so neither is sent; `promise: null` is the server saying it
+// could not count, and the line is dropped rather than shown without one.
 export interface DiscoveryPromise {
-  family: string;
-  city: string | null;
-  count: number | null; // null = count failed but the family placed (C11 fallback)
+  count: number;
 }
 
 export interface DiscoveryState {

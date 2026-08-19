@@ -16,7 +16,12 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { SLUG, type AdRequirementsV1, type CandidateClaims } from "@jobcrush/contracts";
+import {
+  SLUG,
+  type AdRequirementsV1,
+  type CandidateClaims,
+  type PostingRetrievalResultV1,
+} from "@jobcrush/contracts";
 import type { JobBlockView } from "./jobBlockStore.js";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
@@ -114,13 +119,18 @@ export function sessionPostings(
 ): Posting[] {
   if (
     !sessionDeckIsAuthorized(session) ||
-    !isReusableRetrievalSnapshot(session.retrieval, requestFingerprint) ||
-    session.retrieval?.result.outcome !== "relevant_postings"
+    !isReusableRetrievalSnapshot(session.retrieval, requestFingerprint)
   ) return [];
-  // Keyed by canonical identity so two providers describing the same advert cannot both become a
-  // card; the later row wins, matching the authority order retrieval already sorted them into.
+  return retrievedPostings(session.retrieval?.result ?? null);
+}
+
+/** The adverts one retrieval result actually delivered. Keyed by canonical identity so two providers
+ *  describing the same advert cannot both become a card; the later row wins, matching the authority
+ *  order retrieval already sorted them into. Any other outcome is an empty pool. */
+export function retrievedPostings(result: PostingRetrievalResultV1 | null): Posting[] {
+  if (result?.outcome !== "relevant_postings") return [];
   const byCanonicalKey = new Map<string, Posting>();
-  for (const posting of session.retrieval.result.postings) {
+  for (const posting of result.postings) {
     byCanonicalKey.set(posting.canonicalKey, {
       id: posting.id,
       title: posting.title,
@@ -132,6 +142,32 @@ export function sessionPostings(
     });
   }
   return [...byCanonicalKey.values()];
+}
+
+/** #246 — the number the discovery promise states: how many adverts THIS visitor's own search
+ *  returned, counted through the same language gate her deck applies.
+ *
+ *  Takes a RESULT, not a session, and that is the safety property: there is no reveal check here
+ *  (#248 — fetching postings and being allowed to SEE them are different decisions, and the promise
+ *  is stated at question 1 before she has earned anything), so this must never be reachable from a
+ *  stored snapshot the way `sessionPostings` is. Counting is not showing; it returns a number, never
+ *  a card, and it can only count a result its caller already holds.
+ *
+ *  `null` for anything that is not a completed search, kept distinct from 0. Null means "we could
+ *  not look" and the screen says nothing rather than a number it cannot stand behind.
+ *
+ *  What this number is, precisely, so the promise is not read as more than it says: the CATCH — the
+ *  adverts her query returned, deduplicated and language-filtered. The deck applies more after this
+ *  (withdrawal of expired adverts, and for a visitor with a search family, deletion of adverts that
+ *  are not in it), so a mapped visitor's deck can be smaller than her promise. Her own search is
+ *  what the owner chose to count (option 3, 2026-08-19); counting the post-filter deck instead would
+ *  mean reading every advert with the model before she has answered anything. */
+export function retrievedPostingCount(
+  result: PostingRetrievalResultV1 | null,
+  languages: string[],
+): number | null {
+  if (result?.outcome !== "relevant_postings") return null;
+  return eligiblePostings(languages, retrievedPostings(result)).length;
 }
 
 /** Title-keyword match: most overlapping keywords wins; ties go to the earlier posting. Defaults to

@@ -21,6 +21,8 @@ import {
   type DiscoveryFamily,
   type DiscoveryState,
 } from "./discovery.js";
+import { withReadTimeout } from "./deck.js";
+import type { makeRetrievalCoordinator } from "./deckRetrieval.js";
 import { applyEligibilityQuestions, excludingEligibility } from "./eligibilityDiscovery.js";
 import type { EligibilityFact } from "./eligibility.js";
 import {
@@ -30,7 +32,9 @@ import {
 } from "./familyFloors.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 import { minedRoles, type JobStore } from "./jobs.js";
-import { resolvedMarketsFor } from "./postingRetrieval.js";
+import { readingLanguages } from "./language.js";
+import { retrievalFingerprint, retrievalRequestForSession, resolvedMarketsFor } from "./postingRetrieval.js";
+import { retrievedPostingCount } from "./preview.js";
 import { pinnedOrDerived, planPinned, planUpgradable, samePlan } from "./sessions.js";
 import type { DiscoveryPlan, SessionRecord, SessionStore } from "./sessions.js";
 
@@ -51,7 +55,9 @@ export function productionDiscoveryFamilyLookup(
 }
 
 export interface DiscoveryPlanDeps {
-  sessions: Pick<SessionStore, "reconcileDiscoveryState">;
+  // #246 widened this from "reconcileDiscoveryState" alone: question 1's search re-reads the session
+  // it has just pinned, and records the number it found (searchAtQuestionOne).
+  sessions: Pick<SessionStore, "reconcileDiscoveryState" | "getById" | "setPromiseOpenJobs">;
   claims: Pick<ClaimStore, "list" | "negatives">;
   jobBlocks: Pick<JobBlockStore, "list">;
   placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>;
@@ -144,17 +150,77 @@ export async function reconcileSessionDiscovery(
   return productionDiscoveryFamily(deps.productionFamilyFloors, plan.questionFloors);
 }
 
+/** #246 — how long question 1 may hold the screen waiting for its search. Deliberately far below
+ *  the provider's own ceiling: the number is worth a short wait and nothing more. */
+const PROMISE_SEARCH_TIMEOUT_MS = 4_000;
+
+/** #246 — question 1, and only question 1, pays for a real search, and waits for it — and only the
+ *  FIRST question 1 of a session does (`firstAsk`; see the quota note inside).
+ *
+ *  Order matters and is the whole bug this closes. `reconcileSessionDiscovery` PINS the plan first,
+ *  and only then is the session re-read and searched: search before the pin and a visitor whose CV
+ *  proves a family would be searched as if she had none, which is the mismatched-promise defect
+ *  wearing different clothes. What comes back is the session carrying the snapshot her own search
+ *  just produced, so the promise on this response counts the deck she will actually be served.
+ *
+ *  She has earned nothing at question 1 and cannot be shown any of it — #248's split is what makes
+ *  fetching legal here, and preview.ts's sessionPostings is what still refuses her the cards. */
+export async function searchAtQuestionOne(
+  session: SessionRecord,
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+  deps: DiscoveryPlanDeps,
+  coordinator: Pick<ReturnType<typeof makeRetrievalCoordinator>, "awaitRetrievalWithoutReveal">,
+  firstAsk: boolean,
+): Promise<{ session: SessionRecord; family: DiscoveryFamily | null }> {
+  const family = await reconcileSessionDiscovery(session, deps);
+  const pinned = (await deps.sessions.getById(session.id)) ?? session;
+  // #246 QA finding 2 — ONE search per session, ever. This endpoint is anonymous, needs nothing
+  // earned, and every distinct role string is a distinct query: left ungated, one visitor retyping
+  // her job title is an open tap into the provider's monthly call quota, and a single IP could drain
+  // the month in under an hour. The owner bought one search per genuine visitor, and that is exactly
+  // what this spends.
+  //
+  // A re-submitted question 1 CLEARS the number rather than keeping it. Her previous number counted
+  // a search for the job she just stopped asking for, and showing it against her new words would be
+  // this very ticket's defect with the families swapped. Silence is the honest answer; her deck
+  // still searches her new words when she gets there.
+  if (!firstAsk) {
+    await deps.sessions.setPromiseOpenJobs(pinned.id, null);
+    return { session: { ...pinned, promiseOpenJobs: null }, family };
+  }
+  const request = retrievalRequestForSession(pinned, confirmed, negatives);
+  // Bounded, because this one is on the visitor's critical path: she has just submitted question 1
+  // and is watching "Finding jobs like yours…". The provider's own worst case is two 10s attempts
+  // plus a retry, and making her hold the screen for that is a worse screen than one with no number
+  // on it. On the deadline the search carries on in the background and still feeds her deck — all
+  // that is lost is the count, which falls to null and prints nothing.
+  const result = await withReadTimeout(
+    coordinator.awaitRetrievalWithoutReveal(pinned, request, retrievalFingerprint(request)),
+    PROMISE_SEARCH_TIMEOUT_MS,
+  ).catch(() => null);
+  // Counted here and stored, not left on the retrieval snapshot: reconcileDiscoveryState drops that
+  // snapshot on every answer she gives, and a promise that vanishes on the first tap is worse than
+  // the wrong number this ticket came to fix.
+  const promiseOpenJobs = retrievedPostingCount(result, readingLanguages(pinned));
+  await deps.sessions.setPromiseOpenJobs(pinned.id, promiseOpenJobs);
+  return { session: { ...pinned, promiseOpenJobs }, family };
+}
+
+/** #246 — the promise's number is read off the session, where question 1's search recorded it
+ *  (`searchAtQuestionOne` above). Every later discovery response — an answer, a resume — restates
+ *  the same number for free; only question 1 ever pays a provider to find it. */
 export function buildDiscoveryRouteState(
   role: string | null,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
   rejected: ClaimRecord[],
   facts: readonly EligibilityFact[],
-  session: Pick<SessionRecord, "intent">,
+  session: Pick<SessionRecord, "intent" | "promiseOpenJobs">,
   family: DiscoveryFamily | null,
   blocks: readonly JobBlockView[],
 ): DiscoveryState {
-  const state = discoveryState(role, confirmed, negatives, rejected, null, family);
+  const state = discoveryState(role, confirmed, negatives, rejected, null, family, session.promiseOpenJobs);
   if (role) applyDiscoveryEligibility(state, session, confirmed, negatives, rejected, facts, family, blocks);
   state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
   return state;

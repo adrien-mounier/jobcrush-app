@@ -75,19 +75,19 @@ const C23 = "Locked in — I'll use that on every job, so I won't ask again.";
 const C24 = "No problem — I'll ask again when a job needs it.";
 const C26 = "Answer it now";
 
-// The promise's number renders in its own emphasized `.n` slot (matching
-// first-question.prototype.html, which the design spec builds against); this returns the rest of
-// C8/C9 so the two pieces read as one sentence in DOM order (and to a screen reader).
-function promiseTail(p: DiscoveryPromise): string {
-  return p.city ? `${p.family} jobs are open in ${p.city} right now.` : `${p.family} jobs are open right now.`;
-}
-// C11's fallback (count failed, family known). The spec's copy row only spells out the with-city
-// phrasing; mirroring C8/C9's own city-conditional split here so a visitor with no city never
-// sees a broken "jobs open in  right now." — never showing broken text is the more binding rule
-// (spec: "never fake" a count).
-function promiseFamilyOnly(p: DiscoveryPromise): string {
-  return p.city ? `There are ${p.family} jobs open in ${p.city} right now.` : `There are ${p.family} jobs open right now.`;
-}
+// C8/C9's tail — the count renders beside it in its own emphasized `.n` slot (matching
+// first-question.prototype.html, which the design spec builds against), so the two pieces read as
+// one sentence in DOM order and to a screen reader.
+//
+// #246: the sentence names NO job family. It used to say "10 IT project delivery jobs are open right
+// now", which was our internal label rather than her word (#228 decision 7), and for a visitor the
+// product cannot name yet it was worse than a leak: the count came from the family her CV proves
+// while her deck searches the words she typed, so the deck could not keep the promise. Owner
+// decision 2026-08-19, the same rule #214 applied to the PLACE — if the promise cannot say it
+// honestly to everyone, it does not say it. What is left is a number and a plain claim about it.
+// C11's old count-failed fallback went with it: the server now sends no promise at all when it
+// could not count, and design §4c already says to drop the line silently rather than print one.
+const C8 = "jobs are open right now.";
 // #106: the countdown must read as one continuous meter across the floor questions and the
 // eligibility block that follows (design spec §6). The server includes eligibility questions in
 // `questions` from the start, ordered last (the ask dock only ever renders `questions[0]`, so they
@@ -807,19 +807,14 @@ function DiscoveryScreen() {
       );
     }
     const p = d.promise;
-    if (!p) return null; // family failed too — drop it silently (design §4c)
-    if (p.count === null) {
-      return (
-        <div className="promise" role="status">
-          <p>{promiseFamilyOnly(p)}</p>
-        </div>
-      );
-    }
+    // #246: no promise means her search found nothing to count, or could not run — drop the line
+    // silently (design §4c) rather than make a claim with no number behind it.
+    if (!p) return null;
     return (
       <div className="promise" role="status">
         <span className="n">{p.count}</span>
         <p>
-          {promiseTail(p)}
+          {C8}
           <br />
           <span>{C10}</span>
         </p>

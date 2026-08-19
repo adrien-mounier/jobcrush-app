@@ -457,7 +457,16 @@ describe("#61/#216 discovery over the published family floors", () => {
     });
     expect(deck.statusCode).toBe(200);
     await vi.waitFor(() => expect(requests.length).toBeGreaterThan(0));
+    // #246: question 1 now searches too, so the deck's request is the LAST one, not the only one.
+    // Its first search already carries the family she was placed into — that is the whole point of
+    // pinning the plan before searching — and carries an UNCOVERED checkpoint, because at question
+    // 1 she has answered nothing. The deck's own request is the one that must be covered.
     expect(requests[0]).toMatchObject({
+      family: placedFamily,
+      questionFloors: [placedFamily],
+      checkpoint: "family_confirmed",
+    });
+    expect(requests.at(-1)).toMatchObject({
       family: placedFamily,
       questionFloors: [placedFamily],
       checkpoint: "essential_floor_covered",

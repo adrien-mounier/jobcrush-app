@@ -2,6 +2,74 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-20 (session 146) `/implement 246` — the promise counts her own search (QA GO)
+
+Closes #246. Row 7a. Built on `main`, not the branch the ticket names — #63 (`89d60d7`) had already
+landed there, so that instruction was stale.
+
+**What she was told, and why it was a lie.** Question 1's screen said *"10 IT project delivery jobs
+are open right now."* The 10 came from `promiseCount()` counting rows in `sample-postings.json`
+stamped into the family her **interview** asks about. For a word-search visitor that is not the
+family her **deck** searches, so the sentence promised jobs the deck could never serve — and it
+leaked an internal label on top (spec #233 decision 8). #63 had turned it from a stale number into a
+contradiction the same visitor could see: promised 10, then *"We couldn't look for jobs just now."*
+
+**What she gets now.** Question 1 buys one real search, waits up to 4s for it, and states what it
+found: *"16 jobs are open right now."* No job family, no place, to anyone (owner decision 1) —
+`DiscoveryPromise` is `{ count }` and nothing else, so what the wire cannot carry a screen cannot
+render. Nothing to count → **no sentence at all**, never a zero and never a broken half-line.
+`promiseCount()` is deleted; its only live caller was this.
+
+**The number is pinned to the session (`promiseOpenJobs`), and that is not a workaround.**
+`reconcileDiscoveryState` drops the retrieval snapshot every time her discovery record moves — which
+is every answer — so a promise read off that snapshot blinks out on the first tap. A promise is also
+a thing the product *said*: it should not re-price itself between two questions. New nullable column,
+no backfill; null reads as "no number to show", which is right for every pre-#246 session.
+
+**Two defects QA caught that the diff reviewers could not.**
+1. `snapshot-is-not-permission-journey.mjs` (deploy-gating) went red: it asserted a question-1
+   session had claimed no retrieval. True until this ticket, false by design after it. Now captures
+   fingerprint **and** generation before the refused reads and asserts neither *moves* — same
+   protection, no false premise. Second stale premise corrected in that same block; the first was
+   `retrievalGeneration === 0`.
+2. **`/onboarding/discovery/start` was an unmetered spend endpoint.** Anonymous, nothing earned, and
+   every distinct role string is a distinct query — QA measured 4 provider searches from one session
+   by retyping the job title. Against techmap's hard **1000 calls/month** that is ~40 minutes for one
+   IP to drain the month for everyone. Now **one search per session, ever** (`firstAsk`, read before
+   the target-title write — the in-memory store mutates the same object, so read order is load-
+   bearing). A re-asked question 1 **clears** the number rather than showing the abandoned job's
+   count, which would have been this ticket's own defect re-dressed.
+
+**Cost, measured not estimated:** 2 provider retrievals per visitor (question 1 + the deck) instead
+of 1 — the checkpoint differs between them, so one snapshot can never serve both. ~USD 0.02/visitor,
+but **calls are the binding cap, not dollars**: monthly capacity roughly halves, ~1000 → ~500
+visitors on a single-region target (×3 for a three-city target). Direct consequence of option 3.
+
+**Ratchet paid twice, 900 → 870.** The spine had zero headroom. `fixtureDiscoveryState` (#59's
+fixture seam) → `adaptiveDiscovery.ts`; `withFactFloor` → `sessions.ts`, beside the `raiseFactFloor`
+it wraps. Question 1's search itself went to `discoveryEngine.ts` (`searchAtQuestionOne`).
+
+**QA GO** after one NO-GO: api 1528 / contracts 47 / Tier 1 143 / **Tier 2 all 19**. New journey
+`promise-counts-her-own-search-journey.mjs` added to `run-tier2.mjs` — the only test anywhere that
+reads that sentence off a rendered screen, and `discovery.spec.ts` (the only other one) is
+`test.skip`, so the copy rule would otherwise have shipped guarded by nothing.
+
+**Open, for the owner — not blockers:**
+- **The 4s bound will often be missed under load.** techmap is paced at 0.4 calls/sec process-wide,
+  so pacer + latency will routinely exceed it and many visitors will simply see no number. Fails
+  silent, never wrong. Needs a live measurement before deciding whether 4s is the right trade.
+- **The promise is a ceiling, not a match.** She can be promised 16 and served 8: the count is the
+  catch, and the deck then withdraws expired adverts and (for a visitor *with* a search family)
+  deletes wrong-family ones. The word-search visitor this ticket is about is unaffected —
+  `advertFamilyIdFor` reads `searchFamily`, null for her, so nothing is deleted. Measuring the true
+  production gap needs a paid provider run.
+- **`DiscoveryState.family` still carries the label on the wire.** Nothing renders it (QA checked).
+  Deleting it drags `resolvedCity`/`DiscoveryState.city` and unrelated tests along — a tidy-up of its
+  own. The comment in `discovery.ts` no longer claims otherwise.
+- **Copy:** shipped as *"16 jobs are open right now."* The owner's illustration said *"16 **new**
+  jobs…"*; these are live adverts verified fresh, not necessarily newly posted, so "new" was dropped
+  as a claim we cannot stand behind. One word, trivially reversible.
+
 ## 2026-08-19 (session 145) `/implement 63` — the deck stops being fixtures (QA GO)
 
 Closes #63. The head of the #54 chain; #64–#69 sit behind it.

@@ -14,8 +14,6 @@
 //     question), so GET /discovery resumes with no client state.
 import type { FloorItem, CvSection, MinedRole, EligibilityDimension } from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
-import { lookupAdRequirements } from "./e5stub.js";
-import { loadPostings } from "./preview.js";
 
 export const CV_SECTIONS = ["summary", "experience", "skills", "education"] as const;
 
@@ -68,23 +66,6 @@ export function slug(label: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-}
-
-/** #179: the open-jobs count per family — ONE producer for the onboarding promise and the profile
- *  rail's Job family section, replacing the hand STUB_COUNT (142). Counts postings in the live pool
- *  (preview.ts's loadPostings — the ingest point) whose read-stamped family fit names this family —
- *  a PUBLISHED familyId since #243, the reader's closed vocabulary;
- *  the stamp is #104's ad-reader output, hand fixtures today (e5stub). A posting never read, or read
- *  into another family, does not count. Confidence is deliberately not thresholded: deciding what a
- *  weak family-fit verdict means for the feed is a separate decision that does not belong here
- *  (CONTEXT.md, posting family fit). 0 is a real answer — a family with nothing stamped for it. */
-export function promiseCount(family: string): number {
-  let count = 0;
-  for (const posting of loadPostings()) {
-    const lookup = lookupAdRequirements(posting.id);
-    if (lookup.status === "found" && lookup.requirements.familyFit.family === family) count += 1;
-  }
-  return count;
 }
 
 /** The CV's lead line — the role the visitor typed is the first line on the page (spec story #18: never
@@ -170,10 +151,20 @@ export interface DiscoveryCvLine {
   section: CvSection;
   text: string;
 }
+/** #246 — a number and nothing else. The sentence around it names no job family, no place and no
+ *  vocabulary, so the promise carries neither for a client to render. `family` went because "IT
+ *  project delivery" is our internal label, not her word (spec #233 decision 8 / #228 decision 7),
+ *  AND because for a word-search visitor it named the family she is INTERVIEWED on while her deck
+ *  searched the words she typed — a count drawn from a different search than the deck that has to
+ *  keep it. `city` went with #214's own decision that the promise names no place; it had been null
+ *  on every code path since.
+ *
+ *  Not a claim that the label is off the wire entirely: `DiscoveryState.family` below still carries
+ *  it on the same payload. No client reads it (#246 QA checked), so nothing leaks today, but it is
+ *  a latent one — deleting it drags `resolvedCity`/`DiscoveryState.city` and their tests with it,
+ *  which is a tidy-up of its own rather than this ticket's. */
 export interface DiscoveryPromise {
-  family: string;
-  city: string | null;
-  count: number | null;
+  count: number;
 }
 export interface DiscoveryState {
   stage: "discovery" | "deck"; // #18 AC1: the essential band fully asked (yes or no) opens the deck
@@ -267,7 +258,13 @@ export function discoveryCvLines(
  *  display name (postingRetrieval.ts's resolveSearchArea; `null` when unset or uncovered) — replaces
  *  the old internal parseCity(role) guess. The caller (routes/onboarding.ts) resolves it once from
  *  session.intent.searchArea and passes it in; this function does no resolving of its own, same as it
- *  never did any of its own IO. Pure + deterministic → GET resumes. */
+ *  never did any of its own IO. Pure + deterministic → GET resumes.
+ *
+ *  #246: `openJobs` — how many adverts HER OWN search returned (preview.ts's
+ *  retrievedPostingCount), passed in for the same reason `resolvedCity` is. It used to be counted
+ *  here, off the fixture pool, for the family the INTERVIEW asks about; for a word-search visitor
+ *  that is not the family her deck searches, so the promise stated a count the deck could never
+ *  keep. `null` means we could not look — the promise falls silent rather than guessing. */
 export function discoveryState(
   role: string | null,
   confirmed: ClaimRecord[],
@@ -275,6 +272,7 @@ export function discoveryState(
   rejected: ClaimRecord[] = [],
   resolvedCity: string | null = null,
   family: DiscoveryFamily | null = null,
+  openJobs: number | null = null,
 ): DiscoveryState {
   if (!role) {
     return {
@@ -340,7 +338,11 @@ export function discoveryState(
     role,
     family: family?.label ?? null,
     city,
-    promise: family ? { family: family.label, city, count: promiseCount(family.familyId) } : null,
+    // #246: no longer gated on a family — a visitor the product cannot name yet has a real search
+    // and a real count, and gets the same sentence as everyone. A zero is not shown: silence is
+    // honest, "0 jobs are open right now" on question 1 is a verdict on a search she has not
+    // finished describing (design §4c already drops the line rather than print a broken one).
+    promise: openJobs !== null && openJobs > 0 ? { count: openJobs } : null,
     questions,
     railFill,
     essentialRemaining,

@@ -113,6 +113,16 @@ const JOURNEYS = [
   // server-side assertion still (correctly) sees a 404. ~2 min against the fake-model API; one
   // magic-link sign-in.
   "stale-search-tailor-return-journey.mjs",
+  // #246: the only test anywhere that reads the discovery promise off a RENDERED screen. Everything
+  // else that touches that sentence is server-side, and the one Tier 1 spec that asserted it
+  // (discovery.spec.ts) is `test.skip` — so without this entry the copy rule the ticket exists to
+  // enforce would ship guarded by nothing, which is the exact rot this file's header describes. It
+  // proves the sentence names no job family, vocabulary, research or place, for a MAPPED visitor and
+  // for a word-search visitor alike; that the number she is promised is the one her own search
+  // returned and holds across four answers and a reload; and that an empty search and a provider
+  // outage each leave no promise line at all rather than a broken one or a zero. ~2 min against the
+  // fake-model API; no sign-in, so it spends none of auth's 5-per-15-min limiter budget.
+  "promise-counts-her-own-search-journey.mjs",
 ];
 
 let failed = 0;

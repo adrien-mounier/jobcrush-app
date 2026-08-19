@@ -340,6 +340,15 @@ export interface SessionRecord {
    *  without the badge ever visibly shrinking. Session-wide (unlike tailorFloorPct) — there's no
    *  ad to key it to, so raiseFactFloor is unconditional, unlike setTailorTarget's reset. */
   factFloor: number;
+  /** #246 the promise's number: how many adverts her own search returned, counted once at question
+   *  1 and then KEPT. Stored rather than recomputed per response for two reasons, one practical and
+   *  one about what a promise is. Practical: `reconcileDiscoveryState` discards the retrieval
+   *  snapshot every time her discovery record moves — which is every answer — so a promise read off
+   *  that snapshot would blink out on the first tap. And a promise is a thing the product SAID: it
+   *  should not quietly re-price itself between two questions, and re-searching to keep it current
+   *  would spend a provider call per answered question. Null until question 1, and again whenever a
+   *  search came back with nothing countable — the screen says nothing rather than guess. */
+  promiseOpenJobs: number | null;
   sourceEntry: SourceEntry;
   importProof: ImportProof | null;
   importResolutions: Record<string, string>;
@@ -401,8 +410,32 @@ export interface SessionStore {
   raiseTailorFloor(id: string, pct: number): Promise<void>;
   /** #33: raises the factCount floor only — Math.max/GREATEST — so a deck reject can't lower it. */
   raiseFactFloor(id: string, n: number): Promise<void>;
+  /** #246: the number question 1's search found, written once by discoveryEngine.ts's
+   *  searchAtQuestionOne. A plain write, not a floor like the two above — re-answering question 1 is
+   *  a NEW search for a different job, and its answer replaces the old one however it compares. */
+  setPromiseOpenJobs(id: string, openJobs: number | null): Promise<void>;
   /** JC-19 merge: claim this anonymous session for a user (the whole merge is this one update). */
   setClaimedByUserId(id: string, userId: string): Promise<void>;
+}
+
+/** #33: the profile badge's factCount is a session-wide monotonic floor, same pattern as #23's tailor
+ *  match floor — raise then clamp at every emission point, so a claim rejected in the S2 deck (which
+ *  really does lower confirmed+negatives) can never make a fresh read (discovery OR tailor) show a
+ *  drop. `session.factFloor` is a snapshot taken before the raise — on Pg that's pre-raise, on the
+ *  in-memory store `raiseFactFloor` mutates the same object so it's already post-raise by the time we
+ *  read it — but Math.max(computed, session.factFloor) gives the identical, correct result either way,
+ *  so no re-fetch is needed on either driver.
+ *
+ *  #246 moved it out of routes/onboarding.ts, where it had been the last helper in the spine: it is
+ *  raiseFactFloor's clamp and knows nothing about routes, so it belongs beside the store method it
+ *  wraps. Six call sites, unchanged. */
+export async function withFactFloor(
+  sessions: Pick<SessionStore, "raiseFactFloor">,
+  session: Pick<SessionRecord, "id" | "factFloor">,
+  computed: number,
+): Promise<number> {
+  await sessions.raiseFactFloor(session.id, computed);
+  return Math.max(computed, session.factFloor);
 }
 
 function newSession(): SessionRecord {
@@ -419,6 +452,7 @@ function newSession(): SessionRecord {
     tailorFloorPct: 0,
     tailorFloorAdId: null,
     factFloor: 0,
+    promiseOpenJobs: null,
     sourceEntry: null,
     importProof: null,
     importResolutions: {},
@@ -640,6 +674,11 @@ export class InMemorySessionStore implements SessionStore {
     if (s) s.factFloor = Math.max(s.factFloor, n);
   }
 
+  async setPromiseOpenJobs(id: string, openJobs: number | null): Promise<void> {
+    const s = this.byId.get(id);
+    if (s) s.promiseOpenJobs = openJobs;
+  }
+
   async setClaimedByUserId(id: string, userId: string): Promise<void> {
     const s = this.byId.get(id);
     if (s) s.claimedByUserId = userId;
@@ -659,6 +698,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   tailor_floor_pct   integer NOT NULL DEFAULT 0,
   tailor_floor_ad_id text,
   fact_floor         integer NOT NULL DEFAULT 0,
+  promise_open_jobs  integer,
   source_entry       jsonb,
   target_role        text,
   search_area        text,
@@ -685,6 +725,10 @@ const SESSIONS_ALTERS = [
   // #33: no backfill needed, unlike #31 above — fact_floor defaults to 0 and only ever rises, so an
   // existing row just starts at 0 and gets raised back up to its true peak on the very first read.
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS fact_floor integer NOT NULL DEFAULT 0",
+  // #246: nullable with no default and no backfill — null is the honest state for every session
+  // that predates the promise search, and it reads as "no number to show", which is exactly right
+  // for a visitor who was never given one.
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS promise_open_jobs integer",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS source_entry jsonb",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS target_role text",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS search_area text",
@@ -721,6 +765,7 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     tailorFloorPct: (r.tailor_floor_pct as number) ?? 0,
     tailorFloorAdId: (r.tailor_floor_ad_id as string) ?? null,
     factFloor: (r.fact_floor as number) ?? 0,
+    promiseOpenJobs: (r.promise_open_jobs as number) ?? null,
     sourceEntry: (r.source_entry as SourceEntry) ?? null,
     importProof: (r.import_proof as ImportProof) ?? null,
     importResolutions: resolutionMap(r.import_resolutions),
@@ -1047,6 +1092,10 @@ export class PgSessionStore implements SessionStore {
 
   async raiseFactFloor(id: string, n: number): Promise<void> {
     await this.pool.query(`UPDATE sessions SET fact_floor = GREATEST(fact_floor, $2) WHERE id = $1`, [id, n]);
+  }
+
+  async setPromiseOpenJobs(id: string, openJobs: number | null): Promise<void> {
+    await this.pool.query(`UPDATE sessions SET promise_open_jobs = $2 WHERE id = $1`, [id, openJobs]);
   }
 
   async setClaimedByUserId(id: string, userId: string): Promise<void> {

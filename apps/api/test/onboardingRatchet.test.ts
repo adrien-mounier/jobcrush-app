@@ -48,7 +48,16 @@ import { fileURLToPath } from "node:url";
 // #229 lowered it from 910: the grill's answered-ids read moved to grill.ts (answeredGrillIds),
 // beside the gap detection it filters for — the career changer's newToFamily flag landed as one
 // deck.ts call and the spine still shrank.
-const MAX_LINES = 900;
+// #246 lowered it from 900 to 870, in two payments, because the spine had exactly zero headroom
+// when the ticket started — which is the ratchet working as intended: every line the ticket wanted
+// had to be bought with an extraction.
+//   - #59's fixture-seam evaluator (the placement→floor→state walk and its two refusals) moved to
+//     adaptiveDiscovery.ts (fixtureDiscoveryState), beside the adaptiveDiscoveryState /
+//     soleConfirmedFamily pair it is built from; the route kept a two-line reply adapter.
+//   - withFactFloor moved to sessions.ts, beside the raiseFactFloor it wraps — it was the last
+//     helper left in the spine and it never knew anything about routes. Six call sites unchanged.
+// Question 1's paid search itself went into discoveryEngine.ts (searchAtQuestionOne), never in here.
+const MAX_LINES = 870;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

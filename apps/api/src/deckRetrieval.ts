@@ -57,28 +57,29 @@ export function makeRetrievalCoordinator(deps: RetrievalCoordinatorDeps) {
     { fingerprint: string; startedAtMs: number; result: Promise<PostingRetrievalResultV1> }
   >();
 
-  function ensureRetrieval(
-    session: Pick<
-      SessionRecord,
-      "id" | "retrieval" | "retrievalGeneration" | "retrievalCoordinationFingerprint"
-    >,
+  type CoordinatedSession = Pick<
+    SessionRecord,
+    "id" | "retrieval" | "retrievalGeneration" | "retrievalCoordinationFingerprint"
+  >;
+
+  /** The fetch half, with no reveal check of its own — #248: fetching postings and being ALLOWED TO
+   *  SEE them are different decisions. Returns what this response may say right now, plus the work
+   *  in flight behind it (null when there is none) for a caller that can afford to wait — #246's
+   *  question-1 promise is the one that can. */
+  function beginRetrieval(
+    session: CoordinatedSession,
     retrievalRequest: RetrievalRequest,
     requestFingerprint: string,
-  ): PostingRetrievalResultV1 {
-    // #248: FIRST, before the snapshot is even looked at, so an early snapshot cannot report itself
-    // as a finished retrieval. This is only HALF the guard, and on its own it would be decoration:
-    // it decides the payload's `retrieval` field, never the cards. The cards are gated in
-    // preview.ts's sessionPostings, which every posting reader passes through.
-    if (!deckReadIsAuthorized(retrievalRequest)) return floorNotCoveredResult();
+  ): { now: PostingRetrievalResultV1; inFlight: Promise<PostingRetrievalResultV1> | null } {
     if (isReusableRetrievalSnapshot(session.retrieval, requestFingerprint)) {
-      return session.retrieval!.result;
+      return { now: session.retrieval!.result, inFlight: null };
     }
     const existing = retrievalsInFlight.get(session.id);
     if (
       existing?.fingerprint === requestFingerprint &&
       Date.now() - existing.startedAtMs < RETRIEVAL_CLAIM_LEASE_MS
     ) {
-      return retrievalInProgress();
+      return { now: retrievalInProgress(), inFlight: existing.result };
     }
     const generation = session.retrievalGeneration;
     const expectedSnapshotFingerprint = session.retrievalCoordinationFingerprint;
@@ -165,8 +166,50 @@ export function makeRetrievalCoordinator(deps: RetrievalCoordinatorDeps) {
         if (retrievalsInFlight.get(session.id)?.result === result) retrievalsInFlight.delete(session.id);
       },
     );
-    return retrievalInProgress();
+    return { now: retrievalInProgress(), inFlight: result };
   }
 
-  return { ensureRetrieval };
+  /** What THIS deck response may say about postings. */
+  function ensureRetrieval(
+    session: CoordinatedSession,
+    retrievalRequest: RetrievalRequest,
+    requestFingerprint: string,
+  ): PostingRetrievalResultV1 {
+    // #248: FIRST, before the snapshot is even looked at, so an early snapshot cannot report itself
+    // as a finished retrieval. This is only HALF the guard, and on its own it would be decoration:
+    // it decides the payload's `retrieval` field, never the cards. The cards are gated in
+    // preview.ts's sessionPostings, which every posting reader passes through.
+    if (!deckReadIsAuthorized(retrievalRequest)) return floorNotCoveredResult();
+    return beginRetrieval(session, retrievalRequest, requestFingerprint).now;
+  }
+
+  /** #246 — a fetch that WAITS, and that deliberately does NOT ask whether she may see the result.
+   *  The name says both halves because the two exports here have the same signature and only one of
+   *  them authorizes: read `ensureRetrieval` if you want a deck, this if you want a number.
+   *
+   *  The waiting is question 1's promise, whose whole job is to state a count on the screen it is
+   *  printed on — a number that arrives one question later is not the promise she was made — so this
+   *  pays the provider latency §2.6 forbids the cards route from paying. Its caller
+   *  (discoveryEngine.ts's searchAtQuestionOne) bounds that wait.
+   *
+   *  The missing reveal check is #248: she has answered nothing at question 1 and would fail
+   *  `deckReadIsAuthorized`, and #248 split fetching from being allowed to see precisely so that
+   *  fetching is legal here. What still refuses her the CARDS is preview.ts's sessionPostings, which
+   *  every posting reader passes through — never this. A failed background task degrades to whatever
+   *  the immediate answer was, so the promise goes quiet rather than wrong. */
+  async function awaitRetrievalWithoutReveal(
+    session: CoordinatedSession,
+    retrievalRequest: RetrievalRequest,
+    requestFingerprint: string,
+  ): Promise<PostingRetrievalResultV1> {
+    const { now, inFlight } = beginRetrieval(session, retrievalRequest, requestFingerprint);
+    if (!inFlight) return now;
+    try {
+      return await inFlight;
+    } catch {
+      return now;
+    }
+  }
+
+  return { ensureRetrieval, awaitRetrievalWithoutReveal };
 }

@@ -47,9 +47,13 @@ export interface ProfileDomain {
  *  typed + the "Not the job you meant?" door), never an internally assumed family. Discovery's
  *  production floor selection must not become displayed placement truth (#179 decision, 2026-08-09).
  *  When E5 lands, this is the seam that lights up: `family` from placement, `siblingTitles` from
- *  the family record (never containing `role` as typed), and `openJobs` from discovery.ts's
- *  promiseCount(family) — the same producer as the onboarding promise count, per #179's third
- *  falsifiable check. */
+ *  the family record (never containing `role` as typed), and `openJobs` from the same producer the
+ *  onboarding promise reads, per #179's third falsifiable check. #246 replaced that producer: it is
+ *  no longer a count of stored postings stamped into a family (discovery.ts's deleted
+ *  `promiseCount`) but a count of what the SESSION's own search returned — preview.ts's
+ *  `retrievedPostingCount`, pinned onto the session at question 1 as `promiseOpenJobs`. Whichever
+ *  number this rail eventually shows, read it from there; counting a family's stored rows is the
+ *  bug #246 closed, and re-deriving it here would reopen it on a second screen. */
 export interface ProfileSearch {
   role: string | null; // exactly as typed at Q1 (session.targetTitles[0]); null before Q1
   family: string | null;

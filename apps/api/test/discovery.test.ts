@@ -3,8 +3,15 @@
 // onboarding.test.ts (real requests over the spine) and preview.test.ts (pure helpers).
 import { describe, expect, it } from "vitest";
 import { newDb } from "pg-mem";
-import type { FloorItem } from "@jobcrush/contracts";
+import type { FloorItem, PostingRetrievalResultV1 } from "@jobcrush/contracts";
 import { buildItProjectDeliveryServer as buildServer, IT_PROJECT_DELIVERY_PLACEMENT } from "./placedServer.js";
+import { fixturePostingsV1, fixtureRetriever } from "./fixtureDeck.js";
+import {
+  eligiblePostings,
+  loadPostings,
+  retrievedPostingCount,
+  retrievedPostings,
+} from "../src/preview.js";
 import type { ClaimRecord } from "../src/claims.js";
 import {
   composeCvLine,
@@ -15,7 +22,6 @@ import {
   factCount,
   isNoAnswer,
   parseCity,
-  promiseCount,
   readerQuestion,
   slug,
   type DiscoveryState,
@@ -267,16 +273,29 @@ describe("#16 discovery routes", () => {
     expect(res.json()).toMatchObject({ stage: "discovery", role: null, questions: [], cvLines: [] });
   });
 
-  // #179: promiseCount is the ONE producer of the open-jobs number — the onboarding promise and
-  // the profile rail both read it. It counts pool postings whose read-stamped familyFit names the
-  // family; a family nothing is stamped for gets a real 0, never a hand number.
-  it("#179: promiseCount counts read-stamped pool postings per family, 0 for an unstamped family", () => {
-    // #243: the stamps speak the PUBLISHED vocabulary now — asking with the fixture floor name is
-    // an honest 0, and the published id is what discoveryState's promise asks with.
-    expect(promiseCount("it-project-delivery")).toBe(10); // see the /start test's join note
-    expect(promiseCount("IT Project Manager")).toBe(0);
-    expect(promiseCount("Business Analysis")).toBe(0);
-    expect(promiseCount("")).toBe(0);
+  // #246: the promise's number is what HER OWN search returned, read off the retrieval result and
+  // nothing else. #179's promiseCount — which counted rows in the fixture pool whose read-stamped
+  // familyFit named the family she is INTERVIEWED on — is gone: for a word-search visitor that is
+  // not the family her deck searches, so it stated a count the deck could never keep.
+  it("#246: the count is the retrieval's own pool, through the language gate", () => {
+    const langs = ["en"];
+    const postings = fixturePostingsV1(loadPostings());
+    const found: PostingRetrievalResultV1 = {
+      schemaVersion: "4",
+      outcome: "relevant_postings",
+      postings,
+      coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
+      retrievedAt: new Date().toISOString(),
+    };
+    // 16, not the 17 rows on disk: one advert is not in a language this reader can read, and the
+    // deck applies that same gate — a promise counting it would over-promise by exactly one card.
+    expect(retrievedPostingCount(found, langs)).toBe(16);
+    expect(eligiblePostings(langs, retrievedPostings(found))).toHaveLength(16);
+    // Every not-a-completed-search outcome is null — "we could not look", never a fabricated 0.
+    for (const outcome of ["empty_pool", "provider_unavailable", "stale_data", "invalid_request"] as const) {
+      expect(retrievedPostingCount({ ...found, outcome } as PostingRetrievalResultV1, langs)).toBeNull();
+    }
+    expect(retrievedPostingCount(null, langs)).toBeNull();
   });
 
   it("family lookup returns the active production family + market titles; an empty query is silent", async () => {
@@ -299,11 +318,12 @@ describe("#16 discovery routes", () => {
     // #214 owner decision (post-GO follow-up): with up to 3 selected places, the promise sentence
     // no longer names one of them — the display city is always null now.
     expect(s).toMatchObject({ role: ROLE, family: "IT project delivery", city: null });
-    // #179: the count is real now — the postings in the live pool (sample-postings.json) whose
-    // read-stamped familyFit (sample-ad-requirements.json, joined by adId) names this family.
-    // 10 of the 17 pool postings carry a stamp today for the published family. If this fails
-    // after a pool/fixture change, recount the join — never hand-tune the number back.
-    expect(s.promise).toMatchObject({ family: "IT project delivery", city: null, count: 10 });
+    // #246: question 1 pays for a real search and waits for it, so the number on the very first
+    // screen is the pool HER search returned — 16 of the harness's 17 adverts, the 17th being one
+    // she cannot read. It is deliberately NOT 10, the count of adverts stamped into the family she
+    // is interviewed on: that was the number the deck could not keep. The promise names nothing at
+    // all now — no family, no place — so a count is the whole of it.
+    expect(s.promise).toEqual({ count: 16 });
     expect(s.essentialRemaining).toBe(4); // 4 essential items in the production floor
     expect(s.questions.map((q) => q.itemId)).toEqual([
       END_TO_END,
@@ -318,6 +338,108 @@ describe("#16 discovery routes", () => {
     // the years-experience one — worked out, never asked.
     expect(s.questions).toHaveLength(6); // 4 essential + 2 eligibility
     expect(s.cvLines[0]).toMatchObject({ itemId: "role", text: "IT project manager in Paris" });
+  });
+
+  // #246 AC4 — the defect itself, stated as a number. Her search returns TWO adverts; ten adverts
+  // in the pool are stamped into the family her interview asks about. Before this ticket the promise
+  // said 10 and her deck could serve at most 2. The promise now counts the same search the deck is
+  // built from, so the two can no longer disagree — and the assertion is only meaningful because
+  // #63 made the deck count genuinely retrieved postings rather than the same fixture file.
+  it("#246: the promise counts HER search, not the family her interview asks about", async () => {
+    const two = loadPostings().slice(0, 2);
+    const { app } = buildServer({ retrievePostings: fixtureRetriever(two) });
+    const cookie = await anonSession(app);
+    await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
+    const s: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    expect(s.promise).toEqual({ count: 2 });
+  });
+
+  // #246 AC1 — a search that returned nothing to count leaves NO promise, so the screen prints no
+  // sentence at all (design §4c) instead of a number it cannot stand behind. The old code could not
+  // reach this state: it counted a file that is always there.
+  it("#246: no promise at all when the search found nothing", async () => {
+    const { app } = buildServer({ retrievePostings: fixtureRetriever([]) });
+    const cookie = await anonSession(app);
+    await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
+    const s: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    expect(s.promise).toBeNull();
+  });
+
+  // #246 — a search that FAILS costs her the number and nothing else: no promise, and the interview
+  // still opens normally. (The other way to reach this — the provider taking longer than
+  // PROMISE_SEARCH_TIMEOUT_MS — lands on the same null through the same branch; the race itself is
+  // withReadTimeout's, directly tested in cards.test.ts, and re-proving it here would buy a 4s wait
+  // on every CI run for a second look at one `catch`.)
+  it("#246: a failed search costs the promise, never the screen", async () => {
+    const { app } = buildServer({
+      retrievePostings: async () => {
+        throw new Error("provider down");
+      },
+    });
+    const cookie = await anonSession(app);
+    await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
+    const s: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    expect(s.promise).toBeNull();
+    // The interview itself is untouched — she is asked her four essential questions as always.
+    expect(s.essentialRemaining).toBe(4);
+    expect(s.cvLines[0]).toMatchObject({ itemId: "role" });
+  });
+
+  // #246 — question 1 pays for ONE search, and the rest of the interview reads what it left behind.
+  // The number has to survive her answers (each one moves the retrieval fingerprint, so a promise
+  // keyed to a reusable snapshot would blink out on the first tap), and it must not re-spend to do
+  // it — a provider call per answered question is a bill nobody agreed to.
+  it("#246: one paid search at question 1; the number then survives answers and a reload for free", async () => {
+    let searches = 0;
+    const retriever = fixtureRetriever();
+    const { app } = buildServer({
+      retrievePostings: async (input) => {
+        searches += 1;
+        return retriever(input as never);
+      },
+    });
+    const cookie = await anonSession(app);
+    await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    expect(start.promise).toEqual({ count: 16 });
+    expect(searches).toBe(1);
+
+    const answered: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: END_TO_END, answer: "Yes" })
+    ).json();
+    expect(answered.promise).toEqual({ count: 16 });
+
+    const resumed: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
+    expect(resumed.promise).toEqual({ count: 16 });
+    expect(searches).toBe(1);
+  });
+
+  // #246 QA finding 2 — the quota guard, and the reason it exists. `/onboarding/discovery/start` is
+  // anonymous and needs nothing earned, and EVERY distinct role string is a distinct provider query,
+  // so before this guard one visitor retyping her job title was an open tap into the month's call
+  // budget (techmap: 1000/month). One search per session, whatever she retypes.
+  it("#246: retyping question 1 never buys a second search, and never keeps the old job's number", async () => {
+    let searches = 0;
+    const retriever = fixtureRetriever();
+    const { app } = buildServer({
+      retrievePostings: async (input) => {
+        searches += 1;
+        return retriever(input as never);
+      },
+    });
+    const cookie = await anonSession(app);
+    await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
+    expect(
+      ((await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json() as DiscoveryState).promise,
+    ).toEqual({ count: 16 });
+
+    for (const role of ["welder", "baker in Hong Kong", "florist", "airline pilot"]) {
+      const retyped: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role })).json();
+      // Silence, not the previous job's number: 16 counted a search for the job she just stopped
+      // asking for, and showing it against these words is this ticket's own defect, re-dressed.
+      expect(retyped.promise).toBeNull();
+    }
+    expect(searches).toBe(1);
   });
 
   it("a positive answer adds a CV line, advances its section bar + the countdown", async () => {
@@ -1054,7 +1176,8 @@ describe("#106 eligibility questions in discovery", () => {
     // (Hong Kong). #214 owner decision: the promise sentence names no place at all — with several
     // selected places, naming one was a half-truth.
     expect(workRights.question).toBe("Can you already work in Australia without visa sponsorship?");
-    expect(start.promise!.city).toBeNull();
+    // #246: the promise carries a number and NOTHING else — no place, and no job family either.
+    expect(Object.keys(start.promise!)).toEqual(["count"]);
   });
 
   // #184 compat story: a #182-era answer keyed by parseCity(role) survives ONLY when the two slugs

@@ -160,9 +160,11 @@ await assertTrue(
 // snapshot already exists." One refusal followed by a served second read is the exact shape of the
 // bug this ticket closes, so read it more than once.
 //
-// Read the generation BEFORE them, so the check further down measures what these reads did rather
-// than what she did on her way here.
-const generationBeforeReads = (await getJson('/sessions/me'))?.retrievalGeneration;
+// Read the coordination state BEFORE them, so the check further down measures what these reads did
+// rather than what she did on her way here.
+const sessionBeforeReads = await getJson('/sessions/me');
+const generationBeforeReads = sessionBeforeReads?.retrievalGeneration;
+const fingerprintBeforeReads = sessionBeforeReads?.retrievalCoordinationFingerprint;
 for (const attempt of [1, 2, 3]) {
   const cards = await callAsVisitor('GET', '/onboarding/cards');
   const retrieval = cards.json?.retrieval;
@@ -197,23 +199,29 @@ await assertTrue(
 );
 // ...and an INDEPENDENT look at persisted state, which the check above no longer gives: the
 // coordination fingerprint is written by reconcileRetrievalState the moment retrieval work
-// completes, so an untouched value means no claim was ever made and no result ever reconciled. A
-// hash and an integer — no advert data rides on them, so exposing them carries none of the risk the
-// field above did.
+// completes, and the generation counts the times her own inputs changed. A hash and an integer — no
+// advert data rides on them, so exposing them carries none of the risk the field above did.
 //
-// `retrievalGeneration === 0` was asserted here too and is WRONG on its own terms — measured against
-// this build and against the commit before it, both answering the same 2. The generation is not a
-// retrieval fact: it counts the times her own inputs changed, and it is bumped by her intent write
-// and by her floor being pinned (sessions.ts), both of which happen on the discovery screen above,
-// before any deck is ever read. What this line means to say — an uncovered read starts no work — is
-// what is asserted instead: the generation must not MOVE across the three refused reads, which is
-// the same evidence without the false premise.
+// Two false premises have been corrected here, both the same mistake: reading a value that ALREADY
+// MOVED on her way to the deck as if it proved something about the deck.
+//   - `retrievalGeneration === 0` — wrong when it was written; the generation is bumped by her
+//     intent write and by her floor being pinned, both on the discovery screen above.
+//   - `retrievalCoordinationFingerprint === null` — wrong since #246, and note the comment fifteen
+//     lines up already saw it coming ("the moment #246 starts searching early"). Question 1 now buys
+//     one real search so the promise on her first screen can state a true count, and that search
+//     legitimately claims and reconciles. A null fingerprint here would now mean the promise never
+//     searched, which is a DIFFERENT ticket's failure, not this one's success.
+// What this check means to say — an uncovered read starts no work of its own — is what it asserts:
+// neither value MOVES across the three refused reads. Same evidence, no false premise. That the
+// early snapshot is data and not permission is what the rest of this journey proves, above and
+// below: refused on the spot, no postings on her session record, and both id-guessing doors shut.
 const genAfterRefusedReads = ownSession?.retrievalGeneration;
+const fingerprintAfterRefusedReads = ownSession?.retrievalCoordinationFingerprint;
 await assertTrue(
-  ownSession?.retrievalCoordinationFingerprint === null && genAfterRefusedReads === generationBeforeReads,
+  fingerprintAfterRefusedReads === fingerprintBeforeReads && genAfterRefusedReads === generationBeforeReads,
   `an unearned deck claimed nothing and reconciled nothing against her session ` +
-    `(fingerprint ${JSON.stringify(ownSession?.retrievalCoordinationFingerprint)}, ` +
-    `generation ${generationBeforeReads} -> ${genAfterRefusedReads}, unmoved by three refused reads)`,
+    `(fingerprint ${JSON.stringify(fingerprintBeforeReads)} -> ${JSON.stringify(fingerprintAfterRefusedReads)}, ` +
+    `generation ${generationBeforeReads} -> ${genAfterRefusedReads}, both unmoved by three refused reads)`,
 );
 
 // The other two doors onto the same posting pool. Both take an ad id straight from the URL, so both

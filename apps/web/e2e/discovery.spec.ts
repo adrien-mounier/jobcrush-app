@@ -95,7 +95,7 @@ const AFTER_START: DiscoveryState = {
   role: "IT Project Manager",
   family: "project manager",
   city: "Paris",
-  promise: { family: "project manager", city: "Paris", count: 142 },
+  promise: { count: 142 },
   questions: [Q_YEARS, Q_BUDGET],
   railFill: RAIL_ZERO,
   essentialRemaining: 3,
@@ -329,11 +329,14 @@ test.skip("discovery core loop: Q1 -> promise -> a floor answer types a line and
 
   await page.getByRole("button", { name: "That's me" }).click();
 
-  // The promise appears, carrying the visitor's city (count + sentence render in sibling nodes,
-  // so check the shared status region's combined text rather than one exact string).
+  // The promise appears (count + sentence render in sibling nodes, so check the shared status
+  // region's combined text rather than one exact string). #246: it names NO job family and no
+  // place — a number and a plain claim about it, the same sentence for every visitor.
   const promise = page.getByRole("status");
   await expect(promise).toContainText("142");
-  await expect(promise).toContainText("project manager jobs are open in Paris right now.");
+  await expect(promise).toContainText("jobs are open right now.");
+  await expect(promise).not.toContainText("project manager");
+  await expect(promise).not.toContainText("Paris");
 
   // The role lead line lands on the CV, then the countdown shows.
   await expect(page.getByText("IT Project Manager", { exact: true })).toBeVisible();
