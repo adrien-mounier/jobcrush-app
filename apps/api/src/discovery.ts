@@ -340,7 +340,7 @@ export function discoveryState(
     city,
     // #246: no longer gated on a family — a visitor the product cannot name yet has a real search
     // and a real count, and gets the same sentence as everyone. A zero is not shown: silence is
-    // honest, "0 jobs are open right now" on question 1 is a verdict on a search she has not
+    // honest, "0 new jobs are open right now" on question 1 is a verdict on a search she has not
     // finished describing (design §4c already drops the line rather than print a broken one).
     promise: openJobs !== null && openJobs > 0 ? { count: openJobs } : null,
     questions,

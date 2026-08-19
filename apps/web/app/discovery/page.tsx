@@ -87,7 +87,13 @@ const C26 = "Answer it now";
 // honestly to everyone, it does not say it. What is left is a number and a plain claim about it.
 // C11's old count-failed fallback went with it: the server now sends no promise at all when it
 // could not count, and design §4c already says to drop the line silently rather than print one.
-const C8 = "jobs are open right now.";
+//
+// "new" is the owner's word, kept after he was asked to reconsider it (2026-08-20). The reservation
+// put to him: these adverts are verified LIVE within the provider's freshness window, which is not
+// the same as newly posted, so "new" claims a little more than the pipeline knows. He prefers it,
+// and it is his call. If a freshness signal ever reaches the posting record, this is the line that
+// should start earning the word rather than assuming it.
+const C8 = "new jobs are open right now.";
 // #106: the countdown must read as one continuous meter across the floor questions and the
 // eligibility block that follows (design spec §6). The server includes eligibility questions in
 // `questions` from the start, ordered last (the ask dock only ever renders `questions[0]`, so they

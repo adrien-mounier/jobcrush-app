@@ -65,8 +65,10 @@ const MAPPED_ROLE = 'IT project manager';
 const WORD_SEARCH_ROLE = 'sous vide pastry chef';
 const AREA = 'Hong Kong';
 
-// The sentence is allowed to say this and nothing more descriptive.
-const PROMISE_TAIL = 'jobs are open right now.';
+// The sentence is allowed to say this and nothing more descriptive. "new" is the owner's word
+// (2026-08-20), kept after he was asked to reconsider whether the pipeline can back it — pinned
+// here so a later tidy-up cannot quietly drop it back to the shorter line.
+const PROMISE_TAIL = 'new jobs are open right now.';
 
 // Nothing on the discovery screen may name the family we placed her into, the vocabulary that
 // placed her, or the research behind it (spec #233 decision 8). Lower-cased, swept over the whole

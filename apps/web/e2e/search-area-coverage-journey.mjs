@@ -127,7 +127,7 @@ await qa.click('button.go.wide', "confirm the role — \"That's me\"");
 await qa.scrollThrough('read the page the way a person would');
 // #214 owner decision: the promise sentence names NO place — with up to 3 selected places, naming
 // one was a half-truth. The location signal is proven by the work-rights question below instead.
-await qa.expectText('body', 'jobs are open right now', 'the discovery promise counts jobs without naming a place');
+await qa.expectText('body', 'new jobs are open right now', 'the discovery promise counts jobs without naming a place');
 await expectAbsent(
   page.getByText('jobs are open in', { exact: false }),
   'AC4 (#214): the promise never names one place while several can be selected',

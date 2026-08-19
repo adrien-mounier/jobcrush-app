@@ -334,7 +334,7 @@ test.skip("discovery core loop: Q1 -> promise -> a floor answer types a line and
   // place — a number and a plain claim about it, the same sentence for every visitor.
   const promise = page.getByRole("status");
   await expect(promise).toContainText("142");
-  await expect(promise).toContainText("jobs are open right now.");
+  await expect(promise).toContainText("new jobs are open right now.");
   await expect(promise).not.toContainText("project manager");
   await expect(promise).not.toContainText("Paris");
 
