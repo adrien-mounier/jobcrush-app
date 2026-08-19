@@ -1,5 +1,33 @@
 # Lessons — jobcrush-app
 
+## Guard the door everything passes through, not the one you happened to be editing
+
+#248 moved an authorization check and put it on `ensureRetrieval` - which decides the deck payload's
+`retrieval` STATUS FIELD. The cards come from `sessionPostings`, two lines further on, which reads
+the stored postings itself. The deck would have rendered adverts she had not earned while the status
+field politely said otherwise. Both review axes found it independently; neither was fooled by the
+comment above it claiming the property held.
+
+The fix is the one ponytail already prescribes for bug fixes: grep every caller and guard where they
+converge. Three doors reached that pool and all three passed through one function. One guard there
+beats three guards and a fourth door discovered later - which is exactly what happened anyway, when
+the QA gate found `GET /sessions/me` handing out the same list raw.
+
+Corollary worth more than the fix: **widening the shared function's parameter type made the third
+caller fail to compile** until it carried the data the check needs. A check the type system forces
+you to satisfy is a different class of thing from a check you remember to call.
+
+## If deleting the fix does not redden a test, the test is decoration
+
+The QA gate on #248 mutation-tested every guard: revert the fix, run the suite, name what goes red.
+Two findings came out of it that no amount of reading would have produced. Putting the old refusal
+back inside the fetch left **the entire suite green** - a total regression of one acceptance
+criterion, invisible. Restoring the leaked field to `/sessions/me` likewise.
+
+Both now have a test that has been *proved* to fail. That proof is cheap - back the file up, mutate,
+run, restore - and it is the only evidence that a green suite means anything. Ask it of any test
+written to cover a security or authorization property.
+
 ## A test that NAMES the data instead of reading it is rot with a delay fuse
 
 #223 replaced seven stub discovery items with four researched ones. Ten journeys named the old ids

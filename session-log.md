@@ -2,6 +2,53 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-19 (session 143b) `/implement 248` - a snapshot is data, not permission (QA GO, 2nd gate run)
+
+`9a612cd`, closes #248. Fell straight out of #246's costing, so it is the same session.
+
+**Why it existed.** `makePostingRetriever` answered two questions in one place: "may I fetch?" and
+"has she earned her reveal?". So a snapshot existing at all WAS the authorization - `ensureRetrieval`
+returns a reusable one without re-asking. Unreachable while nothing could fetch before coverage.
+#246 option 3 makes it reachable on purpose: it fetches at question 1 so the promise on her first
+screen can state a count that is true.
+
+**The shape.** The earned-reveal test moved onto the reads that put adverts in front of her. Three
+doors reach the pool - deck, want, tailor target - and all three pass through `sessionPostings`, so
+the guard went THERE rather than three times. Widening `tailorTarget`'s session type made the third
+door fail to compile until it carried the coverage data: the check is structurally hard to skip now,
+not merely remembered.
+
+**I got it wrong first, in the way this whole session keeps repeating.** The first cut guarded
+`ensureRetrieval` - which decides the payload's `retrieval` FIELD, not the cards. The deck would have
+rendered real adverts while the status field said the floor was uncovered. BOTH review axes found it
+independently. My comment at the time read "A snapshot is data. It is not permission." - true of the
+function I had edited, false of the product. Third time in one session that a comment claimed a
+guarantee the code did not have.
+
+**The QA gate found two more, and mutation-tested everything.**
+- **A fourth door:** `GET /sessions/me` returned the whole session record including `retrieval` - the
+  full live advert list. No client reads it, so it is withheld outright rather than guarded. One
+  fewer door beats one more guard.
+- **AC5 had no enforcement:** putting the refusal back inside the fetch left the ENTIRE suite green.
+  That regression would have made #246's question-1 search return a refusal, so the promise shows
+  nothing, silently.
+- It built the exact session #246 creates (fresh, fingerprint-matching `relevant_postings` on an
+  uncovered session), attacked every door signed-in, and used the covered session as a control so
+  the refusals cannot pass on unusable data. Then it deleted each guard and named which tests go
+  red. "Simplifying" the predicate reddens ten, including #235's empty-plan and #228's fallback.
+
+**Both of my own new tests were caught being vacuous before they shipped.** The first paired badly -
+a stale fixture made the snapshot unusable, so it passed without exercising the guard; the covered
+half of the pair is what exposed it. The gate's journey probe then went vacuous when I closed the
+fourth door, because it proved "no work started" by reading the field I had just removed. Replaced,
+and the gate confirmed the replacement can actually fail.
+
+**Gates:** cold 7/7, api 1515 passed, contracts 47, Tier 1 140/0/1, Tier 2 16/16. USD 0.00.
+New Tier 2 member: `snapshot-is-not-permission-journey.mjs`, the gate's own attack.
+
+**Not on staging** - committed, not pushed, same Actions billing blockage as everything since
+2026-08-16.
+
 ## 2026-08-19 (session 143) `/implement 216` - the questions she is asked are the ones the reveal is earned from (QA GO, 4th gate run)
 
 **One discovery engine, and it is the one on screen.** `82102bc`, closes #216.
