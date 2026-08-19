@@ -294,6 +294,17 @@
   text-align: center;
   padding: 0 16px 9px;
 }
+/* #229: the change-of-direction sentence, once, above the deck. The app's existing "quiet line"
+   pattern (.curtain .aside / .discovery .notice) — muted, never gold: it is context for the
+   scores, not a caveat styled as a warning. */
+.jobdeck .newfamily {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--hud-mute);
+  text-align: center;
+  padding: 0 16px 9px;
+  margin: 0;
+}
 .jobdeck .deck {
   flex: 1;
   position: relative;
@@ -909,6 +920,7 @@
 @media (min-width: 641px) {
   .jobdeck .topbar,
   .jobdeck .deckcount,
+  .jobdeck .newfamily,
   .jobdeck .deck,
   .jobdeck .loadstate,
   .jobdeck .loopback {

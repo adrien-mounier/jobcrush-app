@@ -53,6 +53,12 @@ const Z2 = "Answer a few more questions and I'll widen the net.";
 // #235: shown instead of Z2 when no question is left to answer — her own result, and her own way to
 // change it. Deliberately names no job family, no vocabulary and no research (spec #233 decision 8).
 const Z3 = "Try a different job title.";
+// #229 — the career changer's one sentence, shown once above the deck when the server says this
+// deck's work is a known zero for her while her CV holds years elsewhere. It states a market fact
+// about her CV, names no job family, and never judges: harder, not impossible. The score stays
+// generous and the words carry the truth — never the reverse (ADR-0014's restraint rule).
+const N1 =
+  "This is a change of direction — your CV shows your experience in other kinds of work, so scores here will be lower. Harder, not impossible.";
 // #228 (spec #241 decision 12) — the dead end becomes a question. It names her OWN typed words and
 // nothing else: no job family, no vocabulary, no research, and no count of jobs, because at the
 // moment it is shown nothing has been looked for yet. It asks; it never promises.
@@ -153,6 +159,9 @@ export default function DeckPage() {
   // #235: true while another discovery question exists — picks the empty state's second line
   // (Z2 vs Z3). Defaults to the pre-#235 line so a missing field never invites a dead end.
   const [moreQuestions, setMoreQuestions] = useState(true);
+  // #229: whether this deck is a change of direction for her — server-owned (see N1). Defaults
+  // false so an absent field never claims one.
+  const [newToFamily, setNewToFamily] = useState(false);
   // #228: the server's offer state, and the two things this screen alone owns — whether she re-opened
   // an offer she had already declined, and whether the accepted search is still running.
   const [fallback, setFallback] = useState<DeckFallbackState | null>(null);
@@ -342,6 +351,7 @@ export default function DeckPage() {
       setAuthed(res.authed);
       setWithdrawn(res.withdrawn ?? null);
       setMoreQuestions(res.moreQuestions ?? true);
+      setNewToFamily(res.newToFamily ?? false);
       setFallback(res.fallback ?? null);
       if (res.cards.length === 0) {
         setScreen(res.searching ? "searching" : "empty");
@@ -550,6 +560,9 @@ export default function DeckPage() {
         if (res.cards.length > 0) {
           setCards(res.cards);
           setWithdrawn(res.withdrawn ?? null);
+          // #229: the fallback deck is the work her CV proves, not a change of direction — the
+          // server says so; without this the stale banner would sit over her own field's jobs.
+          setNewToFamily(res.newToFamily ?? false);
           setCurrentIndex(0);
           setSwipeStatus("idle");
           setWidening(false);
@@ -763,6 +776,9 @@ export default function DeckPage() {
           <p className="deckcount">
             {currentIndex + 1} of {n} matched today · swipe or tap
           </p>
+          {/* #229: said once, above the deck, where the lower scores it explains are on screen —
+              never per card (nagging) and never on the reveal (nothing there needs explaining). */}
+          {newToFamily && <p className="newfamily">{N1}</p>}
           <div className="deck">
             {currentCard && (
               <JobCardView

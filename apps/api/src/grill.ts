@@ -9,7 +9,7 @@
 // flagged claim — rather than re-deriving them with brittle regex. Answers become confirmed,
 // user-authored claims immediately (the deck stays the truth mechanism; the grill never re-verifies).
 import type { CandidateClaim, MinedRole } from "@jobcrush/contracts";
-import type { ClaimRecord } from "./claims.js";
+import type { ClaimRecord, ClaimStore } from "./claims.js";
 import type { LlmClient } from "./llm.js";
 
 export type GapType = "missing-dates" | "needs-info";
@@ -117,6 +117,20 @@ export function answerToClaim(g: Gap, answer: string): CandidateClaim {
     needs_grill: false, // answered — never re-flag
     grill_hint: null,
   };
+}
+
+// #13 never-re-ask: a gap is closed by EITHER a confirmed "yes" or a persisted "no" — pending/rejected
+// must NOT count, or a reopen() (a corrected "no") would stay silently answered instead of resurfacing.
+// (Moved here from routes/onboarding.ts by #229 — the ratchet's extraction rule.)
+export async function answeredGrillIds(
+  claims: ClaimStore,
+  sessionId: string,
+  confirmed: ClaimRecord[],
+): Promise<Set<string>> {
+  const negatives = await claims.negatives(sessionId);
+  return new Set(
+    [...confirmed, ...negatives].map((c) => c.id).filter((id) => id.startsWith("grill-")),
+  );
 }
 
 /** Phrases every gap in one LLM round trip; caller falls back to templates on any failure. */

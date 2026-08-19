@@ -392,6 +392,10 @@ export interface CardsResponse {
   // invites a different job title instead. Optional defensively — an absent field falls back to the
   // pre-#235 line, never a dead-end invitation.
   moreQuestions?: boolean;
+  // #229: true when this deck's family is a known zero for her while her CV holds years elsewhere —
+  // a change of direction. Copy only: the deck says one sentence; scores are never touched by it.
+  // Optional defensively — an absent field never claims a change of direction.
+  newToFamily?: boolean;
   // #228: the widening offered at the dead end. Server-owned — this screen renders it and never
   // decides. Optional defensively: an absent field is "no offer", today's dead end unchanged.
   fallback?: DeckFallbackState;

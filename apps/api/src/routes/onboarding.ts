@@ -13,14 +13,14 @@ import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import type { CandidateClaim, MinedRole, AdRequirementsV1 } from "@jobcrush/contracts";
 import { requireUser, requireSession } from "../server.js";
-import type { ClaimStore, ClaimRecord } from "../claims.js";
+import type { ClaimStore } from "../claims.js";
 import { minedRoles, type JobStore } from "../jobs.js";
 import type { SessionStore, SessionRecord } from "../sessions.js";
 import { buildClaimGraph } from "../graph.js";
 import { renderRootCv } from "../rootcv.js";
 import { buildProfileState, resolveProfileLocation, resolveLanguagesQuestion } from "../profile.js";
 import { runGate } from "../gate.js";
-import { answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
+import { answeredGrillIds, answerToClaim, detectGaps, templateQuestion, type GrillPhraser } from "../grill.js";
 import { auditRootCv, type CvAuditor } from "../audit.js";
 import { eligiblePostings, sessionPostings, type Posting } from "../preview.js";
 import { ANY_FAMILY, type EligibilityStore } from "../eligibility.js";
@@ -48,6 +48,7 @@ import {
   buildTailorState,
   claimTier,
   hasOpenDiscoveryQuestions,
+  newToFamily,
   resolveAdRequirements,
   resolveJudgement,
   resolveSessionYears,
@@ -131,19 +132,6 @@ export interface OnboardingDeps {
    *  behaviour is unaffected. Also usable to tune the ceiling per deployment without a code change,
    *  should the owner want that later. */
   judgeMaxCards?: number;
-}
-
-// #13 never-re-ask: a gap is closed by EITHER a confirmed "yes" or a persisted "no" — pending/rejected
-// must NOT count, or a reopen() (a corrected "no") would stay silently answered instead of resurfacing.
-async function answeredGrillIds(
-  claims: ClaimStore,
-  sessionId: string,
-  confirmed: ClaimRecord[],
-): Promise<Set<string>> {
-  const negatives = await claims.negatives(sessionId);
-  return new Set(
-    [...confirmed, ...negatives].map((c) => c.id).filter((id) => id.startsWith("grill-")),
-  );
 }
 
 // #33: the profile badge's factCount is a session-wide monotonic floor, same pattern as #23's tailor
@@ -707,6 +695,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         retrieval,
         searching: retrievalIsInProgress(retrieval),
         moreQuestions,
+        // #229: the career changer's one sentence — copy only, the score is untouched (deck.ts).
+        newToFamily: newToFamily(years),
         // #228: the dead end's offer — server-owned, so the screen renders and never decides
         // (deckFallback.ts owns the four preconditions).
         fallback: fallbackOffer(session, moreQuestions, blocks, deps.productionFamilyFloors),

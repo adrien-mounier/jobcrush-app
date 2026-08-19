@@ -584,3 +584,85 @@ test("cards still on screen never show the offer, however available the server s
   await page.getByRole("button", { name: "Not for me, show next job" }).click();
   await expect(page.getByText(OFFER_QUESTION)).toBeVisible();
 });
+
+// #229 — the career changer is told, on the screen where the lower scores are. The sentence is the
+// server's call (newToFamily), rendered once above the deck: never on the reveal (the count needs
+// no caveat) and never per card. The scores themselves are untouched — the payload's matchPct is
+// what renders, which is the ticket's one inviolable rule made visible.
+const CHANGE_OF_DIRECTION = "This is a change of direction";
+
+test("#229 a change-of-direction deck says so once, above the cards, and only there", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const body: CardsResponse = {
+    stage: "deck",
+    cards: [card("ad-1", "IT Project Manager", 82)],
+    authed: true,
+    pendingCount: 0,
+    newToFamily: true,
+  };
+  await page.route("**/api/onboarding/cards", async (route) => {
+    await route.fulfill({ json: body });
+  });
+  await page.goto("/deck");
+
+  // The reveal keeps its plain reward — the sentence waits for the deck.
+  await expect(page.getByRole("heading", { name: /matched you/ })).toBeVisible();
+  await expect(page.getByText(CHANGE_OF_DIRECTION)).toHaveCount(0);
+
+  await page.getByRole("button", { name: "See them" }).click();
+  await expect(page.getByText(CHANGE_OF_DIRECTION)).toBeVisible();
+  // The score the server sent is the score on screen — the words carry the truth, never the number.
+  await expect(page.getByRole("img", { name: "82% match" })).toBeVisible();
+});
+
+test("#229 no change of direction is claimed when the server does not say so", async ({ page }) => {
+  await openStubbedDeck(page, [card("ad-1", "IT Project Manager", 82)]);
+  await expect(page.getByRole("heading", { name: "IT Project Manager" })).toBeVisible();
+  await expect(page.getByText(CHANGE_OF_DIRECTION)).toHaveCount(0);
+});
+
+// #228's widened deck is the work her CV proves — a different family she has real years in, so the
+// server stops saying newToFamily and the banner must not persist over her own field's jobs.
+test("#229 accepting the widening clears the change-of-direction banner", async ({ page }) => {
+  await stubSession(page);
+  let accepted = false;
+  await page.route("**/api/onboarding/cards/fallback", async (route) => {
+    accepted = true;
+    await route.fulfill({
+      json: { fallback: { offered: false, declined: false, active: true, targetRole: "Product Analytics Manager" } },
+    });
+  });
+  await page.route("**/api/onboarding/cards", async (route) => {
+    const body: CardsResponse = {
+      stage: "deck",
+      cards: accepted
+        ? [card("ad-widened", "Delivery Manager", 74)]
+        : [card("ad-target", "Product Analytics Manager", 31)],
+      authed: true,
+      pendingCount: 0,
+      moreQuestions: false,
+      newToFamily: !accepted,
+      fallback: {
+        offered: !accepted,
+        declined: false,
+        active: accepted,
+        targetRole: "Product Analytics Manager",
+      },
+    };
+    await route.fulfill({ json: body });
+  });
+  await page.goto("/deck");
+  await page.getByRole("button", { name: "See them" }).click();
+
+  // Her target-family deck carries the sentence…
+  await expect(page.getByRole("heading", { name: "Product Analytics Manager" })).toBeVisible();
+  await expect(page.getByText(CHANGE_OF_DIRECTION)).toBeVisible();
+
+  // …she runs out, accepts the widening, and the replacing deck is her own work — no sentence.
+  await page.getByRole("button", { name: "Not for me, show next job" }).click();
+  await page.getByRole("button", { name: "Yes, look" }).click();
+  await expect(page.getByRole("heading", { name: "Delivery Manager" })).toBeVisible();
+  await expect(page.getByText(CHANGE_OF_DIRECTION)).toHaveCount(0);
+});

@@ -4,7 +4,7 @@
 // order, and that a recorded "no" lands in askedClosed (never re-asked, never a gap).
 import { describe, expect, it, vi } from "vitest";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
-import { hasOpenDiscoveryQuestions, orderCardsForReveal, withReadTimeout, mapWithConcurrency } from "../src/deck.js";
+import { hasOpenDiscoveryQuestions, newToFamily, orderCardsForReveal, withReadTimeout, mapWithConcurrency, type SessionYears } from "../src/deck.js";
 import { buildServer } from "../src/server.js";
 import { buildItProjectDeliveryServer } from "./placedServer.js";
 import { listAdRequirements, loadAdRequirements } from "../src/e5stub.js";
@@ -1782,5 +1782,56 @@ describe("#235 hasOpenDiscoveryQuestions", () => {
       { dimension: "language", familyId: ANY_FAMILY, value: "English", label: "Languages" },
     ];
     expect(hasOpenDiscoveryQuestions(session(), [], [], [], facts, [], null)).toBe(false);
+  });
+});
+
+// #229 — the career changer is scored honestly AND told: the deck response carries newToFamily when
+// this deck's family is a KNOWN zero for her while her CV holds years elsewhere. Copy only — the
+// rule the ticket must not break is that the score stays generous and the words carry the truth,
+// so the flag never touches a card's number (nothing here asserts a changed score, deliberately).
+describe("#229 newToFamily — the change-of-direction signal", () => {
+  const years = (over: Partial<SessionYears>): SessionYears => ({
+    total: 9,
+    family: 0,
+    familySource: "zero",
+    familyConfidence: null,
+    ...over,
+  });
+
+  it("fires only on a known zero with years elsewhere", () => {
+    expect(newToFamily(years({}))).toBe(true);
+    // A per-family FACT (even a low one) is not a change of direction — she is in this work.
+    expect(newToFamily(years({ family: 2, familySource: "fact" }))).toBe(false);
+    // Unaccounted years are an UNKNOWN, never called a change of direction (the ticket's own
+    // boundary: only #222's known-zero rule makes this detectable at all).
+    expect(newToFamily(years({ family: 9, familySource: "fallback" }))).toBe(false);
+    expect(newToFamily(years({ family: 9, familySource: "unscoped" }))).toBe(false);
+    // Zero years everywhere is a first job, not a change of direction.
+    expect(newToFamily(years({ total: 0, family: 0 }))).toBe(false);
+  });
+
+  it("GET /onboarding/cards says newToFamily for a career changer, and stops once her years are in this family", async () => {
+    const changer = buildItProjectDeliveryServer();
+    const cookie = await anonSession(changer.app);
+    await post(changer.app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const sid = await sessionId(changer.app, cookie);
+    // #162: a career total worked out from dated jobs, none of them in the deck's family — with
+    // every counting job placed (none here at all), that family reads as a KNOWN zero.
+    await changer.eligibility.put(sid, {
+      dimension: "years-experience",
+      familyId: ANY_FAMILY,
+      value: "9",
+      label: "Years of experience (worked out from your dated jobs)",
+    });
+    expect((await get(changer.app, cookie, "/onboarding/cards")).json().newToFamily).toBe(true);
+
+    // The same visitor WITH a years fact in the deck's family: not new to it, nothing said.
+    await changer.eligibility.put(sid, {
+      dimension: "years-experience",
+      familyId: "it-project-delivery",
+      value: "9",
+      label: "Years in IT project delivery",
+    });
+    expect((await get(changer.app, cookie, "/onboarding/cards")).json().newToFamily).toBe(false);
   });
 });

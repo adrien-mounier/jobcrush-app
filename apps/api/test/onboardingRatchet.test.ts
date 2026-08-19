@@ -45,7 +45,10 @@ import { fileURLToPath } from "node:url";
 // discovery engine no client ever called — is gone outright, and the reconciliation it alone
 // performed moved to discoveryEngine.ts (reconcileSessionDiscovery), beside the routes the visitor
 // actually walks. One engine, and the spine shrank by nearly 150 lines.
-const MAX_LINES = 910;
+// #229 lowered it from 910: the grill's answered-ids read moved to grill.ts (answeredGrillIds),
+// beside the gap detection it filters for — the career changer's newToFamily flag landed as one
+// deck.ts call and the spine still shrank.
+const MAX_LINES = 900;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

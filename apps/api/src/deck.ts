@@ -476,6 +476,15 @@ export function resolveSessionYears(
   return { total, family: 0, familySource: "zero", familyConfidence: null };
 }
 
+/** #229 — the career changer's signal: this deck's family is a KNOWN zero for her (every counting
+ *  job placed, none in it — familySource "zero", never the fallback/unscoped unknowns) while her
+ *  career holds real years elsewhere. ADR-0014's restraint rule verbatim: the score stays generous
+ *  and the WORDS carry the truth, never the reverse — so nothing reads this flag but the deck
+ *  response, where it picks one sentence of copy. It never scores, filters, or withdraws. */
+export function newToFamily(years: SessionYears): boolean {
+  return years.familySource === "zero" && (years.total ?? 0) > 0;
+}
+
 /** #107 (D5) — applies judgedScore.ts's applyYearsShortfall (see its own doc for the attenuation
  *  rule and why it can only ever lower a score) on top of whatever resolveJudgement returned, at READ
  *  TIME only; never persisted. A plain pass-through when there's nothing to adjust. */
