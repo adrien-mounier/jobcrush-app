@@ -1,5 +1,19 @@
 # Lessons — jobcrush-app
 
+## "Live" evidence counts only after proving the stack serves the code under test
+
+#229's QA gate nearly ran its browser drive against a QA API whose `dist/` predated the diff — the
+new response field simply did not exist in the running process, and every "live" assertion would
+have tested last week's build while looking exactly like a legitimate failure (or worse, a pass on
+behavior the diff was supposed to change). The gate caught it only because its first probe checked
+the built output for the new symbol before trusting the stack.
+
+The rule: a running server is a claim, not a fact. Before browser evidence counts for anything,
+prove the process serves the working tree — rebuild (`pnpm --filter @jobcrush/api build`) and
+restart, or grep `dist/` for a symbol the diff introduced. Same family as the repo's standing
+found-nothing vs didn't-run distinction: an assertion against a stale build is a decision about
+nothing.
+
 ## Guard the door everything passes through, not the one you happened to be editing
 
 #248 moved an authorization check and put it on `ensureRetrieval` - which decides the deck payload's

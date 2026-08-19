@@ -2,6 +2,39 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-19 (session 144) `/implement 229` — the career changer is told (QA GO)
+
+`d4f7e5d`, closes #229. First Fable `/implement` row to run.
+
+**What she gets.** A visitor changing careers — target family a known zero for her, real years
+elsewhere — now sees one quiet line above her deck: *"This is a change of direction — your CV shows
+your experience in other kinds of work, so scores here will be lower. Harder, not impossible."*
+The scores do not move; QA measured the same eight cards scoring byte-identically with and without
+the sentence. That is the ticket's one inviolable rule (the score stays generous; the words carry
+the truth), and it holds by construction: only the response field and the screen read the flag.
+
+**The four open decision points, taken** (recorded verbatim on the issue): known zero + years
+elsewhere is the trigger (never `fallback`/`unscoped` unknowns, never a first-jobber); the sentence
+lives once at the top of the deck (not per card, not on the reveal); the copy above; and
+`noIsFatal` stays written-but-unenforced — the owner's #216 AC3 ruling (a "no" lands on scoring,
+never on the door) already answers it, and a door here would block exactly the person the ticket
+protects. One copy nuance flagged for the owner on the issue: the ticket asked for "a fact about
+the market", the shipped line states a fact about her CV and our scores — judged more honest.
+
+**The finding that matters: the sentence is dark.** With one published family, the labeler can
+never produce a known zero — a real changer's unrelated past jobs are unplaceable (`fallback`),
+never "zero in this family". So no visitor on staging or production can trigger the line until
+#218 publishes the second family. Not a defect (roadmap order says so — #218's row is *"what makes
+multi-family reachable in production at all"*), but it means the browser gate ran against an
+injected flag, and the full path — server *deriving* the zero from real placements — must be
+re-driven when #218 lands. Recorded on #218, together with coverage gap G1 (no server-side test
+that an accepted #228 widening drops the flag; today it holds by construction).
+
+**Mechanics.** Ratchet paid honestly: 910 → 900, `answeredGrillIds` extracted to grill.ts beside
+the gap detection it filters. The widened-deck banner clear is e2e-pinned (three #229 tests in
+`deck.spec.ts`, in the CI mocked tier). QA's environment catch: the QA stack was serving a
+pre-#229 `dist` — see lessons.
+
 ## 2026-08-19 (session 143b) `/implement 248` - a snapshot is data, not permission (QA GO, 2nd gate run)
 
 `9a612cd`, closes #248. Fell straight out of #246's costing, so it is the same session.
