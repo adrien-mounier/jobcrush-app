@@ -95,6 +95,24 @@ const JOURNEYS = [
   // the property needs a journey that would go red rather than a reviewer who happens to look.
   // ~2 min against the fake-model API; one magic-link sign-in.
   "snapshot-is-not-permission-journey.mjs",
+  // #63: the only journey that proves a card cannot exist without a retrieval result. It earns the
+  // reveal, counts the number on screen against the adverts actually fetched (none carrying a
+  // fixture id), and then attacks the gate from the client - ?reveal=1, ?checkpoint=..., forged
+  // headers, naming a stored advert by id at the want route. It is ALSO the only test anywhere that
+  // looks at the empty-pool and outage screens, whose whole reason for existing is that they must
+  // never share words (#174): "we asked and found nothing" and "we could not ask" are different
+  // facts, and every market runs on a single provider, so collapsing them tells someone her market
+  // is empty when our one supplier was offline. Reachable only via POST /qa/stack's
+  // retrievalOutcome knob. ~2 min against the fake-model API; one magic-link sign-in.
+  "credible-reveal-journey.mjs",
+  // #63: the regression guard for the defect that cost that ticket its first QA gate - a visitor who
+  // changed where she was looking WHILE tailoring a job lost it, to a "Try again" that 404s for ever
+  // with no way back to her deck. The server is right to refuse a job from a search that no longer
+  // applies (#101's fail-closed rule); the stored-advert pool had been hiding that refusal for
+  // years. Only a browser can prove the recovery, because the fix is a redirect and every
+  // server-side assertion still (correctly) sees a 404. ~2 min against the fake-model API; one
+  // magic-link sign-in.
+  "stale-search-tailor-return-journey.mjs",
 ];
 
 let failed = 0;
