@@ -5,10 +5,13 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
 import { hasOpenDiscoveryQuestions, newToFamily, orderCardsForReveal, withReadTimeout, mapWithConcurrency, type SessionYears } from "../src/deck.js";
-import { buildServer } from "../src/server.js";
+// #63: the deck is fed by retrieval alone now, so the suite builds its server with the curated
+// corpus wired at that seam — same adverts, same requirement sets, reached the way production
+// reaches them. See fixtureDeck.ts.
+import { buildDeckServer as buildServer, coverEssentialFloor, fixtureReadAd, injectSettled, liveIdFor, livePostings, seedRetrievalSnapshot, warmRetrieval } from "./fixtureDeck.js";
 import { buildItProjectDeliveryServer } from "./placedServer.js";
-import { listAdRequirements, loadAdRequirements } from "../src/e5stub.js";
-import { loadPostings, type Posting } from "../src/preview.js";
+import { listAdRequirements } from "../src/e5stub.js";
+import type { Posting } from "../src/preview.js";
 import { languageEligible } from "../src/language.js";
 import { makeAdReader } from "../src/adReader.js";
 import { InMemoryAdRequirementsStore } from "../src/adRequirementsStore.js";
@@ -26,7 +29,7 @@ async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<
 }
 
 const get = (app: ReturnType<typeof buildServer>["app"], cookie: string, url: string) =>
-  app.inject({ method: "GET", url, headers: { cookie } });
+  injectSettled(app, { method: "GET", url, headers: { cookie } });
 const post = (
   app: ReturnType<typeof buildServer>["app"],
   cookie: string,
@@ -35,11 +38,12 @@ const post = (
 ) => app.inject({ method: "POST", url, headers: { cookie }, ...(payload === undefined ? {} : { payload }) });
 
 const ROLE = "IT project manager in Paris";
-const VALID_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
+const VALID_AD_ID = liveIdFor("2026-07-05_endava-vietnam_senior-project-manager");
 const DISCOVERY_FAMILY = productionDiscoveryFamily(initialProductionFamilyFloors())!;
 const END_TO_END = "end-to-end-delivery";
 const STAKEHOLDERS = "stakeholder-coordination";
 const RISKS = "risk-dependency-control";
+const COMMUNICATION = "delivery-communication";
 
 async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string, email: string): Promise<void> {
   const link = await post(app, cookie, "/auth/request-link", { email });
@@ -158,10 +162,10 @@ describe("#19 GET /onboarding/cards", () => {
     // than a hardcoded `=== "en"` the test would silently drift from production. A stubbed
     // requirement set exists for a non-English posting AND for a mismatched-language posting (both
     // added to prove the gate); neither may resolve to a card.
-    const allPostings = loadPostings();
+    const allPostings = livePostings(); // #63: cards carry retrieved ids now, not fixture ids
     const readerLangs = ["en"]; // readingLanguages()'s default for this anonymous session
     const allRequirements = listAdRequirements().filter((ad) => {
-      const posting = allPostings.find((p) => p.id === ad.adId);
+      const posting = allPostings.find((p) => p.id === liveIdFor(ad.adId));
       return (
         !!posting &&
         languageEligible(posting.language, readerLangs) &&
@@ -169,13 +173,13 @@ describe("#19 GET /onboarding/cards", () => {
       );
     });
     expect(body.cards.map((card) => card.adId).sort()).toEqual(
-      allRequirements.map((ad) => ad.adId).sort(),
+      allRequirements.map((ad) => liveIdFor(ad.adId)).sort(),
     ); // every ENGLISH requirement set resolves to a real posting and reaches the HTTP deck
     expect(body.cards[1]).toBeDefined(); // passing the reveal card cannot exhaust the deck
     const curatedIds = new Set(
       allRequirements
         .filter((ad) => ad.curated)
-        .map((ad) => ad.adId),
+        .map((ad) => liveIdFor(ad.adId)),
     );
     expect(curatedIds.has(body.cards[0]!.adId)).toBe(true);
     expect(body.cards[0]!.matchPct).toBe(
@@ -221,6 +225,13 @@ describe("#19 GET /onboarding/cards", () => {
     await post(app, cookie, "/onboarding/discovery/answer", {
       itemId: RISKS,
       answer: "No",
+    });
+    // #63: the reveal is now refused outright until the whole essential floor is answered, so the
+    // last item is answered here too. It was always part of the floor; before #63 an uncovered
+    // session was quietly served the fixture pool anyway, which is exactly what this ticket closes.
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: COMMUNICATION,
+      answer: "Yes",
     });
 
     const res = await get(app, cookie, "/onboarding/cards");
@@ -332,42 +343,49 @@ describe("#19 GET /onboarding/cards", () => {
       itemId: RISKS,
       answer: "No",
     });
+    // #63: the reveal is now refused outright until the whole essential floor is answered, so the
+    // last item is answered here too. It was always part of the floor; before #63 an uncovered
+    // session was quietly served the fixture pool anyway, which is exactly what this ticket closes.
+    await post(app, cookie, "/onboarding/discovery/answer", {
+      itemId: COMMUNICATION,
+      answer: "Yes",
+    });
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     const byAdId = Object.fromEntries(
       body.cards.map((c) => [c.adId, { matchPct: c.matchPct, breakdown: c.breakdown }]),
     );
     expect(byAdId).toEqual({
-      "2026-06-30_schneider-electric_senior-project-manager": {
+      [liveIdFor("2026-06-30_schneider-electric_senior-project-manager")]: {
         matchPct: 32,
         breakdown: { essential: { met: 1, total: 3 }, desirable: { met: 0, total: 4 } },
       },
-      "2026-07-01_transunion_senior-project-manager-6-months-contract": {
+      [liveIdFor("2026-07-01_transunion_senior-project-manager-6-months-contract")]: {
         matchPct: 34,
         breakdown: { essential: { met: 0, total: 4 }, desirable: { met: 0, total: 4 } },
       },
-      "2026-07-05_computershare-hong-kong_business-readiness-senior-project-manager-9-month-contract": {
+      [liveIdFor("2026-07-05_computershare-hong-kong_business-readiness-senior-project-manager-9-month-contract")]: {
         matchPct: 22,
         breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 5 } },
       },
       // #222: the compound years sentence became two scoped bars (total 8 / family 5), so this ad
       // carries one more desirable requirement than before and the token tick shifts with it.
-      "2026-07-05_endava-vietnam_senior-project-manager": {
+      [liveIdFor("2026-07-05_endava-vietnam_senior-project-manager")]: {
         matchPct: 24,
         breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 5 } },
       },
-      "2026-07-05_hire-feed_project-manager-remote": {
+      [liveIdFor("2026-07-05_hire-feed_project-manager-remote")]: {
         matchPct: 30,
         breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 4 } },
       },
-      "2026-07-05_manulife_senior-it-project-manager-delivery-manager": {
+      [liveIdFor("2026-07-05_manulife_senior-it-project-manager-delivery-manager")]: {
         matchPct: 32,
         breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 5 } },
       },
-      "2026-07-05_synpulse_business-analyst-project-manager-wealth-management-data": {
+      [liveIdFor("2026-07-05_synpulse_business-analyst-project-manager-wealth-management-data")]: {
         matchPct: 22,
         breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 5 } },
       },
-      "2026-07-09_luvo-talent_senior-project-manager": {
+      [liveIdFor("2026-07-09_luvo-talent_senior-project-manager")]: {
         matchPct: 24,
         breakdown: { essential: { met: 0, total: 3 }, desirable: { met: 0, total: 4 } },
       },
@@ -434,7 +452,7 @@ describe("#19 GET /onboarding/cards", () => {
   // the language gate, same as any English one) is retained and labelled in the pool, and never
   // reaches the deck for a default English-only session.
   it("retains a non-English posting in the pool, labelled, and never surfaces it as a card", async () => {
-    const zh = loadPostings().find((p) => p.id === "2026-07-10_huaxin-tech-shenzhen_it-xiangmu-jingli");
+    const zh = livePostings().find((p) => p.id === liveIdFor("2026-07-10_huaxin-tech-shenzhen_it-xiangmu-jingli"));
     expect(zh).toBeDefined(); // present in the pool
     expect(zh!.language).toBe("zh"); // labelled at ingest
 
@@ -452,14 +470,14 @@ describe("#19 GET /onboarding/cards", () => {
   // not just the posting's, so foreign-language bullets can never render into an English-gated card.
   it("holds back a card whose posting reads English but whose requirement set is declared a different language", async () => {
     const adId = "2026-07-01_hays_senior-front-office-project-manager-top-tier-investment";
-    const posting = loadPostings().find((p) => p.id === adId);
+    const posting = livePostings().find((p) => p.id === liveIdFor(adId));
     expect(posting!.language).toBe("en"); // the posting itself passes the posting-language gate
 
     const { app } = buildServer();
     const cookie = await anonSession(app);
     const res = await get(app, cookie, "/onboarding/cards");
     const body = res.json() as { cards: JobCard[] };
-    expect(body.cards.map((c) => c.adId)).not.toContain(adId); // still held back on the ad's own language
+    expect(body.cards.map((c) => c.adId)).not.toContain(liveIdFor(adId)); // still held back on the ad's own language
   });
 });
 
@@ -468,6 +486,9 @@ describe("#21 POST /onboarding/cards/:adId/want", () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     await signIn(app, cookie, "want-success@example.com");
+    // #63: an advert exists for this session only once retrieval has delivered it, and /want does
+    // not wait on retrieval the way the deck does. Read the deck first, exactly as a visitor does.
+    await warmRetrieval(app, cookie);
 
     const res = await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
     expect(res.statusCode).toBe(200);
@@ -510,16 +531,9 @@ describe("#21 POST /onboarding/cards/:adId/want", () => {
 // (not local to the #104 describe below) so #115's tests can reuse it too, rather than
 // re-implementing the same fixture-first-else-reader predicate a second time.
 const uncachedEnglishPostings = () =>
-  loadPostings()
+  livePostings()
     .filter((p) => p.language === "en")
-    .filter((p) => {
-      try {
-        loadAdRequirements(p.id);
-        return false;
-      } catch {
-        return true;
-      }
-    });
+    .filter((p) => fixtureReadAd(p) === null);
 
 // A minimal valid AdRequirementsV1 for any adId — module-scoped for the same reason as
 // uncachedEnglishPostings above (#115 review: don't re-implement a fixture that already exists).
@@ -553,14 +567,11 @@ describe("#104 GET /onboarding/cards — reading uncached adverts", () => {
 
     // The same fixture-first-else-reader predicate resolveAdRequirements uses: with a reader always
     // answering, every English posting resolves to a card.
-    const expectedIds = loadPostings()
+    const expectedIds = livePostings()
       .filter((p) => p.language === "en")
       .filter((p) => {
-        try {
-          return languageEligible(loadAdRequirements(p.id).language, ["en"]);
-        } catch {
-          return true; // no fixture -> the fake reader supplies a valid English entry
-        }
+        const curated = fixtureReadAd(p);
+        return curated ? languageEligible(curated.language, ["en"]) : true; // no fixture -> the fake reader supplies a valid English entry
       })
       .map((p) => p.id);
     expect(body.cards.map((c) => c.adId).sort()).toEqual(expectedIds.sort());
@@ -652,6 +663,7 @@ describe("#104 GET /onboarding/cards — reading uncached adverts", () => {
     const { app } = buildServer({ readAd });
     const cookie = await anonSession(app);
     await signIn(app, cookie, "newly-read-tailor@example.com");
+    await warmRetrieval(app, cookie); // #63: the advert reaches this session through retrieval
     const uncached = uncachedEnglishPostings()[0]!;
 
     const wantRes = await post(app, cookie, `/onboarding/cards/${uncached.id}/want`);
@@ -798,8 +810,13 @@ describe("#115 a timed-out read is not a read failure", () => {
       failed: readCounters()["postings.read_failed"],
       timedOut: readCounters()["postings.read_timed_out"],
     };
-    const { app } = buildServer({ readAd: makeAdReader(llm, store, [{ familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" }]) });
+    const built = buildServer({ readAd: makeAdReader(llm, store, [{ familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" }]) });
+    const { app } = built;
     const cookie = await anonSession(app);
+    // #63: the adverts reach this session through retrieval now, and the snapshot is written here
+    // rather than earned by an extra deck request - that request would build a deck of its own and
+    // hit the hung reader a second time, doubling every count this test pins.
+    await seedRetrievalSnapshot(built, await sessionId(app, cookie));
 
     let res!: Awaited<ReturnType<typeof get>>;
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -868,12 +885,15 @@ describe("#115 a timed-out read is not a read failure", () => {
       if (posting.id === uncached.id) throw new Error("boom - not a timeout");
       return stubRequirements(posting.id);
     };
+    const { app } = buildServer({ readAd });
+    const cookie = await anonSession(app);
+    // #63: settle retrieval BEFORE the measured window - the deck read that finishes retrieval is
+    // a deck build like any other, and counting it here would double every number below.
+    await warmRetrieval(app, cookie);
     const before = {
       failed: readCounters()["postings.read_failed"],
       timedOut: readCounters()["postings.read_timed_out"],
     };
-    const { app } = buildServer({ readAd });
-    const cookie = await anonSession(app);
     const res = await get(app, cookie, "/onboarding/cards");
     expect(res.statusCode).toBe(200); // no 500
     const body = res.json() as { cards: JobCard[] };
@@ -1208,6 +1228,7 @@ describe("#107 E5 slice 6 — withdrawal (AC1-AC3, AC5, AC6)", () => {
       label: "Mandarin — I don't speak this one",
     });
 
+    await warmRetrieval(app, cookie); // #63: settle retrieval outside the measured window
     const before = readCounters()["deck.cards_withdrawn"];
     await get(app, cookie, "/onboarding/cards");
     expect(readCounters()["deck.cards_withdrawn"]).toBe(before + 1);
@@ -1631,6 +1652,7 @@ describe("#107 D4 — withdrawal on every surface that renders an advert", () =>
     // tailorAdId is persisted session state that can predate a withdrawal (e.g. wanted, then the
     // Mandarin answer landed later) — set directly, exercising this gate on its own terms rather than
     // relying on /want's earlier (still-404) check to have kept this state from ever existing.
+    await warmRetrieval(app, cookie); // #63: the target advert arrives through retrieval
     await sessions.setTailorTarget(sid, target.id);
     await eligibility.put(sid, {
       dimension: "language",

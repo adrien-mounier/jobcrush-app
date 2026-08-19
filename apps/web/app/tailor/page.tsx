@@ -193,7 +193,16 @@ export default function TailorPage() {
       // #30: a signed-out visitor hits this on direct load (no session yet to carry a tailor target).
       // /deck already walls the reveal for an unauthed visitor (its own onSeeThem gate) — same
       // destination as no_tailor_target, not a new one.
-      if (code === "no_tailor_target" || code === "login_required") {
+      //
+      // #63: `not_found` joins them, because this screen can no longer recover from it. The advert
+      // being tailored is resolved from the session's retrieval snapshot, and changing her evidence
+      // or where she is looking correctly stales that snapshot — a decided fail-closed rule (#101,
+      // pinned by postingRetrievalHttp.test.ts) that the fixture pool used to hide. Nothing on THIS
+      // screen re-runs retrieval, so the old "Try again" button re-sent the same doomed request for
+      // ever and left her with no way back to her jobs. The deck is where retrieval re-runs and
+      // where her target comes back, so that is where she goes. Her session and her target are
+      // untouched — this is a redirect, not a reset.
+      if (code === "no_tailor_target" || code === "login_required" || code === "not_found") {
         router.replace("/deck"); // never leave /tailor in history — it would just redirect forward again
         return;
       }

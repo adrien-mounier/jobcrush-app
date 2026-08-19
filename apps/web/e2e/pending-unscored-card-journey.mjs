@@ -110,6 +110,11 @@ const seed = await page.evaluate(async ({ role, runTag }) => {
   return codes;
 }, { role: ROLE, runTag: RUN_TAG });
 await qa.note(`seeded discovery + signed in over the real API — status codes: ${seed.join(", ")}`);
+// #63: the reveal is now REFUSED until the essential floor is answered — before, an uncovered
+// session was served the fixture pool regardless, so this journey never had to earn its deck. The
+// reader-role fact above still carries this run's unique tail, so judgements stay genuinely cold.
+const seededFloor = await qa.seedFloorAnswers({ yes: `Yes, end to end (${RUN_TAG}).` });
+await qa.note(`answered her essential floor so the deck is earned: ${seededFloor.join(", ") || "(nothing open)"}`);
 
 // 2) The cold deck. The reveal is the few seconds the poll is designed to hide behind.
 const t0 = Date.now();
@@ -185,7 +190,9 @@ if (sawPending) {
 }
 
 // What the server decided for this visitor — read now that the pending window has been observed.
-const cold = await page.evaluate(() => fetch("/api/onboarding/cards").then((r) => r.json()));
+// #63: wait out retrieval - the first read is an empty deck while the provider is still being
+// asked (#245), which the fixture pool used to hide.
+const cold = await qa.cardsWhenRetrieved();
 const tally = cold.cards.reduce((a, c) => ((a[c.scored] = (a[c.scored] ?? 0) + 1), a), {});
 await qa.note(`deck shape: ${cold.cards.length} cards ${JSON.stringify(tally)} · pendingCount=${cold.pendingCount}`);
 await qa.note(

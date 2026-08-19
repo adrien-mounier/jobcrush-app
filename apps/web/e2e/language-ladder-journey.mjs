@@ -32,12 +32,14 @@
 // Ports are deliberately not 3000/3001 — another project on this machine defaults to those and the
 // /api proxy would silently reach the wrong backend. API_URL is baked at `next build` time.
 import { createSession } from './qa-driver.mjs';
+// #63: cards carry the id retrieval delivered, not the pool's own key - see live-ad-id.mjs.
+import { liveAdId } from './live-ad-id.mjs';
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:34190';
 const ROLE = 'IT project manager in Hong Kong';
-const MANDARIN_BLOCKING_AD = process.env.QA_MANDARIN_BLOCKING_AD ?? '2026-07-05_okx_senior-strategy-project-manager-vip-institutions';
-const CANTONESE_PLUS_AD = process.env.QA_CANTONESE_PLUS_AD ?? '2026-07-09_bnp-paribas_project-manager-lead-business-analyst-regulatory-reporting';
-const CANTONESE_BLOCKING_AD = process.env.QA_CANTONESE_BLOCKING_AD ?? '2026-07-13_bnp-paribas_senior-project-manager';
+const MANDARIN_BLOCKING_AD = process.env.QA_MANDARIN_BLOCKING_AD ?? liveAdId('2026-07-05_okx_senior-strategy-project-manager-vip-institutions');
+const CANTONESE_PLUS_AD = process.env.QA_CANTONESE_PLUS_AD ?? liveAdId('2026-07-09_bnp-paribas_project-manager-lead-business-analyst-regulatory-reporting');
+const CANTONESE_BLOCKING_AD = process.env.QA_CANTONESE_BLOCKING_AD ?? liveAdId('2026-07-13_bnp-paribas_senior-project-manager');
 const OFF_LIST_WORD = 'Wolof'; // #125's "French speaker in Asia": a real language the market list has never heard of
 
 const qa = await createSession('language-ladder-journey', {

@@ -9,7 +9,10 @@
 //     (#231 AC6's other half; attenuateForConfidence's production caller is buildJobCard).
 import { describe, expect, it } from "vitest";
 import type { FamilyPlacement, MinedJobBlock, PlacementConfidence } from "@jobcrush/contracts";
-import { buildServer } from "../src/server.js";
+// #63: the deck is fed by retrieval alone now, so the suite builds its server with the curated
+// corpus wired at that seam — same adverts, same requirement sets, reached the way production
+// reaches them. See fixtureDeck.ts.
+import { buildDeckServer as buildServer, injectSettled, liveIdFor } from "./fixtureDeck.js";
 import type { JudgeFn } from "../src/judge.js";
 import { makeJobBlockLabeler } from "../src/familyLabeler.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
@@ -27,7 +30,8 @@ const FAMILY = "it-project-delivery"; // the one published family — the sessio
 const OTHER = "field-marketing"; // a family the advert is NOT in (labels need no publication to be stored)
 // The motivating advert (spec #219): "8+ years of IT experience including 5+ years as a Project
 // Manager" — now two scoped bars in the fixture (total >= 8, family >= 5).
-const COMPOUND_AD = "2026-07-05_endava-vietnam_senior-project-manager";
+// #63: cards carry the id retrieval delivers, not the fixture filename.
+const COMPOUND_AD = liveIdFor("2026-07-05_endava-vietnam_senior-project-manager");
 
 const decision = (value: string) => ({
   value,
@@ -119,14 +123,17 @@ async function seededDeck(
       sessionId,
       { questionFloors: [pinned], searchFamily: pinned },
       [],
-      false,
+      // #63: a family session below its floor is refused a deck outright now, rather than quietly
+      // served the fixture pool. These tests are about how an advert's years bars score, so the
+      // visitor is placed past the door they all assumed was already open.
+      true,
     );
   }
   return { app: server.app, cookie, sessionId, jobBlocks, eligibility };
 }
 
 async function compoundCard(harness: Awaited<ReturnType<typeof seededDeck>>) {
-  const res = await harness.app.inject({
+  const res = await injectSettled(harness.app, {
     method: "GET",
     url: "/onboarding/cards",
     headers: { cookie: harness.cookie },
@@ -413,7 +420,7 @@ describe("#222 confidence attenuates the card's score (#231 AC6, owner weights x
 
   it("the confidence level itself is never printed on the card", async () => {
     const harness = await seededDeck([block("b1", 2016, 2023)], { b1: placed([FAMILY], "possible") });
-    const res = await harness.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie: harness.cookie } });
+    const res = await injectSettled(harness.app, { method: "GET", url: "/onboarding/cards", headers: { cookie: harness.cookie } });
     expect(res.payload).not.toMatch(/"confidence"|"possible"|"likely"|"certain"/);
   });
 

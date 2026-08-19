@@ -10,6 +10,8 @@ import { orderCardsForReveal, partitionByFamilyFit } from "../src/deck.js";
 import { loadPostings, type Posting } from "../src/preview.js";
 import { lookupAdRequirements } from "../src/e5stub.js";
 import { readCounters } from "../src/counters.js";
+// #63: the curated pool reaches the deck through retrieval now, never off disk — see fixtureDeck.ts.
+import { fixtureReadAd, fixtureRetriever, getCardsWhenRetrieved, liveIdFor } from "./fixtureDeck.js";
 
 const DECK_FAMILY = "it-project-delivery"; // the one published production family, and now the
 // vocabulary the curated pool's familyFit stamps speak (sample-ad-requirements.json)
@@ -20,7 +22,7 @@ async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<
 }
 
 const getCards = async (app: ReturnType<typeof buildServer>["app"], cookie: string) =>
-  (await app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } })).json() as {
+  (await getCardsWhenRetrieved(app, cookie)).json() as {
     cards: Array<{ adId: string }>;
   };
 
@@ -32,24 +34,27 @@ const confirmed = (familyId: string): FamilyPlacement => ({
 });
 
 /** A reader stamping every unfixtured posting into `family` — the wrong-family population the
- *  filter must delete (or keep, on a word deck). */
+ *  filter must delete (or keep, on a word deck). #63: the curated pool now arrives through the
+ *  retriever like any other advert, so the curated requirement sets are resolved here (by canonical
+ *  key) rather than by the deck finding them on disk — same two populations as before, same split. */
 const readerStamping =
   (family: string, confidence = 0.9) =>
-  async (posting: Posting): Promise<AdRequirementsV1 | null> => ({
-    schemaVersion: "1",
-    adId: posting.id,
-    curated: false,
-    language: "en",
-    familyFit: { family, confidence },
-    requirements: [
-      { id: "pour-foundations", band: "essential", kind: "ordinary", requirement: "Pour foundations", sourceSpan: "foundations" },
-    ],
-  });
+  async (posting: Posting): Promise<AdRequirementsV1 | null> =>
+    fixtureReadAd(posting) ?? {
+      schemaVersion: "1",
+      adId: posting.id,
+      curated: false,
+      language: "en",
+      familyFit: { family, confidence },
+      requirements: [
+        { id: "pour-foundations", band: "essential", kind: "ordinary", requirement: "Pour foundations", sourceSpan: "foundations" },
+      ],
+    };
 
 const fixtureAdIds = () =>
   loadPostings()
     .filter((p) => lookupAdRequirements(p.id).status === "found")
-    .map((p) => p.id);
+    .map((p) => liveIdFor(p.id));
 
 describe("#243 family-fit deletion at the deck (HTTP seam)", () => {
   // AC2: an advert whose family fit names another family does not appear in her deck — and the
@@ -58,6 +63,7 @@ describe("#243 family-fit deletion at the deck (HTTP seam)", () => {
     const before = readCounters()["deck.family_dropped"];
     const { app } = buildServer({
       placeFamily: async () => confirmed(DECK_FAMILY),
+      retrievePostings: fixtureRetriever(),
       readAd: readerStamping("construction-site-delivery"),
     });
     const cookie = await anonSession(app);
@@ -76,6 +82,7 @@ describe("#243 family-fit deletion at the deck (HTTP seam)", () => {
   it("keeps a same-family advert whatever its confidence", async () => {
     const { app } = buildServer({
       placeFamily: async () => confirmed(DECK_FAMILY),
+      retrievePostings: fixtureRetriever(),
       readAd: readerStamping(DECK_FAMILY, 0.05),
     });
     const cookie = await anonSession(app);
@@ -88,7 +95,7 @@ describe("#243 family-fit deletion at the deck (HTTP seam)", () => {
   // against: nothing is deleted, exactly the pre-#243 deck.
   it("deletes nothing on a word-search deck", async () => {
     const before = readCounters()["deck.family_dropped"];
-    const { app } = buildServer({ readAd: readerStamping("construction-site-delivery") });
+    const { app } = buildServer({ retrievePostings: fixtureRetriever(), readAd: readerStamping("construction-site-delivery") });
     const cookie = await anonSession(app);
     const { cards } = await getCards(app, cookie);
     const fixtures = new Set(fixtureAdIds());
@@ -103,6 +110,7 @@ describe("#243 family-fit deletion at the deck (HTTP seam)", () => {
   it("compares against the deck's search family, never the visitor's placement", async () => {
     const built = buildServer({
       placeFamily: async () => confirmed("visitors-own-family"),
+      retrievePostings: fixtureRetriever(),
       readAd: readerStamping(DECK_FAMILY),
     });
     const cookie = await anonSession(built.app);
@@ -114,7 +122,9 @@ describe("#243 family-fit deletion at the deck (HTTP seam)", () => {
         searchFamily: { familyId: DECK_FAMILY, version: 1 },
       },
       [],
-      false,
+      // #63: the floor must actually be covered now — an uncovered session is refused a deck
+      // outright rather than quietly served the fixture pool, which is what this used to rely on.
+      true,
     );
     const { cards } = await getCards(built.app, cookie);
     expect(cards.length).toBeGreaterThan(0); // compared to the visitor's family, this would be 0

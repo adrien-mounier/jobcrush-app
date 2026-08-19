@@ -19,13 +19,15 @@
 //
 // Run:  BASE_URL=http://127.0.0.1:3458 node e2e/uncurated-advert-journey.mjs
 import { createSession } from "./qa-driver.mjs";
+// #63: cards carry the id retrieval delivered, not the pool's own key - see live-ad-id.mjs.
+import { liveAdIds } from "./live-ad-id.mjs";
 
 const BASE_URL = process.env.BASE_URL || "http://127.0.0.1:3000";
 const ROLE = "IT project manager in Paris";
 
 // Postings with NO hand-authored requirement set — the population #104 makes readable. Ids, not
 // titles: titles are not unique in this pool (see the adId note below).
-const UNCURATED_AD_IDS = [
+const UNCURATED_AD_IDS = liveAdIds([
   "2026-07-05_okx_senior-strategy-project-manager-vip-institutions",
   "2026-07-09_bnp-paribas_project-manager-lead-business-analyst-regulatory-reporting",
   "2026-07-09_charterhouse-partnership-asia_senior-business-analyst-product-manager-1-year-contract",
@@ -33,11 +35,11 @@ const UNCURATED_AD_IDS = [
   "2026-07-09_pwc-australia_project-manager-client-onboarding-risk-assessment-uplift",
   "2026-07-09_sanderson-ikas-hong-kong_business-analyst-product-manager-digital-transformation-mobile",
   "2026-07-13_bnp-paribas_senior-project-manager",
-];
-const HELD_BACK_AD_IDS = [
+]);
+const HELD_BACK_AD_IDS = liveAdIds([
   "2026-07-10_huaxin-tech-shenzhen_it-xiangmu-jingli", // Chinese posting — held at ingest
   "2026-07-01_hays_senior-front-office-project-manager-top-tier-investment", // English ad, Chinese fixture
-];
+]);
 
 const qa = await createSession("uncurated-advert-journey", { baseURL: BASE_URL });
 const { page } = qa;
@@ -75,10 +77,15 @@ qa.note(`signed in over the real API — POST /auth/verify status: ${signIn}`);
 
 // 3) What did the API actually build? Read the deck once over the wire to decide which mode we're
 //    in, and to record the evidence numbers the report is really about.
-const deck = await page.evaluate(async () => {
-  const body = await fetch("/api/onboarding/cards").then((r) => r.json());
-  return { count: body.cards.length, ids: body.cards.map((c) => c.adId), titles: body.cards.map((c) => c.title), pcts: body.cards.map((c) => c.matchPct) };
-});
+// #63: wait out retrieval - the first read is an empty deck while the provider is still being
+// asked (#245), which the fixture pool used to hide.
+const deckBody = await qa.cardsWhenRetrieved();
+const deck = {
+  count: deckBody.cards.length,
+  ids: deckBody.cards.map((c) => c.adId),
+  titles: deckBody.cards.map((c) => c.title),
+  pcts: deckBody.cards.map((c) => c.matchPct),
+};
 // Match on adId, never on title: three postings in this pool share the title "Senior Project
 // Manager" (Schneider, Luvo, BNP) and only one of them is uncurated, so a title match silently
 // drives the curated card instead and the journey passes without ever proving anything.

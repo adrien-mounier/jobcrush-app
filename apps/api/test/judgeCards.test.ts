@@ -15,9 +15,11 @@
 // owns that, against HOLD_OUT_REGRESSION_ROWS.
 import { describe, expect, it } from "vitest";
 import type { AdRequirementsV1, CandidateClaim } from "@jobcrush/contracts";
-import { buildServer } from "../src/server.js";
-import { loadPostings, type Posting } from "../src/preview.js";
-import { loadAdRequirements } from "../src/e5stub.js";
+// #63: the deck is fed by retrieval alone now, so the suite builds its server with the curated
+// corpus wired at that seam — same adverts, same requirement sets, reached the way production
+// reaches them. See fixtureDeck.ts.
+import { buildDeckServer as buildServer, fixtureReadAd, injectSettled, livePostings, seedRetrievalSnapshot, warmRetrieval } from "./fixtureDeck.js";
+import type { Posting } from "../src/preview.js";
 import { READER_ROLE_ITEM_ID, discoveryClaimId, freeTextLine } from "../src/discovery.js";
 import { makeJudge, makeJudgePeek, judgementFingerprint, judgeVersion, type JudgeFn } from "../src/judge.js";
 import { InMemoryJudgementStore } from "../src/judgementStore.js";
@@ -31,7 +33,7 @@ async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<
   return `jc_session=${res.cookies.find((c) => c.name === "jc_session")!.value}`;
 }
 const get = (app: ReturnType<typeof buildServer>["app"], cookie: string, url: string) =>
-  app.inject({ method: "GET", url, headers: { cookie } });
+  injectSettled(app, { method: "GET", url, headers: { cookie } });
 const post = (
   app: ReturnType<typeof buildServer>["app"],
   cookie: string,
@@ -59,17 +61,18 @@ interface JobCard {
 const ROLE = "IT project manager in Paris";
 const STAKEHOLDERS = "stakeholder-coordination";
 
+// #63: adverts arrive through retrieval, so these carry the ids cards and /want speak.
 const uncachedEnglishPostings = () =>
-  loadPostings()
+  livePostings()
     .filter((p) => p.language === "en")
-    .filter((p) => {
-      try {
-        loadAdRequirements(p.id);
-        return false;
-      } catch {
-        return true;
-      }
-    });
+    .filter((p) => fixtureReadAd(p) === null);
+
+/** #63: an advert is wantable once retrieval has delivered it - the deck read a visitor makes
+ *  before she can swipe anything. */
+const wantTarget = async (app: ReturnType<typeof buildServer>["app"], cookie: string, adId: string) => {
+  await warmRetrieval(app, cookie);
+  return post(app, cookie, `/onboarding/cards/${adId}/want`);
+};
 
 const stubRequirements = (adId: string): AdRequirementsV1 => ({
   schemaVersion: "1",
@@ -120,7 +123,7 @@ describe("#105 PLUMBING ONLY (not judgement correctness): a scripted verdict for
       await post(app, cookie, "/onboarding/discovery/answer", { itemId: READER_ROLE_ITEM_ID, answer: row.evidence });
       await signIn(app, cookie, `${row.id}@example.com`); // want/tailor are post-wall
 
-      expect((await post(app, cookie, `/onboarding/cards/${targetPosting.id}/want`)).statusCode).toBe(200);
+      expect((await wantTarget(app, cookie, targetPosting.id)).statusCode).toBe(200);
       const res = await get(app, cookie, "/onboarding/tailor");
       expect(res.statusCode).toBe(200);
       const card = (res.json() as { card: JobCard }).card;
@@ -274,7 +277,7 @@ describe("#105 review: a negative answer must never move the number or force a r
     const callsAfterFirstDeck = calls.length;
     expect(callsAfterFirstDeck).toBeGreaterThan(0); // sanity: judging really happened
 
-    await post(app, cookie, `/onboarding/cards/${targetPosting.id}/want`);
+    await wantTarget(app, cookie, targetPosting.id);
     // stubRequirements' one requirement id — still open (the generic responder above scores every
     // requirement 0.5, below COVERAGE_THRESHOLD), so this is a real question with a real "No".
     const answered = await post(app, cookie, "/onboarding/tailor/answer", { requirementId: "own-a-budget", answer: "No" });
@@ -315,7 +318,7 @@ describe("#105 an explicit negative stays answered-and-closed when a judge is wi
     const cookie = await anonSession(app);
     await signIn(app, cookie, "neg-judge-105@example.com"); // want/tailor are post-wall
 
-    expect((await post(app, cookie, `/onboarding/cards/${targetPosting.id}/want`)).statusCode).toBe(200);
+    expect((await wantTarget(app, cookie, targetPosting.id)).statusCode).toBe(200);
     const answered = await post(app, cookie, "/onboarding/tailor/answer", { requirementId: "the-req", answer: "No" });
     expect(answered.statusCode).toBe(200);
 
@@ -382,7 +385,8 @@ describe("#105 review round 4: the deck has ONE shared judging budget, not per-w
       const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> => stubRequirements(posting.id);
       const hungForever: JudgeFn = () => new Promise(() => {}); // never resolves or rejects, for every ad
       const before = readCounters()["judge.fallback_used"];
-      const { app } = buildServer({ readAd, judge: hungForever });
+      const built = buildServer({ readAd, judge: hungForever });
+      const { app } = built;
       const cookie = await anonSession(app);
       await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
       await post(app, cookie, "/onboarding/discovery/answer", {
@@ -390,8 +394,14 @@ describe("#105 review round 4: the deck has ONE shared judging budget, not per-w
         answer: "Owned a project budget of $2M.",
       });
 
+      // #63: the snapshot is written straight to the session rather than earned by an extra deck
+      // read. The deck arrives through retrieval now, and any read that settles it would spend a
+      // whole judging budget of its own inside a test whose entire subject is that ONE request
+      // stays inside ONE budget.
+      const sid = (await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } })).json().id as string;
+      await seedRetrievalSnapshot(built, sid);
       const startedAt = Date.now();
-      const res = await get(app, cookie, "/onboarding/cards");
+      const res = await app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
       const elapsedMs = Date.now() - startedAt;
 
       expect(res.statusCode).toBe(200); // no 500, and no hang — the deck still rendered

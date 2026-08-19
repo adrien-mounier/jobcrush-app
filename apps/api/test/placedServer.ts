@@ -1,5 +1,6 @@
 import { PLACEMENT_SCHEMA_VERSION, type FamilyPlacement } from "@jobcrush/contracts";
-import { buildServer as baseBuildServer } from "../src/server.js";
+// #63: deck-wired (retrieval seam + curated requirement sets) — see fixtureDeck.ts.
+import { buildDeckServer as baseBuildServer } from "./fixtureDeck.js";
 
 export const IT_PROJECT_DELIVERY_PLACEMENT: FamilyPlacement = {
   schemaVersion: PLACEMENT_SCHEMA_VERSION,

@@ -23,7 +23,12 @@
 //     through POST /qa/stack — see their own comments for the measured reason they are not defaults.
 //   - usage-ledger / cost metering: the fake is never wrapped in meterLlm, so no per-call cost
 //     attribution path runs.
-//   - postings retrieval / techmap providers: entirely absent — no provider registry, no store.
+//   - postings retrieval: NO provider registry and no store, but since #63 a stand-in retriever
+//     serves the curated corpus at the same injected seam main.ts hands the real provider — the
+//     deck has no other way to receive an advert now, so without it every browser journey that
+//     renders a deck goes dark. Never a paid call, same rule as the fake model. Its OUTCOME is a
+//     /qa/stack knob (`retrievalOutcome`) so a journey can also drive the empty-pool and outage
+//     screens; it defaults to a full deck, so an unarmed run sees what it always saw.
 //   - the 6h purge sweep: absent (nothing to purge without DATABASE_URL).
 //
 // Deliberately a SEPARATE entry, not an `LLM_DRIVER=fake` branch inside main.ts/llmFromEnv(): a
@@ -57,12 +62,13 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AdRequirementsV1 } from "@jobcrush/contracts";
+import { AdRequirementsV1, canonicalKeyOf, type PostingRetrievalResultV1 } from "@jobcrush/contracts";
 import { buildServer } from "./server.js";
 import { LocalDiskStorage } from "./storage.js";
 import { makeMineStep } from "./miner.js";
 import { makeMineJobBlocksStep } from "./jobBlockMiner.js";
-import { makePreviewStep, type Draft } from "./preview.js";
+import { loadPostings, makePreviewStep, type Draft } from "./preview.js";
+import { lookupAdRequirements } from "./e5stub.js";
 import { makeGrillPhraser } from "./grill.js";
 import { makeCvAuditor } from "./audit.js";
 import { initialProductionFamilyFloors } from "./familyFloors.js";
@@ -439,12 +445,120 @@ const QA_LANGUAGE_ADVERTS: Record<string, unknown> = {
   },
 };
 
+// #63 — the QA entry's stand-in for a paid posting provider.
+//
+// The deck is fed by retrieval and nothing else now: preview.ts's sessionPostings no longer reads
+// sample-postings.json off disk, because a fixture reaching a session unretrieved is a fixture
+// authorizing a reveal. That is the defect the ticket closes, and it leaves this entry — which
+// deliberately wires no provider registry, no store and no TECHMAP_RAPIDAPI_KEY — with no way to
+// put a single advert on a screen. Every browser journey that renders a deck would go dark, and
+// with them the e2e job that gates the staging deploy.
+//
+// So the curated corpus is served HERE, at the same injected `retrievePostings` seam main.ts hands
+// the real provider, for exactly the reason the fake model is wired the same way: a QA run must
+// never make a paid call. This is NOT the fixture escape hatch the ticket forbids — that would be a
+// flag in the shipped server letting fixtures bypass the reveal gate. Nothing is bypassed: these
+// adverts are a retrieval RESULT, and a session still has to pass every gate (published family,
+// covered essential floor, liveness, language) before one becomes a card. The refusal is the same
+// code, answering the same way, on data that costs nothing. And like the fake model, it can never
+// reach production: this file is imported by nothing, referenced by no fly.*.toml, and pruned from
+// the Docker image.
+const qaPostingsV1 = () => {
+  const now = new Date().toISOString();
+  return loadPostings().map((posting) => {
+    const canonicalKey = canonicalKeyOf(posting.company, posting.location, posting.title);
+    return {
+      schemaVersion: "4" as const,
+      id: `posting:${canonicalKey}`,
+      canonicalKey,
+      title: posting.title,
+      company: posting.company,
+      location: posting.location,
+      sourceUrl: `https://qa.invalid/${encodeURIComponent(posting.id)}`,
+      excerpt: posting.excerpt,
+      postedAt: null,
+      capturedAt: now,
+      verifiedLiveAt: now,
+      expiresAt: null,
+      attribution: [],
+      // The one provider this build's ACTIVE registry carries: curated-pool is operationally
+      // disabled (postings.ts) until it has a production region-refresh caller, and a snapshot whose
+      // sources name a provider the registry does not carry is never reusable.
+      sources: [{ providerId: "techmap", providerPostingId: posting.id }],
+      skills: posting.keywords,
+      language: posting.language,
+    };
+  });
+};
+
+// #63 — which outcome the stand-in provider reports. `relevant_postings` is the default because
+// every existing journey needs a deck; the other two exist because #63 built two SCREENS that
+// nothing else can reach. A retrieval that finishes empty and a retrieval that could not run are
+// deliberately different words to a visitor (#174's warning, and the reason this ticket exists), and
+// a payload assertion does not prove a screen — so a journey has to be able to drive both. Armed
+// per-journey through POST /qa/stack, never a default: an unarmed run sees exactly the full deck.
+let qaRetrievalOutcome: "relevant_postings" | "empty_pool" | "provider_unavailable" = "relevant_postings";
+
+const qaRetrievePostings = async (): Promise<PostingRetrievalResultV1> => {
+  const retrievedAt = new Date().toISOString();
+  if (qaRetrievalOutcome === "provider_unavailable") {
+    return {
+      schemaVersion: "4",
+      outcome: "provider_unavailable",
+      coverage: { providersQueried: [], providersUnavailable: ["techmap"], complete: false },
+      reason: "qa-main: provider forced unavailable via POST /qa/stack",
+      retryable: true,
+    };
+  }
+  if (qaRetrievalOutcome === "empty_pool") {
+    return {
+      schemaVersion: "4",
+      outcome: "empty_pool",
+      // complete: the one source we have WAS asked and answered with nothing — which is exactly the
+      // state whose wording #174 warned about, and the state a journey needs to be able to look at.
+      coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
+      retrievedAt,
+    };
+  }
+  return {
+    schemaVersion: "4",
+    outcome: "relevant_postings",
+    postings: qaPostingsV1(),
+    coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
+    retrievedAt,
+  };
+};
+
+/** The pool advert a RETRIEVED posting id came from. Both tables this entry answers reads out of —
+ *  the curated corpus and QA_LANGUAGE_ADVERTS — are keyed by the fixture's own filename-shaped id,
+ *  while a retrieved advert's id is `posting:<canonicalKey>` by contract, so every lookup has to
+ *  come back through here. */
+const qaPoolSourceOf = (postingId: string) =>
+  loadPostings().find((p) => `posting:${canonicalKeyOf(p.company, p.location, p.title)}` === postingId) ?? null;
+
+/** The hand-curated requirement set for a retrieved advert. Without this, resolveAdRequirements'
+ *  fixture-first lookup finds none of them and every card in a QA deck is an unreadable advert. */
+const qaCuratedRequirements = (postingId: string) => {
+  const source = qaPoolSourceOf(postingId);
+  if (!source) return null;
+  const lookup = lookupAdRequirements(source.id);
+  return lookup.status === "found" ? { ...lookup.requirements, adId: postingId } : null;
+};
+
 // Parsed through the real contract, exactly like every other read — a fixture the schema rejects
 // must fail here, loudly, not reach a card as an unvalidated object.
 const qaReadAd = async (posting: { id: string }) => {
-  if (!languageAdvertsOn) return null; // disarmed: exactly today's fixture-only deck
-  const found = QA_LANGUAGE_ADVERTS[posting.id];
-  return found ? AdRequirementsV1.parse(found) : null;
+  const curated = qaCuratedRequirements(posting.id);
+  if (curated) return AdRequirementsV1.parse(curated);
+  if (!languageAdvertsOn) return null; // disarmed: exactly today's curated-only deck
+  // #63: this table is keyed by the fixture id its comment above cites, and the reader is handed
+  // the RETRIEVED advert - so the lookup goes back through the pool, and the entry is re-stamped
+  // onto the advert as retrieval actually delivered it.
+  const source = qaPoolSourceOf(posting.id);
+  const found = source ? QA_LANGUAGE_ADVERTS[source.id] : undefined;
+  return found
+    ? AdRequirementsV1.parse({ ...(found as Record<string, unknown>), adId: posting.id })
+    : null;
 };
 
 // A distinct dir/env-var name from main.ts's UPLOAD_DIR (not just a different default) so a real
@@ -515,6 +629,9 @@ const { app } = buildServer({
   // #209: readAd is wired to the CANNED table above, never to a model — advert-reading stays free
   // and deterministic, and only the three adIds with no shipped fixture are answered at all.
   readAd: qaReadAd,
+  // #63: see qaRetrievePostings' own comment — the curated corpus at the provider seam, because
+  // this entry has no provider registry and the deck now has no other way to receive an advert.
+  retrievePostings: qaRetrievePostings,
   // #209: judging wired to the SAME fake, through the real makeJudge/makeJudgePeek pair and a real
   // (in-memory) judgement store — so the pending → judged transition a card renders is the product's
   // own, not a stub's. Wiring a judge at all is what makes a card `pending`/`unscored` instead of
@@ -541,7 +658,9 @@ app.get("/qa/llm-calls", async () => seen);
 // false, and the delay would silently DISARM — the pending journey would then walk a deck of
 // instantly-judged cards, find none of the states it exists to prove, note that judging beat the
 // reveal, and pass. A knob that fails by quietly turning itself off is worse than no knob.
-app.post<{ Body: { judgeDelayMs?: number; languageAdverts?: boolean } }>("/qa/stack", async (req, reply) => {
+app.post<{
+  Body: { judgeDelayMs?: number; languageAdverts?: boolean; retrievalOutcome?: string };
+}>("/qa/stack", async (req, reply) => {
   if (req.body?.judgeDelayMs !== undefined) {
     const ms = Number(req.body.judgeDelayMs);
     if (!Number.isFinite(ms)) {
@@ -555,7 +674,21 @@ app.post<{ Body: { judgeDelayMs?: number; languageAdverts?: boolean } }>("/qa/st
     }
     languageAdvertsOn = req.body.languageAdverts;
   }
-  return { ok: true, judgeDelayMs, languageAdverts: languageAdvertsOn };
+  // #63: lets a journey drive the empty-result and outage screens, which are otherwise unreachable
+  // in any browser-runnable config. Changing it invalidates nothing by itself — the session's stored
+  // snapshot is keyed by request fingerprint, so a session that already has a deck keeps it until
+  // its own inputs change. Set this BEFORE the session's first deck read.
+  if (req.body?.retrievalOutcome !== undefined) {
+    const allowed = ["relevant_postings", "empty_pool", "provider_unavailable"] as const;
+    const wanted = allowed.find((value) => value === req.body.retrievalOutcome);
+    if (!wanted) {
+      return reply.status(400).send({
+        error: { code: "bad_request", message: `retrievalOutcome must be one of ${allowed.join(", ")}` },
+      });
+    }
+    qaRetrievalOutcome = wanted;
+  }
+  return { ok: true, judgeDelayMs, languageAdverts: languageAdvertsOn, retrievalOutcome: qaRetrievalOutcome };
 });
 
 const port = Number(process.env.PORT ?? 34101);

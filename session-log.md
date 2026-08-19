@@ -2,6 +2,94 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-19 (session 145) `/implement 63` — the deck stops being fixtures (QA GO)
+
+Closes #63. The head of the #54 chain; #64–#69 sit behind it.
+
+**What was actually wrong.** Every blocker on #63 had closed, so the first job was to check what a
+real visitor sees. The answer: **the deck was 100% fixtures, always, and the reveal counted them.**
+`sessionPostings` already carried #248's authorization check — correctly placed, on the one door all
+three posting readers pass through — and then returned `[...fixturePool]` on the refusal branch. So
+the refusal was honest in the payload's `retrieval` field and cosmetic in the cards underneath: a
+visitor who had answered nothing was shown *"17 jobs just matched you"* over the hand-maintained
+corpus. **AC2 (the server refuses when a gate is absent) and AC3 (no zero-match reward) were false in
+the shipped product**, with a correct-looking guard sitting directly above the line that defeated
+them.
+
+**What she gets now.** A posting reaches a session by exactly one route: a live, authorized,
+currently-reusable `relevant_postings` snapshot. Every other state is an empty pool. Measured on the
+running product: floor uncovered → **0 cards** and `invalid_request / floor_not_covered`; floor
+covered → **8 real retrieved cards, none carrying a fixture id**. QA tried to get round the gate with
+`?reveal=1`, `?checkpoint=essential_floor_covered`, `?force=true&fixtures=1`, forged headers, and
+naming a fixture advert by id on `/want` — all refused.
+
+**#174's copy trap is closed in the words, not only in the payload.** A new `unavailable` screen
+(*"We couldn't look for jobs just now." / "Something on our side didn't answer. Try again in a
+moment."* + retry) is a different screen from the empty dead end, so a supplier outage can never read
+as *"there are no jobs in your market"* — the one failure mode #174 handed this ticket. `stale_data`
+joins it; `invalid_request` deliberately does **not** (the server is working and waiting for her, so
+it keeps the "answer a few more questions" line, with `Z4` for the refusal-with-no-question edge).
+
+**Two blocking defects, found by the browser gate, not by the diff reviews.**
+
+1. 🚨 **A visitor lost the job she was tailoring, with no way back.** Swipe right, change where she is
+   looking (AC4's own flow), return to `/tailor` → *"Couldn't open this job."* and a Try-again that
+   404s for ever. The server was right to refuse — the advert came from a search that no longer
+   applies, #101's decided fail-closed rule, pinned by `postingRetrievalHttp.test.ts`. The fixture
+   pool had been hiding it. I tried fixing it server-side, found the pinned decision, and **reverted
+   rather than override it**; fixed the screen instead — `not_found` joins the redirect branch that
+   already existed for `no_tailor_target`. One client line. Verified in a browser: she lands back on
+   her deck with 8 fresh matches and every answer still hers.
+2. **4 of 16 tier-2 journeys went red.** Three had **never earned their deck** — they relied on
+   fixtures appearing whether or not the visitor had answered anything — and one indexed `cards[0]`
+   without waiting out retrieval. All restored to their exact baselines (14/0, 42/0, 15/0, 22/0).
+   Added `qa.cardsWhenRetrieved()` to the shared driver as the browser-side equivalent of the API
+   suite's `injectSettled`.
+
+⚠️ **One assertion was changed rather than the product, and it is on the record.**
+`snapshot-is-not-permission-journey`'s `retrievalGeneration === 0` is **wrong on unchanged code**:
+that counter tracks the times *her own* inputs changed (intent write + floor pin, `sessions.ts:504`
+and `:584`), reads 2 before any deck is read, and **measured 2 at HEAD too** (working tree stashed
+back and re-run). Re-pointed to the invariant its own message names — the counter must not *move*
+across the three refused reads. QA verified the claim three independent ways, including extracting
+HEAD's journey and running it against this build: exactly one assertion failed, that one.
+
+**`qa-main.ts` gained a stand-in retriever** at the same seam `main.ts` hands the real provider —
+without it the QA entry (no provider registry, no store) has no way to put an advert on a screen and
+every browser journey renders a dark deck, taking the deploy gate with it. Same rule as the fake
+model: never a paid call, pruned from the Docker image. **Not the fixture escape hatch the owner
+forbade** — it produces a retrieval *result* that still passes every gate (QA proved an uncovered
+floor still returns 0 cards with it armed and healthy). Its outcome is a `POST /qa/stack
+{"retrievalOutcome": ...}` knob, because the two new screens were otherwise **unreachable in any
+browser-runnable configuration** — a payload assertion does not prove a screen.
+
+**The test migration is most of the diff.** 90 API tests failed the moment fixtures stopped feeding
+the deck. One shared harness (`test/fixtureDeck.ts`) serves the same corpus through the real
+retrieval seam, so the suite kept its meaning; ad ids move to `posting:<canonicalKey>` by contract.
+`test/credibleReveal.test.ts` pins all four ACs plus the outage/empty distinction, including the
+headline guard: **a server with no provider wired serves no cards, however full the pool.**
+
+**Gates:** 1523 api + 47 contracts passed uncached, 11 skipped, 0 failed; typecheck clean across
+seven packages; Tier 1 143/0; **Tier 2 all 16 journeys, 486 assertions, 0 failed**. Ratchet untouched
+(900). Zero paid provider calls all session.
+
+🚨 **Operational, for the first staging deploy:** a deployment with no working provider now has **no
+deck at all, for anyone**. That is the deliberate trade — a dark deck is honest, a fixture deck sold
+as a match count is not — and it makes staging's `TECHMAP_RAPIDAPI_KEY` load-bearing rather than a
+nice-to-have. Confirm on the first deploy, together with #243's residual (`adReader.family_clamped`).
+
+⚠️ **Two pre-existing honesty problems this makes VISIBLE and does not fix** — both need an owner
+call, neither is in #63's ACs. The first discovery question still promises *"10 jobs are open right
+now"*, counted off `sample-postings.json` and never searched (partly #246, now self-contradicting:
+she can be told that and then, three screens later, "we couldn't look"). And the CV preview still
+says *"Written against a real posting"*, naming a fixture employer (`matchPosting` — no retrieval, no
+liveness check).
+
+⚠️ **Three journeys are in no tier and will rot unwatched:** `credible-reveal-journey.mjs` (#63's own
+acceptance evidence, 29/0) and `stale-search-tailor-return-journey.mjs` (the D2 regression), both
+left by QA, plus the pre-existing `deck-family-fit-journey.mjs`. Adding them to `run-tier2.mjs` is
+the owner's call (~2.5 min CI each), the same way #243 recorded it.
+
 ## 2026-08-19 (session 144) `/implement 229` — the career changer is told (QA GO)
 
 `d4f7e5d`, closes #229. First Fable `/implement` row to run.

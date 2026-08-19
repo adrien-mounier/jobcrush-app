@@ -159,6 +159,10 @@ await assertTrue(
 // The deck read, THREE times. #248's own words: "the test runs on EVERY deck read, whether or not a
 // snapshot already exists." One refusal followed by a served second read is the exact shape of the
 // bug this ticket closes, so read it more than once.
+//
+// Read the generation BEFORE them, so the check further down measures what these reads did rather
+// than what she did on her way here.
+const generationBeforeReads = (await getJson('/sessions/me'))?.retrievalGeneration;
 for (const attempt of [1, 2, 3]) {
   const cards = await callAsVisitor('GET', '/onboarding/cards');
   const retrieval = cards.json?.retrieval;
@@ -191,14 +195,25 @@ await assertTrue(
   ownSession !== null && !('retrieval' in ownSession),
   `her own session record carries no retrieved postings at all (keys: ${Object.keys(ownSession ?? {}).join(', ')})`,
 );
-// ...and an INDEPENDENT look at persisted state, which the check above no longer gives: these two
-// are written by reconcileRetrievalState the moment retrieval work completes, so untouched values
-// mean no claim was ever made and no result ever reconciled. A hash and an integer — no advert data
-// rides on them, so exposing them carries none of the risk the field above did.
+// ...and an INDEPENDENT look at persisted state, which the check above no longer gives: the
+// coordination fingerprint is written by reconcileRetrievalState the moment retrieval work
+// completes, so an untouched value means no claim was ever made and no result ever reconciled. A
+// hash and an integer — no advert data rides on them, so exposing them carries none of the risk the
+// field above did.
+//
+// `retrievalGeneration === 0` was asserted here too and is WRONG on its own terms — measured against
+// this build and against the commit before it, both answering the same 2. The generation is not a
+// retrieval fact: it counts the times her own inputs changed, and it is bumped by her intent write
+// and by her floor being pinned (sessions.ts), both of which happen on the discovery screen above,
+// before any deck is ever read. What this line means to say — an uncovered read starts no work — is
+// what is asserted instead: the generation must not MOVE across the three refused reads, which is
+// the same evidence without the false premise.
+const genAfterRefusedReads = ownSession?.retrievalGeneration;
 await assertTrue(
-  ownSession?.retrievalCoordinationFingerprint === null && ownSession?.retrievalGeneration === 0,
+  ownSession?.retrievalCoordinationFingerprint === null && genAfterRefusedReads === generationBeforeReads,
   `an unearned deck claimed nothing and reconciled nothing against her session ` +
-    `(fingerprint ${JSON.stringify(ownSession?.retrievalCoordinationFingerprint)}, generation ${ownSession?.retrievalGeneration})`,
+    `(fingerprint ${JSON.stringify(ownSession?.retrievalCoordinationFingerprint)}, ` +
+    `generation ${generationBeforeReads} -> ${genAfterRefusedReads}, unmoved by three refused reads)`,
 );
 
 // The other two doors onto the same posting pool. Both take an ad id straight from the URL, so both

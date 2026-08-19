@@ -5,6 +5,8 @@
 import { describe, expect, it } from "vitest";
 import type { AdRequirementV1, AdRequirementsV1, CandidateClaim } from "@jobcrush/contracts";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
+// #63: adverts reach a session through retrieval now - see fixtureDeck.ts.
+import { liveIdFor, warmRetrieval } from "./fixtureDeck.js";
 import type { ClaimRecord } from "../src/claims.js";
 import { loadAdRequirements } from "../src/e5stub.js";
 import { matchTick } from "../src/matchtick.js";
@@ -307,7 +309,10 @@ async function signIn(app: ReturnType<typeof buildServer>["app"], cookie: string
 }
 
 const ROLE = "IT project manager in Paris";
-const VALID_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
+// The curated requirement corpus is keyed by the fixture id; a card and the /want route speak the
+// id retrieval delivers. #63 made those two different strings, so both names exist here.
+const FIXTURE_AD_ID = "2026-07-05_endava-vietnam_senior-project-manager";
+const VALID_AD_ID = liveIdFor(FIXTURE_AD_ID);
 const END_TO_END = "end-to-end-delivery";
 const STAKEHOLDERS = "stakeholder-coordination";
 const RISKS = "risk-dependency-control";
@@ -338,6 +343,7 @@ async function reachTailor(app: ReturnType<typeof buildServer>["app"], cookie: s
     answer: "Weekly steering updates",
   });
   await signIn(app, cookie, email);
+  await warmRetrieval(app, cookie); // #63: the advert exists for this session once retrieval delivers it
   await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
 }
 
@@ -357,7 +363,7 @@ async function reachTailorWithSeededDeck(server: ReturnType<typeof buildServer>,
   await signIn(app, cookie, email);
 
   const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
-  const adReq = loadAdRequirements(VALID_AD_ID);
+  const adReq = loadAdRequirements(FIXTURE_AD_ID);
   const job = await store.create("onboarding", sessionId);
   await store.update(job.id, {
     status: "completed",
@@ -365,6 +371,7 @@ async function reachTailorWithSeededDeck(server: ReturnType<typeof buildServer>,
   });
   const deck = await post(app, cookie, "/onboarding/deck", { jobId: job.id });
   expect(deck.statusCode).toBe(200);
+  await warmRetrieval(app, cookie); // #63: the advert exists for this session once retrieval delivers it
   await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
 }
 
@@ -521,6 +528,13 @@ describe("#23 POST /onboarding/tailor/answer", () => {
       (q: { eligibility?: { dimension: string } }) => q.eligibility?.dimension === "work-rights",
     )!;
     await post(app, cookie, "/onboarding/discovery/answer", { itemId: workRights.itemId, answer: DECLINE_OPTION });
+    // #63: answering a discovery question changes this session's evidence, which correctly stales
+    // the retrieval snapshot the tailor target resolves against - #101's decided fail-closed rule,
+    // pinned by postingRetrievalHttp.test.ts. The client returns to the deck and swipes again; that
+    // is what these two lines are. What is being measured, factCount on the tailor seam, is
+    // untouched by the detour.
+    await warmRetrieval(app, cookie);
+    await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
 
     const after = (await get(app, cookie, "/onboarding/tailor")).json();
     expect(after.factCount).toBe(before.factCount);
@@ -555,6 +569,12 @@ describe("#23 POST /onboarding/tailor/answer", () => {
     const rejectRes = await post(app, cookie, `/onboarding/claims/${claimId}/reject`);
     expect(rejectRes.statusCode).toBe(200);
     expect((await claims.confirmed(sid)).map((c) => c.id)).not.toContain(claimId); // ...gone after — raw is now 3
+    // #63: the reject changed this session's evidence, which stales the retrieval snapshot the
+    // tailor target resolves against (#101's decided fail-closed rule). The client is on the deck
+    // when it rejects a claim and swipes back onto the card from there; these two lines are that.
+    // Nothing about the factCount question below changes.
+    await warmRetrieval(app, cookie);
+    await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
 
     // All five emission seams. The two POST /answer calls are legitimate idempotent corrections (#18
     // AC4 / #23's own "re-answering the same item CORRECTS it" contract) on items already answered
@@ -562,6 +582,18 @@ describe("#23 POST /onboarding/tailor/answer", () => {
     // factCount computation without accidentally growing the raw count back up to peak on their own.
     const seams: [string, () => Promise<{ factCount: number }>][] = [
       ["GET /onboarding/tailor", () => get(app, cookie, "/onboarding/tailor").then((r) => r.json())],
+      // #63: BOTH tailor seams run before the discovery ones. Rejecting a claim changes this
+      // session's evidence, and the next discovery re-derive stales the retrieval snapshot the
+      // tailor target resolves against - #101's decided fail-closed rule. That is the retrieval
+      // gate doing its job, not a factCount question. Order is not what this test pins; each seam
+      // reporting the peak is.
+      [
+        "POST /onboarding/tailor/answer",
+        () =>
+          post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" }).then(
+            (r) => r.json(),
+          ),
+      ],
       ["GET /onboarding/discovery", () => get(app, cookie, "/onboarding/discovery").then((r) => r.json())],
       [
         "POST /onboarding/discovery/start",
@@ -574,13 +606,6 @@ describe("#23 POST /onboarding/tailor/answer", () => {
             itemId: STAKEHOLDERS,
             answer: "Business, engineering, and vendors",
           }).then((r) => r.json()),
-      ],
-      [
-        "POST /onboarding/tailor/answer",
-        () =>
-          post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" }).then(
-            (r) => r.json(),
-          ),
       ],
     ];
     const results: Record<string, number> = {};
@@ -684,6 +709,7 @@ describe("#37 GET /onboarding/tailor - later deck decisions do not rewrite earli
     await post(app, cookie, "/onboarding/tailor/drop");
     const confirm = await post(app, cookie, `/onboarding/claims/mined-${laterDeckReqId}/confirm`);
     expect(confirm.statusCode).toBe(200);
+    await warmRetrieval(app, cookie); // #63: a re-swipe happens on the deck, which reads it first
     await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
 
     const rebuilt = (await get(app, cookie, "/onboarding/tailor")).json();
@@ -722,7 +748,7 @@ describe("#37 GET /onboarding/tailor - later deck decisions do not rewrite earli
       ]),
     );
     const laterDeckReqId = state.questions[0].requirementId as string;
-    const laterReq = loadAdRequirements(VALID_AD_ID).requirements.find((r) => r.id === laterDeckReqId)!;
+    const laterReq = loadAdRequirements(FIXTURE_AD_ID).requirements.find((r) => r.id === laterDeckReqId)!;
 
     await post(app, cookie, "/onboarding/tailor/drop");
     // Edit the pending mined claim for the still-open requirement, with text that covers it (the
@@ -731,6 +757,7 @@ describe("#37 GET /onboarding/tailor - later deck decisions do not rewrite earli
       text: `${laterReq.requirement}.`,
     });
     expect(edit.statusCode).toBe(200);
+    await warmRetrieval(app, cookie); // #63: a re-swipe happens on the deck, which reads it first
     await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
 
     const rebuilt = (await get(app, cookie, "/onboarding/tailor")).json();
@@ -910,6 +937,7 @@ describe("#31 the visible % survives drop + re-swipe of the same job", () => {
     expect(earned).toBeGreaterThan(s0.card.matchPct); // the % was really earned
 
     await post(app, cookie, "/onboarding/tailor/drop");
+    await warmRetrieval(app, cookie); // #63: a re-swipe happens on the deck, which reads it first
     await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`); // swipe right on the same card again
     const resumed = (await get(app, cookie, "/onboarding/tailor")).json();
     expect(resumed.card.matchPct).toBeGreaterThanOrEqual(earned);

@@ -7,7 +7,10 @@ import { runWithVisitor } from "../src/llmVisitorContext.js";
 import { InMemoryUsageLedgerStore } from "../src/usageLedgerStore.js";
 import { InMemoryAdRequirementsStore } from "../src/adRequirementsStore.js";
 import { makeAdReader } from "../src/adReader.js";
-import { buildServer } from "../src/server.js";
+// #63: the deck is fed by retrieval alone now, so the suite builds its server with the curated
+// corpus wired at that seam — same adverts, same requirement sets, reached the way production
+// reaches them. See fixtureDeck.ts.
+import { buildDeckServer as buildServer, injectSettled, liveIdFor } from "./fixtureDeck.js";
 import type { LlmClient } from "../src/llm.js";
 import type { PricingTable } from "../src/llmPricing.js";
 

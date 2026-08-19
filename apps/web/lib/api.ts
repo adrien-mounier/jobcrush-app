@@ -399,7 +399,22 @@ export interface CardsResponse {
   // #228: the widening offered at the dead end. Server-owned — this screen renders it and never
   // decides. Optional defensively: an absent field is "no offer", today's dead end unchanged.
   fallback?: DeckFallbackState;
+  // #63: what actually happened when we went looking. The screen needs this because an empty deck
+  // has more than one honest meaning, and they are NOT interchangeable words: `empty_pool` is "we
+  // asked and there was nothing", `provider_unavailable` is "we could not ask". Collapsing the
+  // second into the first tells someone their market is empty when in fact our only supplier was
+  // offline — the failure mode #174 recorded and this ticket exists to avoid. Optional defensively:
+  // an absent field keeps the pre-#63 dead end, never an invented outage.
+  retrieval?: { outcome: RetrievalOutcome };
 }
+
+/** The outcomes the server's retrieval boundary reports (PostingRetrievalResultV1). */
+export type RetrievalOutcome =
+  | "relevant_postings"
+  | "empty_pool"
+  | "provider_unavailable"
+  | "stale_data"
+  | "invalid_request";
 
 /** #228 — whether to offer the work her CV proves, and what she has already answered. */
 export interface DeckFallbackState {

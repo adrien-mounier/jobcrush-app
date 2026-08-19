@@ -125,6 +125,25 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
      *
      *  Eligibility, date-hole and reader questions ride the same list and are deliberately excluded
      *  - they are not floor items and have their own journeys. */
+    /** #63 - the deck once retrieval has FINISHED. The cards route never waits on provider latency
+     *  (#245), so the first read reports `searching` with an empty deck and the real deck arrives on
+     *  a later one. Before #63 that wait was invisible: the fixture pool answered the first read, so
+     *  a journey could index cards[0] straight away and never notice. Now an unwaited read gets
+     *  `cards[0] === undefined` and the journey reports a product defect that is really its own race.
+     *
+     *  Returns the settled body whatever the outcome - an empty pool and an outage are settled
+     *  answers, not something to keep polling, so a journey asserting on those still gets them. */
+    cardsWhenRetrieved: async ({ timeoutMs = 20000 } = {}) =>
+      page.evaluate(async (limit) => {
+        const deadline = Date.now() + limit;
+        for (;;) {
+          const res = await fetch('/api/onboarding/cards', { credentials: 'same-origin' });
+          const body = res.ok ? await res.json() : null;
+          if (!body || body.searching !== true || Date.now() > deadline) return body;
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+      }, timeoutMs),
+
     floorQuestions: async () => {
       const state = await page.evaluate(async () => {
         const res = await fetch('/api/onboarding/discovery', { credentials: 'same-origin' });

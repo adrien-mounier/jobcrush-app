@@ -16,7 +16,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { canonicalKeyOf, SLUG, type AdRequirementsV1, type CandidateClaims } from "@jobcrush/contracts";
+import { SLUG, type AdRequirementsV1, type CandidateClaims } from "@jobcrush/contracts";
 import type { JobBlockView } from "./jobBlockStore.js";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
@@ -80,31 +80,46 @@ export function eligiblePostings(languages: string[], postings = loadPostings())
   return postings.filter((p) => languageEligible(p.language, languages));
 }
 
-/** The authoritative posting pool for one session. Only a currently reusable persisted
- * relevant-postings snapshot can widen the fixture pool; every other state stays fixture-only. A
- * live row replaces a fixture row with the same canonical identity, so its selectable id wins. */
+/** The authoritative posting pool for one session — **retrieved live adverts and nothing else**.
+ *
+ * #63: this used to seed the pool from loadPostings() and let a live snapshot merge on top, so an
+ * unauthorized session, a failed provider and a genuinely empty market all handed back the same 17
+ * hand-maintained rows and the reveal counted them. That is the one thing #63's own context forbids
+ * — *"fixtures … can never authorize reveal"* — and it made AC2 (the server refuses when a gate is
+ * absent) and AC3 (no zero-match reward) false in the shipped product: every visitor's deck was
+ * 100% fixtures with a confident "17 jobs just matched you" on top of it.
+ *
+ * So there is now exactly one way a posting reaches a session: a currently reusable, authorized,
+ * relevant-postings snapshot. Every other state is an EMPTY pool, which is what the caller must
+ * render an honest empty/waiting state from.
+ *
+ * What this costs, stated plainly rather than left to be discovered: a deployment with no working
+ * provider now has NO deck at all, for anyone. `sample-postings.json` has a legitimate route back —
+ * curated-pool's own driver serves those rows through the same gate as any provider
+ * (postingRetrieval.ts's StoreBackedCuratedPostingProvider) — but that provider is operationally
+ * disabled today (postings.ts's OPERATIONALLY_DISABLED_PROVIDER_IDS: it has no production
+ * region-refresh caller), so in practice the live provider is the only source. That is the
+ * deliberate trade — a dark deck is honest, a fixture deck presented as "17 jobs just matched you"
+ * is not — and it is why the owner's "no dev-only fixture escape hatch" decision means a real
+ * provider key, not a flag.
+ *
+ * #248: the reveal check belongs HERE, not only on the retrieval status the deck route reads. This
+ * is the one door all three posting readers pass through — the deck, the want route and the tailor
+ * target — so a guard here cannot be forgotten by a caller, and it is what keeps #246 honest: once
+ * the promise fetches at question 1, a real relevant-postings snapshot exists BEFORE she has earned
+ * anything, and only this stops it becoming her deck. */
 export function sessionPostings(
   session: Pick<SessionRecord, "retrieval" | "discovery">,
   requestFingerprint: string,
 ): Posting[] {
-  const byCanonicalKey = new Map(
-    loadPostings().map((posting) => [
-      canonicalKeyOf(posting.company, posting.location, posting.title),
-      posting,
-    ]),
-  );
-  // #248: the reveal check belongs HERE, not only on the retrieval status the deck route reads.
-  // This is the one door all three posting readers pass through - the deck, the want route and the
-  // tailor target - so a guard here cannot be forgotten by a caller. It is a no-op today (an
-  // uncovered session's stored snapshot IS the refusal, so the outcome test below already rejects
-  // it) and it is what keeps #246 honest: once the promise fetches at question 1, a real
-  // relevant-postings snapshot exists BEFORE she has earned anything, and only this stops it
-  // becoming her deck.
   if (
     !sessionDeckIsAuthorized(session) ||
     !isReusableRetrievalSnapshot(session.retrieval, requestFingerprint) ||
     session.retrieval?.result.outcome !== "relevant_postings"
-  ) return [...byCanonicalKey.values()];
+  ) return [];
+  // Keyed by canonical identity so two providers describing the same advert cannot both become a
+  // card; the later row wins, matching the authority order retrieval already sorted them into.
+  const byCanonicalKey = new Map<string, Posting>();
   for (const posting of session.retrieval.result.postings) {
     byCanonicalKey.set(posting.canonicalKey, {
       id: posting.id,

@@ -38,11 +38,12 @@ import {
   type DeckFallbackState,
   type JobCard,
   type LanguageLevelAsk,
+  type RetrievalOutcome,
   type ScoredJobCard,
   type WithdrawnSummary,
 } from "../../lib/api";
 
-type Screen = "loading" | "searching" | "error" | "empty" | "reveal" | "wall" | "deck" | "tailorHandoff" | "loopback";
+type Screen = "loading" | "searching" | "error" | "unavailable" | "empty" | "reveal" | "wall" | "deck" | "tailorHandoff" | "loopback";
 type SwipeStatus = "idle" | "leaving-left" | "leaving-right" | "committing";
 
 const L1 = "Lining up your jobs…";
@@ -53,6 +54,19 @@ const Z2 = "Answer a few more questions and I'll widen the net.";
 // #235: shown instead of Z2 when no question is left to answer — her own result, and her own way to
 // change it. Deliberately names no job family, no vocabulary and no research (spec #233 decision 8).
 const Z3 = "Try a different job title.";
+// #63 — the state that must never wear Z1's words. An empty deck because we could not ASK is a
+// different fact from an empty deck because there was nothing there, and only one of them is about
+// her. Every market we serve runs on a single source (#174), so "no jobs found" during an outage
+// would tell someone their whole market is empty on the strength of one supplier being offline.
+// Names no provider and blames nobody: it says what happened and what she can do.
+const V1 = "We couldn't look for jobs just now.";
+const V2 = "Something on our side didn't answer. Try again in a moment.";
+const V3 = "Try again";
+// #63 — the dead end's last line when the server REFUSED to search (invalid_request) rather than
+// searching and finding nothing. Z3 tells her to change her job title, which is advice about a
+// search; we never ran one, so saying it would invent a result. Reachable through the pinned-then-
+// unpublished family edge (#237) and any other refusal that leaves no question open.
+const Z4 = "We haven't been able to look for these jobs yet.";
 // #229 — the career changer's one sentence, shown once above the deck when the server says this
 // deck's work is a known zero for her while her CV holds years elsewhere. It states a market fact
 // about her CV, names no job family, and never judges: harder, not impossible. The score stays
@@ -107,6 +121,21 @@ const TAILOR_MIN_HANDOFF_MS = 800;
 
 function sentBody(email: string): string {
   return `We sent a sign-in link to ${email}. It expires in 15 minutes.`;
+}
+
+/** #63: an empty deck we could not honestly call a result — we never got a current answer, so
+ *  nothing at all is known about her market and no screen may imply otherwise.
+ *
+ *  `invalid_request` is deliberately NOT here. That is the server refusing a reveal this session has
+ *  not earned (a floor still open), and the honest answer to it is the dead end's own "answer a few
+ *  more questions" — telling her our systems are down when they are working and simply waiting for
+ *  her would be its own lie, just a friendlier-sounding one. `empty_pool` is not here either: it is
+ *  the one outcome that genuinely means we asked and there was nothing.
+ *
+ *  An absent outcome is treated as a real result, so a server that never sends the field keeps
+ *  exactly the pre-#63 screen rather than inventing an outage. */
+function retrievalFailed(outcome: RetrievalOutcome | undefined): boolean {
+  return outcome === "provider_unavailable" || outcome === "stale_data";
 }
 
 function revealText(n: number): string {
@@ -165,6 +194,9 @@ export default function DeckPage() {
   // #228: the server's offer state, and the two things this screen alone owns — whether she re-opened
   // an offer she had already declined, and whether the accepted search is still running.
   const [fallback, setFallback] = useState<DeckFallbackState | null>(null);
+  // #63: what the server said happened when it went looking — an empty deck has more than one
+  // honest meaning and the screen has to tell them apart.
+  const [retrieval, setRetrieval] = useState<CardsResponse["retrieval"] | null>(null);
   const [offerReopened, setOfferReopened] = useState(false);
   const [widening, setWidening] = useState(false);
   const [fallbackError, setFallbackError] = useState<string | null>(null);
@@ -353,8 +385,15 @@ export default function DeckPage() {
       setMoreQuestions(res.moreQuestions ?? true);
       setNewToFamily(res.newToFamily ?? false);
       setFallback(res.fallback ?? null);
+      setRetrieval(res.retrieval ?? null);
       if (res.cards.length === 0) {
-        setScreen(res.searching ? "searching" : "empty");
+        // #63: three different empty decks, three different screens. Still looking is a wait, not a
+        // result (#245). A retrieval that could not complete is OUR failure and says so, with a way
+        // to retry. Only a search that genuinely finished and found nothing reaches the dead end,
+        // which is the one screen allowed to talk about her jobs.
+        if (res.searching) setScreen("searching");
+        else if (retrievalFailed(res.retrieval?.outcome)) setScreen("unavailable");
+        else setScreen("empty");
         return;
       }
       // #117: start chasing the still-pending cards now, during the reveal/wall the visitor is
@@ -674,6 +713,10 @@ export default function DeckPage() {
 
   const n = cards.length;
   const currentCard = cards[currentIndex];
+  // #63: the server refused rather than searched, so nothing is known about her search and no line
+  // may describe one. Kept out of retrievalFailed() on purpose — this is not an outage, and it does
+  // not get the outage screen; it only changes the one line that would otherwise give search advice.
+  const neverSearched = retrieval?.outcome === "invalid_request";
   // #228: the offer is shown when the server says it can be honoured, or when she declined it and
   // asked for it back. Never while the accepted search is still running.
   const showFallbackOffer =
@@ -688,6 +731,18 @@ export default function DeckPage() {
       {screen === "loading" && <div className="loadstate">{L1}</div>}
 
       {screen === "searching" && <div className="loadstate">{S1}</div>}
+
+      {/* #63: the outage state, deliberately NOT the dead end. No job count, no claim about her
+          market, no fallback offer — nothing was searched, so nothing about her search is known. */}
+      {screen === "unavailable" && (
+        <div className="loadstate">
+          <p className="big">{V1}</p>
+          <p role="alert">{V2}</p>
+          <button type="button" onClick={load}>
+            {V3}
+          </button>
+        </div>
+      )}
 
       {screen === "error" && (
         <div className="loadstate">
@@ -719,7 +774,7 @@ export default function DeckPage() {
             </>
           ) : (
             <>
-              <p>{moreQuestions ? Z2 : Z3}</p>
+              <p>{moreQuestions ? Z2 : neverSearched ? Z4 : Z3}</p>
               {/* AC 9: she said no, and the way back is on the screen rather than something to
                   guess at — but the question itself is never raised again by itself. */}
               {fallback?.declined && !fallback.active && (

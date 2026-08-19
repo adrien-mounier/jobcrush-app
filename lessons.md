@@ -1,5 +1,69 @@
 # Lessons — jobcrush-app
 
+## A correct guard with a generous fallback is not a guard
+
+#248 put the reveal check on the one door every posting reader passes through — `sessionPostings` —
+and it was right. #63 then found the check had never once changed an outcome, because the line it
+guarded read:
+
+```ts
+if (!authorized || !reusableSnapshot || outcome !== "relevant_postings") return [...fixturePool];
+```
+
+The refusal was real and it was reported honestly in the payload's `retrieval` field. It just handed
+back the 17 hand-maintained adverts anyway, and the screen counted them: *"17 jobs just matched
+you"*, to a visitor who had answered nothing. Two of the ticket's four acceptance criteria were false
+in the shipped product while a correctly-placed guard sat directly above the code that defeated them.
+
+The rule: when you audit a gate, read what it returns on the REFUSAL branch, not just whether the
+branch is reached. A guard whose else-branch is as good as its then-branch decides nothing. The
+sibling question is worth asking out loud — *"what does the caller actually get when this says no?"*
+— because "an empty list" and "the default pool" look equally innocent at the call site and only one
+of them is a refusal. Same family as the repo's standing found-nothing vs didn't-run distinction,
+one level further in: refused-and-served is a third state, and it is the dangerous one.
+
+## Fake a paid dependency's failures, or its error screens ship untested
+
+#63 built two new screens — "we searched and found nothing" and "we could not search" — which #174
+had made binding by proving they must never share words. The QA entry (`qa-main.ts`) wires a
+stand-in for the paid posting provider, and the first version returned `relevant_postings`
+unconditionally, because every existing journey needs a deck. Consequence: **neither new screen was
+reachable in any browser-runnable configuration**, so the only thing that could ever have tested
+them was a payload assertion — and a payload assertion does not prove a screen.
+
+The fix is one knob (`POST /qa/stack {"retrievalOutcome": ...}`), defaulting to success so unarmed
+runs are unchanged. The rule: a fake that only models the happy path silently scopes your browser
+tests to the happy path. When you stand in for a seam that can fail — a provider, a payment, a
+model — expose its failure modes on the same fake, or the states you built for those failures are
+verified by nobody.
+
+## A shared test helper must not sleep on a timer another test may fake
+
+The #63 migration added a polling helper (`injectSettled`) that waited with `setTimeout`. One test in
+`cards.test.ts` installs `vi.useFakeTimers({ toFake: ["setTimeout"] })` and restores them in a
+`finally`. Inside that block the helper's sleep never fired, the test hit its 5s timeout, the
+`finally` never ran — and **every subsequent test in the file** then ran with fake timers still
+installed. 33 failures, all in tests that had nothing to do with timers, all passing in isolation.
+
+The rule: a helper shared across a suite should wait on `setImmediate` (or a real-clock escape
+hatch), never on a timer a test is entitled to fake. The tell for this bug is a file where tests pass
+one at a time and fail together, with the first failure being a timeout in a fake-timer block.
+
+## Measure a red test against the commit before yours before you call it your regression
+
+A tier-2 journey failed on `retrievalGeneration === 0`, under a message reading *"an unearned deck
+claimed nothing and reconciled nothing"*. It looked exactly like a #63 regression. It was not: that
+counter tracks the times the VISITOR's own inputs changed — her intent write and her floor being
+pinned — and typing a role takes it to 2 before any deck is read. Measured at the change, then
+measured again with the working tree stashed back to HEAD: **both answered 2.** The assertion was
+already wrong; the run that had passed it was the unreliable one.
+
+The two-part rule: an assertion's message can outlive its truth, so test the invariant the sentence
+names rather than the number it happens to check (here: the counter must not MOVE across the refused
+reads — same evidence, no false premise). And when a test goes red next to your diff, spend the ten
+minutes to run it against the commit before yours. "It passed this morning" is a claim about a
+process, not about the code — especially in a repo that already carries a stale-`dist` lesson.
+
 ## "Live" evidence counts only after proving the stack serves the code under test
 
 #229's QA gate nearly ran its browser drive against a QA API whose `dist/` predated the diff — the

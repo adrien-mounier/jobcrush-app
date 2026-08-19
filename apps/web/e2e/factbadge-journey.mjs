@@ -228,7 +228,16 @@ const signedIn = await page.evaluate(async (email) => {
   const link = await res.json();
   if (!link.devLink) return `sign-in failed (${res.status}) — /auth/request-link is 5 per 15 min per IP; restart the API`;
   await post('/api/auth/verify', { token: new URL('http://x' + link.devLink).searchParams.get('token') });
-  const cards = await (await fetch('/api/onboarding/cards')).json();
+  // #63: adverts reach a session through retrieval, and the FIRST deck read returns an empty deck
+  // while that is still in flight (#245). Before #63 the fixture pool answered instantly and this
+  // read never had to wait; now an unwaited read makes cards[0] undefined.
+  let cards = null;
+  for (const deadline = Date.now() + 20000; Date.now() < deadline; ) {
+    cards = await (await fetch('/api/onboarding/cards')).json();
+    if (cards.searching !== true) break;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  if (!cards?.cards?.length) return `no deck to want from (${JSON.stringify(cards?.retrieval)})`;
   await fetch(`/api/onboarding/cards/${encodeURIComponent(cards.cards[0].adId)}/want`, { method: 'POST' });
   return 'ok';
 }, `badge-journey-${Date.now()}@example.com`);

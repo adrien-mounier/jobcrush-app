@@ -11,8 +11,11 @@
 // #104 describe rather than shared — the house idiom this repo's test files already follow.
 import { describe, expect, it } from "vitest";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
-import { buildServer } from "../src/server.js";
-import { loadPostings, type Posting } from "../src/preview.js";
+// #63: the deck is fed by retrieval alone now, so the suite builds its server with the curated
+// corpus wired at that seam — same adverts, same requirement sets, reached the way production
+// reaches them. See fixtureDeck.ts.
+import { buildDeckServer as buildServer, fixtureReadAd, injectSettled, livePostings } from "./fixtureDeck.js";
+import type { Posting } from "../src/preview.js";
 import { loadAdRequirements, withFixtureOverrideForTest } from "../src/e5stub.js";
 import { makeAdReader } from "../src/adReader.js";
 import { InMemoryAdRequirementsStore } from "../src/adRequirementsStore.js";
@@ -29,22 +32,17 @@ async function anonSession(app: ReturnType<typeof buildServer>["app"]): Promise<
 }
 
 const get = (app: ReturnType<typeof buildServer>["app"], cookie: string, url: string) =>
-  app.inject({ method: "GET", url, headers: { cookie } });
+  injectSettled(app, { method: "GET", url, headers: { cookie } });
 
 // Same fixture-first-else-reader predicate resolveAdRequirements (routes/onboarding.ts) uses, and
 // the same helper cards.test.ts's own #104 describe defines — module-scoped here too so every test
 // below shares one implementation rather than re-deriving it.
+// #63: the adverts a session sees arrive through retrieval, so these carry the ids cards do, and
+// "was it hand-curated?" is asked of the retrieved advert by canonical key.
 const uncachedEnglishPostings = () =>
-  loadPostings()
+  livePostings()
     .filter((p) => p.language === "en")
-    .filter((p) => {
-      try {
-        loadAdRequirements(p.id);
-        return false;
-      } catch {
-        return true;
-      }
-    });
+    .filter((p) => fixtureReadAd(p) === null);
 
 const stubRequirements = (adId: string): AdRequirementsV1 => ({
   schemaVersion: "1",

@@ -1108,7 +1108,10 @@ describe("#248 a snapshot is data, not permission", () => {
   it("keeps a pre-coverage snapshot out of the pool, and lets the SAME snapshot in once covered", () => {
     const uncovered = sessionPostings(sessionAt("family_confirmed"), FINGERPRINT);
     expect(uncovered.some((posting) => posting.id === live.id)).toBe(false);
-    expect(uncovered).toHaveLength(loadPostings().length); // the fixture pool, untouched
+    // #63: an unearned pool is EMPTY, not the fixture pool. Falling back to the 17 hand-maintained
+    // adverts was the whole defect this ticket closes - the refusal was real in the retrieval
+    // status and cosmetic in the deck, which still revealed "17 jobs just matched you".
+    expect(uncovered).toHaveLength(0);
 
     // The same snapshot, the same fingerprint, the same everything except that she has now earned
     // it. If this half failed, the half above would be passing for the boring reason that the

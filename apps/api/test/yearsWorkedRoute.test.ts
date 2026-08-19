@@ -3,7 +3,10 @@
 import { describe, expect, it } from "vitest";
 import type { MinedJobBlock } from "@jobcrush/contracts";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
-import { buildServer } from "../src/server.js";
+// #63: the deck is fed by retrieval alone now, so the suite builds its server with the curated
+// corpus wired at that seam — same adverts, same requirement sets, reached the way production
+// reaches them. See fixtureDeck.ts.
+import { buildDeckServer as buildServer, injectSettled, liveIdFor } from "./fixtureDeck.js";
 import { buildJobCard, buildTailorState } from "../src/deck.js";
 import type { Posting } from "../src/preview.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";

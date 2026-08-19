@@ -37,6 +37,7 @@
 
 import { createSession } from './qa-driver.mjs';
 import { request } from '@playwright/test';
+import { liveAdId } from './live-ad-id.mjs';
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:30222';
 // A role that PLACES into the published family — makeFamilyPlacer reads session.intent.targetRole,
@@ -61,7 +62,8 @@ const answerFloorWith = async (fetchState, post) => {
 };
 // The motivating advert (spec #219): "8+ years of IT experience including 5+ years as a Project
 // Manager" — since #222 that is TWO scoped bars, total >= 8 and family >= 5.
-const COMPOUND_AD = '2026-07-05_endava-vietnam_senior-project-manager';
+// #63: the card carries the id retrieval delivered, not the pool's own key - see live-ad-id.mjs.
+const COMPOUND_AD = liveAdId('2026-07-05_endava-vietnam_senior-project-manager');
 
 const CV_TEXT = [
   'Jane Doe',

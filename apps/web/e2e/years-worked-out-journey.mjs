@@ -203,8 +203,13 @@ await assertTrue(stillAsking.length === 0, 'AC5 — the question closes; the per
 // ---------------------------------------------------------------------------------------------
 // 5. A second visitor with NO readable work history — the deck must not mark them down. (AC6)
 // ---------------------------------------------------------------------------------------------
-// A like-for-like control: a visitor with the SAME (empty) set of discovery answers, but a readable
+// A like-for-like control: a visitor with the SAME set of discovery answers, but a readable
 // work history — so the only difference between the two decks is whether the years bar was testable.
+//
+// #63: that set used to be EMPTY, and an empty set no longer earns a deck at all — the reveal is
+// refused outright until the essential floor is answered, where before the fixture pool was served
+// regardless. Both visitors below now answer the same floor, so the A/B is unchanged in the only
+// way that matters here: identical answers, and the work history is still the sole difference.
 await page.context().clearCookies();
 await qa.goto('/', 'a control visitor: a readable work history, no discovery answers');
 await api('POST', '/sessions/anonymous', {});
@@ -215,9 +220,10 @@ for (let i = 0; i < 60; i++) {
   await page.waitForTimeout(500);
 }
 await api('POST', '/onboarding/discovery/start', { role: ROLE });
-const withHistory = await (await api('GET', '/onboarding/cards')).json();
+await qa.seedFloorAnswers({ yes: 'Yes, across three vendor teams' });
+const withHistory = await qa.cardsWhenRetrieved();
 const scoredWith = Object.fromEntries((withHistory.cards ?? []).map((c) => [c.adId, c.matchPct]));
-await qa.note(`control (history, no answers) scores: ${JSON.stringify(scoredWith)}`);
+await qa.note(`control (history, floor answered) scores: ${JSON.stringify(scoredWith)}`);
 await assertTrue(
   !(withHistory.cards ?? []).some((c) => (c.notTested ?? []).length > 0),
   'AC6 — with a readable history nothing is marked untested; the bar is measured for real',
@@ -227,7 +233,8 @@ await page.context().clearCookies();
 await qa.goto('/', 'a brand-new visitor, no CV, no work history at all');
 await api('POST', '/sessions/anonymous', {});
 await api('POST', '/onboarding/discovery/start', { role: ROLE });
-const noHistory = await (await api('GET', '/onboarding/cards')).json();
+await qa.seedFloorAnswers({ yes: 'Yes, across three vendor teams' });
+const noHistory = await qa.cardsWhenRetrieved();
 const untestedCard = (noHistory.cards ?? []).find((c) => (c.notTested ?? []).length > 0);
 await qa.note(`the advert with a years bar, for a visitor with no history: ${JSON.stringify(
   untestedCard && { adId: untestedCard.adId, matchPct: untestedCard.matchPct, notTested: untestedCard.notTested }, null, 2)}`);
