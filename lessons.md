@@ -1,5 +1,32 @@
 # Lessons — jobcrush-app
 
+## Filing a ticket is half the job — the plan is read off the table, not the tracker
+
+Three times in one session the owner had to ask where a ticket was. **#246** and **#247** existed
+only in one sentence inside a 40-line prose banner, never in the table. Then I filed **#249** and did
+not add a row for it either — immediately after fixing the same fault for the other two.
+
+The frontier is chosen by reading the roadmap table. A ticket with no row is invisible to that
+reading, however correct, decided and unblocked it is. #246 had been decided, unblocked and
+schedulable for a day and nobody could see it.
+
+Do not rely on remembering. Run the check — it takes one command, needs nothing but `gh`, and prints
+only the gap:
+
+```bash
+# every ticket number that has a row in the table
+ROWS=$(grep -E "^\|" roadmap.md | sed 's/~//g' | awk -F'|' '{print $3}' | grep -oE "#[0-9]+" | grep -oE "[0-9]+" | sort -u)
+# every open ticket that does not
+gh issue list --state open --limit 200 --json number --jq '.[].number' | while read -r n; do
+  echo "$ROWS" | grep -qx "$n" || gh issue view "$n" --json number,title --jq '"  #\(.number) \(.title)"'
+done
+```
+
+Expect exactly the parents and specs to be listed: those are tracked by convention (the parents
+table near the bottom, or referenced from their slice row), and their column order is why the
+one-liner cannot see them. **Anything else in that output is a ticket nobody will schedule.** Run it
+whenever you file an issue and at the end of any session that files or closes one.
+
 ## A correct guard with a generous fallback is not a guard
 
 #248 put the reveal check on the one door every posting reader passes through — `sessionPostings` —
