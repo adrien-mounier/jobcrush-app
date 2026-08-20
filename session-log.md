@@ -2,6 +2,43 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-20 (session 149) `/implement 253` — the feed can now be judged and closed out
+
+Slice 2 of spec #251 shipped (`a323ca6`, `/qa-gate` **GO**). The ops surface now answers the
+question the owner actually has — *is a vocabulary-growth run worth launching?* — with the
+**unharvested count** and the **distinct-role count**, folded on lower/trim so "Harbour Pilot" and
+"harbour pilot " are one gap rather than two. A **mark-harvested** POST (same OPS_KEY gate as the
+read: the write is gated exactly as the read is) stamps every waiting entry, drops the count to
+zero, and leaves the words readable with their harvest time. Nothing is ever deleted (owner
+decision 2026-08-20). Repeating it marks nothing and the **first** harvest time survives.
+
+**The two ceilings #252 handed this slice were decided, not inherited onward.** The newest-200 ops
+read stays, but `recent()` gained `unharvestedOnly` (`?waiting=1`): without it, harvested entries
+would permanently eat that window as runs accumulate, and a run's own work list would fill with
+gaps it had already answered. And no distinct-*person* count was built — only distinct roles, which
+is the count the dangling session link cannot corrupt.
+
+Both review axes returned **no hard violations**. Four findings were taken: the `?waiting=1` filter
+(the spec-axis catch — the counts separated correctly but the readable list did not), an honest note
+that the in-memory driver's `stats()` saturates at 200 where Postgres counts the true total, the
+migration's `.catch(() => {})` **dropped** (`ADD COLUMN IF NOT EXISTS` is already idempotent, so the
+only errors it could swallow were real ones — and booting past them turns the ops screen into a 500
+instead of failing loudly at startup), and unguarded `JSON.parse` calls in the browser journey.
+
+QA proved the full cycle live twice — two people leave unmapped words, the count reads 2/2, a
+harvest marks them, the count falls to zero with the words still on the page, a repeat changes
+nothing, then two fresh people push the count back to 2 **unmixed with the four already dealt
+with** — plus a simulation of the migration against the pre-#253 table with a row already in it.
+A mutation check (wrong ops key) failed 9 of the new assertions, so they are not decorative.
+
+New ceilings, both marked `ponytail:` in the source: `markHarvested()` marks everything unharvested
+at call time rather than the exact ids a run read (a label arriving between a run's read and its
+mark is stamped unresearched — nothing is deleted, so it stays readable), and the in-memory
+driver's count saturates at 200. Postgres behaviour rests on the pg-mem parity suite and the
+migration simulation; the first staging boot after this lands is the one manual check left.
+
+Frontier moves to **#254** (the runbook and the proposal package, rehearsed against the gates).
+
 ## 2026-08-20 (session 148) `/implement 252` — the vocabulary's gaps now survive a deploy
 
 Slice 1 of spec #251 shipped (`748417f`, `/qa-gate` **GO**). Every unmapped placement — a target
