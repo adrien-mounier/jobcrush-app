@@ -123,6 +123,26 @@ const JOURNEYS = [
   // outage each leave no promise line at all rather than a broken one or a zero. ~2 min against the
   // fake-model API; no sign-in, so it spends none of auth's 5-per-15-min limiter budget.
   "promise-counts-her-own-search-journey.mjs",
+  // #247 (owner: "I want a high quality QA", 2026-08-20): the only test anywhere that proves #243's
+  // confidence rule off a REAL deck response end to end — same-family deletion counted on
+  // /ops/counters, a word-search deck deleting nothing, and the confidence server's converged
+  // one-score deck where a weak read sinks below every strong card without its score moving. Was
+  // the exact journey this file's header warns about: red in no tier, claiming more than its
+  // harness proved, until its pool moved to the retrieval seam. ~3 min; one magic-link sign-in.
+  "deck-family-fit-journey.mjs",
+  // #252/#253 (same owner call): the only end-to-end proof of the vocabulary-growth feed a run
+  // harvests — an unmapped role recorded with person link and reason, the waiting counts, the
+  // mark-harvested cycle (idempotent, first harvest time survives, nothing deleted). Sat in no
+  // tier, which is how its OPS_KEY requirement went unnoticed until a hand-run 403'd: both these
+  // journeys read /ops/unmapped-labels, so ci.yml now starts the fake-model API with
+  // OPS_KEY=qa-ops-key (the journeys' documented default). ~2 min; no sign-in.
+  "unmapped-label-feed-journey.mjs",
+  // #231/#235 (same owner call): the family-placement walk a visitor takes — a covered role placed,
+  // an unmapped one served without refusal, the unmapped label landing in the feed (its AC7 reads
+  // the feed, hence OPS_KEY above). ORDER CONSTRAINT: must run AFTER unmapped-label-feed-journey —
+  // that one performs a real, irreversible harvest write on the shared API, and this one's feed
+  // read looks for a label minted after it. ~2 min; no sign-in.
+  "family-placement-journey.mjs",
 ];
 
 let failed = 0;

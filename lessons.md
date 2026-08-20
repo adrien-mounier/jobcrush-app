@@ -1,5 +1,13 @@
 # Lessons — jobcrush-app
 
+## A long Tier 2 run can exhaust Windows loopback sockets — a late journey dying with ERR_NO_BUFFER_SPACE is the machine, not the test
+
+Seen 2026-08-20 (session 151, first 22-journey run): the 21st journey failed its very first
+`page.goto` with `net::ERR_NO_BUFFER_SPACE`, then passed 14/0 standalone minutes later once the
+tens of thousands of TIME_WAIT sockets from the earlier journeys drained. Before debugging a
+late-sequence journey failure on a dev machine, re-run it alone; CI's fresh Linux runners don't
+share the ceiling.
+
 ## CI blocked ≠ deploy blocked: the hand-deploy recipe
 
 CI is only the vehicle — `deploy-staging` is two `flyctl deploy` commands after the gates. When

@@ -85,8 +85,11 @@ jobs:
       # API already up on 3001 and the "never spend money" run would spend. /qa/llm-calls exists
       # only on qa-main.ts (main.ts 404s it), so a response here proves it's the fake that answered.
       - name: start the fake-model API
+        # OPS_KEY: two Tier 2 journeys (unmapped-label-feed, family-placement — see run-tier2.mjs)
+        # read /ops/unmapped-labels, which refuses without a key. qa-ops-key is the journeys' own
+        # documented default (their headers), fake-stack-only — never a real secret.
         run: |
-          pnpm --filter @jobcrush/api start:qa > /tmp/qa-api.log 2>&1 &
+          OPS_KEY=qa-ops-key pnpm --filter @jobcrush/api start:qa > /tmp/qa-api.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:34101/qa/llm-calls > /dev/null && break; sleep 1; done
           curl -sf http://127.0.0.1:34101/qa/llm-calls || { echo "qa-main.js did not become healthy"; cat /tmp/qa-api.log; exit 1; }
       # API_URL is baked into the web build at BUILD time (next.config.mjs), not read at start — so
