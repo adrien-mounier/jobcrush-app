@@ -39,7 +39,11 @@ const post = (
 
 const ROLE = "IT project manager in Paris";
 const VALID_AD_ID = liveIdFor("2026-07-05_endava-vietnam_senior-project-manager");
-const DISCOVERY_FAMILY = productionDiscoveryFamily(initialProductionFamilyFloors())!;
+// #255: pinned by reference — the registry holds more than one family now, and this suite's
+// sessions live in it-project-delivery.
+const DISCOVERY_FAMILY = productionDiscoveryFamily(initialProductionFamilyFloors(), [
+  { familyId: "it-project-delivery", version: 1 },
+])!;
 const END_TO_END = "end-to-end-delivery";
 const STAKEHOLDERS = "stakeholder-coordination";
 const RISKS = "risk-dependency-control";

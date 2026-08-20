@@ -1,0 +1,607 @@
+{
+ "publicationStatus": "provisional",
+ "reviewedBy": "PENDING - owner approval (#255 pilot run)",
+ "reviewedAt": "2026-08-20T15:45:45.891Z",
+ "floor": {
+  "schemaVersion": "1",
+  "familyId": "it-project-delivery",
+  "label": "IT project delivery",
+  "scope": "Running the delivery of technology work — software, systems, platforms, data or IT infrastructure — from planning through completion: scope and plan, timeline and budget, risks and dependencies, coordinating the business and technical groups involved, and reporting progress. The thing delivered is technology; the employer's industry is irrelevant. Covers every seniority from coordinator to director, one delivery or a portfolio of them, and any working method — the agile equivalents of this job (scrum master, agile coach, delivery lead, release manager) are inside this family, not beside it. A delivery, project, programme, implementation, migration, rollout or release title that does not name what is being delivered belongs here: technology is the ordinary subject of those titles, and the title does not have to say so. Outside it: running the delivery of something that is not technology, however similar the craft; and technology roles whose own work is building, designing, analysing or deciding what to build rather than running its delivery. Widened (v2): product ownership is inside this family - owning a product backlog, setting sprint and release priorities, and steering what a delivery team builds next (product owner, technical product owner). The floor questions stay delivery-shaped; a product owner answers them from the delivery side of the role.",
+  "version": 2,
+  "source": "production_research",
+  "productionRewardEligible": true,
+  "essentialItems": [
+   {
+    "id": "end-to-end-delivery",
+    "priority": 1,
+    "question": {
+     "prompt": "Have you owned delivery from planning through completion?",
+     "form": "single_select",
+     "options": [
+      {
+       "value": "yes",
+       "label": "Yes"
+      },
+      {
+       "value": "no",
+       "label": "No"
+      }
+     ]
+    },
+    "evidenceDestination": {
+     "document": "root_cv",
+     "section": "experience"
+    },
+    "negativeSemantics": "records_explicit_negative"
+   },
+   {
+    "id": "stakeholder-coordination",
+    "priority": 2,
+    "question": {
+     "prompt": "Which business and technical groups did you coordinate?",
+     "form": "free_text",
+     "options": []
+    },
+    "evidenceDestination": {
+     "document": "root_cv",
+     "section": "experience"
+    },
+    "negativeSemantics": "records_explicit_negative"
+   },
+   {
+    "id": "risk-dependency-control",
+    "priority": 3,
+    "question": {
+     "prompt": "Have you acted on delivery risks, dependencies, timelines, or budgets?",
+     "form": "single_select",
+     "options": [
+      {
+       "value": "yes",
+       "label": "Yes"
+      },
+      {
+       "value": "no",
+       "label": "No"
+      }
+     ]
+    },
+    "evidenceDestination": {
+     "document": "root_cv",
+     "section": "experience"
+    },
+    "negativeSemantics": "records_explicit_negative"
+   },
+   {
+    "id": "delivery-communication",
+    "priority": 4,
+    "question": {
+     "prompt": "How did you report progress or translate delivery detail for stakeholders?",
+     "form": "free_text",
+     "options": []
+    },
+    "evidenceDestination": {
+     "document": "root_cv",
+     "section": "summary"
+    },
+    "negativeSemantics": "records_explicit_negative"
+   }
+  ]
+ },
+ "postingEvidence": [
+  {
+   "employer": "Chubb",
+   "roleTitle": "Product Owner",
+   "location": "Singapore",
+   "sourceUrl": "https://sg.linkedin.com/jobs/view/product-owner-at-chubb-4452545852",
+   "capturedAt": "2026-08-20",
+   "normalizedRequirements": [
+    "Define product vision and drive delivery for the digital commercial insurance platform",
+    "Serve as the dedicated point person for the platform team"
+   ]
+  },
+  {
+   "employer": "NAB Innovation Centre Vietnam",
+   "roleTitle": "Product Owner",
+   "location": "Vietnam",
+   "sourceUrl": "https://vn.linkedin.com/jobs/view/product-owner-at-nab-innovation-centre-vietnam-4455593391",
+   "capturedAt": "2026-08-20",
+   "normalizedRequirements": [
+    "Own and prioritise the squad backlog against roadmap and architecture vision",
+    "Translate requirements into epics, features and user stories"
+   ]
+  },
+  {
+   "employer": "Bendigo Bank",
+   "roleTitle": "Technical Product Owner",
+   "location": "Australia",
+   "sourceUrl": "https://au.linkedin.com/jobs/view/technical-product-owner-at-bendigo-bank-4452522653",
+   "capturedAt": "2026-08-20",
+   "normalizedRequirements": [
+    "Shape the technical roadmap and manage the product backlog",
+    "Collaborate with risk, data platform and delivery teams"
+   ]
+  },
+  {
+   "employer": "Telstra",
+   "roleTitle": "Commercial Product Owner - Principal",
+   "location": "Australia",
+   "sourceUrl": "https://au.linkedin.com/jobs/view/commercial-product-owner-principal-at-telstra-4452522518",
+   "capturedAt": "2026-08-20",
+   "normalizedRequirements": [
+    "Set commercial direction for the portfolio and deliver against it",
+    "Lead a high-growth product portfolio"
+   ]
+  }
+ ],
+ "marketSearchTitles": {
+  "HK": [
+   {
+    "title": "project manager",
+    "adverts": 28,
+    "measuredOn": "2026-08-20"
+   },
+   {
+    "title": "product owner",
+    "adverts": 1,
+    "measuredOn": "2026-08-20"
+   }
+  ],
+  "SG": [
+   {
+    "title": "project manager",
+    "adverts": 122,
+    "measuredOn": "2026-08-20"
+   },
+   {
+    "title": "product owner",
+    "adverts": 6,
+    "measuredOn": "2026-08-20"
+   }
+  ],
+  "VN": [
+   {
+    "title": "project manager",
+    "adverts": 10,
+    "measuredOn": "2026-08-20"
+   },
+   {
+    "title": "product owner",
+    "adverts": 5,
+    "measuredOn": "2026-08-20"
+   }
+  ],
+  "AU": [
+   {
+    "title": "project manager",
+    "adverts": 45,
+    "measuredOn": "2026-08-20"
+   },
+   {
+    "title": "delivery manager",
+    "adverts": 8,
+    "measuredOn": "2026-08-20"
+   },
+   {
+    "title": "product owner",
+    "adverts": 4,
+    "measuredOn": "2026-08-20"
+   }
+  ]
+ },
+ "evaluation": {
+  "evaluator": {
+   "engine": "calibrated-family-placement",
+   "version": "1"
+  },
+  "thresholds": {
+   "comparableAccuracy": 0.95,
+   "unfamiliarRecall": 0.9,
+   "familiarFalseUnknownRate": 0.05
+  },
+  "rawCases": [
+   {
+    "id": "train-it-project-manager",
+    "split": "grouped_train",
+    "targetRole": "IT Project Manager",
+    "evidence": {
+     "signals": [
+      "project delivery",
+      "stakeholder coordination",
+      "risk control"
+     ],
+     "familyNeighborSupport": [
+      0.92,
+      0.86,
+      0.78
+     ],
+     "competingFamilySupport": [
+      0.42,
+      0.31
+     ]
+    },
+    "expected": "confirmed"
+   },
+   {
+    "id": "train-technical-program-manager",
+    "split": "grouped_train",
+    "targetRole": "Technical Program Manager",
+    "evidence": {
+     "signals": [
+      "cross-functional delivery",
+      "dependencies",
+      "executive communication"
+     ],
+     "familyNeighborSupport": [
+      0.9,
+      0.83,
+      0.76
+     ],
+     "competingFamilySupport": [
+      0.48,
+      0.38
+     ]
+    },
+    "expected": "confirmed"
+   },
+   {
+    "id": "train-product-manager",
+    "split": "grouped_train",
+    "targetRole": "Product Manager",
+    "evidence": {
+     "signals": [
+      "stakeholder coordination",
+      "delivery",
+      "product ownership"
+     ],
+     "familyNeighborSupport": [
+      0.75,
+      0.68,
+      0.61
+     ],
+     "competingFamilySupport": [
+      0.68,
+      0.63
+     ]
+    },
+    "expected": "needs_clarification"
+   },
+   {
+    "id": "train-software-engineer",
+    "split": "grouped_train",
+    "targetRole": "Software Engineer",
+    "evidence": {
+     "signals": [
+      "software implementation"
+     ],
+     "familyNeighborSupport": [
+      0.3,
+      0.24,
+      0.18
+     ],
+     "competingFamilySupport": [
+      0.25,
+      0.2
+     ]
+    },
+    "expected": "unmapped"
+   },
+   {
+    "id": "heldout-professional-services-pm",
+    "split": "held_out",
+    "targetRole": "Professional Services Project Manager",
+    "evidence": {
+     "signals": [
+      "governance",
+      "end-to-end execution",
+      "budget"
+     ],
+     "familyNeighborSupport": [
+      0.91,
+      0.84,
+      0.77
+     ],
+     "competingFamilySupport": [
+      0.43,
+      0.35
+     ]
+    },
+    "expected": "confirmed"
+   },
+   {
+    "id": "heldout-implementation-pm",
+    "split": "held_out",
+    "targetRole": "Implementation Services Project Manager",
+    "evidence": {
+     "signals": [
+      "implementation delivery",
+      "timelines",
+      "project risk"
+     ],
+     "familyNeighborSupport": [
+      0.93,
+      0.88,
+      0.79
+     ],
+     "competingFamilySupport": [
+      0.39,
+      0.32
+     ]
+    },
+    "expected": "confirmed"
+   },
+   {
+    "id": "heldout-delivery-manager",
+    "split": "held_out",
+    "targetRole": "Delivery Manager",
+    "evidence": {
+     "signals": [
+      "delivery ownership",
+      "dependencies",
+      "stakeholder reporting"
+     ],
+     "familyNeighborSupport": [
+      0.87,
+      0.8,
+      0.72
+     ],
+     "competingFamilySupport": [
+      0.44,
+      0.36
+     ]
+    },
+    "expected": "confirmed"
+   },
+   {
+    "id": "heldout-product-manager",
+    "split": "held_out",
+    "targetRole": "Product Manager",
+    "evidence": {
+     "signals": [
+      "delivery",
+      "stakeholders",
+      "product strategy"
+     ],
+     "familyNeighborSupport": [
+      0.76,
+      0.69,
+      0.62
+     ],
+     "competingFamilySupport": [
+      0.69,
+      0.64
+     ]
+    },
+    "expected": "needs_clarification"
+   },
+   {
+    "id": "heldout-engineering-manager",
+    "split": "held_out",
+    "targetRole": "Engineering Manager",
+    "evidence": {
+     "signals": [
+      "technical delivery",
+      "team leadership",
+      "dependencies"
+     ],
+     "familyNeighborSupport": [
+      0.72,
+      0.65,
+      0.6
+     ],
+     "competingFamilySupport": [
+      0.64,
+      0.59
+     ]
+    },
+    "expected": "needs_clarification"
+   },
+   {
+    "id": "heldout-data-scientist",
+    "split": "held_out",
+    "targetRole": "Data Scientist",
+    "evidence": {
+     "signals": [
+      "statistical modelling"
+     ],
+     "familyNeighborSupport": [
+      0.27,
+      0.21,
+      0.16
+     ],
+     "competingFamilySupport": [
+      0.22,
+      0.18
+     ]
+    },
+    "expected": "unmapped"
+   },
+   {
+    "id": "heldout-security-analyst",
+    "split": "held_out",
+    "targetRole": "Security Analyst",
+    "evidence": {
+     "signals": [
+      "security monitoring"
+     ],
+     "familyNeighborSupport": [
+      0.24,
+      0.19,
+      0.14
+     ],
+     "competingFamilySupport": [
+      0.21,
+      0.17
+     ]
+    },
+    "expected": "unmapped"
+   },
+   {
+    "id": "heldout-sales-director",
+    "split": "held_out",
+    "targetRole": "Sales Director",
+    "evidence": {
+     "signals": [
+      "revenue ownership"
+     ],
+     "familyNeighborSupport": [
+      0.2,
+      0.16,
+      0.12
+     ],
+     "competingFamilySupport": [
+      0.18,
+      0.15
+     ]
+    },
+    "expected": "unmapped"
+   },
+   {
+    "id": "train-product-owner",
+    "split": "grouped_train",
+    "targetRole": "Product Owner",
+    "evidence": {
+     "signals": [
+      "backlog ownership",
+      "sprint priorities",
+      "user stories",
+      "delivery alignment"
+     ],
+     "familyNeighborSupport": [
+      0.9,
+      0.82,
+      0.75
+     ],
+     "competingFamilySupport": [
+      0.5,
+      0.4
+     ]
+    },
+    "expected": "confirmed"
+   },
+   {
+    "id": "heldout-technical-product-owner",
+    "split": "held_out",
+    "targetRole": "Technical Product Owner",
+    "evidence": {
+     "signals": [
+      "product backlog",
+      "technical roadmap",
+      "squad delivery"
+     ],
+     "familyNeighborSupport": [
+      0.87,
+      0.79,
+      0.7
+     ],
+     "competingFamilySupport": [
+      0.48
+     ]
+    },
+    "expected": "confirmed"
+   }
+  ],
+  "generated": {
+   "datasetHash": "e3a76e4219e68359bf4189d70f13a9fefdab0aa61479093b0f2f044f2798ba1f",
+   "cases": [
+    {
+     "id": "train-it-project-manager",
+     "supportScore": 0.92,
+     "runnerUpSupportScore": 0.42,
+     "neighborhoodDensity": 1,
+     "observed": "confirmed"
+    },
+    {
+     "id": "train-technical-program-manager",
+     "supportScore": 0.9,
+     "runnerUpSupportScore": 0.48,
+     "neighborhoodDensity": 1,
+     "observed": "confirmed"
+    },
+    {
+     "id": "train-product-manager",
+     "supportScore": 0.75,
+     "runnerUpSupportScore": 0.68,
+     "neighborhoodDensity": 1,
+     "observed": "needs_clarification"
+    },
+    {
+     "id": "train-software-engineer",
+     "supportScore": 0.3,
+     "runnerUpSupportScore": 0.25,
+     "neighborhoodDensity": 0,
+     "observed": "unmapped"
+    },
+    {
+     "id": "heldout-professional-services-pm",
+     "supportScore": 0.91,
+     "runnerUpSupportScore": 0.43,
+     "neighborhoodDensity": 1,
+     "observed": "confirmed"
+    },
+    {
+     "id": "heldout-implementation-pm",
+     "supportScore": 0.93,
+     "runnerUpSupportScore": 0.39,
+     "neighborhoodDensity": 1,
+     "observed": "confirmed"
+    },
+    {
+     "id": "heldout-delivery-manager",
+     "supportScore": 0.87,
+     "runnerUpSupportScore": 0.44,
+     "neighborhoodDensity": 1,
+     "observed": "confirmed"
+    },
+    {
+     "id": "heldout-product-manager",
+     "supportScore": 0.76,
+     "runnerUpSupportScore": 0.69,
+     "neighborhoodDensity": 1,
+     "observed": "needs_clarification"
+    },
+    {
+     "id": "heldout-engineering-manager",
+     "supportScore": 0.72,
+     "runnerUpSupportScore": 0.64,
+     "neighborhoodDensity": 1,
+     "observed": "needs_clarification"
+    },
+    {
+     "id": "heldout-data-scientist",
+     "supportScore": 0.27,
+     "runnerUpSupportScore": 0.22,
+     "neighborhoodDensity": 0,
+     "observed": "unmapped"
+    },
+    {
+     "id": "heldout-security-analyst",
+     "supportScore": 0.24,
+     "runnerUpSupportScore": 0.21,
+     "neighborhoodDensity": 0,
+     "observed": "unmapped"
+    },
+    {
+     "id": "heldout-sales-director",
+     "supportScore": 0.2,
+     "runnerUpSupportScore": 0.18,
+     "neighborhoodDensity": 0,
+     "observed": "unmapped"
+    },
+    {
+     "id": "train-product-owner",
+     "supportScore": 0.9,
+     "runnerUpSupportScore": 0.5,
+     "neighborhoodDensity": 1,
+     "observed": "confirmed"
+    },
+    {
+     "id": "heldout-technical-product-owner",
+     "supportScore": 0.87,
+     "runnerUpSupportScore": 0.48,
+     "neighborhoodDensity": 1,
+     "observed": "confirmed"
+    }
+   ]
+  }
+ }
+}

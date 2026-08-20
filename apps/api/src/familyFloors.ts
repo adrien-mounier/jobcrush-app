@@ -326,6 +326,16 @@ export function initialProductionFamilyFloors(): ProductionFamilyFloorStore {
       ),
     ),
   );
+  // #255 pilot run, owner-approved 2026-08-20: the second family, harvested from the real
+  // unmapped-label feed and published through the same gates.
+  store.publish(
+    JSON.parse(
+      readFileSync(
+        new URL("../research/business-analysis-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ),
+  );
   return store;
 }
 

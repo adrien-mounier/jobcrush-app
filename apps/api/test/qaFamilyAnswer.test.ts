@@ -12,7 +12,7 @@
 import { describe, expect, it } from "vitest";
 import { initialProductionFamilyFloors } from "../src/familyFloors.js";
 import { placeJobTitle, placeTargetRole, publishedFamilies } from "../src/familyLabeler.js";
-import { QA_FAMILY_ID, qaFamilyAnswer, roleFromLabelerPrompt } from "../src/qaFamilyAnswer.js";
+import { QA_FAMILY_ID, QA_SECOND_FAMILY_ID, qaFamilyAnswer, roleFromLabelerPrompt } from "../src/qaFamilyAnswer.js";
 import type { LlmClient } from "../src/llm.js";
 
 const PUBLISHED = publishedFamilies(initialProductionFamilyFloors());
@@ -66,10 +66,28 @@ describe("#231 the QA stack's fake labeler answers in a shape the real labeler a
     expect(placement).toEqual({ schemaVersion: "2", outcome: "unmapped" });
   });
 
+  // #255 gate follow-up: the second family's answer speaks the real dialect too — a wrong shape
+  // here fails the real parser, retries once, and degrades to unmapped while every tier stays
+  // green (this file's own post-mortem, repeated by the registry growing).
+  it("places an analyst-shaped target role into the second family, first time", async () => {
+    const { llm, calls } = counting();
+    const placement = await placeTargetRole("Business Analyst", PUBLISHED, llm);
+
+    expect(placement).toEqual({
+      schemaVersion: "2",
+      outcome: "confirmed",
+      families: [{ familyId: QA_SECOND_FAMILY_ID, version: 1 }],
+      confidence: "certain",
+    });
+    expect(calls()).toBe(1);
+  });
+
   // The fake can only ever name a family the production registry actually publishes; anything else
   // fails the closed-vocabulary check and degrades to unmapped — reintroducing the same blindness.
   it("only ever names a published family", () => {
-    expect(PUBLISHED.map((family) => family.familyId)).toContain(QA_FAMILY_ID);
+    const ids = PUBLISHED.map((family) => family.familyId);
+    expect(ids).toContain(QA_FAMILY_ID);
+    expect(ids).toContain(QA_SECOND_FAMILY_ID);
   });
 
   it("reads the role out of the prompt whatever the checkout did to line endings", () => {

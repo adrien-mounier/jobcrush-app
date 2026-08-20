@@ -38,20 +38,43 @@ import { retrievedPostingCount } from "./preview.js";
 import { pinnedOrDerived, planPinned, planUpgradable, samePlan } from "./sessions.js";
 import type { DiscoveryPlan, SessionRecord, SessionStore } from "./sessions.js";
 
-export function requireProductionDiscoveryFamily(
-  floors: Pick<ProductionFamilyFloorStore, "activePublications" | "get">,
-): DiscoveryFamily {
-  const family = productionDiscoveryFamily(floors);
-  if (!family) throw new Error("no active production family available for discovery");
-  return family;
-}
-
 export function productionDiscoveryFamilyLookup(
   floors: Pick<ProductionFamilyFloorStore, "activePublications" | "get">,
   query: string,
 ): { family: string; suggestions: readonly string[] } {
-  const family = requireProductionDiscoveryFamily(floors);
-  return { family: family.label, suggestions: query.trim() ? family.suggestions : [] };
+  // #255: with more than one active family, "the" family is decided by the QUERY — the family
+  // whose label or market titles the typed words overlap. One family made the old first-family
+  // default invisible; the second made it wrong (typing "project manager" answered "Business
+  // analysis"). An UNMATCHED query gets `suggestions: []` — the documented silent no-match
+  // (lib/api.ts's contract): the web renders whatever arrives under "same kind of job" as one-tap
+  // role submissions, so serving a fallback family's words there is one tap from a wrong
+  // placement (#255's QA gate proved it live with "scrum master"). A query overlapping BOTH
+  // families resolves to the first match in familyId order, deterministic.
+  const q = query.trim().toLocaleLowerCase("en-US");
+  const active = floors.activePublications()
+    .sort((a, b) => a.floor.familyId.localeCompare(b.floor.familyId, "en-US"));
+  if (active.length === 0) throw new Error("no active production family available for discovery");
+  const titlesOf = (publication: (typeof active)[number]): string[] => {
+    const titles: string[] = [];
+    const seen = new Set<string>();
+    for (const entries of Object.values(publication.marketSearchTitles)) {
+      for (const entry of entries) {
+        const key = entry.title.trim().toLocaleLowerCase("en-US");
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        titles.push(entry.title);
+      }
+    }
+    return titles;
+  };
+  const overlaps = (a: string, b: string) => a.includes(b) || b.includes(a);
+  const matched = q
+    ? active.find((publication) =>
+        overlaps(publication.floor.label.toLocaleLowerCase("en-US"), q) ||
+        titlesOf(publication).some((title) => overlaps(title.toLocaleLowerCase("en-US"), q)))
+    : undefined;
+  const chosen = matched ?? active[0]!;
+  return { family: chosen.floor.label, suggestions: matched ? titlesOf(matched) : [] };
 }
 
 export interface DiscoveryPlanDeps {

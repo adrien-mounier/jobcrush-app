@@ -10,12 +10,14 @@
 //
 // Living here, it is parsed by the real contract in qaFamilyAnswer.test.ts, so the next shape change
 // breaks a test instead of going dark.
-/** The family this QA stack can actually place into: qa-main runs the REAL production registry, and
- *  it publishes exactly one family. Naming any other id (even a plausible second family) fails the
- *  closed-vocabulary check in familyLabeler.ts and degrades to unmapped — the same silent failure
- *  this module exists to prevent. A live drive that needs a two-family placement must inject a
- *  second published family as well as the answer. */
+/** The families this QA stack can actually place into: qa-main runs the REAL production registry,
+ *  which publishes it-project-delivery AND (since #255's pilot run) business-analysis. Naming any
+ *  id outside the registry fails the closed-vocabulary check in familyLabeler.ts and degrades to
+ *  unmapped — the same silent failure this module exists to prevent. #255's QA gate caught this
+ *  module doing exactly that: the registry grew a second family and this fake kept answering
+ *  unmapped for it, so the QA stack demonstrated the OPPOSITE of the publication's own AC. */
 export const QA_FAMILY_ID = "it-project-delivery";
+export const QA_SECOND_FAMILY_ID = "business-analysis";
 
 /** Reads the role out of a rendered family-labeler prompt. `\s+` rather than `\n\n`:
  *  prompts/family-labeler.md is read straight off disk, and this repo's git checkout rewrites line
@@ -36,7 +38,13 @@ export function roleFromLabelerPrompt(prompt: string): string {
  */
 export function qaFamilyAnswer(role: string): string {
   if (/coordinator/.test(role)) return JSON.stringify({ outcome: "unmapped" });
-  return /project|programme|program|delivery|scrum|\bpm\b/.test(role)
-    ? JSON.stringify({ outcome: "confirmed", familyIds: [QA_FAMILY_ID], confidence: "certain" })
-    : JSON.stringify({ outcome: "unmapped" });
+  if (/project|programme|program|delivery|scrum|\bpm\b/.test(role)) {
+    return JSON.stringify({ outcome: "confirmed", familyIds: [QA_FAMILY_ID], confidence: "certain" });
+  }
+  // #255: the registry's second family — analyst-shaped roles place here, so a journey can walk a
+  // fresh placement into it (the publication AC's locally provable half).
+  if (/business analy|requirements analy|process analy/.test(role)) {
+    return JSON.stringify({ outcome: "confirmed", familyIds: [QA_SECOND_FAMILY_ID], confidence: "certain" });
+  }
+  return JSON.stringify({ outcome: "unmapped" });
 }

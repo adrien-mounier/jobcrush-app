@@ -62,7 +62,11 @@ const PURE_DISCOVERY_FAMILY: DiscoveryFamily = {
   ],
 };
 
-const PRODUCTION_DISCOVERY_FAMILY = productionDiscoveryFamily(initialProductionFamilyFloors())!;
+// #255: the registry holds more than one family now, so tests that mean a SPECIFIC family pin it
+// by reference — the no-references default is only the deterministic first family, not "the" one.
+const PRODUCTION_DISCOVERY_FAMILY = productionDiscoveryFamily(initialProductionFamilyFloors(), [
+  { familyId: "it-project-delivery", version: 1 },
+])!;
 
 // #18 — a discovery answer ClaimRecord, keyed by discoveryClaimId(itemId) as the routes persist it.
 // Which array (confirmed vs negatives) it's passed in is what discoveryState reads, not `decision`.
@@ -304,6 +308,16 @@ describe("#16 discovery routes", () => {
     const hit = (await get(app, cookie, "/onboarding/discovery/family?q=project%20manager")).json();
     expect(hit.family).toBe("IT project delivery");
     expect(hit.suggestions).toEqual(["project manager", "delivery manager"]);
+    // #255: with two active families the QUERY decides — the positive direction of the
+    // multi-family fix, not just the it-project-delivery regression above.
+    const ba = (await get(app, cookie, "/onboarding/discovery/family?q=business%20analyst")).json();
+    expect(ba.family).toBe("Business analysis");
+    expect(ba.suggestions).toContain("business analyst");
+    // #255 gate defect 1: a query matching NEITHER family is a silent no-match (suggestions: []),
+    // never a fallback family's words — the web renders suggestions as one-tap role submissions
+    // under "same kind of job", so a fallback here was one tap from a wrong placement.
+    const nomatch = (await get(app, cookie, "/onboarding/discovery/family?q=scrum%20master")).json();
+    expect(nomatch.suggestions).toEqual([]);
     const empty = (await get(app, cookie, "/onboarding/discovery/family?q=")).json();
     expect(empty.suggestions).toEqual([]);
   });
