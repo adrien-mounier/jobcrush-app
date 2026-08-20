@@ -2,6 +2,32 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-20 (session 151, part 4) — the owner's walk reached a deck, three tickets moved, and the harvest pool is real now
+
+**The owner walked the whole product** ("it delivery manager", Hong Kong): front door → discovery →
+deck. First deck attempt showed "Couldn't line up your jobs.", retry showed 4 matched cards + the
+earned-reveal wall — evidence captured minutes later pins the mechanism: the first-ever LIVE
+retrieval on staging (3 techmap calls, 30 postings, USD 0.03) plus five 15s ad-read timeouts on the
+cold cache; the reads self-healed into the cache and the retry found them. **That is #116's exact
+case, now with a live reproduction — recorded on the ticket.** The walk also filled the harvest
+feed: **9 waiting words, 8 distinct roles** (a business-analyst cluster among them) — #255 has real
+material for the first time.
+
+**#249 decided by the owner: option 1** — retrieve for the preview, quota cost accepted; recorded
+on the ticket and the roadmap row, ready for `/to-spec`.
+
+**#247 shipped** (`7a5ca73`, `/qa-gate` GO, closes #247) under the owner's "I want a high quality
+QA": the deck-family-fit journey was moved to the post-#63 retrieval seam with a synthetic-only
+confidence pool — the deck converges on ONE score and the full #243 claim is asserted as an
+equality (weak sinks below every strong card at the identical score); the gate mutation-tested the
+ranking assertion (flattened/inverted confidence both go red). It joins Tier 2 with the two feed
+journeys (whose OPS_KEY=qa-ops-key need is now set in ci.yml — found only by hand-running them;
+they had sat in no tier). Gate finding F-1 folded in post-GO: the ARMED check asserts a
+familyPlacement delta from a pre-seeding baseline — its first honest run located the placement call
+at discovery start, not the deck build. Two lessons recorded: Windows loopback-socket exhaustion
+fails late-sequence journeys spuriously (ERR_NO_BUFFER_SPACE), and the `.dockerignore` now excludes
+qa-results (5GB was riding every deploy upload — committed `[skip-gate]`, owner-authorized).
+
 ## 2026-08-20 (session 151, part 3) `/implement 257` — the front door finally walks her on, and the sentence keeps a home
 
 #257 shipped (`bcd1373`, `/qa-gate` **GO**, closes #257) — filed and fixed the same day the owner
