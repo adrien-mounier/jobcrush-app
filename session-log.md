@@ -2,6 +2,24 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-20 (session 147) `/grill-with-docs 218` → spec #251 — vocabulary growth is decided
+
+An `/implement 218` ask was correctly bounced: the ticket gated itself on an owner brainstorm. The
+grilling ran instead, two rounds, frontier emptied. Owner decisions (all on #218 as a comment):
+**families only** (industries → #217) · **owner-triggered agent workflow** — research in a session,
+proposals as reviewed files, publishing stays the boot-time data-file path; in-product machinery
+(scheduler, approval UI, runtime publish) filed as **#250** for post-pilot · **durable,
+person-linked unmapped-label feed** (today's 200-entry buffer is wiped per deploy — that was the
+accepted gap this closes) · **no deletion feature for the feed, none filed** — explicit owner call ·
+one complete package per proposal (evidence + measured words + drafted grid, owner arbitrates) ·
+USD 10 provider budget per run, receipt in the package · owner picks clusters, no threshold ·
+widening an existing family in scope (gate already refuses stale measurements, #244) · the run
+closes the notification loop through the existing operator progression; the credible-matches email
+was verified wired (claimed session + live mailer required — unnotifiable attempts get listed, not
+dropped). Glossary grew three terms: **unmapped label**, **vocabulary-growth run**, **vocabulary
+proposal**. Spec **#251** published `ready-for-agent`; next is `/to-tickets 251`. Docs-only session,
+no code touched.
+
 ## 2026-08-20 (session 146) `/implement 246` — the promise counts her own search (QA GO)
 
 Closes #246. Row 7a. Built on `main`, not the branch the ticket names — #63 (`89d60d7`) had already

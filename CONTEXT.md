@@ -89,6 +89,23 @@ rejected, fails validation, produces a published family, or is superseded by ano
 
 _Avoid_: Background job, successful family
 
+**Unmapped label**:
+One recorded unmapped placement — the words a person's target role or past job carried when no
+published job family fit them. Kept durably, linked to the person who caused it, as feed for
+vocabulary growth (#218).
+_Avoid_: Failed placement, classification error
+
+**Vocabulary-growth run**:
+The owner-triggered research session that groups the accumulated unmapped labels, researches the
+groups the owner picks, and produces vocabulary proposals. It never publishes anything itself.
+_Avoid_: Auto-publish, background research, scheduled job
+
+**Vocabulary proposal**:
+A complete, evidence-backed package proposing one change to the published vocabulary: a new job
+family, or a new version of an existing one (wider scope). It enters the vocabulary only by owner
+approval and only through the publish gates — the machine never adds silently.
+_Avoid_: Auto-added family, draft family, suggestion
+
 **Important gap**:
 A job requirement that the user's current evidence does not cover and that may materially reduce
 their chances. It must be explained on the job card but does not prevent truthful tailoring or an
