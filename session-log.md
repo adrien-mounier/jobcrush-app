@@ -2,6 +2,45 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-20 (session 148) `/implement 252` — the vocabulary's gaps now survive a deploy
+
+Slice 1 of spec #251 shipped (`748417f`, `/qa-gate` **GO**). Every unmapped placement — a target
+role nobody could place, or a past job title read off a CV — is now written to a durable store
+instead of the 200-entry in-process buffer every deploy erased. Each entry carries the words as
+typed/read, the **source** (target role vs past job), the **session** it happened for, and the
+**reason**, which is the field that keeps an honest "no family fits" distinguishable from a labeler
+that failed its own contract twice. New `apps/api/src/unmappedLabels.ts` (in-memory + Postgres
+behind one interface, the repo's standard driver split); `counters.ts`'s ring buffer and its
+recording function are **deleted**, so there is one recording path; `/ops/unmapped-labels` reads the
+durable store; new counter `familyLabeler.unmapped_feed_failed` says the feed is losing words.
+Recording never fails a placement — the try/catch lives inside `recordUnmappedLabel`, so every
+caller is covered, not just the tested one.
+
+Both review axes came back with **no hard violations**. Five judgement calls were taken: the
+in-memory driver regained its bound (the replacement had been unbounded — a dev-server leak), the
+text bound moved into one shared `normalise()` so it is a property of the seam rather than of a
+driver, `purge.ts`'s header now names the second indefinitely-retained table (`unmapped_labels`,
+dangling session link **by design** — owner's no-deletion call), and `familyLabeler.ts` says
+explicitly which unmapped exits are deliberately NOT fed (empty box, empty registry, driver outage:
+our own state, not a missing word). The one that mattered: **`qa-main.ts` was not wired to the new
+store**, so the QA app's ops screen would have been permanently empty and the gate would have
+audited a dead surface.
+
+`/qa-gate` returned **NO-GO** first, on a real defect the diff reviewers could not see: this slice
+renames the ops feed's field `role` → `label` (it now holds job titles too), and the checked-in
+`apps/web/e2e/family-placement-journey.mjs` still read `e.role` — reporting the feed empty when it
+was not. One line. Re-run: **24/24**, then **GO**. New browser journey left in the repo:
+`apps/web/e2e/unmapped-label-feed-journey.mjs` — the only end-to-end proof that three separate
+wirings share one store. **It is in no CI tier**, exactly like the journey that just rotted; worth a
+slot in `run-tier2.mjs` next time someone touches that list.
+
+Gates: 1585 tests green, typecheck clean. Two ceilings carried forward to **#253**: the ops read
+shows the **newest 200 with no paging** (rows past that are durable but unreadable through that
+door until #253's harvest), and the person link **dangles** once purge removes the session, which
+#253's distinct-person counting must account for. Residual manual step: a true process-restart
+durability check against real Postgres — pg-mem is in-process, so nothing in-repo can prove it.
+Frontier: **#253**.
+
 ## 2026-08-20 (session 147) `/grill-with-docs 218` → spec #251 — vocabulary growth is decided
 
 An `/implement 218` ask was correctly bounced: the ticket gated itself on an owner brainstorm. The
