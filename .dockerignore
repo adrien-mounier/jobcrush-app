@@ -1,5 +1,10 @@
 node_modules
 **/node_modules
+# QA evidence piles up gigabytes locally (5GB found 2026-08-20, session 151) and must never ride
+# the deploy context — it made `fly deploy` upload for 10+ minutes before ever building.
+**/qa-results
+**/test-results
+**/playwright-report
 **/dist
 **/.next
 **/.turbo
