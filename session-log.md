@@ -2,6 +2,36 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-20 (session 151, part 5) — the pilot run ran END TO END: the second family is live, and the loop it proves is real
+
+**#255 closed by hand, and #218's umbrella with it** (`25e29c4` hand-deployed; `/qa-gate` NO-GO →
+GO on the scoped re-run). The whole runbook, executed with the owner in the room:
+
+- **Harvest**: 11 waiting labels / 8 distinct roles off the ops surface. Cluster map with
+  distinct-person counts and the honesty note that all traffic was the owner's own walks.
+- **Owner picked 2**; research came in at **22 calls / 145 postings / USD 0.15** (priced from the
+  registry at spend time; calls the tighter cap at 2.2%; probes bypass the internal ledger — noted).
+- **business-analysis v1 APPROVED and published** through byte-unchanged gates; the
+  it-project-delivery v2 widening **REJECTED** (not a labeler fault; POs deserve their own
+  questions someday) — parked gates-green with the reason in `docs/vocabulary-proposals/`.
+- **The gate earned its NO-GO**: the second family exposed two single-family assumptions. Q1's
+  same-kind-of-job lookup fell back to the alphabetically-first family's words on a no-match — a
+  scrum master one tap from a Business-analysis placement, proven live; fixed to the documented
+  silent no-match (#258 files the alias hint the accident used to provide). And qa-main's fake
+  labeler still spoke one family — its own header's post-mortem repeated; fixed + tripwired.
+- **Closing checklist**: the one covered attempt (business analyst / Australia, claimed) progressed
+  `research_started → … → user_notified` behind an honestly-true relevant-vacancy answer (17 live
+  AU adverts measured same day); zero unnotifiable attempts; **harvest marked LAST** (11 → 0
+  waiting, all entries readable). `FAMILY_LEARNING_OPERATOR_KEY` was missing on staging — owner
+  minted it mid-run (SHARED_INFRA inventory updated).
+- **The real model, live: a fresh "Business Analyst" placement returned the business-analysis
+  family and its own floor questions.** Multi-family is no longer a lab fact.
+
+The banner's two 👀 checks also closed with the owner's earlier walk: the deck filled (4 real
+matched cards after live retrieval) and `adReader.family_clamped` stayed 0 across 12 real reads.
+**#256 is unblocked** (a genuinely derived known zero now exists). Frontier: #256, #64, and #249's
+`/to-spec`, in whatever order the owner wants.
+
 ## 2026-08-20 (session 151, part 4) — the owner's walk reached a deck, three tickets moved, and the harvest pool is real now
 
 **The owner walked the whole product** ("it delivery manager", Hong Kong): front door → discovery →
