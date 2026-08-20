@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-08-16_
+_Last updated: 2026-08-20_
 
 > 🚨 **NOTHING HAS DEPLOYED SINCE 2026-08-15 08:51 UTC. Read this before trusting any "DONE" below.**
 > GitHub Actions is blocked account-wide: the free minute allowance is spent and the default spending
@@ -8,7 +8,7 @@ _Last updated: 2026-08-16_
 > account payments have failed"* — **no payment failed; there is no payment method on the account.**
 >
 > `main` still accepts pushes and `Closes #123` still closes issues, so **the board and the git log
-> read "shipped" while staging does not have the code.** **Ten** feature slices are affected — the
+> read "shipped" while staging does not have the code.** **Twelve** feature slices are affected — the
 > count grows with every slice finished while this stands, so add a row when you add a DONE:
 >
 > | Slice | On `main` | On staging |
@@ -23,6 +23,8 @@ _Last updated: 2026-08-16_
 > | **#243** the advert's family reaches the deck (`5f3c701`) | ✅ | ❌ |
 > | **#240** the search asks for a job title, not any word (`2d8eb58`) | ✅ | ❌ |
 > | **#228** the widening is offered at the dead end, and she chooses | ✅ | ❌ |
+| **#252** unmapped labels survive the deploy (`748417f`) | ✅ | ❌ |
+| **#253** the waiting count and harvest marking (`a323ca6`) | ✅ | ❌ — CI run `32336124423` failed in 3s with no logs, `deploy-staging` skipped; the block is unchanged |
 >
 > **Staging runs the tree at `85cda41`** (`docs(#225)`, the last green `deploy-staging`).
 > **Owner decision, not a fix:** wait for the allowance to reset (date unverified — the token cannot
