@@ -115,8 +115,9 @@ await qa.fill('#target-role', UNMAPPED_ROLE, `types what she wants next: "${UNMA
 await qa.fill('#search-area', 'Singapore', 'types where she is looking');
 await qa.press('#search-area', 'Enter', 'places the search area chip');
 await qa.click('button:has-text("Save and continue")', 'saves what she wants next');
-await qa.expectText('h1', 'Got it.', 'the role is accepted and saved on the server');
-await qa.expectText('.intent-confirmation', UNMAPPED_ROLE, 'the saved target role reads back to her');
+// #257: acceptance now shows as the walk-on to discovery, where the confirmation line lives.
+await page.waitForURL(/\/discovery/);
+await qa.expectText('.intent-context', UNMAPPED_ROLE, 'the saved target role reads back to her');
 
 const visitorOneSession = await sessionId();
 const started = await callAsVisitor('POST', '/onboarding/discovery/start', { role: UNMAPPED_ROLE });

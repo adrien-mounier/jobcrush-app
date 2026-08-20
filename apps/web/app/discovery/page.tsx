@@ -21,6 +21,7 @@ import {
   answerDiscoveryMulti,
   ensureSession,
   getDiscovery,
+  getIntent,
   lookupFamily,
   startDiscovery,
   type CvSection,
@@ -30,6 +31,7 @@ import {
   type DiscoveryState,
   type EligibilityAsk,
 } from "../../lib/api";
+import { lookForSentence } from "../../lib/intentCopy";
 
 const CV_TYPE_SPEED = 26; // ms/char, design spec §2 (CV body — distinct from the door's 36ms headline)
 const TYPE_SETTLE = 300; // ms — scroll first, then type (design §5)
@@ -266,6 +268,10 @@ function DiscoveryScreen() {
 
   const [discovery, setDiscovery] = useState<DiscoveryState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // #257: the front door now hands off here as soon as intent is known, so its confirmation
+  // sentence keeps a persistent home on this screen (owner decision 2026-08-20) — built by the
+  // one shared sentence source (lib/intentCopy.ts), never a second copy of the template.
+  const [intentLine, setIntentLine] = useState<string | null>(null);
 
   const [roleText, setRoleText] = useState("");
   const [q1Busy, setQ1Busy] = useState(false);
@@ -378,6 +384,23 @@ function DiscoveryScreen() {
   useEffect(() => {
     loadDiscovery();
   }, [loadDiscovery]);
+
+  // #257: context only — a failure here must never block the questions, so it stays silent
+  // (the line simply doesn't render) rather than joining loadDiscovery's error path.
+  useEffect(() => {
+    let cancelled = false;
+    getIntent()
+      .then((s) => {
+        if (cancelled || s.checkpoint !== "intent_known" || !s.intent.targetRole) return;
+        const areas = s.intent.searchAreas.map((a) => a.label);
+        if (areas.length === 0) return;
+        setIntentLine(lookForSentence(s.intent.targetRole, areas));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Unmount safety net: every timer this screen schedules (family debounce/loading, the notice
   // fade, the in-flight typewriter) is reachable from these refs (CODING_STANDARDS: effects clean
@@ -1469,6 +1492,7 @@ function DiscoveryScreen() {
             <span className="wordmark">JobCrush</span>
             <FactBadge count={badgeCount} fly={fly} rootRef={rootRef} />
           </div>
+          {intentLine && <p className="intent-context">{intentLine}</p>}
 
           <div className="disc-layout">
             <div className="cv-column">

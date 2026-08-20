@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import "./frontdoor.css";
 import {
   ensureSession,
@@ -17,22 +18,20 @@ import {
   type SourceEntry,
 } from "../lib/api";
 import { areaSuggestions, matchAreaText } from "../lib/areaMatch";
+import { joinOxfordless as joinCoverage, lookForSentence } from "../lib/intentCopy";
 
 const L1 = "Answer questions.";
 const L2 = "Collect jobs.";
+// #257: how long the "Got it." confirmation stays up before the hand-off to /discovery — the same
+// sub-second bridge as discovery's own deck handoff (discovery/page.tsx).
+const INTENT_HANDOFF_MS = 800;
 const TYPE_SPEED = 36;
 const ALLOWED_EXT = [".pdf", ".docx", ".txt"];
 const MAX_BYTES = 10 * 1024 * 1024;
 
-// #184 (#172): the coverage list rendered in the early-access line — Oxford-less, matching
-// discovery/page.tsx's own joinList convention for the language-checkbox confirm. Never a second
-// hard-coded copy of the provider registry's served regions: the list itself always comes from the
-// resolved response, only the joining rule lives here.
-function joinCoverage(list: string[]): string {
-  if (list.length <= 1) return list[0] ?? "";
-  if (list.length === 2) return `${list[0]} and ${list[1]}`;
-  return `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
-}
+// #184 (#172): the coverage list rendered in the early-access line — Oxford-less; the joining rule
+// itself moved to lib/intentCopy.ts (#257) so this file and discovery's persistent confirmation
+// line can never drift apart. The list always comes from the resolved response, never hard-coded.
 
 type Choice = "cv" | "questions";
 type CvState =
@@ -477,6 +476,7 @@ function IntentPanel({
   onRetryLoad: () => void;
   onAccepted: (state: IntentState) => void;
 }) {
+  const router = useRouter();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const roleRef = useRef<HTMLInputElement>(null);
@@ -501,6 +501,21 @@ function IntentPanel({
   // below reads-and-clears it on the very next run, so it can never leak into an unrelated later
   // state change (e.g. one caused by something other than this panel's own submit).
   const justSubmittedRef = useRef(false);
+  // #257: once intent is known the front door hands off to the discovery questions (owner decision
+  // 2026-08-20: front door → discovery → deck). Same shape as discovery's own deck handoff
+  // (discovery/page.tsx's deckNavigatedRef): the confirmation stays up as a brief sub-second
+  // bridge, the ref latches so a re-render can never push twice, and the timer clears on unmount.
+  const discoveryNavigatedRef = useRef(false);
+  useEffect(() => {
+    if (state?.checkpoint !== "intent_known") return;
+    const t = setTimeout(() => {
+      if (!discoveryNavigatedRef.current) {
+        discoveryNavigatedRef.current = true;
+        router.push("/discovery");
+      }
+    }, INTENT_HANDOFF_MS);
+    return () => clearTimeout(t);
+  }, [state, router]);
 
   // One effect, one focus decision per `state` change. The area branch is checked first and always
   // returns: a live uncovered resubmission both is `justSubmitted` and would otherwise also satisfy
@@ -582,10 +597,10 @@ function IntentPanel({
     // #214: confirms the canonical chip labels (city when a city was typed, else market), never the
     // raw typed text — live submit and cold reload alike, straight off the server's own resolution.
     // Oxford-less join, the existing joinCoverage convention.
-    const areaNames = joinCoverage(state.intent.searchAreas.map((entry) => entry.label));
+    const areaLabels = state.intent.searchAreas.map((entry) => entry.label);
     const confirmation = areaOnlyConfirm
-      ? `We’ll search ${areaNames}.`
-      : `We’ll look for ${state.intent.targetRole} in ${areaNames}.`;
+      ? `We’ll search ${joinCoverage(areaLabels)}.`
+      : lookForSentence(state.intent.targetRole ?? "", areaLabels);
     return (
       <section className="source-screen intent-screen">
         <p className="wordmark">JobCrush</p>

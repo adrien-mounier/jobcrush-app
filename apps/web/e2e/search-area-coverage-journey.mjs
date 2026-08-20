@@ -93,18 +93,22 @@ const VARIANTS = [
   ['Remote in Vietnam', 'Vietnam', 'AC2: a remote phrasing still resolves to its market (remote is not a location)'],
 ];
 
+// #257: a covered save now advances her to the discovery questions on its own, and the
+// confirmation sentence lives there persistently (.intent-context) — so the canonical-label
+// readback is asserted on that stable screen, live and after a cold reload of it.
 for (const [typed, label, why] of VARIANTS) {
   await freshVisitor();
   await openIntent('IT project manager');
   await submitArea(typed);
+  await page.waitForURL(/\/discovery/);
   await qa.expectText(
-    '.intent-confirmation',
+    '.intent-context',
     `We’ll look for IT project manager in ${label}.`,
-    `${why} — confirmed back as "${label}"`,
+    `${why} — confirmed back as "${label}" on the discovery screen she lands on`,
   );
-  await qa.goto('/', `reload after "${typed}"`);
+  await qa.goto('/discovery', `cold reload after "${typed}"`);
   await qa.expectText(
-    '.intent-confirmation',
+    '.intent-context',
     `We’ll look for IT project manager in ${label}.`,
     `the canonical label "${label}" survives a reload, never the raw typed text`,
   );
@@ -115,13 +119,12 @@ for (const [typed, label, why] of VARIANTS) {
 await freshVisitor();
 await openIntent('IT project manager in Paris'); // the role names a DIFFERENT city on purpose
 await submitArea('Hong Kong');
+await page.waitForURL(/\/discovery/); // #257: the save itself walks her on into discovery
 await qa.expectText(
-  '.intent-confirmation',
+  '.intent-context',
   'in Hong Kong.',
   'AC4 setup: the search area resolved to Hong Kong while the role text says Paris',
 );
-
-await qa.goto('/discovery', 'walk on into discovery');
 await qa.fill('#q1-role', 'IT project manager in Paris', 'answer Q1 with a role naming Paris again');
 await qa.click('button.go.wide', "confirm the role — \"That's me\"");
 await qa.scrollThrough('read the page the way a person would');

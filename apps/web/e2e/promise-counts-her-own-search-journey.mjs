@@ -166,7 +166,9 @@ async function walkIntoDiscovery(role) {
     await qa.fill('#target-role', role, `the job she is going for: "${role}"`);
     await qa.fill('#search-area', AREA, `where she wants to work: ${AREA}`);
     await qa.click('button:has-text("Save and continue")', 'Save and continue');
-    await page.waitForTimeout(1200);
+    // #257: the save walks her on to discovery by itself — wait for that navigation to settle
+    // before leaving, so the next goto never races it.
+    await page.waitForURL(/\/discovery/);
   }
 
   await qa.goto('/paste', 'paste her CV — two dated jobs and one degree');

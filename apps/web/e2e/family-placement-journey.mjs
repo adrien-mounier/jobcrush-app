@@ -84,8 +84,9 @@ async function frontDoorTypingRole(role, note) {
   await qa.fill('#search-area', 'Singapore', 'type the search area');
   await qa.press('#search-area', 'Enter', 'place the search area chip');
   await qa.click('button:has-text("Save and continue")', 'save what I want next');
-  await qa.expectText('h1', 'Got it.', 'the role is accepted and saved on the server');
-  await qa.expectText('.intent-confirmation', role, `the saved target role reads back: "${role}"`);
+  // #257: acceptance now shows as the walk-on to discovery, where the confirmation line lives.
+  await page.waitForURL(/\/discovery/);
+  await qa.expectText('.intent-context', role, `the saved target role reads back: "${role}"`);
 }
 
 // ============================================================ 1. a visitor the vocabulary covers

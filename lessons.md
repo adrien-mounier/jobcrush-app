@@ -15,6 +15,13 @@ same gates run first, non-negotiable**:
 3. `flyctl deploy --config fly.api.toml --build-arg BUILD_SHA=$(git rev-parse HEAD)`, then the same
    with `fly.web.toml`. Verify `/healthz` echoes the SHA.
 
+**Order trap when mirroring both jobs in ONE checkout (CI dodges it only by using two runners):
+run step 1's `pnpm build` BEFORE step 2's web build, never after.** The turbo `pnpm build` builds
+the web app with no `API_URL`, which bakes the dead `:3001` fallback into `.next` and silently
+clobbers the e2e build — every later journey then dies on "could not start a session" (the proxy
+500s; `next start`'s log shows `ECONNREFUSED ... port: 3001`). Cost an hour on 2026-08-20 before
+the `paths from two jobs share one .next` shape was seen.
+
 Caveats, learned 2026-08-20 (session 151): a hand deploy skips CI's clean-room build, so the first
 green CI run afterwards re-proves the tree; and `fly ssh console -C` lets you call an ops endpoint
 from **inside** the machine so secrets like `OPS_KEY` never enter the session. Also learned the hard

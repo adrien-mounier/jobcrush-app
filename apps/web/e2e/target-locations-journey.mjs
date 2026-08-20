@@ -82,27 +82,29 @@ await addPlace('Vietnam', 'put Vietnam back so the save carries all three');
 // AC2 — save; the checkpoint advances and the confirmation sentence pluralises with the CHIP LABELS
 // (Oxford-less join), which for a city chip is the city.
 await qa.click('button:has-text("Save and continue")', 'save and continue');
-await qa.expectVisible(page.getByRole('heading', { name: 'Got it.' }), 'AC2: the checkpoint advances on the server-side gate');
+// #257: the save advances the checkpoint AND walks her on to the discovery questions, where the
+// confirmation sentence now lives persistently (.intent-context).
+await page.waitForURL(/\/discovery/);
 await qa.expectText(
-  '.intent-confirmation',
+  '.intent-context',
   `We’ll look for ${ROLE} in Melbourne, Hong Kong and Vietnam.`,
-  'AC2: the confirmation pluralises over the chip labels, Oxford-less',
+  'AC2: the checkpoint advances, and the confirmation pluralises over the chip labels, Oxford-less',
 );
 
-await qa.goto('/', 'cold reload — the server re-resolves from what was stored');
+await qa.goto('/discovery', 'cold reload — the server re-resolves from what was stored');
 await qa.expectText(
-  '.intent-confirmation',
+  '.intent-context',
   `We’ll look for ${ROLE} in Melbourne, Hong Kong and Vietnam.`,
   'AC7: the stored entries survive a reload and still resolve to the same labels',
 );
 await expectAbsent(
-  page.locator('.intent-confirmation', { hasText: 'Australia' }),
+  page.locator('.intent-context', { hasText: 'Australia' }),
   '#124 amendment: the city chip is never confirmed back as its country',
 );
 
 // AC4 — the work-rights question is asked once per selected MARKET (Melbourne and Vietnam are two
-// different markets; visas are national, so the Melbourne chip asks about Australia).
-await qa.goto('/discovery', 'walk on into discovery, where the eligibility questions are asked');
+// different markets; visas are national, so the Melbourne chip asks about Australia). #257 already
+// landed her on discovery, where the eligibility questions are asked.
 await qa.fill('#q1-role', ROLE, 'confirm the role on the first discovery question');
 await qa.click('button.go.wide', 'confirm the role — "That’s me"');
 await qa.scrollThrough('read the discovery page the way a person would');

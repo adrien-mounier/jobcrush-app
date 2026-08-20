@@ -647,6 +647,35 @@ test("both missing intent fields save together without promoting history or resi
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
 });
 
+// #257: the front door is not a destination — once intent is known it hands the browser to the
+// discovery questions (owner decision 2026-08-20: front door → discovery → deck). The "Got it."
+// confirmation stays up as a brief bridge, then the navigation fires with no click. Found live on
+// staging: a real visitor completed the front door and dead-ended, while every test reached
+// /discovery via page.goto and stayed green.
+test("once intent is known the front door hands off to the discovery questions", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "source_selected", choice: "questions" });
+  await stubIntent(page, intentState({
+    intent: { targetRole: null, searchAreas: [] },
+    missing: ["targetRole", "searchArea"],
+    checkpoint: "intent_needed",
+  }));
+
+  await page.goto("/");
+  await page.getByLabel("Target role").fill("Delivery lead");
+  await page.getByLabel("Search area").fill("Hong Kong");
+  await page.getByLabel("Search area").press("Enter");
+  await page.getByRole("button", { name: "Save and continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "Got it." })).toBeVisible();
+  await page.waitForURL(/\/discovery/);
+
+  // A cold return to the front door with intent already known bridges straight back out too —
+  // the confirmation is never a dead end, live submit and restore alike.
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Got it." })).toBeVisible();
+  await page.waitForURL(/\/discovery/);
+});
+
 test("server-supported role asks only for search area and restores accepted intent", async ({ page }) => {
   await stubSourceEntry(page, { checkpoint: "source_selected", choice: "questions" });
   const intent = await stubIntent(page, intentState({
