@@ -2,6 +2,32 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-21 (session 152) — #229's sentence stops being dark, and stops being proven by a stub
+
+**#256 done** (`/qa-gate` GO, closes #256). With the second family published (#255), a genuinely
+derived known zero exists for the first time, so the change-of-direction sentence could finally be
+proven on the real path:
+
+- **The browser gate re-run on the real derivation.** New Tier 2 journey
+  `apps/web/e2e/change-of-direction-derived-journey.mjs`: her dated jobs are corrected into
+  `business-analysis` through the real user-facing correction door, her target role pins the deck to
+  `it-project-delivery`, and the server answers `newToFamily=true` with 8 cards (49,49,49,49,49,48,
+  48,46) — the sentence read off a **populated** deck, with an A/B control that skips the correction
+  and is told nothing. The three existing `deck.spec.ts` #229 tests **hand** the browser the flag and
+  would stay green if the derivation died; QA mutated the running build and this journey went red.
+  Wired into `run-tier2.mjs` (~2 min).
+- **Coverage gap G1 closed** (`apps/api/test/deckFallback.test.ts`): one route test drives an
+  accepted widening and asserts the flag drops on the fallback deck; a second measures every score
+  byte-identical across the flag flip (#229's own copy-not-arithmetic invariant). QA mutation-probed
+  both — killing the flag, and killing its *drop*, each turns them red.
+- **`/code-review`'s spec axis earned its keep**: the first draft of the widening test injected a
+  years fact that silenced the sentence *before* the widening, so the central assertion was
+  `false → false` and could not fail. Rewritten without the injection.
+- ⚠️ **Ceiling recorded**: the score-equality fixture saturates at `matchPct: 100`, so an upward
+  scoring drift would hide; the downward direction #229 actually protects is caught.
+
+Gates: typecheck clean, **1556 API tests passed / 11 skipped** (live-model suites), uncached.
+
 ## 2026-08-20 (session 151, part 5) — the pilot run ran END TO END: the second family is live, and the loop it proves is real
 
 **#255 closed by hand, and #218's umbrella with it** (`25e29c4` hand-deployed; `/qa-gate` NO-GO →

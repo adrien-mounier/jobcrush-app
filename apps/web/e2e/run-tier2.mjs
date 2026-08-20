@@ -143,6 +143,14 @@ const JOURNEYS = [
   // that one performs a real, irreversible harvest write on the shared API, and this one's feed
   // read looks for a label minted after it. ~2 min; no sign-in.
   "family-placement-journey.mjs",
+  // #256: the only asset anywhere that can catch #229's derivation going dead. The three
+  // deck.spec.ts tests for the change-of-direction sentence all HAND the browser newToFamily, so
+  // they would stay green if the server stopped working it out. This one corrects her dated jobs
+  // into a second published family through the real correction door and reads the sentence off a
+  // populated deck, with an A/B control that skips the correction and must be told nothing. Only
+  // possible since the second family published (#255) — with one family the fallback always
+  // carried a years fact. ~2 min against the fake-model API; no sign-in.
+  "change-of-direction-derived-journey.mjs",
 ];
 
 let failed = 0;

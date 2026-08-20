@@ -27,6 +27,7 @@ import {
   type ProductionFamilyFloorStore,
   type ProductionFamilyPublicationValue,
 } from "../src/familyFloors.js";
+import { InMemoryClaimStore } from "../src/claims.js";
 import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
 import { InMemoryEligibilityStore, ANY_FAMILY } from "../src/eligibility.js";
 import { InMemorySessionStore, type SessionRecord } from "../src/sessions.js";
@@ -340,9 +341,10 @@ describe("#228 what a fallback costs, at the deck route", () => {
     const jobBlocks = new InMemoryJobBlockStore();
     const eligibility = new InMemoryEligibilityStore();
     const sessions = new InMemorySessionStore();
+    const claims = new InMemoryClaimStore();
     await jobBlocks.init();
     const { calls, retrievePostings } = countingRetriever();
-    const { app } = buildServer({ jobBlocks, eligibility, sessions, retrievePostings, readAd });
+    const { app } = buildServer({ jobBlocks, eligibility, sessions, claims, retrievePostings, readAd });
     const created = await app.inject({ method: "POST", url: "/sessions/anonymous" });
     const cookie = `jc_session=${created.cookies.find((c) => c.name === "jc_session")!.value}`;
     const sessionId = created.json().id as string;
@@ -375,7 +377,7 @@ describe("#228 what a fallback costs, at the deck route", () => {
     // The first read fires the target search in the background; the second serves its snapshot.
     await cards();
     await vi.waitFor(() => expect(calls).toHaveLength(1));
-    return { app, cookie, calls, cards, choose };
+    return { app, cookie, calls, cards, choose, claims, eligibility, sessionId };
   }
 
   async function retryHarness({ secondBest = false }: { secondBest?: boolean } = {}) {
@@ -477,6 +479,75 @@ describe("#228 what a fallback costs, at the deck route", () => {
     const after = await cards();
     expect(after.cards.some((card) => card.adId === `posting:${PROVEN}`)).toBe(true);
     expect(after.cards.some((card) => card.adId === `posting:${TARGET}`)).toBe(false);
+  });
+
+  // #256 (coverage gap G1) — #229's sentence on the REAL path, now that a second family is
+  // published. Untestable at the route until then: with one published family the fallback deck
+  // always carried a years fact by construction, so "the flag drops" could not be distinguished
+  // from "the flag never fired". Nothing here injects the flag or its inputs — the known zero is
+  // derived by the server from her dated jobs, which is the whole point of the gap.
+  it("drops the change-of-direction flag on the accepted widening", async () => {
+    const { app, cookie, calls, cards, choose } = await harness();
+    const deck = async () =>
+      (await app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } })).json() as {
+        newToFamily: boolean;
+        cards: Array<{ adId: string; matchPct: number | null }>;
+      };
+
+    // Her typed family is a KNOWN zero — nine years, none of them here. The deck says so.
+    expect((await deck()).newToFamily).toBe(true);
+
+    // The widening she accepts is the work her CV proves, so the sentence stops — on a deck whose
+    // family the server picked, not one a test flag pinned.
+    await choose(true);
+    await cards();
+    await vi.waitFor(() => expect(calls).toHaveLength(2));
+    const widened = await deck();
+    expect(widened.cards.some((c) => c.adId === `posting:${PROVEN}`)).toBe(true);
+    expect(widened.newToFamily).toBe(false);
+  });
+
+  // #229's own inviolable rule, measured rather than asserted about: the sentence is copy. Closing
+  // the known zero flips the flag on the SAME retrieved deck; every score must be exactly where it
+  // was. A confirmed claim first, so the numbers being compared are real ones and not zeroes.
+  it("says the sentence without touching a score", async () => {
+    const { app, cookie, claims, eligibility, sessionId } = await harness();
+    const deck = async () =>
+      (await app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } })).json() as {
+        newToFamily: boolean;
+        cards: Array<{ adId: string; matchPct: number | null }>;
+      };
+    await claims.add(sessionId, {
+      id: "delivery",
+      role: "Employer — Regional PM",
+      text: "Deliver work across the region.",
+      machine_touch: "verbatim",
+      classification: "Verified",
+      source_quote: "Deliver work across the region.",
+      needs_grill: false,
+      grill_hint: null,
+    });
+
+    // The new claim is a new retrieval fingerprint: wait for that search's snapshot to land, so
+    // the two reads being compared are the same deck.
+    const spoken = await vi.waitFor(async () => {
+      const read = await deck();
+      expect(read.cards.length).toBeGreaterThan(0);
+      return read;
+    });
+    expect(spoken.newToFamily).toBe(true);
+    expect(spoken.cards.every((c) => (c.matchPct ?? 0) > 0)).toBe(true);
+
+    // Years in this family now: nothing to say, and nothing said moves.
+    await eligibility.put(sessionId, {
+      dimension: "years-experience",
+      familyId: TARGET,
+      value: "9",
+      label: "Years in field marketing",
+    });
+    const silent = await deck();
+    expect(silent.newToFamily).toBe(false);
+    expect(silent.cards.map((c) => c.matchPct)).toEqual(spoken.cards.map((c) => c.matchPct));
   });
 
   it("retries a null placement before accepting fallback work", async () => {
