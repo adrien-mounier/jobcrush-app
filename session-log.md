@@ -17,8 +17,12 @@ widening an existing family in scope (gate already refuses stale measurements, #
 closes the notification loop through the existing operator progression; the credible-matches email
 was verified wired (claimed session + live mailer required — unnotifiable attempts get listed, not
 dropped). Glossary grew three terms: **unmapped label**, **vocabulary-growth run**, **vocabulary
-proposal**. Spec **#251** published `ready-for-agent`; next is `/to-tickets 251`. Docs-only session,
-no code touched.
+proposal**. Spec **#251** published `ready-for-agent`, then `/to-tickets 251` cut it (owner approved the
+breakdown as-is): **#252** durable feed → **#253** harvest + waiting count → **#254** runbook +
+proposal package rehearsed against the gates → **#255** first pilot run (the row-7b milestone) →
+**#256** #229's two recorded follow-ups (browser gate on the real derivation + G1). Native blocking
+edges wired; #250 got its own roadmap row (7b.1). Frontier: **#252**. Docs-only session, no code
+touched.
 
 ## 2026-08-20 (session 146) `/implement 246` — the promise counts her own search (QA GO)
 
