@@ -18,7 +18,8 @@ import {
   type PublishedFamily,
 } from "../src/familyLabeler.js";
 import { initialProductionFamilyFloors } from "../src/familyFloors.js";
-import { readCounters, recentUnmappedLabelsList, resetCountersForTest } from "../src/counters.js";
+import { readCounters, resetCountersForTest } from "../src/counters.js";
+import { InMemoryUnmappedLabelStore } from "../src/unmappedLabels.js";
 
 /** Answers with each queued reply in turn, recording every prompt it was given. A queue shorter
  *  than the number of calls repeats its last entry — a "the model keeps saying the same wrong
@@ -163,15 +164,43 @@ describe("#220 placing a target role in a job family", () => {
 
   it("stays unmapped for a role no family covers, and records it as vocabulary feed", async () => {
     const { llm } = fakeLlm(['{"outcome":"unmapped","why":"no family covers nursing"}']);
+    const unmapped = new InMemoryUnmappedLabelStore();
 
-    expect(await placeTargetRole("paediatric nurse practitioner", PUBLISHED, llm)).toEqual({
-      schemaVersion: "2",
-      outcome: "unmapped",
-    });
+    expect(
+      await placeTargetRole("paediatric nurse practitioner", PUBLISHED, llm, {
+        store: unmapped,
+        sessionId: "session-1",
+        source: "target_role",
+      }),
+    ).toEqual({ schemaVersion: "2", outcome: "unmapped" });
     expect(readCounters()["familyLabeler.unmapped"]).toBe(1);
-    expect(recentUnmappedLabelsList().map((entry) => entry.role)).toEqual([
-      "paediatric nurse practitioner",
+    // #252 AC1: the words, the source, the person link and the reason — all four, durably.
+    expect(await unmapped.recent()).toMatchObject([
+      {
+        label: "paediatric nurse practitioner",
+        source: "target_role",
+        sessionId: "session-1",
+        reason: "labeler said no family fits",
+      },
     ]);
+  });
+
+  // #252 AC7 — a feed that cannot write must never cost the visitor a placement.
+  it("still places when the feed write fails", async () => {
+    const { llm } = fakeLlm(['{"outcome":"unmapped"}']);
+    const broken = new InMemoryUnmappedLabelStore();
+    broken.record = async () => {
+      throw new Error("database is down");
+    };
+
+    expect(
+      await placeTargetRole("harbour pilot", PUBLISHED, llm, {
+        store: broken,
+        sessionId: "session-1",
+        source: "target_role",
+      }),
+    ).toEqual({ schemaVersion: "2", outcome: "unmapped" });
+    expect(readCounters()["familyLabeler.unmapped_feed_failed"]).toBe(1);
   });
 
   it("re-prompts once with the validation error and accepts the corrected answer", async () => {
@@ -189,14 +218,19 @@ describe("#220 placing a target role in a job family", () => {
 
   it("degrades to unmapped after two bad answers — never a guess at the nearest family", async () => {
     const { llm, prompts } = fakeLlm([confirmed(["something-invented"])]);
+    const unmapped = new InMemoryUnmappedLabelStore();
 
-    expect(await placeTargetRole("delivery manager", PUBLISHED, llm)).toEqual({
-      schemaVersion: "2",
-      outcome: "unmapped",
-    });
+    expect(
+      await placeTargetRole("delivery manager", PUBLISHED, llm, {
+        store: unmapped,
+        sessionId: "session-1",
+        source: "target_role",
+      }),
+    ).toEqual({ schemaVersion: "2", outcome: "unmapped" });
     expect(prompts).toHaveLength(2); // exactly one retry, then it stops paying
     expect(readCounters()["familyLabeler.output_invalid"]).toBe(1);
-    expect(recentUnmappedLabelsList()[0].reason).toContain("failed validation twice");
+    // #252 AC3: a fault reads differently from an honest gap, and the reason is what says which.
+    expect((await unmapped.recent())[0].reason).toContain("failed validation twice");
   });
 
   it("spends nothing when there is no target role to place", async () => {
@@ -210,8 +244,12 @@ describe("#220 placing a target role in a job family", () => {
 // --- the production seam: what a visitor actually reaches -----------------------------------------
 
 const setup = async (llm: LlmClient, targetRole: string | null = "IT project manager") => {
+  // #252: production wires ONE feed store into both the placer and the ops route — do the same
+  // here, or the route reads an empty store the placer never wrote to.
+  const unmappedLabels = new InMemoryUnmappedLabelStore();
   const built = buildServer({
-    placeFamily: makeFamilyPlacer(llm, PUBLISHED),
+    placeFamily: makeFamilyPlacer(llm, PUBLISHED, unmappedLabels),
+    unmappedLabels,
   });
   const created = await built.app.inject({ method: "POST", url: "/sessions/anonymous" });
   const cookie = `jc_session=${created.cookies.find((value) => value.name === "jc_session")!.value}`;
@@ -364,7 +402,7 @@ describe("#220 discovery with the real labeler wired", () => {
 
   it("exposes unmapped roles as feed for the vocabulary-growth process, key-gated", async () => {
     const { llm } = fakeLlm(['{"outcome":"unmapped"}']);
-    const { app, cookie } = await setup(llm, "harbour pilot");
+    const { app, cookie, sessionId } = await setup(llm, "harbour pilot");
     await evaluate(app, cookie);
 
     const open = await app.inject({ method: "GET", url: "/ops/unmapped-labels" });
@@ -374,7 +412,9 @@ describe("#220 discovery with the real labeler wired", () => {
     try {
       const gated = await app.inject({ method: "GET", url: "/ops/unmapped-labels?key=ops-test-key" });
       expect(gated.statusCode).toBe(200);
-      expect(gated.json().entries).toMatchObject([{ role: "harbour pilot" }]);
+      expect(gated.json().entries).toMatchObject([
+        { label: "harbour pilot", source: "target_role", sessionId },
+      ]);
     } finally {
       delete process.env.OPS_KEY;
     }

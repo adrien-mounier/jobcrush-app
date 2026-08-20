@@ -13,7 +13,8 @@ import { makeJobBlockLabeler, publishedFamilies, type PublishedFamily } from "..
 import { initialProductionFamilyFloors } from "../src/familyFloors.js";
 import type { LlmClient } from "../src/llm.js";
 import type { JobBlockView, MinedJobBlock } from "@jobcrush/contracts";
-import { readCounters, recentUnmappedLabelsList, resetCountersForTest } from "../src/counters.js";
+import { readCounters, resetCountersForTest } from "../src/counters.js";
+import { InMemoryUnmappedLabelStore } from "../src/unmappedLabels.js";
 import { computeYearsWorked } from "../src/yearsWorked.js";
 
 const PUBLISHED = publishedFamilies(initialProductionFamilyFloors());
@@ -77,8 +78,10 @@ async function stack(options: {
   const jobBlocks = new InMemoryJobBlockStore();
   await jobBlocks.init();
   const { llm, roles } = fakeLlm(options.answerFor);
+  const unmappedLabels = new InMemoryUnmappedLabelStore();
   const labelJobBlocks =
-    options.labeler ?? makeJobBlockLabeler(llm, options.families ?? PUBLISHED, jobBlocks);
+    options.labeler ??
+    makeJobBlockLabeler(llm, options.families ?? PUBLISHED, jobBlocks, undefined, unmappedLabels);
   const server = buildServer({ jobBlocks, pipeline: options.routeRetries ? { labelJobBlocks } : undefined });
   const res = await server.app.inject({ method: "POST", url: "/sessions/anonymous" });
   const cookie = `jc_session=${res.cookies.find((c) => c.name === "jc_session")!.value}`;
@@ -101,7 +104,7 @@ async function stack(options: {
   const read = async (): Promise<{ blocks: JobBlockView[] }> =>
     (await server.app.inject({ method: "GET", url: "/job-blocks", headers: { cookie } })).json();
 
-  return { server, cookie, sessionId, jobBlocks, jobs, roles, mine, read };
+  return { server, cookie, sessionId, jobBlocks, jobs, roles, mine, read, unmappedLabels };
 }
 
 const familyOf = (blocks: JobBlockView[], id: string) => blocks.find((b) => b.id === id)!.family;
@@ -359,6 +362,9 @@ describe("#221 AC7 — unmapped past-job labels feed the vocabulary-growth proce
   it("records the job title the vocabulary had no word for", async () => {
     const s = await stack({ answerFor: (role) => (role === "Pastry Chef" ? UNMAPPED_ANSWER : CONFIRMED) });
     await s.mine();
-    expect(recentUnmappedLabelsList().map((entry) => entry.role)).toContain("Pastry Chef");
+    // #252 AC2: source "past_job" and the session that read it, durably.
+    expect(await s.unmappedLabels.recent()).toMatchObject([
+      { label: "Pastry Chef", source: "past_job", sessionId: s.sessionId },
+    ]);
   });
 });

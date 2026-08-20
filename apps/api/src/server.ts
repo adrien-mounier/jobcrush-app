@@ -48,8 +48,11 @@ import {
   readFailureAlarm,
   readTimeoutAlarm,
   recentReadFailuresList,
-  recentUnmappedLabelsList,
 } from "./counters.js";
+import {
+  InMemoryUnmappedLabelStore,
+  type UnmappedLabelStore,
+} from "./unmappedLabels.js";
 import type { Posting } from "./preview.js";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
 import { PLACEMENT_SCHEMA_VERSION } from "@jobcrush/contracts";
@@ -115,6 +118,10 @@ export interface BuildOptions {
   /** Google OAuth code→email exchange. Tests inject a fake; absent → the real Google endpoint. */
   googleEmail?: (code: string, redirectUri: string) => Promise<string | null>;
   familyLearning?: FamilyLearningStore;
+  /** #252 — the durable unmapped-label feed /ops/unmapped-labels reads. Production passes the SAME
+   *  store instance that is wired into placeFamily/labelJobBlocks; a test that injects its own
+   *  placement fake and wants to read the feed must do the same. */
+  unmappedLabels?: UnmappedLabelStore;
   screenFamilyCandidate?: FamilyCandidateScreen;
   familyLearningOperatorKey?: string;
   familyLearningKnownFamilies?: Array<{ familyId: string; version: number }>;
@@ -182,6 +189,7 @@ export function buildServer(opts: BuildOptions = {}) {
   const mailer = opts.mailer ?? new DevMailer();
   const guestbook = opts.guestbook ?? createGuestbook(process.env.DATABASE_URL);
   const familyLearning = opts.familyLearning ?? new InMemoryFamilyLearningStore();
+  const unmappedLabels = opts.unmappedLabels ?? new InMemoryUnmappedLabelStore();
   const usageLedger = opts.usageLedger ?? new InMemoryUsageLedgerStore();
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" }).withTypeProvider<ZodTypeProvider>();
   guestbook.init().catch((err) => app.log.error(err, "guestbook init failed"));
@@ -270,15 +278,16 @@ export function buildServer(opts: BuildOptions = {}) {
       });
     return { entries: recentReadFailuresList() };
   });
-  // #220 AC7 — the roles the closed vocabulary had no family for, as feed for #218's
+  // #220 AC7 — the words the closed vocabulary had no family for, as feed for #218's
   // vocabulary-growth process. Same OPS_KEY gate and same reasoning as /ops/read-failures above:
-  // these entries carry visitor-typed free text, which has no business on an open URL.
+  // these entries carry visitor-typed / CV-read free text, which has no business on an open URL.
+  // #252: read from the DURABLE store — the in-process buffer a deploy erased is gone.
   app.get("/ops/unmapped-labels", async (req, reply) => {
     if (!opsKeyOk(req))
       return reply.status(403).send({
         error: { code: "forbidden", message: "set OPS_KEY and pass ?key=… to read unmapped labels" },
       });
-    return { entries: recentUnmappedLabelsList() };
+    return { entries: await unmappedLabels.recent() };
   });
   // #117 AC4/AC6/AC8 — the ONE place cost-per-visitor and the deck's cold-fallback rate are reported
   // TOGETHER, from the same run — the ticket's own closing AC. Same OPS_KEY gate as /ops/read-failures
@@ -609,5 +618,5 @@ export function buildServer(opts: BuildOptions = {}) {
     },
   );
 
-  return { app, store, sessions, blobs, uploads, claims, eligibility, contact, auth, familyLearning, usageLedger };
+  return { app, store, sessions, blobs, uploads, claims, eligibility, contact, auth, familyLearning, usageLedger, unmappedLabels };
 }

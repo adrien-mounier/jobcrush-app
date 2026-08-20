@@ -75,6 +75,7 @@ import { initialProductionFamilyFloors } from "./familyFloors.js";
 import { makeFamilyPlacer, makeJobBlockLabeler, publishedFamilies } from "./familyLabeler.js";
 import { InMemoryJobBlockStore } from "./jobBlockStore.js";
 import { InMemoryEligibilityStore } from "./eligibility.js";
+import { InMemoryUnmappedLabelStore } from "./unmappedLabels.js";
 import { makeFamilyCandidateScreen } from "./familyLearning.js";
 import { makeJudge, makeJudgePeek } from "./judge.js";
 // InMemoryJudgementStore directly, never judgementStoreFromEnv(): that helper reads ambient
@@ -582,6 +583,11 @@ const qaJobBlocks = new InMemoryJobBlockStore();
 // write into the very eligibility store the deck routes read, not a private one.
 const qaEligibility = new InMemoryEligibilityStore();
 
+// #252: same reasoning once more — the vocabulary-growth feed the labeler writes must be the one
+// /ops/unmapped-labels reads back, or a QA journey's unmapped placement looks like it recorded
+// nothing.
+const qaUnmappedLabels = new InMemoryUnmappedLabelStore();
+
 const { app } = buildServer({
   // Test-only: the production default (12 anonymous sessions/IP/hour, apps/api/src/sessions.ts) is
   // unchanged for main.ts and every other caller. A full Playwright run mints one real session per
@@ -599,7 +605,11 @@ const { app } = buildServer({
   // #220: the real job labeler over the fake model, against the real published vocabulary — so a QA
   // journey can walk the production discovery checkpoint (open for a confirmed visitor, honestly
   // closed for an unmapped one) end to end without a paid call. Same seam main.ts uses.
-  placeFamily: makeFamilyPlacer(fakeLlm, publishedFamilies(qaProductionFamilyFloors)),
+  // #252: the QA stack owns the vocabulary-growth feed store explicitly, so both labeler halves and
+  // /ops/unmapped-labels read the SAME one — a QA journey that ends unmapped can be shown to have
+  // actually recorded it. In-memory here, like every other QA store: a QA run writes to no database.
+  placeFamily: makeFamilyPlacer(fakeLlm, publishedFamilies(qaProductionFamilyFloors), qaUnmappedLabels),
+  unmappedLabels: qaUnmappedLabels,
   // #221: the labeler needs the same store the routes read, so the QA entry owns it explicitly
   // instead of letting buildServer make its own.
   jobBlocks: qaJobBlocks,
@@ -621,7 +631,7 @@ const { app } = buildServer({
     // #221: past-job labeling over the fake model — the canned CV mines to two placeable jobs and
     // one degree the vocabulary does not cover, so a QA journey can walk both the confident case
     // (no question asked) and the "we couldn't place this" question on the review screen.
-    labelJobBlocks: makeJobBlockLabeler(fakeLlm, publishedFamilies(qaProductionFamilyFloors), qaJobBlocks, qaEligibility),
+    labelJobBlocks: makeJobBlockLabeler(fakeLlm, publishedFamilies(qaProductionFamilyFloors), qaJobBlocks, qaEligibility, qaUnmappedLabels),
     preview: makePreviewStep(fakeLlm),
   },
   phraseGrill: makeGrillPhraser(fakeLlm),

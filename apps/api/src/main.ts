@@ -28,6 +28,7 @@ import { runPurge } from "./purge.js";
 import { getPool } from "./db.js";
 import { usageLedgerStoreFromEnv } from "./usageLedgerStore.js";
 import { postingStoreFromEnv } from "./postingStore.js";
+import { unmappedLabelStoreFromEnv } from "./unmappedLabels.js";
 import { techmapProviderFromEnv } from "./postingProvider.js";
 import { loadActivePostingProviders } from "./postings.js";
 import {
@@ -76,6 +77,9 @@ const judgements = judgementStoreFromEnv(process.env.DATABASE_URL);
 // #100/#101: provider records and the durable monthly call counter share this store. It must be
 // initialized before the retrieval seam below can fetch, persist, or reserve a paid call.
 const postingStore = postingStoreFromEnv(process.env.DATABASE_URL);
+// #252: the vocabulary-growth feed survives a deploy — one store, shared by both labeler halves
+// and by the ops route that reads it back.
+const unmappedLabels = unmappedLabelStoreFromEnv(process.env.DATABASE_URL);
 const productionFamilyFloors = initialProductionFamilyFloors();
 const postingProviderPolicies = loadActivePostingProviders();
 // #174 must-fix 1 (round 2): fail fast, naming the row, only when NO driver implementation exists
@@ -115,6 +119,7 @@ try {
   await judgements.init();
   await usageLedger.init();
   await postingStore.init();
+  await unmappedLabels.init();
 } catch (err) {
   console.error("store init failed", err);
   process.exit(1);
@@ -138,7 +143,9 @@ const { app } = buildServer({
   placeFamily: makeFamilyPlacer(
     metered("family-placement", familyPlacementLlm() ?? llm),
     publishedFamilies(productionFamilyFloors),
+    unmappedLabels,
   ),
+  unmappedLabels,
   retrievePostings,
   auth,
   familyLearning,
@@ -160,6 +167,7 @@ const { app } = buildServer({
       // #222: labeling changes what the per-family years facts should say — the labeler re-derives
       // them itself, like every other door that changes a job record.
       eligibility,
+      unmappedLabels,
     ),
     // #163: the preview step reads which dimensions the matched posting gates on (a presentation
     // read of the ad-requirements store — never a fresh model call) so a declared fact the advert

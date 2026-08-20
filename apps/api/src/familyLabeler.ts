@@ -30,7 +30,12 @@ import type { JobBlockStore } from "./jobBlockStore.js";
 import type { SessionRecord } from "./sessions.js";
 import type { EligibilityStore } from "./eligibility.js";
 import { refreshWorkedYears } from "./yearsWorked.js";
-import { incrementCounter, recordUnmappedLabel } from "./counters.js";
+import { incrementCounter } from "./counters.js";
+import {
+  recordUnmappedLabel,
+  type UnmappedLabelFeed,
+  type UnmappedLabelStore,
+} from "./unmappedLabels.js";
 
 const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts", "family-labeler.md");
 
@@ -199,8 +204,9 @@ export async function placeTargetRole(
   role: string,
   families: PublishedFamily[],
   llm: LlmClient,
+  feed?: UnmappedLabelFeed,
 ): Promise<FamilyPlacement> {
-  return (await place(role, families, llm)).placement;
+  return (await place(role, families, llm, feed)).placement;
 }
 
 /** #231 — exported for the eval grid, which measures the plural labeler. */
@@ -208,8 +214,9 @@ export async function placeJobTitle(
   title: string,
   families: PublishedFamily[],
   llm: LlmClient,
+  feed?: UnmappedLabelFeed,
 ): Promise<FamilyPlacement> {
-  return (await place(title, families, llm)).placement;
+  return (await place(title, families, llm, feed)).placement;
 }
 
 /** placeTargetRole's own body, plus whether the answer was a DEGRADATION rather than a real one.
@@ -220,8 +227,17 @@ async function place(
   role: string,
   families: PublishedFamily[],
   llm: LlmClient,
+  // #252: where an unmapped goes to be remembered — the durable vocabulary-growth feed, carrying
+  // the source (target role vs past job) and the session it happened for. Optional: a caller with
+  // no feed wired still places roles, it just records nothing.
+  feed?: UnmappedLabelFeed,
 ): Promise<{ placement: FamilyPlacement; degraded: boolean }> {
   // Nothing typed, or no vocabulary published at all: unmapped, with no model call to pay for.
+  // Deliberately NOT fed to the vocabulary-growth store (#252): an empty box and an empty registry
+  // are our own state, not a word the vocabulary is missing — recording them would fill the growth
+  // process's feed with rows nobody can research. Same for makeFamilyPlacer's driver-failure catch
+  // below, which is an outage, counted as familyLabeler.call_failed. The feed records what the
+  // LABELER answered, and every one of those goes through recordUnmappedLabel exactly once.
   if (!role.trim() || families.length === 0) return { placement: UNMAPPED, degraded: false };
 
   let lastError = "";
@@ -248,7 +264,9 @@ async function place(
       }
       // #220 AC7 / #218: every honest unmapped is the vocabulary's gap surfacing — recorded as feed
       // for the pilot vocabulary-growth process, not just counted.
-      if (placement.outcome === "unmapped") recordUnmappedLabel(role, "labeler said no family fits");
+      if (placement.outcome === "unmapped") {
+        await recordUnmappedLabel(feed, role, "labeler said no family fits");
+      }
       return { placement, degraded: false };
     } catch (err) {
       lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
@@ -256,7 +274,9 @@ async function place(
   }
   incrementCounter("familyLabeler.output_invalid");
   incrementCounter("familyLabeler.unmapped");
-  recordUnmappedLabel(role, `output failed validation twice: ${lastError.slice(0, 300)}`);
+  // #252 AC3: a validation failure stays distinguishable from an honest "no family fits" by this
+  // reason text — the first is a fault to fix, the second is a word the vocabulary is missing.
+  await recordUnmappedLabel(feed, role, `output failed validation twice: ${lastError.slice(0, 300)}`);
   return { placement: UNMAPPED, degraded: true };
 }
 
@@ -270,6 +290,9 @@ async function place(
 export function makeFamilyPlacer(
   llm: LlmClient,
   families: PublishedFamily[],
+  // #252 — every unmapped target role is recorded as durable vocabulary-growth feed. Optional so a
+  // test that wires no store keeps today's behaviour; main.ts passes the production store.
+  unmappedLabels?: UnmappedLabelStore,
 ): (session: Readonly<SessionRecord>) => Promise<FamilyPlacement> {
   // Nobody pays twice for the same visitor's same role. The route this backs can be called on every
   // load of the discovery screen, and without this each one is a fresh model call for an answer that
@@ -286,7 +309,10 @@ export function makeFamilyPlacer(
     const remembered = answered.get(key);
     if (remembered) return remembered;
     try {
-      const { placement, degraded } = await place(role, families, llm);
+      const feed = unmappedLabels
+        ? ({ store: unmappedLabels, sessionId: session.id, source: "target_role" } as const)
+        : undefined;
+      const { placement, degraded } = await place(role, families, llm, feed);
       // A degraded answer is never remembered — see place()'s own doc.
       if (!degraded) {
         answered.set(key, placement);
@@ -333,6 +359,8 @@ export function makeJobBlockLabeler(
   // facts are re-derived after it like after any other door. Optional so pre-#222 test builds that
   // only assert placements keep working unchanged; production wiring passes it.
   eligibility?: EligibilityStore,
+  // #252 — the past-job half of the vocabulary-growth feed, same optional-store rule as above.
+  unmappedLabels?: UnmappedLabelStore,
 ): (sessionId: string) => Promise<void> {
   return async (sessionId) => {
     let labeled = false;
@@ -343,7 +371,10 @@ export function makeJobBlockLabeler(
         // The TITLE is what gets placed: it is the block's own statement of what the work was, and
         // it is the field the visitor can already correct if the miner read it wrong.
         // PLURAL (#231): a past job may genuinely be two kinds of work, and nobody is asked which.
-        const { placement, degraded } = await place(block.title.value, families, llm);
+        const feed = unmappedLabels
+          ? ({ store: unmappedLabels, sessionId, source: "past_job" } as const)
+          : undefined;
+        const { placement, degraded } = await place(block.title.value, families, llm, feed);
         // A DEGRADED answer is never stored — the same rule makeFamilyPlacer's cache follows, and it
         // matters more here: a stored placement is exactly what stops this block being asked again,
         // so persisting an unmapped the model never actually gave would make one bad minute

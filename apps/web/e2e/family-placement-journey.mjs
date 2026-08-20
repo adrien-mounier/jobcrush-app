@@ -194,10 +194,12 @@ await assert(openFeed.status === 403, `AC7: the feed is key-gated, never open ($
 
 const feed = await callAsVisitor('GET', `/ops/unmapped-labels?key=${OPS_KEY}`);
 await qa.expectVisible('#qa-wire', 'AC7: the roles the closed vocabulary had no family for');
-const roles = feed.status === 200 ? JSON.parse(feed.body).entries.map((e) => e.role) : [];
+// #252 renamed the field: the feed now carries `label`, because it holds past job titles as well
+// as target roles.
+const labels = feed.status === 200 ? JSON.parse(feed.body).entries.map((e) => e.label) : [];
 await assert(
-  feed.status === 200 && roles.includes('Paediatric nurse practitioner'),
-  `AC7: the role this visitor typed is in the vocabulary-growth feed (${JSON.stringify(roles)})`,
+  feed.status === 200 && labels.includes('Paediatric nurse practitioner'),
+  `AC7: the role this visitor typed is in the vocabulary-growth feed (${JSON.stringify(labels)})`,
 );
 
 const ok = await qa.finish();

@@ -13,6 +13,11 @@ import {
 } from "../src/sessions.js";
 import { InMemoryClaimStore, PgClaimStore, type ClaimStore } from "../src/claims.js";
 import { InMemoryPostingStore, PgPostingStore, type PostingStore } from "../src/postingStore.js";
+import {
+  InMemoryUnmappedLabelStore,
+  PgUnmappedLabelStore,
+  type UnmappedLabelStore,
+} from "../src/unmappedLabels.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 
 function pgPool() {
@@ -1202,4 +1207,97 @@ it("#101 PgSessionStore can replace an invalid old snapshot using its durable co
       "2026-08-08T23:59:00.000Z",
     ),
   ).toBe(true);
+});
+
+// #252 — the vocabulary-growth feed, both drivers against one contract.
+const unmappedDrivers: [string, () => UnmappedLabelStore][] = [
+  ["in-memory", () => new InMemoryUnmappedLabelStore()],
+  ["postgres (pg-mem)", () => new PgUnmappedLabelStore(pgPool())],
+];
+
+for (const [name, make] of unmappedDrivers) {
+  describe(`UnmappedLabelStore contract — ${name}`, () => {
+    let store: UnmappedLabelStore;
+    beforeEach(async () => {
+      store = make();
+      await store.init();
+    });
+
+    it("records both sources with their words, person link and reason; reads back newest first", async () => {
+      await store.record({
+        sessionId: "session-1",
+        source: "target_role",
+        label: "  paediatric nurse practitioner  ",
+        reason: "labeler said no family fits",
+      });
+      await store.record({
+        sessionId: "session-2",
+        source: "past_job",
+        label: "Pastry Chef",
+        reason: "output failed validation twice: bad json",
+      });
+
+      const entries = await store.recent();
+      expect(entries).toMatchObject([
+        { sessionId: "session-2", source: "past_job", label: "Pastry Chef" },
+        {
+          sessionId: "session-1",
+          source: "target_role",
+          // trimmed on the way in, both drivers alike
+          label: "paediatric nurse practitioner",
+          reason: "labeler said no family fits",
+        },
+      ]);
+      expect(entries[0]!.reason).toContain("failed validation twice");
+      expect(entries.every((entry) => typeof entry.id === "string" && entry.id.length > 0)).toBe(true);
+      expect(entries.every((entry) => !Number.isNaN(Date.parse(entry.recordedAt)))).toBe(true);
+    });
+
+    it("bounds the visitor-typed words rather than storing whatever was typed", async () => {
+      await store.record({
+        sessionId: null,
+        source: "target_role",
+        label: "x".repeat(500),
+        reason: "y".repeat(500),
+      });
+      const [entry] = await store.recent();
+      expect(entry!.label).toHaveLength(200);
+      expect(entry!.reason).toHaveLength(200);
+      expect(entry!.sessionId).toBeNull();
+    });
+
+    it("never reads back more than the bound, however many were recorded", async () => {
+      for (let i = 0; i < 205; i++) {
+        await store.record({ sessionId: "s", source: "target_role", label: `role ${i}`, reason: "no fit" });
+      }
+      const entries = await store.recent();
+      expect(entries).toHaveLength(200);
+      expect(entries[0]!.label).toBe("role 204"); // newest first, both drivers alike
+    });
+
+    it("honours the recent() limit", async () => {
+      for (const label of ["one", "two", "three"]) {
+        await store.record({ sessionId: "s", source: "target_role", label, reason: "no family fits" });
+      }
+      expect((await store.recent(2)).map((entry) => entry.label)).toEqual(["three", "two"]);
+    });
+  });
+}
+
+// #252 AC4 — the gap this slice closes: a deploy no longer erases the feed.
+it("#252 PgUnmappedLabelStore keeps its entries across store reconstruction", async () => {
+  const pool = pgPool();
+  const beforeRestart = new PgUnmappedLabelStore(pool);
+  await beforeRestart.init();
+  await beforeRestart.record({
+    sessionId: "session-1",
+    source: "target_role",
+    label: "harbour pilot",
+    reason: "labeler said no family fits",
+  });
+
+  const afterRestart = new PgUnmappedLabelStore(pool);
+  expect(await afterRestart.recent()).toMatchObject([
+    { sessionId: "session-1", source: "target_role", label: "harbour pilot" },
+  ]);
 });

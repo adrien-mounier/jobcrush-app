@@ -19,6 +19,13 @@
 // lands there, not here. Until #68 ships, this is a documented capability with no caller, not a live
 // deletion path.
 //
+// #252 — a SECOND retained table, named here for the same reason: `unmapped_labels` holds the words
+// a visitor typed (or that were read off their CV) that the published vocabulary had no family for,
+// with the session id as its person link. It is retained INDEFINITELY and this function never touches
+// it — the owner's decision on 2026-08-20 was to build no deletion for it, so the growth process
+// (#218) keeps a complete record of the vocabulary's gaps. The session it points at IS purged on the
+// usual TTL, so the link dangles by design; the words and the reason are what the process needs.
+//
 // card_judgements carries CV-derived reason prose (a per-requirement verdict can paraphrase what a
 // visitor said about themselves) but has no session_id column to join against — it's keyed by
 // (adId, factsFingerprint), a property of the advert + fact set, not of any one session (see
