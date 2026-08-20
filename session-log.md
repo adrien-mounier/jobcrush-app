@@ -2,6 +2,30 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-20 (session 151) — the first #255 pilot run was attempted with the owner, and ended honestly at step 1: nothing to harvest
+
+The owner sat in and triggered the runbook. Preconditions cleared further than expected: the Fly
+login was re-established, and the **pre-#252 tree on staging turns out to serve the harvest read**
+(`GET /ops/unmapped-labels` existed at `85cda41`, reading the in-memory buffer), probed from inside
+the machine so the ops key never entered the session.
+
+The read returned `{"entries":[]}`, and the emptiness is structural, not bad luck:
+
+- The staging API machine **auto-stops when idle** (it was stopped at 07:00 UTC today) and the
+  pre-#252 buffer is in-memory — every stop wipes every label ever typed. This is precisely the
+  gap #252 fixed; the fix sits on `main` behind the CI billing block.
+- Stronger: **`jobcrush-web-staging` is suspended** — no visitor can reach the product at all, so
+  no labels were ever going to accumulate. Staging is the only environment (`fly apps list`:
+  no prod app).
+
+Zero spend (no provider calls priced or made), nothing marked, nothing to progress. The run aborted
+before step 2; per the runbook an aborted run leaves the (empty) feed untouched for the next one.
+
+**What has to be true before the next attempt, in order:** owner unblocks GitHub Actions billing →
+`main` deploys (#252's durable feed goes live, web app presumably resumes with the deploy — check
+why it is suspended if not) → real usage leaves unmapped labels → #253's waiting count says a run
+is worth launching → re-trigger the runbook. Roadmap row 7b.5 updated to carry this.
+
 ## 2026-08-20 (session 150) `/implement 254` — the growth run has a written procedure, and the gates have rehearsed it
 
 Slice 3 of spec #251 shipped (`6bdfc5b`, `/qa-gate` **GO**, closes #254). Three new files, zero
