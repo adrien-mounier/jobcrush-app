@@ -2,6 +2,45 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-20 (session 150) `/implement 254` — the growth run has a written procedure, and the gates have rehearsed it
+
+Slice 3 of spec #251 shipped (`6bdfc5b`, `/qa-gate` **GO**, closes #254). Three new files, zero
+source edits — the publish gates are hash-verified byte-identical to before the slice (AC6).
+
+**`docs/vocabulary-growth-runbook.md`** is the procedure a vocabulary-growth run follows with the
+owner in the room: harvest via `GET /ops/unmapped-labels?waiting=1` → cluster map with
+distinct-person counts, owner picks (no automatic threshold) → research under the budget rule
+(price from `posting-providers.json` at spend time, USD 10 cap, calls-vs-quota whichever binds
+first, receipt in every proposal) → one package per cluster → approve / annotate-and-return /
+reject → publish through the existing gates unchanged → closing checklist (operator progression
+from each attempt's **current** status; unclaimed sessions listed as **unnotifiable**, never
+fulfillment-evaluated — that would strand them at `notification_pending`; harvest marked **last**).
+
+**`apps/api/research/vocabulary-proposal-template.json`** is the proposal package template as a
+complete worked example for a fictitious family (`rehearsal-harbour-pilotage`) — deliberately under
+`apps/api`, not `docs/`, so edits to it run CI (a docs-only push skips CI, and a template that
+tests depend on must not be editable past the gate). Its `generated` evaluation block was produced
+by the real `generateFamilyEvaluation`, not copied.
+
+**`apps/api/test/vocabularyProposalRehearsal.test.ts`** rehearses it at the REAL
+`ProductionFamilyFloorStore.publish`: the package passes; collapsing to one employer is refused;
+a widening (v2, wider scope) with copied `measuredOn` dates is refused and passes once every
+served market is re-measured; and a tripwire asserts the fictitious family never enters the
+production boot catalog — the template sits marked "published" beside the real publication, so a
+future loader that globbed the directory would ship a fake family silently.
+
+Review found no hard violations; two findings taken (the boot-catalog tripwire; the closing
+checklist's event sequence was wrong for attempts already at `validation_passed`). QA (GO,
+1600/0 failed with turbo caches force-bypassed, all six ACs PASS) probed every endpoint the
+runbook names on a live server and returned four low-severity wording findings, all folded in:
+`relevantVacancy: false` is one-shot per attempt; the strand-at-`notification_pending` reason
+stated; the "needs clarification" calibration-bucket caveat; the harvest marks-everything-waiting
+race named with "mark last" as its mitigation.
+
+CI on the push failed the same 3s/no-logs way (`32338913183`) — the billing block stands, banner
+row added. Frontier moves to **#255**: the first real pilot run, owner-paced, and it needs staging
+back before the harvest surface it reads is live anywhere.
+
 ## 2026-08-20 (session 149) `/implement 253` — the feed can now be judged and closed out
 
 Slice 2 of spec #251 shipped (`a323ca6`, `/qa-gate` **GO**). The ops surface now answers the

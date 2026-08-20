@@ -1,5 +1,15 @@
 # Lessons — jobcrush-app
 
+## A fixture tests depend on must live under a CI-gated path, not docs/
+
+Since 2026-08-15, a push touching only `docs/**` (and other prose paths) runs no CI. That created a
+new trap: put a data file under `docs/` and write a test that reads it, and a later docs-only edit
+to that file can break `main` silently — the push that broke the test is exactly the push that
+skipped the suite. #254 hit the choice directly: the vocabulary proposal template is read by
+`vocabularyProposalRehearsal.test.ts`, so it lives at `apps/api/research/vocabulary-proposal-template.json`
+(CI-gated) with the runbook pointing at it, not beside the runbook in `docs/`. General rule: the
+`paths-ignore` list defines what "prose" means to CI — nothing a test reads may sit inside it.
+
 ## Filing a ticket is half the job — the plan is read off the table, not the tracker
 
 Three times in one session the owner had to ask where a ticket was. **#246** and **#247** existed
