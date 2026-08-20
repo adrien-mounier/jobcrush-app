@@ -1275,6 +1275,60 @@ for (const [name, make] of unmappedDrivers) {
       expect(entries[0]!.label).toBe("role 204"); // newest first, both drivers alike
     });
 
+    // #253 — harvest semantics, identical on both drivers (AC5).
+    it("counts what is waiting and how many distinct roles it represents", async () => {
+      for (const label of ["harbour pilot", "Harbour Pilot ", "pastry chef"]) {
+        await store.record({ sessionId: "s", source: "target_role", label, reason: "no family fits" });
+      }
+      // three people hitting two gaps, not three gaps: casing and spacing are not new roles.
+      expect(await store.stats()).toEqual({ unharvested: 3, distinctRoles: 2 });
+    });
+
+    it("marking harvested empties the waiting count but keeps the entries readable", async () => {
+      await store.record({ sessionId: "s", source: "target_role", label: "harbour pilot", reason: "no fit" });
+
+      expect(await store.markHarvested()).toBe(1);
+      expect(await store.stats()).toEqual({ unharvested: 0, distinctRoles: 0 });
+
+      const [entry] = await store.recent();
+      expect(entry!.label).toBe("harbour pilot");
+      expect(entry!.harvestedAt).not.toBeNull();
+      expect(Number.isNaN(Date.parse(entry!.harvestedAt!))).toBe(false);
+    });
+
+    it("counts labels recorded after a harvest from zero, unmixed with the harvested ones", async () => {
+      await store.record({ sessionId: "s", source: "target_role", label: "harbour pilot", reason: "no fit" });
+      await store.markHarvested();
+      await store.record({ sessionId: "s", source: "past_job", label: "pastry chef", reason: "no fit" });
+
+      expect(await store.stats()).toEqual({ unharvested: 1, distinctRoles: 1 });
+      expect(await store.recent()).toMatchObject([
+        { label: "pastry chef", harvestedAt: null },
+        { label: "harbour pilot" },
+      ]);
+    });
+
+    it("reads back only what is still waiting when a run asks for its work list", async () => {
+      await store.record({ sessionId: "s", source: "target_role", label: "harbour pilot", reason: "no fit" });
+      await store.markHarvested();
+      await store.record({ sessionId: "s", source: "past_job", label: "pastry chef", reason: "no fit" });
+
+      // answered gaps must not crowd the waiting ones out of the window, ever (#253 AC3)
+      expect((await store.recent(200, true)).map((entry) => entry.label)).toEqual(["pastry chef"]);
+      expect((await store.recent()).map((entry) => entry.label)).toEqual(["pastry chef", "harbour pilot"]);
+    });
+
+    it("is safe to repeat: nothing is double-marked and nothing is lost", async () => {
+      await store.record({ sessionId: "s", source: "target_role", label: "harbour pilot", reason: "no fit" });
+      await store.markHarvested();
+      const [first] = await store.recent();
+
+      expect(await store.markHarvested()).toBe(0);
+      const [again] = await store.recent();
+      expect(again!.harvestedAt).toBe(first!.harvestedAt); // the FIRST harvest time survives
+      expect(await store.recent()).toHaveLength(1);
+    });
+
     it("honours the recent() limit", async () => {
       for (const label of ["one", "two", "three"]) {
         await store.record({ sessionId: "s", source: "target_role", label, reason: "no family fits" });

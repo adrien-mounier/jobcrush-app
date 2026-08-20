@@ -287,7 +287,27 @@ export function buildServer(opts: BuildOptions = {}) {
       return reply.status(403).send({
         error: { code: "forbidden", message: "set OPS_KEY and pass ?key=… to read unmapped labels" },
       });
-    return { entries: await unmappedLabels.recent() };
+    // #253: the counts come with the entries — the owner's "is a run worth launching?" answer is
+    // the waiting count and how many distinct roles it represents, not a list they have to tally.
+    // ?waiting=1 is what a growth run reads: only the labels it still has to research. Without it
+    // the entries are everything, harvested ones included — nothing is ever deleted.
+    const unharvestedOnly = (req.query as { waiting?: string }).waiting === "1";
+    const [entries, waiting] = await Promise.all([
+      unmappedLabels.recent(undefined, unharvestedOnly),
+      unmappedLabels.stats(),
+    ]);
+    return { entries, waiting };
+  });
+  // #253 — how a vocabulary-growth run closes out what it consumed: the waiting count drops to
+  // zero, the entries stay readable with a harvest time on them. Nothing is deleted (owner decision
+  // 2026-08-20). Repeating it marks nothing and returns 0, so a re-run cannot double-count.
+  app.post("/ops/unmapped-labels/harvest", async (req, reply) => {
+    if (!opsKeyOk(req))
+      return reply.status(403).send({
+        error: { code: "forbidden", message: "set OPS_KEY and pass ?key=… to mark labels harvested" },
+      });
+    const marked = await unmappedLabels.markHarvested();
+    return { marked, waiting: await unmappedLabels.stats() };
   });
   // #117 AC4/AC6/AC8 — the ONE place cost-per-visitor and the deck's cold-fallback rate are reported
   // TOGETHER, from the same run — the ticket's own closing AC. Same OPS_KEY gate as /ops/read-failures

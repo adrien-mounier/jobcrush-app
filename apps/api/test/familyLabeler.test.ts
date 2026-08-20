@@ -419,4 +419,46 @@ describe("#220 discovery with the real labeler wired", () => {
       delete process.env.OPS_KEY;
     }
   });
+
+  // #253 — what the owner reads before deciding to launch a run, and how a run closes it out.
+  it("answers with the waiting count and clears it when a run marks the labels harvested", async () => {
+    const { llm } = fakeLlm(['{"outcome":"unmapped"}']);
+    const { app, cookie } = await setup(llm, "harbour pilot");
+    await evaluate(app, cookie);
+
+    const closed = await app.inject({ method: "POST", url: "/ops/unmapped-labels/harvest" });
+    expect(closed.statusCode).toBe(403);
+
+    process.env.OPS_KEY = "ops-test-key";
+    try {
+      const before = await app.inject({ method: "GET", url: "/ops/unmapped-labels?key=ops-test-key" });
+      expect(before.json().waiting).toEqual({ unharvested: 1, distinctRoles: 1 });
+
+      const harvest = await app.inject({
+        method: "POST",
+        url: "/ops/unmapped-labels/harvest?key=ops-test-key",
+      });
+      expect(harvest.json()).toEqual({ marked: 1, waiting: { unharvested: 0, distinctRoles: 0 } });
+
+      // the words remain readable — a harvested entry is answered, not deleted
+      const after = await app.inject({ method: "GET", url: "/ops/unmapped-labels?key=ops-test-key" });
+      expect(after.json().entries).toMatchObject([{ label: "harbour pilot" }]);
+      expect(after.json().entries[0].harvestedAt).not.toBeNull();
+
+      // the run's own door: what it still has to research, with answered gaps left out
+      const waitingOnly = await app.inject({
+        method: "GET",
+        url: "/ops/unmapped-labels?key=ops-test-key&waiting=1",
+      });
+      expect(waitingOnly.json().entries).toEqual([]);
+
+      const repeat = await app.inject({
+        method: "POST",
+        url: "/ops/unmapped-labels/harvest?key=ops-test-key",
+      });
+      expect(repeat.json().marked).toBe(0);
+    } finally {
+      delete process.env.OPS_KEY;
+    }
+  });
 });

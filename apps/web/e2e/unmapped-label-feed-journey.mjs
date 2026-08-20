@@ -18,6 +18,10 @@
 //   cd apps/web && API_URL=http://127.0.0.1:34901 npx next build && npx next start -p 34902
 //   BASE_URL=http://127.0.0.1:34902 node apps/web/e2e/unmapped-label-feed-journey.mjs
 //
+// #253 added a section that MARKS THE FEED HARVESTED. It is a real write and there is no unmark
+// and no delete by design, so this journey is for the throwaway qa-main server above only — never
+// point it at staging or production, where it would retire genuine gap evidence nobody researched.
+//
 // Run serially: every run mints anonymous sessions, and the API caps those per IP per hour.
 // Ports are deliberately not 3000/3001 — another project on this machine defaults to those and the
 // /api proxy would silently reach the wrong backend. API_URL is baked at `next build` time.
@@ -184,6 +188,58 @@ await verdict(
 await verdict(
   typedRole?.sessionId !== pastJob?.sessionId,
   'the two entries point at the two different people who produced them',
+);
+
+// ====================================== 4. the waiting count, and a run closing out what it consumed
+
+await qa.note('#253 — the owner asks whether a vocabulary-growth run is worth launching');
+const waiting = feed.status === 200 ? JSON.parse(feed.body).waiting : null;
+await verdict(
+  waiting?.unharvested >= 2 && waiting?.distinctRoles >= 2,
+  `#253 AC1: two people, two distinct roles waiting: ${JSON.stringify(waiting)}`,
+);
+
+const closed = await callAsVisitor('POST', '/ops/unmapped-labels/harvest');
+await qa.expectVisible('#qa-wire', 'marking harvested is key-gated too — no open write to the feed');
+await verdict(closed.status === 403, `#253: harvest refuses without the ops key (${closed.status})`);
+
+await qa.note('the run consumed the labels and closes them out');
+const harvest = await callAsVisitor('POST', `/ops/unmapped-labels/harvest?key=${OPS_KEY}`);
+const harvested = harvest.status === 200 ? JSON.parse(harvest.body) : null;
+await qa.expectVisible('#qa-wire', 'AC2: the waiting count drops to zero');
+await verdict(
+  harvested?.marked >= 2 && harvested?.waiting?.unharvested === 0,
+  `#253 AC2: the run marked what it consumed and nothing is waiting: ${JSON.stringify(harvested)}`,
+);
+
+const afterHarvest = await callAsVisitor('GET', `/ops/unmapped-labels?key=${OPS_KEY}`);
+const keptEntries = afterHarvest.status === 200 ? JSON.parse(afterHarvest.body).entries : [];
+const kept = keptEntries.find((e) => e.label === UNMAPPED_ROLE);
+await qa.expectVisible('#qa-wire', 'AC2: the words are still there — harvested, never deleted');
+await verdict(
+  !!kept && !!kept.harvestedAt && !Number.isNaN(Date.parse(kept.harvestedAt)),
+  `#253 AC2: the harvested entry stays readable with its harvest time: ${JSON.stringify(kept)}`,
+);
+
+const repeat = await callAsVisitor('POST', `/ops/unmapped-labels/harvest?key=${OPS_KEY}`);
+await qa.expectVisible('#qa-wire', 'AC4: repeating the harvest marks nothing and loses nothing');
+const repeated = repeat.status === 200 ? JSON.parse(repeat.body) : { marked: -1 };
+const reread = await callAsVisitor('GET', `/ops/unmapped-labels?key=${OPS_KEY}`);
+const stillThere = (reread.status === 200 ? JSON.parse(reread.body).entries : []).find(
+  (e) => e.label === UNMAPPED_ROLE,
+);
+await verdict(
+  repeated.marked === 0 && stillThere?.harvestedAt === kept?.harvestedAt,
+  `#253 AC4: a repeated harvest is a no-op and the first harvest time survives (marked ${repeated.marked})`,
+);
+
+// the run's own door: only what it still has to research, harvested words excluded
+const waitingOnly = await callAsVisitor('GET', `/ops/unmapped-labels?key=${OPS_KEY}&waiting=1`);
+const waitingEntries = waitingOnly.status === 200 ? JSON.parse(waitingOnly.body).entries : [null];
+await qa.expectVisible('#qa-wire', 'AC3: a run reading the waiting list sees no answered gaps');
+await verdict(
+  waitingEntries.length === 0,
+  `#253 AC3: nothing waits after the harvest, though the words remain readable (${waitingEntries.length} waiting)`,
 );
 
 const ok = await qa.finish();
