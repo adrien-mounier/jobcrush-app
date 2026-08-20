@@ -17,7 +17,11 @@ _Last updated: 2026-08-20_
 >
 > - **#240 — is the deck actually full?** Run a search for a role the market does not use
 >   ("delivery lead", Hong Kong) and **look at the deck** — the promise was only ever proven at the
->   retrieval result, never as a rendered deck.
+>   retrieval result, never as a rendered deck. **First attempt 2026-08-20 found a different hole:
+>   the front door dead-ends at "Got it." — no navigation to the deck exists at all → #257 filed.**
+>   The deck-fullness question itself is still open: finish the check at `/deck` directly.
+>   Side finding, a good one: the owner's walk left the durable feed its first real entry
+>   ("Product Owner", past_job), which survived a machine restart — #252 proven in production.
 > - **#243 — watch `adReader.family_clamped` on `/ops/counters`.** If the real model answers with a
 >   label instead of a family id, decks silently empty; a rising counter is the tell.
 >
