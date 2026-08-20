@@ -1,5 +1,26 @@
 # Lessons — jobcrush-app
 
+## CI blocked ≠ deploy blocked: the hand-deploy recipe
+
+CI is only the vehicle — `deploy-staging` is two `flyctl deploy` commands after the gates. When
+Actions is unavailable (the Aug 2026 billing block), the same deploy runs from a laptop, **with the
+same gates run first, non-negotiable**:
+
+1. Clean tree on pushed `main`. Then mirror the `test` job: `pnpm install --frozen-lockfile &&
+   pnpm typecheck && pnpm test && pnpm build`.
+2. Mirror the `e2e` job: build packages → start `start:qa` (fake API, :34101, prove it's the fake
+   via `/qa/llm-calls`) → `API_URL=http://127.0.0.1:34101 pnpm --filter @jobcrush/web build` (direct,
+   never turbo) → `next start` (:3000) → `e2e:mocked` → assert `/qa/llm-calls` still reads
+   `"mine":0,"tailor":0,"grill":0,"audit":0` → `e2e:tier2`.
+3. `flyctl deploy --config fly.api.toml --build-arg BUILD_SHA=$(git rev-parse HEAD)`, then the same
+   with `fly.web.toml`. Verify `/healthz` echoes the SHA.
+
+Caveats, learned 2026-08-20 (session 151): a hand deploy skips CI's clean-room build, so the first
+green CI run afterwards re-proves the tree; and `fly ssh console -C` lets you call an ops endpoint
+from **inside** the machine so secrets like `OPS_KEY` never enter the session. Also learned the hard
+way: on the pre-#252 tree, Fly's auto-stop wiped the in-memory unmapped-label buffer on every idle —
+an undeployed durability fix can silently erase the very data its successor slices need.
+
 ## A fixture tests depend on must live under a CI-gated path, not docs/
 
 Since 2026-08-15, a push touching only `docs/**` (and other prose paths) runs no CI. That created a

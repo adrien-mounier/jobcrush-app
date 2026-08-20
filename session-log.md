@@ -2,6 +2,21 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-20 (session 151, part 2) — staging is CURRENT again: deployed by hand, thirteen slices land at once
+
+The owner asked what could be done before the ~Sept 1 billing reset; the answer was that CI was
+never the gatekeeper, only the vehicle. With the owner's go: **the full CI gate set ran locally and
+green** — typecheck, 1553 tests, `pnpm build`, the 8 Tier 1 route-mocked specs (143 passed, 38.7s),
+CI's spend tripwire (`mine/tailor/grill/audit` all 0 after Tier 1), and all 19 Tier 2 real-stack
+journeys — then the exact two `flyctl deploy` commands from `deploy-staging`, with
+`BUILD_SHA=14bd9bc`. `/healthz` echoes `14bd9bc`; the web app is back up (200); the durable harvest
+surface answers `{"entries":[],"waiting":{"unharvested":0,"distinctRoles":0}}` — empty, but from
+Postgres now, so it can finally accumulate. Banner rewritten (stale "nothing has deployed" claim
+gone; the two 👀 owner checks — #240 deck fullness, #243 `family_clamped` — carried forward as
+still pending). Hand-deploy recipe + caveats recorded in `lessons.md`. Until the billing reset, the
+routine is gates-green-locally → hand deploy; the first September CI run re-proves the tree
+clean-room. #255 now waits only on real usage putting words in the feed.
+
 ## 2026-08-20 (session 151) — the first #255 pilot run was attempted with the owner, and ended honestly at step 1: nothing to harvest
 
 The owner sat in and triggered the runbook. Preconditions cleared further than expected: the Fly

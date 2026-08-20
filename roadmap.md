@@ -2,56 +2,27 @@
 
 _Last updated: 2026-08-20_
 
-> 🚨 **NOTHING HAS DEPLOYED SINCE 2026-08-15 08:51 UTC. Read this before trusting any "DONE" below.**
-> GitHub Actions is blocked account-wide: the free minute allowance is spent and the default spending
-> limit is **$0**, which refuses jobs at the platform level (~3s, no logs). It reports as *"recent
-> account payments have failed"* — **no payment failed; there is no payment method on the account.**
+> ⚠️ **CI is still billing-blocked until ~Sept 1, but staging is CURRENT: deployed by hand 2026-08-20**
+> (`14bd9bc`, session 151 — local gates green first: typecheck, 1553 tests, build, 143 Tier 1 specs +
+> spend tripwire, 19 Tier 2 journeys; then the same two `flyctl deploy` commands CI runs). All
+> thirteen slices that were stranded on `main` (#231 #222 #234 #235 #236 #242 #244 #243 #240 #228
+> #252 #253 #254) are now live; the durable unmapped-label feed answers with waiting counts.
 >
-> `main` still accepts pushes and `Closes #123` still closes issues, so **the board and the git log
-> read "shipped" while staging does not have the code.** **Twelve** feature slices are affected — the
-> count grows with every slice finished while this stands, so add a row when you add a DONE:
+> **Until GitHub billing resets (owner expects ~2026-09-01): a green push does NOT deploy.** The
+> routine is: run the full local gates, then deploy by hand (recipe in `lessons.md`). One caveat,
+> accepted 2026-08-20: hand deploys skip CI's clean-room build — first CI run in September re-proves
+> the tree.
 >
-> | Slice | On `main` | On staging |
-> |---|---|---|
-> | **#231** a job can be several families (`34bdd3c`) | ✅ | ❌ — pushed with a docs commit, so its CI run is `8a95b42`'s, which was blocked |
-> | **#222** years per family (`0505f6b`) | ✅ | ❌ |
-> | **#234** question floors / search family split (`5b08d7e`) | ✅ | ❌ |
-> | **#235** word-search deck + honest empty state | ✅ | ❌ |
-> | **#236** candidate screen runs on that path (`bd1f3d0`) | ✅ | ❌ |
-> | **#242** a family carries its market's words (`ad853e7`) | ✅ | ❌ |
-> | **#244** re-publication must re-measure those words (`f73c61a`) | ✅ | ❌ |
-> | **#243** the advert's family reaches the deck (`5f3c701`) | ✅ | ❌ |
-> | **#240** the search asks for a job title, not any word (`2d8eb58`) | ✅ | ❌ |
-> | **#228** the widening is offered at the dead end, and she chooses | ✅ | ❌ |
-| **#252** unmapped labels survive the deploy (`748417f`) | ✅ | ❌ |
-| **#253** the waiting count and harvest marking (`a323ca6`) | ✅ | ❌ — CI run `32336124423` failed in 3s with no logs, `deploy-staging` skipped; the block is unchanged |
-| **#254** the runbook + proposal template, rehearsed against the gates (`6bdfc5b`) | ✅ | ❌ — CI run `32338913183` failed the same way; nothing runtime-visible in this slice, but the rehearsal tests have never run in CI |
+> ### 👀 Two owner checks still pending (were gated on staging returning — it has)
 >
-> **Staging runs the tree at `85cda41`** (`docs(#225)`, the last green `deploy-staging`).
-> **Owner decision, not a fix:** wait for the allowance to reset (date unverified — the token cannot
-> read GitHub's billing endpoint; read it off Billing & plans), or add a payment method and raise the
-> limit above $0, which is when CI stops being free. Diagnosis in `lessons.md` (first entry);
-> tracked as an owner task below.
+> - **#240 — is the deck actually full?** Run a search for a role the market does not use
+>   ("delivery lead", Hong Kong) and **look at the deck** — the promise was only ever proven at the
+>   retrieval result, never as a rendered deck.
+> - **#243 — watch `adReader.family_clamped` on `/ops/counters`.** If the real model answers with a
+>   label instead of a family id, decks silently empty; a rising counter is the tell.
 >
-> ### 👀 On the first green `deploy-staging`, a person must LOOK at these
->
-> Each one is a promise a QA gate could only verify up to the edge of what runs locally. They are
-> **not** open defects — they are the parts of finished work that no local configuration can show on
-> a screen. Check them in one sitting the day staging returns, then delete the item.
->
-> - **#240 — is the deck actually full?** The "her deck is not empty" promise is proven at the
->   *retrieval result* (10 real postings came back live), never as a rendered deck: no
->   browser-runnable config reaches this code, because `apps/api/src/qa-main.ts` wires **no posting
->   provider or registry at all**, and the real stack needs both `TECHMAP_RAPIDAPI_KEY` and durable
->   Postgres. With the key live on staging, run a search and **look at the deck**. Do it for a target
->   role the market does not use ("delivery lead", Hong Kong) — that is the case the whole ticket
->   exists for, and the one with no local proof.
-> - **#243 — watch `adReader.family_clamped` on `/ops/counters`.** The real model has never once been
->   asked for a family `id`; every test used a fake. If it answers with a label instead of an id,
->   every read clamps to "none of these" and **family decks empty out**. A rising counter is the tell.
->
-> **Delete this banner the day a green `deploy-staging` runs** — but carry the two checks above out
-> first, and move any that fail into a real ticket rather than deleting them with the banner.
+> **Delete this block when both checks are done and CI deploys green again.** Move any failed check
+> into a real ticket.
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
@@ -217,7 +188,7 @@ all three: `xhigh` buys tension-holding, and these tickets carry decided rules, 
 | 7b.2 | #252 | Vocabulary growth slice 1: **an unmapped label survives the deploy** — durable person-linked store replaces the 200-entry buffer wiped per restart; ops-key-gated read; words never in logs; a feed-write failure never fails a placement. **DONE 2026-08-20** (`748417f`, `/qa-gate` GO, all 7 ACs evidenced, AC1/AC2/AC6 proven live over the wire). Known ceilings carried to #253: the ops read shows the newest 200 with no paging, and the session link dangles once purge removes the session | — | — | — |
 | 7b.3 | #253 | Vocabulary growth slice 2: **the waiting count and harvest marking** — unharvested + distinct-role counts behind the ops key; mark-harvested resets the count, deletes nothing, and is safe to repeat. **DONE 2026-08-20** (`a323ca6`, `/qa-gate` GO, all 5 ACs evidenced, the harvest cycle proven live in a browser twice + a migration simulation on the pre-#253 table). The two inherited ceilings were decided: the newest-200 ops read **stays**, with `?waiting=1` so a run reads only what it still has to research (answered gaps can never crowd the window), and no distinct-**person** count was built — only distinct roles, which the dangling session link cannot corrupt. New ceilings: `markHarvested()` marks everything unharvested at call time rather than the ids a run read, and the in-memory driver's count saturates at 200 | — | — | — |
 | 7b.4 | #254 | Vocabulary growth slice 3: **the runbook and the proposal package, rehearsed against the gates**. **DONE 2026-08-20** (`6bdfc5b`, `/qa-gate` GO, all 6 ACs evidenced, every endpoint the runbook names probed live). `docs/vocabulary-growth-runbook.md` + `apps/api/research/vocabulary-proposal-template.json` (a complete worked example for a fictitious family, kept under `apps/api` so CI gates edits to it) + rehearsal tests at the REAL publish gates: template passes, <3 distinct employers refused, widening with copied measurements refused / fresh passes, plus a tripwire that the rehearsal family never enters the boot catalog. Gates byte-unchanged (hash-verified) | — | — | — |
-| 7b.5 | #255 | **FRONTIER — next by list, but owner-paced.** Vocabulary growth slice 4: **the first pilot run publishes the second family** — the run executed for real with the owner; **this is row 7b's milestone: multi-family becomes reachable in production**. ~~Blocked by #254~~ — **unblocked 2026-08-20, #254 closed**. **First attempt 2026-08-20 (session 151) aborted at step 1: the harvest is empty and structurally must be** — the pre-#252 in-memory buffer is wiped by the staging machine's auto-stop, and `jobcrush-web-staging` is **suspended**, so no visitor can leave a label at all. Re-attempt only after: billing unblocked → `main` deployed (durable feed live, web app back) → real usage → #253's waiting count > 0 | not a build: start a session and say "run the vocabulary-growth runbook for #255" — you stay in it to pick clusters and approve | **Fable** | high |
+| 7b.5 | #255 | **FRONTIER — next by list, but owner-paced.** Vocabulary growth slice 4: **the first pilot run publishes the second family** — the run executed for real with the owner; **this is row 7b's milestone: multi-family becomes reachable in production**. ~~Blocked by #254~~ — **unblocked 2026-08-20, #254 closed**. **First attempt 2026-08-20 (session 151) aborted at step 1: the harvest is empty and structurally must be** — the pre-#252 in-memory buffer is wiped by the staging machine's auto-stop, and `jobcrush-web-staging` is **suspended**, so no visitor can leave a label at all. **Session 151 part 2 removed most of the gate: staging was hand-deployed to `14bd9bc`** — durable feed live, web app back. Re-attempt only after: real usage → #253's waiting count > 0 | not a build: start a session and say "run the vocabulary-growth runbook for #255" — you stay in it to pick clusters and approve | **Fable** | high |
 | 7b.6 | #256 | Vocabulary growth slice 5: **#229's sentence proven on the real path** — its browser gate re-run against a genuinely derived known zero, plus coverage gap G1 (accepted widening drops the flag, route test). Blocked by #255 | `/implement` | Opus | low |
 | 7b.1 | #250 | Post-pilot: in-product vocabulary-growth machinery — scheduled research, approval queue UI, **runtime publish path (reverses a deliberate current shape: publishing is a reviewed file loaded at boot)**. Filed 2026-08-20 out of #218's grilling as the deliberately deferred alternative to the pilot's agent workflow. **Pick-up trigger: proposal volume outgrows the owner's review time — measured in real pilot runs, not assumed.** Not ready-for-agent; needs its own design pass | `/grill-with-docs` | — | — |
 | 7c | #247 | A journey claims more than its harness can prove, and gates nothing — `deck-family-fit-journey` asserts behaviour its fakes cannot establish, and sits in no CI tier. Filed 2026-08-19 out of #243; needs no decision. **#63 adds two more journeys in the same state** — `credible-reveal-journey` (that ticket's own acceptance evidence, 29/0) and `stale-search-tailor-return-journey` (the lost-tailor-target regression) — so this is now three unwatched journeys, not one. Adding any of them to `run-tier2.mjs` is the owner's call (~2.5 min CI each). ⚠️ **Was tracked in banner prose only until 2026-08-19** | `/implement` | Opus | low |
