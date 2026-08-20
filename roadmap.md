@@ -16,10 +16,10 @@ _Last updated: 2026-08-20_
 > ### 👀 Two owner checks still pending (were gated on staging returning — it has)
 >
 > - **#240 — is the deck actually full?** Run a search for a role the market does not use
->   ("delivery lead", Hong Kong) and **look at the deck** — the promise was only ever proven at the
->   retrieval result, never as a rendered deck. **First attempt 2026-08-20 found a different hole:
->   the front door dead-ends at "Got it." — no navigation to the deck exists at all → #257 filed.**
->   The deck-fullness question itself is still open: finish the check at `/deck` directly.
+>   ("delivery lead", Hong Kong) and walk the whole way — front door → discovery questions → deck —
+>   and **look at the deck**. The first attempt (2026-08-20) found the front door dead-ended at
+>   "Got it."; **#257 fixed that same day** (`bcd1373`): the door now walks her on itself, so the
+>   check is finally walkable end to end by a real person. The deck-fullness question is still open.
 >   Side finding, a good one: the owner's walk left the durable feed its first real entry
 >   ("Product Owner", past_job), which survived a machine restart — #252 proven in production.
 > - **#243 — watch `adReader.family_clamped` on `/ops/counters`.** If the real model answers with a

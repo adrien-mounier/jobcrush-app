@@ -2,6 +2,32 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-20 (session 151, part 3) `/implement 257` — the front door finally walks her on, and the sentence keeps a home
+
+#257 shipped (`bcd1373`, `/qa-gate` **GO**, closes #257) — filed and fixed the same day the owner
+found it live: the first real front-door walk dead-ended at "Got it." while 143 specs and 19
+journeys stayed green, because every test reached /discovery by URL. Two owner decisions shaped the
+fix: **straight to the discovery questions** (no button; the same latched 800ms bridge as
+discovery's own deck handoff, firing on live submit and cold return alike), and — after the collision
+with #214 surfaced (auto-advance turns the canonical-label readback into an unreadable flash) — **the
+confirmation sentence gets a persistent home on the discovery screen** (`.intent-context`), built by
+one shared source (`lib/intentCopy.ts`) because four e2e files assert the string verbatim.
+
+The journeys took real work: five of them treated the confirmation as a stable parking screen and
+had to re-anchor to the persistent line (`waitForTimeout` races replaced by `waitForURL`). Review:
+no hard violations either axis; two findings taken. QA (GO): all five ACs adversarially PASS,
+gates force-run cache-less (1553+47 unit, 146 mocked, 14 real-stack journeys), Bangkok still
+refused with a 5s over-wait proving no stray timer, $0 spent. QA's observations, accepted: the
+front door is now unreachable once intent is known (by design; role re-asked at Q1, locations
+editable on profile), and seven untouched journeys still carry a 1200ms sleep that clears the
+800ms bridge — flake-proofing for a rainy day.
+
+Two traps for future mirror-CI runs went to `lessons.md`: turbo `pnpm build` after the e2e web
+build silently bakes the dead :3001 proxy into `.next` (CI dodges it with two runners), and the
+two feed journeys outside CI's tier-2 list need `OPS_KEY=qa-ops-key` on the fake API. Deployed by
+hand: API at `bcd1373`; the web deploy's remote build twice outlived a 10-minute window and was
+relaunched detached — status at the entry below this one's writing recorded in roadmap.
+
 ## 2026-08-20 (session 151, part 2) — staging is CURRENT again: deployed by hand, thirteen slices land at once
 
 The owner asked what could be done before the ~Sept 1 billing reset; the answer was that CI was
