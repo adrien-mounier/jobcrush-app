@@ -1,0 +1,525 @@
+{
+  "_rehearsal": "TEMPLATE + REHEARSAL PACKAGE (#254). This is the vocabulary proposal data-file template: a complete worked example for a FICTITIOUS family, kept passing the real publish gates by apps/api/test/vocabularyProposalRehearsal.test.ts. It is never loaded in production (initialProductionFamilyFloors loads named files only). To draft a real proposal, copy this file, replace every value, and follow docs/vocabulary-growth-runbook.md. A draft starts as publicationStatus 'provisional'; only the owner's approval flips it to 'published'. Unknown keys like this one are stripped by the gate's schema.",
+  "publicationStatus": "published",
+  "reviewedBy": "REHEARSAL — replace with the approving owner and session before any real proposal",
+  "reviewedAt": "2026-08-20T00:00:00.000Z",
+  "floor": {
+    "schemaVersion": "1",
+    "familyId": "rehearsal-harbour-pilotage",
+    "label": "Harbour pilotage (rehearsal)",
+    "scope": "Piloting and manoeuvring commercial vessels within port limits: boarding inbound and outbound ships as the licensed pilot, conning them through channels and confined waters, conducting berthing and unberthing movements, and coordinating with vessel traffic services, tugs and port control throughout. Covers harbour, river and sea pilots at every licence grade, and pilotage-exempt masters whose own role is the pilotage of their vessel in port. Outside it: tug and workboat command (the towage craft, not the piloted vessel), vessel traffic services as a shore role, and deck officer roles whose port work is watchkeeping under a pilot rather than the pilotage itself.",
+    "version": 1,
+    "source": "production_research",
+    "productionRewardEligible": true,
+    "essentialItems": [
+      {
+        "id": "pilotage-licence",
+        "priority": 1,
+        "question": {
+          "prompt": "Have you held a pilotage licence or pilotage exemption for a working port?",
+          "form": "single_select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "experience"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      },
+      {
+        "id": "vessel-classes-handled",
+        "priority": 2,
+        "question": {
+          "prompt": "Which vessel classes and sizes have you piloted or handled?",
+          "form": "free_text",
+          "options": []
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "experience"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      },
+      {
+        "id": "berthing-movements",
+        "priority": 3,
+        "question": {
+          "prompt": "Have you conducted berthing and unberthing movements in confined waters?",
+          "form": "single_select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "experience"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      },
+      {
+        "id": "port-coordination",
+        "priority": 4,
+        "question": {
+          "prompt": "How did you coordinate with vessel traffic services, tugs, and port control?",
+          "form": "free_text",
+          "options": []
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "summary"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      }
+    ]
+  },
+  "postingEvidence": [
+    {
+      "employer": "Rehearsal Port Authority",
+      "roleTitle": "Marine Pilot",
+      "location": "Rehearsal Harbour",
+      "sourceUrl": "https://example.com/rehearsal-port-authority/marine-pilot",
+      "capturedAt": "2026-08-20",
+      "normalizedRequirements": [
+        "Pilot vessels within declared port limits",
+        "Conduct berthing and unberthing movements",
+        "Coordinate with vessel traffic services and tugs",
+        "Hold or obtain the port's pilotage licence"
+      ]
+    },
+    {
+      "employer": "Example Towage & Pilotage Co",
+      "roleTitle": "Harbour Pilot",
+      "location": "Example Bay",
+      "sourceUrl": "https://example.com/example-towage/harbour-pilot",
+      "capturedAt": "2026-08-20",
+      "normalizedRequirements": [
+        "Con ships through channels and confined waters",
+        "Plan movements against tide and traffic windows",
+        "Communicate passage plans to bridge teams",
+        "Maintain licence grade progression"
+      ]
+    },
+    {
+      "employer": "Placeholder Marine Services",
+      "roleTitle": "Port Pilot",
+      "location": "Placeholder Strait",
+      "sourceUrl": "https://example.com/placeholder-marine/port-pilot",
+      "capturedAt": "2026-08-20",
+      "normalizedRequirements": [
+        "Board inbound and outbound vessels as licensed pilot",
+        "Direct tug configurations during berthing",
+        "Report movement outcomes to port control",
+        "Apply bridge resource management with ship crews"
+      ]
+    }
+  ],
+  "marketSearchTitles": {
+    "HK": [
+      {
+        "title": "marine pilot",
+        "adverts": 4,
+        "measuredOn": "2026-08-20"
+      }
+    ],
+    "SG": [
+      {
+        "title": "harbour pilot",
+        "adverts": 6,
+        "measuredOn": "2026-08-20"
+      }
+    ],
+    "VN": [
+      {
+        "title": "maritime pilot",
+        "adverts": 2,
+        "measuredOn": "2026-08-20"
+      }
+    ],
+    "AU": [
+      {
+        "title": "marine pilot",
+        "adverts": 9,
+        "measuredOn": "2026-08-20"
+      },
+      {
+        "title": "harbour pilot",
+        "adverts": 5,
+        "measuredOn": "2026-08-20"
+      }
+    ]
+  },
+  "evaluation": {
+    "evaluator": {
+      "engine": "calibrated-family-placement",
+      "version": "1"
+    },
+    "thresholds": {
+      "comparableAccuracy": 0.95,
+      "unfamiliarRecall": 0.9,
+      "familiarFalseUnknownRate": 0.05
+    },
+    "rawCases": [
+      {
+        "id": "train-harbour-pilot",
+        "split": "grouped_train",
+        "targetRole": "Harbour Pilot",
+        "evidence": {
+          "signals": [
+            "vessel piloting",
+            "berthing movements",
+            "port coordination"
+          ],
+          "familyNeighborSupport": [
+            0.92,
+            0.86,
+            0.78
+          ],
+          "competingFamilySupport": [
+            0.42,
+            0.31
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "train-marine-pilot",
+        "split": "grouped_train",
+        "targetRole": "Marine Pilot",
+        "evidence": {
+          "signals": [
+            "ship handling",
+            "pilotage licence",
+            "tidal planning"
+          ],
+          "familyNeighborSupport": [
+            0.9,
+            0.83,
+            0.76
+          ],
+          "competingFamilySupport": [
+            0.48,
+            0.38
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "train-tug-master",
+        "split": "grouped_train",
+        "targetRole": "Tug Master",
+        "evidence": {
+          "signals": [
+            "vessel handling",
+            "towage operations",
+            "port movements"
+          ],
+          "familyNeighborSupport": [
+            0.75,
+            0.68,
+            0.61
+          ],
+          "competingFamilySupport": [
+            0.68,
+            0.63
+          ]
+        },
+        "expected": "needs_clarification"
+      },
+      {
+        "id": "train-software-engineer",
+        "split": "grouped_train",
+        "targetRole": "Software Engineer",
+        "evidence": {
+          "signals": [
+            "software implementation"
+          ],
+          "familyNeighborSupport": [
+            0.3,
+            0.24,
+            0.18
+          ],
+          "competingFamilySupport": [
+            0.25,
+            0.2
+          ]
+        },
+        "expected": "unmapped"
+      },
+      {
+        "id": "heldout-port-pilot",
+        "split": "held_out",
+        "targetRole": "Port Pilot",
+        "evidence": {
+          "signals": [
+            "pilotage",
+            "vessel traffic coordination",
+            "berthing"
+          ],
+          "familyNeighborSupport": [
+            0.91,
+            0.84,
+            0.77
+          ],
+          "competingFamilySupport": [
+            0.43,
+            0.35
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "heldout-senior-harbour-pilot",
+        "split": "held_out",
+        "targetRole": "Senior Harbour Pilot",
+        "evidence": {
+          "signals": [
+            "unrestricted pilotage licence",
+            "large vessel handling",
+            "port coordination"
+          ],
+          "familyNeighborSupport": [
+            0.93,
+            0.88,
+            0.79
+          ],
+          "competingFamilySupport": [
+            0.39,
+            0.32
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "heldout-pilotage-officer",
+        "split": "held_out",
+        "targetRole": "Pilotage Officer",
+        "evidence": {
+          "signals": [
+            "pilot transfers",
+            "harbour movements",
+            "safety management"
+          ],
+          "familyNeighborSupport": [
+            0.87,
+            0.8,
+            0.72
+          ],
+          "competingFamilySupport": [
+            0.44,
+            0.36
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "heldout-tug-boat-captain",
+        "split": "held_out",
+        "targetRole": "Tug Boat Captain",
+        "evidence": {
+          "signals": [
+            "towage",
+            "vessel handling",
+            "crew leadership"
+          ],
+          "familyNeighborSupport": [
+            0.76,
+            0.69,
+            0.62
+          ],
+          "competingFamilySupport": [
+            0.69,
+            0.64
+          ]
+        },
+        "expected": "needs_clarification"
+      },
+      {
+        "id": "heldout-vessel-traffic-officer",
+        "split": "held_out",
+        "targetRole": "Vessel Traffic Services Officer",
+        "evidence": {
+          "signals": [
+            "traffic monitoring",
+            "port communications",
+            "vessel scheduling"
+          ],
+          "familyNeighborSupport": [
+            0.72,
+            0.65,
+            0.6
+          ],
+          "competingFamilySupport": [
+            0.64,
+            0.59
+          ]
+        },
+        "expected": "needs_clarification"
+      },
+      {
+        "id": "heldout-data-scientist",
+        "split": "held_out",
+        "targetRole": "Data Scientist",
+        "evidence": {
+          "signals": [
+            "statistical modelling"
+          ],
+          "familyNeighborSupport": [
+            0.27,
+            0.21,
+            0.16
+          ],
+          "competingFamilySupport": [
+            0.22,
+            0.18
+          ]
+        },
+        "expected": "unmapped"
+      },
+      {
+        "id": "heldout-accountant",
+        "split": "held_out",
+        "targetRole": "Accountant",
+        "evidence": {
+          "signals": [
+            "financial reporting"
+          ],
+          "familyNeighborSupport": [
+            0.24,
+            0.19,
+            0.14
+          ],
+          "competingFamilySupport": [
+            0.21,
+            0.17
+          ]
+        },
+        "expected": "unmapped"
+      },
+      {
+        "id": "heldout-sales-director",
+        "split": "held_out",
+        "targetRole": "Sales Director",
+        "evidence": {
+          "signals": [
+            "revenue ownership"
+          ],
+          "familyNeighborSupport": [
+            0.2,
+            0.16,
+            0.12
+          ],
+          "competingFamilySupport": [
+            0.18,
+            0.15
+          ]
+        },
+        "expected": "unmapped"
+      }
+    ],
+    "generated": {
+      "datasetHash": "0a40fe508a908338c04aaedd9800cbb681fdc41db2ae9af45aee75fe2326172d",
+      "cases": [
+        {
+          "id": "train-harbour-pilot",
+          "supportScore": 0.92,
+          "runnerUpSupportScore": 0.42,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "train-marine-pilot",
+          "supportScore": 0.9,
+          "runnerUpSupportScore": 0.48,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "train-tug-master",
+          "supportScore": 0.75,
+          "runnerUpSupportScore": 0.68,
+          "neighborhoodDensity": 1,
+          "observed": "needs_clarification"
+        },
+        {
+          "id": "train-software-engineer",
+          "supportScore": 0.3,
+          "runnerUpSupportScore": 0.25,
+          "neighborhoodDensity": 0,
+          "observed": "unmapped"
+        },
+        {
+          "id": "heldout-port-pilot",
+          "supportScore": 0.91,
+          "runnerUpSupportScore": 0.43,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "heldout-senior-harbour-pilot",
+          "supportScore": 0.93,
+          "runnerUpSupportScore": 0.39,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "heldout-pilotage-officer",
+          "supportScore": 0.87,
+          "runnerUpSupportScore": 0.44,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "heldout-tug-boat-captain",
+          "supportScore": 0.76,
+          "runnerUpSupportScore": 0.69,
+          "neighborhoodDensity": 1,
+          "observed": "needs_clarification"
+        },
+        {
+          "id": "heldout-vessel-traffic-officer",
+          "supportScore": 0.72,
+          "runnerUpSupportScore": 0.64,
+          "neighborhoodDensity": 1,
+          "observed": "needs_clarification"
+        },
+        {
+          "id": "heldout-data-scientist",
+          "supportScore": 0.27,
+          "runnerUpSupportScore": 0.22,
+          "neighborhoodDensity": 0,
+          "observed": "unmapped"
+        },
+        {
+          "id": "heldout-accountant",
+          "supportScore": 0.24,
+          "runnerUpSupportScore": 0.21,
+          "neighborhoodDensity": 0,
+          "observed": "unmapped"
+        },
+        {
+          "id": "heldout-sales-director",
+          "supportScore": 0.2,
+          "runnerUpSupportScore": 0.18,
+          "neighborhoodDensity": 0,
+          "observed": "unmapped"
+        }
+      ]
+    }
+  }
+}
