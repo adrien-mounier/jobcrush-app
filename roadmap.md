@@ -112,10 +112,16 @@ screenshot under `screenshots/research-239/`): the recommendation is to replace 
 different job title." with a small `No jobs found` / `No more jobs ... right now` string family, keep
 #228's explicit consent gate, and keep #245's wait state separate. **#232, #227, #223 and #216 are now done.** #216 closed 2026-08-19 (`82102bc`, QA GO on the 4th gate run) and took the reveal's family floor off #63's blocker list. **Both owner decisions it raised are now made (2026-08-19):** (1) **#216's AC3 is RETIRED** — spec #233 decision 6 wins, an explicit "no" is an answer and keeps coverage; the criterion is struck on the ticket with the reasoning. The consequence of a "no" lands on the scoring (the card shows the gap; a blocking requirement withdraws the job), never on the door. (2) **#246** — the promise names **no job family**, to anyone, e.g. "10 new jobs are open right now". Same rule the owner applied to the PLACE on 2026-08-13: if the promise cannot say it honestly to everyone, it does not say it. The NUMBER sub-question is decided too: **option 3** - count what her search will actually return. That needs a search at question 1, before she has earned anything, which the reveal gate refused - so **#248** (`9a612cd`, QA GO) split fetching postings from being allowed to see them. #246 is unblocked and unscheduled. **#247** (a non-gating journey that claims more than its harness proves) is filed and needs no decision. **#229 is done (2026-08-19, `d4f7e5d`, QA GO — dark until #218 publishes a second family).** **#134 and #219 closed by hand 2026-08-19** — finished work that was never closed (the slice chain had fully landed); **~~#63~~ DONE 2026-08-19 (`/qa-gate` GO).** _Repointed 2026-08-21: rows 7a, 7b.2–7b.6, 7c and
 7b.1a have all landed since, so every row above 7b.7 is struck. **The board's open head is now
-7b.1b #260 · 7d #249 · 8 #64 · 8b #217** — and the next `/implement` by list is row 8,
-#64, because 7d needs `/to-spec` first and 7b.1b is a runbook run, not a build. #250
-stays parked: its pick-up trigger (proposal volume outgrowing owner review time) is not met.
-**Repointed again 2026-08-21: 7b.7 #258 is done and struck.**_
+7b.1b #260 · 7d #249 · 8 #64 · 8b #217**, and **the next ticket is 7b.1b #260** —
+`ready-for-agent`, blocked by nothing, ~USD 0.15 of provider spend inside the petty-cash rule. It
+runs #259's newly written research method once, against the one family the owner has already
+approved, and hands back the first real ranked list with demand counts. Two owner decisions wait
+on that list and nothing else can produce it: **how long a family floor may be** (deliberately left
+undecided in #259) and **whether business-analysis v1 needs a v2**. Doing it before the method is
+used on a family nobody has reviewed is the whole point. **After #260 the next code build is row 8
+#64** (7d #249 still needs `/to-spec`, 8b #217 needs `/to-spec`). #250 stays parked: its pick-up
+trigger (proposal volume outgrowing owner review time) is not met. **Repointed 2026-08-21: 7b.7
+#258 is done and struck; #260 is the head.**_
 **#116 still owns the broader fill-in problem** — #245 fills an initially empty
 deck after provider retrieval, not an open deck as individual advert reads finish. **~~#63~~ shipped 2026-08-19; before it closed, its blocked-by list read zero open**:
 the live blocked-by list reads zero open — #134, the last one, was closed by hand once its slice
