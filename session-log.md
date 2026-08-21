@@ -2,6 +2,54 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-21 (session 155b) — the families are named after the role now (#262)
+
+**#262 done** (`8e7a9a5`, `/qa-gate` **NO-GO → GO** on the scoped re-run). Owner, reading #260's
+write-up: *"I keep reading your 'business analysis'. It sounds really wrong… it is not a role name
+describing someone['s] role. The same way we don't say Product Ownership, we say Product Owner."*
+Both families renamed: **Business Analyst** and **IT Project Manager**.
+
+- **Why it was a version and not a one-line edit.** The label is not a caption. It goes into the
+  labeler's own prompt (`### {label}`) and is matched by question 1's type-ahead, so it is data that
+  can move a placement — which #258 decision 3 says takes a version. `familyId` stayed put on both:
+  it is the key stored placements and eligibility facts reference, and no visitor ever sees it.
+  **8 calls / USD 0.08** for the delivery family's fresh market words (#244); Business Analyst
+  reused #260's probes. Receipt: `docs/vocabulary-proposals/family-rename-2026-08-21.md`.
+- **The near-miss worth carrying forward.** The first attempt REPLACED the v1 loads with v2 and
+  **72 tests went red with `family_not_published`**. A stored placement keeps the version it was
+  made under (ADR-0014 d7) and reads it back by `(familyId, version)` — so dropping v1 strands
+  everyone already placed. Every version is now loaded at boot, oldest first. **`vocabulary-growth-
+  runbook.md` §6.2 tells you to do the broken thing** ("point the existing load at the new file");
+  added to #261.
+- **What the gate caught that the diff could not.** (1) Nine stale `version: 1` pins — the fix had
+  updated `apps/api/test/**` and missed `apps/web/e2e/**` entirely, leaving **5 of 23 deploy-gating
+  journeys red**, which on a green push is a broken deploy. (2) **The labeler prompt was
+  half-renamed**: business-analysis's scope drew its edge by naming the sibling family, so the
+  prompt read the new name in the heading and the old one twenty lines below, in the sentence it
+  calls decisive. A build assertion had checked that nothing changed — not that everything that
+  should change had. (3) The delivery family's new market numbers had **no receipt anywhere**.
+- **A trap this rename created, recorded rather than closed.** Both new names are ordinary job
+  titles, and this repo's own canned CV has a job titled "IT Project Manager". So the "the internal
+  family label never appears on screen" checks became un-writable by string search: hunting the new
+  label either fires on the visitor's own CV or proves nothing. They now hunt only what can be
+  nothing but a family label (the IDs, the old labels, the word "family"), with the hole written
+  into the journey header. **A negative assertion cannot catch a family renamed to the wrong thing**
+  — it goes green when the name is absent for any reason at all. That is why the gate's new
+  `family-role-name-journey.mjs` (Tier 2 #24, 67 assertions, mutation-proven) earns its slot: it is
+  the only journey asserting the name a visitor is actually shown.
+- **A date the instrument disagreed with.** Both publications were stamped `measuredOn: 2026-08-22`
+  while every probe file recorded **2026-08-21**. Corrected to what was actually recorded — that
+  field exists to be audited, and #244 compares it.
+- **Owner-accepted risk, still open.** "IT Project Manager" names a family whose scope deliberately
+  covers scrum master, agile coach, delivery lead and release manager. The owner was warned and
+  reaffirmed. The 64-case labeler grid is the only instrument that would measure whether placement
+  narrowed; **not run (~USD 0.65), owner's call, open on #262.**
+- **Also:** a parked, owner-**rejected** product-ownership widening had assumed the v2 number this
+  took. Its folder is renamed and banner-flagged; revived, it is v3.
+
+**Not deployed.** CI is still billing-blocked, so the push did not deploy — staging still runs
+`265ff6d` and does not have the new names.
+
 ## 2026-08-22 (session 155) — the research method met a real market, and three holes opened (#260)
 
 **#260 run** (a research pass, no code — `/implement` on a ticket whose deliverable is evidence).

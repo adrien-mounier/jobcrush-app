@@ -1,5 +1,40 @@
 # Lessons — jobcrush-app
 
+## Publishing a new version means ADDING its load, never repointing the old one
+
+Learned 2026-08-21 (#262, caught by 72 red tests before it could ship). Renaming both job families
+meant publishing a v2 of each. The obvious move — and the one `vocabulary-growth-runbook.md` §6.2
+literally instructs — is *"point the existing load at the new file"*. It is wrong, and it is the
+kind of wrong that passes review: a **stored family placement keeps the version it was made under**
+(ADR-0014 decision 7) and is read back later by `floors.get(familyId, version)`. Repoint the load
+and the old version is no longer published at all, so every placement already made against it
+resolves to `null` and retrieval fails `family_not_published`. `initialProductionFamilyFloors()`
+must load **every** version, oldest first — `publish()` refuses a version that does not increase, so
+the order is load-bearing, not tidiness. **General rule: when data is versioned so old readers keep
+working, publishing a new version is an ADD, never a swap.** If the suite goes red in dozens of
+places on a version bump, read the failures before assuming the tests are stale — they were right.
+
+## A negative assertion goes green when the thing is renamed, not just when it is absent
+
+Learned 2026-08-21 (#262). Several journeys assert an internal label **never** reaches the screen.
+Rename the label and every one of them keeps passing — not because the rule holds, but because the
+string they hunt no longer exists anywhere. One journey's verdict line still read *"no job family is
+named anywhere on the screen"* while proving nothing at all. **A negative check silently stops
+checking the moment its subject is renamed**, and nothing goes red to tell you.
+
+Two things follow, both learned the hard way in the same change:
+
+- **Widening the regex to include the new name is not automatically the fix.** These families are
+  now named "Business Analyst" and "IT Project Manager" — ordinary job titles. The repo's own canned
+  CV has a job titled "IT Project Manager", and "business analyst" is a published market title the
+  product deliberately offers. A check hunting those either fires on the visitor's own CV or proves
+  nothing. Hunt what can be **nothing but** a leak — the family IDs, the old labels — and write the
+  remaining hole into the file instead of pretending it is covered.
+- **Pair every negative with one positive.** Only an assertion on the name a visitor is actually
+  shown can catch a rename to the WRONG name. `family-role-name-journey.mjs` exists for exactly
+  that reason.
+
+
 ## A job title is not an occupation — a title-filed corpus needs a relevance pass before you count it
 
 Learned 2026-08-22 (#260, running #259's method for the first time). Pulling every advert filed
