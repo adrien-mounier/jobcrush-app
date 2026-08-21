@@ -71,19 +71,123 @@ Present the owner a cluster map, one row per cluster:
 
 ## 3. Research each picked cluster
 
-Per cluster, two evidence jobs, both bounded by the budget rule above:
+**The method below is normative** (#259, designed with the owner 2026-08-21). Before it existed, a
+run's sampling was an accident of plumbing and its distillation was unwritten judgment: the pilot
+read ~20 texts from two of four served markets because that is what two calls happened to return,
+and "keep what recurs, drop employer-specific skills" lived only in the running agent's head. The
+steps are in this order on purpose — each one's output is the next one's input.
 
-1. **Posting evidence — 3 or more distinct employers.** Real, current postings whose work is the
-   cluster's role: employer, role title, location, source URL, capture date, normalized
-   requirements. The gate counts employers after trimming and case-folding, so three spellings of
-   one employer are one employer.
-2. **Market search words — measured per served market.** Served markets are the provider registry's
-   `regionsServed` (today: HK, SG, VN, AU — read the registry, not this sentence). For every served
-   market, probe the job titles that market actually uses for this work: one quoted title, one
-   market, an advert count. A title measuring 0 adverts cannot be published; `measuredOn` is the
-   advert day the probe sampled.
+### 3.1 Measure the market's words first
 
-Pricing the probes and the evidence pulls, concretely:
+Served markets are the provider registry's `regionsServed` (today: HK, SG, VN, AU — read the
+registry, not this sentence). For every served market, probe the job titles that market actually
+uses for this work: one quoted title, one market, an advert count. A title measuring 0 adverts
+cannot be published; `measuredOn` is the advert day the probe sampled.
+
+**This step comes before the posting pull, not after it.** To fetch adverts you must search some job
+title; if you pull first you are searching words you guessed, and the sample inherits the guess. Pull
+second and each market is read through its own vocabulary.
+
+Known blind spot, stated because it is unfixable rather than because it is small: the corpus only
+ever contains adverts filed under a title someone thought to probe. Probe the cluster's own words,
+the obvious seniority variants, and any title the first page of results reveals.
+
+### 3.2 Read the whole market, not a sample
+
+**Pull every advert each served market has, for every title that measured above 0.** Not a sample —
+the market. The provider returns exactly 10 adverts per call (`TECHMAP_PAGE_SIZE`, a fixed vendor
+constant), so a title measuring 29 adverts is 3 calls.
+
+Business analysis, priced from the pilot's own probe figures, as the worked example:
+
+| Market | Adverts across its titles | Calls |
+|---|---|---|
+| Singapore | 60 | 7 |
+| Hong Kong | 33 | 4 |
+| Australia | 24 | 3 |
+| Vietnam | 3 | 1 |
+| **Total** | **~120 adverts** | **15 calls — USD 0.15** |
+
+Reading is not the constraint and money is not the constraint: 120 adverts is ~120 pages of text,
+and 15 calls is 1.5% of the month's 1000. The constraint is what the market actually has — Vietnam
+cannot supply 20 business-analyst adverts because it does not have 20.
+
+- **Thin markets**: take what exists, and name the shortfall in the proposal. A market too thin to
+  vote (see 3.3) still contributes its text.
+- **The one cap — 50 adverts per title per market.** Not a reading limit. Past ~50 the demand counts
+  stop moving: if 44 of 50 asked for a thing, adverts 51–300 will not change the decision. **If the
+  counts are still moving at the cap, say so in the proposal** — a family whose adverts still
+  disagree at 50 is drawn too wide, and that is a finding for the owner, not something to bury under
+  more reading.
+- **Keep the texts.** They are the **floor corpus** and they are kept, not discarded — see 3.4.
+
+### 3.3 Distil the family floor
+
+Count, then cut. Every judgment below is a number the owner can re-check.
+
+**The threshold — two numbers doing different jobs:**
+
+1. **On the floor if at least half the whole corpus asks for it.** The corpus is uneven by design
+   (Singapore was half of the business-analysis corpus), so a whole-corpus fraction is the honest
+   headline number.
+2. **Off the floor if any market with 10 or more adverts is below 30%.** That is one market's local
+   flavour, not the occupation. **Markets under 10 adverts inform the reading but do not vote** —
+   one Vietnamese advert would otherwise be 33% of Vietnam. Name the non-voting markets in the
+   proposal.
+
+**Two rules on what counts:**
+
+1. **A tool is judged by its demand count like anything else.** SQL for business analysis and Java
+   for backend engineering clear the bar and belong on the floor; one bank's Copilot ask appears in
+   1 advert of 120 and never does. There is no hand-written "skills aren't occupations" filter —
+   when the count and a hand-written rule disagree, **the count wins**. But: **a tool never enters
+   the family's `scope` sentence**, which is what decides membership. ADR-0015 carries the full
+   shape and the one prompt property it depends on.
+2. **Years, degrees, languages and locations are never floor items.** They clear any threshold —
+   nearly every advert says "3–5 years" — and they are not the occupation. Length of experience is
+   worked out, never asked (ADR-0014 amendment 1); the rest belong to other parts of the product.
+
+**What the run produces: the full ranked list, every item that cleared the bar, each with its demand
+count** — highest first. Not a top-4. **The floor's length is not yet decided** (#259 Q9/Q10, owner,
+2026-08-21): no cap is written here, because no one has yet seen a real ranked list with real
+numbers. The owner picks the cut looking at the curve. **Items that clear the bar and do not make
+the cut stay in the proposal, marked as cut** — they are the natural first candidates for the next
+version, and deleting them throws away paid-for evidence.
+
+**If fewer than three items clear the bar, stop.** The adverts do not agree on what the work is: the
+cluster is drawn too wide. Report that to the owner. **Do not lower the threshold to reach a
+floor** — a floor reached by moving the bar is the exact failure #259 was filed to prevent.
+
+**Question form:** yes/no by default — one tap, and "no" is a first-class explicit negative the
+product never asks twice. Use options when the answer is genuinely graded: exposure to a tool is
+("professional / study project / none"), an activity usually is not. The floor contract already
+allows any option set and a `skills` CV destination, so this needs nothing built.
+
+### 3.4 Keep the evidence the floor was distilled from
+
+Three things, all in the proposal folder — **the published data file's shape does not change and no
+gate is touched**, so the families already live stay live:
+
+1. **The floor corpus** — the advert texts, in `docs/vocabulary-proposals/<family-id>-v<version>/corpus/`.
+2. **The demand count beside every floor item**, in the summary: "requirements elicitation — 111 of
+   120 adverts, all 4 markets".
+3. **The items that cleared the bar and were cut**, with their counts.
+
+Recording this in the *published* file was considered and rejected: the field would have to be
+optional (the two live families' corpora are gone and cannot be reconstructed), and an optional
+audit trail is a voluntary one.
+
+### 3.5 Posting evidence for the published file
+
+Separately from the corpus, the published file needs **3 or more distinct employers**: real, current
+postings whose work is the cluster's role — employer, role title, location, source URL, capture
+date, normalized requirements. Draw them from the corpus you already have; no extra calls. The gate
+counts employers after trimming and case-folding, so three spellings of one employer are one
+employer.
+
+### 3.6 Budget
+
+Pricing the probes and the corpus pull, concretely:
 
 - Read `apps/api/data/posting-providers.json` **now** and price the planned calls from its
   `costModel` (e.g. techmap: USD 1 per 1000 postings) — before spending, not after.
@@ -121,7 +225,7 @@ Both proposal kinds, and the difference that matters:
   placements only (ADR-0014 decision 7).
 
 Park draft packages in `docs/vocabulary-proposals/<family-id>-v<version>/` (data file +
-`summary.md`) until the owner has decided.
+`summary.md` + the `corpus/` of §3.4) until the owner has decided.
 
 ## 5. Owner decision
 
@@ -208,6 +312,17 @@ remembered:
 - Postings: <N> postings from <N distinct> employers (<names>)
 - Market search words: <per served market: title — adverts, measured on>
 - Not measured (budget): <list, or "nothing — the run stayed under cap">
+
+## The floor corpus and its demand counts (§3.2-3.4)
+- Corpus: <N> adverts — <per market: N adverts across "<titles>">; kept in `corpus/`
+- Markets too thin to vote (under 10 adverts): <list, or "none">
+- Cap bound at 50/title/market: <where, and whether counts were still moving — or "nowhere">
+
+| # | Floor item | Demand count | Markets |
+|---|---|---|---|
+| 1 | <item> | <n> of <N> | <all 4 / which> |
+
+- Cleared the bar, cut from the floor: <item — n of N>, … (or "nothing was cut")
 
 ## Evaluation grid (new family only — for owner arbitration)
 <each rawCase in plain language: "<target role> should come back <confirmed /

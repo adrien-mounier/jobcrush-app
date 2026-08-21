@@ -2,6 +2,61 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-21 (session 153) — the family-research method leaves the agent's head
+
+**#259 designed** (`/grill-with-docs`, four rounds, owner in the room throughout — a design pass, no
+code). The pilot published a family floor distilled from ~20 posting texts by judgment nobody wrote
+down. The method is now normative in `docs/vocabulary-growth-runbook.md` §3.
+
+- **Sampling: read the whole market, not a sample.** Measure each served market's job titles
+  **first**, then pull every advert those titles have. Business analysis, priced from the pilot's own
+  probe figures: ~120 adverts, 15 calls, **USD 0.15**, 1.5% of the month's quota. The owner rejected
+  a first recommendation of "10 per market" and was right to — the correction that followed is the
+  session's most useful finding: **the binding constraint was never money or agent reading** (120
+  adverts ≈ 12% of this session's context), **it is what the market holds** — Vietnam has 3
+  business-analyst adverts. A census dissolves the representativeness question a sample creates.
+  Cap: 50/title/market, and **the run reports when it binds** — counts still moving at 50 means the
+  family is drawn too wide, which is a finding, not something to bury under more reading.
+- **Distillation: two numbers doing different jobs.** On the floor at **≥50% of the whole corpus**;
+  off it if **any market with 10+ adverts is under 30%** (local flavour, not the occupation). Markets
+  under 10 adverts inform but never vote — one Vietnamese advert would be 33% of Vietnam. **Fewer
+  than three items clearing the bar stops the run** rather than lowering the bar.
+- **The owner reversed the ticket's own premise, and this is the entry a future session should
+  read.** #259 asked for a "skill vs occupation" filter — a bank's Copilot ask is not the occupation.
+  The owner (a working business analyst) killed it with SQL: most BA adverts expect SQL, so a CV
+  without it is weaker, whatever the definition says. Same for Java and backend engineering. **The
+  demand count already does that job** — Copilot appears in 1 advert of 120 and never clears the bar;
+  a hand-written filter would have overruled the evidence, which is precisely the unauditable
+  judgment #259 exists to remove. **When the count and a hand-written rule disagree, the count wins.**
+  What survives is a narrower guard: a tool may be a floor item, but **never enters the `scope`
+  sentence** that decides membership (put SQL there and business analysis starts swallowing data
+  analysis) → **ADR-0015**. Checked and reported honestly rather than overstated: floor items *are*
+  shown to the labeler, but its prompt calls them "illustration, NOT a checklist", and the scope is
+  what decides — so the split needs a runbook line, not a contract change. The ADR names that prompt
+  property as its one dependency.
+- **Floor length deliberately left undecided.** Both published families have four items and nobody
+  chose four. Equipment items make the natural floor longer; every extra item is asked **before** the
+  person sees a job, the funnel's worst point. It cannot be honestly decided now — there is no
+  traffic (the pilot's labels came from the owner's own test walks, one person). So the runbook
+  writes **no cap**: a run returns the full ranked list with demand counts, and the owner cuts on the
+  curve. `docs/onboarding-reward-design.md` §6's "the essential floor must be short" is marked
+  **under review** so it is not cited as decided. Items cut still stay in the proposal, marked.
+- **Auditability without touching a gate.** Floor corpus + per-item demand counts + the cut items
+  live in the proposal folder. Recording them in the *published* file was rejected: the field would
+  have to be optional (the two live families' corpora are gone), and an optional audit trail is a
+  voluntary one. Published shape unchanged, no gate edited, both live families stay live.
+- **Where it lives.** Runbook steps, not a prompt — nothing executes the method today, and a prompt
+  no code sends to a model gates CI for nothing. The owner asked for that intent to be saved before
+  it evaporated: [#250 comment](https://github.com/adrien-mounier/jobcrush-app/issues/250#issuecomment-5370215488)
+  now instructs whoever builds the machinery to lift the runbook section into a prompt then, and not
+  to re-invent the method.
+- **Glossary** (`CONTEXT.md`): **floor corpus** (every advert read, distinct from the handful of
+  posting-evidence records in the published file) and **demand count** ("111 of 120 adverts asked for
+  this" — named for the reason, not the arithmetic).
+- **#260 filed** — the written method has never been run. It runs §3 on business analysis, the one
+  family the owner already approved, for ~USD 0.15, and returns the first real ranked list. That
+  unblocks the floor-length decision. v1 stands either way.
+
 ## 2026-08-21 (session 152) — #229's sentence stops being dark, and stops being proven by a stub
 
 **#256 done** (`/qa-gate` GO, closes #256). With the second family published (#255), a genuinely

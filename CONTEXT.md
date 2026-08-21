@@ -106,6 +106,20 @@ family, or a new version of an existing one (wider scope). It enters the vocabul
 approval and only through the publish gates — the machine never adds silently.
 _Avoid_: Auto-added family, draft family, suggestion
 
+**Floor corpus**:
+Every job advert a **vocabulary-growth run** read to distil one **family floor** — the whole of each
+served market for the job titles the run measured, not a sample. Kept beside the **vocabulary
+proposal** so a floor question can be checked against the demand that earned it, and distinct from
+the handful of posting-evidence records that go in the published file to prove real employers hire
+for the family (#259).
+_Avoid_: Evidence, sample, posting evidence
+
+**Demand count**:
+How many adverts of a **floor corpus** asked for one **family floor** item, out of the corpus total
+("111 of 120"). It is the reason a question is on the floor, and the number the floor's threshold is
+measured against (#259).
+_Avoid_: Recurrence, frequency, score
+
 **Important gap**:
 A job requirement that the user's current evidence does not cover and that may materially reduce
 their chances. It must be explained on the job card but does not prevent truthful tailoring or an

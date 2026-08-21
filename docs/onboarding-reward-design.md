@@ -188,6 +188,20 @@ recedes. Do not use fake completion percentages, recurring card drops, or an end
 There is no **Show me jobs now** escape that trades a weak reveal for less discovery. The essential
 floor must be short and ranked enough to finish without coercion.
 
+> **"Short" is under review — owner, 2026-08-21 (#259 design pass).** Both published families have
+> exactly four floor items, and that number was never chosen: it is what the pilot's unwritten
+> distillation happened to produce. Two things reopened it. Floor items may now name equipment
+> (ADR-0015), so the natural floor is longer than four — a business analyst's floor plausibly wants
+> SQL beside requirements elicitation. And the cost of length lands at the funnel's worst point:
+> every extra item is asked **before** the person has seen a single job.
+>
+> It is deliberately not re-decided here, because it cannot honestly be: there is no traffic to
+> measure drop-out against — the pilot's labels came from the owner's own test walks, one person.
+> The vocabulary-growth runbook (§3.3) therefore writes **no cap**; a run produces the full ranked
+> list of items that cleared the threshold, each with its **demand count**, and the owner picks the
+> cut looking at real numbers. The sentence above stands as the operating rule until then; it is not
+> settled, and a future reader should not cite it as decided.
+
 ## 7. The credible reveal
 
 Discovery can reveal jobs only when all of these are true:

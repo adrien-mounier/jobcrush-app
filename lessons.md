@@ -1,5 +1,29 @@
 # Lessons — jobcrush-app
 
+## Before designing a sampling rule, check whether the population is small enough to just read all of it
+
+Learned 2026-08-21 (#259, corrected by the owner). Asked how many job adverts a family-research run
+should read, I invented a sample size and defended it with an invented ceiling ("an agent reads 100
+adverts badly"). Both halves were wrong. Measured: a real advert is ~1 page ≈ 1,200 tokens, so 100
+adverts is ~12% of a 1M-token session — reading was never the constraint. And at USD 1 per 1000
+postings, 15 calls is 15 cents — money was never the constraint either. **What actually bound was
+the market's own inventory**: Hong Kong held 29 business-analyst adverts, Vietnam 3. Reading the
+whole market costs 15 cents and dissolves the representativeness question a sample creates. Two
+habits worth keeping: **measure the ceiling you are about to invoke** (excerpt sizes are in
+`sample-postings.json`; the provider's page size is a fixed vendor constant, `TECHMAP_PAGE_SIZE`),
+and **ask what the population actually is before choosing how much of it to take**.
+
+## When a hand-written rule and a count disagree about the same thing, the count wins
+
+Learned 2026-08-21 (#259, ADR-0015). Designing how a family floor is distilled from job adverts, I
+added a judgment rule beside the evidence: "a named tool is a skill, not the occupation — drop it".
+It would have dropped SQL from business analysis and Java from backend engineering, the two cases
+where the market's equipment *is* the occupation's. The recurrence count already separated them —
+one bank's Copilot ask is 1 advert in 120 and never clears the bar. The rule was a second filter
+overruling the first, and its whole purpose was to encode judgment that #259 existed to remove. **A
+qualitative filter layered on top of a quantitative one is usually the quantitative one being
+distrusted without evidence.** Delete the filter; if the count really is wrong, fix the count.
+
 ## A long Tier 2 run can exhaust Windows loopback sockets — a late journey dying with ERR_NO_BUFFER_SPACE is the machine, not the test
 
 Seen 2026-08-20 (session 151, first 22-journey run): the 21st journey failed its very first
