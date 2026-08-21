@@ -32,6 +32,25 @@ tens of thousands of TIME_WAIT sockets from the earlier journeys drained. Before
 late-sequence journey failure on a dev machine, re-run it alone; CI's fresh Linux runners don't
 share the ceiling.
 
+## A stale localhost server from a past session makes the e2e gate lie for 21 minutes
+
+Before mirroring CI's `e2e` job by hand, **check that ports 3000 and 34101 are free, and read the
+start logs**. On 2026-08-21 a `next start -p 3000` left running from the previous day held the port:
+`pnpm --filter @jobcrush/web start` died instantly with `EADDRINUSE`, the health-wait passed anyway
+(something WAS answering on 3000), and Tier 1 then drove **yesterday's build** for 21 minutes — 1
+pass, 144 failures, every deck spec stuck on "Lining up your jobs…". Nothing in the failures pointed
+at the port; they looked like real regressions. The same session already had a stale `qa-main.js` on
+:34101 from an earlier QA run, found by the QA gate.
+
+Two rules that would have caught it in seconds:
+
+- After starting a background server, `cat` its log rather than trusting a `curl` health-wait. A
+  health-wait against a fixed port cannot tell your process from someone else's.
+- A journey or gate run ends by killing what it started. A leftover listener does not fail loudly —
+  it answers, with old code, and everything downstream believes it.
+
+CI never sees this: fresh runners have no yesterday.
+
 ## CI blocked ≠ deploy blocked: the hand-deploy recipe
 
 CI is only the vehicle — `deploy-staging` is two `flyctl deploy` commands after the gates. When

@@ -2,11 +2,14 @@
 
 _Last updated: 2026-08-20_
 
-> ⚠️ **CI is still billing-blocked until ~Sept 1, but staging is CURRENT: deployed by hand 2026-08-20**
-> (`14bd9bc`, session 151 — local gates green first: typecheck, 1553 tests, build, 143 Tier 1 specs +
-> spend tripwire, 19 Tier 2 journeys; then the same two `flyctl deploy` commands CI runs). All
-> thirteen slices that were stranded on `main` (#231 #222 #234 #235 #236 #242 #244 #243 #240 #228
-> #252 #253 #254) are now live; the durable unmapped-label feed answers with waiting counts.
+> ⚠️ **CI is still billing-blocked until ~Sept 1, but staging is CURRENT: deployed by hand 2026-08-21**
+> (`265ff6d`, session 154 — local gates green first: typecheck, 1563 tests, build, 146 Tier 1 specs +
+> spend tripwire, **23** Tier 2 journeys all passing; then the same two `flyctl deploy` commands CI
+> runs; `/healthz` echoes the SHA). #258's alias hints are proven live on staging: "scrum master",
+> "agile coach", "delivery lead" and "release manager" each answer *IT project delivery* with its
+> market titles, "requirements analyst" answers *Business analysis*, and "marine engineer" is still
+> met with silence. Everything stranded since the 2026-08-20 hand deploy (#255 #256 #247 #257 #258)
+> is now live; the durable unmapped-label feed answers with waiting counts.
 >
 > **Until GitHub billing resets (owner expects ~2026-09-01): a green push does NOT deploy.** The
 > routine is: run the full local gates, then deploy by hand (recipe in `lessons.md`). One caveat,

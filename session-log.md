@@ -34,9 +34,19 @@ broken — only the hint.
   a hypothetical third family. Harmless for the two families that exist (checked every cross-family
   pair). The spec prescribed the whole-word comparison, so widening it is the owner's call, not a
   silent fix. One predicate swap when wanted.
-- **Housekeeping flagged by the gate:** a stale `node` process from #255's QA run (PID 3224, started
-  2026-08-20 23:22) still listens on **:34101** serving pre-#258 code. It will quietly answer the
-  next QA run with old behaviour. Worth killing.
+- **Hand-deployed to staging** (`265ff6d`, owner asked): full local gates first — typecheck, 1563
+  tests, build, 146 Tier 1 specs with the spend tripwire clean, all 23 Tier 2 journeys — then the two
+  `flyctl deploy` commands CI runs. `/healthz` echoes the SHA, and the alias hints are proven on the
+  live API: the four IT-delivery aliases and "requirements analyst" all answer correctly, "marine
+  engineer" is still silent. Everything stranded since the 2026-08-20 hand deploy (#255 #256 #247
+  #257 #258) is now live.
+- **Two stale localhost servers from previous sessions cost 21 minutes and nearly read as a
+  regression.** The QA gate flagged one (`qa-main.js` on :34101 from #255's run, killed). The second
+  was worse: a `next start` on :3000 left over from 2026-08-20 meant my own web app died instantly
+  with `EADDRINUSE` while the health-wait still passed — so Tier 1 drove YESTERDAY's build and
+  returned 1 pass / 144 failures that looked like real breakage. Re-run against the correct app:
+  **146/146 in 40 seconds.** Written up in `lessons.md`; the rule is to read a background server's
+  log rather than trust a health-wait, and to kill what a run started.
 
 ## 2026-08-21 (session 153) — the family-research method leaves the agent's head
 
