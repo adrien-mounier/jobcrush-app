@@ -53,9 +53,14 @@ corpus and per-advert judgments beside it in `corpus/`.
 - **Vietnam does not vote.** 4 adverts in the whole market, 3 in-family — under §3.3's 10-advert
   bar. Its adverts inform the reading and were given no vote.
 
-Next: the owner's call on the write-up's decision box. Recommendation is to apply the three method
-fixes (and the SQL correction) to the runbook **before** the method is pointed at a family nobody
-has reviewed — otherwise the next run rediscovers these at full price.
+**The three method fixes are ticketed as #261** (owner said do as recommended), roadmap row 7b.1c:
+relevance step in §3.2, recognition rule in §3.3, content de-duplication, plus the SQL correction.
+Docs only, USD 0, blocked by nothing — and time-ordered ahead of any research on a family nobody has
+reviewed. #260 could only find these because it ran against a floor the owner had already approved
+and could disagree with; the next family offers no such check.
+
+Still on the owner's desk: the **floor-length rule** (the curve argues for cutting at the 80% → 51%
+cliff rather than a fixed number — four items on this family, which is what v1 already ships).
 
 ## 2026-08-21 (session 154) — the scope's own job titles are findable again (#258)
 
