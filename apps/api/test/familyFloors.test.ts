@@ -397,3 +397,73 @@ describe("market search vocabulary (#242)", () => {
     expect(store.active("it-project-delivery")?.floor.version).toBe(2);
   });
 });
+
+describe("scope-named aliases (#258)", () => {
+  const otherFamily = (aliases: string[], label = "Other", title = "other title") => {
+    const publication = productionPublication();
+    return {
+      ...publication,
+      floor: { ...publication.floor, familyId: "other", label },
+      marketSearchTitles: Object.fromEntries(
+        ["HK", "SG", "VN", "AU"].map((code) => [
+          code,
+          [{ title, adverts: 1, measuredOn: "2026-08-16" }],
+        ]),
+      ),
+      aliases,
+    };
+  };
+
+  it("publishes the live families with the titles their scope names", () => {
+    const floors = initialProductionFamilyFloors();
+    expect(floors.active("it-project-delivery")?.aliases).toContain("scrum master");
+    expect(floors.active("business-analysis")?.aliases).toContain("requirements analyst");
+    // Amended in place: adding hint words is not a new version and cost no re-measurement (#258
+    // decision 3 — publication data that cannot change a placement may be amended at the same
+    // version; anything that CAN change one still goes through the normal gates).
+    expect(floors.active("it-project-delivery")?.floor.version).toBe(1);
+    expect(floors.active("business-analysis")?.floor.version).toBe(1);
+  });
+
+  it("publishes a family with no alias list exactly as before", () => {
+    const store = new ProductionFamilyFloorStore();
+    const noAliases = productionPublication();
+    delete noAliases.aliases;
+    expect(store.publish(noAliases).aliases).toEqual([]);
+  });
+
+  it("refuses two families claiming the same alias", () => {
+    const store = new ProductionFamilyFloorStore();
+    store.publish(productionPublication());
+    expect(() => store.publish(otherFamily(["release manager", "scrum master"]))).toThrow(
+      "alias is already findable in it-project-delivery: release manager, scrum master",
+    );
+  });
+
+  it("refuses an alias colliding with another family's label or market title", () => {
+    const store = new ProductionFamilyFloorStore();
+    store.publish(productionPublication());
+    expect(() => store.publish(otherFamily(["IT project delivery"]))).toThrow(
+      "alias is already findable in it-project-delivery: it project delivery",
+    );
+    expect(() => store.publish(otherFamily(["Delivery Manager"]))).toThrow(
+      "alias is already findable in it-project-delivery: delivery manager",
+    );
+    // And the other direction: a new family's own label or market title stealing a published alias.
+    expect(() => store.publish(otherFamily([], "Agile coach"))).toThrow(
+      "alias is already findable in it-project-delivery: agile coach",
+    );
+    expect(() => store.publish(otherFamily([], "Other", "scrum master"))).toThrow(
+      "alias is already findable in it-project-delivery: scrum master",
+    );
+  });
+
+  it("lets a family re-publish without colliding with its own aliases", () => {
+    const store = new ProductionFamilyFloorStore();
+    store.publish(productionPublication());
+    const second = productionPublication();
+    second.floor.version = 2;
+    remeasure(second, "2026-08-16");
+    expect(store.publish(second).floor.version).toBe(2);
+  });
+});

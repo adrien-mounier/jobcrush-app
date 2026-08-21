@@ -777,6 +777,25 @@ describe("#101 posting retrieval service", () => {
     expect(JSON.stringify(terms)).not.toContain("SECRET-FIELD-VALUE");
   });
 
+  // #258: an alias is hint-only. "Scrum Master" now finds IT project delivery at question 1, so the
+  // family carries it — and the words sent to a provider are unchanged by that: her own typed role
+  // (as always) plus the family's MEASURED market titles, and nothing from the alias list. What is
+  // pinned here is that the alias LIST adds no query words, not that the phrase cannot appear —
+  // a visitor who types it is still searched for what she typed.
+  it("a family's alias list adds no words to a provider query (#258)", async () => {
+    const provider = { providerId: "one", fetch: vi.fn(async () => ({ ok: true as const, records: [] })) };
+    const retrieve = makePostingRetriever({
+      registry: [policy("one", ["HK"], 1)],
+      providers: [provider],
+      store: new InMemoryPostingStore(),
+      productionFamilyFloors: initialProductionFamilyFloors(),
+      now,
+    });
+    await retrieve(request({ targetRole: "Scrum Master" }));
+    const terms: string[] = provider.fetch.mock.calls[0]![0].queryKeywords;
+    expect(terms).toEqual(["Scrum Master", "project manager"]);
+  });
+
   // The 12-title cap needs a family with more market words than the fixture has. Only `get` is ever
   // called on the store here, so a literal publication stands in for one.
   it("caps a long market title list and keeps a cut title matchable", async () => {

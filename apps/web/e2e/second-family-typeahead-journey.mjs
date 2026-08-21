@@ -8,13 +8,23 @@
 //
 //   type "business analyst"  -> the NEW family's words appear, and the server names "Business analysis"
 //   type "project manager"   -> the ORIGINAL family still answers "IT project delivery" (regression)
-//   type "scrum master"      -> NOTHING is offered: a query matching neither family is a silent
+//   type "scrum master"      -> the family's own words appear: #258 made the titles a family's
+//                               SCOPE names (scrum master, agile coach, delivery lead) findable
+//   type "marine engineer"   -> NOTHING is offered: a query matching no family is a silent
 //                               no-match, because every suggestion is a one-tap role submission
 //
-// The third case is #255's QA-gate defect 1, caught by a live drive: the fallback used to serve the
+// The fourth case is #255's QA-gate defect 1, caught by a live drive: the fallback used to serve the
 // alphabetically-first family's words under the heading "same kind of job", putting a scrum master
 // one tap from a Business analysis placement. The unit test pins the API's answer; only this drive
 // pins that the SCREEN stays shut.
+//
+// WHY THE THIRD CASE INVERTED (#258). It used to drive "scrum master" and assert the screen stayed
+// shut, because the lookup only ever compared the typed words against a family's label and its
+// market search titles. But IT project delivery's scope names scrum masters as INSIDE the family —
+// the labeler placed them there all along, and only the hint failed to recognise them. #258 gave
+// each family the list of titles its own scope names, so those visitors are hinted too. The rule
+// the old assertion protected is unchanged and still proven live; it simply moved to a phrase that
+// genuinely matches no published family.
 //
 // The placement itself is asserted too. It became assertable when #255's QA gate found the QA
 // stack's canned labeler (apps/api/src/qaFamilyAnswer.ts) still naming only it-project-delivery —
@@ -167,15 +177,47 @@ await assert(
   `#255: one query gets ONE family's words, never both merged (${JSON.stringify(pm?.suggestions)})`,
 );
 
-// ====================== 3. a query matching NEITHER family offers nothing (QA gate defect 1)
+// ============ 3. a title the family's SCOPE names is recognised at question 1 (#258)
 
 await qa.note(
-  'VISITOR 3 — a scrum master. Every suggestion is a one-tap role submission under the heading ' +
-    '"same kind of job", so a query that matches no family must offer nothing at all.',
+  "VISITOR 3 — a scrum master. IT project delivery's scope names her job as inside the family, so " +
+    "she is offered that family's market titles — never the words she just typed.",
 );
 await freshVisitorAtQuestionOne('Scrum master', 'a third brand-new visitor lands on the front door');
 
-for (const typed of ['scrum master', 'programme manager', 'delivery lead']) {
+for (const typed of ['scrum master', 'agile coach', 'delivery lead', 'release manager']) {
+  await qa.fill('#q1-role', typed, `type "${typed}" into question 1`);
+  await page.waitForTimeout(1200);
+  const offered = await page.locator('.sugg.live button').allInnerTexts();
+  await assert(
+    offered.some((text) => /project manager/i.test(text)),
+    `#258: "${typed}" is offered IT project delivery's own market words (${JSON.stringify(offered)})`,
+  );
+  await assert(
+    !offered.some((text) => text.trim().toLowerCase() === typed),
+    `#258: the alias she typed is never offered back as a suggestion (${JSON.stringify(offered)})`,
+  );
+  const lookedUp = await callAsVisitor(
+    'GET',
+    `/onboarding/discovery/family?q=${encodeURIComponent(typed)}`,
+  );
+  const body = lookedUp.status === 200 ? JSON.parse(lookedUp.body) : null;
+  await assert(
+    body?.family === 'IT project delivery',
+    `#258: the server names the family the labeler will place her in for "${typed}" (${JSON.stringify(body?.family)})`,
+  );
+}
+await qa.scrollThrough('read question 1 as a scrum master sees it — her work is recognised');
+
+// ====================== 4. a query matching NO family still offers nothing (QA gate defect 1)
+
+await qa.note(
+  'VISITOR 4 — a marine engineer. Every suggestion is a one-tap role submission under the heading ' +
+    '"same kind of job", so a query that matches no family must still offer nothing at all.',
+);
+await freshVisitorAtQuestionOne('Marine engineer', 'a fourth brand-new visitor lands on the front door');
+
+for (const typed of ['marine engineer', 'programme manager']) {
   await qa.fill('#q1-role', typed, `type "${typed}" into question 1`);
   await page.waitForTimeout(1200);
   const offered = await page.locator('.sugg.live button').allInnerTexts();
@@ -193,7 +235,7 @@ for (const typed of ['scrum master', 'programme manager', 'delivery lead']) {
     `#255 defect 1: the server sends the documented silent no-match for "${typed}" (${JSON.stringify(body?.suggestions)})`,
   );
 }
-await qa.scrollThrough('read question 1 as a scrum master sees it — no wrong-family shortcuts');
+await qa.scrollThrough('read question 1 as a marine engineer sees it — no wrong-family shortcuts');
 
 // An empty query still offers nothing at all — the type-ahead never opens unasked.
 const empty = await callAsVisitor('GET', '/onboarding/discovery/family?q=');

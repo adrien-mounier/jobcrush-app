@@ -127,6 +127,13 @@ export const ProductionFamilyPublication = z.object({
       measuredOn: z.string().trim().date(),
     })).min(1),
   ),
+  // #258: the job titles this family's SCOPE names as inside it (scrum master, agile coach) but
+  // which are not market search words. Hint-only, in the strongest sense: matched by question 1's
+  // type-ahead so a visitor typing one is offered this family's market titles, and nothing else —
+  // never sent to a provider (postingRetrieval reads marketSearchTitles), never shown to the
+  // labeler (familyLabeler builds its description from label/scope/evidence/floor), never gated on
+  // advert counts. Optional: a family without the field behaves exactly as it did before #258.
+  aliases: z.array(z.string().trim().min(1)).default([]),
   evaluation: z.object({
     evaluator: z.object({
       engine: z.literal("calibrated-family-placement"),
@@ -223,6 +230,34 @@ export class ProductionFamilyFloorStore {
       throw new Error(
         `family cannot be published for served markets with no search words: ${missingMarkets.join(", ")}`,
       );
+    }
+    // #258 decision 6: an alias is a way of FINDING a family by typing, so two families claiming
+    // the same one means one silently steals the other's hint — #255's defect returning through a
+    // different door. An alias colliding with another family's label or market title is refused for
+    // the same reason. Trim + case-fold, the normalisation the type-ahead lookup uses, and WHOLE
+    // words: the lookup then matches on substring overlap, so this gate catches an alias that is
+    // another family's word, not one that merely contains it ("delivery" would still shadow
+    // "delivery manager"). Deliberate — the owner specced the comparison (#258 decision 6).
+    const fold = (value: string) => value.trim().toLocaleLowerCase("en-US");
+    const findableTitles = (item: ProductionFamilyPublicationValue) => [
+      item.floor.label,
+      ...Object.values(item.marketSearchTitles).flat().map((entry) => entry.title),
+    ].map(fold);
+    const myAliases = publication.aliases.map(fold);
+    const myTitles = findableTitles(publication);
+    for (const other of this.activePublications()) {
+      if (other.floor.familyId === publication.floor.familyId) continue;
+      const otherAliases = other.aliases.map(fold);
+      const otherTitles = findableTitles(other);
+      const clashes = new Set([
+        ...myAliases.filter((alias) => otherAliases.includes(alias) || otherTitles.includes(alias)),
+        ...otherAliases.filter((alias) => myTitles.includes(alias)),
+      ]);
+      if (clashes.size > 0) {
+        throw new Error(
+          `alias is already findable in ${other.floor.familyId}: ${[...clashes].sort().join(", ")}`,
+        );
+      }
     }
     const regenerated = generateFamilyEvaluation(publication.evaluation.rawCases);
     if (JSON.stringify(publication.evaluation.generated) !== JSON.stringify(regenerated)) {

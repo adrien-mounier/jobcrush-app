@@ -199,6 +199,13 @@
    }
   ]
  },
+ "aliases": [
+  "requirements analyst",
+  "process analyst",
+  "functional business analyst",
+  "technical business analyst",
+  "digital business analyst"
+ ],
  "evaluation": {
   "evaluator": {
    "engine": "calibrated-family-placement",

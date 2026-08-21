@@ -17,7 +17,10 @@ import {
   publishedFamilies,
   type PublishedFamily,
 } from "../src/familyLabeler.js";
-import { initialProductionFamilyFloors } from "../src/familyFloors.js";
+import {
+  initialProductionFamilyFloors,
+  type ProductionFamilyFloorStore,
+} from "../src/familyFloors.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 import { InMemoryUnmappedLabelStore } from "../src/unmappedLabels.js";
 
@@ -56,6 +59,18 @@ const TWO_FAMILIES: PublishedFamily[] = [
 ];
 
 beforeEach(() => resetCountersForTest());
+
+// #258: aliases are hint-only — they must never enter the labeler's vocabulary, or adding a hint
+// word could quietly move a family's boundary. publishedFamilies() builds each family from
+// label/scope/evidence/floor and nothing else; this pins that it stays that way. The alias used is
+// deliberately one no published scope names, so the assertion cannot pass by accident.
+it("never hands a family's aliases to the labeler (#258)", () => {
+  const active = initialProductionFamilyFloors().active("it-project-delivery")!;
+  const withAlias = {
+    activePublications: () => [{ ...active, aliases: ["marine engineer"] }],
+  } as unknown as ProductionFamilyFloorStore;
+  expect(JSON.stringify(publishedFamilies(withAlias))).not.toContain("marine engineer");
+});
 
 const confirmed = (ids: string[], confidence = "certain") =>
   JSON.stringify({ outcome: "confirmed", familyIds: ids, confidence, why: "because" });

@@ -38,6 +38,7 @@
       { "title": "delivery manager", "adverts": 5, "measuredOn": "2026-07-30" }
     ]
   },
+  "aliases": ["scrum master", "agile coach", "delivery lead", "release manager"],
   "evaluation": {
     "evaluator": { "engine": "calibrated-family-placement", "version": "1" },
     "thresholds": { "comparableAccuracy": 0.95, "unfamiliarRecall": 0.9, "familiarFalseUnknownRate": 0.05 },

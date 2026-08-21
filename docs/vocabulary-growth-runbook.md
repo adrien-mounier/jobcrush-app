@@ -210,7 +210,16 @@ A **vocabulary proposal** package is:
    only the owner's approval flips it to `"published"`.
 2. **A plain-language summary** the owner can decide on in one sitting: what the family covers and
    where its edge is, the evidence, the spend receipt, and what (if anything) the budget cut off.
-3. **For a new job family only: the drafted evaluation grid** — the data file's `rawCases`, restated
+3. **The alias list** — the job titles the family's own `scope` sentence names as inside it
+   ("the agile equivalents of this job (scrum master, agile coach, delivery lead, release manager)
+   are inside this family"). They go in the data file's `aliases` field, beside `marketSearchTitles`,
+   and are approved with the rest of the package. **Drafted from the scope, never invented**: a hint
+   word must trace to a boundary the owner already approved. They are **hint-only** — question 1's
+   type-ahead matches them so a visitor typing one is offered the family's market titles, and that
+   is all they ever do: never sent to a provider, never shown to the labeler, never gated on advert
+   counts. Publishing is refused if an alias is already findable in another family (its aliases,
+   label or market titles) — #258.
+4. **For a new job family only: the drafted evaluation grid** — the data file's `rawCases`, restated
    in plain language for owner arbitration (ADR-0014: drafted by the agent, arbitrated by the
    owner; the grid stays as a permanent regression test at the bars ADR-0014 set).
 
@@ -221,6 +230,12 @@ Both proposal kinds, and the difference that matters:
   scope wording widened. **All served markets must be freshly re-measured — the gate refuses copied
   measurements** (each market's newest `measuredOn` must be strictly newer than the active
   version's; #244). Budget for that re-measurement when the owner picks the cluster.
+- **Amending a live family in place, at the same version** (#258 decision 3): allowed for
+  publication data that **cannot change a family placement** — the alias list is the case this rule
+  was written for. Anything that CAN change a placement — scope, floor items, the family's boundary,
+  its market words — is a new version through the normal gates, re-measurement included. The version
+  number exists to protect stored placements (ADR-0014 decision 7); data no placement depends on
+  does not need one, and a version bump would force a paid re-measurement for nothing.
 - Neither kind ever touches a stored **family placement** — a published change reaches new
   placements only (ADR-0014 decision 7).
 

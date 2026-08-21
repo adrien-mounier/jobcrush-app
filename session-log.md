@@ -2,6 +2,42 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-21 (session 154) — the scope's own job titles are findable again (#258)
+
+**#258 done** (`/implement` → `/code-review` → `/qa-gate` **GO on the first run**, 0 provider calls,
+USD 0). A scrum master typing their role at question 1 was offered nothing at all: the family's
+scope names them as inside it, but the type-ahead only ever compared the typed words to a family's
+label and its measured market titles, and the aliases live in the scope PROSE. Placement was never
+broken — only the hint.
+
+- **What changed for a visitor.** "scrum master", "agile coach", "delivery lead", "release manager"
+  and the business-analysis aliases ("requirements analyst", "process analyst", the
+  digital/functional/technical variants) each now answer their family and offer its market titles to
+  tap. What comes back is always the MARKET title, never the alias just typed — a suggestion is a
+  one-tap role submission, so it has to be a word the product can search with.
+- **The silence rule moved, it was not deleted.** #255's QA gate wrote "scrum master → nothing" into
+  both `discovery.test.ts` and the deploy-gating browser journey. Both now prove the same rule on
+  `marine engineer`, and the journey's header carries a paragraph explaining why the assertion
+  inverted — a future reader should never have to guess.
+- **No version bump, no re-measurement, USD 0.** Both live families were amended IN PLACE at v1.
+  The rule that licenses it is now written into the runbook, not just done: *publication data that
+  cannot change a family placement may be amended in place at the same version; anything that can
+  needs a new version through the normal gates.* A v2 would have tripped #244's fresh-measurement
+  gate and forced a paid re-measurement of 4 markets × 2 families purely to add hint words.
+- **`process analyst` KEPT** (the ticket's own escalation). The family's grid grades it
+  *needs_clarification*, not *unmapped* — the labeler still asks afterwards, and the alternative is
+  silence, which is less helpful and no more accurate. Revisit when an operations family publishes:
+  the collision guard will refuse it mechanically and force the decision back into the room.
+- **One follow-up left open, deliberately.** The publish-time collision guard compares whole words;
+  the type-ahead matches on substring overlap. So an alias like `delivery` or `senior project
+  manager` publishes cleanly and still shadows another family's hint — the QA gate proved it live on
+  a hypothetical third family. Harmless for the two families that exist (checked every cross-family
+  pair). The spec prescribed the whole-word comparison, so widening it is the owner's call, not a
+  silent fix. One predicate swap when wanted.
+- **Housekeeping flagged by the gate:** a stale `node` process from #255's QA run (PID 3224, started
+  2026-08-20 23:22) still listens on **:34101** serving pre-#258 code. It will quietly answer the
+  next QA run with old behaviour. Worth killing.
+
 ## 2026-08-21 (session 153) — the family-research method leaves the agent's head
 
 **#259 designed** (`/grill-with-docs`, four rounds, owner in the room throughout — a design pass, no

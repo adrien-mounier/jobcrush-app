@@ -315,9 +315,31 @@ describe("#16 discovery routes", () => {
     expect(ba.suggestions).toContain("business analyst");
     // #255 gate defect 1: a query matching NEITHER family is a silent no-match (suggestions: []),
     // never a fallback family's words — the web renders suggestions as one-tap role submissions
-    // under "same kind of job", so a fallback here was one tap from a wrong placement.
-    const nomatch = (await get(app, cookie, "/onboarding/discovery/family?q=scrum%20master")).json();
+    // under "same kind of job", so a fallback here was one tap from a wrong placement. #258 moved
+    // this assertion off "scrum master", now an alias of IT project delivery, onto a phrase outside
+    // every published family: the RULE is unchanged, only the phrase that proves it.
+    const nomatch = (await get(app, cookie, "/onboarding/discovery/family?q=marine%20engineer")).json();
     expect(nomatch.suggestions).toEqual([]);
+    // #258: a title the family's SCOPE names as inside it is findable by typing, even though it is
+    // not a market search word. What comes back is the family's MARKET titles, never the alias.
+    // "delivery lead" is the AC's own case for no advert-count gate: #242 measured it at 0 adverts
+    // in Hong Kong, so it can never be a search word — and it is still findable by typing.
+    for (const alias of ["scrum master", "agile coach", "delivery lead", "release manager"]) {
+      const hint = (await get(
+        app,
+        cookie,
+        `/onboarding/discovery/family?q=${encodeURIComponent(alias)}`,
+      )).json();
+      expect({ alias, ...hint }).toEqual({
+        alias,
+        family: "IT project delivery",
+        suggestions: ["project manager", "delivery manager"],
+      });
+    }
+    const ra = (await get(app, cookie, "/onboarding/discovery/family?q=requirements%20analyst")).json();
+    expect(ra.family).toBe("Business analysis");
+    expect(ra.suggestions).toContain("business analyst");
+    expect(ra.suggestions).not.toContain("requirements analyst");
     const empty = (await get(app, cookie, "/onboarding/discovery/family?q=")).json();
     expect(empty.suggestions).toEqual([]);
   });

@@ -68,10 +68,18 @@ export function productionDiscoveryFamilyLookup(
     return titles;
   };
   const overlaps = (a: string, b: string) => a.includes(b) || b.includes(a);
+  const matchesQuery = (value: string) => overlaps(value.toLocaleLowerCase("en-US"), q);
+  // #258: aliases join the same match under the same rule and the same familyId tie-break. They are
+  // the titles a family's SCOPE names as inside it — a scrum master is placed in IT project delivery
+  // by the labeler, but "scrum master" is neither the label nor a market word, so the hint was the
+  // one thing that did not recognise her. What comes BACK is unchanged: the family's market titles,
+  // never the alias she just typed (a suggestion is a one-tap role submission, so it has to be a
+  // word the product can search with).
   const matched = q
     ? active.find((publication) =>
-        overlaps(publication.floor.label.toLocaleLowerCase("en-US"), q) ||
-        titlesOf(publication).some((title) => overlaps(title.toLocaleLowerCase("en-US"), q)))
+        matchesQuery(publication.floor.label) ||
+        titlesOf(publication).some(matchesQuery) ||
+        publication.aliases.some(matchesQuery))
     : undefined;
   const chosen = matched ?? active[0]!;
   return { family: chosen.floor.label, suggestions: matched ? titlesOf(matched) : [] };

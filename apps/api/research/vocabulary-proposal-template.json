@@ -164,6 +164,11 @@
       }
     ]
   },
+  "aliases": [
+    "river pilot",
+    "sea pilot",
+    "pilotage-exempt master"
+  ],
   "evaluation": {
     "evaluator": {
       "engine": "calibrated-family-placement",
