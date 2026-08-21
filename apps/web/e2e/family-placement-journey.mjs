@@ -119,7 +119,7 @@ await qa.expectVisible('#qa-wire', "the visitor's own stored discovery record, v
 const plan = JSON.parse(pinned).discovery;
 await assert(
   plan?.questionFloors?.[0]?.familyId === 'it-project-delivery' &&
-    plan?.questionFloors?.[0]?.version === 1,
+    plan?.questionFloors?.[0]?.version === 2,
   `AC1: the interview is pinned to the placed family, id AND version (${JSON.stringify(plan?.questionFloors)})`,
 );
 await assert(

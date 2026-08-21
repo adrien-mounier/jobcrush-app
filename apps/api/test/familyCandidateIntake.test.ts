@@ -13,7 +13,7 @@ import {
   intakeFamilyCandidate,
 } from "../src/familyCandidateIntake.js";
 
-const PUBLISHED = { familyId: "it-project-delivery", version: 1 };
+const PUBLISHED = { familyId: "it-project-delivery", version: 2 };
 
 async function wordSearchVisitor(screen: FamilyCandidateScreen) {
   const server = buildServer({ screenFamilyCandidate: screen });

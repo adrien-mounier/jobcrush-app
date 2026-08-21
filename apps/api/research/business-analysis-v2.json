@@ -1,0 +1,563 @@
+{
+  "publicationStatus": "published",
+  "reviewedBy": "Adrien Mounier (owner) - #260 rename: the family is named for the role, not the activity",
+  "reviewedAt": "2026-08-21T20:20:00.000Z",
+  "floor": {
+    "schemaVersion": "1",
+    "familyId": "business-analysis",
+    "label": "Business Analyst",
+    "scope": "Analysing what a business needs and specifying what gets built or changed: eliciting and documenting requirements from stakeholders, mapping current and future processes, writing functional specifications, user journeys, use cases and user stories, and validating that the delivered solution meets the requirement (UAT support, walkthroughs). The subject can be software, data, platforms or operational process; the employer's industry is irrelevant. Covers every seniority from junior analyst to lead, and the hybrid titles this work hides under (requirements analyst, process analyst, digital/functional/technical business analyst). The edge: deciding WHAT the business needs is inside; owning the delivery schedule (IT Project Manager) and owning the product vision (product management) are their own occupations beside it.",
+    "version": 2,
+    "source": "production_research",
+    "productionRewardEligible": true,
+    "essentialItems": [
+      {
+        "id": "requirements-elicitation",
+        "priority": 1,
+        "question": {
+          "prompt": "Have you gathered and documented business requirements from stakeholders?",
+          "form": "single_select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "experience"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      },
+      {
+        "id": "analysis-to-specification",
+        "priority": 2,
+        "question": {
+          "prompt": "Have you turned requirements into specifications a build team worked from - functional specs, user stories or process maps?",
+          "form": "single_select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "experience"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      },
+      {
+        "id": "stakeholder-facilitation",
+        "priority": 3,
+        "question": {
+          "prompt": "Have you run requirement workshops or walkthroughs with business and technical people together?",
+          "form": "single_select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "experience"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      },
+      {
+        "id": "solution-validation",
+        "priority": 4,
+        "question": {
+          "prompt": "Have you validated a delivered solution against its requirements - UAT, acceptance testing or structured review?",
+          "form": "single_select",
+          "options": [
+            {
+              "value": "yes",
+              "label": "Yes"
+            },
+            {
+              "value": "no",
+              "label": "No"
+            }
+          ]
+        },
+        "evidenceDestination": {
+          "document": "root_cv",
+          "section": "experience"
+        },
+        "negativeSemantics": "records_explicit_negative"
+      }
+    ]
+  },
+  "postingEvidence": [
+    {
+      "employer": "DBS Bank (Hong Kong)",
+      "roleTitle": "Business Analyst, Cards & Unsecured Lending, CBG",
+      "location": "Hong Kong",
+      "sourceUrl": "https://hk.jora.com/job/Business-Analyst-986ac523b75266003e2fd55123648a3d",
+      "capturedAt": "2026-08-20",
+      "normalizedRequirements": [
+        "Understand business and technical requirements for digital delivery projects",
+        "Support journey and process mapping with stakeholders",
+        "Act as business analyst and delivery coordinator for card and lending products"
+      ]
+    },
+    {
+      "employer": "altech",
+      "roleTitle": "AI Business Analyst",
+      "location": "Hong Kong",
+      "sourceUrl": "https://hk.linkedin.com/jobs/view/ai-business-analyst-at-altech-4454481377",
+      "capturedAt": "2026-08-20",
+      "normalizedRequirements": [
+        "Support planning, delivery and adoption of AI-enabled digital solutions",
+        "At least 2 years of business analysis experience",
+        "Client-facing requirements work for enterprise clients"
+      ]
+    },
+    {
+      "employer": "TEKsystems",
+      "roleTitle": "Business Analyst",
+      "location": "Singapore",
+      "sourceUrl": "https://sg.jora.com/job/Business-Analyst-54d87eef3309dd8a7c32115470cfb455",
+      "capturedAt": "2026-08-20",
+      "normalizedRequirements": [
+        "Work with stakeholders to understand, probe and document business requirements",
+        "Craft user journeys and use cases for system interactions",
+        "Translate requirements into functional specifications"
+      ]
+    },
+    {
+      "employer": "ABeam Consulting (Singapore)",
+      "roleTitle": "Senior Consultant, Business Analyst - Data Governance (Banking)",
+      "location": "Singapore",
+      "sourceUrl": "https://abeamconsultingsingapore.applytojob.com/apply/TwNCWzPD7d/Senior-Consultant-Business-Analyst-Data-Governance-for-Banking-Industry",
+      "capturedAt": "2026-08-20",
+      "normalizedRequirements": [
+        "Business analysis for data governance programmes in banking",
+        "Consulting delivery across business process re-engineering engagements"
+      ]
+    }
+  ],
+  "marketSearchTitles": {
+    "HK": [
+      {
+        "title": "business analyst",
+        "adverts": 34,
+        "measuredOn": "2026-08-21"
+      },
+      {
+        "title": "senior business analyst",
+        "adverts": 10,
+        "measuredOn": "2026-08-21"
+      }
+    ],
+    "SG": [
+      {
+        "title": "business analyst",
+        "adverts": 58,
+        "measuredOn": "2026-08-21"
+      },
+      {
+        "title": "senior business analyst",
+        "adverts": 3,
+        "measuredOn": "2026-08-21"
+      }
+    ],
+    "VN": [
+      {
+        "title": "business analyst",
+        "adverts": 4,
+        "measuredOn": "2026-08-21"
+      }
+    ],
+    "AU": [
+      {
+        "title": "business analyst",
+        "adverts": 46,
+        "measuredOn": "2026-08-21"
+      },
+      {
+        "title": "senior business analyst",
+        "adverts": 16,
+        "measuredOn": "2026-08-21"
+      }
+    ]
+  },
+  "aliases": [
+    "requirements analyst",
+    "process analyst",
+    "functional business analyst",
+    "technical business analyst",
+    "digital business analyst"
+  ],
+  "evaluation": {
+    "evaluator": {
+      "engine": "calibrated-family-placement",
+      "version": "1"
+    },
+    "thresholds": {
+      "comparableAccuracy": 0.95,
+      "unfamiliarRecall": 0.9,
+      "familiarFalseUnknownRate": 0.05
+    },
+    "rawCases": [
+      {
+        "id": "train-business-analyst",
+        "split": "grouped_train",
+        "targetRole": "Business Analyst",
+        "evidence": {
+          "signals": [
+            "requirements gathering",
+            "functional specifications",
+            "stakeholder workshops"
+          ],
+          "familyNeighborSupport": [
+            0.93,
+            0.87,
+            0.8
+          ],
+          "competingFamilySupport": [
+            0.4,
+            0.3
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "train-senior-business-analyst-banking",
+        "split": "grouped_train",
+        "targetRole": "Senior Business Analyst - Banking",
+        "evidence": {
+          "signals": [
+            "business requirements",
+            "process mapping",
+            "UAT coordination"
+          ],
+          "familyNeighborSupport": [
+            0.9,
+            0.84,
+            0.77
+          ],
+          "competingFamilySupport": [
+            0.35
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "train-process-analyst",
+        "split": "grouped_train",
+        "targetRole": "Process Analyst",
+        "evidence": {
+          "signals": [
+            "process improvement",
+            "workflow documentation"
+          ],
+          "familyNeighborSupport": [
+            0.7,
+            0.62,
+            0.5
+          ],
+          "competingFamilySupport": [
+            0.58,
+            0.4
+          ]
+        },
+        "expected": "needs_clarification"
+      },
+      {
+        "id": "train-office-administrator",
+        "split": "grouped_train",
+        "targetRole": "Office Administrator",
+        "evidence": {
+          "signals": [
+            "diary management",
+            "office supplies"
+          ],
+          "familyNeighborSupport": [
+            0.3,
+            0.2,
+            0.15
+          ],
+          "competingFamilySupport": [
+            0.25,
+            0.2
+          ]
+        },
+        "expected": "unmapped"
+      },
+      {
+        "id": "heldout-business-analyst-insurance",
+        "split": "held_out",
+        "targetRole": "Business Analyst (Insurance)",
+        "evidence": {
+          "signals": [
+            "requirements analysis",
+            "digital transformation",
+            "user journeys"
+          ],
+          "familyNeighborSupport": [
+            0.91,
+            0.83,
+            0.76
+          ],
+          "competingFamilySupport": [
+            0.42,
+            0.3
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "heldout-digital-business-analyst",
+        "split": "held_out",
+        "targetRole": "Digital Business Analyst",
+        "evidence": {
+          "signals": [
+            "business requirements",
+            "project delivery support"
+          ],
+          "familyNeighborSupport": [
+            0.88,
+            0.8,
+            0.72
+          ],
+          "competingFamilySupport": [
+            0.4
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "heldout-requirements-analyst",
+        "split": "held_out",
+        "targetRole": "Requirements Analyst",
+        "evidence": {
+          "signals": [
+            "use cases",
+            "user stories",
+            "acceptance criteria"
+          ],
+          "familyNeighborSupport": [
+            0.86,
+            0.78,
+            0.7
+          ],
+          "competingFamilySupport": [
+            0.45,
+            0.2
+          ]
+        },
+        "expected": "confirmed"
+      },
+      {
+        "id": "heldout-data-analyst",
+        "split": "held_out",
+        "targetRole": "Data Analyst",
+        "evidence": {
+          "signals": [
+            "dashboards",
+            "SQL",
+            "reporting"
+          ],
+          "familyNeighborSupport": [
+            0.68,
+            0.62,
+            0.55
+          ],
+          "competingFamilySupport": [
+            0.56,
+            0.4
+          ]
+        },
+        "expected": "needs_clarification"
+      },
+      {
+        "id": "heldout-product-manager",
+        "split": "held_out",
+        "targetRole": "Product Manager",
+        "evidence": {
+          "signals": [
+            "product roadmap",
+            "backlog priorities"
+          ],
+          "familyNeighborSupport": [
+            0.66,
+            0.6,
+            0.5
+          ],
+          "competingFamilySupport": [
+            0.53
+          ]
+        },
+        "expected": "needs_clarification"
+      },
+      {
+        "id": "heldout-marine-engineer",
+        "split": "held_out",
+        "targetRole": "Marine Engineer",
+        "evidence": {
+          "signals": [
+            "engine maintenance",
+            "vessel systems"
+          ],
+          "familyNeighborSupport": [
+            0.2,
+            0.15,
+            0.1
+          ],
+          "competingFamilySupport": [
+            0.3,
+            0.1
+          ]
+        },
+        "expected": "unmapped"
+      },
+      {
+        "id": "heldout-hr-coordinator",
+        "split": "held_out",
+        "targetRole": "Regional HR Coordinator",
+        "evidence": {
+          "signals": [
+            "onboarding",
+            "HR records"
+          ],
+          "familyNeighborSupport": [
+            0.35,
+            0.3,
+            0.22
+          ],
+          "competingFamilySupport": [
+            0.4,
+            0.2
+          ]
+        },
+        "expected": "unmapped"
+      },
+      {
+        "id": "heldout-sales-director",
+        "split": "held_out",
+        "targetRole": "Sales Director",
+        "evidence": {
+          "signals": [
+            "revenue ownership"
+          ],
+          "familyNeighborSupport": [
+            0.25,
+            0.18,
+            0.1
+          ],
+          "competingFamilySupport": [
+            0.2
+          ]
+        },
+        "expected": "unmapped"
+      }
+    ],
+    "generated": {
+      "datasetHash": "a741534d021ad701bc85f622f0027fb19e80a62548fa7e08e6cd3efe03948977",
+      "cases": [
+        {
+          "id": "train-business-analyst",
+          "supportScore": 0.93,
+          "runnerUpSupportScore": 0.4,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "train-senior-business-analyst-banking",
+          "supportScore": 0.9,
+          "runnerUpSupportScore": 0.35,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "train-process-analyst",
+          "supportScore": 0.7,
+          "runnerUpSupportScore": 0.58,
+          "neighborhoodDensity": 0.6666666666666666,
+          "observed": "needs_clarification"
+        },
+        {
+          "id": "train-office-administrator",
+          "supportScore": 0.3,
+          "runnerUpSupportScore": 0.25,
+          "neighborhoodDensity": 0,
+          "observed": "unmapped"
+        },
+        {
+          "id": "heldout-business-analyst-insurance",
+          "supportScore": 0.91,
+          "runnerUpSupportScore": 0.42,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "heldout-digital-business-analyst",
+          "supportScore": 0.88,
+          "runnerUpSupportScore": 0.4,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "heldout-requirements-analyst",
+          "supportScore": 0.86,
+          "runnerUpSupportScore": 0.45,
+          "neighborhoodDensity": 1,
+          "observed": "confirmed"
+        },
+        {
+          "id": "heldout-data-analyst",
+          "supportScore": 0.68,
+          "runnerUpSupportScore": 0.56,
+          "neighborhoodDensity": 0.6666666666666666,
+          "observed": "needs_clarification"
+        },
+        {
+          "id": "heldout-product-manager",
+          "supportScore": 0.66,
+          "runnerUpSupportScore": 0.53,
+          "neighborhoodDensity": 0.6666666666666666,
+          "observed": "needs_clarification"
+        },
+        {
+          "id": "heldout-marine-engineer",
+          "supportScore": 0.2,
+          "runnerUpSupportScore": 0.3,
+          "neighborhoodDensity": 0,
+          "observed": "unmapped"
+        },
+        {
+          "id": "heldout-hr-coordinator",
+          "supportScore": 0.35,
+          "runnerUpSupportScore": 0.4,
+          "neighborhoodDensity": 0,
+          "observed": "unmapped"
+        },
+        {
+          "id": "heldout-sales-director",
+          "supportScore": 0.25,
+          "runnerUpSupportScore": 0.2,
+          "neighborhoodDensity": 0,
+          "observed": "unmapped"
+        }
+      ]
+    }
+  }
+}

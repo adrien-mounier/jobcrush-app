@@ -79,9 +79,19 @@ const PROMISE_TAIL = 'new jobs are open right now.';
 // you already work in Hong Kong without visa sponsorship?") — that is the one spot where the
 // location signal can be honest. So the place is asserted against the promise SENTENCE only,
 // further down, never against the whole screen.
+// #260: the families were renamed after the ROLE ("IT Project Manager", "Business Analyst"), and
+// this list was left hunting only the OLD label — it kept passing while its own verdict message
+// ("no job family is named anywhere on the screen") had stopped being proven. The family IDs are
+// added because they can ONLY ever be a leak. The new LABELS deliberately are not: both are
+// ordinary job titles, "IT project manager" is in question 1's own hard-coded help text, and
+// "business analyst" is a published market title this screen is supposed to offer — asserting on
+// them here would fire on copy that is working as designed. The narrower promise-SENTENCE check
+// further down still bites on 'project manager', which is what this journey actually exists for.
 const FORBIDDEN = [
   'it project delivery',
   'project delivery',
+  'it-project-delivery',
+  'business-analysis',
   'job family',
   'family research',
   'vocabulary',

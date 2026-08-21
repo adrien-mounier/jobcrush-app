@@ -1,4 +1,4 @@
-# Floor corpus — business analysis
+# Floor corpus — Business Analyst
 
 Kept per `docs/vocabulary-growth-runbook.md` §3.4: the adverts the demand counts were distilled
 from, so every number in `../method-test-2026-08-22.md` can be re-checked rather than trusted.

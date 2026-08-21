@@ -113,7 +113,7 @@ const weakIds = new Set(weakRows.map((r) => r.id));
 const confirmedPlacement = (familyId) => ({
   schemaVersion: "1",
   outcome: "confirmed",
-  families: [{ familyId, version: 1 }],
+  families: [{ familyId, version: 2 }],
   confidence: "certain",
 });
 

@@ -340,7 +340,7 @@ await qa.note(`QUESTIONS ANSWERED BEFORE THE DECK: ${asked}\n  ${askedLog.join('
 // D1's widest surface: a declined question must not appear in any card's own content.
 // Decline-specific markers only — an advert's OWN text may legitimately mention visas or
 // sponsorship (e.g. the BNP Paribas posting does), and that is the employer talking, not a leak.
-const LEAK = /Declined|Ask me later|work professionally in English|worked in IT project delivery|without visa sponsorship/i;
+const LEAK = /Declined|Ask me later|work professionally in English|worked in IT Project Manager|worked in IT project delivery|without visa sponsorship/i;
 const deckText = await page.locator('body').innerText();
 const leakHits = deckText.match(new RegExp(LEAK.source, 'gi')) ?? [];
 await qa.note(`scanned the whole deck screen for any trace of the declined/eligibility questions — hits: ${JSON.stringify(leakHits)}`);
@@ -353,7 +353,7 @@ const cardScan = await page.evaluate(async () => {
   const res = await fetch('/api/onboarding/cards');
   if (!res.ok) return { error: res.status };
   const data = await res.json();
-  const re = /Declined|Ask me later|work professionally in English|worked in IT project delivery|without visa sponsorship/i;
+  const re = /Declined|Ask me later|work professionally in English|worked in IT Project Manager|worked in IT project delivery|without visa sponsorship/i;
   // The advert's own text is the employer talking — scan what JobCrush says ABOUT the visitor.
   const mine = (c) => JSON.stringify({ fit: c.fit, askedClosed: c.askedClosed, dontYet: c.dontYet, bubble: c.bubble, breakdown: c.breakdown });
   return {

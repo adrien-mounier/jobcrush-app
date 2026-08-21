@@ -200,11 +200,11 @@ const pinned = (await json('/sessions/me'))?.discovery;
 await qa.note(`the stored discovery record: ${JSON.stringify(pinned)}`);
 await assertTrue(
   Array.isArray(pinned?.questionFloors) && pinned.questionFloors.length === 1 &&
-    pinned.questionFloors[0].familyId === FAMILY && pinned.questionFloors[0].version === 1,
+    pinned.questionFloors[0].familyId === FAMILY && pinned.questionFloors[0].version === 2,
   `AC1 — the questions she was asked came from her placed family's published floor, pinned to her session`,
 );
 await assertTrue(
-  pinned?.searchFamily?.familyId === FAMILY && pinned?.searchFamily?.version === 1,
+  pinned?.searchFamily?.familyId === FAMILY && pinned?.searchFamily?.version === 2,
   'AC1/AC5 — the search family is a SEPARATE fact, and for a mapped role it is the same family',
 );
 await assertTrue(

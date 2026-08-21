@@ -5,7 +5,7 @@ import { buildDeckServer as baseBuildServer } from "./fixtureDeck.js";
 export const IT_PROJECT_DELIVERY_PLACEMENT: FamilyPlacement = {
   schemaVersion: PLACEMENT_SCHEMA_VERSION,
   outcome: "confirmed",
-  families: [{ familyId: "it-project-delivery", version: 1 }],
+  families: [{ familyId: "it-project-delivery", version: 2 }],
   confidence: "certain",
 };
 

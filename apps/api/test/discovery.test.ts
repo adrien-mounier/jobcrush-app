@@ -65,7 +65,7 @@ const PURE_DISCOVERY_FAMILY: DiscoveryFamily = {
 // #255: the registry holds more than one family now, so tests that mean a SPECIFIC family pin it
 // by reference — the no-references default is only the deterministic first family, not "the" one.
 const PRODUCTION_DISCOVERY_FAMILY = productionDiscoveryFamily(initialProductionFamilyFloors(), [
-  { familyId: "it-project-delivery", version: 1 },
+  { familyId: "it-project-delivery", version: 2 },
 ])!;
 
 // #18 — a discovery answer ClaimRecord, keyed by discoveryClaimId(itemId) as the routes persist it.
@@ -120,7 +120,7 @@ describe("#16 discovery pure helpers", () => {
   it("productionDiscoveryFamily reads the active registry family and market titles", () => {
     expect(PRODUCTION_DISCOVERY_FAMILY).toMatchObject({
       familyId: "it-project-delivery",
-      label: "IT project delivery",
+      label: "IT Project Manager",
     });
     expect(PRODUCTION_DISCOVERY_FAMILY.items.map((floorItem) => floorItem.id)).toEqual([
       "end-to-end-delivery",
@@ -306,12 +306,12 @@ describe("#16 discovery routes", () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
     const hit = (await get(app, cookie, "/onboarding/discovery/family?q=project%20manager")).json();
-    expect(hit.family).toBe("IT project delivery");
+    expect(hit.family).toBe("IT Project Manager");
     expect(hit.suggestions).toEqual(["project manager", "delivery manager"]);
     // #255: with two active families the QUERY decides — the positive direction of the
     // multi-family fix, not just the it-project-delivery regression above.
     const ba = (await get(app, cookie, "/onboarding/discovery/family?q=business%20analyst")).json();
-    expect(ba.family).toBe("Business analysis");
+    expect(ba.family).toBe("Business Analyst");
     expect(ba.suggestions).toContain("business analyst");
     // #255 gate defect 1: a query matching NEITHER family is a silent no-match (suggestions: []),
     // never a fallback family's words — the web renders suggestions as one-tap role submissions
@@ -332,12 +332,12 @@ describe("#16 discovery routes", () => {
       )).json();
       expect({ alias, ...hint }).toEqual({
         alias,
-        family: "IT project delivery",
+        family: "IT Project Manager",
         suggestions: ["project manager", "delivery manager"],
       });
     }
     const ra = (await get(app, cookie, "/onboarding/discovery/family?q=requirements%20analyst")).json();
-    expect(ra.family).toBe("Business analysis");
+    expect(ra.family).toBe("Business Analyst");
     expect(ra.suggestions).toContain("business analyst");
     expect(ra.suggestions).not.toContain("requirements analyst");
     const empty = (await get(app, cookie, "/onboarding/discovery/family?q=")).json();
@@ -353,7 +353,7 @@ describe("#16 discovery routes", () => {
     const s: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
     // #214 owner decision (post-GO follow-up): with up to 3 selected places, the promise sentence
     // no longer names one of them — the display city is always null now.
-    expect(s).toMatchObject({ role: ROLE, family: "IT project delivery", city: null });
+    expect(s).toMatchObject({ role: ROLE, family: "IT Project Manager", city: null });
     // #246: question 1 pays for a real search and waits for it, so the number on the very first
     // screen is the pool HER search returned — 16 of the harness's 17 adverts, the 17th being one
     // she cannot read. It is deliberately NOT 10, the count of adverts stamped into the family she

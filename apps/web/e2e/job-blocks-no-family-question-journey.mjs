@@ -91,9 +91,22 @@ async function noFamilyQuestionAnywhere(where) {
   await verdict(!/never guess one for you/i.test(body),
     `${where}: the panel's reassurance line is gone with it`);
   const buttons = await page.locator('button').allTextContents();
-  await verdict(!buttons.some((b) => /IT project delivery|Product management/i.test(b)),
+  await verdict(!buttons.some((b) => /it-project-delivery|product-management|IT project delivery|Product management/i.test(b)),
     `${where}: there is no family to choose — not one family button on the screen`);
 }
+
+// #260 rename caveat — READ BEFORE WIDENING THESE REGEXES.
+// The delivery family is now labelled "IT Project Manager" and the analyst family "Business
+// Analyst". Both are ordinary job titles, and this journey's own canned CV has a job titled
+// "IT Project Manager" (the card legitimately reads "You were IT Project Manager at Nordic Retail
+// Group"). So a leak check that hunts the NEW label cannot distinguish a family-label leak from the
+// visitor's own job title — it either fires on her own CV (a false red) or proves nothing.
+// What these checks hunt instead is what can ONLY be a family label on this screen: the family IDs,
+// the word "family" itself, the OLD labels (still distinctive), and "Product management". That is a
+// real hole, recorded rather than papered over: a leak of the exact string "IT Project Manager"
+// onto a job card would not be caught here. family-role-name-journey.mjs and
+// job-blocks-family.spec.ts carry the id-based checks that do bite.
+const FAMILY_LABEL_LEAK = /family|it-project-delivery|product-management|IT project delivery|Product management|kind of work/i;
 
 // =============================================================================================
 // PHASE A — the real stack: jobs the machine could NOT place.
@@ -127,7 +140,7 @@ const cardText = (await page.locator('.jb-card').textContent()) || '';
 await qa.expectText('.jb-card', 'put this down as', 'the card states the kind of record this is, as it always has');
 await verdict(/put this down as\s*a job/i.test(cardText.replace(/\s+/g, ' ')),
   'and for a dated job it says plainly "we\'ve put this down as a job"');
-await verdict(!/family|IT project delivery|kind of work/i.test(cardText),
+await verdict(!FAMILY_LABEL_LEAK.test(cardText),
   'the card says nothing about a job family — not the word, not a family name (#231 AC7)');
 
 // ---- the deck still works: skip, undo, correct, confirm ------------------------------------
@@ -195,7 +208,7 @@ const DUAL = block('acme-lead', 'Product Owner / Delivery Lead', 'Acme', {
   schemaVersion: '2',
   outcome: 'confirmed',
   families: [
-    { familyId: 'it-project-delivery', version: 1 },
+    { familyId: 'it-project-delivery', version: 2 },
     { familyId: 'product-management', version: 2 },
   ],
   confidence: 'likely',
@@ -229,7 +242,7 @@ await verdict(familyCorrections.length === 0,
 
 const doneText = (await page.locator('.jb-done').textContent()) || '';
 await qa.note(`the whole end-of-deck panel reads: "${doneText.replace(/\s+/g, ' ').trim()}"`);
-await verdict(!/it-project-delivery|product-management|IT project delivery|Product management/i.test(doneText),
+await verdict(!FAMILY_LABEL_LEAK.test(doneText),
   'the two families the machine chose are never named to her — the placement is internal, as amendment 1 decided');
 
 // ---- and the card for a two-family job still says nothing about families --------------------
@@ -249,7 +262,7 @@ await qa.scrollThrough('she reads the card');
 const dualCard = (await page.locator('.jb-card').textContent()) || '';
 await qa.note(`the two-family job's card reads: "${dualCard.replace(/\s+/g, ' ').trim().slice(0, 300)}"`);
 await qa.expectText('.jb-card', 'put this down as', 'it states the kind, exactly as for any other job');
-await verdict(!/family|IT project delivery|Product management|kind of work/i.test(dualCard),
+await verdict(!FAMILY_LABEL_LEAK.test(dualCard),
   'and it says nothing whatsoever about the two families it was placed in (#231 AC7)');
 await noFamilyQuestionAnywhere('on the card of a job placed in two families');
 

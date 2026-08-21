@@ -265,7 +265,7 @@ describe("#222 the single writer stores one fact per family, and keeps them hone
       method: "POST",
       url: "/job-blocks/b1/correct",
       headers: { cookie },
-      payload: { key: "family", value: { familyId: FAMILY, version: 1 } },
+      payload: { key: "family", value: { familyId: FAMILY, version: 2 } },
     });
     expect(res.statusCode).toBe(200);
     expect(await eligibility.numeric(sessionId, "years-experience", FAMILY)).toBe(6);

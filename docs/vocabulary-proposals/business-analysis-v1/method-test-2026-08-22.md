@@ -1,8 +1,15 @@
-# Method test: the written family-research method, run on business analysis
+# Method test: the written family-research method, run on Business Analyst
 
 _#260. A dry run of `docs/vocabulary-growth-runbook.md` §3 on a family the owner has already
 approved. **This is a test of the method, not a correction of v1.** v1 stands until the owner says
 otherwise._
+
+> **A note on dates.** This file, its filename and `corpus/_provenance.json` say 2026-08-22, the
+> session's working date. The probe and pull files themselves record **2026-08-21** (machine clock,
+> ~20:00 UTC); the two disagree by a timezone or clock offset. Nothing in the findings depends on
+> which is right, but the published `measuredOn` fields carry **2026-08-21**, because that is what
+> the instrument actually recorded and that field exists to be audited. See
+> `../family-rename-2026-08-21.md`.
 
 ## The short version
 
@@ -77,7 +84,7 @@ use on the next family — with the three fixes below applied first.
 
 ADR-0015 says a tool is judged by its demand count like anything else, and the count wins over any
 hand-written "skills aren't occupations" rule. This is the first real test of that, and the count
-says **no tool belongs on the business-analysis floor**. SQL, the runbook's own worked example of a
+says **no tool belongs on the Business Analyst floor**. SQL, the runbook's own worked example of a
 tool that clears, reaches 20%.
 
 The mechanism is right and worth keeping — it just did not fire here. The runbook sentence claiming

@@ -50,7 +50,7 @@ function block(id: string, title: string, employer: string, family: JobBlockView
 const PLACED = block("nordic-pm", "IT Project Manager", "Nordic Retail", {
   schemaVersion: "2",
   outcome: "confirmed",
-  families: [{ familyId: "it-project-delivery", version: 1 }],
+  families: [{ familyId: "it-project-delivery", version: 2 }],
   confidence: "certain",
 });
 // Two kinds of work at once — the case that used to be a question, now simply an answer.
@@ -58,7 +58,7 @@ const DUAL = block("acme-lead", "Product Owner / Delivery Lead", "Acme", {
   schemaVersion: "2",
   outcome: "confirmed",
   families: [
-    { familyId: "it-project-delivery", version: 1 },
+    { familyId: "it-project-delivery", version: 2 },
     { familyId: "product-management", version: 2 },
   ],
   confidence: "likely",
@@ -95,7 +95,7 @@ test("no job is asked what kind of work it was — not the unplaced one, not the
   await expect(page.getByText(/what kind of work/i)).toHaveCount(0);
   await expect(page.getByText(/couldn't place this one/i)).toHaveCount(0);
   await expect(page.getByText(/never guess one for you/i)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /IT project delivery/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /IT Project Manager|IT project delivery/i })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Product management/i })).toHaveCount(0);
 
   // And nothing on this screen sends a family correction of its own accord.
@@ -112,6 +112,6 @@ test("the card itself still says nothing about families", async ({ page }) => {
   await expect(card).toBeVisible();
   await expect(card).toContainText(/put this down as/i); // the kind, which the card has always stated
   await expect(card).not.toContainText(/family/i);
-  await expect(card).not.toContainText(/IT project delivery/i);
+  await expect(card).not.toContainText(/IT Project Manager|IT project delivery/i);
   await expect(card).not.toContainText(/kind of work/i);
 });

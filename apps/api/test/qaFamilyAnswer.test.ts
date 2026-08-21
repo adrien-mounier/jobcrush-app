@@ -47,7 +47,7 @@ describe("#231 the QA stack's fake labeler answers in a shape the real labeler a
     expect(placement).toEqual({
       schemaVersion: "2",
       outcome: "confirmed",
-      families: [{ familyId: QA_FAMILY_ID, version: 1 }],
+      families: [{ familyId: QA_FAMILY_ID, version: 2 }],
       confidence: "certain",
     });
     expect(calls()).toBe(1);
@@ -76,7 +76,7 @@ describe("#231 the QA stack's fake labeler answers in a shape the real labeler a
     expect(placement).toEqual({
       schemaVersion: "2",
       outcome: "confirmed",
-      families: [{ familyId: QA_SECOND_FAMILY_ID, version: 1 }],
+      families: [{ familyId: QA_SECOND_FAMILY_ID, version: 2 }],
       confidence: "certain",
     });
     expect(calls()).toBe(1);

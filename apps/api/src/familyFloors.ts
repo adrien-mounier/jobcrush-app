@@ -353,24 +353,33 @@ export function eligiblePublication(
 
 export function initialProductionFamilyFloors(): ProductionFamilyFloorStore {
   const store = new ProductionFamilyFloorStore();
-  store.publish(
-    JSON.parse(
-      readFileSync(
-        new URL("../research/it-project-delivery-v1.json", import.meta.url),
-        "utf8",
-      ),
-    ),
-  );
-  // #255 pilot run, owner-approved 2026-08-20: the second family, harvested from the real
-  // unmapped-label feed and published through the same gates.
-  store.publish(
-    JSON.parse(
-      readFileSync(
-        new URL("../research/business-analysis-v1.json", import.meta.url),
-        "utf8",
-      ),
-    ),
-  );
+  // #262 rename (out of #260), owner-approved: a family is named for the ROLE a person holds, not
+  // for the activity ("Business Analyst", not "Business analysis" — the same reason we say Product
+  // Owner, not Product Ownership). The label reaches the LABELER'S OWN PROMPT (familyLabeler.ts's
+  // describeFamilies) and the question-1 type-ahead, so it is data that can move a placement — a
+  // version, not an in-place amendment (#258 decision 3 draws exactly that line). Both v2s carry
+  // freshly measured market words (2026-08-21) so #244's gate below is satisfied honestly. Floor
+  // items, aliases, posting evidence and the evaluation are byte-identical to v1. ONE scope edit was
+  // needed and is deliberate: business-analysis's scope drew its edge by naming the sibling family
+  // ("owning the delivery schedule (IT project delivery)"), so leaving it byte-identical would have
+  // shipped a half-renamed labeler prompt — the heading saying IT Project Manager and the sentence
+  // the prompt calls decisive still saying the old name, twenty lines apart. Caught by /qa-gate.
+  //
+  // EVERY version is loaded, oldest first, not just the active one. A stored family placement keeps
+  // the version it was made under (ADR-0014 decision 7) and is later read back by
+  // `floors.get(familyId, version)` — so dropping v1 here would strand every placement already made
+  // against it (`family_not_published`). `publish()` refuses a version that does not increase, so
+  // the order below is load-bearing: v1, then v2, which leaves v2 active and v1 retrievable.
+  for (const file of [
+    "../research/it-project-delivery-v1.json",
+    "../research/it-project-delivery-v2.json",
+    // #255 pilot run, owner-approved 2026-08-20: the second family, harvested from the real
+    // unmapped-label feed and published through the same gates. Renamed at v2.
+    "../research/business-analysis-v1.json",
+    "../research/business-analysis-v2.json",
+  ]) {
+    store.publish(JSON.parse(readFileSync(new URL(file, import.meta.url), "utf8")));
+  }
   return store;
 }
 

@@ -100,7 +100,7 @@ describe("production family floor publication", () => {
     expect(active.statusCode).toBe(200);
     expect(active.json()).toMatchObject({
       familyId: "it-project-delivery",
-      version: 1,
+      version: 2,
       source: "production_research",
       productionRewardEligible: true,
     });
@@ -418,11 +418,19 @@ describe("scope-named aliases (#258)", () => {
     const floors = initialProductionFamilyFloors();
     expect(floors.active("it-project-delivery")?.aliases).toContain("scrum master");
     expect(floors.active("business-analysis")?.aliases).toContain("requirements analyst");
-    // Amended in place: adding hint words is not a new version and cost no re-measurement (#258
-    // decision 3 — publication data that cannot change a placement may be amended at the same
-    // version; anything that CAN change one still goes through the normal gates).
-    expect(floors.active("it-project-delivery")?.floor.version).toBe(1);
-    expect(floors.active("business-analysis")?.floor.version).toBe(1);
+    // The aliases themselves were amended IN PLACE at v1: adding hint words is not a new version
+    // and cost no re-measurement (#258 decision 3 — publication data that cannot change a placement
+    // may be amended at the same version; anything that CAN change one still goes through the
+    // normal gates). Both families are now at v2 for a change on the other side of that line: #260
+    // renamed them after the ROLE rather than the activity, and a label reaches the labeler prompt.
+    expect(floors.active("it-project-delivery")?.floor.version).toBe(2);
+    expect(floors.active("business-analysis")?.floor.version).toBe(2);
+    expect(floors.active("it-project-delivery")?.floor.label).toBe("IT Project Manager");
+    expect(floors.active("business-analysis")?.floor.label).toBe("Business Analyst");
+    // #260: every superseded version stays retrievable, because a stored placement keeps the
+    // version it was made under (ADR-0014 decision 7) and reads it back by (familyId, version).
+    expect(floors.get("it-project-delivery", 1)?.floor.label).toBe("IT project delivery");
+    expect(floors.get("business-analysis", 1)?.floor.label).toBe("Business analysis");
   });
 
   it("publishes a family with no alias list exactly as before", () => {

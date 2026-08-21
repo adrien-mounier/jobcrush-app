@@ -151,6 +151,15 @@ const JOURNEYS = [
   // possible since the second family published (#255) — with one family the fallback always
   // carried a years fact. ~2 min against the fake-model API; no sign-in.
   "change-of-direction-derived-journey.mjs",
+  // family-role-name-journey.mjs added 2026-08-21 (#260 rename), written by the QA gate that found
+  // the rename's stale version pins. It earns its slot on the same "a specific real-stack
+  // regression it alone can catch" rule: it is the ONLY journey that drives question 1's type-ahead
+  // for BOTH published families and all four scope aliases through the real screen and asserts the
+  // family NAME a visitor is shown, not just the API payload. Every other check of the published
+  // label is either an API-level unit test or a negative ("the label never appears"), and negatives
+  // cannot catch a family being renamed to the wrong thing — they go green when the name is absent
+  // for any reason at all. 67 assertions; mutation-proven to fail (63/4) when the label is wrong.
+  "family-role-name-journey.mjs",
 ];
 
 let failed = 0;

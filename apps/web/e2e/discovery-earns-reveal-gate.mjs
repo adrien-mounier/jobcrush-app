@@ -202,7 +202,7 @@ await assertTrue(
   `AC2 — pressing the buttons on her screen is what earned the checkpoint; before #216 this stayed null forever (${earned?.checkpoint})`,
 );
 await assertTrue(
-  earned?.searchFamily?.familyId === FAMILY && earned?.searchFamily?.version === 1,
+  earned?.searchFamily?.familyId === FAMILY && earned?.searchFamily?.version === 2,
   `AC5 — the family retrieval will search with is stored against her session (${JSON.stringify(earned?.searchFamily)})`,
 );
 await assertTrue(
@@ -264,7 +264,7 @@ for (const [method, path] of [
 const REAL_PLACEMENT = {
   schemaVersion: '2',
   outcome: 'confirmed',
-  families: [{ familyId: FAMILY, version: 1 }],
+  families: [{ familyId: FAMILY, version: 2 }],
   confidence: 'certain',
 };
 const fixtureBefore = await record();

@@ -317,7 +317,7 @@ if (unmappedBlock) {
   await qa.note(`correcting the unmapped job ("${unmappedBlock.employer.value}") into the published family`);
   const corrected = await api('POST', `/job-blocks/${unmappedBlock.id}/correct`, {
     key: 'family',
-    value: { familyId: 'it-project-delivery', version: 1 },
+    value: { familyId: 'it-project-delivery', version: 2 },
   });
   await assertTrue(corrected.ok(), 'AC3 — the correction door accepted the new family placement');
   const body = corrected.ok() ? await corrected.json() : {};

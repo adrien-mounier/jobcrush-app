@@ -122,7 +122,7 @@ async function visitor({ moveFamily, label }) {
     for (const id of COUNTING_BLOCKS) {
       const r = await api('POST', `/job-blocks/${id}/correct`, {
         key: 'family',
-        value: { familyId: OTHER_FAMILY, version: 1 },
+        value: { familyId: OTHER_FAMILY, version: 2 },
       });
       codes.push(`${id}: ${r.status()}`);
     }

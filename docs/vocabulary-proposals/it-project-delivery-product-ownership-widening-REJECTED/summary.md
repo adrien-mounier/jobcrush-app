@@ -1,4 +1,13 @@
-# Vocabulary proposal: IT project delivery (v2 — widening onto product ownership)
+# Vocabulary proposal: IT project delivery (widening onto product ownership) — REJECTED
+
+> **STATUS: REJECTED by the owner, never published. The v2 number this draft assumed is now TAKEN.**
+>
+> This folder was called `it-project-delivery-v2/` until 2026-08-22. It never shipped, so it never
+> consumed a version — and on 2026-08-22 the #260 rename published a real `it-project-delivery` v2
+> (the family renamed to **IT Project Manager**). Two different things were briefly both called v2;
+> this one is the draft that lost. **If this widening is ever revived it is v3, not v2**, and it
+> needs its own fresh market measurements under #244 regardless. Renamed and flagged by `/qa-gate`,
+> which caught the collision.
 
 **Kind**: new version widening `it-project-delivery` v1
 **Cluster**: product ownership — 3 labels from 3 distinct sessions (all past jobs, all recorded

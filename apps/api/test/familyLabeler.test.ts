@@ -83,7 +83,7 @@ describe("#231 placing a past job in one OR MORE job families", () => {
       schemaVersion: "2",
       outcome: "confirmed",
       families: [
-        { familyId: "it-project-delivery", version: 1 },
+        { familyId: "it-project-delivery", version: 2 },
         { familyId: "product-management", version: 2 },
       ],
       confidence: "likely",
@@ -152,7 +152,7 @@ describe("#220 placing a target role in a job family", () => {
     expect(await placeTargetRole("IT project manager", PUBLISHED, llm)).toEqual({
       schemaVersion: "2",
       outcome: "confirmed",
-      families: [{ familyId: "it-project-delivery", version: 1 }],
+      families: [{ familyId: "it-project-delivery", version: 2 }],
       confidence: "certain",
     });
     expect(readCounters()["familyLabeler.confirmed"]).toBe(1);
@@ -167,7 +167,7 @@ describe("#220 placing a target role in a job family", () => {
       schemaVersion: "2",
       outcome: "confirmed",
       families: [
-        { familyId: "it-project-delivery", version: 1 },
+        { familyId: "it-project-delivery", version: 2 },
         { familyId: "product-management", version: 2 },
       ],
       confidence: "likely",
@@ -299,10 +299,10 @@ describe("#220 discovery with the real labeler wired", () => {
     const response = await evaluate(app, cookie);
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ family: "IT project delivery" });
+    expect(response.json()).toMatchObject({ family: "IT Project Manager" });
     expect((await sessions.getById(sessionId))?.discovery).toMatchObject({
-      questionFloors: [{ familyId: "it-project-delivery", version: 1 }],
-      searchFamily: { familyId: "it-project-delivery", version: 1 },
+      questionFloors: [{ familyId: "it-project-delivery", version: 2 }],
+      searchFamily: { familyId: "it-project-delivery", version: 2 },
       checkpoint: "family_confirmed",
     });
   });
@@ -411,7 +411,7 @@ describe("#220 discovery with the real labeler wired", () => {
     expect((await evaluate(app, cookie)).json()).toMatchObject({ family: null });
     failing = false;
     expect((await evaluate(app, cookie)).json()).toMatchObject({
-      family: "IT project delivery",
+      family: "IT Project Manager",
     });
   });
 
