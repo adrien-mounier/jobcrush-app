@@ -1,5 +1,38 @@
 # Lessons — jobcrush-app
 
+## A job title is not an occupation — a title-filed corpus needs a relevance pass before you count it
+
+Learned 2026-08-22 (#260, running #259's method for the first time). Pulling every advert filed
+under "business analyst" gave 99 distinct adverts, of which **19 were a different job entirely**:
+financial planning & analysis, BI/Power BI reporting, pricing strategy, application support,
+contract administration, executive strategy. They share the title and nothing else. Because they
+never ask for requirements work, they act as pure denominator — every genuine floor item lost
+**14–18 percentage points**, enough to push one of the four published items off the threshold
+(51% → 41%). **Counting a title measures the title; counting an occupation needs someone to read
+each advert against the family's own scope sentence and set the impostors aside.** Keep them in the
+corpus folder marked rather than deleted, so the exclusion stays auditable.
+
+Two smaller facts from the same run, both worth knowing before budgeting a market pull:
+
+- **The provider matches a quoted title as a phrase, so `"senior business analyst"` is a strict
+  subset of `"business analyst"`** — every senior advert is already inside the broader pull. Probing
+  and pulling seniority variants separately costs real calls and adds almost nothing.
+- **De-duplicate by content, not by provider ID.** 117 adverts returned were 99 distinct ones; the
+  rest were the same advert re-listed under a fresh ID. ID-dedupe silently misses them and inflates
+  every count unevenly.
+
+## A threshold without a recognition rule is not a measurement
+
+Learned 2026-08-22 (#260). `vocabulary-growth-runbook.md` §3.3 specifies its two thresholds to the
+percentage point — ≥50% of the corpus, off if any 10+-advert market is under 30% — and never says
+**how you decide an advert is asking for a thing**. That gap is not cosmetic: on one fixed corpus, a
+strict reading (an explicit elicitation verb) and a generous one (any mention of business
+requirements) put the same item at **40% or 63%**, either side of the bar. Precision in the
+threshold reads as rigour and hides the fact that the actual judgment moved 23 points somewhere
+else entirely. **When a rule states a cutoff, check that it also states what is being counted** —
+and if it doesn't, write the recognition rule down before judging, not after, so the number is
+re-checkable rather than a matter of who ran it.
+
 ## Before designing a sampling rule, check whether the population is small enough to just read all of it
 
 Learned 2026-08-21 (#259, corrected by the owner). Asked how many job adverts a family-research run

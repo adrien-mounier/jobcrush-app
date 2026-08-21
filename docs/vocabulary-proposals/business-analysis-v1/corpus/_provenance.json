@@ -1,0 +1,245 @@
+{
+  "run": "#260 — written-method dry run of docs/vocabulary-growth-runbook.md §3",
+  "ranOn": "2026-08-22",
+  "provider": "techmap (daily-international-job-postings, RapidAPI)",
+  "probes": {
+    "calls": 32,
+    "results": [
+      {
+        "market": "HK",
+        "title": "business analyst",
+        "totalCount": 34
+      },
+      {
+        "market": "HK",
+        "title": "senior business analyst",
+        "totalCount": 10
+      },
+      {
+        "market": "HK",
+        "title": "requirements analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "HK",
+        "title": "process analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "HK",
+        "title": "functional analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "HK",
+        "title": "business systems analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "SG",
+        "title": "business analyst",
+        "totalCount": 58
+      },
+      {
+        "market": "SG",
+        "title": "senior business analyst",
+        "totalCount": 3
+      },
+      {
+        "market": "SG",
+        "title": "requirements analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "SG",
+        "title": "process analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "SG",
+        "title": "functional analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "SG",
+        "title": "business systems analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "VN",
+        "title": "business analyst",
+        "totalCount": 4
+      },
+      {
+        "market": "VN",
+        "title": "senior business analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "VN",
+        "title": "requirements analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "VN",
+        "title": "process analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "VN",
+        "title": "functional analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "VN",
+        "title": "business systems analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "AU",
+        "title": "business analyst",
+        "totalCount": 46
+      },
+      {
+        "market": "AU",
+        "title": "senior business analyst",
+        "totalCount": 16
+      },
+      {
+        "market": "AU",
+        "title": "requirements analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "AU",
+        "title": "process analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "AU",
+        "title": "functional analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "AU",
+        "title": "business systems analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "HK",
+        "title": "system analyst",
+        "totalCount": 9
+      },
+      {
+        "market": "HK",
+        "title": "systems analyst",
+        "totalCount": 1
+      },
+      {
+        "market": "SG",
+        "title": "system analyst",
+        "totalCount": 1
+      },
+      {
+        "market": "SG",
+        "title": "systems analyst",
+        "totalCount": 2
+      },
+      {
+        "market": "VN",
+        "title": "system analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "VN",
+        "title": "systems analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "AU",
+        "title": "system analyst",
+        "totalCount": 0
+      },
+      {
+        "market": "AU",
+        "title": "systems analyst",
+        "totalCount": 1
+      }
+    ]
+  },
+  "pull": {
+    "calls": 19,
+    "perTitle": [
+      {
+        "market": "HK",
+        "title": "business analyst",
+        "measured": 34,
+        "target": 34,
+        "pagesPulled": 4,
+        "itemsReturned": 40
+      },
+      {
+        "market": "HK",
+        "title": "senior business analyst",
+        "measured": 10,
+        "target": 10,
+        "pagesPulled": 1,
+        "itemsReturned": 10
+      },
+      {
+        "market": "SG",
+        "title": "business analyst",
+        "measured": 58,
+        "target": 50,
+        "pagesPulled": 5,
+        "itemsReturned": 50
+      },
+      {
+        "market": "SG",
+        "title": "senior business analyst",
+        "measured": 3,
+        "target": 3,
+        "pagesPulled": 1,
+        "itemsReturned": 3
+      },
+      {
+        "market": "VN",
+        "title": "business analyst",
+        "measured": 4,
+        "target": 4,
+        "pagesPulled": 1,
+        "itemsReturned": 4
+      },
+      {
+        "market": "AU",
+        "title": "business analyst",
+        "measured": 46,
+        "target": 46,
+        "pagesPulled": 5,
+        "itemsReturned": 50
+      },
+      {
+        "market": "AU",
+        "title": "senior business analyst",
+        "measured": 16,
+        "target": 16,
+        "pagesPulled": 2,
+        "itemsReturned": 20
+      }
+    ]
+  },
+  "corpus": {
+    "rawAdvertsReturned": 117,
+    "contentUnique": 99,
+    "duplicatesRemoved": 18,
+    "offFamilyExcluded": 19,
+    "inFamily": 80
+  },
+  "spend": {
+    "totalCalls": 51,
+    "postingsFetched": 510,
+    "costUsd": 0.51,
+    "costModel": "perThousandPostings @ USD 1, read from apps/api/data/posting-providers.json 2026-08-22",
+    "monthlyQuota": 1000
+  }
+}

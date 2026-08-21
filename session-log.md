@@ -2,6 +2,61 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-22 (session 155) — the research method met a real market, and three holes opened (#260)
+
+**#260 run** (a research pass, no code — `/implement` on a ticket whose deliverable is evidence).
+The family-research method #259 designed had never been executed. It has now been run end to end on
+business analysis, the one family the owner already approved, at **51 calls / 510 postings /
+USD 0.51** — neither dollars nor quota came close to binding (5.1% of each). Everything is in
+`docs/vocabulary-proposals/business-analysis-v1/method-test-2026-08-22.md`, with the 99-advert floor
+corpus and per-advert judgments beside it in `corpus/`.
+
+- **The headline is reassuring: same four items.** Every item v1 ships clears both thresholds —
+  requirements elicitation 95%, solution validation 81%, analysis to specification 80%, stakeholder
+  facilitation 51%. **v1 stands, no v2 needed.** The method also surfaces **process mapping at 85%**,
+  the family's second-strongest signal, which v1 folds into item 2's wording rather than asking
+  separately. That is an improvement question, not a defect, and a v2 for it would cost a full paid
+  re-measurement of four markets under #244.
+- **ADR-0015 got its first real test and the answer was no.** No equipment item cleared. SQL reaches
+  **20%** — so the runbook's own §3.3 sentence asserting that SQL clears the bar for business
+  analysis is **falsified by measurement**. The mechanism (count wins over a hand-written filter) is
+  right; it simply did not fire here. The sentence reads as a measured fact and needs correcting.
+- **The three holes, which are the actual value of the run.** (1) **The corpus is polluted by the
+  shared job title** — 19 of 99 adverts filed under "Business Analyst" are a different occupation
+  entirely (FP&A, BI reporting, pricing strategy, application support, contract admin, exec
+  strategy). §3.2 says pull every advert filed under a title that measured above 0 and has no step
+  for throwing the wrong ones back; left in, they cost every item 14–18 points. (2) **"Count" is
+  never defined** — §3.3 writes the two thresholds to the percentage point and never says how you
+  recognise that an advert is asking for a thing; on this corpus a strict reading and a generous one
+  put requirements elicitation at 40% or 63%, either side of the bar. (3) **The same advert arrives
+  more than once** — 117 pulled were 99 distinct, re-listings under different provider IDs, and
+  nothing says to de-duplicate.
+- **Two of the three changed the answer, and both landed on the same item.** Stakeholder
+  facilitation clears at exactly 51% with Hong Kong at exactly 30% — passing only because the rule
+  says *below* 30%. It falls to 41% if the off-family adverts stay in, and it is the one item still
+  moving at the 50/advert cap (Singapore's first half 57%, second half 36%, a 21-point swing where
+  the other four move ≤7). Reported as **not safely established**; items 1–4 are robust under both
+  checks.
+- **The floor-length decision now has its curve.** The gap is not between four items and five — it
+  is **80% → 51%**: four items in a tight band with nothing between them, a 29-point cliff, then a
+  long tail of tooling (jira 24%, sql 20%, confluence 18%). Cutting at the cliff rather than at a
+  fixed number is what this family argues for, and that is four — what v1 already ships.
+- **Two side findings worth keeping.** Three of v1's five published aliases (requirements analyst,
+  process analyst, functional business analyst) measure **0 adverts in every served market** —
+  harmless, since aliases are hint-only and never gated on advert counts (#258), but it confirms the
+  market files this work under essentially one phrase. And **"senior business analyst" is a strict
+  subset of "business analyst"** — the provider matches the phrase, so the senior pull added almost
+  nothing for 5 calls. Budget the next family accordingly.
+- **What did NOT happen, deliberately.** "System analyst" measured as a real but thin separate title
+  (9 in HK) and was **excluded** from the corpus: v1's approved scope does not name it, and widening
+  the family is not this ticket's job. Flagged for the owner, not acted on.
+- **Vietnam does not vote.** 4 adverts in the whole market, 3 in-family — under §3.3's 10-advert
+  bar. Its adverts inform the reading and were given no vote.
+
+Next: the owner's call on the write-up's decision box. Recommendation is to apply the three method
+fixes (and the SQL correction) to the runbook **before** the method is pointed at a family nobody
+has reviewed — otherwise the next run rediscovers these at full price.
+
 ## 2026-08-21 (session 154) — the scope's own job titles are findable again (#258)
 
 **#258 done** (`/implement` → `/code-review` → `/qa-gate` **GO on the first run**, 0 provider calls,
