@@ -925,8 +925,8 @@ function WallPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // #22 return-path wiring: sign-in resumes on /deck (the S2 verify screen otherwise only knows
-  // /deck/[jobId] or /import). Stashed before either door is opened, read back by /auth/verify.
+  // #22 return-path wiring: sign-in resumes on /deck (the verify screen otherwise only knows
+  // /deck/[jobId] or the front door). Stashed before either door is opened, read back by /auth/verify.
   // #64: `claimed=1` is what tells the deck the reveal was already earned on the way in, so the
   // resumed visitor lands on the highest-ranked job rather than on a second curtain.
   const markReturn = () => localStorage.setItem("jc_return", "/deck?claimed=1");

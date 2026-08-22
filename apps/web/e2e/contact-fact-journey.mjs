@@ -1,14 +1,18 @@
 // #190 "contact info is a fact" — the whole journey, driven as a human against a REAL full stack.
 //
-// Paste a CV whose header carries a phone and an email -> open the profile -> see both under
-// "About you" with where each came from -> open the phone door (pre-filled) -> correct it ->
-// paste the CV again -> the tailored draft carries the CORRECTED number and never the CV's own.
+// Paste a CV whose header carries a phone and an email -> open the profile -> see both in the
+// Contact section with where each came from -> open the phone door (pre-filled) -> correct it ->
+// paste the CV again -> the correction OUTLIVES the fresh read of the document (ADR-0008 §3).
 //
-// Nothing here is route-mocked: real Fastify, real contact store, real extract, real pipeline,
-// real render. Only the MODEL is faked, using the same seam apps/api/test uses — the fake tailor
-// copies the CV header verbatim out of the prompt, exactly as preview-tailor.md rule 3 instructs
-// the real one to. That keeps the run free and deterministic while leaving every line of #190's
-// own code (capture, store, payload, render preference) genuinely exercised.
+// Nothing here is route-mocked: real Fastify, real contact store, real extract, real pipeline.
+// Only the MODEL is faked, using the same seam apps/api/test uses.
+//
+// WHAT THIS NO LONGER PROVES, said plainly rather than quietly dropped (#272): it used to end by
+// reading the pipeline's tailored draft and asserting the corrected number printed on it. That
+// draft is deleted — the upload pipeline no longer builds one, and no pre-signup surface renders
+// a tailored CV. The render preference itself (the stored phone beating the tailor's own header
+// re-read) is pinned by apps/api/test/preview.test.ts directly against the kept engine, which is
+// what the post-deck tailored CV will run through.
 //
 // Run it:
 //   node apps/api/dist/main.js                     # or any real API on :3001
@@ -72,23 +76,6 @@ for (const ev of ['uncaughtException', 'unhandledRejection']) {
 // A hard assertion the driver records with a screenshot either way.
 const assertTrue = (cond, note) => qa.expectText('body', cond ? '' : '-THIS-CANNOT-APPEAR-', note);
 
-/** #271: the draft screen is being deleted, so the draft is read where it durably lives — the
- *  rendered preview the API serves (GET /previews/<jobId>, the exact HTML that screen embedded in
- *  its iframe). Every assertion on the draft's contact line is unchanged; only the way to the
- *  rendered draft changed. */
-let draftHtml = '';
-const draftText = () => draftHtml.replace(/<[^>]+>/g, ' ');
-async function waitForDraft(label, jobId) {
-  await qa.note(`${label}: the pipeline runs — reading, mining, tailoring`);
-  await qa.waitForJobDone(jobId);
-  draftHtml = await page.evaluate(async (id) => {
-    const r = await fetch(`/api/previews/${id}`, { credentials: 'same-origin' });
-    if (!r.ok) throw new Error(`the rendered draft was not served: ${r.status}`);
-    return r.text();
-  }, jobId);
-  await qa.note(`${label}: the tailored draft is built and served (${draftHtml.length} bytes)`);
-}
-
 /** #271: a repeat read on the same session has no screen — the product offers none — so it goes
  *  through the same POST /cv/paste route the front door's own tile calls. */
 const pasteAgain = (text) =>
@@ -104,13 +91,12 @@ const pasteAgain = (text) =>
   }, text);
 
 // --------------------------------------------------------------------------------------------
-// 1. The CV goes in — through the front door, as a person brings it — and the draft comes out
-//    carrying the CV's own contact line.
+// 1. The CV goes in — through the front door, as a person brings it — and the read captures the
+//    header's phone and email as facts against the session.
 // --------------------------------------------------------------------------------------------
-const firstJobId = await qa.frontDoorPaste(CV_TEXT, 'First draft: the person pastes the CV, header and all, on the front door');
-await waitForDraft('First draft', firstJobId);
-await assertTrue(draftText().includes(CV_PHONE), 'the first draft prints the phone the CV itself carries');
-await assertTrue(draftText().includes(CV_EMAIL), 'and the email, digits in the address and all, intact');
+const firstJobId = await qa.frontDoorPaste(CV_TEXT, 'First read: the person pastes the CV, header and all, on the front door');
+await qa.waitForJobDone(firstJobId);
+await qa.note('the CV is read — the header contact is captured with the facts (no draft is built, #272)');
 
 // --------------------------------------------------------------------------------------------
 // 1b. The profile only opens once the person has told us something, so answer the opening
@@ -165,30 +151,21 @@ await qa.expectText(contact, 'You told me this.', 'and credits the person for it
 await qa.expectText(contact, CV_EMAIL, 'the email is untouched by a phone correction');
 
 // --------------------------------------------------------------------------------------------
-// 4. The fix reaches the CV. The CV document still says the OLD number — the correction has to
-//    beat a fresh read of the document to prove it stuck (ADR-0008 §3).
+// 4. The correction has to beat a fresh read of the document to prove it stuck (ADR-0008 §3):
+//    the CV document still says the OLD number, so hand the same CV over again and check the
+//    profile after the re-read.
 // --------------------------------------------------------------------------------------------
-await qa.note('Second draft: she hands the same CV over again (#271: same route the front door tile calls)');
+await qa.note('Second read: she hands the same CV over again (#271: same route the front door tile calls)');
 const secondJobId = await pasteAgain(CV_TEXT);
-await waitForDraft('Second draft', secondJobId);
-await assertTrue(draftText().includes(CORRECTED_PHONE), 'the new draft prints the CORRECTED number');
-await assertTrue(draftText().includes(CV_EMAIL), 'the email survives the phone swap, digits and all');
+await qa.waitForJobDone(secondJobId);
 
-const printed = draftText();
-if (printed.includes(CV_PHONE)) {
-  await qa.note(`FAIL: the CV’s old number "${CV_PHONE}" is still printed on the draft`);
-  await assertTrue(false, 'the old number is gone from the draft');
-} else {
-  await qa.note(`the CV’s own number "${CV_PHONE}" appears nowhere on the draft — exactly one phone prints`);
-}
-
-// --------------------------------------------------------------------------------------------
-// 5. The correction survived a second full mining of the same document.
-// --------------------------------------------------------------------------------------------
 await qa.goto(`${BASE}/profile`, 'back to the profile after the re-read');
 const contact2 = page.locator('.rcontact');
-await qa.expectText(contact2, CORRECTED_PHONE, 'the correction outlived a second read of the same CV');
+await qa.expectText(contact2, CORRECTED_PHONE, 'the correction outlived a second full read of the same CV');
 await qa.expectText(contact2, 'You told me this.', 'and is still credited to the person');
+await qa.expectText(contact2, CV_EMAIL, 'the email is untouched by the re-read too');
+const railText = (await page.locator('.rcontact').innerText().catch(() => '')) || '';
+await assertTrue(!railText.includes(CV_PHONE), 'the CV’s own old number appears nowhere — exactly one phone is held');
 
 const ok = await qa.finish();
 process.exit(ok ? 0 : 1);

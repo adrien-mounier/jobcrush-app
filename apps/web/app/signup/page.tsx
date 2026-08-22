@@ -1,7 +1,7 @@
 "use client";
 
-// E2/JC-18 the signup wall — sits between the preview and the deck (the deck redirects here on a
-// 401). Two doors, same account seam: Google OAuth (ported from vitacairn — a plain link into
+// E2/JC-18 the signup wall — sits between the work-history check and the deck (the deck redirects
+// here on a 401). Two doors, same account seam: Google OAuth (ported from vitacairn — a plain link into
 // /api/auth/google; the API handles state + callback and claims the session), or the passwordless
 // magic link. With no mail provider configured (local/CI/staging-without-a-key) the API returns
 // the link and we render it as a "dev" button.
@@ -25,7 +25,7 @@ export default function SignupScreen() {
     if (login === "expired") setError("Google sign-in didn't complete — try again, or use your email below.");
     else if (login === "error") setError("Google sign-in isn't available right now — use your email below.");
     // The anonymous session must exist BEFORE the Google redirect, or the callback can't claim it
-    // (and your preview wouldn't follow you into the account).
+    // (and your read facts wouldn't follow you into the account).
     ensureSession().catch(() => {});
   }, []);
 
@@ -43,10 +43,12 @@ export default function SignupScreen() {
 
   return (
     <main>
-      <h1>Save your draft to your account</h1>
+      {/* #272: no draft exists before sign-up any more — what the account keeps is the facts read
+          from the CV, on their way to the verified master CV behind this wall. */}
+      <h1>Save your progress to your account</h1>
       <p className="lede">
-        Your tailored draft is ready. Confirm your email and we&apos;ll turn it into a verified master
-        CV that&apos;s yours to keep — no password, just a one-tap link.
+        The facts we read from your CV are ready to confirm. Sign in and we&apos;ll turn them into a
+        verified master CV that&apos;s yours to keep — no password, just a one-tap link.
       </p>
 
       {!sent ? (

@@ -20,7 +20,7 @@ const minedClaim = (id: string) => ({
 });
 
 describe("guestbook hook", () => {
-  it("records a finished visit with mined counts, posting, and the step feed", async () => {
+  it("records a finished visit with mined counts and the step feed", async () => {
     const store = new InMemoryJobStore();
     const job = await store.create("onboarding", "sess-1");
     const visits: VisitRecord[] = [];
@@ -28,25 +28,23 @@ describe("guestbook hook", () => {
       store,
       job.id,
       paste("Jane Doe\nProject Manager 2020-2024\n- delivered a platform migration"),
-      ["IT Project Manager"],
       {
         mine: async () => ({
           claims: [minedClaim("fact-a"), minedClaim("fact-b"), minedClaim("fact-c")],
           needsGrill: 1,
           roles: 2,
         }),
-        preview: async () => ({ html: "<p>x</p>", postingTitle: "PM", postingCompany: "Acme" }),
         recordVisit: async (v) => void visits.push(v),
       },
     );
     expect(visits).toHaveLength(1);
     expect(visits[0]).toMatchObject({
       finished: true,
-      stage: "preview",
+      stage: "mine", // the last stage since #272 deleted the draft-building preview step
       minedClaims: 3,
       roles: 2,
       needsGrill: 1,
-      posting: "PM at Acme",
+      posting: null,
       error: null,
       uploadKey: null, // paste has no stored file
       kind: null,
@@ -64,10 +62,8 @@ describe("guestbook hook", () => {
       store,
       job.id,
       { type: "upload", data: Buffer.from("Jane Doe\nPM 2020-2024\n- x"), kind: "txt", key: "r2-key-123" },
-      [],
       {
         mine: async () => ({ claims: [minedClaim("fact-a")], needsGrill: 0, roles: 1 }),
-        preview: async () => ({ html: "<p>x</p>", postingTitle: "PM", postingCompany: "Acme" }),
         recordVisit: async (v) => void visits.push(v),
       },
     );
@@ -79,7 +75,7 @@ describe("guestbook hook", () => {
     const store = new InMemoryJobStore();
     const job = await store.create("onboarding", null);
     const visits: VisitRecord[] = [];
-    await runOnboardingJob(store, job.id, paste("Jane Doe\nPM 2020-2024\n- x"), [], {
+    await runOnboardingJob(store, job.id, paste("Jane Doe\nPM 2020-2024\n- x"), {
       mine: async () => {
         throw new Error("miner boom");
       },
@@ -96,7 +92,7 @@ describe("guestbook hook", () => {
     expect(gb.ready).toBe(false);
     await gb.init();
     await gb.record({
-      jobId: "j", sessionId: null, finished: true, stage: "preview", minedClaims: 1,
+      jobId: "j", sessionId: null, finished: true, stage: "mine", minedClaims: 1,
       roles: 1, needsGrill: 0, posting: null, durationMs: 10, error: null, feed: [],
       uploadKey: null, kind: null, rawCv: null, claims: null,
     });

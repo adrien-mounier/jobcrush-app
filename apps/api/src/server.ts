@@ -438,7 +438,7 @@ export function buildServer(opts: BuildOptions = {}) {
 
   app.register(sessionRoutes(sessions, opts.sessionRateLimiter));
 
-  // A completed upload starts the onboarding pipeline job (extract → mine → preview).
+  // A completed upload starts the onboarding pipeline job (extract → mine).
   // Every run leaves one durable line in the guestbook (recordVisit).
   const pipelineDeps: PipelineDeps = {
     ...(opts.pipeline ?? {}),
@@ -479,24 +479,14 @@ export function buildServer(opts: BuildOptions = {}) {
       (async (sessionId) => {
         await jobBlocks.recordFailedRun(sessionId);
       }),
-    getContact:
-      opts.pipeline?.getContact ??
-      (async (sessionId) => {
-        const record = await contact.getRecord(sessionId);
-        return { phone: record.phone?.value ?? null, email: record.email?.value ?? null };
-      }),
-    // #163: the stored, corrected job records feed the tailor's Roles: block (ADR-0002).
-    getJobBlocks: opts.pipeline?.getJobBlocks ?? (async (sessionId) => jobBlocks.list(sessionId)),
   };
   const defaultOnUploaded: NonNullable<UploadDeps["onUploaded"]> = async (row, data) => {
     if (!row.kind) return null;
     const job = await store.create("onboarding", row.sessionId);
-    const session = await sessions.getById(row.sessionId);
     void runOnboardingJob(
       store,
       job.id,
       { type: "upload", data, kind: row.kind, key: row.id },
-      session?.targetTitles ?? [],
       pipelineDeps,
     );
     return { jobId: job.id };
@@ -570,10 +560,10 @@ export function buildServer(opts: BuildOptions = {}) {
     }),
   );
 
-  // Job payloads sent to the client: the preview HTML travels only via GET /previews/:jobId
-  // (in-app view), and jobs bound to a session are visible to that session alone.
+  // Job payloads sent to the client: the raw extracted CV and mined claims stay server-side,
+  // and jobs bound to a session are visible to that session alone.
   const clientView = (job: JobRecord) => {
-    const { previewHtml: _previewHtml, miner: _miner, rawCv: _rawCv, ...progress } = job.progress;
+    const { miner: _miner, rawCv: _rawCv, ...progress } = job.progress;
     return { ...job, progress };
   };
   const canSee = (req: FastifyRequest, job: JobRecord) =>

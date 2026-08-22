@@ -1,6 +1,6 @@
 /* job-blocks.css — #161 AC7, #157 Design A confirm-swipe deck for structured job records.
    Scoped to `.jobblocks`, styled off the app's existing LIGHT tokens (packages/ui/tokens.css) —
-   the same register /import, /preview and the rest of the non-HUD screens already use. Deliberate:
+   the same register the rest of the non-HUD screens already use. Deliberate:
    the shipped sentence deck (.jobdeck, deck.css) is dark; this stays light on purpose (#157 Design
    A point 6 — a swipe here locks in a fact about her life, not a disposable job-ad reject).
 

@@ -1,5 +1,15 @@
 # Lessons — jobcrush-app
 
+## Deleting a Next.js page leaves `tsc` red until the next `next build`
+
+Learned 2026-08-23 (#272). `apps/web`'s `typecheck` script is bare `tsc --noEmit`, and the tsconfig
+includes `.next/types/**` — generated per-route type stubs that keep importing a deleted page and
+fail the compile with TS2307 long after the source is gone. CI never sees it (fresh checkout, build
+before typecheck); only local runs do. The fix is `pnpm exec next build` (regenerates the stubs),
+not hand-deleting `.next` pieces. Corollary from the same session's QA: the web artifact also bakes
+`API_URL` into `.next/routes-manifest.json`, so `API_URL=… next start` silently keeps the OLD
+proxy target — a custom API port needs a rebuild, never just a restart.
+
 ## Moving a script's body behind an "am I the entry point?" check can make it exit 0 doing nothing
 
 Learned 2026-08-22 (#264). To let a test import `JOURNEYS` from `run-tier2.mjs`, I wrapped its run

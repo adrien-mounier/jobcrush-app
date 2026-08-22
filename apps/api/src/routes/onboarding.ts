@@ -223,7 +223,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     );
 
     // Open the deck: seed this session's claim store from its onboarding job's mined claims, once.
-    // The client holds the jobId (same as GET /previews/:jobId); the job proves the mine finished.
+    // The client holds the jobId from the paste/upload response; the job proves the mine finished.
     app.post(
       "/onboarding/deck",
       { schema: { body: z.object({ jobId: z.string() }) } },

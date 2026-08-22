@@ -243,7 +243,6 @@ describe("JC-12 pipeline job (extract stage over the JC-9 machinery)", () => {
       store,
       job.id,
       { type: "paste", text: "Jane Doe\nProject Manager at Acme" },
-      [],
       {
         mine: async () => ({
           claims: [{ id: "partial-only", text: "Missing required fields" }],
@@ -267,7 +266,7 @@ describe("JC-12 pipeline job (extract stage over the JC-9 machinery)", () => {
   it("upload input runs to completion with a humanized feed and a rawCv checkpoint", async () => {
     const store = new InMemoryJobStore();
     const job = await store.create("onboarding");
-    await runOnboardingJob(store, job.id, { type: "upload", data: await fx("clean.pdf"), kind: "pdf" }, []);
+    await runOnboardingJob(store, job.id, { type: "upload", data: await fx("clean.pdf"), kind: "pdf" });
     const done = await store.get(job.id);
     expect(done?.status).toBe("completed");
     expect((done?.progress.rawCv as { status: string }).status).toBe("ok");
@@ -278,7 +277,7 @@ describe("JC-12 pipeline job (extract stage over the JC-9 machinery)", () => {
   it("scanned upload fails the job with the unparseable signal (JC-17 trigger)", async () => {
     const store = new InMemoryJobStore();
     const job = await store.create("onboarding");
-    await runOnboardingJob(store, job.id, { type: "upload", data: await fx("scanned.pdf"), kind: "pdf" }, []);
+    await runOnboardingJob(store, job.id, { type: "upload", data: await fx("scanned.pdf"), kind: "pdf" });
     const done = await store.get(job.id);
     expect(done?.status).toBe("failed");
     expect(done?.error).toBe(UNPARSEABLE_ERROR);
@@ -292,7 +291,7 @@ describe("JC-12 pipeline job (extract stage over the JC-9 machinery)", () => {
     const marker = buildRawCv("upload", "Experience\nRole A 2020 - 2024\n- did things", null);
     await store.update(job.id, { progress: { rawCv: marker } });
     // hand it a scanned PDF: if extraction re-ran, the job would fail; the checkpoint must win
-    await runOnboardingJob(store, job.id, { type: "upload", data: await fx("scanned.pdf"), kind: "pdf" }, []);
+    await runOnboardingJob(store, job.id, { type: "upload", data: await fx("scanned.pdf"), kind: "pdf" });
     const done = await store.get(job.id);
     expect(done?.status).toBe("completed");
     expect((done?.progress.rawCv as { fullText: string }).fullText).toContain("Role A");
@@ -310,7 +309,6 @@ describe("#161 job-block mining failure isolation", () => {
       store,
       job.id,
       { type: "paste", text: "Jane Doe\nProject Manager at Acme, 2020-2024" },
-      [],
       {
         mineJobBlocks: async () => {
           throw new Error("miner output failed validation twice");

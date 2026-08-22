@@ -193,12 +193,13 @@ export default function DeckScreen() {
   if (error && !claims)
     return (
       <main>
-        <h1>This draft isn&apos;t available</h1>
+        <h1>This deck isn&apos;t available</h1>
         <p className="lede">
           We couldn&apos;t open it — it may have expired, or the link was incomplete. Upload your CV
           again to pick up where you left off.
         </p>
-        <button className="btn" onClick={() => router.push("/import")}>
+        {/* #272: the front door is the only way in — the old /import screen is deleted. */}
+        <button className="btn" onClick={() => router.push("/")}>
           Upload my CV
         </button>
       </main>

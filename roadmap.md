@@ -46,8 +46,8 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Run order — what to build next
 
-**NEXT: 7d.5 #272** — delete the old flow (closes #249). Open head after it: **8c #265 · 8b #217**
-(#217 needs `/to-spec` first). Unscheduled, in the table: 8d #274 · 8e #278 · 7b.1 #250 (parked).
+**NEXT: 8c #265 · 8b #217** (#217 needs `/to-spec` first). Unscheduled, in the table: 8d #274 ·
+8e #278 · 7b.1 #250 (parked).
 Unscheduled, no row yet: #246 · #276 · #277.
 
 _Ordered 2026-08-13 over all open issues. **This goes stale on every landing** — when a ticket
@@ -128,7 +128,7 @@ cutting at the curve's cliff (80% → 51%) rather than a fixed number; either ru
 | ~~7d.2~~ | ~~#269~~ | ~~The draft is tailored toward the role her CV shows~~ **SUPERSEDED 2026-08-22 → 7d.5 #272 (same reason)** | — | — | — |
 | ~~7d.3~~ | ~~#270~~ | ~~A person can paste their CV text on the front door~~ **DONE 2026-08-22** | — | — | — |
 | ~~7d.4~~ | ~~#271~~ | ~~A dozen browser journeys enter through a door no visitor uses~~ **DONE 2026-08-22** | — | — | — |
-| 7d.5 | #272 | **NEXT** — Delete the old flow: four dead screens, their routes, and the draft nobody reads. Unblocked (7d.3 + 7d.4 done). Closes #249. Also stops real spend: every upload still builds a tailored draft nothing reads (~USD 0.05–0.12/upload; AC reports the ledger's real before/after). The tailoring engine is KEPT | `/implement` | Opus | high |
+| ~~7d.5~~ | ~~#272~~ | ~~Delete the old flow: four dead screens, their routes, and the draft nobody reads~~ **DONE 2026-08-23** — draft spend stopped (staging ledger: preview-tailor USD 0.3285 accrued, now frozen); tailoring engine KEPT unbound; sign-up wall + site title stopped promising the deleted draft (QA catch) | — | — | — |
 | ~~7d.6~~ | ~~#273~~ | ~~The over-packed-line warning loses its only screen~~ **DECIDED 2026-08-22 — dropped on purpose; its two conditions moved onto #272 as ACs** | — | — | — |
 | ~~8~~ | ~~#64~~ | ~~The match count survives signup~~ **DONE 2026-08-22** | — | — | — |
 | ~~8a~~ | ~~#264~~ | ~~A ticket pays only for the journeys its diff can reach~~ **DONE 2026-08-22** | — | — | — |

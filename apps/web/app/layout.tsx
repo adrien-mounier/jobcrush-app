@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+// #272: the product no longer builds a tailored draft before sign-up, so the title and link
+// preview stop selling one. What the front door actually does: reads the CV into facts the person
+// confirms, then finds live jobs that match the target role.
 export const metadata: Metadata = {
-  title: "JobCrush — see your CV tailored to a real job in 2 minutes",
+  title: "JobCrush — your CV, read into facts and matched to real jobs",
   description:
-    "Upload your CV and instantly see it tailored to a live job posting that matches your target roles.",
+    "Upload or paste your CV. JobCrush reads it into facts you confirm, then finds live job postings that match your target role.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

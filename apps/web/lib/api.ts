@@ -81,27 +81,9 @@ export interface JobSnapshot {
   error: string | null;
   progress: {
     feed?: string[];
-    preview?: {
-      postingTitle: string;
-      postingCompany: string;
-      /** Plain-words notices when the draft shipped lossy. Sent since #159 and never rendered
-       *  here until #154 — the warnings existed and the screen showing the CV ignored them. */
-      conservationNotices?: string[];
-      disclosure?: JobDisclosure[];
-    };
     importProof?: ImportProof;
     [k: string]: unknown;
   };
-}
-
-/** #154: what one job has to say for itself under the draft — a choice (facts held back for this
- *  posting) and, separately, a fault (a printed line that took on too much). */
-export interface JobDisclosure {
-  employer: string;
-  role: string;
-  factCount: number;
-  heldBack: string[];
-  overfull: Array<{ text: string; count: number; lostResult: boolean; sources: string[] }>;
 }
 
 export interface ImportProof {

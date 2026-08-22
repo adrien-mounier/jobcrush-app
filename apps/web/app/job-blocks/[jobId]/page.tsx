@@ -16,8 +16,8 @@
 // flying-chip reward beat are reused at deck.css/factbadge.css's shipped values.
 //
 // Reachable pre-wall (job-blocks.ts's own comment: "same gate as contact.ts") — this screen sits
-// between /preview (the watermarked draft) and /deck/[jobId] (the sentence-level claim deck, which
-// still requires sign-in unchanged). Session-scoped: the API returns this session's job blocks
+// before /deck/[jobId] (the sentence-level claim deck, which still requires sign-in unchanged).
+// Session-scoped: the API returns this session's job blocks
 // regardless of which upload produced them, so `jobId` in the URL is only used to route onward.
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";

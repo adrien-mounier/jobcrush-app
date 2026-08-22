@@ -952,7 +952,19 @@ export interface PreviewStepExtras {
   getAdRequirements?: (adId: string) => Promise<{ requirements: AdRequirementsV1 } | null>;
 }
 
-/** Pipeline step factory (JC-16). `minerOutput` is the mine step's `{doc}` payload. */
+/** DELIBERATELY UNREACHABLE from any visitor path since #272 — do not mistake this for dead code.
+ *
+ *  This was the upload pipeline's draft-building step: every CV upload paid a `preview-tailor`
+ *  model call to build a full tailored CV that only the deleted draft screen could show. #272
+ *  unbound it (main.ts, qa-main.ts) and deleted that screen, its wait screen, and the
+ *  GET /previews/:jobId route.
+ *
+ *  It is KEPT because it is the only working implementation of the CV brain
+ *  (docs/cv-brain/): the tailor prompt, the Draft schema, applyStoredContact, and the
+ *  conservationIssues() lint all run through here, and the post-deck tailored CV will need
+ *  exactly this. Its tests (test/preview.test.ts) still run.
+ *
+ *  `minerOutput` is the mine step's `{doc}` payload. */
 export function makePreviewStep(llm: LlmClient, extras: PreviewStepExtras = {}) {
   return async (
     minerOutput: unknown,

@@ -2,6 +2,37 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-23 (session 160) `/implement 272` — the old flow is deleted, and the draft spend with it (QA GO)
+
+Closes #272 (row 7d.5, struck) and with it the #249 parent's last obligation. −866/+~150 lines.
+
+**What landed.** The four dead screens (`/import`, `/paste`, `/progress/[jobId]`, `/preview/[jobId]`),
+`GET /previews/:jobId`, and the pipeline's draft-building preview step are gone; the pipeline now
+ends at mine. `POST /cv/paste` stays — #270 made it the front door's own intake, so the ticket's
+"two routes" wording predates its rehoming (spec reviewer concurred: deleting it would fail the
+ticket's own AC-6). The expired-deck button and the sign-in fallback both land on `/`. The tailoring
+engine (`preview.ts`) is kept whole and unbound, with a DELIBERATELY-UNREACHABLE comment; its tests
+now exercise `makePreviewStep` directly. The dropped over-packing warning is recorded beside the
+conservation rule in `docs/cv-brain/cv-authoring-rules.md` (#273, lint untouched).
+
+**The spend AC.** Staging ledger before: `preview-tailor` USD **0.3285** accrued (of USD 3.33 total
+model spend, ~10%). After: the stage is unbound in `main.ts`/`qa-main.ts`; the QA stack proved
+`tailor: 0` across 152 specs + journeys. Post-deploy after-figure reported on the ticket.
+
+**QA caught what the diff reviewers couldn't: the product kept selling the deleted feature.** First
+gate returned NO-GO — the sign-up wall still said "Your tailored draft is ready" and the site title
+"see your CV tailored to a real job in 2 minutes", both made false by this very deletion. Fixed
+(wall: "Save your progress…"; title: "your CV, read into facts and matched to real jobs"), re-gated
+GO with a new guard journey left behind (`e2e/signup-wall-honesty-journey.mjs`, word-sweeps the
+signed-out surfaces — not in the tier-2 gate list). The deck error screen's "This draft isn't
+available" became "This deck isn't available" in the same family.
+
+**Gate evidence.** api 1567 passed + 11 skipped (caches bypassed), typecheck 7/7, Tier 1 152/152,
+tier-2 selection 15/15, journeys contact-fact 16/16 · job-blocks-confirm 54/54 ·
+master-cv-dates-note 12/12, hand-driven deleted-flow sweep 36/36. QA spend USD 0.00 (fake-model
+stack). `contact-fact-journey` no longer reads a draft — what it stopped proving is stated in its
+header, and the render preference it covered is re-pinned engine-level in `preview.test.ts`.
+
 ## 2026-08-22 (session 159) `/implement 271` — every browser journey enters through the front door (QA GO)
 
 Closes #271 (`57e8e13`). Row 7d.4, struck. Next build is 7d.5 (#272) — the deletion of the four old

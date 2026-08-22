@@ -32,7 +32,7 @@ export default function VerifyScreen() {
           router.replace(jcReturn);
           return;
         }
-        router.replace("/import");
+        router.replace("/"); // #272: no stash, no job — start at the front door
       };
       // Google OAuth return: the callback already claimed this session server-side — just resume.
       if (params.get("oauth") === "ok") return resume();

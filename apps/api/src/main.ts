@@ -5,7 +5,6 @@ import { buildServer } from "./server.js";
 import { storageFromEnv } from "./storage.js";
 import { familyPlacementLlm, llmFromEnv } from "./llm.js";
 import { makeMineStep } from "./miner.js";
-import { makePreviewStep } from "./preview.js";
 import { makeGrillPhraser } from "./grill.js";
 import { makeCvAuditor } from "./audit.js";
 import { sessionStoreFromEnv } from "./sessions.js";
@@ -169,12 +168,9 @@ const { app } = buildServer({
       eligibility,
       unmappedLabels,
     ),
-    // #163: the preview step reads which dimensions the matched posting gates on (a presentation
-    // read of the ad-requirements store — never a fresh model call) so a declared fact the advert
-    // tests can rise into the summary (ADR-0002 clause 4).
-    preview: makePreviewStep(metered("preview-tailor", llm), {
-      getAdRequirements: (adId) => adRequirements.get(adId),
-    }),
+    // #272: no preview step. The upload pipeline used to end by tailoring a full draft here — a
+    // paid `preview-tailor` model call per upload whose output no live screen read. The engine
+    // (makePreviewStep, preview.ts) is kept for the post-deck tailored CV, deliberately unbound.
   },
   phraseGrill: makeGrillPhraser(metered("grill", llm)),
   auditCv: makeCvAuditor(metered("cv-audit", llm)),

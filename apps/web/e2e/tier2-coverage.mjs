@@ -43,7 +43,7 @@
 const FRONT_DOOR = ["apps/web/app/page.tsx", "apps/web/app/frontdoor.css"];
 // #271: every journey that brings a CV in now walks the front door's paste tile to do it, so the
 // front door IS the intake screen — a change to it can redden any CV_INTAKE journey. The old
-// /paste, /import and /progress screens left this list the same day (SELECTS_NOTHING below).
+// /paste, /import, /progress and /preview screens are deleted outright (#272).
 const CV_INTAKE = [
   "apps/api/src/extract.ts",
   "apps/api/src/miner.ts",
@@ -201,13 +201,6 @@ export const SELECTS_NOTHING = [
   // a journey for either is ever added to the gate, delete these two lines with it.
   "apps/api/src/withdrawal.ts",
   "apps/api/src/purge.ts",
-  // #271: the old intake, wait and draft screens. No Tier 2 journey opens any of them any more —
-  // every journey enters through the front door — so a change here cannot redden the gate. They
-  // are deleted outright by #272; delete these four lines with them.
-  "apps/web/app/paste/**",
-  "apps/web/app/import/**",
-  "apps/web/app/progress/**",
-  "apps/web/app/preview/**",
 ];
 
 // ---------------------------------------------------------------------------------------------

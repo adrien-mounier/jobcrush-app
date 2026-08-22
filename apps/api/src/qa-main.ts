@@ -67,7 +67,7 @@ import { buildServer } from "./server.js";
 import { LocalDiskStorage } from "./storage.js";
 import { makeMineStep } from "./miner.js";
 import { makeMineJobBlocksStep } from "./jobBlockMiner.js";
-import { loadPostings, makePreviewStep, type Draft } from "./preview.js";
+import { loadPostings, type Draft } from "./preview.js";
 import { lookupAdRequirements } from "./e5stub.js";
 import { makeGrillPhraser } from "./grill.js";
 import { makeCvAuditor } from "./audit.js";
@@ -632,7 +632,7 @@ const { app } = buildServer({
     // one degree the vocabulary does not cover, so a QA journey can walk both the confident case
     // (no question asked) and the "we couldn't place this" question on the review screen.
     labelJobBlocks: makeJobBlockLabeler(fakeLlm, publishedFamilies(qaProductionFamilyFloors), qaJobBlocks, qaEligibility, qaUnmappedLabels),
-    preview: makePreviewStep(fakeLlm),
+    // #272: no preview step, mirroring main.ts — the upload pipeline no longer tailors a draft.
   },
   phraseGrill: makeGrillPhraser(fakeLlm),
   auditCv: makeCvAuditor(fakeLlm),

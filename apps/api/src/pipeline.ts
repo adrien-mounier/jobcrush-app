@@ -1,15 +1,17 @@
-// The S1 onboarding pipeline job: extract → mine → preview, checkpointed into the job store
+// The S1 onboarding pipeline job: extract → mine, checkpointed into the job store
 // (JC-9 rule: a retry never re-executes a completed step). Each step also appends a
-// human-readable line to progress.feed — JC-15 renders those live over SSE; trust is built by
-// showing real extracted facts, not a spinner.
+// human-readable line to progress.feed — the front door renders those live over SSE; trust is
+// built by showing real extracted facts, not a spinner.
+//
+// #272: the preview step (mine → tailored draft) is deleted — it built and stored a full tailored
+// CV that no live screen ever read, at real model cost per upload. The tailoring engine itself
+// (preview.ts) is kept for the post-deck tailored CV; see the note on makePreviewStep.
 import type { JobStore } from "./jobs.js";
 import { buildRawCv, extractContact, extractRawCv, type ContactExtraction, type RawCv } from "./extract.js";
 import type { CvKind } from "./uploads.js";
 import { CandidateClaim } from "@jobcrush/contracts";
 import type { CandidateClaim as CandidateClaimType, MinedJobBlocks } from "@jobcrush/contracts";
 import type { ImportProof } from "./sessions.js";
-import type { JobBlockView } from "./jobBlockStore.js";
-import type { JobDisclosure } from "./preview.js";
 
 export type PipelineInput =
   | { type: "upload"; data: Buffer; kind: CvKind; key: string }
@@ -21,10 +23,11 @@ export interface VisitRecord {
   jobId: string;
   sessionId: string | null;
   finished: boolean;
-  stage: string; // last stage reached: extract | mine | preview | start
+  stage: string; // last stage reached: extract | mine | start
   minedClaims: number | null;
   roles: number | null;
   needsGrill: number | null;
+  /** Always null since #272 (the draft step is deleted); the column keeps the history. */
   posting: string | null;
   durationMs: number;
   error: string | null;
@@ -53,33 +56,10 @@ export interface PipelineDeps {
     proof: ImportProof,
     claims: CandidateClaimType[],
   ) => Promise<ImportProof>;
-  /** JC-16 preview: mined claims + target titles (+ raw CV for header data, + the session's stored
-   *  contact — #190, + the stored corrected job records — #163) → watermarked HTML, plus any
-   *  plain-words conservation notices when the draft shipped lossy (ADR-0002 clause 5). */
-  preview?: (
-    minerOutput: unknown,
-    targetTitles: string[],
-    rawCv: RawCv,
-    contact?: { phone: string | null; email: string | null },
-    jobBlocks?: JobBlockView[],
-  ) => Promise<{
-    html: string;
-    postingTitle: string;
-    postingCompany: string;
-    conservationNotices?: string[];
-    /** #154: per-job disclosure for the draft screen — held-back facts and over-full lines. */
-    disclosure?: JobDisclosure[];
-  }>;
-  /** #163: this session's stored job records, read once before tailoring so the Roles: block is
-   *  fed from the corrected facts instead of the miner's original read (ADR-0002). */
-  getJobBlocks?: (sessionId: string) => Promise<JobBlockView[]>;
   /** #190: persist phone/email parsed from the raw CV's contact block, once, right after extract —
    *  no LLM call. A "read" write here never overwrites a person-said correction; the contact store
    *  enforces that guard (ADR-0008 §3), not this pipeline. */
   persistContact?: (sessionId: string, extraction: ContactExtraction) => Promise<void>;
-  /** #190: this session's current contact record, read once before rendering so the preview step
-   *  can prefer the stored phone/email over the tailor's own header re-read for those two values. */
-  getContact?: (sessionId: string) => Promise<{ phone: string | null; email: string | null }>;
   /** #161 job-block miner: raw CV -> mined dated blocks (employer/title/start/end/kind, each with
    *  its own origin) plus the model's raw text for that run. Optional so extract/mine can ship on
    *  their own — same convention as `mine` above. */
@@ -174,7 +154,6 @@ export async function runOnboardingJob(
   store: JobStore,
   jobId: string,
   input: PipelineInput,
-  targetTitles: string[],
   deps: PipelineDeps = {},
 ): Promise<void> {
   const startedAt = Date.now();
@@ -300,54 +279,6 @@ export async function runOnboardingJob(
             `${mined.needsGrill} will need a quick check from you later.`,
         );
       }
-
-      // Step 3 — preview (JC-16)
-      if (deps.preview) {
-        job = await store.get(jobId);
-        if (!job?.progress.preview) {
-          await appendFeed(store, jobId, "Picking a live posting that matches your targets…");
-          const contact = deps.getContact && job?.sessionId ? await deps.getContact(job.sessionId) : undefined;
-          // #163: the stored, corrected job records feed the tailor. Best-effort — a store read
-          // failure falls back to the miner's read rather than failing the preview.
-          let jobBlocksForTailor: JobBlockView[] | undefined;
-          if (deps.getJobBlocks && job?.sessionId) {
-            try {
-              jobBlocksForTailor = await deps.getJobBlocks(job.sessionId);
-            } catch (err) {
-              // Fall back to the miner's read rather than failing the preview — but never silently:
-              // a failing store read here drops the person's corrections from this draft.
-              console.warn("[pipeline] job-block read failed; tailoring from the miner's read", err);
-              jobBlocksForTailor = undefined;
-            }
-          }
-          const rendered = await deps.preview(miner, targetTitles, rawCv, contact, jobBlocksForTailor);
-          const conservationNotices = rendered.conservationNotices ?? [];
-          await store.update(jobId, {
-            progress: {
-              preview: {
-                postingTitle: rendered.postingTitle,
-                postingCompany: rendered.postingCompany,
-                // ADR-0002 clause 5: a lossy draft's notices travel WITH the preview to the client
-                // (clientView keeps progress.preview), never console-only.
-                conservationNotices,
-                // #154: the disclosure travels WITH the preview for the same reason the notices
-                // do — the draft screen is where the person reads the CV, and a loss they only
-                // saw scroll past on the wait screen is a loss they did not see.
-                disclosure: rendered.disclosure ?? [],
-              },
-              previewHtml: rendered.html,
-            },
-          });
-          await appendFeed(
-            store,
-            jobId,
-            `Tailored a draft for "${rendered.postingTitle}" at ${rendered.postingCompany}.`,
-          );
-          for (const notice of conservationNotices) {
-            await appendFeed(store, jobId, notice);
-          }
-        }
-      }
     }
 
     await store.update(jobId, { status: "completed" });
@@ -373,16 +304,15 @@ export async function runOnboardingJob(
         const final = await store.get(jobId);
         const p = final?.progress ?? {};
         const miner = p.miner as { claims?: unknown[]; roles?: number; needsGrill?: number } | undefined;
-        const preview = p.preview as { postingTitle?: string; postingCompany?: string } | undefined;
         await deps.recordVisit({
           jobId,
           sessionId: final?.sessionId ?? null,
           finished: final?.status === "completed",
-          stage: preview ? "preview" : miner ? "mine" : p.rawCv ? "extract" : "start",
+          stage: miner ? "mine" : p.rawCv ? "extract" : "start",
           minedClaims: miner?.claims?.length ?? null,
           roles: miner?.roles ?? null,
           needsGrill: miner?.needsGrill ?? null,
-          posting: preview ? `${preview.postingTitle} at ${preview.postingCompany}` : null,
+          posting: null,
           durationMs: Date.now() - startedAt,
           error: final?.error ?? null,
           feed: Array.isArray(p.feed) ? (p.feed as string[]) : [],

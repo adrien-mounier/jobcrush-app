@@ -782,7 +782,7 @@ describe("#159 header — left-aligned, two-line, no filler (BINDING DESIGN #157
   });
 });
 
-describe("JC-16/17 pipeline end to end (fake LLMs)", () => {
+describe("JC-17 pipeline end to end (fake LLMs)", () => {
   function fakePipeline() {
     const mined = { schemaVersion: "0", roles: [], claims: [], parser_flags: [] };
     const mine = async () => ({
@@ -791,7 +791,7 @@ describe("JC-16/17 pipeline end to end (fake LLMs)", () => {
       roles: 2,
       needsGrill: 2,
     });
-    return { mine, preview: makePreviewStep(llmReturning(sampleDraft)) };
+    return { mine };
   }
 
   async function waitTerminal(server: ReturnType<typeof buildServer>, jobId: string) {
@@ -811,15 +811,11 @@ describe("JC-16/17 pipeline end to end (fake LLMs)", () => {
     });
   }
 
-  it("paste (JC-17) → mine → preview: full flow with feed and watermarked HTML", async () => {
+  // #272: the pipeline ends at mine. No draft is built, no model is called for one, and the job
+  // payload carries no preview fields — the draft screen and its route are deleted.
+  it("paste (JC-17) → mine: full flow with feed, and no draft is built", async () => {
     const server = buildServer({ pipeline: fakePipeline() });
     const cookie = await startSession(server.app);
-    await server.app.inject({
-      method: "PUT",
-      url: "/sessions/me/targets",
-      headers: { cookie },
-      payload: { targetTitles: ["IT Project Manager"] },
-    });
     const created = await server.app.inject({
       method: "POST",
       url: "/cv/paste",
@@ -833,62 +829,35 @@ describe("JC-16/17 pipeline end to end (fake LLMs)", () => {
     const job = await server.app.inject({ method: "GET", url: `/jobs/${jobId}`, headers: { cookie } });
     expect(job.json().status).toBe("completed");
     const feed = job.json().progress.feed as string[];
-    expect(feed.some((l) => l.includes("Tailored a draft"))).toBe(true);
-    // preview html never travels through the job payload
+    expect(feed.some((l) => l.includes("Mined"))).toBe(true);
+    // #272: the run tailors nothing — no draft step, no wait-screen line about picking a posting.
+    expect(feed.some((l) => l.includes("Tailored a draft"))).toBe(false);
+    expect(feed.some((l) => l.includes("Picking a live posting"))).toBe(false);
+    expect(job.json().progress.preview).toBeUndefined();
     expect(job.json().progress.previewHtml).toBeUndefined();
     expect(job.json().progress.miner).toBeUndefined();
-
-    const preview = await server.app.inject({
-      method: "GET",
-      url: `/previews/${jobId}`,
-      headers: { cookie },
-    });
-    expect(preview.statusCode).toBe(200);
-    expect(preview.headers["content-type"]).toContain("text/html");
-    expect(preview.body).toContain("DRAFT");
   });
 
-  // #190 AC4/AC5: the stored, corrected phone wins over the tailor's own header re-read — proven by
-  // planting a DIFFERENT phone in the source document's header than the one the door corrected to.
-  // The fake LLM copies the header verbatim (as the real one would), so a plain rendering would show
-  // the header's number; only the deterministic post-process in preview.ts can make the corrected
-  // one appear. Correcting BEFORE the CV is even seen also proves ADR-0008 §3: the mine step's own
-  // "read" write of the header's number must never clobber the person-said correction.
-  it("a corrected phone prints on the render even though the CV's own header carries a different number", async () => {
+  // #190 AC4/AC5, kept on the ENGINE (#272 removed the pipeline step that used to exercise this
+  // end-to-end): the stored, corrected phone wins over the tailor's own header re-read — proven by
+  // planting a DIFFERENT phone in the draft's contact line than the stored one. The fake LLM
+  // copies the header verbatim (as the real one would), so a plain rendering would show the
+  // header's number; only the deterministic post-process in preview.ts can make the stored one
+  // appear. The post-deck tailored CV inherits this behaviour through makePreviewStep.
+  it("a stored corrected phone prints on the render even though the draft's own contact line carries a different number", async () => {
     const headerDraft: Draft = { ...sampleDraft, contact: "Jane Doe · jane@example.com · +33 6 00 00 00 00" };
-    const server = buildServer({
-      pipeline: { mine: fakePipeline().mine, preview: makePreviewStep(llmReturning(headerDraft)) },
-    });
-    const cookie = await startSession(server.app);
-    const corrected = await server.app.inject({
-      method: "PUT",
-      url: "/contact",
-      headers: { cookie },
-      payload: { field: "phone", value: "+33 6 99 99 99 99" },
-    });
-    expect(corrected.statusCode).toBe(200);
-
-    const created = await server.app.inject({
-      method: "POST",
-      url: "/cv/paste",
-      headers: { cookie },
-      payload: {
-        text: "Jane Doe\njane@example.com | +33 6 00 00 00 00\n\nExperience\nPM at Acme 2020 - 2024\n- shipped things\n".repeat(
-          5,
-        ),
-      },
-    });
-    expect(created.statusCode).toBe(201);
-    const { jobId } = created.json();
-    await waitTerminal(server, jobId);
-
-    const preview = await server.app.inject({ method: "GET", url: `/previews/${jobId}`, headers: { cookie } });
-    expect(preview.statusCode).toBe(200);
-    expect(preview.body).toContain("+33 6 99 99 99 99");
-    expect(preview.body).not.toContain("+33 6 00 00 00 00");
+    const step = makePreviewStep(llmReturning(headerDraft));
+    const rendered = await step(
+      { doc: await recordedClaims() },
+      ["IT Project Manager"],
+      undefined,
+      { phone: "+33 6 99 99 99 99", email: null },
+    );
+    expect(rendered.html).toContain("+33 6 99 99 99 99");
+    expect(rendered.html).not.toContain("+33 6 00 00 00 00");
   });
 
-  it("previews are session-scoped: another session gets 404", async () => {
+  it("jobs are session-scoped: another session gets 404", async () => {
     const server = buildServer({ pipeline: fakePipeline() });
     const mine = await startSession(server.app);
     const theirs = await startSession(server.app);
@@ -901,20 +870,16 @@ describe("JC-16/17 pipeline end to end (fake LLMs)", () => {
     const { jobId } = created.json();
     await waitTerminal(server, jobId);
     expect(
-      (await server.app.inject({ method: "GET", url: `/previews/${jobId}`, headers: { cookie: theirs } }))
-        .statusCode,
-    ).toBe(404);
-    expect(
       (await server.app.inject({ method: "GET", url: `/jobs/${jobId}`, headers: { cookie: theirs } }))
         .statusCode,
     ).toBe(404);
   });
 
-  it("JC-16 AC: no export/share/download route exists server-side (checked against the API)", async () => {
+  it("spec §8-3 AC: no export/share/download route exists server-side, and the old preview route is gone (#272)", async () => {
     const server = buildServer();
     await server.app.ready();
     const routes = server.app.printRoutes({ commonPrefix: false });
-    for (const forbidden of ["export", "download", "pdf", "docx", "share"]) {
+    for (const forbidden of ["export", "download", "pdf", "docx", "share", "previews"]) {
       expect(routes.toLowerCase()).not.toContain(forbidden);
     }
   });

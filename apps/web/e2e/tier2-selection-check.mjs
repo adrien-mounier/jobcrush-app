@@ -223,17 +223,6 @@ check("#271: a front-door diff selects every journey that now enters through it"
   }
 });
 
-check("#271: the deleted screens are inert — no journey opens them any more", () => {
-  const r = run([
-    "apps/web/app/paste/page.tsx",
-    "apps/web/app/import/page.tsx",
-    "apps/web/app/progress/anything/page.tsx",
-    "apps/web/app/preview/anything/page.tsx",
-  ]);
-  assert.equal(r.selected.length, 0);
-  assert.equal(r.unmatched.length, 0, `unmapped: ${r.unmatched.join(", ")}`);
-});
-
 // AC4 — the only route to zero is a diff that is entirely inert. Anything else must reach a journey
 // or fail open; run-tier2.mjs turns any other zero into a hard error.
 check("zero selected only ever means every changed path was inert", () => {

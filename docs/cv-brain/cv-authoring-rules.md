@@ -278,8 +278,17 @@ it in full because the writer never sees this file, and cites this section as it
   false-alarm argument alone. If merged lines get worse, tightening to three is the lever.)
 
 ⚠️ **Honest limit:** this guarantees **one** surviving result per line, not all of them. A line
-combining three claims and keeping one result passes. The rest of the loss is *disclosed* in the
-draft's per-job block, not prevented.
+combining three claims and keeping one result passes.
+
+🔇 **The alarm is currently shown to nobody — dropped on purpose** (owner decision 2026-08-22,
+#273, executed by #272). The only screen that ever printed the over-packing warning (*"one printed
+line carries N facts at once"*) was the pre-signup draft screen, which #272 deleted along with the
+draft itself; the warning was not re-homed. The detection is untouched: `conservationIssues()` and
+`draftDisclosure()` still flag four-or-more-claim lines mechanically, and the four-claim threshold
+above still binds the writer. What changed is only that no surface tells the person. Recorded here,
+beside the rule, because a rule that silently stops being surfaced is how a stance rots into a lie —
+if a tailored-CV surface returns (post-deck), deciding whether this warning returns with it is part
+of that build.
 
 > 🚨 **Why "merge, never drop" is withdrawn as the default.** Measured on the owner's own CV, four
 > source bullets merged into one went from **514 characters to 172 — two thirds of the words gone.**

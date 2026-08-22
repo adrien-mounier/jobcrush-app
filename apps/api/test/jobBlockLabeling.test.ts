@@ -92,7 +92,7 @@ async function stack(options: {
   const jobs = new InMemoryJobStore();
   const mine = async (blocks: MinedJobBlock[] = options.blocks ?? MINED) => {
     const job = await jobs.create("onboarding", sessionId);
-    await runOnboardingJob(jobs, job.id, { type: "paste", text: "a cv" }, [], {
+    await runOnboardingJob(jobs, job.id, { type: "paste", text: "a cv" }, {
       mineJobBlocks: async () => ({ doc: { schemaVersion: "1", blocks, parser_flags: [] }, rawOutput: "raw" }),
       persistJobBlocks: async (sid, doc, raw) => jobBlocks.ingest(sid, doc, raw),
       labelJobBlocks,
