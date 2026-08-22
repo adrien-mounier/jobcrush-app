@@ -46,173 +46,34 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Run order — what to build next
 
-_Ordered 2026-08-13 over all 48 open issues. **This goes stale on every landing** — when a ticket
-closes, strike it here in the same commit, and when a dependency claim below stops being true, fix
-it rather than working around it._
+**NEXT: 7d.5 #272** — delete the old flow (closes #249). Open head after it: **8c #265 · 8b #217**
+(#217 needs `/to-spec` first). Unscheduled, in the table: 8d #274 · 7b.1 #250 (parked). Unscheduled,
+no row yet: #246 · #276 · #277.
+
+_Ordered 2026-08-13 over all open issues. **This goes stale on every landing** — when a ticket
+closes, strike it here in the same commit, and when a dependency claim stops being true, fix it
+rather than working around it. A row is one line: order · ticket · short title · status. The full
+story of any row lives on its ticket and in `session-log.md`, never here._
 
 **Skill column:** `/implement` = specced, build it · `/wayfinder` = fog, needs charting first ·
 `/grill-with-docs` = a decision to interrogate, writes the ADR · `/prototype` = needs design rounds ·
 `/research` = investigate and write up · `—` = do not run.
 
-**Model/effort** are per session 107's pass: Fable earns its cost where a ticket can ship subtly
-wrong and still green (invariants that must hold by construction, restraint rules, content whose
-accuracy is a real-world claim); Opus everywhere else. Effort buys holding constraints in tension,
-not correctness on well-specified work — start no ticket at `max`.
+**Model/effort** (session 107 rule): Fable where a ticket can ship subtly wrong and still green —
+real-world claims, invariants that must hold by construction, restraint rules; Opus everywhere else.
+Fable is for **builds**, never grills/specs/wayfinders (the owner in the room is the verification
+loop). Effort buys tension-holding, not correctness — start no ticket at `max`.
 
-_Re-scored 2026-08-15 — **#222 Opus → Fable**, effort unchanged at `high`._ It grew when #231's
-orphaned confidence criterion moved onto it, and re-reading it against the rule above, it was
-mis-scored even before that: **every one of its failure modes is silent.** A years number that is
-wrong is still a plausible number — nothing crashes, no card disappears, the deck renders and scores
-exactly as it does today. It carries two invariants that must hold *by construction* (confidence
-never reaches the years fact; a job's years count fully toward each family while the career total
-counts it once) and two restraint rules (no surface sums the family numbers; no card is ever
-withdrawn by confidence). That is three of this rule's four named Fable triggers in one ticket, and
-`lessons.md` already records this exact scoring code shipping subtly wrong once.
+_Audit convention: a struck row means **this position is finished** — usually "done", sometimes
+"moved". A struck row whose issue is still open must name where the work went._
 
-Effort stays `high` and deliberately does **not** rise: the ticket is now heavily specified —
-fourteen acceptance criteria, worked examples, decided magnitudes — and effort buys tension-holding,
-not correctness on well-specified work. The tension that justifies `high` is real but bounded
-(generous-vs-honest in the known-zero rule, full-credit-per-family vs counted-once in the total).
+**Standing input to any vocabulary-growth run:** `docs/vocabulary-proposals/candidate-families.md` —
+the occupations we know we do not cover, with evidence (today: data/business intelligence, product
+management). Runbook §2 reads it before the cluster map is presented.
 
-**Do not split the attenuation back out to make it smaller.** Splitting it off is what produced the
-orphan in the first place, and the two halves share one call site.
-
-_Full re-score of every open row, 2026-08-15 (owner asked for the same pass across the board)._
-Seven rows moved; forty-three were left alone, which is the point — a Fable set that grows to half
-the board stops meaning anything. **The line drawn, and it is new:**
-
-- **Fable is for BUILDS, not for grills, specs or wayfinders.** In a `/grilling` or `/grill-with-docs`
-  session the owner is in the room and IS the verification loop — a wrong turn gets caught in the
-  next exchange. A build has no such loop, which is exactly when "ships subtly wrong and still green"
-  bites. Every pre-existing Fable row (#168–#171) is an `/implement`, so this only writes down what
-  was already practice. It keeps #207, #212, #213, #206, #93 and #217 on Opus despite subject matter
-  that would otherwise qualify.
-- **Moved to Fable:** **#218** (autonomously proposes a *published job family* — a real-world claim
-  that silently mis-sorts every future visitor if drawn wrong), **#68** (consent, expiry and deletion
-  — invariants that must hold by construction, and a deletion that quietly does not delete is green
-  forever), **#66** (the conservation principle in its own words: *"not converted to positive
-  substance or hidden as satisfied"*), **#229** (ADR-0014's restraint rule verbatim — *"the score
-  stays generous; the words carry the truth. Never the reverse"*), **#210** (the near-twin of #170,
-  already Fable — the polish step may not re-shape her words) and **#164** (*"never a level I didn't
-  claim or a term a taxonomy substituted"*). The common thread in all six: **the wrong output looks
-  better than the right one**, so no reviewer and no test flags it.
-- **Effort moved once:** **#223** medium → high. It deletes `resolveFamily()` and converges two
-  discovery engines into one *without changing behaviour* — holding two implementations in tension
-  until they agree, which is precisely what the effort column is for.
-- **Considered and deliberately left on Opus:** **#111** (takes two guards off, but only behind
-  #110's measurement gate — the gate is the check), **#69** (release gates; instrumentation, and its
-  thresholds are pilot measurements not code), **#232** (floor merging is mechanical and its growth
-  is bounded by an asserted test). Revisit #111 if #110 lands weak.
-
-_Scored 2026-08-16 when #240's grilling filed #242 and #243 — **both Fable, effort `high`; #240 stays
-Opus `high`.**_ Rows 5c.1f–5c.1h run **#242 ∥ #243 → #240**, and all three sit in front of #63.
-_Progress 2026-08-16 (same day): **#242 done (`ad853e7`), #244 done (`f73c61a`, filed out of #242's
-residual), #243 done (`5f3c701`), #240 done (`2d8eb58`), #228 done (`16537fd`), and #245 done
-(`ee16d21`)** — all four retrieval gates cleared, the fallback shipped, and its premature-offer
-window closed. **#237 is done (`159c4bc`, QA GO; ⚠️ NOT ON STAGING — CI billing blockage)**: open discovery sessions keep their pinned family
-versions, coverage, checkpoint, and open-deck snapshot when a newer version is published. **#239
-research is done and closed** (`11edd8b`, `docs/research/empty-result-wording.md`, plus Reed evidence
-screenshot under `screenshots/research-239/`): the recommendation is to replace the bare "Try a
-different job title." with a small `No jobs found` / `No more jobs ... right now` string family, keep
-#228's explicit consent gate, and keep #245's wait state separate. **#232, #227, #223 and #216 are now done.** #216 closed 2026-08-19 (`82102bc`, QA GO on the 4th gate run) and took the reveal's family floor off #63's blocker list. **Both owner decisions it raised are now made (2026-08-19):** (1) **#216's AC3 is RETIRED** — spec #233 decision 6 wins, an explicit "no" is an answer and keeps coverage; the criterion is struck on the ticket with the reasoning. The consequence of a "no" lands on the scoring (the card shows the gap; a blocking requirement withdraws the job), never on the door. (2) **#246** — the promise names **no job family**, to anyone, e.g. "10 new jobs are open right now". Same rule the owner applied to the PLACE on 2026-08-13: if the promise cannot say it honestly to everyone, it does not say it. The NUMBER sub-question is decided too: **option 3** - count what her search will actually return. That needs a search at question 1, before she has earned anything, which the reveal gate refused - so **#248** (`9a612cd`, QA GO) split fetching postings from being allowed to see them. #246 is unblocked and unscheduled. **#247** (a non-gating journey that claims more than its harness proves) is filed and needs no decision. **#229 is done (2026-08-19, `d4f7e5d`, QA GO — dark until #218 publishes a second family).** **#134 and #219 closed by hand 2026-08-19** — finished work that was never closed (the slice chain had fully landed); **~~#63~~ DONE 2026-08-19 (`/qa-gate` GO).** _Repointed 2026-08-21: rows 7a, 7b.2–7b.6, 7c and
-7b.1a have all landed since, so every row above 7b.7 is struck. #250 stays parked: its pick-up
-trigger (proposal volume outgrowing owner review time) is not met. **Repointed 2026-08-21: #260, #261 and #262 are all
-done and struck. **Repointed 2026-08-22: #64 is done and struck too.** **Sequenced 2026-08-22: 8a #264 is the next build, then 7d.4 #271, then 7d.5 #272 (which closes the #249 parent).** #271 came unblocked the moment #270 closed and was the obvious next step; the owner took #264 first instead, to get the shorter QA gate before spending it on a twelve-journey ticket. The order was checked, not defaulted — both rows carry the tradeoff and the two ACs it made necessary. **New 2026-08-22: 8d #274**, filed out of #270's design-hook findings — it looked like tidy-up and is not: two of the four field styles in the product **zoom the page on an iPhone** on the main journey, and one uses a colour-only focus cue the doc forbids. Unscheduled, no blockers. **Repointed 2026-08-22: 7d.3 #270 is done and struck** — the front door has a paste door, and 7d.4 (#271) is unblocked, which is the last thing standing between the board and 7d.5 (#272)'s deletion. **Repointed 2026-08-22: 8a #264 is done and struck** — a ticket now pays only for the journeys its
-diff can reach (`308d059`, QA GO on the 2nd gate run). The board's open head is now
-7d #249 · 7d.4 #271 · 8c #265 · 8b #217; 7d #249 and 8b #217 both still need `/to-spec` first, so
-~~**7d.4 #271 is the next code build**~~ **Repointed 2026-08-22: 7d.4 #271 is done and struck** — every
-browser journey enters through the front door (`57e8e13`, QA GO; the coverage-map obligation was paid in the
-same commit, and the shorter gate's first customer measured its own price: a front-door diff now reaches 18
-of 24 journeys, and the full sweep costs +4.7%). The board's open head is 7d.5 #272 · 8c #265 ·
-8b #217 (7d #249 was hand-closed by the owner on 2026-08-22 — its remaining substance lives in #272, and the one question that outlives it is parked on its row); **7d.5 #272 is the next code build** — the deletion is fully unblocked.
-New 2026-08-22: **#276** (the front door's own journey runs in no tier) and **#277** (a note-step screenshot
-flake can redden the deploy gate), both filed out of #271's QA gate, both unscheduled.
-**#263 is closed** — its stale grid expectation is corrected, and the placement behaviour it
-uncovered is now **8c #265**.
-
-**New standing input to any vocabulary-growth run: `docs/vocabulary-proposals/candidate-families.md`**
-— the occupations we know we do not cover, with their evidence. It exists because candidates were
-being recorded wherever they happened to be discovered (a rejected proposal's summary, a method
-write-up, a grid note), so a run reading only the unmapped-label feed would never have seen them.
-Two on it today: **data / business intelligence** (added 2026-08-21, the one actively causing #265)
-and **product management** (recording the owner's 2026-08-20 rejection of the product-ownership
-widening). Runbook §2 now reads it before the cluster map is presented.
-
-**8a #264 is new (2026-08-21) and pays for itself on every ticket after it** — the QA gate's browser
-sweep is ~60 min against ~33 s for every other gate combined, and it grows ~2.5 min per journey
-added. It was ordered AFTER #64 rather than ahead of it only because #64 was already in flight; on
-value alone it belongs first, and every ticket that lands before it pays the full hour.
-
-**Row 7b.1 #250 sits above 7d and is DELIBERATELY SKIPPED, not overlooked.** It is unstruck because
-it is genuinely open, and it stays that way until its pick-up trigger fires: *proposal volume
-outgrows the owner's review time*, measured in real runs rather than assumed. Two vocabulary-growth
-runs have happened (#255, #260) and the owner reviewed both comfortably in one sitting, so the
-trigger is not met. Its `/grill-with-docs` skill is correct and load-bearing: when it is picked up
-it needs a design pass first, because it **reverses a deliberate current shape** — publishing is a
-reviewed file loaded at boot, and #250 would make it a runtime path. Do not start it with
-`/implement`.
-
-One small open item sits outside the run order entirely: **#263**, a stale owner-arbitrated
-expectation in the labeler grid that #255 caused and #262's grid run surfaced — one line of owner
-judgement, no build.
-
-_Audit convention, so a future reader does not re-derive it: a struck row means **this position is
-finished**, which is usually "done" but is sometimes "moved". Row 5c.1d #238 is struck and its issue
-is still open — deliberately: it was deferred to the pilot by the owner and lives on unstruck at
-**row 36b** in Phase 4. A struck row whose issue is open must always name where the work went._
-
-**#261 is cheap and time-ordered, not urgent-in-itself:** it is prose, but it must land **before**
-the research method is pointed at a family nobody has reviewed. #260 could only find those three
-holes because it ran against a floor the owner had already approved and could disagree with; the
-next family offers no such check, so an unfixed method there produces a ranked list nobody can
-audit — at full provider price.
-
-**One thing #260 left on the owner's desk, waiting on a decision rather than a build: the
-floor-length rule.** The ranked list exists now, and it argues for cutting at the curve's cliff
-(80% → 51%) rather than at a fixed number; on this family that is four items, which is what v1
-already ships — so `onboarding-reward-design.md` §6's "must be short" can come off review either way
-the owner rules._
-**#116 still owns the broader fill-in problem** — #245 fills an initially empty
-deck after provider retrieval, not an open deck as individual advert reads finish. **~~#63~~ shipped 2026-08-19; before it closed, its blocked-by list read zero open**:
-the live blocked-by list reads zero open — #134, the last one, was closed by hand once its slice
-chain was confirmed fully landed. Still re-check
-`gh api repos/adrien-mounier/jobcrush-app/issues/63/dependencies/blocked_by` rather than trusting
-prose.**_
-
-- **#242 → Fable.** It writes a **real-world claim into a published vocabulary**: "in Hong Kong this
-  family is called *project manager*". Drawn wrong, nothing crashes and no test fails — every visitor
-  in that market simply gets fewer or worse adverts, forever, and the deck renders exactly as it does
-  today. That is the same trigger that moved **#218** (which proposes published job families) off
-  Opus, and #242 is its data twin. The ticket also carries an invariant that must hold by
-  construction — *a family may not be published for a market with no search words* — which is the
-  kind of gate that is green whether or not it is really enforced.
-- **#243 → Fable.** Three of its failure modes are silent, and the wrong output looks better than the
-  right one every time: an advert wrongly deleted is a job **nobody can see is missing**; an
-  out-of-vocabulary answer accepted as free text reads as a working filter; and the stale-read trap
-  (the prompt hash does not cover `{{KNOWN_FAMILIES}}`) leaves every stored advert answering in the
-  old vocabulary while the code looks correct. It also carries the build-time invariant *identity
-  decides deletion, confidence only ranks* — the whole point of which is that no threshold exists to
-  test against.
-- **#240 stays Opus.** Its failure modes are **loud and assertable**: the query string is a value a
-  test can pin, and quoting either happens or it does not. Well-specified work with no accuracy claim
-  about the world — the rule's default. Effort stays `high` for blast radius, not difficulty: it
-  changes the provider interface #63 is about to build against, and the curated-pool driver must be
-  moved to the same matching rule in the same pass or the two providers silently disagree.
-- **Both new rows are `/implement`, not `/to-spec`.** Each already carries the owner's decisions and
-  its acceptance criteria out of the grilling; a spec pass would restate them. Note this makes them
-  the first Fable rows filed straight out of a grilling — the "Fable is for builds, not grills" line
-  above still holds, because the **grill was Opus and is finished**; what remains is the build.
-
-_Scored 2026-08-15 when #230's slices were filed — **#235 Opus → Fable**, effort `high`._ **A
-word-search deck is the failure mode this rule was written for: every wrong version of it renders.**
-Wrong keywords, floors from the wrong families, a stale snapshot served after a family lands, a score
-that is systematically low for a reason nobody can see — in each case the deck loads, the cards
-order, the percentages look plausible, and no test and no reviewer has an oracle for what the "right"
-deck was. There is nothing to crash and nothing to compare against, which is the whole trigger.
-**#234 and #236 stay on Opus deliberately**, and the contrast is the point: #234's proof is that the
-existing suite passes unchanged (a wrong split goes RED), and #236's five verdicts each have one
-decided outcome to assert. Loud failures both — Fable buys nothing there. Effort stays `high` across
-all three: `xhigh` buys tension-holding, and these tickets carry decided rules, not open ones.
+**Waiting on the owner, not on a build:** the floor-length rule. #260's ranked list argues for
+cutting at the curve's cliff (80% → 51%) rather than a fixed number; either ruling takes
+`onboarding-reward-design.md` §6's "must be short" off review.
 
 ### Phase 1 — make the live deck honest before it exists
 
@@ -221,372 +82,65 @@ all three: `xhigh` buys tension-holding, and these tickets carry decided rules, 
 | ~~1~~ | ~~#202~~ | ~~Which bullet count is right — 73 or 114?~~ **DONE 2026-08-13** | — | — | — |
 | ~~2~~ | ~~#208~~ | ~~The reader splits compound bullets; the ruling says don't~~ **DONE 2026-08-13** | — | — | — |
 | ~~3~~ | ~~#209~~ | ~~Four e2e journeys are in no CI tier and cannot run~~ **DONE 2026-08-13** | — | — | — |
-| ~~4~~ | ~~#124~~ | ~~Where do you want to work?~~ **DECIDED 2026-08-13 → build is #214** | — | — | — |
-| ~~4b~~ | ~~#214~~ | ~~Target locations: up to three chips, one deck over the union~~ **DONE 2026-08-14** (city-level, per the owner decision on #124's trail) | — | — | — |
-| ~~5~~ | ~~#220~~ | ~~Labeler slice 1: the target role is placed in a real family, measured before trusted~~ **DONE 2026-08-15 (QA GO)** — 97.6% comparable accuracy on the 60-case grid; production discovery opens at the API | — | — | — |
-| ~~5b~~ | ~~#221~~ | ~~Labeler slice 2: every past job carries a correctable family label~~ **DONE 2026-08-15 (QA GO)** — every mined job is placed; the review screen asks, batched, only about the ones it could not call | — | — | — |
-| ~~5b.1~~ | ~~#225~~ | ~~Decide deliberately: is a job in ONE family, or honestly several?~~ **DECIDED 2026-08-15** — several, nobody is asked, confidence rides the ranking. ADR-0014 amendment 1 | — | — | — |
-| ~~5b.2~~ | ~~#231~~ | ~~Labeler slice 2b: several families per job, nobody is asked, confidence rides the ranking~~ **DONE 2026-08-15 (QA GO, `34bdd3c`) · ⚠️ NOT ON STAGING (CI blocked — see the banner)** — placement contract is v2 and plural, `needs_clarification` deleted, end-of-deck panel gone, confidence stored. **#232 lifted the target-role single-family constraint (`3dfd307`)**, and **confidence does not yet reach a card's score — that caller is #222** | — | — | — |
-| ~~5b.3~~ | ~~#227~~ | ~~A null placement is a call we never made — a retry, not a question~~ **DONE 2026-08-16 (QA GO)** — originally mostly dissolved by #231: `familyChoicesFor()`, the end-of-deck panel and the published-list payload are gone, so nothing offers a family list to an unmapped job. The surviving remnant was kept after #228 made it material: a null placement could understate the strongest CV-proven fallback family. The retry now runs outside upload on review, production-discovery, cards, and fallback-acceptance reads, using the existing checkpointed labeler so confirmed/unmapped/corrected placements are not re-spent or overwritten | — | — | — |
-| ~~5c~~ | ~~#222~~ | ~~Labeler slice 3: years per family, read at the advert's own scope~~ **DONE 2026-08-15 (QA GO on re-run, `0505f6b`) · ⚠️ NOT ON STAGING (CI blocked — see the banner)** — one years fact per family + the total; bars scoped via the additive `yearsScope` contract field (compound sentences split); known zero ≠ unknown; confidence attenuation live at the owner's weights. First gate run was **NO-GO**: the scoped reading keyed on the production-discovery floor no shipped journey ever sets — fixed by resolving the advert's family from the target-role placement (`advertFamilyIdFor`), verified A/B in the browser. **Two owner decisions escalated, recorded in session-log** | — | — | — |
-| ~~5c.1~~ | ~~#230~~ | ~~🔒 **GRILL BEFORE BUILDING** — an unmapped target role gets no adverts at all~~ **DECIDED 2026-08-15** — retrieval opens: no usable published floor ⇒ search her typed words. Interview on up to two of her CV's floors, silent throughout (no sentence, no card mark, no research message), same scoring path, same provider budget. Spec **#233** → slices **#234 → #235 → #236**. Handed on: exhaustion to #228, autonomous research to #218 | — | — | — |
-| ~~5c.1a~~ | ~~#234~~ | ~~Question floors and the search family become two facts, chosen by one plan~~ **DONE 2026-08-16 (QA GO, `5b08d7e`) · ⚠️ NOT ON STAGING (CI blocked — see the banner)** — `discoveryPlan()` in `adaptiveDiscovery.ts` decides both; the unmapped ranking rule is built and tested but unreachable until #235 deletes the route's guard. Nothing visible moved (1429 tests, browser A/B on the deck). Ratchet lowered 1135 → 1132. ADR-0014 amended, `CONTEXT.md` gained **word search**. ⚠️ **#235 must guard `questionFloors[0]!`** — an empty floor list becomes legitimate there and the `!` hides it | — | — | — |
-| ~~5c.1b~~ | ~~#235~~ | ~~The unmapped target role is interviewed on her CV's floors and gets a word-search deck, including the honest empty state.~~ **DONE 2026-08-16 (QA GO) · ⚠️ NOT ON STAGING (CI blocked — see the banner)** — retrieval's word mode is open: no search family ⇒ her typed words are the query, `family_not_published` gone from every reachable visitor path (the one pinned-then-unpublished edge kept fail-closed, filed as **#237** for the owner to ratify). Interview spans up to two CV floors de-duplicated by item id; zero floors = covered by definition; fingerprint covers mode + floors; a pinned word plan may gain a search family (one-way — the returning-visitor upgrade). Empty deck now says "Try a different job title." when no question remains, proven in the browser. **#63's retrieval-gate blocker is cleared** (still waits on #228). #234's `questionFloors[0]!` landmine cleared. Ratchet lowered 1132 → 1119 | — | — | — |
-| ~~5c.1c~~ | ~~#236~~ | ~~The candidate screen runs on that path — research starts itself, and `covered_role` recovers a family the labeler missed.~~ **DONE 2026-08-16 (QA GO, `bd1f3d0`) · ⚠️ NOT ON STAGING (CI blocked — see the banner)** — the word-search deck screens her target role in the background, once per session, and tells her nothing. *accepted* opens research by itself; *covered_role* pins the recognised family as BOTH question floor and search family, so she gets the normal family interview and search; *equivalent* attaches to the canonical attempt; *abuse*/*non_job*/a failed screen persist nothing and leave her deck standing. Screening + dedupe + attempt creation are one shared function both callers use. **`pinnedOrDerived` (new) changes an inherited rule:** a stored family pin now outranks a derivation that lost it — without it the recovered visitor's own interview 409s, since the labeler still cannot place her. #235's invariant holds (no downgrade, no swap); only the response changes, from a refusal to carrying on. **This softens the pulled-publication case #237 is open on — see the note there.** Ratchet lowered 1119 → 1110 | — | — | — |
-| ~~5c.1d~~ | ~~#238~~ | ~~The owner is told what people search~~ **MOVED 2026-08-16 to Phase 4, order 36b, beside #69** — spec'd, then deferred to the pilot by the owner: it is monitoring, and there is nothing to monitor until real people are let in | — | — | — |
-| ~~5c.1e~~ | ~~#245~~ | ~~An empty deck is two states, and the screen says the wrong one~~ **DONE 2026-08-16 (QA GO, `ee16d21`)** — the server now answers the plain question `searching` only for its own `retrieval-in-progress` marker; the deck renders *"Still looking for your jobs…"* and polls sequentially until the original search settles. No dead end or #228 widening offer can render in that window. Cards appear without reload; a genuinely empty result restores today's dead end and eligible offer unchanged; polling failure reaches the existing error/retry. QA proved both rendered transitions (`searching → cards`, `searching → settled empty`) with 9/9 human-paced checks, plus 140 mocked browser tests. **#116 remains broader:** fill a non-empty open deck as individual advert reads finish | — | — | — |
-| ~~5c.1f~~ | ~~#242~~ | ~~A job family carries the words its market uses~~ **DONE 2026-08-16 (QA GO, `ad853e7`) · ⚠️ NOT ON STAGING (CI blocked — see the banner)** — the published family now carries `marketSearchTitles`: per region code, the titles that market actually advertises the work under, each with its probe measurement (quoted title, one market, advert count). Filled from the measured research: HK/SG/VN "project manager", AU also "delivery manager". The publish gate refuses a publication whose served markets lack search words — served comes from the live provider registry, proven by QA adding a market to a scratch registry and watching boot die naming it. **By design, adding a region to the registry refuses boot until every family names its words.** Two residuals for the owner: the gate re-checks the list at every publication but cannot force a re-*measurement* (a freshness rule would be the calendar decision 4 forbids — drift protection stays procedural), and no probe was run beyond the recorded research, so HK/SG/VN carry exactly one title each until someone measures candidates like "scrum master". **#240 is unblocked** · *Residual 1 closed the same day by #244 (below); residual 2 (one measured title per market in HK/SG/VN) stands* | — | — | — |
-| ~~5c.1f2~~ | ~~#244~~ | ~~A re-published family must carry re-measured market words~~ **FILED + DONE 2026-08-16 (QA GO, `f73c61a`) · ⚠️ NOT ON STAGING (CI blocked — see the banner)** — born from the owner's push-back on #242's residual 1: once **#218's machinery** is the publisher, "re-measure at republication" must be enforced, not remembered. The gate now refuses a new family version unless every served market's newest `measuredOn` is strictly newer than the previous **active** version's — copied rows cannot publish, by construction. First publications and newly served markets exempt; same-day republication needs day-apart dates (accepted edge). QA: 22/22 adversarial probes incl. a v1→v2→v3-between sequence; its mutation check found the one unpinned behavior (the active-version anchor) and a test now pins it. **Recorded on #218:** every republication proposal must budget provider calls to re-run ALL market words — the gate checks dates moved, #218 owns the dates being honest (one fresh title launders its market's older rows; a hand-edited date passes) | — | — | — |
-| ~~5c.1g~~ | ~~#243~~ | ~~The advert's job family never reaches the deck~~ **DONE 2026-08-16 (QA GO, `5f3c701`) · ⚠️ NOT ON STAGING (CI billing blockage, same as #242/#244)** — the reader's closed list is now the **published production vocabulary** (`publishedFamilies` — the same registry call `placeFamily` answers from, so the two surfaces cannot drift apart), an answer outside it is clamped to "none of these" in code (`adReader.family_clamped`), and the family list is **folded into the reader's version hash** — a vocabulary change stales every stored read, lazily re-read at most once (the ticket's trap, closed the durable way). In the deck: `partitionByFamilyFit` deletes a wrong-family advert **before** withdrawal/ranking/judging spend anything on it, counted on `deck.family_dropped` (`/ops/counters`); weak same-family confidence sinks the card's **rank only** (`matchPct × confidence` — the displayed score untouched, membership untouched). Comparison family = `advertFamilyIdFor` (searchFamily first — #228's fallback survives, pinned by test). Curated pool + qa-main stamps migrated to the published id; `promiseCount` repaired (asked with the published id, both directions pinned). Live Tier-2 run: family deck 15→8 with the deleted **7** read off `/ops/counters`; word deck unfiltered; four weak 100% cards sunk below a 31% card. New journey `apps/web/e2e/deck-family-fit-journey.mjs` (not yet in run-tier2's list — owner's call, ~2.5 min CI). **Residuals:** (1) ⚠️ **the real model has never been asked for a family `id`** — fakes only, no key in this env; **watch `adReader.family_clamped` on staging** — label-answering would clamp everything and empty family decks; (2) first deploy re-reads every stored advert once, by design; (3) #228 must pin `searchFamily` on its fallback deck (comment recorded on #228). **#63's last gate is #240** | — | — | — |
-| ~~5c.1h~~ | ~~#240~~ | ~~🔒 the job family never reaches the search~~ **DONE 2026-08-16 (QA GO, `2d8eb58`) · ⚠️ NOT ON STAGING (CI billing blockage, same as #242/#243/#244)** — **the query is now a list of quoted job-title phrases, built per region**: her typed role leads and is never dropped, #242's `marketSearchTitles` for that market ride in the same call, evidence labels are gone from the query entirely, and it is still exactly one call per region (quoted phrases OR together inside one `title`). The curated pool matches the same phrases against the advert title, so both providers answer the same question. **Two traps found in review, both silent-deck-emptiers:** the 40-char bound was a per-WORD bound and applied to a phrase it cut real titles in half (a quoted half-title matches nothing) — it now drops whole words; and punctuation is preserved inside a title, because the probe's own HK results include **"C&B Project Manager"**, which folding would have sent as the unmatchable "C B Project Manager". **QA proved it against the live vendor, not a stub** (8 calls, ~USD 0.08, under the owner's new petty-cash rule): old query **445** adverts vs new **22**; Mei's `"Delivery Lead"` alone → 0 → `empty_pool`, with her family → 22 → 10 postings; Sydney's three phrases → **one** call; `"manage"` → 0 (word boundaries hold); `"C&B Project Manager"` → 1. Two vendor semantics the ticket rested on are now **measured, not assumed**: quoted phrases OR together, and phrases match on word boundaries. **Residuals:** (1) AC4's "deck is not empty" is proven at the retrieval result, not the rendered screen — the deck path is unreachable in any browser-runnable config (`qa-main.ts` has no provider registry at all), so **the first staging run with the key live is where a person should look**; (2) an over-long word inside a title is dropped but its neighbours still join (`Senior <41 chars> Manager` → `"Senior Manager"`) — narrows, needs adversarial input; (3) a degenerate typed role reducing to no titles sends **no** `title` param and searches the whole country — **pre-existing, identical under HEAD**, belongs to #63's spend conversation. **#63's last gate is cleared — it is open** · *original grilling record below* — *"The search asks for any word, not a job title: 438 adverts caught to find 22."* **The original framing was half wrong and a live probe replaced it with numbers** (13 Techmap calls, HK, `dateCreated` 2026-08-14, owner-approved). **The defect nobody was looking for: the query is sent UNQUOTED, so the provider matches ANY word.** `project manager` → **438** HK adverts (Marketing Manager, PR Manager, Business Development Manager); `"project manager"` → **22**, all real. Proven by adding an unrelated word (`project manager nurse` → 456, exactly the nurse adverts); word order is irrelevant. **`"delivery lead"` → 0.** **Several quoted phrases OR together in ONE call** (`"project manager" "business analyst"` → 31 = 22+10−1), so a family's whole market word list costs **no extra call**. **Decided:** quote every job title (phrases, not `boundedKeywords`' 12-word soup); send the family's market titles **alongside** her typed role, unconditionally (Sofia de-duplicates to a no-op, Mei gets both — one rule, no branch); **evidence field labels leave the query entirely** (under any-word they only widened the net; her facts score, they do not catch); zero extra provider calls. **The original "expand into sibling titles" premise was rejected** — research Finding 3 (2026-08-01) already measured "delivery manager"/"programme manager" as effectively absent in HK/SG/VN; precision belongs to #243, not here. **Accepted with the number in front of the owner:** 22/day is the WHOLE HK catch for this family, ~7–10 survive #243, the deck judges 8 — so **#228 is a main path, not an edge case**. ~~Depends on **#242**~~ **#242 DONE 2026-08-16** — the per-market titles exist on the publication (`marketSearchTitles`, keyed by region code); pairs with **#243** (**DONE 2026-08-16, `5f3c701`** — the sorter is live, this fixes the catch); **blocks #63 — the last gate** | `/implement` | Opus | **high** |
-| ~~5c.2~~ | ~~#228~~ | ~~The target family ran out: she is offered the work her CV proves, and chooses~~ **DONE 2026-08-16 (QA GO) · ⚠️ NOT ON STAGING (CI billing blockage, same as #240/#242/#243/#244)** — the dead end (deck exhausted **or** empty from the start, **and** no question left) now ASKS: *"There are no more jobs for {her typed words}. Your CV also proves other work. Do you want me to look there?"* — no job family named, no jobs promised, and **no provider call until she accepts**. "No" is remembered and never re-raised, with the way back on the same screen; "yes" buys **exactly one** more search, on the family her own dated job records prove most strongly, and that deck **replaces** hers. **The bound needs no counter:** the accepted family is a one-way latch on the session, it rides the retrieval request, and that is a new fingerprint — one retrieval, then snapshot reuse for ever (proven by a counting retriever: decline → 1 call, accept → 2, polls + a second acceptance → still 2). **#243's trap was live and is closed** — `advertFamilyIdFor` answers with the fallback family first, so the deck is compared AND year-scored against the family it was searched for (regression pins 9 years vs the 0 she has in the family she left). **Loopback copy fixed (decision 2a):** "widen the net" → "score them better", and that door is now only reachable while a question genuinely remains. **Ratchet lowered 1108 → 1058** (`buildDeckCards` extracted to `deck.ts`). **Two judged deviations, recorded on the issue:** D2's "no card remains" clause moved to the SCREEN (the server cannot see a swiped-through deck; both dead ends now behave identically, which is decision 4, and the client half has its own browser test), and D4 gained one exclusion — never offer the family the deck already searched, so a visitor whose only proven family IS her target family gets today's plain dead end. **⚠️ Residual for whoever owns the empty screen:** it shows the dead end while the FIRST search is still running and does not poll there, so a visitor can accept the widening before her own search ever returned — pre-existing, but this ticket gives that window a price. **#63's cost ceiling is now real, not just decided** · *original record below* —  *"The target family ran out: she is offered the work her CV proves, and chooses."* **The owner overrode his own sketch: the fallback is OFFERED, never applied.** She asked for family C; we never slide her into families she did not choose. **The original framing was also wrong** — "no concept of an exhausted deck" ignores the two behaviours already there: the `?loop=deck-exhausted` door (`deck/page.tsx:452`) and #235's "Try a different job title." dead end. **Decided:** the offer fires at the DEAD END only (deck out *and* no question left — an empty-from-the-start deck is the same state), it **asks and never promises** (the search runs only after she accepts, so a decline costs nothing), it names **no job family** (#233 d8's rule), it searches **one** CV family — her strongest, the first of the floors `discoveryPlan()` already ranks, it **replaces** the deck rather than appending, and fallback cards are an **ordinary deck** — same `DECK_JUDGE_MAX_CARDS = 8` paid judging. Decline ⇒ dead end with the offer still reachable, never re-raised. Fallback empty, or fallback exhausted ⇒ the same dead end, **no third search**. A returning visitor gets her own family C searched **first**, every session. **In scope here:** the loopback's "tell me more and I'll widen the net" must stop promising adverts more answers cannot produce. **⚠️ Accepted costs:** some visitors accept and get nothing; a daily returner who consents daily spends one extra call per day (no per-person lifetime ceiling built). **#63's cost ceiling is fixed by this** — **at most one extra provider call per session, one search, on consent only** (recorded on #63). Empty-state wording split out to **#239**. **SPEC'D 2026-08-16 → #241** (`ready-for-agent`) — ⚠️ **now BLOCKED on #240**: the fallback is an ordinary family search run with a different family, and family search does not exist. Spec also **narrowed decision 6 to her STRONGEST CV family only** (owner-flagged): two families in one search cannot be attributed to a family, and years are scored at family scope — today's code would score her fallback cards against her ZERO years in the target family. **2026-08-16, after #240's grilling: blocked on #242 and #243 as well, and PROMOTED from edge case to main path** — a live probe measured the whole daily HK catch for this family's main title at **22 adverts**; ~7–10 survive #243's family deletion and the deck judges 8, so **one visitor consumes roughly one day of Hong Kong in one sitting**. Design and copy here are for a path most visitors reach. Note recorded on #243: the fallback deck must be compared against **the family that deck was searched for**, never the session's, or every card in it is deleted on arrival | `/implement` | Opus | medium |
-| ~~5c.2a~~ | ~~#237~~ | ~~Publishing a new family version blocks open sessions pinned to the old one~~ **DONE 2026-08-16 (`159c4bc`, QA GO) · ⚠️ NOT ON STAGING (CI run 31950377847 never started: account billing/spending-limit blockage)** — same-family re-derivations now retain each pinned `questionFloors` and `searchFamily` reference across both session stores. Coverage, completed checkpoints, retrieval generation/fingerprint, and a valid open-deck posting snapshot survive; a different family still fails closed, and #235/#236 keep their prior behavior. No expiry, unpublish, or user-facing copy was added | `/implement` | Opus | medium |
-| ~~5c.2b~~ | ~~#239~~ | ~~The empty-result wording is ours alone — check "Try a different job title." against what LinkedIn and Tinder actually show at zero results, then propose one family of strings for every dead end~~ **DONE 2026-08-16 (`11edd8b`, closed by hand)** — `docs/research/empty-result-wording.md` cites first-party LinkedIn, Tinder and Reed evidence, maps the four #239 dead ends, and recommends a plain `No jobs found` / `No more jobs ... right now` family of strings; #228's widening remains explicit consent, and #245's "still searching" stays a separate wait state | — | — | — |
-| ~~5c.3~~ | ~~#232~~ | ~~The target role's several families: discovery asks the essential items of each floor~~ **DONE 2026-08-16 (QA GO, `3dfd307`) · ⚠️ NOT ON STAGING (CI run `31953528467` started zero jobs: existing billing/spending-limit blockage)** — plural target placements retain every usable family as an ordered `questionFloor`; production asks the de-duplicated essential union and covers one merged checkpoint, while the first family remains the sole `searchFamily`. If any family is unusable, the plan falls back as one unit. **Owner scope decision:** #223 still owns the legacy standard/triggered engine convergence | — | — | — |
-| ~~5c.4~~ | ~~#227~~ | ~~A failed family placement is only retried by a re-upload~~ **DONE 2026-08-16 (QA GO)** — `labelJobBlocks` is now wired as a best-effort retry on non-upload reads that depend on past-job placements: `/job-blocks`, production discovery evaluation, `/onboarding/cards`, and `/onboarding/cards/fallback`. The existing labeler checkpoint remains the guardrail: null jobs are retried; confirmed, unmapped, and corrected jobs are skipped. Regression tests prove both the no-reupload review read and #228's two-family ranking trap, where the recovered strongest family beats the shorter second-best fallback family | — | — | — |
-| ~~5d~~ | ~~#223~~ | ~~Labeler slice 4: the stub retires — one discovery engine~~ **DONE 2026-08-16 (QA GO)** — the `resolveFamily()`/constant-family stub and hand-authored sample floor are gone; former consumers now read the production floor registry and the plan-selected `questionFloors`; internal calibration names `needs_clarification`. Pure health slice: no intended visitor-visible change, full suite green | — | — | — |
-| ~~6~~ | ~~#216~~ | ~~Discovery asks the family floor the reveal is earned from~~ **DONE 2026-08-19 (QA GO on the 4th gate run, `82102bc`) · ⚠️ NOT ON STAGING (the existing Actions billing/spending-limit blockage)** — one discovery engine: the shipped `/onboarding/discovery/*` routes now reconcile, so the floor items a visitor is asked come from her plan's published family floors and the coverage her answers earn is written to `session.discovery` on the same request. The parallel `/onboarding/discovery/production/*` interview is deleted (it had no client and could not build the screen). `legacyDiscovery.ts` → `discoveryEngine.ts`; ratchet 1058 → 910. **Policy change #216 did not ask for:** a re-derived plan that conflicts with a pinned one now loses to the pin instead of 409-ing mid-interview. **AC3 is superseded by spec #233 decision 6 and is left for the owner** — see the progress note below | — | — | — |
-| ~~6b~~ | ~~#229~~ | ~~The career changer is scored honestly but told nothing — the "new to this family" sentence~~ **DONE 2026-08-19 (QA GO, `d4f7e5d`)** — the deck response carries `newToFamily` (known zero in the deck's family + real years elsewhere; unknowns and first-jobbers never fire it) and the deck screen says, once, above the cards: *"This is a change of direction — your CV shows your experience in other kinds of work, so scores here will be lower. Harder, not impossible."* Copy only — QA measured the same deck scoring byte-identically with and without the sentence. #228's widened deck clears it (e2e-pinned). `noIsFatal` stays written-but-unenforced per the owner's #216 AC3 ruling. Ratchet 910 → 900 (`answeredGrillIds` → grill.ts). ⚠️ **Dark until #218**: with one published family the labeler can never produce a known zero, so no real visitor can trigger it yet — re-run the browser gate on the real derivation when #218 publishes the second family (recorded on #218, with coverage gap G1: a real route test that an accepted widening drops the flag) | — | — | — |
-| ~~7~~ | ~~#63~~ | ~~Real live jobs replace the fixture deck~~ **DONE 2026-08-19 (QA GO on the 2nd gate run)** — **the deck a visitor saw was 100% fixtures, always, and the reveal counted them.** `sessionPostings` held #248's authorization check and then returned `[...fixturePool]` on the refusal branch, so the refusal was real in the payload's `retrieval` field and cosmetic in the cards: an uncovered visitor was told *"17 jobs just matched you"* over the hand-maintained corpus. AC2 and AC3 were false in the shipped product. Now a posting reaches a session **only** via a live, authorized, currently-reusable `relevant_postings` snapshot; every other state is an EMPTY pool. Proven live: floor uncovered -> 0 cards + `invalid_request/floor_not_covered`; floor covered -> 8 real retrieved cards, **0 carrying a fixture id**. QA could not get round the gate (`?reveal=1`, `?checkpoint=...`, forged headers, naming a fixture ad on `/want` -> all refused). **#174's copy trap is closed in the words, not just the payload:** a new `unavailable` screen (*"We couldn't look for jobs just now."* + retry) is distinct from the empty dead end, so a supplier outage never reads as *"there are no jobs in your market"*; `invalid_request` is deliberately NOT an outage (it keeps the "answer a few more questions" line). **Two QA-blocking defects found and fixed:** (1) a visitor **lost the job she was tailoring** with a Try-again that 404s for ever and no way back — the fixture pool had been masking #101's decided fail-closed rule; fixed CLIENT-side only (`not_found` joins the existing redirect to `/deck`), server gate untouched and its pinned test still green; (2) 4 of 16 tier-2 journeys went red — three had **never earned their deck** and one indexed `cards[0]` without waiting out retrieval; all restored to their exact baselines. ⚠️ **`snapshot-is-not-permission-journey`'s `retrievalGeneration === 0` assertion was WRONG on unchanged code** — that counter tracks her own intent + floor-pin writes, reads 2 before any deck is read, and **measured 2 at HEAD too**; re-pointed to the invariant its own message names (unmoved across the three refused reads), QA verified the claim three independent ways including running HEAD's journey against this build. **`qa-main.ts` now wires a stand-in retriever** at the same seam main.ts hands the real provider (the deck has no other way to receive an advert, so every browser journey would go dark) with a `POST /qa/stack {retrievalOutcome}` knob, because the two new screens were otherwise unreachable in any browser-runnable config — **not** the fixture escape hatch the owner forbade: it produces a retrieval RESULT that still passes every gate, and it is pruned from the image. Gates: **1523 api + 47 contracts passed uncached**, typecheck clean, Tier 1 143/0, **Tier 2 all 16 journeys, 486 assertions, 0 failed**. Ratchet untouched (900). 🚨 **OPERATIONAL: a deployment with no working provider now has NO deck at all, for anyone** — the deliberate trade (a dark deck is honest; a fixture deck sold as a match count is not), and it makes the staging `TECHMAP_RAPIDAPI_KEY` load-bearing. **Confirm against staging on the first deploy**, along with #243's residual (`adReader.family_clamped`). ⚠️ **Two pre-existing honesty problems this makes VISIBLE and does not fix, both owner decisions:** the first discovery question still promises *"10 jobs are open right now"* counted off `sample-postings.json` (partly #246, now self-contradicting — she can be told that and then "we couldn't look"), and the CV preview still says *"Written against a real posting"* naming a fixture employer (`matchPosting`, no retrieval, no liveness). ⚠️ **Three journeys are in NO tier and will rot unwatched** — `credible-reveal-journey.mjs` (#63's own acceptance evidence, 29/0), `stale-search-tailor-return-journey.mjs` (the D2 regression, both left by QA) and the pre-existing `deck-family-fit-journey.mjs`; adding to `run-tier2.mjs` is the owner's call (~2.5 min CI each), same as #243 recorded | `/implement` | Opus | high |
-| ~~7a~~ | ~~#246~~ | ~~The promise counts stored postings, not her search~~ **DONE 2026-08-20 (QA GO)** — question 1 now buys **one real search**, waits up to 4s, and states what it found: *"16 jobs are open right now."* No job family and no place, **to anyone** (owner decision 1) — `DiscoveryPromise` is `{ count }` and nothing else, so the label cannot reach a screen even by accident; `promiseCount()` deleted. Nothing to count → **no sentence at all**, never a zero. The number is pinned to the session (`promiseOpenJobs`, new nullable column): `reconcileDiscoveryState` drops the retrieval snapshot on every answer, so a promise read off it would blink out on the first tap. **QA caught two defects the diff reviewers could not:** the deploy-gating `snapshot-is-not-permission-journey` asserted a question-1 session had claimed no retrieval (true before this ticket, false by design after — now asserts the fingerprint/generation do not *move* across refused reads); and `/onboarding/discovery/start` was an **unmetered anonymous spend endpoint** — 4 provider searches measured from one session by retyping the job title, ~40 min for one IP to drain techmap's 1000/month. Now **one search per session, ever**; a re-asked question 1 clears the number rather than showing the abandoned job's count. Ratchet paid twice, **900 → 870** (`fixtureDiscoveryState` → adaptiveDiscovery.ts, `withFactFloor` → sessions.ts). New Tier 2 journey `promise-counts-her-own-search-journey.mjs` — the only test anywhere reading that sentence off a rendered screen. ⚠️ **Cost, measured: 2 retrievals per visitor, not 1** (question 1 + the deck; the checkpoint differs so one snapshot cannot serve both) — ~USD 0.02/visitor, but **calls bind before dollars**: monthly capacity ~1000 → **~500 visitors** (×3 for a three-city target). ⚠️ **The 4s bound will often be missed under load** (techmap paced at 0.4 calls/sec) — many visitors will see no number; fails silent, never wrong; needs a live measurement. ⚠️ **The promise is a ceiling, not a match** — promised 16, served 8: the count is the catch, the deck then withdraws and (for a visitor *with* a search family) deletes wrong-family adverts. The word-search visitor this ticket is about is unaffected | `/implement` | Opus | medium |
-| ~~7b~~ | ~~#218~~ | ~~Pilot vocabulary-growth~~ **DONE 2026-08-20 — closed with #255** (the umbrella's own rule). The loop ran for real: harvest → cluster map → owner picks → priced research → complete packages → owner arbitration → publication through the gates → operator progression → harvest marked. In-product machinery stays deferred to #250 (trigger: proposal volume outgrows owner review time, measured in real runs) | — | — | — |
-| ~~7b.2~~ | ~~#252~~ | ~~Vocabulary growth slice 1: **an unmapped label survives the deploy** — durable person-linked store replaces the 200-entry buffer wiped per restart; ops-key-gated read; words never in logs; a feed-write failure never fails a placement.~~ **DONE 2026-08-20** (`748417f`, `/qa-gate` GO, all 7 ACs evidenced, AC1/AC2/AC6 proven live over the wire). Known ceilings carried to #253: the ops read shows the newest 200 with no paging, and the session link dangles once purge removes the session | — | — | — |
-| ~~7b.3~~ | ~~#253~~ | ~~Vocabulary growth slice 2: **the waiting count and harvest marking** — unharvested + distinct-role counts behind the ops key; mark-harvested resets the count, deletes nothing, and is safe to repeat.~~ **DONE 2026-08-20** (`a323ca6`, `/qa-gate` GO, all 5 ACs evidenced, the harvest cycle proven live in a browser twice + a migration simulation on the pre-#253 table). The two inherited ceilings were decided: the newest-200 ops read **stays**, with `?waiting=1` so a run reads only what it still has to research (answered gaps can never crowd the window), and no distinct-**person** count was built — only distinct roles, which the dangling session link cannot corrupt. New ceilings: `markHarvested()` marks everything unharvested at call time rather than the ids a run read, and the in-memory driver's count saturates at 200 | — | — | — |
-| ~~7b.4~~ | ~~#254~~ | ~~Vocabulary growth slice 3: **the runbook and the proposal package, rehearsed against the gates**.~~ **DONE 2026-08-20** (`6bdfc5b`, `/qa-gate` GO, all 6 ACs evidenced, every endpoint the runbook names probed live). `docs/vocabulary-growth-runbook.md` + `apps/api/research/vocabulary-proposal-template.json` (a complete worked example for a fictitious family, kept under `apps/api` so CI gates edits to it) + rehearsal tests at the REAL publish gates: template passes, <3 distinct employers refused, widening with copied measurements refused / fresh passes, plus a tripwire that the rehearsal family never enters the boot catalog. Gates byte-unchanged (hash-verified) | — | — | — |
-| ~~7b.5~~ | ~~#255~~ | ~~The first pilot run publishes the second family~~ **DONE 2026-08-20** (`25e29c4`, `/qa-gate` NO-GO→GO on scoped re-run, closes #255) — run executed with the owner end to end: 11 labels harvested, 2 clusters picked, 22 calls / USD 0.15, **business-analysis v1 approved and published through the unchanged gates**, the v2 widening rejected with reasons (parked gates-green), the covered learning attempt progressed to `user_notified` behind a true relevant-vacancy check, harvest marked last (11→0 waiting, all readable), and the REAL labeler placed "Business Analyst" into the new family live on staging. **Multi-family is live — row 7b's milestone.** Side effects: two single-family assumptions fixed (Q1 lookup silent no-match; QA fake labeler), #258 filed for the lost alias hint | — | — | — |
-| ~~7b.6~~ | ~~#256~~ | ~~Vocabulary growth slice 5: **#229's sentence proven on the real path**~~ **DONE 2026-08-21** (`/qa-gate` GO, closes #256) — #229's sentence is no longer dark, and no longer proven by a stub. A new Tier 2 journey, `change-of-direction-derived-journey.mjs`, corrects a visitor's dated jobs into the second published family (#255's `business-analysis`) through the **real correction door**, aims her at an `it-project-delivery` role, and reads the sentence off a **populated** 8-card deck the server derived by itself — with an A/B control that skips the correction and is told nothing. The three existing `deck.spec.ts` #229 tests hand the browser `newToFamily` and would stay green if the derivation died; this one would not (QA mutated the running build and it went red). It is wired into `run-tier2.mjs` (~2 min). **Coverage gap G1 closed**: a route test drives an accepted widening and asserts the flag drops on the fallback deck, plus a second test measuring every score byte-identical across the flag flip. Both mutation-probed by QA. ⚠️ **Ceiling recorded**: the score comparison's fixture advert saturates at `matchPct: 100`, so an *upward* drift would hide; downward drift (the direction #229 protects) is caught. A first draft of the route test was caught by `/code-review`'s spec axis — its setup had already silenced the sentence before the widening, so the key assertion could not fail | — | — | — |
-| ~~7b.7~~ | ~~#258~~ | ~~**Q1's "same kind of job" lost its hint for scope-listed aliases.**~~ **DONE 2026-08-21** (`/qa-gate` GO first run, closes #258) — a scrum master, agile coach, delivery lead, release manager or requirements analyst typing their own title at question 1 is now offered their family's market titles; a phrase matching no family is still met with silence, on `marine engineer` instead of `scrum master`. Both live families amended **in place at v1** — no version bump, no re-measurement, **USD 0 and 0 provider calls**. `process analyst` KEPT in business-analysis (its grid grades it *needs_clarification*, not *unmapped* — the labeler still asks; revisit when an operations family publishes and the collision guard forces it). One follow-up left open for the owner: the publish-time collision guard compares whole words while the type-ahead matches on substring overlap, so an alias like `delivery` would pass the guard and still shadow another family's hint — the QA gate proved it on a hypothetical third family and recommends widening. Original text: Filed 2026-08-20 out of #255's QA exchange, and never given a row until 2026-08-21. A scrum master typing their role used to get "project manager / delivery manager" under *same kind of job* — an accident of the single-family fallback, but a CORRECT hint: it-project-delivery's scope names scrum master, agile coach, delivery lead and release manager as inside the family. Fixing the multi-family type-ahead defect restored the documented silent no-match, and those aliases live only in the scope **prose**, so substring matching against market titles cannot reach them. **Placement is unaffected** — the labeler still places them correctly; only the type-ahead hint is gone. Needs a small design decision first: an explicit `aliases` list in the publication, hint-only (never a search word, never labeler input, no advert-count gate), versioned like everything else. Small, and visitor-facing — ordered ahead of #260 for that reason. **SPECCED 2026-08-21** (`/to-spec`, owner in the room, `ready-for-agent`): aliases go on the **publication beside `marketSearchTitles`, never inside the floor** — the floor is oracle-validated, so a field there costs a versioned change in two places; **amended IN PLACE at the same version, no v2** — a version bump would trip #244's fresh-measurement gate and force a paid re-measurement of 4 markets × 2 families purely to add hint words, and the rule that licenses it is now explicit (publication data that cannot change a placement may be amended in place; anything that can needs a version). Optional field, so a family without one behaves exactly as today. **Owner-approved extra beyond the ACs**: publish refuses a duplicate alias across families — #255's defect through a different door, caught at boot rather than on a screen. ⚠️ **The ticket inverts two deliberate assertions** — `discovery.test.ts` and the deploy-gating `second-family-typeahead-journey.mjs` both pin "scrum master → nothing", written by #255's QA gate; the silent-no-match rule moves to an out-of-family phrase rather than being deleted. Judgement call left for `/qa-gate`: whether "process analyst" belongs in business-analysis's aliases (its own grid calls it the ambiguous case). **TICKETED 2026-08-21** (`/to-tickets`): **one ticket, no blockers** — the spec is a single vertical slice, and splitting the collision check out was considered and rejected as over-slicing (a handful of lines inside a function the same ticket already opens). #258's body now carries the full AC checklist; the owner's original *"versioned like everything else"* clause is struck on the ticket, since a version bump is exactly what decision 3 avoids | — | — | — |
-| ~~7b.1a~~ | ~~#259~~ | ~~**The family-research method is undesigned**~~ **DESIGNED 2026-08-21** (`/grill-with-docs`, owner in the room, closes #259 — a design pass, no code) — the method is written and normative: **measure market titles first, then read the WHOLE market** (~120 adverts / 15 calls / **USD 0.15** for business analysis — the constraint was never money or reading, it was what the market has: VN holds 3 BA adverts), 50/title/market cap that **reports when it binds**, threshold = **≥50% of the corpus** + off if any 10+-advert market is under 30% (thin markets inform, never veto), **floor corpus + demand count per item kept in the proposal folder** — published file untouched, no gate edited, both live families stay live. **Owner reversed the ticket's own premise**: a tool is judged by its demand count like anything else (SQL *is* business analysis, Java *is* backend) — the hand-written "skills aren't occupations" filter was rejected as unauditable judgment overruling evidence; a tool may never enter the `scope` sentence instead → **ADR-0015**. **Floor length deliberately NOT decided** — no cap written, `onboarding-reward-design.md` §6's "must be short" marked under review (no traffic to measure drop-out against); #260 produces the first real ranked list and the owner cuts on the curve. Glossary: **floor corpus**, **demand count**. #250 carries the prompt-lift instruction | `/grill-with-docs` | Opus | medium |
-| ~~7b.1b~~ | ~~#260~~ | ~~**Test the designed method against business analysis**~~ **RUN 2026-08-22** (a research pass, no code — `docs/vocabulary-proposals/business-analysis-v1/method-test-2026-08-22.md` + the 99-advert floor corpus in `corpus/`) — **51 calls, 510 postings, USD 0.51**, neither limit close to binding (5.1% of both). **Outcome shape: same four items** — every v1 item clears (requirements elicitation **95%**, solution validation **81%**, analysis to specification **80%**, stakeholder facilitation **51%**), so **v1 stands and needs no v2**. The method also surfaces **process mapping at 85%**, the family's second-strongest signal, which v1 folds into item 2's wording rather than asking separately — an improvement question, not a defect. **ADR-0015's first real test: no equipment item cleared.** SQL reaches **20%**, so §3.3's claim that "SQL for business analysis clears the bar" is **falsified** and needs correcting — the mechanism is right, it just did not fire here. **The run found three holes in the written method, two of which decided the answer:** (1) **the corpus is polluted by the shared job title** — 19 of 99 adverts filed under "Business Analyst" are a different occupation (FP&A, BI reporting, pricing strategy, application support) and §3.2 has no relevance step; left in they cost every item 14–18 points and push stakeholder facilitation off the floor (51% → 41%); (2) **"count" is never defined** — §3.3 writes the thresholds precisely and never says how a demand is recognised in an advert, and strict vs generous readings put requirements elicitation at 40% or 63%; (3) **the same advert arrives more than once** — 117 pulled were 99 distinct, and nothing says to de-duplicate. **Item 5 is not safely established**: it clears both bars by the smallest possible margin (exactly 51%, HK exactly 30%) and is the one item still moving at the cap (SG first half 57% → second half 36%). Two further findings for the owner: **three of v1's five aliases measure 0 adverts in every market** (harmless — aliases are hint-only, #258) and **"senior business analyst" is a strict subset of "business analyst"**, so probing it separately cost 5 calls for almost nothing. **Floor-length decision now has its curve:** the gap is not 4-vs-5 items but **80% → 51%** — four items in a tight band, then a 29-point cliff, then tooling. Owner decision open on the write-up | `/implement` | Opus | medium |
-| ~~7b.1d~~ | ~~#262~~ | ~~**Both families are named after the activity, not the role**~~ **DONE 2026-08-21** (`8e7a9a5`, `/qa-gate` NO-GO → GO on scoped re-run) — "Business analysis" → **"Business Analyst"**, "IT project delivery" → **"IT Project Manager"**. Owner instruction out of #260's write-up: *it is not a role name describing someone's role — the same reason we say Product Owner, not Product Ownership.* **Shipped as v2 on both, not amended in place**: #258 decision 3 allows an in-place edit only for data that CANNOT change a placement, and a label reaches the labeler's own prompt and question 1's type-ahead. `familyId` unchanged on both — an internal key stored placements and eligibility facts reference, which no visitor sees. **8 calls / USD 0.08** for the delivery family's fresh market words (#244); Business Analyst reused #260's probes. Receipt: `docs/vocabulary-proposals/family-rename-2026-08-21.md`. ⚠️ **The near-miss worth remembering: the first attempt REPLACED the v1 loads and 72 tests went red with `family_not_published`** — a stored placement keeps the version it was made under (ADR-0014 d7) and reads it back by (familyId, version), so dropping v1 strands every placement already made against it. Every version is now loaded at boot, oldest first. **The runbook's §6.2 says to "point the existing load at the new file", which is exactly that outage** — ticketed on #261. Two more the gate caught: **the labeler prompt was half-renamed** (business-analysis's scope drew its edge by naming the sibling family, so the heading said the new name and the decisive sentence the old one), and **nine stale `version: 1` pins left 5 of 23 deploy-gating journeys red** — the fix had updated `apps/api/test/**` and missed `apps/web/e2e/**` entirely. Also: **the new names are ordinary job titles**, and the canned CV has a job titled "IT Project Manager", so the widened "the label never appears" regexes fired on the visitor's own CV — those checks now hunt only what can be nothing but a family label, with the hole recorded in the journey header. New Tier 2 journey `family-role-name-journey.mjs` (67 assertions, mutation-proven) is the only one asserting the family NAME a visitor is shown; every other label check is a negative, and a negative goes green when a family is renamed to the wrong thing. **Owner-accepted risk, recorded not resolved:** "IT Project Manager" names a family whose scope deliberately covers scrum master, agile coach, delivery lead and release manager. The 64-case labeler grid that would measure whether placement narrowed is **NOT run (~USD 0.65) — owner's call, open on #262** | `/implement` | Opus | medium |
-| ~~7b.1c~~ | ~~#261~~ | ~~**Close the three holes #260 found in the method (and correct the SQL claim)**~~ **DONE 2026-08-21** (`03952c8`, docs only, USD 0, closes #261 and #260) — all three holes are now written into `docs/vocabulary-growth-runbook.md`, plus two the rename found. **§3.2a: de-duplicate on the advert TEXT, never the provider id** (117 pulled were 99 distinct — 15%, unevenly spread). **§3.2b: throw back the adverts that are a different occupation** — a job title is not an occupation; 19 of 99 filed under "Business Analyst" were FP&A, BI reporting, pricing strategy or application support, and left in they cost every item 14–18 points and pushed an owner-approved item off the floor (51% → 41%). Kept **marked, never deleted** — an exclusion that leaves no trace cannot be re-checked. **§3.3 now states the recognition rule BEFORE the thresholds**: the bars were specified to the percentage point while the decisive judgement — how you recognise that an advert asks for a thing — was never written, and strict vs generous readings put one item at **40% or 63%**. **§3.3 rule 1 no longer asserts SQL clears the bar** — measured at 20%, and no equipment item cleared at all; the Java claim was never measured and is dropped. **ADR-0015 untouched** — the mechanism was right, it did not fire here; the example is now marked hypothetical, which is what it always was. **§3.6 prices the probes, not just the pull** (in #260 probes were the larger half: 32 calls vs 19, so a pull-only estimate was low by two thirds) and adds: price a model lane from `eval/bakeoff-result.json`, not an assumed tier — that error overstated a measurement **13×** in #262. **§6.2 no longer says to repoint the existing load** — that is an outage, proven twice in #262. **#260's decision box is recorded: method proven, cleared for a family nobody has reviewed.** The thing that made #260 trustworthy is not available next time — it ran against a floor the owner had already approved and could disagree with | `/implement` | Opus | low |
-| 7b.1 | #250 | Post-pilot: in-product vocabulary-growth machinery — scheduled research, approval queue UI, **runtime publish path (reverses a deliberate current shape: publishing is a reviewed file loaded at boot)**. Filed 2026-08-20 out of #218's grilling as the deliberately deferred alternative to the pilot's agent workflow. **Pick-up trigger: proposal volume outgrows the owner's review time — measured in real pilot runs, not assumed.** Not ready-for-agent; needs its own design pass | `/grill-with-docs` | — | — |
-| ~~7c~~ | ~~#247~~ | ~~Three unwatched journeys gated nothing.~~ **DONE 2026-08-20** (`7a5ca73`, `/qa-gate` GO, closes #247, owner call: "I want a high quality QA"): `deck-family-fit-journey` fixed at the retrieval seam — synthetic-only confidence pool, deck converges on ONE score, the full #243 claim asserted as an equality and mutation-tested by the gate — and it joins `run-tier2.mjs` together with `unmapped-label-feed` and `family-placement` (their OPS_KEY requirement now set in ci.yml; found by hand-running them). Tier 2 grows ~7 CI min. Credible-reveal + stale-search were already tiered by #63's landing | — | — | — |
-| 7d | #249 | **The CV preview calls a stored posting "a real posting".** Before signup, before discovery, before the deck, `/preview/<jobId>` tells her: *"Written against **a real posting**: Senior Project Manager at **Schneider Electric**"* — and the feed on the way there says *"Picking a live posting that matches your targets…"*. Neither is true: `makePreviewStep` calls `matchPosting(targetTitles)` (`preview.ts:929`), which picks a row out of `sample-postings.json` by counting overlapping title keywords. **No retrieval, no liveness check, no gate** — and it names a REAL employer beside the word "real". Filed 2026-08-19 out of #63's QA gate; **not a #63 regression** (byte-identical before and after) but #63 is what left it alone: `sessionPostings` now refuses to serve a stored advert to the deck, `/want` or the tailor target, so this is the **last surface presenting stored adverts as live jobs** — and the one that says so most explicitly, on the first job-shaped screen a visitor ever sees. **OWNER DECIDED 2026-08-20: option (1), retrieve for the preview — then WITHDREW it 2026-08-22 on a better argument.** Specced as #266 (the provider call, a location question on the intake screen, the deck's retrieval machinery wired into the draft step); #266 is **closed as superseded** and kept as the rejected branch. The owner's question that ended it: **at that point she has not seen a single job card**, so naming a company is incoherent whether or not the job is real — *"why is my CV tailored for Schneider Electric? I never said I wanted that job."* Making a nonsensical sentence true does not make it a good sentence. **Re-specced as #267: the screen names no company and tailors toward the role her own CV shows. Spends nothing — no provider call, no quota, no new question.** Sliced into **#268–#269 (rows 7d.1–7d.2)**. ⚠️ **Also established while checking, and it matters for how much this is worth: this screen is OFF the main journey.** The front door reads the CV inline, shows her the facts it found, asks "what job, where?" and goes to discovery — it never passes through `/progress` or `/preview`. The draft screen is reached by typing `/import` or `/paste` directly, or from an error dead-end. The ticket's "first job-shaped thing many visitors see" is **not true of the current front door**; QA found it by driving `/import`. A real screen telling a real lie, on a side door. Owner chose to fix it rather than delete it; whether a draft-before-signup belongs on the main path again is a separate, still-open product question. The original trade was: (1) retrieve for the preview — honest, keeps the concrete "tailored for <employer>" hook, but spends a provider call **before signup, on every paste**, against the monthly quota, for a visitor who may never return; (2) name no advert at all — free and honest, weaker hook; (3) keep the stored advert but **stop calling it real** — describe it as an example, keeps the demonstration, removes the false claim. 2 points for (2)/(3), 5 for (1). **Sibling of 7a/#246** — the other place a stored number is presented as a fact about the live market. ⚠️ **2026-08-22, the third and final reading — the screen is DELETED, not fixed (#272, row 7d.5), and #249 closes with it.** Both earlier plans were wrong because both assumed this screen is on the visitor's path. It is not. The front door reads the CV in place, shows the facts it found, asks for the target role and search area and goes to discovery; it **never** routes to `/import`, `/paste`, `/progress` or `/preview`, there is no menu or header link to them, no email links them, and the mobile client is a README. They are leftovers of an earlier build that link only to each other, and the sole bridge in is the expired-deck screen's "Upload my CV" button — so **a person reaches this screen only after a failure.** It is an error-recovery screen behaving like a first impression. Two things fell out of scoping the deletion and are now their own rows: the front door has **no paste option at all** (7d.3 — a live gap for scanned PDFs, not deletion overhead) and **12+ browser journeys enter through the old paste screen** (7d.4 — so they never test the real front door). And the deletion pays for itself: every live upload still builds a tailored draft nobody reads. ~~**Closes when #272 closes**~~ **CLOSED BY HAND (owner, 2026-08-22 08:50)** — the ticket's paper trail continues on #272, which carries the deletion and every remaining AC. ⚠️ **One question on this row outlives both tickets and has no other home, so it is restated here: does a CV-draft-before-signup ever return to the main journey?** #271 made it concrete: once the draft screen goes, NOTHING in the product links to `/job-blocks` (the work-history check) — five browser journeys reach it by typed address. If the answer is ever "yes", that is a new spec; if "no", the work-history check needs a front-door-side entrance of its own or it is dead UI. Parked, undecided | — | — | — |
-| ~~7d.1~~ | ~~#268~~ | ~~The draft screen stops naming a company the visitor never chose.~~ **SUPERSEDED 2026-08-22 — the screen is being deleted, not fixed. See 7d.3–7d.5.** Original scope: slice 1 of #267. Copy and what reaches the screen ONLY — the headline drops the company, the *"Written against a real posting"* sentence goes, and the wait-screen feed stops claiming a live posting was picked. The draft is still shaped by a stored advert behind the scenes; nothing on screen states or implies it and no visitor can see which one. **The false claim is dead on this slice alone**, in a small diff with no model behaviour change, and the risk is all quarantined in 7d.2. The trap is a missed surface: headline, lede, feed lines, the dead-end copy — a leftover string renders perfectly and still misleads, which is why the browser assertion is on the STRINGS ("real posting", "live posting", every sample-corpus company name) and not on the payload | `/implement` | Opus | low |
-| ~~7d.2~~ | ~~#269~~ | ~~The draft is tailored toward the role her CV shows.~~ **SUPERSEDED 2026-08-22 — same reason as 7d.1: the screen is going.** Original scope: *"Your draft, tailored for a **Senior Project Manager** role"*. Slice 2 of #267, blocked by #268. The role is her stated target if she has one, else the most recent job title in the work history the product ALREADY reads before the draft is built — **no new question, no new input**. The tailoring pass learns to aim at a **target** that is either a role or an advert (its rules say *"this posting"* ~15 times — bullet spend, ordering, skills ordering, headline), one prompt with two input shapes, deliberately so the post-deck tailor can reuse it later without a second prompt to keep in sync. The CV brain is updated in the same unit of work. The stored sample corpus loses its last production caller and leaves the visitor path for good — **this is what finishes #63**. ⚠️ **Fable because every failure here is silent**: a draft tailored at a vaguer target still renders, still validates and still looks fine while quietly carrying less of her CV. The restraint rule is *a vaguer target means less re-ordering, never less content*, and the AC that enforces it is the comparison against the same claims tailored at an advert. `lessons.md` already records this pipeline shipping subtly wrong once | `/implement` | **Fable** | high |
-| ~~7d.3~~ | ~~#270~~ | ~~**A person can paste their CV text on the front door.**~~ **DONE 2026-08-22** (`a41f44b`, `/qa-gate` GO — twice: once on the build, again after the gate's own finding was fixed; all 7 ACs PASS with browser evidence, USD 0.00, closes #270). The paste tile sits beside "Use my CV" and the failure screen offers "Paste the text instead". ⚠️ **The build found TWO defects older than the ticket, and the second is the one worth remembering.** (1) **A paste stored NOTHING against the session** — `persistImport` was bound for uploads only, so a pasted CV showed its facts and then dropped them: `session.importProof` stayed null (gone on reload) and the claim store was never seeded, so downstream asked for everything again. That IS AC5, fixed at the root — one binding shared by both doors. (2) **The scan guidance never reached the person who needed it**: an unreadable scan ends the job `failed` *carrying* a proof, and the front door threw that proof away for a bare one-liner, so the new "if your CV is a scan, paste the text instead" body rendered only after a reload — i.e. never, on a first attempt. Found by the QA gate driving a REAL scanned PDF; no payload test could have seen it. Both are the same lesson as #63's: **a screen that reads a job must read the failed one the same way it reads the finished one.** Unblocks 7d.4 (#271). Original: Prerequisite for 7d.5. Filed 2026-08-22 while scoping the deletion, and it is a **live product gap, not deletion overhead**: the front door has NO paste option — no textarea anywhere on it. A person whose CV is a scanned PDF is told *"We couldn't read your CV"* and offered "Try again" or "Continue with questions"; neither helps, their CV is fine and the file is just an image. JC-17's paste fallback exists **only** on the old screen nothing links to. Two places need it: beside "Use my CV" on the source step, and on the unreadable-CV error where the product currently offers nothing. Same read, same facts screen, same next step — a person who pastes is not a different kind of visitor anywhere downstream | `/implement` | Opus | medium |
-| ~~7d.4~~ | ~~#271~~ | ~~**A dozen browser journeys enter through a door no visitor uses.**~~ **DONE 2026-08-22 (`57e8e13`, `/qa-gate` GO — all 9 body ACs plus both inherited #264 follow-ups PASS with measured evidence; closes #271).** Fourteen tier-2 journeys, `errors.spec.ts` and `onboarding.spec.ts` now walk in through the front door's paste tile (one shared helper in `qa-driver.mjs`); the jobId comes off the paste response the page itself makes, never the deleted draft screen's address. **Assertion sets byte-identical journey for journey — 696 = 696 across the full sweep**, verified independently by the gate. **Duration reported, not absorbed (feeds #264): full sweep 41.7 → 43.6 min, +117 s (+4.7%), all of it in the re-pointed journeys (+3–22 s each) — the priced consequence the row above warned about: a front-door diff now selects 18 of 24 journeys (was 6), because they genuinely depend on it now.** Coverage map updated in the same commit; a replay check pins both directions (front-door diff → all 13 re-pointed gate journeys selected; deleted-screen diff → zero). #264's two inherited follow-ups discharged: the shared-helper rule is a runnable, mutation-tested check, and `deck-family-fit` maps its direct `preview.ts` import. ⚠️ **One deliberate AC1 deviation, gate-acknowledged: `preview-disclosure.spec.ts` still opens the draft screen** — its subject IS that screen, so it dies with it in #272 rather than one ticket early (its header records the owner rulings on both losses). ⚠️ **`onboarding.spec.ts` was ROTTED, the second no-tier casualty**: it waited for /signup where the product has gone to /job-blocks/<jobId> since #157 — repaired in the re-point and proven on the REAL model (2/2, ~USD 0.70 petty cash) and the fake (2/2, free). ⚠️ **Made visible, not caused: five journeys reach the work-history check by typed address because no live screen links to /job-blocks once the draft screen goes** — the same open product question #249 recorded ("does a draft-before-signup belong on the main path"). Follow-ups filed: **#276** (the front door's own 29-assertion journey runs in NO tier — the gate everything was just re-pointed at has no journey of its own) and **#277** (a failed screenshot on a note step reddens the whole deploy gate — pre-existing flake the gate hit once, clean on re-run). Original: blocked by 7d.3. At least **12** journeys open the old paste screen directly because it was the quick way to inject CV text — so a dozen journeys meant to prove the product works **never touch the front door**, and the read, the session and the state they carry into discovery all come from a path that is about to stop existing. Re-point them; they walk in as a person does. ⚠️ **The count is a floor, not an inventory** — the ticket is "no journey depends on the old screens", and it must find them itself (two more read a job id out of the old draft screen's address). ⚠️ **Change of entrance, never of subject:** a journey that gets shorter or drops an assertion because the new entrance was awkward has quietly shrunk the gate, which is the one outcome that matters. Feeds #264 — report any material duration change rather than absorbing it | `/implement` | Opus | high |
-| 7d.5 | #272 | **Delete the old flow: four dead screens, their routes, and the draft nobody reads.** Blocked by 7d.3 + 7d.4. **Closes #249** — the false sentence and the wait screen's *"Picking a live posting…"* go with the screens that print them. Deletes the old upload/paste/wait/draft screens, the two API routes behind them, and **the draft-building step in the upload pipeline**; the one bridge in (the expired-deck screen's "Upload my CV") points at the front door instead. 💰 **It also stops real spend:** every CV upload on the LIVE front door still runs the draft-building step — a model call that builds a full tailored CV, stores it, and is read by nothing. Est. **USD 0.05–0.12 per upload** from the published rate and a typical CV; the usage ledger holds the exact figure under the `preview-tailor` stage, and the AC is to **report the ledger's real before/after**, not the estimate. ⚠️ **KEPT deliberately: the tailoring engine** — the tailor prompt, the Draft structure, the conservation lint and the CV-brain docs behind them. It is the only working implementation of the CV brain and what the post-deck tailored CV will need; after this it is unreachable, not dead, and a comment where it lives must say so or the next reader deletes it. Also kept: the job event stream (the front door uses it) and `sample-postings.json` (QA harness + scoring fixtures) | `/implement` | Opus | high |
-| ~~7d.6~~ | ~~#273~~ | ~~The over-packed-line warning loses its only screen.~~ **DECIDED 2026-08-22 — owner: drop it on purpose.** Not re-homed; it goes with the screen. Its two conditions moved onto #272 as ACs: the lint keeps DETECTING over-packing (this changed what is shown, never what is checked), and the drop is recorded in the CV brain beside the conservation rule with its reason — a stance that silently stops being surfaced is how it rots into a lie. Original framing: Split out of 7d.5; does NOT gate it. The draft screen is the only place that warns *"One printed line carries 4 facts at once"* — the visible half of ADR-0002 clause 5, where the product admits compression cost detail instead of hiding it. It renders nowhere else, so it is shown to **nobody** today: deleting the screen takes its audience from zero to zero. Nothing is urgent; what is needed is a decision instead of a silent loss — re-home it on a named screen, or drop it and record why in the CV brain. **The sibling half is already covered**: the profile screen says *"The rest are kept for when a job needs them. Your CV is two pages, so it picks; nothing is ever dropped."* This ticket decides what is SHOWN, never what is CHECKED — the conservation lint keeps detecting over-packing either way | `/grilling` | Opus | low |
-| ~~8~~ | ~~#64~~ | ~~The match count survives signup~~ **DONE 2026-08-22** (`/qa-gate` GO first run, closes #64) — **most of this ticket was already standing and nothing had proved it.** The inline wall is #22's, and signing in claims the SAME anonymous session row rather than copying it (`setClaimedByUserId`), so AC2's "transfers without replay" is true by construction; AC4 was already enforced at one server choke point (`requireUser`) on every route that discloses job detail — the QA gate verified all ~11, not just the two now tested. **The one real gap was AC3**: a visitor who pressed "See them", signed in and came back was shown the reveal a SECOND time and had to press it again — the product selling her a reward she had already earned. The wall's return stash now carries a one-shot flag and a completed claim lands her on the highest-ranked card, with the count re-announced and the card heading focused so skipping the curtain does not skip what the curtain did. **Three defects found by the two review axes, all fixed before the gate:** (1) #123's withdrawal line ("I left them out") lives on the reveal and nowhere else, so the skip would have silently swallowed it — the skip now refuses to fire when there is one to say, failing toward telling her; (2) the flag was permanent, so a bookmark or reload would skip a reveal it never earned — now stripped on spend; (3) only the magic-link door was tested, and Google is the LEADING one. New API test `claimAfterReveal.test.ts` pins all four ACs server-side including a provider-call counter that would fail on a re-search. New Tier 2 journey `claimed-return-journey.mjs` (11 assertions) — **in NO CI tier**, an owner call, same status as any hand-picked addition to `run-tier2.mjs`. ⚠️ **Residual: the Google door was never driven against real Google** (no credentials on the fake stack); one manual sign-in on staging closes it. **USD 0, zero provider and zero real model calls** | `/implement` | Opus | medium |
-| ~~8a~~ | ~~#264~~ | ✅ **DONE 2026-08-22 (`308d059`, QA GO).** `--changed=<ref>` on `run-tier2.mjs` plus `tier2-coverage.mjs`; no flag still runs all 24, so main and every deploy keep the full gate. **#262's replay selects 10 and skips 14, with all five of that ticket's genuinely-red journeys inside** — and the map earns it rather than inheriting it from AC9 (the three NON-journey paths alone yield the same 10). ⚠️ **TEN, not AC5's nine:** `unmapped-label-feed` asserts which words no published family covers and the registry decides exactly that, so a registry edit can break it. Fail-open direction, ~2 min, AC5's substance untouched; the owner can hold it at nine by dropping `FAMILY_REGISTRY` from that one entry. **The four safety properties are enforced, not written** — `--changed` is refused outright when `CI` is set, so no future edit can narrow the deploy gate quietly. ⚠️ **Three map holes were found before it landed** (two by review, one by sweeping every tracked file through the map); that is the mechanism's predictable failure mode and why fail-open plus the full 24 on deploy are the design. The entry guard was wrong twice — an exact path compare, then a hardcoded filename that reintroduced the very "a rename can't silently shrink the gate" hazard quoted below; it now derives its own name and refuses an undecidable invocation loudly. `apps/web`'s `test` script was a no-op echo and now runs the 13 selection checks. **Two non-blocking follow-ups the gate raised, both for #271 to absorb while it is in that file:** assert that every shared `e2e/` helper imported by a gate journey is in `SELECTS_ALL` (a comment enforces it today, and that hole was found twice), and map `apps/api/src/preview.ts` to `deck-family-fit-journey.mjs`. Original: ▶️ **owner picked it over 7d.4 #271 on 2026-08-22.** **AC9 added the same day, and without it this ticket does not speed up the next one:** the coverage map is *source path → journey*, so a diff that changes a JOURNEY FILE matches no rule, hits the catch-all and runs all 24 — meaning #271, whose whole diff is journey files, would pay the full sweep anyway. AC9 makes the obvious rule explicit: a journey file selects itself. **Every ticket pays the full 60-minute browser sweep, including the 18 journeys it cannot touch.** Filed 2026-08-21 out of an owner question about why the gate keeps getting slower. Measured: the 24 Tier 2 journeys run sequentially in **~60 min**, against **~33 s** for all of `pnpm test` + `typecheck` + `build` combined — the browser sweep is ~99% of gate wall-clock and grows ~2.5 min with every journey added (23 → 24 in #262). Most journeys cannot be reached by most changes: #64 is signup and cannot break the tailoring, language-ladder or master-CV-dates journeys, yet they run anyway. **Build a coverage map** (journey → source path globs) plus a `--changed=<ref>` flag on `run-tier2.mjs` that selects the reachable subset. Typical ticket **~60 → ~12 min**; a broad cross-cutting change (#262-shaped) **~60 → ~23 min**. ⚠️ **The hazard is the point of the ticket, not a footnote:** `run-mocked.mjs` already opens with the rule *"computed at run time — not a hand-typed list — so a rename can't silently shrink the gate"*, and this ticket builds the exact machinery that rule exists to prevent happening by accident. Four safety properties are ACs: **fail OPEN** (an unmapped path runs everything — unknown means unsafe-to-skip, never safe-to-skip), **the full 24 still run before every deploy and on `main`** (selection is per-ticket only, never the definition of green), **print what was skipped and the rule that matched** (a narrower run must never read as a full pass), and **selecting zero is a hard error**. **AC5 is the criterion that matters**: replaying #262's own diff must select the 9 family-reachable journeys AND contain all 5 that genuinely went red in that ticket's first QA gate — a map missing those five would have let #262 push a broken deploy while reporting green. **Chosen over parallelising the journeys**, deliberately: parallelism needs per-worker isolation of the shared in-memory `qa-main.ts` (sessions, family-learning store, rate limiter — `playwright.config.ts` already pins `workers: 1` on CI for that reason), is the bigger job, and can introduce flake; selection needs no isolation rewrite, saves at least as much, and cannot. Parallelism stays available afterwards if this is not enough | `/implement` | Opus | medium |
-| 8c | #265 | **The labeler reaches for the nearest published family instead of answering unmapped.** Filed 2026-08-21 out of #263. `CONTEXT.md` defines a family placement as *"confirmed or unmapped — **never the nearest family**"*, and measured on the labeler grid it does exactly that: `Business Intelligence Analyst` and `Systems Analyst` both come back **confirmed (business-analysis)** where the honest answer is unmapped. **Checked properly rather than asserted, after the owner pushed back that BI and BA look like the same job** — from #260's own floor corpus, the 7 purely BI/reporting adverts ask for a specification **0 of 7** times and for requirements elicitation **0 of 7**, against 59% and 48% for the in-family adverts; independent sources agree the two are different occupations (BA works with *people* to decide what should change, BI works with *data* to describe what happened). **The visitor cost:** a BI analyst is confirmed into Business Analyst and then interviewed on requirements elicitation, spec writing and UAT — work their adverts ask for 0-7% of the time — so a competent person is asked to prove a job that is not theirs. ⚠️ **Step 1 of the ticket is to read the labeler prompt and establish whether the never-nearest rule is missing or present-and-not-holding** — NOT verified before filing, and it decides which ticket this is. Two guardrails: do **not** fix it by widening business-analysis's scope (that makes the wrong answer correct by redefinition), and do **not** over-correct into unmapped (the grid's 5% false-unknown bar exists to catch a labeler that buys stranger recall by refusing real members). **The grid is noisy** — two runs of the same 65 cases gave 97.8% and 100%, so do not declare it fixed on one green run (~USD 0.05 each). **Partly self-resolves**: the day a data/BI family publishes, a BI analyst gets a home rather than an honest refusal — see `docs/vocabulary-proposals/candidate-families.md` | `/implement` | Opus | medium |
+| ~~4~~ | ~~#124~~ | ~~Where do you want to work?~~ **DECIDED 2026-08-13 → build was #214** | — | — | — |
+| ~~4b~~ | ~~#214~~ | ~~Target locations: up to three chips, one deck over the union~~ **DONE 2026-08-14** | — | — | — |
+| ~~5~~ | ~~#220~~ | ~~Labeler slice 1: the target role is placed in a real family, measured before trusted~~ **DONE 2026-08-15** | — | — | — |
+| ~~5b~~ | ~~#221~~ | ~~Labeler slice 2: every past job carries a correctable family label~~ **DONE 2026-08-15** | — | — | — |
+| ~~5b.1~~ | ~~#225~~ | ~~Is a job in ONE family, or honestly several?~~ **DECIDED 2026-08-15 → ADR-0014 amendment 1** | — | — | — |
+| ~~5b.2~~ | ~~#231~~ | ~~Labeler slice 2b: several families per job, confidence rides the ranking~~ **DONE 2026-08-15** | — | — | — |
+| ~~5b.3~~ | ~~#227~~ | ~~A null placement is a call we never made — a retry, not a question~~ **DONE 2026-08-16** | — | — | — |
+| ~~5c~~ | ~~#222~~ | ~~Labeler slice 3: years per family, read at the advert's own scope~~ **DONE 2026-08-15** | — | — | — |
+| ~~5c.1~~ | ~~#230~~ | ~~An unmapped target role gets no adverts at all~~ **DECIDED 2026-08-15 → spec #233, slices #234–#236** | — | — | — |
+| ~~5c.1a~~ | ~~#234~~ | ~~Question floors and the search family become two facts, chosen by one plan~~ **DONE 2026-08-16** | — | — | — |
+| ~~5c.1b~~ | ~~#235~~ | ~~The unmapped target role gets a word-search deck, including the honest empty state~~ **DONE 2026-08-16** | — | — | — |
+| ~~5c.1c~~ | ~~#236~~ | ~~The candidate screen runs on that path; `covered_role` recovers a missed family~~ **DONE 2026-08-16** | — | — | — |
+| ~~5c.1d~~ | ~~#238~~ | ~~The owner is told what people search~~ **MOVED 2026-08-16 → row 36b (Phase 4), deferred to the pilot** | — | — | — |
+| ~~5c.1e~~ | ~~#245~~ | ~~An empty deck is two states, and the screen says the wrong one~~ **DONE 2026-08-16** | — | — | — |
+| ~~5c.1f~~ | ~~#242~~ | ~~A job family carries the words its market uses~~ **DONE 2026-08-16** | — | — | — |
+| ~~5c.1f2~~ | ~~#244~~ | ~~A re-published family must carry re-measured market words~~ **DONE 2026-08-16** | — | — | — |
+| ~~5c.1g~~ | ~~#243~~ | ~~The advert's job family never reaches the deck~~ **DONE 2026-08-16** | — | — | — |
+| ~~5c.1h~~ | ~~#240~~ | ~~The job family never reaches the search~~ **DONE 2026-08-16** | — | — | — |
+| ~~5c.2~~ | ~~#228~~ | ~~The target family ran out: she is offered the work her CV proves, and chooses~~ **DONE 2026-08-16** | — | — | — |
+| ~~5c.2a~~ | ~~#237~~ | ~~Publishing a new family version blocks open sessions pinned to the old one~~ **DONE 2026-08-16** | — | — | — |
+| ~~5c.2b~~ | ~~#239~~ | ~~Empty-result wording checked against LinkedIn/Tinder/Reed~~ **DONE 2026-08-16 → `docs/research/empty-result-wording.md`** | — | — | — |
+| ~~5c.3~~ | ~~#232~~ | ~~The target role's several families: discovery asks the essential items of each floor~~ **DONE 2026-08-16** | — | — | — |
+| ~~5c.4~~ | ~~#227~~ | ~~A failed family placement is only retried by a re-upload~~ **DONE 2026-08-16** | — | — | — |
+| ~~5d~~ | ~~#223~~ | ~~Labeler slice 4: the stub retires — one discovery engine~~ **DONE 2026-08-16** | — | — | — |
+| ~~6~~ | ~~#216~~ | ~~Discovery asks the family floor the reveal is earned from~~ **DONE 2026-08-19** | — | — | — |
+| ~~6b~~ | ~~#229~~ | ~~The career changer's "new to this family" sentence~~ **DONE 2026-08-19** | — | — | — |
+| ~~7~~ | ~~#63~~ | ~~Real live jobs replace the fixture deck~~ **DONE 2026-08-19** | — | — | — |
+| ~~7a~~ | ~~#246~~ | ~~The promise counts stored postings, not her search~~ **DONE 2026-08-20** | — | — | — |
+| ~~7b~~ | ~~#218~~ | ~~Pilot vocabulary-growth~~ **DONE 2026-08-20, closed with #255; in-product machinery deferred to #250** | — | — | — |
+| ~~7b.2~~ | ~~#252~~ | ~~Vocabulary growth slice 1: an unmapped label survives the deploy~~ **DONE 2026-08-20** | — | — | — |
+| ~~7b.3~~ | ~~#253~~ | ~~Vocabulary growth slice 2: the waiting count and harvest marking~~ **DONE 2026-08-20** | — | — | — |
+| ~~7b.4~~ | ~~#254~~ | ~~Vocabulary growth slice 3: the runbook and the proposal package~~ **DONE 2026-08-20** | — | — | — |
+| ~~7b.5~~ | ~~#255~~ | ~~The first pilot run publishes the second family~~ **DONE 2026-08-20** | — | — | — |
+| ~~7b.6~~ | ~~#256~~ | ~~#229's sentence proven on the real path~~ **DONE 2026-08-21** | — | — | — |
+| ~~7b.7~~ | ~~#258~~ | ~~Q1's "same kind of job" lost its hint for scope-listed aliases~~ **DONE 2026-08-21** | — | — | — |
+| ~~7b.1a~~ | ~~#259~~ | ~~The family-research method is undesigned~~ **DESIGNED 2026-08-21 → the runbook** | — | — | — |
+| ~~7b.1b~~ | ~~#260~~ | ~~Test the designed method against business analysis~~ **RUN 2026-08-22 → `docs/vocabulary-proposals/business-analysis-v1/`** | — | — | — |
+| ~~7b.1d~~ | ~~#262~~ | ~~Both families are named after the activity, not the role~~ **DONE 2026-08-21** | — | — | — |
+| ~~7b.1c~~ | ~~#261~~ | ~~Close the three holes #260 found in the method~~ **DONE 2026-08-21, closes #260 too** | — | — | — |
+| 7b.1 | #250 | Post-pilot: in-product vocabulary-growth machinery. **PARKED, deliberately skipped** — pick-up trigger: proposal volume outgrows the owner's review time, measured in real runs (not met: two runs, both reviewed comfortably). Reverses a deliberate shape (publish = reviewed file at boot → runtime path), so it needs its design pass first | `/grill-with-docs` | — | — |
+| ~~7c~~ | ~~#247~~ | ~~Three unwatched journeys gated nothing~~ **DONE 2026-08-20** | — | — | — |
+| ~~7d~~ | ~~#249~~ | ~~The CV preview calls a stored posting "a real posting"~~ **CLOSED by hand 2026-08-22 — the deletion and every remaining AC live on #272 (row 7d.5)** | — | — | — |
+| ~~7d.1~~ | ~~#268~~ | ~~The draft screen stops naming a company the visitor never chose~~ **SUPERSEDED 2026-08-22 → 7d.5 #272 (the screen is deleted, not fixed)** | — | — | — |
+| ~~7d.2~~ | ~~#269~~ | ~~The draft is tailored toward the role her CV shows~~ **SUPERSEDED 2026-08-22 → 7d.5 #272 (same reason)** | — | — | — |
+| ~~7d.3~~ | ~~#270~~ | ~~A person can paste their CV text on the front door~~ **DONE 2026-08-22** | — | — | — |
+| ~~7d.4~~ | ~~#271~~ | ~~A dozen browser journeys enter through a door no visitor uses~~ **DONE 2026-08-22** | — | — | — |
+| 7d.5 | #272 | **NEXT** — Delete the old flow: four dead screens, their routes, and the draft nobody reads. Unblocked (7d.3 + 7d.4 done). Closes #249. Also stops real spend: every upload still builds a tailored draft nothing reads (~USD 0.05–0.12/upload; AC reports the ledger's real before/after). The tailoring engine is KEPT | `/implement` | Opus | high |
+| ~~7d.6~~ | ~~#273~~ | ~~The over-packed-line warning loses its only screen~~ **DECIDED 2026-08-22 — dropped on purpose; its two conditions moved onto #272 as ACs** | — | — | — |
+| ~~8~~ | ~~#64~~ | ~~The match count survives signup~~ **DONE 2026-08-22** | — | — | — |
+| ~~8a~~ | ~~#264~~ | ~~A ticket pays only for the journeys its diff can reach~~ **DONE 2026-08-22** | — | — | — |
+| 8c | #265 | The labeler reaches for the nearest published family instead of answering unmapped — step 1 is establishing whether the never-nearest rule is missing or present-and-not-holding | `/implement` | Opus | medium |
 | 8b | #217 | Industry — the second label axis: closed vocabulary with relatedness, seventh fact, its own labeler | `/to-spec` | Opus | high |
-| 8d | #274 | **One text field style across the product — today there are four, and two of them zoom the page on a phone.** Filed 2026-08-22 out of #270's design-hook findings. Started as "the front door's fields don't match `DESIGN.md`"; surveying the other stylesheets changed the question — **the front door is not an outlier, because there is no norm.** Three corner radii (8/10/11px), four text sizes (14.5/15/16px), two fills and two focus treatments across four screens, and the field `DESIGN.md` describes exists NOWHERE. ⚠️ **Two of those rows are live defects, and they are why this is a ticket and not a doc edit:** (1) **discovery and the deck zoom the page on iPhone** — mobile Safari zooms into any focused field under 16px, no viewport restriction is set, and those screens use 15px/14.5px, so someone answering the discovery questions on a phone gets the page jumped in on every tap; that is the MAIN JOURNEY. (2) **discovery's focus cue is a gold border** (`discovery.css:433`), which `DESIGN.md` §Inputs explicitly forbids (*"no glow, no border-colour tricks"*) and which is the weaker cue for a keyboard user. The build: **10px corners · Night Raised · 16px text · 2px ink outline**, everywhere — the doc's shape, fill and focus rule, with ONE reasoned exception on size (16px, because 14px zooms), recorded in the doc **with its reason** rather than left as a silent mismatch. **Not on the table: pinning the viewport** to stop the zoom — that takes pinch-zoom from everyone who needs it to read. Look only: every field's behaviour, validation and test hooks stay put, so the browser specs should pass untouched; a red one is a finding, not a test to update. Prototype + full survey: `apps/web/prototypes/field-style-options.prototype.html`. Padding is deliberately left alone (varies, but inside the range the doc states). Touches 4 stylesheets + `DESIGN.md` | `/implement` | Opus | medium |
+| 8d | #274 | One text field style across the product — today there are four, and two of them zoom the page on an iPhone on the main journey. Unscheduled, no blockers | `/implement` | Opus | medium |
 
-**#124 is DECIDED (2026-08-13, `e0d8cd2`) — a recorded decision, not a build.** The ticket's own
-premise was partly stale: #182/#184 already built the single search area, per-market right-to-work
-storage, and per-posting withdrawal matching. What was decided: **multi-select saved preference,
-hard cap 3, covered-market (country) granularity, remote is a separate future axis not a location,
-right-to-work stays per-market (one question per selected market), and a preference now carries
-`statedAt`** — the edge #139 flagged that no ADR had decided. Research
-(`docs/research/target-location-selection.md`) grounds each answer in what LinkedIn, SEEK/JobsDB,
-104, Indeed and VietnamWorks actually do; the design spec
-(`docs/design/target-locations-design-spec.md`) reuses the languages chips widget, no new screens.
-The build is **#214** — and the "#124 before #63" ordering rule below now reads "#214 before #63".
-
-**🚨 #63 is BLOCKED again (2026-08-14) — the reward gate is unreachable, and always has been.**
-`/implement 63` stopped before any code change. Verified by driving the real web-facing flow end to
-end, not by reading: a visitor who sets a target role and a search area and answers **all seven**
-discovery questions positively still produces `{ family: null, checkpoint: null }`, and the real
-retriever's verdict on that request is `invalid_request / family_not_published`. The deck then
-returns **8 fixture cards anyway**. (**#235 removed that verdict 2026-08-16** — a
-session with no family now gets a word search rather than a refusal. It does not fix the second
-cause below.) ⇒ **every job any visitor has ever seen on the deck is a
-fixture**, and #63 implemented as written would make the deck permanently empty for everyone.
-
-Two independent causes, both now filed:
-
-- ~~**Placement is never wired.**~~ **FIXED 2026-08-15 (#220, QA GO).** `main.ts` now wires the real
-  labeler (MiniMax M3 via Fireworks, chosen by measurement — see `docs/deploy.md`), so a visitor
-  whose typed target role belongs to a published family gets `confirmed`,
-  `/onboarding/discovery/production/evaluate` answers 200, and `session.discovery` is written. An
-  unplaceable role gets an honest `unmapped` plus the family-research door, never a nearest guess.
-  Measured before trusted: 97.6% comparable accuracy on a 60-case owner-arbitrated grid
-  (`apps/api/eval/`, bars 95/90/5). ⚠️ Needs `FIREWORKS_API_KEY` on Fly or it falls back, unmeasured,
-  to Claude at ~6× the cost — and fails soft, so nothing will tell you.
-- ~~**The shipped screen asks a different floor than the gate checks.**~~ **FIXED 2026-08-19
-  (#216, QA GO, `82102bc`).** Narrowed by #223, closed by #216. The shipped discovery routes read
-  the production registry and the plan-selected `questionFloors`, AND now reconcile: as floor items
-  are answered, `session.discovery` stores the floor reference, reaches (or drops back from)
-  `essential_floor_covered`, and hands `/onboarding/cards` the non-null family/checkpoint state #63
-  is built on. Proven end to end in a browser, not only on the wire —
-  `apps/web/e2e/discovery-earns-reveal-gate.mjs`, now a Tier 2 member. ⚠️ Like everything since
-  2026-08-16, this is committed but NOT on staging: the Actions billing blockage means no CI run has
-  executed, so nothing here has been deployed or exercised against a real provider.
-
-**Owner decision 2026-08-14: option A — prerequisites first, and take #134 whole.** Chain wired as
-native GitHub dependencies: **#134 → #216 → #63** (#63 `blocked_by: 2`). I first carved the
-target-role placement half out as **#215**, so #63–#69 would not stall behind an unsliced design
-ticket; **the owner reversed that and #215 is closed**, folded back into #134 with every acceptance
-criterion preserved there. The reason is efficiency, and it is the owner's call to make: one session
-building the whole classifier beats three sessions building thirds of it.
-
-✅ **All of that is now delivered** (2026-08-15): design pass → **ADR-0014**, spec → **#219**, slices
-→ **#220–#223** (rows 5–5d), follow-ups **#217** (industry labeler) and **#218** (vocabulary-growth
-process) filed. **#220, #221, #222, #223, #231 and #232 are done.** The chain to real jobs is now
-**#63 alone** (#216 closed 2026-08-19; **#134 and #219 closed by hand 2026-08-19** — the slice chain WAS their delivery); #230 is closed and **#222 is no longer blocked** — #225
-decided it and #231 built the plural placement it needs. The historical bracket mattered: #232's body said it blocks
-#223, but **#223's own blocked-by list did not carry it** until this was checked (2026-08-15, now
-fixed on the tracker, along with #230/#228 missing from #63's). Left alone, #223 would have read as
-buildable the moment #222 landed, and its floor-selection rewrite would have been written twice.
-
-🔑 **#225 — the one decision in this chain that a later change cannot undo cheaply.** Raised by the
-owner mid-`/implement 221`: *we are shaping what a "job" is before the engine that discovers job
-families exists — what if that engine tells us the shape is wrong?* Most of the model is protected and
-deliberately so: placements carry the version they were made with and are never mass-relabelled
-(ADR-0014 d7), the labeler sits behind a swappable seam, years are **derived** and recomputed at every
-door, and a label is a correctable fact with history. 🔑 **The stored shape is also more forgiving
-than it looks** — a block holds a whole `FamilyPlacement` union, *not* a bare id string, and a union
-grows by **addition**, which ADR-0001 rule 2 makes the cheap direction.
-
-**What is NOT protected is the cardinality: one job → at most one family.** Nobody decided that; it
-was inherited from the contract's shape, and `makeJobBlockLabeler` is writing it now. ADR-0001 is
-explicit that this class of decision *"must be decided when that fact is first shaped — changing your
-mind later is a migration, and this rule will not save you."* The live case needs no cluster engine,
-only a second published family: a Technical Program Manager who genuinely splits the week has **zero**
-product-management years, so an advert asking *"3+ years product management"* scores a winnable job at
-nothing — #86's own worst failure. **#221 shipped unblocked** (its shape is the forgiving one either
-way — one placement per job, correctable, and a needs-clarification answer stored rather than
-resolved); **#222 was blocked**, because that is where per-family years stop being a default and become
-arithmetic a visitor is judged on. **Unblocked 2026-08-15** by #225 (the decision) and #231 (the build).
-
-✅ **#225 is decided (2026-08-15, owner grilling pass) — ADR-0014 amendment 1.** A job may hold
-**several** families and its years count **fully** toward each, never split; the family numbers
-therefore no longer sum to the career total, and no surface may show that sum. **The labeler never
-asks the user anything** — `needs_clarification` is deleted, and #221's end-of-deck panel with it —
-because the question is unanswerable: nobody can know whether their own job meets our definition of a
-family, and an unsure person picks both out of fear of missing adverts. Our doubt is carried instead
-by an **ordinal confidence (certain / likely / possible) that attenuates the card's score and never
-the years fact** — facts stay printable and true, uncertainty lives in the ordering, nothing is ever
-filtered out. 🔑 **Uncertainty is not proportion:** a job we are unsure about still contributes its
-*full* years; only the card sinks. 🔑 **And the owner's own catch — a known zero is not an unknown:**
-when every job is placed and none is in the advert's family the answer is **zero**, not her career
-total, so #222's generous fallback narrows to genuinely unaccounted years. **#222's ACs updated;
-#231 was the implementation and shipped 2026-08-15 (`34bdd3c`), so #222 is clear to build.** One
-thread #231 deliberately left hanging for it: the confidence ordinal is **stored** from today but
-**nothing scores against it yet**. #222 now OWNS that wiring explicitly (its ACs were amended
-2026-08-15 — they mentioned confidence nowhere, so the behaviour was about to fall between two
-individually-complete tickets), and the weights are **owner-decided**: certain x1.0, likely x0.9,
-possible x0.75. An 80% card reads 60% at *possible*, and that is the intent, not a side effect. Deferred on purpose, each with a ticket: the "new to
-this family" sentence a career changer is owed (**#229**), the unmapped **target role** that got no
-adverts at all (**#230** — the one place ranking cannot save us, because the family is what we search
-*with*; **decided 2026-08-15**, spec #233, slices #234–#236), and the fallback when a family's
-adverts run out (**#228** — decided + spec'd (**#241**) and **DONE 2026-08-16, `16537fd`**; it left
-one residual, filed as **#245**).
-
-🔒 **The ordering rule for this cluster, and why rows 5c.1–5c.3 sit where they do.** Two of the
-tickets #225 produced were **decisions, not builds**, and both land upstream of code that would
-otherwise be written around an assumption they may reverse. Ranking them last — the natural instinct,
-since neither ships anything — is the trap. **Both are now decided — #230 on 2026-08-15, #228 on
-2026-08-16** — so both bullets below are history; they are kept because the rule they encode is what
-put them first, and it applies again to the next decision-shaped ticket:
-
-- ~~**#230 gates #232 and #223.**~~ **Settled 2026-08-15 — the gate moved from a decision to a
-  build.** All three rewrite the same rule: *which family floor is a session asked?* #230's answer
-  is that the question is two questions — *which floors do we ask from* and *which family do we
-  search with* — and **#234 splits them behind one plan function**. So the edge is now **#234 →
-  #232** (and #234 before #223): #232 changes what that function returns for a plural target role,
-  #223 deletes the `resolveFamily()` stub that selects one today. Building either before #234 writes
-  the selection logic twice, exactly as before — only the blocker's number changed.
-  **Closed 2026-08-16: #234 shipped, so both edges are spent — #232 and #223 are free to start.**
-- ~~**#230 and #228 both gate #63.**~~ **Both settled 2026-08-16 — and a THIRD gate appeared.**
-  #230 decided that retrieval may proceed without a published family, and **#235 is the build that
-  opened it**. **#228 is DONE (2026-08-16, `16537fd`)**: the extra live search exists, but it
-  is **at most one per session, one query, and only after the visitor accepts the offer at the dead
-  end** — a decline costs nothing. So #63's cost ceiling is now built, not just decided. **But spec'ing #228 turned up #240 — and
-  grilling #240 on 2026-08-16 turned one gate into three: #242 → #240, with #243 alongside.**
-  **#242** — nothing stores what a family is called in each market, so `"delivery lead"` reaches the
-  provider verbatim and returns **0** in Hong Kong; the need was written into the provider research
-  on 2026-08-01 and never filed. **#243** — the advert's own family fit is produced on every read and
-  thrown away, because the reader answers into `e5stub`'s test vocabulary (`["IT Project Manager"]`)
-  and the published family is `it-project-delivery`; `deck.ts` refuses it and points at **#107, which
-  is closed and about something else**. **#240** — a live probe (13 calls, owner-approved) found the
-  query is sent **unquoted**, so the provider matches *any word*: **438 HK adverts caught to find
-  22**. All three were in front of #63, and so was #228 — every one of them has now shipped (2026-08-16). *(The earlier "#228 follows it" was wrong: #228 gated #63, which is why it was built first.)* **The rule earned its keep three times
-  here:** #228's grilling reversed the owner's own sketch, spec'ing it found the hole in the main
-  search, and grilling that hole found both a live defect and the ticket nobody owned. **The
-  measurement also promoted #228**: 22 adverts/day is the whole HK catch for this family, ~7–10
-  survive #243, the deck judges 8 — running out is the ordinary ending, not the corner case.
-- **#232 was missing entirely** until this review (filed 2026-08-15; shipped 2026-08-16 as
-  `3dfd307`). Amendment 1 decision 7 — the
-  target role follows the same plural rule — had no work behind it, and #231 makes the placement
-  contract plural for *both* paths at once. So **#231 explicitly held the target role at one
-  family**, with a test pinning it, and #232 lifted that constraint after **#234** split floor
-  selection from search selection (#230 settled the rule; #234 is the code).
-  Without this, #231 would have shipped a plural target role into a floor selector that takes one —
-  silently picking a family, which is the exact failure the whole pass exists to remove.
-
-Everything else in the cluster is genuinely safe to build first: **#222** (years arithmetic) touches
-no gate either grill can move, **#226** (the cluster engine map) cannot invalidate stored placements
-because they carry their own family version and are never mass-relabelled (ADR-0014 d7), and
-**#217** (industry) is an additive seventh fact on a separate axis.
-
-📍 **#226 maps where families come from at all** — filed 2026-08-15 because `e5stub.ts` has always
-pointed at *"the real cluster engine (S3/JC-31)"* and **that was a season-plan reference that never
-became work**, the third instance of this repo's twice-recorded failure. Today: exactly **one**
-published family, hand-made through a real gate (3+ employers of posting evidence, a pinned dataset
-whose hash must regenerate, 0.95/0.90/0.05 thresholds), with #218 as the pilot growth path. The map's
-question is not *"build clustering"* — it is **"how many families does this product need, and is that
-a number a person can curate?"** A recorded *"hand-curation is enough, and here is the count that
-would change that"* is a perfectly good and much cheaper outcome. Sits in Phase 6 (row 44.1); nothing
-in Phase 1 waits on it.
-
-~~⚠️ **One sequencing note taken 2026-08-15, now spent:**~~ **Spent for real 2026-08-19 — #216 is
-done.** The note held #216 until #223 removed the `resolveFamily()` stub and converged the former
-consumers on the production registry. That was the right order: #223 left exactly the product-path
-reconciliation #216 then closed. It also left ten journeys answering the retired stub's item ids,
-which #216 had to migrate — see `lessons.md` on why a test that NAMES data instead of reading it is
-the rot, and CI being off is what let it hide.
-
-**Two #63 scope answers already given by the owner, valid whichever way the prerequisites land:** the
-`empty_pool` state offers **adjustment only** (no "notify me" — the re-check job it would promise does
-not exist), and there is **no dev-only fixture escape hatch** (a flag letting fixtures authorize a
-reveal is the exact failure #63 exists to close; local demos need a real Techmap key).
-
-**#205 shipped 2026-08-13** (`0fe62f3`, `6f8cc64`, `9f5bd5e`; QA gate GO). The eligibility journey
-is green (45/0) and runs in Tier 2 — 7 journeys / 14 min / 253 assertions, all green. Its audit
-produced **#209**: of the 17 journeys in no tier, 12 are green, one was rotted and fixed there, and
-four cannot run at all until someone gives them a stack. Two honest residuals were recorded rather
-than papered over: **no journey now carries a live "no" work-rights answer through to the deck**
-(the question is asked once, and the journey retracts it to prove the correction path), and #209's
-first diagnosis of `job-blocks-confirm` was copied from a stale header and was wrong.
-
-**#209 is DONE (2026-08-13).** All four journeys are green and in Tier 2, which is now **11
-journeys / ~25 min / 388 assertions**. None was retired. What each needed turned out to be one
-missing piece of the QA stack, not a product defect:
-
-- `job-blocks-confirm` — the fake job-block miner answered every re-upload with the SAME block ids,
-  so a second upload was all id-collisions and the confirm deck stood empty. Its header blamed an
-  unwired `mineJobBlocks`; **that was never true**, and this ticket's own first diagnosis repeated
-  it. The header now says so, in place, for the next reader.
-- `language-ladder` — no advert in the shipped corpus states a language requirement of any kind.
-  **The owner's instruction was to add one to `sample-postings.json`; I did not, and this needs his
-  yes or no.** Measured: the shipped corpus mentions no language at all — zero hits across all 17
-  postings, and no language eligibility dimension in the requirements fixtures. Writing three in
-  would put fabricated requirements into real employers' adverts, quoted as those adverts' own
-  words, on a corpus staging serves to visitors. They live in the QA entry instead, which is pruned
-  from the deployed image. **The owner RATIFIED this deviation on 2026-08-13**, after the QA gate
-  raised it: the shipped corpus stays truthful, and the fixture corpus is scheduled to be replaced
-  by #63 anyway, so adding to it is work with a known expiry date. If a hand-demoable language job
-  is ever wanted, it is to be an obviously-invented employer ("Acme Bank, Hong Kong"), never a real
-  one — nobody may mistake a fixture for a job they could apply to.
-- `pending-unscored` — "Still scoring" cannot appear against a judge that answers instantly, so the
-  QA judge can now be made deliberately slow.
-- `master-cv-dates-note` — **rewritten, not deleted**, against the fake model and the current
-  preview → work-history → wall → deck path.
-
-**The cost landed on the QA stack, and it had to be paid twice.** Making the QA API more
-production-shaped (a judge; three more adverts) broke two journeys that had been green for weeks —
-`tailor-journey` started tailoring an advert it was never written for, and `band-vocabulary`
-crashed reading a breakdown off a card that honestly has none. So both new capabilities are **off by
-default and armed by the journey that needs them** (Tier 2 is sequential, so there is one owner at a
-time). One of those crashes was a real journey bug: an `unscored` card carries no breakdown **on
-staging too**, so that journey would have crashed against the real product.
-
-**One production-code change, and it is a test seam.** `buildServer` now accepts an
-`authRateLimiter` override, mirroring the `sessionRateLimiter` seam it already had. Tier 2 signs in
-six times now and auth allows five magic links per 15 min per IP, so the gate went red on a real
-protection working correctly. Only `qa-main.ts` sets it; the production default is untouched.
-
-**One honest residual.** The pending journey's last section — the "Estimate" caption a deployment
-with NO judge shows — still needs a second web origin with judging switched off, and a second origin
-means a second `next build`. It reports itself as not covered rather than passing quietly.
-
-**#209's shape was decided (owner, 2026-08-13): fix three, force the call on the fourth.** Add a
-language-requiring posting to the fixture corpus; add a judge-delay knob to `qa-main.ts`; diagnose
-the confirm-deck failure for real — those three then join Tier 2. The fourth,
-`master-cv-dates-note-journey.mjs`, is **rewritten against the free fake model or deleted, inside
-that ticket** — it was written against the real paid model, so CI can never run it, and it has been
-diagnosed twice already. Accepted cost: Tier 2 goes from ~14 to ~20 min per push. **#209 stays
-below #120** — the four are not red because the product is wrong, and nothing lands on top of them
-the way #120/#166/#122 land on the eligibility questions.
-
-**#202 is DONE (2026-08-13, commit `8c9a00a` + follow-up).** All three rulings are settled in
-`research-data/structured-read/decisions.md`; the answer key is built from the raw CV text and
-**adjudicated by the owner** (`research-data/structured-read/answer-key.md`, Thomas 67 / Giuliana 22);
-all four prompts are scored against it in `docs/research/structured-read-cost.md`. What it leaves
-behind, and what the rest of this plan must respect:
-
-- 🚨 **Today's live miner is the joint-best reader** — 99%/90% Thomas, 100%/100% Giuliana. #196's
-  "half the cost" result stands, but the unstated half of that pitch, *"and it reads at least as
-  well"*, does **not**: the cheap alternative scores 75% and 50%. **No prompt swap on cost grounds
-  until it is rewritten and re-measured.** This retires the third #202 premise to die by checking.
-- 🔍 **The Giuliana collapse is diagnosed, not fixed.** It is **not** four roles at one employer. The
-  failing reader captures every line under a *"Key Achievements"* heading and no plain duty bullets —
-  it reads the page's own headings literally, and on Thomas it dropped a whole job printed under
-  project names. The fix is a prompt rewrite. The originally proposed fix (tag by job index) is
-  **disproven** — the reader that already does it collapses identically on two of three samples.
-- ⚠️ **If #206 rules a duty and an achievement are different records**, Giuliana's three
-  duty↔achievement merges reverse and her key becomes 25 — ~2 points, no rank change. The key says so.
-
-**#208 was ranked second on a cost that does not exist, and has been moved below #205.** The claim
-was that every upload adds rows in the shape we ruled against. ⚠️ **Nobody uses the app yet, and will
-not soon** (owner, 2026-08-13) — so nothing accrues and there is no bleeding to stop. With urgency
-gone, #205 goes first on its own merit: it is ~2 points, it restores the only end-to-end proof the
-gate questions work, and three tickets right behind it (#120, #166, #122) all edit exactly those
-questions. **Keep this correction visible** — a false urgency argument is worse than none, and it is
-the second premise in this section to be retired by checking rather than assuming.
-
-**#208 shipped 2026-08-13.** The reader now stores a compound bullet whole and the writer splits it
-with the advert in hand — the ruling is live on every upload. The writer gained an ability it did not
-have (one claim, two printed bullets, both citing the same id). **Two guards on that new ability
-shipped the same day**, after the owner asked what a checker would cost: a **two-bullet cap** per
-claim (kills the padding shape splitting made possible) and a **numbers-survive check** (a split
-asserts it renders the line in full, so its figures must land on one of the two bullets). Four
-tests. The tailor prompt states both as checked limits, not advice.
-
-⚠️ **What the guards cannot reach became [#212](https://github.com/adrien-mounier/jobcrush-app/issues/212), and it is the more serious half.** A result with no
-digit in it is invisible to a numbers check — and a **partially printed** compound claim is
-invisible to everything: print one action out of three, the claim id is still cited, and nothing
-reports a loss. Pre-#208 those were separate claims and the unprinted ones were shown to the person.
-**So ADR-0007 clause 4 — *the machine never removes silently* — is currently false for any CV line
-carrying more than one action.** Found by probe, not by the review chain. #208 traded granular
-disclosure for stable storage; the trade was right and #212 pays the other half of the bill.
-**Claims already stored as fragments are left alone, deliberately**: a re-read
-would overwrite corrections people made by hand, and with no users the only fragment-shaped rows are
-dev/staging data plus the committed eval recordings, which re-record on demand. One thing not done
-and worth naming: the edited prompt was **not re-scored against #202's answer key** — that needs live
-API calls and was not in the ticket's acceptance criteria. The direction is favourable (every reader
-in the corpus already kept compound lines whole, so the live prompt moved *toward* the key), but that
-is an argument, not a measurement.
-
-**The one correction from #208's ordering worth keeping.** It was first ranked second on urgency —
-*every upload adds rows in the shape we ruled against* — and that cost did not exist: nobody uses the
-app yet, so nothing was accruing. The second premise in this section retired by checking rather than
-assuming. A false urgency argument is worse than none.
-
-🚚 **#120 moved OUT of Phase 1 to 11.1, owner decision 2026-08-13 — and this is the second time the
-same decision has been taken.** It sat at order 3, which contradicted the ticket's own hard block:
-on **2026-08-04** the owner declined the offered split and chose to wait for the whole #127 model,
-*"I am not comfortable developing something for specific cases."* Asked again on 2026-08-13 with the
-premises re-checked — the model is now decided (twelve ADRs) and partly built (#161, #163 shipped),
-so the original reason to wait has largely expired — **the owner held the same line: the general
-surface first, the one-off button never.** Recorded twice now, so no third session re-litigates it.
-
-**Why 11.1 and not straight after #178.** The design gate is #176/#178, but the *build* gate is
-#169 + #204: #120's real work is server-side — exposing a prior answer so a question can re-render
-pre-filled — and that is the same persistence #169 builds for resumable topics and #204 for skips.
-Landing #120 first would build that store a third time. It stays **before #166**, which adds two
-more answers the product calls permanent.
-
-⚠️ **The live harm is carried knowingly for the whole distance, and the distance just got longer.**
-Since #123 shipped, a mistap on the language question withdraws postings from that person's deck
-with **no undo, permanently for that session** — and because that question is always last, the one
-correction affordance never renders at all. The reason it is acceptable: **nobody uses the app.**
-That is the only thing making this safe, and it stops being true the day someone signs up. If a real
-visitor ever reaches the deck before 11.1 lands, this jumps the queue.
-
-**#205 before the eligibility tickets** — it is test debt, not product work, and it still went
-second on purpose: `eligibility-questions-journey.mjs` is the ONLY end-to-end proof that the gate
-questions work, it has been red and in no CI tier for weeks, and three tickets (#120, #166,
-#122) all edit exactly those questions. Landing them on a broken net means the net never catches
-anything. It is ~2 points and it buys back the regression cover for three tickets. **#124 before #63** or the
-first live deck knowingly serves jobs the visitor cannot legally take — retrieval shipped with no
-location parameter and #107's right-to-work answer is stored globally, so a visitor needing
-sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not labelled
-`ready-for-agent`; confirm its scope before building.
+**Parked question with no other home (was on #249's row, outlives it):** does a CV-draft-before-signup
+ever return to the main journey? Once #272 deletes the draft screen, NOTHING in the product links to
+`/job-blocks` (the work-history check) — five browser journeys reach it by typed address. "Yes" is a
+new spec; "no" means the work-history check needs a front-door-side entrance or it is dead UI.
+Undecided.
 
 ### Phase 2 — the profile gets rich (map #127 fan-out)
 
@@ -599,9 +153,9 @@ sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not lab
 | 11.1 | #120 | Eligibility answers can only be corrected in the moment | `/implement` | Opus | medium |
 | 12 | #166 | Degrees & certifications asked when silent | `/implement` | Opus | low |
 | 13 | #122 | An unasked requirement reads as a question | `/implement` | Opus | medium |
-| ~~13.1~~ | ~~#211~~ | ~~How finely is a skill list split?~~ ✅ decided 2026-08-13 — ADR-0004 clause 10 + ADR-0013; **#164 builds it** | — | — | — |
-| 13.2 | #210 | A messy bullet stays messy on the master CV | `/implement` | **Fable** | medium |
-| 13.3 | #212 | A partly printed compound line is a silent loss | `/grilling` | Opus | high |
+| ~~13.1~~ | ~~#211~~ | ~~How finely is a skill list split?~~ **DECIDED 2026-08-13 → ADR-0004 clause 10 + ADR-0013; #164 builds it** | — | — | — |
+| 13.2 | #210 | A messy bullet stays messy on the master CV — build from ADR-0013, fix at the render | `/implement` | **Fable** | medium |
+| 13.3 | #212 | A partly printed compound line is a silent loss — first question is an owner call: may a compound line print in part at all? | `/grilling` | Opus | high |
 | 14 | #164 | Skills become records in your own words | `/implement` | **Fable** | medium |
 | 15 | #206 | An achievement and a duty are stored the same | `/grill-with-docs` | Opus | high |
 | 16 | #156 | Something finally checks the two-page rule | `/implement` | Opus | medium |
@@ -612,111 +166,36 @@ sponsorship in Hong Kong can have their Australian jobs deleted. #120 is not lab
 | 21 | #170 | Unclassifiable content kept and printed faithfully | `/implement` | Fable | medium |
 | 22 | #171 | Stretches proposed and approved per advert | `/implement` | Fable | xhigh |
 
-**#176 and #178 first** — they decide where everything below lands on screen, and #178's audit
-already found three authorities disagreeing about which sections exist. **#169 before #166** so its
-two questions are born in the new container rather than migrated into it. **#204 straight after
-#169** — both are ADR-0011's question-delivery mechanics, and a skip that survives a reload is the
-same persistence #169 builds for topics; doing it first would mean building that store twice.
-It is #165's one disclosed ceiling: a skipped level question lives in screen state, so the same
-advert asks again on reload, which clause 4 forbids. Its sibling — a permanent "stop asking" — is
-deliberately NOT in it, because clause 4 binds that to an undo surface on the profile that #178 has
-not drawn yet. **#164 keeps its slot after #178, and its rule is now fully settled** — decided
-2026-08-13 and **amended in part the same day by #211** (ADR-0004 clause 10). What stands: tools are
-taken from job prose as well as the Skills section, and every addition is proposed to the person,
-never silent. What changed: prose tools are **proposed at ingestion under an exact-string guard**
-rather than mined by the read, and **near-duplicate spellings merge by dictionary, not by model** —
-a fresh model judgement is the thing that made the reader swing 17→44 on one CV. **Volume is settled
-too:** ~26 prose proposals arrive as **one screen of removable items, pre-selected**, not 26 cards;
-#178 draws that screen. Still open and handed to #164: **the group labels** the Skills section prints
-under (today the model invents them and no two CVs share one). ADR-0004 now carries the rule as
-clause 10 — clause 3's atomisation note was **refined, not amended**: it binds the bullet, which is
-never destroyed, and a proposed record beside it is not atomisation.
+Ordering constraints, so nobody re-litigates them:
 
-**#212 was opened 2026-08-13, immediately after #208 shipped, by probing rather than reviewing.**
-It sits at 13.3 rather than higher for one reason only: **nobody uses the app**, so no real CV is
-losing anything today. It must be true before anyone's real CV goes through, because it is the one
-failure this product's architecture refuses on principle — a person cannot correct what they are
-never shown. It is `/grilling` and not `/implement` because the first question is an owner call, not
-a build: whether a compound line may print in part **at all**. The strict answer (print it whole or
-hold it whole) needs no new field and may be truer to *tailor by emphasis, not amputation* than the
-flexible one — price that before building. ⚠️ **Do not start it assuming #157 covers the display
-half** — #157 is closed and its items were re-homed; check where they landed first.
-
-**#211 and #210 were opened 2026-08-13, out of the #202 decision-2 discussion. #211 is now decided
-and closed; #210 alone still sits before #164, and is unblocked.**
-
-- **~~#211~~ — how finely a skill list splits. ✅ DECIDED 2026-08-13** (ADR-0004 clause 10,
-  **ADR-0013**). The read takes only the skills inventory; job bullets stay whole. A tool named inside
-  a bullet is **proposed** as a skill, guarded by *must be an exact string already in the CV*, arriving
-  **selected** on one screen at ingestion. What the person keeps is permanent — and that, not the read,
-  is what ends the 17→44 swing: the CV is read once, pruned once, and the set is then his.
-  **The lesson worth keeping:** the question was framed as *how many records does the reader make*, and
-  the rule that won on that framing produced a master CV with no `C#` in its Skills section. The owner
-  rejected all three candidates for that reason. **ADR-0013 is the rule that was missing** — the master
-  CV must be better than the file the person uploaded — and it had already silently decided #210 too.
-  A hand-curated vocabulary was the deterministic option and lost on one fact: no ninety-term list
-  contains `XrmToolBox`, and its absence would be invisible. **#164 builds all of it**; #211 was
-  re-scoped mid-session from "grow a small build" back to decision-only once the ruling grew.
-  Skills now join #202's answer key, measuring **coverage**, not stability.
-- **#210 — a messy bullet stays messy on the master CV.** The owner's question: if we store the
-  person's line as written (#202 decision 2), does the person see their own mess back? Today **yes**
-  — the polish step over the finished master CV is one-bullet-in-one-bullet-out, enforced in
-  `audit.ts`, so a skill list stuffed into a job description prints as a job bullet. The fix is at
-  the render, not the miner — #144's boundary, applied to the master CV, which is itself a render.
-  **#211 is now decided, so #210 is unblocked** — and **ADR-0013 is what it should be built from**:
-  that ADR is the rule obliging the render to act, and its clause 1 (a fact may reach the section a
-  reader expects it in) is #210's case restated for shape rather than coverage. **#156 before #167** because #167, #170 and #171 each make CVs longer and nothing
-checks length today. **#207 immediately before #168** — #168 decides what prints per application, so
-if #207 is not settled first, #168 answers it by accident. It exists because #202's decision 1 ruled
-that a duty printed under three jobs is **one fact, counted once**; the tailored CV still prints
-bullets under a job heading, so something must decide which heading — and whether repeating a fact
-across dated roles is how a page says "ten years of this". It also spends the bullet budget #153
-settled and the page length #156 checks, so it lands after both. **#206 after #202, before the four
-tickets that spend bullets** (#156, #167,
-#168, #171): it decides whether an achievement and a duty are stored differently at all, and those
-four each choose which bullets print without being able to tell the two apart. It is a decision, not
-a build — cheap to take, expensive to retrofit, because adding a field later means re-reading every
-stored CV and risks losing corrections people already made. It sits after #202 because #202's answer
-key is the only time anyone reads these CVs line by line, which is the cheapest moment to learn
-whether the distinction is even reliably visible on the page.
+- **#176/#178 first** — they decide where everything below lands on screen.
+- **#169 → #204 → #120** — all three are the same answer-persistence store; any other order builds
+  it twice. #120's general-surface-first shape is an owner decision taken twice (2026-08-04,
+  2026-08-13) — no third session re-litigates it.
+- **#206 before #156/#167/#168/#171** (they spend bullets without being able to tell a duty from an
+  achievement) · **#156 before #167** (nothing checks length before things that lengthen) ·
+  **#207 immediately before #168** (else #168 answers it by accident).
+- ⚠️ **Standing risk carried knowingly:** since #123, a mistap on the language question withdraws
+  postings with no undo, and the correction affordance never renders. Acceptable only because nobody
+  uses the app — if a real visitor reaches the deck before 11.1 #120 lands, it jumps the queue.
 
 ### Phase 3 — the deck gets cheap and trustworthy
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
 | 23 | #121 | Score jobs just ahead of the swipe | `/wayfinder` | Opus | high |
-| 24 | #116 | Deck appears instantly and fills in. ⚠️ **Overlaps #245 (row 5c.2a, filed 2026-08-16)**, which is the same shape one level up: the deck screen cannot tell "still searching" from "nothing found". If this row is built first it likely subsumes #245; if #245 is built first, check what is left here before starting | `/implement` | Opus | medium |
+| 24 | #116 | Deck appears instantly and fills in. ⚠️ Overlaps #245 (done) — check what #245 already covered before starting | `/implement` | Opus | medium |
 | 25 | #108 | The card's highlight sentence | `/implement` | Opus | medium |
 | 26 | #109 | "3 jobs just got better" | `/implement` | Opus | medium |
 | 27 | #110 | Choose the judging model by measuring it | `/implement` | Opus | high |
-| 27.1 | #224 | Choose the **CV brain's** model by measuring it — the tailor needs a grader first | `/grill-with-docs` | Opus | high |
+| 27.1 | #224 | Choose the **CV brain's** model by measuring it — the tailor has no grader at all, so the design question (what is *a good draft*, mechanically?) comes first | `/grill-with-docs` | Opus | high |
 | 28 | #177 | Tier thresholds 50/75/90 | `—` owner call | Opus | medium |
 | 29 | #175 | Job card desktop | `/prototype` | Opus | high |
 | 30 | #111 | Take the safety nets off | `/implement` | Opus | medium |
 | 31 | #200 | Cut cost per upload | `/implement` | Opus | medium |
 
-**The hard chain is #110 → #177 → #175.** #177's own timing line forbids the metal ladder shipping
-to users on any surface before the thresholds are checked against real distributions, and those
-distributions come from #110. #111 follows #110. #200 waits for #202 or it optimises a read about to
-change.
-
-**#224 is the third of the same shape, and the only one whose measurement does not exist yet.** The
-repo now settles model choice by measuring it, not by preference — #220 did it for the labeler (8
-models × a 60-case grid → MiniMax M3 via Fireworks), #110 does it for judging (the 3 CV × 20 advert
-grid). #224 covers the two stages nobody can decide yet: **claim mining and preview tailoring**.
-Mining already has a graded harness (`test/eval/miner-eval.test.ts`, JC-13) that nothing has ever run
-across models; **the tailor has no grader at all** — `conservationIssues()` catches structural loss,
-not whether the writing is any good. Filed `/grill-with-docs`, not `/implement`, because the design
-question comes first: what does *a good draft* mean, mechanically enough to score? Until that
-exists, no honest answer to "which model writes the CV" is available at any price.
-
-🔑 **The finding that makes this worth doing, measured on #220:** eight models landed **within five
-points of each other while their prices spread 27×**. If that holds for the CV brain, the app's
-dominant per-visitor cost is being paid for nothing. If it does not hold, that is the more important
-result — and today nobody can tell which. **Cheapness is never a reason to move a CV-brain stage; a
-passing grade is** — this is where a weak model invents experience or drops the achievement that
-would have won the job, which is the exact harm ADR-0004/0005 exist to prevent. Pairs with #200 (cut
-cost per upload), which attacks the same bill from the other side.
+**The hard chain is #110 → #177 → #175** (thresholds may not ship before real distributions exist),
+and **#111 follows #110** — revisit #111's model score if #110 lands weak.
 
 ### Phase 4 — finish the live-jobs chain (#54)
 
@@ -727,12 +206,10 @@ cost per upload), which attacks the same bill from the other side.
 | 34 | #65 | The card separates offer, coverage, gaps | `/implement` | Opus | medium |
 | 35 | #66 | Card evidence carries into the tailored CV | `/implement` | **Fable** | high |
 | 36 | #69 | Pilot measurement and release gates | `/implement` | Opus | medium |
-| 36b | #238 | **The owner is told what people search** — per-role Telegram ping + weekly email digest + the product's numbers. **SPEC'D 2026-08-16 (7 points, 3 slices); deliberately deferred to the pilot by the owner the same day.** It is monitoring, and there is nothing to monitor until real people are let in: today it would report a weekly email of zeros. Sits beside #69 because they answer the same question — is this working — and should be built with the same measurements in view. Slice 3 (the Telegram ping) needs **#236**, which lands long before this. ⚠️ **Slice 1 (the card-interaction events) only counts forward** — every week it is not built is a week the digest can never report, and *applications completed* has no history to recover at all. If a pilot date is ever set, slice 1 is the one piece worth pulling earlier than the rest | `/to-tickets` | Opus | medium |
+| 36b | #238 | The owner is told what people search — spec'd 2026-08-16, deferred to the pilot by the owner (nothing to monitor until real people are let in). If a pilot date is set, pull slice 1 (card-interaction events) early: it only counts forward | `/to-tickets` | Opus | medium |
 
-**Re-read each against the code before building** — all five predate work that shipped underneath
-them; the concrete overlaps are recorded on #54. #67 is much cheaper than its 5 points (the
-checkpoint rule is already live in `jobs.ts` and `pipeline.ts`); #68 has a seam cut and waiting
-(`scrubVisitor`, see `purge.ts`'s header).
+**Re-read each against the code before building** — all predate work that shipped underneath them;
+the concrete overlaps are recorded on #54.
 
 ### Phase 5 — where the jobs come from
 
@@ -748,45 +225,27 @@ One provider serves all four markets today, with no registry-level fallback (#17
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| ~~40~~ | ~~#134~~ | ~~Classify a job into a kind of work~~ **moved to Phase 1** (rows 5–5d) — designed 2026-08-15, sliced #220–#223, and those slices are now done. It stopped being a Phase 6 "next product" the moment it became the thing #216 and #63 wait on | — | — | — |
-| 40.1 | #213 | A CV that names no tools yields no skills | `/grilling` | Opus | medium |
+| ~~40~~ | ~~#134~~ | ~~Classify a job into a kind of work~~ **MOVED to Phase 1 (rows 5–5d), delivered there, closed 2026-08-19** | — | — | — |
+| 40.1 | #213 | A CV that names no tools yields no skills — offers the family floor as a question; amends ADR-0004 clause 2 narrowly | `/grilling` | Opus | medium |
 | 41 | #179 | Real job-family data for the profile rail | `/implement` | Opus | medium |
 | 42 | #119 | Ops dashboard: cost per user | `/implement` | Opus | medium |
 | 43 | #142 | Application history | `/wayfinder` | Opus | high |
 | 44 | #195 | Phone profile revisit | `/prototype` | Opus | medium |
-| 44.1 | #226 | **Map: where job families come from at scale** — the cluster engine `e5stub.ts` has always pointed at and nobody ever filed | `/wayfinder` | Opus | high |
-
-**#134 precedes #179** and also settles the compromise #162 shipped with: `resolveFamily()` returns a
-constant, so every visitor is scoped to one placeholder family. **Half true as of 2026-08-15:** #220
-placed the *target role* for real, but the stub still answers everywhere else and dies in **#223**;
-the years-per-family number #162 was denied lands in **#222**. Neither #179 nor #213 can move before
-those two.
-
-**#213 sits immediately after #134 and cannot move before it** — opened 2026-08-13 out of #211's
-grilling. #211 covers skills that came out of a document; #213 covers the person whose document does
-not carry them. **Its trigger is a thin result, not a missing CV** — a manager whose bullets read
-*"Led a team of five developers"* has a CV, has history, and yields zero skills, because #211's
-exact-string guard correctly refuses to invent one. The answer is to offer the **family floor** as a
-question — which is why it needs #134: `resolveFamily()` returns a constant today, so nothing can
-conclude *"this person is a developer"*. Two rules invert against #211 and the inversion is the safety
-argument: the items arrive **unselected** and the record says the fact arrived **asked**, because here
-the machine suggests a word the person never wrote. It must also amend **ADR-0004 clause 2**, which
-says `Never ask` of skills — narrowly, keeping the refusal of self-**rating** intact (r = .29; LinkedIn
-spent four years on the objective version and killed it).
+| 44.1 | #226 | Map: where job families come from at scale — "how many families does this product need, and can a person curate that?" | `/wayfinder` | Opus | high |
 
 ### Owner tasks and parents
 
 | # | What | Note |
 |---|---|---|
-| 🚨 **CI** | **GitHub Actions is blocked — nothing deploys** | **OPEN, blocking both repos since 2026-08-15 08:58.** Free minute allowance spent + default **$0 spending limit** = a hard stop at the platform level. GitHub's wording (*"recent account payments have failed"*) is misleading: **there is no payment method on the account**, and 201 runs since 1 Aug report **0 billable ms**. Two ways out, both owner-only: wait for the reset (date unverified — needs the `user` token scope to read, so check Billing & plans), or add a payment method and raise the limit above $0. The `paths-ignore` fix (`fdd7b8e`, ~halves the burn) landed one commit too late to help this cycle. Full write-up: `lessons.md` first entry; also in `../SHARED_INFRA.md`. |
-| ~~#32~~ | ~~Spending alert + verify vitacairn's Fly token scope~~ | ✅ **DONE 2026-08-13.** vitacairn's token was org-wide as suspected — fixed to one token per app, three account-wide tokens revoked, both projects verified deploying green. Cloudflare budget alert set at 10 USD. **Fly has no billing alerts and no spending cap** — that half of the ticket asked for a feature that does not exist; do not re-open it. |
-| ~~#211~~ | ~~How finely is a skill list split?~~ | ✅ **DECIDED 2026-08-13.** ADR-0004 clause 10 + **ADR-0013**. The read stays narrow (skills inventory only, bullets whole); tools inside bullets are **proposed** with an exact-string guard, arrive selected on one screen at ingestion, and what the person keeps is permanent — that, not the read, ends the 17→44 swing. **#164 builds it**; the estimate on the row above was for a smaller ruling than the one taken. Spawned **#213** (a CV that names no tools). |
+| 🚨 **CI** | GitHub Actions is blocked — nothing deploys | **OPEN since 2026-08-15.** No payment method + $0 spending limit = platform-level hard stop. Owner-only fix: wait for the reset (~Sept 1) or add a payment method. Until then: full local gates, then hand deploy (recipe in `lessons.md`). |
+| ~~#32~~ | ~~Spending alert + Fly token scope~~ | ✅ **DONE 2026-08-13.** One token per app; Cloudflare alert at USD 10. Fly has no billing alerts or spending cap — do not re-open that half. |
+| ~~#211~~ | ~~How finely is a skill list split?~~ | ✅ **DECIDED 2026-08-13** — ADR-0004 clause 10 + ADR-0013; #164 builds it; spawned #213. |
 | #127 | Map: the CV as structured data | Parent — closes when #164–#171 close |
-| #134 | Classify a job into a kind of work | Parent — closes when #220–#223 close. Designed 2026-08-15 (**ADR-0014**), specced as **#219**, sliced into #220–#223. Rows 5–5d. |
+| ~~#134~~ | ~~Classify a job into a kind of work~~ | ✅ Parent, **CLOSED 2026-08-19** — delivered as #220–#223 (rows 5–5d), designed as ADR-0014, specced as #219 |
 | #86 | Spec: per-ad understanding | Parent — closes when #108–#111 close |
-| #249 | The CV preview calls a stored posting "a real posting" | Parent — closes when **#272** closes. Sliced 2026-08-22 into #270 (front-door paste), #271 (journeys move to the front door), #272 (delete the old flow) and ~~#273~~ (decided: drop the over-packing warning). Rows 7d.3–7d.6. Two earlier plans (#266 retrieve, #267 re-copy) closed as superseded — both assumed the screen was on the visitor's path; it is not |
-| #274 | One text field style across the product | Filed 2026-08-22 out of #270's design hook. Row 8d. Not tidy-up: discovery + the deck zoom the page on iPhone (fields under 16px), and discovery's focus is a gold border the doc forbids. One style everywhere — 10px · Night Raised · 16px · outline — and `DESIGN.md` records the 16px exception with its reason. Prototype: `apps/web/prototypes/field-style-options.prototype.html` |
-| #54 | Spec: first-run onboarding | Parent — closes when #63–#69 close. ⚠️ **Its S1 preview flow (JC-14/15/16/17 — import, progress, preview, paste) is being DELETED by #272**, so what "first-run onboarding" means is now the front door alone; re-read this parent's scope before closing it |
+| ~~#249~~ | ~~The CV preview calls a stored posting "a real posting"~~ | ✅ Parent, **CLOSED by hand 2026-08-22** — the deletion and every remaining AC live on #272 (row 7d.5) |
+| #274 | One text field style across the product | Row 8d. Prototype: `apps/web/prototypes/field-style-options.prototype.html` |
+| #54 | Spec: first-run onboarding | Parent — closes when #63–#69 close. ⚠️ #272 deletes its S1 preview flow, so "first-run onboarding" now means the front door alone; re-read its scope before closing it |
 
 **Never point `/implement` at a parent** — it will try to build a whole epic in one session.
 
