@@ -43,11 +43,22 @@ upload/paste storage parity).
 view, failure path, paste intake. Deck/profile/tailor/discovery were not driven; the API suite
 covers the shared binding and the full sweep is CI's job. Same call as #64's.
 
-⚠️ **Open, for the owner:** `DESIGN.md` §Inputs says radius 10px and body-size (14px) text, but
-every field already shipped on the front door — `.conflict input` and `.intent-field input` — uses
-8px/16px. The new paste box matches its two siblings rather than the doc. Pre-existing conflict
-between the doc and the screens; not resolved here. Either restyle all three fields or update the
-doc. (16px also happens to be what stops iOS Safari zooming on focus.)
+**The design-hook finding turned out to be bigger than the front door — now #274 (row 8d).** The
+first framing was "the front door's fields don't match `DESIGN.md`", and the owner asked for two
+prototypes to choose between. Surveying the other stylesheets before building them killed both
+options: **the front door is not an outlier, because there is no norm.** Three radii (8/10/11px),
+four text sizes (14.5/15/16px), two fills and two focus treatments across four screens — and the
+field the doc describes exists nowhere. Updating the doc to match would document an inventory, not
+a system; restyling only the front door would create a FIFTH variant. The survey also turned up two
+live defects worth more than the tidiness: **discovery and the deck zoom the page on iPhone** (any
+field under 16px does, and no viewport restriction is set — that is the main journey), and
+**discovery's focus cue is a gold border**, which the doc explicitly forbids and which is the weaker
+cue for a keyboard user. Filed as #274: one style everywhere — 10px · Night Raised · 16px · outline
+— with the 16px kept as an exception recorded in the doc *with its reason*. Prototype +
+full survey: `apps/web/prototypes/field-style-options.prototype.html`. **Lesson worth keeping: the
+hook reported the front door because that is the file that changed, not because that is where the
+problem was.** A per-file linter finding is a sample, not a diagnosis — survey the siblings before
+choosing between "fix the code" and "fix the doc", or you pick from a false pair.
 
 ⚠️ **CI is still blocked** (no payment method, $0 limit, since 2026-08-15), so this push runs no
 checks and does not reach staging. The local gates above are the only gate this work got.

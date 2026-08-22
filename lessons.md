@@ -1,5 +1,28 @@
 # Lessons — jobcrush-app
 
+## A per-file lint finding is a sample, not a diagnosis — survey the siblings before you choose
+
+Learned 2026-08-22 (#270 → #274). The design hook reported the front door's text fields as off
+`DESIGN.md`. That is a per-FILE check, and it fires on the file that changed — so it framed the
+question as "the front door versus the doc", and I passed that framing straight to the owner as a
+two-option choice: restyle the fields, or update the doc.
+
+Both options were wrong, and the survey that showed it took four greps. **The front door was not an
+outlier, because there was no norm:** three corner radii, four text sizes, two fills and two focus
+treatments across four screens, and the field the doc described existed nowhere in the product.
+Updating the doc would have documented an inventory; restyling the one flagged screen would have
+created a fifth variant and made the product LESS consistent while looking like a fix.
+
+The survey also found what the hook never could — two live defects hiding inside the "cosmetic"
+finding: fields under 16px make iPhone Safari zoom the page (discovery and the deck, on the main
+journey), and one screen's focus cue was a colour-only border the doc explicitly forbids. Those,
+not the rounded corners, are what made it worth a ticket.
+
+**The rule:** when a linter says "this file disagrees with the standard", check what the OTHER files
+do before deciding which side moves. If they disagree with each other too, the finding is not a
+violation, it is a symptom — and the real ticket is bigger and better than the one you were about
+to write. Corollary: never hand the owner a two-option fork before checking that both options exist.
+
 ## A failed job still carries a payload — read it the same way you read a finished one
 
 Learned 2026-08-22 (#270, caught by the QA gate driving a real scanned PDF, not by any test).
