@@ -40,6 +40,11 @@ now visible in the tests. Follow-ups filed out of the gate: **#276** (the front 
 29-assertion journey runs in NO tier) and **#277** (a failed screenshot on a note step reddens the
 whole deploy gate).
 
+**CI note:** the push ran no pipeline (billing-blocked until ~Sept 1, see the roadmap banner);
+the run "failed" in 3 s with zero steps, like every run since 2026-08-21. No hand deploy is owed —
+the diff is `apps/web/e2e/**` + docs only, so the shipped product is byte-identical to staging's
+current build. The full pipeline ran locally, uncached, twice (implementer + gate).
+
 ## 2026-08-22 (session 158) `/implement 264` — a ticket pays only for the journeys it can reach (QA GO)
 
 Closes #264 (`308d059`). Row 8a, struck. Next build is 7d.4 (#271), which is both the first ticket

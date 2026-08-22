@@ -9,7 +9,11 @@ _Last updated: 2026-08-22_
 > "agile coach", "delivery lead" and "release manager" each answer *IT project delivery* with its
 > market titles, "requirements analyst" answers *Business analysis*, and "marine engineer" is still
 > met with silence. Everything stranded since the 2026-08-20 hand deploy (#255 #256 #247 #257 #258)
-> is now live; the durable unmapped-label feed answers with waiting counts.
+> is now live; the durable unmapped-label feed answers with waiting counts. **Still true after
+> #264 (`308d059`) and #271 (`57e8e13`), both landed during the blockage: each touches only
+> `apps/web/e2e/**` and docs, so the shipped product is byte-identical and nothing awaits a hand
+> deploy — their full pipelines ran locally, uncached (#271: typecheck, 1567 api tests, Tier 1 153
+> with the spend tripwire at zero, Tier 2 all 24 journeys / 696 assertions).**
 >
 > **Until GitHub billing resets (owner expects ~2026-09-01): a green push does NOT deploy.** The
 > routine is: run the full local gates, then deploy by hand (recipe in `lessons.md`). One caveat,
