@@ -61,10 +61,21 @@ journeys 12/0 and 29/0; the gate's own new journey 11/0. Ratchet untouched (870/
 never opens `routes/onboarding.ts`). **USD 0 — zero provider calls and zero real model calls all
 session.**
 
-🚨 **Unrelated work was sitting staged and is NOT in this commit.** `apps/api/eval/family-labeler-grid.json`
-holds a substantive #263 change (str-13 Business Analyst moved IN, a new str-21 draft) that predates
-this session. It was left in the index deliberately — committing without naming paths would have
-swept it into #64. It still needs its own commit.
+**A second session was working in this repo at the same time**, which is worth knowing when reading
+the history: `e668d0f` (#264's row) appeared mid-session, and `apps/api/eval/family-labeler-grid.json`
+sat staged with a substantive #263 change that was not mine. #64 was committed by naming its paths
+so that work was not swept in; the other session then committed it itself as `bebd91e` and pushed
+both. Nothing was lost, but a bare commit here would have taken someone else's work with it.
+
+🚨 **CI has been red since 2026-08-15 — 32 consecutive runs — and nothing has deployed to staging
+since.** Found while confirming this push. It is NOT #64 and not any recent commit: **both jobs fail
+in ~3 seconds having run zero steps**, on every commit from every session, while `deploy-staging`
+(which needs them) is skipped every time. Zero steps executed means the runner never started, which
+points at the account rather than the code — an Actions spending/minutes limit is the obvious
+suspect, and `CLAUDE.md`'s `paths-ignore` rule exists because the CI budget was already a concern.
+**The repo's central assumption — "a green push is a deploy" — has been silently false for a week.**
+Needs the owner's GitHub account to diagnose; the local gates are the only thing currently proving
+anything.
 
 ## 2026-08-21 (session 155c) — the research method is fixed, and the run that found the holes is closed (#261, #260)
 
