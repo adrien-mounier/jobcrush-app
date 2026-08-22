@@ -1,6 +1,6 @@
 # Contagious (Jonah Berger) — what makes people share, and what survives contact with job search
 
-_Written 2026-08-22. Feeds the wayfinder pass on "give people a win worth showing off"._
+_Written 2026-08-22. Charted by **[#275](https://github.com/adrien-mounier/jobcrush-app/issues/275)** — the wayfinder map "give people a win worth showing off"._
 
 **Provenance, honestly.** I did not read the print book. This crystallises: Berger's own primary
 research paper (Berger & Milkman, *What Makes Online Content Viral?*, Journal of Marketing Research
