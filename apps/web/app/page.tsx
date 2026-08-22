@@ -7,6 +7,7 @@ import {
   ensureSession,
   getIntent,
   getSessionCheckpoint,
+  pasteCv,
   saveImportResolution,
   saveIntent,
   saveSourceEntry,
@@ -28,14 +29,25 @@ const INTENT_HANDOFF_MS = 800;
 const TYPE_SPEED = 36;
 const ALLOWED_EXT = [".pdf", ".docx", ".txt"];
 const MAX_BYTES = 10 * 1024 * 1024;
+// #270: the paste route's own bounds (`z.string().min(100).max(100_000)` in routes/cv.ts), checked
+// here so a person is told what is wrong instead of reading a 400. The floor is measured on the
+// TRIMMED text (whitespace is not a CV); the ceiling on the RAW text, which is what the server counts.
+const MIN_PASTE_CHARS = 100;
+const MAX_PASTE_CHARS = 100_000;
 
 // #184 (#172): the coverage list rendered in the early-access line — Oxford-less; the joining rule
 // itself moved to lib/intentCopy.ts (#257) so this file and discovery's persistent confirmation
 // line can never drift apart. The list always comes from the resolved response, never hard-coded.
 
 type Choice = "cv" | "questions";
+// #270: what the person picked ON THIS SCREEN. "cv" and "paste" are two doors into the same read, so
+// both save the server's `cv` choice — a person who pastes is not a different kind of visitor
+// downstream. Only the tile highlight and what happens next differ, and a restored session (which
+// only ever knew "cv") comes back on the file tile.
+type Source = Choice | "paste";
 type CvState =
   | { phase: "idle" }
+  | { phase: "paste"; text: string; error: string | null }
   | { phase: "reading"; slow: boolean }
   | { phase: "proof"; proof: ImportProof; restored?: boolean }
   | { phase: "error"; message: string };
@@ -67,6 +79,9 @@ export default function FrontDoor() {
   const importHeadingRef = useRef<HTMLHeadingElement>(null);
   const conflictInputRef = useRef<HTMLInputElement>(null);
   const importErrorRef = useRef<HTMLDivElement>(null);
+  const pasteRef = useRef<HTMLTextAreaElement>(null);
+  // #270: the tile that opened the paste view, so closing it returns focus where it came from.
+  const pasteTileRef = useRef<HTMLButtonElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const openedFromInvitation = useRef(false);
@@ -79,10 +94,10 @@ export default function FrontDoor() {
   const [revealed, setRevealed] = useState(false);
   const [readyBusy, setReadyBusy] = useState(false);
   const [readyError, setReadyError] = useState(false);
-  const [confirmedChoice, setConfirmedChoice] = useState<Choice | null>(null);
-  const [visibleChoice, setVisibleChoice] = useState<Choice | null>(null);
-  const [pendingChoice, setPendingChoice] = useState<Choice | null>(null);
-  const [choiceError, setChoiceError] = useState<{ choice: Choice; saved: boolean } | null>(null);
+  const [confirmedChoice, setConfirmedChoice] = useState<Source | null>(null);
+  const [visibleChoice, setVisibleChoice] = useState<Source | null>(null);
+  const [pendingChoice, setPendingChoice] = useState<Source | null>(null);
+  const [choiceError, setChoiceError] = useState<{ choice: Source; saved: boolean } | null>(null);
   const [cv, setCv] = useState<CvState>({ phase: "idle" });
   const [conflictValue, setConflictValue] = useState("");
   const [conflictError, setConflictError] = useState(false);
@@ -220,7 +235,11 @@ export default function FrontDoor() {
     eventSourceRef.current = source;
     source.onmessage = (event) => {
       const snapshot = JSON.parse(event.data) as JobSnapshot;
-      if (snapshot.status === "completed") {
+      // #270: a finished job is read the same way whether it succeeded or failed. An unreadable scan
+      // ends `failed` WITH a proof, and that proof is what carries the "paste the text instead"
+      // guidance — discarding it here for a bare one-liner meant the advice only ever appeared after
+      // a reload, i.e. never, for the person who most needs it.
+      if (snapshot.status === "completed" || snapshot.status === "failed") {
         source.close();
         const proof = snapshot.progress.importProof;
         setConflictValue(proof?.conflict?.userResolvedValue ?? "");
@@ -229,13 +248,27 @@ export default function FrontDoor() {
             ? { phase: "proof", proof }
             : { phase: "error", message: "We couldn’t read your CV." },
         );
-      } else if (snapshot.status === "failed") {
-        source.close();
-        setCv({ phase: "error", message: "We couldn’t read your CV." });
       } else {
         setCv((current) => ({ phase: "reading", slow: current.phase === "reading" && current.slow }));
       }
     };
+  };
+
+  // #270: one place starts a read, whichever door the CV came through — the same "this is taking
+  // longer" timer and the same hand-off to the job stream. Only the send and the failure copy differ.
+  const startRead = async (send: () => Promise<{ jobId: string }>, onFail: () => void) => {
+    setCv({ phase: "reading", slow: false });
+    const slowTimer = setTimeout(() => {
+      setCv((current) => current.phase === "reading" ? { phase: "reading", slow: true } : current);
+    }, 10_000);
+    timers.current.push(slowTimer);
+    try {
+      const { jobId } = await send();
+      openJobStream(jobId);
+    } catch {
+      clearTimeout(slowTimer);
+      onFail();
+    }
   };
 
   const onFile = async (file: File | undefined) => {
@@ -249,17 +282,36 @@ export default function FrontDoor() {
       setCv({ phase: "error", message: "That file is over 10 MB." });
       return;
     }
-    setCv({ phase: "reading", slow: false });
-    const slowTimer = setTimeout(() => {
-      setCv((current) => current.phase === "reading" ? { phase: "reading", slow: true } : current);
-    }, 10_000);
-    timers.current.push(slowTimer);
-    try {
-      const { jobId } = await uploadCv(file);
-      openJobStream(jobId);
-    } catch {
-      setCv({ phase: "error", message: "Couldn’t upload that — check your connection." });
+    await startRead(
+      () => uploadCv(file),
+      () => setCv({ phase: "error", message: "Couldn’t upload that — check your connection." }),
+    );
+  };
+
+  // #270: pasted text takes the same road as an uploaded file — the same job, the same event stream,
+  // the same proof screen. The only difference is where the bytes came from.
+  const openPaste = () => setCv({ phase: "paste", text: "", error: null });
+
+  const submitPaste = async () => {
+    if (cv.phase !== "paste") return;
+    const { text } = cv;
+    // Every refusal below hands the text back untouched — nothing here may cost them their typing.
+    const refuse = (error: string) => {
+      setCv({ phase: "paste", text, error });
+      pasteRef.current?.focus();
+    };
+    if (text.trim().length < MIN_PASTE_CHARS) {
+      return refuse(
+        `That looks too short to be a CV. Paste the whole thing — at least ${MIN_PASTE_CHARS} characters.`,
+      );
     }
+    if (text.length > MAX_PASTE_CHARS) {
+      return refuse("That’s more text than we can read at once — paste your CV on its own.");
+    }
+    await startRead(
+      () => pasteCv(text),
+      () => refuse("We couldn’t send that — check your connection."),
+    );
   };
 
   useEffect(() => {
@@ -267,6 +319,12 @@ export default function FrontDoor() {
     if (cv.phase === "proof" && cv.restored) return;
     importHeadingRef.current?.focus();
   }, [cv]);
+
+  useEffect(() => {
+    if (cv.phase === "paste") pasteRef.current?.focus();
+    // Entering the paste view is the only time focus moves; typing must not re-trigger it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cv.phase]);
 
   const continueToQuestions = async () => {
     if (importAction) return;
@@ -307,7 +365,7 @@ export default function FrontDoor() {
 
   const retryCv = () => fileInputRef.current?.click();
 
-  const choose = async (choice: Choice) => {
+  const choose = async (choice: Source) => {
     if (pendingChoice) return;
     setVisibleChoice(choice);
     setPendingChoice(choice);
@@ -318,12 +376,20 @@ export default function FrontDoor() {
     // opposite of what the server stored, and was the CI flake's visible symptom.
     let saved = false;
     try {
-      const result = await saveSourceEntry({ checkpoint: "source_selected", choice });
+      const result = await saveSourceEntry({
+        checkpoint: "source_selected",
+        choice: choice === "questions" ? "questions" : "cv",
+      });
       saved = true;
-      setConfirmedChoice(result.sourceEntry.choice);
-      setVisibleChoice(result.sourceEntry.choice);
+      // #270: the server's echo is still what the toggle follows — only the file/paste split, which
+      // the server has no word for, stays local. Everything the server CAN say, it says.
+      const confirmed: Source | null =
+        choice === "paste" && result.sourceEntry.choice === "cv" ? "paste" : result.sourceEntry.choice;
+      setConfirmedChoice(confirmed);
+      setVisibleChoice(confirmed);
       setPendingChoice(null);
       if (choice === "cv") fileInputRef.current?.click();
+      else if (choice === "paste") openPaste();
       else await advanceToIntent(true);
     } catch {
       if (!saved) setVisibleChoice(confirmedChoice);
@@ -397,6 +463,7 @@ export default function FrontDoor() {
               <p className="source-intro">A CV can skip questions you’ve already answered.</p>
               <div className="source-actions" role="group" aria-labelledby="source-heading" data-testid="source-actions">
             <SourceButton source="cv" title="Use my CV" subtitle="Upload PDF, Word, or text" selected={visibleChoice === "cv"} disabled={pendingChoice !== null} onClick={() => void choose("cv")} />
+            <SourceButton source="paste" title="Paste my CV text" subtitle="No file needed" selected={visibleChoice === "paste"} disabled={pendingChoice !== null} onClick={() => void choose("paste")} buttonRef={pasteTileRef} />
             <button type="button" className="source-action" data-source="linkedin" disabled aria-label="Use LinkedIn — Coming soon">
               <span className="source-tile">in</span>
               <span><strong>Use LinkedIn</strong><small>Profile import</small></span>
@@ -419,6 +486,18 @@ export default function FrontDoor() {
             )}
               </div>
             </>
+          ) : cv.phase === "paste" ? (
+            <PastePanel
+              text={cv.text}
+              error={cv.error}
+              textareaRef={pasteRef}
+              onText={(text) => setCv({ phase: "paste", text, error: null })}
+              onSubmit={() => void submitPaste()}
+              onBack={() => {
+                setCv({ phase: "idle" });
+                requestAnimationFrame(() => pasteTileRef.current?.focus());
+              }}
+            />
           ) : (
             <ImportPanel
               cv={cv}
@@ -436,6 +515,7 @@ export default function FrontDoor() {
               onSave={(proof) => void saveConflict(proof)}
               onContinue={() => void continueToQuestions()}
               onRetry={retryCv}
+              onPaste={openPaste}
             />
           )}
           <input
@@ -824,8 +904,9 @@ function ImportPanel({
   onSave,
   onContinue,
   onRetry,
+  onPaste,
 }: {
-  cv: Exclude<CvState, { phase: "idle" }>;
+  cv: Exclude<CvState, { phase: "idle" } | { phase: "paste" }>;
   headingRef: React.RefObject<HTMLHeadingElement | null>;
   conflictInputRef: React.RefObject<HTMLInputElement | null>;
   importErrorRef: React.RefObject<HTMLDivElement | null>;
@@ -837,6 +918,7 @@ function ImportPanel({
   onSave: (proof: ImportProof) => void;
   onContinue: () => void;
   onRetry: () => void;
+  onPaste: () => void;
 }) {
   if (cv.phase === "reading") {
     return (
@@ -868,7 +950,9 @@ function ImportPanel({
   const body = cv.phase === "error"
     ? cv.message
     : failed
-    ? "Your session is still here. Try your CV again, or continue without it."
+    // #270: the commonest reason we can't read a file is a scan with no selectable text — their CV
+    // is fine, the file is just a picture. Retrying the same file cannot help; pasting can.
+    ? "Your session is still here. If your CV is a scan, paste the text instead — or try the file again, or continue without it."
     : noUsefulFacts
       ? "Try another CV, or continue with questions."
     : partial
@@ -914,7 +998,12 @@ function ImportPanel({
       <div className="import-actions">
         {failed || noUsefulFacts ? (
           <>
-            <button type="button" className="primary" onClick={onRetry}>
+            {failed && (
+              <button type="button" className="primary" onClick={onPaste}>
+                Paste the text instead
+              </button>
+            )}
+            <button type="button" className={failed ? undefined : "primary"} onClick={onRetry}>
               {noUsefulFacts ? "Try another CV" : "Try again"}
             </button>
             <button type="button" onClick={onContinue} disabled={action === "continuing"}>
@@ -956,6 +1045,57 @@ function ImportPanel({
   );
 }
 
+// #270: the paste view. Same screen, same session, same read — the person never leaves the front
+// door, and what they typed survives every refusal this panel can show.
+function PastePanel({
+  text,
+  error,
+  textareaRef,
+  onText,
+  onSubmit,
+  onBack,
+}: {
+  text: string;
+  error: string | null;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  onText: (text: string) => void;
+  onSubmit: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <form
+      data-testid="paste-panel"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <div className="import-status">
+        <h1>Paste your CV text</h1>
+        <p>Copy it from wherever it lives — a document, an email — and paste it here.</p>
+      </div>
+      <div className="paste-field">
+        <label htmlFor="paste-cv">Your CV text</label>
+        <textarea
+          id="paste-cv"
+          ref={textareaRef}
+          rows={14}
+          value={text}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? "paste-error" : undefined}
+          placeholder={"Jane Doe\nProject Manager\n\nExperience\n…"}
+          onChange={(event) => onText(event.target.value)}
+        />
+        {error && <p id="paste-error" role="alert">{error}</p>}
+      </div>
+      <div className="import-actions">
+        <button type="submit" className="primary">Use this text</button>
+        <button type="button" onClick={onBack}>Go back</button>
+      </div>
+    </form>
+  );
+}
+
 function SourceButton({
   source,
   title,
@@ -963,24 +1103,27 @@ function SourceButton({
   selected,
   disabled,
   onClick,
+  buttonRef,
 }: {
-  source: Choice;
+  source: Source;
   title: string;
   subtitle: string;
   selected: boolean;
   disabled: boolean;
   onClick: () => void;
+  buttonRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
   return (
     <button
       type="button"
+      ref={buttonRef}
       className="source-action"
       data-source={source}
       aria-pressed={selected}
       disabled={disabled}
       onClick={onClick}
     >
-      <span className="source-tile">{source === "cv" ? "CV" : "Q"}</span>
+      <span className="source-tile">{source === "cv" ? "CV" : source === "paste" ? "TXT" : "Q"}</span>
       <span><strong>{title}</strong><small>{subtitle}</small></span>
       <span className="trailing">{selected ? "Selected" : ""}</span>
     </button>

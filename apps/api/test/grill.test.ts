@@ -7,9 +7,13 @@ import { answerToClaim, detectGaps, makeGrillPhraser, templateQuestion, type Gap
 import type { ClaimRecord } from "../src/claims.js";
 import type { LlmClient } from "../src/llm.js";
 
+// #270: `semantic_key` follows the overridden id unless a test states its own. It is a claim's
+// identity across re-reads (importReconciliation.ts dedupes on it), so leaving every fixture claim
+// on the default key silently collapsed two distinct claims into one the moment the paste path
+// started reconciling its import the way the upload path always has.
 const claim = (over: Partial<ClaimRecord>): ClaimRecord => ({
   id: "acme-led",
-  semantic_key: "acme-led",
+  semantic_key: over.semantic_key ?? over.id ?? "acme-led",
   field_key: null,
   field_value: null,
   field_label: null,

@@ -59,6 +59,33 @@ async function stubCvImport(
   });
 }
 
+// #270: the front door's paste route. A different job id from stubCvImport's on purpose, so a test
+// can fail an upload and then succeed a paste without the two SSE stubs fighting over one URL.
+async function stubCvPaste(page: Page, snapshots: Array<Record<string, unknown>>) {
+  const pastes: unknown[] = [];
+  await page.route("**/api/cv/paste", async (route) => {
+    pastes.push(route.request().postDataJSON());
+    await route.fulfill({ json: { jobId: "job-2" } });
+  });
+  await page.route("**/api/jobs/job-2/events", async (route) => {
+    await route.fulfill({
+      contentType: "text/event-stream",
+      body: snapshots.map((snapshot) => `data: ${JSON.stringify(snapshot)}\n\n`).join(""),
+    });
+  });
+  return pastes;
+}
+
+const PASTED_CV = "Jane Doe\nProject Manager\n\nExperience\nPM at Acme 2020-2024\n- shipped things\n".repeat(3);
+
+const USEFUL_PROOF = {
+  outcome: "success",
+  usefulFactCount: 1,
+  skippedQuestionCount: 0,
+  representativeFacts: [{ id: "fact-1", text: "Led a platform migration", provenance: "cv" }],
+  conflict: null,
+};
+
 // #214: the up-to-3 target-locations contract — mirrors lib/api.ts's IntentState. Every stubbed
 // GET carries a realistic areaVocabulary: the client matches typed text against it BEFORE any PUT,
 // so an empty vocabulary would make it refuse everything and no write would ever be observed.
@@ -513,6 +540,107 @@ test("total processing failure offers retry and question-first recovery", async 
   expect(stageWrites).toEqual([{ stage: "discovery" }]);
 });
 
+// #270 AC1/AC2/AC5/AC6/AC7: pasting is the same read as an upload — same proof screen, same next
+// step, same kind of visitor on the wire (`choice: "cv"`), and the page never navigates away.
+test("pasted CV text is read in place and reaches the target-role and search-area step", async ({ page }) => {
+  const writes = await stubSourceEntry(page, { checkpoint: "invited", choice: null });
+  const pastes = await stubCvPaste(page, [
+    { id: "job-2", status: "running", error: null, progress: {} },
+    { id: "job-2", status: "completed", error: null, progress: { importProof: USEFUL_PROOF } },
+  ]);
+  await stubIntent(
+    page,
+    intentState({
+      intent: { targetRole: null, searchAreas: [] },
+      missing: ["targetRole", "searchArea"],
+      checkpoint: "intent_needed",
+    }),
+  );
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /Paste my CV text/ }).click();
+  await expect(page.getByRole("heading", { name: "Paste your CV text" })).toBeVisible();
+  await page.getByLabel("Your CV text").fill(PASTED_CV);
+  await page.getByRole("button", { name: "Use this text" }).click();
+
+  await expect(page.getByRole("heading", { name: "Your CV gave us useful facts" })).toBeFocused();
+  await expect(page.getByText("Led a platform migration")).toHaveCount(1);
+  expect(pastes).toEqual([{ text: PASTED_CV }]);
+  // A person who pastes is not a different kind of visitor: the same durable choice an upload saves.
+  expect(writes).toEqual([{ checkpoint: "source_selected", choice: "cv" }]);
+
+  await page.getByRole("button", { name: "Ask me what’s missing" }).click();
+  await expect(
+    page.getByRole("heading", { name: "What kind of job are you going for, and where?" }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+});
+
+// #270 AC4: the floor the paste route enforces, said in plain words, without costing them the typing.
+test("a paste too short to be a CV is refused plainly and keeps what was typed", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "invited", choice: null });
+  const pastes = await stubCvPaste(page, []);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /Paste my CV text/ }).click();
+  await page.getByLabel("Your CV text").fill("Jane Doe, project manager.");
+  await page.getByRole("button", { name: "Use this text" }).click();
+
+  await expect(page.locator("#paste-error")).toContainText("too short to be a CV");
+  await expect(page.getByLabel("Your CV text")).toHaveValue("Jane Doe, project manager.");
+  expect(pastes).toEqual([]);
+
+  await page.getByLabel("Your CV text").fill(PASTED_CV);
+  await expect(page.locator("#paste-error")).toHaveCount(0);
+});
+
+// #270: a scanned PDF ends the job `failed` and CARRIES a proof. That proof is what says why pasting
+// is the way out, so it must render on the live failure, not only after a reload.
+test("a live unreadable scan shows the scan guidance, not a bare repeat of the heading", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "invited", choice: null });
+  await stubCvImport(page, [{
+    id: "job-1",
+    status: "failed",
+    error: "cv_unparseable",
+    progress: {
+      importProof: {
+        outcome: "failed",
+        usefulFactCount: 0,
+        skippedQuestionCount: 0,
+        representativeFacts: [],
+        conflict: null,
+      },
+    },
+  }]);
+  await page.goto("/");
+  await chooseCv(page);
+
+  await expect(page.getByRole("heading", { name: "We couldn’t read your CV" })).toBeFocused();
+  await expect(page.getByText("If your CV is a scan, paste the text instead")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Paste the text instead" })).toBeVisible();
+  await expect(page.locator(".proof-metrics")).toHaveCount(0);
+});
+
+// #270 AC3: the scanned-PDF dead end. "Try again" cannot help — their CV is fine, the file is a
+// picture — so the failure screen offers the one route that does, and it works from there.
+test("an unreadable CV offers pasting the text instead, and that route works", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "invited", choice: null });
+  await stubCvImport(page, [{ id: "job-1", status: "failed", error: "unparseable", progress: {} }]);
+  const pastes = await stubCvPaste(page, [
+    { id: "job-2", status: "completed", error: null, progress: { importProof: USEFUL_PROOF } },
+  ]);
+  await page.goto("/");
+  await chooseCv(page);
+
+  await expect(page.getByRole("heading", { name: "We couldn’t read your CV" })).toBeFocused();
+  await page.getByRole("button", { name: "Paste the text instead" }).click();
+  await page.getByLabel("Your CV text").fill(PASTED_CV);
+  await page.getByRole("button", { name: "Use this text" }).click();
+
+  await expect(page.getByRole("heading", { name: "Your CV gave us useful facts" })).toBeFocused();
+  expect(pastes).toEqual([{ text: PASTED_CV }]);
+});
+
 test("failed question-first continuation is announced, focused, and retryable", async ({ page }) => {
   await stubSourceEntry(page, { checkpoint: "invited", choice: null });
   await stubCvImport(page, [{
@@ -598,7 +726,7 @@ test("reload restores terminal import failure without re-upload or duplicate ale
   const heading = page.getByRole("heading", { name: "We couldn’t read your CV" });
   await expect(heading).toBeVisible();
   await expect(heading).not.toBeFocused();
-  await expect(page.getByText("Your session is still here. Try your CV again, or continue without it.")).not.toHaveAttribute("role", "alert");
+  await expect(page.getByText("Your session is still here. If your CV is a scan,")).not.toHaveAttribute("role", "alert");
   await expect(page.locator(".proof-metrics")).toHaveCount(0);
   await page.reload();
   await expect(heading).toBeVisible();

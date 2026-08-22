@@ -247,7 +247,8 @@
   border-radius: 12px;
   background: var(--hud-1);
 }
-.frontdoor .conflict label {
+.frontdoor .conflict label,
+.frontdoor .paste-field label {
   display: block;
   margin-bottom: 8px;
   font-size: 14px;
@@ -269,6 +270,29 @@
 .frontdoor .conflict p {
   margin: 8px 0 0;
   color: var(--hud-mute);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+/* #270 the front-door paste view — the conflict field's shape, sized for a whole CV. The label
+   rule is shared with .conflict above; only the box and its message differ. */
+.frontdoor .paste-field { margin-top: 20px; }
+.frontdoor .paste-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--hud-line);
+  border-radius: 8px;
+  background: var(--hud-0);
+  color: var(--hud-ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.frontdoor .paste-field textarea[aria-invalid="true"] { border-color: var(--gold); }
+.frontdoor .paste-field p {
+  margin: 8px 0 0;
+  color: var(--hud-ink);
   font-size: 12.5px;
   line-height: 1.4;
 }

@@ -443,9 +443,21 @@ export function buildServer(opts: BuildOptions = {}) {
   const pipelineDeps: PipelineDeps = {
     ...(opts.pipeline ?? {}),
     recordVisit: opts.pipeline?.recordVisit ?? guestbook.record,
-    // #190: shared by both the upload and paste pipeline entry points (unlike persistImport below,
-    // which is only bound for uploads) — sessionId travels as a plain argument, not a per-request
-    // closure, so contact capture works uniformly on either intake path.
+    // #270: bound here, for BOTH intake paths — a person who pastes their CV is not a different
+    // kind of visitor. ADR-0002: a correction the person already made outranks whatever this re-read
+    // found; the rule itself is importReconciliation.ts (pure, directly tested), this is its IO shell.
+    persistImport:
+      opts.pipeline?.persistImport ??
+      (async (sessionId, proof, importedClaims) => {
+        const current = await sessions.getById(sessionId);
+        const reconciled = reconcileImport(proof, importedClaims, current?.importResolutions ?? {});
+        await claims.seed(sessionId, reconciled.claims);
+        for (const claim of reconciled.corrected) await claims.add(sessionId, claim);
+        await sessions.setImportProof(sessionId, reconciled.proof);
+        return reconciled.proof;
+      }),
+    // #190: shared by both the upload and paste pipeline entry points — sessionId travels as a
+    // plain argument, not a per-request closure, so contact capture works uniformly on either path.
     persistContact:
       opts.pipeline?.persistContact ??
       (async (sessionId, extraction) => {
@@ -485,19 +497,7 @@ export function buildServer(opts: BuildOptions = {}) {
       job.id,
       { type: "upload", data, kind: row.kind, key: row.id },
       session?.targetTitles ?? [],
-      {
-        ...pipelineDeps,
-        // ADR-0002: a correction the person already made outranks whatever this re-read found.
-        // The rule itself is importReconciliation.ts (pure, directly tested); this is its IO shell.
-        persistImport: async (proof, importedClaims) => {
-          const current = await sessions.getById(row.sessionId);
-          const reconciled = reconcileImport(proof, importedClaims, current?.importResolutions ?? {});
-          await claims.seed(row.sessionId, reconciled.claims);
-          for (const claim of reconciled.corrected) await claims.add(row.sessionId, claim);
-          await sessions.setImportProof(row.sessionId, reconciled.proof);
-          return reconciled.proof;
-        },
-      },
+      pipelineDeps,
     );
     return { jobId: job.id };
   };

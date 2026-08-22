@@ -919,6 +919,30 @@ describe("JC-16/17 pipeline end to end (fake LLMs)", () => {
     }
   });
 
+  // #270 AC5: a person who pastes is not a different kind of visitor. `persistImport` used to be
+  // bound only for uploads, so a paste read the CV, showed the facts live, and then stored NOTHING
+  // against the session — the proof vanished on reload and the claim store stayed empty.
+  it("a paste stores its facts against the session, exactly as an upload does", async () => {
+    const server = buildServer({ pipeline: fakePipeline() });
+    const cookie = await startSession(server.app);
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/cv/paste",
+      headers: { cookie },
+      payload: { text: "Experience\nPM at Acme 2020 - 2024\n- shipped things\n".repeat(5) },
+    });
+    const { jobId } = created.json();
+    await waitTerminal(server, jobId);
+
+    const job = await server.app.inject({ method: "GET", url: `/jobs/${jobId}`, headers: { cookie } });
+    const sessionId = (await server.store.get(jobId))!.sessionId!;
+
+    const me = await server.app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
+    expect(me.json().importProof).toEqual(job.json().progress.importProof);
+    expect(me.json().importProof.usefulFactCount).toBeGreaterThan(0);
+    expect((await server.claims.list(sessionId)).length).toBeGreaterThan(0);
+  });
+
   it("short paste is rejected (min 100 chars)", async () => {
     const server = buildServer();
     const cookie = await startSession(server.app);

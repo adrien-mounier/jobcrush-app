@@ -43,7 +43,13 @@ export interface PipelineDeps {
     roles: number;
     doc?: { parser_flags?: string[] };
   }>;
+  /** #270: seed the session's claims + import proof from what this run read. `sessionId` travels as
+   *  a plain argument (the persistContact/persistJobBlocks convention) so BOTH intake paths — an
+   *  uploaded file and pasted text — store facts against the session identically. It used to be a
+   *  per-request closure bound only for uploads, which is why a paste left `session.importProof`
+   *  null and never seeded a claim. */
   persistImport?: (
+    sessionId: string,
     proof: ImportProof,
     claims: CandidateClaimType[],
   ) => Promise<ImportProof>;
@@ -192,8 +198,8 @@ export async function runOnboardingJob(
         jobId,
         "This looks like a scanned document with no selectable text — paste your CV text instead.",
       );
-        const importProof = deps.persistImport
-          ? await deps.persistImport(failedImportProof(), [])
+        const importProof = deps.persistImport && job?.sessionId
+          ? await deps.persistImport(job.sessionId, failedImportProof(), [])
           : failedImportProof();
         await store.update(jobId, {
           status: "failed",
@@ -279,8 +285,9 @@ export async function runOnboardingJob(
           ...(importedClaims.length < mined.claims.length ? ["invalid-miner-claim"] : []),
         ];
         let importProof = buildImportProof(importedClaims, parserFlags);
-        if (deps.persistImport) {
+        if (deps.persistImport && job?.sessionId) {
           importProof = await deps.persistImport(
+            job.sessionId,
             importProof,
             importedClaims,
           );
@@ -347,8 +354,8 @@ export async function runOnboardingJob(
   } catch (err) {
     const current = await store.get(jobId);
     if (!current?.progress.importProof) {
-      const importProof = deps.persistImport
-        ? await deps.persistImport(failedImportProof(), [])
+      const importProof = deps.persistImport && current?.sessionId
+        ? await deps.persistImport(current.sessionId, failedImportProof(), [])
         : failedImportProof();
       await store.update(jobId, {
         progress: { importProof },
