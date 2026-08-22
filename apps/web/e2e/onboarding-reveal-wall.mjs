@@ -116,22 +116,26 @@ await qa.expectVisible(
   "the dev sign-in link is offered (no mailer configured)",
 );
 
-// ---- #22 AC3: follow the dev link -> anon->account merge -> resume on /deck AUTHED ------------
+// ---- #22 AC3 / #64 AC3: follow the dev link -> anon->account merge -> the top job, directly -----
 await qa.note("follow the dev sign-in link — claims THIS anon session (the AC3 merge) and resumes via jc_return");
 await page.getByRole("link", { name: "Open your sign-in link (dev)" }).click();
-await page.waitForURL("**/deck", { timeout: 8000 });
-// /deck re-loads its cards async on entry (a brief 'loading' state before the reveal mounts) — wait
-// the reveal heading out of that state before the single-shot assertion.
-await page.getByRole("heading", { name: /matched you/ }).waitFor({ state: "visible", timeout: 8000 });
-await qa.expectVisible(
-  page.getByRole("heading", { name: /matched you/ }),
-  "#22 AC3: signed in, the flow resumed on /deck (not /import) — the reveal again",
-);
+// #64: the wall stashes /deck?claimed=1, so match on the path — a "**/deck" glob is compared against
+// the whole URL and would time out on the query string the resume now carries.
+await page.waitForURL((url) => url.pathname === "/deck", { timeout: 8000 });
+// /deck re-loads its cards async on entry (a brief 'loading' state) — wait the card out of it before
+// the single-shot assertions.
+await page.getByRole("img", { name: /% match/ }).waitFor({ state: "visible", timeout: 8000 });
+await qa.scrollThrough("read the job that opened on its own");
 
-// Now authed: 'See them' goes straight to the card, the wall never shows again.
-await qa.click(page.getByRole("button", { name: "See them" }), "#22 AC3/AC4: press 'See them' as the now-signed-in visitor");
-await qa.scrollThrough("read the revealed card");
-await qa.expectVisible(page.getByRole("img", { name: /% match/ }), "#22 AC3: the card is revealed — the % match ring");
+// #64 AC3: she earned the reveal BEFORE signing in, so it is not sold to her twice. The highest-
+// ranked job is on screen with no second curtain and no second "See them" in between.
+await qa.expectVisible(page.getByRole("img", { name: /% match/ }), "#64 AC3: the highest-ranked job opened directly on resume");
+// `.deckcount` ("1 of N matched today") only ever renders on the deck screen itself, so seeing it
+// here IS the proof that the curtain was skipped rather than clicked through — and "1 of" is the
+// first card, the highest-ranked one.
+await qa.expectText(".jobdeck .deckcount", "1 of", "#64 AC3: she is on the FIRST card of the deck, with no curtain in between");
+const secondReveal = await page.getByRole("button", { name: "See them" }).count();
+await qa.note(`#64 AC3: no second reveal between signing in and the job ('See them' count = ${secondReveal}, expected 0)`);
 const wallAfter = await page.getByRole("link", { name: "Continue with Google" }).count();
 await qa.note(`#22 AC4: the wall never re-shows for the authed visitor (Google link count on the card view = ${wallAfter}, expected 0)`);
 

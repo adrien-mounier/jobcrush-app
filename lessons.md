@@ -1,5 +1,28 @@
 # Lessons — jobcrush-app
 
+## A screen you skip is the only place some things get said — enumerate them before skipping it
+
+Learned 2026-08-22 (#64, caught by the Standards review axis, not by me). The ticket asked that a
+visitor who signs in at the match reveal come back to her top job *directly*, instead of being shown
+the reveal a second time. Skipping the screen is one line. What I missed is that the reveal was
+carrying four separate things, and only one of them was the thing I was skipping:
+
+- the **reward** (the count) — what the shortcut was about;
+- the **announce** — the one polite live-region message a screen-reader user gets on entry;
+- the **focus target** — where the keyboard lands;
+- and a **conditional sentence that lives nowhere else**: #123's *"…I left them out."*, which tells
+  her a job was dropped and why. A visitor never told a job was removed is the exact defect #123 was
+  written to close, and the shortcut would have quietly re-opened it.
+
+The first three could be carried across in two lines. The fourth could not — it has no home on the
+destination screen — so the shortcut now **refuses to fire when there is one to say**.
+
+**The tell:** before adding a path that bypasses a screen, list what that screen is the *sole*
+carrier of — not what it looks like. Rendered copy is the obvious half; the announce, the focus move,
+and any conditional line that only appears sometimes are the half that goes missing silently, because
+the happy-path test never has one to lose. If something has no home on the destination, the honest
+shortcut is one that declines to take itself.
+
 ## A rate over a subset you chose yourself is not evidence
 
 Learned 2026-08-21 (#262, caught by the owner asking me to re-explain). Reporting on whether a rename

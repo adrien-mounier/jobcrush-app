@@ -404,13 +404,38 @@ export default function DeckPage() {
       // wall with the matching error banner instead of re-showing "See them".
       // Live since session 28: the wall's Google link sends `?from=/deck`, which the API remembers
       // in a short-lived cookie and uses for its failure redirects (`apps/api/src/routes/auth.ts`).
-      const login = new URLSearchParams(window.location.search).get("login");
+      const params = new URLSearchParams(window.location.search);
+      const login = params.get("login");
       if (login === "expired") {
         setWallError(W12);
         setScreen("wall");
       } else if (login === "error") {
         setWallError(W13);
         setScreen("wall");
+      } else if (params.get("claimed") === "1" && res.authed && !(res.withdrawn && withdrawnLine(res.withdrawn))) {
+        // #64 AC3: she pressed "See them", signed in, and came straight back. The reveal has already
+        // been read and the count already earned — showing the curtain a second time would make her
+        // buy the same reward twice. The deck opens on its first card, which is the highest-ranked
+        // one (the server composes that order; currentIndex is 0 from load()). The flag rides the
+        // return path the wall stashes, so ONLY a completed claim skips the curtain: a returning
+        // visitor typing /deck still gets her reveal.
+        //
+        // The reveal screen is also where the count is ANNOUNCED and where focus lands, so skipping
+        // it has to carry both across: the card heading takes focus through the deck's own entry
+        // effect, and the one polite announce still names the reward she earned before signing in.
+        //
+        // The one thing it can NOT carry across is #123's withdrawal line (L7) — the sentence that
+        // tells her a job was left out, and the reason. It lives on the reveal and nowhere else, and
+        // a visitor never told a job was removed is the exact defect #123 exists to close. So when
+        // there is one to say, she gets the curtain and one more "See them"; skipping is only for
+        // the reveal that had nothing left to tell her. Fails toward saying it, never toward silence.
+        //
+        // One-shot, like the stash it rode in on: the flag is stripped the moment it is spent, so a
+        // reload, a back-nav or a bookmarked URL cannot keep skipping a reveal it did not earn.
+        window.history.replaceState(null, "", "/deck");
+        focusNextHeadingRef.current = true;
+        setLiveMessage(revealText(res.cards.length));
+        setScreen("deck");
       } else {
         setScreen("reveal");
       }
@@ -902,7 +927,9 @@ function WallPanel({
 
   // #22 return-path wiring: sign-in resumes on /deck (the S2 verify screen otherwise only knows
   // /deck/[jobId] or /import). Stashed before either door is opened, read back by /auth/verify.
-  const markReturn = () => localStorage.setItem("jc_return", "/deck");
+  // #64: `claimed=1` is what tells the deck the reveal was already earned on the way in, so the
+  // resumed visitor lands on the highest-ranked job rather than on a second curtain.
+  const markReturn = () => localStorage.setItem("jc_return", "/deck?claimed=1");
 
   const submit = async () => {
     setBusy(true);

@@ -2,6 +2,70 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-22 (session 156) `/implement 64` — the earned count survives signup (QA GO)
+
+Closes #64. Row 8. The first of the #54 chain behind #63.
+
+**Most of this ticket was already built, and nothing had ever proved it.** The inline Google +
+magic-link wall at the reveal is #22's, and signing in claims the *same* anonymous session row
+rather than copying it into a new one (`setClaimedByUserId`) — so AC2's "transfers without replay"
+is true by construction, not by machinery anyone wrote for this ticket. AC4 was already enforced,
+and better than the ticket asks: `requireUser` is a single choke point, and the QA gate checked all
+~11 routes behind it, not the two the new test names. AC1 was already true and already tested.
+
+**The one real gap was AC3, and it was a product defect, not a missing feature.** A visitor who
+pressed "See them", met the wall, signed in and came back was shown the reveal curtain *again* and
+had to press "See them" a second time. She had already earned that count; the product was selling
+it to her twice. The wall's return stash now carries `?claimed=1`, and a completed claim lands her
+directly on the highest-ranked card.
+
+**Three defects the two review axes caught, all fixed before the gate ran.**
+
+1. 🚨 **#123's withdrawal line would have been silently swallowed.** *"2 more needed English — I left
+   them out."* lives on the reveal screen and nowhere else — it is the sentence that tells her a job
+   was dropped and why, and a visitor never told a job was removed is the exact QA NO-GO #123 exists
+   to close. Skipping the reveal skipped it. **The skip now refuses to fire when there is one to
+   say**: she gets the curtain and one more tap. Fails toward telling her, never toward silence.
+2. **The flag was permanent.** A reload, a back-nav or a bookmarked `/deck?claimed=1` would keep
+   skipping the reveal for ever. It is now spent on use (`history.replaceState`), one-shot like the
+   `jc_return` stash it rides on — which is what the comment beside it had already claimed.
+3. **Only one of the two doors was tested.** Google is the *leading* button on the wall and its
+   `markReturn` was unpinned; both doors now are.
+
+**What is new, rather than newly proved.** `apps/api/test/claimAfterReveal.test.ts` drives a real
+earned reveal (upload, typed intent, a covered family floor with one explicit "no" among the
+answers, a live retrieved deck) and pins all four ACs — including a **provider-call counter that
+would fail on a re-search**, which is the only honest way to test "without replay". The QA gate left
+`apps/web/e2e/claimed-return-journey.mjs` behind (11 assertions): it asserts the count on the wall
+is the *same number* she earned rather than a regex that matches any reveal, that the resumed deck
+reads "1 of N" with the same N, that the flag is one-shot, and that AC4 holds **over the wire on the
+real ad id visible on her screen** — 401 before the claim, 200 after.
+
+⚠️ **The new journey is in no CI tier.** `run-tier2.mjs` is a hand-picked list; adding to it is the
+owner's call, and it costs ~2.5 min of gate wall-clock (see #264).
+
+⚠️ **The Google door was never driven against real Google** — no credentials on the fake stack. What
+is proven: the click writes the stash, and the `?oauth=ok` return consumes it and skips the curtain.
+One manual Google sign-in on staging closes the gap.
+
+**The owner narrowed the QA gate mid-ticket, and it is now a standing rule.** Every ticket had been
+paying the full 24-journey browser sweep — #64 is signup and cannot reach the CV-tailoring journey.
+This gate ran **5 tests instead of 24**, chosen as everything that renders a screen the diff touches
+plus everything that enters through it, with the skipped set named out loud. **This is #264's whole
+job**, already filed and now the next code build; #64 did it by hand. The full sweep still runs in
+CI on push, which is what actually gates the deploy.
+
+**Gates:** 1566 api + 47 contracts passed with caches force-bypassed, 11 skipped, 0 failed;
+typecheck clean across seven packages; the 3 affected Tier 1 specs 39/0; the 2 affected Tier 2
+journeys 12/0 and 29/0; the gate's own new journey 11/0. Ratchet untouched (870/870, and this diff
+never opens `routes/onboarding.ts`). **USD 0 — zero provider calls and zero real model calls all
+session.**
+
+🚨 **Unrelated work was sitting staged and is NOT in this commit.** `apps/api/eval/family-labeler-grid.json`
+holds a substantive #263 change (str-13 Business Analyst moved IN, a new str-21 draft) that predates
+this session. It was left in the index deliberately — committing without naming paths would have
+swept it into #64. It still needs its own commit.
+
 ## 2026-08-21 (session 155c) — the research method is fixed, and the run that found the holes is closed (#261, #260)
 
 **#261 done, #260 closed** (`03952c8`, docs only, USD 0). The owner chose the write-up's first
