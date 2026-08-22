@@ -40,10 +40,24 @@ Both families renamed: **Business Analyst** and **IT Project Manager**.
 - **A date the instrument disagreed with.** Both publications were stamped `measuredOn: 2026-08-22`
   while every probe file recorded **2026-08-21**. Corrected to what was actually recorded — that
   field exists to be audited, and #244 compares it.
-- **Owner-accepted risk, still open.** "IT Project Manager" names a family whose scope deliberately
-  covers scrum master, agile coach, delivery lead and release manager. The owner was warned and
-  reaffirmed. The 64-case labeler grid is the only instrument that would measure whether placement
-  narrowed; **not run (~USD 0.65), owner's call, open on #262.**
+- **Owner-accepted risk: MEASURED, and it did not land.** The 64-case labeler grid was run against
+  the renamed prompt on the production model (MiniMax M3 on Fireworks — the eval refuses to measure
+  a stand-in and prints which model it used). **Passes every ADR-0014 bar**: comparable accuracy
+  97.8% (bar 95), stranger recall 94.7% (bar 90), false-unknown 0.0% (bar 5). **19 of the 64 cases
+  are exactly the at-risk titles** — Scrum Master, Scrum Coach, Release Manager, three Delivery
+  Managers, four Delivery Leads, IT Programme Manager, the dual Product Owner cases — **and all 19
+  passed.** Naming the family after one role did not narrow how the labeler places the others.
+- **The grid surfaced someone else's stale expectation → #263.** `str-13` "Business Analyst" expects
+  `unmapped` and now confirms into business-analysis. **Attributed properly instead of assumed:**
+  re-running that single case against the OLD v1 labels also returns confirmed/certain, so it broke
+  on **2026-08-20 when #255 published the second family**, not today. The grid was last touched
+  2026-08-15 and its own vocabulary description still reads "it-project-delivery v1 alone". Two days
+  unnoticed, because the eval lane is deliberate and never runs on a push. It is owner-arbitrated
+  data, so it was filed, **not flipped to make a number go green**.
+- **A cost correction worth carrying.** The grid was quoted at ~USD 0.65 and cost **USD 0.05** — the
+  estimate applied a frontier-tier price to a Fireworks model, 13× too high. The labeler's real
+  figure lives in `eval/bakeoff-result.json` (MiniMax M3, USD 0.04889 per 60 cases). Price it from
+  there. **Session total: 59 provider calls + 65 model calls, USD 0.64.**
 - **Also:** a parked, owner-**rejected** product-ownership widening had assumed the v2 number this
   took. Its folder is renamed and banner-flagged; revived, it is v3.
 

@@ -94,12 +94,44 @@ lines below, in the sentence the prompt marks as deciding the family. That is no
 *"(IT Project Manager)"*. Found by `/qa-gate` (Finding A), not by the build assertion, which was
 only checking that nothing changed — not that everything that should change had.
 
-## The accepted risk, recorded
+## The accepted risk — MEASURED, and it did not land
 
 "IT Project Manager" names a family whose scope deliberately covers scrum master, agile coach,
 delivery lead and release manager. The owner was told a single-role name may read as narrower than
-the family is — to the labeler and to a visitor — and chose it anyway. That is a decision, not a
-defect. What the evidence says so far: the four aliases still resolve to the family and are offered
-its market titles at question 1, the scope sentence the prompt calls decisive still names all four
-as inside, and the prompt delta is two heading lines. The instrument that would measure it properly
-is the 64-case labeler placement grid (`pnpm --filter @jobcrush/api eval:labeler`, ~USD 0.65).
+the family is — to the labeler and to a visitor — and chose it anyway.
+
+**The 64-case labeler grid was run against the renamed prompt on the production model**
+(`accounts/fireworks/models/minimax-m3`, the model `familyPlacementLlm()` actually wires — not a
+stand-in). **It passes every bar ADR-0014 sets:**
+
+| Measure | Result | Bar |
+|---|---|---|
+| Comparable accuracy | **97.8%** | 95% |
+| Stranger recall | **94.7%** | 90% |
+| False-unknown rate | **0.0%** | 5% |
+| Confidence accuracy | 66.7% | reported, no bar |
+| Placements naming >1 family | 8 | watched, no cap |
+
+**The rename did not narrow placement.** 19 of the 64 cases are exactly the titles at risk — Scrum
+Master, Scrum Coach, Release Manager, Technical/Solution/Digital Delivery Manager, four Delivery
+Leads, IT Programme Manager, and the dual-family Product Owner cases. **All 19 passed.** The two
+misses are neither of them a narrowing:
+
+- **`amb-07` "Delivery & Product Operations Lead"** — expected `it-project-delivery` alone, got
+  `it-project-delivery + product-management`. A *widening*, on the synthetic two-family vocabulary,
+  and the case's own note records that the bake-off models split 5–3 on it.
+- **`str-13` "Business Analyst"** — expected `unmapped`, got `confirmed (business-analysis)`.
+  **This is not the rename's doing, and it was proven rather than assumed.** Re-running that single
+  case against the OLD v1 labels (`"Business analysis"` / `"IT project delivery"`) returns
+  `confirmed (business-analysis, v1), certain`. The expectation went stale on **2026-08-20 when
+  #255 published the second family** — the grid file was last touched at `34bdd3c` (#231,
+  2026-08-15), and its own `vocabularies.published` description still reads *"it-project-delivery v1
+  alone"*. It went unnoticed for two days because the eval lane is deliberate and never runs on a
+  push. **It is owner-arbitrated data (ADR-0014: drafted by the agent, arbitrated by the owner), so
+  it has not been silently flipped** — filed for the owner instead.
+
+**Cost: USD 0.05** — 64 cases plus one attribution call, priced from the repo's own measured figure
+for this model (`eval/bakeoff-result.json`: MiniMax M3 at **USD 0.04889 per 60 cases**, 84,753 in /
+19,557 out). Note for anyone re-quoting this: it was first estimated at ~USD 0.65 by applying a
+frontier-tier price to a Fireworks model — **13× too high**. Price the labeler from
+`bakeoff-result.json`, not from an Anthropic tariff.

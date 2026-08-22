@@ -1,5 +1,37 @@
 # Lessons — jobcrush-app
 
+## Price a model run from the repo's own measured figure, not from the tier you assume
+
+Learned 2026-08-21 (#262). The 64-case labeler grid was quoted to the owner at **~USD 0.65** and
+cost **USD 0.05** — a 13x overestimate, in the direction that makes an owner say no to a cheap,
+useful measurement. The error: pricing it at a frontier-tier tariff when the labeler does not run on
+that tier at all. `FAMILY_PLACEMENT_MODEL` is `accounts/fireworks/models/minimax-m3`, and the repo
+already stores the measured number — `apps/api/eval/bakeoff-result.json` records **USD 0.04889 per
+60 cases**, with the token counts behind it.
+
+Two habits: **read `FAMILY_PLACEMENT_MODEL`/`JUDGE_MODEL` before quoting any model cost** (several
+lanes here are deliberately NOT on the frontier tier, for exactly this reason), and **check whether
+the repo already measured it** before estimating. The same rule the posting-provider budget already
+states — price from the provider's own cost model, at the time of spending — applies to model lanes
+too; they just keep their cost model in a different file.
+
+## Attribute a newly-failing check before you fix it — the cause is often two commits back
+
+Learned 2026-08-21 (#262 → #263). Running the labeler grid after a rename produced a miss on
+`str-13 "Business Analyst"`. The tempting reading was "the rename broke it". Re-running that single
+case against the OLD labels returned the same answer, so the expectation had actually gone stale on
+**2026-08-20**, when #255 published a second family — the grid asks the real registry
+(`harness.ts`: `publishedFamilies(initialProductionFamilyFloors())`), so publishing a family silently
+changes what every "stranger" case is being asked. Two days unnoticed, because the eval lane is
+deliberate and never runs on a push.
+
+**A one-call experiment against the previous state is worth more than an hour of reasoning about
+whose fault it is** — and it changes the outcome: a stale expectation gets filed against the change
+that caused it, rather than quietly patched inside an unrelated ticket. Related: the expectation was
+`"arbitration": true` — owner-arbitrated. **Never flip an owner-arbitrated expectation to make a
+rate go green.** File it. That flag exists precisely to stop a green number being bought with the
+owner's judgement.
+
 ## Publishing a new version means ADDING its load, never repointing the old one
 
 Learned 2026-08-21 (#262, caught by 72 red tests before it could ship). Renaming both job families
