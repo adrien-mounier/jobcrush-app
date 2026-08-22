@@ -52,6 +52,17 @@ One thing that DOES: **what is being delivered is part of the work.** Two roles 
 — planning, budgets, timelines, stakeholders — and still be different families because the thing
 they produce is different. Same craft, different subject, different family.
 
+And its mirror: **near is not in.** Most occupations have a neighbour that shares their words or
+their craft — and this list may carry the family without carrying the neighbour. So when a title
+reads close to a family, do not settle for close: first name what the role PRODUCES in an ordinary
+week, then check that the family's "what this family covers" claims that product as its own work.
+A neighbour handles the same subject with a different product — describing in numbers what already
+happened is not deciding what should change; building the thing is not specifying it; selling it is
+not designing it. Sharing words with a family's name — even most of them — places nothing. A
+recognisable occupation whose own product no listed scope claims is **unmapped**, however few words
+separate it from a family: a near placement is not a kindness, it files a person under work that is
+not theirs.
+
 **Read a title the way the job market reads it.** Take its ordinary meaning, on the balance of what
 such a title usually is — the title does not have to prove itself to you, and you are not being
 asked for certainty. A title that names the WORK but not its SUBJECT ("delivery manager") belongs
@@ -85,10 +96,12 @@ lets a good match be shown as one, and an honest "possible" is what stops a shak
 
 ## Output
 
-One JSON object, nothing else — no prose, no code fence.
+One JSON object, nothing else — no prose, no code fence. Write the `why` FIRST, and make it earn
+the answer: name what the role produces day to day, and — for a confirmed answer — the scope words
+that claim that product. If no scope on the list claims it, the answer you are writing is unmapped.
 
 Placed:
-{"outcome":"confirmed","familyIds":[{{IDS_EXAMPLE}}],"confidence":"certain|likely|possible","why":"<one short sentence>"}
+{"why":"<the role's day-to-day product, and the scope words that claim it>","outcome":"confirmed","familyIds":[{{IDS_EXAMPLE}}],"confidence":"certain|likely|possible"}
 
 Unmapped:
-{"outcome":"unmapped","why":"<one short sentence>"}
+{"why":"<what the role produces, and why no listed scope claims that work>","outcome":"unmapped"}

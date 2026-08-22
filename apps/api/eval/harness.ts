@@ -40,9 +40,10 @@ export const gridCases: GridCase[] = (
 
 export const PUBLISHED = publishedFamilies(initialProductionFamilyFloors());
 
-// Defined HERE, never in the production registry: exactly one family is published, so the
-// two-or-more-family ambiguity the contract supports cannot occur in production yet. These cases
-// measure that the prompt ASKS rather than picks, ahead of a second family being published.
+// Defined HERE, never in the production registry: product-management is not published, so the
+// dual-family cases that need it beside it-project-delivery cannot run on the real vocabulary.
+// They measure that the prompt names both families only when both are real, ahead of that
+// family publishing for real.
 export const TWO_FAMILIES: PublishedFamily[] = [
   ...PUBLISHED,
   {
