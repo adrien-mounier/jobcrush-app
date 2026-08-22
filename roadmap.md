@@ -47,8 +47,8 @@ no autonomous submit, no LinkedIn credentials, ever).
 ## Run order — what to build next
 
 **NEXT: 7d.5 #272** — delete the old flow (closes #249). Open head after it: **8c #265 · 8b #217**
-(#217 needs `/to-spec` first). Unscheduled, in the table: 8d #274 · 7b.1 #250 (parked). Unscheduled,
-no row yet: #246 · #276 · #277.
+(#217 needs `/to-spec` first). Unscheduled, in the table: 8d #274 · 8e #278 · 7b.1 #250 (parked).
+Unscheduled, no row yet: #246 · #276 · #277.
 
 _Ordered 2026-08-13 over all open issues. **This goes stale on every landing** — when a ticket
 closes, strike it here in the same commit, and when a dependency claim stops being true, fix it
@@ -135,12 +135,11 @@ cutting at the curve's cliff (80% → 51%) rather than a fixed number; either ru
 | 8c | #265 | The labeler reaches for the nearest published family instead of answering unmapped — step 1 is establishing whether the never-nearest rule is missing or present-and-not-holding | `/implement` | Opus | medium |
 | 8b | #217 | Industry — the second label axis: closed vocabulary with relatedness, seventh fact, its own labeler | `/to-spec` | Opus | high |
 | 8d | #274 | One text field style across the product — today there are four, and two of them zoom the page on an iPhone on the main journey. Unscheduled, no blockers | `/implement` | Opus | medium |
+| 8e | #278 | The work-history check loses its only door when #272 deletes the draft screen — give it one on the real journey. Not a blocker for #272. Unscheduled; needs the where/when decision first | `/implement` | Opus | medium |
 
-**Parked question with no other home (was on #249's row, outlives it):** does a CV-draft-before-signup
-ever return to the main journey? Once #272 deletes the draft screen, NOTHING in the product links to
-`/job-blocks` (the work-history check) — five browser journeys reach it by typed address. "Yes" is a
-new spec; "no" means the work-history check needs a front-door-side entrance or it is dead UI.
-Undecided.
+**~~Parked question (was on #249's row)~~ ANSWERED (owner, 2026-08-22): NO — the product does not
+offer a CV draft before signup.** The consequence is row 8e #278: the work-history check gets a door
+on the real journey. Decision also recorded on #272.
 
 ### Phase 2 — the profile gets rich (map #127 fan-out)
 
