@@ -1,5 +1,25 @@
 # Lessons — jobcrush-app
 
+## A failed job still carries a payload — read it the same way you read a finished one
+
+Learned 2026-08-22 (#270, caught by the QA gate driving a real scanned PDF, not by any test).
+`openJobStream` had two arms: `completed` used the job's `importProof`, `failed` threw it away and
+substituted a hard-coded string. That looked reasonable — it failed, so what would it have to say?
+— and it was wrong: the pipeline sets a proof on the unparseable path *deliberately*, and that
+proof is what carries the reason and the way out. The consequence was invisible to every unit and
+route test, and perfectly visible on screen: the guidance rendered only when the same failure was
+later restored from the session, so the person it was written for — someone whose CV is a scan,
+first attempt — never saw it. A person only reloads a page they have a reason to come back to.
+
+**The rule:** when a producer writes a payload on BOTH exits, the consumer must read it on both
+exits. Two arms that differ only in which one trusts the payload is a smell; collapse them and let
+the payload's absence, not the status, decide the fallback. Here the fix made the diff smaller.
+
+**Why nothing caught it:** the two arms had different *stubs* in the spec file too — the failure
+test posted `progress: {}`, which is the one shape where the old code was right. A stub that only
+ever sends the shape your code handles proves nothing. Sibling of the standing lesson that a
+payload test does not prove the screen.
+
 ## A screen you skip is the only place some things get said — enumerate them before skipping it
 
 Learned 2026-08-22 (#64, caught by the Standards review axis, not by me). The ticket asked that a

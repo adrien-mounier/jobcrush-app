@@ -2,6 +2,56 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-22 (session 157) `/implement 270` — the front door gets a paste door (QA GO)
+
+Closes #270 (`a41f44b`). Row 7d.3. Unblocks 7d.4 (#271), the last thing before #272's deletion.
+
+**The feature is small; what it uncovered is not.** A person can now paste their CV text on the
+front door — a tile beside "Use my CV", and a "Paste the text instead" button on the
+unreadable-CV failure. Same job, same event stream, same facts screen, same next step; they never
+leave `/`. Pasting already existed on the dead `/paste` screen #272 deletes.
+
+**Defect 1 — a paste stored nothing against the session.** `persistImport` was bound only inside
+`defaultOnUploaded`, so `/cv/paste` ran with bare `pipelineDeps`. A pasted CV built its proof, put
+it on the JOB, and stopped there: `session.importProof` stayed null (so the facts vanished on
+reload) and `claims.seed` never ran (so discovery asked for everything again). Nothing tested it in
+either direction. That is literally AC5, so it was fixed at the root rather than papered over —
+`persistImport` now sits in `pipelineDeps` taking `sessionId` as a plain argument, the same
+convention `persistContact`/`persistJobBlocks` already used and whose own comment said so.
+
+**Defect 2 — the scan guidance never reached the person who needed it, and only the browser could
+see that.** The new copy ("if your CV is a scan, paste the text instead") lives on the failed
+*proof*. An unreadable scan ends the job `status: "failed"` **carrying** that proof — and
+`openJobStream` was discarding it for a hard-coded one-liner. So the advice rendered only when the
+failure was restored from the session on a RELOAD: never, for a first-time visitor. Every unit and
+route test passed throughout. The QA gate found it by uploading a real `scanned.pdf` and reading the
+screen. `openJobStream` now reads a finished job the same way whether it completed or failed.
+
+**A test fixture was masking the first defect's blast radius.** `grill.test.ts` gave two distinct
+claims one `semantic_key`; binding `persistImport` for paste made that path reconcile as uploads
+always have, which dedupes on exactly that key, and 4 tests went red. Checked adversarially before
+touching it (old fixture + new source → the same 4 failures, for the right reason): the fixture was
+unrealistic, not the source. `semantic_key` now follows the overridden id.
+
+**Gates:** `pnpm test` 1567 passed / 11 skipped, `pnpm typecheck` clean, `front-door.spec.ts` 34
+passed (3 new + 1 for defect 2). `/qa-gate` GO twice — once on the build, again scoped to the
+fix. All 7 ACs PASS with browser evidence. **USD 0.00** — the fake-model seam answered every call.
+New journey: `apps/web/e2e/frontdoor-paste-journey.mjs` (paste door · scanned-CV dead end ·
+upload/paste storage parity).
+
+**Owner narrowed the browser pass mid-session** to the affected surface only — front door, paste
+view, failure path, paste intake. Deck/profile/tailor/discovery were not driven; the API suite
+covers the shared binding and the full sweep is CI's job. Same call as #64's.
+
+⚠️ **Open, for the owner:** `DESIGN.md` §Inputs says radius 10px and body-size (14px) text, but
+every field already shipped on the front door — `.conflict input` and `.intent-field input` — uses
+8px/16px. The new paste box matches its two siblings rather than the doc. Pre-existing conflict
+between the doc and the screens; not resolved here. Either restyle all three fields or update the
+doc. (16px also happens to be what stops iOS Safari zooming on focus.)
+
+⚠️ **CI is still blocked** (no payment method, $0 limit, since 2026-08-15), so this push runs no
+checks and does not reach staging. The local gates above are the only gate this work got.
+
 ## 2026-08-22 (session 156) `/implement 64` — the earned count survives signup (QA GO)
 
 Closes #64. Row 8. The first of the #54 chain behind #63.
