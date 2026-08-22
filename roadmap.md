@@ -114,9 +114,25 @@ different job title." with a small `No jobs found` / `No more jobs ... right now
 7b.1a have all landed since, so every row above 7b.7 is struck. #250 stays parked: its pick-up
 trigger (proposal volume outgrowing owner review time) is not met. **Repointed 2026-08-21: #260, #261 and #262 are all
 done and struck. The board's open head is now 7d #249 · 8 #64 · 8b #217, and the next code build is
-row 8 #64** — 7d #249 and 8b #217 both still need `/to-spec` first. One small open item sits outside
-the run order: **#263**, a stale owner-arbitrated expectation in the labeler grid that #255 caused
-and #262's grid run surfaced — one line of owner judgement, no build.
+row 8 #64** — 7d #249 and 8b #217 both still need `/to-spec` first.
+
+**Row 7b.1 #250 sits above 7d and is DELIBERATELY SKIPPED, not overlooked.** It is unstruck because
+it is genuinely open, and it stays that way until its pick-up trigger fires: *proposal volume
+outgrows the owner's review time*, measured in real runs rather than assumed. Two vocabulary-growth
+runs have happened (#255, #260) and the owner reviewed both comfortably in one sitting, so the
+trigger is not met. Its `/grill-with-docs` skill is correct and load-bearing: when it is picked up
+it needs a design pass first, because it **reverses a deliberate current shape** — publishing is a
+reviewed file loaded at boot, and #250 would make it a runtime path. Do not start it with
+`/implement`.
+
+One small open item sits outside the run order entirely: **#263**, a stale owner-arbitrated
+expectation in the labeler grid that #255 caused and #262's grid run surfaced — one line of owner
+judgement, no build.
+
+_Audit convention, so a future reader does not re-derive it: a struck row means **this position is
+finished**, which is usually "done" but is sometimes "moved". Row 5c.1d #238 is struck and its issue
+is still open — deliberately: it was deferred to the pilot by the owner and lives on unstruck at
+**row 36b** in Phase 4. A struck row whose issue is open must always name where the work went._
 
 **#261 is cheap and time-ordered, not urgent-in-itself:** it is prose, but it must land **before**
 the research method is pointed at a family nobody has reviewed. #260 could only find those three
