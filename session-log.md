@@ -2,6 +2,59 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-22 (session 158) `/implement 264` — a ticket pays only for the journeys it can reach (QA GO)
+
+Closes #264 (`308d059`). Row 8a, struck. Next build is 7d.4 (#271), which is both the first ticket
+charged the shorter gate and the one obliged to update the coverage map it now depends on.
+
+**What landed.** `--changed=<ref>` on `run-tier2.mjs` reads the diff since `<ref>`, maps it through
+a new `tier2-coverage.mjs`, and runs that subset. No flag runs all 24 — which is how ci.yml invokes
+it — so main and every deploy keep the full gate. The browser sweep was ~99% of gate wall-clock
+(~60 min against ~33 s for test + typecheck + build combined).
+
+**AC5 passes, and it passes for the right reason.** Replaying #262's diff selects 10 and skips 14
+with all five of that ticket's genuinely-red journeys inside. The trap the ticket itself names is
+that #262 edits exactly the journey files it reaches, so AC9's self-selection could produce the
+right answer over a worthless map — driving the three NON-journey paths alone (`familyFloors.ts`
+plus the two research JSONs) yields the identical 10. That check is in the suite.
+
+**TEN, not the nine AC5 states — owner may overrule.** `unmapped-label-feed-journey.mjs` asserts
+which words no published family covers, and the registry is precisely what decides that, so a
+registry edit can break it. It is the fail-open direction, costs ~2 min, and AC5's substance is
+untouched. One-line revert noted in `tier2-selection-check.mjs`.
+
+**Three map holes were found before this landed, and that is the lesson.** Two by `/code-review`,
+one by sweeping all 541 tracked files through the map (134 unmapped, mostly research and scripts —
+but five product prompt files, the job queue and the whole LLM-metering seam were genuine gaps).
+The gate then found two more: a second shared journey helper (`live-ad-id.mjs`) classified inert so
+editing it selected NOTHING, and three journeys that paste a real CV and assert on the parse not
+being mapped to the intake path — live, since `/paste` shipped in #270 and #274 is queued on it.
+The gate resolved the full transitive import graph of all 24 journeys and confirmed exactly two
+shared helpers exist, both now in `SELECTS_ALL`.
+
+**The entry guard was wrong twice, in the ticket whose whole point is not to do this.** Moving the
+run loop behind a "was I invoked directly?" check introduced a way for the gate to exit 0 having
+run nothing and printed nothing. First fix compared full paths (breaks on a symlink or a Windows
+drive-letter case); second used a hardcoded filename, which reintroduced the exact hazard
+`run-mocked.mjs`'s header warns about — *"a rename can't silently shrink the gate"*. It now derives
+its own name from `import.meta.url`, and an invocation with no `argv[1]` is undecidable so it
+refuses loudly rather than guessing skip (silent green) or run (an hour-long ambush for an
+importer).
+
+**Safety properties are enforced, not written.** `--changed` is refused outright when `CI` is set,
+so no future edit can narrow the deploy gate quietly. The bare `--changed` default was dropped: it
+compared against `main`, and since ordinary work happens ON `main` the merge-base is HEAD, so
+committed ticket work went invisible — under-selection, silently.
+
+**`apps/web`'s `test` script was a no-op echo** and now runs the 13 selection checks, so the
+mechanism rides the same gate as everything else instead of rotting unwatched — the exact rot
+`run-tier2.mjs`'s own header describes for journeys in no tier.
+
+**Two non-blocking follow-ups the gate raised**, both for #271 to absorb while it is in that file:
+assert that every shared `e2e/` helper imported by a gate journey appears in `SELECTS_ALL` (~5
+lines; would have caught that hole on its own), and map `apps/api/src/preview.ts` to
+`deck-family-fit-journey.mjs`.
+
 ## 2026-08-22 (session 157) `/implement 270` — the front door gets a paste door (QA GO)
 
 Closes #270 (`a41f44b`). Row 7d.3. Unblocks 7d.4 (#271), the last thing before #272's deletion.

@@ -1,5 +1,28 @@
 # Lessons — jobcrush-app
 
+## Moving a script's body behind an "am I the entry point?" check can make it exit 0 doing nothing
+
+Learned 2026-08-22 (#264). To let a test import `JOURNEYS` from `run-tier2.mjs`, I wrapped its run
+loop in the usual ESM idiom for "only run when invoked directly". That one refactor gave the deploy
+gate a way to succeed having run nothing and printed nothing — the single outcome a gate may never
+have — and I got the guard wrong twice before it was right.
+
+- `fileURLToPath(import.meta.url) === resolve(process.argv[1])` — an exact path compare. Breaks on a
+  symlinked checkout or a Windows drive-letter case difference. Skips silently, exits **0**.
+- `basename(process.argv[1]) === "run-tier2.mjs"` — a hardcoded literal. Fixes the path fragility
+  and reintroduces the hazard `run-mocked.mjs`'s header already warns about: *"a rename can't
+  silently shrink the gate."* Rename the file and every future run is a silent no-op.
+- Right: `basename(process.argv[1]) === basename(fileURLToPath(import.meta.url))` — **the name is
+  derived, never typed**. And when `argv[1]` is absent the situation is genuinely undecidable, so it
+  refuses with a non-zero exit rather than guessing: guessing "skip" is the silent green, guessing
+  "run" ambushes an importer with the hour-long sweep.
+
+The reusable part is the shape, not the file. **Whenever a script's real work moves behind a
+condition, ask what happens when the condition is wrong — and make that branch loud.** For anything
+that gates a deploy, "did nothing" and "succeeded" must never be the same exit code. Neither
+`node --check` nor the test suite can see this: both wrong versions were valid, typechecked, and
+passed every test, because the tests import the module and never exercise the guard.
+
 ## A per-file lint finding is a sample, not a diagnosis — survey the siblings before you choose
 
 Learned 2026-08-22 (#270 → #274). The design hook reported the front door's text fields as off
