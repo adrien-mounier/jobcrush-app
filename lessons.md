@@ -3559,3 +3559,17 @@ read did no work"). The fix each time is the same shape: **capture the value bef
 assert it does not MOVE**, which survives any legitimate earlier writer. The tell that you are about
 to write one of these is an assertion comparing persisted state to its zero value rather than to a
 snapshot you took yourself.
+
+## A journey in no tier fails at the rate the product moves — third occurrence
+
+`onboarding.spec.ts` waited for `/signup` after clicking a link that has gone to `/job-blocks/<jobId>`
+since #157 — months of rot, found only when #271 re-pointed its entrance. Third time this exact shape
+has surfaced: the eligibility journey sat unrun for weeks (#205), master-cv was rotted the same way
+and rewritten (#209), now the S2 loop spec. Each looked healthy because nothing ran it: **an asset in
+no tier does not fail slowly, it fails silently at exactly the rate the product changes underneath
+it** — and being excluded for a *good* reason (a paid model, in this case) protects it no better than
+being forgotten. When touching any test outside every tier, budget for it being already broken before
+your change, and prove it against the live product, not just against your diff (#271 spent USD 0.70 of
+petty cash to do that; the alternative was shipping a "repaired" walk nobody had ever watched run).
+The standing fix is structural, not vigilance: every journey either sits in a tier or carries a filed
+ticket saying why not (#276 is that ticket for the front door's own journey).

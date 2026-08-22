@@ -2,6 +2,44 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-22 (session 159) `/implement 271` — every browser journey enters through the front door (QA GO)
+
+Closes #271 (`57e8e13`). Row 7d.4, struck. Next build is 7d.5 (#272) — the deletion of the four old
+screens is now fully unblocked and closes the #249 parent.
+
+**What landed.** Fourteen tier-2 journeys, `errors.spec.ts` and `onboarding.spec.ts` entered the
+product through the old `/paste`/`/import` screens; two more read their jobId out of the draft
+screen's address. All of them now walk in as a person does — front door → "Paste my CV text" → the
+facts screen — through one shared helper in `qa-driver.mjs` (`frontDoorPaste` /
+`frontDoorContinueToIntent` / `waitForJobDone`), with the jobId taken off the paste response the
+page itself makes. The intent-first journeys now paste BEFORE stating the target role, the order
+the real front door imposes (safe: `targetTitles` only feed the doomed draft step, verified before
+reordering). A second read on one session has no screen — the product offers none — so it calls
+`POST /cv/paste` directly, the same route the front door's tile calls.
+
+**The gate did not shrink, and that was measured, not asserted.** All 24 journeys green with
+assertion sets byte-identical journey for journey (696 = 696 against the 2026-08-21 baseline),
+independently reproduced by the QA gate with caches bypassed (api 1567+11 skipped, contracts 47,
+selection checks 16/16, Tier 1 153 with the mine/tailor/grill/audit=0 invariant on a fresh API).
+Duration reported per AC7: full sweep 41.7 → 43.6 min, **+117 s (+4.7%)**, concentrated in the
+re-pointed journeys (+3–22 s each) — and a front-door diff now selects 18 of 24 journeys (was 6),
+the priced consequence #264's row warned about. Both #264 follow-ups discharged (shared-helper
+rule is a mutation-tested check; `deck-family-fit` maps `preview.ts`).
+
+**`onboarding.spec.ts` was rotted — the second no-tier casualty.** It waited for `/signup` where
+the product has gone to `/job-blocks/<jobId>` since #157; nothing noticed because it runs in no
+tier (same failure shape as the eligibility journey in #205 and master-cv in #209). Repaired in the
+re-point and proven on the REAL model (2/2, ~15 calls, ~USD 0.70 petty cash — priced estimate, the
+in-memory ledger could not be read back) and on the fake (2/2, free, the gate's run).
+
+**One deliberate AC1 deviation, gate-acknowledged:** `preview-disclosure.spec.ts` still opens the
+draft screen — its subject IS that screen, so it dies with it in #272 rather than one ticket early.
+**Made visible, not caused:** five journeys reach the work-history check by typed address because
+no live screen will link to `/job-blocks` once the draft screen goes — #249's open product question,
+now visible in the tests. Follow-ups filed out of the gate: **#276** (the front door's own
+29-assertion journey runs in NO tier) and **#277** (a failed screenshot on a note step reddens the
+whole deploy gate).
+
 ## 2026-08-22 (session 158) `/implement 264` — a ticket pays only for the journeys it can reach (QA GO)
 
 Closes #264 (`308d059`). Row 8a, struck. Next build is 7d.4 (#271), which is both the first ticket
