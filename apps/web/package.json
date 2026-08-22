@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no unit tests (UI is exercised by the e2e onboarding smoke)'",
+    "test": "node e2e/tier2-selection-check.mjs",
     "e2e": "playwright test",
     "e2e:mocked": "node e2e/run-mocked.mjs",
     "e2e:tier2": "node e2e/run-tier2.mjs",

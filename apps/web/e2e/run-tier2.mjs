@@ -17,8 +17,14 @@
 // worth the risk. Continues through a failure so every journey still gets its HTML report (the #197
 // crash guard covers the in-process crash case; this covers the "don't let one red journey hide the
 // rest" case), then exits non-zero if anything failed — same contract as run-mocked.mjs.
+//
+// #264 added `--changed=<ref>`: run only the journeys the diff since <ref> can actually reach, per
+// tier2-coverage.mjs. NO FLAG STILL RUNS EVERY JOURNEY, which is how ci.yml invokes it, so main and
+// every deploy keep the full gate. Read tier2-coverage.mjs's header before trusting a selected run.
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { basename } from "node:path";
+import { assertMapCoversGate, selectJourneys } from "./tier2-coverage.mjs";
 
 const e2eDir = fileURLToPath(new URL("./", import.meta.url));
 
@@ -52,7 +58,7 @@ const e2eDir = fileURLToPath(new URL("./", import.meta.url));
 //                         moved the door it clicked). Rewritten against the fake.
 // Measured on this machine 2026-08-13, they add roughly 6 minutes between them — the wall-clock the
 // ticket's owner accepted when they asked for all four to be fixed rather than retired.
-const JOURNEYS = [
+export const JOURNEYS = [
   "contact-fact-journey.mjs",
   "eligibility-questions-journey.mjs",
   "tailor-journey.mjs",
@@ -162,18 +168,147 @@ const JOURNEYS = [
   "family-role-name-journey.mjs",
 ];
 
-let failed = 0;
-for (const file of JOURNEYS) {
-  console.log(`\n=== Tier 2: ${file} ===`);
-  // shell:true only for the Windows-vs-POSIX node shim question moot here (node is invoked directly,
-  // not via a .cmd wrapper) — kept false, matching run-mocked's own reasoning against the CVE-2024-27980
-  // .cmd/.bat concern, which does not apply to a plain "node" binary.
-  const result = spawnSync("node", [`${e2eDir}${file}`], { stdio: "inherit" });
-  if (result.status !== 0) failed += 1;
-}
-
-if (failed > 0) {
-  console.error(`\nTier 2: ${failed} of ${JOURNEYS.length} journeys failed`);
+// Only run when invoked directly — the selection self-check imports JOURNEYS from here.
+//
+// Compared by BASENAME, and the name is DERIVED from this file rather than typed as a literal. Both
+// halves matter, and the first version of this guard got both wrong:
+//   - an exact full-path compare is a false green waiting to happen (a symlinked checkout or a
+//     drive-letter case difference on Windows skips main() and exits 0 — a gate that runs nothing
+//     and reports success);
+//   - a hardcoded "run-tier2.mjs" literal reintroduces the exact hazard run-mocked.mjs's header
+//     warns about, that "a rename can't silently shrink the gate" — renaming this file would make
+//     every future run a silent no-op.
+// A missing argv[1] (imported through `node -e`) is UNDECIDABLE — it could be a direct run or an
+// import — so it refuses loudly instead of guessing. Guessing "skip" is the silent green this whole
+// guard exists to prevent; guessing "run" ambushes an importer with the hour-long sweep. The one
+// outcome this gate may never have is running nothing while exiting 0.
+const invokedAs = basename(process.argv[1] ?? "").toLowerCase();
+const thisFile = basename(fileURLToPath(import.meta.url)).toLowerCase();
+if (invokedAs === "") {
+  console.error(
+    `run-tier2.mjs: cannot tell a direct run from an import with no argv[1] — refusing rather than silently running nothing. Invoke it as \`node <path>/${thisFile}\`.`,
+  );
   process.exit(1);
 }
-console.log(`\nTier 2: all ${JOURNEYS.length} journeys passed`);
+if (invokedAs === thisFile) {
+  main();
+}
+
+function git(args) {
+  const r = spawnSync("git", args, { encoding: "utf8", cwd: e2eDir });
+  if (r.status !== 0) {
+    console.error(`run-tier2.mjs: \`git ${args.join(" ")}\` failed — refusing to guess what changed`);
+    if (r.stderr) console.error(r.stderr.trim());
+    process.exit(1);
+  }
+  return r.stdout;
+}
+
+// Committed changes since <ref>, PLUS the working tree — a ticket's work is usually uncommitted when
+// the gate runs, and a selection blind to it would run the wrong journeys (or none).
+function changedPathsSince(ref) {
+  const paths = new Set();
+  for (const line of git(["diff", "--name-only", `${ref}...HEAD`]).split("\n")) {
+    if (line.trim()) paths.add(line.trim());
+  }
+  // -z, so git never quotes or backslash-escapes a path: a non-ASCII or odd filename reaches us
+  // intact instead of arriving mangled. Fields are NUL-separated; a status field reads "XY path",
+  // and a rename's SOURCE follows as a bare field. Both sides matter (the old path may have been a
+  // journey), and adding every field covers both without parsing the rename shape.
+  for (const field of git(["status", "--porcelain", "-z", "--untracked-files=all"]).split("\u0000")) {
+    if (!field) continue;
+    paths.add(/^[ MADRCU?!]{2} /.test(field) ? field.slice(3) : field);
+  }
+  return [...paths].sort();
+}
+
+function main() {
+  // AC8, whether or not selection is being used: a journey nobody mapped must not reach the gate.
+  assertMapCoversGate(JOURNEYS);
+
+  const flag = process.argv.slice(2).find((a) => a === "--changed" || a.startsWith("--changed="));
+  let journeys = JOURNEYS;
+
+  if (flag) {
+    // Safety rule 2, enforced rather than written: selection is a per-ticket convenience, and a
+    // deploy is only ever allowed to depend on the full gate. ci.yml passes no flag today; this
+    // refuses to let a future edit narrow the deploy gate quietly.
+    if (process.env.CI) {
+      console.error(
+        "run-tier2.mjs: --changed is refused on CI. The deploy gate is all the journeys, always — run it with no flag.",
+      );
+      process.exit(1);
+    }
+    // No default ref on purpose. Defaulting to "main" is wrong in THIS repo, where ordinary work
+    // happens ON main: the merge-base is then HEAD, so the committed half of the diff is always
+    // empty and work already committed for the ticket goes invisible — under-selection, silently.
+    const ref = flag.includes("=") ? flag.slice(flag.indexOf("=") + 1) : "";
+    if (!ref) {
+      console.error(
+        "run-tier2.mjs: --changed needs an explicit base, e.g. --changed=HEAD~3 or --changed=origin/main",
+      );
+      process.exit(1);
+    }
+    const changed = changedPathsSince(ref);
+
+    if (changed.length === 0) {
+      console.error(
+        `run-tier2.mjs: nothing has changed since ${ref}, so there is nothing to select. Run without --changed for the full gate.`,
+      );
+      process.exit(1);
+    }
+
+    const { selected, skipped, reasons, inert, unmatched } = selectJourneys(changed, JOURNEYS);
+
+    console.log(`\nTier 2 selection: ${changed.length} changed path(s) since ${ref}`);
+    if (unmatched.length > 0) {
+      console.log("\n  !!  UNMAPPED PATHS — RUNNING EVERY JOURNEY  !!");
+      console.log("  Nothing in tier2-coverage.mjs claims these, so we cannot know what they break:");
+      for (const p of unmatched) console.log(`    ${p}`);
+      console.log("  Map them in tier2-coverage.mjs to get selection back on this kind of change.");
+    }
+    console.log(`\n  SELECTED (${selected.length}):`);
+    for (const j of selected) console.log(`    ${j}  <-  ${reasons.get(j)}`);
+    console.log(`\n  SKIPPED (${skipped.length}): nothing in this diff can reach them`);
+    for (const j of skipped) console.log(`    ${j}`);
+    if (inert.length > 0) {
+      console.log(`\n  CHANGED BUT INERT (${inert.length}): cannot alter what a journey sees`);
+      for (const line of inert) console.log(`    ${line}`);
+    }
+    console.log(
+      "\n  Selection is NOT the gate: ci.yml runs this with no flag, so main and every deploy still run all " +
+        `${JOURNEYS.length}.\n`,
+    );
+
+    if (selected.length === 0) {
+      // Every changed path was inert (docs, unit tests, non-gate e2e files) — the local equivalent
+      // of ci.yml's paths-ignore. Anything else reaching zero is a bug in the map, not a fast pass.
+      if (inert.length === changed.length) {
+        console.log("Tier 2: no journey can be reached by this diff — nothing to run.");
+        process.exit(0);
+      }
+      console.error(
+        "run-tier2.mjs: selected ZERO journeys from a diff that is not entirely inert — that is a hole in tier2-coverage.mjs, not a pass.",
+      );
+      process.exit(1);
+    }
+    journeys = selected;
+  }
+
+  let failed = 0;
+  for (const file of journeys) {
+    console.log(`\n=== Tier 2: ${file} ===`);
+    // shell:true only for the Windows-vs-POSIX node shim question moot here (node is invoked directly,
+    // not via a .cmd wrapper) — kept false, matching run-mocked's own reasoning against the CVE-2024-27980
+    // .cmd/.bat concern, which does not apply to a plain "node" binary.
+    const result = spawnSync("node", [`${e2eDir}${file}`], { stdio: "inherit" });
+    if (result.status !== 0) failed += 1;
+  }
+
+  const scope = journeys.length === JOURNEYS.length ? "all" : `${journeys.length} selected of`;
+  if (failed > 0) {
+    console.error(`\nTier 2: ${failed} of ${journeys.length} journeys failed`);
+    process.exit(1);
+  }
+  console.log(`\nTier 2: ${scope} ${journeys.length} journeys passed`);
+}
