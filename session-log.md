@@ -2,6 +2,41 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-21 (session 155c) — the research method is fixed, and the run that found the holes is closed (#261, #260)
+
+**#261 done, #260 closed** (`03952c8`, docs only, USD 0). The owner chose the write-up's first
+option — *method proven, apply the fixes* — so the three holes #260 found are now written into
+`docs/vocabulary-growth-runbook.md`, along with two more the rename turned up.
+
+- **§3.2a — de-duplicate on the advert text, never the provider id.** 117 pulled were 99 distinct.
+- **§3.2b — throw back the adverts that are a different occupation.** A job title is not an
+  occupation. 19 of 99 filed under "Business Analyst" were FP&A, BI reporting, pricing strategy or
+  application support; left in they cost every item 14–18 points and pushed an owner-approved item
+  off the floor. Kept **marked, never deleted** — an exclusion that leaves no trace cannot be
+  re-checked.
+- **§3.3 — the recognition rule now comes BEFORE the thresholds.** This was the sharpest finding:
+  the bars were specified to the percentage point while the judgement that actually decides the
+  answer was never written down at all. Strict vs generous readings put one item at **40% or 63%**.
+  Precision in the wrong place reads as rigour.
+- **§3.3 rule 1 — the SQL claim is retracted.** It asserted as measured fact that SQL clears the bar
+  for business analysis. It reaches 20%, and **no** equipment item cleared. The Java claim was never
+  measured and is dropped rather than repeated. ADR-0015 is untouched — the mechanism was right, it
+  did not fire on this family. The example is now marked hypothetical, which is what it always was.
+- **§3.6 — probes are priced.** In #260 they were the larger half (32 calls vs 19 for the pull), so
+  an estimate covering only the pull was low by two thirds. Added alongside: price a model lane from
+  `eval/bakeoff-result.json`, never an assumed tier — that mistake overstated a measurement **13×**.
+- **§6.2 — no longer says to repoint the existing load.** It is an outage; proven twice in #262.
+
+**Also corrected a number I had reported.** #262's record claimed "19 of the 64 grid cases are the
+titles at risk, all 19 passed". True, and close to meaningless: the group of 19 was selected by my
+own keyword search, and that search happened to exclude the one delivery case that failed. **A rate
+over a self-selected subset is not evidence.** The real denominator is every case expecting the
+family: **44 of 45**. Fixed on disk and on #262. The conclusion is unchanged — the one failure adds
+a family rather than removing one — but the number had to be the honest one.
+
+**Open:** #263 only (a stale owner-arbitrated grid expectation that #255 caused, needing one line of
+owner judgement). Board head is now 7d #249 · 8 #64 · 8b #217.
+
 ## 2026-08-21 (session 155b) — the families are named after the role now (#262)
 
 **#262 done** (`8e7a9a5`, `/qa-gate` **NO-GO → GO** on the scoped re-run). Owner, reading #260's

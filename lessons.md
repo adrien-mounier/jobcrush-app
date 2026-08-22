@@ -1,5 +1,21 @@
 # Lessons — jobcrush-app
 
+## A rate over a subset you chose yourself is not evidence
+
+Learned 2026-08-21 (#262, caught by the owner asking me to re-explain). Reporting on whether a rename
+had narrowed job-family placement, I wrote: *"19 of the 64 grid cases are exactly the titles at
+risk — all 19 passed."* Every word true. The problem is that **I built the group of 19 myself**, with
+a keyword search over role titles, and then reported 100% against my own construction. The keyword
+search happened to miss the one delivery case that failed.
+
+The honest denominator was already sitting there: **every case whose expected answer is that family
+— 44 of 45**. It is a weaker-sounding number and a far stronger claim.
+
+**The tell:** if the denominator came from a filter you wrote, rather than from the data's own
+structure (a field, a label, an expectation already recorded), you are grading your own homework.
+Prefer a denominator the dataset defines. If a subset genuinely is the interesting one, give both
+numbers and say who drew the line.
+
 ## Price a model run from the repo's own measured figure, not from the tier you assume
 
 Learned 2026-08-21 (#262). The 64-case labeler grid was quoted to the owner at **~USD 0.65** and
