@@ -227,6 +227,17 @@ spend. Every number in this document can be recomputed from those files.
 
 ## Decision
 
-- [ ] Method proven — apply the three fixes to the runbook, then use it on the next family
+- [x] **Method proven — apply the three fixes to the runbook, then use it on the next family**
 - [ ] Method proven as-is — record the three findings but change nothing
 - [ ] Not proven — annotate and return
+
+**Owner, 2026-08-21.** The fixes are ticketed as #261 and applied to
+`docs/vocabulary-growth-runbook.md` in the same session: the relevance step and content
+de-duplication as §3.2b/§3.2a, the recognition rule at the head of §3.3, the falsified SQL claim
+corrected in §3.3 rule 1, probe pricing added to §3.6, and §6.2's publish step — which #262 proved
+would strand every existing family placement — rewritten to ADD a version rather than repoint the
+old load.
+
+The method is cleared for a family nobody has reviewed. Note what made this run trustworthy and will
+not be available next time: **it ran against a floor the owner had already approved and could
+disagree with.** The next family offers no such check, which is why the fixes had to land first.

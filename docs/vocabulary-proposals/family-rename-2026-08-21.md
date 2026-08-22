@@ -112,10 +112,17 @@ stand-in). **It passes every bar ADR-0014 sets:**
 | Confidence accuracy | 66.7% | reported, no bar |
 | Placements naming >1 family | 8 | watched, no cap |
 
-**The rename did not narrow placement.** 19 of the 64 cases are exactly the titles at risk — Scrum
-Master, Scrum Coach, Release Manager, Technical/Solution/Digital Delivery Manager, four Delivery
-Leads, IT Programme Manager, and the dual-family Product Owner cases. **All 19 passed.** The two
-misses are neither of them a narrowing:
+**The rename did not narrow placement. 45 of the 64 cases expect this family; 44 passed, 1 failed** —
+and the one failure adds a family rather than removing one.
+
+⚠️ **A weaker number was reported first and is corrected here.** The original write-up said "19 of
+the 64 cases are exactly the titles at risk, all 19 passed". That is true but close to meaningless:
+the group of 19 was selected by a keyword search over role titles, run by the same agent reporting
+the result, and the keyword search happened to exclude the one delivery case that failed. **A rate
+over a self-selected subset is not evidence.** The honest denominator is every case that expects the
+family: 44 of 45. Quote that one.
+
+The two misses, neither a narrowing:
 
 - **`amb-07` "Delivery & Product Operations Lead"** — expected `it-project-delivery` alone, got
   `it-project-delivery + product-management`. A *widening*, on the synthetic two-family vocabulary,

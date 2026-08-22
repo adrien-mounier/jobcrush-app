@@ -92,6 +92,13 @@ Known blind spot, stated because it is unfixable rather than because it is small
 ever contains adverts filed under a title someone thought to probe. Probe the cluster's own words,
 the obvious seniority variants, and any title the first page of results reveals.
 
+**Seniority variants are nearly free to skip, and #260 measured why.** The provider matches a quoted
+title as a *phrase*, so `"senior business analyst"` is a strict **subset** of `"business analyst"` —
+every senior advert is already inside the broader pull. Probe them to record the market's shape if
+you want the number, but expect them to add almost nothing: in #260 they cost 5 calls and surfaced
+no advert the broad title had not already returned. The exception worth the call is a variant that
+is *not* a superstring of the base title (`"lead analyst"`, not `"senior business analyst"`).
+
 ### 3.2 Read the whole market, not a sample
 
 **Pull every advert each served market has, for every title that measured above 0.** Not a sample —
@@ -121,11 +128,69 @@ cannot supply 20 business-analyst adverts because it does not have 20.
   more reading.
 - **Keep the texts.** They are the **floor corpus** and they are kept, not discarded — see 3.4.
 
+**Then two steps that stand between the pull and the count. Neither existed before #260 ran this
+method for the first time, and both changed which items cleared the bar.**
+
+#### 3.2a De-duplicate on the text, never on the provider's id
+
+The same advert comes back more than once, re-listed under a fresh provider id. In #260, **117
+adverts pulled were 99 distinct ones** — 15% duplication, and not evenly spread across markets or
+titles, so it silently reweights the counts. De-duplicating on `providerPostingId` does not catch
+this; hash the advert text instead. **State the arithmetic in the proposal** (pulled → distinct →
+in-family), the way `business-analysis-v1/corpus/README.md` does.
+
+#### 3.2b Throw back the adverts that are a different occupation
+
+**A job title is not an occupation.** The pull searched a title, so the corpus is everything filed
+under that title — including jobs that share the word and nothing else. In #260, **19 of 99 adverts
+filed under "Business Analyst" were a different occupation**: financial planning and analysis, BI
+and reporting, pricing strategy, application support, contract administration, executive strategy.
+
+They never ask for the family's work, so they act as pure denominator. Left in, **every floor item
+lost 14–18 percentage points**, and one of the four items the owner had already approved fell off
+the floor (51% → 41%). That is the whole method reaching the wrong answer on a family we had a
+correct answer for.
+
+So, after the pull and before the count:
+
+- Read each advert against **the cluster's own scope sentence** — the same sentence that decides
+  membership — and mark the ones whose work is a different occupation.
+- **Keep them, marked, in the corpus. Never delete them.** The exclusion is a judgement, and a
+  judgement that leaves no trace cannot be re-checked. `inFamily: false` in the corpus files is the
+  shape #260 used.
+- **Report the pollution rate.** It is a finding in its own right: a title carrying 19% of some other
+  occupation is telling you how widely the market uses that word.
+- If the rate is high enough that the remaining corpus is thin, say so rather than counting on.
+
 ### 3.3 Distil the family floor
 
 Count, then cut. Every judgment below is a number the owner can re-check.
 
-**The threshold — two numbers doing different jobs:**
+**First, the rule for what counts as asking. Write it down before you judge, not after.**
+
+The thresholds below are stated to the percentage point. That precision reads as rigour and hides
+the fact that **the decisive judgement is not the threshold at all — it is how you recognise that an
+advert asks for a thing**, and until #260 this runbook never said. On one fixed corpus, a strict
+reading and a generous one put the same item at **40% or 63%** — either side of the bar. The bar did
+not move; the unwritten judgement did.
+
+> **The recognition rule.** An item counts for an advert if **the advert names that activity as a
+> duty of the job, or as a required or preferred skill.** Naming the artefact as something someone
+> else produced does not count.
+
+That is the rule #260 used, and it held across all 99 adverts. Any *stated* rule beats none — if a
+run departs from it, the proposal says so and says why. Two disciplines make the number
+re-checkable rather than a matter of who ran it:
+
+- **Write the rule before judging.** A rule chosen after seeing which items are near the bar is not
+  a rule, it is a result.
+- **An advert counts once**, however many times it says the thing.
+
+Pattern-matching the corpus is a fine cross-check and a poor judge: #260 tried it first and the
+match rates moved 20+ points on wording alone. Read the adverts. A family's whole corpus is ~100
+pages; reading was never the constraint (see 3.2).
+
+**Then the threshold — two numbers doing different jobs:**
 
 1. **On the floor if at least half the whole corpus asks for it.** The corpus is uneven by design
    (Singapore was half of the business-analysis corpus), so a whole-corpus fraction is the honest
@@ -137,12 +202,22 @@ Count, then cut. Every judgment below is a number the owner can re-check.
 
 **Two rules on what counts:**
 
-1. **A tool is judged by its demand count like anything else.** SQL for business analysis and Java
-   for backend engineering clear the bar and belong on the floor; one bank's Copilot ask appears in
-   1 advert of 120 and never does. There is no hand-written "skills aren't occupations" filter —
-   when the count and a hand-written rule disagree, **the count wins**. But: **a tool never enters
-   the family's `scope` sentence**, which is what decides membership. ADR-0015 carries the full
-   shape and the one prompt property it depends on.
+1. **A tool is judged by its demand count like anything else.** There is no hand-written "skills
+   aren't occupations" filter — when the count and a hand-written rule disagree, **the count wins**.
+   But: **a tool never enters the family's `scope` sentence**, which is what decides membership.
+   ADR-0015 carries the full shape and the one prompt property it depends on.
+
+   ⚠️ **This paragraph used to assert, as fact, that SQL clears the bar for business analysis and
+   Java for backend engineering. #260 measured the first claim and it is false.** On 80 in-family
+   Business Analyst adverts, **SQL reached 20%** — and *no* equipment item cleared: jira 24%,
+   confluence 18%, excel 14%, Visio/BPMN 10%, BI tools 10%, python 4%. The Java claim was never
+   measured at all and is not repeated here.
+
+   The rule is unchanged and ADR-0015 is untouched — the mechanism was right, it simply did not
+   fire on this family. Keep the worked example as what it is: **a hypothetical showing how a tool
+   *would* be treated if it cleared**, not a measured result. The lesson is the one the failure
+   teaches — a plausible example, written confidently and never measured, is indistinguishable from
+   evidence to the next reader.
 2. **Years, degrees, languages and locations are never floor items.** They clear any threshold —
    nearly every advert says "3–5 years" — and they are not the occupation. Length of experience is
    worked out, never asked (ADR-0014 amendment 1); the rest belong to other parts of the product.
@@ -191,6 +266,17 @@ Pricing the probes and the corpus pull, concretely:
 
 - Read `apps/api/data/posting-providers.json` **now** and price the planned calls from its
   `costModel` (e.g. techmap: USD 1 per 1000 postings) — before spending, not after.
+- **Price the probes as well as the pull.** 3.1's probes are one call per title per market and are
+  easy to leave out of an estimate, because the pull is the part that feels expensive. In #260 they
+  were **the larger half**: 32 probe calls against 19 pull calls, so an estimate covering only the
+  pull was low by nearly two thirds. Probe cost is `titles × served markets`, and it is paid before
+  you know which titles measure 0.
+- **A model lane has a cost model too, and it is not the provider's.** If a run touches the labeler
+  grid or any model evaluation, price it from the repo's own measured figure —
+  `apps/api/eval/bakeoff-result.json` records the wired model's real cost per 60 cases — and read
+  `FAMILY_PLACEMENT_MODEL` before assuming a tier. Quoting a frontier price for a model that does
+  not run on one overstated a measurement 13× in #262, in the direction that makes an owner decline
+  a cheap and useful check.
 - Quota: the same registry row carries `rateLimit.perMonth` (techmap: 1000 calls/month). The app's
   internal ledger is the `provider_monthly_calls` table, and it **drifts low** — calls made outside
   the app (this run's included) bypass it — so check the vendor's own dashboard too. Calls, not
@@ -260,10 +346,24 @@ Nothing publishes without an approval. There is no third path.
 An approved proposal ships exactly the way the hand-published family did:
 
 1. Move the data file to `apps/api/research/<family-id>-v<version>.json`.
-2. New family: add its `store.publish(...)` load to `initialProductionFamilyFloors()`
-   (`apps/api/src/familyFloors.ts`). A new version of a loaded family: point the existing load at
-   the new file. **The gates themselves are never edited** — a run that finds itself modifying
-   validation has left this runbook.
+2. Add a `store.publish(...)` load to `initialProductionFamilyFloors()`
+   (`apps/api/src/familyFloors.ts`) — **for a new version too. ADD it beside the existing loads,
+   oldest first. Never repoint the old load at the new file.**
+
+   ⚠️ **This step used to say "point the existing load at the new file", and that is an outage.** A
+   stored **family placement** keeps the version it was made under (ADR-0014 decision 7) and is read
+   back later by `floors.get(familyId, version)`. Repoint the load and the old version is no longer
+   published at all, so **every placement already made against it resolves to `null` and retrieval
+   fails `family_not_published`.** Proven twice in #262: implementing it that way turned 72 unit
+   tests red, and the QA gate then reproduced it from this instruction alone against the built
+   `dist/`.
+
+   Order is load-bearing, not tidiness: `publish()` refuses a version that does not increase, so
+   v1 must load before v2. Only the newest becomes active; the rest stay retrievable, which is
+   exactly what decision 7 promises.
+
+   **The gates themselves are never edited** — a run that finds itself modifying validation has left
+   this runbook.
 3. `pnpm test && pnpm typecheck` — the boot-time publish means a malformed package fails the suite
    here, before any deploy.
 4. Commit, push when green. CI deploys `main` to staging; the publish happens at boot, behind every
