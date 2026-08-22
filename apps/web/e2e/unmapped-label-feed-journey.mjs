@@ -133,13 +133,11 @@ await qa.scrollThrough('the discovery screen is fully usable for an unplaced vis
 
 await qa.note(`VISITOR 2 — pastes a CV whose second job title nothing covers ("${UNMAPPED_JOB_TITLE}")`);
 await qa.context.clearCookies();
-await qa.goto('/paste', 'a second, brand-new visitor opens the paste screen');
-await qa.fill('textarea[aria-label="Your CV text"]', CV_TEXT, 'pastes a CV with two dated jobs');
-await qa.click('button:has-text("Use this text")', 'hands it over');
-await page.waitForURL('**/preview/**', { timeout: 120000 });
-await qa.scrollThrough('reads down the watermarked draft while the pipeline finishes');
-await qa.click('a:has-text("Confirm my facts")', 'takes the "Confirm my facts" door');
-await page.waitForURL('**/job-blocks/**', { timeout: 30000 });
+// #271: the CV comes in through the front door's paste tile, and the work-history check is opened
+// with the jobId the front door's own paste response carries — no deleted screen on the way.
+const v2JobId = await qa.frontDoorPaste(CV_TEXT, 'a second, brand-new visitor pastes a CV with two dated jobs on the front door');
+await qa.waitForJobDone(v2JobId);
+await qa.goto(`/job-blocks/${v2JobId}`, 'opens the work-history check for that read');
 await qa.expectVisible('.jb-card', 'the work-history review screen opens on the first card');
 await qa.scrollThrough('reads the whole screen once');
 

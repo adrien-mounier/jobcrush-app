@@ -99,9 +99,8 @@ async function visitor({ moveFamily, label }) {
   await qa.goto('/', `${label}: the front door — a brand-new visitor`);
   await qa.scrollThrough('read the front door as a person does');
 
-  await qa.goto('/paste', `${label}: paste the CV`);
-  await qa.fill('textarea', CV_TEXT, 'her real dated work history');
-  await qa.click('button.btn', 'send the CV to be read');
+  // #271: the CV comes in through the front door's paste tile, the way a person brings one.
+  await qa.frontDoorPaste(CV_TEXT, `${label}: her real dated work history, pasted on the front door`);
 
   let blocks = [];
   for (let i = 0; i < 60; i += 1) {

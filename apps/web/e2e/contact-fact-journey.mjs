@@ -69,25 +69,48 @@ for (const ev of ['uncaughtException', 'unhandledRejection']) {
   });
 }
 
-const draftFrame = () => page.frameLocator('iframe[title="Tailored CV draft"]');
+// A hard assertion the driver records with a screenshot either way.
+const assertTrue = (cond, note) => qa.expectText('body', cond ? '' : '-THIS-CANNOT-APPEAR-', note);
 
-/** Paste the CV and ride the progress feed through to the rendered draft. */
-async function pasteCvAndWaitForDraft(label) {
-  await qa.goto(`${BASE}/paste`, `${label}: the person opens the paste screen`);
-  await qa.fill('textarea[aria-label="Your CV text"]', CV_TEXT, `${label}: pastes the CV, header and all`);
-  await qa.click('button:has-text("Use this text")', `${label}: hands it over`);
-  await qa.note(`${label}: the progress feed runs — reading, mining, tailoring`);
-  await page.waitForURL('**/preview/**', { timeout: 120000 });
-  await page.waitForSelector('iframe[title="Tailored CV draft"]', { timeout: 60000 });
-  await qa.scrollThrough(`${label}: reads down the tailored draft`);
+/** #271: the draft screen is being deleted, so the draft is read where it durably lives — the
+ *  rendered preview the API serves (GET /previews/<jobId>, the exact HTML that screen embedded in
+ *  its iframe). Every assertion on the draft's contact line is unchanged; only the way to the
+ *  rendered draft changed. */
+let draftHtml = '';
+const draftText = () => draftHtml.replace(/<[^>]+>/g, ' ');
+async function waitForDraft(label, jobId) {
+  await qa.note(`${label}: the pipeline runs — reading, mining, tailoring`);
+  await qa.waitForJobDone(jobId);
+  draftHtml = await page.evaluate(async (id) => {
+    const r = await fetch(`/api/previews/${id}`, { credentials: 'same-origin' });
+    if (!r.ok) throw new Error(`the rendered draft was not served: ${r.status}`);
+    return r.text();
+  }, jobId);
+  await qa.note(`${label}: the tailored draft is built and served (${draftHtml.length} bytes)`);
 }
 
+/** #271: a repeat read on the same session has no screen — the product offers none — so it goes
+ *  through the same POST /cv/paste route the front door's own tile calls. */
+const pasteAgain = (text) =>
+  page.evaluate(async (t) => {
+    const res = await fetch('/api/cv/paste', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: t }),
+    });
+    if (res.status !== 201) throw new Error(`paste refused: ${res.status}`);
+    return (await res.json()).jobId;
+  }, text);
+
 // --------------------------------------------------------------------------------------------
-// 1. The CV goes in, and the draft comes out carrying the CV's own contact line.
+// 1. The CV goes in — through the front door, as a person brings it — and the draft comes out
+//    carrying the CV's own contact line.
 // --------------------------------------------------------------------------------------------
-await pasteCvAndWaitForDraft('First draft');
-await qa.expectText(draftFrame().locator('body'), CV_PHONE, 'the first draft prints the phone the CV itself carries');
-await qa.expectText(draftFrame().locator('body'), CV_EMAIL, 'and the email, digits in the address and all, intact');
+const firstJobId = await qa.frontDoorPaste(CV_TEXT, 'First draft: the person pastes the CV, header and all, on the front door');
+await waitForDraft('First draft', firstJobId);
+await assertTrue(draftText().includes(CV_PHONE), 'the first draft prints the phone the CV itself carries');
+await assertTrue(draftText().includes(CV_EMAIL), 'and the email, digits in the address and all, intact');
 
 // --------------------------------------------------------------------------------------------
 // 1b. The profile only opens once the person has told us something, so answer the opening
@@ -145,14 +168,16 @@ await qa.expectText(contact, CV_EMAIL, 'the email is untouched by a phone correc
 // 4. The fix reaches the CV. The CV document still says the OLD number — the correction has to
 //    beat a fresh read of the document to prove it stuck (ADR-0008 §3).
 // --------------------------------------------------------------------------------------------
-await pasteCvAndWaitForDraft('Second draft');
-await qa.expectText(draftFrame().locator('body'), CORRECTED_PHONE, 'the new draft prints the CORRECTED number');
-await qa.expectText(draftFrame().locator('body'), CV_EMAIL, 'the email survives the phone swap, digits and all');
+await qa.note('Second draft: she hands the same CV over again (#271: same route the front door tile calls)');
+const secondJobId = await pasteAgain(CV_TEXT);
+await waitForDraft('Second draft', secondJobId);
+await assertTrue(draftText().includes(CORRECTED_PHONE), 'the new draft prints the CORRECTED number');
+await assertTrue(draftText().includes(CV_EMAIL), 'the email survives the phone swap, digits and all');
 
-const printed = (await draftFrame().locator('body').textContent()) || '';
+const printed = draftText();
 if (printed.includes(CV_PHONE)) {
   await qa.note(`FAIL: the CV’s old number "${CV_PHONE}" is still printed on the draft`);
-  await qa.expectText(draftFrame().locator('body'), '__old_number_gone__', 'the old number is gone from the draft');
+  await assertTrue(false, 'the old number is gone from the draft');
 } else {
   await qa.note(`the CV’s own number "${CV_PHONE}" appears nowhere on the draft — exactly one phone prints`);
 }

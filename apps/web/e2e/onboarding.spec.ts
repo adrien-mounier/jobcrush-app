@@ -34,13 +34,46 @@ MSc Management Information Systems, University of Warsaw (2017)
 Languages
 Polish (Native), English (Fluent)`;
 
-// Paste the CV, wait out the real mine + preview, cross the signup wall, and land on the deck.
+// Paste the CV on the front door, wait out the real mine, confirm the work history, cross the
+// signup wall, and land on the claim deck.
+//
+// #271: this walk used to open the old /paste screen (being deleted, #272) and then click the
+// draft screen's "Confirm my facts" link and wait for /signup. That wait had quietly rotted: the
+// link has gone to /job-blocks/<jobId> since #157, and this spec runs in no CI tier, so nothing
+// noticed. Re-pointed at the front door and repaired in the same pass — the work-history check
+// (#157) now sits between the read and the wall, exactly as a person meets it.
 async function pasteToDeck(page: Page) {
-  await page.goto("/paste");
-  await page.getByRole("textbox").fill(SAMPLE_CV);
+  await page.goto("/");
+  await page.mouse.click(10, 10); // any tap finishes the invitation animation early
+  await page.getByRole("button", { name: "Ready?" }).click();
+  await page.getByRole("button", { name: /Paste my CV text/ }).click();
+  await page.getByLabel("Your CV text").fill(SAMPLE_CV);
+  const pasted = page.waitForResponse(
+    (r) => r.url().includes("/api/cv/paste") && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Use this text" }).click();
-  await page.waitForURL(/\/preview\//, { timeout: 200_000 }); // mine + preview on the live model
-  await page.getByRole("link", { name: "Confirm my facts" }).click();
+  const { jobId } = await (await pasted).json();
+
+  // The live model mines the CV — wait the whole pipeline out before the work-history check.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async (id) => {
+          const r = await fetch(`/api/jobs/${id}`, { credentials: "same-origin" });
+          return r.ok ? (await r.json()).status : "pending";
+        }, jobId),
+      { timeout: 200_000 },
+    )
+    .toMatch(/completed|failed/);
+
+  // The work-history check (#157): confirm every dated block, then continue toward the wall.
+  await page.goto(`/job-blocks/${jobId}`);
+  for (let guard = 0; guard < 10 && (await page.locator(".jb-cbtn.yes").count()) > 0; guard++) {
+    await page.locator(".jb-cbtn.yes").click();
+    await page.waitForTimeout(1200);
+  }
+  await expect(page.locator(".jb-done")).toBeVisible();
+  await page.locator('.jb-done .btn:has-text("Continue")').click();
 
   // E2 wall: the deck is login-gated, so it redirects to /signup. Sign in via the dev magic-link.
   await page.waitForURL(/\/signup/);

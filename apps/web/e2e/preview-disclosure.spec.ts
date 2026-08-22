@@ -3,6 +3,12 @@ import type { JobDisclosure } from "../lib/api";
 
 // #154 — the disclosure block on the DRAFT screen, route-mocked (no LLM, deterministic, Tier 1).
 //
+// #271 left this spec in place DELIBERATELY, as the one remaining test that opens a screen being
+// deleted: its subject IS the draft screen, so there is no other door to re-point it through, and
+// deleting it early would drop live assertions one ticket before the screen goes. It dies with its
+// screen in #272 (the owner has already ruled on both losses it guards — the over-packing warning
+// is dropped on purpose, #273, and the held-back panel is covered on the profile).
+//
 // This spec exists because the payload half of this feature can pass on its own while the person
 // sees nothing: #159's loss notices have been sent to this screen since it was built and were never
 // rendered by it — they only ever appeared on the wait screen, where they scroll past before the

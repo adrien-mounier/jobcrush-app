@@ -118,13 +118,20 @@ async function armRetrieval(outcome) {
 }
 
 /** A brand-new visitor in the same browser: drop her cookies and walk the front door again. */
-async function freshVisitor(label) {
+async function freshVisitor(label, { withCv = false } = {}) {
   await page.context().clearCookies();
-  await qa.goto('/', `${label} — the front door`);
-  const ready = page.getByRole('button', { name: /Ready\?/ });
-  if (await ready.count()) await qa.click(ready.first(), 'Ready? — open the front door');
-  const startQuestions = page.getByRole('button', { name: /Start questions instead/ });
-  if (await startQuestions.count()) await qa.click(startQuestions.first(), 'Start questions instead');
+  if (withCv) {
+    // #271: her CV goes in first, through the front door's paste tile — the order a person walks
+    // (the deleted /paste side entrance used to let the CV arrive mid-journey instead).
+    await qa.frontDoorPaste(CV_TEXT, `${label} — the front door: she pastes her CV, two dated jobs and one degree`);
+    await qa.frontDoorContinueToIntent();
+  } else {
+    await qa.goto('/', `${label} — the front door`);
+    const ready = page.getByRole('button', { name: /Ready\?/ });
+    if (await ready.count()) await qa.click(ready.first(), 'Ready? — open the front door');
+    const startQuestions = page.getByRole('button', { name: /Start questions instead/ });
+    if (await startQuestions.count()) await qa.click(startQuestions.first(), 'Start questions instead');
+  }
   if (await page.locator('#target-role').count()) {
     await qa.fill('#target-role', PLACED_ROLE, `the job she is going for: "${PLACED_ROLE}"`);
     await qa.fill('#search-area', AREA, `where she wants to work: ${AREA}`);
@@ -142,7 +149,7 @@ async function freshVisitor(label) {
 //    She goes straight to the deck, then tries every client-side lever there is.
 // =============================================================================================
 await armRetrieval('relevant_postings'); // the provider is healthy: the ONLY thing missing is her floor
-await freshVisitor('a visitor who has not earned anything yet');
+await freshVisitor('a visitor who has not earned anything yet', { withCv: true });
 
 const refused = await cardsState();
 await qa.note(`the server's answer with her floor still open: ${JSON.stringify(refused.retrieval)}`);
@@ -188,10 +195,7 @@ await assertTrue(
 // 2. AC1 — THE EARNED REVEAL. She answers the questions her own screen puts to her, and the count
 //    she is shown is built out of retrieved adverts and nothing else.
 // =============================================================================================
-await qa.goto('/paste', 'she pastes her CV — two dated jobs and one degree');
-await qa.fill('textarea', CV_TEXT, 'the work history the deck will judge her against');
-await qa.click('button.btn', 'send the CV to be read');
-await page.waitForTimeout(2500);
+// #271: her CV came in on the front door when she arrived — nothing left to paste here.
 
 await qa.goto('/discovery', 'back into discovery — the family floor questions');
 const asked = await qa.answerFloorOnScreen();

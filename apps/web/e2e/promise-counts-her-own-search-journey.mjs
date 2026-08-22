@@ -166,25 +166,16 @@ async function freshVisitor(label) {
 
 /** The front door, through to the discovery screen with question 1 answered. */
 async function walkIntoDiscovery(role) {
-  await qa.goto('/', `the front door — she is going for "${role}"`);
-  await qa.scrollThrough('read the front door top to bottom, the way a first-time visitor would');
-  const ready = page.getByRole('button', { name: /Ready\?/ });
-  if (await ready.count()) await qa.click(ready.first(), 'Ready? — open the front door');
-  const startQuestions = page.getByRole('button', { name: /Start questions instead/ });
-  if (await startQuestions.count()) await qa.click(startQuestions.first(), 'Start questions instead');
-  if (await page.locator('#target-role').count()) {
-    await qa.fill('#target-role', role, `the job she is going for: "${role}"`);
-    await qa.fill('#search-area', AREA, `where she wants to work: ${AREA}`);
-    await qa.click('button:has-text("Save and continue")', 'Save and continue');
-    // #257: the save walks her on to discovery by itself — wait for that navigation to settle
-    // before leaving, so the next goto never races it.
-    await page.waitForURL(/\/discovery/);
-  }
-
-  await qa.goto('/paste', 'paste her CV — two dated jobs and one degree');
-  await qa.fill('textarea', CV_TEXT, 'the work history the deck will judge her against');
-  await qa.click('button.btn', 'send the CV to be read');
-  await page.waitForTimeout(2000);
+  // #271: the CV goes in first, through the front door's paste tile — the order a person walks
+  // (the deleted /paste side entrance used to let these steps run backwards).
+  await qa.frontDoorPaste(CV_TEXT, `the front door — she is going for "${role}" and pastes her CV, two dated jobs and one degree`);
+  await qa.frontDoorContinueToIntent();
+  await qa.fill('#target-role', role, `the job she is going for: "${role}"`);
+  await qa.fill('#search-area', AREA, `where she wants to work: ${AREA}`);
+  await qa.click('button:has-text("Save and continue")', 'Save and continue');
+  // #257: the save walks her on to discovery by itself — wait for that navigation to settle
+  // before leaving, so the next goto never races it.
+  await page.waitForURL(/\/discovery/);
   for (let i = 0; i < 60; i += 1) {
     const b = await json('/job-blocks');
     if (b?.blocks?.length) break;

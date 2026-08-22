@@ -109,32 +109,23 @@ const json = async (path) => (await api('GET', path)).json();
 // ---------------------------------------------------------------------------------------------
 // 1. The front door, then the CV a real person pastes in.
 // ---------------------------------------------------------------------------------------------
-await qa.goto('/', 'the front door — where a real visitor starts');
-await qa.scrollThrough('read the front door top to bottom, the way a first-time visitor would');
+// #271: the CV goes in first, through the front door's paste tile — the order a person walks
+// (the deleted /paste side entrance used to let these steps run backwards).
+await qa.frontDoorPaste(CV_TEXT, 'the front door — pastes the dated work history every years number below is worked out from');
 
 // State the target role. This is the ONLY thing that resolves the advert's family on the shipped
 // journey (makeFamilyPlacer reads session.intent.targetRole), so it is load-bearing, not setup.
-const ready = page.getByRole('button', { name: /Ready\?/ });
-if (await ready.count()) await qa.click(ready.first(), 'open the front door');
-const startQuestions = page.getByRole('button', { name: /Start questions instead/ });
-if (await startQuestions.count()) await qa.click(startQuestions.first(), 'choose to start from questions');
-if (await page.locator('#target-role').count()) {
-  await qa.fill('#target-role', ROLE, `the role this visitor is going for: "${ROLE}"`);
-  await qa.fill('#search-area', AREA, 'where they want to work');
-  await qa.click('button:has-text("Save and continue")', 'save what I want next — this is what places the session into a family');
-  await page.waitForTimeout(1200);
-}
+await qa.frontDoorContinueToIntent();
+await qa.fill('#target-role', ROLE, `the role this visitor is going for: "${ROLE}"`);
+await qa.fill('#search-area', AREA, 'where they want to work');
+await qa.click('button:has-text("Save and continue")', 'save what I want next — this is what places the session into a family');
+await page.waitForTimeout(1200);
 const intentAfter = await (await api('GET', '/sessions/me/intent')).json();
 await qa.note(`the front door recorded targetRole = ${JSON.stringify(intentAfter?.intent?.targetRole)}`);
 await assertTrue(
   !!intentAfter?.intent?.targetRole,
   'the target role is on the session — the only input that can resolve the advert family on the shipped journey',
 );
-
-await qa.goto('/paste', 'paste a CV with two dated jobs and one degree');
-await qa.fill('textarea', CV_TEXT, 'the dated work history every years number below is worked out from');
-await qa.click('button.btn', 'send the CV to be read');
-await page.waitForTimeout(2000);
 
 // ---------------------------------------------------------------------------------------------
 // 2. The labeler is a door that changes a job record — it must leave per-family facts behind (AC3).

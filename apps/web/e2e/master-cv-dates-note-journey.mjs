@@ -1,6 +1,6 @@
 // #159 — "my CV states only what I know", driven as a human, over a REAL stack.
 //
-// Read a CV whose LAST role has no dates -> the watermarked preview -> confirm the work history
+// Read a CV whose LAST role has no dates, in on the front door (#271) -> confirm the work history
 // (#157's job-block deck) -> the sign-up wall -> the claim deck -> the grill, where the date
 // question is LEFT BLANK on purpose -> the built master CV. What this journey proves is the one
 // piece of #159 with no unit test behind it (apps/web has no test runner — its `test` script is a
@@ -72,19 +72,16 @@ const bodyText = () => page.evaluate(() => document.body.innerText || '');
 // ---------------------------------------------------------------------------------------------
 // 1. Bring the CV in.
 // ---------------------------------------------------------------------------------------------
-await qa.goto(`${BASE}/paste`, 'the paste screen — where a CV enters the product');
-await qa.fill('textarea[aria-label="Your CV text"]', CV, 'pastes a CV whose last role carries no dates');
-await qa.click('button:has-text("Use this text")', 'hands it over');
-await page.waitForURL('**/preview/**', { timeout: 180_000 });
-const jobId = page.url().split('/preview/')[1];
-await qa.note('the CV was read — the watermarked preview is ready');
-await qa.scrollThrough('read the watermarked preview as a visitor would');
+// #271: the CV comes in through the front door's paste tile, and the jobId comes off the front
+// door's own paste response — the deleted draft screen's address was the old way to learn it.
+const jobId = await qa.frontDoorPaste(CV, 'pastes a CV whose last role carries no dates on the front door');
+await qa.waitForJobDone(jobId);
+await qa.note('the CV was read — the pipeline has finished with it');
 
 // ---------------------------------------------------------------------------------------------
-// 2. The door the preview screen actually offers (#157: work history first, then the wall).
+// 2. The work-history check (#157: work history first, then the wall).
 // ---------------------------------------------------------------------------------------------
-await qa.click('a:has-text("Confirm my facts")', 'takes the "Confirm my facts" door');
-await page.waitForURL('**/job-blocks/**', { timeout: 30_000 });
+await qa.goto(`${BASE}/job-blocks/${jobId}`, 'opens the work-history check for that read');
 await qa.expectVisible('.jb-card, .jb-done', 'the work-history check opens');
 for (let i = 0; i < 8 && (await page.locator('.jb-cbtn.yes').count()); i++) {
   await qa.click('.jb-cbtn.yes', `confirms work-history card ${i + 1}`);

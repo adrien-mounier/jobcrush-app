@@ -106,21 +106,14 @@ await asVisitor('POST', '/qa/stack', { retrievalOutcome: 'relevant_postings' });
 // =============================================================================================
 // 1. WALK HER ALL THE WAY IN, the way a real visitor gets there: intent, CV, floor, sign-in, deck.
 // =============================================================================================
-const ready = page.getByRole('button', { name: /Ready\?/ });
-if (await ready.count()) await qa.click(ready.first(), 'Ready? — open the front door');
-const startQuestions = page.getByRole('button', { name: /Start questions instead/ });
-if (await startQuestions.count()) await qa.click(startQuestions.first(), 'Start questions instead');
-if (await page.locator('#target-role').count()) {
-  await qa.fill('#target-role', PLACED_ROLE, `the job she is going for: "${PLACED_ROLE}"`);
-  await qa.fill('#search-area', AREA, `where she is looking to start with: ${AREA}`);
-  await qa.click('button:has-text("Save and continue")', 'Save and continue');
-  await page.waitForTimeout(1200);
-}
-
-await qa.goto('/paste', 'she pastes her CV');
-await qa.fill('textarea', CV_TEXT, 'the work history the deck will judge her against');
-await qa.click('button.btn', 'send the CV to be read');
-await page.waitForTimeout(2500);
+// #271: the CV goes in first, through the front door's paste tile — the order a person walks
+// (the deleted /paste side entrance used to let these steps run backwards).
+await qa.frontDoorPaste(CV_TEXT, 'she pastes her CV — the work history the deck will judge her against');
+await qa.frontDoorContinueToIntent();
+await qa.fill('#target-role', PLACED_ROLE, `the job she is going for: "${PLACED_ROLE}"`);
+await qa.fill('#search-area', AREA, `where she is looking to start with: ${AREA}`);
+await qa.click('button:has-text("Save and continue")', 'Save and continue');
+await page.waitForTimeout(1200);
 
 await qa.goto('/discovery', 'into discovery — the family floor questions');
 await qa.fill('#q1-role', PLACED_ROLE, 'answer question 1: the role she is going for');

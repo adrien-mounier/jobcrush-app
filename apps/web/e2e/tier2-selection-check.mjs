@@ -9,8 +9,10 @@
 // five journeys went red on that change, and a map that fails to select those five would have let it
 // push a broken deploy while reporting green.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { JOURNEYS } from "./run-tier2.mjs";
-import { assertMapCoversGate, selectJourneys, COVERAGE } from "./tier2-coverage.mjs";
+import { assertMapCoversGate, selectJourneys, COVERAGE, SELECTS_ALL } from "./tier2-coverage.mjs";
 
 const run = (paths) => selectJourneys(paths, JOURNEYS);
 const checks = [];
@@ -167,6 +169,69 @@ check("#262's five genuinely red journeys are all inside the selected set", () =
   for (const j of RED_IN_262) {
     assert.ok(selected.includes(j), `${j} went red in #262 and selection must not skip it`);
   }
+});
+
+// #271 (inherited from #264's gate): the shared-helper rule, as a check instead of a comment. A
+// non-journey e2e helper imported by a gate journey MUST sit in SELECTS_ALL — otherwise it falls to
+// the apps/web/e2e/** inert rule and editing it selects NOTHING while exiting 0, the silent-green
+// this file exists to prevent. Found twice during #264 (qa-driver.mjs in design, live-ad-id.mjs
+// only by the gate); this closes the class. Walks imports transitively.
+check("every shared e2e helper a gate journey imports is in SELECTS_ALL", () => {
+  const e2eDir = fileURLToPath(new URL("./", import.meta.url));
+  const localImports = (file) =>
+    [...readFileSync(e2eDir + file, "utf8").matchAll(/from\s+['"]\.\/([^'"]+\.mjs)['"]/g)].map((m) => m[1]);
+  const seen = new Set(JOURNEYS);
+  const queue = [...JOURNEYS];
+  while (queue.length) {
+    for (const dep of localImports(queue.pop())) {
+      if (seen.has(dep)) continue;
+      seen.add(dep);
+      queue.push(dep);
+      assert.ok(
+        SELECTS_ALL.includes(`apps/web/e2e/${dep}`),
+        `${dep} is imported by a gate journey but missing from SELECTS_ALL — editing it would select nothing while exiting 0`,
+      );
+    }
+  }
+});
+
+// #271 — the replay its AC demands. Every gate journey re-pointed at the front door must be
+// SELECTED by a front-door diff: a journey that enters through the front door but is skipped on a
+// front-door change is a hole in the gate, not a saving. The list is the 13 gate journeys #271
+// re-pointed (job-blocks-no-family-question-journey.mjs was re-pointed too, but is in no tier).
+const REPOINTED_271 = [
+  "change-of-direction-derived-journey.mjs",
+  "contact-fact-journey.mjs",
+  "credible-reveal-journey.mjs",
+  "discovery-earns-reveal-gate.mjs",
+  "discovery-plan-split-journey.mjs",
+  "family-years-scope-journey.mjs",
+  "job-blocks-confirm-journey.mjs",
+  "master-cv-dates-note-journey.mjs",
+  "promise-counts-her-own-search-journey.mjs",
+  "snapshot-is-not-permission-journey.mjs",
+  "stale-search-tailor-return-journey.mjs",
+  "unmapped-label-feed-journey.mjs",
+  "years-worked-out-journey.mjs",
+];
+
+check("#271: a front-door diff selects every journey that now enters through it", () => {
+  const r = run(["apps/web/app/page.tsx", "apps/web/app/frontdoor.css"]);
+  assert.equal(r.unmatched.length, 0);
+  for (const j of REPOINTED_271) {
+    assert.ok(r.selected.includes(j), `${j} enters through the front door and must be selected by a front-door change`);
+  }
+});
+
+check("#271: the deleted screens are inert — no journey opens them any more", () => {
+  const r = run([
+    "apps/web/app/paste/page.tsx",
+    "apps/web/app/import/page.tsx",
+    "apps/web/app/progress/anything/page.tsx",
+    "apps/web/app/preview/anything/page.tsx",
+  ]);
+  assert.equal(r.selected.length, 0);
+  assert.equal(r.unmatched.length, 0, `unmapped: ${r.unmatched.join(", ")}`);
 });
 
 // AC4 — the only route to zero is a diff that is entirely inert. Anything else must reach a journey

@@ -24,20 +24,26 @@
 // placement to succeed (credible-reveal, snapshot-is-not-permission, stale-search-tailor-return)
 // are NOT selected by a registry edit, even though a drastic enough edit could reach them. That is
 // a deliberate narrowing, and rule 2 is its net: the full gate still runs before anything deploys.
-// Those same three DO carry CV_INTAKE: each pastes a real CV on /paste and then asserts on what the
-// parse produced, so the intake path is not a narrowing question — it is a path they genuinely walk.
+// Those same three DO carry CV_INTAKE: each pastes a real CV through the front door's paste tile
+// (#271) and then asserts on what the parse produced, so the intake path is not a narrowing
+// question — it is a path they genuinely walk.
 //
 // Note on this file and run-tier2.mjs themselves: both live under apps/web/e2e/**, so a diff that
 // edits ONLY the map or the runner selects nothing and exits 0. That is right — neither can change
 // what the product does — but it means editing the map does not re-prove the journeys it re-points.
 //
-// #271 obligation: it re-points a dozen journeys, and must update their entries here as it goes. A
-// map that claims a journey exercises a path it no longer touches skips journeys it should run.
+// #271 discharged its obligation here: the re-pointed journeys enter through the front door, so
+// CV_INTAKE now carries the front door's own files and no longer names the deleted screens. The
+// replay proving a front-door diff selects every re-pointed journey lives in
+// tier2-selection-check.mjs ("#271: a front-door diff...").
 
 // ---------------------------------------------------------------------------------------------
 // Shared areas. Named so a journey's entry reads as a list of subsystems, not a list of files.
 // ---------------------------------------------------------------------------------------------
 const FRONT_DOOR = ["apps/web/app/page.tsx", "apps/web/app/frontdoor.css"];
+// #271: every journey that brings a CV in now walks the front door's paste tile to do it, so the
+// front door IS the intake screen — a change to it can redden any CV_INTAKE journey. The old
+// /paste, /import and /progress screens left this list the same day (SELECTS_NOTHING below).
 const CV_INTAKE = [
   "apps/api/src/extract.ts",
   "apps/api/src/miner.ts",
@@ -48,9 +54,7 @@ const CV_INTAKE = [
   "apps/api/src/importReconciliation.ts",
   "apps/api/src/guestbook.ts",
   "apps/api/prompts/claim-miner.md",
-  "apps/web/app/paste/**",
-  "apps/web/app/import/**",
-  "apps/web/app/progress/**",
+  ...FRONT_DOOR,
 ];
 const JOB_BLOCKS = [
   "apps/api/src/jobBlockMiner.ts",
@@ -114,7 +118,6 @@ const TAILOR = [
   "apps/api/prompts/root-cv-audit.md",
   "apps/web/app/tailor/**",
   "apps/web/app/tailor.css",
-  "apps/web/app/preview/**",
 ];
 const AUTH = [
   "apps/api/src/auth.ts",
@@ -198,6 +201,13 @@ export const SELECTS_NOTHING = [
   // a journey for either is ever added to the gate, delete these two lines with it.
   "apps/api/src/withdrawal.ts",
   "apps/api/src/purge.ts",
+  // #271: the old intake, wait and draft screens. No Tier 2 journey opens any of them any more —
+  // every journey enters through the front door — so a change here cannot redden the gate. They
+  // are deleted outright by #272; delete these four lines with them.
+  "apps/web/app/paste/**",
+  "apps/web/app/import/**",
+  "apps/web/app/progress/**",
+  "apps/web/app/preview/**",
 ];
 
 // ---------------------------------------------------------------------------------------------
@@ -302,7 +312,8 @@ export const COVERAGE = {
     LABELER,
     DISCOVERY,
     AUTH,
-    ["apps/api/src/counters.ts"],
+    // preview.ts is imported directly (loadPostings) — #264's gate found it missing here (#271).
+    ["apps/api/src/counters.ts", "apps/api/src/preview.ts"],
   ),
   // #252/#251: the vocabulary-growth feed, its key, and the mark-harvested cycle.
   "unmapped-label-feed-journey.mjs": union(

@@ -107,21 +107,14 @@ const deckRetrievalStatus = async () => (await getJson('/onboarding/cards'))?.re
 // =============================================================================================
 await qa.goto('/', 'the front door');
 await qa.scrollThrough('read the front door top to bottom, the way a first-time visitor would');
-const ready = page.getByRole('button', { name: /Ready\?/ });
-if (await ready.count()) await qa.click(ready.first(), 'Ready? — open the front door');
-const startQuestions = page.getByRole('button', { name: /Start questions instead/ });
-if (await startQuestions.count()) await qa.click(startQuestions.first(), 'Start questions instead');
-if (await page.locator('#target-role').count()) {
-  await qa.fill('#target-role', PLACED_ROLE, `the job she is going for: "${PLACED_ROLE}"`);
-  await qa.fill('#search-area', AREA, 'where she wants to work');
-  await qa.click('button:has-text("Save and continue")', 'Save and continue');
-  await page.waitForTimeout(1200);
-}
-
-await qa.goto('/paste', 'paste her CV — two dated jobs and one degree');
-await qa.fill('textarea', CV_TEXT, 'the work history the deck will judge her against');
-await qa.click('button.btn', 'send the CV to be read');
-await page.waitForTimeout(2000);
+// #271: the CV goes in first, through the front door's paste tile — the order a person walks
+// (the deleted /paste side entrance used to let these steps run backwards).
+await qa.frontDoorPaste(CV_TEXT, 'she pastes her CV — two dated jobs and one degree');
+await qa.frontDoorContinueToIntent();
+await qa.fill('#target-role', PLACED_ROLE, `the job she is going for: "${PLACED_ROLE}"`);
+await qa.fill('#search-area', AREA, 'where she wants to work');
+await qa.click('button:has-text("Save and continue")', 'Save and continue');
+await page.waitForTimeout(1200);
 for (let i = 0; i < 60; i += 1) {
   const b = await getJson('/job-blocks');
   if (b?.blocks?.length) break;

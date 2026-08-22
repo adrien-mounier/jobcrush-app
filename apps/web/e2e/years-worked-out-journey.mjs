@@ -71,10 +71,8 @@ const txt = async (sel) => ((await page.locator(sel).count()) ? (await page.loca
 await qa.goto('/', 'the front door — where a real visitor starts');
 await qa.scrollThrough('read the front door top to bottom');
 
-await qa.goto('/paste', 'paste a CV with dated jobs');
-await qa.fill('textarea', CV_TEXT, 'the dated work history the total will be worked out from');
-await qa.click('button.btn', 'send the CV to be read');
-await page.waitForTimeout(2000);
+// #271: the CV comes in through the front door's paste tile, the way a person brings one.
+await qa.frontDoorPaste(CV_TEXT, 'pastes the dated work history the total will be worked out from');
 
 // Wait for the product to have mined dated job records.
 let blocks = [];

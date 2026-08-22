@@ -256,6 +256,74 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
       return asked;
     },
 
+    /** #271 - bring a CV in the way a person does: the front door's paste tile (#270), through to
+     *  the facts-found screen. The deleted /paste screen used to be every journey's side entrance,
+     *  and the deleted draft screen's address was how a journey learned its jobId - both now come
+     *  from the front door itself: the walk is invitation -> "Paste my CV text" -> "Use this text",
+     *  and the jobId is read off the paste response the page itself makes.
+     *
+     *  Works for a brand-new visitor (invitation showing) and for a session already on the source
+     *  step. It does NOT work for a session whose stage has advanced to discovery - the front door
+     *  restores such a visitor straight to the intent step, which is the product's own behaviour,
+     *  so paste FIRST, intent after (the order a real visitor walks anyway). A journey needing a
+     *  SECOND read on the same session has no screen for it - the product offers none - and calls
+     *  POST /cv/paste directly, the same route this walk exercises.
+     *
+     *  Leaves the browser on "/" showing the facts screen; returns the read's jobId. */
+    frontDoorPaste: async (cvText, note) => {
+      await api.goto('/', note || 'the front door - she brings her CV in as a person does');
+      const ready = page.getByRole('button', { name: 'Ready?' });
+      const pasteTile = page.getByRole('button', { name: /Paste my CV text/ });
+      await ready.or(pasteTile).first().waitFor({ state: 'visible', timeout: 30000 });
+      if (await ready.isVisible().catch(() => false)) {
+        await page.mouse.click(10, 10); // finish the invitation animation
+        await api.click(ready, 'Ready? - through the invitation');
+      }
+      await api.click(pasteTile, 'chooses "Paste my CV text" on the source step');
+      await api.fill(page.getByLabel('Your CV text'), cvText, 'pastes the CV');
+      const pasteResponse = page.waitForResponse(
+        (r) => r.url().includes('/api/cv/paste') && r.request().method() === 'POST',
+        { timeout: 30000 },
+      );
+      await api.click(page.getByRole('button', { name: 'Use this text' }), 'hands it over');
+      const { jobId } = await (await pasteResponse).json();
+      // The reading panel wears the same shell; wait for it to hand over to the facts screen.
+      await page.locator('.proof-metrics, .import-actions').first().waitFor({ state: 'visible', timeout: 120000 });
+      const heading = ((await page.locator('.import-status h1').textContent().catch(() => '')) || '').trim();
+      await api.note(`the read finished - the screen says "${heading}" (jobId ${jobId})`);
+      await api.scrollThrough('reads the facts the product found in her CV');
+      return jobId;
+    },
+
+    /** #271 - from the facts screen on to the target-role and search-area step. Resolving the one
+     *  conflict question a read can raise is deliberately deferred ("Answer later"): the old side
+     *  entrance never surfaced it, so answering it here would change what the session holds. */
+    frontDoorContinueToIntent: async () => {
+      const answerLater = page.getByRole('button', { name: 'Answer later' });
+      if (await answerLater.isVisible().catch(() => false)) {
+        await api.click(answerLater, 'leaves the conflict question for later');
+      } else {
+        await api.click(page.getByRole('button', { name: /Ask me what/ }), 'continues to what is missing');
+      }
+      await page.getByRole('heading', { name: /What kind of job are you going for/ }).waitFor({ state: 'visible', timeout: 30000 });
+    },
+
+    /** #271 - wait out the read's whole pipeline, the sync point the old flow got for free by
+     *  sitting on the wait screen until it navigated to the draft. Journeys that open
+     *  /job-blocks/<jobId> straight after a read need it; the facts screen appears mid-pipeline. */
+    waitForJobDone: async (jobId, { timeoutMs = 180000 } = {}) => {
+      await page.waitForFunction(
+        async (id) => {
+          const r = await fetch(`/api/jobs/${id}`, { credentials: 'same-origin' });
+          if (!r.ok) return false;
+          const j = await r.json();
+          return j.status === 'completed' || j.status === 'failed';
+        },
+        jobId,
+        { timeout: timeoutMs, polling: 1000 },
+      );
+    },
+
     goto: (url, note) =>
       act('goto', null, note || `navigate to ${url}`, async () => {
         await page.goto(url, { waitUntil: 'domcontentloaded' });

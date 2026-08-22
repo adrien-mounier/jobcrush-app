@@ -111,13 +111,11 @@ const FAMILY_LABEL_LEAK = /family|it-project-delivery|product-management|IT proj
 // =============================================================================================
 // PHASE A — the real stack: jobs the machine could NOT place.
 // =============================================================================================
-await qa.goto(`${BASE}/paste`, 'the person opens the paste screen');
-await qa.fill('textarea[aria-label="Your CV text"]', CV_TEXT, 'pastes a CV with two dated jobs and a degree');
-await qa.click('button:has-text("Use this text")', 'hands it over');
-await page.waitForURL('**/preview/**', { timeout: 120000 });
-await qa.scrollThrough('reads down the watermarked draft while the pipeline finishes');
-await qa.click('a:has-text("Confirm my facts")', 'takes the "Confirm my facts" door');
-await page.waitForURL('**/job-blocks/**', { timeout: 30000 });
+// #271: the CV comes in through the front door's paste tile, and the work-history check is opened
+// with the jobId the front door's own paste response carries — no deleted screen on the way.
+const entryJobId = await qa.frontDoorPaste(CV_TEXT, 'the person pastes a CV with two dated jobs and a degree on the front door');
+await qa.waitForJobDone(entryJobId);
+await qa.goto(`${BASE}/job-blocks/${entryJobId}`, 'opens the work-history check for that read');
 await qa.expectVisible('.jb-card', 'the work-history review screen opens on the first card');
 await qa.scrollThrough('reads the whole screen once');
 

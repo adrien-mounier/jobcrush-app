@@ -100,29 +100,19 @@ const json = async (path) => (await callAsVisitor('GET', path)).json;
 // =============================================================================================
 // 1. The whole shipped funnel, in a browser, exactly as a person walks it.
 // =============================================================================================
-await qa.goto('/', 'the front door — where a real visitor starts');
-await qa.scrollThrough('read the front door top to bottom, the way a first-time visitor would');
-
-const ready = page.getByRole('button', { name: /Ready\?/ });
-if (await ready.count()) await qa.click(ready.first(), 'open the front door');
-const startQuestions = page.getByRole('button', { name: /Start questions instead/ });
-if (await startQuestions.count()) await qa.click(startQuestions.first(), 'choose to start from questions');
-if (await page.locator('#target-role').count()) {
-  await qa.fill('#target-role', ROLE, `the role this visitor is going for: "${ROLE}"`);
-  await qa.fill('#search-area', AREA, 'where she wants to work');
-  await qa.click('button:has-text("Save and continue")', 'save what I want next — this is what places the session into a family');
-  await page.waitForTimeout(1200);
-}
+// #271: the CV goes in first, through the front door's paste tile — the order a person walks
+// (the deleted /paste side entrance used to let these steps run backwards).
+await qa.frontDoorPaste(CV_TEXT, 'the front door — she pastes a CV with two dated jobs and one degree');
+await qa.frontDoorContinueToIntent();
+await qa.fill('#target-role', ROLE, `the role this visitor is going for: "${ROLE}"`);
+await qa.fill('#search-area', AREA, 'where she wants to work');
+await qa.click('button:has-text("Save and continue")', 'save what I want next — this is what places the session into a family');
+await page.waitForTimeout(1200);
 const intent = await json('/sessions/me/intent');
 await assertTrue(
   intent?.intent?.targetRole === ROLE,
   `the front door recorded the target role (${JSON.stringify(intent?.intent?.targetRole)}) — the only input that places a session into a family`,
 );
-
-await qa.goto('/paste', 'paste a CV with two dated jobs and one degree');
-await qa.fill('textarea', CV_TEXT, 'the work history the deck will judge her against');
-await qa.click('button.btn', 'send the CV to be read');
-await page.waitForTimeout(2000);
 
 let blocks = [];
 for (let i = 0; i < 60; i += 1) {

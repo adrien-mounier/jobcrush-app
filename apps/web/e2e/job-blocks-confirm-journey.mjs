@@ -2,7 +2,7 @@
 // against a REAL full stack (real Fastify, real extract, real miner parse, real job-block store;
 // only the MODEL is faked via apps/api/dist/qa-main.js, so the run is free and deterministic).
 //
-// The journey: paste a CV with dated jobs -> the tailored preview -> "Confirm my facts" -> the
+// The journey: paste a CV with dated jobs on the front door (#271) -> the work-history
 // confirm deck. Read card 1, swipe RIGHT to confirm (chip flies, counter bumps) -> swipe LEFT to
 // skip and prove the card comes back at the END of the deck -> TAP to correct: change a title,
 // change the kind and watch the consequence copy answer honestly -> UNDO and RELOAD to prove the
@@ -101,18 +101,30 @@ async function swipe(dir, note) {
 }
 
 // -------------------------------------------------------------------------------------------
-// 1. Paste the CV, ride the pipeline, and take the door the preview screen offers.
+// 1. Paste the CV on the front door, ride the pipeline, and open the work-history check.
 // -------------------------------------------------------------------------------------------
-await qa.goto(`${BASE}/paste`, 'the person opens the paste screen');
-await qa.fill('textarea[aria-label="Your CV text"]', CV_TEXT, 'pastes a CV with two dated jobs and a degree');
-await qa.click('button:has-text("Use this text")', 'hands it over');
-await page.waitForURL('**/preview/**', { timeout: 120000 });
-await qa.scrollThrough('reads down the watermarked draft');
-await qa.click('a:has-text("Confirm my facts")', 'takes the "Confirm my facts" door');
-await page.waitForURL('**/job-blocks/**', { timeout: 30000 });
-const jobId = page.url().split('/job-blocks/')[1];
+// #271: the CV comes in through the front door's paste tile, and the jobId comes off the front
+// door's own paste response — the deleted draft screen's address was the old way to learn it.
+const jobId = await qa.frontDoorPaste(CV_TEXT, 'the person pastes a CV with two dated jobs and a degree on the front door');
+await qa.waitForJobDone(jobId);
+await qa.goto(`${BASE}/job-blocks/${jobId}`, 'opens the work-history check for that read');
 await qa.expectVisible('.jb-card', 'the confirm deck opens on the first card');
 await qa.scrollThrough('reads the whole screen once, card and progress panel');
+
+/** #271: a SECOND read on the same session has no screen — the product offers none (the front door
+ *  restores the finished proof and moves on). It goes through the same POST /cv/paste route the
+ *  front door's own tile calls, so nothing deleted is exercised and the read is the real one. */
+const pasteAgain = (text) =>
+  page.evaluate(async (t) => {
+    const res = await fetch('/api/cv/paste', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: t }),
+    });
+    if (res.status !== 201) throw new Error(`paste refused: ${res.status}`);
+    return (await res.json()).jobId;
+  }, text);
 
 // -------------------------------------------------------------------------------------------
 // 2. What the screen says before she touches anything.
@@ -306,11 +318,9 @@ await page.emulateMedia({ reducedMotion: 'no-preference' });
 // 11b. She uploads her CV again, and this time the read calls the same job by a different title.
 //      An ambiguous match must read as a QUESTION on the card, and answering it must work.
 // -------------------------------------------------------------------------------------------
-await qa.goto(`${BASE}/paste`, 'she pastes her CV a second time, slightly reworded');
-await qa.fill('textarea[aria-label="Your CV text"]', `SECOND UPLOAD\n${CV_TEXT}`, 'pastes the second version');
-await qa.click('button:has-text("Use this text")', 'hands it over again');
-await page.waitForURL('**/preview/**', { timeout: 120000 });
-const jobId2 = page.url().split('/preview/')[1];
+await qa.note('she hands her CV over a second time, slightly reworded (#271: same route the front door tile calls)');
+const jobId2 = await pasteAgain(`SECOND UPLOAD\n${CV_TEXT}`);
+await qa.waitForJobDone(jobId2);
 await qa.goto(`${BASE}/job-blocks/${jobId2}`, 'and comes back to check her work history');
 await qa.expectVisible('.jb-card', 'the deck opens on the entry we could not place');
 const ambiguous = await cardText();
@@ -331,11 +341,12 @@ if (await page.locator('.jb-card button:has-text("Yes, the same job")').count())
 // 11c. A CV whose work history could not be read at all — an invitation, never an error.
 // -------------------------------------------------------------------------------------------
 await qa.context.clearCookies();
-await qa.goto(`${BASE}/paste`, 'a different person, whose history the read cannot make sense of');
-await qa.fill('textarea[aria-label="Your CV text"]', `FAILTHISREAD\n${CV_TEXT}`, 'pastes a CV we will fail to read');
-await qa.click('button:has-text("Use this text")', 'hands it over');
-await page.waitForURL('**/preview/**', { timeout: 120000 });
-const jobId3 = page.url().split('/preview/')[1];
+// #271: a different person is a fresh session, so she walks in through the front door like anyone.
+const jobId3 = await qa.frontDoorPaste(
+  `FAILTHISREAD\n${CV_TEXT}`,
+  'a different person, whose history the read cannot make sense of, pastes on the front door',
+);
+await qa.waitForJobDone(jobId3);
 await qa.goto(`${BASE}/job-blocks/${jobId3}`, 'opens the confirm screen after a failed read');
 const failedText = ((await page.locator('main.jobblocks').textContent()) || '').trim();
 await qa.note(`the failed-read screen says: "${failedText}"`);
