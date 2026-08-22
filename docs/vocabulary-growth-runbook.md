@@ -69,6 +69,14 @@ Present the owner a cluster map, one row per cluster:
   hitting one gap and one person retrying three times are different decisions, and both are the
   owner's.
 
+**Read `docs/vocabulary-proposals/candidate-families.md` before presenting the map, and fold it in.**
+The feed only shows occupations someone typed at question 1. It cannot show an occupation we
+discovered another way — while researching a neighbouring family, while reading a corpus, while a
+grid case failed. Those are recorded there with their evidence, and a run that reads only the feed
+will never see them. Present them in the same map, marked as candidates rather than harvested labels,
+so the owner picks over the whole picture. **Being on that list is not a decision to research it** —
+the pick is still the owner's, and research costs money and review time.
+
 ## 3. Research each picked cluster
 
 **The method below is normative** (#259, designed with the owner 2026-08-21). Before it existed, a
