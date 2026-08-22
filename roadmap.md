@@ -46,7 +46,7 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Run order — what to build next
 
-**NEXT: 8c #265 · 8b #217** (#217 needs `/to-spec` first). Unscheduled, in the table: 8d #274 ·
+**NEXT: 8b #217** (#217 needs `/to-spec` first). Unscheduled, in the table: 8d #274 ·
 8e #278 · 7b.1 #250 (parked).
 Unscheduled, no row yet: #246 · #276 · #277.
 
@@ -132,7 +132,7 @@ cutting at the curve's cliff (80% → 51%) rather than a fixed number; either ru
 | ~~7d.6~~ | ~~#273~~ | ~~The over-packed-line warning loses its only screen~~ **DECIDED 2026-08-22 — dropped on purpose; its two conditions moved onto #272 as ACs** | — | — | — |
 | ~~8~~ | ~~#64~~ | ~~The match count survives signup~~ **DONE 2026-08-22** | — | — | — |
 | ~~8a~~ | ~~#264~~ | ~~A ticket pays only for the journeys its diff can reach~~ **DONE 2026-08-22** | — | — | — |
-| 8c | #265 | The labeler reaches for the nearest published family instead of answering unmapped — step 1 is establishing whether the never-nearest rule is missing or present-and-not-holding | `/implement` | Opus | medium |
+| ~~8c~~ | ~~#265~~ | ~~The labeler reaches for the nearest published family instead of answering unmapped~~ **DONE 2026-08-23** — rule was present-and-not-holding; fixed by product-discriminator + why-first prompt, str-21 green 11/11 runs | — | — | — |
 | 8b | #217 | Industry — the second label axis: closed vocabulary with relatedness, seventh fact, its own labeler | `/to-spec` | Opus | high |
 | 8d | #274 | One text field style across the product — today there are four, and two of them zoom the page on an iPhone on the main journey. Unscheduled, no blockers | `/implement` | Opus | medium |
 | 8e | #278 | The work-history check loses its only door when #272 deletes the draft screen — give it one on the real journey. Not a blocker for #272. Unscheduled; needs the where/when decision first | `/implement` | Opus | medium |

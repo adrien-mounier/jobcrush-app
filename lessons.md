@@ -1,5 +1,17 @@
 # Lessons — jobcrush-app
 
+## A flaky LLM eval case needs ~5 runs to call, and "green twice" proves nothing
+
+Learned 2026-08-23 (#265). The str-21 fix looked done after two green grid runs — the ticket's own
+"re-run it" bar. QA ran five and got 3 green / 2 red: the prompt change had turned a hard failure
+into a coin flip, indistinguishable from fixed at n=2. For a case known to flip, budget ~5 runs
+before claiming a state change (at USD 0.05/run the money is never the constraint), and write the
+run count into the grid note so the next reader knows what the claim rests on. Second half of the
+same lesson: the grid can pass all three bars while the one case a ticket exists for fails — the
+bars have margin, so read the MISS lines, not just the verdict. Mechanism that ended the flip:
+make the model emit its justification BEFORE the answer token (`why` first in the output example) —
+key-order is free to change since extractJson/zod don't care.
+
 ## Deleting a Next.js page leaves `tsc` red until the next `next build`
 
 Learned 2026-08-23 (#272). `apps/web`'s `typecheck` script is bare `tsc --noEmit`, and the tsconfig

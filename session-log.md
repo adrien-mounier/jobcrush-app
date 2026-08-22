@@ -2,6 +2,31 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-23 (session 161) `/implement 265` — the labeler stops reaching for the nearest family (QA NO-GO → GO)
+
+Closes #265 (row 8c, struck). Commit `32045fa` — prompt + grid bookkeeping only, no code.
+
+**Step 1's fork resolved as rule present, not holding:** the prompt already said "do NOT reach for
+the nearest one" twice; MiniMax M3 coin-flipped on the sharpest near-miss anyway. The fix that held
+is two prompt mechanisms: a product discriminator (name what the role PRODUCES, check the scope
+claims that product) and moving the output's `why` before `outcome`, so the check is emitted before
+the answer token. Scope untouched (the ticket's own red line); parser unchanged and key-order-proof.
+
+**QA earned its keep twice.** First gate: NO-GO — my two green runs were luck; across five QA runs
+str-21 flipped red twice (a coin flip, not a fix), and the grid note I'd written recorded an
+overclaim. Strengthened fix: str-21 unmapped **11/11** consecutive runs (5 mine + 6 QA), stranger
+recall 100% and false-unknown 0.0% on every run, str-13 still confirming — no over-correction.
+str-21's note now carries the real #263 arbitration AND the caught-coin-flip history, with a
+flip-prone warning for future reds.
+
+**Spend:** 22 grid runs, 1430 calls, **USD 0.85** (MiniMax M3, priced from bakeoff-result.json).
+**Flagged for follow-up, not gated:** confidence-accuracy (reported, no bar) shifted ~85%→~69% —
+why-first plausibly hedges `certain` to `likely`. Placements 100% correct throughout; QA recommends
+its own observation ticket if confidence steering starts to matter.
+
+**Deploy:** push ran no CI (billing block, zero steps started; deploy skipped) — the fix is NOT on
+staging; it rides the next deploy, same precedent as #271. Noted on the ticket.
+
 ## 2026-08-23 (session 160) `/implement 272` — the old flow is deleted, and the draft spend with it (QA GO)
 
 Closes #272 (row 7d.5, struck) and with it the #249 parent's last obligation. −866/+~150 lines.
