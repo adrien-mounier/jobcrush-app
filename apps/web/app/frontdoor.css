@@ -260,8 +260,8 @@
   box-sizing: border-box;
   padding: 10px 12px;
   border: 1px solid var(--hud-line);
-  border-radius: 8px;
-  background: var(--hud-0);
+  border-radius: 10px;
+  background: var(--hud-2);
   color: var(--hud-ink);
   font: inherit;
   font-size: 16px;
@@ -281,8 +281,8 @@
   box-sizing: border-box;
   padding: 10px 12px;
   border: 1px solid var(--hud-line);
-  border-radius: 8px;
-  background: var(--hud-0);
+  border-radius: 10px;
+  background: var(--hud-2);
   color: var(--hud-ink);
   font: inherit;
   font-size: 16px;
@@ -333,7 +333,7 @@
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--hud-line);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--hud-2);
   color: var(--hud-ink);
   padding: 10px 12px;

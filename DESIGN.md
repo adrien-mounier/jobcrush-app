@@ -68,6 +68,7 @@ typography:
     meta: "12.5px"
     note: "13px"
     reading: "13.5px"
+    field: "16px"
     emphasis: "17px"
     headline: "18px"
     stat: "19px"
@@ -322,8 +323,14 @@ gradients in the system are light itself (the lamp pool, the gold glow).
 - **Light register:** White surface, Day Line border, radius 12px, padding 24px.
 
 ### Inputs / Fields
-- **Style:** Night Raised fill, 1px Night Line, radius 10px, padding 10–11px 13px,
-  body-size text; placeholder in Night Muted Readable.
+- **Style:** Night Raised fill, 1px Night Line, radius 10px, 16px text; placeholder in
+  Night Muted Readable. Padding is per-surface (10–12.5px vertical, 12–15px horizontal),
+  sized to what the field holds — a one-line answer and a pasted CV are not the same box.
+- **Size, the one deliberate exception (#274):** a field's text is **16px**, not the 14px
+  body size. Mobile Safari zooms the whole page into any focused field under 16px, and
+  the alternative — pinning the viewport — takes pinch-zoom away from everyone who needs
+  it. So the size is the fix, `scale.field` carries it, and this is idiom on purpose
+  rather than silent drift.
 - **Focus:** the standard 2px Night Ink outline; no glow, no border-colour tricks.
 
 ### The Paper (signature component)

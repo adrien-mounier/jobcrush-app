@@ -126,7 +126,7 @@ textarea {
   font-size: 1rem;
   font-family: inherit;
   border: 1px solid var(--jc-line);
-  border-radius: 8px;
+  border-radius: var(--jc-radius-field);
   background: var(--jc-surface);
   color: var(--jc-ink);
 }

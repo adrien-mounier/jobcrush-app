@@ -415,24 +415,17 @@
   background: var(--hud-2);
   color: var(--hud-ink);
   border: 1px solid var(--hud-line);
-  border-radius: 11px;
+  border-radius: 10px;
   padding: 12.5px 15px;
   font: inherit;
-  font-size: 15px;
-  outline: none;
-  transition: border-color 160ms ease;
+  font-size: 16px;
 }
 .discovery textarea {
   display: block;
   width: 100%;
   resize: none;
-  font-size: 14.5px;
   line-height: 1.45;
   margin-bottom: 9px;
-}
-.discovery .field input:focus,
-.discovery textarea:focus {
-  border-color: var(--gold);
 }
 .discovery .field input::placeholder,
 .discovery textarea::placeholder {
