@@ -1,5 +1,20 @@
 # Lessons — jobcrush-app
 
+## A `next dev` run poisons the `.next` directory for the next `next start`
+
+Learned 2026-08-23 (#281). The route-mocked browser specs hung on "Reading your work history…" and
+every job-blocks assertion failed — including the ones that had nothing to do with the change under
+test, which was the tell. The cause was not the code: `next dev` had been started first against the
+same `apps/web/.next`, and after `next build` the production server then served **400 Bad Request
+for the JS chunks**, so the page rendered its server HTML and never hydrated. Nothing in the
+Playwright output says this; the failures all look like assertion failures on a broken feature.
+
+Two things to take from it. First, the diagnostic: when a spec times out on a loading state, attach
+`page.on("requestfailed")` before blaming the feature — the answer was one line of network log.
+Second, the rule: **never `next dev` and `next build`/`next start` against the same tree in one
+session.** CI is always right about this because it only ever builds. Rebuild with nothing listening
+on port 3000, and if pages still hang, the `.next` directory has to go.
+
 ## A flaky LLM eval case needs ~5 runs to call, and "green twice" proves nothing
 
 Learned 2026-08-23 (#265). The str-21 fix looked done after two green grid runs — the ticket's own

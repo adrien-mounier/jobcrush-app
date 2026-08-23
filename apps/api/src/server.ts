@@ -64,6 +64,7 @@ import type { RetrievalRequest } from "./postingRetrieval.js";
 import { reconcileImport } from "./importReconciliation.js";
 import { refreshWorkedYears } from "./yearsWorked.js";
 import { publishedFamilies } from "./familyLabeler.js";
+import { publishedIndustryVocabulary, type IndustryVocabulary } from "./industryVocabulary.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -103,6 +104,12 @@ export interface BuildOptions {
   /** Deterministic, explicitly non-production floor catalog for #59 integration tests. */
   familyFloors?: TestFixtureFamilyFloorStore;
   productionFamilyFloors?: ProductionFamilyFloorStore;
+  /** #281 — the published industry vocabulary, injected on exactly the same terms as
+   *  productionFamilyFloors above. It matters that this is ONE object and not a second read off
+   *  disk: it is both what the labeler places into and what the correction door checks against, and
+   *  two independent publications would let the door refuse an industry the labeler had just
+   *  stored. Absent → the shipped publication. */
+  industryVocabulary?: IndustryVocabulary;
   placeFamily?: (session: Readonly<SessionRecord>) => Promise<import("@jobcrush/contracts").FamilyPlacement>;
   retrievePostings?: (input: RetrievalRequest) => Promise<PostingRetrievalResultV1>;
   /** JC-24 grill question phrasing (LLM-backed in prod). Absent → deterministic template phrasing. */
@@ -182,6 +189,10 @@ export function buildServer(opts: BuildOptions = {}) {
   const familyFloors = opts.familyFloors ?? new TestFixtureFamilyFloorStore();
   const productionFamilyFloors =
     opts.productionFamilyFloors ?? initialProductionFamilyFloors();
+  // Read once per server, not per request: the publication is a shipped file, so re-reading it
+  // would buy nothing, and reading it at module load would turn a bad publication into an
+  // import-time crash instead of a boot-time one.
+  const industryVocabulary = opts.industryVocabulary ?? publishedIndustryVocabulary();
   const placeFamily =
     opts.placeFamily ??
     (async () => ({ schemaVersion: PLACEMENT_SCHEMA_VERSION, outcome: "unmapped" as const }));
@@ -502,7 +513,15 @@ export function buildServer(opts: BuildOptions = {}) {
       claims,
       eligibility,
       families: () => publishedFamilies(productionFamilyFloors),
+      // #281: the same story for the second axis — the published industry vocabulary is what the
+      // labeler places into AND what an industry correction is checked against. Read once at boot:
+      // the publication is a shipped file, not a registry that grows mid-process.
+      industries: () =>
+        industryVocabulary
+          .activeIndustries()
+          .map(({ industryId, version, label }) => ({ industryId, version, label })),
       retryJobBlockLabels: pipelineDeps.labelJobBlocks,
+      retryJobBlockIndustryLabels: pipelineDeps.labelJobBlockIndustries,
     }),
   );
   // #236: the screen judges a target role against the WHOLE published list, read fresh each call so

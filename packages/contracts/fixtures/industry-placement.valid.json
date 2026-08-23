@@ -1,0 +1,21 @@
+[
+  {
+    "schemaVersion": "1",
+    "outcome": "confirmed",
+    "industries": [{ "industryId": "banking", "version": 1 }],
+    "confidence": "certain"
+  },
+  {
+    "schemaVersion": "1",
+    "outcome": "confirmed",
+    "industries": [
+      { "industryId": "consulting", "version": 1 },
+      { "industryId": "banking", "version": 1 }
+    ],
+    "confidence": "likely"
+  },
+  {
+    "schemaVersion": "1",
+    "outcome": "unmapped"
+  }
+]

@@ -29,12 +29,14 @@ import {
   getJobBlocks,
   resolveJobBlockMatch,
   unconfirmJobBlock,
+  type IndustryPlacement,
   type JobBlockCorrection,
   type JobBlockKind,
   type JobBlockView,
   type JobBlocksReadStatus,
   type MinedDate,
   type MinedEndValue,
+  type PublishedIndustry,
 } from "../../../lib/api";
 
 const MONTHS = [
@@ -148,9 +150,36 @@ interface UndoAction {
 // it is just never surfaced as a question on this screen. The job card itself said nothing about
 // families before and says nothing now.
 
+// ---- #281: the seventh fact IS shown, and therefore must be correctable ----
+// The industry is the one worked-out fact this screen prints, so unlike the family it needs a
+// control. It is still never a QUESTION: the card states what we believe, and the correction panel
+// offers the published list to pick from when she disagrees. Nothing anywhere asks her which
+// industry her employer was in.
+
+/** The industries a placement names — empty for unmapped, and for a job never placed at all. The
+ *  screen deliberately says the same thing for both: from her side "we couldn't place this" is the
+ *  whole truth, and which of the two it was is our own bookkeeping. */
+function industryRefs(placement: IndustryPlacement | null): Array<{ industryId: string; version: number }> {
+  return placement?.outcome === "confirmed" ? placement.industries : [];
+}
+
+/** Display names, from the same publication the labeler placed into — a placement carries ids and
+ *  versions only. An id we cannot name falls back to the id rather than vanishing. */
+function industryNames(placement: IndustryPlacement | null, published: PublishedIndustry[]): string[] {
+  return industryRefs(placement).map(
+    (ref) => published.find((entry) => entry.industryId === ref.industryId)?.label ?? ref.industryId,
+  );
+}
+
 // `family` is deliberately not revertable here: nothing on this screen sets it, and a job that was
 // never placed has no earlier value to revert to — an undo offered for it would have to lie.
-function revertValue(key: Exclude<JobBlockCorrection["key"], "family">, original: JobBlockView): JobBlockCorrection {
+// `industry` is excluded for the second half of that reason only: it IS set here, but a job the
+// machine never placed has no earlier industry to go back to, so its undo is handled on its own
+// terms in saveBack rather than pretended at here.
+function revertValue(
+  key: Exclude<JobBlockCorrection["key"], "family" | "industry">,
+  original: JobBlockView,
+): JobBlockCorrection {
   if (key === "employer") return { key, value: original.employer.value };
   if (key === "title") return { key, value: original.title.value };
   if (key === "start") return { key, value: original.start.value };
@@ -163,6 +192,10 @@ export default function JobBlocksScreen() {
   const router = useRouter();
 
   const [blocks, setBlocks] = useState<JobBlockView[] | null>(null);
+  // #281 — the published industry vocabulary, travelling with the deck: it names the ids a
+  // placement carries, and it is what the correction picker offers, so the screen can never offer
+  // a choice the correction door would refuse.
+  const [industries, setIndustries] = useState<PublishedIndustry[]>([]);
   const [readStatus, setReadStatus] = useState<JobBlocksReadStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -213,6 +246,7 @@ export default function JobBlocksScreen() {
       await ensureSession();
       const res = await getJobBlocks();
       setBlocks(res.blocks);
+      setIndustries(res.industries ?? []);
       setReadStatus(res.summary.read);
       setConfirmedIds(new Set(res.blocks.filter((b) => b.confirmed).map((b) => b.id)));
       setQueue(res.blocks.filter((b) => !b.confirmed).map((b) => b.id));
@@ -347,7 +381,7 @@ export default function JobBlocksScreen() {
   const saveBack = useCallback(async () => {
     const original = originalRef.current;
     if (!original || !draft || busy) return;
-    const changed: Array<Exclude<JobBlockCorrection, { key: "family" }>> = [];
+    const changed: Array<Exclude<JobBlockCorrection, { key: "family" } | { key: "industry" }>> = [];
     if (draft.employer.value !== original.employer.value) changed.push({ key: "employer", value: draft.employer.value });
     if (draft.title.value !== original.title.value) changed.push({ key: "title", value: draft.title.value });
     if (JSON.stringify(draft.start.value) !== JSON.stringify(original.start.value))
@@ -356,6 +390,21 @@ export default function JobBlocksScreen() {
       changed.push({ key: "end", value: draft.end.value });
     if (draft.kindDecision.value !== original.kindDecision.value)
       changed.push({ key: "kind", value: draft.kindDecision.value });
+
+    // #281 — the industry rides beside `changed` rather than inside it, because its undo is not
+    // symmetric: what has to be put back may be an unmapped, or two industries, neither of which a
+    // single reference can express.
+    //
+    // Compared as the WHOLE ref list, never on the first id alone: narrowing a two-industry job to
+    // its first-listed industry IS a change ("Consulting and Banking" → "Consulting"), and comparing
+    // heads made that pick send nothing at all while the panel promised it would replace both.
+    const draftIndustries = industryRefs(draft.industry.value);
+    const originalIndustries = industryRefs(original.industry.value);
+    const pickedIndustry = draftIndustries[0];
+    const industryChange =
+      pickedIndustry && JSON.stringify(draftIndustries) !== JSON.stringify(originalIndustries)
+        ? ({ key: "industry", value: pickedIndustry } as const)
+        : null;
 
     const block = draft;
     const local = localSnapshot();
@@ -366,11 +415,21 @@ export default function JobBlocksScreen() {
       // decided — a mid-sequence failure used to leave half the corrections saved server-side
       // while the card still read "all saved" (an undetectable, uncorrectable lie to the person).
       for (const c of changed) await correctJobBlock(block.id, c);
+      if (industryChange) await correctJobBlock(block.id, industryChange);
       await confirmJobBlock(block.id);
       setUndo({
         label: "Saved your correction",
         revert: async () => {
           for (const c of changed) await correctJobBlock(block.id, revertValue(c.key, original));
+          // Back to exactly what she saw — the WHOLE placement, so a two-industry job returns as
+          // two at the confidence it carried, and a job nobody could place returns to saying so. An
+          // undo that quietly left the correction standing, or put back only the first of two,
+          // would be the irreversible action #157 Design A rules out.
+          if (industryChange)
+            await correctJobBlock(block.id, {
+              key: "industry",
+              value: original.industry.value ?? { schemaVersion: "1", outcome: "unmapped" },
+            });
           await unconfirmJobBlock(block.id);
         },
         local,
@@ -387,7 +446,7 @@ export default function JobBlocksScreen() {
           return n;
         });
         setQueue((q) => q.filter((id) => id !== block.id));
-        if (changed.length) setCorrectionsCount((n) => n + 1);
+        if (changed.length || industryChange) setCorrectionsCount((n) => n + 1);
         setLiveMessage("Saved your correction.");
         fireReward(rewardLabel(block), after > before); // only bump when it actually added time
         setDraft(null);
@@ -603,6 +662,7 @@ export default function JobBlocksScreen() {
                         setDraft={setDraft}
                         original={current}
                         allBlocks={blocks}
+                        industries={industries}
                         busy={busy}
                         onSave={saveBack}
                         onCancel={cancelBack}
@@ -611,6 +671,7 @@ export default function JobBlocksScreen() {
                       <FrontCard
                         block={current}
                         allBlocks={blocks}
+                        industries={industries}
                         dragX={dragX}
                         reducedMotion={reducedMotion}
                         onResolveMatch={onResolveMatch}
@@ -708,6 +769,7 @@ function useReducedMotion() {
 function FrontCard({
   block,
   allBlocks,
+  industries,
   dragX,
   reducedMotion,
   onResolveMatch,
@@ -715,12 +777,34 @@ function FrontCard({
 }: {
   block: JobBlockView;
   allBlocks: JobBlockView[];
+  industries: PublishedIndustry[];
   dragX: number;
   reducedMotion: boolean;
   onResolveMatch: (same: boolean) => void;
   busy: boolean;
 }) {
   const stampOpacity = !reducedMotion ? Math.min(1, Math.abs(dragX) / 110) : 0;
+
+  // #281 — the seventh fact, beside the employer it describes. Jobs only: a degree or a personal
+  // project belongs to no employer industry, so there is nothing here to say about one. When we
+  // could not place it we SAY SO, rather than reaching for the nearest industry.
+  //
+  // Built BEFORE the ambiguous-match branch below returns: that card is a job too, and a job whose
+  // industry vanishes because we happen to be asking a merge question about it is the fact going
+  // missing on exactly the screen the ticket says shows it.
+  const industryNamesForBlock = industryNames(block.industry.value, industries);
+  const industryLine =
+    block.kind === "job" ? (
+      <p className="jb-industry" data-placed={industryNamesForBlock.length ? "true" : "false"}>
+        {industryNamesForBlock.length ? (
+          <>
+            Industry: <b>{industryNamesForBlock.join(" and ")}</b>
+          </>
+        ) : (
+          <>We couldn&apos;t work out what industry this was. Nothing is counted against you for it.</>
+        )}
+      </p>
+    ) : null;
 
   if (block.matchState === "ambiguous") {
     const candidateBlock = allBlocks.find((b) => block.candidateBlockIds.includes(b.id));
@@ -747,6 +831,7 @@ function FrontCard({
             Yes, the same job
           </button>
         </div>
+        {industryLine}
         <p className="jb-quote">From your CV: &ldquo;{block.employer.origin.kind === "read" ? block.employer.origin.source_quote : block.employer.value}&rdquo;</p>
       </>
     );
@@ -846,6 +931,7 @@ function FrontCard({
         {tag}
       </span>
       <p className="jb-readback">{body}</p>
+      {industryLine}
       {quote && <p className="jb-quote">From your CV: &ldquo;{quote}&rdquo;</p>}
     </>
   );
@@ -858,6 +944,7 @@ function BackPanel({
   setDraft,
   original,
   allBlocks,
+  industries,
   busy,
   onSave,
   onCancel,
@@ -866,6 +953,7 @@ function BackPanel({
   setDraft: (d: JobBlockView) => void;
   original: JobBlockView;
   allBlocks: JobBlockView[];
+  industries: PublishedIndustry[];
   busy: boolean;
   onSave: () => void;
   onCancel: () => void;
@@ -1028,6 +1116,52 @@ function BackPanel({
           {draft.kind === "job" ? "and this one does" : "and this one doesn't"}.
         </p>
       </div>
+      {/* #281 — the industry we worked out, offered back for correction. Never a question: the card
+          already stated what we believe, and this is where she overrules it. Jobs only, and only
+          when a vocabulary actually reached the screen. */}
+      {draft.kind === "job" && industries.length > 0 && (
+        <div className="jb-fgrp">
+          <label htmlFor="jb-industry">Industry</label>
+          <select
+            id="jb-industry"
+            value={industryRefs(draft.industry.value)[0]?.industryId ?? ""}
+            onChange={(e) => {
+              const picked = industries.find((entry) => entry.industryId === e.target.value);
+              // The blank option is a readout of "we couldn't place this", not a choice: there is
+              // nothing to send that would un-place a job, so picking it changes nothing.
+              if (!picked) return;
+              setDraft({
+                ...draft,
+                industry: {
+                  ...draft.industry,
+                  value: {
+                    schemaVersion: "1",
+                    outcome: "confirmed",
+                    industries: [{ industryId: picked.industryId, version: picked.version }],
+                    // Her own answer is the one placement nothing is unsure about. The server sets
+                    // this too — it is the authority; this is the same value so the card does not
+                    // flicker between save and reload.
+                    confidence: "certain",
+                  },
+                },
+              });
+            }}
+          >
+            <option value="">— we couldn&apos;t work this one out —</option>
+            {industries.map((entry) => (
+              <option key={entry.industryId} value={entry.industryId}>
+                {entry.label}
+              </option>
+            ))}
+          </select>
+          <p className="jb-note">
+            We work this out from your CV rather than asking you — put it right here if we got it
+            wrong.
+            {industryRefs(draft.industry.value).length > 1 &&
+              " This job is down as two industries; picking one here replaces both."}
+          </p>
+        </div>
+      )}
       <div className={`jb-consequence${dm === 0 ? " none" : ""}`}>
         {dm === 0
           ? "This doesn't change your confirmed experience."

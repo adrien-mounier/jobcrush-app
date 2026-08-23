@@ -41,6 +41,15 @@ function block(id: string, title: string, employer: string, family: JobBlockView
       machine_touch: null,
       classification: null,
     },
+    // #281 — the seventh fact exists on every block; this spec is about the sixth, so it stays
+    // unplaced here (which is exactly what a block reads as before the industry labeler has run).
+    industry: {
+      id: `${id}:industry`,
+      value: null,
+      origin: { kind: "worked_out" },
+      machine_touch: null,
+      classification: null,
+    },
     confirmed: true,
     matchState: "new",
     candidateBlockIds: [],

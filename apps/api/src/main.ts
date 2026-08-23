@@ -37,6 +37,8 @@ import {
 } from "./postingRetrieval.js";
 import { initialProductionFamilyFloors } from "./familyFloors.js";
 import { makeFamilyPlacer, makeJobBlockLabeler, publishedFamilies } from "./familyLabeler.js";
+import { makeJobBlockIndustryLabeler } from "./industryLabeler.js";
+import { publishedIndustryVocabulary } from "./industryVocabulary.js";
 import { pricingTableFromEnv } from "./llmPricing.js";
 import { meterLlm } from "./llmMeter.js";
 import type { LlmClient } from "./llm.js";
@@ -80,6 +82,10 @@ const postingStore = postingStoreFromEnv(process.env.DATABASE_URL);
 // and by the ops route that reads it back.
 const unmappedLabels = unmappedLabelStoreFromEnv(process.env.DATABASE_URL);
 const productionFamilyFloors = initialProductionFamilyFloors();
+// #281 — ONE published vocabulary for this process: the labeler places into it and the correction
+// door checks against it, and two independent reads would let the door refuse an industry the
+// labeler had just stored.
+const industryVocabulary = publishedIndustryVocabulary();
 const postingProviderPolicies = loadActivePostingProviders();
 // #174 must-fix 1 (round 2): fail fast, naming the row, only when NO driver implementation exists
 // anywhere for an active row (checked against real driver classes, not a hand-typed mirror — see
@@ -131,6 +137,7 @@ const { app } = buildServer({
   eligibility,
   contact,
   productionFamilyFloors,
+  industryVocabulary,
   // #220: the real job labeler, against the closed published vocabulary — the seam buildServer has
   // defaulted to unmapped-for-everyone since #61, which is why production discovery has answered 409
   // for every visitor who ever reached it. Wired here only (never a buildServer default), the same
@@ -166,6 +173,17 @@ const { app } = buildServer({
       // #222: labeling changes what the per-family years facts should say — the labeler re-derives
       // them itself, like every other door that changes a job record.
       eligibility,
+      unmappedLabels,
+    ),
+    // #281: and every mined JOB is placed in an industry — the second axis, its own vocabulary, its
+    // own call. Deliberately on the DEFAULT (Anthropic) client rather than the Fireworks family
+    // model: #282 adds the employer web lookup, which is a server-side tool on that call only.
+    labelJobBlockIndustries: makeJobBlockIndustryLabeler(
+      metered("industry-placement", llm),
+      industryVocabulary.activeIndustries(),
+      jobBlocks,
+      // The person's own CV lines — what makes an employer nobody has heard of placeable at all.
+      claims,
       unmappedLabels,
     ),
     // #272: no preview step. The upload pipeline used to end by tailoring a full draft here — a

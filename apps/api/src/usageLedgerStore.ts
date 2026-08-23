@@ -29,7 +29,11 @@ export type LlmStage =
   | "family-screen"
   // #220: placing a target role into a job family — its own stage, not folded into family-screen
   // (which is the research-candidate screening call, a different question at a different moment).
-  | "family-placement";
+  | "family-placement"
+  // #281: placing a dated job into an INDUSTRY — the second label axis. Its own stage, not folded
+  // into family-placement: it runs against a different vocabulary on a different model, and #282
+  // adds a paid employer web lookup to it that the family half will never make.
+  | "industry-placement";
 
 /** One completed model call. `visitorId` is a pseudonym (a session id) or null for an unattributed
  *  call — never dropped, never guessed. `inputTokens`/`outputTokens`/`costUsd` are null together

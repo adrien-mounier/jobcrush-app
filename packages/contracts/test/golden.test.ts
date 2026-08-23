@@ -12,6 +12,7 @@ import {
   FamilyFloorV1,
   FamilyPlacement,
   Inbox,
+  IndustryPlacement,
   JobCardV1,
   MinedJobBlocks,
   PostingProviderPolicyV1,
@@ -32,6 +33,8 @@ import { validateJobCardV1 } from "../oracle/validate_job_card_v1.mjs";
 import { validateFamilyFloorV1 } from "../oracle/validate_family_floor_v1.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateFamilyPlacement } from "../oracle/validate_family_placement.mjs";
+// @ts-expect-error — plain .mjs oracle, no types by design
+import { validateIndustryPlacement } from "../oracle/validate_industry_placement.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
 import { validateAdRequirementsV1 } from "../oracle/validate_ad_requirements_v1.mjs";
 // @ts-expect-error — plain .mjs oracle, no types by design
@@ -101,6 +104,73 @@ describe("Family placement v2", () => {
         validateFamilyPlacement(value).ok,
       );
       expect(validateFamilyPlacement(value).ok).toBe(false);
+    }
+  });
+});
+
+// #281 — the seventh fact's contract, the family placement's twin at its own version. Same two
+// outcomes and no third: nobody is ever asked which industry their employer was in.
+describe("Industry placement v1", () => {
+  const placements = fixture("industry-placement.valid.json");
+
+  it("accepts only confirmed and unmapped outcomes in oracle and zod", () => {
+    for (const placement of placements) {
+      expect(validateIndustryPlacement(placement).ok).toBe(true);
+      expect(IndustryPlacement.safeParse(placement).success).toBe(true);
+    }
+  });
+
+  it("carries one or more immutable industry versions, distinct, with an ordinal confidence", () => {
+    const [single, dual] = placements;
+    expect(single.industries).toEqual([{ industryId: "banking", version: 1 }]);
+    // Two industries is the ORDINARY plural case (a consultancy job served into banking), not an
+    // edge case — and the count stays unbounded so a labeler drifting to three stays visible.
+    expect(dual.industries).toHaveLength(2);
+
+    const three = structuredClone(dual);
+    three.industries.push({ industryId: "software", version: 1 });
+    expect(validateIndustryPlacement(three).ok).toBe(true);
+    expect(IndustryPlacement.safeParse(three).success).toBe(true);
+
+    for (const mutate of [
+      (value: any) => delete value.industries[0].version,
+      (value: any) => (value.industries = []),
+      (value: any) => (value.industries = null),
+      (value: any) => (value.industries = [null]),
+      (value: any) => (value.industries = "banking"),
+      // The same industry named twice — a job that is two of the same thing is not a plural case.
+      (value: any) => (value.industries = [value.industries[0], { ...value.industries[0] }]),
+      // A family placement is NOT an industry placement, however alike they look.
+      (value: any) => ((value.families = value.industries), delete value.industries),
+      (value: any) => (value.industries[0].industryId = "Banking"),
+      (value: any) => (value.industries[0].version = 0),
+      (value: any) => (value.schemaVersion = "2"),
+      (value: any) => (value.outcome = "needs_clarification"),
+      (value: any) => delete value.confidence,
+      (value: any) => (value.confidence = 0.8),
+      (value: any) => (value.confidence = "quite sure"),
+    ]) {
+      const value = structuredClone(single);
+      mutate(value);
+      expect(IndustryPlacement.safeParse(value).success).toBe(
+        validateIndustryPlacement(value).ok,
+      );
+      expect(validateIndustryPlacement(value).ok).toBe(false);
+    }
+  });
+
+  it("unmapped carries nothing at all — no industries, no confidence", () => {
+    for (const mutate of [
+      (value: any) => (value.confidence = "possible"),
+      (value: any) => (value.industries = [{ industryId: "banking", version: 1 }]),
+      (value: any) => (value.reason = "nothing fits"),
+    ]) {
+      const value = structuredClone(placements[2]);
+      mutate(value);
+      expect(IndustryPlacement.safeParse(value).success).toBe(
+        validateIndustryPlacement(value).ok,
+      );
+      expect(validateIndustryPlacement(value).ok).toBe(false);
     }
   });
 });

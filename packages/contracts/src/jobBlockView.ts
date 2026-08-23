@@ -5,6 +5,7 @@
 // jobCard.ts (85c0b19) — the contract owns the shape, the API composes it, the web re-exports
 // type-only, and drift fails typecheck instead of rendering undefined.
 import type { FamilyPlacement } from "./familyPlacement.js";
+import type { IndustryPlacement, IndustryVersionReference } from "./industryPlacement.js";
 import type { Kind, MinedDate, MinedEndValue, MinedJobBlock } from "./jobBlock.js";
 
 export type MatchState = "new" | "matched" | "ambiguous";
@@ -17,7 +18,7 @@ export type DecisionOrigin =
   | { kind: "worked_out" }
   | { kind: "corrected"; supersededValue: unknown };
 
-export type DecisionKey = "employer" | "title" | "start" | "end" | "kind" | "family";
+export type DecisionKey = "employer" | "title" | "start" | "end" | "kind" | "family" | "industry";
 
 /** One atomic machine decision, addressable by a stable id a correction can target. The value is
  *  typed per key (a corrected value is validated against the same per-key shape at the correction
@@ -45,11 +46,33 @@ export interface JobBlockView {
    *  null is kept rather than collapsed to an unmapped placement so the pipeline can tell a call it
    *  has already made from one it has not — that distinction is the labeling step's checkpoint. */
   family: DecisionView<FamilyPlacement | null>;
+  /** #281 — the SEVENTH correctable fact: which industry this job's employer (and, where they
+   *  differ, the work it was served into) was in. Same null discipline as `family`: null until the
+   *  industry labeler has answered for this block, which reads as UNMAPPED everywhere a number is
+   *  worked out and as "we couldn't place this" on the screen. The null is kept rather than
+   *  collapsed to an unmapped placement so the pipeline can tell a call it has already made from
+   *  one it has not — that distinction IS the labeling step's checkpoint.
+   *
+   *  Only ever non-null on a block of kind `job`: a degree or a personal project belongs to no
+   *  employer industry, and paying for a call that can only come back unmapped is waste. */
+  industry: DecisionView<IndustryPlacement | null>;
   confirmed: boolean;
   matchState: MatchState;
   /** Populated only when matchState === "ambiguous" — the existing block ids this one might be the
    *  same job as. The person resolves explicitly; empty otherwise. */
   candidateBlockIds: string[];
+}
+
+/** #281 — one entry of the published industry vocabulary as it travels to the screen: exactly the
+ *  reference a placement carries, plus the display name that names it. Defined HERE, beside the
+ *  view it rides with, for the reason this whole file exists — a placement carries ids and versions
+ *  only, so the screen has to be handed the names, and a hand-mirrored shape on either side is how
+ *  that read starts rendering undefined instead of failing typecheck.
+ *
+ *  The vocabulary itself is deliberately NOT a contract (it is published app data, see
+ *  apps/api/src/industryVocabulary.ts). This is the small slice of it that crosses the wire. */
+export interface PublishedIndustryChoice extends IndustryVersionReference {
+  label: string;
 }
 
 /** The negative test's three-way state: never run at all, ran and found N (0 is a real fact, not a

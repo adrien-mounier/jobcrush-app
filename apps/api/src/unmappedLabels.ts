@@ -17,8 +17,13 @@ import { incrementCounter } from "./counters.js";
 
 /** Which door the words came through — a target role the visitor typed, or a past job title read
  *  off their CV. The growth process treats them differently: one is what a person wants next, the
- *  other is what the labour market already contains. */
-export type UnmappedLabelSource = "target_role" | "past_job";
+ *  other is what the labour market already contains.
+ *
+ *  #281 adds a THIRD: an employer the INDUSTRY vocabulary could not place. It is its own source
+ *  rather than a flag beside `past_job` because the two feed different lists — a growth run reading
+ *  this one is deciding whether to publish a new industry, not a new job family. Stored as text, so
+ *  no migration: rows written before this existed keep their own source unchanged. */
+export type UnmappedLabelSource = "target_role" | "past_job" | "past_job_industry";
 
 export interface UnmappedLabelRecord {
   id: string;
@@ -240,7 +245,9 @@ export async function recordUnmappedLabel(
   label: string,
   reason: string,
 ): Promise<void> {
-  console.error(`[ops] family placement unmapped (${reason.trim().slice(0, TEXT_LIMIT)})`);
+  console.error(
+    `[ops] ${feed?.source === "past_job_industry" ? "industry" : "family"} placement unmapped (${reason.trim().slice(0, TEXT_LIMIT)})`,
+  );
   if (!feed) return;
   try {
     await feed.store.record({
@@ -250,7 +257,11 @@ export async function recordUnmappedLabel(
       reason,
     });
   } catch (err) {
-    incrementCounter("familyLabeler.unmapped_feed_failed");
+    incrementCounter(
+      feed.source === "past_job_industry"
+        ? "industryLabeler.unmapped_feed_failed"
+        : "familyLabeler.unmapped_feed_failed",
+    );
     console.error(
       `[ops] unmapped label feed write failed: ${err instanceof Error ? err.message : String(err)}`,
     );

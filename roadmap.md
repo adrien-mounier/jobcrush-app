@@ -46,8 +46,8 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Run order — what to build next
 
-**NEXT: 8b.2 #281** — the seventh fact on the job record, now that #280 has published the words.
-#284 can run alongside. Unscheduled, in the table: 8d #274 ·
+**NEXT: 8b.3 #282** — the cached employer web lookup, now that #281 has put the seventh fact on the
+job record. #284 can run alongside. Unscheduled, in the table: 8d #274 ·
 8e #278 · 7b.1 #250 (parked).
 Unscheduled, no row yet: #246 · #276 · #277.
 
@@ -136,7 +136,7 @@ cutting at the curve's cliff (80% → 51%) rather than a fixed number; either ru
 | ~~8c~~ | ~~#265~~ | ~~The labeler reaches for the nearest published family instead of answering unmapped~~ **DONE 2026-08-23** — rule was present-and-not-holding; fixed by product-discriminator + why-first prompt, str-21 green 11/11 runs | — | — | — |
 | 8b | #217 | Industry — the second label axis. **SPECCED 2026-08-23 as #279, sliced into six**: #280 vocabulary in groups → #281 seventh fact from the CV → #282 cached employer lookup → #283 the grid → #285 the industry bar answered; #284 (advert asks for industry years) runs alongside from #280. #285 is gated on #283 so no score leans on an unmeasured labeler | — | — | — |
 | ~~8b.1~~ | ~~#280~~ | ~~Industry vocabulary: a closed list in groups, near = same group, nothing judged at score time~~ **DONE 2026-08-23** — 15 industries in 7 groups, owner-approved as drafted | — | — | — |
-| 8b.2 | #281 | The seventh fact: every job carries its industry, from her own CV lines, correctable | `/implement` | Opus | high |
+| ~~8b.2~~ | ~~#281~~ | ~~The seventh fact: every job carries its industry, from her own CV lines, correctable~~ **DONE 2026-08-23** — placement contract + oracle, per-job checkpointed labeler, shown and correctable on the work-history screen; no number moved | — | — | — |
 | 8b.3 | #282 | What the employer really is: one cached web lookup per company, and the consultant also in banking | `/implement` | Opus | high |
 | 8b.4 | #283 | Measured before trusted: the industry labeler's grid, and the far pairs that catch a wide group | `/implement` | Fable | high |
 | 8b.5 | #284 | An advert can ask for years in an industry — the compound bar stops being one number | `/implement` | Opus | high |

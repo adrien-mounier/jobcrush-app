@@ -694,8 +694,14 @@ export type {
   DeckSummary as JobBlocksSummary,
   HeldSentence,
   FamilyPlacement,
+  IndustryPlacement,
+  // #281 — one entry of the published industry vocabulary. Re-exported type-only from the contract,
+  // never hand-mirrored here: the API composes it, the web reads it, and drift fails typecheck
+  // instead of rendering undefined (this file's own header rule).
+  PublishedIndustryChoice as PublishedIndustry,
 } from "@jobcrush/contracts";
 import type {
+  IndustryPlacement,
   Kind as JobBlockKind,
   MinedDate,
   MinedEndValue,
@@ -707,6 +713,10 @@ import type {
 export function getJobBlocks(): Promise<{
   blocks: JobBlockView[];
   summary: JobBlocksSummary;
+  /** Optional on purpose, not by oversight: the server always sends it, but during a rolling
+   *  deploy this client can be talking to an API that predates it, and a screen that renders
+   *  "we couldn't work this out" beats one that throws. */
+  industries?: import("@jobcrush/contracts").PublishedIndustryChoice[];
 }> {
   return jfetch("/api/job-blocks");
 }
@@ -730,7 +740,15 @@ export type JobBlockCorrection =
   // #221: the person's own answer to "what kind of work is this?" — a reference into the published
   // list, never free text. #231 removed the screen that ASKED it; the family stays a correctable
   // fact, so this door stays open for the correction surface that #128's machinery already has.
-  | { key: "family"; value: { familyId: string; version: number } };
+  | { key: "family"; value: { familyId: string; version: number } }
+  // #281: her own answer to "what industry was this job in?" — a reference into the published
+  // vocabulary, never free text. Unlike the family, this one HAS a surface (the correction panel's
+  // industry picker), because the screen shows the machine's answer and a shown answer must be
+  // correctable.
+  // The value is either a published reference (her pick) or a WHOLE placement (the undo, which has
+  // to put back an unmapped, or two industries at their own confidence, exactly as they were).
+  // See the API's CorrectBody for the full reasoning.
+  | { key: "industry"; value: { industryId: string; version: number } | IndustryPlacement };
 
 // #163: `held` — confirmed sentences this correction contradicted, now held aside with a precise
 // question each (ADR-0002 clause 3); they return to the CV when the person answers. `downstream`

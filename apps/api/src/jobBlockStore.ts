@@ -20,13 +20,18 @@ import type {
   DecisionView,
   DeckSummary,
   FamilyPlacement,
+  IndustryPlacement,
   JobBlockView,
   Kind,
   MatchState,
   MinedJobBlock,
   ReadStatus,
 } from "@jobcrush/contracts";
-import { countsTowardExperience, FamilyPlacement as FamilyPlacementContract } from "@jobcrush/contracts";
+import {
+  countsTowardExperience,
+  FamilyPlacement as FamilyPlacementContract,
+  IndustryPlacement as IndustryPlacementContract,
+} from "@jobcrush/contracts";
 import { getPool } from "./db.js";
 
 // #163: the view shapes moved to @jobcrush/contracts (jobBlockView.ts) so the web client stops
@@ -35,10 +40,10 @@ export type { DecisionKey, DecisionOrigin, DecisionView, DeckSummary, JobBlockVi
 
 export type MatchResolution = { type: "same"; matchedBlockId: string } | { type: "different" };
 
-/** The five decisions the MINER produces. `family` (#221) is the sixth fact on the view but is not
- *  one of these — nothing in the CV states it, so it is worked out afterwards and stored beside the
- *  mined block rather than inside it. */
-type MinedKey = Exclude<DecisionKey, "family">;
+/** The five decisions the MINER produces. `family` (#221) and `industry` (#281) are the sixth and
+ *  seventh facts on the view but are not among these — nothing in the CV states either, so they are
+ *  worked out afterwards and stored beside the mined block rather than inside it. */
+type MinedKey = Exclude<DecisionKey, "family" | "industry">;
 
 interface StoredBlock {
   block: MinedJobBlock;
@@ -47,6 +52,12 @@ interface StoredBlock {
    *  failed), which reads as unmapped. A correction lives in `corrections.family` and supersedes
    *  this without erasing it, so a re-run of the labeler can never overwrite a person's pick. */
   placement: FamilyPlacement | null;
+  /** #281 — the industry labeler's answer for this block, on exactly the same terms as `placement`
+   *  above: null = not labeled yet (never run, or its call failed), which reads as unmapped. A
+   *  correction lives in `corrections.industry` and supersedes this without erasing it, so a re-run
+   *  can never overwrite a person's pick. Held in its OWN column, not folded in beside the family:
+   *  the two axes are placed by two different labelers and either may land without the other. */
+  industryPlacement: IndustryPlacement | null;
   confirmed: boolean;
   matchState: MatchState;
   candidateBlockIds: string[];
@@ -90,6 +101,11 @@ export interface JobBlockStore {
    *  a correction sitting in `corrections.family` keeps winning at the view, so re-labeling can
    *  never overwrite what a person told us. Returns false when blockId is unknown. */
   label(sessionId: string, blockId: string, placement: FamilyPlacement): Promise<boolean>;
+  /** #281 — records the industry labeler's placement for one block, on the same terms as label():
+   *  ONLY the machine's answer is written, so a correction sitting in `corrections.industry` keeps
+   *  winning at the view and re-labeling can never overwrite what a person told us. Returns false
+   *  when blockId is unknown. */
+  labelIndustry(sessionId: string, blockId: string, placement: IndustryPlacement): Promise<boolean>;
   /** ADR-0004 clause 7 — detaches, never deletes; the block's sentences (claims) are untouched.
    *  Returns false when blockId is unknown. */
   detach(sessionId: string, blockId: string): Promise<boolean>;
@@ -183,6 +199,25 @@ function familyView(blockId: string, stored: StoredBlock): DecisionView<FamilyPl
   };
 }
 
+/** #281 — the seventh fact's own view, familyView's twin. Same reasoning throughout: no source
+ *  quote to fall back on (nothing in a CV states an industry — it is worked out from the employer,
+ *  the title and the person's own lines), and machine_touch/classification are judgements about
+ *  QUOTED text, so both stay null rather than being invented for a decision that quotes nothing. */
+function industryView(blockId: string, stored: StoredBlock): DecisionView<IndustryPlacement | null> {
+  // Parsed rather than cast, like familyView: this is a read out of jsonb, which is a trust
+  // boundary, and the contract is the only thing that knows what a valid placement is. Anything the
+  // current version refuses reads as NOT PLACED, so the labeler simply places it again.
+  const correction = IndustryPlacementContract.safeParse(stored.corrections.industry).data ?? null;
+  const placement = IndustryPlacementContract.safeParse(stored.industryPlacement).data ?? null;
+  return {
+    id: `${blockId}:industry`,
+    value: correction ?? placement,
+    origin: correction ? { kind: "corrected", supersededValue: placement } : { kind: "worked_out" },
+    machine_touch: null,
+    classification: null,
+  };
+}
+
 function toView(id: string, stored: StoredBlock): JobBlockView {
   const b = stored.block;
   const kindValue = (stored.corrections.kind ?? b.kind.value) as Kind;
@@ -196,6 +231,7 @@ function toView(id: string, stored: StoredBlock): JobBlockView {
     end: decisionView(id, "end", b.end, stored),
     kindDecision: decisionView(id, "kind", b.kind, stored),
     family: familyView(id, stored),
+    industry: industryView(id, stored),
     confirmed: stored.confirmed,
     matchState: stored.matchState,
     candidateBlockIds: stored.candidateBlockIds,
@@ -242,6 +278,7 @@ export class InMemoryJobBlockStore implements JobBlockStore {
         block: incoming,
         corrections: {},
         placement: null, // #221: labeled by its own pipeline step, after mining
+        industryPlacement: null, // #281: likewise, by its own step against its own vocabulary
         confirmed: false,
         matchState: verdict.kind === "ambiguous" ? "ambiguous" : "new",
         candidateBlockIds: verdict.kind === "ambiguous" ? verdict.candidateBlockIds : [],
@@ -317,6 +354,13 @@ export class InMemoryJobBlockStore implements JobBlockStore {
     return true;
   }
 
+  async labelIndustry(sessionId: string, blockId: string, placement: IndustryPlacement): Promise<boolean> {
+    const row = this.forSession(sessionId).get(blockId);
+    if (!row) return false;
+    row.industryPlacement = placement;
+    return true;
+  }
+
   async detach(sessionId: string, blockId: string): Promise<boolean> {
     return this.forSession(sessionId).delete(blockId);
   }
@@ -352,11 +396,15 @@ CREATE TABLE IF NOT EXISTS job_blocks (
   match_state    text NOT NULL,
   candidate_block_ids jsonb NOT NULL DEFAULT '[]',
   placement      jsonb,
+  industry_placement jsonb,
   PRIMARY KEY (session_id, block_id)
 )`;
 
-// #221 — for databases created before the labeler existed. Same idiom as claims.ts/sessions.ts.
-const JOB_BLOCKS_ALTERS = ["ALTER TABLE job_blocks ADD COLUMN IF NOT EXISTS placement jsonb"];
+// #221/#281 — for databases created before each labeler existed. Same idiom as claims.ts/sessions.ts.
+const JOB_BLOCKS_ALTERS = [
+  "ALTER TABLE job_blocks ADD COLUMN IF NOT EXISTS placement jsonb",
+  "ALTER TABLE job_blocks ADD COLUMN IF NOT EXISTS industry_placement jsonb",
+];
 
 // One row PER RUN (never upserted/overwritten) — a re-upload's raw output must never erase an
 // earlier run's, because blocks that earlier run produced can still be sitting in job_blocks.
@@ -376,6 +424,7 @@ function rowToStored(r: Record<string, unknown>): StoredBlock {
     block: r.block as MinedJobBlock,
     corrections: (r.corrections as Partial<Record<DecisionKey, unknown>>) ?? {},
     placement: (r.placement as FamilyPlacement | null) ?? null,
+    industryPlacement: (r.industry_placement as IndustryPlacement | null) ?? null,
     confirmed: r.confirmed as boolean,
     matchState: r.match_state as MatchState,
     candidateBlockIds: (r.candidate_block_ids as string[] | null) ?? [],
@@ -510,6 +559,14 @@ export class PgJobBlockStore implements JobBlockStore {
   async label(sessionId: string, blockId: string, placement: FamilyPlacement): Promise<boolean> {
     const res = await this.pool.query(
       `UPDATE job_blocks SET placement = $3 WHERE session_id = $1 AND block_id = $2`,
+      [sessionId, blockId, JSON.stringify(placement)],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async labelIndustry(sessionId: string, blockId: string, placement: IndustryPlacement): Promise<boolean> {
+    const res = await this.pool.query(
+      `UPDATE job_blocks SET industry_placement = $3 WHERE session_id = $1 AND block_id = $2`,
       [sessionId, blockId, JSON.stringify(placement)],
     );
     return (res.rowCount ?? 0) > 0;

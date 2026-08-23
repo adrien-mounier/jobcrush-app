@@ -73,6 +73,8 @@ import { makeGrillPhraser } from "./grill.js";
 import { makeCvAuditor } from "./audit.js";
 import { initialProductionFamilyFloors } from "./familyFloors.js";
 import { makeFamilyPlacer, makeJobBlockLabeler, publishedFamilies } from "./familyLabeler.js";
+import { makeJobBlockIndustryLabeler } from "./industryLabeler.js";
+import { publishedIndustryVocabulary } from "./industryVocabulary.js";
 import { InMemoryJobBlockStore } from "./jobBlockStore.js";
 import { InMemoryEligibilityStore } from "./eligibility.js";
 import { InMemoryUnmappedLabelStore } from "./unmappedLabels.js";
@@ -137,7 +139,7 @@ const DRAFT: Draft = {
   additional: [{ label: "Languages", value: "Polish (Native), English (Fluent)" }],
 };
 
-const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, jobBlocks: 0, judge: 0, familyPlacement: 0, unknown: 0 };
+const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, jobBlocks: 0, judge: 0, familyPlacement: 0, industryPlacement: 0, unknown: 0 };
 
 // A canned, contract-valid MinedJobBlocks doc (#161): three dated blocks exercising the shapes the
 // confirm deck cares about — a month-precision ended job, a year-precision ongoing job, and an
@@ -313,6 +315,23 @@ const fakeLlm: LlmClient = {
     if (prompt.includes("You place a job title into a job family")) {
       seen.familyPlacement += 1;
       return qaFamilyAnswer(roleFromLabelerPrompt(prompt));
+    }
+    // #281 — industry-labeler.md's own opening line. Answers by EMPLOYER, and deliberately walks
+    // both branches the screen has to render: the retail employer is placed, the unfamiliar systems
+    // house is honestly unplaced ("we couldn't work this one out"), and the degree never reaches
+    // here at all because non-jobs are never labeled.
+    if (prompt.includes("You place one job into the industry its employer was in")) {
+      seen.industryPlacement += 1;
+      const employer = (/^Employer: (.*)$/m.exec(prompt) ?? [, ""])[1]!.trim();
+      if (employer === "Nordic Retail Group") {
+        return JSON.stringify({
+          why: "A retail group — it sells goods to the public.",
+          outcome: "confirmed",
+          industryIds: ["retail-and-consumer"],
+          confidence: "certain",
+        });
+      }
+      return JSON.stringify({ why: "Nothing here says what this business is.", outcome: "unmapped" });
     }
     if (prompt.includes("Rephrase each item below")) {
       seen.grill += 1;
@@ -574,6 +593,8 @@ const blobs = new LocalDiskStorage(process.env.QA_UPLOAD_DIR ?? join(process.cwd
 // One store, read twice below: the routes serve floors from it, and #220's labeler places roles into
 // the same published vocabulary. Two calls would build two catalogs that only happen to agree.
 const qaProductionFamilyFloors = initialProductionFamilyFloors();
+// #281 — one vocabulary, shared by the labeler below and the correction door, as in main.ts.
+const qaIndustryVocabulary = publishedIndustryVocabulary();
 
 // #221: same reasoning — the labeling step writes placements into the very store the /job-blocks
 // route reads back, so both must be handed the one instance.
@@ -602,6 +623,7 @@ const { app } = buildServer({
   // entry that never ships, never in routes/auth.ts.
   authRateLimiter: new IpRateLimiter(1000, 60 * 60 * 1000),
   productionFamilyFloors: qaProductionFamilyFloors,
+  industryVocabulary: qaIndustryVocabulary,
   // #220: the real job labeler over the fake model, against the real published vocabulary — so a QA
   // journey can walk the production discovery checkpoint (open for a confirmed visitor, honestly
   // closed for an unmapped one) end to end without a paid call. Same seam main.ts uses.
@@ -632,6 +654,17 @@ const { app } = buildServer({
     // one degree the vocabulary does not cover, so a QA journey can walk both the confident case
     // (no question asked) and the "we couldn't place this" question on the review screen.
     labelJobBlocks: makeJobBlockLabeler(fakeLlm, publishedFamilies(qaProductionFamilyFloors), qaJobBlocks, qaEligibility, qaUnmappedLabels),
+    // #281: the seventh fact over the same fake model — the canned CV places one job and honestly
+    // fails to place the other, so a QA journey walks both states of the work-history screen.
+    labelJobBlockIndustries: makeJobBlockIndustryLabeler(
+      fakeLlm,
+      qaIndustryVocabulary.activeIndustries(),
+      qaJobBlocks,
+      // No claim store to read lines from in the QA build (it never wires one), so the fake places
+      // on employer + title alone — which is exactly the degraded "small unknown employer" path.
+      undefined,
+      qaUnmappedLabels,
+    ),
     // #272: no preview step, mirroring main.ts — the upload pipeline no longer tailors a draft.
   },
   phraseGrill: makeGrillPhraser(fakeLlm),

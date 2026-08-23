@@ -7,6 +7,7 @@ export * from "./jobBlock.js";
 export * from "./jobBlockView.js";
 export * from "./familyFloor.js";
 export * from "./familyPlacement.js";
+export * from "./industryPlacement.js";
 export * from "./adRequirements.js";
 export * from "./jobCard.js";
 export * from "./postingRetrieval.js";

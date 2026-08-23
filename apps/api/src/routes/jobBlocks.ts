@@ -6,20 +6,29 @@ import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import {
   FamilyVersionReference,
+  IndustryPlacement as IndustryPlacementContract,
+  IndustryVersionReference,
   MinedDate,
   MinedEndValue,
   KINDS,
   countsTowardExperience,
+  INDUSTRY_PLACEMENT_SCHEMA_VERSION,
   PLACEMENT_SCHEMA_VERSION,
 } from "@jobcrush/contracts";
-import type { FamilyPlacement, Kind, HeldSentence } from "@jobcrush/contracts";
+import type {
+  FamilyPlacement,
+  IndustryPlacement,
+  Kind,
+  HeldSentence,
+  PublishedIndustryChoice,
+} from "@jobcrush/contracts";
 import { holdContradictingSentences } from "../heldSentences.js";
 import { requireSession } from "../server.js";
 import type { DecisionKey, JobBlockStore, JobBlockView } from "../jobBlockStore.js";
 import type { ClaimStore } from "../claims.js";
 import type { EligibilityStore } from "../eligibility.js";
 import { refreshWorkedYears, verifyWorkedYears } from "../yearsWorked.js";
-import { retryJobBlockLabels } from "../jobBlockPlacementRetry.js";
+import { runLabelerRetry } from "../jobBlockPlacementRetry.js";
 
 export interface JobBlocksDeps {
   jobBlocks: JobBlockStore;
@@ -36,7 +45,15 @@ export interface JobBlocksDeps {
    *  something outside the screen enforces it. Absent → no families offered and every family
    *  correction is refused, which is the correct behaviour for a build with no registry wired. */
   families?: () => Array<{ familyId: string; version: number; label: string }>;
+  /** #281: the closed published INDUSTRY vocabulary, on exactly the same terms as `families` above —
+   *  it is what an industry correction is checked against, which is what makes the vocabulary
+   *  closed outside the screen. Absent → every industry correction is refused, which is the correct
+   *  behaviour for a build with no vocabulary wired. */
+  industries?: () => PublishedIndustryChoice[];
   retryJobBlockLabels?: (sessionId: string) => Promise<void>;
+  /** #281: the industry half of the same best-effort retry — a job left unplaced by an earlier
+   *  labeler miss is placed before the screen reads it. Idempotent by the step's own checkpoint. */
+  retryJobBlockIndustryLabels?: (sessionId: string) => Promise<void>;
 }
 
 const Params = z.object({ blockId: z.string() });
@@ -55,6 +72,20 @@ const CorrectBody = z.discriminatedUnion("key", [
   // published list, never free text. Which family versions actually exist is checked in the handler
   // (the contract can only police the shape).
   z.object({ key: z.literal("family"), value: FamilyVersionReference }),
+  // #281: her own answer to "what industry was this?" — a reference into the closed published
+  // vocabulary, never free text. Which industry versions actually exist is checked in the handler.
+  //
+  // Or a WHOLE placement, which is the UNDO rather than a second way to answer. #157 Design A's "no
+  // action in this flow is irreversible without a visible undo" binds here because the screen offers
+  // an industry picker — and a single reference cannot express what the undo has to put back: the
+  // machine may have said "no industry fits", or it may have said TWO (a consultancy job served into
+  // banking), at a confidence of its own. Restoring only the first of two, at a confidence nobody
+  // measured, is an undo that quietly changes the answer — so the door takes the placement whole.
+  // Every industry it names is still checked against the published vocabulary in the handler.
+  z.object({
+    key: z.literal("industry"),
+    value: z.union([IndustryVersionReference, IndustryPlacementContract]),
+  }),
 ]);
 
 const ResolveMatchBody = z.discriminatedUnion("resolution", [
@@ -99,6 +130,10 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
     const publishedChoices = () =>
       (deps.families?.() ?? []).map(({ familyId, version, label }) => ({ familyId, version, label }));
 
+    // #281: the same guard for the second axis — only a PUBLISHED industry may be stored, or a
+    // person's numbers would be pinned to an industry that does not exist.
+    const publishedIndustryChoices = (): PublishedIndustryChoice[] => deps.industries?.() ?? [];
+
     // The confirm deck's own read: every dated block, each of its five decisions (value + origin +
     // machine_touch + classification + a stable per-decision id a correction can target), whether
     // it counts toward experience (derived, never asked), an ambiguous block's candidate ids, plus
@@ -106,7 +141,8 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
     // here — "failed" is distinct from "ok, blocksFound: 0").
     app.get("/job-blocks", async (req) => {
       const session = requireSession(req);
-      await retryJobBlockLabels(deps.retryJobBlockLabels, session.id, fastify.log);
+      await runLabelerRetry(deps.retryJobBlockLabels, session.id, fastify.log);
+      await runLabelerRetry(deps.retryJobBlockIndustryLabels, session.id, fastify.log);
       const [blocks, summary] = await Promise.all([
         deps.jobBlocks.list(session.id),
         deps.jobBlocks.summary(session.id),
@@ -120,7 +156,14 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
       // screen could offer choices for a job nobody could place — nobody is asked any more, so this
       // was a list nothing read. The list itself still guards the CORRECTION door below, where the
       // closed vocabulary is actually enforced.
-      return { blocks, summary };
+      //
+      // #281: the published INDUSTRIES do travel, for the opposite reason — something reads them.
+      // The work-history screen prints the industry beside the employer, and a placement carries ids
+      // and versions only, so the display names have to come from the same publication the labeler
+      // placed into. It is also what the correction picker offers, so the screen can never offer a
+      // choice the correction door would then refuse. Not a question: a list to show and to pick
+      // from when she disagrees, never a prompt asking her which industry she was in.
+      return { blocks, summary, industries: publishedIndustryChoices() };
     });
 
     app.post(
@@ -164,6 +207,53 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
         // machine-placed one are the same shape everywhere downstream.
         let stored: unknown = value;
         let familyLabel: string | null = null;
+        let industryLabel: string | null = null;
+        if (key === "industry" && "schemaVersion" in value) {
+          // The undo path — see CorrectBody's own note. Stored as a correction rather than by
+          // clearing one, because the store has no un-correct: what she reads back is exactly what
+          // she read before the correction she is undoing, confidence and second industry included.
+          const choices = publishedIndustryChoices();
+          const named = value.outcome === "confirmed" ? value.industries : [];
+          // Checked one by one, like the single-reference path: an undo is still a write, and a
+          // vocabulary that has moved on since the placement was made must not slip an unpublished
+          // industry back in through the door that exists to keep the vocabulary closed.
+          const unpublished = named.find(
+            (ref) => !choices.some((i) => i.industryId === ref.industryId && i.version === ref.version),
+          );
+          if (unpublished) {
+            return reply
+              .status(400)
+              .send({ error: { code: "unknown_industry", message: "no such published industry" } });
+          }
+          const names = named.map(
+            (ref) => choices.find((i) => i.industryId === ref.industryId)?.label ?? ref.industryId,
+          );
+          industryLabel = names.length ? names.join(" and ") : null;
+          stored = value;
+        } else if (key === "industry" && "industryId" in value) {
+          const named = value;
+          const known = publishedIndustryChoices().find(
+            (industry) => industry.industryId === named.industryId && industry.version === named.version,
+          );
+          if (!known) {
+            return reply
+              .status(400)
+              .send({ error: { code: "unknown_industry", message: "no such published industry" } });
+          }
+          industryLabel = known.label;
+          stored = {
+            schemaVersion: INDUSTRY_PLACEMENT_SCHEMA_VERSION,
+            outcome: "confirmed",
+            industries: [{ industryId: known.industryId, version: known.version }],
+            // Her own answer is the one placement nothing is unsure about, so it is never
+            // attenuated. The machine's doubt was about the machine.
+            confidence: "certain",
+            // KNOWN LIMIT, same as the family door's: a correction names ONE industry and
+            // supersedes whatever was there, so correcting a job the machine placed in two narrows
+            // it to one. That is the right reading of the only correction a screen can currently
+            // express ("this job was in X"). Widen when a surface exists that can say "it was both".
+          } satisfies IndustryPlacement;
+        }
         if (key === "family") {
           const known = publishedChoices().find(
             (family) => family.familyId === value.familyId && family.version === value.version,
@@ -201,9 +291,9 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
             kind: before.kindDecision,
           } as const;
           // `kind` is excluded: its values ("job", …) are generic words that would false-match.
-          // `family` is excluded for a stronger reason: it quotes no source words at all, so no
-          // confirmed sentence can be carrying the value it supersedes.
-          if (key !== "kind" && key !== "family") {
+          // `family` and `industry` are excluded for a stronger reason: both quote no source words
+          // at all, so no confirmed sentence can be carrying the value they supersede.
+          if (key !== "kind" && key !== "family" && key !== "industry") {
             held = await holdContradictingSentences(
               deps.claims,
               session.id,
@@ -216,7 +306,14 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
         await reworkYears(session.id);
         // `before` exists whenever correct() found the block; null only on a delete race.
         const downstream =
-          key === "family"
+          key === "industry"
+            ? // #281 moves no number, and this sentence must not imply one. It says what the
+              // correction actually did: the label is hers now. The years-per-industry consequence
+              // arrives with the thing that computes it (#285).
+              (industryLabel
+                ? `We'll show this job as ${industryLabel} from now on.`
+                : "We've put this job's industry back to not knowing.")
+            : key === "family"
             ? // Deliberately says only what is true TODAY. Naming a per-family years number here
               // would promise a readback nothing computes yet (that is #222) — the same rule
               // downstreamMessage below already follows for the total.

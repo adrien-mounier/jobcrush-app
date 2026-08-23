@@ -72,6 +72,13 @@ describe("#103 posting-pool counters", () => {
       "familyLabeler.output_invalid": 0,
       "familyLabeler.call_failed": 0,
       "familyLabeler.unmapped_feed_failed": 0,
+      // #281 — the second label axis's own five, exposed on the same ops surface.
+      "industryLabeler.placed": 0,
+      "industryLabeler.multi_industry": 0,
+      "industryLabeler.unmapped": 0,
+      "industryLabeler.output_invalid": 0,
+      "industryLabeler.call_failed": 0,
+      "industryLabeler.unmapped_feed_failed": 0,
       "usageLedger.pricing_override_rejected": 0,
       // #117 — see counters.ts's own header for what these mean.
       "judge.subset_reused": 0,

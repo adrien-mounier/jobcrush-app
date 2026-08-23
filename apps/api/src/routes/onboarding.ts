@@ -60,7 +60,7 @@ import {
 import { applyFallbackChoice, fallbackOffer } from "../deckFallback.js";
 import { makeRetrievalCoordinator, retrievalIsInProgress } from "../deckRetrieval.js";
 import { answerLanguageLevel, LanguageLevelBody, withLanguageLevelAsks } from "../languageLevel.js";
-import { retryJobBlockLabels } from "../jobBlockPlacementRetry.js";
+import { runLabelerRetry } from "../jobBlockPlacementRetry.js";
 import { findWithdrawingRequirement, partitionByWithdrawal } from "../withdrawal.js";
 import {
   composeCvLine,
@@ -621,7 +621,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     app.get("/onboarding/cards", async (req) => {
       const session = requireSession(req);
       deps.watchFamilyCandidate?.(session); // #236 — background, never awaited, never user-visible.
-      await retryJobBlockLabels(deps.retryJobBlockLabels, session.id, fastify.log);
+      await runLabelerRetry(deps.retryJobBlockLabels, session.id, fastify.log);
       const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
       const retrievalRequest = retrievalRequestForSession(session, confirmed, negatives);
       const requestFingerprint = retrievalFingerprint(retrievalRequest);
@@ -680,7 +680,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       { schema: { body: z.object({ accepted: z.boolean() }) } },
       async (req) => {
         const session = requireSession(req);
-        await retryJobBlockLabels(deps.retryJobBlockLabels, session.id, fastify.log);
+        await runLabelerRetry(deps.retryJobBlockLabels, session.id, fastify.log);
         const blocks = await deps.jobBlocks.list(session.id);
         return {
           fallback: await applyFallbackChoice(

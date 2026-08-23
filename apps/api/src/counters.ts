@@ -315,6 +315,30 @@ const counts = {
   // feed never fails a placement) — this is the number that says the growth process is losing
   // words it should be collecting.
   "familyLabeler.unmapped_feed_failed": 0,
+  // #281 — the same five NUMBERS for the SECOND label axis, namespaced industryLabeler.*, and read
+  // exactly the same way. One word differs on purpose: the family axis counts `confirmed` (the
+  // contract's own outcome word), this one counts `placed`, which is the word #281 and the whole
+  // industry spec use for the same event. Aligning the ops name to the ticket beat aligning it to
+  // its sibling; the outcome literal in the contract is `confirmed` in both.
+  // `placed` and `unmapped` are the outcome split (a labeler that quietly stopped
+  // placing anyone, or started placing everyone, looks identical from every other surface);
+  // output_invalid and call_failed keep "the prompt/contract is drifting" apart from "the provider
+  // call failed"; every output_invalid also lands in unmapped, so unmapped reads as "unmapped, of
+  // which output_invalid were degradations rather than real answers".
+  //
+  // multi_industry is the industry twin of multi_family, and it carries MORE signal here: two
+  // industries on one job is the ORDINARY plural case (the employer's own, and the one the work was
+  // served into), so this number falling to zero is as much a fault as it climbing — it means the
+  // labeler has stopped telling a consultancy apart from the bank it worked for.
+  "industryLabeler.placed": 0,
+  "industryLabeler.multi_industry": 0,
+  "industryLabeler.unmapped": 0,
+  "industryLabeler.output_invalid": 0,
+  "industryLabeler.call_failed": 0,
+  // The industry twin of familyLabeler.unmapped_feed_failed. Its own name, not the family one: an
+  // operator reading a rising familyLabeler.* number goes looking at the family vocabulary, and the
+  // words being lost would be industries.
+  "industryLabeler.unmapped_feed_failed": 0,
 };
 
 export type CounterName = keyof typeof counts;

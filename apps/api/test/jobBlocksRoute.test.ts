@@ -24,10 +24,19 @@ describe("GET /job-blocks", () => {
     expect(res.statusCode).toBe(200);
     // #231: the deck no longer carries the published families. They were here so the review screen
     // could offer choices for an unplaced job; nobody is asked any more, so nothing read them.
-    expect(res.json()).toEqual({
-      blocks: [],
-      summary: { totalBlocks: 0, confirmedBlocks: 0, read: { status: "not_run" } },
-    });
+    // #281: the published INDUSTRIES do travel, because something reads them — the work-history
+    // screen prints the industry beside the employer, and a placement carries ids and versions only.
+    const body = res.json();
+    expect(body.blocks).toEqual([]);
+    expect(body.summary).toEqual({ totalBlocks: 0, confirmedBlocks: 0, read: { status: "not_run" } });
+    // The whole closed list, each entry carrying exactly what a screen needs to name and pick it.
+    expect(body.industries.length).toBeGreaterThanOrEqual(10);
+    expect(body.industries).toContainEqual({ industryId: "banking", label: "Banking", version: 1 });
+    for (const entry of body.industries) {
+      expect(Object.keys(entry).sort()).toEqual(["industryId", "label", "version"]);
+    }
+    // No fourth key: the deck is blocks, totals and the vocabulary that names them, nothing else.
+    expect(Object.keys(body).sort()).toEqual(["blocks", "industries", "summary"]);
   });
 });
 

@@ -2,6 +2,67 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-23 (session 163) `/implement 281` — the seventh fact: every job carries its industry (QA GO)
+
+Closes #281 (row 8b.2, struck). The second of #279's six tickets, and the first one a visitor can
+see: after #280 published the words, this puts them on the job record.
+
+**What shipped:** every dated block of kind `job` now carries an **industry placement** — a new
+contract in both the zod port (`packages/contracts/src/industryPlacement.ts`) and the `.mjs` oracle
+(`validate_industry_placement.mjs`) at version 1, golden-tested against each other over a shared
+fixture plus 14 mutations. Two outcomes and no third: `confirmed` (one or more industry-version
+references plus *certain/likely/possible*) or `unmapped`. Nobody is ever asked.
+
+The labeler (`apps/api/src/industryLabeler.ts` + `prompts/industry-labeler.md`) is the family
+labeler's twin, deliberately NOT an extension of it — different vocabulary, different grid, and
+#282 will hang a web lookup on this call that the family half will never make. Evidence today is
+the employer, the title and **her own CV lines for that job**, matched through the claim store's
+`role` field (employer + title as written), which is the only link this repo has between a mined
+sentence and a mined block. That is why its pipeline step runs at **2.5, after the claim miner**,
+not at 1.6 beside the family half — the lines do not exist until step 2 has persisted them.
+
+**Two industries is the ordinary case, not an edge case.** A consultancy job served into banking is
+honestly both, and the contract puts no cap on the count — the instruction holds the line at two and
+`industryLabeler.multi_industry` makes a drift visible. That counter falling to zero is as much a
+fault as it climbing: it would mean the labeler stopped telling a consultancy apart from its client.
+
+**On the screen:** the work-history card prints the industry under the employer, and a job we could
+not place says so plainly rather than borrowing the nearest industry. The correction panel offers
+the published list to pick from. It is a statement and a control, never a question — the picker's
+label is `Industry`, and `job-blocks-industry.spec.ts` asserts no industry question exists anywhere
+in the deck.
+
+**No number moved**, by design: nothing outside the #281 files reads `.industry`. The years bar and
+the scoring are #284/#285.
+
+**Two reviews and a QA gate each changed the work — worth reading before #282:**
+
+- **Standards** caught the published-industry shape hand-declared in three places (now one type in
+  contracts, `PublishedIndustryChoice`), and `server.ts` reading its own second copy of the
+  vocabulary off disk instead of taking the wired one — the correction door and the labeler could
+  have disagreed about what was published. Both now take one injected `industryVocabulary`, exactly
+  as `productionFamilyFloors` already worked.
+- **Spec** caught the real bug: the no-vocabulary early return said `degraded: false`, so a
+  publication that failed to load would have written `unmapped` onto every job **permanently** —
+  the per-job checkpoint would then skip them forever, and they would still be unplaced the day the
+  vocabulary loaded. Now `degraded: true`, which is never stored. Same review caught the picker's
+  label reading as a question, and the ambiguous-match card silently dropping the industry line.
+- **QA GO** found two more, both on the multi-industry surface, both fixed and pinned: narrowing a
+  two-industry job to its **first-listed** industry sent nothing at all (the head-only comparison
+  matched, while the panel's own copy promised it would replace both), and the undo restored only
+  the first of two, at a confidence nobody measured. The correction door now takes a **whole
+  placement** for the undo, not a single reference — an undo has to put back an unmapped, or two
+  industries at their own confidence, and one reference cannot say either.
+
+**Gates:** 1653 API + contract tests, 159 mocked browser tests, typecheck and build green. QA drove
+the real journey end to end on the fake model — **USD 0.00 spent**, no paid call in this ticket.
+
+**Carry-forward for #282/#285:** the correction door still narrows to ONE industry when she picks
+(the KNOWN LIMIT the family door also carries) — nothing on any surface can yet say "it was both".
+And `linesFor` matches claims on the **employer substring**, so two jobs at the same employer share
+their lines; tighten to employer+title only if #283's grid shows served-industry answers bleeding
+between roles.
+
 ## 2026-08-23 (session 162) `/implement 280` — the industry vocabulary: 15 words in 7 groups, and closeness that asks nobody
 
 Closes #280 (row 8b.1, struck). The first of #279's six tickets. Nothing a visitor sees changes —

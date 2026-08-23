@@ -78,6 +78,12 @@ export interface PipelineDeps {
    *  retry re-spends nothing. Optional like the steps above; absent → blocks stay unlabeled, which
    *  reads as unmapped everywhere. */
   labelJobBlocks?: (sessionId: string) => Promise<void>;
+  /** #281: places every not-yet-placed dated JOB of this session in an industry. Its own step and
+   *  its own per-job checkpoint (the stored industry placement), for the same reason the family half
+   *  has one — a retry re-spends nothing. Separate from labelJobBlocks deliberately: two
+   *  vocabularies, two grids, two calls. Optional; absent → jobs stay unplaced, which reads as
+   *  unmapped and moves no number. */
+  labelJobBlockIndustries?: (sessionId: string) => Promise<void>;
   /** Best-effort guestbook write; called once on any terminal state. Never throws into the run. */
   recordVisit?: (visit: VisitRecord) => Promise<void>;
 }
@@ -278,6 +284,21 @@ export async function runOnboardingJob(
           `Mined ${mined.claims.length} claims from ${mined.roles} roles — ` +
             `${mined.needsGrill} will need a quick check from you later.`,
         );
+      }
+    }
+
+    // Step 2.5 — industry labels (#281): what kind of BUSINESS each dated job's employer was.
+    // AFTER the claim miner on purpose, unlike the family half at 1.6: this labeler's strongest
+    // evidence is the person's own CV lines for the job, and those only exist once step 2 has
+    // persisted them. Its own per-job checkpoint means a run that gets here on a retry places only
+    // what is still unplaced, and a run that never gets here (a miner failure) leaves the jobs
+    // unplaced for the next pass to pick up. A failure here never fails the upload.
+    if (deps.labelJobBlockIndustries && job?.sessionId) {
+      await appendFeed(store, jobId, "Working out what industry each job was in…");
+      try {
+        await deps.labelJobBlockIndustries(job.sessionId);
+      } catch (err) {
+        console.error("[pipeline] job-block industry labeling failed", err);
       }
     }
 

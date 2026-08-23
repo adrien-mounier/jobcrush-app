@@ -231,6 +231,22 @@
   margin: 0 0 auto;
   letter-spacing: -0.01em;
 }
+/* #281 — the industry, stated beside the employer it describes. Quieter than the readback (it is a
+   fact ABOUT the job, not the job) and quieter still when we could not work it out, so an honest
+   "we don't know" never shouts louder than what we do know. */
+.jobblocks .jb-industry {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: var(--jc-sp-sm) 0 0;
+  color: var(--jc-ink-muted);
+}
+.jobblocks .jb-industry b {
+  color: var(--jc-ink);
+}
+.jobblocks .jb-industry[data-placed="false"] {
+  font-style: italic;
+}
+
 .jobblocks .jb-quote {
   color: var(--jc-ink-muted);
   font-size: 0.83rem;

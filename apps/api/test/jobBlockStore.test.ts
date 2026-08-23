@@ -110,6 +110,37 @@ for (const [name, make] of drivers) {
       expect(await store.label(sid, "no-such-block", unmapped)).toBe(false);
     });
 
+    // #281 — the seventh fact, on BOTH drivers, for exactly the reason above: production runs the
+    // Postgres one, and an industry that only round-trips in memory is a label that vanishes.
+    it("an industry placement round-trips in its own column, and her correction outranks a re-label", async () => {
+      await store.ingest(sid, { schemaVersion: "1", blocks: [job({ id: "a" })] }, "raw");
+      const fresh = (await store.list(sid))[0]!;
+      expect(fresh.industry.value).toBeNull(); // unlabeled until the industry labeler runs
+
+      const unmapped = { schemaVersion: "1", outcome: "unmapped" } as const;
+      expect(await store.labelIndustry(sid, "a", unmapped)).toBe(true);
+      const labeled = (await store.list(sid))[0]!;
+      expect(labeled.industry.value).toEqual(unmapped);
+      expect(labeled.industry.origin).toEqual({ kind: "worked_out" });
+      // Its own column: writing the industry never disturbs the family, and vice versa.
+      expect(labeled.family.value).toBeNull();
+
+      const picked = {
+        schemaVersion: "1",
+        outcome: "confirmed",
+        industries: [{ industryId: "banking", version: 1 }],
+        confidence: "certain",
+      } as const;
+      await store.correct(sid, "a", "industry", picked);
+      // A later run of the labeler writes the machine's answer — and is still not what she reads.
+      await store.labelIndustry(sid, "a", unmapped);
+      const corrected = (await store.list(sid))[0]!.industry;
+      expect(corrected.value).toEqual(picked);
+      expect(corrected.origin).toEqual({ kind: "corrected", supersededValue: unmapped });
+
+      expect(await store.labelIndustry(sid, "no-such-block", unmapped)).toBe(false);
+    });
+
     it("year-level precision stores no invented month", async () => {
       await store.ingest(
         sid,
