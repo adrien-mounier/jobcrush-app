@@ -28,24 +28,21 @@ Every decided design shape is recorded in `docs/adr/`. **Read the relevant ADR b
 capture, render, or the claim graph.** The ADRs are the normative home; most are decided but not yet
 built, so confirm in code before relying on any check one describes.
 
-## Relationship to the JobCrush repo (read this before touching CV logic)
+## The CV brain is the source of truth (read before touching CV logic)
 
-- **This repo owns the CV brain.** CV-tailoring reasoning + research live in
-  [`docs/cv-brain/`](docs/cv-brain/README.md) — forked from JobCrush 2026-07-18, evolving here
-  independently. Do all CV-reasoning work here; JobCrush is frozen for CV logic.
-- **No two-way sync, ever.** If an improvement here also helps JobCrush's pipeline, port that single
-  insight by hand — a silent two-way sync is the drift that caused the JC-2 rating failure.
-- Full boundary record: JobCrush's `docs/boundary-with-jobcrush-app.md`.
-
-## The CV brain is the source of truth
-
-`docs/cv-brain/` is what the pipeline must stay true to: `cv-authoring-rules.md` (output +
-writing-style rules), `tailoring-reasoning.md` (taxonomy, classification, gap handling, the
-conservation principle), `research/`. The pipeline that implements it:
-`apps/api/prompts/{claim-miner,preview-tailor}.md` and `apps/api/src/preview.ts` (the canonical
+[`docs/cv-brain/`](docs/cv-brain/README.md) is what the pipeline must stay true to:
+`cv-authoring-rules.md` (output + writing-style rules), `tailoring-reasoning.md` (taxonomy,
+classification, gap handling, the conservation principle), `research/`. The pipeline that implements
+it: `apps/api/prompts/{claim-miner,preview-tailor}.md` and `apps/api/src/preview.ts` (the canonical
 Draft schema + `conservationIssues()` lint — the mechanical enforcement of **"tailor by emphasis,
 not amputation"**). Change the rules → update `docs/cv-brain/` too; it is the reference, not a copy
 to let rot.
+
+**Do all CV-reasoning work here.** The brain was forked from JobCrush 2026-07-18 and evolves here
+independently; JobCrush is frozen for CV logic. **No two-way sync, ever** — if an improvement here
+also helps JobCrush's pipeline, port that single insight by hand; a silent two-way sync is the drift
+that caused the JC-2 rating failure. Full boundary record: JobCrush's
+`docs/boundary-with-jobcrush-app.md`.
 
 **Owner philosophy (map #127 decision 9):** a CV is a marketing document. The product **proposes**
 stretches, softens them so they stay defensible, and attaches an interview narrative — it never
@@ -64,12 +61,11 @@ When a meaningful unit of work lands (see session hygiene):
    `main` to Fly staging on every green push, so a push is a deploy** — the green gate is
    non-negotiable.
 
-   One exception, added 2026-08-15 to stop burning the month's CI budget on prose: **a push touching
-   ONLY `docs/**`, root-level `*.md`, `.claude/**` or `screenshots/**` runs no CI and does not
-   deploy** (`.github/workflows/ci.yml` `paths-ignore`). Everything else — including
-   `apps/api/prompts/*.md`, which are the product, not documentation — is code and still gates the
-   deploy. Run the pipeline by hand on a skipped push with the workflow's `workflow_dispatch`.
-   **A superseded run is now cancelled**, so pushing again supersedes the previous push's checks.
+   One exception: **a docs-only push runs no CI and does not deploy** (the `paths-ignore` list
+   in `.github/workflows/ci.yml`). `apps/api/prompts/*.md` are the product, not documentation — they
+   are code and still gate the deploy. Run the pipeline by hand on a skipped push with the
+   workflow's `workflow_dispatch`. **A superseded run is cancelled**, so pushing again supersedes the
+   previous push's checks.
 
 **`Closes #123` on its own line ends a finishing commit — written only after `/qa-gate` returns
 GO.** The keyword acts on push, the same moment the deploy does, so a `Closes` written earlier
@@ -100,24 +96,17 @@ between those.
 
 - **Confirmation gates are server-side.** No export/submit route may exist for unverified content
   (spec §8-3). Pipeline stages checkpoint LLM outputs so retries never re-spend.
-- **Coding discipline:** simplest thing that works, surgical diffs, no speculative abstractions.
-  Read the code a change touches before writing.
 
 ## Layout
 
-| Path | What |
-|---|---|
-| `apps/api` | Fastify API + job store/SSE; the mine → tailor → render preview pipeline (`src/preview.ts`, `prompts/`) |
-| `apps/web` / `apps/mobile` | Next.js web shell / mobile client |
-| `packages/contracts` | Zod ports of the frozen contracts, golden-tested against the `.mjs` oracle validators (`oracle/`) |
-| `packages/api-client` | Typed client shared by web + mobile |
-| `packages/ui` | Design tokens |
-| `docs/cv-brain/` | The forked CV brain — source of truth for CV reasoning + research |
-| `docs/`, `Dockerfile*`, `fly.*.toml` | Deploy (`deploy.md`), runbooks, per-slice kickoffs |
+Standard pnpm monorepo (`apps/{api,web,mobile}`, `packages/`, `docs/`). The non-obvious parts:
+`packages/contracts` holds the zod ports, golden-tested against the `.mjs` oracle validators in
+`oracle/`; `packages/ui` is design tokens only; deploy lives at the root (`docs/deploy.md`,
+`Dockerfile*`, `fly.*.toml`).
 
 ## Develop
 
-Standard pnpm monorepo — commands are in `package.json`. Smoke test after a build:
+Commands are in `package.json`. Smoke test after a build:
 `node apps/api/dist/main.js`, then `curl localhost:3000/healthz`.
 
 The LLM seam (`apps/api/src/llm.ts`): a real `ANTHROPIC_API_KEY` uses the Anthropic API; local dev
@@ -125,11 +114,9 @@ falls back to the Claude Code CLI; tests inject a fake. Model: `claude-sonnet-5`
 
 ## Agent skills
 
-This repo runs the **development-lifecycle** workflow from the **mattpocock-skills plugin**
-(`/grill-with-docs` or `/wayfinder` → `/to-spec` → `/to-tickets` → `/implement` → `/code-review`),
-plus the local **`/qa-gate`** skill: after `/implement` + `/code-review` and before any commit, the
-independent `qa-tester` agent re-runs the gates, audits every acceptance criterion, and drives the
-real app in a browser with evidence — commit only on GO.
+The lifecycle is the plugin's, plus the local **`/qa-gate`**: after `/implement` + `/code-review`
+and before any commit, the independent `qa-tester` agent re-runs the gates, audits every acceptance
+criterion, and drives the real app in a browser with evidence — commit only on GO.
 
   **This file outranks a skill's own closing line.** `/implement` ends with "commit your work to
   the current branch" and names neither a gate nor a tracker — it is written for repos with
@@ -149,9 +136,3 @@ real app in a browser with evidence — commit only on GO.
 - **Coding standards:** `CODING_STANDARDS.md` — read and cited by the Standards axis of
   `/code-review`.
 
-## Claude Code specifics
-
-Unlike the JobCrush repo, this repo has no bundled Claude Code subagents, slash commands, or CV-lint
-hooks — it is a conventional TypeScript monorepo. CV rules are enforced by code
-(`conservationIssues()` + the zod Draft schema + prompt discipline). When changing miner/tailor
-prompts or the Draft schema, open `docs/cv-brain/` yourself as the reference.
