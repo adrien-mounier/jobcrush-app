@@ -50,7 +50,9 @@ no autonomous submit, no LinkedIn credentials, ever).
 and moved confidence onto each industry; nothing may lean on either number until the grid has
 measured it, which is why #285 is gated on this one. #284 can run alongside. Unscheduled, in the
 table: 8d #274 · 8e #278 · 7b.1 #250 (parked).
-Unscheduled, no row yet: #246 · #276 · #277.
+Unscheduled, no row yet: #246 · #276 · #277 · **#286** (a visitor who signs in and comes straight
+back is shown the reveal twice — `wall.spec.ts:90`, red since at least #281, found by #282's QA
+gate).
 
 _Ordered 2026-08-13 over all open issues. **This goes stale on every landing** — when a ticket
 closes, strike it here in the same commit, and when a dependency claim stops being true, fix it
