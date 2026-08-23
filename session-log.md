@@ -2,6 +2,45 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-23 (session 164b) `/implement 283` — measured before trusted: the industry labeler's grid
+
+#283 built, run and GREEN — not closed: the ticket closes when the owner arbitrates the twelve
+drafted entries below. The grid is the fourth of #279's six tickets and the one #285 is gated on:
+nothing may lean on the industry label until this measured it.
+
+**What shipped** (`apps/api/eval/industry-labeler-grid.json`, `industryHarness.ts`,
+`industryLabeler.eval.ts`; `pnpm --filter @jobcrush/api eval:industry-labeler`):
+
+- **68 hand-labeled entries**: 52 labeler cases (15 one-per-industry fits, 5 scope-edge traps like
+  the health insurer and the pharma company, 5 consultant/contractor multi-industry cases, 4
+  one-client-once controls, 8 unknown small employers placed on lines alone, 12 strangers, plus
+  French/German/messy-input cases) and 16 closeness pairs (7 near, 9 far) read off the published
+  group tree for free — the section that catches a group drawn too wide.
+- **The run measures production's own wiring**: `llmFromEnv()` (claude-sonnet-5) with the real
+  `makeEmployerLookup` in front — live paid web lookups, in-run cache. Without `ANTHROPIC_API_KEY`
+  it fails fast at $0 rather than going green on the CLI fallback (spec #279's trap note, enforced).
+  A degraded case (call failed / output unparseable twice) fails the run before any rate is
+  believed. Categories are each reported on their own number.
+- **First real run, green at every bar**: comparable accuracy 100% (bar 95), stranger catch-rate
+  100% (bar 90), false-unknown 0% (bar 5); confidence 100% and exactly 5 multi-industry placements
+  (the 5 multi cases — the instruction holds the line at two), both reported unbarred. All 9 far
+  pairs read far, so no group needed splitting. **Spend: 52 labeler calls ($0.75) + 48 billed
+  lookups ($5.80) = $6.54**, priced from the providers' published rates; ~6 min at concurrency 4.
+- QA gate: GO, $0 spent — 14 fake-client tests proved the degradation gate, the set-matching miss
+  rule and that the bars genuinely bite. Fast lane 1643 green; grid pointer added beside the prompt
+  and in `docs/deploy.md`.
+
+**Owner arbitration pending (12 entries, each note names the competing reading):** fit-05 Infosys,
+edge-03 Duolingo, edge-04 Stripe, edge-05 Booking.com, multi-03 Hays contractor, unk-06 accounting
+practice, str-01 law firm, str-08 Rio Tinto, str-09 British Army, and pairs near-05 (retail↔
+hospitality), near-06 (consulting↔staffing), near-07 (healthcare↔education — the sharpest: the
+public-and-social group makes a hospital career credit a school bar at ×0.9; disagreeing splits the
+group and re-runs the grid).
+
+**One run, single-shot caveat**: the family lane's str-21 lesson says flip-prone cases show over
+several runs. This grid has one green run behind it; a future red on any single case is a re-run
+several times before it is called a regression, not a one-shot verdict.
+
 ## 2026-08-23 (session 164) `/implement 282` — what the employer really is, and the consultant also in banking
 
 Closes #282 (row 8b.3, struck). The third of #279's six tickets: #281 could place a job from the

@@ -98,8 +98,9 @@ export interface GridRates {
 }
 
 /** Wraps a shared client so ONE case's calls and tokens are counted on their own, whatever else is
- *  running concurrently. */
-function perCase(llm: LlmClient) {
+ *  running concurrently. Exported for the industry lane (industryHarness.ts), which counts its own
+ *  cases the same way — no family domain in here. */
+export function perCase(llm: LlmClient) {
   const tally = { calls: 0, inputTokens: 0, outputTokens: 0 };
   const wrapped: LlmClient = {
     model: llm.model,
@@ -168,7 +169,7 @@ export async function runGrid(
   return results.sort((a, b) => a.id.localeCompare(b.id));
 }
 
-const sameSet = (a: string[] | undefined, b: string[] | undefined): boolean =>
+export const sameSet = (a: string[] | undefined, b: string[] | undefined): boolean =>
   !!a && !!b && a.length === b.length && [...a].sort().join("|") === [...b].sort().join("|");
 
 export function rateGrid(results: GridResult[]): GridRates {

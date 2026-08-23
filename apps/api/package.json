@@ -11,6 +11,7 @@
     "start:qa": "node dist/qa-main.js",
     "test": "vitest run",
     "eval:labeler": "vitest run --config vitest.eval.config.ts familyLabeler",
+    "eval:industry-labeler": "vitest run --config vitest.eval.config.ts industryLabeler",
     "eval:bakeoff": "vitest run --config vitest.eval.config.ts modelBakeoff",
     "set-r2-cors": "node scripts/set-r2-cors.mjs",
     "techmap-smoke": "node scripts/techmap-smoke.mjs"

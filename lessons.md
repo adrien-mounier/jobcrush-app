@@ -1,5 +1,15 @@
 # Lessons — jobcrush-app
 
+## A web-search call's cost is mostly tokens, not the search fee — price the tokens first
+
+Learned 2026-08-23 (#283). The industry grid run was estimated at $3–5 by counting searches
+(48 lookups × up to 3 × $0.01 ≈ $1.44) and guessing lightly at tokens; it actually cost $6.54,
+because each server-side web-search call carries its fetched results back through the context as
+INPUT tokens — the 48 lookups billed $5.80, roughly four-fifths of it tokens. The rule: when
+estimating a web-search-backed spend, the per-search fee is the SMALL half; budget ~$0.10–0.15 per
+lookup on claude-sonnet-5 and treat the search fee as the rounding. Same trap will apply to any
+future search-tool stage.
+
 ## A `next dev` run poisons the `.next` directory for the next `next start`
 
 Learned 2026-08-23 (#281). The route-mocked browser specs hung on "Reading your work history…" and

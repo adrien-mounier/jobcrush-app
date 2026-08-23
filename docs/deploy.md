@@ -12,7 +12,9 @@
 > discovery down), which is exactly why nothing will alarm if you forget it. Set it with:
 > `fly secrets set FIREWORKS_API_KEY=<key> -a jobcrush-api-staging`.
 > Changing `FAMILY_PLACEMENT_MODEL` is only honest after re-running the gate against the new model:
-> `pnpm --filter @jobcrush/api eval:labeler`.
+> `pnpm --filter @jobcrush/api eval:labeler`. The industry labeler has its own gate on the same
+> terms (#283): `pnpm --filter @jobcrush/api eval:industry-labeler` (needs `ANTHROPIC_API_KEY`,
+> real paid calls) — re-run it before believing any change to its prompt, model or vocabulary.
 > Also recorded in `SHARED_INFRA.md`'s third-party credentials inventory — update both if rotated.
 
 > **`TECHMAP_RAPIDAPI_KEY` — the first paid third-party dependency (#100).** Techmap's Jobs API

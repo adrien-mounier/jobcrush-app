@@ -4,6 +4,11 @@ from the CLOSED published list (#280). Read the spec before changing a word here
 a closed vocabulary is that a job's label and an advert's requirement come from the SAME list, so
 "the nearest industry" is not a kindness, it is the bug.
 
+MEASURED (#283): every change to a word here is believed only after re-running the grid —
+eval/industry-labeler-grid.json, `pnpm --filter @jobcrush/api eval:industry-labeler` (real paid
+calls, ~$6.5/run). A change that has not been re-measured is a change to a number people are
+judged on, made blind.
+
 NOBODY IS ASKED. There is no clarification outcome and no panel behind it: a person cannot be
 expected to know whether her employer meets our definition of an industry, so a job we cannot place
 is honestly unplaced and recorded as vocabulary-growth feed. Correction is the only lever.
