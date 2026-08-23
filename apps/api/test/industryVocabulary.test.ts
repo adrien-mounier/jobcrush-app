@@ -190,6 +190,13 @@ describe("industry closeness", () => {
     expect(vocabulary.closeness("software", "logistics-and-transport")).toBe("far");
   });
 
+  it("keeps healthcare and education far — the v2 split, owner-arbitrated (grid pair near-07)", () => {
+    // The public-and-social group bundled care and teaching by shared purpose, not shared business.
+    // Owner ruling 2026-08-23: a hospital career must not credit a school advert's industry bar.
+    expect(vocabulary.closeness("healthcare", "education")).toBe("far");
+    expect(vocabulary.closeness("education", "healthcare")).toBe("far");
+  });
+
   it("answers far for an industry we never published", () => {
     expect(vocabulary.closeness("banking", "quidditch")).toBe("far");
     expect(vocabulary.closeness("quidditch", "quidditch")).toBe("far");

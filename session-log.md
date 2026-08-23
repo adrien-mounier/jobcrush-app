@@ -2,6 +2,34 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-23 (session 164c) — the owner arbitrates #283's twelve, and the public-and-social group splits
+
+Closes #283 (row 8b.4, struck; #285's gate lifted). The owner walked all twelve drafted grid
+entries one at a time, live. **Eleven drafts ratified** — each ruling now written into the grid
+note with `arbitration: true` (family-grid convention): Infosys it-services alone (one stamp, the
+MAIN business — a self-description naming two of our words never adds a second industry); Duolingo
+software; Stripe finance (a payments-risk career earns ×0.9 toward banking adverts, by intent);
+Booking.com hospitality; the Hays contractor keeps staffing+banking (the scope's own sentence,
+with the bounded fiction — spurious recruitment-industry credit — accepted with eyes open);
+the small accounting practice is consulting (the scope's enumerated list is the boundary);
+law firm / Rio Tinto / British Army stay unmapped (legal and mining enter via vocabulary growth;
+the army sells nothing and a soldier's logistics skill is the family axis's fact);
+retail↔hospitality and consulting↔staffing stay near — the latter ruled explicitly at the COMPANY
+level after the owner probed it: the industry dial transfers the business world, and the
+person-level work difference stays guarded by family bars.
+
+**One draft overruled: near-07.** Care and teaching are different businesses that merely share a
+non-profit purpose, so a hospital career must credit a school advert's bar NOTHING. Executed as
+**vocabulary v2** (`apps/api/research/industry-vocabulary-v2.json`): public-and-social splits into
+`health-and-care` and `education-and-training`; healthcare and education move there at version 2;
+public-and-social stays defined (empty) so v1-stored placements remain readable. The labeler never
+sees groups, so **the $6.54 paid run stays a valid measurement** — only closeness changed. Free
+re-checks green: pairs now 6/6 near + 10/10 far, and a new fast-lane test locks
+healthcare↔education = far both ways (1644 api tests). Scoped QA gate on the slice: GO, $0.
+
+The arbitration cost nothing: eleven ratifications were free by construction (the model had agreed
+with every draft), and the one overrule was a pair, which is data — the cheap kind of wrong.
+
 ## 2026-08-23 (session 164b) `/implement 283` — measured before trusted: the industry labeler's grid
 
 #283 built, run and GREEN — not closed: the ticket closes when the owner arbitrates the twelve

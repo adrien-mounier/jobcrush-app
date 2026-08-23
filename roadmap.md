@@ -46,11 +46,10 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Run order — what to build next
 
-**NEXT: the owner arbitrates #283's twelve drafted grid entries** (list in the session-164b log
-entry; sharpest three: near-07 hospital-vs-school near credit, edge-04 Stripe finance-vs-software,
-str-01 law firm unmapped-vs-consulting), then 8b.5 #284 — which could already run alongside — and
-8b.6 #285. The grid itself is BUILT and GREEN at every bar (2026-08-23, $6.54 run); #283 closes,
-and #285's gate lifts, when the arbitration lands. Unscheduled, in the
+**NEXT: 8b.5 #284** — an advert can ask for years in an industry. #283 closed 2026-08-23: the grid
+is green at every bar and all twelve drafted entries are owner-arbitrated (one overruled — the
+public-and-social group split, vocabulary v2, so healthcare no longer credits education bars).
+#285's gate is lifted; it follows #284. Unscheduled, in the
 table: 8d #274 · 8e #278 · 7b.1 #250 (parked).
 Unscheduled, no row yet: #246 · #276 · #277 · **#286** (a visitor who signs in and comes straight
 back is shown the reveal twice — `wall.spec.ts:90`, red since at least #281, found by #282's QA
@@ -143,7 +142,7 @@ cutting at the curve's cliff (80% → 51%) rather than a fixed number; either ru
 | ~~8b.1~~ | ~~#280~~ | ~~Industry vocabulary: a closed list in groups, near = same group, nothing judged at score time~~ **DONE 2026-08-23** — 15 industries in 7 groups, owner-approved as drafted | — | — | — |
 | ~~8b.2~~ | ~~#281~~ | ~~The seventh fact: every job carries its industry, from her own CV lines, correctable~~ **DONE 2026-08-23** — placement contract + oracle, per-job checkpointed labeler, shown and correctable on the work-history screen; no number moved | — | — | — |
 | ~~8b.3~~ | ~~#282~~ | ~~What the employer really is: one cached web lookup per company, and the consultant also in banking~~ **DONE 2026-08-23** — Anthropic server-side web search, one durable cross-visitor cache row per company; placement contract to v2 (confidence per industry, zod + oracle together). Proven on the real API: USD 0.66 recorded over 13 calls | — | — | — |
-| 8b.4 | #283 | Measured before trusted: the industry labeler's grid, and the far pairs that catch a wide group — **BUILT & GREEN 2026-08-23** (52 cases + 16 pairs, 100/100/0 against bars 95/90/5, $6.54 run); open only for owner arbitration of 12 drafted entries | owner arbitration | — | — |
+| ~~8b.4~~ | ~~#283~~ | ~~Measured before trusted: the industry labeler's grid, and the far pairs that catch a wide group~~ **DONE 2026-08-23** — 52 cases + 16 pairs green at 100/100/0 (bars 95/90/5, $6.54 run); all 12 drafts owner-arbitrated same day, near-07 overruled → public-and-social split (vocabulary v2) | — | — | — |
 | 8b.5 | #284 | An advert can ask for years in an industry — the compound bar stops being one number | `/implement` | Opus | high |
 | 8b.6 | #285 | Eight years at a bank answer a finance bar in full, and the card sinks instead of lying | `/implement` | Fable | high |
 | 8d | #274 | One text field style across the product — today there are four, and two of them zoom the page on an iPhone on the main journey. Unscheduled, no blockers | `/implement` | Opus | medium |

@@ -172,10 +172,13 @@ export class IndustryVocabulary {
 }
 
 /** The production vocabulary. Every publication is loaded oldest first, for the same reason the
- *  family registry loads every version: a placement stored against v1 is read back by v1. */
+ *  family registry loads every version: a placement stored against v1 is read back by v1.
+ *  v2 (2026-08-23, owner arbitration of grid pair near-07): the public-and-social group is split —
+ *  healthcare and education each hold their own group, so a hospital career no longer credits a
+ *  school advert's bar. The labeler never sees groups, so v2 changes no placement, only closeness. */
 export function publishedIndustryVocabulary(): IndustryVocabulary {
   const vocabulary = new IndustryVocabulary();
-  for (const file of ["../research/industry-vocabulary-v1.json"]) {
+  for (const file of ["../research/industry-vocabulary-v1.json", "../research/industry-vocabulary-v2.json"]) {
     vocabulary.publish(JSON.parse(readFileSync(new URL(file, import.meta.url), "utf8")));
   }
   return vocabulary;
