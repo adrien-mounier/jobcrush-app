@@ -53,6 +53,35 @@ not a silent gap.
 `sample-ad-requirements.json`'s motivating advert deliberately still carries `total` + `family` —
 migrating it would have moved a number. It is the fixture #285 has to update.
 
+## 2026-08-23 (session 164e) — the reading measured at last, and the harness told what it is not worth
+
+Owner approved the live reading pass #284's gate left as a residual. New deliberate-lane harness
+`apps/api/eval/adReaderScopes.eval.ts` (`pnpm --filter @jobcrush/api eval:ad-reader-scopes`): 7
+hand-written adverts × 3 samples, real model, real published vocabulary, asserting the SCOPE the
+reader chooses. **21/21 at the expected scope. $0.4411 over 21 calls**, priced from
+`llmPricing.ts` (claude-sonnet-5, $3/M in, $15/M out) — estimated $0.45 before spending.
+
+🔑 **The gate disproved the harness's own headline claim, and the file now says so.** It wrote back
+#284's shipped collision (the bare *"N+ years' experience"* form claimed by BOTH the family and the
+total bullet) and read the harness's own cases through it: **6/6 still correct**, at the harness
+digit and at a neutral one. So `bare-family` / `bare-total-overall` are **not** a discriminating
+guard — that collision was a latent TEXT defect a human found by reading, never an observed misread,
+and this harness would have slept through it. The header now states exactly that, and the two cases
+are kept as live regression samples rather than as proof. **What IS prompt-sensitive by
+construction:** the four cases naming an industry id — the model can only produce those from the
+injected vocabulary block, and `unpublished-industry` (aerospace, in neither v1 nor v2) can only
+come back empty if the closed-list rule actually holds. 3/3 on that one.
+
+⚠️ **A guard I wrote was itself vacuous, caught by verifying instead of assuming.** The gate's
+suggested one-liner — `expect(results.length).toBe(CASES.length * REPEATS)` — passes at
+`EVAL_REPEATS=0`, because `0 === 0`. Ran it: green, zero calls, zero proof. Replaced with a check on
+`REPEATS` itself, placed before any spend, and re-verified that it now fails at 0 while still
+spending nothing.
+
+Lesson filed: a canned-answer test suite cannot catch a prompt that says two contradictory things,
+but a live reading pass only catches the ambiguities the model actually trips on — the two are
+different guarantees and neither substitutes for reading the prompt.
+
 ## 2026-08-23 (session 164c) — the owner arbitrates #283's twelve, and the public-and-social group splits
 
 Closes #283 (row 8b.4, struck; #285's gate lifted). The owner walked all twelve drafted grid

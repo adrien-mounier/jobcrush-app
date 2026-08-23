@@ -13,6 +13,7 @@
     "eval:labeler": "vitest run --config vitest.eval.config.ts familyLabeler",
     "eval:industry-labeler": "vitest run --config vitest.eval.config.ts industryLabeler",
     "eval:bakeoff": "vitest run --config vitest.eval.config.ts modelBakeoff",
+    "eval:ad-reader-scopes": "vitest run --config vitest.eval.config.ts adReaderScopes",
     "set-r2-cors": "node scripts/set-r2-cors.mjs",
     "techmap-smoke": "node scripts/techmap-smoke.mjs"
   },
