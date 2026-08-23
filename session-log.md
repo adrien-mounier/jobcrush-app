@@ -2,6 +2,38 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-24 — the knowledge graph caught a dangling cross-reference the docs had carried since July
+
+Graph rebuilt incrementally after the industry-axis tickets landed (155 changed files: 131 code via
+AST, 24 docs via two extraction agents; 8 deleted files pruned). **4,765 → 5,175 nodes**, 7,996
+edges, graph health clean. ~274k tokens, all on the docs — code extraction is free.
+
+The interesting output was not the graph, it was one edge it refused to resolve. It tagged the link
+between `tailoring-reasoning.md` §4's family floor and `onboarding-reward-design.md` §6's ranked
+essential floor **AMBIGUOUS**, because both nodes were minted by a *third* file
+(`docs/research/bullet-budget-floor-vs-achievement.md`) that cites both and encodes neither.
+
+**Traced, and the graph was more right than the first answer given.** §4's closing sentence pointed
+at `onboarding-reward-design.md` **§6.2** — and §6 has no subsections; the headings run straight from
+*6. Adaptive discovery* to *7. The credible reveal*. That dangling pointer has been there since the
+2026-07-23 clarification. The same sentence also still claimed the floor *"does not exist yet"*,
+untrue since `familyFloors.ts` / `FamilyFloorV1` shipped with published families.
+
+**The real finding underneath, and it is open: covered ≠ printable.** §4 says tick the floor off like
+a checklist. §6 counts an item covered by an explicit *"No"*, stored as a first-class
+**non-renderable** negative. So a fully covered floor can hold items that print nothing, and no
+document says what the CV does about the difference → **[#287](https://github.com/adrien-mounier/jobcrush-app/issues/287)**
+(decision + CV-brain amendment; no code implied yet). The #150 research recorded this as *"two floors
+wear one name"* — that framing is wrong (there is one floor; §4 defers to it) but the gap it pointed
+at is real.
+
+**Deliberately not done: no rename.** All ten docs that use "family floor", plus ADR-0014, ADR-0015,
+CONTEXT.md and the versioned contract in code, already mean the discovery floor. §4 was the lone
+outlier and it defers rather than competing, so the fix is one file, not a contract bump.
+
+Repo output: `docs/cv-brain/tailoring-reasoning.md` §4 amended (pointer fixed, staleness removed,
+the open gap flagged in place), one ticket. **No code changed.**
+
 ## 2026-08-24 — staging hand-deployed to `b5913ad`: 50 commits, three weeks of work, one deploy
 
 Owner asked for everything undeployed to go live so they could test it. GitHub Actions has been

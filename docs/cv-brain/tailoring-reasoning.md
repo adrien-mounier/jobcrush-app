@@ -61,9 +61,16 @@ merely states ("experienced in stakeholder management", with no supporting role 
 > missing it.**
 >
 > So do not read the clusters below as a checklist of what a CV must cover. A discriminator is a tally
-> you compare; a floor is a checklist you tick off. The floor is **E5's offline family research and
-> does not exist yet**; the shape it has to take is written down in
-> `docs/onboarding-reward-design.md` §6.2.
+> you compare; a floor is a checklist you tick off. That floor is the **discovery floor** —
+> the same one `docs/onboarding-reward-design.md` §6 ranks and adaptive discovery walks. It is
+> built and versioned (`apps/api/src/familyFloors.ts`, `FamilyFloorV1`); the note that it
+> "does not exist yet" was true when this clarification was written and is not true now.
+>
+> ⚠️ **Covered is not the same as printable, and this document does not yet say what to do about
+> it.** §6 counts a floor item as covered by an explicit *"No"*, stored as a first-class
+> **non-renderable** negative — so a fully covered floor can contain items that print nothing.
+> Ticking the floor off is therefore not sufficient instruction for a CV write. Open:
+> [#287](https://github.com/adrien-mounier/jobcrush-app/issues/287).
 
 Signals are additive. Tally per cluster; the dominant cluster sets the CV's language. Note secondary
 clusters.
