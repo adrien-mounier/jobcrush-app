@@ -96,7 +96,13 @@ export function judgedUncoveredRequirements(
  *  tests either the visitor's years in the advert's family (`yearsScope` absent or "family" — the
  *  plain reading of "5+ years' experience" on a role advert) or the career total (`yearsScope:
  *  "total"` — "8+ years of professional experience"). A compound sentence is two requirements, one
- *  per scope, so it sees both numbers at once. WHAT the family number is (a real fact, the honest
+ *  per scope, so it sees both numbers at once.
+ *
+ *  #284 added a THIRD scope, "industry" ("8+ years of IT experience", naming a published industry).
+ *  It has no number of its own here yet — nobody's years are written per industry until #285 — so it
+ *  reads the career total, which is exactly how such a bar was answered BEFORE the scope existed.
+ *  That is deliberate: #284 makes the advert's question legible and moves no card score, card order
+ *  or years figure. #285 gives it its own number, at the industry's closeness. WHAT the family number is (a real fact, the honest
  *  known zero when every job is placed elsewhere, or the old generous career-total fallback while
  *  years are genuinely unaccounted for) is the caller's resolution — deck.ts's resolveSessionYears,
  *  ADR-0014 amendment 1 decision 6. A null at either scope means UNTESTABLE and leaves the verdict
@@ -109,7 +115,8 @@ export function judgedUncoveredRequirements(
 export interface YearsAtScopes {
   /** Years tested by a family-scope bar. Null = untestable (no usable work history). */
   family: number | null;
-  /** Years tested by a total-scope bar — the career total. Null = untestable. */
+  /** Years tested by a total-scope bar — the career total, and (until #285) an industry-scope bar
+   *  too. Null = untestable. */
   total: number | null;
 }
 
@@ -120,7 +127,7 @@ export function isFamilyScopeYearsBar(req: AdRequirementV1): boolean {
   return (
     req.eligibilityDimension === "years-experience" &&
     req.comparable?.op === ">=" &&
-    req.yearsScope !== "total"
+    (req.yearsScope ?? "family") === "family"
   );
 }
 
@@ -137,7 +144,11 @@ export function applyYearsShortfall(
     if (!req || req.eligibilityDimension !== "years-experience" || req.comparable?.op !== ">=" || !bar) {
       return v;
     }
-    const userYears = req.yearsScope === "total" ? years.total : years.family;
+    // Through isFamilyScopeYearsBar, so the scope test has exactly ONE definition (the dimension and
+    // op halves of it are already established by the guard above). Everything that is not a family
+    // bar reads the career total — the "total" scope, and (until #285) the "industry" scope too;
+    // see this function's own docblock for why #284 deliberately moves no number.
+    const userYears = isFamilyScopeYearsBar(req) ? years.family : years.total;
     if (userYears === null) return v;
     // Clamped to [0,1], not just capped at 1: the contract's `comparable.value` is any `number` (the
     // oracle never rules out a negative one), and years/NEGATIVE_BAR is itself negative — an

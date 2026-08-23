@@ -22,8 +22,9 @@ const COMPARE_OPS = [">=", "<=", "=="];
 // side only (the explicit "I don't speak this"); the contract accepts it here rather than growing a
 // second enum, and adReader.ts's clamp is what keeps it off a read requirement.
 const LANGUAGE_LEVELS = ["not-at-all", "a-few-words", "gets-by", "meetings", "negotiate", "native"];
-// #222 — the two scopes a years bar can test (see the yearsScope check below).
-const YEARS_SCOPES = ["family", "total"];
+// #222 — the scopes a years bar can test (see the yearsScope check below). #284 added "industry":
+// a bar naming a published industry, whose id rides on `yearsIndustry`.
+const YEARS_SCOPES = ["family", "industry", "total"];
 
 function exactKeys(e, value, keys, at) {
   if (!isObject(value)) return;
@@ -76,6 +77,7 @@ export function validateAdRequirementsV1(value) {
         "eligibilitySubject",
         "eligibilityLevel",
         "yearsScope",
+        "yearsIndustry",
         "sourceSpan",
       ],
       at,
@@ -120,6 +122,15 @@ export function validateAdRequirementsV1(value) {
     e.require(
       req.yearsScope === undefined || oneOf(req.yearsScope, YEARS_SCOPES),
       `${at}.yearsScope is invalid`,
+    );
+    // #284 — additive v1 field: WHICH published industry an industry-scope bar is about, as an id
+    // from the published vocabulary. Optional at the CONTRACT level even beside an "industry" scope
+    // — an advert naming an industry we do not publish carries none, and the bar is then untestable.
+    // Whether an id is actually published is not this validator's to know (the vocabulary is
+    // published app data, not a wire shape); adReader.ts's clamp is what refuses an unpublished one.
+    e.require(
+      req.yearsIndustry === undefined || isNonEmptyString(req.yearsIndustry),
+      `${at}.yearsIndustry must be a non-empty string`,
     );
     if (req.comparable !== undefined) {
       const c = req.comparable;

@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { AdRequirementV1, AdRequirementsV1 } from "@jobcrush/contracts";
 import {
   applyYearsShortfall,
+  isFamilyScopeYearsBar,
   judgedBreakdown,
   judgedMatchTick,
   judgedPickHitClause,
@@ -310,6 +311,34 @@ describe("#107 applyYearsShortfall", () => {
       const adjusted = applyYearsShortfall(verdicts, compoundAd, { family: null, total: 4 });
       expect(adjusted.find((v) => v.requirementId === "family-bar")!.fit).toBe(0.6); // untouched
       expect(adjusted.find((v) => v.requirementId === "total-bar")!.fit).toBeCloseTo(0.3); // 0.6 * 4/8
+    });
+  });
+
+  // #284 AC7 — the advert reader can now say "industry", and NOTHING is scored differently for it
+  // yet. An industry bar is answered exactly as it was before the scope existed: "8+ years of IT
+  // experience" against the career total. #285 is what makes it read her years in that industry.
+  describe("#284 an industry-scope bar moves no number yet", () => {
+    const industryBar: AdRequirementV1 = {
+      ...yearsReq,
+      id: "years-bar",
+      yearsScope: "industry",
+      yearsIndustry: "it-services",
+    };
+    const industryAd: AdRequirementsV1 = { ...AD, requirements: [industryBar] };
+    const totalAd: AdRequirementsV1 = { ...AD, requirements: [{ ...industryBar, yearsScope: "total" as const }] };
+
+    it("scores exactly as the total bar it used to be read as", () => {
+      const verdicts = [verdict("years-bar", 0.8)];
+      const years = { family: 2, total: 4 };
+      expect(applyYearsShortfall(verdicts, industryAd, years)).toEqual(
+        applyYearsShortfall(verdicts, totalAd, years),
+      );
+      expect(applyYearsShortfall(verdicts, industryAd, years)[0]!.fit).toBeCloseTo(0.4); // 0.8 * 4/8
+    });
+
+    it("is not a family-scope bar — the family-confidence attenuation never leans on it", () => {
+      expect(isFamilyScopeYearsBar(industryBar)).toBe(false);
+      expect(isFamilyScopeYearsBar({ ...industryBar, yearsScope: undefined })).toBe(true);
     });
   });
 });

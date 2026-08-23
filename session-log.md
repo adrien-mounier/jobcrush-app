@@ -2,6 +2,57 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-23 (session 164d) — an advert can finally ask for years in an industry, and nobody's number moves
+
+Closes #284 (row 8b.5, struck). The advert reader gains the third years scope. *"8+ years of IT
+experience including 5+ years as a Project Manager"* now comes back as **two** requirements — an
+industry bar at `it-services` and a family bar — each quoting the same sentence it was drawn from.
+Before this, the first half had no scope of its own and was read as a career-total bar, so eight
+years in retail passed an IT bar.
+
+- **Contract, both homes together:** `yearsScope` gains `"industry"` and a new optional
+  `yearsIndustry` names the published industry id — additive v1 extension, zod port + `.mjs` oracle
+  moved in the same commit and golden-tested against each other. All 10 stored payloads / 65
+  requirements in `sample-ad-requirements.json` still validate unchanged (verified by the QA gate,
+  not assumed).
+- **Closed vocabulary, enforced in code:** the reader is handed
+  `industryVocabulary.activeIndustries()` (15 ids) exactly as it is handed the published family
+  list, and `clampIndustryScope` drops any id that is not published — the twin of `clampFamilyFit`,
+  counted as `adReader.industry_clamped`. An advert naming an industry we do not publish carries
+  **none** and keeps the scope, which reads as an absence rather than a wrong id: our missing
+  vocabulary is never charged to the person.
+- **`PROMPT_CONTRACT_VERSION` adreq/3 → adreq/4**, and the industries block is folded into
+  `adReaderVersion`'s hash — the #243 trap, applied to the second vocabulary. Every stored advert is
+  lazily re-read once, at most, the next time a visitor opens it.
+- **No number moved (the ticket's AC7).** An industry bar is answered exactly as it was BEFORE the
+  scope existed — against the career total — so no card score, card order or years figure changes.
+  `isFamilyScopeYearsBar` is now the ONE definition of the scope test, used by both `judgedScore.ts`
+  and `deck.ts`'s family-confidence attenuation guard. #285 replaces that branch with her years in
+  the advert's industry at its closeness.
+
+🔑 **The QA gate caught a prompt defect no test could have.** Rewriting the scope bullets put
+*"5+ years' experience"* (family) and *"10+ years' experience"* (total) — identical construction,
+opposite scopes — in the same section. A model picking `total` would answer a common role bar
+against the bigger career number: **silent score inflation**, exactly what AC7 forbids. Every
+advert-reader test injects a canned model answer, so the whole suite would have stayed green.
+Fixed by qualifying the example (*"…overall"*) and naming the bare form explicitly as the family
+reading. **NO-GO → fix → GO.**
+
+⚠️ **Standing residual, owner's call:** nothing automated proves a real model reads an advert at the
+scope the prompt asks for — every reader test hands the answer in. The gate's recommendation is a
+small live reading pass (#110-style) over six phrasings: the compound sentence, bare *"5+ years'
+experience"*, *"10+ years' experience overall"*, *"8+ years of professional experience"*, *"5+
+years in banking"*, and one naming an unpublished industry. A handful of calls, inside the
+petty-cash float, not spent here.
+
+Code review (both axes) also surfaced and fixed: the industry list is a **required** argument on all
+four reader entry points, not a defaulted one — a caller that forgets it would hash a version
+ignoring the vocabulary, which is the #243 failure the hash exists to close. Compile error now,
+not a silent gap.
+
+`sample-ad-requirements.json`'s motivating advert deliberately still carries `total` + `family` —
+migrating it would have moved a number. It is the fixture #285 has to update.
+
 ## 2026-08-23 (session 164c) — the owner arbitrates #283's twelve, and the public-and-social group splits
 
 Closes #283 (row 8b.4, struck; #285's gate lifted). The owner walked all twelve drafted grid

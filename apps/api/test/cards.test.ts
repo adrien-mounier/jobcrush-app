@@ -613,7 +613,7 @@ describe("#104 GET /onboarding/cards — reading uncached adverts", () => {
         });
       },
     };
-    const { app } = buildServer({ readAd: makeAdReader(llm, store, [{ familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" }]) });
+    const { app } = buildServer({ readAd: makeAdReader(llm, store, [{ familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" }], []) });
 
     const cookie1 = await anonSession(app);
     await get(app, cookie1, "/onboarding/cards");
@@ -649,7 +649,7 @@ describe("#104 GET /onboarding/cards — reading uncached adverts", () => {
       },
     };
     const before = readCounters()["postings.read_failed"];
-    const { app } = buildServer({ readAd: makeAdReader(llm, store, [{ familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" }]) });
+    const { app } = buildServer({ readAd: makeAdReader(llm, store, [{ familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" }], []) });
     const cookie = await anonSession(app);
     const res = await get(app, cookie, "/onboarding/cards");
     const body = res.json() as { cards: JobCard[] };
@@ -814,7 +814,7 @@ describe("#115 a timed-out read is not a read failure", () => {
       failed: readCounters()["postings.read_failed"],
       timedOut: readCounters()["postings.read_timed_out"],
     };
-    const built = buildServer({ readAd: makeAdReader(llm, store, [{ familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" }]) });
+    const built = buildServer({ readAd: makeAdReader(llm, store, [{ familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" }], []) });
     const { app } = built;
     const cookie = await anonSession(app);
     // #63: the adverts reach this session through retrieval now, and the snapshot is written here

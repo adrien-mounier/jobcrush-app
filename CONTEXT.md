@@ -145,7 +145,10 @@ counts fully toward each, so the family numbers do not sum to the total and no s
 that sum — and the total at the global scope, each job counted once. A years bar is tested at its
 own scope (`yearsScope` on the requirement): family bars against the advert's family's number — the
 session's pinned floor, else its target-role placement; the advert's own `familyFit` decides deck
-membership (#243), never which years fact a bar tests — total bars against the total. A **known zero is not an
+membership (#243), never which years fact a bar tests — total bars against the total. A third scope, **industry**,
+exists on the requirement from #284: the advert reader names a published industry id (or none, when
+the advert names an industry we do not publish, which leaves the bar untestable). Nothing is scored
+against it until #285 — an industry bar is answered as a career-total bar until then. A **known zero is not an
 unknown**: every job placed and none in the advert's family scores against zero; the career-total
 fallback applies only while some years are genuinely unaccounted for (an unmapped job).
 _Avoid_: Screening answer, source-supported fact

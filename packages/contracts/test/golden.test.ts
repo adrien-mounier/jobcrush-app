@@ -357,7 +357,7 @@ describe("Ad requirements v1 (#102)", () => {
   // the field absent (which reads as family scope — the plain meaning of a years bar on a role
   // advert).
   it("a years bar may carry its scope, and both homes agree on the vocabulary", () => {
-    for (const scope of ["family", "total"]) {
+    for (const scope of ["family", "industry", "total"]) {
       const value = structuredClone(valid);
       value.requirements[2].yearsScope = scope;
       expect(validateAdRequirementsV1(value).ok).toBe(true);
@@ -373,6 +373,29 @@ describe("Ad requirements v1 (#102)", () => {
     // Absent is valid — the shape every pre-#222 stored payload has.
     expect(validateAdRequirementsV1(valid).ok).toBe(true);
     expect(AdRequirementsV1.parse(valid).requirements[2]!.yearsScope).toBeUndefined();
+  });
+
+  // #284 — the third scope names WHICH published industry, on its own field. Additive on the same
+  // terms as every extension before it: absent is valid everywhere, including beside an "industry"
+  // scope, because an advert naming an industry we do not publish carries none.
+  it("an industry-scope years bar may name the published industry it is about", () => {
+    const value = structuredClone(valid);
+    value.requirements[2].yearsScope = "industry";
+    value.requirements[2].yearsIndustry = "it-services";
+    expect(validateAdRequirementsV1(value).ok).toBe(true);
+    expect(AdRequirementsV1.parse(value).requirements[2]!.yearsIndustry).toBe("it-services");
+
+    // An empty id is not "no industry" — absence is how none is said.
+    const empty = structuredClone(value);
+    empty.requirements[2].yearsIndustry = "";
+    expect(validateAdRequirementsV1(empty).ok).toBe(false);
+    expect(AdRequirementsV1.safeParse(empty).success).toBe(false);
+
+    // The untestable bar: an industry scope carrying no id at all is a valid payload.
+    const none = structuredClone(valid);
+    none.requirements[2].yearsScope = "industry";
+    expect(validateAdRequirementsV1(none).ok).toBe(true);
+    expect(AdRequirementsV1.parse(none).requirements[2]!.yearsIndustry).toBeUndefined();
   });
 });
 

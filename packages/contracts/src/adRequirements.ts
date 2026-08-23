@@ -123,7 +123,21 @@ export const AdRequirementV1 = z
     // professional/IT experience"). Set only alongside eligibilityDimension "years-experience". A
     // compound sentence ("8+ years of IT including 5+ as a PM") is TWO requirements, one per scope —
     // that is how a compound bar sees both numbers at once (ADR-0014 consequences).
-    yearsScope: z.enum(["family", "total"]).optional(),
+    // #284 added "industry" — the third scope, a bar naming a published industry ("8+ years of IT
+    // experience"). Additive on the same terms: every stored payload still validates, and neither
+    // existing value changes meaning. Which industry is `yearsIndustry` below, never this field.
+    yearsScope: z.enum(["family", "industry", "total"]).optional(),
+    // #284 — additive v1 extension, same shape as the fields above. WHICH published industry an
+    // industry-scope bar is about, as a published industry id — never the advert's own free text,
+    // which would have to be word-matched afterwards, the weakness the closed vocabulary exists to
+    // remove. Only meaningful alongside `yearsScope: "industry"`.
+    //
+    // Optional even THERE: an advert naming an industry we do not publish carries none, and the bar
+    // is then untestable. That absence is deliberate and is never charged to the person — our
+    // missing vocabulary is our problem. Which ids are publishable is not this contract's to know
+    // (the vocabulary is published app data); adReader.ts's clamp is what refuses an unpublished id,
+    // exactly as clampFamilyFit already refuses an unpublished family id.
+    yearsIndustry: z.string().min(1).optional(),
     // The advert's own words this requirement was drawn from, so it can be shown to be the advert's
     // and not the model's — the provenance pin. A literal excerpt (this codebase's existing
     // source_quote convention), not a character span: reliable for a model to produce, and directly

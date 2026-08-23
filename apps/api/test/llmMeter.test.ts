@@ -217,7 +217,7 @@ describe("meterLlm through the real HTTP seam", () => {
     const { app } = buildServer({
       readAd: makeAdReader(meteredReader, new InMemoryAdRequirementsStore(), [
         { familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" },
-      ]),
+      ], []),
     });
 
     const anon = await app.inject({ method: "POST", url: "/sessions/anonymous" });

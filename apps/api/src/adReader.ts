@@ -28,7 +28,11 @@ const PROMPT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts
 // mechanism — it makes stored reads stale, and makeAdReader re-reads each one LAZILY, at most once,
 // the next time some visitor actually looks at that advert. Nothing is re-read in bulk, and an
 // advert nobody opens is never paid for again.
-const PROMPT_CONTRACT_VERSION = "adreq/3";
+// #284 bumped this from "adreq/3": AdRequirementV1's years scope gained "industry" and the new
+// `yearsIndustry` field, so every advert already stored was read by a prompt that could not name an
+// industry at all. Same lazy re-read cost mechanism as #165's bump — one advert at a time, at most
+// once, only when a visitor actually looks at it.
+const PROMPT_CONTRACT_VERSION = "adreq/4";
 
 let cachedPrompt: string | null = null;
 export function adReaderPrompt(): string {
@@ -62,6 +66,25 @@ function familiesBlock(families: ReaderFamily[]): string {
     .join("\n\n");
 }
 
+/** #284 — one entry of the reader's closed INDUSTRY list, the twin of ReaderFamily above: the
+ *  PUBLISHED production vocabulary (industryVocabulary.ts's `Industry` satisfies this structurally,
+ *  extra fields and all). The model answers with `industryId`; label + scope exist so it can
+ *  actually tell one industry from another. */
+export interface ReaderIndustry {
+  industryId: string;
+  label: string;
+  scope: string;
+}
+
+/** The industries block substituted into the prompt — hashed into adReaderVersion below for exactly
+ *  the reason the families block is (#243's named trap): a vocabulary change that left every stored
+ *  read answering from the OLD closed list forever. Same heading/id/covers shape. */
+function industriesBlock(industries: ReaderIndustry[]): string {
+  return industries
+    .map((i) => [`### ${i.label}`, `id: ${i.industryId}`, `covers: ${i.scope}`].join("\n"))
+    .join("\n\n");
+}
+
 /**
  * The version stored alongside each read. Bumping it is what triggers re-reading; an ordinary read
  * never does. The prompt half is a hash of the exact post-strip text sent to the model (#104 review
@@ -75,20 +98,31 @@ function familiesBlock(families: ReaderFamily[]): string {
  * the OLD closed list forever. Now a published-family change stales stored reads exactly like a
  * prompt edit, and the lazy re-read machinery does the rest, one advert at a time, at most once.
  */
-export function adReaderVersion(families: ReaderFamily[]): string {
+/** Both closed vocabularies are REQUIRED, never defaulted: a caller that could silently omit one
+ *  would hash a version that ignores it, which is exactly the #243 trap this hash exists to close —
+ *  stored reads answering forever from a vocabulary that has since moved. A compile error is the
+ *  enforcement; a comment would not be. */
+export function adReaderVersion(families: ReaderFamily[], industries: ReaderIndustry[]): string {
   const hash = createHash("sha256")
     .update(adReaderPrompt())
     .update(familiesBlock(families))
+    .update(industriesBlock(industries))
     .digest("hex")
     .slice(0, 8);
   return `ad-reader/${hash}+${PROMPT_CONTRACT_VERSION}`;
 }
 
-export function buildAdReaderInput(posting: Posting, families: ReaderFamily[]): string {
+export function buildAdReaderInput(
+  posting: Posting,
+  families: ReaderFamily[],
+  industries: ReaderIndustry[],
+): string {
   // A function replacer — a string replacer treats "$&"/"$'"/"$1" etc. in the replacement text as
-  // special patterns, and a family label/scope is published free text the repo doesn't control
-  // (#104 review: "also fix, cheap").
-  const prompt = adReaderPrompt().replace("{{KNOWN_FAMILIES}}", () => familiesBlock(families));
+  // special patterns, and a family/industry label/scope is published free text the repo doesn't
+  // control (#104 review: "also fix, cheap").
+  const prompt = adReaderPrompt()
+    .replace("{{KNOWN_FAMILIES}}", () => familiesBlock(families))
+    .replace("{{KNOWN_INDUSTRIES}}", () => industriesBlock(industries));
   return `${prompt}\n${posting.title} at ${posting.company} (${posting.location})\n\n${posting.excerpt}\n`;
 }
 
@@ -154,6 +188,26 @@ function clampFamilyFit(parsed: AdRequirementsV1, families: ReaderFamily[]): AdR
   if (family === NO_KNOWN_FAMILY || families.some((f) => f.familyId === family)) return parsed;
   incrementCounter("adReader.family_clamped");
   return { ...parsed, familyFit: { ...parsed.familyFit, family: NO_KNOWN_FAMILY } };
+}
+
+/** #284 AC3/AC6 — the closed INDUSTRY vocabulary enforced in code, clampFamilyFit's twin: a
+ *  `yearsIndustry` naming anything we do not publish is DROPPED, never kept as free text a later
+ *  consumer would have to word-match — the exact weakness a closed vocabulary exists to remove. The
+ *  bar then carries no industry and is untestable, which is the honest outcome: our missing
+ *  vocabulary is never charged to the person (#279). An id riding on a bar that isn't at industry
+ *  scope names nothing and is dropped the same way clampBlocking drops a stray level. Counted, so a
+ *  model that keeps inventing industry ids is visible on /ops/counters rather than silently emptying
+ *  every industry bar. */
+function clampIndustryScope(parsed: AdRequirementsV1, industries: ReaderIndustry[]): AdRequirementsV1 {
+  let clamped = 0;
+  const requirements = parsed.requirements.map((r) => {
+    if (r.yearsIndustry === undefined) return r;
+    if (r.yearsScope === "industry" && industries.some((i) => i.industryId === r.yearsIndustry)) return r;
+    clamped++;
+    return { ...r, yearsIndustry: undefined };
+  });
+  if (clamped > 0) addToCounter("adReader.industry_clamped", clamped);
+  return { ...parsed, requirements };
 }
 
 export interface AdReadCost {
@@ -272,6 +326,7 @@ export async function readAdvert(
   posting: Posting,
   llm: LlmClient,
   families: ReaderFamily[],
+  industries: ReaderIndustry[],
 ): Promise<AdReadResult | null> {
   if (!languageEligible(posting.language, SERVED_LANGUAGES)) {
     incrementCounter("adReader.language_skipped");
@@ -285,8 +340,8 @@ export async function readAdvert(
   for (let attempt = 0; attempt < 2; attempt++) {
     const input =
       attempt === 0
-        ? buildAdReaderInput(posting, families)
-        : `${buildAdReaderInput(posting, families)}\n\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
+        ? buildAdReaderInput(posting, families, industries)
+        : `${buildAdReaderInput(posting, families, industries)}\n\n===RETRY===\nYour previous output failed validation:\n${lastError}\nOutput the corrected JSON object and nothing else.\n`;
     const { text, cost } = await completeWithCost(llm, input);
     costModel = cost.model;
     // Every attempt spent real tokens, including a discarded first attempt that failed validation —
@@ -305,7 +360,10 @@ export async function readAdvert(
         adId: posting.id,
         curated: false,
       };
-      const parsed = clampFamilyFit(clampBlocking(AdRequirementsV1.parse(assembled)), families);
+      const parsed = clampIndustryScope(
+        clampFamilyFit(clampBlocking(AdRequirementsV1.parse(assembled)), families),
+        industries,
+      );
       addToCounter("adReader.requirements_produced", parsed.requirements.length);
       addToCounter(
         "adReader.requirements_blocking",
@@ -349,10 +407,11 @@ export function makeAdReader(
   llm: LlmClient,
   store: AdRequirementsStore,
   families: ReaderFamily[],
+  industries: ReaderIndustry[],
 ): (posting: Posting) => Promise<AdRequirementsV1 | null> {
   // Computed once: the prompt file and the published vocabulary are both fixed for this process's
   // lifetime (a vocabulary change ships as a redeploy), so hashing per read would buy nothing.
-  const version = adReaderVersion(families);
+  const version = adReaderVersion(families, industries);
   // Concurrent deck requests landing at cold start can both miss the store for the SAME advert
   // before either has persisted a result — without this, "nobody pays twice" only held
   // sequentially. Keyed by adId, cleared once the read settles either way (#104 review finding 7).
@@ -421,7 +480,7 @@ export function makeAdReader(
 
     let result: AdReadResult | null;
     try {
-      result = await readAdvert(posting, llm, families);
+      result = await readAdvert(posting, llm, families, industries);
     } catch (err) {
       incrementCounter("postings.read_failed");
       recordReadFailure(

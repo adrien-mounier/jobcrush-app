@@ -220,10 +220,13 @@ const { app } = buildServer({
   // #243: the reader's closed family list is the PUBLISHED production vocabulary — the same
   // registry placeFamily above answers from — never e5stub's fixture names, so the reader's
   // familyFit and the deck's own family finally speak one vocabulary.
+  // #284: and the closed INDUSTRY list, the same published vocabulary the industry labeler places
+  // into — so an advert's industry bar and a person's job label always name the same words.
   readAd: makeAdReader(
     metered("advert-reading", llm),
     adRequirements,
     publishedFamilies(productionFamilyFloors),
+    industryVocabulary.activeIndustries(),
   ),
   // #105: same rule — real judging only in production; every test that doesn't wire its own fake
   // stays exactly at today's deterministic-tick behaviour. judgeLlm, not llm: JUDGE_MODEL can name a
