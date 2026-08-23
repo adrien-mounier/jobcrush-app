@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-08-22_
+_Last updated: 2026-08-24_
 
 > ⚠️ **CI is still billing-blocked until ~Sept 1, but staging is CURRENT: deployed by hand 2026-08-21**
 > (`265ff6d`, session 154 — local gates green first: typecheck, 1563 tests, build, 146 Tier 1 specs +
@@ -81,9 +81,13 @@ _Audit convention: a struck row means **this position is finished** — usually 
 the occupations we know we do not cover, with evidence (today: data/business intelligence, product
 management). Runbook §2 reads it before the cluster map is presented.
 
-**Waiting on the owner, not on a build:** the floor-length rule. #260's ranked list argues for
-cutting at the curve's cliff (80% → 51%) rather than a fixed number; either ruling takes
-`onboarding-reward-design.md` §6's "must be short" off review.
+**Waiting on the owner, not on a build:** two rulings, both on `onboarding-reward-design.md` §6's
+floor. **The floor-length rule** — #260's ranked list argues for cutting at the curve's cliff
+(80% → 51%) rather than a fixed number; either ruling takes §6's "must be short" off review.
+**[#287](https://github.com/adrien-mounier/jobcrush-app/issues/287) — covered is not printable**:
+§6 counts a floor item covered by an explicit "No" stored as a first-class non-renderable negative,
+so a fully covered floor can hold items that print nothing, and the CV brain does not say what the
+CV does about the difference. Decision + CV-brain amendment; no code implied until it lands.
 
 ### Phase 1 — make the live deck honest before it exists
 
