@@ -2,6 +2,48 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-23 (session 162) `/implement 280` — the industry vocabulary: 15 words in 7 groups, and closeness that asks nobody
+
+Closes #280 (row 8b.1, struck). The first of #279's six tickets. Nothing a visitor sees changes —
+this publishes the words the next five tickets speak.
+
+**What shipped:** a closed, versioned industry vocabulary as reviewed data
+(`apps/api/research/industry-vocabulary-v1.json`, read by `apps/api/src/industryVocabulary.ts`) —
+15 industries in 7 groups, each entry carrying a stable id, a display name, a one-line scope
+sentence that draws its edge, a version and exactly one group. Closeness is arithmetic off the
+group tree: same industry `exact`, same group `near`, everything else `far`. No model is asked how
+close two industries are, ever.
+
+**Six publication gates, not the four the ticket asked for.** Duplicate industry id · an industry
+naming an undefined group · a version that does not increase · a missing or empty scope sentence —
+plus duplicate group id, and refusing to retire a group an older still-readable version still
+names. The version gate allows an unchanged entry to keep its number and refuses a *changed* entry
+that keeps it: that is ADR-0014 decision 7 made mechanical, since a stored placement reads its
+words back by `industryId@version`.
+
+**The evidence claim in the ticket was half wrong, and the record says so.** #280 names "employers
+already present in uploaded CVs" as a source. There are none — the three files in
+`apps/api/data/uploads` are generated dev fixtures (an invented person at invented employers). The
+real evidence is the retrieved advert corpus (DBS, BNP Paribas, Manulife, OKX, TransUnion,
+Computershare, Schneider Electric, Datadog, Endava, PwC, Hays, TEKsystems…) plus the four served
+markets. The correction is written into the proposal record rather than papered over. Cost to
+draft: **0 calls, USD 0.00** — everything was already in the repo.
+
+**Owner approved the list as drafted**, nothing changed, nothing rejected, with four choices put
+explicitly: `finance` exists beside `banking` (so a banker answering the market's commonest wording
+reads *near*, not *exact*); no `fintech`; `transport-and-logistics` ships with one member; six
+industries deferred to the growth process, mining and government among them.
+
+**QA GO**, gates cache-bypassed: 1582 API tests + 47 contract tests green, typecheck and build
+green, API boots and serves. QA proved the no-visitor-change claim statically — the module has zero
+importers in the shipped build — and deliberately wrote no browser journey, because there is no new
+pixel to drive. Its own carry-forward, worth reading before #283: `public-and-social` (healthcare +
+education) is the group it would bet the far-pair grid splits.
+
+**One trap recorded for #284:** `closeness()` answers `far` for an id we never published. #279 wants
+an unmapped advert industry to leave the verdict *untouched*, not unmet — so #284 must check
+`active()` before it calls `closeness()`, or the person is charged for our missing vocabulary.
+
 ## 2026-08-23 (session 161) `/implement 265` — the labeler stops reaching for the nearest family (QA NO-GO → GO)
 
 Closes #265 (row 8c, struck). Commit `32045fa` — prompt + grid bookkeeping only, no code.

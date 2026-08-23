@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1",
+  "reviewedBy": "adrien-mounier",
+  "reviewedAt": "2026-08-23T00:00:00.000Z",
+  "groups": [
+    {
+      "groupId": "financial-services",
+      "label": "Financial services",
+      "scope": "Businesses whose product is money, credit or risk: taking deposits, lending, investing, underwriting, and the market services around them. A business that merely uses finance is not in this group."
+    },
+    {
+      "groupId": "technology",
+      "label": "Technology",
+      "scope": "Businesses whose product is software or computing capability, sold either as a product they own or as a team delivering it for someone else."
+    },
+    {
+      "groupId": "professional-services",
+      "label": "Professional services",
+      "scope": "Businesses that sell their people's expertise and time to other organisations, priced per engagement rather than per product. The client's own industry is a separate fact."
+    },
+    {
+      "groupId": "industrial",
+      "label": "Industrial",
+      "scope": "Businesses that make, process or supply physical goods and energy at scale, including the plants, refineries and networks that produce them."
+    },
+    {
+      "groupId": "consumer",
+      "label": "Consumer",
+      "scope": "Businesses that sell goods, food, lodging or leisure directly to the public."
+    },
+    {
+      "groupId": "transport-and-logistics",
+      "label": "Transport and logistics",
+      "scope": "Businesses that move goods and people, and the ports, terminals and networks they move through."
+    },
+    {
+      "groupId": "public-and-social",
+      "label": "Public and social",
+      "scope": "Organisations whose purpose is care, teaching or public service rather than a return to owners."
+    }
+  ],
+  "industries": [
+    {
+      "industryId": "banking",
+      "label": "Banking",
+      "scope": "Deposit-taking and lending institutions and their card, payments and markets arms: retail, commercial, corporate and investment banks. A lender with no deposits and no banking licence is finance, not banking.",
+      "version": 1,
+      "groupId": "financial-services"
+    },
+    {
+      "industryId": "finance",
+      "label": "Finance",
+      "scope": "Financial services other than banking and insurance: capital markets and brokerage, asset and wealth management, exchanges, corporate finance and advisory, payments and credit data. An advert that simply says \"finance\" names this entry.",
+      "version": 1,
+      "groupId": "financial-services"
+    },
+    {
+      "industryId": "insurance",
+      "label": "Insurance",
+      "scope": "Underwriting, distributing and administering insurance and reinsurance, life and general, including brokers and claims businesses. A health insurer is here; a hospital is healthcare.",
+      "version": 1,
+      "groupId": "financial-services"
+    },
+    {
+      "industryId": "software",
+      "label": "Software",
+      "scope": "Businesses whose product is software they own and sell or host: platforms, developer tools, infrastructure services, games. The buyer licenses a product, not a team.",
+      "version": 1,
+      "groupId": "technology"
+    },
+    {
+      "industryId": "it-services",
+      "label": "IT services",
+      "scope": "Businesses paid to build, integrate or run technology owned by someone else: system integrators, offshore delivery centres, managed service and support providers. The buyer buys a team and an outcome, not a product.",
+      "version": 1,
+      "groupId": "technology"
+    },
+    {
+      "industryId": "consulting",
+      "label": "Consulting",
+      "scope": "Advisory and implementation firms selling expertise per engagement: strategy, management, technology, accounting and audit practices. The industry a consultant served is a second fact on the same job, not a replacement for this one.",
+      "version": 1,
+      "groupId": "professional-services"
+    },
+    {
+      "industryId": "staffing-and-recruitment",
+      "label": "Staffing and recruitment",
+      "scope": "Agencies that find, place, contract or payroll people for other organisations: executive search, contingent recruitment, and body-shopping. The employer is the agency; the client's industry is a second fact.",
+      "version": 1,
+      "groupId": "professional-services"
+    },
+    {
+      "industryId": "manufacturing",
+      "label": "Manufacturing",
+      "scope": "Making physical goods at scale — electronics, equipment, vehicles, textiles, processed food — and the plants that make them. Selling those goods to the public is retail and consumer.",
+      "version": 1,
+      "groupId": "industrial"
+    },
+    {
+      "industryId": "chemicals",
+      "label": "Chemicals",
+      "scope": "Producing industrial and specialty chemicals, plastics, coatings, industrial gases and fertilisers. Making medicines or medical devices is healthcare.",
+      "version": 1,
+      "groupId": "industrial"
+    },
+    {
+      "industryId": "energy-and-utilities",
+      "label": "Energy and utilities",
+      "scope": "Generating, transmitting and supplying electricity, gas, water and fuels, including renewables, oil and gas, and the grid and network operators.",
+      "version": 1,
+      "groupId": "industrial"
+    },
+    {
+      "industryId": "retail-and-consumer",
+      "label": "Retail and consumer",
+      "scope": "Selling goods to the public and the brands behind them: stores, e-commerce, supermarkets, and consumer goods companies that sell through them.",
+      "version": 1,
+      "groupId": "consumer"
+    },
+    {
+      "industryId": "hospitality-and-travel",
+      "label": "Hospitality and travel",
+      "scope": "Hotels, restaurants, bars, casinos, tour operators and travel agencies — selling stays, meals and leisure to the public. Moving the passengers there is transport and logistics.",
+      "version": 1,
+      "groupId": "consumer"
+    },
+    {
+      "industryId": "logistics-and-transport",
+      "label": "Logistics and transport",
+      "scope": "Moving goods and people, and the infrastructure they move through: freight forwarding, shipping lines, ports and terminals, airlines, rail, couriers and last-mile delivery, and warehousing sold as a service.",
+      "version": 1,
+      "groupId": "transport-and-logistics"
+    },
+    {
+      "industryId": "healthcare",
+      "label": "Healthcare",
+      "scope": "Delivering care and making what care is delivered with: hospitals, clinics, aged and community care, medical devices and pharmaceutical companies. An insurer paying for the care is insurance.",
+      "version": 1,
+      "groupId": "public-and-social"
+    },
+    {
+      "industryId": "education",
+      "label": "Education",
+      "scope": "Teaching and awarding qualifications: schools, universities, vocational colleges and training providers. Selling learning software to them is software.",
+      "version": 1,
+      "groupId": "public-and-social"
+    }
+  ]
+}

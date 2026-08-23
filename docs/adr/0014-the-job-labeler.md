@@ -23,6 +23,8 @@ re-spend.
    far from chemicals) so future advert scoring can judge partial fits. The field is added
    only when its labeler ships — an empty slot nothing writes or reads was rejected, and the
    relatedness design may still reshape what is stored.
+   **Amended by amendment 2 (#279): relatedness is a group tree, and the condition this decision
+   set is now met — the field ships with the labeler and the advert bar that reads it. See below.**
 
 3. **The label lives on the job record** as a sixth fact beside employer, title, start, end,
    kind — not in a separate placements store. This buys #128's correction rules for free: a
@@ -172,3 +174,55 @@ career-total fallback narrows to genuinely-unaccounted years, and no surface sum
 offered the whole published list) is largely dissolved by decision 1 — with nobody asked, there is
 no list to offer — but its second half survives: a null placement is a call we have not made, and
 belongs to a retry, not a question.
+
+---
+
+# Amendment 2 — relatedness is a group tree, decided once and published as data
+
+Status: accepted (owner design pass, 2026-08-23, issues #279 / #280)
+
+Decision 2 recorded that the industry vocabulary would carry **relatedness between entries** and
+left the shape of it open, which is why the field was never built: a fact whose meaning is still
+undecided cannot be stored. This amendment decides the shape, and the condition decision 2 set —
+"the field is added only when its labeler ships" — is met by #279, which ships the labeler and the
+advert bar that reads it in the same spec.
+
+## The decisions
+
+1. **Relatedness is a group tree, not a pairwise table and not a judgement.** Every industry
+   belongs to **exactly one industry group**. Closeness has three answers and no others: the same
+   industry is `exact`, a different industry in the same group is `near`, everything else is `far`.
+
+   Rejected: a curated pairwise closeness table — it grows with the square of the vocabulary, and a
+   pair nobody thought about reads as `far` in silence. Rejected: asking a model at scoring time —
+   a paid call and a wait on every scored advert, two identical adverts answered differently on
+   different days, and nothing a measurement grid can pin.
+
+2. **A model proposes the words; the owner approves them; the product reads data.** The judgement of
+   how close two industries are is made once, by a person, and is then arithmetic. Nothing asks a
+   model how close two industries are at scoring time, ever.
+
+3. **A group must stay tight enough that `near` means transferable experience.** A group wide
+   enough to swallow unrelated businesses makes near-credit free credit. This is enforced by the
+   labeler's grid (#283) rather than by prose: a proposed group that fails its far-pair cases is
+   split before it publishes.
+
+4. **The publication gates**, mirroring the family registry's: schema-valid, industry ids unique,
+   group ids unique, every referenced group defined, every scope sentence present, and no entry
+   changing what it says while keeping its version. That last one is decision 7 made mechanical —
+   a stored placement reads its words back by `industryId@version`, so an `id@version` must mean
+   the same thing forever.
+
+5. **Decision 7 holds unchanged for this axis.** Publishing a new industry or a new version never
+   rewrites a placement already stored on a job record.
+
+## Consequences
+
+`near` is scored, not filtered: a person's years in a near industry stay a whole honest number and
+the card's score is attenuated instead (×0.9, composing by multiplication with the placement
+confidence weights). The vocabulary's first publication is
+`apps/api/research/industry-vocabulary-v1.json`, read by `apps/api/src/industryVocabulary.ts`; the
+evidence and the owner's approval are recorded in
+`docs/vocabulary-proposals/industry-vocabulary-v1/summary.md`. Growth afterwards runs through the
+same vocabulary-growth process the family axis uses (#218/#251) — the only new question per
+industry is which group it belongs to.

@@ -171,9 +171,34 @@ _Avoid_: Confidence score, probability, match strength
 
 **Industry**:
 The kind of business an employer is (banking, finance) — the second axis of a job, distinct from
-the job family (kind of work). Drawn from a closed vocabulary whose entries carry relatedness
-(banking is near finance, far from chemicals). Designed in ADR-0014; its labeler is future work.
+the job family (kind of work). Drawn from a **closed, versioned vocabulary** published as reviewed
+data: each entry carries a stable id, a display name, a one-line scope sentence saying what it
+covers and where its edge is, a version, and exactly one **industry group**. Designed in ADR-0014,
+shaped by its amendment 2, first published by #280.
 _Avoid_: Sector, kind of employer, employer type
+
+**Industry group**:
+The set an industry belongs to — exactly one, never two. The group is the whole definition of
+relatedness: two industries are near *because* they share a group, so a group must stay tight
+enough that "near" honestly means transferable experience. A group carries an id, a display name
+and a one-line scope sentence, and a group drawn wide enough to swallow unrelated businesses is
+split before it publishes (ADR-0014 amendment 2 decision 3).
+_Avoid_: Sector group, category, cluster
+
+**Industry closeness**:
+How close a person's industry is to the one an advert asks for. Three answers and no others:
+**exact** (the same industry), **near** (a different industry in the same group), **far**
+(everything else). Read off the published group tree as arithmetic — a judgement the owner made
+once, at publication. Nothing asks a model how close two industries are at scoring time, ever.
+_Avoid_: Relatedness score, similarity, industry match
+
+**Industry placement**:
+What the labeler decides a job's industry is — the industry half of the same shape a **family
+placement** has: `confirmed`, carrying one or more industry-version references and a **placement
+confidence**, or `unmapped`. A job may honestly carry two (the employer's own industry and the
+industry the work was served into), and its years count in full toward each. Nobody is ever asked
+which industry their employer was in; correction is the only lever.
+_Avoid_: Industry tag, employer classification, sector label
 
 **Posting family fit**:
 The judgement of whether a live posting belongs to a job family at all, carried with the posting
