@@ -42,6 +42,8 @@ import type { Industry } from "./industryVocabulary.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 import type { ClaimStore } from "./claims.js";
 import type { EmployerLookup } from "./employerLookup.js";
+import type { EligibilityStore } from "./eligibility.js";
+import { refreshWorkedYears } from "./yearsWorked.js";
 import { incrementCounter } from "./counters.js";
 import {
   recordUnmappedLabel,
@@ -308,7 +310,7 @@ async function linesFor(
 export function makeJobBlockIndustryLabeler(
   llm: LlmClient,
   industries: Industry[],
-  store: Pick<JobBlockStore, "list" | "labelIndustry">,
+  store: Pick<JobBlockStore, "list" | "labelIndustry" | "summary">,
   // The person's own CV lines. Optional: a build with no claim store still places jobs on the
   // employer name and title alone, which is exactly the "small unknown employer" degraded case.
   claims?: Pick<ClaimStore, "list">,
@@ -318,8 +320,13 @@ export function makeJobBlockIndustryLabeler(
   // placed on the CV evidence alone, which is exactly the degraded case this ticket is written to
   // survive.
   lookupEmployer?: EmployerLookup,
+  // #285: the per-industry years facts are a regenerable copy of the records this step just
+  // changed, so the step re-derives them itself — the same door discipline the family labeler has.
+  // Optional on the same terms as `claims`: a build with no eligibility store still labels.
+  eligibility?: EligibilityStore,
 ): (sessionId: string) => Promise<void> {
   return async (sessionId) => {
+    let labeled = false;
     for (const block of await store.list(sessionId)) {
       if (block.kind !== "job") continue; // its CORRECTED kind — see this function's own doc
       if (block.industry.value) continue; // already answered (labeled or corrected) — never re-spent
@@ -344,7 +351,10 @@ export function makeJobBlockIndustryLabeler(
         );
         // A DEGRADED answer is never stored: the stored placement is what stops this job being
         // asked again. Left unlabeled instead — reads as unmapped, and is placed for real next run.
-        if (!degraded) await store.labelIndustry(sessionId, block.id, placement);
+        if (!degraded) {
+          await store.labelIndustry(sessionId, block.id, placement);
+          labeled = true;
+        }
       } catch (err) {
         incrementCounter("industryLabeler.call_failed");
         console.error(
@@ -352,7 +362,9 @@ export function makeJobBlockIndustryLabeler(
         );
       }
     }
-    // No refreshWorkedYears here, deliberately: #281 moves no number. Industry years are written by
-    // #285, and this step gains the same re-derivation the family labeler has the moment they are.
+    // #285 — a placement just landed, so the per-industry years facts are re-derived at this door,
+    // exactly as the family labeler does for its axis. Skipped when nothing was labeled: an
+    // all-checkpointed (or all-failed) pass changed no record, so there is nothing to re-derive.
+    if (labeled && eligibility) await refreshWorkedYears(store, eligibility, sessionId);
   };
 }

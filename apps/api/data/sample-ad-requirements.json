@@ -118,7 +118,8 @@
         "requirement": "8+ years of IT experience",
         "comparable": { "op": ">=", "value": 8 },
         "eligibilityDimension": "years-experience",
-        "yearsScope": "total",
+        "yearsScope": "industry",
+        "yearsIndustry": "it-services",
         "sourceSpan": "8+ years of IT experience, including 5+ years in Project Manager role."
       },
       {

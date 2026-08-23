@@ -18,7 +18,13 @@ import { soleConfirmedFamily } from "./adaptiveDiscovery.js";
 import type { ClaimRecord } from "./claims.js";
 import type { JobBlockView } from "./jobBlockStore.js";
 import type { SessionRecord } from "./sessions.js";
-import { familyPlacementConfidence, hasUnplacedWork } from "./yearsWorked.js";
+import {
+  familyPlacementConfidence,
+  hasIndustryUnplacedWork,
+  hasUnplacedWork,
+  industryPlacementConfidence,
+  INDUSTRY_SCOPE_PREFIX,
+} from "./yearsWorked.js";
 import { lookupAdRequirements } from "./e5stub.js";
 import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
@@ -33,15 +39,20 @@ import {
   NOTHING_OPEN_CLAUSE,
 } from "./matchtick.js";
 import {
+  answerIndustryBar,
   applyYearsShortfall,
+  CLOSENESS_WEIGHT,
   isFamilyScopeYearsBar,
+  isIndustryScopeYearsBar,
   judgedBreakdown,
   judgedMatchTick,
   judgedPickHitClause,
   judgedUncoveredRequirements,
+  type IndustryYearsContext,
   type YearsAtScopes,
 } from "./judgedScore.js";
-import { attenuateForConfidence } from "./familyLabeler.js";
+import { CONFIDENCE_WEIGHT } from "./familyLabeler.js";
+import { publishedIndustryVocabulary } from "./industryVocabulary.js";
 import type { JudgeFact, JudgeFn, JudgePeekFn } from "./judge.js";
 import type { JudgementRecord } from "./judgementStore.js";
 import {
@@ -448,15 +459,67 @@ export async function advertFamilyIdFor(
   return soleConfirmedFamily(await placeFamily(session))?.familyId ?? null;
 }
 
+/** #285 — the per-industry half of the resolution: her stored per-industry facts, the weakest
+ *  contributing confidence for each, whether any counting job's industry is unaccounted for, and
+ *  the published group tree closeness is read off. Which industry a bar is about is each
+ *  requirement's own `yearsIndustry`, so unlike the family half this cannot collapse to one number
+ *  here — answerIndustryBar (judgedScore.ts) does that per bar. */
+function resolveIndustryContext(
+  facts: readonly EligibilityFact[],
+  blocks: readonly JobBlockView[],
+  industryGroups: ReadonlyMap<string, string>,
+): IndustryYearsContext {
+  const years = new Map<string, number>();
+  const confidence = new Map<string, PlacementConfidence>();
+  for (const fact of facts) {
+    if (fact.dimension !== "years-experience" || !fact.familyId.startsWith(INDUSTRY_SCOPE_PREFIX)) continue;
+    const industryId = fact.familyId.slice(INDUSTRY_SCOPE_PREFIX.length);
+    const value = Number(fact.value);
+    if (!Number.isFinite(value)) continue;
+    years.set(industryId, value);
+    const weakest = industryPlacementConfidence(blocks, industryId);
+    if (weakest) confidence.set(industryId, weakest);
+  }
+  // A KNOWN zero needs positive evidence of full placement, so a history with no counting blocks
+  // at all reads as unaccounted, not as fully placed — the vacuous-truth trap: a career total that
+  // arrived without readable records behind it (or before they land) must keep the generous
+  // fallback, never be scored as "experienced nowhere".
+  const counting = blocks.filter((b) => b.countsTowardExperience);
+  return {
+    years,
+    confidence,
+    hasUnplaced: counting.length === 0 || hasIndustryUnplacedWork(blocks),
+    groupOf: industryGroups,
+  };
+}
+
+/** #285 — the published group tree, read lazily ONCE per process (the publication is a shipped
+ *  file; a boot-time read keeps a bad publication a boot failure, not an import crash). The default
+ *  for resolveSessionYears below: the route spine passes nothing, per the ratchet — closeness is
+ *  data shipped with the app, not per-request state. */
+let publishedGroups: ReadonlyMap<string, string> | null = null;
+function publishedIndustryGroups(): ReadonlyMap<string, string> {
+  publishedGroups ??= new Map(
+    publishedIndustryVocabulary()
+      .activeIndustries()
+      .map(({ industryId, groupId }) => [industryId, groupId]),
+  );
+  return publishedGroups;
+}
+
 export function resolveSessionYears(
   facts: readonly EligibilityFact[],
   blocks: readonly JobBlockView[],
   advertFamilyId: string | null,
+  // #285 — published industry id -> group id at active versions. Defaults to the shipped
+  // publication; a test may pass its own tree.
+  industryGroups: ReadonlyMap<string, string> = publishedIndustryGroups(),
 ): SessionYears {
   const total = resolveUserYears(facts);
   if (total === null) return { total, family: null, familySource: "unscoped", familyConfidence: null };
+  const industries = { industries: resolveIndustryContext(facts, blocks, industryGroups) };
   if (advertFamilyId === null) {
-    return { total, family: total, familySource: "unscoped", familyConfidence: null };
+    return { total, family: total, familySource: "unscoped", familyConfidence: null, ...industries };
   }
   const fact = facts.find(
     (f) => f.dimension === "years-experience" && f.familyId === advertFamilyId,
@@ -468,12 +531,13 @@ export function resolveSessionYears(
       family: factYears,
       familySource: "fact",
       familyConfidence: familyPlacementConfidence(blocks, advertFamilyId),
+      ...industries,
     };
   }
   if (hasUnplacedWork(blocks)) {
-    return { total, family: total, familySource: "fallback", familyConfidence: null };
+    return { total, family: total, familySource: "fallback", familyConfidence: null, ...industries };
   }
-  return { total, family: 0, familySource: "zero", familyConfidence: null };
+  return { total, family: 0, familySource: "zero", familyConfidence: null, ...industries };
 }
 
 /** #229 — the career changer's signal: this deck's family is a KNOWN zero for her (every counting
@@ -615,8 +679,31 @@ export function buildJobCard(
     years?.familySource === "fact" &&
     years.familyConfidence !== null &&
     adReq.requirements.some(isFamilyScopeYearsBar);
+  // #285 — the industry axis's own attenuation, same ranking-only rule: when an industry bar was
+  // answered by a per-industry FACT, closeness (near ×0.9) and that fact's weakest placement
+  // confidence (×1.0/×0.9/×0.75) compose by multiplication — a `possible` placement in a near
+  // industry reads ×0.675. A fallback, known-zero, or untestable bar rests on no placement, so
+  // nothing attenuates. The years fact itself is never touched, and nothing is ever filtered out.
+  // ponytail: across several industry bars the WEAKEST factor is taken once, mirroring the family
+  // rule's weakest-contributor shape; revisit if a real advert ever carries two industry bars.
+  let industryFactor = 1;
+  if (years?.industries) {
+    for (const req of adReq.requirements.filter(isIndustryScopeYearsBar)) {
+      const answer = answerIndustryBar(years, req);
+      if (answer.closeness === null) continue;
+      const weight =
+        CLOSENESS_WEIGHT[answer.closeness] * (answer.confidence ? CONFIDENCE_WEIGHT[answer.confidence] : 1);
+      industryFactor = Math.min(industryFactor, weight);
+    }
+  }
+  // Composed with the family attenuation and rounded ONCE, so the family-only path stays
+  // byte-identical to attenuateForConfidence's own rounding.
   const attenuate = (pct: number): number =>
-    leansOnFamilyFact && years?.familyConfidence ? attenuateForConfidence(pct, years.familyConfidence) : pct;
+    Math.round(
+      pct *
+        (leansOnFamilyFact && years?.familyConfidence ? CONFIDENCE_WEIGHT[years.familyConfidence] : 1) *
+        industryFactor,
+    );
   return {
     ...base,
     scored: judgement ? "judged" : "estimated",
@@ -899,6 +986,10 @@ export function buildTailorState(
   years?: SessionYears,
   discoveryFloor: readonly FloorItem[] = [],
 ): TailorState {
+  // Deliberately the RAW judged tick — no family-confidence or industry-closeness attenuation
+  // (#222/#285): attenuation is a deck-RANKING device, and this surface's floor (Math.max below)
+  // would silently swallow an attenuated number anyway. Same rule the family floor comment at
+  // buildDeckCards states; restated here so nobody "fixes" the missing factor later.
   const matchPct = Math.max(
     judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
     floorPct,

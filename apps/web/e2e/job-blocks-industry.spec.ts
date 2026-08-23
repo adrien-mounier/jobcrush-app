@@ -159,7 +159,7 @@ test("she can correct the industry, and only a published one is ever sent", asyn
   const sent: unknown[] = [];
   await page.route("**/api/job-blocks/*/correct", async (route) => {
     sent.push(JSON.parse(route.request().postData() ?? "{}"));
-    return route.fulfill({ json: { ok: true, held: [], downstream: "We'll show this job as IT services from now on." } });
+    return route.fulfill({ json: { ok: true, held: [], downstream: "We'll show this job as IT services from now on — your years in that industry and your matches can change." } });
   });
   await page.route("**/api/job-blocks/*/confirm", (route) => route.fulfill({ json: { ok: true } }));
   await stub(page, [UNMAPPED]);

@@ -222,7 +222,7 @@ describe("AC5 — a correction supersedes the machine, and no re-run overwrites 
       value: { industryId: BANKING.industryId, version: BANKING.version },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().downstream).toBe("We'll show this job as Banking from now on.");
+    expect(res.json().downstream).toBe("We'll show this job as Banking from now on — your years in that industry and your matches can change.");
 
     const corrected = industryOf((await s.read()).blocks, "nordea-analyst");
     expect(corrected.value).toEqual({
@@ -336,7 +336,7 @@ describe("the undo of an industry correction actually undoes it", () => {
     });
     const undone = await s.correct("acme-consultant", { key: "industry", value: machine });
     expect(undone.statusCode).toBe(200);
-    expect(undone.json().downstream).toBe("We'll show this job as Consulting and Banking from now on.");
+    expect(undone.json().downstream).toBe("We'll show this job as Consulting and Banking from now on — your years in that industry and your matches can change.");
     expect(industryOf((await s.read()).blocks, "acme-consultant").value).toEqual(machine);
   });
 

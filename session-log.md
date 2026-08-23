@@ -2,6 +2,39 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-23 (session 165) — eight years at a bank answer a finance bar in full, and the card sinks instead of lying
+
+Closes #285 (row 8b.6, struck — epic 8b complete). The visible win of the whole industry axis: a
+person's years are now written per industry, and an advert's industry bar is answered at its own
+closeness instead of by the career total.
+
+- **One writer, second axis:** `syncWorkedYears` now also writes one fact per industry any counting
+  job is confirmed into, at a prefixed scope key (`industry:<id>`) on the eligibility store's
+  generic scope slot — full credit to every industry a job carries, never split, and the career
+  total stays separately derived (each job once). Every existing door inherits the write for free;
+  the industry labeler gained the one refresh it lacked.
+- **The bar's answer (`answerIndustryBar`, judgedScore.ts):** exact = her years in that industry at
+  full weight; near (same group) = the **same whole years number** with the card ×0.9; far =
+  nothing. Known zero when every job is placed and none is in the group; the generous career-total
+  fallback while any job's industry is unaccounted; an unmapped advert industry leaves the verdict
+  completely untouched. Closeness × placement confidence compose by multiplication (possible ×
+  near = ×0.675), asserted on a real card score; the years fact is never touched and nothing is
+  ever filtered — a card only sinks.
+- **Ratchet respected the hard way:** `routes/onboarding.ts` was exactly at its limit, so the group
+  tree defaults inside `resolveSessionYears` (lazy read of the shipped publication) instead of a
+  new dep threaded through the spine.
+- **One semantics catch the tests forced:** a "known zero" needs positive evidence of full
+  placement — a history with **no counting blocks at all** reads as unaccounted (fallback), never
+  as vacuously "placed everywhere else".
+- **QA gate GO** (24 new tests in `industryYears.test.ts`; suite 1677 green; journey
+  `industry-years-bar-journey.mjs`, 33 assertions, 77 screenshots, zero paid calls): pasted a CV,
+  saw the industry on the work history, corrected an unplaced job to Software, and watched the
+  advert re-score 49% → 44% — the near-industry ×0.9, years still counted in full.
+- **Owner call recorded, not a defect:** on a low-band industry bar, near (whole-card ×0.9) can
+  rank just below far (one band share lost) — exact 49% > far 46% > near 44% measured live. The
+  spec sets ×0.9 and says nothing about near-vs-far ordering; evidence in the journey report if the
+  weights are ever revisited.
+
 ## 2026-08-23 (session 164d) — an advert can finally ask for years in an industry, and nobody's number moves
 
 Closes #284 (row 8b.5, struck). The advert reader gains the third years scope. *"8+ years of IT

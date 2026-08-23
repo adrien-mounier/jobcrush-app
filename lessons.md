@@ -1,5 +1,15 @@
 # Lessons — jobcrush-app
 
+## A "known X" rule over "every record" is vacuously true on zero records — demand positive evidence
+
+Learned 2026-08-23 (#285). The known-zero rule ("when every job carries an industry and none is in
+the advert's group, score a real zero") was implemented as `!hasUnplaced`, which is TRUE for a
+person with no job records at all — so a test that seeds a career total without records had its
+industry bars scored as zero instead of falling back to the total. Any rule of the shape "when all
+records say X" must first check there ARE records; absence of counter-evidence is not evidence.
+The family axis dodged this only by accident (its no-records path exits earlier as "unscoped"), so
+the same trap is still latent in any future per-record universal rule.
+
 ## A web-search call's cost is mostly tokens, not the search fee — price the tokens first
 
 Learned 2026-08-23 (#283). The industry grid run was estimated at $3–5 by counting searches

@@ -208,6 +208,9 @@ const { app } = buildServer({
       // that only works on a laptop is worse than none: it would let the feature look alive in dev
       // and be silently absent in production. No key → every job is placed on CV evidence alone.
       employerLookup,
+      // #285: labeling changes what the per-industry years facts should say — the labeler
+      // re-derives them itself, like its family twin above.
+      eligibility,
     ),
     // #272: no preview step. The upload pipeline used to end by tailoring a full draft here — a
     // paid `preview-tailor` model call per upload whose output no live screen read. The engine

@@ -317,11 +317,10 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
         // `before` exists whenever correct() found the block; null only on a delete race.
         const downstream =
           key === "industry"
-            ? // #281 moves no number, and this sentence must not imply one. It says what the
-              // correction actually did: the label is hers now. The years-per-industry consequence
-              // arrives with the thing that computes it (#285).
+            ? // #285: an industry correction now moves the per-industry years a job advert can
+              // test, so the sentence says so — the same consequence wording the date door uses.
               (industryLabel
-                ? `We'll show this job as ${industryLabel} from now on.`
+                ? `We'll show this job as ${industryLabel} from now on — your years in that industry and your matches can change.`
                 : "We've put this job's industry back to not knowing.")
             : key === "family"
             ? // Deliberately says only what is true TODAY. Naming a per-family years number here

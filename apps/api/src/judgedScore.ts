@@ -4,7 +4,7 @@
 // and every route that doesn't wire a judge (every pre-#105 test, and slice 10's own re-baselining
 // work) keeps today's deterministic tick byte-for-byte. Same "no IO, no store, no LLM" shape as
 // matchtick.ts — these functions only ever read an already-resolved JudgementRecord.
-import type { AdRequirementV1, AdRequirementsV1 } from "@jobcrush/contracts";
+import type { AdRequirementV1, AdRequirementsV1, PlacementConfidence } from "@jobcrush/contracts";
 import { BAND_WEIGHT, pickHitClause, type MatchBreakdown } from "./matchtick.js";
 import { COVERAGE_THRESHOLD, type JudgeFact, type JudgeVerdict } from "./judge.js";
 
@@ -98,11 +98,13 @@ export function judgedUncoveredRequirements(
  *  "total"` — "8+ years of professional experience"). A compound sentence is two requirements, one
  *  per scope, so it sees both numbers at once.
  *
- *  #284 added a THIRD scope, "industry" ("8+ years of IT experience", naming a published industry).
- *  It has no number of its own here yet — nobody's years are written per industry until #285 — so it
- *  reads the career total, which is exactly how such a bar was answered BEFORE the scope existed.
- *  That is deliberate: #284 makes the advert's question legible and moves no card score, card order
- *  or years figure. #285 gives it its own number, at the industry's closeness. WHAT the family number is (a real fact, the honest
+ *  #285 gave the "industry" scope (#284's third scope) its own number: an industry bar is answered
+ *  by answerIndustryBar below — her years in the advert's exact industry, the SAME whole years
+ *  number from a near industry (same group; the card's score attenuates ×0.9 in buildJobCard, the
+ *  fact stays whole), nothing from a far one (a known zero when everything is placed), the generous
+ *  career total while any job's industry is genuinely unaccounted for, and UNTESTABLE — verdict
+ *  untouched — when the advert's industry is not in our vocabulary (our gap, never charged to the
+ *  person). WHAT the family number is (a real fact, the honest
  *  known zero when every job is placed elsewhere, or the old generous career-total fallback while
  *  years are genuinely unaccounted for) is the caller's resolution — deck.ts's resolveSessionYears,
  *  ADR-0014 amendment 1 decision 6. A null at either scope means UNTESTABLE and leaves the verdict
@@ -112,12 +114,28 @@ export function judgedUncoveredRequirements(
  *  judgement describes the advert and the fact set it was judged against; years-experience is session
  *  state that can change independently of that cache. Judged path only — matchTick/matchtick.ts (the
  *  deterministic `estimated` scorer) is untouched; slice 10 (#111) retires it separately. */
+/** #285 — everything an industry-scope bar needs to be answered, as plain data resolved once per
+ *  request (deck.ts's resolveSessionYears). `groupOf` is the published vocabulary's active group
+ *  tree, which is what makes closeness (exact / near / far) a pure lookup here — no model, no IO. */
+export interface IndustryYearsContext {
+  /** Her years per industry — the stored per-industry facts, full credit, never split. */
+  years: ReadonlyMap<string, number>;
+  /** The weakest contributing placement confidence per industry (yearsWorked.ts). */
+  confidence: ReadonlyMap<string, PlacementConfidence>;
+  /** True while any counting job carries no confirmed industry — the fallback condition. */
+  hasUnplaced: boolean;
+  /** Published industry id -> its group id, at active versions. */
+  groupOf: ReadonlyMap<string, string>;
+}
+
 export interface YearsAtScopes {
   /** Years tested by a family-scope bar. Null = untestable (no usable work history). */
   family: number | null;
-  /** Years tested by a total-scope bar — the career total, and (until #285) an industry-scope bar
-   *  too. Null = untestable. */
+  /** Years tested by a total-scope bar — the career total. Null = untestable. */
   total: number | null;
+  /** #285 — what answers an industry-scope bar. Absent = a caller with no industry context, which
+   *  keeps the pre-#285 reading (the career total) rather than inventing a zero. */
+  industries?: IndustryYearsContext;
 }
 
 /** The ONE definition of "a years bar that tests the family scope" — shared with buildJobCard's
@@ -129,6 +147,68 @@ export function isFamilyScopeYearsBar(req: AdRequirementV1): boolean {
     req.comparable?.op === ">=" &&
     (req.yearsScope ?? "family") === "family"
   );
+}
+
+/** isFamilyScopeYearsBar's twin for the third scope — shared with buildJobCard's closeness/
+ *  confidence attenuation (deck.ts) on the same never-drift terms. */
+export function isIndustryScopeYearsBar(req: AdRequirementV1): boolean {
+  return (
+    req.eligibilityDimension === "years-experience" &&
+    req.comparable?.op === ">=" &&
+    req.yearsScope === "industry"
+  );
+}
+
+/** #285 — the closeness half of the attenuation table (spec #279; the confidence half is
+ *  familyLabeler.ts's CONFIDENCE_WEIGHT, and the two compose by multiplication — a `possible`
+ *  placement in a near industry reads ×0.675). Owner's weights, not defaults to tune. `far` has no
+ *  row because far years never answer the bar at all. */
+export const CLOSENESS_WEIGHT = { exact: 1, near: 0.9 } as const;
+
+/** What one industry-scope bar is answered with. `years` null = UNTESTABLE, verdict untouched.
+ *  `closeness` is set only when a per-industry FACT answered the bar — a fallback or known-zero
+ *  answer rests on no placement, so there is nothing for an attenuation to hedge. */
+export interface IndustryBarAnswer {
+  years: number | null;
+  closeness: keyof typeof CLOSENESS_WEIGHT | null;
+  confidence: PlacementConfidence | null;
+}
+
+/** #285 — how an industry bar is answered (spec #279):
+ *    exact industry match — her years in that industry, at full weight;
+ *    near (same group)   — the SAME whole years number; the card attenuates ×0.9, the fact never;
+ *    far                 — those years do not answer this bar at all;
+ *  a known zero when every job carries an industry and none is in the advert's industry or group;
+ *  the generous career total while any job's industry is unaccounted for; and UNTESTABLE (null,
+ *  verdict untouched) when the advert names no published industry — our missing vocabulary is
+ *  never charged to the person. */
+export function answerIndustryBar(years: YearsAtScopes, req: AdRequirementV1): IndustryBarAnswer {
+  const untouched: IndustryBarAnswer = { years: null, closeness: null, confidence: null };
+  const ctx = years.industries;
+  // No industry context wired at all: the pre-#285 reading (career total), never an invented zero.
+  if (!ctx) return { years: years.total, closeness: null, confidence: null };
+  const required = req.yearsIndustry;
+  // An unmapped or unpublished advert industry is an untestable bar — completely untouched.
+  if (!required || !ctx.groupOf.has(required)) return untouched;
+  const exact = ctx.years.get(required);
+  if (exact !== undefined) {
+    // ponytail: exact wins outright even when a near industry holds more years — the literal
+    // reading of the spec's table; revisit only if a real deck shows it under-crediting.
+    return { years: exact, closeness: "exact", confidence: ctx.confidence.get(required) ?? null };
+  }
+  const requiredGroup = ctx.groupOf.get(required);
+  let near: { industryId: string; years: number } | null = null;
+  for (const [industryId, held] of ctx.years) {
+    if (ctx.groupOf.get(industryId) !== requiredGroup) continue;
+    if (!near || held > near.years) near = { industryId, years: held };
+  }
+  if (near) {
+    return { years: near.years, closeness: "near", confidence: ctx.confidence.get(near.industryId) ?? null };
+  }
+  // No industry of hers answers this bar. Unaccounted years keep the generous total; a fully
+  // placed history makes the answer a KNOWN zero, and zero is what scoring uses.
+  if (ctx.hasUnplaced) return { years: years.total, closeness: null, confidence: null };
+  return { years: 0, closeness: null, confidence: null };
 }
 
 export function applyYearsShortfall(
@@ -144,11 +224,14 @@ export function applyYearsShortfall(
     if (!req || req.eligibilityDimension !== "years-experience" || req.comparable?.op !== ">=" || !bar) {
       return v;
     }
-    // Through isFamilyScopeYearsBar, so the scope test has exactly ONE definition (the dimension and
-    // op halves of it are already established by the guard above). Everything that is not a family
-    // bar reads the career total — the "total" scope, and (until #285) the "industry" scope too;
-    // see this function's own docblock for why #284 deliberately moves no number.
-    const userYears = isFamilyScopeYearsBar(req) ? years.family : years.total;
+    // Through the shared scope predicates, so each scope test has exactly ONE definition. A family
+    // bar reads the family number, an industry bar is answered by answerIndustryBar (exact / near /
+    // known zero / fallback / untestable), and everything else reads the career total.
+    const userYears = isFamilyScopeYearsBar(req)
+      ? years.family
+      : isIndustryScopeYearsBar(req)
+        ? answerIndustryBar(years, req).years
+        : years.total;
     if (userYears === null) return v;
     // Clamped to [0,1], not just capped at 1: the contract's `comparable.value` is any `number` (the
     // oracle never rules out a negative one), and years/NEGATIVE_BAR is itself negative — an

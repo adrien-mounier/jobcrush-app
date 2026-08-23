@@ -173,7 +173,72 @@ export function computeFamilyRecency(
   return byFamily;
 }
 
+// --- years per industry (#285, spec #279) ------------------------------------------------------
+
+/** The eligibility-store scope key for a per-industry years fact. The store's `familyId` column is
+ *  the generic scope slot (#182 already reuses it for a work-rights PLACE); the prefix keeps an
+ *  industry row from ever colliding with a family id — ":" cannot appear in a SLUG. */
+export const INDUSTRY_SCOPE_PREFIX = "industry:";
+export const industryScopeKey = (industryId: string): string => `${INDUSTRY_SCOPE_PREFIX}${industryId}`;
+
+/** The industries a block's CURRENT label places it in — the corrected value when one exists,
+ *  empty for unmapped, never-labeled, or any non-confirmed shape. Same null discipline as
+ *  confirmedFamilies above. */
+export function confirmedIndustries(block: JobBlockView): string[] {
+  const placement = block.industry?.value;
+  if (!placement || placement.outcome !== "confirmed") return [];
+  return [...new Set(placement.industries.map((industry) => industry.industryId))];
+}
+
+/** True when some worked years are genuinely unaccounted for at the INDUSTRY scope: at least one
+ *  counting block carries no confirmed industry. The condition the generous career-total fallback
+ *  hangs on for an industry bar — ADR-0014 amendment 1 decision 6, applied unchanged to the second
+ *  axis. Only kind "job" counts toward experience (jobBlock.ts) and only jobs are ever industry-
+ *  labeled, so a degree can never read as permanently unaccounted here. */
+export function hasIndustryUnplacedWork(blocks: readonly JobBlockView[]): boolean {
+  return blocks.some((b) => b.countsTowardExperience && confirmedIndustries(b).length === 0);
+}
+
+/** Years per industry — computeFamilyYears's twin, same rules on the second axis: full credit to
+ *  every industry a job carries, never split, overlaps within an industry merged. These numbers
+ *  deliberately do NOT sum to the career total and no surface may present such a sum. */
+export function computeIndustryYears(
+  blocks: readonly JobBlockView[],
+  now: Date = new Date(),
+): Map<string, number> {
+  const byIndustry = new Map<string, Array<{ from: number; to: number }>>();
+  for (const block of blocks) {
+    if (!block.countsTowardExperience) continue;
+    for (const industryId of confirmedIndustries(block)) {
+      if (!byIndustry.has(industryId)) byIndustry.set(industryId, []);
+      const s = span(block, now);
+      if (s) byIndustry.get(industryId)!.push(s);
+    }
+  }
+  return new Map([...byIndustry].map(([industryId, spans]) => [industryId, mergedYears(spans)]));
+}
+
 const ORDINAL: Record<PlacementConfidence, number> = { certain: 3, likely: 2, possible: 1 };
+
+/** familyPlacementConfidence's twin: the WEAKEST confidence among the industry references that
+ *  contributed to this industry's years number. Per-reference since #282 — a job's second industry
+ *  can be shakier than its first, and only the references naming THIS industry count here. */
+export function industryPlacementConfidence(
+  blocks: readonly JobBlockView[],
+  industryId: string,
+): PlacementConfidence | null {
+  let weakest: PlacementConfidence | null = null;
+  for (const block of blocks) {
+    if (!block.countsTowardExperience) continue;
+    const placement = block.industry?.value;
+    if (!placement || placement.outcome !== "confirmed") continue;
+    for (const reference of placement.industries) {
+      if (reference.industryId !== industryId) continue;
+      if (!weakest || ORDINAL[reference.confidence] < ORDINAL[weakest]) weakest = reference.confidence;
+    }
+  }
+  return weakest;
+}
 
 /** The confidence a family's years number rides on: the WEAKEST level among the placements that
  *  contributed to it (coarse and conservative — the merged number is only as sure as its least sure
@@ -284,6 +349,11 @@ export const WORKED_YEARS_LABEL = "Years of experience (worked out from your dat
 const familyYearsLabel = (familyId: string) =>
   `Years of experience in ${familyId} (worked out from your dated jobs)`;
 
+/** The per-industry copy's label — carries the industry ID for the same registry reason as the
+ *  family label above. */
+const industryYearsLabel = (industryId: string) =>
+  `Years of experience in the ${industryId} industry (worked out from your dated jobs)`;
+
 /** AC5's backstop. The stored eligibility fact is a regenerable COPY (#128 §4) — the job records
  *  underneath always win — so this recomputes from those records, COMPARES against the stored copy,
  *  counts any disagreement (`years.drift_detected`) and writes the fresh value over it. Called at
@@ -315,6 +385,12 @@ export async function syncWorkedYears(
   const familyYears = computeFamilyYears(blocks, now);
   const fresh = new Map<string, string>([[ANY_FAMILY, String(worked.years)]]);
   for (const [familyId, years] of familyYears) fresh.set(familyId, String(years));
+  // #285 — the same writer, the second axis: one fact per industry any counting block is confirmed
+  // into, at a prefixed scope key so it can never collide with a family id. Full credit to every
+  // industry a job carries; these rows do not sum to the total, by design.
+  for (const [industryId, years] of computeIndustryYears(blocks, now)) {
+    fresh.set(industryScopeKey(industryId), String(years));
+  }
 
   const stored = new Map<string, EligibilityFact>(
     (await eligibility.list(sessionId))
@@ -330,7 +406,12 @@ export async function syncWorkedYears(
       dimension: "years-experience",
       familyId,
       value,
-      label: familyId === ANY_FAMILY ? WORKED_YEARS_LABEL : familyYearsLabel(familyId),
+      label:
+        familyId === ANY_FAMILY
+          ? WORKED_YEARS_LABEL
+          : familyId.startsWith(INDUSTRY_SCOPE_PREFIX)
+            ? industryYearsLabel(familyId.slice(INDUSTRY_SCOPE_PREFIX.length))
+            : familyYearsLabel(familyId),
     });
   }
   for (const familyId of stored.keys()) {

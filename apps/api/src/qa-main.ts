@@ -683,6 +683,8 @@ const { app } = buildServer({
       // firm, so one journey walks both halves: a job with web evidence behind it, and a job whose
       // lookup came back empty and was placed on the CV alone.
       qaEmployerLookup,
+      // #285: the labeling door re-derives the per-industry years facts, same as production.
+      qaEligibility,
     ),
     // #272: no preview step, mirroring main.ts — the upload pipeline no longer tailors a draft.
   },
