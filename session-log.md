@@ -2,6 +2,40 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-24 — staging hand-deployed to `b5913ad`: 50 commits, three weeks of work, one deploy
+
+Owner asked for everything undeployed to go live so they could test it. GitHub Actions has been
+billing-blocked since 2026-08-23 ~10:06 and stays down until 1 Sep, so this is the hand-deploy
+recipe in lessons.md, run in full. Previous hand deploy: `265ff6d` (2026-08-21).
+
+`265ff6d..b5913ad` = **50 commits**. What a person can now do that they could not on 2026-08-21:
+
+- **The industry axis, entire** (#280-#285): every past job carries the industry it was in, from her
+  own CV lines and correctable; an advert can state a years bar at industry scope and be answered at
+  that scope; a near-industry career keeps its whole years number and the CARD sinks x0.9 instead of
+  the number lying.
+- **The old flow is gone** (#272): four dead screens, their routes, and the pre-signup CV draft.
+- **A paste door on the front door** (#270): CV text, not only an upload.
+- **One field style** (#274), including the iPhone zoom-on-tap defect on the main journey.
+- **The work-history check has a door again** (#278), on the profile.
+- The labeler no longer reaches for the nearest family (#265); the earned count survives signup.
+
+**Gates, all run by hand, every cache bypassed:** `pnpm install --frozen-lockfile` · typecheck 7/7 ·
+`pnpm test` **1,677 passed / 11 skipped / 0 failed** · `pnpm build` (run BEFORE the e2e web build —
+the order trap) · Tier 1 **168 passed** with CI's own `"mine":0,"tailor":0,"grill":0,"audit":0`
+assertion passing · Tier 2 **all 27 journeys, 762 assertions, 0 failed**. Fake-model stack
+throughout: **USD 0.00**.
+
+**The stale-server lesson paid for itself.** A `next start -p 3000` was still listening from an
+earlier session. Caught before the gate ran, by checking the port instead of trusting a health
+probe — exactly the failure that cost 21 minutes of green-looking nonsense on 2026-08-21.
+
+Live and verified: both apps echo `b5913ad` on `/healthz`, including through the web proxy, and
+`/job-blocks` now serves 200 with no job id (it 404'd before #278 made the segment optional).
+
+**Still owed:** a hand deploy skips CI's clean-room build, so the first green Actions run after the
+billing is fixed re-proves this tree.
+
 ## 2026-08-23 (session 167) — the work-history check gets a door again, and every way in has a way out
 
 Closes #278 (row 8e, struck). A decision-plus-build ticket: the owner decided the where and the when
