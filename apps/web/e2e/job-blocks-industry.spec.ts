@@ -64,23 +64,29 @@ const INDUSTRIES: PublishedIndustry[] = [
 ];
 
 const PLACED = block("nordea-analyst", "Settlements Analyst", "Nordea Bank", {
-  schemaVersion: "1",
+  schemaVersion: "2",
   outcome: "confirmed",
-  industries: [{ industryId: "banking", version: 1 }],
-  confidence: "certain",
+  industries: [{ industryId: "banking", version: 1, confidence: "certain" }],
 });
 // The ordinary plural case — a consultancy job served into banking. Both are shown; neither wins.
+// #282: and each half at its OWN confidence — the employer is certainly a consultancy, the banking
+// the work was served into is only likely.
 const DUAL = block("acme-consultant", "Consultant", "Acme Advisory", {
-  schemaVersion: "1",
+  schemaVersion: "2",
   outcome: "confirmed",
   industries: [
-    { industryId: "consulting", version: 1 },
-    { industryId: "banking", version: 1 },
+    { industryId: "consulting", version: 1, confidence: "certain" },
+    { industryId: "banking", version: 1, confidence: "likely" },
   ],
-  confidence: "likely",
+});
+// One industry, placed at less than certainty — the machine's own doubt, which her answer replaces.
+const SINGLE_LIKELY = block("likely-analyst", "Analyst", "Someplace Bank", {
+  schemaVersion: "2",
+  outcome: "confirmed",
+  industries: [{ industryId: "banking", version: 1, confidence: "likely" }],
 });
 // The labeler answered, honestly, "nothing fits".
-const UNMAPPED = block("zzzz-analyst", "Analyst", "Zzzz Holdings", { schemaVersion: "1", outcome: "unmapped" });
+const UNMAPPED = block("zzzz-analyst", "Analyst", "Zzzz Holdings", { schemaVersion: "2", outcome: "unmapped" });
 // Never labeled at all (its call failed) — the other shape of "no industry here". From her side it
 // must read exactly like the unmapped one: which of the two it was is our own bookkeeping.
 const UNLABELED = block("baltic-coord", "Project Coordinator", "Baltic Systems", null);
@@ -200,6 +206,57 @@ test("narrowing a two-industry job to its first-listed industry still saves", as
   await expect
     .poll(() => sent)
     .toEqual([{ key: "industry", value: { industryId: "consulting", version: 1 } }]);
+});
+
+// Found by the #282 QA gate, by pressing Save rather than by reading the types. Contract v2 put a
+// CONFIDENCE on every industry reference; the screen was passing those references straight into the
+// correction body, and the server refuses a browser-asserted confidence outright (it is the
+// server's to stamp — a caller must not be able to ask for its own correction to be attenuated).
+// Every industry correction failed with a 400, forever, on the only lever a person has over this
+// axis. The two assertions below are what makes that impossible to reintroduce: the exact body,
+// and that re-picking what the card already says is still not a change.
+test("the correction body carries id and version only — never the confidence v2 added", async ({ page }) => {
+  const sent: unknown[] = [];
+  await page.route("**/api/job-blocks/*/correct", async (route) => {
+    sent.push(JSON.parse(route.request().postData() ?? "{}"));
+    return route.fulfill({ json: { ok: true, held: [], downstream: "" } });
+  });
+  await page.route("**/api/job-blocks/*/confirm", (route) => route.fulfill({ json: { ok: true } }));
+  // PLACED is banking at `certain`; she moves it to consulting.
+  await stub(page, [PLACED]);
+  await page.goto("/job-blocks/job-1");
+
+  await page.locator(".jb-card").click();
+  await page.locator("#jb-industry").selectOption("consulting");
+  await page.getByRole("button", { name: /Save and continue/i }).click();
+
+  await expect
+    .poll(() => sent)
+    .toEqual([{ key: "industry", value: { industryId: "consulting", version: 1 } }]);
+  // Belt and braces: no key beyond the two, whatever the placement carried.
+  expect(Object.keys((sent[0] as { value: object }).value).sort()).toEqual(["industryId", "version"]);
+});
+
+test("re-picking the industry the card already shows is not a change, whatever the machine's confidence was", async ({ page }) => {
+  // The other half of the v2 hazard. Her pick is stamped `certain`; DUAL's first industry was placed
+  // `certain` and its second `likely`. If confidence counted toward "did anything change?", picking
+  // what the card already says would send a correction — v2 must not quietly redefine a change.
+  const sent: unknown[] = [];
+  await page.route("**/api/job-blocks/*/correct", async (route) => {
+    sent.push(JSON.parse(route.request().postData() ?? "{}"));
+    return route.fulfill({ json: { ok: true, held: [], downstream: "" } });
+  });
+  await page.route("**/api/job-blocks/*/confirm", (route) => route.fulfill({ json: { ok: true } }));
+  await stub(page, [SINGLE_LIKELY]);
+  await page.goto("/job-blocks/job-1");
+
+  await page.locator(".jb-card").click();
+  await expect(page.locator("#jb-industry")).toHaveValue("banking");
+  await page.locator("#jb-industry").selectOption("banking");
+  await page.getByRole("button", { name: /Save and continue/i }).click();
+
+  await expect(page.locator(".jb-back")).toHaveCount(0); // the save went through
+  expect(sent).toEqual([]);
 });
 
 test("saving with the industry untouched sends no industry correction", async ({ page }) => {

@@ -7,7 +7,6 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import {
   FamilyVersionReference,
   IndustryPlacement as IndustryPlacementContract,
-  IndustryVersionReference,
   MinedDate,
   MinedEndValue,
   KINDS,
@@ -62,6 +61,15 @@ const Params = z.object({ blockId: z.string() });
 // contract requires of the miner's own output — `value: z.unknown()` let `{key:"kind",
 // value:"hobby"}` or `{key:"start", value:"whenever"}` persist junk that toView then casts straight
 // to Kind/MinedDate downstream.
+/** What the INDUSTRY PICKER sends: which published industry this job was in. Deliberately NOT the
+ *  contract's `IndustryVersionReference`, which since #282 (v2) also carries a confidence — that is
+ *  the STORED shape, and confidence is ours to stamp, never something a browser gets to assert. A
+ *  person's own answer is always `certain`; letting the wire say otherwise would let a caller ask
+ *  for its own correction to be attenuated. */
+const IndustryPick = z
+  .object({ industryId: z.string(), version: z.number().int().positive() })
+  .strict();
+
 const CorrectBody = z.discriminatedUnion("key", [
   z.object({ key: z.literal("employer"), value: z.string().min(1) }),
   z.object({ key: z.literal("title"), value: z.string().min(1) }),
@@ -84,7 +92,7 @@ const CorrectBody = z.discriminatedUnion("key", [
   // Every industry it names is still checked against the published vocabulary in the handler.
   z.object({
     key: z.literal("industry"),
-    value: z.union([IndustryVersionReference, IndustryPlacementContract]),
+    value: z.union([IndustryPick, IndustryPlacementContract]),
   }),
 ]);
 
@@ -244,10 +252,12 @@ export function jobBlocksRoutes(deps: JobBlocksDeps) {
           stored = {
             schemaVersion: INDUSTRY_PLACEMENT_SCHEMA_VERSION,
             outcome: "confirmed",
-            industries: [{ industryId: known.industryId, version: known.version }],
             // Her own answer is the one placement nothing is unsure about, so it is never
-            // attenuated. The machine's doubt was about the machine.
-            confidence: "certain",
+            // attenuated. The machine's doubt was about the machine. (#282 moved confidence onto
+            // each industry; a correction names one industry, so there is one to stamp.)
+            industries: [
+              { industryId: known.industryId, version: known.version, confidence: "certain" },
+            ],
             // KNOWN LIMIT, same as the family door's: a correction names ONE industry and
             // supersedes whatever was there, so correcting a job the machine placed in two narrows
             // it to one. That is the right reading of the only correction a screen can currently

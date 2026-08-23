@@ -197,6 +197,13 @@ const block = (id, title, employer, family, confirmed) => ({
   end: decision(`${id}:end`, { state: 'ended', date: { year: 2022, month: 3, precision: 'month' } }),
   kindDecision: decision(`${id}:kind`, 'job'),
   family: { id: `${id}:family`, value: family, origin: { kind: 'worked_out' }, machine_touch: null, classification: null },
+  // #281 put a SEVENTH fact on every job record and the screen reads it unconditionally, as it
+  // should — `industry` is required on JobBlockView, so a card is entitled to assume it is there.
+  // This fixture was written before that fact existed and kept claiming a shape the API never
+  // sends, which crashed the card render and left this journey red from #281 until #282's QA gate
+  // diagnosed it. Never placed here: this journey is about the FAMILY axis, and an unplaced
+  // industry is the quieter fixture.
+  industry: { id: `${id}:industry`, value: null, origin: { kind: 'worked_out' }, machine_touch: null, classification: null },
   confirmed,
   matchState: 'new',
   candidateBlockIds: [],

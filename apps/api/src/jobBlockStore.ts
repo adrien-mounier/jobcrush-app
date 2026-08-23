@@ -199,6 +199,46 @@ function familyView(blockId: string, stored: StoredBlock): DecisionView<FamilyPl
   };
 }
 
+/** Reads one stored industry placement, upgrading a v1 blob on the way through.
+ *
+ *  #282 moved confidence from the placement onto each industry (contract v2). A v1 row would
+ *  otherwise fail the parse and read as NOT PLACED, which is survivable for a machine placement —
+ *  the labeler simply places it again — but NOT for a CORRECTION: a person's own answer would
+ *  silently vanish and be overwritten by the machine on the next run, and a correction is the only
+ *  lever this product gives anyone over its second label axis.
+ *
+ *  So v1 is upgraded rather than dropped: the one confidence it carried is the labeler's answer for
+ *  every industry it named, which is exactly what v1 meant. Nothing is invented, and the upgraded
+ *  value still has to satisfy the v2 contract below — a v1 blob that was already malformed stays
+ *  refused.
+ *
+ *  ponytail: upgrade on READ, nothing written back, so an old row is re-upgraded on every read. The
+ *  rows are tiny and there are few of them (#281 shipped hours before #282). Write a migration if a
+ *  v1 row ever outlives that. */
+function readIndustryPlacement(stored: unknown): IndustryPlacement | null {
+  const upgraded = upgradeIndustryPlacementV1(stored);
+  // Parsed rather than cast, like familyView: this is a read out of jsonb, which is a trust
+  // boundary, and the contract is the only thing that knows what a valid placement is.
+  return IndustryPlacementContract.safeParse(upgraded).data ?? null;
+}
+
+/** v1 -> v2, or the value unchanged when it is not a v1 confirmed placement. */
+function upgradeIndustryPlacementV1(stored: unknown): unknown {
+  if (!stored || typeof stored !== "object") return stored;
+  const value = stored as Record<string, unknown>;
+  if (value.schemaVersion !== "1") return stored;
+  if (value.outcome === "unmapped") return { schemaVersion: "2", outcome: "unmapped" };
+  if (value.outcome !== "confirmed" || !Array.isArray(value.industries)) return stored;
+  const confidence = value.confidence;
+  return {
+    schemaVersion: "2",
+    outcome: "confirmed",
+    industries: value.industries.map((industry) =>
+      industry && typeof industry === "object" ? { ...industry, confidence } : industry,
+    ),
+  };
+}
+
 /** #281 — the seventh fact's own view, familyView's twin. Same reasoning throughout: no source
  *  quote to fall back on (nothing in a CV states an industry — it is worked out from the employer,
  *  the title and the person's own lines), and machine_touch/classification are judgements about
@@ -207,8 +247,8 @@ function industryView(blockId: string, stored: StoredBlock): DecisionView<Indust
   // Parsed rather than cast, like familyView: this is a read out of jsonb, which is a trust
   // boundary, and the contract is the only thing that knows what a valid placement is. Anything the
   // current version refuses reads as NOT PLACED, so the labeler simply places it again.
-  const correction = IndustryPlacementContract.safeParse(stored.corrections.industry).data ?? null;
-  const placement = IndustryPlacementContract.safeParse(stored.industryPlacement).data ?? null;
+  const correction = readIndustryPlacement(stored.corrections.industry);
+  const placement = readIndustryPlacement(stored.industryPlacement);
   return {
     id: `${blockId}:industry`,
     value: correction ?? placement,

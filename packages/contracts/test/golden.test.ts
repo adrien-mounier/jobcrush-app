@@ -110,7 +110,10 @@ describe("Family placement v2", () => {
 
 // #281 — the seventh fact's contract, the family placement's twin at its own version. Same two
 // outcomes and no third: nobody is ever asked which industry their employer was in.
-describe("Industry placement v1", () => {
+// #282 takes it to v2: confidence rides on EACH industry rather than on the placement, because the
+// employer's own industry and the industry the work was served into are known to different
+// strengths and one number for both lets the weaker ride on the stronger.
+describe("Industry placement v2", () => {
   const placements = fixture("industry-placement.valid.json");
 
   it("accepts only confirmed and unmapped outcomes in oracle and zod", () => {
@@ -120,15 +123,21 @@ describe("Industry placement v1", () => {
     }
   });
 
-  it("carries one or more immutable industry versions, distinct, with an ordinal confidence", () => {
+  it("carries one or more immutable industry versions, distinct, each with its own confidence", () => {
     const [single, dual] = placements;
-    expect(single.industries).toEqual([{ industryId: "banking", version: 1 }]);
+    expect(single.industries).toEqual([
+      { industryId: "banking", version: 1, confidence: "certain" },
+    ]);
     // Two industries is the ORDINARY plural case (a consultancy job served into banking), not an
     // edge case — and the count stays unbounded so a labeler drifting to three stays visible.
     expect(dual.industries).toHaveLength(2);
+    // The whole point of v2: the employer is known for certain, the served industry only possibly.
+    expect(dual.industries.map((i: any) => i.confidence)).toEqual(["certain", "possible"]);
+    // ...and nothing sits on the placement itself any more.
+    expect(dual.confidence).toBeUndefined();
 
     const three = structuredClone(dual);
-    three.industries.push({ industryId: "software", version: 1 });
+    three.industries.push({ industryId: "software", version: 1, confidence: "likely" });
     expect(validateIndustryPlacement(three).ok).toBe(true);
     expect(IndustryPlacement.safeParse(three).success).toBe(true);
 
@@ -138,17 +147,27 @@ describe("Industry placement v1", () => {
       (value: any) => (value.industries = null),
       (value: any) => (value.industries = [null]),
       (value: any) => (value.industries = "banking"),
-      // The same industry named twice — a job that is two of the same thing is not a plural case.
+      // The same industry named twice — a job that is two of the same thing is not a plural case,
+      // and it stays one even when the labeler was differently sure the second time.
       (value: any) => (value.industries = [value.industries[0], { ...value.industries[0] }]),
+      (value: any) =>
+        (value.industries = [
+          value.industries[0],
+          { ...value.industries[0], confidence: "possible" },
+        ]),
       // A family placement is NOT an industry placement, however alike they look.
       (value: any) => ((value.families = value.industries), delete value.industries),
       (value: any) => (value.industries[0].industryId = "Banking"),
       (value: any) => (value.industries[0].version = 0),
-      (value: any) => (value.schemaVersion = "2"),
+      (value: any) => (value.schemaVersion = "3"),
+      // v1's shape is not v2's: a placement-level confidence, and industries without one.
+      (value: any) => (value.schemaVersion = "1"),
       (value: any) => (value.outcome = "needs_clarification"),
-      (value: any) => delete value.confidence,
-      (value: any) => (value.confidence = 0.8),
-      (value: any) => (value.confidence = "quite sure"),
+      (value: any) => delete value.industries[0].confidence,
+      (value: any) => (value.industries[0].confidence = 0.8),
+      (value: any) => (value.industries[0].confidence = "quite sure"),
+      // The old placement-level field is now a stray key, not a second opinion.
+      (value: any) => (value.confidence = "certain"),
     ]) {
       const value = structuredClone(single);
       mutate(value);
@@ -162,7 +181,8 @@ describe("Industry placement v1", () => {
   it("unmapped carries nothing at all — no industries, no confidence", () => {
     for (const mutate of [
       (value: any) => (value.confidence = "possible"),
-      (value: any) => (value.industries = [{ industryId: "banking", version: 1 }]),
+      (value: any) =>
+        (value.industries = [{ industryId: "banking", version: 1, confidence: "certain" }]),
       (value: any) => (value.reason = "nothing fits"),
     ]) {
       const value = structuredClone(placements[2]);

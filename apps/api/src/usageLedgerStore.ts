@@ -33,7 +33,12 @@ export type LlmStage =
   // #281: placing a dated job into an INDUSTRY — the second label axis. Its own stage, not folded
   // into family-placement: it runs against a different vocabulary on a different model, and #282
   // adds a paid employer web lookup to it that the family half will never make.
-  | "industry-placement";
+  | "industry-placement"
+  // #282: the employer web lookup that feeds the industry placement. Its own stage because it is
+  // priced differently from every other row here — Anthropic's per-search charge sits on top of the
+  // tokens — and because it is the one stage whose spend is SHARED: a lookup is paid for once and
+  // read by every visitor who ever names that employer, so its rows carry no visitor at all.
+  | "employer-lookup";
 
 /** One completed model call. `visitorId` is a pseudonym (a session id) or null for an unattributed
  *  call — never dropped, never guessed. `inputTokens`/`outputTokens`/`costUsd` are null together

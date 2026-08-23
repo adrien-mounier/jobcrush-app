@@ -3610,3 +3610,53 @@ your change, and prove it against the live product, not just against your diff (
 petty cash to do that; the alternative was shipping a "repaired" walk nobody had ever watched run).
 The standing fix is structural, not vigilance: every journey either sits in a tier or carries a filed
 ticket saying why not (#276 is that ticket for the front door's own journey).
+
+## A shared cache's key is worth one real run before you trust the bill
+
+#282 caches one web lookup per company and shares it across every visitor — "a company is paid for
+once, ever" — keyed on a normalised employer name. The unit tests all passed. The first **real** run
+paid for "Nordea Bank" and "Nordea Bank A/S" separately: the Danish legal form is written with a
+slash, and the key treated a slash as a word break. Every hand-written key case had been a suffix the
+author already had in mind (`Ltd`, `GmbH`, `S.A.`), so the tests only ever confirmed the author's own
+list back to them.
+
+Two things generalise. **A normalisation function is the one place a test cannot find its own blind
+spot** — the inputs it does not think of are exactly the ones it does not test, and the failure is
+silent because a cache miss looks identical to a first visit. **And the symptom of a broken shared key
+is money, not an error**: nothing throws, nothing degrades, the product works perfectly and costs
+twice what it should, so the only detector is either a real run or a cache-hit-vs-lookup counter
+somebody actually watches. Spend the petty cash on one real run of any cache whose whole justification
+is the bill, and give it the hit/miss counters before you need them.
+
+## A contract's version bump is a data-loss decision, not a schema decision
+
+#282 moved confidence from the placement onto each industry — a clean v2 in the zod port and the
+`.mjs` oracle together. What is easy to miss is that the reader was already tolerant: it parses stored
+rows with `safeParse(...).data ?? null`, so a v1 row simply reads as *not placed*. For a machine
+placement that is self-healing and fine — the labeler places it again. For a **person's correction** it
+is silent data loss: her answer vanishes and the machine overwrites it on the next run, which is
+exactly the failure the correction exists to prevent.
+
+The rule: when bumping a contract version, ask what each STORED shape means, not just whether the new
+one validates. A tolerant reader turns "refused" into "absent", and "absent" is only safe for values
+the system can regenerate. Anything a human authored needs an upgrade path, and an upgrade on read is
+usually a dozen lines — far cheaper than the day someone notices their correction did not stick.
+
+## `pnpm test` is not the gate — the browser tier is where a contract change actually lands
+
+#282's contract went to v2 and every gate the implementer ran was green: 1,643 API tests, 50 contract
+goldens, typecheck across seven packages. The QA gate then pressed **Save** on the real screen and
+found every industry correction failing with a 400 — the browser was sending the new per-industry
+`confidence` into a route that strictly refuses it, which is the only lever a person has over that
+axis, broken for everyone, forever.
+
+The specs that catch it **already existed and already asserted the exact request body**. They just
+are not in `pnpm test`: tier-1 browser specs run in CI's separate `e2e` job. So the push would have
+gone red anyway — but only *after* being pushed, and only because someone else's job runs them.
+
+Two rules out of it. **When a contract version changes, the wire is the surface, not the type** — the
+server was right, the client was wrong, and TypeScript could not see it because a widening return
+type does not strip excess properties. Grep every place the changed shape is *sent*, not just where it
+is read. And **before calling a slice done, run the browser specs the diff can reach yourself**;
+`pnpm test` passing means the unit tier is happy, which for any user-visible change is the smaller
+half of the claim.

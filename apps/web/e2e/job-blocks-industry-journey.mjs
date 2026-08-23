@@ -166,6 +166,13 @@ const correctRequest = page.waitForRequest(
   (r) => /\/api\/job-blocks\/.+\/correct$/.test(r.url()) && r.method() === 'POST',
   { timeout: 20000 },
 );
+// The STATUS, not just the screen. #282's QA gate found every industry correction failing with a
+// 400 (`IndustryPick` is strict; the browser was passing v2's confidence through) while the card
+// still looked plausible for a moment. A green screen is not evidence the server accepted it.
+const correctResponse = page.waitForResponse(
+  (r) => /\/api\/job-blocks\/.+\/correct$/.test(r.url()) && r.request().method() === 'POST',
+  { timeout: 20000 },
+);
 await page.locator('#jb-industry').selectOption('it-services');
 await qa.expectVisible('#jb-industry', 'she picks IT services from the published list');
 await page.waitForTimeout(800);
@@ -176,7 +183,12 @@ await verdict(
   sent.key === 'industry' && sent.value?.industryId === 'it-services' && sent.value?.version === 1,
   'a published industry reference is what travels — never free text',
 );
+const correctStatus = (await correctResponse).status();
+await qa.note(`the server answered the correction with HTTP ${correctStatus}`);
+await verdict(correctStatus === 200, 'the server ACCEPTED the correction — no 400 on the only lever she has');
 await page.waitForTimeout(1200);
+const errorOnScreen = await page.locator('p.error[role="alert"]').count();
+await verdict(errorOnScreen === 0, 'and she is shown no error');
 
 // -------------------------------------------------------------------------------------------
 // 5. AC5 — it stuck: on the wire, and then on the screen after a full reload.
@@ -188,12 +200,13 @@ await qa.note(`Baltic Systems reads back as: ${JSON.stringify(baltic.industry)}`
 await verdict(
   baltic.industry.value?.outcome === 'confirmed' &&
     baltic.industry.value.industries[0].industryId === 'it-services' &&
-    baltic.industry.value.confidence === 'certain',
+    // #282 (contract v2): confidence rides on the industry, not on the placement.
+    baltic.industry.value.industries[0].confidence === 'certain',
   'her correction survived the reload, stored as certain',
 );
 await verdict(
   baltic.industry.origin.kind === 'corrected' &&
-    JSON.stringify(baltic.industry.origin.supersededValue) === JSON.stringify({ schemaVersion: '1', outcome: 'unmapped' }),
+    JSON.stringify(baltic.industry.origin.supersededValue) === JSON.stringify({ schemaVersion: '2', outcome: 'unmapped' }),
   "her answer supersedes the machine's without erasing it",
 );
 

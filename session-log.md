@@ -2,6 +2,80 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-23 (session 164) `/implement 282` — what the employer really is, and the consultant also in banking
+
+Closes #282 (row 8b.3, struck). The third of #279's six tickets: #281 could place a job from the
+person's own CV lines, which answers *what industry was the work in*. It could not answer *what is
+this employer* — "Acme Solutions Ltd" tells a model nothing — so small employers came out honestly
+unplaced. This adds the other half of the evidence.
+
+**What shipped:**
+
+- **One web lookup per company, through Anthropic's own server-side web search** on the key the
+  product already holds. No new vendor, no new account, no search infrastructure of our own.
+  `apps/api/src/employerLookup.ts` + `apps/api/prompts/employer-lookup.md`.
+- **Cached durably and shared across every visitor** — a company is paid for once, ever, keyed on a
+  normalised employer name (`employer_lookups`, Postgres in production, in-memory in dev/test).
+  Nothing about the person goes out with the question, because a cached row is read by strangers:
+  the lookup is sent the employer name and nothing else.
+- **A failure is never cached.** A network error, a timeout or an empty answer leaves the cache
+  untouched, so the next run looks the employer up for real — #281's "a degraded answer is never
+  stored" applied to the second evidence source.
+- **The placement contract went to v2:** confidence moved from the placement onto EACH INDUSTRY, in
+  the zod port and the `.mjs` oracle together, golden-tested. This is the point of the whole ticket —
+  the lookup can make the employer's own industry `certain` while the served industry, read off her
+  own lines, is only `possible`, and one number for both would let the weaker ride on the stronger
+  all the way into #285's score. A v1 row is **upgraded on read** (`jobBlockStore.ts`) rather than
+  dropped: a machine placement would survive being refused (the labeler places it again) but a
+  person's CORRECTION would silently vanish and be overwritten.
+- **The fetched web text is evidence, never an instruction.** The labeler's prompt says so, in the
+  block that carries the text, before the text itself — and nothing inside it can add an industry to
+  the closed list, rename one, or move where a scope ends.
+- **Spend is metered**, on its own `employer-lookup` stage priced as tokens PLUS Anthropic's
+  per-search charge, which the per-token table alone would under-report. Those rows carry **no
+  visitor**: the answer is shared, and billing a whole company to whoever arrived first would be a
+  fiction `costForVisitor` is read as fact.
+
+**Proven on the real Anthropic API, not the Claude Code CLI fallback** (the CLI cannot run a
+server-side tool, and the lookup is wired only when `ANTHROPIC_API_KEY` is set). Three live runs:
+real employer descriptions came back; three spellings of one company collapsed to one paid lookup;
+a consultancy job serving banks came out as **it-services `likely` + banking `certain`**, and a job
+with one passing mention of a bank client correctly stayed one industry. **13 calls, USD 0.657
+recorded in the ledger, ≈ USD 0.75 all-in** — priced from Anthropic's published rates read the same
+day (web search USD 10 per 1,000 searches; claude-sonnet-5 at the standard USD 3/15 per MTok, not
+the lower introductory rate, so the figure is the conservative one). Well inside the USD 10 float.
+
+**Two bugs the real run found that no stub would have:**
+
+- "Nordea Bank" and "Nordea Bank A/S" were being paid for **twice** — the Danish legal form is
+  written with a slash, which the key treated as a word break. Fixed and re-proven live.
+- The lookup deadline was per round trip, so one unfindable employer could hold the pipeline for
+  three minutes; it is now one deadline for the whole lookup.
+
+**Found by review, fixed here:** a paused turn's text was being overwritten rather than accumulated
+(half of what we paid for, thrown away, and a final turn that added nothing would have read as an
+empty lookup); the Postgres cache driver had no contract test, so "cached durably" rested on the
+in-memory driver alone; and the per-search rate was read out of the ambient environment while token
+pricing travelled as an injected table.
+
+**The QA gate returned NO-GO first, and was right.** Every gate the build ran was green — 1,643 API
+tests, 50 contract goldens, typecheck across seven packages — and the gate then pressed **Save** on
+the real screen and found *every industry correction failing with a 400*. The v2 references carry a
+confidence; the screen was passing them straight into the correction body; the route refuses a
+browser-asserted confidence outright, rightly, since confidence is the server's to stamp. Broken for
+everyone, on the only lever a person has over this axis. Fixed at `industryRefs()`, which now yields
+id and version only — which also keeps "did she change anything?" comparing what it always compared,
+so v2 does not quietly redefine a change. Two specs pin both halves.
+
+Acting on the gate's own structural finding, **both industry real-stack journeys joined CI tier 2**
+(with coverage entries, so an industry-touching diff selects them). They were in no tier at all,
+which is the fourth time this repo has hit that shape — and this time it bit for real: nothing in any
+tier had ever pressed that button.
+
+**Deliberately unchanged:** nothing is asked of a person, and no advert score, card order or years
+figure moves. ADR-0014 gains **amendment 3** with the decided shape; `CONTEXT.md` gains **employer
+lookup** as a term.
+
 ## 2026-08-23 (session 163) `/implement 281` — the seventh fact: every job carries its industry (QA GO)
 
 Closes #281 (row 8b.2, struck). The second of #279's six tickets, and the first one a visitor can

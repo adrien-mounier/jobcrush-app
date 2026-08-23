@@ -200,6 +200,16 @@ industry the work was served into), and its years count in full toward each. Nob
 which industry their employer was in; correction is the only lever.
 _Avoid_: Industry tag, employer classification, sector label
 
+**Employer lookup**:
+What the open web says an employer's business is, in plain words — one web search per company,
+looked up when a job is placed and then cached durably and read by everyone, so a company is paid
+for once, ever. It answers *what is this employer*; the person's own CV lines answer *what industry
+was the work in*, and where they differ the job honestly carries both. The lookup is sent the
+employer name and nothing else, because the row it writes is read by strangers. A lookup that fails,
+times out or finds nothing is never stored, and the job is still placed on the CV lines alone.
+Designed in ADR-0014 amendment 3, built by #282.
+_Avoid_: Company enrichment, employer profile, firmographics
+
 **Posting family fit**:
 The judgement of whether a live posting belongs to a job family at all, carried with the posting
 alongside a confidence — a published family id or "none of these" (#243), never free text.

@@ -60,6 +60,12 @@ export interface MeteredLlmClient extends LlmClient {
  *   fires before the provider's, the provider may still have served (and will still bill) the
  *   request; this under-reports true spend in that narrow window but never misattributes it to the
  *   wrong stage or visitor.
+ * - #282 opened a SECOND recording path: employerLookup.ts writes its own ledger row, because
+ *   Anthropic charges per web search on top of the tokens and PricingTable is per-token only. It
+ *   deliberately mirrors this function's rules — fire-and-forget, usageLedger.write_failed on a
+ *   failed write — but it is not this wrapper, so a change to the row shape has to be made in both.
+ *   Recorded here rather than left for someone to find: the guarantee below is about call sites, and
+ *   this is the first one that legitimately does not use this seam.
  * - The "impossible to spend unmetered" guarantee this file provides is only as good as every call
  *   site actually using it. Nothing enforces that main.ts hands each pipeline step a client that has
  *   been through meterLlm rather than the raw driver — a future stage wired directly to `llm` would

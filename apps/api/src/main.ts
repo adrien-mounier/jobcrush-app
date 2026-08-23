@@ -38,6 +38,7 @@ import {
 import { initialProductionFamilyFloors } from "./familyFloors.js";
 import { makeFamilyPlacer, makeJobBlockLabeler, publishedFamilies } from "./familyLabeler.js";
 import { makeJobBlockIndustryLabeler } from "./industryLabeler.js";
+import { employerLookupStoreFromEnv, makeEmployerLookup } from "./employerLookup.js";
 import { publishedIndustryVocabulary } from "./industryVocabulary.js";
 import { pricingTableFromEnv } from "./llmPricing.js";
 import { meterLlm } from "./llmMeter.js";
@@ -81,6 +82,22 @@ const postingStore = postingStoreFromEnv(process.env.DATABASE_URL);
 // #252: the vocabulary-growth feed survives a deploy — one store, shared by both labeler halves
 // and by the ops route that reads it back.
 const unmappedLabels = unmappedLabelStoreFromEnv(process.env.DATABASE_URL);
+// #282: what each employer actually IS, looked up on the web once per company and SHARED by
+// everyone — a company is paid for once, ever. Not per-session and not personal data, which is what
+// makes one durable table the right home for it.
+const employerLookups = employerLookupStoreFromEnv(process.env.DATABASE_URL);
+// The lookup itself, or undefined when no real Anthropic key is configured. Never llmFromEnv()'s
+// client: web search is a SERVER-SIDE tool on Anthropic's own API, which the local Claude Code CLI
+// fallback cannot run. Priced into the same ledger as every other paid stage — tokens plus
+// Anthropic's per-search charge, which the per-token table alone would under-report.
+const employerLookup = process.env.ANTHROPIC_API_KEY
+  ? makeEmployerLookup({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      store: employerLookups,
+      ledger: usageLedger,
+      pricing: llmPricing,
+    })
+  : undefined;
 const productionFamilyFloors = initialProductionFamilyFloors();
 // #281 — ONE published vocabulary for this process: the labeler places into it and the correction
 // door checks against it, and two independent reads would let the door refuse an industry the
@@ -125,6 +142,7 @@ try {
   await usageLedger.init();
   await postingStore.init();
   await unmappedLabels.init();
+  await employerLookups.init();
 } catch (err) {
   console.error("store init failed", err);
   process.exit(1);
@@ -177,7 +195,7 @@ const { app } = buildServer({
     ),
     // #281: and every mined JOB is placed in an industry — the second axis, its own vocabulary, its
     // own call. Deliberately on the DEFAULT (Anthropic) client rather than the Fireworks family
-    // model: #282 adds the employer web lookup, which is a server-side tool on that call only.
+    // model: #282's employer web lookup is a server-side tool on Anthropic's own API.
     labelJobBlockIndustries: makeJobBlockIndustryLabeler(
       metered("industry-placement", llm),
       industryVocabulary.activeIndustries(),
@@ -185,6 +203,11 @@ const { app } = buildServer({
       // The person's own CV lines — what makes an employer nobody has heard of placeable at all.
       claims,
       unmappedLabels,
+      // #282: and what the employer IS, from the web. Wired ONLY when a real Anthropic key is
+      // configured — the local Claude Code CLI fallback cannot run a server-side tool, and a lookup
+      // that only works on a laptop is worse than none: it would let the feature look alive in dev
+      // and be silently absent in production. No key → every job is placed on CV evidence alone.
+      employerLookup,
     ),
     // #272: no preview step. The upload pipeline used to end by tailoring a full draft here — a
     // paid `preview-tailor` model call per upload whose output no live screen read. The engine

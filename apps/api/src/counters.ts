@@ -339,6 +339,32 @@ const counts = {
   // operator reading a rising familyLabeler.* number goes looking at the family vocabulary, and the
   // words being lost would be industries.
   "industryLabeler.unmapped_feed_failed": 0,
+  // #282 — the employer WEB LOOKUP, the other half of the industry evidence. Its own namespace
+  // rather than more industryLabeler.* numbers: this is a paid call with a cache in front of it, and
+  // what an operator needs from it is the CACHE's health, which the labeler's outcome split cannot
+  // show.
+  //
+  // cache_hit against looked_up is the whole economics of the feature: a company is meant to be paid
+  // for ONCE, so cache_hit should climb far faster than looked_up as the same employers recur. The
+  // two rising together means the cache is not holding — a key that is too specific, or a store that
+  // is not persisting — and that reads as a rising bill and nothing else.
+  //
+  // `billed_calls` counts LOOKUP CALLS that produced a usage block — one per employer that missed
+  // the cache and got an answer out of the provider, NOT the individual web searches inside one, and
+  // not a call aborted before it reported anything. How many web searches those calls ran, and what
+  // they cost, is the usage ledger's to say; this is the number that tells an operator how often we
+  // reached for the provider at all. failed / empty are the two degraded paths, and both are
+  // survivable by design: the job is still placed on the CV evidence alone.
+  "employerLookup.cache_hit": 0,
+  "employerLookup.looked_up": 0,
+  "employerLookup.billed_calls": 0,
+  "employerLookup.failed": 0,
+  "employerLookup.empty": 0,
+  // The cache's own two failure modes, kept apart from the lookup's. A read failure costs a search
+  // we could have saved; a write failure costs every FUTURE search for that company. Neither ever
+  // fails a placement, which is exactly why they need a number: without one they are invisible.
+  "employerLookup.cache_read_failed": 0,
+  "employerLookup.cache_write_failed": 0,
 };
 
 export type CounterName = keyof typeof counts;

@@ -156,11 +156,26 @@ interface UndoAction {
 // offers the published list to pick from when she disagrees. Nothing anywhere asks her which
 // industry her employer was in.
 
-/** The industries a placement names — empty for unmapped, and for a job never placed at all. The
- *  screen deliberately says the same thing for both: from her side "we couldn't place this" is the
- *  whole truth, and which of the two it was is our own bookkeeping. */
+/** The industries a placement names, as ID AND VERSION ONLY — empty for unmapped, and for a job
+ *  never placed at all. The screen deliberately says the same thing for both: from her side "we
+ *  couldn't place this" is the whole truth, and which of the two it was is our own bookkeeping.
+ *
+ *  The confidence is dropped here on purpose, and the drop is load-bearing in two places (#282 QA
+ *  gate, which caught both by pressing Save rather than by reading the types):
+ *
+ *  - it is what the correction POSTs, and the server refuses a browser-asserted confidence outright
+ *    (`IndustryPick` is strict) — rightly, since confidence is the server's to stamp and a caller
+ *    must not be able to ask for its own correction to be attenuated. Passing the v2 references
+ *    through unchanged made every industry correction fail with a 400, forever, on the only lever a
+ *    person has over this axis;
+ *  - it is what "did she change anything?" compares. Keeping confidence in would make picking the
+ *    industry the card ALREADY shows count as a change, because her pick is stamped `certain` and
+ *    the machine's answer may have been `likely`. Contract v2 must not quietly redefine what a
+ *    change is. */
 function industryRefs(placement: IndustryPlacement | null): Array<{ industryId: string; version: number }> {
-  return placement?.outcome === "confirmed" ? placement.industries : [];
+  return placement?.outcome === "confirmed"
+    ? placement.industries.map(({ industryId, version }) => ({ industryId, version }))
+    : [];
 }
 
 /** Display names, from the same publication the labeler placed into — a placement carries ids and
@@ -428,7 +443,7 @@ export default function JobBlocksScreen() {
           if (industryChange)
             await correctJobBlock(block.id, {
               key: "industry",
-              value: original.industry.value ?? { schemaVersion: "1", outcome: "unmapped" },
+              value: original.industry.value ?? { schemaVersion: "2", outcome: "unmapped" },
             });
           await unconfirmJobBlock(block.id);
         },
@@ -1135,13 +1150,18 @@ function BackPanel({
                 industry: {
                   ...draft.industry,
                   value: {
-                    schemaVersion: "1",
+                    schemaVersion: "2",
                     outcome: "confirmed",
-                    industries: [{ industryId: picked.industryId, version: picked.version }],
-                    // Her own answer is the one placement nothing is unsure about. The server sets
+                    // Her own answer is the one placement nothing is unsure about. The server stamps
                     // this too — it is the authority; this is the same value so the card does not
-                    // flicker between save and reload.
-                    confidence: "certain",
+                    // flicker between save and reload. (#282 moved confidence onto each industry.)
+                    industries: [
+                      {
+                        industryId: picked.industryId,
+                        version: picked.version,
+                        confidence: "certain",
+                      },
+                    ],
                   },
                 },
               });

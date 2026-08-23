@@ -2,7 +2,7 @@
 // survive a store reconstruction (the restart AC), same convention as pgstores.test.ts.
 import { beforeEach, describe, expect, it } from "vitest";
 import { newDb } from "pg-mem";
-import type { MinedJobBlock } from "@jobcrush/contracts";
+import type { IndustryPlacement, MinedJobBlock } from "@jobcrush/contracts";
 import { InMemoryJobBlockStore, PgJobBlockStore, type JobBlockStore } from "../src/jobBlockStore.js";
 
 function pgPool() {
@@ -117,7 +117,7 @@ for (const [name, make] of drivers) {
       const fresh = (await store.list(sid))[0]!;
       expect(fresh.industry.value).toBeNull(); // unlabeled until the industry labeler runs
 
-      const unmapped = { schemaVersion: "1", outcome: "unmapped" } as const;
+      const unmapped = { schemaVersion: "2", outcome: "unmapped" } as const;
       expect(await store.labelIndustry(sid, "a", unmapped)).toBe(true);
       const labeled = (await store.list(sid))[0]!;
       expect(labeled.industry.value).toEqual(unmapped);
@@ -126,10 +126,9 @@ for (const [name, make] of drivers) {
       expect(labeled.family.value).toBeNull();
 
       const picked = {
-        schemaVersion: "1",
+        schemaVersion: "2",
         outcome: "confirmed",
-        industries: [{ industryId: "banking", version: 1 }],
-        confidence: "certain",
+        industries: [{ industryId: "banking", version: 1, confidence: "certain" }],
       } as const;
       await store.correct(sid, "a", "industry", picked);
       // A later run of the labeler writes the machine's answer — and is still not what she reads.
@@ -139,6 +138,71 @@ for (const [name, make] of drivers) {
       expect(corrected.origin).toEqual({ kind: "corrected", supersededValue: unmapped });
 
       expect(await store.labelIndustry(sid, "no-such-block", unmapped)).toBe(false);
+    });
+
+    // #282 moved confidence from the placement onto each industry (contract v2). A v1 row already
+    // written by #281 must not simply fail the parse and read as unplaced: a machine placement
+    // would survive that (the labeler places it again), but a CORRECTION would silently vanish and
+    // be overwritten by the machine — and a correction is the only lever anyone has over this axis.
+    it("upgrades a v1 placement on read, so a person's correction survives the version bump", async () => {
+      await store.ingest(sid, { schemaVersion: "1", blocks: [job({ id: "a" })] }, "raw");
+      // Written the way #281 wrote it: ONE confidence, on the placement.
+      const v1Machine = {
+        schemaVersion: "1",
+        outcome: "confirmed",
+        industries: [
+          { industryId: "consulting", version: 1 },
+          { industryId: "banking", version: 1 },
+        ],
+        confidence: "likely",
+      } as unknown as IndustryPlacement;
+      const v1Correction = {
+        schemaVersion: "1",
+        outcome: "confirmed",
+        industries: [{ industryId: "banking", version: 1 }],
+        confidence: "certain",
+      } as unknown as IndustryPlacement;
+      await store.labelIndustry(sid, "a", v1Machine);
+      await store.correct(sid, "a", "industry", v1Correction);
+
+      const read = (await store.list(sid))[0]!.industry;
+      // Her answer is still hers, at v2, and nothing was invented: v1's one confidence WAS the
+      // labeler's answer for every industry it named, so that is what each industry now carries.
+      expect(read.value).toEqual({
+        schemaVersion: "2",
+        outcome: "confirmed",
+        industries: [{ industryId: "banking", version: 1, confidence: "certain" }],
+      });
+      expect(read.origin).toEqual({
+        kind: "corrected",
+        supersededValue: {
+          schemaVersion: "2",
+          outcome: "confirmed",
+          industries: [
+            { industryId: "consulting", version: 1, confidence: "likely" },
+            { industryId: "banking", version: 1, confidence: "likely" },
+          ],
+        },
+      });
+    });
+
+    it("upgrades a v1 unmapped, and still refuses a v1 blob that was malformed anyway", async () => {
+      await store.ingest(sid, { schemaVersion: "1", blocks: [job({ id: "a" }), job({ id: "b" })] }, "raw");
+      await store.labelIndustry(sid, "a", { schemaVersion: "1", outcome: "unmapped" } as unknown as IndustryPlacement);
+      await store.labelIndustry(sid, "b", {
+        schemaVersion: "1",
+        outcome: "confirmed",
+        industries: [{ industryId: "banking" }], // no version — broken at v1 too
+        confidence: "certain",
+      } as unknown as IndustryPlacement);
+
+      const blocks = await store.list(sid);
+      expect(blocks.find((b) => b.id === "a")!.industry.value).toEqual({
+        schemaVersion: "2",
+        outcome: "unmapped",
+      });
+      // Reads as unplaced, so the labeler places it for real on the next run.
+      expect(blocks.find((b) => b.id === "b")!.industry.value).toBeNull();
     });
 
     it("year-level precision stores no invented month", async () => {

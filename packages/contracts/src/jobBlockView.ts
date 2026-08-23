@@ -70,8 +70,14 @@ export interface JobBlockView {
  *  that read starts rendering undefined instead of failing typecheck.
  *
  *  The vocabulary itself is deliberately NOT a contract (it is published app data, see
- *  apps/api/src/industryVocabulary.ts). This is the small slice of it that crosses the wire. */
-export interface PublishedIndustryChoice extends IndustryVersionReference {
+ *  apps/api/src/industryVocabulary.ts). This is the small slice of it that crosses the wire.
+ *
+ *  #282 stopped it extending `IndustryVersionReference`: since v2 that reference also carries a
+ *  CONFIDENCE, and a list of industries a person may pick from has nothing to be confident about.
+ *  Confidence is stamped when the pick is stored, never carried by the offer. */
+export interface PublishedIndustryChoice {
+  industryId: string;
+  version: number;
   label: string;
 }
 

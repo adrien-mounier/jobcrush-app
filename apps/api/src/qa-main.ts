@@ -75,6 +75,7 @@ import { initialProductionFamilyFloors } from "./familyFloors.js";
 import { makeFamilyPlacer, makeJobBlockLabeler, publishedFamilies } from "./familyLabeler.js";
 import { makeJobBlockIndustryLabeler } from "./industryLabeler.js";
 import { publishedIndustryVocabulary } from "./industryVocabulary.js";
+import { normaliseEmployerKey } from "./employerLookup.js";
 import { InMemoryJobBlockStore } from "./jobBlockStore.js";
 import { InMemoryEligibilityStore } from "./eligibility.js";
 import { InMemoryUnmappedLabelStore } from "./unmappedLabels.js";
@@ -324,11 +325,13 @@ const fakeLlm: LlmClient = {
       seen.industryPlacement += 1;
       const employer = (/^Employer: (.*)$/m.exec(prompt) ?? [, ""])[1]!.trim();
       if (employer === "Nordic Retail Group") {
+        // #282 (contract v2): a confidence PER INDUSTRY. Certain, because the canned employer lookup
+        // above says plainly what this business is — which is the whole point of the second
+        // evidence source, and something a QA journey can see on the screen.
         return JSON.stringify({
           why: "A retail group — it sells goods to the public.",
           outcome: "confirmed",
-          industryIds: ["retail-and-consumer"],
-          confidence: "certain",
+          industries: [{ industryId: "retail-and-consumer", confidence: "certain" }],
         });
       }
       return JSON.stringify({ why: "Nothing here says what this business is.", outcome: "unmapped" });
@@ -596,6 +599,17 @@ const qaProductionFamilyFloors = initialProductionFamilyFloors();
 // #281 — one vocabulary, shared by the labeler below and the correction door, as in main.ts.
 const qaIndustryVocabulary = publishedIndustryVocabulary();
 
+/** #282's employer lookup, canned. Deliberately NOT makeEmployerLookup: that one needs a real
+ *  Anthropic key and would make a QA run cost money and vary between runs. Returning null for
+ *  everything else is the honest degraded path this ticket is written to survive. */
+const QA_EMPLOYER_LOOKUPS: Record<string, string> = {
+  "nordic retail group":
+    "Nordic Retail Group runs a chain of supermarkets and convenience stores across Sweden and " +
+    "Denmark, selling groceries directly to households. It is a mid-size national retailer.",
+};
+const qaEmployerLookup = async (employer: string): Promise<string | null> =>
+  QA_EMPLOYER_LOOKUPS[normaliseEmployerKey(employer)] ?? null;
+
 // #221: same reasoning — the labeling step writes placements into the very store the /job-blocks
 // route reads back, so both must be handed the one instance.
 const qaJobBlocks = new InMemoryJobBlockStore();
@@ -664,6 +678,11 @@ const { app } = buildServer({
       // on employer + title alone — which is exactly the degraded "small unknown employer" path.
       undefined,
       qaUnmappedLabels,
+      // #282: a CANNED employer lookup, never the real web-search one — the QA build has no paid
+      // key and must never acquire one. It answers for the retail employer and NOT for the systems
+      // firm, so one journey walks both halves: a job with web evidence behind it, and a job whose
+      // lookup came back empty and was placed on the CV alone.
+      qaEmployerLookup,
     ),
     // #272: no preview step, mirroring main.ts — the upload pipeline no longer tailors a draft.
   },

@@ -80,6 +80,18 @@ const LABELER = [
   "apps/api/src/qaFamilyAnswer.ts",
   "apps/api/prompts/family-labeler.md",
 ];
+// #281/#282 — the SECOND label axis. Its own bundle rather than more LABELER entries: the two axes
+// run against different vocabularies and different prompts, and a family-only diff must not drag
+// the industry journeys in (or the other way round).
+const INDUSTRY_LABELER = [
+  "apps/api/src/industryLabeler.ts",
+  "apps/api/src/industryVocabulary.ts",
+  "apps/api/src/employerLookup.ts",
+  "apps/api/prompts/industry-labeler.md",
+  "apps/api/prompts/employer-lookup.md",
+  "packages/contracts/src/industryPlacement.ts",
+  "packages/contracts/oracle/validate_industry_placement.mjs",
+];
 const VOCABULARY_FEED = [
   "apps/api/src/unmappedLabels.ts",
   "apps/api/src/familyLearning.ts",
@@ -261,6 +273,20 @@ export const COVERAGE = {
     DISCOVERY,
     DECK,
     YEARS,
+  ),
+  // #281 — the industry a job was in, shown beside the employer and correctable. Reaches the CV
+  // intake (the CV has to be mined before a job exists to place), the job-block screen and store,
+  // and the industry half of the labeler. It does NOT touch the deck or years: #281/#282 move no
+  // number, and that is the point of both tickets.
+  "job-blocks-industry-journey.mjs": union(CV_INTAKE, JOB_BLOCKS, INDUSTRY_LABELER, VOCABULARY_FEED),
+  // #282 — the same walk with the employer WEB LOOKUP behind one job and nothing behind the other.
+  // Same reach, plus the usage ledger, because the lookup is a paid stage that prices itself.
+  "job-blocks-industry-lookup-journey.mjs": union(
+    CV_INTAKE,
+    JOB_BLOCKS,
+    INDUSTRY_LABELER,
+    VOCABULARY_FEED,
+    ["apps/api/src/usageLedgerStore.ts", "apps/api/src/llmPricing.ts"],
   ),
   // #216/#234: the shipped interview writes the record the reveal is gated on.
   "discovery-plan-split-journey.mjs": union(

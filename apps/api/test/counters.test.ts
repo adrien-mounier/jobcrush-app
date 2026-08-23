@@ -79,6 +79,13 @@ describe("#103 posting-pool counters", () => {
       "industryLabeler.output_invalid": 0,
       "industryLabeler.call_failed": 0,
       "industryLabeler.unmapped_feed_failed": 0,
+      "employerLookup.cache_hit": 0,
+      "employerLookup.looked_up": 0,
+      "employerLookup.billed_calls": 0,
+      "employerLookup.failed": 0,
+      "employerLookup.empty": 0,
+      "employerLookup.cache_read_failed": 0,
+      "employerLookup.cache_write_failed": 0,
       "usageLedger.pricing_override_rejected": 0,
       // #117 — see counters.ts's own header for what these mean.
       "judge.subset_reused": 0,

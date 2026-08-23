@@ -93,6 +93,18 @@ export const JOURNEYS = [
   // browsers and probes #59's fixture seam for a reveal it must not be able to authorize.
   // Measured ~3 min against the fake-model API; one magic-link sign-in.
   "discovery-earns-reveal-gate.mjs",
+  // #282, added on its own QA gate's finding: the industry axis's real-stack journeys were in NO
+  // tier, so the only end-to-end proof of the second label axis ran when somebody remembered to run
+  // it. That is the fourth time this repo has hit the same shape (see lessons.md), and it bit here
+  // for real — the gate found every industry correction failing with a 400 against the live stack
+  // while `pnpm test` stayed green, because nothing in a tier ever pressed Save.
+  //   job-blocks-industry — #281's walk: a placed job, an honestly unplaced one, a correction that
+  //                         survives a reload, and the degree that is never labeled at all.
+  //   ...-lookup          — #282's: the same CV where one employer HAS a web lookup behind it and
+  //                         one has none, asserting the v2 stored shape on the wire and watching
+  //                         the correction's response STATUS, which the older journey could not see.
+  "job-blocks-industry-journey.mjs",
+  "job-blocks-industry-lookup-journey.mjs",
   // #248: the only journey that attacks the reveal authorization instead of walking it. It plants a
   // real, fresh, fingerprint-matching advert snapshot on a session whose floor is NOT covered - the
   // state #246 creates on purpose - and then tries every door onto the posting pool: the deck, a

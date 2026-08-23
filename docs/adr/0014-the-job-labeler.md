@@ -226,3 +226,57 @@ evidence and the owner's approval are recorded in
 `docs/vocabulary-proposals/industry-vocabulary-v1/summary.md`. Growth afterwards runs through the
 same vocabulary-growth process the family axis uses (#218/#251) — the only new question per
 industry is which group it belongs to.
+
+---
+
+# Amendment 3 — what the employer is, looked up once for everyone
+
+Status: accepted (owner design pass, 2026-08-23, issues #279 / #282)
+
+The labeler shipped by #281 places a job from the employer name, the job title and the person's own
+CV lines. Those answer *what industry was the work in*. They do not answer *what is this employer* —
+"Acme Solutions Ltd" tells a model nothing — so a large share of small employers came out honestly
+unplaced. This amendment decides how the second half of the evidence is obtained.
+
+## The decisions
+
+1. **The employer is looked up on the open web, through Anthropic's server-side web search on the
+   key the product already holds.** No new vendor, no new account, no search infrastructure of our
+   own. Rejected: a search-provider account (a second vendor, a second quota, a second outage
+   surface, for a question already answerable on a key we pay for). Rejected: a curated employer
+   registry (someone has to maintain it, and the long tail of small employers is exactly the part
+   it would never cover — which is the part that needed help).
+
+2. **The answer is cached durably and shared across every visitor.** What a company is does not
+   change per visitor and is not personal data, so a company is paid for once, ever, keyed on a
+   normalised employer name. This is the one place in the product where a stored answer is read by
+   strangers, which is why the lookup is sent the employer name and *nothing else*: no CV, no lines,
+   no session. A cached row cannot contain anything about a person because nothing about a person
+   ever went out with the question.
+
+3. **A failure, a timeout or an empty answer is never cached.** Only a real answer is stored, so one
+   bad minute cannot become permanent for every visitor who ever names that employer. This is
+   decision 5's rule (a degraded answer is never stored) applied to the second evidence source.
+
+4. **The two evidence sources answer different halves and are never reconciled.** The lookup says
+   what the employer is; the person's own lines say what the work was in. A disagreement between
+   them is not a conflict to resolve — it is the two-industry case (a consultant at a consultancy
+   who spent six years on bank engagements is both), and decision 4 already says the years count in
+   full toward each. Only the *lines* can name the served industry; a lookup listing the sectors an
+   employer sells into is a sales page, not this person's work.
+
+5. **The fetched text is evidence for the model and never an instruction to it.** It is a company's
+   own marketing copy, or a page anyone can edit, and it reaches the labeler verbatim. The labeler's
+   prompt says so, in the block that carries the text, before the text itself.
+
+## Consequences
+
+The lookup is best-effort throughout: absent, failed, timed out or empty, the job is still placed on
+the CV evidence alone and the upload never blocks. That degraded path is not an edge case — it is
+exactly the behaviour #281 shipped, so the product's floor is unchanged and the lookup can only
+raise it.
+
+Spend gains a stage the per-token ledger cannot price on its own: Anthropic charges per web search
+on top of the tokens, so `employer-lookup` rows carry both. They carry **no visitor** — the answer
+is shared, and billing a whole company to whoever happened to arrive first would be a fiction the
+per-visitor total is read as fact.

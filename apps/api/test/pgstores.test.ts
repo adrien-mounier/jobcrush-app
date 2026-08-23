@@ -18,6 +18,12 @@ import {
   PgUnmappedLabelStore,
   type UnmappedLabelStore,
 } from "../src/unmappedLabels.js";
+import {
+  InMemoryEmployerLookupStore,
+  PgEmployerLookupStore,
+  normaliseEmployerKey,
+  type EmployerLookupStore,
+} from "../src/employerLookup.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 
 function pgPool() {
@@ -1354,4 +1360,69 @@ it("#252 PgUnmappedLabelStore keeps its entries across store reconstruction", as
   expect(await afterRestart.recent()).toMatchObject([
     { sessionId: "session-1", source: "target_role", label: "harbour pilot" },
   ]);
+});
+
+// #282 — the employer lookup cache, on both drivers. Its whole promise is "a company is paid for
+// once, EVER", and "ever" is a property of the Postgres row, not of the in-memory map: if this SQL
+// is wrong, every visitor pays for every employer again and only the bill would say so.
+const employerLookupDrivers: [string, () => EmployerLookupStore][] = [
+  ["in-memory", () => new InMemoryEmployerLookupStore()],
+  ["postgres (pg-mem)", () => new PgEmployerLookupStore(pgPool())],
+];
+
+for (const [name, make] of employerLookupDrivers) {
+  describe(`EmployerLookupStore contract — ${name}`, () => {
+    let store: EmployerLookupStore;
+    beforeEach(async () => {
+      store = make();
+      await store.init();
+    });
+
+    it("stores one company's answer and reads it back by its normalised key", async () => {
+      await store.put({
+        key: normaliseEmployerKey("Nordea Bank A/S"),
+        employer: "Nordea Bank A/S",
+        summary: "Nordea is a Nordic universal bank.",
+      });
+
+      const row = await store.get(normaliseEmployerKey("nordea bank"));
+      expect(row).toMatchObject({
+        key: "nordea bank",
+        employer: "Nordea Bank A/S",
+        summary: "Nordea is a Nordic universal bank.",
+      });
+      expect(Date.parse(row!.lookedUpAt)).not.toBeNaN();
+    });
+
+    it("answers null for a company nobody has looked up", async () => {
+      expect(await store.get("never seen")).toBeNull();
+    });
+
+    it("takes a second write for the same company without failing — either answer is correct", async () => {
+      // Two workers can look one company up at once. What must never happen is the insert throwing
+      // and a lookup that actually succeeded being recorded as a failure.
+      await store.put({ key: "acme", employer: "Acme Ltd", summary: "first answer" });
+      await store.put({ key: "acme", employer: "ACME Limited", summary: "second answer" });
+      expect(await store.get("acme")).toMatchObject({ employer: "ACME Limited", summary: "second answer" });
+    });
+
+    it("bounds what one row can hold, on both drivers", async () => {
+      await store.put({ key: "acme", employer: "Acme", summary: "x".repeat(50_000) });
+      expect((await store.get("acme"))!.summary).toHaveLength(1200);
+    });
+  });
+}
+
+// The promise this cache exists for: a deploy does not make everyone pay again.
+it("#282 PgEmployerLookupStore keeps its answers across store reconstruction", async () => {
+  const pool = pgPool();
+  const beforeRestart = new PgEmployerLookupStore(pool);
+  await beforeRestart.init();
+  await beforeRestart.put({ key: "nordea bank", employer: "Nordea Bank", summary: "A Nordic bank." });
+
+  // No second init() — pg-mem cannot re-parse a CREATE TABLE IF NOT EXISTS against a table that
+  // already exists, which real Postgres treats as the no-op it is. Same shape as #252's own restart
+  // test above.
+  const afterRestart = new PgEmployerLookupStore(pool);
+  expect(await afterRestart.get("nordea bank")).toMatchObject({ summary: "A Nordic bank." });
 });

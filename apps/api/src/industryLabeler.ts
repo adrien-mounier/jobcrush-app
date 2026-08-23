@@ -16,9 +16,14 @@
 //   - every honest unmapped is fed to the durable vocabulary-growth store, distinguishable from a
 //     validation failure by its reason text.
 //
-// What is deliberately NOT here: any question to a person, and any change to a number. This ticket
-// makes the fact exist, visible and correct. No advert score, card order or years figure moves —
-// that is #282-#285.
+// #282 adds the SECOND evidence source beside the person's own lines: one cached web lookup of the
+// employer (employerLookup.ts). It answers a different half — the lines say what industry the WORK
+// was in, the lookup says what the EMPLOYER is — and it is best-effort throughout: a lookup that
+// fails, times out or finds nothing is a null, and a null places the job on the lines alone.
+//
+// What is deliberately NOT here: any question to a person, and any change to a number. These tickets
+// make the fact exist, visible and correct. No advert score, card order or years figure moves —
+// that is #283-#285.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +41,7 @@ import type { LlmClient } from "./llm.js";
 import type { Industry } from "./industryVocabulary.js";
 import type { JobBlockStore } from "./jobBlockStore.js";
 import type { ClaimStore } from "./claims.js";
+import type { EmployerLookup } from "./employerLookup.js";
 import { incrementCounter } from "./counters.js";
 import {
   recordUnmappedLabel,
@@ -66,13 +72,20 @@ function describeIndustries(industries: Industry[]): string {
     .join("\n\n");
 }
 
-/** The evidence for one job. The LINES are what make an unfamiliar employer placeable at all, and
- *  they are the only evidence that can show the industry the work was SERVED into. #282 adds the
- *  cached employer web lookup beside them. */
+/** The evidence for one job — two sources answering two different halves.
+ *
+ *  The LINES are the person's own words, and they are the only evidence that can show the industry
+ *  the work was SERVED into. The LOOKUP (#282) is one cached web search of the employer, and it is
+ *  the only evidence that can say what an employer nobody has heard of actually is. A disagreement
+ *  between them is not a conflict — it is the two-industry case, and industry-labeler.md resolves
+ *  it. The lookup is always optional: absent, it costs nothing but a less certain answer. */
 export interface JobIndustryEvidence {
   employer: string;
   title: string;
   lines: string[];
+  /** What the web said about this employer, or null/absent when the lookup was never made, failed,
+   *  timed out or found nothing. Every one of those degrades to the same thing: CV evidence alone. */
+  lookup?: string | null;
 }
 
 /** How many of a job's own CV lines travel with the call. A bounded window rather than the whole
@@ -82,6 +95,9 @@ export interface JobIndustryEvidence {
  *  of a later line. */
 const MAX_LINES = 12;
 const MAX_LINE_LENGTH = 300;
+/** Second bound on the lookup text, on top of employerLookup.ts's own. A cached row written before
+ *  that bound tightened, or by a driver that never applied it, still cannot flood this prompt. */
+const MAX_LOOKUP_LENGTH = 1200;
 
 export function buildIndustryLabelerInput(
   evidence: JobIndustryEvidence,
@@ -99,17 +115,31 @@ export function buildIndustryLabelerInput(
     .replace("{{INDUSTRIES}}", () => describeIndustries(industries))
     .replace("{{EMPLOYER}}", () => evidence.employer.trim() || "(not stated)")
     .replace("{{TITLE}}", () => evidence.title.trim() || "(not stated)")
-    .replace("{{LINES}}", () => (lines.length ? lines.join("\n") : "(nothing written under this job)"));
+    .replace("{{LINES}}", () => (lines.length ? lines.join("\n") : "(nothing written under this job)"))
+    // The bounded, deliberately unremarkable stand-in for a lookup that never happened. The prompt is
+    // written to place the job on the lines alone when it reads this, so a missing lookup can never
+    // become a reason to answer unmapped.
+    .replace(
+      "{{EMPLOYER_LOOKUP}}",
+      () =>
+        evidence.lookup?.trim().slice(0, MAX_LOOKUP_LENGTH) ||
+        "(no web lookup was made for this employer)",
+    );
 }
 
 // What the model is asked for — ids and one ordinal. Non-strict on purpose: the prompt asks for a
 // one-sentence "why" to steer the answer, and any other stray key is dropped rather than failing a
 // read that was otherwise perfectly good.
+// #282 takes this to one entry PER INDUSTRY: the model names each industry with how sure it is of
+// THAT one. The employer's own industry can be certain off a web lookup while the industry the work
+// was served into, read out of the person's own lines, is only possible — and one number for both
+// would let the weaker ride on the stronger all the way into #285's score.
 const LabelerAnswer = z.discriminatedUnion("outcome", [
   z.object({
     outcome: z.literal("confirmed"),
-    industryIds: z.array(z.string()).min(1),
-    confidence: PlacementConfidence,
+    industries: z
+      .array(z.object({ industryId: z.string(), confidence: PlacementConfidence }))
+      .min(1),
   }),
   z.object({ outcome: z.literal("unmapped") }),
 ]);
@@ -133,12 +163,13 @@ function assemble(
     outcome: "confirmed",
     // The contract itself rejects a repeated industry, so a model naming the same one twice fails
     // the parse below and is retried rather than stored as a job that is two of the same thing.
-    industries: answer.industryIds.map((industryId) => {
+    industries: answer.industries.map(({ industryId, confidence }) => {
       const found = industries.find((industry) => industry.industryId === industryId);
       if (!found) throw new Error(`unknown industry id: ${industryId}`);
-      return { industryId: found.industryId, version: found.version };
+      // The model picks the id and how sure it is; the VERSION is ours, read off the publication —
+      // a model must never invent a version a person's numbers are pinned to.
+      return { industryId: found.industryId, version: found.version, confidence };
     }),
-    confidence: answer.confidence,
   };
 }
 
@@ -282,6 +313,11 @@ export function makeJobBlockIndustryLabeler(
   // employer name and title alone, which is exactly the "small unknown employer" degraded case.
   claims?: Pick<ClaimStore, "list">,
   unmappedLabels?: UnmappedLabelStore,
+  // #282: what the employer actually IS, from one cached web lookup per company. Optional on the
+  // same terms as `claims` above — a build with no Anthropic key wires none, and every job is still
+  // placed on the CV evidence alone, which is exactly the degraded case this ticket is written to
+  // survive.
+  lookupEmployer?: EmployerLookup,
 ): (sessionId: string) => Promise<void> {
   return async (sessionId) => {
     for (const block of await store.list(sessionId)) {
@@ -296,6 +332,11 @@ export function makeJobBlockIndustryLabeler(
             employer: block.employer.value,
             title: block.title.value,
             lines: await linesFor(claims, sessionId, block.employer.value),
+            // Never throws and never blocks: makeEmployerLookup turns every failure into null, and a
+            // null lookup is a placement on the lines alone, not a failed job. The cache is what
+            // makes this affordable — two jobs at one employer, in this upload or anyone else's,
+            // cost one search between them.
+            lookup: lookupEmployer ? await lookupEmployer(block.employer.value) : null,
           },
           industries,
           llm,

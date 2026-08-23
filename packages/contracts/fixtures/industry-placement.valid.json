@@ -1,21 +1,19 @@
 [
   {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "outcome": "confirmed",
-    "industries": [{ "industryId": "banking", "version": 1 }],
-    "confidence": "certain"
+    "industries": [{ "industryId": "banking", "version": 1, "confidence": "certain" }]
   },
   {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "outcome": "confirmed",
     "industries": [
-      { "industryId": "consulting", "version": 1 },
-      { "industryId": "banking", "version": 1 }
-    ],
-    "confidence": "likely"
+      { "industryId": "consulting", "version": 1, "confidence": "certain" },
+      { "industryId": "banking", "version": 1, "confidence": "possible" }
+    ]
   },
   {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "outcome": "unmapped"
   }
 ]
