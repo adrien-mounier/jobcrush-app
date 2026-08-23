@@ -178,6 +178,14 @@ export const JOURNEYS = [
   // cannot catch a family being renamed to the wrong thing — they go green when the name is absent
   // for any reason at all. 67 assertions; mutation-proven to fail (63/4) when the label is wrong.
   "family-role-name-journey.mjs",
+  // #278: the only journey that reaches the work-history check the way a PERSON reaches it. Every
+  // other journey that touches that screen types its address, which is exactly how it went four
+  // days without anyone noticing #272 had deleted its only door. It walks front door -> role and
+  // area -> discovery -> the fact pile -> the profile -> the work-history door, corrects a record
+  // through it and reads the correction back off the server, then leaves by the way out and comes
+  // back in. A door is only a door if it is reachable AND exitable, and no address-typing journey
+  // can go red when either half breaks. ~2 min against the fake-model API; no sign-in.
+  "work-history-door-journey.mjs",
 ];
 
 // Only run when invoked directly — the selection self-check imports JOURNEYS from here.

@@ -5,6 +5,7 @@
 // (design-20-profile-screen.md §3). No "what you lack" list exists anywhere on this screen: the
 // payload carries no negative facts, and the UI must not invent one from an empty domain.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import "../deck.css";
 import "../profile.css";
@@ -58,6 +59,14 @@ const P24 = "You told me this.";
 const P25 = "Read from your CV.";
 const P26 = "Close";
 const P29 = "Every fact, as a list";
+// #278 the work-history door. The dated job records behind these blocks are what the years totals
+// (#162/#222), the job family and the change-of-direction sentence (#229/#256) are worked out from,
+// and the check that corrects them lost its only entrance when the draft screen went (#272). It
+// lives here because this is already the screen that shows what was read from the CV with a door
+// beside it (#190/#194), and it is PASSIVE — always offered, never a nudge: nothing on this payload
+// says which record looks doubtful, and inventing a doubt would be a "what you lack" list by
+// another name (the one thing this screen may never grow).
+const P30 = "Check your work history";
 
 // #186 the list, style B — the two kept-caption wordings (design-186-188.md §A5). The list-run
 // caption never carries a trailing period; the detail caption does (feeding straight into the bold
@@ -329,6 +338,16 @@ function jobBlocks(domain: ProfileDomain): Array<{ job: string | null; facts: Pr
   return blocks;
 }
 
+// #278 the door itself. A real link rather than a button: it navigates, and a person expects to be
+// able to open it in a new tab or come back to it.
+function WorkHistoryDoor() {
+  return (
+    <Link className="rdoor" href="/job-blocks">
+      {P30}
+    </Link>
+  );
+}
+
 function ExperienceBody({
   domain,
   onOpenFact,
@@ -356,6 +375,7 @@ function ExperienceBody({
           </div>
         );
       })}
+      <WorkHistoryDoor />
     </>
   );
 }
@@ -1977,6 +1997,13 @@ function ReadyScreen({
                         onAnnounce={onAnnounce}
                       />
                     ))}
+                    {/* #278 code review (Spec axis): the door lives inside Professional Experience,
+                        beside the jobs it is about — but the API drops a section with no facts in it,
+                        so a profile that has no experience CLAIMS would show no door at all. Her dated
+                        job records are mined separately from her claims, so she can have records to
+                        check and no section to hang the door on: exactly the person the ticket exists
+                        for. It falls back to the end of the list rather than disappearing. */}
+                    {!restDomains.some((d) => d.tag === "experience") && <WorkHistoryDoor />}
                     <p className="dnote">
                       {showP12
                         ? P12

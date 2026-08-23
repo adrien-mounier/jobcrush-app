@@ -853,8 +853,12 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+/* #278: this rule now dresses an anchor as well as buttons (the work-history door is a real
+   link, so it navigates), and a bare anchor arrives underlined — which would make this one door
+   look different from its siblings and turn the :hover underline below into a no-op. */
 .profile .rdoor {
   appearance: none;
+  text-decoration: none;
   background: none;
   border: none;
   font: inherit;

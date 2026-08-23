@@ -203,8 +203,14 @@ function revertValue(
 }
 
 export default function JobBlocksScreen() {
-  const { jobId } = useParams<{ jobId: string }>();
+  // #278 — the segment is OPTIONAL. With a jobId (the front door's read) the deck hands over to
+  // /deck/<jobId> as it always did; without one, the person arrived from her profile's work-history
+  // door and every exit goes back there. `jobId` was never used to FETCH anything — the API is
+  // session-scoped — so an absent one costs the screen nothing but its onward route.
+  const jobId = useParams<{ jobId?: string[] }>().jobId?.[0];
   const router = useRouter();
+  const onward = jobId ? `/deck/${jobId}` : "/profile";
+  const onwardLabel = jobId ? "Continue" : "Back to your profile";
 
   const [blocks, setBlocks] = useState<JobBlockView[] | null>(null);
   // #281 — the published industry vocabulary, travelling with the deck: it names the ids a
@@ -587,10 +593,18 @@ export default function JobBlocksScreen() {
     if (!back) openBack();
   };
 
+  // #278 QA gate (D2): this was the one entry state with NO way out — a person who came in from her
+  // profile met "Try again" and nothing else, on a screen whose whole ticket is that a door needs an
+  // exit. The heading was untrue here too: the screen is available, the read of her records failed.
   if (loadError && !blocks)
     return (
       <main className="jobblocks">
-        <h1>This screen isn&apos;t available</h1>
+        {!jobId && (
+          <button type="button" className="jb-leave" onClick={() => router.push(onward)}>
+            &lsaquo; Back to your profile
+          </button>
+        )}
+        <h1>We couldn&apos;t read your work history</h1>
         <p className="lede">{loadError}</p>
         <button className="btn" onClick={load}>
           Try again
@@ -611,8 +625,8 @@ export default function JobBlocksScreen() {
       <main className="jobblocks">
         <h1>{copy.h}</h1>
         <p className="lede">{copy.p}</p>
-        <button className="btn" onClick={() => router.push(`/deck/${jobId}`)}>
-          Continue
+        <button className="btn" onClick={() => router.push(onward)}>
+          {onwardLabel}
         </button>
       </main>
     );
@@ -623,6 +637,13 @@ export default function JobBlocksScreen() {
       <div aria-live="polite" className="sr-only">
         {liveMessage}
       </div>
+      {/* #278 — entered from the profile there is no onward screen to finish into, so the way back
+          has to be visible from the first card: without it the only exit is swiping the whole deck. */}
+      {!jobId && (
+        <button type="button" className="jb-leave" onClick={() => router.push(onward)}>
+          &lsaquo; Back to your profile
+        </button>
+      )}
       <h1>Check your work history</h1>
       <p className="lede">
         Right if we got it right · left to come back to it later · tap the card to put it right. Everything
@@ -640,8 +661,8 @@ export default function JobBlocksScreen() {
                 . Everything here is now a fact about you — you won&apos;t be asked again unless you come back to
                 fix it.
               </p>
-              <button className="btn" onClick={() => router.push(`/deck/${jobId}`)}>
-                Continue
+              <button className="btn" onClick={() => router.push(onward)}>
+                {onwardLabel}
               </button>
             </div>
           ) : (

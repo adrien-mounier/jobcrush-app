@@ -57,6 +57,32 @@ not hand-deleting `.next` pieces. Corollary from the same session's QA: the web 
 `API_URL` into `.next/routes-manifest.json`, so `API_URL=… next start` silently keeps the OLD
 proxy target — a custom API port needs a rebuild, never just a restart.
 
+## A new gate journey is decorative until you have SEEN it go red — copy the ending, not just the shape
+
+Learned 2026-08-23 (#278). I wrote a Tier 2 journey, ran it, watched "16 passed, 0 failed", and
+called it proven. It ended on `await qa.finish();`. Every other gate journey ends
+`const ok = await qa.finish(); process.exit(ok ? 0 : 1);`, and `run-tier2.mjs` decides pass/fail from
+the exit code and nothing else — so all sixteen assertions were decorative. The journey would have
+stayed green on the day the thing it guards broke. Caught by the QA gate, not by me, not by
+`node --check`, not by the suite: the file was valid, typechecked, and its own console output said
+PASS.
+
+Two reusable parts:
+
+- **Copy the ENDING of a sibling asset, not just its shape.** I copied the imports, the abort
+  handler, the assertion helper and the section structure from three existing journeys, and dropped
+  the four bytes that connect the whole thing to the gate. The interesting line in a test harness is
+  often the last one.
+- **Mutation-prove a new gate asset before you trust it.** Inject one deliberate failure, run it,
+  and read the exit code. Green alone proves the assertions ran; only red proves they MATTER. This
+  is the same family as the entry-point lesson below — a gate whose "did nothing" and "succeeded"
+  share an exit code — reached from the opposite direction.
+
+And a measurement trap that cost me a false reading on the way: **`node script.mjs | tail -3; echo $?`
+reports `tail`'s status, not the script's.** My first mutation run printed "1 failed" and "EXIT CODE:
+0", which looked like the fix had not worked. Measure an exit code on a bare command
+(`node script.mjs > log 2>&1; echo $?`) or via `PIPESTATUS`.
+
 ## Moving a script's body behind an "am I the entry point?" check can make it exit 0 doing nothing
 
 Learned 2026-08-22 (#264). To let a test import `JOURNEYS` from `run-tier2.mjs`, I wrapped its run

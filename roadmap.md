@@ -46,14 +46,16 @@ no autonomous submit, no LinkedIn credentials, ever).
 
 ## Run order — what to build next
 
-**NEXT: pick from the unscheduled pool** — #274 closed 2026-08-23 (row 8d struck): one field
+**NEXT: pick from the unscheduled pool** — #278 closed 2026-08-23 (row 8e struck): the
+work-history check has a door again, on the profile, and every way in has a way out. Before it,
+#274 closed (row 8d struck): one field
 style across the product, and the phone-zoom defect on the main journey is gone. Before it, #285
 closed and epic 8b (industry, the second label axis) landed fully: the industry bar is answered at its own closeness, and the
 deck honestly sinks a near-industry career instead of overselling or deleting it. One owner call
 recorded by its QA gate: on a low-band industry bar, a NEAR career (whole years ×0.9 on the card)
 can rank just below a FAR one (only that bar's band share lost) — spec-conformant, evidence in the
 journey report, revisit only if real decks make it bite. Unscheduled, in the
-table: 8e #278 · 7b.1 #250 (parked).
+table: 7b.1 #250 (parked).
 Unscheduled, no row yet: #246 · #276 · #277 · **#286** (a visitor who signs in and comes straight
 back is shown the reveal twice — `wall.spec.ts:90`, red since at least #281, found by #282's QA
 gate).
@@ -149,11 +151,11 @@ cutting at the curve's cliff (80% → 51%) rather than a fixed number; either ru
 | ~~8b.5~~ | ~~#284~~ | ~~An advert can ask for years in an industry — the compound bar stops being one number~~ **DONE 2026-08-23** — third years scope + `yearsIndustry` (zod + oracle together), the published 15-industry list in the reader's prompt, unpublished ids clamped to an absence; no card score, order or years figure moved | — | — | — |
 | ~~8b.6~~ | ~~#285~~ | ~~Eight years at a bank answer a finance bar in full, and the card sinks instead of lying~~ **DONE 2026-08-23** — years per industry (full credit, never split, never summed), exact/near/far off the group tree, near = same whole number ×0.9 on the card, known zero vs generous fallback, ×0.675 composition; proven on the real screen (correct an industry → deck re-scores) | — | — | — |
 | ~~8d~~ | ~~#274~~ | ~~One text field style across the product — today there are four, and two of them zoom the page on an iPhone on the main journey~~ **DONE 2026-08-23** — one field everywhere (10px, Night Raised, 16px, 2px outline); discovery, the deck wall and the profile rail no longer zoom an iPhone on tap, and discovery's gold focus border is gone. The size is the fix, never a pinned viewport; DESIGN.md records the 16px exception and its reason | — | — | — |
-| 8e | #278 | The work-history check loses its only door when #272 deletes the draft screen — give it one on the real journey. Not a blocker for #272. Unscheduled; needs the where/when decision first | `/implement` | Opus | medium |
+| ~~8e~~ | ~~#278~~ | ~~The work-history check loses its only door when #272 deletes the draft screen — give it one on the real journey~~ **DONE 2026-08-23** — owner decision same day: the door lives on the profile, inside Professional Experience, and is PASSIVE (always offered, never a nudge — nothing on that payload says which record looks doubtful, and inventing a doubt would make the profile a "what you lack" list). `/job-blocks` now serves with no job id and every exit leads back to her profile, including the failed-read state. Proven on the real stack: profile → door → correct a record → back, with education re-filed as a job flipping `countsTowardExperience` — the value years, family years and change-of-direction all derive from | — | — | — |
 
 **~~Parked question (was on #249's row)~~ ANSWERED (owner, 2026-08-22): NO — the product does not
-offer a CV draft before signup.** The consequence is row 8e #278: the work-history check gets a door
-on the real journey. Decision also recorded on #272.
+offer a CV draft before signup.** ~~The consequence is row 8e #278~~ — **row 8e is done (2026-08-23)**: the work-history check has its
+door, on the profile. Decision also recorded on #272.
 
 ### Phase 2 — the profile gets rich (map #127 fan-out)
 

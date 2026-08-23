@@ -1825,3 +1825,43 @@ test("#193: the Languages section badge counts an answer-only chip (decided coun
   await expect(langSection.locator(".dgold")).toHaveText(" · 1 on your CV"); // only the real CV claim is gold
   await expect(langSection.locator(".fact.inert")).toHaveCount(1);
 });
+
+// #278 the work-history check lost its only door when the draft screen went (#272). This is the
+// replacement door, and it is only a door if it is REACHABLE and POINTS AT THE RIGHT PLACE from
+// the shape a real payload has: rendered inside Professional Experience, once, under the blocks.
+test("#278: the Professional Experience section carries a door to the work-history check", async ({ page }) => {
+  await stubSession(page);
+  await stubProfile(page);
+  await page.goto("/profile");
+
+  const experience = page.locator(".dom").filter({ has: page.locator(".dname", { hasText: "Professional Experience" }) });
+  const door = experience.getByRole("link", { name: "Check your work history" });
+  await expect(door).toBeVisible();
+  await expect(door).toHaveAttribute("href", "/job-blocks");
+  // Exactly one door on the whole screen, and it belongs to experience — not to Skills or Languages.
+  await expect(page.getByRole("link", { name: "Check your work history" })).toHaveCount(1);
+});
+
+// #278 code review (Spec axis): her dated job records are mined separately from her CV claims, so a
+// profile can carry no Professional Experience section while she still has a work history to put
+// right — and a door that disappears for exactly that person is the hole the ticket exists to close.
+test("#278: with no Professional Experience section at all, the door is still on the screen", async ({ page }) => {
+  await stubSession(page);
+  await stubProfile(page, {
+    ...PROFILE,
+    factCount: 1,
+    domains: [
+      {
+        tag: "skill",
+        heading: "Skills",
+        facts: [{ id: "s1", text: "SQL.", colour: "gold", source: "told", job: null }],
+      },
+    ],
+  });
+  await page.goto("/profile");
+
+  const door = page.getByRole("link", { name: "Check your work history" });
+  await expect(door).toBeVisible();
+  await expect(door).toHaveAttribute("href", "/job-blocks");
+  await expect(door).toHaveCount(1); // still exactly one — never two doors to the same screen
+});

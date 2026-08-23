@@ -465,3 +465,19 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* #278 — the way back for a person who arrived from her profile's work-history door. Only rendered
+   on that entry; the front-door entry finishes into /deck/<jobId> and has no profile to return to. */
+.jobblocks .jb-leave {
+  appearance: none;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--jc-ink-muted);
+  cursor: pointer;
+  padding: 0 0 var(--jc-sp-sm);
+}
+.jobblocks .jb-leave:hover {
+  color: var(--jc-ink);
+}

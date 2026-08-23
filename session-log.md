@@ -2,6 +2,47 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-23 (session 167) — the work-history check gets a door again, and every way in has a way out
+
+Closes #278 (row 8e, struck). A decision-plus-build ticket: the owner decided the where and the when
+the same day, in session.
+
+- **Owner decision (2026-08-23):** the door lives on the **profile**, inside Professional Experience,
+  and it is **passive** — always offered, never a nudge. The passive half is not a shortcut: nothing
+  on the profile payload says which record looks doubtful, and inventing a doubt would make the
+  profile a "what you lack" list, which that screen may never grow. The owner was given the invited
+  alternative with its cost (new payload data, a second ticket) and its real risk — a link that only
+  appears when the machine doubts itself hides the correction path in the *confidently wrong* case,
+  which is the worst one, not the mildest.
+- **The route lost its required job id.** `/job-blocks/[jobId]` → `/job-blocks/[[...jobId]]`. The id
+  never fetched anything (the API is session-scoped); it only decided where "Continue" went. With an
+  id the front-door entry still finishes into `/deck/<jobId>`, unchanged; without one, every exit
+  leads back to the profile.
+- **Every entry state now has an exit** — the first card, the end of the deck, the empty state, and
+  (QA finding D2) the failed-read state, which offered "Try again" and nothing else. Its heading lied
+  as well: the screen was available; reading her records is what failed.
+- **The door survives the payload shapes that are not the happy path.** Her dated job records and her
+  CV claims come from two separate reads, so she can have a work history to correct and no
+  Professional Experience section to hang the door on — the door falls back to the end of the fact
+  list rather than disappearing (found by the code review's Spec axis).
+
+**QA gate: NO-GO first, GO on the re-run.** Two findings, both real:
+
+- **D1 (blocking).** `work-history-door-journey.mjs` ended on `qa.finish()` with no `process.exit`.
+  `run-tier2.mjs` gates purely on the exit code, so all 16 of its assertions were decorative — the
+  exact silent-green class this repo has been bitten by four times. Fixed and mutation-proven both
+  ways (injected failure → exit 1; clean → exit 0), independently reproduced by the gate.
+- **D2 (minor).** The failed-read dead end above.
+
+Gates on the GO run, caches force-bypassed: typecheck 7/7 · `pnpm test` 1,728 pass / 13 skipped / 0
+fail · Tier 1 **168** passed (up one) · Tier 2 `work-history-door` 16/0 and `job-blocks-confirm` 54/0.
+Spend USD 0.00 — the fake-model stack throughout.
+
+**Outside this ticket, and material:** GitHub Actions has failed instantly on billing since
+~10:06 on 2026-08-23 ("recent account payments have failed or your spending limit needs to be
+increased"). At least five pushes to `main` have gone un-gated, and a green push here is a deploy —
+so nothing has been machine-checked or deployed today. Owner call, unresolved at the time of writing.
+
 ## 2026-08-23 (session 166) — one field, everywhere, and the phone stops zooming when you tap it
 
 Closes #274 (row 8d, struck). Commit `ab4ddd4`. A look change with two live defects inside it.

@@ -250,6 +250,10 @@ export const COVERAGE = {
   "years-worked-out-journey.mjs": union(CV_INTAKE, JOB_BLOCKS, DISCOVERY, DECK, YEARS),
   // #161/#157: the confirm-swipe deck for structured job records, undo and reload included.
   "job-blocks-confirm-journey.mjs": union(CV_INTAKE, JOB_BLOCKS, TAILOR, AUTH),
+  // #278: the work-history check reached the way a person reaches it. Its chain IS its coverage —
+  // front door, CV intake (a read has to produce records first), discovery, the fact badge, the
+  // profile that now carries the door, and the job-block screen and store behind it.
+  "work-history-door-journey.mjs": union(FRONT_DOOR, CV_INTAKE, DISCOVERY, FACTBADGE, PROFILE, JOB_BLOCKS),
   // #165: a language and its level are two facts; the ladder on the deck's own cards.
   "language-ladder-journey.mjs": union(
     ["apps/api/src/language.ts", "apps/api/src/languageLevel.ts"],
