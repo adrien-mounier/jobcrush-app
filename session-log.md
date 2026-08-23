@@ -2,6 +2,30 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-23 (session 166) — one field, everywhere, and the phone stops zooming when you tap it
+
+Closes #274 (row 8d, struck). Commit `ab4ddd4`. A look change with two live defects inside it.
+
+- **Four field styles became one:** 10px corners, Night Raised fill, 16px text, the standard 2px
+  Night Ink outline on focus — `frontdoor.css`, `discovery.css`, `deck.css`, `profile.css` and the
+  shared `globals.css` base.
+- **The phone-zoom defect:** discovery (15/14.5px), the deck sign-in (15px) and the profile rail
+  (`.rin`, 13px — never in the ticket's own survey table, found by the spec review) all sat under
+  16px, so mobile Safari zoomed the page into every tap on the main journey. Fixed by size, never
+  by pinning the viewport: pinch-zoom stays with the people who need it.
+- **Discovery's gold focus border is gone** (`outline: none` + `border-color: var(--gold)` deleted);
+  the scoped `--hud-ink` ring takes over, which is what DESIGN.md §Inputs always said.
+- **DESIGN.md is honest now:** §Inputs describes the shipped field, records 16px as a deliberate
+  exception *with the phone-zoom reason*, and carries `scale.field: "16px"` so the design hook reads
+  it as idiom rather than drift. Padding restated as per-surface instead of a range so wide it could
+  never catch anything — the standards review's catch.
+- **Left alone on purpose:** the old flow's `--jc-surface` fill (that register is light by design;
+  one field inside the profile languages door is white on a dark rail — pre-existing, noted for
+  whichever ticket reconciles the light-register base), and the padding values themselves.
+- **QA gate GO:** 1677 api tests, 134 affected browser assertions (front-door, discovery, wall,
+  profile, deck), 48 live pixel assertions at 390x844 measured off the shipped page, zero paid
+  calls. Journey left behind as `apps/web/e2e/field-style-journey.mjs`.
+
 ## 2026-08-23 (session 165) — eight years at a bank answer a finance bar in full, and the card sinks instead of lying
 
 Closes #285 (row 8b.6, struck — epic 8b complete). The visible win of the whole industry axis: a
