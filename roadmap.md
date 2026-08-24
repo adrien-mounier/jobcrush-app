@@ -2,7 +2,10 @@
 
 _Last updated: 2026-08-24_
 
-> ⚠️ **CI is still billing-blocked until ~Sept 1, but staging is CURRENT: deployed by hand 2026-08-21**
+> ⚠️ **CI is still billing-blocked until ~Sept 1, but staging is CURRENT: web hand-deployed
+> 2026-08-24** (`965708e` — the front door fills the desktop window again; QA gate GO, local gates
+> green, verified live on `jobcrush.org` at 1440 and 390). The API image is still `b5913ad` and
+> correct: nothing under `apps/api/**` has changed since. Previously deployed by hand 2026-08-21
 > (`265ff6d`, session 154 — local gates green first: typecheck, 1563 tests, build, 146 Tier 1 specs +
 > spend tripwire, **23** Tier 2 journeys all passing; then the same two `flyctl deploy` commands CI
 > runs; `/healthz` echoes the SHA). #258's alias hints are proven live on staging: "scrum master",

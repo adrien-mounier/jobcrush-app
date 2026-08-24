@@ -2,6 +2,33 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-24 — the landing page was wearing a phone's width on a desktop screen
+
+Owner reported it from the live site: the first screen at `https://jobcrush.org/` looked "fit for
+mobile on a desktop screen", with an old "JobCrush" text in the wrong colour and font showing near
+it. One cause behind both symptoms.
+
+**The front door is the only full-bleed HUD rendered as `<main>`** — discovery, deck, tailor and
+profile are all `<div>`. So it alone inherited `globals.css`'s `main { max-width: 640px; padding }`,
+which capped the `position: fixed; inset: 0` overlay at a 640px column and let the light page show
+through either side. What showed through was `header.brandbar`'s `JobCrush` link, styled in
+`--jc-accent` and the light `--jc-font` — the "wrong colour / font" text. `max-width: none;
+padding: 0` on `.frontdoor` cancels the inherited rule; the front door's own padding (`.invite`'s
+`0 26px`, `.source-screen`'s `min(calc(100% - 40px), 420px)`) was already carrying the layout, so
+nothing moved. Commit `965708e`.
+
+QA gate **GO** — and it earned the verdict by re-imposing the old rule in the browser and watching
+every check go red, so the guards are not vacuous. Gates forced with zero cache; AC1–AC5 all PASS at
+1440, 1920, 768, 390 and 360; the source view's inner column measured 420.0px, centred, on the live
+flow. `e2e/front-door-viewport-journey.mjs` is the regression left behind.
+
+**CI has not run since 2026-08-23** — every push fails in ~4s with *"the job was not started because
+recent account payments have failed or your spending limit needs to be increased"*. GitHub Actions
+is blocked on billing, so nothing auto-deploys and nothing is gating a push. Staging was hand-deployed
+(`flyctl deploy --config fly.web.toml`, web only) and verified live on `jobcrush.org` at 1440 and 390:
+overlay fills the viewport, no sideways scroll, header wordmark covered. **This needs the owner's
+attention** — until the billing is fixed, every gate in this repo is one someone runs by hand.
+
 ## 2026-08-24 — "sign-in is broken" was my probe, not the product — and the real defect is that I couldn't tell
 
 Owner asked for a product-level state-of-play, which turned up a `500` from `/auth/request-link` on
