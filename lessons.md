@@ -1,5 +1,19 @@
 # Lessons — jobcrush-app
 
+## Never probe the sign-in route with `example.com` — the mail provider refuses it, and the app reads as broken
+
+Learned 2026-08-24. `POST /auth/request-link` with `probe@example.com` on staging returns a bare
+`500`, which looks exactly like a broken sign-in. It is not: Resend rejects reserved domains with
+`422 validation_error` ("please use our testing email address instead of domains like
+`example.com`"), the route awaits the send, and the throw becomes a 500 that logs no cause. The
+provider's own deliverable address is **`delivered@resend.dev`** — use that to prove the path, and it
+returned `200` here.
+
+Two traps worth keeping: the staging key is **send-only**, so `GET /domains` answers `401
+restricted_api_key` and tells you nothing about verification; and the container has **no `curl`** —
+reproduce a provider call over `flyctl ssh console` with `node -e "fetch(...)"`, which is how the
+real reason was finally read. That invisibility is now #288.
+
 ## A "known X" rule over "every record" is vacuously true on zero records — demand positive evidence
 
 Learned 2026-08-23 (#285). The known-zero rule ("when every job carries an industry and none is in

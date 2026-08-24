@@ -2,6 +2,26 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-08-24 — "sign-in is broken" was my probe, not the product — and the real defect is that I couldn't tell
+
+Owner asked for a product-level state-of-play, which turned up a `500` from `/auth/request-link` on
+staging. Reported as a possible blocker, then chased down before filing.
+
+**Sign-in works.** The address was the problem: Resend refuses reserved domains like `example.com`
+with a `422`. Proven live the same day — a send to `delivered@resend.dev` returned `200`, `MAIL_FROM`
+is `login@jobcrush.org`, and `https://jobcrush.org/auth/verify?...` serves the app, so the emailed
+link lands on something real. (Staging also carries a custom domain, `jobcrush.org`; `WEB_URL` points
+there, not at `jobcrush-web-staging.fly.dev`.)
+
+**The real finding is the opacity, now [#288](https://github.com/adrien-mounier/jobcrush-app/issues/288).**
+The route awaits the send and lets the throw become a bare `500`: the person at the wall gets a server
+error, and the log records the status and nothing else. Reading the actual reason took a shell on the
+live machine and a hand-issued `fetch` — the container has no `curl`, and the key is send-only so the
+domains endpoint answers `401`. Unscheduled, flagged to jump the queue before any real visitor is let
+in, because the wall is where the earned count is exchanged for an account.
+
+Roadmap + `lessons.md` updated. **No code changed.**
+
 ## 2026-08-24 — the knowledge graph caught a dangling cross-reference the docs had carried since July
 
 Graph rebuilt incrementally after the industry-axis tickets landed (155 changed files: 131 code via

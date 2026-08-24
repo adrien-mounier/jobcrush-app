@@ -58,7 +58,10 @@ journey report, revisit only if real decks make it bite. Unscheduled, in the
 table: 7b.1 #250 (parked).
 Unscheduled, no row yet: #246 · #276 · #277 · **#286** (a visitor who signs in and comes straight
 back is shown the reveal twice — `wall.spec.ts:90`, red since at least #281, found by #282's QA
-gate).
+gate) · **#288** (a rejected sign-in email is a bare 500 at the wall and the reason is nowhere in
+the logs — **pull it before any real visitor is let in**: the wall is the money moment, and today a
+refused address is indistinguishable from a server failure to her and to us. Sign-in itself is NOT
+broken — proven live 2026-08-24, see the ticket).
 
 _Ordered 2026-08-13 over all open issues. **This goes stale on every landing** — when a ticket
 closes, strike it here in the same commit, and when a dependency claim stops being true, fix it
