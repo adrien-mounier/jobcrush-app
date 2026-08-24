@@ -64,7 +64,9 @@ back is shown the reveal twice — `wall.spec.ts:90`, red since at least #281, f
 gate) · **#288** (a rejected sign-in email is a bare 500 at the wall and the reason is nowhere in
 the logs — **pull it before any real visitor is let in**: the wall is the money moment, and today a
 refused address is indistinguishable from a server failure to her and to us. Sign-in itself is NOT
-broken — proven live 2026-08-24, see the ticket).
+broken — proven live 2026-08-24, see the ticket) · **#289** (the deck reports a language withdrawal
+and shows no route to the profile door that reverses it — the badge is mounted everywhere except
+`/deck`. Small; it is what is left of the withdrawn standing risk in Phase 2, and it replaces it).
 
 _Ordered 2026-08-13 over all open issues. **This goes stale on every landing** — when a ticket
 closes, strike it here in the same commit, and when a dependency claim stops being true, fix it
@@ -200,9 +202,18 @@ Ordering constraints, so nobody re-litigates them:
 - **#206 before #156/#167/#168/#171** (they spend bullets without being able to tell a duty from an
   achievement) · **#156 before #167** (nothing checks length before things that lengthen) ·
   **#207 immediately before #168** (else #168 answers it by accident).
-- ⚠️ **Standing risk carried knowingly:** since #123, a mistap on the language question withdraws
+- ~~⚠️ **Standing risk carried knowingly:** since #123, a mistap on the language question withdraws
   postings with no undo, and the correction affordance never renders. Acceptable only because nobody
-  uses the app — if a real visitor reaches the deck before 11.1 #120 lands, it jumps the queue.
+  uses the app — if a real visitor reaches the deck before 11.1 #120 lands, it jumps the queue.~~
+  **WITHDRAWN 2026-08-24 — it had been stale for two weeks and nobody re-checked it against the
+  code.** It was written 2026-08-13 and was already untrue: **#165** (closed 2026-08-12) made the
+  language answer a ladder, so an unticked language reads *unknown* and only a deliberately-tapped
+  "not at all" rung withdraws anything — the mistap it describes no longer costs a job. And **#186**
+  (shipped 2026-08-10) put a **"Change your languages"** door on the profile, reachable pre-signup on
+  an anonymous session, reading the eligibility store. `GET /onboarding/cards` rebuilds from current
+  facts every load and re-runs `partitionByWithdrawal`, so a correction restores the postings with no
+  new retrieval spend. What actually remains is one missing link, not a missing capability → **#289**.
+  **#120's remaining scope is the general correction surface, and nothing about languages.**
 
 ### Phase 3 — the deck gets cheap and trustworthy
 
