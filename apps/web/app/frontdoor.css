@@ -12,6 +12,11 @@
   position: fixed;
   inset: 0;
   z-index: 100;
+  /* This is the one HUD screen rendered as <main> (discovery/deck/tailor are <div>), so it alone
+     inherits globals.css's `main { max-width: 640px; padding }` — which squeezed the full-bleed
+     overlay into a phone-width column on desktop and let the light brandbar show either side. */
+  max-width: none;
+  padding: 0;
   overflow-x: hidden;
   overflow-y: auto;
   background: var(--hud-0);
