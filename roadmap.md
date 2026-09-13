@@ -1,39 +1,13 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-08-24_
+_Last updated: 2026-09-13_
 
-> ⚠️ **CI is still billing-blocked until ~Sept 1, but staging is CURRENT: web hand-deployed
-> 2026-08-24** (`965708e` — the front door fills the desktop window again; QA gate GO, local gates
-> green, verified live on `jobcrush.org` at 1440 and 390). The API image is still `b5913ad` and
-> correct: nothing under `apps/api/**` has changed since. Previously deployed by hand 2026-08-21
-> (`265ff6d`, session 154 — local gates green first: typecheck, 1563 tests, build, 146 Tier 1 specs +
-> spend tripwire, **23** Tier 2 journeys all passing; then the same two `flyctl deploy` commands CI
-> runs; `/healthz` echoes the SHA). #258's alias hints are proven live on staging: "scrum master",
-> "agile coach", "delivery lead" and "release manager" each answer *IT project delivery* with its
-> market titles, "requirements analyst" answers *Business analysis*, and "marine engineer" is still
-> met with silence. Everything stranded since the 2026-08-20 hand deploy (#255 #256 #247 #257 #258)
-> is now live; the durable unmapped-label feed answers with waiting counts. **Still true after
-> #264 (`308d059`) and #271 (`57e8e13`), both landed during the blockage: each touches only
-> `apps/web/e2e/**` and docs, so the shipped product is byte-identical and nothing awaits a hand
-> deploy — their full pipelines ran locally, uncached (#271: typecheck, 1567 api tests, Tier 1 153
-> with the spend tripwire at zero, Tier 2 all 24 journeys / 696 assertions).**
->
-> **Until GitHub billing resets (owner expects ~2026-09-01): a green push does NOT deploy.** The
-> routine is: run the full local gates, then deploy by hand (recipe in `lessons.md`). One caveat,
-> accepted 2026-08-20: hand deploys skip CI's clean-room build — first CI run in September re-proves
-> the tree.
->
-> ### 👀 The two owner checks are DONE (2026-08-20, session 151)
->
-> - **#240 — the deck fills.** ✅ The owner walked the real path ("it delivery manager", Hong Kong):
->   first-ever live retrieval (3 techmap calls, 30 postings, USD 0.03), 4 matched cards on screen.
->   The cold-cache first attempt showed an error before the retry succeeded — that is #116's case,
->   evidenced on the ticket.
-> - **#243 — `adReader.family_clamped` stayed at 0** across 12 real-model advert reads in the same
->   walk: the model answers with family ids, decks do not silently empty.
->
-> **Delete this block when both checks are done and CI deploys green again.** Move any failed check
-> into a real ticket.
+> ✅ **CI is back since 2026-09-13** — run `34744604908` (manual `workflow_dispatch`, green: `test`
+> 3 min, `e2e` 56 min with all 27 Tier 2 journeys passing; clean-room build re-proved `2acf5fe`, the
+> exact tree already live). **A green push deploys again — the hand-deploy routine is over** (recipe
+> stays in `lessons.md` as the fallback). What the run also showed: the gate **doubled in cost**
+> while CI was down (12 → 27 journeys, ~30 → ~60 Actions-minutes per run) — see the CI owner row
+> below before pushing at August's pace.
 
 > Forward-looking product roadmap. S0 + S1 are done; this plan carries S2 → S4. The **detailed
 > original spec, per-ticket ACs, and per-slice kickoffs are archived in the JobCrush repo**
@@ -273,7 +247,7 @@ One provider serves all four markets today, with no registry-level fallback (#17
 
 | # | What | Note |
 |---|---|---|
-| 🚨 **CI** | GitHub Actions is blocked — nothing deploys | **OPEN since 2026-08-15.** No payment method + $0 spending limit = platform-level hard stop. Owner-only fix: wait for the reset (~Sept 1) or add a payment method. Until then: full local gates, then hand deploy (recipe in `lessons.md`). |
+| ⚠️ **CI** | Actions minutes: the block will come back, sooner | **Block lifted 2026-09-13** by the monthly reset (run `34744604908` green). Nothing else changed: private repo = metered minutes, no payment method, $0 spending limit. August burned the whole quota in 15 days (159 green runs by 15 Aug, ~30 min each) and every push from 15 Aug to 24 Aug died in 5 s. **Each run now costs ~60 min** (Tier 2 grew 12 → 27 journeys while nobody was paying for it): the included minutes (2,000 Free / 3,000 Pro — the token cannot read which) cover **33–50 pushes a month**, i.e. 3–5 days at August's pace. Owner decision, three ways: pay overage (~USD 0.48 per run, ~USD 120/month at August's pace); run Tier 2 less often than every push (nightly + pre-deploy, or only when `apps/**` changes); or make the repo public (Actions free). Until decided, budget pushes. |
 | ~~#32~~ | ~~Spending alert + Fly token scope~~ | ✅ **DONE 2026-08-13.** One token per app; Cloudflare alert at USD 10. Fly has no billing alerts or spending cap — do not re-open that half. |
 | ~~#211~~ | ~~How finely is a skill list split?~~ | ✅ **DECIDED 2026-08-13** — ADR-0004 clause 10 + ADR-0013; #164 builds it; spawned #213. |
 | #127 | Map: the CV as structured data | Parent — closes when #164–#171 close |

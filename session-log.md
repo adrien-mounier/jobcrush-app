@@ -2,6 +2,27 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-13 — CI is back: one manual run re-proves the tree, and shows the gate doubled in price while it was down
+
+Nothing to push (`main` == `origin/main` at `2acf5fe`, the bytes already live), so the question
+"did the billing reset happen?" was answered with a `workflow_dispatch` run — `test` + `e2e` only,
+`deploy-staging` skipped by design, no redeploy. Run `34744604908`: **green**. `test` 3 min; `e2e`
+56 min — Tier 1 mocked 2m29s with the fake-model tripwire at zero, then **all 27 Tier 2 journeys
+passed** (52 min). The clean-room build that every hand deploy skipped since 2026-08-20 is now
+proved on the exact tree that is live. **A green push deploys again.** Roadmap's ⚠️ top block is
+gone; the hand-deploy recipe stays in `lessons.md` as the fallback.
+
+Two facts the run surfaced. **The gate costs twice what it did**: the last green run before the
+block (15 Aug, `85cda41`) ran 12 Tier 2 journeys in 24 min; today ran 27 in 52 min — the 12 shared
+journeys take the same seconds each, so nothing rotted, the gate grew (15 journeys landed during
+the block, each proven only on a laptop where minutes are free). ~30 → ~60 Actions-minutes per
+push. **And the block began 15 Aug, not 23 Aug** as the 24 Aug entry below says: the run list shows
+159 green runs 1–15 Aug, then 48 billing-killed runs through 24 Aug — the quota was spent in two
+weeks at ~10 runs a day. The roadmap's CI owner row now carries the arithmetic (33–50 pushes a
+month on included minutes at the new price) and the three ways out; that decision is the owner's.
+
+Docs only, no code, no deploy. Actions-minutes spent: ~59.
+
 ## 2026-08-24 — the landing page was wearing a phone's width on a desktop screen
 
 Owner reported it from the live site: the first screen at `https://jobcrush.org/` looked "fit for

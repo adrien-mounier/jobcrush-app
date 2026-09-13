@@ -381,6 +381,15 @@ from **inside** the machine so secrets like `OPS_KEY` never enter the session. A
 way: on the pre-#252 tree, Fly's auto-stop wiped the in-memory unmapped-label buffer on every idle —
 an undeployed durability fix can silently erase the very data its successor slices need.
 
+## While CI is down, the gate's price is invisible — read it off the first run back
+
+Every journey added during the Aug 2026 block was proven on a laptop, where minutes are free. The
+first CI run back (2026-09-13, `34744604908`) showed Tier 2 had gone 12 → 27 journeys and the run
+~30 → ~60 billed minutes — nothing slower, just twice as much of it — on a quota that the old price
+had already exhausted in two weeks. The metered budget is a constraint on the gate's *size*, not
+only on how often it runs; when the gate cannot run where it is paid for, price its growth by hand
+(`gh run view <id> --json jobs` gives per-step seconds) before the next month's quota answers for you.
+
 ## A fixture tests depend on must live under a CI-gated path, not docs/
 
 Since 2026-08-15, a push touching only `docs/**` (and other prose paths) runs no CI. That created a
