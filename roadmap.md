@@ -51,14 +51,28 @@ exist, 3–5 are the work:
 | 4 | **The tailored draft, on a screen again** — engine kept unbound since #272; comes back fed by the pasted ad, carrying its evidence and open points (#66 reshaped), stretches proposed for approval | 🔨 rebind |
 | 5 | **A document the owner can send** — the old output was a watermarked preview; nothing checks the two-page rule (#156) | 🔨 likely missing |
 
-**First unit of work: #290, the wayfinder map over the spine** (`/wayfinder`, Opus, high). #86
-("per-ad understanding — turn any live job posting into a scored, evidence-backed card") is the
-closest existing parent — amend it, don't reinvent. The map files the spec and slices.
+### Phase V1 — works for the owner (THE DASHBOARD: where we are, what's next, how to build it)
 
-**Pull rule for parked rows:** a future-phase row is pulled into the spine when a real draft of the
-owner's shows the lack — not before. Likely first pulls: #171 (stretches), #156 (two pages),
-#168/#203 (what prints per application). #287's pending ruling shapes what drafts print, so it
-surfaces early.
+| Order | # | What | Skill | Model | Effort |
+|---|---|---|---|---|---|
+| V1 | #290 | Map the v1 spine: the paste door, the draft rebind, the document out | `/wayfinder` | Opus | high |
+| V2 | #TBD | Spec the spine from #290's map — amends #86 (per-ad understanding); #66's evidence-carry folds in here | `/to-spec` | Opus | high |
+| V3 | #TBD | Build: the paste-a-job-ad door — a job the owner brings is read, scored and questioned like a feed job | `/implement` | Opus | set at slicing |
+| V4 | #TBD | Build: the tailored draft back on a screen, fed by the pasted ad, carrying its evidence and gaps, stretches proposed for approval | `/implement` | **Fable** | set at slicing |
+| V5 | #TBD | Build: the document the owner can send — two pages, server-side confirmation gate | `/implement` | **Fable** | set at slicing |
+| V6 | — | The finish line, proven live: one real posting, end to end, `/qa-gate` GO on the whole journey | `/qa-gate` | — | — |
+| ⏳ | #287 | Owner ruling: a floor item covered by "No" prints nothing — what does the CV do about it? Shapes every draft; needed by V4 at the latest | `—` owner call | — | — |
+
+_#TBD rows get real ticket numbers as #290's map files them — V3–V5 are the expected shape, and
+the map may re-cut it. Model column follows the session-107 rule: **Fable for the builds where a
+restraint rule can ship subtly wrong and still green** (the draft and the document are CV-brain
+territory), Opus for plumbing and for every map/spec/grill. Effort for V3–V5 is set when the map
+slices them._
+
+**On deck — not scheduled, pulled into this table the moment one of the owner's real drafts shows
+the lack** (the pull rule): #171 (stretches per advert) · #156 (two pages) · #168 (what prints per
+application) · #203 (put a held-back fact back) — plus whatever a real draft flags first.
+Everything else stays parked below.
 
 Unscheduled pool — all parked unless the spine trips over them: 7b.1 #250 (parked, trigger
 unchanged) · #246 · #276 · #277 · **#286** (stranger-facing: the claimed-return reveal shown twice)
@@ -250,7 +264,7 @@ and **#111 follows #110** — revisit #111's model score if #110 lands weak.
 | 32 | #67 | Slow and failed work resumes | `/implement` | Opus | medium |
 | 33 | #68 | Delete-my-data, expiry, consent | `/implement` | **Fable** | high |
 | 34 | #65 | The card separates offer, coverage, gaps | `/implement` | Opus | medium |
-| 35 | #66 | Card evidence carries into the tailored CV | `/implement` | **Fable** | high |
+| 35 | #66 | Card evidence carries into the tailored CV — **PULLED into Phase V1 2026-09-26**: the draft rebind (row V4) is this ticket reshaped for the pasted ad; #290's map decides amend vs supersede | `/implement` | **Fable** | high |
 | 36 | #69 | Pilot measurement and release gates | `/implement` | Opus | medium |
 | 36b | #238 | The owner is told what people search — spec'd 2026-08-16, deferred to the pilot by the owner (nothing to monitor until real people are let in). If a pilot date is set, pull slice 1 (card-interaction events) early: it only counts forward | `/to-tickets` | Opus | medium |
 
@@ -288,7 +302,7 @@ One provider serves all four markets today, with no registry-level fallback (#17
 | ~~#211~~ | ~~How finely is a skill list split?~~ | ✅ **DECIDED 2026-08-13** — ADR-0004 clause 10 + ADR-0013; #164 builds it; spawned #213. |
 | #127 | Map: the CV as structured data | Parent — closes when #164–#171 close |
 | ~~#134~~ | ~~Classify a job into a kind of work~~ | ✅ Parent, **CLOSED 2026-08-19** — delivered as #220–#223 (rows 5–5d), designed as ADR-0014, specced as #219 |
-| #86 | Spec: per-ad understanding | Parent — closes when #108–#111 close |
+| #86 | Spec: per-ad understanding | Parent — closes when #108–#111 close. **Also the base spec the V1 spine amends** (#290 row V2) |
 | ~~#249~~ | ~~The CV preview calls a stored posting "a real posting"~~ | ✅ Parent, **CLOSED by hand 2026-08-22** — the deletion and every remaining AC live on #272 (row 7d.5) |
 | #54 | Spec: first-run onboarding | Parent — closes when #63–#69 close. ⚠️ #272 deletes its S1 preview flow, so "first-run onboarding" now means the front door alone; re-read its scope before closing it |
 
