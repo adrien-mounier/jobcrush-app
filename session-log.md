@@ -39,8 +39,40 @@ A `/research` subagent is resolving **#295** in an isolated worktree (branch `re
 told to report conditionally on each possible machine size rather than block on the one `fly` command
 that needs the owner's hands.
 
-Docs only, no code, no deploy. Next session: take a frontier ticket — #287 is the cheapest and unblocks
-the report.
+**#295 resolved the same session, by measurement rather than estimate** (`docs/research/pdf-in-container.md`,
+branch `research/pdf-in-container`, `b504848` — pushed, docs-only). Ruling 5 stands: every browserless
+route loses, including `pdf-lib`, which is **already a dependency** and cannot read HTML at all — each
+means a second CV layout or a second rendering engine, or sending a named person's CV to a third party
+against the deliberate `sin` data-residency choice. Settings: `chrome-headless-shell` (114MB/260MB, not
+full Chromium's 177/378), apt deps **hand-picked — never `--with-deps`**, which drags in 282MB of
+graphics stack and CJK fonts.
+
+Three things the research changed, two of them corrections to this map:
+
+- **Money is not the obstacle, and that reverses the worry.** Fly bills memory by the running second and
+  this machine sleeps, so 1GB costs ~**3¢/month**, not the price list's $4.76. Filed as **#297** (owner
+  approval, shared account) — and it is not really about the PDF: at 256MB with a browser, **Fly kills
+  the machine, so the whole API goes down**, not just the export.
+- **The real bill is waiting, and it collides with ruling 6.** Fly throttles the disk to 8MB/s, so a cold
+  machine spends **~33 seconds reading the browser before it runs an instruction**. That lands on the
+  approve press, which ruling 6 made a single press on purpose. No code fixes it; the only mitigation is
+  a warm machine at **$7.23/month**. Filed as **#296** — the owner's money against the owner's patience.
+- **Ruling 5's "reuses the renderer we already own" was true of the content and false of the print
+  layout.** Verified in code: **zero** `@page`/`page-break`/`break-inside` rules, and the CV asks for
+  `Calibri, 'Segoe UI', Arial` — three fonts a Linux container has none of, which matters because page
+  count is a pure function of font metrics. Without them #156 would have "measured" the pages of a
+  document nobody will ever see. `fonts-crosextra-carlito` is metric-identical to Calibri, so this is
+  spec input, not a new ticket. Ruling 5 amended on the map to say so.
+
+Also fixed en route: the owner's Fly token had **expired**, which flyctl reports as `no access token
+available` — indistinguishable from never having logged in, even with a 665-character token sitting in
+`~/.fly/config.yml`. Recorded in `SHARED_INFRA.md` rule 7 along with the machine inventory, so the next
+session does not conclude the tooling is sandboxed. The research agent also leaked three measurement
+artifacts into the repo root; moved to the scratch dir, tree clean.
+
+Docs only, no code, no deploy, nothing scaled or spent. **Eight tickets on the map, one resolved.** Next
+session: #287 is still the cheapest (twenty minutes, unblocks the report), and #296 is the one only the
+owner can answer.
 
 ## 2026-09-26 — the product changes direction: v1 is the one that works for its owner
 

@@ -61,14 +61,16 @@ exist, 3–5 are the work:
 | V1c | #294 | Does a pasted ad ever go stale — a pasted job has no liveness signal and never will. **TAKEABLE** | `/grilling` | Opus | low |
 | V1d | #293 | What is in the application report, and what writes each part. **BLOCKED by #287** | `/prototype` | Opus | medium |
 | V1e | #292 | Which questions may a pasted ad raise, and on which screen. **BLOCKED by #291** | `/grilling` | Opus | medium |
-| V1f | #295 | Can our API container make a PDF, and what does it cost. **IN PROGRESS** (research agent, 2026-09-27) | `/research` | Opus | medium |
+| ~~V1f~~ | ~~#295~~ | ~~Can our API container make a PDF, and what does it cost~~ **DONE 2026-09-27** — ruling 5 stands; measured, not estimated (`docs/research/pdf-in-container.md`, branch `research/pdf-in-container`). Surfaced V1g and V1h | — | — | — |
+| V1g | #296 | The first PDF after a quiet spell takes tens of seconds — pay $7.23/mo for a warm machine, or design the wait honestly. **Collides with ruling 6** (approve = send, one press). **TAKEABLE** | `/grilling` owner call | Opus | medium |
+| V1h | #297 | Scale the API machine off 256MB — a browser peaks at ~201MB and Fly kills the whole app, not just the PDF. ~3¢/month, needs owner OK (shared account) | `—` owner task | — | — |
 | V2 | #TBD | Spec the spine from #290's map — amends #86 (per-ad understanding); #66's evidence-carry folds in here | `/to-spec` | Opus | high |
 | V3 | #TBD | Build: the paste-a-job-ad door — a job the owner brings is read, scored and questioned like a feed job | `/implement` | Opus | set at slicing |
 | V4 | #TBD | Build: the tailored draft back on a screen — the CV brain bound at last, fed by the pasted ad, carrying its evidence and gaps. **No stretch library** (map #290 ruling 7: the app already permits a rephrased bullet that cites its source fact; #171 stays parked) | `/implement` | **Fable** | set at slicing |
-| V5 | #TBD | Build: approve → a two-page PDF and an application report land in his inbox. Browser in the API container, export gated server-side on lint-passes AND approved. **Absorbs #156** (the page count becomes real) | `/implement` | **Fable** | set at slicing |
+| V5 | #TBD | Build: approve → a two-page PDF and an application report land in his inbox. Browser in the API container, export gated server-side on lint-passes AND approved. **Absorbs #156** (the page count becomes real — but only once the container has fonts: page count is a function of font metrics, and the renderer has no page rules at all, per #295) | `/implement` | **Fable** | set at slicing |
 | V6 | — | The finish line, proven live: one real posting, end to end, `/qa-gate` GO on the whole journey | `/qa-gate` | — | — |
 
-_**#290 is charted (2026-09-26/27): six decision tickets, V1a–V1f.** A wayfinder map files
+_**#290 is charted (2026-09-26/27): eight decision tickets, V1a–V1h, one already resolved.** A wayfinder map files
 decisions, not build slices — so V3–V5 stay `#TBD` until `/to-spec` writes the spine spec and cuts
 them. V3–V5 are the expected shape and the spec may re-cut it. Model column follows the session-107 rule: **Fable for the builds where a
 restraint rule can ship subtly wrong and still green** (the draft and the document are CV-brain
