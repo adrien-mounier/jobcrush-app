@@ -70,9 +70,36 @@ available` — indistinguishable from never having logged in, even with a 665-ch
 session does not conclude the tooling is sandboxed. The research agent also leaked three measurement
 artifacts into the repo root; moved to the scratch dir, tree clean.
 
-Docs only, no code, no deploy, nothing scaled or spent. **Eight tickets on the map, one resolved.** Next
-session: #287 is still the cheapest (twenty minutes, unblocks the report), and #296 is the one only the
-owner can answer.
+**#296 decided by the owner the same session: accept the wait.** No warm machine for a product with one
+user — *"nearly every press is a cold one, it's ok to keep it like this for now."* Ruling 6 survives
+intact (approve is still send, one press); the wait becomes a **design obligation** instead, narrated over
+the job/progress stream the front door already uses, because a silent 30-second hang on the most important
+button reads as broken while the same 30 seconds narrated reads as work. The $7.23/month fix is parked as
+**#298** with a hard trigger — the day the product is opened to anyone but the owner, the same gate #288
+sits behind. Distinct from #297, which is ~3¢/month and not optional.
+
+**Worktree housekeeping, owner-requested.** Seven stale worktrees from earlier sessions, audited against
+`BRANCH_CLEANUP.md`'s four checks rather than swept. Four branches were fully contained in `origin/main`
+and were deleted (`worktree-session-28-oauth-return`, `worktree-session-29-floors-and-wall`, `ticket/114`,
+`ticket/99`). Three branches were **kept** because they hold commits `main` does not and are pushed, so
+they are records rather than debris: `prototype/downstream-gap-card-45`,
+`research/job-family-classification-novelty-49`, and the new `research/pdf-in-container`.
+
+The one real find: `session-52-qa` held **19 uncommitted files** in a detached HEAD, including a whole
+job-card contract as *untracked* files. It proved to be a five-month-old superseded draft — its
+`jobCard.ts` was 30 lines against main's 74, its oracle 79 against 104, and its commit an ancestor of
+`origin/main`. Superseded is not the same as checked, so the entire state was archived to a patch outside
+the repo (`../jobcrush-app-archive/`, 659KB, with the base commit and the apply command recorded) before
+anything was removed. Git is now clean — only `main` is registered as a worktree.
+
+**Left undone, deliberately:** five of the worktree *directories* survive on disk. Git released them
+(their `.git` links are gone) but Windows refuses to delete the `node_modules` trees inside — MAX_PATH on
+some paths, a read-only `client-s3` on others. They are inert folders holding no git state and no unique
+work. They need one `rd /s /q` from a terminal outside this session.
+
+Docs only, no code, no deploy, nothing scaled or spent. **Eight tickets on the map, two resolved
+(#295, #296), four takeable, two blocked.** Next session: **#287** — twenty minutes, and it unblocks the
+application report.
 
 ## 2026-09-26 — the product changes direction: v1 is the one that works for its owner
 

@@ -62,7 +62,7 @@ exist, 3–5 are the work:
 | V1d | #293 | What is in the application report, and what writes each part. **BLOCKED by #287** | `/prototype` | Opus | medium |
 | V1e | #292 | Which questions may a pasted ad raise, and on which screen. **BLOCKED by #291** | `/grilling` | Opus | medium |
 | ~~V1f~~ | ~~#295~~ | ~~Can our API container make a PDF, and what does it cost~~ **DONE 2026-09-27** — ruling 5 stands; measured, not estimated (`docs/research/pdf-in-container.md`, branch `research/pdf-in-container`). Surfaced V1g and V1h | — | — | — |
-| V1g | #296 | The first PDF after a quiet spell takes tens of seconds — pay $7.23/mo for a warm machine, or design the wait honestly. **Collides with ruling 6** (approve = send, one press). **TAKEABLE** | `/grilling` owner call | Opus | medium |
+| ~~V1g~~ | ~~#296~~ | ~~The first PDF after a quiet spell takes tens of seconds~~ **DECIDED 2026-09-27** — accept the wait, narrate it honestly; ruling 6 survives (approve = send, one press). The $7.23/mo warm machine parks as **#298** behind the real-visitors gate | — | — | — |
 | V1h | #297 | Scale the API machine off 256MB — a browser peaks at ~201MB and Fly kills the whole app, not just the PDF. ~3¢/month, needs owner OK (shared account) | `—` owner task | — | — |
 | V2 | #TBD | Spec the spine from #290's map — amends #86 (per-ad understanding); #66's evidence-carry folds in here | `/to-spec` | Opus | high |
 | V3 | #TBD | Build: the paste-a-job-ad door — a job the owner brings is read, scored and questioned like a feed job | `/implement` | Opus | set at slicing |
@@ -70,7 +70,7 @@ exist, 3–5 are the work:
 | V5 | #TBD | Build: approve → a two-page PDF and an application report land in his inbox. Browser in the API container, export gated server-side on lint-passes AND approved. **Absorbs #156** (the page count becomes real — but only once the container has fonts: page count is a function of font metrics, and the renderer has no page rules at all, per #295) | `/implement` | **Fable** | set at slicing |
 | V6 | — | The finish line, proven live: one real posting, end to end, `/qa-gate` GO on the whole journey | `/qa-gate` | — | — |
 
-_**#290 is charted (2026-09-26/27): eight decision tickets, V1a–V1h, one already resolved.** A wayfinder map files
+_**#290 is charted (2026-09-26/27): eight decision tickets, V1a–V1h — two resolved the same session (V1f #295, V1g #296), four takeable, two blocked.** A wayfinder map files
 decisions, not build slices — so V3–V5 stay `#TBD` until `/to-spec` writes the spine spec and cuts
 them. V3–V5 are the expected shape and the spec may re-cut it. Model column follows the session-107 rule: **Fable for the builds where a
 restraint rule can ship subtly wrong and still green** (the draft and the document are CV-brain
@@ -89,7 +89,9 @@ unchanged) · #246 · #276 · #277 · **#286** (stranger-facing: the claimed-ret
 · **#288** (**parked with a hard trigger: un-parks before any real visitor is let in** — the wall
 is the money moment, and a refused address is indistinguishable from a server failure; sign-in
 itself is NOT broken, proven live 2026-08-24) · #289 (the deck's missing language-withdrawal
-badge).
+badge) · **#298** (a warm API machine so the first PDF is instant, $7.23/month — parked
+2026-09-27 behind the same hard trigger as #288: the day the product is opened to anyone but the
+owner; #296 ruled the wait is narrated, not bought away, while he is the only user).
 
 _Ordered 2026-08-13 over all open issues; **re-cut 2026-09-26 around the v1 spine**. This goes
 stale on every landing — when a ticket closes, strike it here in the same commit, and when a
