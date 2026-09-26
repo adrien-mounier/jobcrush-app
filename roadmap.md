@@ -55,7 +55,7 @@ exist, 3–5 are the work:
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| V1 | #290 | Map the v1 spine: the paste door, the draft rebind, the document out | `/wayfinder` | Opus | high |
+| V1 | #290 | **THE MAP** — the v1 spine: the paste door, the draft rebind, the document out. **CHARTED 2026-09-27 · 2 of 8 decided.** A container, not a task: it closes when V1a–V1h are all resolved and nothing is left to decide, which is the moment V2 starts. Keep the count current as each child closes | `/wayfinder` | Opus | high |
 | V1a | #291 | The paste door: where it lives, what it looks like, what it does while it reads. **TAKEABLE** | `/prototype` | Opus | medium |
 | V1b | #287 | A floor item covered by "No" prints nothing — what does the CV do about it. **TAKEABLE**, blocks V1d | `/grilling` owner call | Opus | medium |
 | V1c | #294 | Does a pasted ad ever go stale — a pasted job has no liveness signal and never will. **TAKEABLE** | `/grilling` | Opus | low |
