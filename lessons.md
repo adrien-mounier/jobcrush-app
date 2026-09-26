@@ -1,5 +1,22 @@
 # Lessons — jobcrush-app
 
+## The owner's own cv-factory is a running reference implementation — read its output before pricing a feature
+
+Learned 2026-09-27, while charting #290. A feature was priced as "a genuine second project" (interview
+prep needing the whole stretch-proposal library, #171) on reasoning from the ADRs alone. The owner
+disagreed and named his evidence: he already receives it from `C:/Users/adrie/AI/cv-factory`. Nine real
+`job_offers/*/report.md` files settled it in one read — every audited claim there is *Partially Supported*
+or *Verified*, never unsupported, so what he calls a "stretch" is a **wording** stretch over a fact he
+owns, and this app's draft schema already allows exactly that (a bullet may be rephrased freely provided
+it cites the source claim it came from). The expensive machinery was not needed.
+
+The reusable rule: **jobcrush-app is a port of a tool the owner still uses by hand.** Before estimating
+any CV-reasoning feature, read what the cv-factory actually produces for a real application — its
+`report.md` is the de-facto spec for the pack, and its outputs tell you which parts of a design are
+already solved, which are noise at this scale, and which the app genuinely lacks. Reasoning from
+`docs/adr/` alone over-prices work the reference implementation does cheaply. (Boundary unchanged: no
+two-way sync, ever — read it for evidence, port insights by hand.)
+
 ## Breadth-first coverage generates gaps instead of catching them — a completed spine ranks the work
 
 Learned 2026-09-26, at the price of a re-scope. The broad-product theory ("cover many occupations

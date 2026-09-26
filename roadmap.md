@@ -56,22 +56,30 @@ exist, 3–5 are the work:
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
 | V1 | #290 | Map the v1 spine: the paste door, the draft rebind, the document out | `/wayfinder` | Opus | high |
+| V1a | #291 | The paste door: where it lives, what it looks like, what it does while it reads. **TAKEABLE** | `/prototype` | Opus | medium |
+| V1b | #287 | A floor item covered by "No" prints nothing — what does the CV do about it. **TAKEABLE**, blocks V1d | `/grilling` owner call | Opus | medium |
+| V1c | #294 | Does a pasted ad ever go stale — a pasted job has no liveness signal and never will. **TAKEABLE** | `/grilling` | Opus | low |
+| V1d | #293 | What is in the application report, and what writes each part. **BLOCKED by #287** | `/prototype` | Opus | medium |
+| V1e | #292 | Which questions may a pasted ad raise, and on which screen. **BLOCKED by #291** | `/grilling` | Opus | medium |
+| V1f | #295 | Can our API container make a PDF, and what does it cost. **IN PROGRESS** (research agent, 2026-09-27) | `/research` | Opus | medium |
 | V2 | #TBD | Spec the spine from #290's map — amends #86 (per-ad understanding); #66's evidence-carry folds in here | `/to-spec` | Opus | high |
 | V3 | #TBD | Build: the paste-a-job-ad door — a job the owner brings is read, scored and questioned like a feed job | `/implement` | Opus | set at slicing |
-| V4 | #TBD | Build: the tailored draft back on a screen, fed by the pasted ad, carrying its evidence and gaps, stretches proposed for approval | `/implement` | **Fable** | set at slicing |
-| V5 | #TBD | Build: the document the owner can send — two pages, server-side confirmation gate | `/implement` | **Fable** | set at slicing |
+| V4 | #TBD | Build: the tailored draft back on a screen — the CV brain bound at last, fed by the pasted ad, carrying its evidence and gaps. **No stretch library** (map #290 ruling 7: the app already permits a rephrased bullet that cites its source fact; #171 stays parked) | `/implement` | **Fable** | set at slicing |
+| V5 | #TBD | Build: approve → a two-page PDF and an application report land in his inbox. Browser in the API container, export gated server-side on lint-passes AND approved. **Absorbs #156** (the page count becomes real) | `/implement` | **Fable** | set at slicing |
 | V6 | — | The finish line, proven live: one real posting, end to end, `/qa-gate` GO on the whole journey | `/qa-gate` | — | — |
-| ⏳ | #287 | Owner ruling: a floor item covered by "No" prints nothing — what does the CV do about it? Shapes every draft; needed by V4 at the latest | `—` owner call | — | — |
 
-_#TBD rows get real ticket numbers as #290's map files them — V3–V5 are the expected shape, and
-the map may re-cut it. Model column follows the session-107 rule: **Fable for the builds where a
+_**#290 is charted (2026-09-26/27): six decision tickets, V1a–V1f.** A wayfinder map files
+decisions, not build slices — so V3–V5 stay `#TBD` until `/to-spec` writes the spine spec and cuts
+them. V3–V5 are the expected shape and the spec may re-cut it. Model column follows the session-107 rule: **Fable for the builds where a
 restraint rule can ship subtly wrong and still green** (the draft and the document are CV-brain
-territory), Opus for plumbing and for every map/spec/grill. Effort for V3–V5 is set when the map
+territory), Opus for plumbing and for every map/spec/grill. Effort for V3–V5 is set when the spec
 slices them._
 
 **On deck — not scheduled, pulled into this table the moment one of the owner's real drafts shows
-the lack** (the pull rule): #171 (stretches per advert) · #156 (two pages) · #168 (what prints per
-application) · #203 (put a held-back fact back) — plus whatever a real draft flags first.
+the lack** (the pull rule): #171 (stretches per advert, and map #290 ruled it out of that map's scope) · #168
+(what prints per application) · #203 (put a held-back fact back) — plus whatever a real draft flags
+first. **#156 (two pages) left this list on 2026-09-27**: V5 absorbs it, because a browser in the
+container makes the page count real.
 Everything else stays parked below.
 
 Unscheduled pool — all parked unless the spine trips over them: 7b.1 #250 (parked, trigger
@@ -110,6 +118,8 @@ floor. **The floor-length rule** — #260's ranked list argues for cutting at th
 §6 counts a floor item covered by an explicit "No" stored as a first-class non-renderable negative,
 so a fully covered floor can hold items that print nothing, and the CV brain does not say what the
 CV does about the difference. Decision + CV-brain amendment; no code implied until it lands.
+**No longer merely waiting — it is row V1b on map #290 (2026-09-27), takeable now, and it blocks
+V1d** (what the application report says about a gap answered "No").
 
 ### Phase 1 — make the live deck honest before it exists
 

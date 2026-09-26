@@ -2,6 +2,46 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-27 — #290 charted: fourteen rulings over the v1 spine, and the pack the owner actually wants
+
+`/wayfinder` on **#290**, three grilling rounds, **fourteen rulings**, **six decision tickets** filed as
+sub-issues with native blocking (#291 paste door · #287 the covered-by-"No" ruling · #294 pasted-ad
+staleness · #293 the application report · #292 which questions a pasted ad raises · #295 PDF in the
+container). Four takeable, two blocked. Roadmap rows V1a–V1f. **Destination sharpened to one spec**, so
+`/to-spec` writes the spine once rather than three times.
+
+**The scope moved once, on the owner's call, and it was the right move.** Step 5 was charted as "a
+document the owner can send"; he re-framed it as **the CV as a PDF emailed to him, with an application
+report beside it** — offer summary, strengths vs weaknesses, interview prep, salary if the ad states one.
+That is #142's content in his own words from 2026-08-04, and it killed the recommendation on the table
+(print-to-PDF from his own browser cannot email him a file). Consequence: the server makes the PDF, a
+browser goes in the API container, and **#156 is absorbed into V5** — the two-page rule stops being a
+sentence in a prompt and becomes a countable, failing check.
+
+**The correction worth keeping.** Charting priced "interview prep" as needing #171's stretch library — a
+second project. Checking his **nine real `cv-factory/job_offers/*/report.md` files** disproved it: not one
+printed claim is unsupported; every audited item is *Partially Supported* or *Verified*, i.e. a **wording**
+stretch over a fact he owns — which this app already permits, since a bullet may be rephrased freely so
+long as it cites the source fact it came from. So the pack is **one extra model call** over material the
+app already computes (each bullet's source facts, the held-back/over-packed disclosure, the conservation
+lint, the card's fit and gap lists). **#171 stays parked** and left the map as out-of-scope. Now a
+`lessons.md` entry.
+
+Facts established while charting, each of which shaped a ruling: the tailoring engine is **genuinely
+unbound** (only tests and `qa-main` reach `tailorDraft`/`renderPreviewHtml`); the live tailor screen's
+"CV" is a **mechanically composed fact list**, not a written CV; **"Apply with this CV" is a client-side
+screen flip** with no server route behind it; the card contract carries a `salary` field that is
+hardwired to null and never filled, while the personal pipeline's own intake template already captures
+it; and the API image contains **no browser**, with `fly.api.toml` declaring no machine size — unknown,
+and it decides whether ruling 5 survives, which is #295's first job.
+
+A `/research` subagent is resolving **#295** in an isolated worktree (branch `research/pdf-in-container`),
+told to report conditionally on each possible machine size rather than block on the one `fly` command
+that needs the owner's hands.
+
+Docs only, no code, no deploy. Next session: take a frontier ticket — #287 is the cheapest and unblocks
+the report.
+
 ## 2026-09-26 — the product changes direction: v1 is the one that works for its owner
 
 Owner decision, brainstormed and challenged this session. Using the old JobCrush factory again made
