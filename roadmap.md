@@ -1,6 +1,6 @@
 # Roadmap — jobcrush-app
 
-_Last updated: 2026-09-13_
+_Last updated: 2026-09-26_
 
 > ✅ **CI is back since 2026-09-13** — run `34744604908` (manual `workflow_dispatch`, green: `test`
 > 3 min, `e2e` 56 min with all 27 Tier 2 journeys passing; clean-room build re-proved `2acf5fe`, the
@@ -16,36 +16,62 @@ _Last updated: 2026-09-13_
 
 ## Goal
 
-A hosted product that turns anyone's CV into a **grounded, verified profile** and delivers
-**tailored, ready-to-submit** job applications — the productized version of the personal JobCrush
-pipeline, for many users, on web and mobile. v0.1 scope is **prepared-apply** (the user submits;
-no autonomous submit, no LinkedIn credentials, ever).
+**Re-scoped 2026-09-26 (owner decision): v1 is the product that works for its one real user.**
+The owner — an IT project manager / product owner — takes a real posting he'd actually apply to,
+runs it through the app end to end, and it hands him a CV good enough that he **chooses to send it
+himself**. No real visitors are let in while this scope holds — the day that changes, #288 un-parks
+first, as its own ticket already says. Scope is still **prepared-apply** (the user submits; no
+autonomous submit, no LinkedIn credentials, ever).
+
+**The golden rule — built for one user, designed for many** (recorded in `CLAUDE.md` and
+`CODING_STANDARDS.md`, cited by `/code-review`): no schema, contract, or code path may hardcode the
+owner's case. Job families stay plural and growable, markets stay a parameter, vocabularies stay
+lists that grow — the narrowing lives in the quality bar and the test data, never in the data
+model.
+
+The destination is unchanged: a hosted product that turns **anyone's** CV into a grounded, verified
+profile and delivers tailored, ready-to-submit applications, for many users, on web and mobile.
+Every phase parked below remains that final product — **parked, not cancelled**.
 
 ## Run order — what to build next
 
-**NEXT: pick from the unscheduled pool** — #278 closed 2026-08-23 (row 8e struck): the
-work-history check has a door again, on the profile, and every way in has a way out. Before it,
-#274 closed (row 8d struck): one field
-style across the product, and the phone-zoom defect on the main journey is gone. Before it, #285
-closed and epic 8b (industry, the second label axis) landed fully: the industry bar is answered at its own closeness, and the
-deck honestly sinks a near-industry career instead of overselling or deleting it. One owner call
-recorded by its QA gate: on a low-band industry bar, a NEAR career (whole years ×0.9 on the card)
-can rank just below a FAR one (only that bar's band share lost) — spec-conformant, evidence in the
-journey report, revisit only if real decks make it bite. Unscheduled, in the
-table: 7b.1 #250 (parked).
-Unscheduled, no row yet: #246 · #276 · #277 · **#286** (a visitor who signs in and comes straight
-back is shown the reveal twice — `wall.spec.ts:90`, red since at least #281, found by #282's QA
-gate) · **#288** (a rejected sign-in email is a bare 500 at the wall and the reason is nowhere in
-the logs — **pull it before any real visitor is let in**: the wall is the money moment, and today a
-refused address is indistinguishable from a server failure to her and to us. Sign-in itself is NOT
-broken — proven live 2026-08-24, see the ticket) · **#289** (the deck reports a language withdrawal
-and shows no route to the profile door that reverses it — the badge is mounted everywhere except
-`/deck`. Small; it is what is left of the withdrawn standing risk in Phase 2, and it replaces it).
+**NEXT: the v1 spine — [#290](https://github.com/adrien-mounier/jobcrush-app/issues/290)** —
+decided 2026-09-26 (the session-log entry of that date carries the reasoning). Three owner
+decisions: **(1) re-scope, not re-sequence** — stranger-facing and breadth work parks until further
+notice, plumbing stays generic; **(2) the way in is a paste-a-job-ad door** — the deck stays live
+and browsable but stops being the only entrance (today there is no way to hand the app a job the
+owner found himself); **(3) the finish line is the Goal sentence above.** The spine — steps 1–2
+exist, 3–5 are the work:
 
-_Ordered 2026-08-13 over all open issues. **This goes stale on every landing** — when a ticket
-closes, strike it here in the same commit, and when a dependency claim stops being true, fix it
-rather than working around it. A row is one line: order · ticket · short title · status. The full
-story of any row lives on its ticket and in `session-log.md`, never here._
+| Step | What | State |
+|---|---|---|
+| 1 | CV in, profile built (upload or paste) | ✅ exists |
+| 2 | Verify and correct the profile | ✅ exists |
+| 3 | **Paste a job ad** → read, scored, questioned like a feed job | 🔨 new door — the machinery exists, the entry point doesn't |
+| 4 | **The tailored draft, on a screen again** — engine kept unbound since #272; comes back fed by the pasted ad, carrying its evidence and open points (#66 reshaped), stretches proposed for approval | 🔨 rebind |
+| 5 | **A document the owner can send** — the old output was a watermarked preview; nothing checks the two-page rule (#156) | 🔨 likely missing |
+
+**First unit of work: #290, the wayfinder map over the spine** (`/wayfinder`, Opus, high). #86
+("per-ad understanding — turn any live job posting into a scored, evidence-backed card") is the
+closest existing parent — amend it, don't reinvent. The map files the spec and slices.
+
+**Pull rule for parked rows:** a future-phase row is pulled into the spine when a real draft of the
+owner's shows the lack — not before. Likely first pulls: #171 (stretches), #156 (two pages),
+#168/#203 (what prints per application). #287's pending ruling shapes what drafts print, so it
+surfaces early.
+
+Unscheduled pool — all parked unless the spine trips over them: 7b.1 #250 (parked, trigger
+unchanged) · #246 · #276 · #277 · **#286** (stranger-facing: the claimed-return reveal shown twice)
+· **#288** (**parked with a hard trigger: un-parks before any real visitor is let in** — the wall
+is the money moment, and a refused address is indistinguishable from a server failure; sign-in
+itself is NOT broken, proven live 2026-08-24) · #289 (the deck's missing language-withdrawal
+badge).
+
+_Ordered 2026-08-13 over all open issues; **re-cut 2026-09-26 around the v1 spine**. This goes
+stale on every landing — when a ticket closes, strike it here in the same commit, and when a
+dependency claim stops being true, fix it rather than working around it. A row is one line: order ·
+ticket · short title · status. The full story of any row lives on its ticket and in
+`session-log.md`, never here._
 
 **Skill column:** `/implement` = specced, build it · `/wayfinder` = fog, needs charting first ·
 `/grill-with-docs` = a decision to interrogate, writes the ADR · `/prototype` = needs design rounds ·
@@ -142,6 +168,16 @@ CV does about the difference. Decision + CV-brain amendment; no code implied unt
 **~~Parked question (was on #249's row)~~ ANSWERED (owner, 2026-08-22): NO — the product does not
 offer a CV draft before signup.** ~~The consequence is row 8e #278~~ — **row 8e is done (2026-08-23)**: the work-history check has its
 door, on the profile. Decision also recorded on #272.
+
+---
+
+## Future phases — the full product (parked 2026-09-26, not cancelled)
+
+**Everything below remains the final product and is kept pickup-ready** — rows keep their
+skill/model/effort columns, tickets stay open on the board, nothing is deleted. A row leaves this
+section one of two ways: the **pull rule** above (a real draft of the owner's shows the lack), or
+the day the re-scope is reversed and real visitors return — then **#288 goes first**. Phase 2 sits
+closest to the spine; several of its rows are the expected first pulls.
 
 ### Phase 2 — the profile gets rich (map #127 fan-out)
 

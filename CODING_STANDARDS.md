@@ -54,6 +54,11 @@ and cited alongside these.
 
 ## General (any stack)
 
+- **Built for one user, designed for many** (owner decision 2026-09-26, see `CLAUDE.md`). No
+  schema, contract, or code path hardcodes the owner's case: job families stay plural and growable,
+  markets stay a parameter, vocabularies stay lists that grow. Narrowing to the owner's profession
+  is allowed only in the quality bar and test data — a hunk that special-cases a single
+  family/market/role in a data model or code path gets cited against this rule.
 - **Match the surrounding code** — naming, structure, error handling, and test idioms of the module
   you're editing.
 - **Minimal surgical diffs.** No unrequested refactors, abstractions for one caller, or speculative

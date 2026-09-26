@@ -9,6 +9,22 @@ product development. Current status lives in `roadmap.md`.
 It is a **clean-room repo**: logic is **ported by copying** from the personal-pipeline repo
 (`JobCrush`), never imported across repos. The two are separate products and evolve independently.
 
+## v1 scope and the golden rule (owner decision, 2026-09-26)
+
+**v1 is the product that works for its one real user.** The owner — an IT project manager /
+product owner — pastes a real job posting he'd actually apply to, runs it through the app end to
+end, and it hands him a CV good enough that he chooses to send it himself. The paste-a-job-ad door
+is the way in; the deck stays live but off the critical path. **No real visitors while this scope
+holds** (#288 un-parks first the day that changes). Everything parked in `roadmap.md`'s future
+phases remains the final product — parked, not cancelled.
+
+**The golden rule — built for one user, designed for many.** No schema, contract, or code path may
+hardcode the owner's case: job families stay plural and growable, markets stay a parameter,
+vocabularies stay lists that grow. The IT-PM/product-owner narrowing lives only in the quality bar
+and the test data, never in the data model. The boundary: the rule protects data models, contracts,
+and code paths — it does not license building features for users who don't exist yet; those stay
+parked.
+
 ## The two rules that break everything if broken
 
 - **The `.mjs` oracles are the contract spec.** If a zod port and `packages/contracts/oracle/*`

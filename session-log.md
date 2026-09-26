@@ -2,6 +2,33 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-26 — the product changes direction: v1 is the one that works for its owner
+
+Owner decision, brainstormed and challenged this session. Using the old JobCrush factory again made
+the goal concrete: he wants a finished product for himself — an IT project manager — before a
+product for everyone. The repo's own record carried the argument: two months went into deck
+honesty, family/industry labeling and vocabulary growth for occupations he doesn't have, while the
+tailored draft — the one thing he'd personally use — has sat engine-kept-but-unbound since #272
+deleted its screen. Breadth-first didn't catch gaps early; it generated them in territory no user
+walked (now a `lessons.md` entry).
+
+Three decisions locked: **(1) re-scope, not re-sequence** — stranger-facing and breadth work parks
+until further notice, plumbing stays generic; **(2) the way in is a paste-a-job-ad door** — the
+deck stays live and browsable but stops being the only entrance (there was no way to hand the app a
+job the owner found himself); **(3) the finish line**: *a real posting he'd actually apply to, end
+to end, and the app hands him a CV good enough that he chooses to send it himself* (prepared-apply
+unchanged — no autonomous submit, ever). Two owner riders: **every parked ticket remains the final
+product** (parked, not cancelled — the roadmap keeps all phase tables pickup-ready with their
+un-park triggers, #288 first before any real visitor), and the **golden rule — built for one user,
+designed for many** — now lives in `CLAUDE.md` and `CODING_STANDARDS.md` so every session and every
+`/code-review` polices it instead of anyone's memory.
+
+Roadmap re-cut around the five-step v1 spine (CV in ✅ · verify ✅ · paste door 🔨 · draft rebind 🔨 ·
+document out 🔨). **#290 filed as the wayfinder map over the spine**; #86 named as the spec to
+amend, #287's pending ruling flagged as surfacing early because it shapes what drafts print.
+
+Docs only, no code, no deploy. Next session starts with `/wayfinder` on #290.
+
 ## 2026-09-13 — CI is back: one manual run re-proves the tree, and shows the gate doubled in price while it was down
 
 Nothing to push (`main` == `origin/main` at `2acf5fe`, the bytes already live), so the question

@@ -1,5 +1,15 @@
 # Lessons — jobcrush-app
 
+## Breadth-first coverage generates gaps instead of catching them — a completed spine ranks the work
+
+Learned 2026-09-26, at the price of a re-scope. The broad-product theory ("cover many occupations
+from the start to catch all gaps early and avoid dead ends") produced two months of deck honesty,
+labeling axes and vocabulary machinery for occupations no user has — while the tailored draft, the
+product's one deliverable, stayed screenless. The gaps that actually mattered were found the other
+way: by QA driving the real journey (#286, #288) and by the owner using a real tool for a real
+application. The reusable rule: an end-to-end spine that one real user completes outranks breadth
+in any build order; breadth work is pulled by demonstrated lack, never scheduled ahead of it.
+
 ## Never probe the sign-in route with `example.com` — the mail provider refuses it, and the app reads as broken
 
 Learned 2026-08-24. `POST /auth/request-link` with `probe@example.com` on staging returns a bare
