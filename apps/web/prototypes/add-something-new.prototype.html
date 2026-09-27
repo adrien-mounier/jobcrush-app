@@ -16,9 +16,13 @@
          holds) and the flow walks her through it.
        - #287 clause 9: the "No" is KEPT, the new fact is dated. Erasing it would make the
          record claim she always had the capability. Mistap-erase stays a different path.
-       - #287 clause 10: the date is ASKED, never stamped from today — coarse buckets
-         (this year · 1-2 years · 3 or more). Stamping prints "since September 2026" over a
-         skill she may have held since 2024.
+       - #287 clause 10: the date is ASKED, never stamped from today. For a skill or a language
+         that means coarse buckets (this year · 1-2 years · 3 or more) — there is no day she
+         learned SQL, so a picker would only make her invent one.
+       - BUT the bucket is not the whole rule (owner, 2026-09-27). Where she genuinely KNOWS the
+         date, we ask for it: a JOB gets a start and an end (ADR-0003 c5 — a job is two moments),
+         and a CERTIFICATE gets the date printed on it. The month stays optional everywhere and
+         is NEVER padded: "2019" is stored as a year and marked as a year.
        - #287 clause 7: this is the existing answer path, not a second mechanism. What she
          adds lands on the profile permanently.
        - Never moralise, never show the kitchen: she is never told the machine had her down
@@ -129,6 +133,13 @@
   input.tx { width: 100%; font: inherit; font-size: 15px; background: var(--hud-2); color: var(--hud-ink);
     border: 1px solid var(--hud-line); border-radius: 10px; padding: 12px 13px; margin-bottom: 10px; }
   input.tx:focus { outline: none; border-color: var(--gold); }
+  .fld { display: block; margin-bottom: 11px; }
+  .fld > span { display: block; font-size: 11.5px; color: var(--hud-mute); margin-bottom: 5px; }
+  .fld select { font: inherit; font-size: 13px; background: var(--hud-2); color: var(--hud-ink);
+    border: 1px solid var(--hud-line); border-radius: 8px; padding: 9px 8px; margin-right: 6px; max-width: 58%; }
+  .fld select:focus { outline: none; border-color: var(--gold); }
+  .chk { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--hud-mute);
+    margin: 0 0 13px; cursor: pointer; }
   .recall { border: 1px solid rgba(232,163,61,.4); background: rgba(232,163,61,.09);
     border-radius: 10px; padding: 12px 13px; margin: 0 0 14px; }
   .recall b { display: block; font-size: 9px; font-family: var(--mono); letter-spacing: .13em;
@@ -173,6 +184,12 @@
     <span style="font-family:var(--mono)">Mandarin</span> or
     <span style="font-family:var(--mono)">SQL</span> to trip it.
   </p>
+  <p>
+    <b>Step 3 is not one question.</b> A skill or a language gets the coarse buckets — there is no
+    day she learned SQL. A <b>job</b> gets a start and an end, and a <b>certificate</b> gets the date
+    printed on it, because those are dates she actually knows. The month is optional throughout and
+    never padded.
+  </p>
 </div>
 
 <div class="bars">
@@ -207,11 +224,20 @@ const FACTS = [
   { t: "Builds LLM-driven workflows into day-to-day delivery", cap: "Read from your CV." },
 ];
 
+// `date` is the shape of step 3, and it is NOT the same question for every kind:
+//   buckets — a skill or a language has no date. Nobody learned SQL on a Tuesday, so a picker
+//             would make her invent one. Coarse choices, per #287 clause 10.
+//   range   — a job. She knows when she started. The work-history record is two moments
+//             (ADR-0003 clause 5), so asking a bucket here throws away a date she actually has.
+//   moment  — a certificate. It carries a real issue date printed on it (owner, 2026-09-27).
+// In all three: the month is optional and NEVER padded (ADR-0003 c5 — "2013" stays a year,
+// marked as a year; it is not turned into 1 Jan 2013 behind her back).
 const KINDS = [
-  { k: "skill", label: "A skill", hint: "Something you can do — a tool, a method, a language you work in", q: "What's the skill called?", ph: "e.g. SQL, Jira, Prince2" },
-  { k: "job", label: "A job", hint: "A role that wasn't on your CV", q: "Where did you work?", ph: "e.g. Nightshift at Acme" },
-  { k: "language", label: "A language", hint: "One you speak, read or write", q: "Which language?", ph: "e.g. Mandarin" },
-  { k: "other", label: "Something else", hint: "A qualification, a certificate, anything the profile holds", q: "What do you want to add?", ph: "Say it in your own words" },
+  { k: "skill", label: "A skill", hint: "Something you can do — a tool, a method, a language you work in", q: "What's the skill called?", ph: "e.g. SQL, Jira, Prince2", date: "buckets" },
+  { k: "job", label: "A job", hint: "A role that wasn't on your CV", q: "Where did you work, and as what?", ph: "e.g. Acme — Delivery Lead", date: "range" },
+  { k: "language", label: "A language", hint: "One you speak, read or write", q: "Which language?", ph: "e.g. Mandarin", date: "buckets" },
+  { k: "certificate", label: "A certificate", hint: "A qualification with a date on it", q: "What's the certificate called?", ph: "e.g. PMP, AWS Solutions Architect", date: "moment" },
+  { k: "other", label: "Something else", hint: "Anything else the profile holds", q: "What do you want to add?", ph: "Say it in your own words", date: "buckets" },
 ];
 
 const AGES = [
@@ -219,6 +245,31 @@ const AGES = [
   { a: "1-2", label: "1 to 2 years", note: "since 2024 or so" },
   { a: "3-plus", label: "3 years or more", note: "a while now" },
 ];
+
+const MONTHS = ["January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"];
+const YEARS = Array.from({ length: 31 }, (_, i) => 2026 - i);
+const NO_MONTH = "— no month —"; // the real work-history screen's own wording
+
+// One month+year pair. `req` marks the certificate's date, where we ask for the month
+// properly instead of leading with the escape — but the escape stays, because inventing
+// a month is worse than a year-precise record.
+const opt = (val, cur, txt) => `<option value="${val}"${val === cur ? " selected" : ""}>${txt ?? val}</option>`;
+const monthYear = (d, id, lbl) => `
+  <label class="fld"><span>${lbl}</span>
+    <select data-f="${id}m">
+      ${opt("", d[id + "m"], NO_MONTH)}
+      ${MONTHS.map(m => opt(m, d[id + "m"])).join("")}
+    </select>
+    <select data-f="${id}y">
+      ${opt("", d[id + "y"], "— year —")}
+      ${YEARS.map(y => opt(String(y), d[id + "y"])).join("")}
+    </select>
+  </label>`;
+
+// How the stored date reads back. Precision is whatever she gave — never padded.
+const moment = (m, y) => (!y ? null : m ? `${m} ${y}` : `${y}`);
+const precision = (m, y) => (!y ? "—" : m ? "month" : "year");
 
 // The recognition. Substring on the semantic key — honest about the ceiling: this is what
 // today's negatives key on (tags), so "MS SQL Server" trips and "relational databases" does not.
@@ -242,7 +293,7 @@ const VARIANTS = [
     container: "promote" },
 ];
 
-const blank = () => ({ step: "closed", kind: null, typed: "", hit: null, changed: null, age: null, landed: null });
+const blank = () => ({ step: "closed", kind: null, typed: "", hit: null, age: null, d: {}, landed: null });
 const S = {};
 VARIANTS.forEach(v => (S[v.id] = blank()));
 let whatIf = true; // true = her typing hits a stored "No"; false = a plain new fact
@@ -275,16 +326,30 @@ function stepBody(v, s) {
         </div>` };
   }
 
-  if (s.step === "age") return { n: "3 of 3", title: "Since when?",
-    why: "Roughly is enough. It changes how the line reads on your CV — nothing more.",
-    html: `<div class="opts">${AGES.map(a =>
-      `<button class="opt" data-age="${a.a}">${a.label}<small>${a.note}</small></button>`).join("")}</div>` };
+  if (s.step === "age") {
+    if (kind.date === "range") return { n: "3 of 3", title: "When were you there?",
+      why: "The month only if you know it — a blank is better than a guess, and your CV prints it that way.",
+      html: `${monthYear(s.d, "st", "Started")}
+        ${s.d.still ? "" : monthYear(s.d, "en", "Ended")}
+        <label class="chk"><input type="checkbox" data-act="still" ${s.d.still ? "checked" : ""}> I'm still there</label>
+        <div class="opts"><button class="opt go" data-act="date">Next</button></div>` };
+
+    if (kind.date === "moment") return { n: "3 of 3", title: "When were you certified?",
+      why: "The date on the certificate itself. If you only remember the year, leave the month blank — I'd rather have the year than a guessed month.",
+      html: `${monthYear(s.d, "on", "Certified")}
+        <div class="opts"><button class="opt go" data-act="date">Next</button></div>` };
+
+    return { n: "3 of 3", title: "Since when?",
+      why: "Roughly is enough — there's no exact day you learned it. It changes how the line reads on your CV, nothing more.",
+      html: `<div class="opts">${AGES.map(a =>
+        `<button class="opt" data-age="${a.a}">${a.label}<small>${a.note}</small></button>`).join("")}</div>` };
+  }
 
   const l = s.landed;
   return { n: "done", title: "", why: "",
     html: `<div class="done"><div class="tick">✓</div>
         <p class="q" style="margin-top:6px">${esc(l.text)} is on your profile.</p>
-        <p class="why">${l.age ? AGES.find(a => a.a === l.age).label.toLowerCase() : "added just now"} · it goes on your CV the next time a job asks for it.</p>
+        <p class="why">${l.when} · it goes on your CV the next time a job asks for it.</p>
         <div class="opts"><button class="opt go" data-act="close">Back to your profile</button>
           <button class="opt" data-act="again">Add something else</button></div>
         ${l.keptNo ? `<p class="kept">Your earlier answer is kept as it was — dated then, not overwritten.
@@ -295,7 +360,7 @@ function stepBody(v, s) {
 // ---- containers ----------------------------------------------------------
 function profileScreen(v, s) {
   const fresh = s.landed && s.step === "closed"
-    ? `<li class="fresh">${esc(s.landed.text)}<small>You told me this — ${s.landed.age ? AGES.find(a => a.a === s.landed.age).label.toLowerCase() : "just now"}.</small></li>` : "";
+    ? `<li class="fresh">${esc(s.landed.text)}<small>You told me this — ${s.landed.when}.</small></li>` : "";
   return `<div class="top"><span class="wordmark">JobCrush</span><span class="spacer"></span><span>‹ Back</span></div>
     <div class="prof">
       <h2>your profile</h2>
@@ -339,12 +404,34 @@ function render(v) {
   </div>`;
 }
 
+// What the flow writes. The date half differs by kind, which is the point of this step:
+// a bucket for a skill, two moments for a job, one moment for a certificate — each stored
+// at the precision she actually gave.
+function land(s) {
+  const kind = KINDS.find(k => k.k === s.kind);
+  const d = s.d;
+  let when, stored;
+  if (kind.date === "range") {
+    const from = moment(d.stm, d.sty), to = d.still ? "now" : moment(d.enm, d.eny);
+    when = `${from} – ${to ?? "no end date given"}`;
+    stored = `DateRange · from ${from} (${precision(d.stm, d.sty)}) · ${d.still ? "open-ended" : `to ${to ?? "—"} (${precision(d.enm, d.eny)})`} · never padded`;
+  } else if (kind.date === "moment") {
+    when = moment(d.onm, d.ony);
+    stored = `Moment · ${when} · precision ${precision(d.onm, d.ony)} · never padded`;
+  } else {
+    when = AGES.find(a => a.a === s.age).label.toLowerCase();
+    stored = `coarse bucket · ${s.age} · asked, not stamped`;
+  }
+  s.landed = { text: s.typed.trim(), when, stored, keptNo: s.hit ? s.hit.text : null, erased: false };
+  s.step = "done";
+}
+
 function stateBox(v, s) {
   const hit = s.hit;
   const written = s.landed
     ? `<dl>
         <dt>writes</dt><dd>Claim · ${esc(s.landed.text)} · renderable:true · origin:"user"</dd>
-        <dt>dated</dt><dd>${s.landed.age ?? "—"} (asked, not stamped)</dd>
+        <dt>dated</dt><dd>${s.landed.stored}</dd>
         <dt>keeps</dt><dd>${s.landed.keptNo ? `Negative · "${s.landed.keptNo}" · confirmed_date 2026-07-01 · untouched` : "— no negative in play"}</dd>
         <dt>erases</dt><dd>${s.landed.erased ? `Negative (mistap path)` : "nothing"}</dd>
       </dl>`
@@ -373,21 +460,26 @@ document.getElementById("deck").addEventListener("click", (e) => {
   const tx = document.getElementById("tx-" + id);
   if (tx) s.typed = tx.value;
 
-  if (btn.dataset.kind) { s.kind = btn.dataset.kind; s.step = "thing"; s.typed = ""; }
-  else if (btn.dataset.age) {
-    s.age = btn.dataset.age;
-    s.landed = { text: s.typed.trim(), age: s.age, keptNo: s.hit ? s.hit.text : null, erased: false };
-    s.step = "done";
-  } else switch (btn.dataset.act) {
+  if (btn.dataset.kind) { s.kind = btn.dataset.kind; s.step = "thing"; s.typed = ""; s.d = {}; }
+  else if (btn.dataset.age) { s.age = btn.dataset.age; land(s); }
+  else switch (btn.dataset.act) {
     case "open": Object.assign(s, blank(), { step: "kind" }); break;
     case "noop": setNote("Not this prototype's question — the other doors are unchanged."); return;
     case "submit": {
       if (!s.typed.trim()) { setNote("Type something first — the flow has nothing to recognise yet."); return; }
       s.hit = hitOf(s);
-      if (s.hit) s.step = "recall";
-      else { s.landed = { text: s.typed.trim(), age: null, keptNo: null, erased: false }; s.step = "age"; }
+      s.step = s.hit ? "recall" : "age";
       break;
     }
+    // the job range and the certificate moment both land here
+    case "date": {
+      const kind = KINDS.find(k => k.k === s.kind);
+      if (kind.date === "range" && !s.d.sty) { setNote("A job needs at least the year it started — that is a date she has."); return; }
+      if (kind.date === "moment" && !s.d.ony) { setNote("A certificate has a date printed on it. The month may be blank; the year may not."); return; }
+      land(s);
+      break;
+    }
+    case "still": s.d.still = !s.d.still; break;
     case "grew": s.step = "age"; break;
     // #287 c9: the mistap path is the one that erases. Here it just returns her to the box.
     case "mistap": s.step = "thing"; s.hit = null; break;
@@ -400,6 +492,15 @@ document.getElementById("deck").addEventListener("click", (e) => {
   draw();
   const focus = document.getElementById("tx-" + id);
   if (focus) focus.focus();
+});
+
+// the month/year selects write straight into the phone's own state
+document.getElementById("deck").addEventListener("change", (e) => {
+  const f = e.target.dataset.f;
+  if (!f) return;
+  const s = S[e.target.closest(".phone").dataset.v];
+  s.d[f] = e.target.value;
+  draw();
 });
 
 document.getElementById("deck").addEventListener("keydown", (e) => {
