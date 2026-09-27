@@ -1,5 +1,25 @@
 # Lessons — jobcrush-app
 
+## A deleted screen leaves live code behind, and its name gets reused — check what IS reachable first
+
+Learned 2026-09-27, grilling #287, and the owner caught it. I told him the per-job disclosure panel
+(*what didn't print, and why*, #154) had nowhere to render because "the draft screen was deleted (#272)".
+He pushed back: the screen he meant — pick a job, answer its questions, watch the CV build beside you —
+exists and he uses it. Both of us were right about different screens. **#272 deleted a `pre-signup` draft
+screen; the Tailor step (`apps/web/app/tailor/page.tsx`) is alive and does everything he described,
+including an ending.** Two screens, one name, one deletion between them.
+
+What made it easy to get wrong: `preview.ts` carries a loud `DELIBERATELY UNREACHABLE ... since #272`
+comment that names the **dead** path precisely and says nothing about the live one, and
+`cv-authoring-rules.md` says "the pre-signup draft screen, which #272 deleted" — accurate, and it reads as
+*the* draft screen if you already believe there is only one.
+
+The reusable rule: **when a comment or doc says a screen was deleted, find what is reachable that does the
+same job before telling the owner a capability is gone.** List `apps/web/app/*/page.tsx` and read its copy
+constants — they are the fastest honest answer to "does this screen exist". A dead-code marker documents
+its own path, never the surviving alternative. Getting this backwards turns a re-homing job (move one
+panel onto a screen that exists) into a phantom rebuild.
+
 ## The owner's own cv-factory is a running reference implementation — read its output before pricing a feature
 
 Learned 2026-09-27, while charting #290. A feature was priced as "a genuine second project" (interview
