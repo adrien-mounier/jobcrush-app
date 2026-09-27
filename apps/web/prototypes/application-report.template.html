@@ -55,7 +55,19 @@
      Switcher: ?variant=A|B|C, left/right keys, floating pill. Keep/cut toggles produce the verdict
      text at the bottom - nothing persists, reload resets.
 
-     VERDICT (owner, not yet given): __________________________________________
+     VERDICT (owner, 2026-09-27): VERSION 2 - "ONLY WHAT YOU ASKED FOR". Five sections, in order:
+     the job in short (with the APPLY LINK on top - his addition, decided in the same breath), where
+     you are strong, where you are not and what to say, be ready to explain, salary.
+
+     Cut with it: the whole of the cv-factory's own quality-control half (Verification Audit, Quality
+     Checklist, Suggested Persistence), the two sections that repeat the card (Keyword Coverage,
+     Intentional Omissions), Follow-up Questions - and, from version 3, the three the app computes for
+     free: what did not print and why, what was lost, how far each line leans. Those three are NOT
+     cancelled as capabilities (the disclosure panel and the lint both exist and both gate the export);
+     they are cut from THIS EMAIL.
+
+     The apply link's own gap, unowned by this ticket: a job the app FOUND has a sourceUrl; a job he
+     PASTES has nothing. The paste door must capture it, or read it from the pasted text.
 -->
 <html lang="en">
 <head>
@@ -106,6 +118,11 @@
   .doc p, .doc li { font-size: 14px; }
   .doc ul { margin: 6px 0 0; padding-left: 20px; }
   .doc li { margin-bottom: 7px; }
+  .apply { margin: 0 0 14px; padding: 11px 14px; background: #eef4fa; border: 1px solid #c8dced; border-radius: 4px; }
+  .apply a { color: var(--accent); font-weight: 700; font-size: 15px; text-decoration: none; }
+  .apply a:hover { text-decoration: underline; }
+  .apply .applysrc { display: block; font-size: 11.5px; color: var(--mute); margin-top: 3px; word-break: break-all; }
+  .apply.nolink { background: #fbf3f0; border-color: #e6cec5; color: var(--cut); font-size: 13px; }
   .said { font-style: italic; color: #333; }
   .said::before { content: "\201C"; } .said::after { content: "\201D"; }
   .pair { margin: 0 0 10px; }
@@ -156,7 +173,7 @@
 </header>
 
 <div class="switcher">
-  <span class="sw-label">Three versions of this same email &mdash; click to compare:</span>
+  <span class="sw-label">Chosen 2026-09-27: <b>version 2</b>. The other two stay here as the record &mdash;</span>
   <div class="sw-buttons" id="pill"></div>
 </div>
 
@@ -210,7 +227,7 @@ const SECTIONS = {
 };
 const VARIANTS = {
   A: { name: "Everything the cv-factory sends", keys: ["offer","salary","strengths","gaps","prep","audit","keywords","omissions","didnt","lost","ambig","followup","checklist"] },
-  B: { name: "Only what you asked for", keys: ["offer","strengths","gaps","prep","salary"] },
+  B: { name: "Only what you asked for — CHOSEN",  keys: ["offer","strengths","gaps","prep","salary"] },
   C: { name: "Yours + what the app knows", keys: ["offer","salary","strengths","gaps","prep","leans","didnt","lost","ambig"] },
 };
 
@@ -220,8 +237,20 @@ const none = (t) => `<p class="empty">${esc(t)}</p>`;
 
 function body(key) {
   switch (key) {
-    case "offer":
-      return `<p>${esc(R.offerSummary)}</p>`;
+    case "offer": {
+      const u = PAYLOAD.advert?.applyUrl;
+      // Owner's call 2026-09-27: the link to apply sits at the TOP of this section. It is the one
+      // thing in the email he acts on, and it is the reason the email is open at all.
+      const link = u
+        ? `<p class="apply"><a href="${esc(u)}" target="_blank" rel="noreferrer">Apply for this job &rarr;</a>
+           <span class="applysrc">${esc(u)}</span></p>`
+        : `<p class="apply nolink">No link — this advert was pasted as text, so there is nothing to open.</p>`;
+      return link + `<p>${esc(R.offerSummary)}</p>` +
+        `<div class="rule"><b>Where the link comes from.</b> A job the app FOUND carries the original listing's
+         address (<code>sourceUrl</code>, on every retrieved posting). A job you PASTE carries nothing — and
+         pasting is the v1 door. So the paste screen has to take the link as well as the text, or read it out
+         of what you pasted. Undecided, and it belongs to the paste ticket, not this one.</div>`;
+    }
     case "salary": {
       const s = R.salary ?? {};
       return `<p>${s.stated ? esc(s.stated) : "<i>The advert does not say.</i>"}</p>` +
@@ -381,7 +410,7 @@ function hud() {
       real advert (GRADION, 2026-07-28) · real root CV v9 · model ${esc(cost[0]?.model ?? "?")}</span></section>`;
 }
 
-const current = () => shown ?? (new URLSearchParams(location.search).get("variant") ?? "C").toUpperCase();
+const current = () => shown ?? (new URLSearchParams(location.search).get("variant") ?? "B").toUpperCase();
 let shown = null;
 function go(v) {
   shown = v;

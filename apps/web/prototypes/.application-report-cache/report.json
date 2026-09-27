@@ -1,0 +1,124 @@
+{
+  "value": {
+    "offerSummary": "GRADION is a mid-size Vietnam-based digital/deep-tech consultancy (23+ years, 300+ staff, 100+ clients) hiring a client-facing delivery lead for its Ho Chi Minh City office. The job is really two things at once: running long-term \"Dedicated Team\" engagements where you keep an outsourced team healthy and productive, and running fixed-scope, fixed-price client projects where your job is to hold the line on scope and margin. It leans on you being the person who pushes back on the client and the internal team equally, and it expects AI tools to be part of your daily toolkit, not a novelty. It's an agency/vendor role, not an in-house PM seat — that's the biggest shift from your current work.",
+    "salary": {
+      "stated": null,
+      "note": "The advert does not say. You'll have to ask directly, and given the dual title (IT Project Manager / Senior Project Manager) it's worth asking early since it likely affects the band."
+    },
+    "strengths": [
+      {
+        "requirement": "University degree in IT, Computer Science, or a related field",
+        "evidence": "Master's Degree in Computer Science, specialization in Machine Learning, ESIEA — Paris, France, 2017.",
+        "line": "I hold a Master's in Computer Science, specialised in Machine Learning, from ESIEA in Paris."
+      },
+      {
+        "requirement": "5+ years of IT development project-management experience",
+        "evidence": "Senior Project Manager with 7+ years of experience delivering banking, fintech, and SaaS solutions in regulated environments.",
+        "line": "I've spent seven-plus years as a Project Manager delivering banking, fintech and SaaS solutions in regulated environments."
+      },
+      {
+        "requirement": "Experience working with cross-cultural, English-speaking teams",
+        "evidence": "Coordinate cross-functional, international teams (developers, QA, business analysts, cybersecurity, external vendors) across Europe, Asia-Pacific, and Africa, managing scope, timelines, risks, and dependencies on mission-critical systems.",
+        "line": "I coordinate cross-functional international teams — developers, QA, analysts, cybersecurity, vendors — spread across Europe, Asia-Pacific and Africa, every day."
+      },
+      {
+        "requirement": "Excellent international English communication",
+        "evidence": "Act as primary interface between IT, business stakeholders, and external partners; run regular stakeholder reviews and solution demonstrations. / English (Fluent).",
+        "line": "English is my working language for stakeholder reviews, demos and cross-border coordination across three continents."
+      },
+      {
+        "requirement": "Track record translating unclear client requirements into deliverable scope",
+        "evidence": "Translated business and user needs into functional specifications and user stories for development teams.",
+        "line": "At Okoone I translated business and user needs directly into functional specs and user stories the dev team could build from."
+      },
+      {
+        "requirement": "Confidence raising risks and difficult topics early",
+        "evidence": "Maintain a formal risk register across active projects, proactively tracking, escalating, and mitigating risks to protect delivery integrity and governance compliance on mission-critical banking systems.",
+        "line": "I keep a formal risk register across every active project and escalate issues before they become blockers."
+      },
+      {
+        "requirement": "Daily comfort with AI tools and sound judgement about output verification",
+        "evidence": "Designed and delivered 10 AI workshops for the eBanking department (~30 participants), driving practical and compliant AI adoption across the team. / Brings advanced AI methods into day-to-day project delivery, designing LLM-driven workflows and prompting techniques to accelerate analysis, documentation, and decision-making.",
+        "line": "I use AI tools daily in my own delivery work, and I've trained more than 30 colleagues on using them responsibly — including checking outputs before they go anywhere."
+      },
+      {
+        "requirement": "Proactive, adaptable, growth-oriented mindset",
+        "evidence": "Built Ship24.com from scratch into a scalable cross-border logistics platform within 2 years... 16M website visitors; 3000+ active API subscriptions; +30% user growth (YoY); +50% advertising revenue growth (YoY).",
+        "line": "I built Ship24.com from nothing into a platform with 16 million annual visitors in two years — that's the growth mindset this role needs."
+      },
+      {
+        "requirement": "Hands-on technical experience or solid software-development process knowledge (a plus)",
+        "evidence": "Technical Foundations: SQL; Python; Jenkins; Machine learning / Deep learning fundamentals.",
+        "line": "I have hands-on technical grounding — SQL, Python, Jenkins, and machine learning fundamentals — beyond just managing the process."
+      }
+    ],
+    "gaps": [
+      {
+        "requirement": "Hands-on experience running both Dedicated Team and Fixed-Price projects",
+        "source": "dontYet",
+        "closest": "Managed scope, budget and delivery timelines end-to-end for a product team (Okoone), and coordinated long-term embedded international teams on mission-critical banking programs (BRED) — but neither ran under a named Dedicated-Team or Fixed-Price vendor contract.",
+        "line": "All my project work so far has been in-house, not under vendor contracts. But I've owned scope, budget and timelines end to end, and I've run long-term embedded delivery teams — that maps closely onto both models. I'd want to walk through how the commercial guardrails differ before saying I've done this exact thing."
+      }
+    ],
+    "interviewPrep": [
+      "Be ready to explain the bridge from owning scope, budget and timelines on internal product and banking programs to running formally-contracted Dedicated Team and Fixed-Price engagements.",
+      "Be ready to explain the bridge from designing and delivering 10 AI workshops and LLM-driven workflows to using AI tools daily for requirements review, risk analysis and stakeholder reporting.",
+      "Be ready to explain the bridge from translating business needs into functional specs at Okoone to turning ambiguous client requirements into an executable, scoped plan.",
+      "Be ready to explain the bridge from coordinating teams across Europe, Asia-Pacific and Africa to working daily with cross-cultural, English-speaking teams in a client-facing role.",
+      "Be ready to explain the bridge from building Ship24 from scratch to identifying account-growth opportunities and contributing to business development."
+    ],
+    "leans": [
+      {
+        "printed": "Senior IT Project Manager - International Delivery and Client-Facing Engagements",
+        "source": "Senior Project Manager with 7+ years of experience delivering banking, fintech, and SaaS solutions in regulated environments.",
+        "lean": "framing",
+        "defence": "My most recent and senior title is Senior Project Manager on international banking programs; the headline names that function, not a title I've never held. My earlier roles (Product Owner, Junior PM) were the same delivery/stakeholder function under different titles."
+      }
+    ],
+    "didNotPrint": [
+      {
+        "fact": "Implemented a trading platform (Lao Forex Exchange) integrated into the internal financial system.",
+        "why": "A relevance choice — this posting is about delivery process and client management, not banking product specifics, so this line lost the space to more directly relevant evidence."
+      },
+      {
+        "fact": "Led end-to-end integration of card services into digital banking platforms, driving alignment between upstream APIs, business requirements, and customer-facing delivery.",
+        "why": "Same reason — strong evidence, but banking-product-specific rather than about the general delivery skills this advert asks about."
+      },
+      {
+        "fact": "Led the development and rollout of PIN-code authentication for the mobile banking application, strengthening customer security.",
+        "why": "Relevance choice — this speaks to banking security delivery, which isn't what GRADION is screening for."
+      },
+      {
+        "fact": "Coordinated the integration of third-party services (Telegram) into internal banking systems within strict security constraints.",
+        "why": "Relevance choice — page space went to cross-team coordination and risk management, which map more directly onto the advert."
+      },
+      {
+        "fact": "Designed and launched a self-service card activation feature, improving customer autonomy and reducing support workload.",
+        "why": "Relevance choice — a banking-product outcome rather than the delivery-leadership evidence this posting is scored on."
+      },
+      {
+        "fact": "Participated in software and data architecture discussions, with focus on data governance, quality, and traceability.",
+        "why": "This was a supporting, not leading, contribution at a junior stage of your career — cut for space in favour of stronger leadership evidence."
+      },
+      {
+        "fact": "Supported monthly executive update meetings, contributing to project tracking and prioritization discussions.",
+        "why": "Same reason — a supporting role at the junior-PM stage, less relevant than the risk-register and steering-committee evidence already on the page."
+      }
+    ],
+    "lost": [],
+    "adAmbiguities": [
+      "The title names two levels at once — 'IT Project Manager / Senior Project Manager' — with no salary given, so it's unclear which seniority they're actually hiring for."
+    ]
+  },
+  "spend": [
+    {
+      "label": "application-report",
+      "model": "claude-sonnet-5",
+      "seconds": 107.8,
+      "inputChars": 27365,
+      "outputChars": 9619,
+      "inputTokens": null,
+      "outputTokens": null
+    }
+  ]
+}

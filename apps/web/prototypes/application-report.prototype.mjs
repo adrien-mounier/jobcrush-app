@@ -47,6 +47,12 @@ const offerRaw = readFileSync(join(offerDir, "offer.md"), "utf8");
 // intake YAML, so only the raw half goes in — the same text a paste door would receive.
 const adText = offerRaw.slice(offerRaw.indexOf("## Raw Offer Text")).replace("## Raw Offer Text", "").trim();
 
+// The apply link (owner's call, 2026-09-27: it goes at the top of the report). cv-factory's intake
+// captured it; the app has a `sourceUrl` on every posting it RETRIEVED, and nothing at all on a
+// posting somebody PASTED — which is the v1 path. Read here from the advert's own frontmatter so
+// the page can show the real link and name where it has to come from in production.
+const applyUrl = /application_url:\s*"([^"]+)"/.exec(offerRaw)?.[1] ?? null;
+
 const posting = {
   id: "proto-gradion-293",
   title: "IT Project Manager / Senior Project Manager (English Speaking)",
@@ -225,7 +231,7 @@ const cost = spend.map((s) => {
 });
 const payload = {
   generatedAt: new Date().toISOString(),
-  advert: { title: posting.title, company: posting.company, location: posting.location, text: adText },
+  advert: { title: posting.title, company: posting.company, location: posting.location, text: adText, applyUrl },
   card: {
     matchPct: card.matchPct,
     breakdown: card.breakdown,

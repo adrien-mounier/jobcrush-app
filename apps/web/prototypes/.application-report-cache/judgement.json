@@ -1,0 +1,293 @@
+{
+  "value": {
+    "verdicts": [
+      {
+        "requirementId": "university-degree-it",
+        "fit": 1,
+        "supportingFactId": "edu-esiea",
+        "reason": "Master's in Computer Science is a direct match for this requirement."
+      },
+      {
+        "requirementId": "years-it-pm-experience",
+        "fit": 0.95,
+        "supportingFactId": "profile-summary-experience",
+        "reason": "7+ years as a Project Manager delivering IT systems clears the 5-year bar with room to spare."
+      },
+      {
+        "requirementId": "dedicated-team-fixed-price-experience",
+        "fit": 0.1,
+        "supportingFactId": null,
+        "reason": "No mention of running Dedicated Team or Fixed-Price engagement models anywhere in the CV."
+      },
+      {
+        "requirementId": "english-communication",
+        "fit": 0.85,
+        "supportingFactId": "lang-english",
+        "reason": "Fluent English plus a track record of steering-committee presentations and stakeholder interfacing across regions."
+      },
+      {
+        "requirementId": "cross-cultural-english-teams",
+        "fit": 0.9,
+        "supportingFactId": "bred-coordinate-crossregional-teams",
+        "reason": "Direct experience coordinating cross-functional international teams across Europe, Asia-Pacific, and Africa."
+      },
+      {
+        "requirementId": "requirements-to-scope-translation",
+        "fit": 0.9,
+        "supportingFactId": "okoone-translated-specs",
+        "reason": "Explicitly translated business and user needs into functional specs and user stories for dev teams."
+      },
+      {
+        "requirementId": "risk-raising-confidence",
+        "fit": 0.85,
+        "supportingFactId": "bred-risk-register",
+        "reason": "Maintains a formal risk register and proactively escalates risks to protect delivery — the same underlying behaviour."
+      },
+      {
+        "requirementId": "ai-tools-daily-comfort",
+        "fit": 0.9,
+        "supportingFactId": "profile-summary-ai-methods",
+        "reason": "Builds LLM-driven workflows into daily delivery and ran AI workshops, showing both comfort and applied judgement."
+      },
+      {
+        "requirementId": "proactive-mindset",
+        "fit": 0.85,
+        "supportingFactId": "bred-agentic-assistant-build",
+        "reason": "Self-initiated building and rolling out an autonomous assistant shows proactive, growth-oriented behaviour beyond the job description."
+      },
+      {
+        "requirementId": "technical-software-dev-plus",
+        "fit": 0.8,
+        "supportingFactId": "bred-agentic-assistant-build",
+        "reason": "Hands-on building and deployment of software (agentic assistant, trading platform integration) alongside a CS/ML technical background."
+      }
+    ],
+    "version": "card-judge/5cdba1b8+judge/1",
+    "cost": {
+      "model": "claude-sonnet-5",
+      "inputTokens": null,
+      "outputTokens": null
+    },
+    "facts": [
+      {
+        "id": "profile-summary-experience",
+        "text": "Senior Project Manager with 7+ years of experience delivering banking, fintech, and SaaS solutions in regulated environments."
+      },
+      {
+        "id": "profile-summary-delivery-regions",
+        "text": "Proven ability to manage end-to-end IT project delivery, ensure regulatory compliance, and lead cross-functional teams across multiple regions, including Europe, Asia-Pacific, and Africa."
+      },
+      {
+        "id": "profile-summary-domain-expertise",
+        "text": "Expertise in core banking systems, digital banking transformation, security-driven product development, and stakeholder management within financial institutions."
+      },
+      {
+        "id": "profile-summary-ai-methods",
+        "text": "Brings advanced AI methods into day-to-day project delivery, designing LLM-driven workflows and prompting techniques to accelerate analysis, documentation, and decision-making across IT projects."
+      },
+      {
+        "id": "bred-lead-banking-it-projects",
+        "text": "Lead end-to-end banking IT projects covering core banking systems, mobile banking, and digital transformation programs, ensuring full compliance with banking regulations, PCI DSS, and internal IT governance frameworks."
+      },
+      {
+        "id": "bred-coordinate-crossregional-teams",
+        "text": "Coordinate cross-functional, international teams (developers, QA, business analysts, cybersecurity, external vendors) across Europe, Asia-Pacific, and Africa, managing scope, timelines, risks, and dependencies on mission-critical systems."
+      },
+      {
+        "id": "bred-stakeholder-interface",
+        "text": "Act as primary interface between IT, business stakeholders, and external partners; run regular stakeholder reviews and solution demonstrations."
+      },
+      {
+        "id": "bred-agile-scrum-cadence",
+        "text": "Apply Agile / Scrum delivery practices, running sprint planning, backlog refinement, retrospectives, and daily stand-ups to maintain steady delivery cadence across cross-functional banking IT teams."
+      },
+      {
+        "id": "bred-status-reporting-4-projects",
+        "text": "Prepare and present formal project status reports and steering committee presentations for management, consolidating delivery progress, risks, and key decisions across ~4 concurrent banking IT projects."
+      },
+      {
+        "id": "bred-risk-register",
+        "text": "Maintain a formal risk register across active projects, proactively tracking, escalating, and mitigating risks to protect delivery integrity and governance compliance on mission-critical banking systems."
+      },
+      {
+        "id": "bred-ai-workshops",
+        "text": "Designed and delivered 10 AI workshops for the eBanking department (~30 participants), driving practical and compliant AI adoption across the team."
+      },
+      {
+        "id": "bred-trading-platform-lao-forex",
+        "text": "Implemented a trading platform (Lao Forex Exchange) integrated into the internal financial system."
+      },
+      {
+        "id": "bred-card-services-integration",
+        "text": "Led end-to-end integration of card services into digital banking platforms, driving alignment between upstream APIs, business requirements, and customer-facing delivery."
+      },
+      {
+        "id": "bred-agentic-assistant-build",
+        "text": "Mapped existing manual project manager and analyst workflows, decomposed them into structured, executable LLM logic, then built and deployed an agentic assistant autonomously tracking project progress, monitoring email activity, and issuing proactive deadline and follow-up reminders."
+      },
+      {
+        "id": "bred-agentic-assistant-pilot-rollout",
+        "text": "Rolled out the assistant to a 6-person cross-functional pilot team (2 business analysts, 1 product owner, 2 developers, 1 QA) to validate the branch's first AI-driven work process ahead of wider deployment. In active daily use, delivered with an internal user guide."
+      },
+      {
+        "id": "bred-pin-code-authentication",
+        "text": "Led the development and rollout of PIN-code authentication for the mobile banking application, strengthening customer security."
+      },
+      {
+        "id": "bred-telegram-integration",
+        "text": "Coordinated the integration of third-party services (Telegram) into internal banking systems within strict security constraints."
+      },
+      {
+        "id": "bred-self-service-card-activation",
+        "text": "Designed and launched a self-service card activation feature, improving customer autonomy and reducing support workload."
+      },
+      {
+        "id": "bred-splunk-log-triage-workflow",
+        "text": "Led the design and development of an LLM-based Splunk log-triage workflow intended to streamline how analysts process log data in their daily work."
+      },
+      {
+        "id": "okoone-product-vision-roadmap",
+        "text": "Owned the product vision and roadmap for a cross-border eCommerce logistics SaaS platform."
+      },
+      {
+        "id": "okoone-led-product-team",
+        "text": "Led a cross-functional product team, managing scope, priorities, budget, and delivery timelines."
+      },
+      {
+        "id": "okoone-translated-specs",
+        "text": "Translated business and user needs into functional specifications and user stories for development teams."
+      },
+      {
+        "id": "okoone-backlog-jira",
+        "text": "Maintained and prioritized the product backlog using JIRA, ensuring continuous value delivery."
+      },
+      {
+        "id": "okoone-enterprise-clients-alignment",
+        "text": "Worked closely with enterprise clients and partners to align product features with operational and cross-border requirements."
+      },
+      {
+        "id": "okoone-built-ship24",
+        "text": "Built Ship24.com from scratch into a scalable cross-border logistics platform within 2 years, serving marketplaces, merchants, and logistics providers."
+      },
+      {
+        "id": "okoone-tracking-api-customs",
+        "text": "Delivered a universal shipment tracking API and customs clearance services, supporting international trade operations."
+      },
+      {
+        "id": "okoone-platform-performance-2023",
+        "text": "Platform performance in 2023: 16M website visitors; 3000+ active API subscriptions; +30% user growth (YoY); +50% advertising revenue growth (YoY)."
+      },
+      {
+        "id": "socgen-agile-delivery-execution",
+        "text": "Delivered IT projects using Agile / Scrum, supporting delivery execution."
+      },
+      {
+        "id": "socgen-status-risk-escalation",
+        "text": "Communicated delivery status and escalated risks and issues to prevent delays."
+      },
+      {
+        "id": "socgen-data-teams-collaboration",
+        "text": "Worked closely with data engineers, data scientists, and business teams on data-centric and analytics-driven initiatives."
+      },
+      {
+        "id": "socgen-reporting-frameworks",
+        "text": "Structured project reporting and communication frameworks to provide visibility to management and executives."
+      },
+      {
+        "id": "socgen-architecture-discussions",
+        "text": "Participated in software and data architecture discussions, with focus on data governance, quality, and traceability."
+      },
+      {
+        "id": "socgen-executive-meetings",
+        "text": "Supported monthly executive update meetings, contributing to project tracking and prioritization discussions."
+      },
+      {
+        "id": "socgen-chatbot-finder",
+        "text": "Chatbot FINDER: Coordinated development of a chatbot in collaboration with data science teams for the Risk department, enabling faster access to risk-related data."
+      },
+      {
+        "id": "socgen-crm-data-pipeline",
+        "text": "CRM Data Pipeline Optimization: Supported delivery of a real-time data pipeline built on Big Data infrastructure to optimize Salesforce CRM usage."
+      },
+      {
+        "id": "personal-ai-knowledge-base",
+        "text": "AI-Assisted Knowledge Base and PM Tracker: Built an LLM-maintained personal knowledge base using plain Markdown files (inspired by the Karpathy method). Rather than re-discovering knowledge from raw documents on every query (RAG), sources are compiled once into a structured wiki that the LLM keeps updated, cross-referenced, and consistent. Extended into a project-scoped decision engine, maintaining a reliable, coherent, and auditable record of a project's evolution."
+      },
+      {
+        "id": "personal-multi-llm-orchestration",
+        "text": "Multi-LLM Agent Orchestration Framework: Designed a personal \"multi-AI terminal\" workflow running Claude Code, Gemini CLI, and Codex in parallel against a shared repository, coordinated via file-based directory contracts and lock-based handoffs. Built a library of specialised sub-agents covering research, critical review, adversarial validation, and project-init / context-sync functions, applying separation of concerns across LLMs to improve output quality and throughput."
+      },
+      {
+        "id": "personal-prompt-agent-library",
+        "text": "Prompt and Agent Library: Maintain a personal Notion-backed library of reusable prompts and agent specifications, covering structured prompting, Chain-of-Thought, Tree-of-Thoughts, adversarial-validation patterns, and persona / permission-to-fail techniques."
+      },
+      {
+        "id": "skill-product-project-management",
+        "text": "Product / Project Management: Agile / Scrum; Roadmap & Backlog Management; IT Governance & Delivery Management; Stakeholder Management; Risk & Dependency Management."
+      },
+      {
+        "id": "skill-ai-automation-productivity",
+        "text": "AI, Automation & Productivity: Applied AI for knowledge work and process optimization; prompt engineering (structured prompting, Chain-of-Thought, Tree-of-Thoughts, adversarial validation, persona scaffolding, few-shot examples); multi-step and multi-agent AI workflow design; multi-LLM orchestration (Claude, Gemini, GPT/Codex) with specialized sub-agents; workflow automation with n8n, local LLM experimentation (Ollama); AI enablement (workshop design and facilitation, internal training, prompt and agent libraries, user guides / SOPs); responsible AI usage in regulated environments."
+      },
+      {
+        "id": "skill-tools-platforms",
+        "text": "Tools & Platforms: JIRA, Confluence, Notion; API-based systems and third-party / vendor integration; Mobile & Web Platforms; Splunk."
+      },
+      {
+        "id": "skill-technical-foundations",
+        "text": "Technical Foundations: SQL; Python; Jenkins; Machine learning / Deep learning fundamentals."
+      },
+      {
+        "id": "lang-french",
+        "text": "French (Native)"
+      },
+      {
+        "id": "lang-english",
+        "text": "English (Fluent)"
+      },
+      {
+        "id": "lang-spanish",
+        "text": "Spanish (Conversational)"
+      },
+      {
+        "id": "lang-thai",
+        "text": "Thai (Beginner)"
+      },
+      {
+        "id": "edu-esiea",
+        "text": "Master's Degree in Computer Science, specialization in Machine Learning, ESIEA — Paris, France, 2017."
+      },
+      {
+        "id": "edu-kmutt",
+        "text": "Exchange Semester, KMUTT University — Bangkok, Thailand, 2016."
+      },
+      {
+        "id": "profile-nationality",
+        "text": "Nationality: French"
+      },
+      {
+        "id": "profile-location",
+        "text": "Based in Bangkok, Thailand"
+      },
+      {
+        "id": "profile-email",
+        "text": "Email: adrien.mounier91@gmail.com"
+      },
+      {
+        "id": "profile-mobile",
+        "text": "Mobile: (+66) 99-935-9217"
+      }
+    ]
+  },
+  "spend": [
+    {
+      "label": "judging",
+      "model": "claude-sonnet-5",
+      "seconds": 25.5,
+      "inputChars": 16125,
+      "outputChars": 2635,
+      "inputTokens": null,
+      "outputTokens": null
+    }
+  ]
+}

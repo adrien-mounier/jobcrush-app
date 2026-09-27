@@ -1,0 +1,122 @@
+{
+  "value": {
+    "requirements": {
+      "schemaVersion": "1",
+      "adId": "proto-gradion-293",
+      "curated": false,
+      "language": "en",
+      "familyFit": {
+        "family": "it-project-delivery",
+        "confidence": 0.95
+      },
+      "requirements": [
+        {
+          "id": "university-degree-it",
+          "band": "standard",
+          "kind": "ordinary",
+          "requirement": "University degree in IT, Computer Science, or a related field",
+          "cvSection": "education",
+          "eligibilityDimension": "degree",
+          "sourceSpan": "University degree in IT, Computer Science, or a related field."
+        },
+        {
+          "id": "years-it-pm-experience",
+          "band": "essential",
+          "kind": "ordinary",
+          "requirement": "5+ years of IT development project-management experience",
+          "cvSection": "experience",
+          "comparable": {
+            "op": ">=",
+            "value": 5
+          },
+          "eligibilityDimension": "years-experience",
+          "sourceSpan": "5+ years of IT development project-management experience."
+        },
+        {
+          "id": "dedicated-team-fixed-price-experience",
+          "band": "essential",
+          "kind": "ordinary",
+          "requirement": "Hands-on experience running both Dedicated Team and Fixed-Price projects",
+          "cvSection": "experience",
+          "sourceSpan": "Hands-on experience running both Dedicated Team and Fixed-Price projects."
+        },
+        {
+          "id": "english-communication",
+          "band": "essential",
+          "kind": "blocking",
+          "requirement": "Excellent international English communication",
+          "cvSection": "skills",
+          "eligibilityDimension": "language",
+          "eligibilitySubject": "English",
+          "sourceSpan": "Excellent international English communication."
+        },
+        {
+          "id": "cross-cultural-english-teams",
+          "band": "standard",
+          "kind": "ordinary",
+          "requirement": "Experience working with cross-cultural, English-speaking teams",
+          "cvSection": "experience",
+          "eligibilityDimension": "language",
+          "eligibilitySubject": "English",
+          "sourceSpan": "Experience working with cross-cultural, English-speaking teams."
+        },
+        {
+          "id": "requirements-to-scope-translation",
+          "band": "essential",
+          "kind": "ordinary",
+          "requirement": "Track record translating unclear client requirements into deliverable scope",
+          "cvSection": "experience",
+          "sourceSpan": "Track record translating unclear client requirements into deliverable scope."
+        },
+        {
+          "id": "risk-raising-confidence",
+          "band": "standard",
+          "kind": "ordinary",
+          "requirement": "Confidence raising risks and difficult topics early",
+          "cvSection": "skills",
+          "sourceSpan": "Confidence raising risks and difficult topics early."
+        },
+        {
+          "id": "ai-tools-daily-comfort",
+          "band": "standard",
+          "kind": "ordinary",
+          "requirement": "Daily comfort with AI tools and sound judgement about output verification",
+          "cvSection": "skills",
+          "sourceSpan": "Daily comfort with AI tools and sound judgement about output verification."
+        },
+        {
+          "id": "proactive-mindset",
+          "band": "standard",
+          "kind": "ordinary",
+          "requirement": "Proactive, adaptable, growth-oriented mindset",
+          "cvSection": "summary",
+          "sourceSpan": "Proactive, adaptable, growth-oriented mindset."
+        },
+        {
+          "id": "technical-software-dev-plus",
+          "band": "nice-to-have",
+          "kind": "ordinary",
+          "requirement": "Hands-on technical experience or solid software-development process knowledge",
+          "cvSection": "skills",
+          "sourceSpan": "Hands-on technical experience or solid software-development process knowledge is a plus."
+        }
+      ]
+    },
+    "cost": {
+      "model": "claude-sonnet-5",
+      "inputTokens": null,
+      "outputTokens": null
+    }
+  },
+  "spend": [
+    {
+      "label": "advert-reading",
+      "model": "claude-sonnet-5",
+      "seconds": 57.6,
+      "inputChars": 17141,
+      "outputChars": 3543,
+      "inputTokens": null,
+      "outputTokens": null
+    }
+  ]
+}

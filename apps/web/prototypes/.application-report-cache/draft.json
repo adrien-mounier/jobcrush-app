@@ -1,0 +1,278 @@
+{
+  "value": {
+    "draft": {
+      "name": "Adrien Mounier",
+      "headline": "Senior IT Project Manager - International Delivery and Client-Facing Engagements",
+      "contact": "(+66) 99-935-9217 · adrien.mounier91@gmail.com",
+      "summary": "Built Ship24.com from scratch into a scalable cross-border logistics SaaS platform within 2 years, reaching 16M website visitors and 3000+ active API subscriptions, with +30% user growth (YoY) and +50% advertising revenue growth (YoY). Now leads end-to-end IT delivery on core banking and digital transformation programs across international, cross-cultural teams, applying AI tools daily to requirements analysis, risk tracking, and stakeholder reporting.",
+      "experience": [
+        {
+          "role": "Senior Project Manager",
+          "employer": "BRED Banque Populaire (International Banking Branch)",
+          "location": "",
+          "dates": "2023 - Present",
+          "bullets": [
+            {
+              "text": "Lead end-to-end banking IT projects covering core banking systems, mobile banking, and digital transformation programs, ensuring full compliance with banking regulations, PCI DSS, and internal IT governance frameworks.",
+              "claimIds": [
+                "bred-lead-banking-it-projects"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Act as primary interface between IT, business stakeholders, and external partners, running regular stakeholder reviews and solution demonstrations.",
+              "claimIds": [
+                "bred-stakeholder-interface"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Coordinate cross-functional, international teams (developers, QA, business analysts, cybersecurity, external vendors) across Europe, Asia-Pacific, and Africa, managing scope, timelines, risks, and dependencies on mission-critical systems.",
+              "claimIds": [
+                "bred-coordinate-crossregional-teams"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Maintain a formal risk register across active projects, proactively tracking, escalating, and mitigating risks to protect delivery integrity and governance compliance on mission-critical banking systems.",
+              "claimIds": [
+                "bred-risk-register"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Prepare and present formal project status reports and steering committee presentations for management, consolidating delivery progress, risks, and key decisions across ~4 concurrent banking IT projects.",
+              "claimIds": [
+                "bred-status-reporting-4-projects"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Apply Agile / Scrum delivery practices, running sprint planning, backlog refinement, retrospectives, and daily stand-ups to maintain steady delivery cadence across cross-functional banking IT teams.",
+              "claimIds": [
+                "bred-agile-scrum-cadence"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Designed and delivered 10 AI workshops for the eBanking department (~30 participants), driving practical and compliant AI adoption across the team.",
+              "claimIds": [
+                "bred-ai-workshops"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Mapped existing manual project manager and analyst workflows, decomposed them into structured, executable LLM logic, then built and deployed an agentic assistant autonomously tracking project progress, monitoring email activity, and issuing proactive deadline and follow-up reminders.",
+              "claimIds": [
+                "bred-agentic-assistant-build"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Rolled out the assistant to a 6-person cross-functional pilot team (2 business analysts, 1 product owner, 2 developers, 1 QA) to validate the branch's first AI-driven work process ahead of wider deployment. In active daily use, delivered with an internal user guide.",
+              "claimIds": [
+                "bred-agentic-assistant-pilot-rollout"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Led the design and development of an LLM-based Splunk log-triage workflow intended to streamline how analysts process log data in their daily work.",
+              "claimIds": [
+                "bred-splunk-log-triage-workflow"
+              ],
+              "outcome": ""
+            }
+          ],
+          "unprinted": [
+            "bred-trading-platform-lao-forex",
+            "bred-card-services-integration",
+            "bred-pin-code-authentication",
+            "bred-telegram-integration",
+            "bred-self-service-card-activation"
+          ]
+        },
+        {
+          "role": "Product Owner",
+          "employer": "Okoone",
+          "location": "",
+          "dates": "2020 - 2023",
+          "bullets": [
+            {
+              "text": "Owned the product vision and roadmap for a cross-border eCommerce logistics SaaS platform.",
+              "claimIds": [
+                "okoone-product-vision-roadmap"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Led a cross-functional product team, managing scope, priorities, budget, and delivery timelines.",
+              "claimIds": [
+                "okoone-led-product-team"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Translated business and user needs into functional specifications and user stories for development teams.",
+              "claimIds": [
+                "okoone-translated-specs"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Worked closely with enterprise clients and partners to align product features with operational and cross-border requirements.",
+              "claimIds": [
+                "okoone-enterprise-clients-alignment"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Built Ship24.com from scratch into a scalable cross-border logistics platform within 2 years, serving marketplaces, merchants, and logistics providers, reaching 16M website visitors, 3000+ active API subscriptions, +30% user growth (YoY), and +50% advertising revenue growth (YoY) in 2023.",
+              "claimIds": [
+                "okoone-built-ship24",
+                "okoone-platform-performance-2023"
+              ],
+              "outcome": "reaching 16M website visitors, 3000+ active API subscriptions, +30% user growth (YoY), and +50% advertising revenue growth (YoY) in 2023"
+            },
+            {
+              "text": "Delivered a universal shipment tracking API and customs clearance services, supporting international trade operations.",
+              "claimIds": [
+                "okoone-tracking-api-customs"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Maintained and prioritized the product backlog using JIRA, ensuring continuous value delivery.",
+              "claimIds": [
+                "okoone-backlog-jira"
+              ],
+              "outcome": ""
+            }
+          ],
+          "unprinted": []
+        },
+        {
+          "role": "IT Junior Project Manager",
+          "employer": "Société Générale",
+          "location": "",
+          "dates": "2017 - 2020",
+          "bullets": [
+            {
+              "text": "Delivered IT projects using Agile / Scrum, supporting delivery execution.",
+              "claimIds": [
+                "socgen-agile-delivery-execution"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Communicated delivery status and escalated risks and issues to prevent delays.",
+              "claimIds": [
+                "socgen-status-risk-escalation"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Structured project reporting and communication frameworks to provide visibility to management and executives.",
+              "claimIds": [
+                "socgen-reporting-frameworks"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Chatbot FINDER: coordinated development of a chatbot in collaboration with data science teams for the Risk department, enabling faster access to risk-related data.",
+              "claimIds": [
+                "socgen-chatbot-finder"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "CRM Data Pipeline Optimization: supported delivery of a real-time data pipeline built on Big Data infrastructure to optimize Salesforce CRM usage.",
+              "claimIds": [
+                "socgen-crm-data-pipeline"
+              ],
+              "outcome": ""
+            },
+            {
+              "text": "Worked closely with data engineers, data scientists, and business teams on data-centric and analytics-driven initiatives.",
+              "claimIds": [
+                "socgen-data-teams-collaboration"
+              ],
+              "outcome": ""
+            }
+          ],
+          "unprinted": [
+            "socgen-architecture-discussions",
+            "socgen-executive-meetings"
+          ]
+        }
+      ],
+      "skills": [
+        {
+          "label": "Project and Delivery Management",
+          "items": [
+            "Agile / Scrum",
+            "IT Governance and Delivery Management",
+            "Stakeholder Management",
+            "Risk and Dependency Management"
+          ]
+        },
+        {
+          "label": "AI Tools and Automation",
+          "items": [
+            "Prompt Engineering (Chain-of-Thought, adversarial validation)",
+            "Multi-LLM Orchestration (Claude, Gemini, GPT/Codex)",
+            "Workflow Automation (n8n)",
+            "AI Workshop Design and Facilitation"
+          ]
+        },
+        {
+          "label": "Technical and Platforms",
+          "items": [
+            "JIRA",
+            "Confluence",
+            "Splunk",
+            "SQL / Python"
+          ]
+        }
+      ],
+      "certifications": [],
+      "education": [
+        {
+          "institution": "ESIEA, Paris, France",
+          "detail": "Master's Degree in Computer Science, specialization in Machine Learning",
+          "dates": "2017"
+        },
+        {
+          "institution": "KMUTT University, Bangkok, Thailand",
+          "detail": "Exchange Semester",
+          "dates": "2016"
+        }
+      ],
+      "additional": [
+        {
+          "label": "Languages",
+          "value": "French (Native), English (Fluent), Spanish (Conversational), Thai (Beginner)"
+        },
+        {
+          "label": "Nationality",
+          "value": "French"
+        },
+        {
+          "label": "Location",
+          "value": "Based in Bangkok, Thailand"
+        }
+      ]
+    },
+    "conservationNotices": []
+  },
+  "spend": [
+    {
+      "label": "preview-tailor",
+      "model": "claude-sonnet-5",
+      "seconds": 121.8,
+      "inputChars": 25834,
+      "outputChars": 9402,
+      "inputTokens": null,
+      "outputTokens": null
+    }
+  ]
+}
