@@ -2,6 +2,37 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-27 — #301 is sliced: 16 buildable tickets, #302–#317
+
+`/to-tickets` on the spine spec **#301**. Sixteen tickets published `ready-for-agent`, linked as
+sub-issues of #301 with **native GitHub dependency edges**, so the frontier is a live query rather
+than a line of prose.
+
+**The run order is a single thread** — the owner said he will not develop in parallel, so the edges
+record only the gates that are genuinely real and the numbering carries the order:
+
+- **V3, the door and the pasted posting** — #302 (contract bump + the "Pasted by you" source; the
+  prefactor, nothing visible) → #303 (the door end to end) → #304 (narrated wait + failure screen)
+  → #305 (never expires, ages in public) → #306 (the job's own screen's four changes).
+- **V4, the queue then the draft** — #307 (one queue, permanent profile answers) → #308 (*not sure
+  yet*, the ladder off the card) → #309 (the floor goes, withdrawals name their reason) → #310 (the
+  CV brain bound, #66's evidence carried, #154's panel re-homed) → #311 (#287's law on the page).
+- **V5, the document and the report** — #312 (browser, fonts, print rules, the injected document
+  maker, the 2GB declared) → #313 (approving is sending) → #314 (over two pages: tighten once, then
+  ship and tell) → #315 (the five-section report, refused on an unjudged card).
+- **V5b, Add something new** — #316 (door, router, the two new kinds) → #317 (the recall step).
+  Independent of everything above; can land any time.
+
+**Three owner calls, all delegated to the slicer:** merge where merging helps (#154's disclosure
+panel folded into the draft rebind; the *Add something new* door folded together with its two new
+kinds — 18 candidates became 16), gate the draft rebind behind the queue rather than running it in
+parallel, and keep the 2GB-in-deploy-config warning as an acceptance criterion on #312 rather than a
+note, since a recreated machine otherwise kills the API.
+
+Every regression case #301 named is carried on the ticket that owns it, and each carried risk is
+restated on the ticket that inherits it — the retained advert text on #303, words-not-paraphrase on
+#311, the cold press on #313, the estimated cost on #315, tag-matching recognition on #317.
+
 ## 2026-09-27 — the v1 spine has a spec: #301
 
 `/to-spec` on map **#290**, whose ten decision tickets (V1a–V1j) all resolved the same day. Published
