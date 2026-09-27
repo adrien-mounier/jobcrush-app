@@ -43,6 +43,29 @@ thing per screen", rebuilt the panel in greys, and the owner rightly called it w
 screens carry gold on eight to ten elements at once. The rule was right; my reading of its reach was
 not, and the code showed that the whole time.
 
+## 2026-09-27 — #297 done: the API machine is off 256MB, and map #290 is closed
+
+Owner said yes (shared Fly account, `SHARED_INFRA.md` rule 7). `fly scale memory 2048 -a
+jobcrush-api-staging` — one machine, `sin`, still auto-stopping to zero. It cold-started and answered
+`/healthz` 200 immediately after. **Map #290 is now 10 of 10 and closed; `/to-spec` (V2) is next.**
+
+**The scale settled a question #295 could only infer.** Measured from inside the machine: `MemTotal`
+1.92 GiB with ~1.7 GiB free while the app runs, and **`/dev/shm` at 985 MB** — exactly half of RAM,
+which confirms the standard tmpfs rule holds on a Firecracker microVM even though Fly documents it
+nowhere. Consequence: Chromium's `--disable-dev-shm-usage` workaround is **unnecessary on this machine**,
+and #295 had flagged that flag as carrying a real cost. The browser's measured ~201MB peak now sits
+inside 1.7 GiB of headroom.
+
+**Two of #295's four checks stay open**, because they need a real render rather than a scaled machine:
+the true Linux RSS during a print (our 201MB is a Windows working set), and whether `--ipc=host` has a
+`fly.toml` equivalent. Both belong to the build that adds the browser.
+
+**One gap left open on purpose, and it is the kind that rots quietly.** `fly.api.toml` has no `[[vm]]`
+block, so 2GB lives on the machine and not in the config. A deploy preserves it; a machine recreated
+from config would come back at the default. Declaring it deploys on push, so it is left to the build
+that touches that file — recorded on the ticket, in the roadmap row and in `SHARED_INFRA.md` rather
+than trusted to memory.
+
 ## 2026-09-27 — #299 prototyped: full screen, and the door goes in the hero
 
 `/prototype` on **#299** (map #290, row V1i). Map now **8 of 9** — only V1h, the owner's Fly task, is left.
