@@ -1,5 +1,26 @@
 # Lessons — jobcrush-app
 
+## A decision ticket can be premised on a mechanism the code already deleted — verify it exists before designing around its absence
+
+Learned 2026-09-27, grilling #292. The ticket's second-biggest case was *"a family floor he has never
+answered"* — what does a pasted advert do when it lands in a job family whose years question the owner was
+never asked? I nearly spent a whole round designing where to ask it. **There is no family-floor question.**
+#162 deleted it, `docs/adr/0008-how-a-fact-arrives-read-worked-out-or-asked.md` forbids its return, the ban
+is commented at `eligibilityDiscovery.ts:141-147`, and `discovery.test.ts:1106` fails anyone who adds it
+back. Years are *worked out* from dated job blocks. Three of the ticket's three cases were really two, and
+the surviving half of the third was a scoring question, not a question-placement one.
+
+Why it was easy to believe: the ticket cited **#86**, which is a live spec and does say *"asked once how many
+years you have in a job family"* (user story 8). The spec is the older truth; a later ticket retired the
+mechanism without rewriting the spec that asked for it. **A spec user story is evidence that something was
+once wanted, never that it exists.**
+
+The reusable rule: **before a grilling round designs around a named mechanism, grep for the mechanism, not
+for the words describing it.** Cheapest tell in this repo: a banned mechanism leaves a comment saying so and
+a test pinning it — search for the ban, not only the feature. Getting it wrong costs a whole round of
+questions the owner has to answer about something that cannot happen, and risks a ruling that quietly
+re-authorises a deleted question.
+
 ## A deleted screen leaves live code behind, and its name gets reused — check what IS reachable first
 
 Learned 2026-09-27, grilling #287, and the owner caught it. I told him the per-job disclosure panel

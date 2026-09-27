@@ -2,6 +2,46 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-27 — #292 grilled: one question queue, and a case that dissolved
+
+`/grilling` on **#292** (map #290, row V1e). Four rounds, sixteen owner calls, all on the owner's first
+reading — no re-argued forks. Decision comment on the issue; closed by hand (no code behind it). Map update
+on #290: **6 of 9**.
+
+**The ruling: one question queue, the Tailor step's, for every job — found or pasted.** Not the paste door
+(#291 gave it room to ask, and the answer is that it shouldn't), not the job screen, never a round trip to
+the profile. An answer there about work rights or a language becomes a **permanent profile fact**; a third
+option, *"not sure yet"*, stores nothing and comes back next time; profile-level questions go first, capped
+at one per kind per advert; the number shows with *"not checked: …"* beside it and is narrated when it
+moves; a pasted job in a field his history doesn't cover keeps the **honest zero**, never a lent career
+total. The report gains a third state — **unchecked** — which names the thing to settle and deliberately
+hands him **no** prepared sentence.
+
+**The ticket's third case did not survive contact with the code, and that was the session's biggest find.**
+#292 asked what happens when a pasted advert sits in a job family whose **family floor** he never answered.
+There is no family floor: **#162 deleted the question, ADR-0008 forbids its return, and
+`discovery.test.ts:1106` fails anyone who adds it back.** Years are worked out from dated job blocks. So a
+pasted advert raises **two** kinds of thing, not three, and case 3's only real half was a scoring question.
+Worth remembering as a pattern: a grilling ticket written from a spec can carry a premise the code retired
+two tickets ago — check the mechanism exists before designing around its absence.
+
+**It came out wider than its title, exactly like #287, and for the same reason** — one *surface* means the
+rule governs found jobs too. Four inherited requirements change the deck path: the card's language ladder is
+retired into the queue (rungs and "Not now" intact, because collapsing it to Yes/No destroys #165's
+withdrawal-needs-a-deliberate-tap property), the Tailor score's never-falls floor comes off (#86 said so
+itself: the monotonic floor *"becomes a lie once corrections are honoured"*, and the corrections now live on
+that screen), withdrawal mid-tailor stops being silent (#107's silence is right for a job the app quietly
+noticed, indefensible for one that vanished *because he just answered*), and Tailor's profile-level answers
+start writing to the **eligibility** store instead of an advert-scoped claim — which is **#287 clause 5's own
+*written, not enforced* fix, arrived at from the other direction**.
+
+**Fourteen inherited requirements** are on the ticket. The three easiest to skip are deletions, not additions:
+`partitionByFamilyFit` must not run on a pasted advert (it deletes an off-field advert before anything is
+spent — ruling 3 forbids the silent disappearance), the monotonic floor, and #107's silence.
+
+**Nothing unblocked, nothing surfaced.** Three rows left before V2: **#294** (does a pasted ad go stale),
+**#299** (the "Add something new" shape), **#297** (the owner's machine-size call).
+
 ## 2026-09-27 — #291 prototype: the paste door, three shapes, B chosen
 
 `/prototype` on **#291** (map #290, row V1a). Branch `prototype/paste-door-291` (`1422019` → `65a2d81`),
