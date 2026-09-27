@@ -78,6 +78,13 @@
   .pastebtn { appearance: none; font: inherit; font-size: 12.5px; font-weight: 620; cursor: pointer;
     border-radius: 999px; padding: 7px 15px; border: 1px solid var(--gold); color: var(--gold); background: rgba(232,163,61,.1); }
   .pastebtn:hover { background: rgba(232,163,61,.2); }
+  /* The same button on every screen, and dead on the screen it opens — the owner's
+     question about where it lives, answered by letting him walk into it. */
+  .pastebtn[disabled] { border-color: var(--hud-line); color: var(--hud-mute); background: none; cursor: default; }
+  .brandbar nav .cur { color: var(--hud-ink); font-weight: 600; }
+  .brandbar nav [data-go] { cursor: pointer; }
+  .brandbar nav [data-go]:hover { color: var(--hud-ink); }
+  .row button:disabled { opacity: .35; cursor: not-allowed; border-color: var(--card-line); }
   .hint { font-family: var(--mono); font-size: 10px; color: var(--hud-mute); }
   .stage { flex: 1; min-height: 0; overflow: auto; position: relative; }
 
@@ -183,8 +190,8 @@
   .desk { padding: 20px 26px 26px; display: grid; grid-template-columns: 1.35fr 1fr; gap: 22px; align-items: start; }
   .desk .head { grid-column: 1 / -1; }
   .desk .left { display: flex; flex-direction: column; gap: 13px; }
-  .desk .ta { height: 330px; }
-  .desk .right { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 11px; padding: 17px; min-height: 330px; }
+  .desk .ta { height: 250px; }  /* short enough that the link field and Read it sit above the fold */
+  .desk .right { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 11px; padding: 17px; min-height: 250px; }
   .desk .right h3 { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase;
     color: var(--hud-mute); margin: 0 0 12px; font-weight: 400; }
   .lift { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -230,14 +237,19 @@
     <b>what he watches while a model reads</b>, and <b>what the screen says when the ad won't read</b>.
   </p>
   <p>
-    Press <b>paste the advert for me</b> to fill the field with the real GRADION ad, then press the
-    button. Switch <b>what happens</b> to drive the other three endings.
+    Start on the screen you would really be on, press the door, then <b>fill the field with a real
+    advert</b> (the control above the frame — a testing shortcut, not part of the design) and press
+    <b>Read it</b>. Switch <b>what happens</b> to drive the other three endings.
   </p>
 </div>
 
 <div class="bars">
   <div class="row" id="pick"><em>door</em></div>
   <div class="row" id="out"><em>what happens</em></div>
+  <div class="row"><em>prototype</em>
+    <button id="fill">fill the field with a real advert</button>
+    <span class="hint" style="opacity:.55">— a shortcut for testing, not part of the design</span>
+  </div>
 </div>
 
 <div class="win">
@@ -421,24 +433,13 @@ const DOORS = {
       <nav><b>Deck</b><span>Profile</span></nav><span class="spacer"></span>
       <span class="hint">verified profile</span></div>`,
     render() {
-      $("#stage").innerHTML = `<div class="deck">
-        <div class="decklede"><h2 class="scr">Your jobs</h2><span>4 live · best first</span></div>
-        <div class="cards">
-          <div class="jc own" id="own">
-            <h3>Bring your own job</h3>
-            <p class="co">Found one yourself? Paste the advert.</p>
-            <textarea class="ta" id="ta" placeholder="Paste the whole advert here — title, responsibilities, requirements."></textarea>
-            <div class="mini"><button class="go" id="go" disabled>Read it</button>
-              <button class="ghostbtn" id="fill">paste the advert for me</button></div>
-          </div>
-          ${[["Delivery Manager, Core Banking", "Techcombank", 74],
-             ["Senior Project Manager (Digital)", "VPBank", 71],
-             ["IT Programme Manager", "FPT Software", 66],
-             ["Product Owner, Payments", "MoMo", 61]].map(([t, c, p]) =>
-            `<div class="jc"><h3>${t}</h3><p class="co">${c} · Ho Chi Minh City</p><span class="pct">${p}%</span></div>`).join("")}
-        </div>
-      </div>`;
-      wireFill("#ta", "#go", "#fill", () => this.read());
+      $("#stage").innerHTML = deckScreen(`<div class="jc own" id="own">
+        <h3>Bring your own job</h3>
+        <p class="co">Found one yourself? Paste the advert.</p>
+        <textarea class="ta" id="ta" placeholder="Paste the whole advert here — title, responsibilities, requirements."></textarea>
+        <div class="mini"><button class="go" id="go" disabled>Read it</button></div>
+      </div>`);
+      wireFill("#ta", "#go", () => this.read());
     },
     read() {
       const card = $("#own");
@@ -462,7 +463,7 @@ const DOORS = {
         <span class="pct">${DATA.pct}%</span>
         <p class="co" style="margin:10px 0 0">Essential ${DATA.ess} · yours, pasted</p>
         ${linkFound() ? "" : `<div class="field" style="margin-top:11px">
-          <label>Where do you apply? <i>so the link tops your application email</i></label>
+          <label>Link of the application <i>— it goes to the top of your application email</i></label>
           <input placeholder="https://… (or skip)"></div>`}
         <div class="mini" style="margin-top:12px"><button class="go" id="open">Open it</button></div>`;
       $("#open").onclick = () => this.land({});
@@ -487,12 +488,28 @@ const DOORS = {
   B: {
     tag: "B · its own room",
     name: "An intake desk, two fields, the ad taken apart in front of you",
-    url: "jobcrush.app/paste",
-    note: "A door in the bar, reachable from anywhere. It asks for the link up front, beside the text. The wait is spent watching the requirements get lifted out of what you pasted.",
-    shell: `<div class="brandbar"><span class="wordmark">JobCrush</span>
-      <nav><span>Deck</span><span>Profile</span></nav><span class="spacer"></span>
-      <button class="pastebtn">＋ Paste a job</button></div>`,
+    // CHOSEN 2026-09-27. The owner's question about the bar button is answered in
+    // the prototype rather than in prose: `where` starts you on a normal screen
+    // with the button in the bar, so its placement is visible from the screens it
+    // is actually pressed from — and on the desk itself it goes inert.
+    where: "deck",
+    url(d) { return d.where === "desk" ? "jobcrush.app/paste"
+           : d.where === "profile" ? "jobcrush.app/profile" : "jobcrush.app/deck"; },
+    note: "A door in the bar — the same button on every screen, inert on the one it opens. It asks for the link up front, beside the text. The wait is spent watching the requirements get lifted out of what you pasted.",
+    shell(d) {
+      const here = d.where;
+      return `<div class="brandbar"><span class="wordmark">JobCrush</span>
+        <nav><span data-go="deck" class="${here === "deck" ? "cur" : ""}">Deck</span>
+             <span data-go="profile" class="${here === "profile" ? "cur" : ""}">Profile</span></nav>
+        <span class="spacer"></span>
+        <button class="pastebtn ${here === "desk" ? "inert" : ""}" ${here === "desk" ? "disabled" : ""}>＋ Paste a job</button></div>`;
+    },
     render() {
+      // The screens the button is pressed FROM. Nothing to do here but see it.
+      if (this.where !== "desk") {
+        $("#stage").innerHTML = this.where === "profile" ? profileScreen() : deckScreen("");
+        return;
+      }
       $("#stage").innerHTML = `<div class="desk">
         <div class="head">
           <h2 class="scr">Paste a job you found</h2>
@@ -502,12 +519,11 @@ const DOORS = {
         <div class="left">
           <textarea class="ta" id="ta" placeholder="Paste the advert…"></textarea>
           <div class="field">
-            <label for="lk">Where do you apply? <i>optional — it goes to the top of your application email</i></label>
+            <label for="lk">Link of the application <i>— optional, it goes to the top of your application email</i></label>
             <input id="lk" placeholder="https://…">
           </div>
           <div class="mini" style="display:flex;gap:10px;align-items:center">
             <button class="go" id="go" disabled>Read it</button>
-            <button class="ghostbtn" id="fill">paste the advert for me</button>
           </div>
         </div>
         <div class="right" id="right">
@@ -516,7 +532,7 @@ const DOORS = {
             you will see what we found before anything is scored.</p>
         </div>
       </div>`;
-      wireFill("#ta", "#go", "#fill", () => this.read(), (txt) => {
+      wireFill("#ta", "#go", () => this.read(), (txt) => {
         // A link in the pasted text pre-fills the field rather than replacing it.
         const m = txt.match(/https?:\/\/\S+/);
         if (m) $("#lk").value = m[0];
@@ -563,23 +579,9 @@ const DOORS = {
     render() {
       // Some other screen, minding its own business. The point of C is that the
       // door works from here without being here.
-      $("#stage").innerHTML = `<div class="job" style="grid-template-columns:1fr">
-        <div>
-          <h2 class="scr">Adrien Mounier</h2>
-          <p class="lede">IT Project Manager · Ho Chi Minh City · 41 confirmed facts</p>
-          <div class="sect">On your CV right now</div>
-          <ul>
-            <li>Senior Project Manager, 7+ years in banking, fintech and SaaS</li>
-            <li>Core banking, digital transformation, PCI DSS compliance</li>
-            <li>English C1 · French native · Agile / Scrum delivery</li>
-          </ul>
-          <div class="sect">In reserve</div>
-          <ul><li>10 AI workshops delivered to an eBanking department</li>
-            <li>Trading platform integration, Lao Forex Exchange</li></ul>
-          <p class="slow" style="max-width:62ch">Found a job somewhere? Press <b>Ctrl-V</b> —
-            here, on the deck, anywhere. <button class="ghostbtn" id="fakepaste">pretend I pressed it</button></p>
-        </div>
-      </div>`;
+      $("#stage").innerHTML = profileScreen(
+        `<p class="slow" style="max-width:62ch">Found a job somewhere? Press <b>Ctrl-V</b> —
+          here, on the deck, anywhere. <button class="ghostbtn" id="fakepaste">pretend I pressed it</button></p>`);
       $("#fakepaste").onclick = () => this.open();
       this.key = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") { e.preventDefault(); this.open(); } };
       window.addEventListener("keydown", this.key);
@@ -625,12 +627,46 @@ const DOORS = {
   },
 };
 
-// Shared plumbing for the two doors with a real field.
-function wireFill(taSel, goSel, fillSel, read, onFill) {
+// The ordinary screens the paste button is pressed FROM. `own` is A's empty card,
+// the only thing that differs between the two doors' decks.
+const deckScreen = (own) => `<div class="deck">
+  <div class="decklede"><h2 class="scr">Your jobs</h2><span>4 live · best first</span></div>
+  <div class="cards">
+    ${own}
+    ${[["Delivery Manager, Core Banking", "Techcombank", 74],
+       ["Senior Project Manager (Digital)", "VPBank", 71],
+       ["IT Programme Manager", "FPT Software", 66],
+       ["Product Owner, Payments", "MoMo", 61]].map(([t, c, p]) =>
+      `<div class="jc"><h3>${t}</h3><p class="co">${c} · Ho Chi Minh City</p><span class="pct">${p}%</span></div>`).join("")}
+  </div>
+</div>`;
+
+const profileScreen = (tail = "") => `<div class="job" style="grid-template-columns:1fr">
+  <div>
+    <h2 class="scr">Adrien Mounier</h2>
+    <p class="lede">IT Project Manager · Ho Chi Minh City · 41 confirmed facts</p>
+    <div class="sect">On your CV right now</div>
+    <ul>
+      <li>Senior Project Manager, 7+ years in banking, fintech and SaaS</li>
+      <li>Core banking, digital transformation, PCI DSS compliance</li>
+      <li>English C1 · French native · Agile / Scrum delivery</li>
+    </ul>
+    <div class="sect">In reserve</div>
+    <ul><li>10 AI workshops delivered to an eBanking department</li>
+      <li>Trading platform integration, Lao Forex Exchange</li></ul>
+    ${tail}
+  </div>
+</div>`;
+
+// Shared plumbing for the two doors with a real field. The advert-filling shortcut
+// is prototype chrome, so it lives in the control bar above the frame, never on
+// the screen being judged; the open door registers itself here.
+let fillNow = null;
+function wireFill(taSel, goSel, read, onFill) {
   const ta = $(taSel), go = $(goSel);
   const sync = () => (go.disabled = ta.value.trim().length < 200);
   ta.oninput = sync;
-  $(fillSel).onclick = () => {
+  fillNow = () => {
     ta.value = outcome === "fail" ? AD.slice(0, 210) + "\n\n(the copy stopped here)"
              : linkFound() ? AD_WITH_LINK : AD;
     sync(); onFill && onFill(ta.value); ta.focus();
@@ -645,13 +681,18 @@ let cur = "A";
 function draw() {
   timers.forEach(clearTimeout); timers = [];
   Object.values(DOORS).forEach(d => d.leave && d.leave());
+  fillNow = null;
   const d = DOORS[cur];
-  $("#shell").innerHTML = d.shell;
-  setUrl(d.url);
+  $("#shell").innerHTML = typeof d.shell === "function" ? d.shell(d) : d.shell;
+  setUrl(typeof d.url === "function" ? d.url(d) : d.url);
   $("#noteTxt").textContent = d.note;
   d.render();
-  const btn = $("#shell .pastebtn");
-  if (btn) btn.onclick = () => d.render();
+  $("#fill").disabled = !fillNow;
+  // The bar button opens the desk (B) or simply redraws the door that owns it.
+  const btn = $("#shell .pastebtn:not([disabled])");
+  if (btn) btn.onclick = () => { if ("where" in d) d.where = "desk"; draw(); };
+  $("#shell").querySelectorAll("nav [data-go]").forEach(n =>
+    (n.onclick = () => { d.where = n.dataset.go; draw(); }));
   document.querySelectorAll("#pick button").forEach(b => b.classList.toggle("on", b.dataset.k === cur));
   document.querySelectorAll("#out button").forEach(b => b.classList.toggle("on", b.dataset.o === outcome));
 }
@@ -662,6 +703,7 @@ $("#out").insertAdjacentHTML("beforeend", Object.entries(OUTCOMES).map(([k, o]) 
   `<button data-o="${k}"><b>${o.tag}</b>${o.name}</button>`).join(""));
 document.querySelectorAll("#pick button").forEach(b => (b.onclick = () => { cur = b.dataset.k; draw(); }));
 document.querySelectorAll("#out button").forEach(b => (b.onclick = () => { outcome = b.dataset.o; draw(); }));
+$("#fill").onclick = () => fillNow && fillNow();
 $("#again").onclick = draw;
 
 draw();
