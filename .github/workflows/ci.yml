@@ -19,6 +19,10 @@ on:
       - 'docs/**'
       - '*.md'
       - '.claude/**'
+      # Throwaway design references (#157 prototypes). Inert by the same test as the rest of
+      # this list: nothing in apps/web's build config, either Dockerfile or CI imports them,
+      # and there is no apps/web/public, so none of them is ever served.
+      - 'apps/web/prototypes/**'
       - 'screenshots/**'
       - 'LICENSE'
   pull_request:

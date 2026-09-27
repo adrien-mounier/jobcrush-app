@@ -15,8 +15,14 @@ const git = (a) =>
   execSync(`git ${a}`, { cwd: input.cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
 const files = (git('diff --cached --name-only') || git('diff --name-only HEAD')).split('\n').filter(Boolean)
 
-// Docs-only commits (roadmap, session-log, ADRs) don't need the gate.
-if (files.length && files.every((f) => f.endsWith('.md'))) process.exit(0)
+// Docs-only commits (roadmap, session-log, ADRs) don't need the gate. apps/web/prototypes/* joins
+// them (owner, 2026-09-27): nothing in apps/web's build config, either Dockerfile or CI references
+// that folder, and there is no apps/web/public — those files cannot reach staging, so the gate has
+// no deploy to protect there. Firing on files that cannot ship only trains the next commit to reach
+// for [skip-gate], which is how a gate dies. Narrow the aim, don't widen the hole: this exemption is
+// a path prefix, so real code parked under apps/web/prototypes/ WOULD commit ungated.
+if (files.length && files.every((f) => f.endsWith('.md') || f.startsWith('apps/web/prototypes/')))
+  process.exit(0)
 
 if (/\[skip-gate\]/.test(cmd)) {
   console.error('QA gate skipped via [skip-gate] — only valid when the owner asked for it in this session.')
