@@ -3828,3 +3828,18 @@ type does not strip excess properties. Grep every place the changed shape is *se
 is read. And **before calling a slice done, run the browser specs the diff can reach yourself**;
 `pnpm test` passing means the unit tier is happy, which for any user-visible change is the smaller
 half of the claim.
+
+## A prototype convention expires when the screen it designed ships
+
+`apps/web/prototypes/*.prototype.html` are standalone files that draw a screen from nothing. That is the
+right tool **before** the screen exists — it is how the profile screen was designed. Once the screen ships,
+drawing it again produces a likeness, and any read taken off the likeness is a read of the drawing.
+
+**Prototype against the real component instead.** A throwaway route that imports the real page and stubs
+`window.fetch` for the calls it makes costs about twenty lines, needs no API and no session, and puts the
+real density and the real CSS under the question. `apps/web/app/prototype-299/page.tsx` is the worked
+example. It found in one run what the drawing hid for two: the profile already owns a pull-up sheet, so a
+second sheet over it was never a candidate.
+
+The tell that you have reached for the wrong tool: you are hand-writing markup for something that is
+already in the repo.

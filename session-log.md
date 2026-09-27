@@ -2,6 +2,40 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-27 — #299 prototyped: full screen, and the door goes in the hero
+
+`/prototype` on **#299** (map #290, row V1i). Map now **8 of 9** — only V1h, the owner's Fly task, is left.
+Decision comment on the issue.
+
+**Two prototypes, and the first one was the wrong tool.** I drew a fake profile screen in a standalone HTML
+file, copying the convention from `apps/web/prototypes/` next door. That convention is right for a screen
+that does not exist yet — those files are how the profile screen was designed in the first place — and wrong
+the moment it does. The owner caught it: the question is how much of the *real* screen a sheet may cover, so
+judging it against my drawing was judging my drawing. The second pass,
+`apps/web/app/prototype-299/page.tsx`, renders the **real `ProfilePage`** with its real CSS and real density,
+fed by a `window.fetch` stub for the four calls it makes — no API, no session, no production code touched.
+
+**The container decided itself once it was on the real screen.** The profile already has a pull-up sheet on
+phones (*Your facts*, #192). Variant B put a second sheet on top of it. Owner's call: **full screen**.
+
+**The door placement was the owner's second catch** — my floating gold pill sat on the *Your facts* grabber
+and shouted on a screen whose every other door is a quiet gold line. Four replacements built, all wearing the
+screen's own `.rdoor`, driven on a real phone viewport. **Hero, under the count** wins: it is the one part of
+the screen that is about the collection as a whole, and it does not scroll away on a phone. The end-of-list
+door is **invisible on a phone** (it renders inside the closed sheet — `visible on load: false`, measured).
+Per-section doors are the most native of all and **delete step 1**, but park: the API drops a section with no
+facts, so a *first* certificate has no door, and that is exactly this ticket's person.
+
+**Two findings that outlive the prototype.** The flow is a **router, not a new flow** — a job hands off to
+*Check your work history*, a language to *Change your languages*; only a skill and a certificate have nowhere
+to land today (no row, no storage, and no certificate concept in the product at all). And **step 3 is not one
+question**: the owner rejected coarse buckets for everything, so a job gets a start/end range and a
+certificate the date printed on it, month optional and never padded (ADR-0003 c5). Buckets stay for a skill —
+nobody learned SQL on a Tuesday.
+
+Prototype commits `185c299`, `cb6d109` (the superseded HTML pass). The real-screen route is uncommitted: it
+is app code, so the `/qa-gate` hook blocks it, and it is a live route that a push would put on staging.
+
 ## 2026-09-27 — #294 grilled: a pasted ad never goes stale, but it ages in public
 
 `/grilling` on **#294** (map #290, row V1c). Five rounds, fourteen owner calls, every one on the owner's
