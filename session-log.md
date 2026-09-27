@@ -2,6 +2,28 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-27 — #157 Design B amended: desktop answers one question at a time
+
+Owner reversal, taken while grilling **#287** and recorded separately because nothing in that ruling
+depends on it. The tailoring step asks **one question at a time on every platform**. The persistent
+desktop list (the #157 Design B verdict, owner-decided 2026-08-08) is superseded, and the *"two
+interaction models depending on platform, deliberately"* clause is retired. CV visibility is the only
+remaining platform difference — a column on desktop, the pull-up sheet on mobile.
+
+**It costs no code.** `apps/web/app/tailor/page.tsx` already renders `tailor.questions[0]` — one ask,
+with the CV in a column beside the card. The persistent list was a binding on #168/#170 that no build
+ever followed, so this reversal makes the record agree with what ships and retires a dead instruction.
+Amendment appended to all three tailor prototype headers per the #157 closing convention
+(`tailor-merged` superseded · `tailor-desktop-deck` rejection lifted · `tailor-mobile-cards` now
+governs both platforms); binding posted to #157, #168, #170.
+
+**#287 is still mid-grilling** — the CV-document rule, the never-imply ban, the card's leaking
+"Asked and closed" list, the reopen door and its heading wording are agreed in conversation and not
+yet written down. Two decisions banked there in passing: the heading becomes **"You told me you don't
+have this"** with a per-row *"Changed? Add it"* door, and the #154 disclosure panel (built for the
+draft screen #272 deleted, unreachable since) is re-homed onto the live tailoring screen's ending
+rather than waiting for a new screen.
+
 ## 2026-09-27 — #290 charted: fourteen rulings over the v1 spine, and the pack the owner actually wants
 
 `/wayfinder` on **#290**, three grilling rounds, **fourteen rulings**, **six decision tickets** filed as
