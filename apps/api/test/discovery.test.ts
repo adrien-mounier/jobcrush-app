@@ -285,7 +285,7 @@ describe("#16 discovery routes", () => {
     const langs = ["en"];
     const postings = fixturePostingsV1(loadPostings());
     const found: PostingRetrievalResultV1 = {
-      schemaVersion: "4",
+      schemaVersion: "5",
       outcome: "relevant_postings",
       postings,
       coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },

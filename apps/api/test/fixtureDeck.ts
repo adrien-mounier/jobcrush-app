@@ -51,13 +51,14 @@ export function fixturePostingsV1(postings: Posting[] = loadPostings()): Posting
   return postings.map((posting) => {
     const canonicalKey = keyOf(posting);
     return {
-      schemaVersion: "4" as const,
+      schemaVersion: "5" as const,
       id: `posting:${canonicalKey}`,
       canonicalKey,
       title: posting.title,
       company: posting.company,
       location: posting.location,
       sourceUrl: `https://example.test/${encodeURIComponent(posting.id)}`,
+      applicationUrl: null,
       excerpt: posting.excerpt,
       postedAt: null,
       capturedAt: now,
@@ -83,14 +84,14 @@ export function fixtureRetriever(
     const rows = fixturePostingsV1(postings);
     if (rows.length === 0) {
       return {
-        schemaVersion: "4",
+        schemaVersion: "5",
         outcome: "empty_pool",
         coverage: { providersQueried: [HARNESS_PROVIDER_ID], providersUnavailable: [], complete: true },
         retrievedAt: now,
       };
     }
     return {
-      schemaVersion: "4",
+      schemaVersion: "5",
       outcome: "relevant_postings",
       postings: rows,
       coverage: { providersQueried: [HARNESS_PROVIDER_ID], providersUnavailable: [], complete: true },

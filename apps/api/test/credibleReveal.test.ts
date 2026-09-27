@@ -110,7 +110,7 @@ describe("#63 fixtures can never authorize a reveal", () => {
   it("reports an outage as an outage, never as an empty pool", async () => {
     const { app } = buildDeckServer({
       retrievePostings: async () => ({
-        schemaVersion: "4",
+        schemaVersion: "5",
         outcome: "provider_unavailable",
         coverage: { providersQueried: [], providersUnavailable: ["techmap"], complete: false },
         reason: "provider is down",

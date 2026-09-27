@@ -1,6 +1,6 @@
 [
   {
-    "schemaVersion": "2",
+    "schemaVersion": "3",
     "providerId": "curated-pool",
     "regionsServed": ["*"],
     "authorityRank": 0,
@@ -12,10 +12,11 @@
     "retry": { "maxAttempts": 1, "backoffMs": 0 },
     "timeoutMs": 5000,
     "costModel": { "kind": "operatorHours" },
-    "freshnessTtlHours": 24
+    "freshnessTtlHours": 24,
+    "livenessCheckable": true
   },
   {
-    "schemaVersion": "2",
+    "schemaVersion": "3",
     "providerId": "techmap",
     "regionsServed": ["HK", "SG", "VN", "AU"],
     "authorityRank": 1,
@@ -27,6 +28,23 @@
     "retry": { "maxAttempts": 2, "backoffMs": 1000 },
     "timeoutMs": 10000,
     "costModel": { "kind": "perThousandPostings", "amountUsd": 1 },
-    "freshnessTtlHours": 24
+    "freshnessTtlHours": 24,
+    "livenessCheckable": true
+  },
+  {
+    "schemaVersion": "3",
+    "providerId": "pasted-by-you",
+    "regionsServed": ["*"],
+    "authorityRank": 2,
+    "permitsStorage": true,
+    "permitsMatching": true,
+    "attributionRequired": false,
+    "attributionTemplate": null,
+    "rateLimit": { "perSecond": null, "perMinute": null, "perDay": null, "perMonth": null },
+    "retry": { "maxAttempts": 1, "backoffMs": 0 },
+    "timeoutMs": 1,
+    "costModel": { "kind": "operatorHours" },
+    "freshnessTtlHours": 0,
+    "livenessCheckable": false
   }
 ]

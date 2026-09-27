@@ -9,6 +9,7 @@ import {
 } from "../src/familyFloors.js";
 import {
   assertEveryActiveProviderIsImplemented,
+  PASTED_SOURCE_PROVIDER_ID,
   coveredRegionCodes,
   deckReadIsAuthorized,
   makePostingRetriever,
@@ -33,7 +34,7 @@ const policy = (
   authorityRank: number,
   freshnessTtlHours = 24,
 ): PostingProviderPolicyV1 => ({
-  schemaVersion: "2",
+  schemaVersion: "3",
   providerId,
   regionsServed,
   authorityRank,
@@ -46,6 +47,7 @@ const policy = (
   timeoutMs: 1000,
   costModel: { kind: "operatorHours" },
   freshnessTtlHours,
+  livenessCheckable: true,
 });
 
 const record = (
@@ -53,13 +55,14 @@ const record = (
   providerPostingId: string,
   over: Partial<ProviderPostingRecordV1> = {},
 ): ProviderPostingRecordV1 => ({
-  schemaVersion: "3",
+  schemaVersion: "4",
   providerId,
   providerPostingId,
   title: "IT Project Manager",
   company: "Acme",
   location: "Hong Kong",
   sourceUrl: `https://example.com/${providerPostingId}`,
+  applicationUrl: null,
   excerpt: "Lead delivery across regional teams",
   postedAt: "2026-08-01T00:00:00.000Z",
   capturedAt: "2026-08-09T00:00:00.000Z",
@@ -104,6 +107,17 @@ describe("#101 provider routing", () => {
       "wildcard",
       "later",
     ]);
+  });
+
+  // #302 (#294 clause 6) — a source that fetches nothing is never asked, however wide its regions
+  // look. Asking it would report driver_missing on every retrieval and permanently block
+  // coverage.complete: #174's own bug arriving through a new door.
+  it("#302: never queries a source that can never be liveness-checked, even a wildcard one", () => {
+    const registry = [
+      { ...policy("pasted-by-you", ["*"], 2), livenessCheckable: false },
+      policy("techmap", ["HK"], 1),
+    ];
+    expect(providersFor(["HK"], registry).map((entry) => entry.providerId)).toEqual(["techmap"]);
   });
 
   it("includes the authorization checkpoint in the request fingerprint", () => {
@@ -208,7 +222,7 @@ describe("#101 posting retrieval service", () => {
   ] as const)("returns the specific invalid arm", async (input, code) => {
     const { retrieve } = build([policy("one", ["HK"], 1)], []);
     await expect(retrieve(input)).resolves.toEqual({
-      schemaVersion: "4",
+      schemaVersion: "5",
       outcome: "invalid_request",
       code,
     });
@@ -304,7 +318,7 @@ describe("#101 posting retrieval service", () => {
       now,
     });
     await expect(retrieve(request())).resolves.toEqual({
-      schemaVersion: "4",
+      schemaVersion: "5",
       outcome: "invalid_request",
       code: "family_not_published",
     });
@@ -553,7 +567,7 @@ describe("#101 posting retrieval service", () => {
       [new TestFixturePostingProvider("one", { ok: true, records: [record("one", "1", over)] })],
     );
     await expect(retrieve(request())).resolves.toEqual({
-      schemaVersion: "4",
+      schemaVersion: "5",
       outcome: "stale_data",
       lastKnownFreshAt: expect.any(String),
       retrievedAt: "2026-08-09T12:00:00.000Z",
@@ -985,6 +999,23 @@ describe("#101 posting retrieval service", () => {
       expect(() => assertEveryActiveProviderIsImplemented(loadActivePostingProviders())).not.toThrow();
     });
 
+    // #302: a source that fetches nothing has no driver to look for, by design — so the registry's
+    // new row cannot crash the API. But `livenessCheckable: false` on its own is NOT a pass: the id
+    // must be one this code declares it handles, or a typo would boot silently and only surface
+    // much later as pasted jobs that never reuse their snapshot.
+    it("#302: a declared non-fetching source needs no driver; a mistyped one still fails fast", () => {
+      const declared = [{ ...policy(PASTED_SOURCE_PROVIDER_ID, ["*"], 2), livenessCheckable: false }];
+      expect(() => assertEveryActiveProviderIsImplemented(declared)).not.toThrow();
+
+      const mistyped = [{ ...policy("pasted-by-yuo", ["*"], 2), livenessCheckable: false }];
+      expect(() => assertEveryActiveProviderIsImplemented(mistyped)).toThrow(/no driver implementation/);
+
+      // ...and a FETCHING row with no driver still fails fast, which is #174's own invariant.
+      expect(() => assertEveryActiveProviderIsImplemented([policy("no-driver", ["HK"], 9)])).toThrow(
+        /no driver implementation/,
+      );
+    });
+
     // The regression guard for exactly what round 1 got wrong: an implemented-but-unconfigured
     // provider (techmap with no live driver instance anywhere in this test) must still boot fine — the
     // assertion never sees a `providers` array, so it has no way to know whether a key is set, and
@@ -1013,7 +1044,7 @@ describe("#101 posting retrieval service", () => {
       requestFingerprint: "fingerprint",
       recordedAt: retrievedAt,
       result: {
-        schemaVersion: "4" as const,
+        schemaVersion: "5" as const,
         outcome: "relevant_postings" as const,
         postings: [posting],
         coverage: { providersQueried: ["one", "two"], providersUnavailable: [], complete: true },
@@ -1037,7 +1068,7 @@ describe("#101 posting retrieval service", () => {
     const snapshot = {
       requestFingerprint: "fingerprint",
       recordedAt: "2026-08-09T12:00:00.000Z",
-      result: { schemaVersion: "4" as const, outcome: "invalid_request" as const, code: "family_not_published" as const },
+      result: { schemaVersion: "5" as const, outcome: "invalid_request" as const, code: "family_not_published" as const },
     };
     expect(
       isReusableRetrievalSnapshot(snapshot, "fingerprint", [], Date.parse("2026-08-09T12:00:30.000Z")),
@@ -1054,7 +1085,7 @@ describe("#101 posting retrieval service", () => {
       requestFingerprint: "fingerprint",
       recordedAt: retrievedAt,
       result: {
-        schemaVersion: "4" as const,
+        schemaVersion: "5" as const,
         outcome: "empty_pool" as const,
         coverage: { providersQueried: ["one"], providersUnavailable: [], complete: true },
         retrievedAt,
@@ -1084,13 +1115,14 @@ describe("#248 a snapshot is data, not permission", () => {
   // first draft did, and what the covered half below is here to catch.
   const NOW = new Date().toISOString();
   const live = {
-    schemaVersion: "4" as const,
+    schemaVersion: "5" as const,
     id: "posting:live-one",
     canonicalKey: "live-one",
     title: "Delivery Manager",
     company: "Example Ltd",
     location: "Hong Kong",
     sourceUrl: "https://example.com/live-one",
+    applicationUrl: null,
     excerpt: "Lead delivery.",
     postedAt: NOW,
     capturedAt: NOW,
@@ -1108,7 +1140,7 @@ describe("#248 a snapshot is data, not permission", () => {
         requestFingerprint: FINGERPRINT,
         recordedAt: NOW,
         result: {
-          schemaVersion: "4",
+          schemaVersion: "5",
           outcome: "relevant_postings",
           postings: [live],
           coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },

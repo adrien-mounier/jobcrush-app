@@ -20,7 +20,7 @@ const policy = (
   providerId: string,
   regionsServed: string[],
 ): PostingProviderPolicyV1 => ({
-  schemaVersion: "2",
+  schemaVersion: "3",
   providerId,
   regionsServed,
   authorityRank: 0,
@@ -33,17 +33,19 @@ const policy = (
   timeoutMs: 1000,
   costModel: { kind: "operatorHours" },
   freshnessTtlHours: 24,
+  livenessCheckable: true,
 });
 
 const now = new Date("2026-08-13T12:00:00.000Z");
 const record = (id: string, location: string): ProviderPostingRecordV1 => ({
-  schemaVersion: "3",
+  schemaVersion: "4",
   providerId: "multi",
   providerPostingId: id,
   title: "IT Project Manager",
   company: "Acme",
   location,
   sourceUrl: `https://example.com/${id}`,
+  applicationUrl: null,
   excerpt: "Lead delivery across regional teams",
   postedAt: "2026-08-01T00:00:00.000Z",
   capturedAt: now.toISOString(),

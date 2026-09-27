@@ -17,8 +17,9 @@ function record(
     Pick<ProviderPostingRecordV1, "providerId" | "providerPostingId" | "title" | "company" | "location">,
 ): ProviderPostingRecordV1 {
   return {
-    schemaVersion: "3",
+    schemaVersion: "4",
     sourceUrl: `https://example.com/${overrides.providerId}/${overrides.providerPostingId}`,
+    applicationUrl: null,
     excerpt: "Full advert text.",
     postedAt: "2026-07-28T00:00:00Z",
     capturedAt: "2026-07-29T09:00:00Z",
@@ -33,9 +34,26 @@ function record(
 
 // A small fixture registry (not the real on-disk one) so conflict-resolution tests are pinned to
 // known authorityRanks regardless of what the production data file happens to contain.
+const PASTED_ROW: PostingProviderPolicyV1 = {
+  schemaVersion: "3",
+  providerId: "pasted-by-you",
+  regionsServed: ["*"],
+  authorityRank: 2,
+  permitsStorage: true,
+  permitsMatching: true,
+  attributionRequired: false,
+  attributionTemplate: null,
+  rateLimit: { perSecond: null, perMinute: null, perDay: null, perMonth: null },
+  retry: { maxAttempts: 1, backoffMs: 0 },
+  timeoutMs: 1,
+  costModel: { kind: "operatorHours" },
+  freshnessTtlHours: 0,
+  livenessCheckable: false,
+};
+
 const REGISTRY: PostingProviderPolicyV1[] = [
   {
-    schemaVersion: "2",
+    schemaVersion: "3",
     providerId: "curated-pool",
     regionsServed: ["*"],
     authorityRank: 0,
@@ -48,9 +66,10 @@ const REGISTRY: PostingProviderPolicyV1[] = [
     timeoutMs: 5000,
     costModel: { kind: "operatorHours" },
     freshnessTtlHours: 24,
+    livenessCheckable: true,
   },
   {
-    schemaVersion: "2",
+    schemaVersion: "3",
     providerId: "techmap",
     regionsServed: ["HK", "SG", "VN", "AU"],
     authorityRank: 1,
@@ -63,6 +82,7 @@ const REGISTRY: PostingProviderPolicyV1[] = [
     timeoutMs: 10000,
     costModel: { kind: "perThousandPostings", amountUsd: 1 },
     freshnessTtlHours: 24,
+    livenessCheckable: true,
   },
 ];
 
@@ -203,6 +223,61 @@ describe("dedupePostings (#99, §2.4)", () => {
       { label: "via Curated Pool", url: "https://curated.example" },
       { label: "via Techmap", url: "https://jobdatafeeds.com" },
     ]);
+  });
+
+  // #302 — the apply link is NOT plain winner-take-all. A pasted advert carries the link the
+  // person typed and deliberately loses every field conflict to a real provider (authorityRank 2);
+  // techmap's applicationUrl is always null, so winner-take-all would throw his link away the one
+  // time it exists. The winner's link still wins when the winner HAS one.
+  it("#302: the apply link falls to the next-highest contributor when the winner has none", () => {
+    const registry = [...REGISTRY, PASTED_ROW];
+    const fetched = record({
+      providerId: "techmap", providerPostingId: "tm-1",
+      title: "IT Project Manager", company: "Cathay Pacific", location: "Hong Kong",
+      applicationUrl: null,
+    });
+    const pasted = record({
+      providerId: "pasted-by-you", providerPostingId: "paste-1",
+      title: "IT Project Manager", company: "Cathay Pacific", location: "Hong Kong",
+      applicationUrl: "https://careers.example/apply/1",
+      verifiedLiveAt: null,
+    });
+    const [merged] = dedupePostings([fetched, pasted], registry);
+    // techmap still wins the ordinary fields — a provider's structured record beats fields parsed
+    // out of pasted text — and one real confirmation still outranks the absence.
+    expect(merged!.sources.map((s) => s.providerId)).toEqual(["techmap", "pasted-by-you"]);
+    expect(merged!.verifiedLiveAt).toBe("2026-08-01T09:00:00Z");
+    // ...but the only apply link anyone had survives.
+    expect(merged!.applicationUrl).toBe("https://careers.example/apply/1");
+  });
+
+  it("#302: a winner that HAS an apply link keeps its own, never a lower contributor's", () => {
+    const registry = [...REGISTRY, PASTED_ROW];
+    const fetched = record({
+      providerId: "techmap", providerPostingId: "tm-1",
+      title: "IT Project Manager", company: "Cathay Pacific", location: "Hong Kong",
+      applicationUrl: "https://techmap.example/apply",
+    });
+    const pasted = record({
+      providerId: "pasted-by-you", providerPostingId: "paste-1",
+      title: "IT Project Manager", company: "Cathay Pacific", location: "Hong Kong",
+      applicationUrl: "https://careers.example/apply/1",
+    });
+    const [merged] = dedupePostings([fetched, pasted], registry);
+    expect(merged!.applicationUrl).toBe("https://techmap.example/apply");
+  });
+
+  // #302: no contributing record was ever confirmed live — the merge says so rather than
+  // inventing an instant.
+  it("#302: verifiedLiveAt is null only when nothing contributing was ever confirmed", () => {
+    const registry = [...REGISTRY, PASTED_ROW];
+    const pasted = record({
+      providerId: "pasted-by-you", providerPostingId: "paste-1",
+      title: "IT Project Manager", company: "Cathay Pacific", location: "Hong Kong",
+      verifiedLiveAt: null,
+    });
+    const [merged] = dedupePostings([pasted], registry);
+    expect(merged!.verifiedLiveAt).toBeNull();
   });
 
   it("merges dates: earliest capturedAt, latest verifiedLiveAt, earliest non-null expiresAt", () => {
@@ -410,10 +485,29 @@ describe("posting-providers registry loader (#99, §2.2)", () => {
     expect(raw.some((p) => p.providerId === "theirstack")).toBe(false);
   });
 
-  it("#174: curated-pool is operationally disabled (no production refresh path) and techmap is the only active provider today", () => {
+  it("#174: curated-pool is operationally disabled (no production refresh path); techmap is the only FETCHING provider today", () => {
     const active = loadActivePostingProviders();
     expect(active.some((p) => p.providerId === "curated-pool")).toBe(false);
     expect(active.some((p) => p.providerId === "techmap")).toBe(true);
+    // #302: "pasted-by-you" is active too, but it fetches nothing — so techmap is still the only
+    // provider this build ever queries. providersFor's own test pins that half.
+    expect(active.filter((p) => p.livenessCheckable).map((p) => p.providerId)).toEqual(["techmap"]);
+  });
+
+  // #302 (#294 clause 6) — "Pasted by you" is a source of its own, in the registry, not a real
+  // provider's id borrowed for a job nobody fetched. It has to be ACTIVE, because the snapshot
+  // reuse gate separately requires every source.providerId to be in the active registry; it is
+  // marked never-liveness-checkable, and that one field is what every origin-keyed rule reads.
+  it("#302: pasted-by-you is a registered, active source that can never be liveness-checked", () => {
+    const active = loadActivePostingProviders();
+    const pasted = active.find((p) => p.providerId === "pasted-by-you");
+    expect(pasted).toBeDefined();
+    expect(pasted!.livenessCheckable).toBe(false);
+    // Not a real provider's id wearing a costume: every other row in the registry says it CAN be
+    // re-checked, so nothing that fetches has been quietly relabelled as a paste.
+    for (const policy of loadProviderPolicies()) {
+      if (policy.providerId !== "pasted-by-you") expect(policy.livenessCheckable).toBe(true);
+    }
   });
 
   it("a row needs both permission booleans true AND attributionRequired false to be active", () => {

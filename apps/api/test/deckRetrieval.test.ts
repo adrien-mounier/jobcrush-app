@@ -7,7 +7,7 @@ import { makeRetrievalCoordinator, type RetrievalCoordinatorDeps } from "../src/
 import type { RetrievalRequest } from "../src/postingRetrieval.js";
 
 const unavailable: PostingRetrievalResultV1 = {
-  schemaVersion: "4",
+  schemaVersion: "5",
   outcome: "provider_unavailable",
   coverage: { providersQueried: [], providersUnavailable: ["x"], complete: false },
   reason: "test",
@@ -153,7 +153,7 @@ describe("makeRetrievalCoordinator", () => {
     const result = c.ensureRetrieval(session({ retrieval: snapshot }), unauthorizedRequest, "fp-1");
 
     expect(result).toEqual({
-      schemaVersion: "4",
+      schemaVersion: "5",
       outcome: "invalid_request",
       code: "floor_not_covered",
     });

@@ -289,17 +289,18 @@ describe("#228 what a fallback costs, at the deck route", () => {
       const now = new Date().toISOString();
       const familyId = input.family?.familyId ?? "word";
       return {
-        schemaVersion: "4" as const,
+        schemaVersion: "5" as const,
         outcome: "relevant_postings" as const,
         postings: [
           {
-            schemaVersion: "4" as const,
+            schemaVersion: "5" as const,
             id: `posting:${familyId}`,
             canonicalKey: `${familyId}-advert`,
             title: `${familyId} lead`,
             company: "Live Co",
             location: "Hong Kong",
             sourceUrl: `https://example.com/${familyId}`,
+            applicationUrl: null,
             excerpt: "A live advert retrieved for this deck.",
             postedAt: now,
             capturedAt: now,

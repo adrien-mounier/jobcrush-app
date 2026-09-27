@@ -54,7 +54,7 @@ function techmapItem(overrides: Record<string, unknown> = {}, jsonLDOverrides: R
 }
 
 const TECHMAP_POLICY: PostingProviderPolicyV1 = {
-  schemaVersion: "2",
+  schemaVersion: "3",
   providerId: "techmap",
   regionsServed: ["HK", "SG", "VN", "AU"],
   authorityRank: 1,
@@ -67,6 +67,7 @@ const TECHMAP_POLICY: PostingProviderPolicyV1 = {
   timeoutMs: 10000,
   costModel: { kind: "perThousandPostings", amountUsd: 1 },
   freshnessTtlHours: 24,
+  livenessCheckable: true,
 };
 
 beforeEach(() => {
@@ -257,7 +258,7 @@ describe("canonicalizeTechmapDate (#133 item 3)", () => {
 
     const [posting] = dedupePostings([dashRecord, isoRecord], [
       {
-        schemaVersion: "2",
+        schemaVersion: "3",
         providerId: "techmap",
         regionsServed: ["HK"],
         authorityRank: 1,
@@ -270,6 +271,7 @@ describe("canonicalizeTechmapDate (#133 item 3)", () => {
         timeoutMs: 5000,
         costModel: { kind: "perThousandPostings", amountUsd: 1 },
         freshnessTtlHours: 24,
+        livenessCheckable: true,
       },
     ]);
     // Correct: 2 Sept is chronologically earlier than 16 Sept. A lexicographic compare of the RAW

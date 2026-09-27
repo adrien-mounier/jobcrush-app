@@ -81,16 +81,17 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     const retrievePostings = vi.fn(async () => {
       const now = new Date().toISOString();
       return {
-        schemaVersion: "4" as const,
+        schemaVersion: "5" as const,
         outcome: "relevant_postings" as const,
         postings: [{
-          schemaVersion: "4" as const,
+          schemaVersion: "5" as const,
           id: `posting:${canonicalKey}`,
           canonicalKey,
           title: fixturePosting.title,
           company: fixturePosting.company,
           location: fixturePosting.location,
           sourceUrl: "https://example.com/current-live-posting",
+          applicationUrl: null,
           excerpt: "We are hiring a project manager to lead delivery with our technology team in Hong Kong.",
           postedAt: "2026-08-11T00:00:00.000Z",
           capturedAt: now,
@@ -150,16 +151,17 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     const retrievePostings = vi.fn(async () => {
       const now = new Date().toISOString();
       return {
-        schemaVersion: "4" as const,
+        schemaVersion: "5" as const,
         outcome: "relevant_postings" as const,
         postings: [{
-          schemaVersion: "4" as const,
+          schemaVersion: "5" as const,
           id: `posting:${canonicalKey}`,
           canonicalKey,
           title: fixturePosting.title,
           company: fixturePosting.company,
           location: fixturePosting.location,
           sourceUrl: "https://example.com/word-search-posting",
+          applicationUrl: null,
           excerpt: "We are hiring a project manager to lead delivery in Hong Kong.",
           postedAt: "2026-08-11T00:00:00.000Z",
           capturedAt: now,
@@ -222,7 +224,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
 
   it("uses only session/server state, persists the result, and ignores client override fields", async () => {
     const retrievePostings = vi.fn(async () => ({
-      schemaVersion: "4" as const,
+      schemaVersion: "5" as const,
       outcome: "provider_unavailable" as const,
       coverage: { providersQueried: [], providersUnavailable: ["techmap"], complete: false },
       reason: "test outage",
@@ -300,7 +302,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     const response = await app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
     expect(response.statusCode).toBe(200);
     expect(response.json().retrieval).toMatchObject({
-      schemaVersion: "4",
+      schemaVersion: "5",
       outcome: "provider_unavailable",
       retryable: true,
     });
@@ -329,7 +331,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     vi.setSystemTime(new Date("2026-08-11T12:00:00.000Z"));
     const fixturePosting = loadPostings().find((posting) => posting.language === "en")!;
     const providerPolicy: PostingProviderPolicyV1 = {
-      schemaVersion: "2",
+      schemaVersion: "3",
       providerId: "techmap",
       regionsServed: ["HK"],
       authorityRank: 1,
@@ -342,6 +344,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       timeoutMs: 1000,
       costModel: { kind: "operatorHours" },
       freshnessTtlHours: 24,
+      livenessCheckable: true,
     };
     const provider = new TechmapPostingProvider({
       apiKey: "test-key",
@@ -531,7 +534,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
 
   it("reuses an unchanged fresh snapshot without another provider call", async () => {
     const retrievePostings = vi.fn(async () => ({
-      schemaVersion: "4" as const,
+      schemaVersion: "5" as const,
       outcome: "empty_pool" as const,
       coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
       retrievedAt: new Date().toISOString(),
@@ -558,7 +561,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
   // regresses, which is exactly what this test exists to catch.
   it("#174: a snapshot naming a provider the registry no longer recognises is never reused — the next request re-spends", async () => {
     const retrievePostings = vi.fn(async () => ({
-      schemaVersion: "4" as const,
+      schemaVersion: "5" as const,
       outcome: "empty_pool" as const,
       coverage: { providersQueried: ["retired-provider"], providersUnavailable: [], complete: true },
       retrievedAt: new Date().toISOString(),
@@ -576,7 +579,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
 
   it("briefly reuses an unavailable snapshot instead of spending again on every reload", async () => {
     const retrievePostings = vi.fn(async () => ({
-      schemaVersion: "4" as const,
+      schemaVersion: "5" as const,
       outcome: "provider_unavailable" as const,
       coverage: { providersQueried: [], providersUnavailable: ["techmap"], complete: false },
       reason: "techmap: provider unavailable",
@@ -620,7 +623,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     const retrievePostings = vi.fn(async () => {
       await held;
       return {
-        schemaVersion: "4" as const,
+        schemaVersion: "5" as const,
         outcome: "empty_pool" as const,
         coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
         retrievedAt: new Date().toISOString(),
@@ -651,7 +654,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       if (calls === 1) {
         await held;
         return {
-          schemaVersion: "4" as const,
+          schemaVersion: "5" as const,
           outcome: "provider_unavailable" as const,
           coverage: { providersQueried: [], providersUnavailable: ["old-owner"], complete: false },
           reason: "old owner result",
@@ -659,7 +662,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
         };
       }
       return {
-        schemaVersion: "4" as const,
+        schemaVersion: "5" as const,
         outcome: "empty_pool" as const,
         coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
         retrievedAt: new Date().toISOString(),
@@ -693,7 +696,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     const retrievePostings = vi.fn(async () => {
       await held;
       return {
-        schemaVersion: "4" as const,
+        schemaVersion: "5" as const,
         outcome: "empty_pool" as const,
         coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
         retrievedAt: new Date().toISOString(),
@@ -774,7 +777,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
     });
     await vi.waitFor(async () =>
       expect((await built.sessions.getById(id))?.retrieval?.result).toEqual({
-        schemaVersion: "4",
+        schemaVersion: "5",
         outcome: "invalid_request",
         code,
       }),
@@ -785,7 +788,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
       headers: { cookie },
     });
     expect(completed.json().retrieval).toEqual({
-      schemaVersion: "4",
+      schemaVersion: "5",
       outcome: "invalid_request",
       code,
     });
@@ -821,7 +824,7 @@ describe("#101 GET /onboarding/cards retrieval seam", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json().retrieval).toEqual({
-      schemaVersion: "4",
+      schemaVersion: "5",
       outcome: "invalid_request",
       code: "floor_not_covered",
     });

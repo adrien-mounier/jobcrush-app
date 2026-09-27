@@ -227,7 +227,7 @@ for (const [name, make] of sessionDrivers) {
         requestFingerprint: "intent-v1",
         recordedAt: "2026-08-09T00:00:00.000Z",
         result: {
-          schemaVersion: "4" as const,
+          schemaVersion: "5" as const,
           outcome: "provider_unavailable" as const,
           coverage: {
             providersQueried: [],
@@ -329,7 +329,7 @@ for (const [name, make] of sessionDrivers) {
         {
           requestFingerprint: "old-request",
           recordedAt: "2026-08-09T00:00:00.000Z",
-          result: { schemaVersion: "4", outcome: "invalid_request", code: "search_area_not_covered" },
+          result: { schemaVersion: "5", outcome: "invalid_request", code: "search_area_not_covered" },
         },
       );
       expect(accepted).toBe(false);
@@ -375,7 +375,7 @@ for (const [name, make] of sessionDrivers) {
           {
             requestFingerprint: "before-checkpoint",
             recordedAt: "2026-08-09T00:00:00.000Z",
-            result: { schemaVersion: "4", outcome: "invalid_request", code: "floor_not_covered" },
+            result: { schemaVersion: "5", outcome: "invalid_request", code: "floor_not_covered" },
           },
         ),
       ).toBe(false);
@@ -423,7 +423,7 @@ for (const [name, make] of sessionDrivers) {
       const snapshot = {
         requestFingerprint: "request",
         recordedAt: "2026-08-09T00:01:01.000Z",
-        result: { schemaVersion: "4" as const, outcome: "invalid_request" as const, code: "missing_intent" as const },
+        result: { schemaVersion: "5" as const, outcome: "invalid_request" as const, code: "missing_intent" as const },
       };
       expect(await store.reconcileRetrievalState(s.id, 0, "request", "owner-abandoned", snapshot)).toBe(false);
       expect(await store.reconcileRetrievalState(s.id, 0, "request", "owner-recovery", snapshot)).toBe(true);
@@ -555,16 +555,17 @@ for (const [name, make] of sessionDrivers) {
         requestFingerprint: "pinned-plan",
         recordedAt: "2026-08-16T00:00:00.000Z",
         result: {
-          schemaVersion: "4" as const,
+          schemaVersion: "5" as const,
           outcome: "relevant_postings" as const,
           postings: [{
-            schemaVersion: "4" as const,
+            schemaVersion: "5" as const,
             id: `posting:${deckCanonicalKey}`,
             canonicalKey: deckCanonicalKey,
             title: "Programme Manager",
             company: "Live Co",
             location: "Hong Kong",
             sourceUrl: "https://example.com/pinned-plan",
+            applicationUrl: null,
             excerpt: "An advert already open in her deck.",
             postedAt: "2026-08-15T00:00:00.000Z",
             capturedAt: "2026-08-16T00:00:00.000Z",
@@ -937,13 +938,14 @@ for (const [name, make] of claimDrivers) {
 // #100 — the provider-posting store's re-fetch semantics (§2.6), proven on both drivers.
 function providerRecord(over: Partial<ProviderPostingRecordV1>): ProviderPostingRecordV1 {
   return {
-    schemaVersion: "3",
+    schemaVersion: "4",
     providerId: "techmap",
     providerPostingId: "tm-1",
     title: "Senior Project Manager",
     company: "BNP Paribas",
     location: "Hong Kong",
     sourceUrl: "https://jobdatafeeds.com/jobs/senior-project-manager",
+    applicationUrl: null,
     excerpt: "Lead delivery of a portfolio of technology programs across APAC.",
     postedAt: "2026-07-28T00:00:00Z",
     capturedAt: "2026-07-29T09:00:00Z",
@@ -1017,6 +1019,51 @@ for (const [name, make] of postingDrivers) {
       await store.upsert(providerRecord({ verifiedLiveAt: "2026-08-05T00:00:00Z" }));
       const result = await store.upsert(providerRecord({ verifiedLiveAt: "2026-08-01T00:00:00Z" }));
       expect(new Date(result.verifiedLiveAt).getTime()).toBe(new Date("2026-08-05T00:00:00Z").getTime());
+    });
+
+    // #302 (#294 clause 5) — a record from a source that fetches nothing carries NO liveness
+    // confirmation, and the column holds that fact rather than a date-shaped stand-in. Proven on
+    // both drivers because the Postgres one needs the column to be nullable at all, and the read
+    // path needs to hand back null rather than the string "null".
+    it("#302: a never-confirmed-live record round-trips with a null verifiedLiveAt", async () => {
+      const pasted = providerRecord({
+        providerId: "pasted-by-you",
+        providerPostingId: "paste-1",
+        verifiedLiveAt: null,
+        applicationUrl: "https://careers.example/apply/1",
+      });
+      const upserted = await store.upsert(pasted);
+      expect(upserted.verifiedLiveAt).toBeNull();
+      const stored = await store.get("pasted-by-you", "paste-1");
+      expect(stored!.verifiedLiveAt).toBeNull();
+      expect(stored!.applicationUrl).toBe("https://careers.example/apply/1");
+      // A second paste of the same advert still has nothing to confirm — the merge does not
+      // invent one, and it does not fall over on the null either.
+      const again = await store.upsert(providerRecord({
+        providerId: "pasted-by-you",
+        providerPostingId: "paste-1",
+        verifiedLiveAt: null,
+        applicationUrl: "https://careers.example/apply/1",
+      }));
+      expect(again.verifiedLiveAt).toBeNull();
+    });
+
+    // #302: one real confirmation outranks any number of absences, in BOTH directions of arrival.
+    // `date >= NULL` is NULL in SQL, so the naive CASE would have let the absence win.
+    it("#302: an absent confirmation never erases a real one, whichever arrives second", async () => {
+      await store.upsert(providerRecord({ verifiedLiveAt: "2026-08-05T00:00:00Z" }));
+      const afterAbsence = await store.upsert(providerRecord({ verifiedLiveAt: null }));
+      expect(new Date(afterAbsence.verifiedLiveAt!).getTime()).toBe(
+        new Date("2026-08-05T00:00:00Z").getTime(),
+      );
+
+      await store.upsert(providerRecord({ providerPostingId: "tm-2", verifiedLiveAt: null }));
+      const afterDate = await store.upsert(
+        providerRecord({ providerPostingId: "tm-2", verifiedLiveAt: "2026-08-05T00:00:00Z" }),
+      );
+      expect(new Date(afterDate.verifiedLiveAt!).getTime()).toBe(
+        new Date("2026-08-05T00:00:00Z").getTime(),
+      );
     });
 
     it("listByProvider is scoped — does not leak another provider's records", async () => {
@@ -1167,7 +1214,7 @@ it("#101 PgSessionStore recovers an abandoned claim after store reconstruction",
   const snapshot = {
     requestFingerprint: "request",
     recordedAt: "2026-08-09T00:01:01.000Z",
-    result: { schemaVersion: "4" as const, outcome: "invalid_request" as const, code: "missing_intent" as const },
+    result: { schemaVersion: "5" as const, outcome: "invalid_request" as const, code: "missing_intent" as const },
   };
   expect(
     await abandonedStore.reconcileRetrievalState(session.id, 0, "request", "abandoned-owner", snapshot),

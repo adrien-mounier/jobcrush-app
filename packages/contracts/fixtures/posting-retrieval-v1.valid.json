@@ -1,15 +1,16 @@
 {
-  "schemaVersion": "4",
+  "schemaVersion": "5",
   "outcome": "relevant_postings",
   "postings": [
     {
-      "schemaVersion": "4",
+      "schemaVersion": "5",
       "id": "posting:550d0cbf089e53a46249f4b7a22c9b363168e6189214b4fd5c4edb73523704f3",
       "canonicalKey": "550d0cbf089e53a46249f4b7a22c9b363168e6189214b4fd5c4edb73523704f3",
       "title": "Senior Project Manager",
       "company": "BNP Paribas",
       "location": "Hong Kong",
       "sourceUrl": "https://jobdatafeeds.com/jobs/senior-project-manager-bnp-paribas",
+      "applicationUrl": null,
       "excerpt": "Lead delivery of a portfolio of technology programs across APAC.",
       "postedAt": "2026-07-28T00:00:00Z",
       "capturedAt": "2026-07-29T09:00:00Z",
@@ -21,6 +22,27 @@
         { "providerId": "techmap", "providerPostingId": "tm-778812" }
       ],
       "skills": ["Agile delivery", "Stakeholder management"],
+      "language": "en"
+    },
+    {
+      "schemaVersion": "5",
+      "id": "posting:665071c9eef8098cd82abcb18c5eba7f5ddfd7768636babab50558231bdd39a4",
+      "canonicalKey": "665071c9eef8098cd82abcb18c5eba7f5ddfd7768636babab50558231bdd39a4",
+      "title": "IT Project Manager",
+      "company": "Cathay Pacific",
+      "location": "Hong Kong",
+      "sourceUrl": "pasted:665071c9eef8098cd82abcb18c5eba7f5ddfd7768636babab50558231bdd39a4",
+      "applicationUrl": "https://careers.cathaypacific.com/job/it-project-manager",
+      "excerpt": "Run the delivery of airport systems change across the group.",
+      "postedAt": null,
+      "capturedAt": "2026-09-20T11:30:00Z",
+      "verifiedLiveAt": null,
+      "expiresAt": null,
+      "attribution": [],
+      "sources": [
+        { "providerId": "pasted-by-you", "providerPostingId": "665071c9eef8098cd82abcb18c5eba7f5ddfd7768636babab50558231bdd39a4" }
+      ],
+      "skills": ["Delivery management"],
       "language": "en"
     }
   ],

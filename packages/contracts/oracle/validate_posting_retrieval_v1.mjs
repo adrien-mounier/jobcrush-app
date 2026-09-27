@@ -103,6 +103,7 @@ export function validateProviderPostingRecordV1(value) {
       "company",
       "location",
       "sourceUrl",
+      "applicationUrl",
       "excerpt",
       "postedAt",
       "capturedAt",
@@ -114,17 +115,30 @@ export function validateProviderPostingRecordV1(value) {
     ],
     "record",
   );
-  e.require(value.schemaVersion === "3", 'schemaVersion must be "3"');
+  // #302 bumped 3->4: `verifiedLiveAt` became nullable and `applicationUrl` was added.
+  e.require(value.schemaVersion === "4", 'schemaVersion must be "4"');
   e.require(isNonEmptyString(value.providerId), "providerId must be a non-empty string");
   e.require(isNonEmptyString(value.providerPostingId), "providerPostingId must be a non-empty string");
   e.require(isNonEmptyString(value.title), "title must be a non-empty string");
   e.require(isNonEmptyString(value.company), "company must be a non-empty string");
   e.require(isNonEmptyString(value.location), "location must be a non-empty string");
   e.require(isNonEmptyString(value.sourceUrl), "sourceUrl must be a non-empty string");
+  // #302 (#291, #293): where to APPLY, when this source knows it — null when it does not. Never
+  // absent: the key is required, the value may be null, same as postedAt/expiresAt.
+  e.require(
+    isNonEmptyStringOrNull(value.applicationUrl),
+    "applicationUrl must be a non-empty string or null",
+  );
   e.require(isString(value.excerpt), "excerpt must be a string");
   e.require(isNonEmptyStringOrNull(value.postedAt), "postedAt must be a non-empty string or null");
   e.require(isNonEmptyString(value.capturedAt), "capturedAt must be a non-empty string");
-  e.require(isNonEmptyString(value.verifiedLiveAt), "verifiedLiveAt must be a non-empty string");
+  // #302 (#294 clause 5): null when nobody ever confirmed this record live and nobody ever will —
+  // a source that fetches nothing has no liveness signal, and a fetch is what stamps this field.
+  // An EMPTY STRING is still rejected: absence is null, never a blank date.
+  e.require(
+    isNonEmptyStringOrNull(value.verifiedLiveAt),
+    "verifiedLiveAt must be a non-empty string or null",
+  );
   e.require(isNonEmptyStringOrNull(value.expiresAt), "expiresAt must be a non-empty string or null");
   validateAttribution(e, value.attribution, "attribution");
   e.require(isStringArray(value.skills), "skills must be a string[]");
@@ -146,6 +160,7 @@ export function validatePostingV1(value) {
       "company",
       "location",
       "sourceUrl",
+      "applicationUrl",
       "excerpt",
       "postedAt",
       "capturedAt",
@@ -158,7 +173,8 @@ export function validatePostingV1(value) {
     ],
     "posting",
   );
-  e.require(value.schemaVersion === "4", 'schemaVersion must be "4"');
+  // #302 bumped 4->5 in step with the provider record's own 3->4 — same two changes.
+  e.require(value.schemaVersion === "5", 'schemaVersion must be "5"');
   e.require(isNonEmptyString(value.id), "id must be a non-empty string");
   e.require(isNonEmptyString(value.canonicalKey), "canonicalKey must be a non-empty string");
   if (isNonEmptyString(value.id) && isNonEmptyString(value.canonicalKey)) {
@@ -185,10 +201,21 @@ export function validatePostingV1(value) {
     );
   }
   e.require(isNonEmptyString(value.sourceUrl), "sourceUrl must be a non-empty string");
+  // #302: the highest-authority contributing record that HAS an application link, or null when no
+  // contributing record had one — NOT plain winner-take-all, which would discard a pasted advert's
+  // link the moment it merged onto a fetched record that has none.
+  e.require(
+    isNonEmptyStringOrNull(value.applicationUrl),
+    "applicationUrl must be a non-empty string or null",
+  );
   e.require(isString(value.excerpt), "excerpt must be a string");
   e.require(isNonEmptyStringOrNull(value.postedAt), "postedAt must be a non-empty string or null");
   e.require(isNonEmptyString(value.capturedAt), "capturedAt must be a non-empty string");
-  e.require(isNonEmptyString(value.verifiedLiveAt), "verifiedLiveAt must be a non-empty string");
+  // #302: null only when NO contributing record was ever confirmed live.
+  e.require(
+    isNonEmptyStringOrNull(value.verifiedLiveAt),
+    "verifiedLiveAt must be a non-empty string or null",
+  );
   e.require(isNonEmptyStringOrNull(value.expiresAt), "expiresAt must be a non-empty string or null");
   validateAttributionArray(e, value.attribution, "attribution");
   validateSources(e, value.sources, "sources");
@@ -255,10 +282,12 @@ export function validatePostingProviderPolicyV1(value) {
       "timeoutMs",
       "costModel",
       "freshnessTtlHours",
+      "livenessCheckable",
     ],
     "policy",
   );
-  e.require(value.schemaVersion === "2", 'schemaVersion must be "2"');
+  // #302 bumped 2->3: added `livenessCheckable`.
+  e.require(value.schemaVersion === "3", 'schemaVersion must be "3"');
   e.require(isNonEmptyString(value.providerId), "providerId must be a non-empty string");
   e.require(
     isArray(value.regionsServed) &&
@@ -283,6 +312,10 @@ export function validatePostingProviderPolicyV1(value) {
   );
   validateCostModel(e, value.costModel, "costModel");
   e.require(isNumber(value.freshnessTtlHours), "freshnessTtlHours must be a number");
+  // #302 (#294 clause 6): can a posting from this source ever be re-confirmed live? Required, with
+  // no default — unlike permitsStorage/permitsMatching above, silence here is an operator error,
+  // not a fail-closed permission question.
+  e.require(isBool(value.livenessCheckable), "livenessCheckable must be a boolean");
   return result(e);
 }
 
@@ -306,7 +339,8 @@ function validateCoverage(e, value, at) {
 export function validatePostingRetrievalResultV1(value) {
   const e = new Errors();
   if (!e.require(isObject(value), "retrieval result must be an object")) return result(e);
-  e.require(value.schemaVersion === "4", 'schemaVersion must be "4"');
+  // #302 bumped 4->5 in step with PostingV1's own 4->5, the same rule #133 followed.
+  e.require(value.schemaVersion === "5", 'schemaVersion must be "5"');
   e.require(oneOf(value.outcome, OUTCOMES), "outcome is invalid");
 
   if (value.outcome === "relevant_postings") {

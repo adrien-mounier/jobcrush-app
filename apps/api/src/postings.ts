@@ -127,13 +127,24 @@ export function earliest(a: string, b: string): string {
   // ISO 8601 UTC timestamps sort lexicographically the same as chronologically.
   return a <= b ? a : b;
 }
-export function latest(a: string, b: string): string {
+// #302: no longer exported — latestNonNull below is what postingStore.ts's §2.6 merge needs now
+// that a record may carry no liveness confirmation at all, and it is built on this one comparison.
+function latest(a: string, b: string): string {
   return a >= b ? a : b;
 }
 function earliestNonNull(a: string | null, b: string | null): string | null {
   if (a === null) return b;
   if (b === null) return a;
   return earliest(a, b);
+}
+/** #302: the verifiedLiveAt merge, now that a record may never have been confirmed live at all.
+ *  Exported for postingStore.ts's own §2.6 merge, the same reason `earliest` is — one implementation
+ *  of "latest wins", never a second copy that could drift. One real confirmation outranks any
+ *  number of absences: null out only when NOTHING contributing was ever confirmed. */
+export function latestNonNull(a: string | null, b: string | null): string | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return latest(a, b);
 }
 
 function attributionKey(attribution: { label: string; url: string }): string {
@@ -180,7 +191,7 @@ export function dedupePostings(
     // Ranks are compared directly (never subtracted) — two unregistered providers both carry
     // +Infinity, and Infinity - Infinity is NaN, which would silently fall through every comparator
     // branch below and leave the sort order (and the winner) an accident of input order.
-    const winner = [...contributing].sort((a, b) => {
+    const byAuthority = [...contributing].sort((a, b) => {
       const rankA = effectiveRank(a.providerId);
       const rankB = effectiveRank(b.providerId);
       if (rankA !== rankB) return rankA < rankB ? -1 : 1;
@@ -189,7 +200,8 @@ export function dedupePostings(
         return a.providerPostingId < b.providerPostingId ? -1 : 1;
       }
       return 0;
-    })[0]!;
+    });
+    const winner = byAuthority[0]!;
 
     const sources = contributing.map((record) => ({
       providerId: record.providerId,
@@ -203,17 +215,29 @@ export function dedupePostings(
     }
 
     const posting: PostingV1Value = {
-      schemaVersion: "4", // #133 bumped 3->4: removed `applicantLocationRequirements`
+      schemaVersion: "5", // #133 bumped 3->4; #302 bumped 4->5 (nullable verifiedLiveAt + applicationUrl)
       id: `posting:${canonicalKey}`,
       canonicalKey,
       title: winner.title,
       company: winner.company,
       location: winner.location,
       sourceUrl: winner.sourceUrl,
+      // #302: the winner's link when it has one, otherwise the highest-authority contributor that
+      // does. NOT plain winner-take-all, and not a union either: two sources disagreeing about
+      // where to apply is still not two places to apply, but a winner with NO link must not
+      // discard the only answer anyone had. That case is real and load-bearing — a pasted advert
+      // (authorityRank 2, carrying the link the person typed) dedupes onto a techmap record
+      // (authorityRank 1, whose applicationUrl is always null), and plain winner-take-all would
+      // throw his link away. `expiresAt` below already refuses to let a null win, for the same
+      // reason.
+      applicationUrl: byAuthority.find((r) => r.applicationUrl !== null)?.applicationUrl ?? null,
       excerpt: winner.excerpt,
       postedAt: winner.postedAt,
       capturedAt: contributing.reduce((acc, r) => earliest(acc, r.capturedAt), winner.capturedAt),
-      verifiedLiveAt: contributing.reduce((acc, r) => latest(acc, r.verifiedLiveAt), winner.verifiedLiveAt),
+      verifiedLiveAt: contributing.reduce<string | null>(
+        (acc, r) => latestNonNull(acc, r.verifiedLiveAt),
+        winner.verifiedLiveAt,
+      ),
       expiresAt: contributing.reduce<string | null>(
         (acc, r) => earliestNonNull(acc, r.expiresAt),
         null,

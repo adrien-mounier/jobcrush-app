@@ -491,13 +491,14 @@ const qaPostingsV1 = () => {
   return loadPostings().map((posting) => {
     const canonicalKey = canonicalKeyOf(posting.company, posting.location, posting.title);
     return {
-      schemaVersion: "4" as const,
+      schemaVersion: "5" as const,
       id: `posting:${canonicalKey}`,
       canonicalKey,
       title: posting.title,
       company: posting.company,
       location: posting.location,
       sourceUrl: `https://qa.invalid/${encodeURIComponent(posting.id)}`,
+      applicationUrl: null, // #302: the fixture pool carries no separate apply link
       excerpt: posting.excerpt,
       postedAt: null,
       capturedAt: now,
@@ -526,7 +527,7 @@ const qaRetrievePostings = async (): Promise<PostingRetrievalResultV1> => {
   const retrievedAt = new Date().toISOString();
   if (qaRetrievalOutcome === "provider_unavailable") {
     return {
-      schemaVersion: "4",
+      schemaVersion: "5",
       outcome: "provider_unavailable",
       coverage: { providersQueried: [], providersUnavailable: ["techmap"], complete: false },
       reason: "qa-main: provider forced unavailable via POST /qa/stack",
@@ -535,7 +536,7 @@ const qaRetrievePostings = async (): Promise<PostingRetrievalResultV1> => {
   }
   if (qaRetrievalOutcome === "empty_pool") {
     return {
-      schemaVersion: "4",
+      schemaVersion: "5",
       outcome: "empty_pool",
       // complete: the one source we have WAS asked and answered with nothing — which is exactly the
       // state whose wording #174 warned about, and the state a journey needs to be able to look at.
@@ -544,7 +545,7 @@ const qaRetrievePostings = async (): Promise<PostingRetrievalResultV1> => {
     };
   }
   return {
-    schemaVersion: "4",
+    schemaVersion: "5",
     outcome: "relevant_postings",
     postings: qaPostingsV1(),
     coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },

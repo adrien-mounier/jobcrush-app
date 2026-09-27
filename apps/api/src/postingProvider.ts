@@ -401,13 +401,18 @@ export function normalizeTechmapItem(
   const language = detectLanguage(excerpt);
 
   return ProviderPostingRecordV1.parse({
-    schemaVersion: "3",
+    schemaVersion: "4", // #302 bumped 3->4: nullable verifiedLiveAt + applicationUrl
     providerId: "techmap",
     providerPostingId,
     title,
     company,
     location,
     sourceUrl,
+    // #302: null, deliberately. A JobPosting's jsonLD carries the LISTING's url (already captured
+    // as sourceUrl above) and no separate apply link, so there is nothing honest to put here —
+    // lending sourceUrl to a field that means "where to apply" would be a falsehood in the data.
+    // A consumer that needs somewhere to send a person falls back to sourceUrl itself.
+    applicationUrl: null,
     excerpt,
     postedAt: canonicalizeTechmapDate(jsonLD.datePosted),
     capturedAt: fetchedAt,

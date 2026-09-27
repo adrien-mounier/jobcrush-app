@@ -107,7 +107,7 @@ export function retrievalRequestForSession(
 }
 
 export const unavailablePostingRetrieval = async (): Promise<PostingRetrievalResultV1> => ({
-  schemaVersion: "4",
+  schemaVersion: "5",
   outcome: "provider_unavailable",
   coverage: { providersQueried: [], providersUnavailable: ["unconfigured"], complete: false },
   reason: "posting retrieval is not configured",
@@ -347,6 +347,12 @@ export function providersFor(
 ): PostingProviderPolicyV1[] {
   const wanted = new Set(regions);
   return registry
+    // #302 (#294 clause 6): a source that can never be liveness-checked is a source nothing ever
+    // fetches from — a fetch is what stamps verifiedLiveAt. "Pasted by you" is registered (the
+    // snapshot gate above requires every source.providerId to be in the ACTIVE registry) but is
+    // never queried: asking it would report driver_missing on every retrieval and permanently
+    // block coverage.complete, which is #174's own bug arriving through a new door.
+    .filter((policy) => policy.livenessCheckable)
     .filter((policy) => policy.regionsServed.includes("*") || policy.regionsServed.some((r) => wanted.has(r)))
     .sort((a, b) => a.authorityRank - b.authorityRank || a.providerId.localeCompare(b.providerId));
 }
@@ -443,6 +449,12 @@ function suppressed(record: ProviderPostingRecordV1, negatives: string[]): boole
 }
 
 function isFresh(record: ProviderPostingRecordV1, policy: PostingProviderPolicyV1, nowMs: number): boolean {
+  // #302: no liveness confirmation, ever, means this gate has nothing to measure. It answers "not
+  // fresh" rather than guessing, and the source is kept OUT of this gate's way instead — #305
+  // exempts a never-liveness-checkable source from the ingest filter entirely, which is the only
+  // correct answer for a posting nobody can re-check (this gate is all-or-nothing: one stale
+  // record discards the whole snapshot).
+  if (record.verifiedLiveAt === null) return false;
   const verifiedMs = Date.parse(record.verifiedLiveAt);
   const ttlMs = Math.min(24, policy.freshnessTtlHours) * 60 * 60 * 1000;
   if (!Number.isFinite(verifiedMs) || verifiedMs > nowMs || nowMs - verifiedMs > ttlMs) return false;
@@ -452,7 +464,7 @@ function isFresh(record: ProviderPostingRecordV1, policy: PostingProviderPolicyV
 }
 
 function invalid(code: "missing_intent" | "family_not_published" | "floor_not_covered" | "search_area_not_covered") {
-  return { schemaVersion: "4" as const, outcome: "invalid_request" as const, code };
+  return { schemaVersion: "5" as const, outcome: "invalid_request" as const, code };
 }
 
 /** #248 - "has she earned her reveal?", extracted from the fetch so the two questions stop being
@@ -534,6 +546,9 @@ export function isReusableRetrievalSnapshot(
       registry.find((policy) => policy.providerId === source.providerId),
     );
     if (sourcePolicies.some((policy) => !policy)) return false;
+    // #302: same as isFresh above — nothing to measure, so not reusable, until #305 exempts a
+    // never-liveness-checkable source from this gate too.
+    if (posting.verifiedLiveAt === null) return false;
     const verifiedMs = Date.parse(posting.verifiedLiveAt);
     const ttlHours = Math.min(24, ...sourcePolicies.map((policy) => policy!.freshnessTtlHours));
     return Number.isFinite(verifiedMs) && verifiedMs <= nowMs && nowMs - verifiedMs <= ttlHours * 60 * 60 * 1000;
@@ -616,6 +631,19 @@ const IMPLEMENTED_PROVIDER_IDS: ReadonlySet<string> = new Set([
   TechmapPostingProvider.providerId,
 ]);
 
+/** #302 (#294 clause 6) — the advert the person pasted. Not a provider: nothing fetches it, so it
+ *  has no driver class to declare it, which is why this constant exists at all. It is the id the
+ *  paste path writes onto its records, so the registry row and the writer can never drift apart on
+ *  a typo. */
+export const PASTED_SOURCE_PROVIDER_ID = "pasted-by-you";
+
+/** #302: active registry rows the code knows about that fetch nothing. This is NOT the mirror the
+ *  comment above warns against — a driver mirror is dangerous because an entry with no driver
+ *  passes silently, whereas here the entry IS the declaration that no driver is wanted, and the
+ *  same constant is what the paste path writes. The boot check below stays fail-fast either way:
+ *  an active row that is in neither set still throws. */
+const NON_FETCHING_PROVIDER_IDS: ReadonlySet<string> = new Set([PASTED_SOURCE_PROVIDER_ID]);
+
 /**
  * #174 must-fix 1 (round 2): "does an IMPLEMENTATION exist for this active provider id" — deliberately
  * NOT "was a live instance constructed in this process". Those are different questions with different
@@ -636,7 +664,15 @@ const IMPLEMENTED_PROVIDER_IDS: ReadonlySet<string> = new Set([
  *     alone, never a constructed `providers` array, so a missing API key structurally cannot affect it.
  */
 export function assertEveryActiveProviderIsImplemented(registry: PostingProviderPolicyV1[]): void {
-  const unimplemented = registry.find((policy) => !IMPLEMENTED_PROVIDER_IDS.has(policy.providerId));
+  // #302: a source that fetches nothing has no driver to look for, by design — but it must still
+  // be one this code KNOWS fetches nothing. `livenessCheckable: false` alone is not a pass:
+  // a mistyped id would then boot silently and only surface much later as pasted jobs that never
+  // reuse their snapshot. Fail closed — an active row in neither set throws, as it always did.
+  const unimplemented = registry.find(
+    (policy) =>
+      !IMPLEMENTED_PROVIDER_IDS.has(policy.providerId) &&
+      !(!policy.livenessCheckable && NON_FETCHING_PROVIDER_IDS.has(policy.providerId)),
+  );
   if (unimplemented) {
     throw new Error(
       `posting-providers.json: "${unimplemented.providerId}" is active but no driver implementation ` +
@@ -803,25 +839,36 @@ export function makePostingRetriever(
 
     const postings = dedupe(fresh, registry);
     if (postings.length > 0) {
-      return { schemaVersion: "4", outcome: "relevant_postings", postings, coverage, retrievedAt: fetchedAtIso };
+      return { schemaVersion: "5", outcome: "relevant_postings", postings, coverage, retrievedAt: fetchedAtIso };
     }
     if (!coverage.complete) {
       return {
-        schemaVersion: "4",
+        schemaVersion: "5",
         outcome: "provider_unavailable",
         coverage,
         reason: failures.map((entry) => `${entry.policy.providerId}: provider unavailable`).join("; "),
         retryable: failures.some((entry) => entry.retryable),
       };
     }
-    if (stale.length > 0) {
+    // #302: `.at(-1)!` used to be safe because verifiedLiveAt could not be null. It can now, and
+    // the non-null assertion strips null as readily as undefined — so the nulls are filtered out
+    // explicitly rather than trusted to a `!`. A record with no liveness date at all is not
+    // "stale data": there is no last-known-fresh instant to report. Unreachable while every
+    // QUERIED source is liveness-checkable (providersFor guarantees it), which is why the branch
+    // falls through rather than inventing an answer; #305 decides what a pasted advert does here.
+    const lastKnownFreshAt = stale
+      .map((record) => record.verifiedLiveAt)
+      .filter((at): at is string => at !== null)
+      .sort()
+      .at(-1);
+    if (lastKnownFreshAt) {
       return {
-        schemaVersion: "4",
+        schemaVersion: "5",
         outcome: "stale_data",
-        lastKnownFreshAt: stale.map((record) => record.verifiedLiveAt).sort().at(-1)!,
+        lastKnownFreshAt,
         retrievedAt: fetchedAtIso,
       };
     }
-    return { schemaVersion: "4", outcome: "empty_pool", coverage, retrievedAt: fetchedAtIso };
+    return { schemaVersion: "5", outcome: "empty_pool", coverage, retrievedAt: fetchedAtIso };
   };
 }

@@ -19,7 +19,7 @@
 // is exactly this ticket's own AC ("re-fetching the same posting does not duplicate it").
 import type { Pool } from "pg";
 import { ProviderPostingRecordV1, type ProviderPostingRecordV1 as ProviderPostingRecordV1Value } from "@jobcrush/contracts";
-import { earliest, latest } from "./postings.js";
+import { earliest, latestNonNull } from "./postings.js";
 import { languageEligible, SERVED_LANGUAGES } from "./language.js";
 import { incrementCounter } from "./counters.js";
 import { getPool, iso } from "./db.js";
@@ -74,7 +74,9 @@ export class InMemoryPostingStore implements PostingStore {
       ? {
           ...record,
           capturedAt: earliest(existing.capturedAt, record.capturedAt),
-          verifiedLiveAt: latest(existing.verifiedLiveAt, record.verifiedLiveAt),
+          // #302: a record from a source that fetches nothing has no liveness confirmation to
+          // advance — and one real confirmation still outranks a later absence.
+          verifiedLiveAt: latestNonNull(existing.verifiedLiveAt, record.verifiedLiveAt),
         }
       : record;
     this.byKey.set(key, structuredClone(merged));
@@ -136,9 +138,19 @@ CREATE TABLE IF NOT EXISTS provider_postings (
   provider_posting_id text NOT NULL,
   record               jsonb NOT NULL,
   captured_at          timestamptz NOT NULL,
-  verified_live_at     timestamptz NOT NULL,
+  -- #302: NULLABLE. A record from a source that fetches nothing was never confirmed live and never
+  -- will be; NULL is that fact, not a missing value. The ALTER below relaxes an already-deployed
+  -- table, which CREATE TABLE IF NOT EXISTS alone would leave at NOT NULL.
+  verified_live_at     timestamptz,
   PRIMARY KEY (provider_id, provider_posting_id)
 )`;
+
+// #302: idempotent, and a no-op on a table created by the DDL above — same in-place ALTER pattern
+// claims.ts/guestbook.ts already use for an evolving column. This is a schema relaxation, NOT a
+// data migration (#294 clause 5): no stored row is rewritten, and a row the current contract
+// rejects still reads as absent by design.
+const PROVIDER_POSTINGS_LIVENESS_NULLABLE =
+  `ALTER TABLE provider_postings ALTER COLUMN verified_live_at DROP NOT NULL`;
 
 const PROVIDER_MONTHLY_CALLS_TABLE = `
 CREATE TABLE IF NOT EXISTS provider_monthly_calls (
@@ -169,7 +181,13 @@ function parseJsonbColumn<T>(value: unknown): T {
  *  see rowToValidatedRecord below for why validation is a READ-time concern only. */
 function mergedRow(row: { record: unknown; captured_at: unknown; verified_live_at: unknown }): Record<string, unknown> {
   const stored = parseJsonbColumn<Record<string, unknown>>(row.record);
-  return { ...stored, capturedAt: iso(row.captured_at), verifiedLiveAt: iso(row.verified_live_at) };
+  // #302: a NULL liveness column stays null — iso() would stringify it to "null", a date-shaped
+  // lie the contract would then happily accept as a non-empty string.
+  return {
+    ...stored,
+    capturedAt: iso(row.captured_at),
+    verifiedLiveAt: row.verified_live_at === null ? null : iso(row.verified_live_at),
+  };
 }
 
 /** Row -> ProviderPostingRecordV1, validated. Used by get()/listByProvider() — a row the CURRENT
@@ -189,6 +207,7 @@ export class PgPostingStore implements PostingStore {
 
   async init(): Promise<void> {
     await this.pool.query(PROVIDER_POSTINGS_TABLE);
+    await this.pool.query(PROVIDER_POSTINGS_LIVENESS_NULLABLE);
     await this.pool.query(PROVIDER_MONTHLY_CALLS_TABLE);
     await this.pool.query(PROVIDER_REGION_REFRESHES_TABLE);
   }
@@ -218,7 +237,15 @@ export class PgPostingStore implements PostingStore {
          record = EXCLUDED.record,
          captured_at = CASE WHEN provider_postings.captured_at <= EXCLUDED.captured_at
                             THEN provider_postings.captured_at ELSE EXCLUDED.captured_at END,
-         verified_live_at = CASE WHEN provider_postings.verified_live_at >= EXCLUDED.verified_live_at
+         verified_live_at = CASE
+                            -- #302: the null arms come FIRST and are not optional. A comparison
+                            -- against NULL yields NULL, not false, so without them the CASE falls
+                            -- to ELSE and an absent confirmation erases a real one - the opposite
+                            -- of what postings.ts latestNonNull does, and a silent divergence
+                            -- between this driver and the in-memory one.
+                            WHEN provider_postings.verified_live_at IS NULL THEN EXCLUDED.verified_live_at
+                            WHEN EXCLUDED.verified_live_at IS NULL THEN provider_postings.verified_live_at
+                            WHEN provider_postings.verified_live_at >= EXCLUDED.verified_live_at
                             THEN provider_postings.verified_live_at ELSE EXCLUDED.verified_live_at END
        RETURNING record, captured_at, verified_live_at`,
       [record.providerId, record.providerPostingId, JSON.stringify(record), record.capturedAt, record.verifiedLiveAt],

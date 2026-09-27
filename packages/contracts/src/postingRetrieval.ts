@@ -41,13 +41,23 @@ const Attribution = z
 
 export const ProviderPostingRecordV1 = z
   .object({
-    schemaVersion: z.literal("3"), // #133 bumped 2->3: removed `applicantLocationRequirements` (breaking, see below)
+    // #302 bumped 3->4: `verifiedLiveAt` became nullable and `applicationUrl` was added (breaking
+    // in the direction that matters — an old-version reader must never be handed a record whose
+    // liveness date is absent, so the previous version is refused outright rather than widened).
+    schemaVersion: z.literal("4"),
     providerId: z.string().min(1), // "techmap" | "curated-pool" | ... — keyed to the §2.2 registry
     providerPostingId: z.string().min(1), // opaque, exactly as given by that provider
     title: z.string().min(1),
     company: z.string().min(1),
     location: z.string().min(1),
     sourceUrl: z.string().min(1), // resolves to the original listing (parent spec story #52)
+    // #302 (#291, #293): where to APPLY, when this source knows it — not the same thing as
+    // `sourceUrl`, which resolves to the listing we read. The application report puts this on its
+    // first line, so a source that cannot supply one says so with null rather than lending the
+    // listing URL to a question it does not answer. Nullable, never absent: same convention as
+    // `expiresAt` ("provider-stated expiry, if any") — the key is always present, the value may be
+    // null, so a missing key stays a contract violation rather than a silent absence.
+    applicationUrl: z.string().min(1).nullable(),
     excerpt: z.string(),
     // postedAt/expiresAt are typed loosely (non-empty string, not an ISO-format regex) ON PURPOSE
     // (#133 item 3 decision): the "must be canonical ISO 8601" invariant is enforced by
@@ -60,7 +70,13 @@ export const ProviderPostingRecordV1 = z
     // that a date is real). Revisit if a second provider ever constructs these fields directly.
     postedAt: z.string().min(1).nullable(), // provider-claimed post date, ISO 8601
     capturedAt: z.string().min(1), // when JobCrush first retrieved this record, ISO 8601
-    verifiedLiveAt: z.string().min(1), // last time liveness was positively re-confirmed, ISO 8601
+    // last time liveness was positively re-confirmed, ISO 8601 — or #302 (#294 clause 5): NULL when
+    // nobody ever confirmed it and nobody ever will. A fetch is what stamps this field, so a source
+    // that fetches nothing (`livenessCheckable: false` in the registry below) has no liveness signal
+    // at all. Null, deliberately, rather than widening the field's documented meaning to "when he
+    // pasted it" — `capturedAt` already means that, and every origin-keyed rule then falls out of
+    // the data instead of a scatter of hand-written exceptions.
+    verifiedLiveAt: z.string().min(1).nullable(),
     // provider-stated expiry, if any. §6: this is where jsonLD's `validThrough` lands — no separate
     // `validThrough` field is added, this IS it, renamed to the domain-neutral term.
     expiresAt: z.string().min(1).nullable(),
@@ -81,18 +97,28 @@ export type ProviderPostingRecordV1 = z.infer<typeof ProviderPostingRecordV1>;
 
 export const PostingV1 = z
   .object({
-    schemaVersion: z.literal("4"), // canonical, provider-independent, what #63 consumes
+    schemaVersion: z.literal("5"), // canonical, provider-independent, what #63 consumes
     // #133 bumped 3->4: removed `applicantLocationRequirements` (breaking, see below)
+    // #302 bumped 4->5 in step with ProviderPostingRecordV1's own 3->4 — same two changes.
     id: z.string().min(1), // "posting:<canonicalKey>" — enforced below, not just typed as a string
     canonicalKey: z.string().min(1), // the dedup key itself (§2.4), kept for audit/debugging
     title: z.string().min(1), // from the highest-authorityRank contributing record (§2.4)
     company: z.string().min(1),
     location: z.string().min(1),
     sourceUrl: z.string().min(1), // the winning record's URL
+    // #302: the highest-authority contributing record that HAS a link — not a union, and not plain
+    // winner-take-all either. Two sources disagreeing about where to apply is still not two places
+    // to apply, but a winner with no link must not discard the only answer anyone had: a pasted
+    // advert loses every field conflict to a real provider and is the one source that carries a
+    // link the person typed. `expiresAt` below refuses to let a null win for the same reason.
+    // postings.ts's dedupePostings is where the rule is implemented.
+    applicationUrl: z.string().min(1).nullable(),
     excerpt: z.string(),
     postedAt: z.string().min(1).nullable(),
     capturedAt: z.string().min(1), // earliest capturedAt across contributing records
-    verifiedLiveAt: z.string().min(1), // most recent verifiedLiveAt across contributing records
+    // most recent verifiedLiveAt across contributing records — #302: null only when NO contributing
+    // record was ever confirmed live. One real confirmation outranks any number of absences.
+    verifiedLiveAt: z.string().min(1).nullable(),
     expiresAt: z.string().min(1).nullable(), // earliest non-null expiresAt (most conservative)
     attribution: z.array(Attribution), // UNION of every contributing provider's requirement
     // every provider record currently merged into this posting
@@ -193,7 +219,11 @@ const RetryPolicy = z
 
 export const PostingProviderPolicyV1 = z
   .object({
-    schemaVersion: z.literal("2"), // #100 bumped 1->2: added `retry`, `timeoutMs`, `rateLimit.perSecond`
+    // #100 bumped 1->2: added `retry`, `timeoutMs`, `rateLimit.perSecond`.
+    // #302 bumped 2->3: added `livenessCheckable` — required, with no default. A registry row that
+    // forgot to say whether its postings can ever be re-checked is an operator error in a file that
+    // gates real money, not a row to guess a default for (§2.2 fails closed by throwing the load).
+    schemaVersion: z.literal("3"),
     providerId: z.string().min(1),
     // ISO 3166-1 alpha-2 codes this provider is authoritative for; "*" for the curated pool
     regionsServed: z.array(z.string().min(1)).min(1),
@@ -212,6 +242,13 @@ export const PostingProviderPolicyV1 = z
     timeoutMs: z.number().finite().positive(),
     costModel: PostingProviderCostModel,
     freshnessTtlHours: z.number().finite(), // this provider's own crawl/liveness guarantee
+    // #302 (#294 clause 6): can a posting from this source ever be re-confirmed live? False for a
+    // source that fetches nothing — "Pasted by you" — and false is the ONE field every origin-keyed
+    // rule reads: such a source is never queried in the retrieval fan-out, needs no driver
+    // implementation, and (#305) is exempt from both freshness gates. "Never re-fetched" and "never
+    // liveness-checkable" are the same fact here, because a fetch is what stamps `verifiedLiveAt` —
+    // so it is carried once, not as two booleans that could disagree.
+    livenessCheckable: z.boolean(),
   })
   .strict();
 
@@ -244,12 +281,13 @@ export const InvalidRequestCode = z.enum([
 // §2.7: coverage makes partial availability honest, never collapsed into a bare "no jobs" state.
 // #133 bumped 3->4 in step with PostingV1's own 3->4 bump (applicantLocationRequirements removed) —
 // nothing external consumes this envelope yet, so this is cheap now (a fixture/test update) and
-// expensive to catch later once something does.
+// expensive to catch later once something does. #302 bumped 4->5 on the same rule, in step with
+// PostingV1's 4->5.
 export const PostingRetrievalResultV1 = z
   .discriminatedUnion("outcome", [
     z
       .object({
-        schemaVersion: z.literal("4"),
+        schemaVersion: z.literal("5"),
         outcome: z.literal("relevant_postings"),
         postings: z.array(PostingV1).min(1),
         coverage: Coverage,
@@ -258,7 +296,7 @@ export const PostingRetrievalResultV1 = z
       .strict(),
     z
       .object({
-        schemaVersion: z.literal("4"),
+        schemaVersion: z.literal("5"),
         outcome: z.literal("empty_pool"),
         coverage: Coverage, // MUST have complete === true (enforced below) — see §2.7 rule 4
         retrievedAt: z.string().min(1),
@@ -266,7 +304,7 @@ export const PostingRetrievalResultV1 = z
       .strict(),
     z
       .object({
-        schemaVersion: z.literal("4"),
+        schemaVersion: z.literal("5"),
         outcome: z.literal("provider_unavailable"),
         coverage: Coverage,
         reason: z.string().min(1),
@@ -275,7 +313,7 @@ export const PostingRetrievalResultV1 = z
       .strict(),
     z
       .object({
-        schemaVersion: z.literal("4"),
+        schemaVersion: z.literal("5"),
         outcome: z.literal("stale_data"),
         lastKnownFreshAt: z.string().min(1),
         retrievedAt: z.string().min(1),
@@ -283,7 +321,7 @@ export const PostingRetrievalResultV1 = z
       .strict(),
     z
       .object({
-        schemaVersion: z.literal("4"),
+        schemaVersion: z.literal("5"),
         outcome: z.literal("invalid_request"),
         code: InvalidRequestCode,
       })

@@ -235,18 +235,19 @@ the deduplicated, provider-independent posting #63 actually consumes. §2.4 defi
 becomes the second.
 
 ```
-ProviderPostingRecordV1 {         // schemaVersion "3" as of #133
-  schemaVersion: "3"
+ProviderPostingRecordV1 {         // schemaVersion "4" as of #302
+  schemaVersion: "4"
   providerId: string             // "techmap" | "curated-pool" | ... — never blank, keyed to §2.2's registry
   providerPostingId: string      // opaque, exactly as given by that provider
   title: string
   company: string
   location: string
   sourceUrl: string               // resolves to the original listing — parent spec story #52 requires this
+  applicationUrl: string | null   // #302: where to APPLY, when this source knows it — not the listing URL
   excerpt: string
   postedAt: string | null         // provider-claimed post date, ISO 8601
   capturedAt: string              // when JobCrush first retrieved this record, ISO 8601
-  verifiedLiveAt: string          // last time liveness was positively re-confirmed, ISO 8601
+  verifiedLiveAt: string | null   // last time liveness was positively re-confirmed — #302: null when nobody ever will
   expiresAt: string | null        // provider-stated expiry, if any
   attribution: { label: string; url: string } | null  // THIS provider's own attribution requirement, if any
   language: string                // BCP-47 primary subtag, DERIVED at ingest from the advert body — never provider-supplied
@@ -256,18 +257,19 @@ ProviderPostingRecordV1 {         // schemaVersion "3" as of #133
 // a work-eligibility signal on the strength of the field's NAME; the live API returns "HKT Timezone".
 // See §6 Finding 2. Do not reinstate it under this name — both validators now reject it as an unknown key.
 
-PostingV1 {                       // schemaVersion "4" as of #133 — canonical, provider-independent, what #63 consumes
-  schemaVersion: "4"
+PostingV1 {                       // schemaVersion "5" as of #302 — canonical, provider-independent, what #63 consumes
+  schemaVersion: "5"
   id: string                       // "posting:<canonicalKey>" — stable regardless of which provider(s) currently see it
   canonicalKey: string              // the dedup key itself (§2.4), kept for audit/debugging
   title: string                     // from the highest-authorityRank contributing record (§2.4)
   company: string
   location: string
   sourceUrl: string                 // the winning record's URL
+  applicationUrl: string | null      // #302: the highest-authority contributing record that HAS one — never a union, and not plain winner-take-all (see the note below)
   excerpt: string
   postedAt: string | null
   capturedAt: string                 // earliest capturedAt across contributing records
-  verifiedLiveAt: string             // most recent verifiedLiveAt across contributing records
+  verifiedLiveAt: string | null      // most recent across contributing records — null only if NONE was ever confirmed
   expiresAt: string | null           // earliest non-null expiresAt across contributing records (most conservative)
   attribution: Array<{ label: string; url: string }>  // UNION of every contributing provider's requirement — all honored, not just the winner's
   sources: Array<{ providerId: string; providerPostingId: string }>  // every provider record currently merged into this posting, min length 1
@@ -275,6 +277,25 @@ PostingV1 {                       // schemaVersion "4" as of #133 — canonical,
   skills: string[]                        // same rule
 }
 // ⚠️ `applicantLocationRequirements` REMOVED here too in #133 — see the note above and §6 Finding 2.
+// ⚠️ #302 (#294 clause 5, #291/#293) made two changes to BOTH shapes above, versioned together in the
+// zod port and the .mjs oracle: `verifiedLiveAt` became nullable, and `applicationUrl` was added.
+// `verifiedLiveAt: null` means never confirmed live and never confirmable — the honest state of a
+// posting from a source that fetches nothing (§2.2's `livenessCheckable: false`). `capturedAt` keeps
+// its documented meaning unchanged: for a pasted advert it is the moment it was pasted. Widening
+// `verifiedLiveAt` to mean "when he pasted it" was rejected — a field must not quietly mean something
+// other than what it says, and with the null every origin-keyed rule falls out of the data instead of
+// a scatter of hand-written exceptions. NO DATA MIGRATION: a row the current contract rejects reads as
+// absent by design (`postingStore.ts`'s get/listByProvider), which is this repo's existing behaviour.
+// `applicationUrl` is where to APPLY, distinct from `sourceUrl` (the listing we read). Techmap sets it
+// null — a JobPosting's jsonLD has no separate apply link, and lending `sourceUrl` to a field meaning
+// "where to apply" would be a falsehood in the data. A consumer with nowhere else to send a person
+// falls back to `sourceUrl` itself. Its MERGE rule is deliberately not the plain winner-take-all
+// that title/company/location/skills/language use: the canonical posting takes the highest-authority
+// contributing record that actually HAS a link. A pasted advert sits at the bottom of the authority
+// order (it should lose a title conflict to a provider's structured record) and is the one source
+// carrying a link the person typed by hand, so winner-take-all would throw that link away the one
+// time it exists — and #293's application report puts it on its first line. Still never a union:
+// two sources disagreeing about where to apply is not two places to apply.
 ```
 
 `skills` and `language` deliberately do NOT follow `attribution`/`sources`'s union rule. A permissive
@@ -307,8 +328,8 @@ Every provider's terms, coverage, and cost are one row in a data table, not an `
 branch anywhere in route code:
 
 ```
-PostingProviderPolicyV1 {
-  schemaVersion: "1"
+PostingProviderPolicyV1 {         // schemaVersion "3" as of #302 (#100 added retry/timeoutMs/rateLimit.perSecond)
+  schemaVersion: "3"
   providerId: string
   regionsServed: string[]          // ISO 3166-1 alpha-2 codes this provider is authoritative for, e.g. ["HK","SG","VN","AU"]; "*" for the curated pool (serves whatever the operator has curated, anywhere)
   authorityRank: number            // lower wins a field-value conflict when two records merge into one canonical posting (§2.4)
@@ -322,8 +343,31 @@ PostingProviderPolicyV1 {
     | { kind: "flatMonthlyTier"; amountUsd: number; includedUnits: number }  // TheirStack's shape
     | { kind: "operatorHours" }                             // the curated pool — no vendor cost, tracked as hours not dollars
   freshnessTtlHours: number         // this provider's own crawl/liveness guarantee
+  livenessCheckable: boolean        // #302: can a posting from this source EVER be re-confirmed live?
 }
 ```
+
+**#302 (#294 clause 6) — "Pasted by you" is a source of its own.** An advert the person pasted is not a
+job any provider served, so it gets its own registry row (`pasted-by-you`) rather than borrowing a real
+provider's id, which would be a falsehood in the data. It has to be **active**, because §2.8's snapshot
+reuse gate separately requires every `source.providerId` to be in the active registry. `livenessCheckable:
+false` is the one field every origin-keyed rule reads off:
+
+- `providersFor` (§2.3) never returns it, so the retrieval fan-out never asks it. Asking a source with no
+  driver would report `driver_missing` on every retrieval and permanently block `coverage.complete` —
+  #174's own bug arriving through a new door.
+- `assertEveryActiveProviderIsImplemented` skips it: a source that fetches nothing has no driver to look
+  for, by design.
+- Both freshness gates (§2.6) exempt it — **#305's work, not #302's.**
+
+"Never re-fetched" and "never liveness-checkable" are the same fact here, because a fetch is what stamps
+`verifiedLiveAt` — so the registry carries it once, not as two booleans that could disagree. Its other
+columns are honest placeholders for a row that never makes a call: `freshnessTtlHours: 0` (it guarantees
+nothing, and fails closed if an exemption is ever missing rather than silently never expiring),
+`timeoutMs: 1` and `retry` at one attempt (both required and positive by the contract, neither ever
+read), `costModel: operatorHours` (human time, no vendor invoice), and `authorityRank: 2` — it loses
+every field conflict to a real provider, because a provider's structured record is more reliable than
+fields parsed out of pasted text. The advert's own text is stored on the job separately (#294 clause 9).
 
 **Enforcement, fail closed:** the registry the live system reads from contains only rows where
 `permitsStorage && permitsMatching && !attributionRequired` all hold. A provider whose terms are
@@ -443,6 +487,12 @@ outcome is `invalid_request` (§2.7) — never a silent empty result.
   searching an overlapping region, rather than one provider call per page load.
 - Every freshness check is logged with a timestamp and providerId for audit (pilot observability
   requirement, parent-spec story #72).
+- **#302: a record with `verifiedLiveAt: null` has nothing for this gate to measure**, so the gate
+  answers "not fresh" rather than guessing. That is the wrong answer for a pasted advert, and the fix is
+  not to teach these two functions about origins — **#305 exempts a `livenessCheckable: false` source
+  from both gates** (the ingest filter and the snapshot-reuse check) so it never reaches them. This is
+  load-bearing, not tidiness: the snapshot gate is all-or-nothing (`.every(...)`, not a filter), so one
+  unmeasurable record would discard the whole deck rather than age its own card.
 
 ### 2.7 Outcomes — coverage makes partial availability honest, never collapsed
 
@@ -582,6 +632,12 @@ later — that's the test for what belongs on this list rather than being built 
   pilot's known cities (§2.3) is enough; a geocoding API integration is unwarranted at this scale.
 
 ### 2.12 Contract versioning
+
+> **Version log since this section was written:** #100 took `PostingProviderPolicyV1` to "2"; #133 took
+> `ProviderPostingRecordV1` to "3" and `PostingV1`/`PostingRetrievalResultV1` to "4"; **#302** takes the
+> record to "4", `PostingV1`/`PostingRetrievalResultV1` to "5", and the policy to "3". Every bump lands
+> in the zod port and the `.mjs` oracle together, with a fixture and a golden negative case proving the
+> previous version no longer validates the new shape.
 
 `PostingV1` and `PostingRetrievalResultV1` bump to **schemaVersion "2"** — this revision is a breaking
 change to both (canonical vs. provider-record split, `sources`/`canonicalKey`/`attribution`-as-array on

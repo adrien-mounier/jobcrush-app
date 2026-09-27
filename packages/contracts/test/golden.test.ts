@@ -730,10 +730,11 @@ describe("Posting retrieval v1 (#99)", () => {
 
   it("keeps oracle and zod aligned for every required structural invariant", () => {
     const mutations: Array<(value: any) => void> = [
-      // top-level schemaVersion is pinned to "4" (#133) on every arm, not any prior version
+      // top-level schemaVersion is pinned to "5" (#302) on every arm, not any prior version
       (value) => (value.schemaVersion = "1"),
       (value) => (value.schemaVersion = "2"),
       (value) => (value.schemaVersion = "3"),
+      (value) => (value.schemaVersion = "4"),
       // unknown/extra keys rejected — same mechanism as the ad-requirements oracle
       (value) => (value.unknownField = true),
       (value) => (value.postings[0].unknownField = true),
@@ -741,10 +742,19 @@ describe("Posting retrieval v1 (#99)", () => {
       (value) => (value.postings[0].applicantLocationRequirements = []),
       // PostingV1.id must equal "posting:" + canonicalKey — enforce the derivation
       (value) => (value.postings[0].id = "posting:not-the-real-key"),
-      // PostingV1 carries schemaVersion "4" (#133), not any prior version
+      // PostingV1 carries schemaVersion "5" (#302), not any prior version
       (value) => (value.postings[0].schemaVersion = "1"),
       (value) => (value.postings[0].schemaVersion = "2"),
       (value) => (value.postings[0].schemaVersion = "3"),
+      (value) => (value.postings[0].schemaVersion = "4"),
+      // #302: applicationUrl is required-but-nullable — a MISSING key is still a violation, and an
+      // empty string is not "no link", it is a malformed one.
+      (value) => delete value.postings[0].applicationUrl,
+      (value) => (value.postings[0].applicationUrl = ""),
+      // #302: absence of a liveness confirmation is null. An empty string is still refused, so a
+      // blank date can never be mistaken for "never confirmed".
+      (value) => (value.postings[0].verifiedLiveAt = ""),
+      (value) => delete value.postings[0].verifiedLiveAt,
       // PostingV1.sources has min length 1
       (value) => (value.postings[0].sources = []),
       // canonicalKey must actually BE sha256(normalize(company)+"|"+normalize(location)+"|"
@@ -806,7 +816,7 @@ describe("Posting retrieval v1 (#99)", () => {
       "floor_not_covered",
       "search_area_not_covered",
     ]) {
-      const invalidRequest = { schemaVersion: "4", outcome: "invalid_request", code };
+      const invalidRequest = { schemaVersion: "5", outcome: "invalid_request", code };
       expect(validatePostingRetrievalResultV1(invalidRequest).ok).toBe(true);
       expect(PostingRetrievalResultV1.safeParse(invalidRequest).success).toBe(true);
     }
@@ -814,7 +824,7 @@ describe("Posting retrieval v1 (#99)", () => {
 
   it("empty_pool with a fully complete coverage sweep validates in both", () => {
     const emptyPool = {
-      schemaVersion: "4",
+      schemaVersion: "5",
       outcome: "empty_pool",
       coverage: { providersQueried: ["curated-pool"], providersUnavailable: [], complete: true },
       retrievedAt: "2026-08-01T09:05:00Z",
@@ -822,17 +832,33 @@ describe("Posting retrieval v1 (#99)", () => {
     expect(validatePostingRetrievalResultV1(emptyPool).ok).toBe(true);
     expect(PostingRetrievalResultV1.safeParse(emptyPool).success).toBe(true);
   });
+
+  // #302 (#294 clause 5, #291/#293) — the fixture's SECOND posting is a pasted advert: never
+  // confirmed live, and carrying the link to apply. It is deliberately absent from
+  // coverage.providersQueried, because nothing queried it — a pasted job is stitched in from
+  // storage (#305), and the contract has never required a posting's source to have been asked.
+  it("carries a pasted posting: no liveness confirmation, an application link, its own source", () => {
+    const pasted = valid.postings[1];
+    expect(pasted.verifiedLiveAt).toBeNull();
+    expect(pasted.applicationUrl).toBe("https://careers.cathaypacific.com/job/it-project-manager");
+    expect(pasted.sources).toEqual([
+      { providerId: "pasted-by-you", providerPostingId: pasted.canonicalKey },
+    ]);
+    expect(validatePostingRetrievalResultV1(valid).ok).toBe(true);
+    expect(PostingRetrievalResultV1.safeParse(valid).success).toBe(true);
+  });
 });
 
-describe("ProviderPostingRecordV1 (#99, #100, #133)", () => {
+describe("ProviderPostingRecordV1 (#99, #100, #133, #302)", () => {
   const valid = {
-    schemaVersion: "3",
+    schemaVersion: "4",
     providerId: "curated-pool",
     providerPostingId: "curated-001",
     title: "Senior Project Manager",
     company: "BNP Paribas",
     location: "Hong Kong",
     sourceUrl: "https://example.com/jobs/senior-project-manager",
+    applicationUrl: "https://example.com/apply/senior-project-manager",
     excerpt: "Lead delivery of a portfolio of technology programs across APAC.",
     postedAt: "2026-07-28T00:00:00Z",
     capturedAt: "2026-07-29T09:00:00Z",
@@ -852,9 +878,15 @@ describe("ProviderPostingRecordV1 (#99, #100, #133)", () => {
     const mutations: Array<(value: any) => void> = [
       (value) => (value.schemaVersion = "1"),
       (value) => (value.schemaVersion = "2"),
+      (value) => (value.schemaVersion = "3"),
       (value) => delete value.providerId,
       (value) => (value.title = ""),
       (value) => (value.postedAt = ""), // non-empty string or null, not an empty string
+      // #302: both new fields are required-but-nullable, and an empty string is never the absence.
+      (value) => delete value.applicationUrl,
+      (value) => (value.applicationUrl = ""),
+      (value) => (value.verifiedLiveAt = ""),
+      (value) => delete value.verifiedLiveAt,
       (value) => (value.attribution = { label: "via X" }), // missing url
       // applicantLocationRequirements was REMOVED (#133) — reintroducing it is now an unknown key
       (value) => (value.applicantLocationRequirements = ["Hong Kong"]),
@@ -871,11 +903,70 @@ describe("ProviderPostingRecordV1 (#99, #100, #133)", () => {
       expect(oracle).toBe(false);
     }
   });
+
+  // #302 (#294 clause 5) — a record from a source that fetches nothing. capturedAt says when it
+  // was pasted; verifiedLiveAt says, honestly, that nobody ever confirmed it live and nobody ever
+  // will. This is the positive half of the bump.
+  it("accepts a never-confirmed-live record with no application link, in oracle and zod", () => {
+    const pasted = {
+      ...valid,
+      providerId: "pasted-by-you",
+      providerPostingId: "a1b2c3",
+      sourceUrl: "pasted:a1b2c3",
+      applicationUrl: null,
+      postedAt: null,
+      verifiedLiveAt: null,
+      expiresAt: null,
+    };
+    expect(validateProviderPostingRecordV1(pasted).ok).toBe(true);
+    expect(ProviderPostingRecordV1.safeParse(pasted).success).toBe(true);
+  });
+
+  // #302's GOLDEN NEGATIVE (#294 clause 5's own requirement): "the previous version no longer
+  // validates a never-confirmed-live date". Three assertions, because only all three together say
+  // something that is not just "the version number changed":
+  //
+  //   1. A genuine PREVIOUS-VERSION row — the v3 shape exactly as it was written, non-null date and
+  //      no applicationUrl at all — is refused by today's validators. This is what makes "no data
+  //      migration" honest: such a row reads as ABSENT (postingStore.ts's get/listByProvider
+  //      swallow the parse failure), never silently upgraded in place.
+  //   2. The NEW shape wearing the previous version's label is refused too, so nothing can claim
+  //      to be v3 while carrying a null liveness date.
+  //   3. The version boundary carries a REAL rule change, not just a number: holding the version at
+  //      "4", a null date now passes where the same value under the old rule could not, and an
+  //      empty string is STILL refused — absence is null, never a blank date.
+  it("refuses the previous version, and the bump carries a real rule change", () => {
+    const previousShape = { ...valid, schemaVersion: "3" };
+    delete (previousShape as Record<string, unknown>).applicationUrl;
+    expect(validateProviderPostingRecordV1(previousShape).ok).toBe(false);
+    expect(ProviderPostingRecordV1.safeParse(previousShape).success).toBe(false);
+
+    const previousVersionNewShape = { ...valid, schemaVersion: "3", verifiedLiveAt: null };
+    expect(validateProviderPostingRecordV1(previousVersionNewShape).ok).toBe(false);
+    expect(ProviderPostingRecordV1.safeParse(previousVersionNewShape).success).toBe(false);
+
+    // The rule itself, with the version held constant at the CURRENT one so the literal cannot be
+    // what decides the outcome. This is the assertion the two above cannot make on their own.
+    const nowAllowed = { ...valid, verifiedLiveAt: null };
+    expect(validateProviderPostingRecordV1(nowAllowed).ok).toBe(true);
+    expect(ProviderPostingRecordV1.safeParse(nowAllowed).success).toBe(true);
+    const stillRefused = { ...valid, verifiedLiveAt: "" };
+    expect(validateProviderPostingRecordV1(stillRefused).ok).toBe(false);
+    expect(ProviderPostingRecordV1.safeParse(stillRefused).success).toBe(false);
+
+    // ...and the same for the canonical posting at its own previous version.
+    const previousEnvelope = fixture("posting-retrieval-v1.valid.json");
+    previousEnvelope.schemaVersion = "4";
+    previousEnvelope.postings = [previousEnvelope.postings[1]];
+    previousEnvelope.postings[0].schemaVersion = "4";
+    expect(validatePostingRetrievalResultV1(previousEnvelope).ok).toBe(false);
+    expect(PostingRetrievalResultV1.safeParse(previousEnvelope).success).toBe(false);
+  });
 });
 
-describe("PostingProviderPolicyV1 (#99, #100)", () => {
+describe("PostingProviderPolicyV1 (#99, #100, #302)", () => {
   const valid = {
-    schemaVersion: "2",
+    schemaVersion: "3",
     providerId: "curated-pool",
     regionsServed: ["*"],
     authorityRank: 0,
@@ -888,6 +979,7 @@ describe("PostingProviderPolicyV1 (#99, #100)", () => {
     timeoutMs: 5000,
     costModel: { kind: "operatorHours" },
     freshnessTtlHours: 24,
+    livenessCheckable: true,
   };
 
   it("valid policy passes oracle and zod", () => {
@@ -898,7 +990,13 @@ describe("PostingProviderPolicyV1 (#99, #100)", () => {
   it("keeps oracle and zod aligned for every required structural invariant, including Infinity regression", () => {
     const mutations: Array<(value: any) => void> = [
       (value) => (value.schemaVersion = "1"),
+      (value) => (value.schemaVersion = "2"),
       (value) => (value.regionsServed = []),
+      // #302: required, with no default — unlike permitsStorage/permitsMatching below, a row that
+      // never says whether its postings can be re-checked is an operator error, not a fail-closed
+      // permission question to guess an answer for.
+      (value) => delete value.livenessCheckable,
+      (value) => (value.livenessCheckable = "false"),
       // Regression: the oracle's isNumber requires Number.isFinite; a bare z.number() would have
       // silently accepted Infinity where the oracle rejects it. Every numeric field, checked.
       (value) => (value.authorityRank = Infinity),
@@ -930,6 +1028,14 @@ describe("PostingProviderPolicyV1 (#99, #100)", () => {
       expect(PostingProviderPolicyV1.safeParse(value).success, `zod/oracle disagree after ${mutate.toString()}`).toBe(oracle);
       expect(oracle).toBe(false);
     }
+  });
+
+  // #302 (#294 clause 6) — "Pasted by you" is a source of its own: it fetches nothing, so nothing
+  // can ever re-confirm its postings live. Every origin-keyed rule reads off this one field.
+  it("accepts a source that can never be liveness-checked, in oracle and zod", () => {
+    const pasted = { ...valid, providerId: "pasted-by-you", livenessCheckable: false };
+    expect(validatePostingProviderPolicyV1(pasted).ok).toBe(true);
+    expect(PostingProviderPolicyV1.safeParse(pasted).success).toBe(true);
   });
 
   it("permitsStorage/permitsMatching default to false when absent, in both oracle and zod", () => {

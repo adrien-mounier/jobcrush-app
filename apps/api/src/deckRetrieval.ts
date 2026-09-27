@@ -30,7 +30,7 @@ export interface RetrievalCoordinatorDeps {
 }
 
 const retrievalInProgress = (): PostingRetrievalResultV1 => ({
-  schemaVersion: "4",
+  schemaVersion: "5",
   outcome: "provider_unavailable",
   coverage: {
     providersQueried: [],
@@ -100,7 +100,7 @@ export function makeRetrievalCoordinator(deps: RetrievalCoordinatorDeps) {
       } catch {
         logPostingRetrievalFailure(deps.log, "claim_failed");
         return {
-          schemaVersion: "4" as const,
+          schemaVersion: "5" as const,
           outcome: "provider_unavailable" as const,
           coverage: {
             providersQueried: [],
@@ -128,7 +128,7 @@ export function makeRetrievalCoordinator(deps: RetrievalCoordinatorDeps) {
       } catch {
         logPostingRetrievalFailure(deps.log, "retrieval_failed");
         current = {
-          schemaVersion: "4",
+          schemaVersion: "5",
           outcome: "provider_unavailable",
           coverage: {
             providersQueried: [],

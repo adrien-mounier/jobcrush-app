@@ -423,7 +423,7 @@ describe("#61/#216 discovery over the published family floors", () => {
       retrievePostings: async (input) => {
         requests.push(input);
         return {
-          schemaVersion: "4",
+          schemaVersion: "5",
           outcome: "provider_unavailable",
           coverage: { providersQueried: [], providersUnavailable: ["test"], complete: false },
           reason: "captured by the test",
