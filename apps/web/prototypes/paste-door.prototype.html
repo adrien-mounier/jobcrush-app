@@ -230,13 +230,14 @@
 </style>
 
 <div class="intro">
-  <h1>The paste door — three shapes</h1>
+  <h1>The paste door — three shapes, and the one chosen</h1>
   <p>
     He is signed in, profile verified. He found a job himself and wants this app on it. Three doors,
     each with a different answer to <b>where it lives</b>, <b>what it asks for beside the text</b>,
     <b>what he watches while a model reads</b>, and <b>what the screen says when the ad won't read</b>.
   </p>
   <p>
+    <b>Decided 2026-09-27: door B, its own room.</b> A and C stay here as the record of what was cut.
     Start on the screen you would really be on, press the door, then <b>fill the field with a real
     advert</b> (the control above the frame — a testing shortcut, not part of the design) and press
     <b>Read it</b>. Switch <b>what happens</b> to drive the other three endings.
@@ -425,7 +426,7 @@ const stepsHtml = (now) => `<ul class="steps">${STEPS.map((s, i) =>
 
 const DOORS = {
   A: {
-    tag: "A · in the deck",
+    tag: "A · not chosen",
     name: "The deck's first card is empty",
     url: "jobcrush.app/deck",
     note: "No new screen. Paste into the deck's own leading card; it fills in where it stands, then you open it. The link is read out of the text, and asked for only if it isn't there.",
@@ -486,7 +487,7 @@ const DOORS = {
   },
 
   B: {
-    tag: "B · its own room",
+    tag: "B · CHOSEN",
     name: "An intake desk, two fields, the ad taken apart in front of you",
     // CHOSEN 2026-09-27. The owner's question about the bar button is answered in
     // the prototype rather than in prose: `where` starts you on a normal screen
@@ -569,7 +570,7 @@ const DOORS = {
   },
 
   C: {
-    tag: "C · no door at all",
+    tag: "C · not chosen",
     name: "Ctrl-V anywhere, and the job's screen opens straight away",
     url: "jobcrush.app/profile",
     note: "Pasting is the gesture; there is no screen to find and nothing to fill in. The job's own screen opens immediately and fills itself in. The link is never asked for at the door — the job screen asks, once, if we didn't find one.",
@@ -677,7 +678,7 @@ function wireFill(taSel, goSel, read, onFill) {
 
 const setUrl = (u) => ($("#url").textContent = u);
 
-let cur = "A";
+let cur = "B";  // the chosen door opens first; A and C stay as the record of what was cut
 function draw() {
   timers.forEach(clearTimeout); timers = [];
   Object.values(DOORS).forEach(d => d.leave && d.leave());
