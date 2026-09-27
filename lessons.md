@@ -3869,3 +3869,22 @@ second sheet over it was never a candidate.
 
 The tell that you have reached for the wrong tool: you are hand-writing markup for something that is
 already in the repo.
+
+## Widening a field to nullable silently disarms every `!` already pointing at it
+
+`#302` made `verifiedLiveAt` nullable. One line away sat
+`stale.map(r => r.verifiedLiveAt).sort().at(-1)!` — written when the field could not be null, where
+the `!` only ever meant "`.at()` cannot really return undefined here". **The non-null assertion
+strips `null` as readily as `undefined`**, so the day the field widened, that line started
+type-checking a `string | null` into a contract field requiring a non-empty string, and `tsc` said
+nothing. The compile break you are relying on to find every consumer does not happen at a `!`.
+
+So when you widen a type to admit `null`: **grep the widened field for `!` and `as`, not just for
+compile errors.** The sites that break are the ones that tell you nothing; the sites that stay
+silent are the ones that were already asserting their way past the type system.
+
+Same shape, one file over: SQL. `provider_postings.verified_live_at >= EXCLUDED.verified_live_at`
+was correct until one side could be NULL — then the comparison yields **NULL, not false**, the
+`CASE` falls to its `ELSE`, and an absent confirmation overwrote a real one. A nullable column needs
+its `IS NULL` arms written first and explicitly; there is no compiler for this one at all, so the
+store-contract test has to carry the mixed case on both drivers.

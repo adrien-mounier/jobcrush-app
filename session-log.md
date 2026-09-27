@@ -2,6 +2,53 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-28 — #302 built: the posting contract learns about pasted adverts
+
+`/implement` → `/code-review` → `/qa-gate` on **#302**, V3's first ticket and the prefactor for the
+whole paste slice. Commit **`1f19bb4`**, `Closes #302`. **Committed, not pushed** — a push is a
+deploy, and this one has a consequence worth the owner's sign-off (below).
+
+**What moved.** Four contract shapes versioned together in the zod port *and* the `.mjs` oracle, with
+the fixture and a golden negative: record 3→4, `PostingV1` 4→5, the envelope 4→5 (in step, #133's own
+rule), the provider policy 2→3. The postings gain `applicationUrl` (where to APPLY, distinct from the
+listing URL) and a nullable `verifiedLiveAt` (never confirmed live, never confirmable). The registry
+gains `livenessCheckable` and a `pasted-by-you` row of its own — active, because the snapshot gate
+requires every source id to be in the active registry, but never queried.
+
+**`null`, not `""`.** #294 clause 5 says "empty"; the encoding chosen is `null`, because that is this
+file's own convention for an absent date (`postedAt`, `expiresAt`), the oracle still refuses `""`, and
+it makes every consumer's compile break rather than letting the freshness gate read a blank as
+stale-at-epoch. The QA gate agreed this honours the ruling.
+
+**Four defects found by the two review axes and fixed here**, each with a test that fails when the fix
+is reverted (mutation-checked, not assumed):
+
+- the Postgres upsert let an absent confirmation **erase a real one** — a comparison against NULL
+  yields NULL, so the `CASE` fell through to `ELSE` — diverging from the in-memory driver;
+- `lastKnownFreshAt` could be null: `.at(-1)!` strips null as readily as undefined, so the type
+  checker had **stopped** catching it;
+- the canonical merge **discarded a pasted advert's apply link**. It is now the highest-authority
+  contributor that *has* one, not plain winner-take-all — a pasted advert deliberately loses every
+  field conflict to a real provider and is the one source carrying a link the person typed, and
+  #293's report puts that link on its first line;
+- the golden negative was a version-number tautology. It now holds the version constant and proves
+  the **rule** changed.
+
+**⚠️ The deploy consequence, owner's call.** Every `provider_postings` row already on staging is
+schemaVersion `"3"`: on deploy they all read as absent (by design — #294 clause 5, AC 6) and the pool
+is empty until techmap re-fetches. Verified empirically against a simulated pre-bump table, degrading
+cleanly rather than crashing. Techmap is $1 per 1000 postings on a 1000-call monthly quota, so the
+re-fetch is pennies — but it is a real call, so it is named rather than discovered.
+
+**Also on the owner's desk:** `pnpm typecheck` fails locally on stale Next.js build output for the
+deleted `prototype-299` route (`apps/web/.next/**`, untracked). Nothing in this diff touches web, and
+the gate confirmed a `next build` clears it. CI starts from a fresh checkout, so it is green there.
+
+**Not this ticket:** the freshness-gate exemptions, the pinned band and the ageing line are #305; the
+paste path, its storage and the per-person paste record are #303. `isFresh` and
+`isReusableRetrievalSnapshot` answer "not fresh"/"not reusable" on a null date and hand the exemption
+to #305 in writing.
+
 ## 2026-09-27 — #301 is sliced: 16 buildable tickets, #302–#317
 
 `/to-tickets` on the spine spec **#301**. Sixteen tickets published `ready-for-agent`, linked as
