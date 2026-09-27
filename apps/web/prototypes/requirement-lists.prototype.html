@@ -17,24 +17,34 @@
      score and a button. Panel 1 has no sidebar; panels 2 and 3 keep theirs, because in
      those two the sidebar IS the treatment being tested.
 
-     /impeccable pass, 2026-09-27. The page was not ugly by taste — it was off DESIGN.md in
-     five documented ways, and each one is why it read cheap:
-       1. THE GOLD LAW. Gold marks what is on the rendered CV right now; one glowing thing
-          per screen is the ceiling. The page had ten gold ticks plus a gold score, a gold
-          apply strip, a gold paste button and a gold CTA. Gold now falls on the primary
-          action alone.
-       2. THE SERIF MEANS HER RULE. Serif is the person's own document. It was set on the
-          employer's advert title and on the machine's own score. The serif stack is gone
-          from this file entirely — nothing here is her paper.
-       3. THE GAP GREY. A requirement you do not meet is not an error. The colour law names
-          Night Weak (#6f7d8c) and its tinted pills for "where you don't match yet"; the
-          page used the dark room's error salmon, which made a normal gap look like a fault.
-       4. THE LABEL FLOOR. The smallest reading text in the product is 10.5px. The page ran
-          sentences and labels at 9.5px, and sizes off the ramp (23 / 30 / 40px).
-       5. THE TWO ROOMS RULE. A surface commits to one register. The page mixed a light
-          scaffold around a dark-room screen; it is now the dark room throughout.
-     Also: the ✓ ◐ — glyphs are replaced by drawn marks at one stroke weight, focus states
-     exist, and the list breathes on the 4/8/16/24/40 scale.
+     /impeccable pass, 2026-09-27, and its CORRECTION the same day. The first pass read the
+     Gold Law as "at most one gold thing on screen" and stripped the page to greys with a
+     single gold button. The owner called it worse, and he was right. Checked against the
+     product's own ratified screens (job-card, tailor-cards, score-representation
+     prototypes, all on main): the shipped job card carries gold on the headline words, the
+     Top-match badge, FIVE circled ticks and the primary button — at once. Gold IS this
+     product's warmth; the Law's "one glowing thing" governs the GLOW, and DESIGN.md's own
+     component spec makes the primary button a gold fill. Over-applying a rule is not
+     honouring it.
+
+     So this panel is now built from the shipped vocabulary, copied at its own values from
+     tailor-cards.prototype.html rather than re-invented:
+       - THE DIAL. The score is the tailor screen's 62px ring — Night Line track, gold arc,
+         round cap, the number inside at 16px/700 tabular. It sits in the title block, where
+         that screen puts it. The grey "79% match" pill of the first pass was alien to the
+         product and read, correctly, as having nothing to do with the page.
+       - THE STATE MARKS. A met requirement is the shipped gold disc with a dark check; a
+         half-met one is the gold dashed diamond; one you do not have is the hollow Night
+         Weak circle. Same SVGs, same radii, same strokes.
+       - THE STATUS WORD. Right-aligned, 11px, muted — "you fit" / "half there" /
+         "not in your CV", in the shape of the shipped "you fit" / "to answer".
+     One deliberate deviation, named: the shipped screen mutes the text of an unanswered
+     row, because there it is pending. Here a gap is a delivered verdict, not a pending
+     item, so its text stays at full ink and the row takes a quiet grey wash instead.
+
+     What survives from the first pass, because it was right: no serif anywhere (the serif
+     is her CV, and nothing here is her CV), no error-salmon on a gap, nothing under the
+     10.5px label floor, one register, drawn marks rather than glyphs, and focus states.
      Not production code. -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JobCrush — what you have and what you don't: three panels</title>
@@ -105,44 +115,55 @@
   .apply a:hover { border-bottom-color: var(--ink); }
   .apply svg { width: 12px; height: 12px; flex: none; }
 
-  /* The score is a count chip in the machine's own voice — mono stat, no gold, no serif. */
-  .score { display: inline-flex; align-items: baseline; gap: 8px; background: var(--raised);
-    border: 1px solid var(--line); border-radius: 999px; padding: 7px 15px; white-space: nowrap; }
-  .score b { font-family: var(--mono); font-size: 19px; font-weight: 620; color: var(--ink); letter-spacing: -.01em; }
-  .score span { font-size: 12.5px; color: var(--muted-r); }
+  /* THE DIAL — copied from the SHIPPED ring (apps/web/app/jobcard.tsx + deck.css:469-503),
+     not re-invented: 64px, r=28, 3.5px gold arc on a 12%-white track, rotated -90 so it
+     starts at twelve o'clock. The digits are MONO 18px/600 tabular in near-white — the
+     number is not gold, only the arc is — and the per-cent sign is 8px muted inside it. */
+  .dial { position: relative; width: 64px; height: 64px; flex: 0 0 auto; display: grid; place-items: center; }
+  .dial svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .dial .bg { fill: none; stroke: rgba(255, 255, 255, .12); stroke-width: 3.5; }
+  .dial .fg { fill: none; stroke: var(--gold); stroke-width: 3.5; stroke-linecap: round; }
+  .dial .n { font-family: var(--mono); font-size: 18px; font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--ink); }
+  .dial .n .pct { font-size: 8px; color: var(--muted); }
+  .scoreslot { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 0 0 auto; }
 
-  .sect { font-size: 15px; font-weight: 620; letter-spacing: -.005em; margin: 32px 0 4px; }
-  .sect + .sub { font-size: 12.5px; color: var(--muted); margin: 0; }
-  .job ul.prose { margin: 10px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.5; }
-  .job ul.prose li { margin-bottom: 4px; }
-  .job ul.prose.open li { color: var(--muted-r); }
+  /* The ring sits IN the title block, top-aligned with the title — deck.css:444-452's own
+     .hd row. The first pass floated it in a column of its own, which is exactly why it read
+     as having nothing to do with the page. */
+  .jobhead { display: flex; gap: 13px; align-items: flex-start; margin-bottom: 16px; }
+  .jobhead .who { flex: 1; min-width: 0; }
+  .jobhead .who h2 { margin-bottom: 6px; }
+  .jobhead .who .meta { margin: 0; }
 
-  /* ---------- the requirement rows ---------- */
-  .grp { display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
-    margin: 24px 0 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em;
+  /* THE GROUP DIVIDER — the tailor screen's own: a mono micro-label with a hairline
+     trailing it (tailor.css .divider), not a boxed header. */
+  .grp { display: flex; align-items: center; gap: 12px; margin: 26px 0 2px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
     text-transform: uppercase; color: var(--muted); }
-  .grp i { font-style: normal; font-size: 11px; letter-spacing: .04em; text-transform: none; color: var(--muted-r); }
-  .reqs { list-style: none; margin: 0; padding: 0; }
-  .reqs li { display: grid; grid-template-columns: 18px 1fr; gap: 12px; align-items: start;
-    padding: 13px 0; border-top: 1px solid rgba(43, 51, 61, .6); }
-  .reqs li:first-child { border-top: none; padding-top: 4px; }
-  .reqs .mk { width: 18px; height: 18px; display: block; margin-top: 1px; }
-  .reqs .have .mk { color: var(--muted); }
-  .reqs .part .mk, .reqs .miss .mk { color: var(--weak); }
-  .reqs .t { margin: 0; font-size: 14px; line-height: 1.45; color: var(--ink); }
-  .reqs .why { margin: 5px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
-  /* The gap grey and its tinted pill — the colour law's own words. A gap is not an error,
-     so it never borrows the danger voice; the pill says what it is, in words. */
-  .tag { display: inline-block; vertical-align: 1px; margin-left: 8px; font-family: var(--mono);
-    font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-r);
-    background: rgba(111, 125, 140, .14); border: 1px solid rgba(111, 125, 140, .34);
-    border-radius: 999px; padding: 2px 8px; }
+  .grp .rule { flex: 1; height: 1px; background: var(--line); }
+  .grp .count { font-weight: 400; letter-spacing: .04em; color: var(--muted); }
+
+  /* THE ROWS — deck.css:658-718. A 16px round chip with a tinted fill, a 1px border and a
+     9px glyph: gold for what you have, Night Weak for what you do not. No crosses, no red,
+     no green — the shipped screens have none, and a gap is a grey "?", never a fault. */
+  .reqs { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+  .req { display: flex; gap: 9px; align-items: flex-start; padding: 3px 0; font-size: 13.5px; line-height: 1.4; }
+  .req .mk { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; display: grid;
+    place-items: center; font-size: 9px; line-height: 1; margin-top: 2px; }
+  .req.have .mk, .req.part .mk { background: rgba(232, 163, 61, .18); color: var(--gold);
+    border: 1px solid rgba(232, 163, 61, .4); }
+  .req.miss .mk { background: rgba(111, 125, 140, .16); color: var(--weak);
+    border: 1px solid rgba(111, 125, 140, .35); }
+  .req .t { flex: 1; min-width: 0; color: var(--ink); }
+  .req .word { flex: 0 0 auto; font-size: 11px; color: var(--muted); margin-top: 3px; white-space: nowrap; }
+  /* The sub-note is the shipped .untested-note: 12px muted, indented to clear the chip. */
+  .req .why { display: block; margin: 3px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 
   /* ---------- panel 1's layout: no sidebar. The measure is a centred track, so the
        leftover is balanced margin rather than an empty right-hand third. ---------- */
-  .job.wide { --measure: 70ch; grid-template-columns: minmax(0, var(--measure)) auto;
-    justify-content: center; column-gap: 32px; }
-  .job.wide .score { margin-top: 4px; }
+  .job.wide { --measure: 74ch; grid-template-columns: minmax(0, var(--measure));
+    justify-content: center; }
   /* The summary line that used to sit here was removed (owner, 2026-09-27): it repeated the
      two group counts standing directly above it. With nothing left to balance, the button
      goes left, on the list's own left edge — the eye runs down that edge through the
@@ -151,10 +172,13 @@
   .actbar { grid-column: 1 / -1; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
   /* The one lit thing on the screen. The glow is the documented gold glow, permitted on a
      screen's single most important action. */
-  .cta { appearance: none; border: none; font: inherit; font-size: 14px; font-weight: 620; cursor: pointer;
-    background: var(--gold); color: var(--gold-ink); border-radius: 10px; padding: 12px 20px;
-    box-shadow: 0 0 26px rgba(232, 163, 61, .35); transition: background .18s ease; }
+  /* The shipped done-CTA's own values (tailor.css:455-467) — including its drop shadow,
+     which has offset and blur rather than being a halo. */
+  .cta { appearance: none; border: none; font: inherit; font-size: 15.5px; font-weight: 660; cursor: pointer;
+    background: var(--gold); color: var(--gold-ink); border-radius: 12px; padding: 14px 26px;
+    box-shadow: 0 12px 28px -10px rgba(232, 163, 61, .5); transition: background .18s ease, transform .1s ease; }
   .cta:hover { background: var(--gold-light); }
+  .cta:active { transform: scale(.985); }
 
   /* ---------- panels 2 and 3 keep a sidebar: there, the sidebar IS the treatment ---------- */
   .side { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
@@ -193,12 +217,6 @@
   @media (max-width: 860px) {
     .job, .job.wide { grid-template-columns: minmax(0, 1fr); padding: 20px 16px 24px; }
     .job h2 { font-size: 24px; }
-    /* Single column puts the score after the list in source order, which is nowhere.
-       It belongs at the top of the job, where it reads as the job's badge. */
-    .job.wide .back { order: -2; }
-    .job.wide .score { order: -1; margin: 0 0 16px; align-self: start; }
-    .job.wide .colmain { order: 0; }
-    .job.wide .actbar { order: 1; }
     /* The address needs the full width, so the label takes its own line rather than
        wrapping to "Apply / here" and shoving the link off the edge. */
     .apply { flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; }
@@ -287,17 +305,13 @@ const rows = () => REQS.map(r => whatIf && r.t.startsWith("Daily comfort")
 
 const state = (f) => f >= HAVE ? "have" : f <= MISS ? "miss" : "part";
 
-// Drawn marks, one stroke weight, currentColor — not ✓ ◐ — glyphs standing in for an
-// icon system. Met is Settled (a done state); half and missing are the gap grey.
-const svg = (inner) => `<svg class="mk" viewBox="0 0 18 18" fill="none" aria-hidden="true">${inner}</svg>`;
-const MARK = {
-  have: svg(`<path d="M4 9.4l3.1 3.1L14 5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`),
-  part: svg(`<circle cx="9" cy="9" r="5.4" stroke="currentColor" stroke-width="1.6"/>
-             <path d="M9 3.6a5.4 5.4 0 010 10.8z" fill="currentColor"/>`),
-  miss: svg(`<path d="M4.6 9h8.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>`),
-};
-// The pill says the verdict in words, so the mark never carries it by colour alone.
-const TAG = { have: "", part: "half there", miss: "not in your CV" };
+// The shipped marks: a glyph inside a round tinted chip (deck.css .mk). The craft floor
+// warns off unicode standing in for an icon system — but this IS the product's own shipped
+// icon system, and the committed world outranks a generic default. ✓ what you have, ◐ half,
+// ? what you do not — never a cross, because the shipped screens never fault the person.
+const MARK = { have: "✓", part: "◐", miss: "?" };
+// The status word, right-aligned and muted, in the shape of the shipped "you fit" / "to answer".
+const WORD = { have: "you fit", part: "half there", miss: "not in your CV" };
 
 const count = (band) => {
   const rs = rows().filter(r => r.band === band);
@@ -307,33 +321,50 @@ const count = (band) => {
 };
 
 const reqRow = (r, withWhy = true) => {
-  const s = state(r.fit);
-  return `<li class="${s}">${MARK[s]}
-    <div><p class="t">${r.t}${TAG[s] ? `<span class="tag">${TAG[s]}</span>` : ""}</p>
-    ${withWhy ? `<p class="why">${r.why}</p>` : ""}</div></li>`;
+  const st = state(r.fit);
+  return `<li class="req ${st}"><span class="mk" aria-hidden="true">${MARK[st]}</span>
+    <span class="t">${r.t}${withWhy ? `<small class="why">${r.why}</small>` : ""}</span>
+    <span class="word">${WORD[st]}</span></li>`;
 };
 
 const ARROW = `<svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
   <path d="M3.2 8.8L8.8 3.2M4.4 3.2h4.4v4.4" stroke="currentColor" stroke-width="1.4"
         stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-const SCORE = `<div class="score"><b>79%</b><span>match</span></div>`;
+// The shipped ring: r=28 on a 64 box, the arc offset by the circumference.
+const dial = (pct) => {
+  const c = 2 * Math.PI * 28;
+  return `<div class="scoreslot">
+    <div class="dial" role="img" aria-label="${pct} percent match">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle class="bg" cx="32" cy="32" r="28"/>
+        <circle class="fg" cx="32" cy="32" r="28"
+          stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pct / 100)).toFixed(1)}"/>
+      </svg>
+      <span class="n">${pct}<span class="pct">%</span></span>
+    </div>
+  </div>`;
+};
 
 // The job screen around the panel. `body` and `panel` are what the treatments change.
 // `wide` is panel 1's layout: no sidebar, score in the margin, action in a bar below.
 const screen = (body, panel, wide = false) => `<div class="job${wide ? " wide" : ""}">
   <p class="back">← Deck</p>
   <div class="colmain">
-    <h2>IT Project Manager / Senior Project Manager (English Speaking)</h2>
-    <p class="meta">GRADION · Ho Chi Minh City, Vietnam · Hybrid</p>
+    <div class="jobhead">
+      <div class="who">
+        <h2>IT Project Manager / Senior Project Manager (English Speaking)</h2>
+        <p class="meta">GRADION · Ho Chi Minh City, Vietnam · Hybrid</p>
+      </div>
+      ${wide ? dial(79) : ""}
+    </div>
     <div class="apply">Apply here
       <a href="#">linkedin.com/jobs/view/4445923167 ${ARROW}</a></div>
     ${body}
   </div>
-  ${wide ? `${SCORE}
-  <div class="actbar"><button class="cta">Write the tailored CV</button></div>`
+  ${wide ? `<div class="actbar"><button class="cta">Write the tailored CV</button></div>`
   : `<div class="side">
-    ${SCORE}
+    ${dial(79)}
     ${panel}
     <div class="act"><button class="cta">Write the tailored CV</button></div>
   </div>`}
@@ -356,12 +387,12 @@ const PANELS = {
   1: {
     tag: "1 · the checklist",
     name: "Every requirement, ticked or not",
-    note: "Nothing hidden: all ten, grouped by weight, each with the reason behind the verdict. The list IS the page, so the sidebar is gone — the score is a count chip in the machine's own voice, and gold falls only on the one action.",
+    note: "Nothing hidden: all ten, grouped by weight, each with the reason behind the verdict. The list IS the page, so the sidebar is gone — and the ring, the gold ticks and the status words are the shipped tailor screen's own, copied at their own values rather than re-invented.",
     render() {
       const grp = (band, label) => {
         const { rs, met, part, total } = count(band);
-        return `<div class="grp"><span>${label}</span>
-            <i>${met} of ${total}${part ? ` · ${part} partly` : ""}</i></div>
+        return `<div class="grp"><span>${label}</span><span class="rule"></span>
+            <span class="count">${met} of ${total}${part ? ` · ${part} partly` : ""}</span></div>
           <ul class="reqs">${rs.map(r => reqRow(r)).join("")}</ul>`;
       };
       // Ten rows with their reasons do not fit a sidebar — so in this treatment the
@@ -369,7 +400,6 @@ const PANELS = {
       // The prose lists are gone too: with every requirement named, they were the duplicate.
       return screen(
         `<h3 class="sect">What this job asks for</h3>
-         <p class="sub">And what your record already answers.</p>
          ${grp("essential", "Essential")}${grp("desirable", "Desirable")}`,
         "", true);
     },
@@ -408,7 +438,7 @@ const PANELS = {
       const band = (key, label) => {
         const { rs, met, part, total } = count(key);
         return `<div class="band">
-          <div class="lbl"><span>${label}</span><i>${met} of ${total}${part ? ` · ${part} partly` : ""}</i></div>
+          <div class="lbl"><span>${label}</span><span class="count">${met} of ${total}${part ? ` · ${part} partly` : ""}</span></div>
           <div class="segs">${rs.map(r => `<i class="${state(r.fit) === "have" ? "full" : state(r.fit) === "part" ? "half" : "none"}"></i>`).join("")}</div>
         </div>`;
       };
