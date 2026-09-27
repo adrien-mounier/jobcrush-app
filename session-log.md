@@ -2,6 +2,40 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-27 — #293 prototype: a real application report, beside the cv-factory's, same job
+
+`/prototype` on **#293** (map #290, ruling 7). Branch `prototype/application-report-293` (`6e4e49a`), out
+of `main`; pointer comment on the issue. Nothing mocked: his own root CV through the app's own miner, the
+GRADION advert he actually applied to (2026-07-28) through the app's own ad-reader, card, judge, tailor,
+`draftDisclosure` and `conservationIssues`, plus **one** model call for the prose — set beside the
+cv-factory's ten-section report for the same job, every section tagged with what writes it, in three
+composition variants.
+
+**The finding that outranks the section list: the report is only as good as the card.** Judged, this
+advert leaves **one** requirement open and the report reads true. The same run **unjudged** — the
+deterministic keyword scorer — leaves **eight** open, among them *"Excellent international English
+communication"*, so the report would open by telling a fluent English speaker he cannot speak English. The
+unjudged card also claims a **higher** percentage (88% vs 79%) while listing more gaps. A judged card is a
+hard precondition of the report, not a quality note.
+
+**Cost, as ruling 7 assumed: $0.061 for the one call** (7,396 in / 2,600 out, ~108s), $0.33 for the whole
+pipeline. Both figures are **estimated from character counts** — the local CLI driver reports no usage —
+and the `ANTHROPIC_API_KEY` in `.env` is **rejected as invalid** (401), so nothing was measured against
+the real API. **No money was spent**: the run went through the Claude Code CLI fallback.
+
+**Salary exists, is cheap, and is usually empty**: not one of his nine real adverts states one. The
+**advert-ambiguities** section caught the same real one the cv-factory caught (two job titles in one) plus
+two more. The **"you told me you don't have this"** row (#287 c11-12) could not be exercised — the run had
+no declined questions, so `askedClosed` is empty by construction; the page says so rather than faking one.
+
+**Proposed inventory (owner's verdict pending)**: the four he asked for (the job in short, strengths,
+gaps-with-a-sentence, interview prep) plus salary, plus the three the app computes for free and the
+cv-factory never had — what did not print and why, what was lost, how far each line leans — plus the
+advert's own ambiguities. Cut: Verification Audit, Quality Checklist and Suggested Persistence (the
+pipeline auditing itself for an engineer-reader), Keyword Coverage and Intentional Omissions (each says a
+second time what another section already says), Follow-up Questions (the app asks before the draft is
+written, #287 c7-c8).
+
 ## 2026-09-27 — #287 decided: what the CV does with a capability the person denied
 
 `/grilling` on **#287**, six rounds, **twelve clauses** now living in `docs/cv-brain/tailoring-reasoning.md`
