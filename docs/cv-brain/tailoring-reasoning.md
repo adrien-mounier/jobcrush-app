@@ -66,11 +66,12 @@ merely states ("experienced in stakeholder management", with no supporting role 
 > built and versioned (`apps/api/src/familyFloors.ts`, `FamilyFloorV1`); the note that it
 > "does not exist yet" was true when this clarification was written and is not true now.
 >
-> ⚠️ **Covered is not the same as printable, and this document does not yet say what to do about
-> it.** §6 counts a floor item as covered by an explicit *"No"*, stored as a first-class
-> **non-renderable** negative — so a fully covered floor can contain items that print nothing.
-> Ticking the floor off is therefore not sufficient instruction for a CV write. Open:
-> [#287](https://github.com/adrien-mounier/jobcrush-app/issues/287).
+> **Covered is not the same as printable — settled 2026-09-27
+> ([#287](https://github.com/adrien-mounier/jobcrush-app/issues/287)).** §6 counts a floor item as
+> covered by an explicit *"No"*, stored as a first-class **non-renderable** negative — so a fully
+> covered floor can contain items that print nothing. Ticking the floor off is therefore not
+> sufficient instruction for a CV write. **§8 is that instruction**, and it governs every negative,
+> not only a floor item's.
 
 Signals are additive. Tally per cluster; the dominant cluster sets the CV's language. Note secondary
 clusters.
@@ -131,3 +132,89 @@ here because they are CV-reading judgement, not storage plumbing:
 The full mining contract lives in `apps/api/prompts/job-block-miner.md` and
 `packages/contracts/src/jobBlock.ts`; this section records only the reading judgement behind it, per
 the repo rule that a change to the reading rules is recorded here, not left implicit in the prompt.
+
+## 8. A denied capability (#287, decided 2026-09-27)
+
+A **user-resolved fact** may be a negative: the person answered *"No — I have never done this."*
+`docs/onboarding-reward-design.md` §6 counts such an answer as covering a family floor item and stores
+it as a first-class, non-renderable negative, so a **fully covered floor can contain items that print
+nothing**. §4's *tick the floor off* is not sufficient instruction for a CV write. This section is that
+instruction.
+
+**It governs every negative, not only a floor item's** (owner call, 2026-09-27). A "No" given in
+discovery about a family floor item and a "No" given in the Tailor step about one posting's requirement
+are stored the same way and are indistinguishable to the person. A rule that split them would give the
+door below to some important gaps and not others, one line apart on the same screen, with nothing to
+explain the difference — the inconsistency #287 exists to close. The ticket's title says *floor item*;
+the ruling is wider.
+
+### The document
+
+1. **A denied capability never prints.** Already enforced mechanically: a `Negative` node in
+   `packages/contracts/src/claimGraph.ts` must carry `renderable: false`, golden-tested against
+   `oracle/validate_graph.mjs`. Nothing below weakens it, and no per-application override exists.
+2. **A denied capability is never implied either.** Printing the claim is blocked by machine; implying
+   the capability is not. A summary reading *"data-driven business analyst"*, or a skills group
+   carrying *"reporting and analytics"*, hands a recruiter the denied capability without ever citing
+   the denied claim. The ban therefore lives in `cv-authoring-rules.md`'s **hard rules**, which are
+   auto-injected on every CV edit, and a check looks for the denied item's own words anywhere on the
+   finished page. **The ceiling, stated rather than papered over: the check catches the words, never a
+   paraphrase.**
+3. **A denied capability is never the subject of a stretch.** ADR-0005's machinery softens something
+   true and thin. A denial means there is nothing to stretch from, so a softened version is an
+   invention the person would have to defend in the room. **This is not a guardrail on stretching** —
+   map #127 decision 9 stands unqualified. The adjacent *true* fact (*"worked alongside the analysts
+   who built the reporting"*) stays fully available and prints on its own merit.
+
+### What the person is told
+
+4. **Named where it matters, silent everywhere else.** A denied capability appears on a job card only
+   when that posting asks for it, under the heading **"You told me you don't have this"**. Before this
+   ruling, every negative in the session appeared on every card in the deck (`buildJobCard`'s
+   `askedClosed`) — the same defect the eligibility answers were already filtered for, and the
+   discovery answers were missed.
+5. **Never asked again.** ADR-0011 clause 4 already rules that an answer closes its question
+   permanently and only the person may reopen it. ⚠️ **Written, not enforced.** A floor negative is
+   keyed on the claim's semantic key; a Tailor answer is keyed on `(advert, requirement)`. So today a
+   person who denied SQL in discovery **is** asked about SQL again by the first posting that wants it.
+   The spine build owns the fix.
+6. **Every row carries its own door: "Changed? Add it."** A profile grows. A "No" given in 2026 may be
+   false in 2027, and the product owes her a way to say so while she is looking at the gap.
+
+### The door
+
+7. **The door is the existing answer path, not a second mechanism.** The row becomes a question again,
+   she answers, the line appears in the CV beside her, the card re-scores, the ledger prints its
+   `+N%`. She never leaves the Tailor step, and the fact lands on her profile permanently — it is
+   hers, not a stretch, so it helps every later posting.
+8. **The door belongs with the questions, before the draft is written.** A door on the approve screen
+   arrives too late: reopening a capability there means redrafting the CV she has just read.
+9. **The "No" is kept; the new fact is dated.** Erasing the "No" makes the record claim she always had
+   the capability. Keeping it and dating the new fact is both honest and a **stronger** CV line — a
+   recently acquired skill reads as someone still learning. `ClaimStore.reopen`'s mistap path still
+   erases, and the two must stay distinguishable: *I tapped the wrong thing* and *I grew* are not the
+   same event.
+10. **The date is asked, never stamped.** *"Since when?"* with coarse choices (this year · 1-2 years ·
+    3 or more). Stamping the day she told us records the wrong fact — it prints *"since September
+    2026"* over a capability she may have held since 2024, making a true line read weaker than it is.
+    This is `cv-authoring-rules.md`'s *never infer a month*, applied to an asked fact.
+
+### The application report
+
+11. **The report names the gap and hands her a sentence.** Being told she has a gap is worthless — she
+    knows. The report gives the line she cannot produce under pressure: *"This job asks for SQL. You
+    have told me you have never used it, so nothing about it printed. If they raise it, say …"* That
+    is the whole value of #293's interview-prep section, and it costs one more item in a model call
+    the report already makes.
+12. **The prepared sentence never invents a bridge.** Where nothing adjacent exists, the honest line is
+    *"you have nothing close to this — expect it to come up"*, never a manufactured connection.
+    Clause 2's ban applies to the report exactly as it applies to the page.
+
+### Not decided here
+
+The profile screen grows **no** door to this list. The owner kept the ruled-out items hidden there
+(2026-09-27), so that screen's own law — *no "what you lack" list exists anywhere on this screen* —
+stands untouched. The hole it leaves (a person who learns SQL before any posting asks) is closed by a
+separate feature, [#299](https://github.com/adrien-mounier/jobcrush-app/issues/299): a guided
+**"Add something new"** flow that recognises a denied capability at the moment she types it. A design
+session owns its screen-versus-sheet question.

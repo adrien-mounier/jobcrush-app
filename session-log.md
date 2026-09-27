@@ -2,6 +2,51 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-27 — #287 decided: what the CV does with a capability the person denied
+
+`/grilling` on **#287**, six rounds, **twelve clauses** now living in `docs/cv-brain/tailoring-reasoning.md`
+§8 plus one hard rule in `cv-authoring-rules.md`. Row V1b struck; **#293 (V1d) is unblocked**; one new
+ticket, **#299**.
+
+**The ruling is wider than the ticket.** #287 was written about a family floor item; the owner ruled it
+governs **every** negative. A "No" in discovery and a "No" in the Tailor step are stored identically and
+are indistinguishable to the person, so splitting them would give the reopen door to some important gaps
+and not others, one line apart on the same screen.
+
+**The shape: an absolute document rule plus a disclosure, not a choice between them.** The ticket framed
+it as *print nothing silently* vs *print nothing and surface it*. Those are different surfaces, not
+alternatives. Never prints, never implied, never the subject of a stretch (map #127 decision 9 stands —
+a denial means there is nothing to stretch *from*, so a softened version is an invention, not a stretch).
+Then: named only on postings that ask for it, under **"You told me you don't have this"**, every row
+carrying a **"Changed? Add it"** door that reuses the existing answer path — the CV updates in place, the
+card re-scores, and the fact lands on the profile permanently. The "No" is **kept** and the new fact is
+**dated**, with the date **asked** in coarse buckets, never stamped from today (a stamped date prints
+*"since September 2026"* over a skill she may have held since 2024, making a true line read weaker).
+
+**Four facts found in the code that reshaped the question before the owner answered it.** (1) The
+never-print half is **already enforced** — a `Negative` node must carry `renderable: false`, golden-tested;
+so the ticket's worry was half wrong, and the real exposure is *implying*, which no contract can catch.
+(2) "Print nothing and say nothing" was **not** today's behaviour: `buildJobCard` already ships an
+*"Asked and closed"* heading, and it lists **every** session negative on **every** card — the same defect
+the eligibility answers were filtered for, and the discovery answers were missed. (3) The never-re-ask
+promise in §6 and ADR-0011 clause 4 is **written, not enforced**: floor negatives key on the semantic key,
+Tailor answers on `(advert, requirement)`, so a denied SQL is asked again by the first posting that wants
+it. (4) The #154 disclosure panel (*what didn't print, and why*) is live code with **no screen** — it was
+built for the pre-signup draft screen #272 deleted. It re-homes onto the live Tailor step's ending, which
+already exists; nothing needs rebuilding.
+
+**The owner declined a door on the profile screen and specified a feature instead.** The ruled-out list
+stays hidden, so that screen's *no "what you lack" list* law is untouched. The hole that leaves — she
+learns SQL in March, no posting has asked, and the profile has no way to add a skill (its only open-list
+door is *Add another language*) — is **#299**: a guided *"Add something new"* flow that recognises a
+denied capability at the moment she types it, never as a list she browses. Screen-versus-sheet goes to a
+design session.
+
+**Two gate repairs fell out of it** (`0a7d685`, owner `[skip-gate]`). The commit gate and CI's skip-list
+both counted `apps/web/prototypes/**` as shippable code, so a comment-only edit to a design prototype
+demanded a full QA lifecycle and a ~27-minute CI run ending in a deploy of unchanged code. Both now skip
+it. Narrow the aim, not the hole: they are path prefixes, so real code parked there would commit ungated.
+
 ## 2026-09-27 — #157 Design B amended: desktop answers one question at a time
 
 Owner reversal, taken while grilling **#287** and recorded separately because nothing in that ruling

@@ -65,6 +65,13 @@ A "CV file" is any `root_cv/**/*.md`, any `**/tailored_cv/**/*.md`, or any `cv_m
   responsibility-only or attendance bullets.
 - **No invented facts:** never invent dates, employers, titles, certifications, or metrics. Non-
   Verified / non-Derived claims must appear in the verification audit.
+- **A denied capability never appears, and is never implied** (#287, 2026-09-27). When the person has
+  answered *"No — I have never done this"* about something the advert asks for, the CV prints nothing
+  about it **and** says nothing that hands it to a recruiter by implication: not in the Summary, not as
+  a skills-group label, not as an adjacent phrase that only reads as that capability. Print the
+  adjacent **true** fact on its own merit instead. The denied item's own words must not appear anywhere
+  on the page. The gap is **disclosed** to the candidate, never filled
+  (`tailoring-reasoning.md` §8).
 - Full detail, ATS pitfalls, formatting standards, and the banned-word list are below.
 <!-- DIGEST:END -->
 

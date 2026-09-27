@@ -55,11 +55,11 @@ exist, 3–5 are the work:
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| V1 | #290 | **THE MAP** — the v1 spine: the paste door, the draft rebind, the document out. **CHARTED 2026-09-27 · 2 of 8 decided.** A container, not a task: it closes when V1a–V1h are all resolved and nothing is left to decide, which is the moment V2 starts. Keep the count current as each child closes | `/wayfinder` | Opus | high |
+| V1 | #290 | **THE MAP** — the v1 spine: the paste door, the draft rebind, the document out. **CHARTED 2026-09-27 · 3 of 8 decided.** A container, not a task: it closes when V1a–V1h are all resolved and nothing is left to decide, which is the moment V2 starts. Keep the count current as each child closes | `/wayfinder` | Opus | high |
 | V1a | #291 | The paste door: where it lives, what it looks like, what it does while it reads. **TAKEABLE** | `/prototype` | Opus | medium |
-| V1b | #287 | A floor item covered by "No" prints nothing — what does the CV do about it. **TAKEABLE**, blocks V1d | `/grilling` owner call | Opus | medium |
+| ~~V1b~~ | ~~#287~~ | ~~A floor item covered by "No" prints nothing — what does the CV do about it~~ **DECIDED 2026-09-27** — twelve clauses, `tailoring-reasoning.md` §8 + a hard rule. Never prints, never implied, never stretched; named only on postings that ask; every row carries a *"Changed? Add it"* door that keeps the "No" and dates the new fact. **Governs every negative, not only a floor item's.** Unblocked V1d; surfaced **#299** | — | — | — |
 | V1c | #294 | Does a pasted ad ever go stale — a pasted job has no liveness signal and never will. **TAKEABLE** | `/grilling` | Opus | low |
-| V1d | #293 | What is in the application report, and what writes each part. **BLOCKED by #287** | `/prototype` | Opus | medium |
+| V1d | #293 | What is in the application report, and what writes each part. **TAKEABLE** — #287 unblocked it 2026-09-27: the report names the gap and hands over a sentence to say, and never invents a bridge (§8 clauses 11-12) | `/prototype` | Opus | medium |
 | V1e | #292 | Which questions may a pasted ad raise, and on which screen. **BLOCKED by #291** | `/grilling` | Opus | medium |
 | ~~V1f~~ | ~~#295~~ | ~~Can our API container make a PDF, and what does it cost~~ **DONE 2026-09-27** — ruling 5 stands; measured, not estimated (`docs/research/pdf-in-container.md`, branch `research/pdf-in-container`). Surfaced V1g and V1h | — | — | — |
 | ~~V1g~~ | ~~#296~~ | ~~The first PDF after a quiet spell takes tens of seconds~~ **DECIDED 2026-09-27** — accept the wait, narrate it honestly; ruling 6 survives (approve = send, one press). The $7.23/mo warm machine parks as **#298** behind the real-visitors gate | — | — | — |
@@ -70,7 +70,7 @@ exist, 3–5 are the work:
 | V5 | #TBD | Build: approve → a two-page PDF and an application report land in his inbox. Browser in the API container, export gated server-side on lint-passes AND approved. **Absorbs #156** (the page count becomes real — but only once the container has fonts: page count is a function of font metrics, and the renderer has no page rules at all, per #295) | `/implement` | **Fable** | set at slicing |
 | V6 | — | The finish line, proven live: one real posting, end to end, `/qa-gate` GO on the whole journey | `/qa-gate` | — | — |
 
-_**#290 is charted (2026-09-26/27): eight decision tickets, V1a–V1h — two resolved the same session (V1f #295, V1g #296), four takeable, two blocked.** A wayfinder map files
+_**#290 is charted (2026-09-26/27): eight decision tickets, V1a–V1h — three resolved (V1f #295, V1g #296, V1b #287), four takeable, one blocked.** A wayfinder map files
 decisions, not build slices — so V3–V5 stay `#TBD` until `/to-spec` writes the spine spec and cuts
 them. V3–V5 are the expected shape and the spec may re-cut it. Model column follows the session-107 rule: **Fable for the builds where a
 restraint rule can ship subtly wrong and still green** (the draft and the document are CV-brain
@@ -118,12 +118,11 @@ management). Runbook §2 reads it before the cluster map is presented.
 **Waiting on the owner, not on a build:** two rulings, both on `onboarding-reward-design.md` §6's
 floor. **The floor-length rule** — #260's ranked list argues for cutting at the curve's cliff
 (80% → 51%) rather than a fixed number; either ruling takes §6's "must be short" off review.
-**[#287](https://github.com/adrien-mounier/jobcrush-app/issues/287) — covered is not printable**:
-§6 counts a floor item covered by an explicit "No" stored as a first-class non-renderable negative,
-so a fully covered floor can hold items that print nothing, and the CV brain does not say what the
-CV does about the difference. Decision + CV-brain amendment; no code implied until it lands.
-**No longer merely waiting — it is row V1b on map #290 (2026-09-27), takeable now, and it blocks
-V1d** (what the application report says about a gap answered "No").
+~~**[#287](https://github.com/adrien-mounier/jobcrush-app/issues/287) — covered is not
+printable**~~ **DECIDED 2026-09-27, row V1b.** The ruling is `tailoring-reasoning.md` §8 (twelve
+clauses) plus one hard rule, and it governs **every** negative, not only a floor item's. It
+unblocked V1d and surfaced **#299** (the profile needs a way in — the owner kept the ruled-out list
+hidden, so the hole is closed by an *"Add something new"* flow instead of a door to it).
 
 ### Phase 1 — make the live deck honest before it exists
 
