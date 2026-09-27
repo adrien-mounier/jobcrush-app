@@ -62,7 +62,7 @@
   .switch button.on { border-color: var(--ink); background: var(--surface); }
   :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 6px; }
 
-  .pair { display: grid; grid-template-columns: repeat(2, 560px); gap: 32px;
+  .pair { display: grid; grid-template-columns: repeat(3, 560px); gap: 28px;
     justify-content: center; align-items: start; }
   .col > h2 { display: flex; align-items: center; gap: 12px; margin: 0 0 10px;
     font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
@@ -93,6 +93,22 @@
     background: none; border: none; color: var(--hud-ink); padding: 0;
     border-bottom: 1px solid var(--settled); }
   .jobdeck .applyrow button:hover { border-bottom-color: var(--hud-ink); }
+  /* ── VERSION 3: the checklist living inside the card. It reuses the card's own .row/.mk
+     chips as they ship, so the ticks and the grey "?" are not restyled — only the group
+     divider, the reason line and the status word are new, and each is built from the card's
+     own tokens. The reason line's values are the shipped .untested-note's (12px, --hud-mute,
+     cleared past the chip), which is the card's existing sub-note under a row. ── */
+  .jobdeck .ckgrp { display: flex; align-items: center; gap: 12px; margin: 20px 0 4px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--hud-mute); }
+  .jobdeck .ckgrp .rule { flex: 1; height: 1px; background: var(--hud-line); }
+  .jobdeck .checklist .row { align-items: flex-start; padding: 6px 0; }
+  .jobdeck .checklist .row > .body { flex: 1; min-width: 0; }
+  .jobdeck .ckwhy { display: block; margin-top: 3px; font-size: 12px; line-height: 1.45;
+    color: var(--hud-mute); }
+  .jobdeck .ckword { flex: 0 0 auto; font-size: 11px; color: var(--hud-mute); margin-top: 3px;
+    white-space: nowrap; }
+
   /* The job's own screen has one action, so the footer is not a swipe pair. */
   .jobdeck .jcfoot.single .sw.yes { flex: 1; }
 
@@ -103,6 +119,7 @@
   .v p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
   .v p + p { margin-top: 8px; }
   .v b { color: var(--ink); font-weight: 620; }
+  @media (max-width: 1800px) { .pair { grid-template-columns: repeat(2, 560px); } }
   @media (max-width: 1220px) { .pair { grid-template-columns: minmax(0, 560px); } }
 </style>
 
@@ -118,6 +135,12 @@
     <b>Write the tailored CV</b>. The switch shows what the apply row does when the advert
     carries no link — which is normal for a pasted job, and is what keeps the application report
     able to send you anywhere.
+  </p>
+  <p>
+    The <b>third panel</b> answers a separate question: what the same screen looks like if the
+    checklist takes the place of the four-cell match breakdown. It replaces the fit / not-yet
+    lists as well, because it already contains them — keeping both would print the same ten
+    requirements twice.
   </p>
 </div>
 
@@ -138,6 +161,12 @@
     <h2>Proposed · the job's own screen</h2>
     <p class="sub">One job, already chosen — or pasted straight onto it. One action, and the link you will actually use.</p>
     <div class="frame"><div class="jobdeck" id="proposed"></div></div>
+  </div>
+
+  <div class="col">
+    <h2>Proposed + the checklist</h2>
+    <p class="sub">The same screen, with the checklist in place of the fit / not-yet lists <em>and</em> the four-cell breakdown — it carries what both of them said.</p>
+    <div class="frame"><div class="jobdeck" id="withlist"></div></div>
   </div>
 </div>
 
@@ -163,11 +192,17 @@
       tap, at the moment you are looking at the job.</p>
   </div>
   <div class="v">
-    <h3>What reusing the card does not bring — a decision, not an oversight</h3>
-    <p>The card names the <b>fact</b> (“7+ years delivering IT systems”), not the requirement that
-      fact answered, and it sorts into fit / not-yet rather than by <b>Essential</b> and
-      <b>Desirable</b>. Both were in the checklist panel and neither comes across with this
-      proposal. That file is still on disk if you want either back.</p>
+    <h3>What the third panel costs and buys</h3>
+    <p><b>Buys:</b> the requirement each fact answered, the sentence behind the verdict, and the
+      <b>Essential / Desirable</b> weight — so a missing essential reads differently from a
+      missing nice-to-have.</p>
+    <p><b>Costs:</b> measured, not guessed — the card goes from <b>960px to 1208px</b>, so about
+      a quarter taller, not double. And the plain-word verdict <b>“Strong”</b> leaves with the
+      breakdown grid unless it moves beside the ring.</p>
+    <p><b>One thing it inherits, worth a decision:</b> the card mutes the text of a
+      “where you don't — yet” row, which is right on a card you skim. Here it makes the one line
+      you most need to read the faintest on the screen. Left as the card ships, because that is
+      what reuse means — say the word and the gap row keeps full-strength text.</p>
   </div>
 </div>
 
@@ -190,6 +225,33 @@ const FIT = [
   "Hands-on build and deployment",
 ];
 const DONT_YET = ["Hands-on experience running both Dedicated Team and Fixed-Price projects"];
+
+// Version 3's data: the same ten requirements, with the band they carry in the advert and the
+// judge's own sentence — the two things the card's fact lines drop.
+const REQS = [
+  ["essential", 1, "5+ years of IT development project management", "7+ years as a Project Manager delivering IT systems clears the 5-year bar with room to spare."],
+  ["essential", 0, "Hands-on experience running both Dedicated Team and Fixed-Price projects", "No mention of running Dedicated Team or Fixed-Price engagement models anywhere in your CV."],
+  ["essential", 1, "Excellent international English communication", "Fluent English plus steering-committee presentations and stakeholder interfacing across regions."],
+  ["essential", 1, "Translating unclear client requirements into deliverable scope", "You translated business and user needs into functional specs and user stories for dev teams."],
+  ["desirable", 1, "University degree in IT, Computer Science or related", "Master's in Computer Science is a direct match."],
+  ["desirable", 1, "Cross-cultural, English-speaking teams", "Coordinated cross-functional international teams across Europe, Asia-Pacific and Africa."],
+  ["desirable", 1, "Confidence raising risks and difficult topics early", "You maintain a formal risk register and escalate risks to protect delivery."],
+  ["desirable", 1, "Daily comfort with AI tools, and judgement about their output", "You build LLM-driven workflows into daily delivery and ran AI workshops."],
+  ["desirable", 1, "Proactive, adaptable, growth-oriented mindset", "You built and rolled out an autonomous assistant off your own initiative."],
+  ["desirable", 1, "Hands-on technical or software-process knowledge", "Hands-on building and deployment of software — the agentic assistant, the trading platform."],
+];
+
+// .row/.mk are the card's own classes, so the chips below are the shipped ones, untouched.
+const checklist = () => ["essential", "desirable"].map((band) => {
+  const rs = REQS.filter(r => r[0] === band);
+  const met = rs.filter(r => r[1]).length;
+  return `<div class="ckgrp"><span>${band}</span><span class="rule"></span>
+      <span>${met} of ${rs.length}</span></div>
+    ${rs.map(([, ok, t, why]) => `<div class="row ${ok ? "fit" : "open"}">
+      <span class="mk" aria-hidden="true">${ok ? "✓" : "?"}</span>
+      <span class="body">${t}<small class="ckwhy">${why}</small></span>
+      <span class="ckword">${ok ? "you fit" : "not in your CV"}</span></div>`).join("")}`;
+}).join("");
 
 const applyRow = (hasLink) => hasLink
   ? `<div class="applyrow">Apply here
@@ -223,7 +285,7 @@ const card = (variant, hasLink) => `
           </div>
         </div>
 
-        ${variant === "own" ? applyRow(hasLink) : ""}
+        ${variant !== "deck" ? applyRow(hasLink) : ""}
 
         <div class="bubble">
           <p>This is your job on paper — seven years of IT delivery, the scope translation and the
@@ -231,6 +293,7 @@ const card = (variant, hasLink) => `
             <span class="gap">The gap is the two contract models.</span></p>
         </div>
 
+        ${variant === "checklist" ? `<div class="flat checklist">${checklist()}</div>` : `
         <div class="flat">
           <h3>Where you fit</h3>
           ${FIT.map(t => `<div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>${t}</span></div>`).join("")}
@@ -246,7 +309,7 @@ const card = (variant, hasLink) => `
             <div class="bd-cell"><dt class="bd-l">Desirable met</dt><dd class="bd-n">6/6</dd></div>
             <div class="bd-cell"><dt class="bd-l">Match quality</dt><dd class="bd-pill strong">Strong</dd></div>
           </dl>
-        </section>
+        </section>`}
 
         <details class="ad">
           <summary>Read the ad in full</summary>
@@ -273,6 +336,7 @@ let hasLink = true;
 function draw() {
   document.getElementById("today").innerHTML = card("deck", hasLink);
   document.getElementById("proposed").innerHTML = card("own", hasLink);
+  document.getElementById("withlist").innerHTML = card("checklist", hasLink);
   document.querySelectorAll("#sw button").forEach(b =>
     b.classList.toggle("on", (b.dataset.k === "link") === hasLink));
 }
