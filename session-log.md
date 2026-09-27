@@ -2,6 +2,44 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-27 — the job's own screen: reuse the deck card, three changes
+
+Design session off #291's job screen, no ticket — the decision is recorded here and on map #290
+because `/to-spec` needs it at V2. Prototype:
+`apps/web/prototypes/deck-card-vs-checklist.prototype.html`, commits `7cd2315` → `80b7750`.
+
+**The ruling: the job's own screen IS the shipped deck card, reused, not replaced.** Three changes,
+and nothing else:
+
+1. An **apply row** under the title — and its empty state is a control, not a caption:
+   *"No application link yet — add the application link"*. A pasted advert may carry no link (#291's
+   door never blocks on one) while the application report puts that link **at the top** (#293), so a
+   job with no link leaves a hole in the one document read immediately before applying.
+2. The primary button reads **"Write the tailored CV"**, and the footer is a single full-width
+   action. **On the deck the button does NOT change** — there "I want this one" pairs with "Not for
+   me" and matches the stamp shown when the card is dragged right (*"Want it"*, `deck.css:375`).
+   Relabelling it there would make the card contradict itself mid-swipe.
+3. **"Read the ad in full" moves up, directly below the title and subtitle — on BOTH screens.** It
+   had been sitting under everything the machine had to say about the person. No restyling needed:
+   its existing hairline (`deck.css:799`) read as a footer separator at the bottom and reads as the
+   header's closing rule at the top.
+
+**The apply link deliberately does NOT go on the deck card.** It is swiped, so a link inside it
+competes with the gesture (`deck/page.tsx` already has to exempt `details.ad[open]` from starting a
+swipe for the same reason), and offering "apply here" mid-triage invites leaving for the job board
+before we have written a better CV.
+
+**Two things seen and not taken**, so they are decisions rather than oversights: the checklist's
+**reason lines** (the requirement each fact answered, and the judge's sentence) and its **Essential /
+Desirable** split. A third prototype panel put the checklist in place of the fit/not-yet lists *and*
+the breakdown grid — measured at 960px → 1208px, about a quarter taller — and the owner chose the
+card as it ships. `apps/web/prototypes/requirement-lists.prototype.html` keeps that record.
+
+**The session's own expensive mistake is in `lessons.md`:** I read DESIGN.md's Gold Law as "one gold
+thing per screen", rebuilt the panel in greys, and the owner rightly called it worse. The shipped
+screens carry gold on eight to ten elements at once. The rule was right; my reading of its reach was
+not, and the code showed that the whole time.
+
 ## 2026-09-27 — #299 prototyped: full screen, and the door goes in the hero
 
 `/prototype` on **#299** (map #290, row V1i). Map now **8 of 9** — only V1h, the owner's Fly task, is left.

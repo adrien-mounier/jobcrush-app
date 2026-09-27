@@ -1,5 +1,31 @@
 # Lessons — jobcrush-app
 
+## A design doc states a rule; the shipped screens show how far it actually reaches
+
+Learned 2026-09-27, reworking the requirement panel. `DESIGN.md`'s **Gold Law** says gold marks what
+is on the rendered CV right now and that *"one glowing thing per screen is the ceiling"*. I read that
+as *at most one gold element*, stripped the panel to greys with a single gold button, and shipped a
+confident redesign the owner immediately called worse than what it replaced.
+
+He was right, and the evidence was in the repo the whole time. The shipped tailor flow puts gold on
+**eight to ten elements at once** (`deck.css` / `tailor.css`): the score arc, the highlight bubble,
+every fit tick, the ANSWER-AND-THIS-CARD-MOVES label, the ledger line, the picked option, the done
+CTA, the apply button. The ratified `job-card.prototype.html` carries gold on the headline words, the
+Top-match badge, five circled ticks and the primary button. And `DESIGN.md`'s own component spec makes
+the primary button a gold fill — the same document, three sections down from the rule I was quoting.
+"One glowing thing" governs the **glow**, not the colour.
+
+The same pass got the score wrong for the same reason: I invented a grey count-chip from the
+typography ramp instead of looking at `jobcard.tsx`, where the score is a 64px ring with a gold arc
+that has shipped on both screens all along. The owner's words were *"it seems out of his place, like
+it has nothing to do here"* — which is exactly what an invented component looks like beside real ones.
+
+**The reusable rule: before applying a design-system rule, open the screens that already obey it.**
+A written rule tells you what was intended; the shipped code tells you its actual scope, and where
+the two seem to disagree it is the reading that is wrong, not the product. Cheapest tell in this repo:
+`grep` the token (`#e8a33d`) across `apps/web/app/*.css` and count the hits per screen before deciding
+what the rule permits. **Over-applying a rule is not honouring it.**
+
 ## The first record that cannot be re-fetched inherits every mechanism built on the assumption that it can
 
 Learned 2026-09-27, grilling #294. Ruling 1 of map #290 says a pasted advert is *the same kind of thing as a
