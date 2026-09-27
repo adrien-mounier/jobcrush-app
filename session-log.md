@@ -2,6 +2,41 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-27 — the v1 spine has a spec: #301
+
+`/to-spec` on map **#290**, whose ten decision tickets (V1a–V1j) all resolved the same day. Published
+as **[#301](https://github.com/adrien-mounier/jobcrush-app/issues/301)**, `ready-for-agent`, roadmap
+row **V2** — struck; `/to-tickets` is the next unit of work. Nothing in it was re-derived: every
+ruling is carried with its ticket cited inline (#291 door, #287 negatives, #294 staleness, #293
+report, #292 questions, #295/#296/#297 the document's machine, #299 the profile door, #300 the job
+screen).
+
+**It amends #86 on four named points and does not edit it** (the owner's instruction): *no
+requirements → no card* is right for a fetched advert and wrong for a deliberate paste · the
+monotonic score floor goes, as #86's own prose already ruled · eligibility facts are now also askable
+in the Tailor queue at profile scope · a pasted posting never expires and carries an empty
+never-confirmed-live date. **#66 and #156 are absorbed.**
+
+**Two owner calls taken while writing it**, both closing questions the map left open for the build:
+
+1. **The gaps list is un-muted on the job's own screen only.** #300's one open question. The deck card
+   keeps the quiet styling it was designed for; the screen he reads before deciding does not make the
+   line most worth reading the faintest thing on it.
+2. **The PDF is tested through an injected document maker — a stand-in in CI, the real browser proved
+   at the QA gate and on staging.** That is the spec's **one** new seam; the other three are #86's,
+   unchanged. The accepted cost is stated in the spec: a font or page-break breakage surfaces at the
+   gate rather than on the push that caused it.
+
+**Two things the map listed as *not yet specified* are now specified.** The unhappy paths: an advert
+that cannot be read never reaches the document stage (it is the paste screen's failure, text kept),
+and a draft that ships lossy carries its plain-words notices **into the email as well as the screen**.
+And the two-page retry's "tighter budget" is **a real number carried into the draft input**, not a nag
+in prose — page count is measured from our own PDF, one re-tailor, then ship-and-tell.
+
+**Suggested cut for `/to-tickets`: four slices plus one independent** — the door and the pasted posting
+(V3) · the question queue (V4, first half) · the draft rebind (V4, second half) · the document and the
+report (V5) · *Add something new* (V5b, independent of all four).
+
 ## 2026-09-27 — the job's own screen: reuse the deck card, three changes
 
 Design session off #291's job screen. Filed **after** the fact as **#300, row V1j** of map #290, on
