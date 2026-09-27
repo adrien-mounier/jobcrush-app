@@ -4,8 +4,11 @@ Newest first. One entry per working session. Ticket + commit refs so the plan st
 
 ## 2026-09-27 — the job's own screen: reuse the deck card, three changes
 
-Design session off #291's job screen, no ticket — the decision is recorded here and on map #290
-because `/to-spec` needs it at V2. Prototype:
+Design session off #291's job screen. Filed **after** the fact as **#300, row V1j** of map #290, on
+the owner's challenge: a decision living only in a comment thread is weaker than one with a number
+`/to-spec` must account for. Decision ticket, closed on arrival — the build slices stay for the spec
+to cut at V2, per the map's own rule that a wayfinder map files decisions, not build slices. Map now
+**9 of 10**. Prototype:
 `apps/web/prototypes/deck-card-vs-checklist.prototype.html`, commits `7cd2315` → `80b7750`.
 
 **The ruling: the job's own screen IS the shipped deck card, reused, not replaced.** Three changes,
