@@ -473,6 +473,19 @@ $("#wi").insertAdjacentHTML("beforeend",
 document.querySelectorAll("#pick button").forEach(b => (b.onclick = () => { cur = b.dataset.k; draw(); }));
 document.querySelectorAll("#wi button").forEach(b => (b.onclick = () => { whatIf = b.dataset.w === "on"; draw(); }));
 
+// ?bare=1&panel=N — embed mode, so the comparison prototype can show THIS panel rather than
+// a copy of it that drifts. Hides the harness only; the screen itself is untouched.
+const q = new URLSearchParams(location.search);
+if (q.has("panel")) { cur = q.get("panel"); draw(); }
+if (q.has("bare")) {
+  // display:none directly: .bars and .note carry a class-level `display:flex`, which outranks
+  // the [hidden] attribute's UA rule, so setting `hidden` leaves them on screen.
+  for (const sel of [".intro", ".bars", ".note"]) document.querySelector(sel).style.display = "none";
+  document.body.style.padding = "0";
+  document.querySelector(".win").style.border = "none";
+  document.querySelector(".win").style.borderRadius = "0";
+}
+
 draw();
 </script>
 </body>

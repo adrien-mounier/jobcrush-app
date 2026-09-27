@@ -1,0 +1,202 @@
+<!-- PROTOTYPE — throwaway. Owner question, 2026-09-27, before validating the requirement-lists
+     panel: "generate a prototype of the real screen when we see the card of the deck, just
+     before deciding to go to tailor a CV for one of the cards. We should reuse the screen that
+     already exists and not create a new one. I want to see both and compare."
+
+     LEFT is not a drawing of the deck card. It is the deck card: this file links the SHIPPED
+     apps/web/app/deck.css and reproduces apps/web/app/jobcard.tsx's CardBody markup element for
+     element — the same .hd/.score/.bubble/.flat/.breakdown/.ad structure, the same ✓ ? – ·
+     glyphs, the same .jcfoot swipe buttons from deck/page.tsx:1214. Nothing is restyled. If the
+     product's card changes, this panel changes with it, because it is reading the real
+     stylesheet. Two accommodations, both visual no-ops: `.jobdeck` is position:fixed in the app,
+     so it is made static to sit in a frame here; and the desktop column cap (--jc-desk-col,
+     560px, globals.css:368) is declared locally since globals.css is not linked.
+
+     RIGHT is the validated checklist panel, in an iframe of requirement-lists.prototype.html
+     itself — not a copy. One source of truth; if that file moves, this moves.
+
+     SAME JOB, SAME RUN, on both sides: the GRADION advert, the ten requirements the ad-reader
+     pulled out of it, and the judge's verdicts from the #293 run. One honest difference worth
+     knowing when you read the left panel: the shipped card's "Where you fit" rows carry a short
+     FACT phrase (card.fit[].text), not the requirement text — so those nine lines are condensed
+     from the same judge sentences the right-hand panel prints in full. That difference is the
+     comparison, not a liberty taken with the data.
+     Not production code. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobCrush — the deck card we have, beside the checklist we drew</title>
+<link rel="stylesheet" href="../app/deck.css">
+
+<style>
+  :root {
+    --floor: #101419; --surface: #171c23; --line: #2b333d;
+    --ink: #e8eaed; --muted: #7f8b98; --gold: #e8a33d;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--floor); color: var(--ink); font-family: var(--sans);
+    font-size: 14px; line-height: 1.5; padding: 40px 24px 60px; }
+  .intro { max-width: 74ch; margin: 0 auto 32px; text-align: center; }
+  .intro h1 { font-size: 18px; font-weight: 620; letter-spacing: -.01em; margin: 0 0 8px; }
+  .intro p { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+  .intro b { color: var(--ink); font-weight: 620; }
+
+  .pair { display: grid; grid-template-columns: 560px minmax(0, 1fr); gap: 28px;
+    align-items: start; max-width: 1460px; margin: 0 auto; }
+  .col > h2 { display: flex; align-items: center; gap: 12px; margin: 0 0 12px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted); font-weight: 400; }
+  .col > h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .col > .sub { margin: -6px 0 12px; font-size: 12.5px; color: var(--muted); }
+  .frame { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--floor); }
+  .frame iframe { display: block; width: 100%; height: 1460px; border: 0; }
+
+  /* The two visual no-ops named in the header: the app's .jobdeck owns the viewport, and
+     globals.css (which carries the desktop column width) is not linked here. */
+  .frame .jobdeck { position: static; inset: auto; z-index: auto; height: auto;
+    overflow: visible; --jc-desk-col: 560px; padding-bottom: 8px; }
+
+  .verdict { max-width: 1460px; margin: 36px auto 0; display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .v { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  .v h3 { margin: 0 0 8px; font-size: 14px; font-weight: 620; }
+  .v p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+  .v p + p { margin-top: 8px; }
+  .v b { color: var(--ink); font-weight: 620; }
+  @media (max-width: 1180px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+</style>
+
+<div class="intro">
+  <h1>The card the deck already has, beside the checklist we drew</h1>
+  <p>
+    Same job, same run: the GRADION advert, the ten requirements our reader pulled out of it, and
+    the judge's verdicts. <b>The left panel is the real screen</b> — it links the shipped
+    <code>deck.css</code> and reproduces the shipped card's markup, so it is not a drawing of the
+    card, it is the card. <b>The right panel is the checklist prototype itself</b>, embedded, not
+    copied.
+  </p>
+  <p>
+    The question is not which is prettier. It is <b>what the checklist shows that the card does
+    not</b> — and whether that is worth changing on a screen that already works.
+  </p>
+</div>
+
+<div class="pair">
+  <div class="col">
+    <h2>What exists today · the deck card</h2>
+    <p class="sub">The screen you are on when you decide to tailor. Pressing “I want this one” starts the tailoring.</p>
+    <div class="frame">
+      <!-- deck/page.tsx's own shell, then jobcard.tsx's CardBody, element for element. -->
+      <div class="jobdeck">
+        <div class="topbar"><span class="wordmark">JobCrush</span><span class="spacer"></span></div>
+        <p class="deckcount">1 of 4 matched today · swipe or tap</p>
+        <div class="deck">
+          <div class="jobcard" data-scored="judged">
+            <div class="jcbody">
+
+              <div class="hd">
+                <div class="t">
+                  <h2 tabindex="-1">IT Project Manager / Senior Project Manager (English Speaking)</h2>
+                  <p class="co">GRADION · Ho Chi Minh City, Vietnam<br>Hybrid</p>
+                </div>
+                <div class="scoreslot">
+                  <div class="score lg" role="img" aria-label="79% match">
+                    <svg viewBox="0 0 64 64" aria-hidden="true">
+                      <circle class="bg" cx="32" cy="32" r="28"></circle>
+                      <circle class="fg" cx="32" cy="32" r="28"
+                        stroke-dasharray="175.93" stroke-dashoffset="36.95"></circle>
+                    </svg>
+                    <span class="n">79<span class="pct">%</span></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bubble">
+                <p>
+                  This is your job on paper — seven years of IT delivery, the scope translation and
+                  the international English all match what they lead with.
+                  <span class="gap">The gap is the two contract models.</span>
+                </p>
+              </div>
+
+              <div class="flat">
+                <h3>Where you fit</h3>
+                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>7+ years delivering IT systems</span></div>
+                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>Fluent English, steering committees across regions</span></div>
+                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>Business needs into specs and user stories</span></div>
+                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>Master's in Computer Science</span></div>
+                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>International teams across Europe, APAC and Africa</span></div>
+                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>Formal risk register, risks escalated early</span></div>
+                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>LLM workflows in daily delivery, ran AI workshops</span></div>
+                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>Built and rolled out an autonomous assistant</span></div>
+                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>Hands-on build and deployment</span></div>
+                <h3>Where you don't — yet</h3>
+                <div class="row open"><span class="mk" aria-hidden="true">?</span><span>Hands-on experience running both Dedicated Team and Fixed-Price projects</span></div>
+              </div>
+
+              <section class="breakdown" aria-labelledby="bdt">
+                <p id="bdt" class="bd-title">Match breakdown</p>
+                <dl class="bd-grid">
+                  <div class="bd-cell"><dt class="bd-l">Requirements met</dt><dd class="bd-n">9/10</dd></div>
+                  <div class="bd-cell"><dt class="bd-l">Essential met</dt><dd class="bd-n">3/4</dd></div>
+                  <div class="bd-cell"><dt class="bd-l">Desirable met</dt><dd class="bd-n">6/6</dd></div>
+                  <div class="bd-cell"><dt class="bd-l">Match quality</dt><dd class="bd-pill strong">Strong</dd></div>
+                </dl>
+              </section>
+
+              <details class="ad">
+                <summary>Read the ad in full</summary>
+                <p>GRADION is looking for an IT Project Manager / Senior Project Manager to run
+                  delivery for international clients from Ho Chi Minh City. You will own scope,
+                  budget and schedule across Dedicated Team and Fixed-Price engagements, translate
+                  unclear client requirements into deliverable scope, and communicate in English
+                  with stakeholders across regions.</p>
+              </details>
+
+            </div>
+            <div class="jcfoot">
+              <button type="button" class="sw">Not for me</button>
+              <button type="button" class="sw yes">I want this one</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <h2>What we drew · the checklist panel</h2>
+    <p class="sub">The job's own screen, reached from the deck or from a pasted advert. Embedded live from its own prototype.</p>
+    <div class="frame">
+      <iframe src="requirement-lists.prototype.html?bare=1&amp;panel=1"
+        title="The checklist panel" loading="eager"></iframe>
+    </div>
+  </div>
+</div>
+
+<div class="verdict">
+  <div class="v">
+    <h3>The card already answers most of it</h3>
+    <p>Same ring, same gold ticks, same grey <b>?</b> for the gap, same language. The checklist did
+      not invent a visual world — it inherited this one. <b>Nothing on the left needs restyling.</b></p>
+  </div>
+  <div class="v">
+    <h3>What the card does not show: why</h3>
+    <p>The card names the fact (<b>“7+ years delivering IT systems”</b>). The checklist names the
+      requirement and the sentence that satisfied it. On a card you are skimming past, the fact is
+      right. On the screen where you commit to writing a CV, the reason is the thing you check.</p>
+  </div>
+  <div class="v">
+    <h3>What the card does not show: weight</h3>
+    <p>The card sorts into fit and not-yet. The checklist sorts into <b>Essential</b> and
+      <b>Desirable</b>, so a missing essential reads differently from a missing nice-to-have. The
+      card carries that only as two numbers in the breakdown grid, below the fold.</p>
+  </div>
+  <div class="v">
+    <h3>The card has one thing the checklist dropped</h3>
+    <p>The <b>match breakdown</b> — four cells and a Strong/Partial/Weak pill — is a shipped
+      component. The checklist's summary line was cut as a repeat of its group counts, which it was;
+      but this grid is the same information with somewhere to live.</p>
+  </div>
+</div>
