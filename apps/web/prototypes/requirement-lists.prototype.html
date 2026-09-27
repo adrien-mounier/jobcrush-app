@@ -12,6 +12,10 @@
        2. "get vs don't get" is a THRESHOLD on a 0..1 fit, not a tick box — the what-if
           switch shows what a half-met requirement does to each treatment, because this
           advert's real read happens to contain none.
+     Owner's read, 2026-09-27: panel 1 chosen, and its layout was wrong — the sidebar held
+     only a score and a button, "a whole column for two lines of elements". Panel 1 now has
+     no sidebar at all. Panels 2 and 3 keep theirs, because in those two the sidebar IS the
+     treatment being tested.
      Not production code. -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JobCrush — what you have and what you don't: three panels</title>
@@ -31,7 +35,7 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--page); color: var(--page-ink); font-family: var(--sans);
-    min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 22px 16px 90px; gap: 13px; }
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 22px 16px 130px; gap: 13px; }
   .intro { max-width: 76ch; text-align: center; }
   .intro h1 { font-family: var(--serif); font-size: 24px; font-weight: 600; margin: 0 0 7px; letter-spacing: -.015em; }
   .intro p { font-size: 13px; line-height: 1.6; opacity: .78; margin: 0 0 6px; }
@@ -79,6 +83,34 @@
   .side .act { margin-top: 15px; }
   .side .act button { width: 100%; appearance: none; border: none; font: inherit; font-size: 13px; font-weight: 640;
     cursor: pointer; background: var(--gold); color: #1a1206; border-radius: 999px; padding: 10px 0; }
+
+  /* ---------- panel 1's own layout, after the owner's read 2026-09-27: NO SIDEBAR.
+     Once the checklist is the page's spine the sidebar holds a score and a button, and a
+     BORDERED column holding two elements reads as an empty room. Take the border off and
+     the same space is margin, not emptiness — so the score lives in that margin and the
+     list gets a readable measure instead of stretching to ~150 characters.
+     The action bar sits under the evidence, which is also the right reading order: see
+     what you have, then decide. In production that bar should stick to the bottom of the
+     viewport (ten rows is a scroll); not faked here, because `.win`'s overflow:hidden
+     makes sticky behave differently inside this mock window than on the real page. ---------- */
+  /* The measure is a track, not a max-width, and the tracks are CENTRED: capping the text
+     inside a full-width column just moves the emptiness to the right-hand third. Centred,
+     the leftover is a balanced margin on both sides, and the score still sits beside the
+     title rather than adrift in the void. */
+  .job.wide { --measure: 74ch; grid-template-columns: minmax(0, var(--measure)) auto;
+    justify-content: center; column-gap: 30px; }
+  .job.wide .score { text-align: right; padding-top: 3px; white-space: nowrap; }
+  .job.wide .score b { display: block; font-family: var(--serif); font-size: 30px; line-height: 1; color: var(--gold); }
+  .job.wide .score span { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--hud-mute); }
+  /* Spans the centred tracks, so it lines up with the evidence above it instead of
+     bleeding to the card edges and re-introducing the alignment the measure just fixed. */
+  .actbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--hud-line); }
+  .actbar .sum { flex: 1; min-width: 180px; font-size: 12.5px; color: var(--hud-mute); line-height: 1.5; }
+  .actbar .sum b { color: var(--hud-ink); font-weight: 620; }
+  .actbar button { appearance: none; border: none; font: inherit; font-size: 13px; font-weight: 640;
+    cursor: pointer; background: var(--gold); color: #1a1206; border-radius: 999px; padding: 11px 26px; }
 
   /* ---------- the requirement rows, shared by the treatments that list ---------- */
   .reqs { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -218,20 +250,33 @@ const reqRow = (r, withWhy = true) => `
   <li class="${state(r.fit)}"><span class="mk">${MARK[state(r.fit)]}</span>
     <div><span class="t">${r.t}</span>${withWhy ? `<small>${r.why}</small>` : ""}</div></li>`;
 
+// The bar's left half, so the one action never stands alone: the verdict and the button
+// read as one line. Same numbers as the group headers, said once in summary.
+const sumLine = () => {
+  const e = count("essential"), d = count("desirable");
+  const open = rows().filter(r => state(r.fit) !== "have").length;
+  return `<b>Essential ${e.met} of ${e.total} · Desirable ${d.met} of ${d.total}</b> — ${
+    open ? `${open} still open` : "nothing open"}`;
+};
+
 // The job screen around the panel. `body` and `panel` are what the treatments change.
-const screen = (body, panel) => `<div class="job">
+// `wide` is panel 1's layout: no sidebar, score in the margin, action in a bar below.
+const screen = (body, panel, wide = false) => `<div class="job${wide ? " wide" : ""}">
   <p class="back">← Deck &nbsp;·&nbsp; the job's own screen</p>
-  <div>
+  <div class="colmain">
     <h2>IT Project Manager / Senior Project Manager (English Speaking)</h2>
     <p class="meta">GRADION · Ho Chi Minh City, Vietnam · Hybrid</p>
     <div class="applystrip">Apply here → <a href="#">https://www.linkedin.com/jobs/view/4445923167/</a></div>
     ${body}
   </div>
-  <div class="side">
+  ${wide ? `<div class="score"><b>79%</b><span>match</span></div>
+  <div class="actbar"><div class="sum">${sumLine()}</div>
+    <button>Write the tailored CV</button></div>`
+  : `<div class="side">
     <div class="ring"><b>79%</b><span>match</span></div>
     ${panel}
     <div class="act"><button>Write the tailored CV</button></div>
-  </div>
+  </div>`}
 </div>`;
 
 // The body as #291 left it: prose lists, no per-requirement detail.
@@ -251,7 +296,7 @@ const PANELS = {
   1: {
     tag: "1 · the checklist",
     name: "Every requirement, ticked or not",
-    note: "Nothing hidden: all ten, grouped by weight, each with the reason behind the verdict. The panel becomes the page's spine — and the prose lists below it stop earning their place.",
+    note: "Nothing hidden: all ten, grouped by weight, each with the reason behind the verdict. The list IS the page, so the sidebar is gone — the score sits in the margin at reading weight, and the one action sits under the evidence with the verdict beside it.",
     render() {
       const grp = (band, label) => {
         const { rs, met, part, total } = count(band);
@@ -260,12 +305,13 @@ const PANELS = {
           <ul class="reqs">${rs.map(r => reqRow(r)).join("")}</ul>`;
       };
       // Ten rows with their reasons do not fit a sidebar — so in this treatment the
-      // list IS the page, and the sidebar keeps only the score and the one action.
-      // The prose lists are gone: with every requirement named, they were the duplicate.
+      // list IS the page, and the sidebar is removed rather than left half-empty
+      // (owner's read, 2026-09-27). The prose lists are gone too: with every
+      // requirement named, they were the duplicate.
       return screen(
         `<div class="sect">What this job asks for, and what you have</div>
          ${grp("essential", "Essential")}${grp("desirable", "Desirable")}`,
-        "");
+        "", true);
     },
   },
 
