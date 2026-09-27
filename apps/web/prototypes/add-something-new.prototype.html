@@ -1,0 +1,425 @@
+<!-- PROTOTYPE — throwaway. #299 row V1i: "Add something new" — the profile's way in.
+
+     ══ THE QUESTION ════════════════════════════════════════════════════════
+     Full screen, or a sheet? The owner asked for a design pass rather than an off-the-cuff
+     call, because of one constraint: the ruled-out items stay HIDDEN on the profile (#287,
+     "Not decided here"), so the flow can never offer her a list of things she has denied —
+     it has to recognise a denial AT THE MOMENT SHE TYPES IT. That recognition step is what
+     a sheet may not have room for.
+
+     ══ LOCKED — decided elsewhere, not open here ════════════════════════════
+       - The wording is "Add something new" (owner-approved). Verb-first, like the screen's
+         other doors ("Check your work history", "Change your languages"). Not "a new info".
+       - The profile screen's own law is untouched: nothing about LACK becomes visible on it.
+         No list of denials, no count of them, no hint that the list exists.
+       - She picks the KIND of fact (a skill · a job · a language · anything else the profile
+         holds) and the flow walks her through it.
+       - #287 clause 9: the "No" is KEPT, the new fact is dated. Erasing it would make the
+         record claim she always had the capability. Mistap-erase stays a different path.
+       - #287 clause 10: the date is ASKED, never stamped from today — coarse buckets
+         (this year · 1-2 years · 3 or more). Stamping prints "since September 2026" over a
+         skill she may have held since 2024.
+       - #287 clause 7: this is the existing answer path, not a second mechanism. What she
+         adds lands on the profile permanently.
+       - Never moralise, never show the kitchen: she is never told the machine had her down
+         as lacking something. It reads as "you told me before", not "we had you flagged".
+
+     ══ WHAT THE VARIANTS DISAGREE ABOUT ════════════════════════════════════
+     WHERE the flow lives, and therefore how much room the recognition step gets:
+       A — FULL SCREEN. Its own route, one question per screen, discovery's rhythm. The
+           recognition gets a screen of its own and can quote her old answer in full.
+       B — THE SHEET. A pull-up on the profile screen, reusing the "Your facts" sheet she
+           already knows. Steps swap inside it. Recognition has to fit — shown cramped, not
+           flattered.
+       C — SHEET THAT PROMOTES. Starts as the sheet; the moment a denial is recognised it
+           takes the whole screen for that one question, then hands her back to the profile.
+
+     ══ DATA ════════════════════════════════════════════════════════════════
+     The denial is the real fixture shape: `packages/contracts/fixtures/graph.valid.json`
+     carries `gap-mandarin` — text "No Mandarin language ability.", tags [mandarin, language],
+     renderable:false, confirmed_date. The SQL case is #287's own worked example. The profile
+     rows behind the flow are the real screen's wording (apps/web/app/profile/page.tsx).
+     Not production code. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobCrush — "Add something new": full screen, sheet, or both</title>
+
+<style>
+  :root {
+    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-line: #2b333d;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98;
+    --gold: #e8a33d; --part: #c9a227; --bad: #e0704f;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --page: #0b0e12; --page-ink: #cfd5dc; --card: #171c23; --card-line: #2b333d;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --page: #dfe3e8; --page-ink: #2b333d; --card: #fff; --card-line: #c8cfd7; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--page-ink); font-family: var(--sans);
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 22px 16px 96px; gap: 13px; }
+  .intro { max-width: 76ch; text-align: center; }
+  .intro h1 { font-family: var(--serif); font-size: 24px; font-weight: 600; margin: 0 0 7px; letter-spacing: -.015em; }
+  .intro p { font-size: 13px; line-height: 1.6; opacity: .78; margin: 0 0 6px; }
+  .bars { display: flex; flex-direction: column; gap: 7px; align-items: center; }
+  .row { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; align-items: center; }
+  .row > em { font-style: normal; font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase; opacity: .55; margin-right: 2px; }
+  .row button { appearance: none; font: inherit; font-size: 12px; cursor: pointer; text-align: left; line-height: 1.3;
+    background: var(--card); color: var(--page-ink); border: 1px solid var(--card-line); border-radius: 9px; padding: 7px 12px; }
+  .row button:hover { border-color: var(--gold); }
+  .row button.on { border-color: var(--gold); background: rgba(232,163,61,.13); }
+  .row button b { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--gold); }
+  .row .hint { font-family: var(--mono); font-size: 10px; opacity: .55; }
+
+  .deck { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+
+  /* ---------- the phone ---------- */
+  .phone { width: 340px; flex: 0 0 auto; }
+  .screen { position: relative; height: 640px; overflow: hidden; background: var(--hud-0); color: var(--hud-ink);
+    border: 1px solid #333c47; border-radius: 26px; box-shadow: 0 30px 70px -22px rgba(0,0,0,.65); }
+  .top { display: flex; align-items: center; gap: 8px; padding: 12px 16px 8px; font-size: 11px; color: var(--hud-mute); }
+  .top .wordmark { font-size: 11px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+  .top .spacer { flex: 1; }
+
+  .prof { padding: 4px 16px 18px; }
+  .prof h2 { font-family: var(--serif); font-size: 19px; margin: 6px 0 2px; letter-spacing: -.015em; }
+  .prof .sub { font-size: 11.5px; color: var(--hud-mute); margin: 0 0 14px; line-height: 1.5; }
+  .sect { font-family: var(--mono); font-size: 9px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--hud-mute); margin: 15px 0 7px; }
+  .facts { list-style: none; margin: 0; padding: 0; }
+  .facts li { font-size: 12.5px; line-height: 1.45; padding: 7px 0; border-top: 1px solid rgba(43,51,61,.7); }
+  .facts li:first-child { border-top: none; }
+  .facts li small { display: block; font-size: 10.5px; color: var(--hud-mute); margin-top: 2px; }
+  .facts li.fresh { color: var(--gold); }
+  .door { display: block; width: 100%; text-align: left; appearance: none; font: inherit; font-size: 12px;
+    background: none; color: var(--hud-mute); border: 1px dashed var(--hud-line); border-radius: 8px;
+    padding: 9px 11px; margin-top: 9px; cursor: pointer; }
+  .door:hover { color: var(--hud-ink); border-color: var(--gold); }
+  .door.primary { border-style: solid; border-color: var(--gold); color: var(--gold);
+    background: rgba(232,163,61,.09); font-weight: 620; font-size: 12.5px; }
+
+  /* ---------- the flow, in whichever container ---------- */
+  .full { position: absolute; inset: 0; background: var(--hud-0); display: flex; flex-direction: column; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--hud-1);
+    border-top: 1px solid var(--hud-line); border-radius: 18px 18px 0 0;
+    box-shadow: 0 -18px 40px -14px rgba(0,0,0,.6); display: flex; flex-direction: column;
+    max-height: 62%; }
+  .scrim { position: absolute; inset: 0; background: rgba(6,9,12,.62); }
+  .grab { width: 34px; height: 4px; border-radius: 2px; background: var(--hud-line); margin: 9px auto 2px; flex: 0 0 auto; }
+  .fhead { display: flex; align-items: center; gap: 10px; padding: 13px 16px 9px; flex: 0 0 auto; }
+  .fhead .back { appearance: none; background: none; border: none; font: inherit; font-size: 12px;
+    color: var(--hud-mute); cursor: pointer; padding: 0; }
+  .fhead .step { flex: 1; text-align: right; font-family: var(--mono); font-size: 9px;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--hud-mute); }
+  .fbody { padding: 4px 16px 16px; overflow-y: auto; flex: 1 1 auto; }
+  .fbody.cramped { max-height: 100%; }
+  .q { font-family: var(--serif); font-size: 19px; line-height: 1.3; margin: 6px 0 6px; letter-spacing: -.015em; }
+  .full .q { font-size: 23px; margin: 22px 0 8px; }
+  .why { font-size: 12px; color: var(--hud-mute); line-height: 1.55; margin: 0 0 14px; }
+  .opts { display: flex; flex-direction: column; gap: 7px; }
+  .opt { appearance: none; text-align: left; font: inherit; font-size: 13px; cursor: pointer;
+    background: var(--hud-2); color: var(--hud-ink); border: 1px solid var(--hud-line);
+    border-radius: 10px; padding: 11px 13px; line-height: 1.35; }
+  .opt:hover { border-color: var(--gold); }
+  .opt small { display: block; font-size: 11px; color: var(--hud-mute); margin-top: 2px; }
+  .opt.go { background: var(--gold); color: #1a1206; border-color: var(--gold); font-weight: 640; text-align: center; }
+  input.tx { width: 100%; font: inherit; font-size: 15px; background: var(--hud-2); color: var(--hud-ink);
+    border: 1px solid var(--hud-line); border-radius: 10px; padding: 12px 13px; margin-bottom: 10px; }
+  input.tx:focus { outline: none; border-color: var(--gold); }
+  .recall { border: 1px solid rgba(232,163,61,.4); background: rgba(232,163,61,.09);
+    border-radius: 10px; padding: 12px 13px; margin: 0 0 14px; }
+  .recall b { display: block; font-size: 9px; font-family: var(--mono); letter-spacing: .13em;
+    text-transform: uppercase; color: var(--gold); margin-bottom: 5px; }
+  .recall q { font-style: normal; font-size: 13.5px; line-height: 1.45; }
+  .recall p { margin: 7px 0 0; font-size: 11.5px; color: var(--hud-mute); line-height: 1.5; }
+  .done { text-align: center; padding-top: 10px; }
+  .done .tick { font-size: 26px; color: var(--gold); }
+  .kept { font-size: 11px; color: var(--hud-mute); line-height: 1.5; margin-top: 12px;
+    border-top: 1px solid var(--hud-line); padding-top: 10px; }
+
+  /* ---------- the state readout under each phone ---------- */
+  .state { margin-top: 11px; background: var(--card); border: 1px solid var(--card-line);
+    border-radius: 10px; padding: 11px 13px; font-family: var(--mono); font-size: 10.5px; line-height: 1.6; }
+  .state h3 { font-family: var(--sans); font-size: 12.5px; margin: 0 0 3px; }
+  .state .tag { display: block; font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--gold); margin-bottom: 6px; }
+  .state p { margin: 0 0 8px; font-family: var(--sans); font-size: 11.5px; line-height: 1.55; opacity: .85; }
+  .state dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
+  .state dt { opacity: .55; }
+  .state dd { margin: 0; word-break: break-word; }
+  .verdict { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--card-line);
+    font-family: var(--sans); font-size: 11.5px; line-height: 1.55; }
+  .verdict b { color: var(--gold); }
+
+  .note { position: fixed; bottom: 13px; left: 50%; transform: translateX(-50%); z-index: 200;
+    display: flex; align-items: center; gap: 10px; background: #f2f4f7; color: #101419; border-radius: 999px;
+    padding: 7px 16px; box-shadow: 0 8px 26px rgba(0,0,0,.4); font-size: 12.5px; max-width: calc(100vw - 24px); }
+</style>
+
+<div class="intro">
+  <h1>"Add something new" — full screen, a sheet, or both</h1>
+  <p>
+    A person learns something in March and wants to tell us before any posting asks. Three
+    containers for the same four-step flow, side by side, all drivable. Start at
+    <b>Add something new</b> on any phone.
+  </p>
+  <p>
+    <b>The catch that decides it:</b> the ruled-out items stay hidden on the profile, so the flow
+    has to recognise a "No" <b>the moment she types it</b> — and then keep the No, and ask the date
+    instead of stamping today. The <b>what-if</b> switch is that case. Type
+    <span style="font-family:var(--mono)">Mandarin</span> or
+    <span style="font-family:var(--mono)">SQL</span> to trip it.
+  </p>
+</div>
+
+<div class="bars">
+  <div class="row" id="wi"><em>what-if</em></div>
+</div>
+
+<div class="deck" id="deck"></div>
+
+<div class="note"><span id="noteTxt">Three containers, one flow. The state under each phone shows what would be written.</span></div>
+
+<script>
+// ---------------------------------------------------------------------------
+// PROTOTYPE. Throwaway. #299 — the design question is the CONTAINER, so all three
+// containers run the same four steps and the same recognition rule. Nothing here is
+// production code: no persistence, no validation, no error handling.
+// ---------------------------------------------------------------------------
+
+// The denials she already gave. Real fixture shape (graph.valid.json → gap-mandarin):
+// a Negative node is text + tags + renderable:false + confirmed_date. `keys` is what the
+// recognition matches on — today's semantic key, which is the tag list.
+const DENIALS = [
+  { key: "mandarin", text: "No Mandarin language ability.", asked: "when we went through your languages", on: "2026-07-01" },
+  { key: "sql", text: "Never used SQL.", asked: "when we mapped your skills", on: "2026-07-01" },
+];
+
+// What the profile shows today. Real screen wording (apps/web/app/profile/page.tsx).
+// Note what is NOT here: nothing about lack. That law is not open in this prototype.
+const FACTS = [
+  { t: "Senior Project Manager — 7+ years delivering banking, fintech and SaaS", cap: "Read from your CV." },
+  { t: "Excellent international English — C1", cap: "You told me this." },
+  { t: "Coordinated cross-functional teams across Europe, Asia-Pacific and Africa", cap: "Read from your CV." },
+  { t: "Builds LLM-driven workflows into day-to-day delivery", cap: "Read from your CV." },
+];
+
+const KINDS = [
+  { k: "skill", label: "A skill", hint: "Something you can do — a tool, a method, a language you work in", q: "What's the skill called?", ph: "e.g. SQL, Jira, Prince2" },
+  { k: "job", label: "A job", hint: "A role that wasn't on your CV", q: "Where did you work?", ph: "e.g. Nightshift at Acme" },
+  { k: "language", label: "A language", hint: "One you speak, read or write", q: "Which language?", ph: "e.g. Mandarin" },
+  { k: "other", label: "Something else", hint: "A qualification, a certificate, anything the profile holds", q: "What do you want to add?", ph: "Say it in your own words" },
+];
+
+const AGES = [
+  { a: "this-year", label: "This year", note: "2026" },
+  { a: "1-2", label: "1 to 2 years", note: "since 2024 or so" },
+  { a: "3-plus", label: "3 years or more", note: "a while now" },
+];
+
+// The recognition. Substring on the semantic key — honest about the ceiling: this is what
+// today's negatives key on (tags), so "MS SQL Server" trips and "relational databases" does not.
+const recognise = (typed) => {
+  const t = typed.trim().toLowerCase();
+  if (!t) return null;
+  return DENIALS.find(d => t.includes(d.key) || d.key.includes(t) && t.length > 2) ?? null;
+};
+
+// ---------------------------------------------------------------------------
+
+const VARIANTS = [
+  { id: "A", tag: "A · full screen", name: "Its own route, one question per screen",
+    note: "Discovery's rhythm, reused. The recognition gets a whole screen: her old answer quoted in full, both doors at full size, room for the reassurance. Cost: she leaves the profile, and a one-line language add now costs four screens.",
+    container: "full" },
+  { id: "B", tag: "B · the sheet", name: "A pull-up on the profile, like Your facts",
+    note: "She never leaves the screen she was reading, and the sheet is a gesture she already knows. Shown honestly: with her old answer quoted, the recognition step scrolls inside the sheet — the exact cramp the ticket warns about.",
+    container: "sheet" },
+  { id: "C", tag: "C · sheet that promotes", name: "Sheet by default, full screen on recognition",
+    note: "The cheap add stays cheap and the one step that needs room takes the screen for itself. Cost: the container moves under her — and the promotion is itself a tell that something unusual just happened, which is close to showing the kitchen.",
+    container: "promote" },
+];
+
+const blank = () => ({ step: "closed", kind: null, typed: "", hit: null, changed: null, age: null, landed: null });
+const S = {};
+VARIANTS.forEach(v => (S[v.id] = blank()));
+let whatIf = true; // true = her typing hits a stored "No"; false = a plain new fact
+
+const esc = (s) => s.replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]));
+const hitOf = (s) => (whatIf ? recognise(s.typed) : null);
+
+// ---- the four steps, container-agnostic -----------------------------------
+function stepBody(v, s) {
+  const kind = KINDS.find(k => k.k === s.kind);
+  if (s.step === "kind") return { n: "1 of 3", title: "What are you adding?",
+    why: "Pick the kind and I'll ask the right questions.",
+    html: `<div class="opts">${KINDS.map(k =>
+      `<button class="opt" data-kind="${k.k}">${k.label}<small>${k.hint}</small></button>`).join("")}</div>` };
+
+  if (s.step === "thing") return { n: "2 of 3", title: kind.q,
+    why: "Your own words are fine — I'll tidy it up.",
+    html: `<input class="tx" id="tx-${v.id}" placeholder="${kind.ph}" value="${esc(s.typed)}" autocomplete="off">
+      <div class="opts"><button class="opt go" data-act="submit">Next</button></div>` };
+
+  if (s.step === "recall") {
+    const d = s.hit;
+    return { n: "2 of 3", title: "You told me something different before.",
+      why: "",
+      html: `<div class="recall"><b>what you said ${d.asked}</b><q>${d.text}</q>
+          <p>Nothing is wrong — people pick things up. I just need to know which one is true now.</p></div>
+        <div class="opts">
+          <button class="opt" data-act="grew">Yes — I have it now<small>I'll ask when, and put it on your CV</small></button>
+          <button class="opt" data-act="mistap">No — I meant something else<small>Take me back to what I typed</small></button>
+        </div>` };
+  }
+
+  if (s.step === "age") return { n: "3 of 3", title: "Since when?",
+    why: "Roughly is enough. It changes how the line reads on your CV — nothing more.",
+    html: `<div class="opts">${AGES.map(a =>
+      `<button class="opt" data-age="${a.a}">${a.label}<small>${a.note}</small></button>`).join("")}</div>` };
+
+  const l = s.landed;
+  return { n: "done", title: "", why: "",
+    html: `<div class="done"><div class="tick">✓</div>
+        <p class="q" style="margin-top:6px">${esc(l.text)} is on your profile.</p>
+        <p class="why">${l.age ? AGES.find(a => a.a === l.age).label.toLowerCase() : "added just now"} · it goes on your CV the next time a job asks for it.</p>
+        <div class="opts"><button class="opt go" data-act="close">Back to your profile</button>
+          <button class="opt" data-act="again">Add something else</button></div>
+        ${l.keptNo ? `<p class="kept">Your earlier answer is kept as it was — dated then, not overwritten.
+          <br><span style="opacity:.6">(she is not shown this line in the real product; it is here so the prototype's record-keeping is visible)</span></p>` : ""}
+      </div>` };
+}
+
+// ---- containers ----------------------------------------------------------
+function profileScreen(v, s) {
+  const fresh = s.landed && s.step === "closed"
+    ? `<li class="fresh">${esc(s.landed.text)}<small>You told me this — ${s.landed.age ? AGES.find(a => a.a === s.landed.age).label.toLowerCase() : "just now"}.</small></li>` : "";
+  return `<div class="top"><span class="wordmark">JobCrush</span><span class="spacer"></span><span>‹ Back</span></div>
+    <div class="prof">
+      <h2>your profile</h2>
+      <p class="sub">Everything you tell me from here lands on this screen and stays.</p>
+      <button class="door primary" data-act="open">＋ Add something new</button>
+      <div class="sect">On your CV right now</div>
+      <ul class="facts">${fresh}${FACTS.map(f => `<li>${f.t}<small>${f.cap}</small></li>`).join("")}</ul>
+      <button class="door" data-act="noop">Check your work history</button>
+      <button class="door" data-act="noop">Change your languages</button>
+    </div>`;
+}
+
+function render(v) {
+  const s = S[v.id];
+  const open = s.step !== "closed";
+  const body = open ? stepBody(v, s) : null;
+  const flow = open ? `
+    <div class="fhead">
+      ${s.step === "done" ? "" : `<button class="back" data-act="back">‹ Back</button>`}
+      <span class="step">${body.n}</span>
+    </div>
+    <div class="fbody">
+      ${body.title ? `<p class="q">${body.title}</p>` : ""}
+      ${body.why ? `<p class="why">${body.why}</p>` : ""}
+      ${body.html}
+    </div>` : "";
+
+  let inner = profileScreen(v, s);
+  if (open) {
+    const asFull = v.container === "full" || (v.container === "promote" && s.step === "recall");
+    inner += asFull
+      ? `<div class="full">${flow}</div>`
+      // B's sheet does NOT grow for the recall step — that is the point: the step scrolls
+      // inside 62% of the screen, which is the cramp the ticket asks us to look at.
+      : `<div class="scrim" data-act="close"></div><div class="sheet"><div class="grab"></div>${flow}</div>`;
+  }
+
+  return `<div class="phone" data-v="${v.id}">
+    <div class="screen">${inner}</div>
+    ${stateBox(v, s)}
+  </div>`;
+}
+
+function stateBox(v, s) {
+  const hit = s.hit;
+  const written = s.landed
+    ? `<dl>
+        <dt>writes</dt><dd>Claim · ${esc(s.landed.text)} · renderable:true · origin:"user"</dd>
+        <dt>dated</dt><dd>${s.landed.age ?? "—"} (asked, not stamped)</dd>
+        <dt>keeps</dt><dd>${s.landed.keptNo ? `Negative · "${s.landed.keptNo}" · confirmed_date 2026-07-01 · untouched` : "— no negative in play"}</dd>
+        <dt>erases</dt><dd>${s.landed.erased ? `Negative (mistap path)` : "nothing"}</dd>
+      </dl>`
+    : `<dl><dt>step</dt><dd>${s.step}</dd><dt>kind</dt><dd>${s.kind ?? "—"}</dd>
+        <dt>typed</dt><dd>${esc(s.typed) || "—"}</dd>
+        <dt>recognised</dt><dd>${hit ? `${hit.key} → "${hit.text}"` : s.step === "thing" ? "checked on submit" : "—"}</dd></dl>`;
+  return `<div class="state">
+    <span class="tag">${v.tag}</span>
+    <h3>${v.name}</h3>
+    <p>${v.note}</p>
+    ${written}
+  </div>`;
+}
+
+function draw() {
+  document.getElementById("deck").innerHTML = VARIANTS.map(render).join("");
+  document.querySelectorAll("#wi button").forEach(b => b.classList.toggle("on", (b.dataset.w === "on") === whatIf));
+}
+
+// ---- one delegated handler for all three phones --------------------------
+document.getElementById("deck").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-act],[data-kind],[data-age]");
+  if (!btn) return;
+  const id = btn.closest(".phone").dataset.v;
+  const s = S[id];
+  const tx = document.getElementById("tx-" + id);
+  if (tx) s.typed = tx.value;
+
+  if (btn.dataset.kind) { s.kind = btn.dataset.kind; s.step = "thing"; s.typed = ""; }
+  else if (btn.dataset.age) {
+    s.age = btn.dataset.age;
+    s.landed = { text: s.typed.trim(), age: s.age, keptNo: s.hit ? s.hit.text : null, erased: false };
+    s.step = "done";
+  } else switch (btn.dataset.act) {
+    case "open": Object.assign(s, blank(), { step: "kind" }); break;
+    case "noop": setNote("Not this prototype's question — the other doors are unchanged."); return;
+    case "submit": {
+      if (!s.typed.trim()) { setNote("Type something first — the flow has nothing to recognise yet."); return; }
+      s.hit = hitOf(s);
+      if (s.hit) s.step = "recall";
+      else { s.landed = { text: s.typed.trim(), age: null, keptNo: null, erased: false }; s.step = "age"; }
+      break;
+    }
+    case "grew": s.step = "age"; break;
+    // #287 c9: the mistap path is the one that erases. Here it just returns her to the box.
+    case "mistap": s.step = "thing"; s.hit = null; break;
+    case "back":
+      s.step = s.step === "thing" ? "kind" : s.step === "recall" ? "thing" : s.step === "age" ? (s.hit ? "recall" : "thing") : "closed";
+      break;
+    case "again": Object.assign(s, blank(), { step: "kind" }); break;
+    case "close": s.step = "closed"; break;
+  }
+  draw();
+  const focus = document.getElementById("tx-" + id);
+  if (focus) focus.focus();
+});
+
+document.getElementById("deck").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || !e.target.classList.contains("tx")) return;
+  e.target.closest(".fbody").querySelector('[data-act="submit"]').click();
+});
+
+const setNote = (t) => (document.getElementById("noteTxt").textContent = t);
+
+document.getElementById("wi").insertAdjacentHTML("beforeend",
+  `<button data-w="on"><b>hits a "No"</b>Mandarin / SQL — she denied it in discovery</button>
+   <button data-w="off"><b>plain new fact</b>nothing stored contradicts it</button>
+   <span class="hint">recognition matches the negative's semantic key (its tags) — a paraphrase does not trip it</span>`);
+document.querySelectorAll("#wi button").forEach(b => (b.onclick = () => {
+  whatIf = b.dataset.w === "on";
+  VARIANTS.forEach(v => Object.assign(S[v.id], blank()));
+  draw();
+}));
+
+draw();
+</script>
+</body>
+</html>
