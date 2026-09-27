@@ -75,6 +75,24 @@
   header.top { background: var(--paper); border-bottom: 1px solid var(--line); padding: 18px 24px 14px; }
   header.top h1 { margin: 0 0 4px; font-size: 19px; letter-spacing: -0.01em; }
   header.top p { margin: 0; color: var(--mute); font-size: 13.5px; max-width: 78ch; }
+  .switcher { background: var(--paper); border-bottom: 1px solid var(--line); padding: 12px 24px;
+              display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+              position: sticky; top: 0; z-index: 15; }
+  .sw-label { font-size: 13px; font-weight: 600; }
+  .sw-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  .sw-buttons button { font: 600 13px/1.2 inherit; padding: 9px 15px; border-radius: 4px; cursor: pointer;
+                       background: #fff; color: var(--ink); border: 1px solid #b9c2cc; }
+  .sw-buttons button:hover { border-color: var(--accent); }
+  .sw-buttons button[aria-current="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .mail { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .mail-head { background: #f7f8fa; border-bottom: 1px solid var(--line); padding: 14px 30px 12px;
+               font-size: 13px; color: #444; }
+  .mail-row { margin-bottom: 3px; } .mail-row span { display: inline-block; width: 60px; color: var(--mute); }
+  .mail-row.subj { font-size: 15px; font-weight: 600; color: var(--ink); margin-top: 6px; }
+  .mail-row.subj span { font-size: 13px; font-weight: 400; }
+  .mail-att { margin-top: 9px; display: inline-block; border: 1px solid var(--line); background: #fff;
+              border-radius: 4px; padding: 5px 10px; font-size: 12.5px; color: #444; }
+  .mail .doc { border: 0; border-radius: 0; }
   .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 24px 190px; align-items: start; }
   @media (max-width: 1100px) { .wrap { grid-template-columns: 1fr; } }
   .col > h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--mute);
@@ -114,14 +132,13 @@
   .hud { position: fixed; bottom: 0; left: 0; right: 0; background: var(--hud-bg); color: var(--hud-ink);
          border-top: 1px solid var(--hud-line); padding: 10px 24px; font: 11.5px/1.5 ui-monospace, monospace;
          display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-start; z-index: 20;
-         max-height: 32vh; overflow: auto; }
+         max-height: 32vh; overflow: auto; cursor: pointer; }
+  .hud.folded { max-height: none; overflow: visible; }
+  .hud.folded section { display: none; }
+  .hud .fold { color: var(--hud-mute); }
+  .hud .fold b { color: #fff; }
   .hud b { color: #fff; font-weight: 600; } .hud .m { color: var(--hud-mute); }
   .hud section { max-width: 34ch; }
-  .pill { position: fixed; top: 12px; right: 24px; background: var(--hud-bg);
-          border: 1px solid var(--hud-line); border-radius: 999px; padding: 5px; display: flex; gap: 4px; z-index: 30; }
-  .pill button { background: none; border: 0; color: var(--hud-mute); font: 600 11.5px/1 ui-monospace, monospace;
-                 padding: 7px 13px; border-radius: 999px; cursor: pointer; }
-  .pill button[aria-current="true"] { background: #2a2f38; color: #fff; }
   .verdictbox { grid-column: 1 / -1; background: var(--paper); border: 1px solid var(--line); border-radius: 4px;
                 padding: 16px 20px; }
   .verdictbox h2 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--mute); }
@@ -131,19 +148,33 @@
 <body>
 <header class="top">
   <h1>What is in the application report, and what writes each part</h1>
-  <p><b>Left:</b> a report generated from his own GRADION advert, through the app's own miner, ad-reader, card,
-     tailor, disclosure and lint, plus one model call. <b>Right:</b> the cv-factory's report for the same job.
-     Every section is tagged with what writes it. Tick <i>keep</i> / <i>cut</i> and the verdict text at the
-     bottom writes itself.</p>
+  <p><b>Left is the email you receive</b> once you approve the draft &mdash; the report, with the PDF attached.
+     It is real: your own CV and the GRADION advert you actually applied to, through the app's own reading,
+     scoring, drafting and checks, plus one model call for the wording. <b>Right is the cv-factory's report for
+     the same job</b>, the one you already read. Each section is tagged with what writes it. Switch between the
+     three versions above, tick <i>keep</i> / <i>cut</i>, and the verdict text at the bottom writes itself.</p>
 </header>
+
+<div class="switcher">
+  <span class="sw-label">Three versions of this same email &mdash; click to compare:</span>
+  <div class="sw-buttons" id="pill"></div>
+</div>
 
 <div class="wrap">
   <div class="col">
-    <h2 id="leftTitle">The app's report</h2>
-    <div class="doc" id="appReport"></div>
+    <h2 id="leftTitle">The email</h2>
+    <div class="mail">
+      <div class="mail-head">
+        <div class="mail-row"><span>From</span> JobCrush &lt;hello@jobcrush.app&gt;</div>
+        <div class="mail-row"><span>To</span> you</div>
+        <div class="mail-row subj"><span>Subject</span> Your tailored CV for IT Project Manager at GRADION</div>
+        <div class="mail-att">&#128206; CV_Mounier_GRADION.pdf &middot; 2 pages</div>
+      </div>
+      <div class="doc" id="appReport"></div>
+    </div>
   </div>
   <div class="col">
-    <h2>The cv-factory's report, same job (reference he already reads)</h2>
+    <h2>The cv-factory's report, same job (the one you already read)</h2>
     <div class="factory" id="factory"></div>
   </div>
   <div class="verdictbox">
@@ -152,8 +183,7 @@
   </div>
 </div>
 
-<div class="pill" id="pill"></div>
-<div class="hud" id="hud"></div>
+<div class="hud folded" id="hud" title="click to open or close the instruments"></div>
 
 <script>
 const PAYLOAD = /*PAYLOAD*/null/*PAYLOAD*/;
@@ -179,9 +209,9 @@ const SECTIONS = {
   checklist:  { title: "Quality checklist",               src: "lint", note: "the pipeline's self-check: lint + ratchets. Written for the engineer, not the reader" },
 };
 const VARIANTS = {
-  A: { name: "A — FULL PORT", keys: ["offer","salary","strengths","gaps","prep","audit","keywords","omissions","didnt","lost","ambig","followup","checklist"] },
-  B: { name: "B — HIS OWN WORDS", keys: ["offer","strengths","gaps","prep","salary"] },
-  C: { name: "C — B + WHAT THE APP KNOWS", keys: ["offer","salary","strengths","gaps","prep","leans","didnt","lost","ambig"] },
+  A: { name: "Everything the cv-factory sends", keys: ["offer","salary","strengths","gaps","prep","audit","keywords","omissions","didnt","lost","ambig","followup","checklist"] },
+  B: { name: "Only what you asked for", keys: ["offer","strengths","gaps","prep","salary"] },
+  C: { name: "Yours + what the app knows", keys: ["offer","salary","strengths","gaps","prep","leans","didnt","lost","ambig"] },
 };
 
 const CHIP = { card: ["card","the card"], disc: ["disc","disclosure"], lint: ["lint","lint"], call: ["call","the one call"], new: ["new","new field"] };
@@ -281,7 +311,8 @@ function body(key) {
 
 function render(v) {
   const variant = VARIANTS[v] ?? VARIANTS.C;
-  document.getElementById("leftTitle").textContent = "The app's report — " + variant.name;
+  document.getElementById("leftTitle").textContent = "The email you get — version " +
+    (Object.keys(VARIANTS).indexOf(v) + 1) + " of 3: " + variant.name;
   const html = variant.keys.map((key) => {
     const s = SECTIONS[key];
     const [cls, label] = CHIP[s.src];
@@ -326,6 +357,9 @@ function hud() {
   const est = cost.some((c) => c.estimated);
   const d = PAYLOAD.disclosure ?? [];
   document.getElementById("hud").innerHTML = `
+    <div class="fold">INSTRUMENTS (click to open) &nbsp;&middot;&nbsp; <b>$${(reportCall.usd ?? 0).toFixed(4)}</b> per email &nbsp;&middot;&nbsp;
+      card <b>${C.matchPct}%</b>, ${(C.dontYet ?? []).length} requirement(s) open &nbsp;&middot;&nbsp;
+      whole run ${cost.length} calls, $${total.toFixed(4)}${est ? " (estimated)" : ""}</div>
     <section><b>THE CARD</b><br>${C.matchPct}% · essential ${C.breakdown?.essential?.met}/${C.breakdown?.essential?.total} ·
       desirable ${C.breakdown?.desirable?.met}/${C.breakdown?.desirable?.total}<br>
       <span class="m">fit ${(C.fit ?? []).length} · open ${(C.dontYet ?? []).length} · asked-and-closed ${(C.askedClosed ?? []).length} · untested ${(C.notTested ?? []).length}</span></section>
@@ -347,20 +381,34 @@ function hud() {
       real advert (GRADION, 2026-07-28) · real root CV v9 · model ${esc(cost[0]?.model ?? "?")}</span></section>`;
 }
 
-const current = () => (new URLSearchParams(location.search).get("variant") ?? "C").toUpperCase();
+const current = () => shown ?? (new URLSearchParams(location.search).get("variant") ?? "C").toUpperCase();
+let shown = null;
 function go(v) {
-  const u = new URL(location.href); u.searchParams.set("variant", v);
-  history.replaceState(null, "", u); render(v);
+  shown = v;
+  // A file:// document has a null origin, where replaceState throws SecurityError in some browsers.
+  // The switcher renders from `shown` and never depends on the URL surviving.
+  try {
+    const u = new URL(location.href); u.searchParams.set("variant", v);
+    history.replaceState(null, "", u);
+  } catch {}
+  render(v);
 }
 document.getElementById("pill").innerHTML = Object.entries(VARIANTS)
-  .map(([k, v]) => `<button data-v="${k}">${esc(v.name)}</button>`).join("");
+  .map(([k, v], i) => `<button data-v="${k}">${i + 1}. ${esc(v.name)}</button>`).join("");
 document.querySelectorAll("#pill button").forEach((b) => b.addEventListener("click", () => go(b.dataset.v)));
 addEventListener("keydown", (e) => {
   const ks = Object.keys(VARIANTS), i = ks.indexOf(current());
   if (e.key === "ArrowRight") go(ks[(i + 1) % ks.length]);
   if (e.key === "ArrowLeft") go(ks[(i - 1 + ks.length) % ks.length]);
 });
-factory(); hud(); render(current());
+factory(); hud(); go(current());
+const hudEl = document.getElementById("hud");
+hudEl.addEventListener("click", () => {
+  hudEl.classList.toggle("folded");
+  hudEl.querySelector(".fold").innerHTML = hudEl.classList.contains("folded")
+    ? hudEl.querySelector(".fold").innerHTML.replace("click to close", "click to open")
+    : hudEl.querySelector(".fold").innerHTML.replace("click to open", "click to close");
+});
 </script>
 </body>
 </html>
