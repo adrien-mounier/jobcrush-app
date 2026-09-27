@@ -12,149 +12,198 @@
        2. "get vs don't get" is a THRESHOLD on a 0..1 fit, not a tick box — the what-if
           switch shows what a half-met requirement does to each treatment, because this
           advert's real read happens to contain none.
-     Owner's read, 2026-09-27: panel 1 chosen, and its layout was wrong — the sidebar held
-     only a score and a button, "a whole column for two lines of elements". Panel 1 now has
-     no sidebar at all. Panels 2 and 3 keep theirs, because in those two the sidebar IS the
-     treatment being tested.
+
+     Owner's read, 2026-09-27: panel 1 chosen, its layout wrong — the sidebar held only a
+     score and a button. Panel 1 has no sidebar; panels 2 and 3 keep theirs, because in
+     those two the sidebar IS the treatment being tested.
+
+     /impeccable pass, 2026-09-27. The page was not ugly by taste — it was off DESIGN.md in
+     five documented ways, and each one is why it read cheap:
+       1. THE GOLD LAW. Gold marks what is on the rendered CV right now; one glowing thing
+          per screen is the ceiling. The page had ten gold ticks plus a gold score, a gold
+          apply strip, a gold paste button and a gold CTA. Gold now falls on the primary
+          action alone.
+       2. THE SERIF MEANS HER RULE. Serif is the person's own document. It was set on the
+          employer's advert title and on the machine's own score. The serif stack is gone
+          from this file entirely — nothing here is her paper.
+       3. THE GAP GREY. A requirement you do not meet is not an error. The colour law names
+          Night Weak (#6f7d8c) and its tinted pills for "where you don't match yet"; the
+          page used the dark room's error salmon, which made a normal gap look like a fault.
+       4. THE LABEL FLOOR. The smallest reading text in the product is 10.5px. The page ran
+          sentences and labels at 9.5px, and sizes off the ramp (23 / 30 / 40px).
+       5. THE TWO ROOMS RULE. A surface commits to one register. The page mixed a light
+          scaffold around a dark-room screen; it is now the dark room throughout.
+     Also: the ✓ ◐ — glyphs are replaced by drawn marks at one stroke weight, focus states
+     exist, and the list breathes on the 4/8/16/24/40 scale.
      Not production code. -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JobCrush — what you have and what you don't: three panels</title>
 
 <style>
   :root {
-    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-line: #2b333d;
-    --hud-ink: #e8eaed; --hud-mute: #7f8b98;
-    --gold: #e8a33d; --gold-dim: #a8762b; --bad: #e0704f; --part: #c9a227;
+    /* DESIGN.md tokens, verbatim. Nothing in this file invents a colour. */
+    --gold: #e8a33d; --gold-light: #ffd9a0; --gold-ink: #1a1206;
+    --floor: #101419; --surface: #171c23; --raised: #1f262f; --line: #2b333d;
+    --ink: #e8eaed; --muted: #7f8b98; --muted-r: #8a95a2;
+    --settled: #4d5865; --weak: #6f7d8c;
     --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
     --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
-    --page: #0b0e12; --page-ink: #cfd5dc; --card: #171c23; --card-line: #2b333d;
-  }
-  @media (prefers-color-scheme: light) {
-    :root { --page: #dfe3e8; --page-ink: #2b333d; --card: #fff; --card-line: #c8cfd7; }
+    /* No --serif. The Serif Means Her Rule: serif is the person's document, and nothing
+       on this screen is her document. Removing the variable removes the temptation. */
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--page); color: var(--page-ink); font-family: var(--sans);
-    min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 22px 16px 130px; gap: 13px; }
-  .intro { max-width: 76ch; text-align: center; }
-  .intro h1 { font-family: var(--serif); font-size: 24px; font-weight: 600; margin: 0 0 7px; letter-spacing: -.015em; }
-  .intro p { font-size: 13px; line-height: 1.6; opacity: .78; margin: 0 0 6px; }
-  .bars { display: flex; flex-direction: column; gap: 7px; align-items: center; }
-  .row { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; align-items: center; }
-  .row > em { font-style: normal; font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em;
-    text-transform: uppercase; opacity: .55; margin-right: 2px; }
-  .row button { appearance: none; font: inherit; font-size: 12px; cursor: pointer; text-align: left; line-height: 1.3;
-    background: var(--card); color: var(--page-ink); border: 1px solid var(--card-line); border-radius: 9px; padding: 7px 12px; }
-  .row button:hover { border-color: var(--gold); }
-  .row button.on { border-color: var(--gold); background: rgba(232,163,61,.13); }
-  .row button b { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--gold); }
-  .row .hint { font-family: var(--mono); font-size: 10px; opacity: .55; }
+  body { margin: 0; background: var(--floor); color: var(--ink); font-family: var(--sans);
+    font-size: 14px; line-height: 1.5; min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; padding: 40px 16px 130px; gap: 24px; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 6px; }
 
-  .win { width: min(1180px, 100%); background: var(--hud-0); color: var(--hud-ink);
-    border: 1px solid #333c47; border-radius: 12px; overflow: hidden;
-    box-shadow: 0 30px 70px -22px rgba(0,0,0,.65); }
-  .chrome { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: #0c1015; border-bottom: 1px solid var(--hud-line); }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: #2c3641; }
-  .url { flex: 1; font-family: var(--mono); font-size: 10.5px; color: var(--hud-mute);
-    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 6px; padding: 4px 9px; }
-  .brandbar { display: flex; align-items: center; gap: 14px; padding: 11px 20px; border-bottom: 1px solid var(--hud-line); }
-  .wordmark { font-size: 12px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--hud-mute); }
-  .brandbar nav { display: flex; gap: 14px; font-size: 12.5px; color: var(--hud-mute); }
+  /* ---------- the harness around the screen: quiet, clearly not the product ---------- */
+  .intro { max-width: 72ch; text-align: center; }
+  .intro h1 { font-size: 18px; font-weight: 620; letter-spacing: -.01em; margin: 0 0 8px; }
+  .intro p { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+  .intro b { color: var(--ink); font-weight: 620; }
+  .bars { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
+  .row > em { font-style: normal; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+  .row button { appearance: none; font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
+    line-height: 1.35; background: var(--raised); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 14px; transition: border-color .18s ease, background .18s ease; }
+  .row button:hover { border-color: var(--settled); }
+  .row button.on { border-color: var(--ink); background: var(--surface); }
+  .row button b { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted-r); font-weight: 400; margin-bottom: 2px; }
+  .row .hint { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+
+  /* ---------- the mock window ---------- */
+  .win { width: min(1320px, 100%); background: var(--floor); border: 1px solid var(--line);
+    border-radius: 16px; overflow: hidden; }
+  .chrome { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .dot { width: 9px; height: 9px; border-radius: 999px; background: var(--raised); }
+  .url { flex: 1; font-family: var(--mono); font-size: 11px; color: var(--muted);
+    background: var(--raised); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; }
+  .brandbar { display: flex; align-items: center; gap: 24px; padding: 14px 28px; border-bottom: 1px solid var(--line); }
+  .wordmark { font-family: var(--mono); font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted-r); }
+  .brandbar nav { display: flex; gap: 16px; font-size: 13px; color: var(--muted); }
   .brandbar .spacer { flex: 1; }
-  .pastebtn { font-size: 12.5px; font-weight: 620; border-radius: 999px; padding: 7px 15px;
-    border: 1px solid var(--gold); color: var(--gold); background: rgba(232,163,61,.1); }
+  /* Secondary, not gold: on THIS screen the one lit action is "Write the tailored CV". */
+  .pastebtn { font: inherit; font-size: 12.5px; font-weight: 620; cursor: pointer; border-radius: 10px;
+    padding: 8px 14px; border: 1px solid var(--line); color: var(--ink); background: var(--raised); }
+  .pastebtn:hover { border-color: var(--settled); }
 
-  .job { padding: 22px 26px 30px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 22px; align-items: start; }
-  .job .back { font-size: 11.5px; color: var(--hud-mute); margin: 0 0 12px; grid-column: 1 / -1; }
-  .job h2 { font-family: var(--serif); font-size: 23px; margin: 0 0 4px; letter-spacing: -.015em; }
-  .job .meta { font-size: 12.5px; color: var(--hud-mute); margin: 0 0 16px; }
-  .applystrip { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: rgba(232,163,61,.1);
-    border: 1px solid rgba(232,163,61,.35); border-radius: 9px; padding: 10px 13px; font-size: 12.5px; margin: 0 0 16px; }
-  .applystrip a { color: var(--gold); font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
-  .sect { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase;
-    color: var(--hud-mute); margin: 18px 0 8px; }
-  .job ul { margin: 0; padding-left: 17px; font-size: 13px; line-height: 1.6; }
-  .job ul.open li { color: #e6b89f; }
-  .side { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 11px; padding: 17px; }
-  .ring { display: flex; align-items: baseline; gap: 8px; }
-  .ring b { font-family: var(--serif); font-size: 40px; line-height: 1; color: var(--gold); }
-  .ring span { font-size: 12px; color: var(--hud-mute); }
-  .side .act { margin-top: 15px; }
-  .side .act button { width: 100%; appearance: none; border: none; font: inherit; font-size: 13px; font-weight: 640;
-    cursor: pointer; background: var(--gold); color: #1a1206; border-radius: 999px; padding: 10px 0; }
+  .job { padding: 24px 28px 28px; display: grid; grid-template-columns: 1.32fr 1fr; gap: 24px; align-items: start; }
+  .job .back { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); margin: 0 0 8px; }
+  .job h2 { font-size: 29px; font-weight: 660; line-height: 1.13; letter-spacing: -.022em; margin: 0 0 6px; }
+  .job .meta { font-size: 12.5px; color: var(--muted); margin: 0 0 16px; }
 
-  /* ---------- panel 1's own layout, after the owner's read 2026-09-27: NO SIDEBAR.
-     Once the checklist is the page's spine the sidebar holds a score and a button, and a
-     BORDERED column holding two elements reads as an empty room. Take the border off and
-     the same space is margin, not emptiness — so the score lives in that margin and the
-     list gets a readable measure instead of stretching to ~150 characters.
-     The action bar sits under the evidence, which is also the right reading order: see
-     what you have, then decide. In production that bar should stick to the bottom of the
-     viewport (ten rows is a scroll); not faked here, because `.win`'s overflow:hidden
-     makes sticky behave differently inside this mock window than on the real page. ---------- */
-  /* The measure is a track, not a max-width, and the tracks are CENTRED: capping the text
-     inside a full-width column just moves the emptiness to the right-hand third. Centred,
-     the leftover is a balanced margin on both sides, and the score still sits beside the
-     title rather than adrift in the void. */
-  .job.wide { --measure: 74ch; grid-template-columns: minmax(0, var(--measure)) auto;
-    justify-content: center; column-gap: 30px; }
-  .job.wide .score { text-align: right; padding-top: 3px; white-space: nowrap; }
-  .job.wide .score b { display: block; font-family: var(--serif); font-size: 30px; line-height: 1; color: var(--gold); }
-  .job.wide .score span { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em;
-    text-transform: uppercase; color: var(--hud-mute); }
-  /* Spans the centred tracks, so it lines up with the evidence above it instead of
-     bleeding to the card edges and re-introducing the alignment the measure just fixed. */
-  .actbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-    margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--hud-line); }
-  .actbar .sum { flex: 1; min-width: 180px; font-size: 12.5px; color: var(--hud-mute); line-height: 1.5; }
-  .actbar .sum b { color: var(--hud-ink); font-weight: 620; }
-  .actbar button { appearance: none; border: none; font: inherit; font-size: 13px; font-weight: 640;
-    cursor: pointer; background: var(--gold); color: #1a1206; border-radius: 999px; padding: 11px 26px; }
+  /* The apply link is a control, not a lit strip, and it shows a readable address instead
+     of a raw href that word-breaks across three lines. */
+  .apply { display: inline-flex; align-items: center; gap: 10px; background: var(--raised);
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; font-size: 12.5px; color: var(--muted); }
+  .apply a { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-family: var(--mono);
+    font-size: 12px; text-decoration: none; border-bottom: 1px solid var(--settled); padding-bottom: 1px; }
+  .apply a:hover { border-bottom-color: var(--ink); }
+  .apply svg { width: 12px; height: 12px; flex: none; }
 
-  /* ---------- the requirement rows, shared by the treatments that list ---------- */
-  .reqs { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-  .reqs li { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start;
-    padding: 7px 0; border-top: 1px solid rgba(43,51,61,.7); font-size: 12.5px; line-height: 1.4; }
-  .reqs li:first-child { border-top: none; }
-  .reqs .mk { font-family: var(--mono); font-size: 12px; line-height: 1.35; text-align: center; }
-  .reqs .have .mk { color: var(--gold); }
-  .reqs .part .mk { color: var(--part); }
-  .reqs .miss .mk { color: var(--bad); }
-  .reqs .miss .t { color: #f0b9a5; }
-  .reqs .have .t, .reqs .part .t { color: var(--hud-ink); }
-  .reqs small { display: block; font-size: 11px; color: var(--hud-mute); margin-top: 3px; line-height: 1.45; }
-  .grp { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase;
-    color: var(--hud-mute); margin: 15px 0 2px; display: flex; justify-content: space-between; align-items: baseline; }
-  .grp i { font-style: normal; text-transform: none; letter-spacing: 0; font-family: var(--sans); font-size: 11.5px; }
+  /* The score is a count chip in the machine's own voice — mono stat, no gold, no serif. */
+  .score { display: inline-flex; align-items: baseline; gap: 8px; background: var(--raised);
+    border: 1px solid var(--line); border-radius: 999px; padding: 7px 15px; white-space: nowrap; }
+  .score b { font-family: var(--mono); font-size: 19px; font-weight: 620; color: var(--ink); letter-spacing: -.01em; }
+  .score span { font-size: 12.5px; color: var(--muted-r); }
 
-  /* 2 · gap first */
-  .gap { border: 1px solid rgba(224,112,79,.42); background: rgba(224,112,79,.08); border-radius: 9px; padding: 13px 14px; margin: 14px 0 0; }
-  .gap h4 { margin: 0 0 5px; font-size: 13px; font-weight: 640; color: #f0b9a5; }
-  .gap p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--hud-mute); }
-  .gap .say { margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(224,112,79,.25); font-size: 12px; color: var(--hud-ink); }
+  .sect { font-size: 15px; font-weight: 620; letter-spacing: -.005em; margin: 32px 0 4px; }
+  .sect + .sub { font-size: 12.5px; color: var(--muted); margin: 0; }
+  .job ul.prose { margin: 10px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.5; }
+  .job ul.prose li { margin-bottom: 4px; }
+  .job ul.prose.open li { color: var(--muted-r); }
+
+  /* ---------- the requirement rows ---------- */
+  .grp { display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+    margin: 24px 0 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); }
+  .grp i { font-style: normal; font-size: 11px; letter-spacing: .04em; text-transform: none; color: var(--muted-r); }
+  .reqs { list-style: none; margin: 0; padding: 0; }
+  .reqs li { display: grid; grid-template-columns: 18px 1fr; gap: 12px; align-items: start;
+    padding: 13px 0; border-top: 1px solid rgba(43, 51, 61, .6); }
+  .reqs li:first-child { border-top: none; padding-top: 4px; }
+  .reqs .mk { width: 18px; height: 18px; display: block; margin-top: 1px; }
+  .reqs .have .mk { color: var(--muted); }
+  .reqs .part .mk, .reqs .miss .mk { color: var(--weak); }
+  .reqs .t { margin: 0; font-size: 14px; line-height: 1.45; color: var(--ink); }
+  .reqs .why { margin: 5px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+  /* The gap grey and its tinted pill — the colour law's own words. A gap is not an error,
+     so it never borrows the danger voice; the pill says what it is, in words. */
+  .tag { display: inline-block; vertical-align: 1px; margin-left: 8px; font-family: var(--mono);
+    font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-r);
+    background: rgba(111, 125, 140, .14); border: 1px solid rgba(111, 125, 140, .34);
+    border-radius: 999px; padding: 2px 8px; }
+
+  /* ---------- panel 1's layout: no sidebar. The measure is a centred track, so the
+       leftover is balanced margin rather than an empty right-hand third. ---------- */
+  .job.wide { --measure: 70ch; grid-template-columns: minmax(0, var(--measure)) auto;
+    justify-content: center; column-gap: 32px; }
+  .job.wide .score { margin-top: 4px; }
+  /* The summary line that used to sit here was removed (owner, 2026-09-27): it repeated the
+     two group counts standing directly above it. With nothing left to balance, the button
+     goes left, on the list's own left edge — the eye runs down that edge through the
+     requirements and lands on the next step. Right-aligning it would be dialog grammar;
+     this screen is a document you read. */
+  .actbar { grid-column: 1 / -1; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+  /* The one lit thing on the screen. The glow is the documented gold glow, permitted on a
+     screen's single most important action. */
+  .cta { appearance: none; border: none; font: inherit; font-size: 14px; font-weight: 620; cursor: pointer;
+    background: var(--gold); color: var(--gold-ink); border-radius: 10px; padding: 12px 20px;
+    box-shadow: 0 0 26px rgba(232, 163, 61, .35); transition: background .18s ease; }
+  .cta:hover { background: var(--gold-light); }
+
+  /* ---------- panels 2 and 3 keep a sidebar: there, the sidebar IS the treatment ---------- */
+  .side { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+  .side .act { margin-top: 20px; }
+  .side .act .cta { width: 100%; }
+  .gap { border: 1px solid rgba(111, 125, 140, .34); background: rgba(111, 125, 140, .1);
+    border-radius: 12px; padding: 14px; margin-top: 16px; }
+  .gap h4 { margin: 0 0 6px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em;
+    text-transform: uppercase; font-weight: 400; color: var(--muted-r); }
+  .gap p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
+  .gap p.why { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+  .gap .say { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(111, 125, 140, .28);
+    font-size: 12.5px; color: var(--ink); }
   .more { appearance: none; width: 100%; text-align: left; background: none; border: none; font: inherit;
-    font-size: 12.5px; color: var(--hud-mute); cursor: pointer; padding: 12px 0 0; margin-top: 12px;
-    border-top: 1px solid var(--hud-line); display: flex; justify-content: space-between; }
-  .more:hover { color: var(--hud-ink); }
-
-  /* 3 · the bar */
-  .band { margin-top: 14px; }
-  .band .lbl { display: flex; justify-content: space-between; align-items: baseline; font-size: 11.5px; color: var(--hud-mute); margin-bottom: 6px; }
-  .band .lbl b { color: var(--hud-ink); font-weight: 620; font-size: 12.5px; }
+    font-size: 12.5px; color: var(--muted); cursor: pointer; padding: 16px 0 0; margin-top: 16px;
+    border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; }
+  .more:hover { color: var(--ink); }
+  .band { margin-top: 20px; }
+  .band .lbl { display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px; }
+  .band .lbl i { font-style: normal; font-size: 11px; letter-spacing: .04em; text-transform: none; color: var(--muted-r); }
   .segs { display: flex; gap: 3px; }
-  .segs i { flex: 1; height: 7px; border-radius: 2px; background: var(--hud-2); position: relative; overflow: hidden; }
-  .segs i.full { background: var(--gold); }
-  .segs i.half::after { content: ""; position: absolute; inset: 0 50% 0 0; background: var(--part); }
-  .segs i.none { background: rgba(224,112,79,.35); }
-  .missing { margin: 13px 0 0; font-size: 12.5px; line-height: 1.5; }
-  .missing b { color: #f0b9a5; font-weight: 600; display: block; margin-bottom: 3px; }
-  .missing small { color: var(--hud-mute); font-size: 11.5px; }
+  .segs i { flex: 1; height: 6px; border-radius: 999px; background: rgba(111, 125, 140, .18); position: relative; overflow: hidden; }
+  .segs i.full { background: var(--settled); }
+  .segs i.half::after { content: ""; position: absolute; inset: 0 50% 0 0; background: var(--settled); }
+  .missing { margin-top: 16px; }
+  .missing div + div { margin-top: 12px; }
+  .missing b { display: block; font-size: 13px; font-weight: 620; color: var(--ink); margin-bottom: 3px; }
+  .missing small { font-size: 12.5px; line-height: 1.5; color: var(--muted); }
 
-  .note { position: fixed; bottom: 13px; left: 50%; transform: translateX(-50%); z-index: 200;
-    display: flex; align-items: center; gap: 10px; background: #f2f4f7; color: #101419; border-radius: 999px;
-    padding: 7px 16px; box-shadow: 0 8px 26px rgba(0,0,0,.4); font-size: 12.5px; max-width: calc(100vw - 24px); }
-  .note span { font-weight: 600; }
+  .note { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 200;
+    background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 18px; font-size: 12.5px; line-height: 1.5; max-width: min(76ch, calc(100vw - 32px)); }
+
+  @media (max-width: 860px) {
+    .job, .job.wide { grid-template-columns: minmax(0, 1fr); padding: 20px 16px 24px; }
+    .job h2 { font-size: 24px; }
+    /* Single column puts the score after the list in source order, which is nowhere.
+       It belongs at the top of the job, where it reads as the job's badge. */
+    .job.wide .back { order: -2; }
+    .job.wide .score { order: -1; margin: 0 0 16px; align-self: start; }
+    .job.wide .colmain { order: 0; }
+    .job.wide .actbar { order: 1; }
+    /* The address needs the full width, so the label takes its own line rather than
+       wrapping to "Apply / here" and shoving the link off the edge. */
+    .apply { flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; }
+    .apply a { font-size: 11.5px; }
+  }
 </style>
 
 <div class="intro">
@@ -181,7 +230,7 @@
     <div class="url">jobcrush.app/job/gradion-it-project-manager</div></div>
   <div class="brandbar"><span class="wordmark">JobCrush</span>
     <nav><span>Deck</span><span>Profile</span></nav><span class="spacer"></span>
-    <button class="pastebtn">＋ Paste a job</button></div>
+    <button class="pastebtn">Paste a job</button></div>
   <div id="stage"></div>
 </div>
 
@@ -237,7 +286,18 @@ const rows = () => REQS.map(r => whatIf && r.t.startsWith("Daily comfort")
   : r);
 
 const state = (f) => f >= HAVE ? "have" : f <= MISS ? "miss" : "part";
-const MARK = { have: "✓", part: "◐", miss: "—" };
+
+// Drawn marks, one stroke weight, currentColor — not ✓ ◐ — glyphs standing in for an
+// icon system. Met is Settled (a done state); half and missing are the gap grey.
+const svg = (inner) => `<svg class="mk" viewBox="0 0 18 18" fill="none" aria-hidden="true">${inner}</svg>`;
+const MARK = {
+  have: svg(`<path d="M4 9.4l3.1 3.1L14 5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`),
+  part: svg(`<circle cx="9" cy="9" r="5.4" stroke="currentColor" stroke-width="1.6"/>
+             <path d="M9 3.6a5.4 5.4 0 010 10.8z" fill="currentColor"/>`),
+  miss: svg(`<path d="M4.6 9h8.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>`),
+};
+// The pill says the verdict in words, so the mark never carries it by colour alone.
+const TAG = { have: "", part: "half there", miss: "not in your CV" };
 
 const count = (band) => {
   const rs = rows().filter(r => r.band === band);
@@ -246,57 +306,57 @@ const count = (band) => {
   return { rs, met, part, total: rs.length };
 };
 
-const reqRow = (r, withWhy = true) => `
-  <li class="${state(r.fit)}"><span class="mk">${MARK[state(r.fit)]}</span>
-    <div><span class="t">${r.t}</span>${withWhy ? `<small>${r.why}</small>` : ""}</div></li>`;
-
-// The bar's left half, so the one action never stands alone: the verdict and the button
-// read as one line. Same numbers as the group headers, said once in summary.
-const sumLine = () => {
-  const e = count("essential"), d = count("desirable");
-  const open = rows().filter(r => state(r.fit) !== "have").length;
-  return `<b>Essential ${e.met} of ${e.total} · Desirable ${d.met} of ${d.total}</b> — ${
-    open ? `${open} still open` : "nothing open"}`;
+const reqRow = (r, withWhy = true) => {
+  const s = state(r.fit);
+  return `<li class="${s}">${MARK[s]}
+    <div><p class="t">${r.t}${TAG[s] ? `<span class="tag">${TAG[s]}</span>` : ""}</p>
+    ${withWhy ? `<p class="why">${r.why}</p>` : ""}</div></li>`;
 };
+
+const ARROW = `<svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+  <path d="M3.2 8.8L8.8 3.2M4.4 3.2h4.4v4.4" stroke="currentColor" stroke-width="1.4"
+        stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+const SCORE = `<div class="score"><b>79%</b><span>match</span></div>`;
 
 // The job screen around the panel. `body` and `panel` are what the treatments change.
 // `wide` is panel 1's layout: no sidebar, score in the margin, action in a bar below.
 const screen = (body, panel, wide = false) => `<div class="job${wide ? " wide" : ""}">
-  <p class="back">← Deck &nbsp;·&nbsp; the job's own screen</p>
+  <p class="back">← Deck</p>
   <div class="colmain">
     <h2>IT Project Manager / Senior Project Manager (English Speaking)</h2>
     <p class="meta">GRADION · Ho Chi Minh City, Vietnam · Hybrid</p>
-    <div class="applystrip">Apply here → <a href="#">https://www.linkedin.com/jobs/view/4445923167/</a></div>
+    <div class="apply">Apply here
+      <a href="#">linkedin.com/jobs/view/4445923167 ${ARROW}</a></div>
     ${body}
   </div>
-  ${wide ? `<div class="score"><b>79%</b><span>match</span></div>
-  <div class="actbar"><div class="sum">${sumLine()}</div>
-    <button>Write the tailored CV</button></div>`
+  ${wide ? `${SCORE}
+  <div class="actbar"><button class="cta">Write the tailored CV</button></div>`
   : `<div class="side">
-    <div class="ring"><b>79%</b><span>match</span></div>
+    ${SCORE}
     ${panel}
-    <div class="act"><button>Write the tailored CV</button></div>
+    <div class="act"><button class="cta">Write the tailored CV</button></div>
   </div>`}
 </div>`;
 
 // The body as #291 left it: prose lists, no per-requirement detail.
 const proseBody = () => `
-  <div class="sect">Where you are strong</div>
-  <ul>
+  <h3 class="sect">Where you are strong</h3>
+  <ul class="prose">
     <li>Senior Project Manager, 7+ years delivering banking, fintech and SaaS in regulated environments</li>
     <li>End-to-end delivery across Europe, Asia-Pacific and Africa, with cross-functional international teams</li>
     <li>Excellent international English — confirmed, C1</li>
     <li>Builds LLM-driven workflows into day-to-day delivery</li>
   </ul>
-  <div class="sect">Still open on this advert</div>
-  <ul class="open">${rows().filter(r => state(r.fit) !== "have")
+  <h3 class="sect">Still open on this advert</h3>
+  <ul class="prose open">${rows().filter(r => state(r.fit) !== "have")
     .map(r => `<li>${r.t}${state(r.fit) === "part" ? " — half there" : ""}</li>`).join("")}</ul>`;
 
 const PANELS = {
   1: {
     tag: "1 · the checklist",
     name: "Every requirement, ticked or not",
-    note: "Nothing hidden: all ten, grouped by weight, each with the reason behind the verdict. The list IS the page, so the sidebar is gone — the score sits in the margin at reading weight, and the one action sits under the evidence with the verdict beside it.",
+    note: "Nothing hidden: all ten, grouped by weight, each with the reason behind the verdict. The list IS the page, so the sidebar is gone — the score is a count chip in the machine's own voice, and gold falls only on the one action.",
     render() {
       const grp = (band, label) => {
         const { rs, met, part, total } = count(band);
@@ -305,11 +365,11 @@ const PANELS = {
           <ul class="reqs">${rs.map(r => reqRow(r)).join("")}</ul>`;
       };
       // Ten rows with their reasons do not fit a sidebar — so in this treatment the
-      // list IS the page, and the sidebar is removed rather than left half-empty
-      // (owner's read, 2026-09-27). The prose lists are gone too: with every
-      // requirement named, they were the duplicate.
+      // list IS the page, and the sidebar is removed rather than left half-empty.
+      // The prose lists are gone too: with every requirement named, they were the duplicate.
       return screen(
-        `<div class="sect">What this job asks for, and what you have</div>
+        `<h3 class="sect">What this job asks for</h3>
+         <p class="sub">And what your record already answers.</p>
          ${grp("essential", "Essential")}${grp("desirable", "Desirable")}`,
         "", true);
     },
@@ -324,9 +384,9 @@ const PANELS = {
       const okCount = rows().length - miss.length;
       const panel = `
         ${miss.map(r => `<div class="gap">
-          <h4>${state(r.fit) === "part" ? "Half there" : "Not in your CV"} — ${r.band}</h4>
+          <h4>${state(r.fit) === "part" ? "Half there" : "Not in your CV"} · ${r.band}</h4>
           <p>${r.t}</p>
-          <p style="margin-top:6px">${r.why}</p>
+          <p class="why">${r.why}</p>
           ${r.say ? `<p class="say">Be ready to say: ${r.say}</p>` : ""}
         </div>`).join("")}
         <button class="more" id="more"><span>${okCount} requirements you already meet</span><span>show</span></button>
@@ -348,7 +408,7 @@ const PANELS = {
       const band = (key, label) => {
         const { rs, met, part, total } = count(key);
         return `<div class="band">
-          <div class="lbl"><b>${label}</b><span>${met} of ${total}${part ? ` · ${part} partly` : ""}</span></div>
+          <div class="lbl"><span>${label}</span><i>${met} of ${total}${part ? ` · ${part} partly` : ""}</i></div>
           <div class="segs">${rs.map(r => `<i class="${state(r.fit) === "have" ? "full" : state(r.fit) === "part" ? "half" : "none"}"></i>`).join("")}</div>
         </div>`;
       };
@@ -357,7 +417,7 @@ const PANELS = {
         ${band("essential", "Essential")}
         ${band("desirable", "Desirable")}
         <div class="missing">
-          ${gaps.map(r => `<div style="margin-top:10px"><b>${state(r.fit) === "part" ? "Half there" : "Missing"}: ${r.t}</b>
+          ${gaps.map(r => `<div><b>${state(r.fit) === "part" ? "Half there" : "Missing"}: ${r.t}</b>
             <small>${r.why}</small></div>`).join("")}
         </div>`);
     },
