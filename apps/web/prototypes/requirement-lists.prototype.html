@@ -1,0 +1,343 @@
+<!-- PROTOTYPE — throwaway. Owner question, 2026-09-27, off the back of #291's job screen:
+     "Essential 3 of 4 / Desirable 6 of 6 — show me what it looks like if we listed the ones
+     we get and the ones we don't."
+
+     Three treatments of the same panel, on the same job screen, with the REAL read: the ten
+     requirements the ad-reader pulled out of the GRADION advert, with their real bands, and
+     the real per-requirement verdicts the judge returned in the #293 run (fit 0..1, the fact
+     that backs each one, the judge's own sentence). Nothing invented.
+
+     Two things the page is really asking:
+       1. does the list replace the score, sit under it, or stay behind a press?
+       2. "get vs don't get" is a THRESHOLD on a 0..1 fit, not a tick box — the what-if
+          switch shows what a half-met requirement does to each treatment, because this
+          advert's real read happens to contain none.
+     Not production code. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobCrush — what you have and what you don't: three panels</title>
+
+<style>
+  :root {
+    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-line: #2b333d;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98;
+    --gold: #e8a33d; --gold-dim: #a8762b; --bad: #e0704f; --part: #c9a227;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --page: #0b0e12; --page-ink: #cfd5dc; --card: #171c23; --card-line: #2b333d;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --page: #dfe3e8; --page-ink: #2b333d; --card: #fff; --card-line: #c8cfd7; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--page-ink); font-family: var(--sans);
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 22px 16px 90px; gap: 13px; }
+  .intro { max-width: 76ch; text-align: center; }
+  .intro h1 { font-family: var(--serif); font-size: 24px; font-weight: 600; margin: 0 0 7px; letter-spacing: -.015em; }
+  .intro p { font-size: 13px; line-height: 1.6; opacity: .78; margin: 0 0 6px; }
+  .bars { display: flex; flex-direction: column; gap: 7px; align-items: center; }
+  .row { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; align-items: center; }
+  .row > em { font-style: normal; font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase; opacity: .55; margin-right: 2px; }
+  .row button { appearance: none; font: inherit; font-size: 12px; cursor: pointer; text-align: left; line-height: 1.3;
+    background: var(--card); color: var(--page-ink); border: 1px solid var(--card-line); border-radius: 9px; padding: 7px 12px; }
+  .row button:hover { border-color: var(--gold); }
+  .row button.on { border-color: var(--gold); background: rgba(232,163,61,.13); }
+  .row button b { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--gold); }
+  .row .hint { font-family: var(--mono); font-size: 10px; opacity: .55; }
+
+  .win { width: min(1180px, 100%); background: var(--hud-0); color: var(--hud-ink);
+    border: 1px solid #333c47; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 30px 70px -22px rgba(0,0,0,.65); }
+  .chrome { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: #0c1015; border-bottom: 1px solid var(--hud-line); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #2c3641; }
+  .url { flex: 1; font-family: var(--mono); font-size: 10.5px; color: var(--hud-mute);
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 6px; padding: 4px 9px; }
+  .brandbar { display: flex; align-items: center; gap: 14px; padding: 11px 20px; border-bottom: 1px solid var(--hud-line); }
+  .wordmark { font-size: 12px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--hud-mute); }
+  .brandbar nav { display: flex; gap: 14px; font-size: 12.5px; color: var(--hud-mute); }
+  .brandbar .spacer { flex: 1; }
+  .pastebtn { font-size: 12.5px; font-weight: 620; border-radius: 999px; padding: 7px 15px;
+    border: 1px solid var(--gold); color: var(--gold); background: rgba(232,163,61,.1); }
+
+  .job { padding: 22px 26px 30px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 22px; align-items: start; }
+  .job .back { font-size: 11.5px; color: var(--hud-mute); margin: 0 0 12px; grid-column: 1 / -1; }
+  .job h2 { font-family: var(--serif); font-size: 23px; margin: 0 0 4px; letter-spacing: -.015em; }
+  .job .meta { font-size: 12.5px; color: var(--hud-mute); margin: 0 0 16px; }
+  .applystrip { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: rgba(232,163,61,.1);
+    border: 1px solid rgba(232,163,61,.35); border-radius: 9px; padding: 10px 13px; font-size: 12.5px; margin: 0 0 16px; }
+  .applystrip a { color: var(--gold); font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
+  .sect { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--hud-mute); margin: 18px 0 8px; }
+  .job ul { margin: 0; padding-left: 17px; font-size: 13px; line-height: 1.6; }
+  .job ul.open li { color: #e6b89f; }
+  .side { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 11px; padding: 17px; }
+  .ring { display: flex; align-items: baseline; gap: 8px; }
+  .ring b { font-family: var(--serif); font-size: 40px; line-height: 1; color: var(--gold); }
+  .ring span { font-size: 12px; color: var(--hud-mute); }
+  .side .act { margin-top: 15px; }
+  .side .act button { width: 100%; appearance: none; border: none; font: inherit; font-size: 13px; font-weight: 640;
+    cursor: pointer; background: var(--gold); color: #1a1206; border-radius: 999px; padding: 10px 0; }
+
+  /* ---------- the requirement rows, shared by the treatments that list ---------- */
+  .reqs { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .reqs li { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start;
+    padding: 7px 0; border-top: 1px solid rgba(43,51,61,.7); font-size: 12.5px; line-height: 1.4; }
+  .reqs li:first-child { border-top: none; }
+  .reqs .mk { font-family: var(--mono); font-size: 12px; line-height: 1.35; text-align: center; }
+  .reqs .have .mk { color: var(--gold); }
+  .reqs .part .mk { color: var(--part); }
+  .reqs .miss .mk { color: var(--bad); }
+  .reqs .miss .t { color: #f0b9a5; }
+  .reqs .have .t, .reqs .part .t { color: var(--hud-ink); }
+  .reqs small { display: block; font-size: 11px; color: var(--hud-mute); margin-top: 3px; line-height: 1.45; }
+  .grp { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--hud-mute); margin: 15px 0 2px; display: flex; justify-content: space-between; align-items: baseline; }
+  .grp i { font-style: normal; text-transform: none; letter-spacing: 0; font-family: var(--sans); font-size: 11.5px; }
+
+  /* 2 · gap first */
+  .gap { border: 1px solid rgba(224,112,79,.42); background: rgba(224,112,79,.08); border-radius: 9px; padding: 13px 14px; margin: 14px 0 0; }
+  .gap h4 { margin: 0 0 5px; font-size: 13px; font-weight: 640; color: #f0b9a5; }
+  .gap p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--hud-mute); }
+  .gap .say { margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(224,112,79,.25); font-size: 12px; color: var(--hud-ink); }
+  .more { appearance: none; width: 100%; text-align: left; background: none; border: none; font: inherit;
+    font-size: 12.5px; color: var(--hud-mute); cursor: pointer; padding: 12px 0 0; margin-top: 12px;
+    border-top: 1px solid var(--hud-line); display: flex; justify-content: space-between; }
+  .more:hover { color: var(--hud-ink); }
+
+  /* 3 · the bar */
+  .band { margin-top: 14px; }
+  .band .lbl { display: flex; justify-content: space-between; align-items: baseline; font-size: 11.5px; color: var(--hud-mute); margin-bottom: 6px; }
+  .band .lbl b { color: var(--hud-ink); font-weight: 620; font-size: 12.5px; }
+  .segs { display: flex; gap: 3px; }
+  .segs i { flex: 1; height: 7px; border-radius: 2px; background: var(--hud-2); position: relative; overflow: hidden; }
+  .segs i.full { background: var(--gold); }
+  .segs i.half::after { content: ""; position: absolute; inset: 0 50% 0 0; background: var(--part); }
+  .segs i.none { background: rgba(224,112,79,.35); }
+  .missing { margin: 13px 0 0; font-size: 12.5px; line-height: 1.5; }
+  .missing b { color: #f0b9a5; font-weight: 600; display: block; margin-bottom: 3px; }
+  .missing small { color: var(--hud-mute); font-size: 11.5px; }
+
+  .note { position: fixed; bottom: 13px; left: 50%; transform: translateX(-50%); z-index: 200;
+    display: flex; align-items: center; gap: 10px; background: #f2f4f7; color: #101419; border-radius: 999px;
+    padding: 7px 16px; box-shadow: 0 8px 26px rgba(0,0,0,.4); font-size: 12.5px; max-width: calc(100vw - 24px); }
+  .note span { font-weight: 600; }
+</style>
+
+<div class="intro">
+  <h1>What you have, and what you don't — three panels</h1>
+  <p>
+    The same job screen, the same numbers, three ways of turning <b>Essential 3 of 4 · Desirable 6 of 6</b>
+    into something you can read. Real data throughout: the ten requirements our reader pulled out of the
+    GRADION advert, and the judge's own verdict on each one.
+  </p>
+  <p>
+    <b>The catch worth seeing:</b> a verdict is a score from 0 to 1, not a tick — "have it" is a line we
+    draw. This advert's real read has nothing in the middle, so the <b>what-if</b> switch pushes one
+    requirement to half and shows what each panel does with it.
+  </p>
+</div>
+
+<div class="bars">
+  <div class="row" id="pick"><em>panel</em></div>
+  <div class="row" id="wi"><em>what-if</em></div>
+</div>
+
+<div class="win">
+  <div class="chrome"><i class="dot"></i><i class="dot"></i><i class="dot"></i>
+    <div class="url">jobcrush.app/job/gradion-it-project-manager</div></div>
+  <div class="brandbar"><span class="wordmark">JobCrush</span>
+    <nav><span>Deck</span><span>Profile</span></nav><span class="spacer"></span>
+    <button class="pastebtn">＋ Paste a job</button></div>
+  <div id="stage"></div>
+</div>
+
+<div class="note"><span id="noteTxt"></span></div>
+
+<script>
+// ---------------------------------------------------------------------------
+// PROTOTYPE. Throwaway. Owner question off #291's job screen.
+//
+// REQS is the real output of two real calls in the #293 run: the ad-reader's ten
+// requirements with their bands, and the judge's verdict on each (fit, the fact
+// that supports it, its own sentence). `fit` is what the product actually stores
+// — a number, not a boolean — which is the whole reason this page exists.
+// ---------------------------------------------------------------------------
+
+const $ = (s, r = document) => r.querySelector(s);
+
+const REQS = [
+  { t: "5+ years of IT development project management", band: "essential", fit: 0.95,
+    why: "7+ years as a Project Manager delivering IT systems clears the 5-year bar with room to spare." },
+  { t: "Hands-on experience running both Dedicated Team and Fixed-Price projects", band: "essential", fit: 0.1,
+    why: "No mention of running Dedicated Team or Fixed-Price engagement models anywhere in your CV.",
+    say: "You have run fixed-scope and long-running delivery — just never under those two contract names." },
+  { t: "Excellent international English communication", band: "essential", fit: 0.85,
+    why: "Fluent English plus steering-committee presentations and stakeholder interfacing across regions." },
+  { t: "Translating unclear client requirements into deliverable scope", band: "essential", fit: 0.9,
+    why: "You translated business and user needs into functional specs and user stories for dev teams." },
+  { t: "University degree in IT, Computer Science or related", band: "desirable", fit: 1,
+    why: "Master's in Computer Science is a direct match." },
+  { t: "Cross-cultural, English-speaking teams", band: "desirable", fit: 0.9,
+    why: "Coordinated cross-functional international teams across Europe, Asia-Pacific and Africa." },
+  { t: "Confidence raising risks and difficult topics early", band: "desirable", fit: 0.85,
+    why: "You maintain a formal risk register and escalate risks to protect delivery." },
+  { t: "Daily comfort with AI tools, and judgement about their output", band: "desirable", fit: 0.9,
+    why: "You build LLM-driven workflows into daily delivery and ran AI workshops." },
+  { t: "Proactive, adaptable, growth-oriented mindset", band: "desirable", fit: 0.85,
+    why: "You built and rolled out an autonomous assistant off your own initiative." },
+  { t: "Hands-on technical or software-process knowledge", band: "desirable", fit: 0.8,
+    why: "Hands-on building and deployment of software — the agentic assistant, the trading platform." },
+];
+
+// The line the product draws. Everything above HAVE is "you have it"; everything
+// below MISS is "you don't"; in between is the case nobody has designed yet.
+const HAVE = 0.7, MISS = 0.35;
+let whatIf = false;
+
+// The what-if: the AI-tools requirement drops to a half-verdict. Chosen because it
+// is the one a real half-verdict is most likely to land on — "comfort with AI
+// tools" is a judgement call in a way a degree is not.
+const rows = () => REQS.map(r => whatIf && r.t.startsWith("Daily comfort")
+  ? { ...r, fit: 0.5, why: "You use AI tools daily, but nothing in your CV shows you checking their output before it goes out.",
+      say: "You can name how you verify what a model gives you before it reaches a client." }
+  : r);
+
+const state = (f) => f >= HAVE ? "have" : f <= MISS ? "miss" : "part";
+const MARK = { have: "✓", part: "◐", miss: "—" };
+
+const count = (band) => {
+  const rs = rows().filter(r => r.band === band);
+  const met = rs.filter(r => state(r.fit) === "have").length;
+  const part = rs.filter(r => state(r.fit) === "part").length;
+  return { rs, met, part, total: rs.length };
+};
+
+const reqRow = (r, withWhy = true) => `
+  <li class="${state(r.fit)}"><span class="mk">${MARK[state(r.fit)]}</span>
+    <div><span class="t">${r.t}</span>${withWhy ? `<small>${r.why}</small>` : ""}</div></li>`;
+
+// The job screen around the panel. `body` and `panel` are what the treatments change.
+const screen = (body, panel) => `<div class="job">
+  <p class="back">← Deck &nbsp;·&nbsp; the job's own screen</p>
+  <div>
+    <h2>IT Project Manager / Senior Project Manager (English Speaking)</h2>
+    <p class="meta">GRADION · Ho Chi Minh City, Vietnam · Hybrid</p>
+    <div class="applystrip">Apply here → <a href="#">https://www.linkedin.com/jobs/view/4445923167/</a></div>
+    ${body}
+  </div>
+  <div class="side">
+    <div class="ring"><b>79%</b><span>match</span></div>
+    ${panel}
+    <div class="act"><button>Write the tailored CV</button></div>
+  </div>
+</div>`;
+
+// The body as #291 left it: prose lists, no per-requirement detail.
+const proseBody = () => `
+  <div class="sect">Where you are strong</div>
+  <ul>
+    <li>Senior Project Manager, 7+ years delivering banking, fintech and SaaS in regulated environments</li>
+    <li>End-to-end delivery across Europe, Asia-Pacific and Africa, with cross-functional international teams</li>
+    <li>Excellent international English — confirmed, C1</li>
+    <li>Builds LLM-driven workflows into day-to-day delivery</li>
+  </ul>
+  <div class="sect">Still open on this advert</div>
+  <ul class="open">${rows().filter(r => state(r.fit) !== "have")
+    .map(r => `<li>${r.t}${state(r.fit) === "part" ? " — half there" : ""}</li>`).join("")}</ul>`;
+
+const PANELS = {
+  1: {
+    tag: "1 · the checklist",
+    name: "Every requirement, ticked or not",
+    note: "Nothing hidden: all ten, grouped by weight, each with the reason behind the verdict. The panel becomes the page's spine — and the prose lists below it stop earning their place.",
+    render() {
+      const grp = (band, label) => {
+        const { rs, met, part, total } = count(band);
+        return `<div class="grp"><span>${label}</span>
+            <i>${met} of ${total}${part ? ` · ${part} partly` : ""}</i></div>
+          <ul class="reqs">${rs.map(r => reqRow(r)).join("")}</ul>`;
+      };
+      // Ten rows with their reasons do not fit a sidebar — so in this treatment the
+      // list IS the page, and the sidebar keeps only the score and the one action.
+      // The prose lists are gone: with every requirement named, they were the duplicate.
+      return screen(
+        `<div class="sect">What this job asks for, and what you have</div>
+         ${grp("essential", "Essential")}${grp("desirable", "Desirable")}`,
+        "");
+    },
+  },
+
+  2: {
+    tag: "2 · the gap first",
+    name: "What's missing, big — the rest behind one line",
+    note: "The panel answers the only question you act on: what is not there, and what you say about it. Everything you already meet collapses to one line you can open.",
+    render() {
+      const miss = rows().filter(r => state(r.fit) !== "have");
+      const okCount = rows().length - miss.length;
+      const panel = `
+        ${miss.map(r => `<div class="gap">
+          <h4>${state(r.fit) === "part" ? "Half there" : "Not in your CV"} — ${r.band}</h4>
+          <p>${r.t}</p>
+          <p style="margin-top:6px">${r.why}</p>
+          ${r.say ? `<p class="say">Be ready to say: ${r.say}</p>` : ""}
+        </div>`).join("")}
+        <button class="more" id="more"><span>${okCount} requirements you already meet</span><span>show</span></button>
+        <ul class="reqs" id="rest" hidden>${rows().filter(r => state(r.fit) === "have").map(r => reqRow(r, false)).join("")}</ul>`;
+      return screen(proseBody(), panel);
+    },
+    wire() {
+      const b = $("#more"), rest = $("#rest");
+      if (!b) return;
+      b.onclick = () => { rest.hidden = !rest.hidden; b.lastElementChild.textContent = rest.hidden ? "show" : "hide"; };
+    },
+  },
+
+  3: {
+    tag: "3 · the bar",
+    name: "A segment per requirement, names only for the gaps",
+    note: "Keeps the number and adds its shape — one segment per requirement, half-filled when the verdict is half. Only what you lack is spelled out; what you have is a filled bar, not a list to read.",
+    render() {
+      const band = (key, label) => {
+        const { rs, met, part, total } = count(key);
+        return `<div class="band">
+          <div class="lbl"><b>${label}</b><span>${met} of ${total}${part ? ` · ${part} partly` : ""}</span></div>
+          <div class="segs">${rs.map(r => `<i class="${state(r.fit) === "have" ? "full" : state(r.fit) === "part" ? "half" : "none"}"></i>`).join("")}</div>
+        </div>`;
+      };
+      const gaps = rows().filter(r => state(r.fit) !== "have");
+      return screen(proseBody(), `
+        ${band("essential", "Essential")}
+        ${band("desirable", "Desirable")}
+        <div class="missing">
+          ${gaps.map(r => `<div style="margin-top:10px"><b>${state(r.fit) === "part" ? "Half there" : "Missing"}: ${r.t}</b>
+            <small>${r.why}</small></div>`).join("")}
+        </div>`);
+    },
+  },
+};
+
+let cur = "1";
+function draw() {
+  const p = PANELS[cur];
+  $("#stage").innerHTML = p.render();
+  p.wire && p.wire();
+  $("#noteTxt").textContent = p.note;
+  document.querySelectorAll("#pick button").forEach(b => b.classList.toggle("on", b.dataset.k === cur));
+  document.querySelectorAll("#wi button").forEach(b => b.classList.toggle("on", (b.dataset.w === "on") === whatIf));
+}
+
+$("#pick").insertAdjacentHTML("beforeend", Object.entries(PANELS).map(([k, p]) =>
+  `<button data-k="${k}"><b>${p.tag}</b>${p.name}</button>`).join(""));
+$("#wi").insertAdjacentHTML("beforeend",
+  `<button data-w="off"><b>real read</b>nine met, one missing — nothing in between</button>
+   <button data-w="on"><b>what-if</b>one requirement judged half-met</button>
+   <span class="hint">the real read has no half-verdicts; the line is drawn at 0.7 / 0.35</span>`);
+document.querySelectorAll("#pick button").forEach(b => (b.onclick = () => { cur = b.dataset.k; draw(); }));
+document.querySelectorAll("#wi button").forEach(b => (b.onclick = () => { whatIf = b.dataset.w === "on"; draw(); }));
+
+draw();
+</script>
+</body>
+</html>
