@@ -55,7 +55,7 @@ exist, 3–5 are the work:
 
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
-| V1 | #290 | **THE MAP** — the v1 spine: the paste door, the draft rebind, the document out. **CHARTED 2026-09-27 · 3 of 8 decided.** A container, not a task: it closes when V1a–V1h are all resolved and nothing is left to decide, which is the moment V2 starts. Keep the count current as each child closes | `/wayfinder` | Opus | high |
+| V1 | #290 | **THE MAP** — the v1 spine: the paste door, the draft rebind, the document out. **CHARTED 2026-09-27 · 3 of 9 decided.** A container, not a task: it closes when V1a–V1i are all resolved and nothing is left to decide, which is the moment V2 starts. Keep the count current as each child closes | `/wayfinder` | Opus | high |
 | V1a | #291 | The paste door: where it lives, what it looks like, what it does while it reads. **TAKEABLE** | `/prototype` | Opus | medium |
 | ~~V1b~~ | ~~#287~~ | ~~A floor item covered by "No" prints nothing — what does the CV do about it~~ **DECIDED 2026-09-27** — twelve clauses, `tailoring-reasoning.md` §8 + a hard rule. Never prints, never implied, never stretched; named only on postings that ask; every row carries a *"Changed? Add it"* door that keeps the "No" and dates the new fact. **Governs every negative, not only a floor item's.** Unblocked V1d; surfaced **#299** | — | — | — |
 | V1c | #294 | Does a pasted ad ever go stale — a pasted job has no liveness signal and never will. **TAKEABLE** | `/grilling` | Opus | low |
@@ -64,13 +64,14 @@ exist, 3–5 are the work:
 | ~~V1f~~ | ~~#295~~ | ~~Can our API container make a PDF, and what does it cost~~ **DONE 2026-09-27** — ruling 5 stands; measured, not estimated (`docs/research/pdf-in-container.md`, branch `research/pdf-in-container`). Surfaced V1g and V1h | — | — | — |
 | ~~V1g~~ | ~~#296~~ | ~~The first PDF after a quiet spell takes tens of seconds~~ **DECIDED 2026-09-27** — accept the wait, narrate it honestly; ruling 6 survives (approve = send, one press). The $7.23/mo warm machine parks as **#298** behind the real-visitors gate | — | — | — |
 | V1h | #297 | Scale the API machine off 256MB — a browser peaks at ~201MB and Fly kills the whole app, not just the PDF. ~3¢/month, needs owner OK (shared account) | `—` owner task | — | — |
+| V1i | #299 | The profile needs a way in: an **"Add something new"** flow, so a person can volunteer a fact before any posting asks for it. **In v1 on the owner's call (2026-09-27), against my recommendation to park it.** Surfaced by #287: he kept the ruled-out list hidden, so the hole it left is closed by a way *in*, not a door to the list. **TAKEABLE.** This row decides the shape only — full screen or sheet, and how the flow recognises a denied capability at the moment she types it; the build folds into the spine spec like V3–V5 | `/design` | Opus | medium |
 | V2 | #TBD | Spec the spine from #290's map — amends #86 (per-ad understanding); #66's evidence-carry folds in here | `/to-spec` | Opus | high |
 | V3 | #TBD | Build: the paste-a-job-ad door — a job the owner brings is read, scored and questioned like a feed job | `/implement` | Opus | set at slicing |
 | V4 | #TBD | Build: the tailored draft back on a screen — the CV brain bound at last, fed by the pasted ad, carrying its evidence and gaps. **No stretch library** (map #290 ruling 7: the app already permits a rephrased bullet that cites its source fact; #171 stays parked) | `/implement` | **Fable** | set at slicing |
 | V5 | #TBD | Build: approve → a two-page PDF and an application report land in his inbox. Browser in the API container, export gated server-side on lint-passes AND approved. **Absorbs #156** (the page count becomes real — but only once the container has fonts: page count is a function of font metrics, and the renderer has no page rules at all, per #295) | `/implement` | **Fable** | set at slicing |
 | V6 | — | The finish line, proven live: one real posting, end to end, `/qa-gate` GO on the whole journey | `/qa-gate` | — | — |
 
-_**#290 is charted (2026-09-26/27): eight decision tickets, V1a–V1h — three resolved (V1f #295, V1g #296, V1b #287), four takeable, one blocked.** A wayfinder map files
+_**#290 is charted (2026-09-26/27): nine decision tickets, V1a–V1i — three resolved (V1f #295, V1g #296, V1b #287), five takeable, one blocked.** V1i joined on 2026-09-27, after #287's ruling surfaced it. A wayfinder map files
 decisions, not build slices — so V3–V5 stay `#TBD` until `/to-spec` writes the spine spec and cuts
 them. V3–V5 are the expected shape and the spec may re-cut it. Model column follows the session-107 rule: **Fable for the builds where a
 restraint rule can ship subtly wrong and still green** (the draft and the document are CV-brain
@@ -121,8 +122,9 @@ floor. **The floor-length rule** — #260's ranked list argues for cutting at th
 ~~**[#287](https://github.com/adrien-mounier/jobcrush-app/issues/287) — covered is not
 printable**~~ **DECIDED 2026-09-27, row V1b.** The ruling is `tailoring-reasoning.md` §8 (twelve
 clauses) plus one hard rule, and it governs **every** negative, not only a floor item's. It
-unblocked V1d and surfaced **#299** (the profile needs a way in — the owner kept the ruled-out list
-hidden, so the hole is closed by an *"Add something new"* flow instead of a door to it).
+unblocked V1d and surfaced **#299**, now row **V1i** on the owner's call (the profile needs a way in —
+he kept the ruled-out list hidden, so the hole is closed by an *"Add something new"* flow instead of a
+door to it).
 
 ### Phase 1 — make the live deck honest before it exists
 

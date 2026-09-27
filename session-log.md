@@ -42,6 +42,14 @@ door is *Add another language*) — is **#299**: a guided *"Add something new"* 
 denied capability at the moment she types it, never as a list she browses. Screen-versus-sheet goes to a
 design session.
 
+**The owner overruled my scheduling call, and #299 is in v1.** I recommended parking it: the Tailor-step
+door already covers the case that happens while the product is in use, and #299 only matters to someone
+updating a profile with no posting in front of them. He disagreed and put it in. It is row **V1i** and the
+map's ninth sub-issue — the map now closes on V1a–V1i. The row decides the **shape** only (full screen or
+sheet, and how the flow recognises a denied capability at the moment she types it); the build folds into
+the spine spec like V3–V5, so the map keeps its own rule that a wayfinder map files decisions, not build
+slices.
+
 **Two gate repairs fell out of it** (`0a7d685`, owner `[skip-gate]`). The commit gate and CI's skip-list
 both counted `apps/web/prototypes/**` as shippable code, so a comment-only edit to a design prototype
 demanded a full QA lifecycle and a ~27-minute CI run ending in a deploy of unchanged code. Both now skip
