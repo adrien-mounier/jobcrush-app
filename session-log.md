@@ -28,7 +28,26 @@ the real API. **No money was spent**: the run went through the Claude Code CLI f
 two more. The **"you told me you don't have this"** row (#287 c11-12) could not be exercised — the run had
 no declined questions, so `askedClosed` is empty by construction; the page says so rather than faking one.
 
-**Proposed inventory (owner's verdict pending)**: the four he asked for (the job in short, strengths,
+**VERDICT, same day: version 2 — "only what you asked for", plus the apply link on top.** Five sections:
+the job in short (with **the link to apply at the top of it** — his addition, decided in the same breath, and
+the one thing in the email he acts on), where you are strong, where you are not and what to say, be ready to
+explain, salary. Cut: the cv-factory's whole quality-control half (Verification Audit, Quality Checklist,
+Suggested Persistence), the two that repeat the card (Keyword Coverage, Intentional Omissions), Follow-up
+Questions — **and the three I had recommended keeping** (what did not print and why, what was lost, how far
+each line leans). Those three stay as capabilities; they are cut from the email. So the email's content comes
+from the **card** (strengths, gaps), **one model call** (prose, sentences, bridges) and **the advert** (salary,
+link) — the disclosure panel and the lint feed the screen and the export gate, not the inbox.
+
+**The apply link opened a gap on #291.** A job the app FOUND carries `sourceUrl`; a job he PASTES carries
+nothing, and pasting is the v1 door — so today every application would email him *"no link, this was pasted
+as text"*. The paste door must capture the link or read it out of the pasted text. Raised there, not fixed here.
+
+**Two defects of mine, found by him opening the file**: the version switcher was an unlabelled dark pill in
+A/B/C jargon that I had only ever tested by URL, never by click; and the report rendered as a web page when the
+artifact is an email. Both fixed — a labelled bar in plain words, and a real email frame (from, subject, the
+PDF attached).
+
+**My proposed inventory, before his verdict (superseded, kept for the record)**: the four he asked for (the job in short, strengths,
 gaps-with-a-sentence, interview prep) plus salary, plus the three the app computes for free and the
 cv-factory never had — what did not print and why, what was lost, how far each line leans — plus the
 advert's own ambiguities. Cut: Verification Audit, Quality Checklist and Suggested Persistence (the
