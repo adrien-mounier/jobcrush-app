@@ -2,6 +2,33 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-27 — #291 prototype: the paste door, three shapes, B chosen
+
+`/prototype` on **#291** (map #290, row V1a). Branch `prototype/paste-door-291` (`1422019` → `65a2d81`),
+out of `main`; pointer comment on the issue. One self-contained page, three doors that disagree about
+*where the door lives*, *what it asks for beside the text*, *where the wait is spent* and *what the screen
+says when the advert will not read* — **A** paste into the deck's own leading card · **B** a screen of its
+own behind a bar button · **C** Ctrl-V anywhere, the job's screen opens empty and fills itself in. The
+destination is identical in all three (ruling 2), so only the door was being judged, and four endings are
+drivable from the control bar (link in the text · no link · won't read · pasted before, ruling 1's reuse).
+Content is the real read from the #293 run — same advert, 79%, 3-of-4 essential, same open requirement,
+same apply link — so density is real, and the wait is narrated with the calls a pasted advert actually
+pays for (read the advert · look up the employer, cached · judge it against the profile).
+
+**Owner verdict: B, "its own room"** (`65a2d81`), approved on the second pass. Three corrections came out
+of his first look, and two of them were about the prototype lying about itself rather than about the
+design: the **＋ Paste a job** button was only ever visible ON the paste screen, where it is useless — so B
+now starts on the deck with Deck/Profile both walkable, the button in the same bar slot on every screen,
+inert on the one it opens; **"paste the advert for me"** was testing scaffolding that read as a feature and
+moved out of the frame entirely; and the link field is **"Link of the application"**.
+
+**The link question from #293 is answered both ways at once**: the door asks for the link up front, beside
+the text, *and* pre-fills it when the pasted advert carries one — optional, never blocking. `Posting` grows
+an optional link field at build time; the golden rule is untouched (a link is a property of a posting).
+
+**V1e (#292) is unblocked** — the door is a screen of its own, so it has room to ask. Map #290 now stands
+at **5 of 9 decided**; V1c, V1e and V1i are takeable, V1h is the owner's machine-size task.
+
 ## 2026-09-27 — #293 prototype: a real application report, beside the cv-factory's, same job
 
 `/prototype` on **#293** (map #290, ruling 7). Branch `prototype/application-report-293` (`6e4e49a`), out
