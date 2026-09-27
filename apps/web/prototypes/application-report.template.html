@@ -1,0 +1,366 @@
+<!doctype html>
+<!-- PROTOTYPE — throwaway. #293 (map #290, ruling 7): the application report.
+     GENERATED — do not hand-edit. Source: apps/web/prototypes/application-report.template.html
+     + apps/web/prototypes/application-report.prototype.mjs (the real pipeline run that fills it).
+
+     ══ THE QUESTION ═════════════════════════════════════════════════════════
+     What exactly is in the application report, and what writes each part? The owner's words:
+     "summary of the offer: my strength vs weakness, prep for interview, salary range if
+      available." The cv-factory has written him ten-section reports for nine real jobs and he has
+     been reading them for months. So the question is not "what could a report hold" — it is WHICH
+     of those ten sections earn a place at this scale, and what in the app writes each one.
+
+     Everything on the left of this page is REAL: his own root CV mined by the app's own miner, the
+     GRADION advert he actually applied to read by the app's own ad-reader, the app's own card, the
+     app's own tailored draft, the app's own disclosure and conservation lint — plus ONE model call
+     that writes the prose. On the right is the cv-factory's own report for the SAME job.
+
+     ══ LOCKED — decided elsewhere, not open here ════════════════════════════
+       - The report arrives BY EMAIL, with the PDF. The screen's job is "is this CV right?"
+         (map #290 ruling 8). Nothing here is a screen design.
+       - ONE model call per draft, over material the app already holds (ruling 7). No stretch
+         library, #171 stays parked.
+       - A gap is NAMED and comes with a sentence she can say; where nothing adjacent is true, the
+         honest line is "you have nothing close - expect it to come up". The report NEVER invents a
+         bridge (#287 clauses 11-12).
+       - A denied capability is named only where THIS advert asks for it (#287 clause 4), never
+         implied anyway (clause 2), never the subject of a stretch (clause 3).
+       - Never moralise about a leaning line. A CV is a marketing document; the machine proposes,
+         the human owns (#127 decision 9, ADR-0004/0005).
+
+     ══ WHAT THE VARIANTS DISAGREE ABOUT ═════════════════════════════════════
+     HOW MUCH of the cv-factory's ten sections survive the port.
+       A - FULL PORT. All ten sections, every one filled from app material. The honest maximum:
+           what the report looks like if nothing is cut.
+       B - HIS OWN WORDS. Only the four he named: the offer, strength vs weakness, interview prep,
+           salary. Everything the cv-factory added for its own quality control is cut.
+       C - B PLUS WHAT THE APP KNOWS AND HE DOES NOT. The four, plus the three the app computes for
+           free and no cv-factory reader ever asked for: what did not print and why, what was lost,
+           how far a printed line leans past its source - and the advert's own ambiguities.
+
+     ══ SCOPE NOTES ══════════════════════════════════════════════════════════
+       - No screen, no email chrome, no typography decisions. Section INVENTORY only.
+       - "Asked and closed" is empty in this run by construction: the pipeline was driven with his
+         verified CV and no declined questions, so there is no denied capability to name. The row is
+         shown with its rule, marked as untested by this run.
+       - The draft on the left was written by the real preview-tailor. It is NOT the cv-factory's
+         tailored CV, so a line-by-line wording comparison of the two CVs is out of scope.
+       - The card is JUDGED (the model reads his facts against the advert's requirements), as
+         production judges it. The run also kept the same card WITHOUT a judge, because the
+         difference turned out to matter more than any section choice on this page - see the
+         instrument strip.
+       - Cost is measured when the driver reports tokens, and ESTIMATED from character counts when
+         it does not (the local Claude Code CLI). The page says which.
+
+     Switcher: ?variant=A|B|C, left/right keys, floating pill. Keep/cut toggles produce the verdict
+     text at the bottom - nothing persists, reload resets.
+
+     VERDICT (owner, not yet given): __________________________________________
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Application report — what is in it, and what writes each part</title>
+<style>
+  :root {
+    --ink: #1a1a1a; --mute: #6b6b6b; --line: #e2e2e2; --paper: #fff; --bg: #f4f3f1;
+    --accent: #1f4e79; --keep: #17643f; --cut: #96341f;
+    --hud-bg: #14161a; --hud-ink: #d9dde3; --hud-mute: #8b939f; --hud-line: #2b2f36;
+    --src-card: #1f4e79; --src-disc: #7a4b12; --src-lint: #96341f; --src-call: #5b2a86; --src-new: #17643f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.55 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  header.top { background: var(--paper); border-bottom: 1px solid var(--line); padding: 18px 24px 14px; }
+  header.top h1 { margin: 0 0 4px; font-size: 19px; letter-spacing: -0.01em; }
+  header.top p { margin: 0; color: var(--mute); font-size: 13.5px; max-width: 78ch; }
+  .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 24px 190px; align-items: start; }
+  @media (max-width: 1100px) { .wrap { grid-template-columns: 1fr; } }
+  .col > h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--mute);
+              margin: 0 0 10px; font-weight: 600; }
+  .doc { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 26px 30px; }
+  .doc h3 { font-size: 15px; margin: 26px 0 8px; color: var(--accent); letter-spacing: 0.01em;
+            border-bottom: 1px solid var(--line); padding-bottom: 5px; display: flex; gap: 8px;
+            align-items: baseline; justify-content: space-between; }
+  .doc h3:first-of-type { margin-top: 0; }
+  .doc h3 .t { flex: 1; }
+  .doc p, .doc li { font-size: 14px; }
+  .doc ul { margin: 6px 0 0; padding-left: 20px; }
+  .doc li { margin-bottom: 7px; }
+  .said { font-style: italic; color: #333; }
+  .said::before { content: "\201C"; } .said::after { content: "\201D"; }
+  .pair { margin: 0 0 10px; }
+  .pair .req { font-weight: 600; }
+  .pair .ev { color: var(--mute); font-size: 13px; }
+  .chip { font: 600 9.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase;
+          letter-spacing: 0.07em; padding: 2px 6px; border-radius: 3px; color: #fff; white-space: nowrap; }
+  .chip.card { background: var(--src-card); } .chip.disc { background: var(--src-disc); }
+  .chip.lint { background: var(--src-lint); } .chip.call { background: var(--src-call); }
+  .chip.new  { background: var(--src-new); }
+  .keepbar { display: flex; gap: 10px; align-items: center; margin: 4px 0 0; font-size: 11.5px; color: var(--mute); }
+  .keepbar label { cursor: pointer; user-select: none; }
+  .empty { color: var(--mute); font-size: 13px; font-style: italic; }
+  .rule { background: #fbf9f4; border-left: 3px solid var(--src-disc); padding: 8px 12px; font-size: 13px;
+          color: #4a4437; margin-top: 8px; }
+  .factory { font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap;
+             background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 20px 22px;
+             max-height: 78vh; overflow: auto; }
+  .factory .fh { display: block; color: var(--accent); font-weight: 700; margin: 14px 0 2px; }
+  .verdicttag { display: inline-block; font: 600 9.5px/1.5 ui-monospace, monospace; padding: 1px 5px;
+                border-radius: 3px; margin-left: 6px; vertical-align: 1px; }
+  .v-keep { background: #e2f0e8; color: var(--keep); } .v-cut { background: #f7e6e1; color: var(--cut); }
+  .v-app { background: #e6edf5; color: var(--accent); }
+  .hud { position: fixed; bottom: 0; left: 0; right: 0; background: var(--hud-bg); color: var(--hud-ink);
+         border-top: 1px solid var(--hud-line); padding: 10px 24px; font: 11.5px/1.5 ui-monospace, monospace;
+         display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-start; z-index: 20;
+         max-height: 32vh; overflow: auto; }
+  .hud b { color: #fff; font-weight: 600; } .hud .m { color: var(--hud-mute); }
+  .hud section { max-width: 34ch; }
+  .pill { position: fixed; top: 12px; right: 24px; background: var(--hud-bg);
+          border: 1px solid var(--hud-line); border-radius: 999px; padding: 5px; display: flex; gap: 4px; z-index: 30; }
+  .pill button { background: none; border: 0; color: var(--hud-mute); font: 600 11.5px/1 ui-monospace, monospace;
+                 padding: 7px 13px; border-radius: 999px; cursor: pointer; }
+  .pill button[aria-current="true"] { background: #2a2f38; color: #fff; }
+  .verdictbox { grid-column: 1 / -1; background: var(--paper); border: 1px solid var(--line); border-radius: 4px;
+                padding: 16px 20px; }
+  .verdictbox h2 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--mute); }
+  .verdictbox pre { margin: 0; font: 12px/1.6 ui-monospace, monospace; white-space: pre-wrap; color: #333; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>What is in the application report, and what writes each part</h1>
+  <p><b>Left:</b> a report generated from his own GRADION advert, through the app's own miner, ad-reader, card,
+     tailor, disclosure and lint, plus one model call. <b>Right:</b> the cv-factory's report for the same job.
+     Every section is tagged with what writes it. Tick <i>keep</i> / <i>cut</i> and the verdict text at the
+     bottom writes itself.</p>
+</header>
+
+<div class="wrap">
+  <div class="col">
+    <h2 id="leftTitle">The app's report</h2>
+    <div class="doc" id="appReport"></div>
+  </div>
+  <div class="col">
+    <h2>The cv-factory's report, same job (reference he already reads)</h2>
+    <div class="factory" id="factory"></div>
+  </div>
+  <div class="verdictbox">
+    <h2>Verdict text (copy into #293)</h2>
+    <pre id="verdict">Tick keep / cut above.</pre>
+  </div>
+</div>
+
+<div class="pill" id="pill"></div>
+<div class="hud" id="hud"></div>
+
+<script>
+const PAYLOAD = /*PAYLOAD*/null/*PAYLOAD*/;
+const esc = (s) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const R = PAYLOAD.report ?? {};
+const C = PAYLOAD.card ?? {};
+
+// Which sections each variant shows, in order. The `src` is the honest answer to "what writes this".
+const SECTIONS = {
+  offer:      { title: "The job, in short",              src: "call", note: "one model call over the advert the card already stores" },
+  salary:     { title: "Salary",                          src: "new",  note: "NEW — the field the reader picks up while already reading the advert (card.salary is null today)" },
+  strengths:  { title: "Where you are strong",            src: "card", note: "the card's fit list, already computed — the call only writes the sentence" },
+  gaps:       { title: "Where you are not, and what to say", src: "card", note: "the card's dontYet / askedClosed / notTested lists + one sentence each (#287 c11-12)" },
+  prep:       { title: "Be ready to explain",             src: "call", note: "NEW — the same one call, over the fit and gap lists" },
+  leans:      { title: "How far each line leans",         src: "call", note: "NEW — the judgement the cv-factory makes and the app does not, folded into the same call" },
+  didnt:      { title: "What did not print, and why",     src: "disc", note: "the #154 per-job disclosure, already computed, live code" },
+  lost:       { title: "What was lost",                   src: "lint", note: "conservationIssues(), already computed and already gating export" },
+  ambig:      { title: "What is unclear in the advert itself", src: "call", note: "NEW — same call; the cv-factory's Ambiguities section caught a real one on this very advert" },
+  audit:      { title: "Verification audit (every printed line)", src: "call", note: "the cv-factory's own QA trace, ported whole — long" },
+  keywords:   { title: "Keyword coverage",                src: "card", note: "the advert's requirement list vs the printed draft, no call needed" },
+  omissions:  { title: "Deliberate omissions",            src: "disc", note: "the disclosure list, re-titled the cv-factory's way" },
+  followup:   { title: "Follow-up questions for you",     src: "call", note: "the cv-factory asks him questions to enrich the profile — the app has its own door for that" },
+  checklist:  { title: "Quality checklist",               src: "lint", note: "the pipeline's self-check: lint + ratchets. Written for the engineer, not the reader" },
+};
+const VARIANTS = {
+  A: { name: "A — FULL PORT", keys: ["offer","salary","strengths","gaps","prep","audit","keywords","omissions","didnt","lost","ambig","followup","checklist"] },
+  B: { name: "B — HIS OWN WORDS", keys: ["offer","strengths","gaps","prep","salary"] },
+  C: { name: "C — B + WHAT THE APP KNOWS", keys: ["offer","salary","strengths","gaps","prep","leans","didnt","lost","ambig"] },
+};
+
+const CHIP = { card: ["card","the card"], disc: ["disc","disclosure"], lint: ["lint","lint"], call: ["call","the one call"], new: ["new","new field"] };
+const list = (arr, fn) => (arr && arr.length ? "<ul>" + arr.map(fn).join("") + "</ul>" : "");
+const none = (t) => `<p class="empty">${esc(t)}</p>`;
+
+function body(key) {
+  switch (key) {
+    case "offer":
+      return `<p>${esc(R.offerSummary)}</p>`;
+    case "salary": {
+      const s = R.salary ?? {};
+      return `<p>${s.stated ? esc(s.stated) : "<i>The advert does not say.</i>"}</p>` +
+             (s.note ? `<p class="ev" style="color:var(--mute)">${esc(s.note)}</p>` : "") +
+             `<div class="rule">Not one of the nine adverts he actually applied to states a salary. The section is
+              real and cheap, and on today's evidence it is usually one honest line: <i>the advert does not say</i>.</div>`;
+    }
+    case "strengths":
+      return list(R.strengths, (s) => `<li><div class="pair"><span class="req">${esc(s.requirement)}</span>
+        <div class="ev">${esc(s.evidence)}</div></div><div class="said">${esc(s.line)}</div></li>`) || none("nothing");
+    case "gaps": {
+      const rows = (R.gaps ?? []);
+      const askedClosed = (C.askedClosed ?? []);
+      return (list(rows, (g) => `<li><div class="pair"><span class="req">${esc(g.requirement)}</span>
+        <div class="ev">${g.closest ? "closest true thing: " + esc(g.closest) : "nothing close"} · from <code>${esc(g.source)}</code></div></div>
+        <div class="said">${esc(g.line)}</div></li>`) || none("nothing")) +
+        (PAYLOAD.estimatedCard ? `<div class="rule" style="border-left-color:var(--src-lint)"><b>This section is only as
+         good as the card.</b> Judged, this advert leaves ${(C.dontYet ?? []).length} requirement(s) open
+         (${C.breakdown?.essential?.met}/${C.breakdown?.essential?.total} essentials met). The SAME run without a judge —
+         the deterministic keyword scorer — left ${PAYLOAD.estimatedCard.dontYet.length} open
+         (${PAYLOAD.estimatedCard.breakdown?.essential?.met}/${PAYLOAD.estimatedCard.breakdown?.essential?.total}), among them
+         <i>"Excellent international English communication"</i>. A report built on that card opens by telling him he cannot
+         speak English. The report cannot be shipped on an unjudged card.</div>` : "") +
+        `<div class="rule"><b>"You told me you don't have this"</b> — ${askedClosed.length ? esc(askedClosed.join("; ")) :
+         "empty in this run by construction: the pipeline was driven with his verified CV and no declined questions, so no denied capability exists to name. The rule is decided (#287 c4, c11-12): named only where this advert asks for it, with a sentence to say, and never a manufactured bridge."}</div>`;
+    }
+    case "prep":
+      return list(R.interviewPrep, (p) => `<li>${esc(p)}</li>`) || none("nothing");
+    case "leans": {
+      const rows = (R.leans ?? []).filter((l) => l.lean && l.lean !== "none");
+      return (list(rows, (l) => `<li><div class="pair"><span class="req">${esc(l.printed)}</span>
+        <div class="ev">from: ${esc(l.source)} · leans on <b>${esc(l.lean)}</b></div></div>
+        <div class="said">${esc(l.defence)}</div></li>`) || none("no printed line leans past its source in this draft")) +
+        `<div class="rule">Never a warning and never advice to cut. Checked against nine real cv-factory runs: not one
+         printed claim was unsupported — every audited item was a WORDING stretch over a fact he owns (ruling 7).</div>`;
+    }
+    case "didnt": {
+      const rows = R.didNotPrint ?? [];
+      const d = PAYLOAD.disclosure ?? [];
+      return (list(rows, (x) => `<li><span class="req">${esc(x.fact)}</span><div class="ev">${esc(x.why)}</div></li>`) ||
+              none("every fact printed — nothing was held back")) +
+        `<div class="rule">Raw material, no call needed: ${d.length} job${d.length === 1 ? "" : "s"} with something to disclose,
+         ${d.reduce((a, x) => a + x.heldBack.length, 0)} held-back facts in his own wording, ${d.reduce((a, x) => a + x.overfull.length, 0)} over-packed line(s).</div>`;
+    }
+    case "lost": {
+      const rows = (R.lost ?? []).length ? R.lost : (PAYLOAD.conservationNotices ?? []);
+      return list(rows, (x) => `<li>${esc(x)}</li>`) ||
+        none("nothing was lost — the draft passed the conservation lint clean, which is the normal case and the reason export is gated on it");
+    }
+    case "ambig":
+      return list(R.adAmbiguities, (x) => `<li>${esc(x)}</li>`) ||
+        none("the advert is clear — nothing to say (never padded)");
+    case "audit": {
+      const rows = (R.leans ?? []);
+      return (list(rows, (l) => `<li><span class="req">${esc(l.printed)}</span>
+        <div class="ev">source: ${esc(l.source)} · lean: ${esc(l.lean)} · defence: ${esc(l.defence)}</div></li>`) || none("nothing")) +
+        `<div class="rule">The cv-factory audits every printed line for a reader who is also its engineer. At this scale
+         the same material is the "how far each line leans" section, three items long instead of thirty.</div>`;
+    }
+    case "keywords": {
+      const reqs = (PAYLOAD.requirements ?? []);
+      const covered = (C.fit ?? []).length, open = (C.dontYet ?? []).length;
+      return `<p>${reqs.length} requirements read from the advert. ${covered} of his facts answer one; ${open} are open.</p>` +
+        list((C.dontYet ?? []).map((r) => r.requirement), (x) => `<li>${esc(x)}</li>`) +
+        `<div class="rule">Free — it is the card's own two lists, said a second way. On the same page as "where you are
+         strong" and "where you are not", it repeats them.</div>`;
+    }
+    case "omissions":
+      return list((R.didNotPrint ?? []).map((x) => x.why + " (" + x.fact + ")"), (x) => `<li>${esc(x)}</li>`) ||
+        none("nothing omitted") + `<div class="rule">Same material as "what did not print, and why" above, said twice.</div>`;
+    case "followup":
+      return `<div class="rule">The cv-factory asks him questions at the END, in a document, to enrich his profile for
+        next time. The app asks them BEFORE the draft is written, on the screen, and the answer updates the CV in place
+        (#287 c7-c8). A question in this report is a question that arrived too late.</div>`;
+    case "checklist": {
+      const l = PAYLOAD.lint ?? [];
+      return `<ul><li>Conservation lint: ${l.length === 0 ? "clean" : l.length + " finding(s)"}</li>
+        <li>Every printed bullet cites the facts it came from: enforced by the draft contract, not by a checklist</li>
+        <li>Two-page budget: the server's own page count (#295/#296), not a tick in a document</li></ul>
+        <div class="rule">This section is the pipeline checking itself. In the app those checks are code that BLOCKS
+        the email (export is gated server-side on the lint + his approval, map #290 ruling 6) — a tick-list in his
+        inbox tells him a gate already passed.</div>`;
+    }
+  }
+  return "";
+}
+
+function render(v) {
+  const variant = VARIANTS[v] ?? VARIANTS.C;
+  document.getElementById("leftTitle").textContent = "The app's report — " + variant.name;
+  const html = variant.keys.map((key) => {
+    const s = SECTIONS[key];
+    const [cls, label] = CHIP[s.src];
+    return `<h3><span class="t">${esc(s.title)}</span><span class="chip ${cls}">${label}</span></h3>
+      <div class="keepbar">
+        <label><input type="radio" name="k-${key}" value="keep" data-key="${key}" /> keep</label>
+        <label><input type="radio" name="k-${key}" value="cut" data-key="${key}" /> cut</label>
+        <span>${esc(s.note)}</span>
+      </div>
+      ${body(key)}`;
+  }).join("");
+  document.getElementById("appReport").innerHTML = html;
+  document.querySelectorAll('.keepbar input').forEach((i) => i.addEventListener("change", verdict));
+  document.querySelectorAll("#pill button").forEach((b) => b.setAttribute("aria-current", String(b.dataset.v === v)));
+  verdict();
+}
+
+function verdict() {
+  const keep = [], cut = [];
+  document.querySelectorAll('.keepbar input:checked').forEach((i) => {
+    (i.value === "keep" ? keep : cut).push(SECTIONS[i.dataset.key].title + "  [" + CHIP[SECTIONS[i.dataset.key].src][1] + "]");
+  });
+  const lines = [];
+  lines.push("VARIANT SHOWN: " + (VARIANTS[current()] ?? VARIANTS.C).name);
+  lines.push("");
+  lines.push("KEEP:" + (keep.length ? "\n  - " + keep.join("\n  - ") : " (nothing ticked)"));
+  lines.push("");
+  lines.push("CUT:" + (cut.length ? "\n  - " + cut.join("\n  - ") : " (nothing ticked)"));
+  document.getElementById("verdict").textContent = lines.join("\n");
+}
+
+function factory() {
+  const md = PAYLOAD.factoryReport ?? "";
+  document.getElementById("factory").innerHTML = esc(md)
+    .replace(/^(#{1,3})\s*(.+)$/gm, (_, h, t) => `<span class="fh">${t}</span>`);
+}
+
+function hud() {
+  const cost = PAYLOAD.cost ?? [];
+  const reportCall = cost.find((c) => c.label === "application-report") ?? {};
+  const total = cost.reduce((a, c) => a + (c.usd ?? 0), 0);
+  const est = cost.some((c) => c.estimated);
+  const d = PAYLOAD.disclosure ?? [];
+  document.getElementById("hud").innerHTML = `
+    <section><b>THE CARD</b><br>${C.matchPct}% · essential ${C.breakdown?.essential?.met}/${C.breakdown?.essential?.total} ·
+      desirable ${C.breakdown?.desirable?.met}/${C.breakdown?.desirable?.total}<br>
+      <span class="m">fit ${(C.fit ?? []).length} · open ${(C.dontYet ?? []).length} · asked-and-closed ${(C.askedClosed ?? []).length} · untested ${(C.notTested ?? []).length}</span></section>
+    ${PAYLOAD.estimatedCard ? `<section><b>THE SAME CARD, UNJUDGED</b><br>${PAYLOAD.estimatedCard.matchPct}% ·
+      essential ${PAYLOAD.estimatedCard.breakdown?.essential?.met}/${PAYLOAD.estimatedCard.breakdown?.essential?.total} ·
+      open ${PAYLOAD.estimatedCard.dontYet.length}<br>
+      <span class="m">the deterministic scorer, no judge wired — what the report must never be built on</span></section>` : ""}
+    <section><b>THE DRAFT</b><br>${(PAYLOAD.draft?.experience ?? []).length} roles ·
+      ${(PAYLOAD.draft?.experience ?? []).reduce((a, r) => a + r.bullets.length, 0)} bullets printed<br>
+      <span class="m">held back ${d.reduce((a, x) => a + x.heldBack.length, 0)} · over-packed ${d.reduce((a, x) => a + x.overfull.length, 0)} ·
+      lint ${(PAYLOAD.lint ?? []).length}</span></section>
+    <section><b>THE ONE CALL</b><br>${(reportCall.inputTokens ?? "?")}&rarr;${(reportCall.outputTokens ?? "?")} tok ·
+      ${reportCall.seconds ?? "?"}s · <b>$${(reportCall.usd ?? 0).toFixed(4)}</b> per draft<br>
+      <span class="m">${reportCall.estimated ? "estimated from character counts (CLI driver reports no usage)" : "measured tokens"} ·
+      prompt ${PAYLOAD.reportInputChars} chars</span></section>
+    <section><b>WHOLE RUN</b><br>${cost.length} calls · $${total.toFixed(4)}<br>
+      <span class="m">${cost.map((c) => c.label + " $" + (c.usd ?? 0).toFixed(3)).join(" · ")}${est ? " · estimated" : ""}</span></section>
+    <section><b>GENERATED</b><br><span class="m">${esc((PAYLOAD.generatedAt ?? "").slice(0, 16).replace("T", " "))} ·
+      real advert (GRADION, 2026-07-28) · real root CV v9 · model ${esc(cost[0]?.model ?? "?")}</span></section>`;
+}
+
+const current = () => (new URLSearchParams(location.search).get("variant") ?? "C").toUpperCase();
+function go(v) {
+  const u = new URL(location.href); u.searchParams.set("variant", v);
+  history.replaceState(null, "", u); render(v);
+}
+document.getElementById("pill").innerHTML = Object.entries(VARIANTS)
+  .map(([k, v]) => `<button data-v="${k}">${esc(v.name)}</button>`).join("");
+document.querySelectorAll("#pill button").forEach((b) => b.addEventListener("click", () => go(b.dataset.v)));
+addEventListener("keydown", (e) => {
+  const ks = Object.keys(VARIANTS), i = ks.indexOf(current());
+  if (e.key === "ArrowRight") go(ks[(i + 1) % ks.length]);
+  if (e.key === "ArrowLeft") go(ks[(i - 1 + ks.length) % ks.length]);
+});
+factory(); hud(); render(current());
+</script>
+</body>
+</html>
