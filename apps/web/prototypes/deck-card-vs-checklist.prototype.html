@@ -2,8 +2,14 @@
      when we see the card of the deck... we should reuse the screen that already exists and not
      create a new one."
 
-     OWNER'S RULING off the first version of this page (2026-09-27): the existing design wins —
-     the deck card is reused, not replaced. Two changes only:
+     OWNER'S RULING, 2026-09-27, in two rounds.
+     Round 2 — the middle panel is CHOSEN: the job's own screen keeps the card's existing
+     "Where you fit" / "Where you don't — yet" lists and its match breakdown grid, gains the
+     apply row, and carries one button. The third panel (the checklist in place of both) was
+     seen and not taken. And one further change, which applies to THIS screen AND the deck:
+     "Read the ad in full" moves up to sit directly below the title and subtitle. Applied to
+     all three panels here so they stay comparable.
+     Round 1 — the existing design wins: the deck card is reused, not replaced. Two changes:
        1. an "apply here" row under the title, with a placeholder when there is no link;
        2. the primary button reads "Write the tailored CV".
      This page is now that proposal beside the thing it changes.
@@ -137,6 +143,11 @@
     able to send you anywhere.
   </p>
   <p>
+    The <b>middle panel is the chosen one.</b> On every panel, “Read the ad in full” now sits
+    directly under the title — on the deck card too, which is the one change that lands on both
+    screens.
+  </p>
+  <p>
     The <b>third panel</b> answers a separate question: what the same screen looks like if the
     checklist takes the place of the four-cell match breakdown. It replaces the fit / not-yet
     lists as well, because it already contains them — keeping both would print the same ten
@@ -159,7 +170,7 @@
 
   <div class="col">
     <h2>Proposed · the job's own screen</h2>
-    <p class="sub">One job, already chosen — or pasted straight onto it. One action, and the link you will actually use.</p>
+    <p class="sub"><b style="color:#e8a33d">CHOSEN.</b> One job, already chosen — or pasted straight onto it. One action, and the link you will actually use.</p>
     <div class="frame"><div class="jobdeck" id="proposed"></div></div>
   </div>
 
@@ -177,6 +188,14 @@
       when you drag the card right — <b>“Want it”</b>. It is a preference, not a commitment.
       On the job's own screen there is nothing to reject, the press is the commitment, and
       <b>“Write the tailored CV”</b> says what happens next.</p>
+  </div>
+  <div class="v">
+    <h3>The job description moves up — on both screens</h3>
+    <p>It sat at the foot of the card, under everything the machine had to say about you. A job
+      description belongs with the job, so it now follows the title and subtitle directly. Its
+      existing hairline reads as the header's closing rule rather than as a footer separator, so
+      the move needed no restyling. Opened, the advert text lands exactly where you would look
+      for it.</p>
   </div>
   <div class="v">
     <h3>Why the apply link is not on the deck</h3>
@@ -285,6 +304,15 @@ const card = (variant, hasLink) => `
           </div>
         </div>
 
+        <details class="ad">
+          <summary>Read the ad in full</summary>
+          <p>GRADION is looking for an IT Project Manager / Senior Project Manager to run delivery
+            for international clients from Ho Chi Minh City. You will own scope, budget and
+            schedule across Dedicated Team and Fixed-Price engagements, translate unclear client
+            requirements into deliverable scope, and communicate in English with stakeholders
+            across regions.</p>
+        </details>
+
         ${variant !== "deck" ? applyRow(hasLink) : ""}
 
         <div class="bubble">
@@ -310,15 +338,6 @@ const card = (variant, hasLink) => `
             <div class="bd-cell"><dt class="bd-l">Match quality</dt><dd class="bd-pill strong">Strong</dd></div>
           </dl>
         </section>`}
-
-        <details class="ad">
-          <summary>Read the ad in full</summary>
-          <p>GRADION is looking for an IT Project Manager / Senior Project Manager to run delivery
-            for international clients from Ho Chi Minh City. You will own scope, budget and
-            schedule across Dedicated Team and Fixed-Price engagements, translate unclear client
-            requirements into deliverable scope, and communicate in English with stakeholders
-            across regions.</p>
-        </details>
 
       </div>
       ${variant === "deck"
