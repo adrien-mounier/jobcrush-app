@@ -1,35 +1,46 @@
-<!-- PROTOTYPE — throwaway. Owner question, 2026-09-27, before validating the requirement-lists
-     panel: "generate a prototype of the real screen when we see the card of the deck, just
-     before deciding to go to tailor a CV for one of the cards. We should reuse the screen that
-     already exists and not create a new one. I want to see both and compare."
+<!-- PROTOTYPE — throwaway. Owner question, 2026-09-27: "generate a prototype of the real screen
+     when we see the card of the deck... we should reuse the screen that already exists and not
+     create a new one."
 
-     LEFT is not a drawing of the deck card. It is the deck card: this file links the SHIPPED
-     apps/web/app/deck.css and reproduces apps/web/app/jobcard.tsx's CardBody markup element for
-     element — the same .hd/.score/.bubble/.flat/.breakdown/.ad structure, the same ✓ ? – ·
-     glyphs, the same .jcfoot swipe buttons from deck/page.tsx:1214. Nothing is restyled. If the
-     product's card changes, this panel changes with it, because it is reading the real
-     stylesheet. Two accommodations, both visual no-ops: `.jobdeck` is position:fixed in the app,
-     so it is made static to sit in a frame here; and the desktop column cap (--jc-desk-col,
-     560px, globals.css:368) is declared locally since globals.css is not linked.
+     OWNER'S RULING off the first version of this page (2026-09-27): the existing design wins —
+     the deck card is reused, not replaced. Two changes only:
+       1. an "apply here" row under the title, with a placeholder when there is no link;
+       2. the primary button reads "Write the tailored CV".
+     This page is now that proposal beside the thing it changes.
 
-     RIGHT is the validated checklist panel, in an iframe of requirement-lists.prototype.html
-     itself — not a copy. One source of truth; if that file moves, this moves.
+     LEFT is not a drawing of the deck card. It LINKS the shipped apps/web/app/deck.css and
+     reproduces apps/web/app/jobcard.tsx's CardBody markup element for element — the same
+     .hd/.score/.bubble/.flat/.breakdown/.ad structure, the same ✓ ? glyphs, the same .jcfoot
+     swipe buttons from deck/page.tsx:1214. Nothing is restyled. Two accommodations, both visual
+     no-ops: `.jobdeck` is position:fixed in the app, so it is made static to sit in a frame; and
+     the desktop column cap (--jc-desk-col, 560px, globals.css:368) is declared locally because
+     globals.css is not linked.
 
-     SAME JOB, SAME RUN, on both sides: the GRADION advert, the ten requirements the ad-reader
-     pulled out of it, and the judge's verdicts from the #293 run. One honest difference worth
-     knowing when you read the left panel: the shipped card's "Where you fit" rows carry a short
-     FACT phrase (card.fit[].text), not the requirement text — so those nine lines are condensed
-     from the same judge sentences the right-hand panel prints in full. That difference is the
-     comparison, not a liberty taken with the data.
+     RIGHT is the SAME markup and the SAME stylesheet with only the two changes applied, so any
+     difference you can see between the panels is a difference we are proposing — there is no
+     third thing going on. The only new CSS in this file is the apply row, built from the card's
+     own tokens at the card's own radius; it is marked below.
+
+     The apply row's two states are on a switch, because a pasted advert may carry no link at all
+     (#291: the paste door takes text and link side by side, pre-filled when the text has one,
+     never blocking) and the application report puts that link at the top (#293) — so the empty
+     state is what keeps the report able to send him anywhere.
+
+     WHAT THIS PROPOSAL DOES NOT CARRY, named so it is a decision and not an oversight: reusing
+     the card as-is means the REASON behind each verdict, and the ESSENTIAL/DESIRABLE split, do
+     not come with it. The card names the fact ("7+ years delivering IT systems"); it does not
+     name the requirement that fact answered, and it sorts into fit / not-yet rather than by
+     weight. Both live in requirement-lists.prototype.html, which this page previously showed and
+     which remains on disk. Not adopted here.
      Not production code. -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>JobCrush — the deck card we have, beside the checklist we drew</title>
+<title>JobCrush — the deck card, and the job's own screen built from it</title>
 <link rel="stylesheet" href="../app/deck.css">
 
 <style>
   :root {
-    --floor: #101419; --surface: #171c23; --line: #2b333d;
+    --floor: #101419; --surface: #171c23; --raised: #1f262f; --line: #2b333d;
     --ink: #e8eaed; --muted: #7f8b98; --gold: #e8a33d;
     --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
     --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
@@ -37,25 +48,53 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--floor); color: var(--ink); font-family: var(--sans);
     font-size: 14px; line-height: 1.5; padding: 40px 24px 60px; }
-  .intro { max-width: 74ch; margin: 0 auto 32px; text-align: center; }
+  .intro { max-width: 74ch; margin: 0 auto 28px; text-align: center; }
   .intro h1 { font-size: 18px; font-weight: 620; letter-spacing: -.01em; margin: 0 0 8px; }
   .intro p { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
   .intro b { color: var(--ink); font-weight: 620; }
 
-  .pair { display: grid; grid-template-columns: 560px minmax(0, 1fr); gap: 28px;
-    align-items: start; max-width: 1460px; margin: 0 auto; }
-  .col > h2 { display: flex; align-items: center; gap: 12px; margin: 0 0 12px;
+  .switch { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 0 auto 28px; }
+  .switch em { font-style: normal; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+  .switch button { appearance: none; font: inherit; font-size: 12.5px; cursor: pointer;
+    background: var(--raised); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 14px; }
+  .switch button.on { border-color: var(--ink); background: var(--surface); }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 6px; }
+
+  .pair { display: grid; grid-template-columns: repeat(2, 560px); gap: 32px;
+    justify-content: center; align-items: start; }
+  .col > h2 { display: flex; align-items: center; gap: 12px; margin: 0 0 10px;
     font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
     color: var(--muted); font-weight: 400; }
   .col > h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-  .col > .sub { margin: -6px 0 12px; font-size: 12.5px; color: var(--muted); }
+  .col > .sub { margin: 0 0 14px; font-size: 12.5px; color: var(--muted); min-height: 38px; }
   .frame { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--floor); }
-  .frame iframe { display: block; width: 100%; height: 1460px; border: 0; }
-
-  /* The two visual no-ops named in the header: the app's .jobdeck owns the viewport, and
-     globals.css (which carries the desktop column width) is not linked here. */
+  /* The two visual no-ops named in the header. */
   .frame .jobdeck { position: static; inset: auto; z-index: auto; height: auto;
     overflow: visible; --jc-desk-col: 560px; padding-bottom: 8px; }
+
+  /* ── THE ONLY NEW CSS IN THIS FILE: the apply row. Built from the card's own tokens — the
+     .bd-cell / .opt radius (11px), the --hud-2 fill, the --hud-line border, the mono face the
+     card already uses for its labels. Nothing here restyles anything that exists. ── */
+  .jobdeck .applyrow { display: flex; align-items: center; gap: 10px; margin: 13px 0 0;
+    padding: 10px 13px; background: var(--hud-2); border: 1px solid var(--hud-line);
+    border-radius: 11px; font-size: 12.5px; color: var(--hud-mute); }
+  .jobdeck .applyrow a { display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+    color: var(--hud-ink); font-family: var(--mono); font-size: 12px; text-decoration: none;
+    border-bottom: 1px solid var(--settled); padding-bottom: 1px; }
+  .jobdeck .applyrow a:hover { border-bottom-color: var(--hud-ink); }
+  .jobdeck .applyrow a span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .jobdeck .applyrow svg { width: 12px; height: 12px; flex: none; }
+  /* The empty state is a control, not a caption: a pasted advert may carry no link, and the
+     application report puts that link at the top. */
+  .jobdeck .applyrow.none { color: var(--hud-mute); }
+  .jobdeck .applyrow button { appearance: none; font: inherit; font-size: 12.5px; cursor: pointer;
+    background: none; border: none; color: var(--hud-ink); padding: 0;
+    border-bottom: 1px solid var(--settled); }
+  .jobdeck .applyrow button:hover { border-bottom-color: var(--hud-ink); }
+  /* The job's own screen has one action, so the footer is not a swipe pair. */
+  .jobdeck .jcfoot.single .sw.yes { flex: 1; }
 
   .verdict { max-width: 1460px; margin: 36px auto 0; display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
@@ -64,139 +103,180 @@
   .v p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
   .v p + p { margin-top: 8px; }
   .v b { color: var(--ink); font-weight: 620; }
-  @media (max-width: 1180px) { .pair { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 1220px) { .pair { grid-template-columns: minmax(0, 560px); } }
 </style>
 
 <div class="intro">
-  <h1>The card the deck already has, beside the checklist we drew</h1>
+  <h1>The card we keep, and the job's own screen built from it</h1>
   <p>
-    Same job, same run: the GRADION advert, the ten requirements our reader pulled out of it, and
-    the judge's verdicts. <b>The left panel is the real screen</b> — it links the shipped
-    <code>deck.css</code> and reproduces the shipped card's markup, so it is not a drawing of the
-    card, it is the card. <b>The right panel is the checklist prototype itself</b>, embedded, not
-    copied.
+    <b>The existing design is reused, not replaced.</b> Both panels run the shipped
+    <code>deck.css</code> and the shipped card markup, so every difference you can see below is a
+    difference we are proposing — there is nothing else going on.
   </p>
   <p>
-    The question is not which is prettier. It is <b>what the checklist shows that the card does
-    not</b> — and whether that is worth changing on a screen that already works.
+    Two changes: an <b>apply here</b> row under the title, and the primary button reads
+    <b>Write the tailored CV</b>. The switch shows what the apply row does when the advert
+    carries no link — which is normal for a pasted job, and is what keeps the application report
+    able to send you anywhere.
   </p>
+</div>
+
+<div class="switch" id="sw">
+  <em>the advert</em>
+  <button data-k="link" class="on">carries an application link</button>
+  <button data-k="none">carries no link — he pasted the text only</button>
 </div>
 
 <div class="pair">
   <div class="col">
     <h2>What exists today · the deck card</h2>
-    <p class="sub">The screen you are on when you decide to tailor. Pressing “I want this one” starts the tailoring.</p>
-    <div class="frame">
-      <!-- deck/page.tsx's own shell, then jobcard.tsx's CardBody, element for element. -->
-      <div class="jobdeck">
-        <div class="topbar"><span class="wordmark">JobCrush</span><span class="spacer"></span></div>
-        <p class="deckcount">1 of 4 matched today · swipe or tap</p>
-        <div class="deck">
-          <div class="jobcard" data-scored="judged">
-            <div class="jcbody">
-
-              <div class="hd">
-                <div class="t">
-                  <h2 tabindex="-1">IT Project Manager / Senior Project Manager (English Speaking)</h2>
-                  <p class="co">GRADION · Ho Chi Minh City, Vietnam<br>Hybrid</p>
-                </div>
-                <div class="scoreslot">
-                  <div class="score lg" role="img" aria-label="79% match">
-                    <svg viewBox="0 0 64 64" aria-hidden="true">
-                      <circle class="bg" cx="32" cy="32" r="28"></circle>
-                      <circle class="fg" cx="32" cy="32" r="28"
-                        stroke-dasharray="175.93" stroke-dashoffset="36.95"></circle>
-                    </svg>
-                    <span class="n">79<span class="pct">%</span></span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="bubble">
-                <p>
-                  This is your job on paper — seven years of IT delivery, the scope translation and
-                  the international English all match what they lead with.
-                  <span class="gap">The gap is the two contract models.</span>
-                </p>
-              </div>
-
-              <div class="flat">
-                <h3>Where you fit</h3>
-                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>7+ years delivering IT systems</span></div>
-                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>Fluent English, steering committees across regions</span></div>
-                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>Business needs into specs and user stories</span></div>
-                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>Master's in Computer Science</span></div>
-                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>International teams across Europe, APAC and Africa</span></div>
-                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>Formal risk register, risks escalated early</span></div>
-                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>LLM workflows in daily delivery, ran AI workshops</span></div>
-                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>Built and rolled out an autonomous assistant</span></div>
-                <div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>Hands-on build and deployment</span></div>
-                <h3>Where you don't — yet</h3>
-                <div class="row open"><span class="mk" aria-hidden="true">?</span><span>Hands-on experience running both Dedicated Team and Fixed-Price projects</span></div>
-              </div>
-
-              <section class="breakdown" aria-labelledby="bdt">
-                <p id="bdt" class="bd-title">Match breakdown</p>
-                <dl class="bd-grid">
-                  <div class="bd-cell"><dt class="bd-l">Requirements met</dt><dd class="bd-n">9/10</dd></div>
-                  <div class="bd-cell"><dt class="bd-l">Essential met</dt><dd class="bd-n">3/4</dd></div>
-                  <div class="bd-cell"><dt class="bd-l">Desirable met</dt><dd class="bd-n">6/6</dd></div>
-                  <div class="bd-cell"><dt class="bd-l">Match quality</dt><dd class="bd-pill strong">Strong</dd></div>
-                </dl>
-              </section>
-
-              <details class="ad">
-                <summary>Read the ad in full</summary>
-                <p>GRADION is looking for an IT Project Manager / Senior Project Manager to run
-                  delivery for international clients from Ho Chi Minh City. You will own scope,
-                  budget and schedule across Dedicated Team and Fixed-Price engagements, translate
-                  unclear client requirements into deliverable scope, and communicate in English
-                  with stakeholders across regions.</p>
-              </details>
-
-            </div>
-            <div class="jcfoot">
-              <button type="button" class="sw">Not for me</button>
-              <button type="button" class="sw yes">I want this one</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <p class="sub">Triage. You are going through four jobs saying yes or no, and the two buttons are a matched pair.</p>
+    <div class="frame"><div class="jobdeck" id="today"></div></div>
   </div>
 
   <div class="col">
-    <h2>What we drew · the checklist panel</h2>
-    <p class="sub">The job's own screen, reached from the deck or from a pasted advert. Embedded live from its own prototype.</p>
-    <div class="frame">
-      <iframe src="requirement-lists.prototype.html?bare=1&amp;panel=1"
-        title="The checklist panel" loading="eager"></iframe>
-    </div>
+    <h2>Proposed · the job's own screen</h2>
+    <p class="sub">One job, already chosen — or pasted straight onto it. One action, and the link you will actually use.</p>
+    <div class="frame"><div class="jobdeck" id="proposed"></div></div>
   </div>
 </div>
 
 <div class="verdict">
   <div class="v">
-    <h3>The card already answers most of it</h3>
-    <p>Same ring, same gold ticks, same grey <b>?</b> for the gap, same language. The checklist did
-      not invent a visual world — it inherited this one. <b>Nothing on the left needs restyling.</b></p>
+    <h3>Why the button changes on one screen and not the other</h3>
+    <p>On the deck, <b>“I want this one”</b> pairs with “Not for me” and matches the stamp you see
+      when you drag the card right — <b>“Want it”</b>. It is a preference, not a commitment.
+      On the job's own screen there is nothing to reject, the press is the commitment, and
+      <b>“Write the tailored CV”</b> says what happens next.</p>
   </div>
   <div class="v">
-    <h3>What the card does not show: why</h3>
-    <p>The card names the fact (<b>“7+ years delivering IT systems”</b>). The checklist names the
-      requirement and the sentence that satisfied it. On a card you are skimming past, the fact is
-      right. On the screen where you commit to writing a CV, the reason is the thing you check.</p>
+    <h3>Why the apply link is not on the deck</h3>
+    <p>The deck card is swiped, so a link inside it fights the gesture. And putting “apply here”
+      in front of you mid-triage invites you to leave for the job board <b>before</b> we have
+      written you a better CV — the opposite of what the deck is for.</p>
   </div>
   <div class="v">
-    <h3>What the card does not show: weight</h3>
-    <p>The card sorts into fit and not-yet. The checklist sorts into <b>Essential</b> and
-      <b>Desirable</b>, so a missing essential reads differently from a missing nice-to-have. The
-      card carries that only as two numbers in the breakdown grid, below the fold.</p>
+    <h3>Why the empty state is a control, not a caption</h3>
+    <p>A pasted advert may carry no link — the paste door never blocks on one. The application
+      report puts the apply link <b>at the top</b>, so a job with no link leaves a hole in the one
+      document you read right before applying. <b>“Add the application link”</b> closes it in one
+      tap, at the moment you are looking at the job.</p>
   </div>
   <div class="v">
-    <h3>The card has one thing the checklist dropped</h3>
-    <p>The <b>match breakdown</b> — four cells and a Strong/Partial/Weak pill — is a shipped
-      component. The checklist's summary line was cut as a repeat of its group counts, which it was;
-      but this grid is the same information with somewhere to live.</p>
+    <h3>What reusing the card does not bring — a decision, not an oversight</h3>
+    <p>The card names the <b>fact</b> (“7+ years delivering IT systems”), not the requirement that
+      fact answered, and it sorts into fit / not-yet rather than by <b>Essential</b> and
+      <b>Desirable</b>. Both were in the checklist panel and neither comes across with this
+      proposal. That file is still on disk if you want either back.</p>
   </div>
 </div>
+
+<script>
+// The shipped card, hand-mirrored from jobcard.tsx's CardBody. `variant` is the only thing that
+// differs between the two panels: "deck" is today's screen untouched, "own" is the proposal.
+const ARROW = `<svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+  <path d="M3.2 8.8L8.8 3.2M4.4 3.2h4.4v4.4" stroke="currentColor" stroke-width="1.4"
+    stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+const FIT = [
+  "7+ years delivering IT systems",
+  "Fluent English, steering committees across regions",
+  "Business needs into specs and user stories",
+  "Master's in Computer Science",
+  "International teams across Europe, APAC and Africa",
+  "Formal risk register, risks escalated early",
+  "LLM workflows in daily delivery, ran AI workshops",
+  "Built and rolled out an autonomous assistant",
+  "Hands-on build and deployment",
+];
+const DONT_YET = ["Hands-on experience running both Dedicated Team and Fixed-Price projects"];
+
+const applyRow = (hasLink) => hasLink
+  ? `<div class="applyrow">Apply here
+       <a href="#"><span>linkedin.com/jobs/view/4445923167</span> ${ARROW}</a></div>`
+  : `<div class="applyrow none">No application link yet —
+       <button type="button">add the application link</button></div>`;
+
+const card = (variant, hasLink) => `
+  <div class="topbar"><span class="wordmark">JobCrush</span><span class="spacer"></span></div>
+  ${variant === "deck"
+    ? `<p class="deckcount">1 of 4 matched today · swipe or tap</p>`
+    : `<p class="deckcount">← Deck · the job's own screen</p>`}
+  <div class="deck">
+    <div class="jobcard" data-scored="judged">
+      <div class="jcbody">
+
+        <div class="hd">
+          <div class="t">
+            <h2 tabindex="-1">IT Project Manager / Senior Project Manager (English Speaking)</h2>
+            <p class="co">GRADION · Ho Chi Minh City, Vietnam<br>Hybrid</p>
+          </div>
+          <div class="scoreslot">
+            <div class="score lg" role="img" aria-label="79% match">
+              <svg viewBox="0 0 64 64" aria-hidden="true">
+                <circle class="bg" cx="32" cy="32" r="28"></circle>
+                <circle class="fg" cx="32" cy="32" r="28"
+                  stroke-dasharray="175.93" stroke-dashoffset="36.95"></circle>
+              </svg>
+              <span class="n">79<span class="pct">%</span></span>
+            </div>
+          </div>
+        </div>
+
+        ${variant === "own" ? applyRow(hasLink) : ""}
+
+        <div class="bubble">
+          <p>This is your job on paper — seven years of IT delivery, the scope translation and the
+            international English all match what they lead with.
+            <span class="gap">The gap is the two contract models.</span></p>
+        </div>
+
+        <div class="flat">
+          <h3>Where you fit</h3>
+          ${FIT.map(t => `<div class="row fit"><span class="mk" aria-hidden="true">✓</span><span>${t}</span></div>`).join("")}
+          <h3>Where you don't — yet</h3>
+          ${DONT_YET.map(t => `<div class="row open"><span class="mk" aria-hidden="true">?</span><span>${t}</span></div>`).join("")}
+        </div>
+
+        <section class="breakdown" aria-labelledby="bdt-${variant}">
+          <p id="bdt-${variant}" class="bd-title">Match breakdown</p>
+          <dl class="bd-grid">
+            <div class="bd-cell"><dt class="bd-l">Requirements met</dt><dd class="bd-n">9/10</dd></div>
+            <div class="bd-cell"><dt class="bd-l">Essential met</dt><dd class="bd-n">3/4</dd></div>
+            <div class="bd-cell"><dt class="bd-l">Desirable met</dt><dd class="bd-n">6/6</dd></div>
+            <div class="bd-cell"><dt class="bd-l">Match quality</dt><dd class="bd-pill strong">Strong</dd></div>
+          </dl>
+        </section>
+
+        <details class="ad">
+          <summary>Read the ad in full</summary>
+          <p>GRADION is looking for an IT Project Manager / Senior Project Manager to run delivery
+            for international clients from Ho Chi Minh City. You will own scope, budget and
+            schedule across Dedicated Team and Fixed-Price engagements, translate unclear client
+            requirements into deliverable scope, and communicate in English with stakeholders
+            across regions.</p>
+        </details>
+
+      </div>
+      ${variant === "deck"
+        ? `<div class="jcfoot">
+             <button type="button" class="sw">Not for me</button>
+             <button type="button" class="sw yes">I want this one</button>
+           </div>`
+        : `<div class="jcfoot single">
+             <button type="button" class="sw yes">Write the tailored CV</button>
+           </div>`}
+    </div>
+  </div>`;
+
+let hasLink = true;
+function draw() {
+  document.getElementById("today").innerHTML = card("deck", hasLink);
+  document.getElementById("proposed").innerHTML = card("own", hasLink);
+  document.querySelectorAll("#sw button").forEach(b =>
+    b.classList.toggle("on", (b.dataset.k === "link") === hasLink));
+}
+document.querySelectorAll("#sw button").forEach(b =>
+  (b.onclick = () => { hasLink = b.dataset.k === "link"; draw(); }));
+draw();
+</script>
