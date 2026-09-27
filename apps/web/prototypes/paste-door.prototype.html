@@ -1,0 +1,669 @@
+<!-- PROTOTYPE — throwaway. Wayfinder ticket #291 (map #290, row V1a).
+     Three doors for pasting a job advert, so the owner can react to a real one.
+
+     What is already settled and NOT up for grabs here:
+       · ruling 1 — a pasted ad is the same kind of thing as a job we found, fingerprinted,
+         so the same ad pasted twice reuses the first reading;
+       · ruling 2 — paste lands him on that job's OWN screen; the deck stops being a door;
+       · #293 — the apply link sits at the TOP of the application report.
+     What this file is for: WHERE the door lives, WHAT it asks for beside the text, WHAT he
+     looks at while a model reads, and WHAT the screen says when the ad cannot be read.
+
+     The destination is deliberately identical in all three — same job screen — so the only
+     thing being compared is the door.
+
+     Desktop frame on purpose: pasting a long advert is a keyboard act on a laptop. The phone
+     reflex of the same door is not drawn here.
+
+     Advert, card numbers and apply link are the real ones from the #293 prototype run
+     (GRADION, read + judged 2026-09-27). Not production code. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobCrush — the paste door: three shapes</title>
+
+<style>
+  :root {
+    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-line: #2b333d;
+    --hud-ink: #e8eaed; --hud-mute: #7f8b98;
+    --paper: #f6f2ea; --paper-edge: #e2dacb; --ink: #16150f; --ink-mute: #6b6455; --rule: #d9d0bd;
+    --gold: #e8a33d; --gold-dim: #a8762b; --bad: #e0704f;
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --page: #0b0e12; --page-ink: #cfd5dc; --card: #171c23; --card-line: #2b333d;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --page: #dfe3e8; --page-ink: #2b333d; --card: #fff; --card-line: #c8cfd7; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--page-ink); font-family: var(--sans);
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    padding: 22px 16px 96px; gap: 14px;
+  }
+  .intro { max-width: 74ch; text-align: center; }
+  .intro h1 { font-family: var(--serif); font-size: 24px; font-weight: 600; margin: 0 0 7px; letter-spacing: -.015em; }
+  .intro p { font-size: 13px; line-height: 1.6; opacity: .78; margin: 0 0 6px; }
+
+  .bars { display: flex; flex-direction: column; gap: 7px; align-items: center; }
+  .row { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; align-items: center; }
+  .row > em { font-style: normal; font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase; opacity: .55; margin-right: 2px; }
+  .row button {
+    appearance: none; font: inherit; font-size: 12px; cursor: pointer; text-align: left; line-height: 1.3;
+    background: var(--card); color: var(--page-ink); border: 1px solid var(--card-line);
+    border-radius: 9px; padding: 7px 12px;
+  }
+  .row button:hover { border-color: var(--gold); }
+  .row button.on { border-color: var(--gold); background: rgba(232,163,61,.13); }
+  .row button b { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--gold); }
+
+  /* ---------- the browser frame ---------- */
+  .win {
+    width: min(1180px, 100%); height: 740px; background: var(--hud-0); color: var(--hud-ink);
+    border: 1px solid #333c47; border-radius: 12px; overflow: hidden; position: relative;
+    box-shadow: 0 30px 70px -22px rgba(0,0,0,.65); display: flex; flex-direction: column; isolation: isolate;
+  }
+  .chrome { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: #0c1015;
+    border-bottom: 1px solid var(--hud-line); flex: 0 0 auto; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #2c3641; }
+  .url { flex: 1; font-family: var(--mono); font-size: 10.5px; color: var(--hud-mute);
+    background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 6px; padding: 4px 9px; }
+  .brandbar { display: flex; align-items: center; gap: 14px; padding: 11px 20px;
+    border-bottom: 1px solid var(--hud-line); flex: 0 0 auto; }
+  .wordmark { font-size: 12px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--hud-mute); }
+  .brandbar nav { display: flex; gap: 14px; font-size: 12.5px; color: var(--hud-mute); margin-left: 6px; }
+  .brandbar nav b { color: var(--hud-ink); font-weight: 600; }
+  .brandbar .spacer { flex: 1; }
+  .pastebtn { appearance: none; font: inherit; font-size: 12.5px; font-weight: 620; cursor: pointer;
+    border-radius: 999px; padding: 7px 15px; border: 1px solid var(--gold); color: var(--gold); background: rgba(232,163,61,.1); }
+  .pastebtn:hover { background: rgba(232,163,61,.2); }
+  .hint { font-family: var(--mono); font-size: 10px; color: var(--hud-mute); }
+  .stage { flex: 1; min-height: 0; overflow: auto; position: relative; }
+
+  /* ---------- shared bits ---------- */
+  h2.scr { font-family: var(--serif); font-size: 22px; font-weight: 600; margin: 0 0 6px; letter-spacing: -.015em; }
+  p.lede { font-size: 13px; line-height: 1.55; color: var(--hud-mute); margin: 0 0 16px; max-width: 62ch; }
+  .ta {
+    width: 100%; background: var(--paper); color: var(--ink); border: 1px solid var(--paper-edge);
+    border-radius: 9px; padding: 15px 17px; font-family: var(--serif); font-size: 13px; line-height: 1.55;
+    resize: none; outline: none; white-space: pre-wrap;
+  }
+  .ta::placeholder { color: #a79d89; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 11.5px; color: var(--hud-mute); }
+  .field label i { font-style: normal; opacity: .65; }
+  .field input {
+    background: var(--hud-1); color: var(--hud-ink); border: 1px solid var(--hud-line);
+    border-radius: 8px; padding: 9px 11px; font: inherit; font-size: 12.5px; font-family: var(--mono); outline: none;
+  }
+  .field input:focus { border-color: var(--gold); }
+  .go { appearance: none; border: none; font: inherit; font-size: 14px; font-weight: 660; cursor: pointer;
+    background: var(--gold); color: #1a1206; border-radius: 999px; padding: 11px 24px; }
+  .go:disabled { opacity: .35; cursor: not-allowed; }
+  .ghostbtn { appearance: none; font: inherit; font-size: 12px; cursor: pointer; background: none;
+    color: var(--hud-mute); border: 1px dashed var(--hud-line); border-radius: 999px; padding: 8px 14px; }
+  .ghostbtn:hover { color: var(--hud-ink); border-color: var(--hud-mute); }
+
+  /* the narration */
+  .steps { display: flex; flex-direction: column; gap: 9px; margin: 0; padding: 0; list-style: none; }
+  .steps li { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--hud-mute); }
+  .steps li .tick { width: 15px; flex: 0 0 auto; text-align: center; font-family: var(--mono); font-size: 12px; }
+  .steps li.now { color: var(--hud-ink); }
+  .steps li.now .tick { color: var(--gold); animation: pulse 1200ms ease-in-out infinite; }
+  .steps li.did .tick { color: var(--gold-dim); }
+  .steps li small { display: block; font-size: 11px; opacity: .6; margin-top: 2px; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .slow { font-size: 12px; color: var(--hud-mute); margin: 14px 0 0; border-top: 1px solid var(--hud-line); padding-top: 12px; }
+
+  /* the job screen — same destination for every door */
+  .job { padding: 22px 26px 30px; display: grid; grid-template-columns: 1.55fr 1fr; gap: 22px; align-items: start; }
+  .job .back { font-size: 11.5px; color: var(--hud-mute); margin: 0 0 12px; grid-column: 1 / -1; }
+  .job h2 { font-family: var(--serif); font-size: 23px; margin: 0 0 4px; letter-spacing: -.015em; }
+  .job .meta { font-size: 12.5px; color: var(--hud-mute); margin: 0 0 16px; }
+  .job .applystrip {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: rgba(232,163,61,.1); border: 1px solid rgba(232,163,61,.35);
+    border-radius: 9px; padding: 10px 13px; font-size: 12.5px; margin: 0 0 16px;
+  }
+  .job .applystrip a { color: var(--gold); font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
+  .job .applystrip.missing { background: rgba(224,112,79,.09); border-color: rgba(224,112,79,.4); }
+  .job .applystrip.missing b { color: var(--bad); font-weight: 620; }
+  .job .applystrip input { flex: 1; min-width: 180px; background: var(--hud-0); color: var(--hud-ink);
+    border: 1px solid var(--hud-line); border-radius: 7px; padding: 7px 9px; font: inherit; font-family: var(--mono); font-size: 11.5px; }
+  .job .sect { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--hud-mute); margin: 18px 0 8px; }
+  .job ul { margin: 0; padding-left: 17px; font-size: 13px; line-height: 1.6; }
+  .job ul.open li { color: #e6b89f; }
+  .side { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 11px; padding: 17px; }
+  .ring { display: flex; align-items: baseline; gap: 8px; }
+  .ring b { font-family: var(--serif); font-size: 40px; line-height: 1; color: var(--gold); }
+  .ring span { font-size: 12px; color: var(--hud-mute); }
+  .side dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; font-size: 12px; margin: 14px 0 0; }
+  .side dt { color: var(--hud-mute); }
+  .side .origin { margin: 16px 0 0; padding-top: 13px; border-top: 1px solid var(--hud-line);
+    font-size: 11.5px; color: var(--hud-mute); line-height: 1.5; }
+  .side .act { margin-top: 15px; }
+  .side .act button { width: 100%; }
+  .skel { background: var(--hud-2); border-radius: 5px; height: 12px; animation: shim 1400ms ease-in-out infinite; }
+  @keyframes shim { 50% { opacity: .4; } }
+
+  /* failure */
+  .fail { max-width: 62ch; }
+  .fail h2 { color: var(--bad); }
+  .fail .what { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 10px;
+    padding: 14px 16px; font-size: 12.5px; line-height: 1.6; margin: 16px 0; }
+  .fail .what b { color: var(--hud-ink); }
+  .fail .acts { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+
+  /* the reuse notice */
+  .reuse { display: flex; gap: 10px; align-items: flex-start; background: var(--hud-1);
+    border: 1px solid var(--hud-line); border-left: 2px solid var(--gold); border-radius: 8px;
+    padding: 11px 14px; font-size: 12.5px; line-height: 1.5; color: var(--hud-mute); margin: 0 0 16px; }
+
+  /* ---------- A · the deck's own card ---------- */
+  .deck { padding: 20px 24px 28px; }
+  .decklede { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .decklede h2 { margin: 0; }
+  .decklede span { font-size: 12px; color: var(--hud-mute); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 14px; }
+  .jc { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 12px; padding: 15px 16px; min-height: 186px; }
+  .jc h3 { font-size: 14px; margin: 0 0 3px; font-weight: 620; line-height: 1.3; }
+  .jc .co { font-size: 11.5px; color: var(--hud-mute); margin: 0 0 12px; }
+  .jc .pct { font-family: var(--serif); font-size: 26px; color: var(--gold); }
+  .jc.own { border-color: rgba(232,163,61,.45); background: rgba(232,163,61,.06); display: flex; flex-direction: column; gap: 10px; }
+  .jc.own .ta { flex: 1; min-height: 88px; font-size: 11.5px; padding: 11px 12px; }
+  .jc.own .mini { display: flex; gap: 8px; align-items: center; }
+  .jc.own .mini .go { font-size: 12.5px; padding: 8px 16px; }
+  .jc.own .steps { font-size: 12px; }
+  .jc.own .steps li { font-size: 12px; }
+
+  /* ---------- B · the intake desk ---------- */
+  .desk { padding: 20px 26px 26px; display: grid; grid-template-columns: 1.35fr 1fr; gap: 22px; align-items: start; }
+  .desk .head { grid-column: 1 / -1; }
+  .desk .left { display: flex; flex-direction: column; gap: 13px; }
+  .desk .ta { height: 330px; }
+  .desk .right { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 11px; padding: 17px; min-height: 330px; }
+  .desk .right h3 { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--hud-mute); margin: 0 0 12px; font-weight: 400; }
+  .lift { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lift li { font-size: 12.5px; line-height: 1.45; padding-left: 15px; position: relative;
+    animation: liftin 420ms cubic-bezier(.2,1,.3,1) both; }
+  .lift li::before { content: "·"; position: absolute; left: 3px; color: var(--gold); }
+  .lift li.ess::before { content: "!"; font-family: var(--mono); font-size: 10px; color: var(--gold); }
+  @keyframes liftin { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+  .desk .empty { font-size: 12.5px; color: var(--hud-mute); line-height: 1.6; }
+
+  /* ---------- C · the clipboard overlay ---------- */
+  .scrim { position: absolute; inset: 0; background: rgba(6,9,13,.72); display: grid; place-items: center;
+    padding: 30px; animation: fadein 200ms ease both; z-index: 5; }
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+  .sheet { width: min(640px, 100%); background: var(--hud-1); border: 1px solid var(--hud-line);
+    border-radius: 14px; padding: 20px 22px; box-shadow: 0 30px 70px -20px rgba(0,0,0,.8);
+    animation: sheetin 300ms cubic-bezier(.2,1,.3,1) both; }
+  @keyframes sheetin { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: none; } }
+  .sheet .hd { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .sheet .hd h3 { font-size: 14.5px; margin: 0; font-weight: 620; }
+  .sheet .hd .kbd { font-family: var(--mono); font-size: 10px; color: var(--hud-mute); }
+  .sheet .ta { height: 190px; font-size: 12px; }
+  .sheet .ft { display: flex; align-items: center; gap: 11px; margin-top: 13px; }
+  .sheet .ft .grow { flex: 1; font-size: 11.5px; color: var(--hud-mute); }
+
+  .note {
+    position: fixed; bottom: 13px; left: 50%; transform: translateX(-50%); z-index: 200;
+    display: flex; align-items: center; gap: 10px; background: #f2f4f7; color: #101419;
+    border-radius: 999px; padding: 7px 8px 7px 16px; box-shadow: 0 8px 26px rgba(0,0,0,.4);
+    font-size: 12.5px; max-width: calc(100vw - 24px);
+  }
+  .note span { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .note button { appearance: none; border: none; font: inherit; font-size: 11.5px; font-weight: 640;
+    border-radius: 999px; padding: 0 13px; height: 28px; cursor: pointer; background: #101419; color: #f2f4f7; flex: 0 0 auto; }
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: 1ms !important; transition-duration: 1ms !important; } }
+</style>
+
+<div class="intro">
+  <h1>The paste door — three shapes</h1>
+  <p>
+    He is signed in, profile verified. He found a job himself and wants this app on it. Three doors,
+    each with a different answer to <b>where it lives</b>, <b>what it asks for beside the text</b>,
+    <b>what he watches while a model reads</b>, and <b>what the screen says when the ad won't read</b>.
+  </p>
+  <p>
+    Press <b>paste the advert for me</b> to fill the field with the real GRADION ad, then press the
+    button. Switch <b>what happens</b> to drive the other three endings.
+  </p>
+</div>
+
+<div class="bars">
+  <div class="row" id="pick"><em>door</em></div>
+  <div class="row" id="out"><em>what happens</em></div>
+</div>
+
+<div class="win">
+  <div class="chrome"><i class="dot"></i><i class="dot"></i><i class="dot"></i><div class="url" id="url">jobcrush.app/deck</div></div>
+  <div id="shell"></div>
+  <div class="stage" id="stage"></div>
+</div>
+
+<div class="note"><span id="noteTxt"></span><button id="again">again</button></div>
+
+<script>
+// ---------------------------------------------------------------------------
+// PROTOTYPE. Throwaway. #291.
+//
+// Three doors, one destination. Everything in DATA below is the real read of the
+// real advert from the #293 prototype run — same title, employer, percentage,
+// breakdown, open requirement and apply link — so the screens are judged on real
+// density, not on lorem ipsum.
+// ---------------------------------------------------------------------------
+
+const $ = (s, r = document) => r.querySelector(s);
+const el = (h) => { const d = document.createElement("div"); d.innerHTML = h.trim(); return d.firstElementChild; };
+
+const AD = `IT Project Manager / Senior Project Manager (English Speaking)
+GRADION · Ho Chi Minh City, Vietnam · Hybrid
+
+About the Role
+Lead international IT delivery projects across long-term Dedicated Team engagements and Fixed-Price projects. Turn ambiguous requirements into executable plans, identify risks early, and help clients make decisions that keep delivery on track. This is a client-facing role requiring clear communication, constructive pushback, and practical use of AI tools.
+
+Responsibilities
+- Lead IT delivery projects end to end, from planning through delivery.
+- Turn client requirements into actionable plans with clear scope and success criteria.
+- Serve as the main contact between clients, engineering teams and internal stakeholders.
+- Manage change requests and prevent scope creep on Fixed-Price projects.
+- Use AI tools for requirements review, risk analysis and reporting.
+
+Requirements
+- University degree in IT, Computer Science or a related field.
+- 5+ years of IT development project-management experience.
+- Hands-on experience running both Dedicated Team and Fixed-Price projects.
+- Excellent international English communication.
+- Experience with cross-cultural, English-speaking teams.
+- Daily comfort with AI tools and sound judgement about output verification.
+
+Working Conditions
+- Full-time, Monday to Friday. Hybrid. Ho Chi Minh City office.`;
+
+const LINK = "https://www.linkedin.com/jobs/view/4445923167/";
+// The same advert with its address in the body, the way a copy from a job board often arrives.
+const AD_WITH_LINK = AD + `\n\nApply: ` + LINK;
+
+const DATA = {
+  title: "IT Project Manager / Senior Project Manager (English Speaking)",
+  company: "GRADION",
+  where: "Ho Chi Minh City, Vietnam · Hybrid",
+  pct: 79,
+  ess: "3 of 4", des: "6 of 6",
+  fit: [
+    "Senior Project Manager, 7+ years delivering banking, fintech and SaaS in regulated environments",
+    "End-to-end delivery across Europe, Asia-Pacific and Africa, with cross-functional international teams",
+    "Excellent international English — confirmed, C1",
+    "Builds LLM-driven workflows into day-to-day delivery",
+  ],
+  open: ["Hands-on experience running both Dedicated Team and Fixed-Price projects"],
+  // What the reader lifts out, in the order the model returns it. `ess` marks an essential.
+  reqs: [
+    { t: "Degree in IT, Computer Science or related", ess: true },
+    { t: "5+ years IT development project management", ess: true },
+    { t: "Dedicated Team and Fixed-Price delivery, hands-on", ess: true },
+    { t: "Excellent international English", ess: true },
+    { t: "Cross-cultural English-speaking teams" },
+    { t: "Daily AI-tool use with verification judgement" },
+    { t: "Client-facing communication and pushback" },
+    { t: "Hybrid, Ho Chi Minh City, full-time" },
+  ],
+};
+
+// The wait, named honestly. These are the real calls a pasted advert pays for.
+const STEPS = [
+  { t: "Reading the advert", s: "Pulling out what the job asks for" },
+  { t: "Looking up GRADION", s: "One web lookup, cached after the first time" },
+  { t: "Checking it against your profile", s: "Judging each requirement against your facts" },
+];
+
+const OUTCOMES = {
+  ok:   { tag: "reads fine", name: "link is in the pasted text" },
+  nolink: { tag: "no link", name: "the text carries no address" },
+  fail: { tag: "won't read", name: "nothing in it reads as a requirement" },
+  dup:  { tag: "pasted before", name: "same text, 12 September — reuse it" },
+};
+let outcome = "ok";
+const linkFound = () => outcome === "ok";
+
+// ---------------------------------------------------------------------------
+// The destination. Identical for all three doors (ruling 2). `link` is what the
+// door managed to capture; `ask` means the job screen has to ask for it itself.
+// ---------------------------------------------------------------------------
+function jobScreen({ link, ask, reused, skeleton }) {
+  const strip = link
+    ? `<div class="applystrip">Apply here → <a href="#">${link}</a><span style="opacity:.6">goes to the top of your application email</span></div>`
+    : ask
+      ? `<div class="applystrip missing"><b>No apply link.</b> Paste it and it goes to the top of your application email.
+           <input placeholder="https://…"><button class="ghostbtn" style="padding:6px 12px">Save</button></div>`
+      : `<div class="applystrip missing"><b>No apply link.</b> Your application email will say this advert was pasted as text.</div>`;
+
+  const body = skeleton
+    ? `<div class="sect">Reading…</div>
+       ${[92, 74, 84, 62].map(w => `<div class="skel" style="width:${w}%;margin-bottom:9px"></div>`).join("")}`
+    : `<div class="sect">Where you are strong</div>
+       <ul>${DATA.fit.map(f => `<li>${f}</li>`).join("")}</ul>
+       <div class="sect">Still open on this advert</div>
+       <ul class="open">${DATA.open.map(o => `<li>${o}</li>`).join("")}</ul>`;
+
+  return `<div class="job">
+    <p class="back">← Deck &nbsp;·&nbsp; the job's own screen</p>
+    <div>
+      ${skeleton
+        // Nothing is known yet — not even the title. Showing it would be a lie the
+        // read has not earned, and C is the door that spends the wait on this screen.
+        ? `<h2 style="opacity:.55">The job you pasted</h2><p class="meta">Reading it now</p>`
+        : `<h2>${DATA.title}</h2><p class="meta">${DATA.company} · ${DATA.where}</p>`}
+      ${reused ? `<div class="reuse"><span>↺</span><div>You pasted this advert on <b>12 September</b>. Same text, so this is that reading — nothing was spent again.</div></div>` : ""}
+      ${strip}
+      ${body}
+    </div>
+    <div class="side">
+      ${skeleton
+        ? `<div class="skel" style="width:60%;height:34px"></div><div class="skel" style="width:80%;margin-top:12px"></div>`
+        : `<div class="ring"><b>${DATA.pct}%</b><span>match</span></div>
+           <dl><dt>Essential</dt><dd>${DATA.ess}</dd><dt>Desirable</dt><dd>${DATA.des}</dd></dl>`}
+      <p class="origin">You pasted this advert. It is stored, read and scored like any job we found — it just has no liveness signal, so it never goes stale and is never withdrawn.</p>
+      <div class="act"><button class="go" style="font-size:13px;padding:10px 0" ${skeleton ? "disabled" : ""}>Write the tailored CV</button></div>
+    </div>
+  </div>`;
+}
+
+function failScreen({ retry, discard, textBack }) {
+  return `<div class="fail">
+    <h2 class="scr">We couldn't read that as a job advert</h2>
+    <p class="lede">Nothing in it read as something the job asks for, so there is nothing to match you
+      against and no card to show. That is on us, not on you — but we can't score what we can't read.</p>
+    <div class="what">
+      <b>What came back:</b> a title we could guess at, no requirements, no essential items.<br>
+      <b>What usually fixes it:</b> paste the part with <b>Responsibilities</b> and <b>Requirements</b> in it —
+      a copy that stopped at the "About us" section is the commonest reason.
+    </div>
+    <div class="acts">
+      <button class="go" id="retry">${retry}</button>
+      <button class="ghostbtn" id="discard">${discard}</button>
+    </div>
+    ${textBack ? `<p class="slow">Your text is still in the field — nothing was thrown away.</p>` : ""}
+  </div>`;
+}
+
+// Runs the narrated wait. onStep(i) per stage, onDone() at the end. Click "skip
+// the wait" to jump. Real timings are seconds each; these are 1.5s so the shape
+// can be judged without sitting through it.
+let timers = [];
+function runRead(onStep, onDone, ms = 1500) {
+  timers.forEach(clearTimeout); timers = [];
+  STEPS.forEach((_, i) => timers.push(setTimeout(() => onStep(i), i * ms)));
+  timers.push(setTimeout(onDone, STEPS.length * ms));
+}
+function skipRead(onDone) { timers.forEach(clearTimeout); timers = []; onDone(); }
+
+const stepsHtml = (now) => `<ul class="steps">${STEPS.map((s, i) =>
+  `<li class="${i < now ? "did" : i === now ? "now" : ""}">
+     <span class="tick">${i < now ? "✓" : i === now ? "▸" : "·"}</span>
+     <div>${s.t}${i <= now ? `<small>${s.s}</small>` : ""}</div>
+   </li>`).join("")}</ul>`;
+
+// ---------------------------------------------------------------------------
+
+const DOORS = {
+  A: {
+    tag: "A · in the deck",
+    name: "The deck's first card is empty",
+    url: "jobcrush.app/deck",
+    note: "No new screen. Paste into the deck's own leading card; it fills in where it stands, then you open it. The link is read out of the text, and asked for only if it isn't there.",
+    shell: `<div class="brandbar"><span class="wordmark">JobCrush</span>
+      <nav><b>Deck</b><span>Profile</span></nav><span class="spacer"></span>
+      <span class="hint">verified profile</span></div>`,
+    render() {
+      $("#stage").innerHTML = `<div class="deck">
+        <div class="decklede"><h2 class="scr">Your jobs</h2><span>4 live · best first</span></div>
+        <div class="cards">
+          <div class="jc own" id="own">
+            <h3>Bring your own job</h3>
+            <p class="co">Found one yourself? Paste the advert.</p>
+            <textarea class="ta" id="ta" placeholder="Paste the whole advert here — title, responsibilities, requirements."></textarea>
+            <div class="mini"><button class="go" id="go" disabled>Read it</button>
+              <button class="ghostbtn" id="fill">paste the advert for me</button></div>
+          </div>
+          ${[["Delivery Manager, Core Banking", "Techcombank", 74],
+             ["Senior Project Manager (Digital)", "VPBank", 71],
+             ["IT Programme Manager", "FPT Software", 66],
+             ["Product Owner, Payments", "MoMo", 61]].map(([t, c, p]) =>
+            `<div class="jc"><h3>${t}</h3><p class="co">${c} · Ho Chi Minh City</p><span class="pct">${p}%</span></div>`).join("")}
+        </div>
+      </div>`;
+      wireFill("#ta", "#go", "#fill", () => this.read());
+    },
+    read() {
+      const card = $("#own");
+      if (outcome === "dup") return this.land({ reused: true });
+      card.innerHTML = `<h3>Reading your advert</h3>
+        <p class="co">${DATA.company} — a few seconds</p>
+        <div id="st">${stepsHtml(0)}</div>
+        <button class="ghostbtn" id="skip" style="align-self:flex-start">skip the wait</button>`;
+      const done = () => outcome === "fail" ? this.failed() : this.arrived();
+      $("#skip").onclick = () => skipRead(done);
+      runRead(i => ($("#st").innerHTML = stepsHtml(i)), done);
+    },
+    // The card becomes the card it was going to be. He opens it himself — the
+    // deck does not yank him anywhere.
+    arrived() {
+      const card = $("#own");
+      card.classList.remove("own");
+      card.style.borderColor = "rgba(232,163,61,.45)";
+      card.innerHTML = `<h3>${DATA.title}</h3>
+        <p class="co">${DATA.company} · Ho Chi Minh City</p>
+        <span class="pct">${DATA.pct}%</span>
+        <p class="co" style="margin:10px 0 0">Essential ${DATA.ess} · yours, pasted</p>
+        ${linkFound() ? "" : `<div class="field" style="margin-top:11px">
+          <label>Where do you apply? <i>so the link tops your application email</i></label>
+          <input placeholder="https://… (or skip)"></div>`}
+        <div class="mini" style="margin-top:12px"><button class="go" id="open">Open it</button></div>`;
+      $("#open").onclick = () => this.land({});
+    },
+    failed() {
+      const card = $("#own");
+      card.innerHTML = `<h3 style="color:var(--bad)">We couldn't read that</h3>
+        <p class="co" style="line-height:1.5">No requirements came out of it, so there is no card to
+          show. Paste the part with the requirements in it.</p>
+        <div class="mini"><button class="go" id="again2" style="font-size:12.5px;padding:8px 14px">Try again</button>
+          <button class="ghostbtn" id="drop">Forget it</button></div>
+        <p class="co" style="margin:0">Your text is kept below.</p>`;
+      $("#again2").onclick = () => this.render();
+      $("#drop").onclick = () => this.render();
+    },
+    land({ reused }) {
+      setUrl("jobcrush.app/job/gradion-it-project-manager");
+      $("#stage").innerHTML = jobScreen({ link: linkFound() ? LINK : null, ask: true, reused });
+    },
+  },
+
+  B: {
+    tag: "B · its own room",
+    name: "An intake desk, two fields, the ad taken apart in front of you",
+    url: "jobcrush.app/paste",
+    note: "A door in the bar, reachable from anywhere. It asks for the link up front, beside the text. The wait is spent watching the requirements get lifted out of what you pasted.",
+    shell: `<div class="brandbar"><span class="wordmark">JobCrush</span>
+      <nav><span>Deck</span><span>Profile</span></nav><span class="spacer"></span>
+      <button class="pastebtn">＋ Paste a job</button></div>`,
+    render() {
+      $("#stage").innerHTML = `<div class="desk">
+        <div class="head">
+          <h2 class="scr">Paste a job you found</h2>
+          <p class="lede">The whole advert, as you copied it. It is stored, read and scored like a job
+            we found for you — it just came from you.</p>
+        </div>
+        <div class="left">
+          <textarea class="ta" id="ta" placeholder="Paste the advert…"></textarea>
+          <div class="field">
+            <label for="lk">Where do you apply? <i>optional — it goes to the top of your application email</i></label>
+            <input id="lk" placeholder="https://…">
+          </div>
+          <div class="mini" style="display:flex;gap:10px;align-items:center">
+            <button class="go" id="go" disabled>Read it</button>
+            <button class="ghostbtn" id="fill">paste the advert for me</button>
+          </div>
+        </div>
+        <div class="right" id="right">
+          <h3>What this job asks for</h3>
+          <p class="empty">Nothing yet. Paste the advert and this fills in as we read it —
+            you will see what we found before anything is scored.</p>
+        </div>
+      </div>`;
+      wireFill("#ta", "#go", "#fill", () => this.read(), (txt) => {
+        // A link in the pasted text pre-fills the field rather than replacing it.
+        const m = txt.match(/https?:\/\/\S+/);
+        if (m) $("#lk").value = m[0];
+      });
+    },
+    read() {
+      if (outcome === "dup") return this.land({ reused: true });
+      const typed = $("#lk").value.trim();
+      const right = $("#right");
+      $("#go").disabled = true; $("#go").textContent = "Reading…";
+      if (outcome === "fail") {
+        right.innerHTML = `<h3>What this job asks for</h3><div id="st">${stepsHtml(0)}</div>`;
+        return runRead(i => ($("#st").innerHTML = stepsHtml(i)), () => {
+          $("#stage").innerHTML = failScreen({ retry: "Paste more of it", discard: "Forget this job", textBack: true });
+          $("#stage").firstElementChild.style.padding = "24px 26px";
+          $("#retry").onclick = $("#discard").onclick = () => this.render();
+        }, 900);
+      }
+      right.innerHTML = `<h3>What this job asks for</h3><ul class="lift" id="lift"></ul>
+        <div id="st" style="margin-top:16px">${stepsHtml(0)}</div>`;
+      // runRead clears the timer bag, so the lift is scheduled after it, not before.
+      runRead(i => ($("#st").innerHTML = stepsHtml(i)), () => this.land({ typed }));
+      // The requirements appear one at a time — the wait is the read, made visible.
+      DATA.reqs.forEach((r, i) => timers.push(setTimeout(() => {
+        $("#lift")?.insertAdjacentHTML("beforeend", `<li class="${r.ess ? "ess" : ""}">${r.t}</li>`);
+      }, 400 + i * 260)));
+    },
+    // He asked for this job, so the screen it produced is where he goes. No press.
+    land({ reused, typed }) {
+      setUrl("jobcrush.app/job/gradion-it-project-manager");
+      const link = typed || (linkFound() ? LINK : null);
+      $("#stage").innerHTML = jobScreen({ link, ask: false, reused });
+    },
+  },
+
+  C: {
+    tag: "C · no door at all",
+    name: "Ctrl-V anywhere, and the job's screen opens straight away",
+    url: "jobcrush.app/profile",
+    note: "Pasting is the gesture; there is no screen to find and nothing to fill in. The job's own screen opens immediately and fills itself in. The link is never asked for at the door — the job screen asks, once, if we didn't find one.",
+    shell: `<div class="brandbar"><span class="wordmark">JobCrush</span>
+      <nav><span>Deck</span><b>Profile</b></nav><span class="spacer"></span>
+      <span class="hint">⌘V / Ctrl-V — paste a job anywhere</span></div>`,
+    render() {
+      // Some other screen, minding its own business. The point of C is that the
+      // door works from here without being here.
+      $("#stage").innerHTML = `<div class="job" style="grid-template-columns:1fr">
+        <div>
+          <h2 class="scr">Adrien Mounier</h2>
+          <p class="lede">IT Project Manager · Ho Chi Minh City · 41 confirmed facts</p>
+          <div class="sect">On your CV right now</div>
+          <ul>
+            <li>Senior Project Manager, 7+ years in banking, fintech and SaaS</li>
+            <li>Core banking, digital transformation, PCI DSS compliance</li>
+            <li>English C1 · French native · Agile / Scrum delivery</li>
+          </ul>
+          <div class="sect">In reserve</div>
+          <ul><li>10 AI workshops delivered to an eBanking department</li>
+            <li>Trading platform integration, Lao Forex Exchange</li></ul>
+          <p class="slow" style="max-width:62ch">Found a job somewhere? Press <b>Ctrl-V</b> —
+            here, on the deck, anywhere. <button class="ghostbtn" id="fakepaste">pretend I pressed it</button></p>
+        </div>
+      </div>`;
+      $("#fakepaste").onclick = () => this.open();
+      this.key = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") { e.preventDefault(); this.open(); } };
+      window.addEventListener("keydown", this.key);
+    },
+    open() {
+      // Pre-filled from the clipboard: the one thing he pressed already carried the text.
+      const txt = linkFound() ? AD_WITH_LINK : AD;
+      const sheet = el(`<div class="scrim"><div class="sheet">
+        <div class="hd"><h3>Paste a job</h3><span class="kbd">esc to close</span></div>
+        <textarea class="ta" id="ta">${outcome === "fail" ? AD.slice(0, 210) + "\n\n(the copy stopped here)" : txt}</textarea>
+        <div class="ft"><button class="go" id="go">Read it</button>
+          <span class="grow">${linkFound() ? "Link found in what you pasted ✓" : "No link in what you pasted — we'll ask on the job's screen."}</span></div>
+      </div></div>`);
+      $("#stage").appendChild(sheet);
+      $("#go").onclick = () => { sheet.remove(); this.read(); };
+      this.esc = (e) => { if (e.key === "Escape") { sheet.remove(); window.removeEventListener("keydown", this.esc); } };
+      window.addEventListener("keydown", this.esc);
+    },
+    read() {
+      window.removeEventListener("keydown", this.key);
+      if (outcome === "dup") { setUrl("jobcrush.app/job/gradion-it-project-manager");
+        return ($("#stage").innerHTML = jobScreen({ link: LINK, ask: false, reused: true })); }
+      // Ruling 2 taken literally: the destination opens now and fills in.
+      setUrl("jobcrush.app/job/reading…");
+      $("#stage").innerHTML = jobScreen({ link: linkFound() ? LINK : null, ask: false, skeleton: true });
+      const host = $("#stage .job > div:nth-child(2)");
+      host.insertAdjacentHTML("afterbegin", `<div id="st" style="margin-bottom:16px">${stepsHtml(0)}</div>`);
+      const done = () => {
+        if (outcome === "fail") {
+          setUrl("jobcrush.app/job/unread");
+          $("#stage").innerHTML = failScreen({ retry: "Paste it again", discard: "Back to your profile", textBack: false });
+          $("#stage").firstElementChild.style.padding = "24px 26px";
+          $("#retry").onclick = () => { this.render(); this.open(); };
+          $("#discard").onclick = () => this.render();
+          return;
+        }
+        setUrl("jobcrush.app/job/gradion-it-project-manager");
+        $("#stage").innerHTML = jobScreen({ link: linkFound() ? LINK : null, ask: !linkFound() });
+      };
+      runRead(i => { const s = $("#st"); if (s) s.innerHTML = stepsHtml(i); }, done);
+    },
+    leave() { window.removeEventListener("keydown", this.key); window.removeEventListener("keydown", this.esc); },
+  },
+};
+
+// Shared plumbing for the two doors with a real field.
+function wireFill(taSel, goSel, fillSel, read, onFill) {
+  const ta = $(taSel), go = $(goSel);
+  const sync = () => (go.disabled = ta.value.trim().length < 200);
+  ta.oninput = sync;
+  $(fillSel).onclick = () => {
+    ta.value = outcome === "fail" ? AD.slice(0, 210) + "\n\n(the copy stopped here)"
+             : linkFound() ? AD_WITH_LINK : AD;
+    sync(); onFill && onFill(ta.value); ta.focus();
+  };
+  go.onclick = read;
+  sync();
+}
+
+const setUrl = (u) => ($("#url").textContent = u);
+
+let cur = "A";
+function draw() {
+  timers.forEach(clearTimeout); timers = [];
+  Object.values(DOORS).forEach(d => d.leave && d.leave());
+  const d = DOORS[cur];
+  $("#shell").innerHTML = d.shell;
+  setUrl(d.url);
+  $("#noteTxt").textContent = d.note;
+  d.render();
+  const btn = $("#shell .pastebtn");
+  if (btn) btn.onclick = () => d.render();
+  document.querySelectorAll("#pick button").forEach(b => b.classList.toggle("on", b.dataset.k === cur));
+  document.querySelectorAll("#out button").forEach(b => b.classList.toggle("on", b.dataset.o === outcome));
+}
+
+$("#pick").insertAdjacentHTML("beforeend", Object.entries(DOORS).map(([k, d]) =>
+  `<button data-k="${k}"><b>${d.tag}</b>${d.name}</button>`).join(""));
+$("#out").insertAdjacentHTML("beforeend", Object.entries(OUTCOMES).map(([k, o]) =>
+  `<button data-o="${k}"><b>${o.tag}</b>${o.name}</button>`).join(""));
+document.querySelectorAll("#pick button").forEach(b => (b.onclick = () => { cur = b.dataset.k; draw(); }));
+document.querySelectorAll("#out button").forEach(b => (b.onclick = () => { outcome = b.dataset.o; draw(); }));
+$("#again").onclick = draw;
+
+draw();
+</script>
+</body>
+</html>
