@@ -63,7 +63,11 @@ import { fileURLToPath } from "node:url";
 // own module (broughtJobs.ts) plus one call in each of the three posting doors, and the spine shrank.
 // The last two came off in code review: four imports the move had orphaned, which no linter here
 // would have caught (there is no noUnusedLocals in tsconfig.base.json).
-const MAX_LINES = 842;
+// #307 lowered it from 842: the whole tailor step — GET /onboarding/tailor, the answer route and
+// drop — moved to its own plugin (routes/tailor.ts), where the ticket's new profile-answer endpoint
+// landed too. The queue's own rules went into tailorProfile.ts, never in here, and the spine shrank
+// by the last sixth it was carrying.
+const MAX_LINES = 698;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

@@ -213,6 +213,14 @@ export const JOURNEYS = [
   // screens. It adds a link through the real control, so it needs no QA-only knob at all.
   // ~2 min against the fake-model API; one magic-link sign-in.
   "job-screen-journey.mjs",
+  // #307: the only asset anywhere that can catch the tailor queue's profile question going dead on
+  // the rendered screen — the remember line, the missing decline, the after-line, the never-asked-
+  // again on the NEXT job, and the honest "Hidden 2 Hong Kong jobs" consequence are all claims
+  // about what a person READS, and every server-side test of them asserts a payload. Needs the
+  // QA-only work-rights adverts (POST /qa/stack's workRightsAdverts — the shipped corpus states
+  // work rights nowhere), and puts the knob back when it finishes. ~3 min; TWO magic-link sign-ins
+  // (the yes path and the no path are different people by design).
+  "asked-once-journey.mjs",
 ];
 
 // Only run when invoked directly — the selection self-check imports JOURNEYS from here.

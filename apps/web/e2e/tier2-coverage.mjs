@@ -119,6 +119,10 @@ const POSTINGS = [
 ];
 const TAILOR = [
   "apps/api/src/tailor.ts",
+  // #307: the tailor step's own route plugin (out of the spine) and the queue's profile-question
+  // rules. Any journey that walks the tailor screen rides these routes now.
+  "apps/api/src/routes/tailor.ts",
+  "apps/api/src/tailorProfile.ts",
   "apps/api/src/preview.ts",
   "apps/api/src/pipeline.ts",
   "apps/api/src/claims.ts",
@@ -231,10 +235,10 @@ export const SELECTS_NOTHING = [
   "apps/web/prototypes/**",
   "apps/web/.impeccable/**",
   "apps/mobile/**",
-  // No Tier 2 journey walks account withdrawal or the purge job — withdrawal-journey.mjs exists
-  // but is not in the gate list. Listed rather than left unmapped so the judgement is visible: if
-  // a journey for either is ever added to the gate, delete these two lines with it.
-  "apps/api/src/withdrawal.ts",
+  // No Tier 2 journey walks the purge job — listed rather than left unmapped so the judgement is
+  // visible: if a journey for it is ever added to the gate, delete this line with it.
+  // (#307 deleted withdrawal.ts's line from here, per this note's own instruction: asked-once-
+  // journey.mjs now asserts on posting withdrawal — the hidden count and the emptied deck.)
   "apps/api/src/purge.ts",
 ];
 
@@ -307,6 +311,20 @@ export const COVERAGE = {
     POSTINGS,
     PROFILE,
     AUTH,
+  ),
+  // #307: the tailor queue's profile-level work-rights question — asked first with the remember
+  // line, answered into the profile, never asked on the next job, and the "Hidden 2 Hong Kong
+  // jobs" consequence proved on the deck itself. It can go red on the tailor screen and routes,
+  // the eligibility store the answer lands in, the withdrawal predicate behind the hidden count,
+  // the deck it reads back, and the QA advert seam (POSTINGS) that serves its two adverts.
+  "asked-once-journey.mjs": union(
+    TAILOR,
+    ELIGIBILITY,
+    ["apps/api/src/withdrawal.ts"],
+    DECK,
+    POSTINGS,
+    AUTH,
+    DISCOVERY,
   ),
   // #117: "Still scoring" / "Not scored" / "Estimate" — the judged score's three honest states.
   "pending-unscored-card-journey.mjs": union(DECK, POSTINGS, DISCOVERY, AUTH, TAILOR),

@@ -11,6 +11,14 @@ export interface TailorQuestion {
   requirementId: string;
   question: string;
   options: string[];
+  /** #307: present on a PROFILE-LEVEL question (tailorProfile.ts) — the client posts those to
+   *  /onboarding/tailor/profile-answer, and the answer becomes a permanent profile fact. Absent on
+   *  every advert-requirement question, whose shape is unchanged. */
+  kind?: "profile";
+  /** #307 AC6: the said-before-answering line ("I'll remember this for every job in Hong Kong."). */
+  remember?: string;
+  /** #307: the market a profile answer is a fact about — display name, for the after-line. */
+  market?: string;
 }
 export interface LedgerLine {
   requirementId: string;

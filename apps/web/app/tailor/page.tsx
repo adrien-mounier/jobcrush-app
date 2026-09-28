@@ -18,6 +18,7 @@ import { CardBody, useReducedMotion } from "../jobcard";
 import { PasteDoor } from "../pastedoor";
 import {
   answerTailor,
+  answerTailorProfile,
   dropTailor,
   ensureSession,
   getTailor,
@@ -28,7 +29,10 @@ import {
   type TailorState,
 } from "../../lib/api";
 
-type Screen = "loading" | "error" | "flow" | "applied" | "saved";
+// #307: "gone" is the state after a permanent answer withdrew the very job being tailored — the
+// server cleared the target and handed back the one line saying what changed. #309 owns naming the
+// withdrawal's reason; until then this screen carries the honest consequence and the way back.
+type Screen = "loading" | "error" | "flow" | "applied" | "saved" | "gone";
 
 // #117c (addendum §12.5): was "Opening this job…", written for a cache read. ~7 of 15 cards now
 // judge on demand here (§11), a genuinely cold call of several seconds — "Opening" promises an
@@ -50,6 +54,7 @@ const T15 = "Apply with this CV";
 const T16 = "Save it and come back later";
 const T19 = "Saved";
 const T21 = "Back to the deck";
+const T22 = "Saved to your profile"; // #307: the gone screen's heading — the answer is kept; the job is not
 const DROP_FAILED = "Couldn't drop this job — try again.";
 
 const SCORE_TWEEN_MS = 680;
@@ -144,6 +149,8 @@ export default function TailorPage() {
   const [finishedEarly, setFinishedEarly] = useState(false);
   const [answering, setAnswering] = useState<{ requirementId: string; answer: string } | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
+  // #307: the after-line of a permanent answer that took the tailored job itself off the deck.
+  const [goneNote, setGoneNote] = useState<string | null>(null);
   const [dropConfirming, setDropConfirming] = useState(false);
   const [dropBusy, setDropBusy] = useState(false);
   const [dropError, setDropError] = useState<string | null>(null);
@@ -161,6 +168,8 @@ export default function TailorPage() {
   const endingHeadingRef = useRef<HTMLHeadingElement>(null);
   const appliedHeadingRef = useRef<HTMLHeadingElement>(null);
   const savedHeadingRef = useRef<HTMLHeadingElement>(null);
+  const goneHeadingRef = useRef<HTMLHeadingElement>(null); // #307
+
   const liveWrapRef = useRef<HTMLDivElement>(null);
   // #51: on desktop .live-wrap is display:contents (no scroll box); the live-card itself scrolls.
   // Used as the keepInView scroll container when live-wrap has no box.
@@ -272,6 +281,14 @@ export default function TailorPage() {
     }
   }, [screen, tailor]);
 
+  // #307: same rule for the gone screen — its transition unmounts the whole flow, so focus the
+  // heading and announce the one line saying what changed, once.
+  useEffect(() => {
+    if (screen !== "gone" || !goneNote) return;
+    goneHeadingRef.current?.focus();
+    setLiveMessage(goneNote);
+  }, [screen, goneNote]);
+
   // Scrolls the row that just changed into view, then flashes it — never the other way round (the
   // prototype's rule). Runs after `tailor` actually re-renders with the row in its new list, so the
   // `[data-req]` lookup below always finds the element in its post-answer position.
@@ -345,6 +362,32 @@ export default function TailorPage() {
     rafRef.current = requestAnimationFrame(tick);
   }
 
+  // #307: a profile-level answer is permanent, so it takes its own door (answerTailorProfile) and
+  // its own after-line — the server's `changed` sentence lands in the ledger slot, or, when the
+  // answer took this very job off the deck, on the gone screen (state === null; the target is
+  // already cleared server-side). No flying fact chip: a profile fact never moves the badge count.
+  async function answerProfileQuestion(requirementId: string, answer: string) {
+    if (answering || !tailor) return;
+    setAnswering({ requirementId, answer });
+    setAskError(null);
+    try {
+      const { changed, state } = await answerTailorProfile(requirementId, answer);
+      if (!state) {
+        setGoneNote(changed);
+        setScreen("gone");
+        return;
+      }
+      setLedgerView({ key: `profile:${requirementId}`, text: changed, gold: false });
+      setBadgeCount((c) => Math.max(c, state.factCount));
+      setTailor(state);
+      tweenScore(displayPct, state.card.matchPct);
+    } catch {
+      setAskError(T7);
+    } finally {
+      setAnswering(null);
+    }
+  }
+
   async function answerQuestion(requirementId: string, answer: string) {
     if (answering || !tailor) return;
     setAnswering({ requirementId, answer });
@@ -393,11 +436,15 @@ export default function TailorPage() {
   // was dead code no test could reach. One commit brings it back if a prose question ever ships.
   function renderQuestion(item: TailorQuestion) {
     const isAnswering = answering?.requirementId === item.requirementId;
+    // #307: a profile question posts to its own door, and says BEFORE the answer that it will be
+    // remembered (AC6's first line) — the muted .notice slot, never a warning colour.
+    const answerWith = item.kind === "profile" ? answerProfileQuestion : answerQuestion;
     return (
       <>
         <p className="q" id="tailor-ask-q">
           {item.question}
         </p>
+        {item.remember && <p className="notice">{item.remember}</p>}
         <div className="opts" role="group" aria-labelledby="tailor-ask-q">
           {item.options.map((opt, i) => {
             const cls = !isAnswering ? "opt" : opt === answering?.answer ? "opt picked" : "opt dim";
@@ -408,7 +455,7 @@ export default function TailorPage() {
                 type="button"
                 className={cls}
                 disabled={isAnswering}
-                onClick={() => answerQuestion(item.requirementId, opt)}
+                onClick={() => answerWith(item.requirementId, opt)}
               >
                 {opt}
               </button>
@@ -514,6 +561,20 @@ export default function TailorPage() {
         </div>
       )}
 
+      {/* #307: a permanent answer took this job off the deck. The server's own line carries the
+          honest consequence and the undo's location; #309 will add the withdrawal's named reason. */}
+      {screen === "gone" && goneNote && (
+        <div className="loadstate">
+          <h1 className="big" tabIndex={-1} ref={goneHeadingRef}>
+            {T22}
+          </h1>
+          <p>{goneNote}</p>
+          <button type="button" onClick={() => router.push("/deck")}>
+            {T21}
+          </button>
+        </div>
+      )}
+
       {screen === "flow" && tailor && (
         <>
           <div className="topbar">
@@ -562,6 +623,15 @@ export default function TailorPage() {
                     {T13}
                   </h2>
                   <p className="note">{closedGapsLine(tailor.closedGaps)}</p>
+                  {/* #307: a PERMANENT answer's own line still shows when it also emptied the
+                      queue — AC6's "what changed" must not vanish behind the ending. Scoped to
+                      profile answers: an advert answer's ledger line staying off the ending is the
+                      pre-#307 behaviour, untouched. */}
+                  {ledgerView?.key.startsWith("profile:") && (
+                    <p key={ledgerView.key} className="ledger quiet show">
+                      {ledgerView.text}
+                    </p>
+                  )}
                   <button type="button" className="btn-primary" onClick={() => setScreen("applied")}>
                     {T15}
                   </button>

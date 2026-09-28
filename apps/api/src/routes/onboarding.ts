@@ -40,27 +40,18 @@ import {
 } from "../discoveryEngine.js";
 import { answerJobDateHole, isJobDateItemId } from "../yearsWorked.js";
 import { readingLanguages, languageEligible } from "../language.js";
-import { matchTick } from "../matchtick.js";
-import { judgedMatchTick } from "../judgedScore.js";
 import type { JudgeFn, JudgePeekFn } from "../judge.js";
 import {
-  advertFamilyIdFor,
   buildDeckResponse,
-  buildJobCard,
-  buildTailorState,
   claimTier,
   resolveAdRequirements,
-  resolveJudgement,
-  resolveSessionYears,
-  tailorTarget,
-  withYearsShortfall,
 } from "../deck.js";
 import { applyFallbackChoice } from "../deckFallback.js";
 import type { BroughtJobsFn } from "../broughtJobs.js";
 import { makeRetrievalCoordinator } from "../deckRetrieval.js";
 import { answerLanguageLevel, LanguageLevelBody, withLanguageLevelAsks } from "../languageLevel.js";
 import { runLabelerRetry } from "../jobBlockPlacementRetry.js";
-import { findWithdrawingRequirement, partitionByWithdrawal } from "../withdrawal.js";
+import { findWithdrawingRequirement } from "../withdrawal.js";
 import {
   composeCvLine,
   discoveryClaimId,
@@ -69,7 +60,6 @@ import {
   isNoAnswer,
   READER_ROLE_ITEM_ID,
 } from "../discovery.js";
-import { composeTailorLine, tailorClaimId } from "../tailor.js";
 import { FamilyPlacement } from "@jobcrush/contracts";
 import {
   fixtureDiscoveryClaimId,
@@ -702,141 +692,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       },
     );
 
-    // --- #23 tailor (screen 3): re-score, the live card, and the exits -------------------------
-    // Post-wall (requireUser, like #21's want route) — reached only after signing in at the reveal.
-    // The whole screen is a pure function of (this ad's requirements, this session's confirmed/
-    // negative facts, this session's tailor floor), so GET is a plain re-derive — same resume story
-    // as #16 discovery. card.bubble/fit/dontYet come straight from buildJobCard recomputed on the
-    // CURRENT fact set — that IS AC2's "?→✓ flip" and "bubble's gap clause rewritten"; no new state.
-
-    app.get("/onboarding/tailor", async (req, reply) => {
-      const session = requireUser(req);
-      const adId = session.tailorAdId;
-      if (!adId)
-        return reply
-          .status(409)
-          .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-      const [confirmed, negatives, , facts, blocks] = await discoveryReads(session.id);
-      const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
-      const brought = (await deps.broughtJobs?.(session.id)) ?? []; // #305, as on /want above.
-      const target = await tailorTarget(session, adId, deps.readAd, fingerprint, brought);
-      if (!target)
-        return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
-      const { posting, adReq } = target;
-      // #107 (M3, code review): a target that has since become withdrawn behaves EXACTLY like no
-      // target at all — no rejection message, no error screen (the ticket's own UX intent: "It does
-      // not appear as a greyed-out card, a 'you can't apply' state, or a rejection message"). Clearing
-      // it here means a reload doesn't keep landing back on the same dead target.
-      // #305: and never for a job he brought — it stays, whatever his own answers say (#294 c1).
-      if (findWithdrawingRequirement(adReq, facts, posting.location, brought)) {
-        await deps.sessions.clearTailorTarget(session.id);
-        return reply
-          .status(409)
-          .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-      }
-      const role = session.targetTitles[0] ?? null;
-      const rawJudgement = await resolveJudgement(adReq, confirmed, deps.judge);
-      // #107 (D5) / #222: the years shortfall at the bar's own scope — see applyYearsShortfall
-      // (judgedScore.ts) + resolveSessionYears (deck.ts). Reads `facts` + `blocks` fetched above.
-      // #162 AC6: null years means no readable work history, so this surface must report the years
-      // bar untested exactly as the deck card does.
-      const years = resolveSessionYears(facts, blocks, await advertFamilyIdFor(session, deps.placeFamily));
-      const judgement = withYearsShortfall(rawJudgement, adReq, years);
-      const family = role ? await currentFamily(session) : null;
-      const state = buildTailorState(posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, years, family?.items ?? []);
-      state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
-      return state;
-    });
-
-    // Idempotent, like #18's discovery answer: re-answering the same requirement CORRECTS it
-    // (positive<->negative flip) via the same upserting add()/answerNegative() — no 409 guard needed.
-    // The floor only ever rises (raiseTailorFloor: Math.max/GREATEST), so a correction/"no" right
-    // after can never make the responded matchPct lower than a prior response's (AC1).
-    app.post(
-      "/onboarding/tailor/answer",
-      { schema: { body: z.object({ requirementId: z.string(), answer: z.string().trim().min(1) }) } },
-      async (req, reply) => {
-        const session = requireUser(req);
-        const adId = session.tailorAdId;
-        if (!adId)
-          return reply
-            .status(409)
-            .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-        const [targetConfirmed, targetNegatives] = await Promise.all([
-          deps.claims.confirmed(session.id),
-          deps.claims.negatives(session.id),
-        ]);
-        const fingerprint = retrievalFingerprint(
-          retrievalRequestForSession(session, targetConfirmed, targetNegatives),
-        );
-        const brought = (await deps.broughtJobs?.(session.id)) ?? []; // #305, as on /want above.
-        const target = await tailorTarget(session, adId, deps.readAd, fingerprint, brought);
-        if (!target)
-          return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
-        const { posting, adReq } = target;
-        const requirement = adReq.requirements.find((r) => r.id === req.body.requirementId);
-        if (!requirement)
-          return reply
-            .status(404)
-            .send({ error: { code: "unknown_requirement", message: "no such requirement" } });
-
-        const no = isNoAnswer(req.body.answer);
-      const claim: CandidateClaim = {
-        id: tailorClaimId(adReq.adId, requirement.id),
-        semantic_key: tailorClaimId(adReq.adId, requirement.id),
-        field_key: null,
-        field_value: null,
-        field_label: null,
-          role: "profile",
-          text: no
-            ? `Not applicable — ${requirement.requirement}`
-            : composeTailorLine(requirement, req.body.answer),
-          machine_touch: "verbatim", // the visitor's own answer
-          classification: "Verified", // user-authored, they vouch for it
-          source_quote: req.body.answer.slice(0, 200),
-          needs_grill: false,
-          grill_hint: null,
-        };
-        if (no) await deps.claims.answerNegative(session.id, claim);
-        else await deps.claims.add(session.id, claim);
-
-        const [confirmed, negatives, , facts, blocks] = await discoveryReads(session.id);
-        // #107 (M3, code review): a target that has become withdrawn (this answer's own claim is
-        // still recorded — harmless, tied to this ad's own claim id) behaves EXACTLY like no target
-        // at all from here on: no rejection message, nothing further asserted about a job the visitor
-        // can no longer take. Cleared so a reload doesn't keep landing back on the same dead target.
-        // #305: never for a job he brought — it stays, whatever his own answers say (#294 c1).
-        if (findWithdrawingRequirement(adReq, facts, posting.location, brought)) {
-          await deps.sessions.clearTailorTarget(session.id);
-          return reply
-            .status(409)
-            .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
-        }
-        const role = session.targetTitles[0] ?? null;
-        // #105 decision 7: the floor is raised from the HONEST number when a judgement is available
-        // — the answer just added changed the fact set, so this is a fresh (adId, fingerprint), never
-        // a cache hit reusing a stale judgement. Falls back to matchTick when no judge is wired.
-        const rawJudgement = await resolveJudgement(adReq, confirmed, deps.judge);
-        // #107 (D5) / #222: the years-experience shortfall at the bar's own scope — see
-        // applyYearsShortfall (judgedScore.ts). Reads `facts` + `blocks` already fetched above.
-        const years = resolveSessionYears(facts, blocks, await advertFamilyIdFor(session, deps.placeFamily));
-        const judgement = withYearsShortfall(rawJudgement, adReq, years);
-        await deps.sessions.raiseTailorFloor(
-          session.id,
-          judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
-        );
-        const family = role ? await currentFamily(session) : null;
-        const state = buildTailorState(posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, years, family?.items ?? []);
-        state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
-        return state;
-      },
-    );
-
-    // Drop: back to the deck, never touching a claim — "everything you told me stays on your profile."
-    app.post("/onboarding/tailor/drop", async (req) => {
-      const session = requireUser(req);
-      await deps.sessions.clearTailorTarget(session.id);
-      return { stage: "deck" };
-    });
+    // #307: the tailor step's own routes (GET /onboarding/tailor, answer, profile-answer, drop)
+    // live in routes/tailor.ts now — the extraction that bought this ticket's queue its lines.
   };
 }

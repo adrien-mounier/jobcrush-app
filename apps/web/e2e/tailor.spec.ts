@@ -282,3 +282,79 @@ test("Drop this job shows the reassurance copy inline; Esc keeps it, Drop it cle
   await page.getByRole("button", { name: "Drop it" }).click();
   await page.waitForURL("/deck");
 });
+
+// ---------------------------------------------------------------------------------------------
+// #307 — the queue's PROFILE-LEVEL question: permanent, told before and after, its own door.
+// ---------------------------------------------------------------------------------------------
+
+const PROFILE_Q = {
+  requirementId: "eligibility-work-rights-hong-kong",
+  kind: "profile" as const,
+  question: "Can you already work in Hong Kong without visa sponsorship?",
+  options: ["Yes — no sponsorship needed", "Not yet — I'd need sponsorship"],
+  remember: "I'll remember this for every job in Hong Kong.",
+  market: "Hong Kong",
+};
+
+const STATE_PROFILE_FIRST: TailorState = {
+  ...STATE_FIRST,
+  questions: [PROFILE_Q, ...STATE_FIRST.questions],
+};
+
+const AFTER_YES = "Remembered: you can work in Hong Kong. No job will ask you this again.";
+const AFTER_NO = "Hidden 2 Hong Kong jobs from your deck — change this any time in your profile.";
+
+function stubProfileAnswer(page: Page, response: { changed: string; state: TailorState | null }) {
+  return page.route("**/api/onboarding/tailor/profile-answer", async (route) => {
+    await route.fulfill({ json: response });
+  });
+}
+
+test("#307 the profile question leads the queue with the remember line, and its after-line lands in the ledger slot", async ({
+  page,
+}) => {
+  await openTailor(page, STATE_PROFILE_FIRST);
+  await stubProfileAnswer(page, { changed: AFTER_YES, state: STATE_FIRST });
+
+  // Before the answer: the permanent question first, the remember line under it, no decline.
+  await expect(page.locator(".tailor .ask .q")).toHaveText(PROFILE_Q.question);
+  await expect(page.locator(".tailor .ask .notice")).toHaveText(PROFILE_Q.remember);
+  await expect(page.locator(".tailor .opts .opt")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
+
+  // After: the one line saying what changed, and the advert's own question (no remember line).
+  await expect(page.locator(".tailor .ledger")).toHaveText(AFTER_YES);
+  await expect(page.locator(".tailor .ask .q")).toHaveText(STATE_FIRST.questions[0]!.question);
+  await expect(page.locator(".tailor .ask .notice")).toHaveCount(0);
+});
+
+test("#307 a profile answer that empties the queue still shows its after-line at the ending", async ({ page }) => {
+  await openTailor(page, { ...STATE_PROFILE_FIRST, questions: [PROFILE_Q] });
+  await stubProfileAnswer(page, {
+    changed: AFTER_YES,
+    state: { ...STATE_FIRST, questions: [], done: true },
+  });
+
+  await page.getByRole("button", { name: "Yes — no sponsorship needed" }).click();
+
+  await expect(page.getByRole("heading", { name: /as strong as I can make it/ })).toBeVisible();
+  await expect(page.locator(".finish .ledger")).toHaveText(AFTER_YES);
+});
+
+test("#307 a profile answer that withdrew the job lands the gone screen: the honest line and the way back", async ({
+  page,
+}) => {
+  await openTailor(page, { ...STATE_PROFILE_FIRST, questions: [PROFILE_Q] });
+  await stubProfileAnswer(page, { changed: AFTER_NO, state: null });
+
+  await page.getByRole("button", { name: "Not yet — I'd need sponsorship" }).click();
+
+  const heading = page.getByRole("heading", { name: "Saved to your profile" });
+  await expect(heading).toBeVisible();
+  await expect(heading).toBeFocused();
+  await expect(page.locator(".loadstate p")).toHaveText(AFTER_NO);
+
+  await page.getByRole("button", { name: "Back to the deck" }).click();
+  await page.waitForURL("/deck");
+});

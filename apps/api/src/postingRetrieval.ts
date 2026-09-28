@@ -224,6 +224,16 @@ export function coveredRegionCodes(
   return [...codes];
 }
 
+/** #307 — the market a free-text posting location belongs to, as the display name the tailor
+ *  queue's work-rights question and its remembered-for lines print ("Hong Kong"), or null when the
+ *  location cannot be placed (same honest [] as regionsForLocationText — never guess a market to
+ *  ask a permanent question about). First-declared order of AREA_REGIONS decides ties, which for
+ *  today's vocabulary cannot occur (no key maps to two regions). */
+export function marketForLocationText(location: string): string | null {
+  const [code] = regionsForLocationText(location);
+  return code ? regionDisplayName(code) : null;
+}
+
 /** #214 — which canonical city a free-text location names, or null when it names none we know
  *  (country-only, "Remote — Australia", a district, an unknown town). Same normalisation and
  *  substring rule as regionsForLocationText — one scanning idiom, two vocabularies. */

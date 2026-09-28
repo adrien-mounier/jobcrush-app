@@ -76,6 +76,7 @@ import { fallbackOffer } from "./deckFallback.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import { withLanguageLevelAsks } from "./languageLevel.js";
 import { partitionByWithdrawal } from "./withdrawal.js";
+import { profileOwnedRequirementIds } from "./tailorProfile.js";
 import {
   buildTailorLedger,
   negativeRequirementIds,
@@ -1144,6 +1145,10 @@ export function buildTailorState(
   // as on the deck (the route applies withYearsShortfall before passing `judgement` in).
   years?: SessionYears,
   discoveryFloor: readonly FloorItem[] = [],
+  // #307: the PROFILE-LEVEL questions this advert raises (tailorProfile.ts's tailorProfileAsks),
+  // prepended before the advert's own — #292 ruling 3: he never answers five requirement questions
+  // about a job he cannot legally take. Empty for every pre-#307 caller, whose state is unchanged.
+  profileQuestions: TailorQuestion[] = [],
 ): TailorState {
   // Deliberately the RAW judged tick — no family-confidence or industry-closeness attenuation
   // (#222/#285): attenuation is a deck-RANKING device, and this surface's floor (Math.max below)
@@ -1156,7 +1161,17 @@ export function buildTailorState(
   const uncovered = judgement
     ? judgedUncoveredRequirements(judgement.verdicts, adReq)
     : uncoveredRequirements(confirmed, adReq);
-  const questions = tailorQuestions(adReq, confirmed, negatives, uncovered);
+  // #307: profile-level first (#292 ruling 3) — the client renders questions[0], so the ORDER of
+  // this array is the whole "asked before the advert's own" rule; nothing else enforces it. And a
+  // requirement the profile question OWNS never also appears as an advert question — one queue
+  // means one question, not indistinguishable twins one tap apart (profileOwnedRequirementIds).
+  const profileOwned = profileOwnedRequirementIds(adReq, posting.location);
+  const questions = [
+    ...profileQuestions,
+    ...tailorQuestions(adReq, confirmed, negatives, uncovered).filter(
+      (q) => !profileOwned.has(q.requirementId),
+    ),
+  ];
   const { ledger, closedGaps } = buildTailorLedger(adReq, confirmed, negatives);
   // B1 (a "no" closes the gap too, spec #37/#38) and D1 (the bubble's gap clause rewrites with it)
   // are both buildJobCard's job as of #29 — the deck card needs the same guarantee, so the filter

@@ -65,6 +65,7 @@ import type { ReadPastedAdvert } from "./pastedAdvert.js";
 import { makeBroughtJobs } from "./broughtJobs.js";
 import type { EmployerLookup } from "./employerLookup.js";
 import { pasteRoutes } from "./routes/paste.js";
+import { tailorRoutes } from "./routes/tailor.js";
 import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
 import type { RetrievalRequest } from "./postingRetrieval.js";
 import { reconcileImport } from "./importReconciliation.js";
@@ -613,6 +614,22 @@ export function buildServer(opts: BuildOptions = {}) {
       readAd: opts.readAd,
       judge: opts.judge,
       judgePeek: opts.judgePeek,
+    }),
+  );
+  // #307: the tailor step's own plugin — the spine's three tailor endpoints moved here, plus the
+  // queue's permanent profile-answer door. Same shared read/judge seams as the deck and the paste
+  // door, so a tailored job is resolved and scored by exactly the code the deck used to show it.
+  app.register(
+    tailorRoutes({
+      claims,
+      sessions,
+      eligibility,
+      jobBlocks,
+      productionFamilyFloors,
+      placeFamily,
+      broughtJobs: makeBroughtJobs({ postings, pasteRecords }),
+      readAd: opts.readAd,
+      judge: opts.judge,
     }),
   );
   app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail, limiter: opts.authRateLimiter }));

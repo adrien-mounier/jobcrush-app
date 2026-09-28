@@ -1,5 +1,17 @@
 # Lessons — jobcrush-app
 
+## The QA judge covers exactly requirements[0], so a canned advert's requirement ORDER is load-bearing
+
+Learned 2026-09-29 building #307. qa-main's fake judge grades every advert the same way: the first
+requirement clears the coverage threshold, the rest sit below it. A canned QA advert therefore has
+its open-question set decided by ORDER alone — put the requirement your journey needs to see asked
+anywhere but first, and it is silently "already covered": the tailor queue skips it, the journey
+walks an ending screen instead of a question, and the failure reads as a product defect three
+screens away from the cause. It cost this session a red journey run and a diagnosis loop. The rule:
+when adding to QA_LANGUAGE_ADVERTS / QA_WORK_RIGHTS_ADVERTS or their successors, the requirement
+that must stay OPEN goes anywhere but slot 0, the one that may be covered goes first — and say so
+in a comment on the fixture, because nothing else will.
+
 ## A browser journey that WRITES to shared data is not re-runnable until its fixture is stamped
 
 Learned 2026-09-29 building #306. The journey pastes an advert and then adds an application link to

@@ -449,6 +449,13 @@ export interface TailorQuestion {
   requirementId: string;
   question: string;
   options: string[]; // may be empty — a free-text question, same convention as discovery
+  /** #307: set on a PROFILE-LEVEL question — the answer is permanent (a profile fact, remembered
+   *  for every job), posted to answerTailorProfile, never answerTailor. */
+  kind?: "profile";
+  /** #307 AC6: shown BEFORE he answers ("I'll remember this for every job in Hong Kong."). */
+  remember?: string;
+  /** #307: the market the answer is a fact about — display name. */
+  market?: string;
 }
 
 export interface TailorLedgerEntry {
@@ -476,6 +483,19 @@ export function getTailor(): Promise<TailorState> {
 
 export function answerTailor(requirementId: string, answer: string): Promise<TailorState> {
   return jfetch("/api/onboarding/tailor/answer", {
+    method: "POST",
+    body: JSON.stringify({ requirementId, answer }),
+  });
+}
+
+/** #307: a profile-level answer — permanent, written to the profile, never re-asked. `changed` is
+ *  the one line after saying what the answer did; `state` is null when the answer withdrew the very
+ *  job being tailored (a found job whose stated requirement he cannot meet — the deck is next). */
+export function answerTailorProfile(
+  requirementId: string,
+  answer: string,
+): Promise<{ changed: string; state: TailorState | null }> {
+  return jfetch("/api/onboarding/tailor/profile-answer", {
     method: "POST",
     body: JSON.stringify({ requirementId, answer }),
   });

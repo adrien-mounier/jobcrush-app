@@ -48,7 +48,10 @@ function scopeFor(dimension: EligibilityDimension, subject: string | undefined):
  *  no safe way to place it — fails OPEN, the same "unknown never withdraws" rule as every other
  *  dimension, never a guess. A legacy ANY_FAMILY-scoped fact (predating #182) is skipped outright: it
  *  was never about one place, so it must never apply to one. */
-function findWorkRightsFact(
+// Exported (#307): the tailor queue's "has he already answered for this posting's market?" is BY
+// DESIGN the same match this predicate makes — one lookup, so "answered" on the queue side and
+// "actionable" on the withdrawal side can never disagree about which fact covers which posting.
+export function findWorkRightsFact(
   facts: readonly EligibilityFact[],
   postingLocation: string | null | undefined,
 ): EligibilityFact | null {
@@ -80,7 +83,9 @@ export function normalizeScope(s: string): string {
 /** True when `value` is an EXPLICIT "no" for `dimension` — the one thing that may ever withdraw a
  *  posting (#86 decision 3). Every other recorded value (and, per the caller, every UNRECORDED one)
  *  leaves the job in the deck. */
-function isExplicitNo(dimension: EligibilityDimension, value: string): boolean {
+// Exported (#307): the tailor queue's after-line branches on "was that answer a no?" — the same
+// judgment, from the one place that owns the canonical value vocabulary, never a second literal.
+export function isExplicitNo(dimension: EligibilityDimension, value: string): boolean {
   if (dimension === "work-rights") return value === "needs-sponsorship";
   // #165 — the language "no" is now ONE deliberately-tapped rung of the ladder (languageLevel.ts),
   // and nothing else. Every other value a language fact can carry — every rung above it, the bare

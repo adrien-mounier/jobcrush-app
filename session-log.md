@@ -2,6 +2,45 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-29 — #307 built: asked once, remembered for every job (V4 opens)
+
+`/implement` → `/code-review` → `/qa-gate` on **#307**, V4's first ticket, built in the
+`ticket-307` worktree alongside the session that landed #306 — committed on the branch,
+**merge into `main` and push pending the owner's say-so** (the other session owned the push
+until its CI run finished).
+
+**What a person gets.** A job whose advert asks about his right to work now asks **him**, in the
+Tailor step's queue, before the advert's own questions — whatever door the job came through. The
+answer is permanent: told before (*"I'll remember this for every job in Hong Kong."*), written to
+his profile at the market's own scope, and told after what changed. A "Yes" closes the question
+for every job in that market, forever — the next job asks nothing. A "No" honestly empties the
+deck of the jobs that require it, with the count (*"Hidden 2 Hong Kong jobs from your deck —
+change this any time in your profile."*) and the undo's location; a job he brought stays, as
+always. The queue asks **only what the advert asks** — an unfamiliar market invents no question —
+and can never ask a years question (the queue-side ADR-0008 test now exists).
+
+**One queue means one question.** The advert's own copy of a work-rights requirement no longer
+appears as a second, indistinguishable Yes/No one tap later — and its old advert-scoped answer
+door is shut server-side, so the answer can only ever land as a profile fact, never as the
+advert-scoped claim #287 clause 5 flagged.
+
+**The ratchet was paid the honest way**: the whole tailor step (three endpoints) moved out of the
+spine into its own route module, **842 → 698**, and the new endpoint landed in the new home.
+
+**Code review earned its keep twice**: the after-line's yes/no branch was derived from a store
+re-read that could, on a scope-mismatch bug, tell a "No" answerer the yes-line — now derived from
+the answer he actually gave, fail-closed; and a profile answer that emptied the queue silently
+dropped its own after-line behind the ending screen — now shown there too. **Deliberately
+untouched, recorded in code**: an answered work-rights bar still shows as an open gap row on the
+card — every eligibility bar shows that way today, and the number's honesty is #292 ruling 10's
+slice, later in V4.
+
+**Evidence**: 20 new API tests (`tailorProfile.test.ts`), 3 new mocked specs (`tailor.spec.ts`),
+and a new Tier 2 journey (`asked-once-journey.mjs`, 20/20, two people: the yes path and the no
+path) driving two QA-only work-rights adverts (`workRightsAdverts` knob, #209's pattern — the
+shipped corpus states work rights in 0 of 17 postings, so the fabrication lives in the QA entry).
+`tailor-journey.mjs` re-run green (56/56) over the moved routes.
+
 ## 2026-09-29 — #306 built: the job's own screen is finished, and V3 is complete
 
 `/implement` → `/code-review` → `/qa-gate` (**GO**, two low defects, both fixed and re-verified

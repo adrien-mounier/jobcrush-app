@@ -257,6 +257,9 @@ let judgeDelayMs = Number(process.env.QA_JUDGE_DELAY_MS ?? 0);
 // screen it was written to walk. A fabricated advert should be visible to exactly the journey that
 // asked for it. QA_LANGUAGE_ADVERTS=on starts a run with them already served.
 let languageAdvertsOn = process.env.QA_LANGUAGE_ADVERTS === "on";
+// #307: the work-rights adverts' own arm switch, same rules — a fabricated advert is visible to
+// exactly the journey that asked for it. QA_WORK_RIGHTS_ADVERTS=on starts a run with them served.
+let workRightsAdvertsOn = process.env.QA_WORK_RIGHTS_ADVERTS === "on";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -471,6 +474,78 @@ const QA_LANGUAGE_ADVERTS: Record<string, unknown> = {
   },
 };
 
+// #307 — the two work-rights adverts asked-once-journey.mjs drives, served at the same pinned
+// reader seam as QA_LANGUAGE_ADVERTS above, gated by their own knob (`workRightsAdverts` on
+// POST /qa/stack) so an unarmed run sees exactly the curated deck.
+//
+// WHY NOT IN THE SHIPPED CORPUS — the same reason as #209's language adverts, measured again for
+// this dimension: the corpus research (docs/research/eligibility-dimensions-from-the-corpus.md)
+// found work-rights stated in 0 of 17 postings, so writing this requirement into
+// sample-ad-requirements.json would put words into a real employer's advert. The fabrication lives
+// HERE, in the QA entry that is pruned from the Docker image; these two adIds have no curated
+// fixture, so production still reads them with the real reader.
+//
+// The journey needs two distinct Hong Kong adverts with the same stated gate: the first is where
+// the queue's question is asked and answered, the second is the proof it is never asked again.
+const QA_WORK_RIGHTS_ADVERTS: Record<string, unknown> = {
+  "2026-07-09_charterhouse-partnership-asia_senior-business-analyst-product-manager-1-year-contract": {
+    schemaVersion: "1",
+    adId: "2026-07-09_charterhouse-partnership-asia_senior-business-analyst-product-manager-1-year-contract",
+    curated: true,
+    language: "en",
+    familyFit: { family: "it-project-delivery", confidence: 0.85 },
+    // Requirement ORDER is load-bearing for the journey: the fake judge covers requirements[0]
+    // and leaves the rest open, so the work-rights bar goes first (its question is the queue's
+    // profile ask, never a Yes/No) and the ordinary requirement stays open behind it — the real
+    // advert question the journey must see FOLLOW the profile one.
+    requirements: [
+      {
+        id: "right-to-work-hong-kong",
+        band: "essential",
+        kind: "blocking",
+        requirement: "Hold the right to work in Hong Kong without sponsorship",
+        cvSection: "experience",
+        eligibilityDimension: "work-rights",
+        sourceSpan: "QA fixture (#307): applicants must already hold the right to work in Hong Kong.",
+      },
+      {
+        id: "product-delivery-analysis",
+        band: "essential",
+        requirement: "Drive product delivery and business analysis across front-to-back teams",
+        cvSection: "experience",
+        sourceSpan: "QA fixture (#307): senior business analyst / product manager, front-to-back delivery.",
+      },
+    ],
+  },
+  "2026-07-09_sanderson-ikas-hong-kong_business-analyst-product-manager-digital-transformation-mobile": {
+    schemaVersion: "1",
+    adId: "2026-07-09_sanderson-ikas-hong-kong_business-analyst-product-manager-digital-transformation-mobile",
+    curated: true,
+    language: "en",
+    familyFit: { family: "it-project-delivery", confidence: 0.85 },
+    // Same order rule as the entry above: work-rights first (profile-owned), the open ordinary
+    // requirement behind it.
+    requirements: [
+      {
+        id: "right-to-work-hong-kong",
+        band: "essential",
+        kind: "blocking",
+        requirement: "Hold the right to work in Hong Kong without sponsorship",
+        cvSection: "experience",
+        eligibilityDimension: "work-rights",
+        sourceSpan: "QA fixture (#307): applicants must already hold the right to work in Hong Kong.",
+      },
+      {
+        id: "mobile-transformation-delivery",
+        band: "essential",
+        requirement: "Deliver digital transformation programmes for mobile channels",
+        cvSection: "experience",
+        sourceSpan: "QA fixture (#307): business analyst / product manager, digital transformation, mobile.",
+      },
+    ],
+  },
+};
+
 // #63 — the QA entry's stand-in for a paid posting provider.
 //
 // The deck is fed by retrieval and nothing else now: preview.ts's sessionPostings no longer reads
@@ -662,12 +737,16 @@ const qaReadAd = async (posting: Posting) => {
     const read = qaPastedRequirements(posting);
     return read ? AdRequirementsV1.parse(read) : null;
   }
-  if (!languageAdvertsOn) return null; // disarmed: exactly today's curated-only deck
-  // #63: this table is keyed by the fixture id its comment above cites, and the reader is handed
-  // the RETRIEVED advert - so the lookup goes back through the pool, and the entry is re-stamped
-  // onto the advert as retrieval actually delivered it.
+  if (!languageAdvertsOn && !workRightsAdvertsOn) return null; // disarmed: exactly today's curated-only deck
+  // #63: these tables are keyed by the fixture id their comments above cite, and the reader is
+  // handed the RETRIEVED advert - so the lookup goes back through the pool, and the entry is
+  // re-stamped onto the advert as retrieval actually delivered it. Each table answers only while
+  // its own knob is armed; the two share no adId, so precedence never decides anything.
   const source = qaPoolSourceOf(posting.id);
-  const found = source ? QA_LANGUAGE_ADVERTS[source.id] : undefined;
+  const found = source
+    ? ((languageAdvertsOn ? QA_LANGUAGE_ADVERTS[source.id] : undefined) ??
+      (workRightsAdvertsOn ? QA_WORK_RIGHTS_ADVERTS[source.id] : undefined))
+    : undefined;
   return found
     ? AdRequirementsV1.parse({ ...(found as Record<string, unknown>), adId: posting.id })
     : null;
@@ -851,7 +930,13 @@ app.get("/qa/llm-calls", async () => seen);
 // instantly-judged cards, find none of the states it exists to prove, note that judging beat the
 // reveal, and pass. A knob that fails by quietly turning itself off is worse than no knob.
 app.post<{
-  Body: { judgeDelayMs?: number; languageAdverts?: boolean; retrievalOutcome?: string; pasteDaysAgo?: number };
+  Body: {
+    judgeDelayMs?: number;
+    languageAdverts?: boolean;
+    workRightsAdverts?: boolean;
+    retrievalOutcome?: string;
+    pasteDaysAgo?: number;
+  };
 }>("/qa/stack", async (req, reply) => {
   if (req.body?.judgeDelayMs !== undefined) {
     const ms = Number(req.body.judgeDelayMs);
@@ -865,6 +950,13 @@ app.post<{
       return reply.status(400).send({ error: { code: "bad_request", message: "languageAdverts must be a boolean" } });
     }
     languageAdvertsOn = req.body.languageAdverts;
+  }
+  // #307: same boolean discipline as languageAdverts — a junk value must refuse, never disarm.
+  if (req.body?.workRightsAdverts !== undefined) {
+    if (typeof req.body.workRightsAdverts !== "boolean") {
+      return reply.status(400).send({ error: { code: "bad_request", message: "workRightsAdverts must be a boolean" } });
+    }
+    workRightsAdvertsOn = req.body.workRightsAdverts;
   }
   // #63: lets a journey drive the empty-result and outage screens, which are otherwise unreachable
   // in any browser-runnable config. Changing it invalidates nothing by itself — the session's stored
@@ -898,6 +990,7 @@ app.post<{
     ok: true,
     judgeDelayMs,
     languageAdverts: languageAdvertsOn,
+    workRightsAdverts: workRightsAdvertsOn,
     retrievalOutcome: qaRetrievalOutcome,
     pasteDaysAgo: qaPasteDaysAgo,
   };
