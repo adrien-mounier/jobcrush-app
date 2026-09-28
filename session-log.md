@@ -66,6 +66,8 @@ minutes. The root cause was in **this ticket's own unit fixture**, which carried
 and was green, because a hand-built object handed to an injected `readAd` is never parsed. The fixture
 now goes through `AdRequirementsV1.parse` on the way out. Three lessons recorded.
 
+**Committed, not pushed** — `d8df3d9` (code) + `c584688` (docs). A push is a deploy; that call is the owner's. Correction for the record: #302's roadmap row said "committed, not pushed", but `origin/main` already carries `1f19bb4` — it shipped between sessions, so its named consequence (the stored posting pool empties until techmap re-fetches) has already happened. Both rows are corrected.
+
 **Gate: GO** (confirmed twice — once on the real stack, once on the fake one after the QA wiring).
 1722 api + 55 contract tests, typecheck, web build, ratchet 870/870. The journey
 `apps/web/e2e/paste-door-journey.mjs` is green on **both** stacks. **USD 0.00** — every model call went
