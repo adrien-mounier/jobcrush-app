@@ -100,7 +100,7 @@ is the money moment, and a refused address is indistinguishable from a server fa
 itself is NOT broken, proven live 2026-08-24) · #289 (the deck's missing language-withdrawal
 badge) · **#298** (a warm API machine so the first PDF is instant, $7.23/month — parked
 2026-09-27 behind the same hard trigger as #288: the day the product is opened to anyone but the
-owner; #296 ruled the wait is narrated, not bought away, while he is the only user).
+owner; #296 ruled the wait is narrated, not bought away, while he is the only user) · **#318** (filed 2026-09-28 out of #303's QA gate: between **641px and 899px** the profile's top bar shrink-wraps to 202px and the fact badge is painted over the centred view toggle, so **both** Sorted and Constellation are unpressable. Parked on the same reading as #286 — a UI bug only the owner can reach while #288 holds, and he can widen the window. **Its second half is the one that will keep costing us**: `profile.spec.ts` drives 360/375/1200/1280 and nothing in the browser gate drives a tablet width on ANY screen, which is why this sat unseen. #303's own regression lived in that same bar. **Trigger: the first slice that restyles a top bar, or the day a tablet width matters to anyone.**).
 
 _Ordered 2026-08-13 over all open issues; **re-cut 2026-09-26 around the v1 spine**. This goes
 stale on every landing — when a ticket closes, strike it here in the same commit, and when a
