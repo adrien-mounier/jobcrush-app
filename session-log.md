@@ -48,8 +48,15 @@ approximated. On a deployment with **no Anthropic key** the employer step flashe
 production has the key, and a dynamic step list for a configuration production never has would be
 speculative.
 
-**Open, not fixed here.** `apps/web/e2e/posting-contract-v5-journey.mjs` is still untracked, left over
-from #302's session — deliberately not swept into this commit.
+**Deleted, not committed:** `apps/web/e2e/posting-contract-v5-journey.mjs`, left untracked by #302's
+session. Inspected before binning it. It was that ticket's one-off proof of "nothing a person sees"
+after the contract bump — a walk of front door → discovery → sign-in → deck → reveal → card → tailor
+→ sign-up wall. That claim is spent: #302 shipped and CI has been green since. And every step of the
+walk is already covered by a journey **in the gate** — `tailor-journey.mjs` runs the same path
+against the same live stack, `signup-wall-honesty-journey.mjs` the wall, and every CV-intake journey
+the front door. Keeping it would have added a magic-link sign-in and three minutes to buy a
+duplicate, against `run-tier2.mjs`'s own rule that an entry earns its slot by a regression **it alone**
+can catch.
 
 **Settled the same day, in `4f939d4`.** The design hook flagged six values on the paste screen as off
 `DESIGN.md`'s documented scales. The owner asked to **see** the difference rather than read it as a
