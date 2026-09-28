@@ -57,7 +57,13 @@ import { fileURLToPath } from "node:url";
 //   - withFactFloor moved to sessions.ts, beside the raiseFactFloor it wraps — it was the last
 //     helper left in the spine and it never knew anything about routes. Six call sites unchanged.
 // Question 1's paid search itself went into discoveryEngine.ts (searchAtQuestionOne), never in here.
-const MAX_LINES = 870;
+// #305 lowered it from 870: the deck route's whole payload assembly — retrieval, the years scope, the
+// cards pass, the empty deck's copy rule and the fallback offer — moved to deck.ts (buildDeckResponse),
+// beside the card-shaping policy it composes. The brought-job stitching the ticket needed landed in its
+// own module (broughtJobs.ts) plus one call in each of the three posting doors, and the spine shrank.
+// The last two came off in code review: four imports the move had orphaned, which no linter here
+// would have caught (there is no noUnusedLocals in tsconfig.base.json).
+const MAX_LINES = 842;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

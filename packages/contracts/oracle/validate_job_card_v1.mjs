@@ -76,6 +76,13 @@ export function validateJobCardV1(card) {
   // #162 AC6 — optional and additive: absent means "nothing went untested on this card", which is
   // what every pre-#162 payload meant by saying nothing. Present, it must be a requirement array.
   if (card.notTested !== undefined) validateRequirementArray(e, card.notTested, "notTested");
+  // #305 (#294 c3) — the brought job's ageing line, optional and additive for the same reason
+  // notTested is: absent means "this card has nothing to say about its own age", which is what every
+  // pre-#305 payload meant by saying nothing. Present, it must be a non-empty sentence — an empty
+  // string would render as a blank notice, which is worse than no notice at all.
+  if (card.ageing !== undefined) {
+    e.require(isNonEmptyString(card.ageing), "ageing must be a non-empty string");
+  }
   return result(e);
 }
 

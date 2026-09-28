@@ -19,6 +19,7 @@ import { incrementCounter } from "./counters.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
 import { LANGUAGE_NOT_AT_ALL } from "./languageLevel.js";
 import { regionsForLocationText } from "./postingRetrieval.js";
+import { isBrought, type BroughtJob } from "./broughtJobs.js";
 
 /** The eligibility-store scope one (language/certification) requirement's blocking check reads at, or
  *  null when there is no safe way to resolve one — a null scope means "cannot determine, never
@@ -138,11 +139,13 @@ export interface WithdrawnSummary {
 export function partitionByWithdrawal<T extends { posting: { location?: string | null }; adReq: AdRequirementsV1 }>(
   candidates: readonly T[],
   facts: readonly EligibilityFact[],
+  /** #305: forwarded to the predicate, so a brought job passes this filter and is never tallied. */
+  brought: readonly BroughtJob[] = [],
 ): { open: T[]; withdrawn: WithdrawnSummary } {
   let total = 0;
   const byLanguage = new Map<string, number>();
   const open = candidates.filter((entry) => {
-    const req = findWithdrawingRequirement(entry.adReq, facts, entry.posting.location ?? null);
+    const req = findWithdrawingRequirement(entry.adReq, facts, entry.posting.location ?? null, brought);
     if (!req) return true;
     incrementCounter("deck.cards_withdrawn");
     total++;
@@ -174,7 +177,16 @@ export function findWithdrawingRequirement(
   adReq: AdRequirementsV1,
   facts: readonly EligibilityFact[],
   postingLocation: string | null = null,
+  // #305 (#294 c1): the adverts HE BROUGHT. A job he brought is NEVER withdrawn, and the rule lives
+  // here rather than at each door for this function's own stated reason — it is consumed by every
+  // surface that renders an advert, so a rule kept at the call sites is a rule the next door forgets.
+  // Absent → nobody is exempt, which is every pre-#305 caller's behaviour unchanged.
+  brought: readonly BroughtJob[] = [],
 ): AdRequirementV1 | null {
+  // Keyed on the advert's own id, which for every caller here IS the posting's canonical id
+  // (resolveAdRequirements stamps it). Checked FIRST: there is no state of his answers that can take a
+  // job he chose off his own deck — it stays, and its card says what it can about its age instead.
+  if (isBrought(brought, adReq.adId)) return null;
   for (const req of adReq.requirements) {
     if (req.kind !== "blocking") continue;
     const dimension = req.eligibilityDimension;

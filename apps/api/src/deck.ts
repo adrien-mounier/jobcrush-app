@@ -12,11 +12,13 @@ import type {
   FloorItem,
   JobCardV1,
   PlacementConfidence,
+  PostingRetrievalResultV1,
   ScoredJobCardV1,
 } from "@jobcrush/contracts";
 import { soleConfirmedFamily } from "./adaptiveDiscovery.js";
 import type { ClaimRecord } from "./claims.js";
 import type { JobBlockView } from "./jobBlockStore.js";
+import type { BroughtJobsFn } from "./broughtJobs.js";
 import type { SessionRecord } from "./sessions.js";
 import {
   familyPlacementConfidence,
@@ -26,6 +28,7 @@ import {
   INDUSTRY_SCOPE_PREFIX,
 } from "./yearsWorked.js";
 import { lookupAdRequirements } from "./e5stub.js";
+import { pinBrought, withAgeing, type BroughtJob } from "./broughtJobs.js";
 import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
 import { applyEligibilityQuestions, excludingEligibility } from "./eligibilityDiscovery.js";
@@ -62,7 +65,15 @@ import {
   type DiscoveryFamily,
   type DiscoveryCvLine,
 } from "./discovery.js";
-import { resolvedMarketsFor } from "./postingRetrieval.js";
+import {
+  resolvedMarketsFor,
+  retrievalFingerprint,
+  retrievalRequestForSession,
+  type RetrievalRequest,
+} from "./postingRetrieval.js";
+import { retrievalIsInProgress } from "./deckRetrieval.js";
+import { fallbackOffer } from "./deckFallback.js";
+import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import { withLanguageLevelAsks } from "./languageLevel.js";
 import { partitionByWithdrawal } from "./withdrawal.js";
 import {
@@ -777,6 +788,11 @@ export async function buildDeckCards(
     years: SessionYears;
     deckFamilyId: string | null;
     langs: string[];
+    /** #305: the adverts HE BROUGHT, newest first — already stitched into `postings` by
+     *  sessionPostings. Named separately here because three of this pass's rules read the origin:
+     *  a brought job skips the wrong-family deletion and the withdrawal filter (#294 c1, #292 req 11),
+     *  and the newest three are pinned above the ranked deck (#294 c7). */
+    brought?: readonly BroughtJob[];
   },
   deps: DeckJudgingDeps & { readAd?: ReadAdFn },
 ) {
@@ -789,35 +805,173 @@ export async function buildDeckCards(
     (entry): entry is { posting: Posting; adReq: AdRequirementsV1 } => entry !== null,
   );
 
+  // #305: a job HE BROUGHT is held out of the next two filters and rejoins the pass at judging. Both
+  // are re-ask rules dressed as deck rules — "is this advert worth a slot in a list she is browsing"
+  // and "can she take this kind of job at all" — and he already answered the first by bringing it. A
+  // pasted advert outside his field would otherwise be DELETED before anything is spent (#292 req 11,
+  // forbidden by #290 ruling 3), and one asking for something he has said no to would be WITHDRAWN,
+  // which is exactly what #294 c1 says never happens to a job he brought.
+  const brought = input.brought ?? [];
+  const broughtById = new Map(brought.map((job) => [job.posting.id, job] as const));
+  const found = candidates.filter((entry) => !broughtById.has(entry.posting.id));
+  const broughtCandidates = candidates.filter((entry) => broughtById.has(entry.posting.id));
   // #243 — a wrong-family advert leaves the deck here, before withdrawal, ranking or judging spend a
   // thing on it (partitionByFamilyFit owns the rule + the deleted count).
-  const { kept } = partitionByFamilyFit(candidates, input.deckFamilyId);
+  const { kept } = partitionByFamilyFit(found, input.deckFamilyId);
   // #107 (E5 slice 6, D3/D4) — withdraw a posting from THIS session's deck BEFORE it costs anything:
   // before ranking, the free peek, or a paid judging attempt ever sees it (withdrawal.ts).
-  const { open: openCandidates, withdrawn } = partitionByWithdrawal(kept, input.facts);
+  // #305: brought candidates rejoin here. They are passed to the filter rather than held out of it,
+  // because the "never withdrawn" rule lives in withdrawal.ts's own predicate now — one rule, every
+  // door, including the ones this pass does not own.
+  const { open: openCandidates, withdrawn } = partitionByWithdrawal(
+    [...broughtCandidates, ...kept],
+    input.facts,
+    brought,
+  );
   // judgeDeck: peek → rank → bound → budget → resolve, the whole paid-judging pass — see its own doc
   // for #117 must-fix A/1/C/2 and the spend-bound properties it carries.
   const { entries: resolved, judgeWired } = await judgeDeck(openCandidates, input.confirmed, deps);
   const cardCandidates = resolved.map((entry) => ({
-    card: buildJobCard(
-      entry.posting,
-      entry.adReq,
-      input.confirmed,
-      input.negatives,
-      // #107 (D5): the years-experience shortfall, applied at read time — see withYearsShortfall.
-      withYearsShortfall(entry.judgement, entry.adReq, input.years),
-      // #117 must-fix 2: a real paid attempt that missed the budget is `pending` (genuinely in
-      // flight, will self-heal into the store); one the bound never attempted at all is `unscored`.
-      !judgeWired ? "estimated" : entry.attempted ? "pending" : "unscored",
-      input.years, // #162 AC6 untested-bar display + #222 confidence attenuation, both in buildJobCard
+    // #305: the ageing line rides on the card, composed by broughtJobs.ts, so the deck card and the
+    // job's own screen (routes/paste.ts, which runs this same pass over one posting) cannot drift
+    // apart on the wording or on the day it starts. Absent for every job we found — there is nothing
+    // to say about the age of an advert we re-asked its provider for this minute.
+    card: withAgeing(
+      buildJobCard(
+        entry.posting,
+        entry.adReq,
+        input.confirmed,
+        input.negatives,
+        // #107 (D5): the years-experience shortfall, applied at read time — see withYearsShortfall.
+        withYearsShortfall(entry.judgement, entry.adReq, input.years),
+        // #117 must-fix 2: a real paid attempt that missed the budget is `pending` (genuinely in
+        // flight, will self-heal into the store); one the bound never attempted at all is `unscored`.
+        !judgeWired ? "estimated" : entry.attempted ? "pending" : "unscored",
+        input.years, // #162 AC6 untested-bar + #222 confidence attenuation, both in buildJobCard
+      ),
+      broughtById.get(entry.posting.id),
     ),
     curated: entry.adReq.curated,
     // #243 decision 2: on a family deck, a weak family-fit confidence sinks the card's RANK.
     ...(input.deckFamilyId === null ? {} : { familyConfidence: entry.adReq.familyFit.confidence }),
   }));
   // #165: each card carries the level question its OWN advert triggers — see withLanguageLevelAsks.
-  const cards = withLanguageLevelAsks(orderCardsForReveal(cardCandidates), openCandidates, input.facts);
+  const ranked = withLanguageLevelAsks(orderCardsForReveal(cardCandidates), openCandidates, input.facts);
+  // #305 (#294 c7): his newest three brought jobs sit above the ranked deck, newest first. Ranking
+  // answers "which of these is worth my time" and a job he brought has already answered that — but
+  // only the newest three, or the deck becomes an archive; the rest stay where their score put them.
+  const cards = pinBrought(ranked, brought);
   return { cards, pendingCount: tallyCardProvenance(cards), withdrawn };
+}
+
+/** What GET /onboarding/cards needs that is not a store read: the retrieval coordinator's answer for
+ *  this response, the deck's family placement, the fallback offer's published registry, and — #305 —
+ *  the adverts this person brought. `ensureRetrieval` and `currentFamily` are passed as functions
+ *  rather than imported: the coordinator is one per server instance and the family lookup lives in
+ *  discoveryEngine.ts, which imports this module. */
+export interface DeckResponseDeps extends DeckJudgingDeps {
+  readAd?: ReadAdFn;
+  placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>;
+  productionFamilyFloors: Pick<ProductionFamilyFloorStore, "active">;
+  /** #305: absent → no pasted advert is stitched in, which is exactly the deck every pre-#305 test
+   *  asserts against. */
+  broughtJobs?: BroughtJobsFn;
+  ensureRetrieval: (
+    session: SessionRecord,
+    retrievalRequest: RetrievalRequest,
+    requestFingerprint: string,
+  ) => PostingRetrievalResultV1;
+  currentFamily: (session: SessionRecord) => Promise<DiscoveryFamily | null>;
+}
+
+/** The five reads GET /onboarding/cards already performs once per request (the route's
+ *  `discoveryReads`), passed in rather than repeated here. */
+export type DeckDiscoveryReads = readonly [
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+  rejected: ClaimRecord[],
+  facts: readonly EligibilityFact[],
+  blocks: readonly JobBlockView[],
+];
+
+/**
+ * The whole GET /onboarding/cards payload — moved out of routes/onboarding.ts by #305 (the ratchet's
+ * own remedy: extraction, not a raised limit). Every rule it composes already lived in this module or
+ * beside it; the spine's job was only ever to call them in order, and it now does that in four lines.
+ *
+ * TWO changes rode in with the move, and neither is cosmetic: the brought-job stitching this ticket is
+ * about, and the `observed` pin below — which changes what a FOUND job's first deck read returns (see
+ * its own comment). The pin is not scope creep dressed as a refactor: without it, whether the first read
+ * is a wait or a full deck depends on how many awaits the route happens to perform, and this ticket
+ * added one. Two tests that had been winning that race now wait for the deck properly.
+ *
+ * The order matters and is the one the route had: retrieval is asked FIRST (it may start background
+ * work this process owns), the years scope and the language list are read off the session, and the
+ * cards pass runs last because it is the only part that can spend money.
+ */
+export async function buildDeckResponse(
+  session: SessionRecord,
+  [confirmed, negatives, rejected, facts, blocks]: DeckDiscoveryReads,
+  deps: DeckResponseDeps,
+) {
+  const retrievalRequest = retrievalRequestForSession(session, confirmed, negatives);
+  const requestFingerprint = retrievalFingerprint(retrievalRequest);
+  // ONE response, ONE observed session state. The background retrieval this call is about to start
+  // writes its snapshot back into THIS session record (the in-memory store hands out the stored
+  // object), so the posting pool below is read off the retrieval as it stood when the response began.
+  // Without this pin, whether a refreshing deck shows the old snapshot or the new one depends on how
+  // many awaits happen to run in between — which is a coin toss, not a rule.
+  const observed = { retrieval: session.retrieval, discovery: session.discovery };
+  // deckRetrieval.ts returns the response snapshot and starts background work when this process owns it.
+  const retrieval = deps.ensureRetrieval(session, retrievalRequest, requestFingerprint);
+  // #222: years at BOTH scopes — the advert's family (advertFamilyIdFor: the confirmed floor, else the
+  // target-role placement) and the career total. Known zero vs unmapped fallback is
+  // resolveSessionYears's rule (ADR-0014 amendment 1 decision 6). Reads `facts` + `blocks` already
+  // fetched by the route's discoveryReads — one eligibility read per request.
+  // #243: the deck's family — read by the years scope AND the family-fit deletion/ranking.
+  const deckFamilyId = await advertFamilyIdFor(session, deps.placeFamily);
+  const years = resolveSessionYears(facts, blocks, deckFamilyId);
+  const langs = readingLanguages(session);
+  // #305: the adverts he brought, stitched in from storage — the deck's list is regenerated by
+  // re-asking providers and a pasted job has nobody to re-ask. sessionPostings does the stitch (it is
+  // the one door every posting reader passes through); buildDeckCards is told which ids they are
+  // because three of its rules read the origin.
+  const brought = (await deps.broughtJobs?.(session.id)) ?? [];
+  const postings = eligiblePostings(langs, sessionPostings(observed, requestFingerprint, brought));
+  // buildDeckCards: read → delete wrong-family → withdraw → judge within the paid bound → shape +
+  // order + pin. See its own doc (and judgeDeck's) for the spend-bound properties.
+  const { cards, pendingCount, withdrawn } = await buildDeckCards(
+    postings,
+    { confirmed, negatives, facts, years, deckFamilyId, langs, brought },
+    deps,
+  );
+  // #235: whether the empty deck may say "answer a few more questions" (hasOpenDiscoveryQuestions).
+  const moreQuestions = hasOpenDiscoveryQuestions(
+    session,
+    confirmed,
+    negatives,
+    rejected,
+    facts,
+    blocks,
+    await deps.currentFamily(session),
+  );
+  // #22: authed tells the client whether the account wall at the reveal applies — false only for a
+  // still-anonymous session, so a returning (claimed) visitor is never re-walled.
+  return {
+    stage: session.stage,
+    cards,
+    pendingCount,
+    authed: session.claimedByUserId !== null,
+    withdrawn,
+    retrieval,
+    searching: retrievalIsInProgress(retrieval),
+    moreQuestions,
+    // #229: the career changer's one sentence — copy only, the score is untouched.
+    newToFamily: newToFamily(years),
+    // #228: the dead end's offer — server-owned, so the screen renders and never decides
+    // (deckFallback.ts owns the four preconditions).
+    fallback: fallbackOffer(session, moreQuestions, blocks, deps.productionFamilyFloors),
+  };
 }
 
 export interface DeckJudgingDeps {
@@ -938,12 +1092,16 @@ export async function tailorTarget(
   adId: string,
   readAd: ReadAdFn | undefined,
   requestFingerprint: string,
+  // #305: a job HE BROUGHT is never in the snapshot — it is stitched in from storage — so without this
+  // the tailor target for the one kind of job that cannot drop out would be the one that 404s.
+  brought: readonly BroughtJob[] = [],
 ): Promise<{ posting: Posting; adReq: AdRequirementsV1 } | null> {
   // #103: same dual gate as the deck and /want — a persisted tailorAdId for a posting (or a
   // requirement set) this session's languages can no longer read (or never could) fails closed with
   // the existing "unknown card" 404.
   const langs = readingLanguages(session);
-  const posting = eligiblePostings(langs, sessionPostings(session, requestFingerprint)).find((p) => p.id === adId);
+  const pool = sessionPostings(session, requestFingerprint, brought);
+  const posting = eligiblePostings(langs, pool).find((p) => p.id === adId);
   if (!posting) return null;
   // #104: a card the user can already see must be tailorable — fixture-or-reader via the same
   // shared resolver as the deck, so a newly-read (not hand-curated) advert doesn't 404 here just

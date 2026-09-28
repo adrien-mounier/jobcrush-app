@@ -200,6 +200,12 @@ export const JOURNEYS = [
   //                 text. Every one of those is proved server-side in pasteAdvert.test.ts and none
   //                 of that proves a screen. ~50s; no sign-in, so it spends no limiter budget.
   "paste-door-journey.mjs",
+  // #305: the only asset anywhere that can catch the ageing line going dead. Every other test of
+  // it asserts the payload, and the notice's whole purpose is being READ — a card that stops
+  // rendering it passes every one of them. Needs the QA-only paste clock (POST /qa/stack's
+  // pasteDaysAgo), so it is only runnable on this stack; it puts the knob back when it finishes.
+  // ~2 min against the fake-model API; one magic-link sign-in.
+  "brought-job-ageing-journey.mjs",
   "paste-wait-journey.mjs",
 ];
 

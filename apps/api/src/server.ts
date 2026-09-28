@@ -62,6 +62,7 @@ import { InMemoryUsageLedgerStore, type UsageLedgerStore } from "./usageLedgerSt
 import { InMemoryPostingStore, type PostingStore } from "./postingStore.js";
 import { InMemoryPasteRecordStore, type PasteRecordStore } from "./pasteRecordStore.js";
 import type { ReadPastedAdvert } from "./pastedAdvert.js";
+import { makeBroughtJobs } from "./broughtJobs.js";
 import type { EmployerLookup } from "./employerLookup.js";
 import { pasteRoutes } from "./routes/paste.js";
 import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
@@ -577,6 +578,10 @@ export function buildServer(opts: BuildOptions = {}) {
     judgePeek: opts.judgePeek,
     judgeMaxCards: opts.judgeMaxCards,
     retryJobBlockLabels: pipelineDeps.labelJobBlocks,
+    // #305: the adverts this person pasted, read off the SAME two stores the paste door writes into —
+    // the deck stitches them in on every rebuild because a pasted job has nobody to re-ask, and the
+    // want/tailor doors resolve them for the same reason.
+    broughtJobs: makeBroughtJobs({ postings, pasteRecords }),
     // #236: only wired when a real screen exists — absent, the word-search deck screens nothing,
     // exactly as before this ticket.
     watchFamilyCandidate: opts.screenFamilyCandidate

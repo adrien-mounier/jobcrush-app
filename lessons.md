@@ -1,5 +1,30 @@
 # Lessons — jobcrush-app
 
+## The store hands out the object it stores, so "what this response saw" is a race you must pin
+
+Learned 2026-09-28 building #305. The deck route reads the session, asks the retrieval coordinator
+what this response may say, and then builds the payload. `InMemorySessionStore` returns the *stored*
+record, not a copy, and the background retrieval that request just started writes its snapshot back
+into that same object — so whether the first deck read reported "still searching" or served a full
+deck depended on **how many `await`s happened to run in between**. #305 added one store read, and two
+tests that had been quietly winning that race went red: one was asserting the documented behaviour
+(first read is a wait), the other was asserting the accident.
+
+The fix is one line — pin what the response observed (`const observed = { retrieval, discovery }`)
+before the first `await`, and build the payload from that — but the lesson is the diagnosis, not the
+fix:
+
+- **A test that goes red when you add an `await` was testing timing, not behaviour.** Before changing
+  it, work out which of the two answers the design actually promises; here `deckRetrieval.ts` and
+  #245 both say the first uncached read fails closed while the background task runs, so the pin made
+  the product match its own documentation and the harness already had the helper (`injectSettled`)
+  for it.
+- **An in-memory store that returns its own objects makes every read a live view.** Postgres returns
+  a fresh row and cannot do this, so the race is invisible in production and only ever bites the
+  tests — which is worse, because it makes the suite lie in both directions.
+- The giveaway in the diff was that **nothing about the failing assertion's subject had changed**.
+  Two extra microtasks, three files away.
+
 ## A proxy that compresses will buffer your event stream, and curl will not show you
 
 Learned 2026-09-28 building #304's narrated wait. The server published five progress events over

@@ -36,10 +36,10 @@ import {
   isWebLink,
   MAX_ADVERT_CHARS,
   pasteAdvert,
-  pastedPostings,
   type PasteAdvertDeps,
   type PasteAdvertRefusal,
 } from "../pastedAdvert.js";
+import { makeBroughtJobs, type BroughtJob } from "../broughtJobs.js";
 
 export interface PasteDeps extends PasteAdvertDeps {
   claims: ClaimStore;
@@ -125,10 +125,6 @@ const PASTE_FAILURES: Record<PasteFailureCode, { cameBack: string; fix: string }
     cameBack: "We read the title, the employer and the place, but no requirements came out of the advert.",
     fix: "Press Read it again in a moment — the advert is already saved, so a second press costs nothing. If it keeps coming back empty, paste more of the advert.",
   },
-  withdrawn: {
-    cameBack: "This job asks for something you have told us you do not have.",
-    fix: "If that has changed, correct the answer on your profile and paste the advert again.",
-  },
   error: {
     cameBack: "Something went wrong on our side while we were reading it.",
     fix: "Press Read it again — your text is still here, and nothing was lost.",
@@ -156,15 +152,20 @@ export function pasteRoutes(deps: PasteDeps) {
 
     /** The one card for one advert, assembled by the deck's own pass over a single posting — the
      *  same reader, scorer and checkpoints every other card gets (#290 ruling 1), rather than a
-     *  second card-shaping path that could drift from the deck's. Null = withdrawn for this
-     *  person's own eligibility, or in a language she does not read: the same "unknown card" the
-     *  deck's other doors answer with. #305 is where a pasted job stops being withdrawable at all.
+     *  second card-shaping path that could drift from the deck's. That is also how the ageing line
+     *  reaches this screen: the card is built by the same pass, from the same `brought` record, so the
+     *  job's own screen and its deck card cannot say different things about its age (#305).
      *
      *  `deckFamilyId` is null, not this session's family: family-fit DELETION is a property of a
      *  DECK — is this advert worth a slot in a list she is browsing — and she is looking at one job
-     *  she asked for by name. The years scope still reads the session's real family, so the number
-     *  here is the number the deck would show. #305 states the same rule for the deck itself. */
-    const cardFor = async (session: SessionRecord, posting: Posting): Promise<CardOutcome> => {
+     *  she asked for by name. #305 makes a brought job skip that deletion on the deck too, so the two
+     *  surfaces now agree by rule rather than by coincidence. The years scope still reads the session's
+     *  real family, so the number here is the number the deck would show.
+     *
+     *  #305: there is no `withdrawn` outcome any more. A job he brought is never withdrawn (#294 c1) —
+     *  `brought` is passed to the deck pass, which holds it out of the withdrawal filter, so the only
+     *  way this returns no card is a reading we could not finish. */
+    const cardFor = async (session: SessionRecord, brought: BroughtJob): Promise<CardOutcome> => {
       const [confirmed, negatives, facts, blocks] = await Promise.all([
         deps.claims.confirmed(session.id),
         deps.claims.negatives(session.id),
@@ -173,36 +174,33 @@ export function pasteRoutes(deps: PasteDeps) {
       ]);
       const years = resolveSessionYears(facts, blocks, await advertFamilyIdFor(session, deps.placeFamily));
       const langs = readingLanguages(session);
-      const { cards, withdrawn } = await buildDeckCards(
-        eligiblePostings(langs, [posting]),
-        { confirmed, negatives, facts, years, deckFamilyId: null, langs },
+      const { cards } = await buildDeckCards(
+        eligiblePostings(langs, [brought.posting]),
+        { confirmed, negatives, facts, years, deckFamilyId: null, langs, brought: [brought] },
         deps,
       );
-      if (cards[0]) return { card: cards[0] };
-      // No card has two completely different causes and they must never arrive as one message.
-      // `withdrawn` is the real one: she told us she cannot take this kind of job. Anything else —
-      // the requirements read timed out, or came back unusable — means we did not finish READING
-      // it, which on a slow first read is common and is fixed by pressing again (the read is
-      // checkpointed, so the retry is instant and free). Telling her "this job asks for something
-      // you do not have" about an advert nobody has read yet is the worst of the two to get wrong.
-      return { refusal: withdrawn.total > 0 ? "withdrawn" : "read_incomplete" };
+      // No card left means we did not finish READING the advert — the requirements read timed out or
+      // came back unusable — which on a slow first read is common and is fixed by pressing again (the
+      // read is checkpointed, so the retry is instant and free).
+      return cards[0] ? { card: cards[0] } : { refusal: "read_incomplete" };
     };
 
-    /** The advert behind an adId, for THIS person — scoped by her own paste record, never by the
+    /** The advert behind an adId, for THIS person — scoped by her own paste records, never by the
      *  id alone. The reading is shared (#294 ruling 1); being allowed to open the screen is a
      *  different question, and `adId` is a hash of (company, location, title), which anyone who has
      *  seen the job can compute. The card carries `adExcerpt`, which for a pasted advert is the
      *  whole pasted text — #294 clause 10 names what that text can contain — so an unscoped lookup
      *  here would hand one person's paste to anyone who guessed the three fields.
      *
-     *  Pasted jobs only. A job the app FOUND has its own screen the day #306 needs one; nothing in
-     *  #303 lands anyone on it, and a second resolution path with no caller is a path nothing
-     *  tests. */
-    const pastedPostingFor = async (session: SessionRecord, adId: string): Promise<Posting | undefined> => {
-      const records = await deps.pasteRecords.listBySession(session.id);
-      if (!records.some((record) => record.adId === adId)) return undefined;
-      return (await pastedPostings(deps.postings)).find((p) => p.id === adId);
-    };
+     *  #305: this is now the SAME resolver the deck stitches from (broughtJobs.ts), which is what
+     *  keeps the two surfaces honest — the ageing line the job's own screen shows is the line its deck
+     *  card shows, composed once, from the same paste record.
+     *
+     *  Pasted jobs only. A job the app FOUND has its own screen the day #306 needs one; nothing here
+     *  lands anyone on it, and a second resolution path with no caller is a path nothing tests. */
+    const brought = makeBroughtJobs(deps);
+    const broughtJobFor = async (session: SessionRecord, adId: string): Promise<BroughtJob | undefined> =>
+      (await brought(session.id)).find((job) => job.posting.id === adId);
 
     /** #304 — the whole read, narrated. Runs detached from the request that started it and reports
      *  only into the job record, which is why the three steps can be watched at all: a synchronous
@@ -250,7 +248,13 @@ export function pasteRoutes(deps: PasteDeps) {
 
         state.step = "profile";
         await push();
-        const built = await cardFor(session, outcome.posting);
+        // Read back rather than shaped from `outcome`: the ageing line has to come off the stored paste
+        // record, and a SECOND paste of an advert he brought a fortnight ago carries that fortnight
+        // (first-write-wins), so the card he lands on already ages. Missing is structurally impossible
+        // — pasteAdvert wrote both rows a moment ago — so it is reported as our failure, not his.
+        const job = await broughtJobFor(session, outcome.adId);
+        if (!job) return void (await fail("error"));
+        const built = await cardFor(session, job);
         // The advert is stored whatever happens here, so nothing is lost and a retry re-spends
         // nothing; what he is told is why he is not being shown a card.
         if ("refusal" in built) return void (await fail(built.refusal));
@@ -284,9 +288,9 @@ export function pasteRoutes(deps: PasteDeps) {
 
     app.get("/onboarding/jobs/:adId", { schema: { params: Params } }, async (req, reply) => {
       const session = requireSession(req);
-      const posting = await pastedPostingFor(session, req.params.adId);
-      if (!posting) return reply.status(404).send(UNKNOWN_CARD);
-      const built = await cardFor(session, posting);
+      const job = await broughtJobFor(session, req.params.adId);
+      if (!job) return reply.status(404).send(UNKNOWN_CARD);
+      const built = await cardFor(session, job);
       if ("refusal" in built) return reply.status(409).send({ error: CARD_REFUSALS[built.refusal] });
       return { card: built.card };
     });
@@ -295,15 +299,14 @@ export function pasteRoutes(deps: PasteDeps) {
 
 const UNKNOWN_CARD = { error: { code: "unknown_card", message: "no such job" } };
 
-type CardRefusal = "withdrawn" | "read_incomplete";
+// #305 removed `withdrawn` from this union: a job he brought is never withdrawn (#294 c1), so the one
+// way a stored advert yields no card is a reading we could not finish.
+type CardRefusal = "read_incomplete";
 type CardOutcome = { card: JobCard } | { refusal: CardRefusal };
 
-// 409, not 404: the job exists and is stored. What is refused is the card, and the two reasons are
-// different things to be told. #304 renders `read_incomplete` as the full failure screen that keeps
-// his text; #305 removes `withdrawn` outright — a job he brought is never withdrawn, it stays and
-// says why.
+// 409, not 404: the job exists and is stored. What is refused is the card. #304 renders
+// `read_incomplete` as the full failure screen that keeps his text.
 const CARD_REFUSALS: Record<CardRefusal, { code: CardRefusal; message: string }> = {
-  withdrawn: refusalFor("withdrawn"),
   read_incomplete: refusalFor("read_incomplete"),
 };
 

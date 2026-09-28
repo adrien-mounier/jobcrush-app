@@ -30,6 +30,9 @@ import { detectLanguage, languageEligible, SERVED_LANGUAGES } from "./language.j
 import { incrementCounter } from "./counters.js";
 import type { SessionRecord } from "./sessions.js";
 import { isReusableRetrievalSnapshot, sessionDeckIsAuthorized } from "./postingRetrieval.js";
+// #305: type-only, and it has to stay that way — broughtJobs.ts reads `Posting` from here, so a value
+// import in this direction would close a runtime cycle. TS erases this one.
+import type { BroughtJob } from "./broughtJobs.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -116,12 +119,31 @@ export function eligiblePostings(languages: string[], postings = loadPostings())
 export function sessionPostings(
   session: Pick<SessionRecord, "retrieval" | "discovery">,
   requestFingerprint: string,
+  // #305: the adverts HE BROUGHT, stitched in here — at the one door all three posting readers pass
+  // through, so no caller can forget them and no caller can apply the snapshot's rules to them. They
+  // are deliberately OUTSIDE both checks above: a job he pasted is his own, it was never fetched, and
+  // nothing about it can go stale in a way a re-ask would fix. That is also what makes a provider
+  // blackout an ordinary deck for him rather than an apology (#294 c8) — the snapshot is unusable and
+  // his own jobs are still there. Absent (every pre-#305 caller) → today's behaviour, byte for byte.
+  //
+  // THE #248 GATE IS BYPASSED FOR THESE ROWS, deliberately, and it is not a hole: that gate asks "may
+  // she be shown the adverts WE FETCHED before she has earned them", and these are the adverts SHE
+  // brought. The list is scoped to her own paste records (broughtJobs.ts), never to the pasted source,
+  // so it can only ever hold her own; and #303 already serves this same card, unwalled, on the job's
+  // own screen the paste door sends her to. Flagged for the owner as a rule read narrowly, not widened.
+  brought: readonly BroughtJob[] = [],
 ): Posting[] {
-  if (
-    !sessionDeckIsAuthorized(session) ||
-    !isReusableRetrievalSnapshot(session.retrieval, requestFingerprint)
-  ) return [];
-  return retrievedPostings(session.retrieval?.result ?? null);
+  const authorized =
+    sessionDeckIsAuthorized(session) && isReusableRetrievalSnapshot(session.retrieval, requestFingerprint);
+  const retrieved = authorized ? retrievedPostings(session.retrieval?.result ?? null) : [];
+  if (brought.length === 0) return retrieved;
+  // His own first, and a fetched record for the same job dropped rather than shown twice: the ids are
+  // canonical, so one advert we ALSO found is the same card, and it is his copy that carries the
+  // pasted text and the paste record the ageing line counts from. Stated consequence: that job then
+  // carries the brought job's exemptions — not withdrawn, not family-deleted — because he brought it,
+  // and a provider also happening to list it does not unmake that choice (#290 ruling 3).
+  const broughtIds = new Set(brought.map((job) => job.posting.id));
+  return [...brought.map((job) => job.posting), ...retrieved.filter((posting) => !broughtIds.has(posting.id))];
 }
 
 /** The adverts one retrieval result actually delivered. Keyed by canonical identity so two providers

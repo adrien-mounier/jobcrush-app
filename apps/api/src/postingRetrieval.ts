@@ -449,11 +449,21 @@ function suppressed(record: ProviderPostingRecordV1, negatives: string[]): boole
 }
 
 function isFresh(record: ProviderPostingRecordV1, policy: PostingProviderPolicyV1, nowMs: number): boolean {
-  // #302: no liveness confirmation, ever, means this gate has nothing to measure. It answers "not
-  // fresh" rather than guessing, and the source is kept OUT of this gate's way instead — #305
-  // exempts a never-liveness-checkable source from the ingest filter entirely, which is the only
-  // correct answer for a posting nobody can re-check (this gate is all-or-nothing: one stale
-  // record discards the whole snapshot).
+  // #305 (#294 c2), the first of the two exemptions, keyed on the SOURCE and nothing else: a source
+  // that can never be liveness-checked has nothing for this gate to measure, so the gate stands aside
+  // instead of answering "not fresh" about a posting nobody can re-check. The stated closing date below
+  // is deliberately never reached for such a source either — it is the employer's word about when
+  // applications close, not a liveness signal (#294 c4).
+  //
+  // Honest about its reach: TODAY this is belt and braces, not what keeps the deck alive. A pasted
+  // advert is never fetched (providersFor drops a never-liveness-checkable source) so it never reaches
+  // this filter, and it never rides a retrieval snapshot either — it is stitched in from storage by
+  // preview.ts's sessionPostings, outside both gates. What the pair buys is that the day anything DOES
+  // put such a record in front of a gate, the gate says "not my business" instead of discarding the
+  // whole snapshot — which is all-or-nothing, so one week-old paste would otherwise blank every other
+  // card on the deck. Kept because the spec asks for it by name and the failure it prevents is total.
+  if (!policy.livenessCheckable) return true;
+  // #302: a liveness-checkable source with no confirmation on this record has not been confirmed live.
   if (record.verifiedLiveAt === null) return false;
   const verifiedMs = Date.parse(record.verifiedLiveAt);
   const ttlMs = Math.min(24, policy.freshnessTtlHours) * 60 * 60 * 1000;
@@ -538,16 +548,20 @@ export function isReusableRetrievalSnapshot(
     return nowMs - retrievedMs <= ttlMs;
   }
   return snapshot.result.postings.every((posting) => {
-    if (posting.expiresAt !== null) {
-      const expiresMs = Date.parse(posting.expiresAt);
-      if (!Number.isFinite(expiresMs) || expiresMs <= nowMs) return false;
-    }
     const sourcePolicies = posting.sources.map((source) =>
       registry.find((policy) => policy.providerId === source.providerId),
     );
     if (sourcePolicies.some((policy) => !policy)) return false;
-    // #302: same as isFresh above — nothing to measure, so not reusable, until #305 exempts a
-    // never-liveness-checkable source from this gate too.
+    // #305 (#294 c2), the second exemption, the same rule as isFresh's, keyed the same way, and with the
+    // same stated reach (see isFresh above — unreachable today, kept for the day it is not): a posting
+    // no source can ever re-check cannot make a snapshot unusable, and — checked BEFORE the stated
+    // expiry below — its employer-stated closing date does not feed this gate either (#294 c4).
+    if (sourcePolicies.every((policy) => !policy!.livenessCheckable)) return true;
+    if (posting.expiresAt !== null) {
+      const expiresMs = Date.parse(posting.expiresAt);
+      if (!Number.isFinite(expiresMs) || expiresMs <= nowMs) return false;
+    }
+    // #302: a liveness-checkable source with no confirmation on this posting has not been confirmed.
     if (posting.verifiedLiveAt === null) return false;
     const verifiedMs = Date.parse(posting.verifiedLiveAt);
     const ttlHours = Math.min(24, ...sourcePolicies.map((policy) => policy!.freshnessTtlHours));
@@ -855,7 +869,9 @@ export function makePostingRetriever(
     // explicitly rather than trusted to a `!`. A record with no liveness date at all is not
     // "stale data": there is no last-known-fresh instant to report. Unreachable while every
     // QUERIED source is liveness-checkable (providersFor guarantees it), which is why the branch
-    // falls through rather than inventing an answer; #305 decides what a pasted advert does here.
+    // falls through rather than inventing an answer. #305's answer: a pasted advert never reaches
+    // this code at all — it is not fetched, so it is not in `stale`, and it reaches the deck by being
+    // stitched in from storage (broughtJobs.ts) rather than by riding a retrieval result.
     const lastKnownFreshAt = stale
       .map((record) => record.verifiedLiveAt)
       .filter((at): at is string => at !== null)

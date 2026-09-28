@@ -19,7 +19,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { canonicalKeyOf, type ProviderPostingRecordV1 as ProviderPostingRecordV1Value } from "@jobcrush/contracts";
+import {
+  canonicalKeyOf,
+  type PostingV1 as PostingV1Value,
+  type ProviderPostingRecordV1 as ProviderPostingRecordV1Value,
+} from "@jobcrush/contracts";
 import { extractJson } from "./miner.js";
 import { detectLanguage, languageEligible, SERVED_LANGUAGES } from "./language.js";
 import type { LlmClient } from "./llm.js";
@@ -254,16 +258,22 @@ export async function pasteAdvert(deps: PasteAdvertDeps, input: PasteAdvertInput
 
   const adId = `posting:${canonicalKeyOf(record.company, record.location, record.title)}`;
   const pastedAt = await deps.pasteRecords.record(input.sessionId, adId, capturedAt);
-  return { ok: true, adId, posting: postingsOf([record])[0]!, reused: existing !== null, pastedAt };
+  return {
+    ok: true,
+    adId,
+    posting: postingOf(dedupePostings([record])[0]!),
+    reused: existing !== null,
+    pastedAt,
+  };
 }
 
-/** Stored provider records, as the canonical postings the rest of the app reads. Goes through
- *  dedupePostings rather than mapping fields by hand, so a pasted advert is shaped by exactly the
- *  same merge every other posting is — including the day it dedupes onto a record a real provider
- *  also carries. The field mapping is preview.ts's retrievedPostings, which cannot be reused
- *  directly: that one takes a RetrievalResult (a fetch this source never performs). */
-function postingsOf(records: ProviderPostingRecordV1Value[]): Posting[] {
-  return dedupePostings(records).map((canonical) => ({
+/** One canonical posting as the card-shaping side of the app reads it. The field mapping is
+ *  preview.ts's retrievedPostings, which cannot be reused directly: that one takes a RetrievalResult
+ *  (a fetch this source never performs). Exported because #305's ageing line needs the fields this
+ *  mapping DROPS — the employer's stated closing date above all — so it reads the canonical posting
+ *  and maps it here, rather than keeping a second mapping of its own (broughtJobs.ts). */
+export function postingOf(canonical: PostingV1Value): Posting {
+  return {
     id: canonical.id,
     title: canonical.title,
     company: canonical.company,
@@ -271,14 +281,23 @@ function postingsOf(records: ProviderPostingRecordV1Value[]): Posting[] {
     keywords: canonical.skills,
     excerpt: canonical.excerpt,
     language: canonical.language,
-  }));
+  };
 }
 
-/** Every advert pasted by anyone, as canonical postings — what the job's own screen resolves an adId
- *  against, and (from #305) what the deck stitches in on every rebuild, because a pasted advert has
- *  no provider to re-ask.
+/** Every advert pasted by anyone, as canonical postings. Goes through dedupePostings rather than
+ *  mapping fields by hand, so a pasted advert is shaped by exactly the same merge every other posting
+ *  is — including the day it dedupes onto a record a real provider also carries.
  *  ponytail: reads every pasted row and dedupes the lot to find one id. Correct and cheap at this
  *  product's size; index by canonical key in the store if the pasted table ever grows large. */
+export async function pastedCanonicalPostings(
+  store: Pick<PostingStore, "listByProvider">,
+): Promise<PostingV1Value[]> {
+  return dedupePostings(await store.listByProvider(PASTED_SOURCE_PROVIDER_ID));
+}
+
+/** Every advert pasted by anyone, as the postings the rest of the app reads — what the job's own
+ *  screen resolves an adId against. #305's deck stitching goes through broughtJobs.ts instead, which
+ *  needs the closing date this shape drops. */
 export async function pastedPostings(store: Pick<PostingStore, "listByProvider">): Promise<Posting[]> {
-  return postingsOf(await store.listByProvider(PASTED_SOURCE_PROVIDER_ID));
+  return (await pastedCanonicalPostings(store)).map(postingOf);
 }

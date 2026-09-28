@@ -44,6 +44,15 @@ const JobCardCommon = z.object({
    *  instead of letting silence read as a pass or a fail. Optional and additive: a card with nothing
    *  untested omits it entirely, so every pre-#162 payload stays byte-identical. */
   notTested: z.array(CardRequirement).optional(),
+  /** #305 (#294 c3) — the ageing line on a job HE BROUGHT: how long ago this person pasted it and that
+   *  we cannot check whether it is still open, or the closing date the employer stated when the advert
+   *  states one. Optional and additive, exactly like `notTested` above: absent on every job we found
+   *  ourselves (there is nothing to say — it was re-asked of its provider this minute) and absent on a
+   *  pasted job through its silent first week, so every pre-#305 payload stays byte-identical.
+   *  A whole sentence, composed server-side (broughtJobs.ts): the screen prints it and decides
+   *  nothing, so the deck card and the job's own screen cannot drift apart on the wording or the day
+   *  it starts. */
+  ageing: z.string().min(1).optional(),
 });
 
 /** A real score: judged against the candidate's evidence, or — only when no judge is wired at all —

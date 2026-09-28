@@ -717,6 +717,17 @@
   margin: 2px 0 0 25px;
 }
 
+/* #305 the ageing line on a job he brought — quiet, but not a footnote: it sits between the header
+   and the bubble, at body size rather than the 12px of a note, because it is the one thing on this
+   card we cannot verify and he has to decide with it. Scoped to .jobdeck like every other card rule,
+   so the job's own screen (/job/[adId], whose root carries .jobdeck) gets it identically. */
+.jobdeck .ageing {
+  margin: 14px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--hud-mute);
+}
+
 /* #51 the reduced match breakdown — two cells inside the card, above the folded ad. Scoped to
    .jobdeck so it applies to /tailor's live-card too (its root carries .jobdeck). */
 .jobdeck .breakdown {

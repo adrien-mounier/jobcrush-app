@@ -45,20 +45,19 @@ import { judgedMatchTick } from "../judgedScore.js";
 import type { JudgeFn, JudgePeekFn } from "../judge.js";
 import {
   advertFamilyIdFor,
-  buildDeckCards,
+  buildDeckResponse,
   buildJobCard,
   buildTailorState,
   claimTier,
-  hasOpenDiscoveryQuestions,
-  newToFamily,
   resolveAdRequirements,
   resolveJudgement,
   resolveSessionYears,
   tailorTarget,
   withYearsShortfall,
 } from "../deck.js";
-import { applyFallbackChoice, fallbackOffer } from "../deckFallback.js";
-import { makeRetrievalCoordinator, retrievalIsInProgress } from "../deckRetrieval.js";
+import { applyFallbackChoice } from "../deckFallback.js";
+import type { BroughtJobsFn } from "../broughtJobs.js";
+import { makeRetrievalCoordinator } from "../deckRetrieval.js";
 import { answerLanguageLevel, LanguageLevelBody, withLanguageLevelAsks } from "../languageLevel.js";
 import { runLabelerRetry } from "../jobBlockPlacementRetry.js";
 import { findWithdrawingRequirement, partitionByWithdrawal } from "../withdrawal.js";
@@ -106,6 +105,10 @@ export interface OnboardingDeps {
    *  in familyCandidateIntake.ts). Never awaited, never visible; absent → nothing is screened. */
   watchFamilyCandidate?: (session: Readonly<SessionRecord>) => void;
   retryJobBlockLabels?: (sessionId: string) => Promise<void>;
+  /** #305: the adverts THIS person pasted, stitched into the deck on every rebuild and resolvable as a
+   *  want/tailor target — a pasted job has no provider to re-ask (broughtJobs.ts). Absent → no pasted
+   *  advert is stitched anywhere, exactly the behaviour every pre-#305 test asserts. */
+  broughtJobs?: BroughtJobsFn;
   /** JC-24: LLM phrasing for grill questions. Absent → template phrasing (tests + the safe fallback). */
   phraseGrill?: GrillPhraser;
   /** S2 decision #6: LLM wording audit of the built root CV. Absent → the CV ships unaudited. */
@@ -618,59 +621,19 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     );
 
     // --- #19 the reveal + the job card (screen 2a): score-sorted card deck ----------------------
+    // #305 lowered the ratchet by paying for its own lines: the whole payload — retrieval, the years
+    // scope, the cards pass, the empty deck's copy rule and the fallback offer — moved to deck.ts
+    // (buildDeckResponse), beside the card-shaping policy it composes. The spine calls it.
     app.get("/onboarding/cards", async (req) => {
       const session = requireSession(req);
       deps.watchFamilyCandidate?.(session); // #236 — background, never awaited, never user-visible.
       await runLabelerRetry(deps.retryJobBlockLabels, session.id, fastify.log);
-      const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-      const retrievalRequest = retrievalRequestForSession(session, confirmed, negatives);
-      const requestFingerprint = retrievalFingerprint(retrievalRequest);
-      // deckRetrieval.ts returns the response snapshot and starts background work when this process owns it.
-      const retrieval = retrievalCoordinator.ensureRetrieval(session, retrievalRequest, requestFingerprint);
-      // #222: years at BOTH scopes — the advert's family (advertFamilyIdFor: the confirmed floor,
-      // else the target-role placement) and the career total. Known zero vs unmapped fallback is
-      // resolveSessionYears's rule (deck.ts / ADR-0014 amendment 1 decision 6). Reads `facts` +
-      // `blocks` already fetched above by discoveryReads — one eligibility read per request.
-      const role = session.targetTitles[0] ?? null;
-      // #243: the deck's family — read by the years scope AND the family-fit deletion/ranking.
-      const deckFamilyId = await advertFamilyIdFor(session, deps.placeFamily);
-      const years = resolveSessionYears(facts, blocks, deckFamilyId);
-      const langs = readingLanguages(session);
-      const postings = eligiblePostings(langs, sessionPostings(session, requestFingerprint));
-      // deck.ts's buildDeckCards: read → delete wrong-family → withdraw → judge within the paid
-      // bound → shape + order. See its own doc (and judgeDeck's) for the spend-bound properties.
-      const { cards, pendingCount, withdrawn } = await buildDeckCards(
-        postings,
-        { confirmed, negatives, facts, years, deckFamilyId, langs },
-        deps,
-      );
-      // #235: whether the empty deck may say "answer a few more questions" (deck.ts owns the rule).
-      const moreQuestions = hasOpenDiscoveryQuestions(
-        session,
-        confirmed,
-        negatives,
-        rejected,
-        facts,
-        blocks,
-        await currentFamily(session),
-      );
-      // #22: authed tells the client whether the account wall at the reveal applies — false only
-      // for a still-anonymous session, so a returning (claimed) visitor is never re-walled.
-      return {
-        stage: session.stage,
-        cards,
-        pendingCount,
-        authed: session.claimedByUserId !== null,
-        withdrawn,
-        retrieval,
-        searching: retrievalIsInProgress(retrieval),
-        moreQuestions,
-        // #229: the career changer's one sentence — copy only, the score is untouched (deck.ts).
-        newToFamily: newToFamily(years),
-        // #228: the dead end's offer — server-owned, so the screen renders and never decides
-        // (deckFallback.ts owns the four preconditions).
-        fallback: fallbackOffer(session, moreQuestions, blocks, deps.productionFamilyFloors),
-      };
+      const reads = await discoveryReads(session.id);
+      return buildDeckResponse(session, reads, {
+        ...deps,
+        ensureRetrieval: retrievalCoordinator.ensureRetrieval,
+        currentFamily,
+      });
     });
 
     // #228: her answer to that offer. No provider call here — accepting only records the choice, and
@@ -716,7 +679,10 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const langs = readingLanguages(session);
         const [confirmed, negatives, , facts] = await discoveryReads(session.id);
         const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
-        const posting = eligiblePostings(langs, sessionPostings(session, fingerprint)).find((p) => p.id === req.params.adId);
+        // #305: a job he brought is in no snapshot — it is stitched in from storage (broughtJobs.ts).
+        const brought = (await deps.broughtJobs?.(session.id)) ?? [];
+        const pool = sessionPostings(session, fingerprint, brought);
+        const posting = eligiblePostings(langs, pool).find((p) => p.id === req.params.adId);
         const adReq = posting ? await resolveAdRequirements(posting.id, deps.readAd, posting) : null;
         // T3 (code review): guard on `posting`/`adReq` themselves, not a derived boolean, so TS
         // narrows both to non-null below without a `!` assertion — a later edit to this guard is then
@@ -726,7 +692,9 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
         // #107 (D4): a withdrawn ad is not a valid want target either — same 404 shape as an unknown
         // card, so a session can never distinguish "never existed" from "genuinely can't take it".
-        if (findWithdrawingRequirement(adReq, facts, posting.location))
+        // #305: `brought` is passed because a job he brought is never withdrawn (#294 c1) — the rule
+        // lives in the predicate, so this door cannot hold a different opinion from the deck's.
+        if (findWithdrawingRequirement(adReq, facts, posting.location, brought))
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
 
         await deps.sessions.setTailorTarget(session.id, req.params.adId);
@@ -750,7 +718,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           .send({ error: { code: "no_tailor_target", message: "no job being tailored" } });
       const [confirmed, negatives, , facts, blocks] = await discoveryReads(session.id);
       const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
-      const target = await tailorTarget(session, adId, deps.readAd, fingerprint);
+      const brought = (await deps.broughtJobs?.(session.id)) ?? []; // #305, as on /want above.
+      const target = await tailorTarget(session, adId, deps.readAd, fingerprint, brought);
       if (!target)
         return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
       const { posting, adReq } = target;
@@ -758,7 +727,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       // target at all — no rejection message, no error screen (the ticket's own UX intent: "It does
       // not appear as a greyed-out card, a 'you can't apply' state, or a rejection message"). Clearing
       // it here means a reload doesn't keep landing back on the same dead target.
-      if (findWithdrawingRequirement(adReq, facts, posting.location)) {
+      // #305: and never for a job he brought — it stays, whatever his own answers say (#294 c1).
+      if (findWithdrawingRequirement(adReq, facts, posting.location, brought)) {
         await deps.sessions.clearTailorTarget(session.id);
         return reply
           .status(409)
@@ -799,7 +769,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const fingerprint = retrievalFingerprint(
           retrievalRequestForSession(session, targetConfirmed, targetNegatives),
         );
-        const target = await tailorTarget(session, adId, deps.readAd, fingerprint);
+        const brought = (await deps.broughtJobs?.(session.id)) ?? []; // #305, as on /want above.
+        const target = await tailorTarget(session, adId, deps.readAd, fingerprint, brought);
         if (!target)
           return reply.status(404).send({ error: { code: "not_found", message: "unknown card" } });
         const { posting, adReq } = target;
@@ -834,7 +805,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         // still recorded — harmless, tied to this ad's own claim id) behaves EXACTLY like no target
         // at all from here on: no rejection message, nothing further asserted about a job the visitor
         // can no longer take. Cleared so a reload doesn't keep landing back on the same dead target.
-        if (findWithdrawingRequirement(adReq, facts, posting.location)) {
+        // #305: never for a job he brought — it stays, whatever his own answers say (#294 c1).
+        if (findWithdrawingRequirement(adReq, facts, posting.location, brought)) {
           await deps.sessions.clearTailorTarget(session.id);
           return reply
             .status(409)

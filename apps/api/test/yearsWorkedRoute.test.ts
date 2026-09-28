@@ -132,7 +132,9 @@ describe("#162 the total tracks the records underneath", () => {
     // Never uploaded anything: nothing was read, so the bar cannot be tested — distinct from a zero.
     const server = buildServer();
     const cookie = await anonSession(server.app);
-    const cards = (await server.app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } })).json() as {
+    // injectSettled: the first cards read reports `searching` (#245, and #305 made that deterministic
+    // — one response, one observed session state), so the deck arrives on a later read.
+    const cards = (await injectSettled(server.app, { method: "GET", url: "/onboarding/cards", headers: { cookie } })).json() as {
       cards: Array<{ notTested?: Array<{ id: string }>; matchPct: number | null }>;
     };
     const untested = cards.cards.filter((c) => (c.notTested?.length ?? 0) > 0);

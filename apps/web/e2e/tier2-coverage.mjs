@@ -156,6 +156,10 @@ const PASTE = [
   "apps/web/app/pastedoor.tsx",
   "apps/web/app/pastedoor.css",
 ];
+// #305 — what a job he brought does once it is in: the stitching, the pinned band, the ageing line.
+// Its own group rather than a line in PASTE, because a change here reddens the DECK journeys (the
+// pinned card and its notice are deck rendering), not the paste door's own screen.
+const BROUGHT = ["apps/api/src/broughtJobs.ts"];
 
 const union = (...groups) => [...new Set(groups.flat())];
 
@@ -278,6 +282,11 @@ export const COVERAGE = {
   // red on is the paste subsystem, the advert reader behind the requirements it prints, and the job
   // screen it lands on.
   "paste-wait-journey.mjs": union(PASTE, POSTINGS, DECK),
+  // #305: the ageing line on a rendered card, on the deck and on the job's own screen. It reads the
+  // deck's order and its notice, so the brought-job rules, the paste subsystem behind the advert, the
+  // deck's own card rendering and the retrieval that supplies the jobs it is pinned above are all
+  // paths it can genuinely go red on.
+  "brought-job-ageing-journey.mjs": union(BROUGHT, PASTE, DECK, POSTINGS, AUTH),
   // #165: a language and its level are two facts; the ladder on the deck's own cards.
   "language-ladder-journey.mjs": union(
     ["apps/api/src/language.ts", "apps/api/src/languageLevel.ts"],

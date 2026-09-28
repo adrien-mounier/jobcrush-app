@@ -85,7 +85,7 @@ import { makeJudge, makeJudgePeek } from "./judge.js";
 // DATABASE_URL and would write judgements to the real shared Postgres from a QA run.
 import { InMemoryJudgementStore } from "./judgementStore.js";
 import { InMemoryPostingStore } from "./postingStore.js";
-import { InMemoryPasteRecordStore } from "./pasteRecordStore.js";
+import { InMemoryPasteRecordStore, type PasteRecordStore } from "./pasteRecordStore.js";
 import { pastedPostings } from "./pastedAdvert.js";
 import { DevMailer } from "./mailer.js";
 import { createGuestbook } from "./guestbook.js";
@@ -683,7 +683,26 @@ const judgements = new InMemoryJudgementStore();
 // no DATABASE_URL, so nothing here survives a restart, which is the documented ceiling of this
 // whole file, not a property of the paste door.
 const qaPostingStore = new InMemoryPostingStore();
-const qaPasteRecords = new InMemoryPasteRecordStore();
+
+// #305 — the ageing line is the one thing in the product that can only be SEEN after days have
+// passed, and a browser journey cannot wait a week. So this entry (and this entry only — it is pruned
+// from the Docker image) can move the paste clock BACKWARDS on the read side: the stored record is
+// untouched, `listBySession` simply reports it as older. That is exactly the input the ageing line
+// takes, so the journey drives the real screen with the real rule and nothing about the rule is faked.
+// Off by default (0 days), armed per-run through POST /qa/stack's `pasteDaysAgo`, like every other knob.
+let qaPasteDaysAgo = 0;
+const qaPasteRecordsInner = new InMemoryPasteRecordStore();
+const qaPasteRecords: PasteRecordStore = {
+  durable: qaPasteRecordsInner.durable,
+  init: () => qaPasteRecordsInner.init(),
+  record: (sessionId, adId, pastedAt) => qaPasteRecordsInner.record(sessionId, adId, pastedAt),
+  listBySession: async (sessionId) =>
+    (await qaPasteRecordsInner.listBySession(sessionId)).map((row) =>
+      qaPasteDaysAgo === 0
+        ? row
+        : { ...row, pastedAt: new Date(Date.parse(row.pastedAt) - qaPasteDaysAgo * 86_400_000).toISOString() },
+    ),
+};
 
 const blobs = new LocalDiskStorage(process.env.QA_UPLOAD_DIR ?? join(process.cwd(), "qa-uploads"));
 
@@ -832,7 +851,7 @@ app.get("/qa/llm-calls", async () => seen);
 // instantly-judged cards, find none of the states it exists to prove, note that judging beat the
 // reveal, and pass. A knob that fails by quietly turning itself off is worse than no knob.
 app.post<{
-  Body: { judgeDelayMs?: number; languageAdverts?: boolean; retrievalOutcome?: string };
+  Body: { judgeDelayMs?: number; languageAdverts?: boolean; retrievalOutcome?: string; pasteDaysAgo?: number };
 }>("/qa/stack", async (req, reply) => {
   if (req.body?.judgeDelayMs !== undefined) {
     const ms = Number(req.body.judgeDelayMs);
@@ -861,7 +880,27 @@ app.post<{
     }
     qaRetrievalOutcome = wanted;
   }
-  return { ok: true, judgeDelayMs, languageAdverts: languageAdvertsOn, retrievalOutcome: qaRetrievalOutcome };
+  // #305: how many days ago this run's pastes should read as. A junk value is a 400 for the same
+  // reason judgeDelayMs's is: a silently-coerced NaN would disarm the knob, and the ageing journey
+  // would then walk a deck of brand-new pastes, find no notice, and pass.
+  if (req.body?.pasteDaysAgo !== undefined) {
+    const days = Number(req.body.pasteDaysAgo);
+    // Out of range is a REFUSAL, not a clamp, for the same reason a junk value is: a run that asked for
+    // 9999 days and silently got 365 would report a verdict about a day count nobody applied.
+    if (!Number.isInteger(days) || days < 0 || days > 365) {
+      return reply
+        .status(400)
+        .send({ error: { code: "bad_request", message: "pasteDaysAgo must be a whole number of days, 0-365" } });
+    }
+    qaPasteDaysAgo = days;
+  }
+  return {
+    ok: true,
+    judgeDelayMs,
+    languageAdverts: languageAdvertsOn,
+    retrievalOutcome: qaRetrievalOutcome,
+    pasteDaysAgo: qaPasteDaysAgo,
+  };
 });
 
 const port = Number(process.env.PORT ?? 34101);

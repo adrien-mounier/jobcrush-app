@@ -1032,6 +1032,79 @@ describe("#101 posting retrieval service", () => {
     });
   });
 
+  // #305 (#294 c2) — the two freshness-gate exemptions, keyed on the SOURCE. A pasted advert can never
+  // be re-checked (nothing fetches it, and a fetch is what stamps a liveness date), so the gate stands
+  // aside for it. Load-bearing rather than tidy, which is what the second case here proves: the gate is
+  // all-or-nothing, so a pasted advert judged stale would discard the WHOLE snapshot — every other card
+  // on the deck — instead of ageing its own card.
+  describe("#305 a source nobody can re-check is exempt from both freshness gates", () => {
+    const pastedPolicy = {
+      ...policy(PASTED_SOURCE_PROVIDER_ID, ["*"], 2, 0),
+      livenessCheckable: false,
+    };
+    /** A pasted advert as it is really stored: never confirmed live, and a fortnight old. */
+    const pastedRecord = (over: Partial<ProviderPostingRecordV1> = {}) =>
+      record(PASTED_SOURCE_PROVIDER_ID, "fingerprint", {
+        capturedAt: "2026-08-01T00:00:00.000Z",
+        verifiedLiveAt: null,
+        ...over,
+      });
+    const snapshotOf = (postings: ReturnType<typeof dedupePostings>, retrievedAt: string) => ({
+      requestFingerprint: "fingerprint",
+      recordedAt: retrievedAt,
+      result: {
+        schemaVersion: "5" as const,
+        outcome: "relevant_postings" as const,
+        postings,
+        coverage: { providersQueried: ["techmap"], providersUnavailable: [], complete: true },
+        retrievedAt,
+      },
+    });
+
+    it("keeps a fortnight-old pasted advert in a snapshot, closing date long past and all", () => {
+      const registry = [policy("techmap", ["HK"], 1), pastedPolicy];
+      const retrievedAt = "2026-08-15T12:00:00.000Z";
+      const postings = dedupePostings(
+        [pastedRecord({ expiresAt: "2026-08-03" })], // the EMPLOYER's closing date, a fortnight gone
+        registry,
+      );
+      expect(
+        isReusableRetrievalSnapshot(snapshotOf(postings, retrievedAt), "fingerprint", registry, Date.parse(retrievedAt)),
+      ).toBe(true);
+    });
+
+    it("does not let that advert blank the deck: a snapshot holding it AND a fresh found job stays usable", () => {
+      const registry = [policy("techmap", ["HK"], 1), pastedPolicy];
+      const retrievedAt = "2026-08-15T12:00:00.000Z";
+      const postings = dedupePostings(
+        [
+          record("techmap", "live", { verifiedLiveAt: retrievedAt, company: "Northwind" }),
+          pastedRecord({ expiresAt: "2026-08-03" }),
+        ],
+        registry,
+      );
+      expect(postings).toHaveLength(2); // two different jobs, so the gate sees both
+      expect(
+        isReusableRetrievalSnapshot(snapshotOf(postings, retrievedAt), "fingerprint", registry, Date.parse(retrievedAt)),
+      ).toBe(true);
+      // The control: the SAME age and the SAME missing liveness date, on a source that can be
+      // re-checked, still discards the snapshot. The exemption is keyed on the source, not on the age.
+      const found = dedupePostings([record("techmap", "stale", { verifiedLiveAt: null })], registry);
+      expect(
+        isReusableRetrievalSnapshot(snapshotOf(found, retrievedAt), "fingerprint", registry, Date.parse(retrievedAt)),
+      ).toBe(false);
+    });
+
+    it("keeps a pasted advert out of the ingest filter, so a retrieval never classifies it stale", async () => {
+      // The ingest filter is only reachable through a fetch, and a never-liveness-checkable source is
+      // never fetched (providersFor) — so this asserts the pair of rules that makes that true, which is
+      // what keeps the exemption honest if someone ever wires a driver for it.
+      const registry = [policy("techmap", ["HK"], 1), pastedPolicy];
+      expect(providersFor(["HK"], registry).map((p) => p.providerId)).toEqual(["techmap"]);
+      expect(() => assertEveryActiveProviderIsImplemented(registry)).not.toThrow();
+    });
+  });
+
   it("rechecks cached relevant postings against every source policy TTL", () => {
     const verifiedAt = "2026-08-08T12:01:00.000Z";
     const retrievedAt = "2026-08-09T12:00:00.000Z";

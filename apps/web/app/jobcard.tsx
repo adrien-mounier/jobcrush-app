@@ -292,6 +292,15 @@ export function CardBody({
         )}
       </div>
 
+      {/* #305 (#294 c3) — the ageing line on a job HE BROUGHT: from day seven, how long ago he pasted
+          it and that we cannot check whether it is still open, or the closing date the employer stated
+          if the advert stated one. Server-composed (broughtJobs.ts), so this renders and decides
+          nothing — which is what keeps the deck card and the job's own screen saying the same thing.
+          Absent on every job we found, and on a pasted one through its silent first week. Placed
+          directly under the header because it is a fact about the job he needs BEFORE the score, not
+          a footnote under it. */}
+      {card.ageing && <p className="ageing">{card.ageing}</p>}
+
       {card.scored === "pending" ? (
         <PendingBubble gaveUp={gaveUp} retrying={retrying} onRetry={onRetry} />
       ) : card.scored === "unscored" ? (

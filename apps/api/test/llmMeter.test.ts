@@ -224,7 +224,11 @@ describe("meterLlm through the real HTTP seam", () => {
     const sessionId = (anon.json() as { id: string }).id;
     const cookie = `jc_session=${anon.cookies.find((c) => c.name === "jc_session")!.value}`;
 
-    const res = await app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
+    // injectSettled, not inject: the cards route never waits on provider latency (#245), so the FIRST
+    // read reports `searching` and the adverts arrive on a later one. #305 pinned that to the session
+    // state each response observed, so a first read can no longer happen to catch the background
+    // retrieval mid-flight — the wait the harness was written for is now the only way through.
+    const res = await injectSettled(app, { method: "GET", url: "/onboarding/cards", headers: { cookie } });
     expect(res.statusCode).toBe(200);
 
     await meteredReader.flushForTest();

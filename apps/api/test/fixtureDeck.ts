@@ -192,11 +192,16 @@ export async function coverEssentialFloor(
 /** Writes the snapshot a completed retrieval would have left, without issuing a deck request.
  *
  *  For the tests that cannot afford an extra deck build: one driving a deliberately hung reader, or
- *  counting model calls. Polling `/onboarding/cards` is no good to them — the in-memory session
- *  object is mutated by the background retrieval *during* the very first request, so that request
- *  usually builds a full deck too, reads and all. This goes through the store's real claim →
- *  reconcile protocol, so the snapshot it leaves is the same one the coordinator would have
- *  persisted, and the session is left with no claim in flight. */
+ *  counting model calls. Polling `/onboarding/cards` is no good to them — the first read is a wait,
+ *  not a deck (#245), so they would have to pay for a second one. This goes through the store's real
+ *  claim → reconcile protocol, so the snapshot it leaves is the same one the coordinator would have
+ *  persisted, and the session is left with no claim in flight.
+ *
+ *  #305 amended the sentence this comment used to carry ("the in-memory session object is mutated by
+ *  the background retrieval *during* the very first request, so that request usually builds a full
+ *  deck too"). It did — the store hands out the stored object — and whether it happened in time was a
+ *  race on how many awaits the route performed. buildDeckResponse now pins the retrieval it observed
+ *  at the start of the response, so the first read is deterministically a wait. */
 export async function seedRetrievalSnapshot(
   built: Pick<ReturnType<typeof baseBuildServer>, "sessions" | "claims">,
   sessionId: string,
