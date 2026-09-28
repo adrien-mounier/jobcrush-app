@@ -2,6 +2,87 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-28 — #303 built: paste an advert, get a job card
+
+`/implement` → `/code-review` → `/qa-gate` on **#303**, V3's second ticket and the first slice a person
+can actually use. The paste door exists end to end: a signed-in person presses **`＋ Paste a job`**,
+gets a screen of its own taking the advert text and the application link together, and lands on that
+job's own screen with a real scored card.
+
+**What moved.** Three new modules and one new route file, nothing in the spine (`routes/onboarding.ts`
+is byte-identical at 870/870):
+
+- `pastedAdvert.ts` — the whole paste path. A pasted advert becomes an **ordinary provider record**
+  under #302's `pasted-by-you` source and then goes nowhere new: the same store, the same reader, the
+  same scorer, the same checkpoints. Identity is a **fingerprint of the text**, so one advert has one
+  reading no matter who pasted it. The advert's own text is the record's `excerpt` — stored where it is
+  already used, not in a second place that could rot (#294 c9).
+- `pasteRecordStore.ts` — `(session_id, ad_id, pasted_at)`, PK on the pair, **first write wins**, both
+  drivers, one line in `purge.ts` (#294 c11). What #305's ageing clock counts from.
+- `routes/paste.ts` — `POST /onboarding/paste` and `GET /onboarding/jobs/:adId`. Its own file, not the
+  spine: the spine had zero headroom and the honest answer to that is a module beside the subsystem.
+- `prompts/pasted-advert.md` — the split a provider's feed would have done (title/company/location)
+  plus the employer-stated closing date. Deliberately tiny: widening it would fork advert-reading into
+  two prompts that each know a little about requirements.
+- Web: `/paste`, `/job/[adId]`, and a shared `PasteDoor` in the top bar of the deck, the profile and
+  the tailor screen — inert on the screen it opens.
+
+**Two defects the review axes caught**, neither visible in the tests:
+
+- **`GET /onboarding/jobs/:adId` served any session's pasted advert.** `adId` is
+  `sha256(company|location|title)` — computable by anyone who has seen the job — and the card carries
+  the whole pasted text, which #294 c10 names as able to contain a recruiter's own details. Now scoped
+  through the paste record. The shared *reading* (#294 ruling 1) was never shared permission to open
+  somebody's paste; conflating the two is how the store's `listBySession` had ended up with no
+  production caller at all.
+- **An `applicationUrl` was stored unvalidated.** It goes at the top of the application email and is
+  rendered as an anchor, so a non-web scheme is a live hazard. `http`/`https` only, refused at the
+  boundary and again at the write.
+
+Three review findings **declined**, with reasons recorded in the code: "side by side" is prototype
+door B's own layout; the job screen's *found*-job branch was deleted (nothing in #303 lands anyone
+there, and #306 adds it when it needs it); and the second-paste link backfill was deleted (first paste
+wins whole — the designed remedy for a missing link is #306's own apply-row control, not a second
+invisible way to set the same field).
+
+**Three defects only the QA gate could find**, and the first is the one worth remembering:
+
+- **Pasting never opened the job.** The `adId` was percent-encoded twice — `useParams` returns the
+  segment still encoded — so the server was asked for `posting%253A…` and answered 404. **Every paste,
+  every person**, while 1721 tests stayed green because they encode once, correctly. One decode.
+- **A slow first read was reported as a rejection.** When the requirements read missed its 15s deadline
+  the route said *"this job asks for something you have told us you do not have"* — to a qualified
+  person, about an advert nobody had finished reading, and to brand-new visitors who had said nothing
+  at all. The information to tell that apart was already in `buildDeckCards`'s `withdrawn` tally and
+  was being discarded. Now two messages; the slow one says to press again, which works because the
+  read self-heals into its cache (a later press returned in 3ms).
+- **The door was missing from the deck's resting states** — the empty deck and a provider outage have
+  no top bar at all, which is exactly where someone wants to bring their own job. Added to
+  `empty`/`unavailable`/`error`; deliberately not to `loading`/`searching`/`tailorHandoff`.
+
+**And one I caused mid-gate.** Wiring the QA stack so the browser journey could run there at all, I
+gave the canned requirements `band: "desirable"` — not a value `RankBand` has. The gate found it in
+minutes. The root cause was in **this ticket's own unit fixture**, which carried the same invalid band
+and was green, because a hand-built object handed to an injected `readAd` is never parsed. The fixture
+now goes through `AdRequirementsV1.parse` on the way out. Three lessons recorded.
+
+**Gate: GO** (confirmed twice — once on the real stack, once on the fake one after the QA wiring).
+1722 api + 55 contract tests, typecheck, web build, ratchet 870/870. The journey
+`apps/web/e2e/paste-door-journey.mjs` is green on **both** stacks. **USD 0.00** — every model call went
+through the free local CLI; no paid provider calls.
+
+**Two things left open for the owner**, neither blocking:
+
+1. **`paste-door-journey.mjs` is not in `run-tier2.mjs`**, so it does not run on a push. The list is
+   curated with a time and sign-in budget, and which journeys earn a slot is the owner's call. What the
+   QA wiring bought is that it *can* run on the fake stack at all — before, nobody could. One line to
+   add it; roughly two sign-ins and a couple of minutes per push.
+2. **The reveal curtain and the `searching` screen have no paste door.** Both are signed-in and neither
+   is transient (the curtain waits for a click and returns on every `/deck` arrival; `searching` polls
+   for minutes). The gate and I both judged them worth leaving — a competing call-to-action on a
+   single-action screen — but they are the strongest remaining reading of AC1's "every signed-in
+   screen". One word each in the existing guard if the owner wants them.
+
 ## 2026-09-28 — #302 built: the posting contract learns about pasted adverts
 
 `/implement` → `/code-review` → `/qa-gate` on **#302**, V3's first ticket and the prefactor for the

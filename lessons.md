@@ -3888,3 +3888,48 @@ was correct until one side could be NULL — then the comparison yields **NULL, 
 `CASE` falls to its `ELSE`, and an absent confirmation overwrote a real one. A nullable column needs
 its `IS NULL` arms written first and explicitly; there is no compiler for this one at all, so the
 store-contract test has to carry the mixed case on both drivers.
+
+## A test fixture that bypasses its own contract proves nothing
+
+#303 built a canned requirement set for the QA stack and gave its non-essential rows
+`band: "desirable"`. `RankBand` is `["essential", "standard", "nice-to-have"]` — **"desirable" is the
+word the CARD prints, not a band the contract has.** On the QA entry the payload hit
+`AdRequirementsV1.parse`, threw, and put the paste door in a permanent "not read yet" loop.
+
+The mistake was cheap. **Why it felt safe is the lesson:** the same invalid band was already sitting
+in the ticket's own unit fixture, and all 25 tests passed with it, because a hand-built object handed
+straight to an injected `readAd` is never validated. A fixture the product would reject had been
+green for hours, so writing the value a second time looked like copying something that worked.
+
+So: **a fixture that stands in for a contract payload goes through that contract's own parse on the
+way out** — `return AdRequirementsV1.parse({...})`, not `return {...} as AdRequirementsV1`. It costs
+one call and it converts "this test passes" into "this test passes on data the product accepts".
+The general form: a test double is only evidence if the real thing would have accepted it.
+
+Corollary, found the same round: **nothing unit-tests `qa-main.ts`.** It is exercised only by the CI
+browser journeys, so a contract violation in that file ships with a fully green `pnpm test`. Changes
+there need a live run, not a suite.
+
+## `useParams` hands back the URL segment still encoded
+
+`#303`'s job screen is `/job/[adId]`, and an `adId` is `posting:<hex>` — so the paste screen has to
+`encodeURIComponent` it into the path. Next's `useParams()` then returns it **still
+percent-encoded**, and the client encoded it a second time on the way to the API: the server was
+asked for `posting%253A…` and answered 404. **Every paste, for every person, landed on "this job
+isn't on your deck"** — the one screen the whole feature exists to reach.
+
+The API tests all passed, because they encode once, correctly. This is
+[payload tests don't prove the screen] in its purest form: 1721 green tests, one dead feature, and a
+browser was the only thing that could tell. Decode the segment once, defensively
+(`try { decodeURIComponent(s) } catch { return s }` — idempotent for ids with no literal `%`).
+
+## A value imported from `@jobcrush/contracts` drags `node:crypto` into the browser
+
+A shared helper looked like the obvious fix for one small function duplicated between the API and the
+web client. It is not: `packages/contracts/src/index.ts` re-exports `postingRetrieval.ts`, which
+imports `node:crypto` for `canonicalKeyOf`, so **any value import from the package root fails the
+Next build** (`UnhandledSchemeError: node:crypto`). `import type` is fine — types are erased.
+
+Sharing a runtime helper with client code therefore needs a subpath `exports` map on the package, not
+just a new file. Worth it for a rule that decides what gets STORED; not worth it for one whose drift
+costs a slightly different pre-filled form field. Say which one it is in the comment, in both copies.
