@@ -48,7 +48,13 @@
   border-radius: 10px;
   padding: 15px 17px;
   font-family: var(--sans);
-  font-size: 13px;
+  /* 16px, and it is a behaviour fix rather than a size preference: DESIGN.md's #274 rule says a
+     field's text is 16px because mobile Safari zooms the whole page into any focused field under
+     that, and pinning the viewport instead would take pinch-zoom away from everyone who needs it.
+     This is the screen whose whole job is pasting a long advert on a phone, so it was the worst
+     place in the product to be under the line. The front door's CV paste box — the same job — has
+     always been 16px; this box was the outlier. */
+  font-size: 16px;
   line-height: 1.55;
   resize: vertical;
   outline: none;
@@ -81,7 +87,7 @@
   border-radius: 10px; /* same rule, same call — was 8px */
   padding: 9px 11px;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: 16px; /* the same #274 rule — a field's text is 16px. Mono stays: it is a URL. */
   outline: none;
 }
 .pastescreen .field input:focus {

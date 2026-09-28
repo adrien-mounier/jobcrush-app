@@ -163,6 +163,22 @@ const stepsBefore = await page.locator('[data-testid^="paste-step-"]').count();
 await qa.note(`before the read, steps on screen: ${stepsBefore} (nothing is happening, so there is nothing to narrate)`);
 await must(stepsBefore === 0, "AC1 — nothing is narrated before he presses Read it");
 
+// #274, guarded here rather than in a journey of its own. The rule — a field's text is 16px,
+// because mobile Safari zooms the whole page into any focused field under that — has a
+// product-wide walk (field-style-journey.mjs) which never opens THIS screen and is itself in no
+// tier, which is exactly how the paste screen sat two sizes under the line unnoticed. Two
+// assertions on a journey the gate already runs close that for free; the walk's own homelessness
+// is a separate problem with its own ticket.
+const fieldSizes = await page.evaluate(() => ({
+  advert: getComputedStyle(document.querySelector("#advert")).fontSize,
+  link: getComputedStyle(document.querySelector("#applylink")).fontSize,
+}));
+await qa.note(`field text, as the browser computes it: advert ${fieldSizes.advert}, link ${fieldSizes.link} (#274 floor is 16px)`);
+await must(
+  parseFloat(fieldSizes.advert) >= 16 && parseFloat(fieldSizes.link) >= 16,
+  `#274 — both fields are at least 16px, so focusing one does not zoom the page on mobile Safari (got ${JSON.stringify(fieldSizes)})`,
+);
+
 await qa.fill(page.locator("#advert"), ADVERT, "paste a real advert into the box");
 
 // ---------------------------------------------------------------------------------------------
