@@ -771,3 +771,42 @@ export function resolveJobBlockMatch(id: string, resolution: JobBlockMatchResolu
     body: JSON.stringify(resolution),
   });
 }
+
+// --- #303 the paste door: bring a job you found yourself ---------------------------------------
+
+/** #303 — the link the pasted text carries, if any, used to PRE-FILL the link field as he pastes
+ *  (#291). It never overrules what he typed.
+ *
+ *  A second copy of apps/api/src/pastedAdvert.ts's `linkInText`, and the duplication is deliberate:
+ *  the shared home would be packages/contracts, but importing a VALUE from it here drags
+ *  `node:crypto` (canonicalKeyOf) into the browser bundle and the web build fails. This runs on
+ *  every keystroke, so it has to be client-side. If the two ever drift, the cost is bounded and
+ *  cosmetic — a field pre-filled with a slightly different string. Nothing here decides what is
+ *  STORED; the server re-reads the text itself when a paste arrives with no link. */
+export function linkInText(text: string): string | null {
+  const match = text.match(/https?:\/\/[^\s<>"')\]]+/);
+  if (!match) return null;
+  const trimmed = match[0].replace(/[.,;:!?]+$/, "");
+  return /^https?:\/\/\S+$/i.test(trimmed) ? trimmed : null;
+}
+
+export interface PasteResult {
+  /** The canonical posting id — the job's own screen is `/job/<adId>`. */
+  adId: string;
+  /** True when this advert had already been read (by him, or by anyone): nothing was spent. */
+  reused: boolean;
+  pastedAt: string;
+  card: JobCard;
+}
+
+export function pasteJob(text: string, applicationUrl: string | null): Promise<PasteResult> {
+  return jfetch("/api/onboarding/paste", {
+    method: "POST",
+    body: JSON.stringify({ text, applicationUrl }),
+  });
+}
+
+/** One job's own screen — a job he pasted, or one the app found and his deck still holds. */
+export function getJob(adId: string): Promise<{ card: JobCard }> {
+  return jfetch(`/api/onboarding/jobs/${encodeURIComponent(adId)}`);
+}

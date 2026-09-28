@@ -27,6 +27,8 @@ import { runPurge } from "./purge.js";
 import { getPool } from "./db.js";
 import { usageLedgerStoreFromEnv } from "./usageLedgerStore.js";
 import { postingStoreFromEnv } from "./postingStore.js";
+import { pasteRecordStoreFromEnv } from "./pasteRecordStore.js";
+import { makePastedAdvertReader } from "./pastedAdvert.js";
 import { unmappedLabelStoreFromEnv } from "./unmappedLabels.js";
 import { techmapProviderFromEnv } from "./postingProvider.js";
 import { loadActivePostingProviders } from "./postings.js";
@@ -79,6 +81,9 @@ const judgements = judgementStoreFromEnv(process.env.DATABASE_URL);
 // #100/#101: provider records and the durable monthly call counter share this store. It must be
 // initialized before the retrieval seam below can fetch, persist, or reserve a paid call.
 const postingStore = postingStoreFromEnv(process.env.DATABASE_URL);
+// #303 (#294 clause 11): who pasted which advert, and when — the per-person record the ageing
+// clock (#305) counts from. Session-keyed and swept with the session; see purge.ts.
+const pasteRecords = pasteRecordStoreFromEnv(process.env.DATABASE_URL);
 // #252: the vocabulary-growth feed survives a deploy — one store, shared by both labeler halves
 // and by the ops route that reads it back.
 const unmappedLabels = unmappedLabelStoreFromEnv(process.env.DATABASE_URL);
@@ -141,6 +146,7 @@ try {
   await judgements.init();
   await usageLedger.init();
   await postingStore.init();
+  await pasteRecords.init();
   await unmappedLabels.init();
   await employerLookups.init();
 } catch (err) {
@@ -241,6 +247,15 @@ const { app } = buildServer({
   judgePeek: makeJudgePeek(judgements),
   // #117 AC4/AC8: the same ledger every metered() client above writes into, read back by /ops/spend.
   usageLedger,
+  // #303: the paste door writes into the SAME provider-record store the retrieval seam above was
+  // built with — a pasted advert is an ordinary provider record, and two stores would mean the deck
+  // could never see one.
+  postings: postingStore,
+  pasteRecords,
+  // #303: same rule as readAd/judge — the real reader is wired here and nowhere else, so no test
+  // can make a live call by accident and a build without it answers honestly instead of inventing
+  // a posting.
+  readPastedAdvert: makePastedAdvertReader(metered("pasted-advert-reading", llm)),
 });
 
 // JC-20 purge: sweep unclaimed anonymous sessions/claims + spent tokens on boot and every 6h

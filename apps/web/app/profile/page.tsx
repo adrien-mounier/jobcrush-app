@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import "../deck.css";
 import "../profile.css";
 import { FactBadge } from "../factbadge";
+import { PasteDoor } from "../pastedoor";
 import { useReducedMotion } from "../jobcard";
 import {
   answerDiscovery,
@@ -1925,6 +1926,8 @@ function ReadyScreen({
           </button>
         </div>
         <FactBadge count={totalCount} fly={null} rootRef={rootRef} />
+        {/* #303: the same top-bar slot on every signed-in screen — the topbar's far right. */}
+        <PasteDoor />
       </div>
 
       <div className="stage">

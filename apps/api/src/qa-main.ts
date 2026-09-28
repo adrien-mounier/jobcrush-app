@@ -67,7 +67,7 @@ import { buildServer } from "./server.js";
 import { LocalDiskStorage } from "./storage.js";
 import { makeMineStep } from "./miner.js";
 import { makeMineJobBlocksStep } from "./jobBlockMiner.js";
-import { loadPostings, type Draft } from "./preview.js";
+import { loadPostings, type Draft, type Posting } from "./preview.js";
 import { lookupAdRequirements } from "./e5stub.js";
 import { makeGrillPhraser } from "./grill.js";
 import { makeCvAuditor } from "./audit.js";
@@ -84,6 +84,9 @@ import { makeJudge, makeJudgePeek } from "./judge.js";
 // InMemoryJudgementStore directly, never judgementStoreFromEnv(): that helper reads ambient
 // DATABASE_URL and would write judgements to the real shared Postgres from a QA run.
 import { InMemoryJudgementStore } from "./judgementStore.js";
+import { InMemoryPostingStore } from "./postingStore.js";
+import { InMemoryPasteRecordStore } from "./pasteRecordStore.js";
+import { pastedPostings } from "./pastedAdvert.js";
 import { DevMailer } from "./mailer.js";
 import { createGuestbook } from "./guestbook.js";
 import { IpRateLimiter } from "./sessions.js";
@@ -515,6 +518,32 @@ const qaPostingsV1 = () => {
   });
 };
 
+// #303 — the pasted-advert header reader, canned. Without it the paste door answers 503 on this
+// entry and NO browser journey of the door can run in CI at all, which would leave the feature
+// proved only by a run against a real-keyed API on somebody's laptop.
+//
+// It reads the header off the pasted text with plain string work rather than answering one fixed
+// advert: a journey has to be able to paste two DIFFERENT adverts and get two different jobs (the
+// "same advert twice reuses the reading" case is only meaningful against a reader that would
+// otherwise have produced something else). Deterministic, instant, and free, on exactly the same
+// terms as the fake model — and the real reading is still proved by the unit suite's own fake and
+// by a QA run against a keyed API.
+//
+// Convention the journeys write against: line 1 is "<title> — <company>", line 2 is the location,
+// and a line matching "applications close <date>" gives the closing date. An advert that does not
+// follow it reads as unreadable, which is what drives #304's failure screen.
+const qaReadPastedAdvert = async (text: string) => {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const [heading, location] = lines;
+  const [title, company] = (heading ?? "").split(/\s+[—-]\s+/);
+  if (!title || !company || !location) return null;
+  const close = text.match(/applications?\s+close[^\r\n]*?(\d{4}-\d{2}-\d{2})/i);
+  return { title, company, location, closingDate: close?.[1] ?? null };
+};
+
 // #63 — which outcome the stand-in provider reports. `relevant_postings` is the default because
 // every existing journey needs a deck; the other two exist because #63 built two SCREENS that
 // nothing else can reach. A retrieval that finishes empty and a retrieval that could not run are
@@ -569,11 +598,57 @@ const qaCuratedRequirements = (postingId: string) => {
   return lookup.status === "found" ? { ...lookup.requirements, adId: postingId } : null;
 };
 
+/** #303 — requirements for an advert somebody PASTED, read off its own text with plain string work.
+ *
+ *  Both fixture tables above are keyed by a pool advert's filename-shaped id, and a pasted advert's
+ *  id is a fingerprint of text nobody shipped — so without this, `qaReadAd` answers null for a
+ *  pasted job forever and the paste door can never produce a card on this entry. That was measured:
+ *  four presses, four `read_incomplete`, no self-heal, so no browser journey of the door could run
+ *  in CI at all.
+ *
+ *  Convention the journeys write against: a line starting with "- " is a requirement; the first two
+ *  are essential, the rest standard. An advert with none reads as unreadable, which is the state
+ *  #304's failure screen needs to be drivable. Deterministic, instant, free — the same terms as the
+ *  fake model, and it can no more reach production than the rest of this file can. */
+function qaPastedRequirements(posting: Posting) {
+  const bullets = posting.excerpt
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("- "))
+    .map((line) => line.slice(2).trim())
+    .filter(Boolean);
+  if (bullets.length === 0) return null;
+  return {
+    schemaVersion: "1" as const,
+    adId: posting.id,
+    curated: false,
+    language: posting.language,
+    familyFit: { family: "it-project-delivery", confidence: 0.9 },
+    requirements: bullets.map((requirement, index) => ({
+      id: `pasted-${index + 1}`,
+      // RankBand is ["essential","standard","nice-to-have"] (packages/contracts/src/familyFloor.ts)
+      // — "desirable" is the word the CARD prints, not a band the contract has.
+      band: index < 2 ? ("essential" as const) : ("standard" as const),
+      kind: "ordinary" as const,
+      requirement,
+      sourceSpan: requirement,
+    })),
+  };
+}
+
 // Parsed through the real contract, exactly like every other read — a fixture the schema rejects
 // must fail here, loudly, not reach a card as an unvalidated object.
-const qaReadAd = async (posting: { id: string }) => {
+const qaReadAd = async (posting: Posting) => {
   const curated = qaCuratedRequirements(posting.id);
   if (curated) return AdRequirementsV1.parse(curated);
+  // #303: a pasted advert is not in either fixture table by construction — its id is a fingerprint
+  // of text nobody shipped. Checked BEFORE the language-advert knob so the paste door works on an
+  // unarmed run, the same way the curated deck does.
+  const pasted = (await pastedPostings(qaPostingStore)).some((p) => p.id === posting.id);
+  if (pasted) {
+    const read = qaPastedRequirements(posting);
+    return read ? AdRequirementsV1.parse(read) : null;
+  }
   if (!languageAdvertsOn) return null; // disarmed: exactly today's curated-only deck
   // #63: this table is keyed by the fixture id its comment above cites, and the reader is handed
   // the RETRIEVED advert - so the lookup goes back through the pool, and the entry is re-stamped
@@ -591,6 +666,11 @@ const qaReadAd = async (posting: { id: string }) => {
 // R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY unconditionally and, if all three are set (a normal staging-
 // ops shell), silently ignores the path below and returns the REAL shared bucket driver instead.
 const judgements = new InMemoryJudgementStore();
+// #303: the paste door's two stores. In-memory like every other store on this entry — a QA run has
+// no DATABASE_URL, so nothing here survives a restart, which is the documented ceiling of this
+// whole file, not a property of the paste door.
+const qaPostingStore = new InMemoryPostingStore();
+const qaPasteRecords = new InMemoryPasteRecordStore();
 
 const blobs = new LocalDiskStorage(process.env.QA_UPLOAD_DIR ?? join(process.cwd(), "qa-uploads"));
 
@@ -704,6 +784,12 @@ const { app } = buildServer({
   // deployment with NO judge, and staging has one.
   judge: makeJudge(fakeLlm, judgements),
   judgePeek: makeJudgePeek(judgements),
+  // #303: the paste door. Its two stores are in-memory (this entry has no DATABASE_URL, same as
+  // every other store here), and the header reader is the canned one above — so a browser journey
+  // can drive the whole door, free and deterministic, and the deploy gate can run it.
+  postings: qaPostingStore,
+  pasteRecords: qaPasteRecords,
+  readPastedAdvert: qaReadPastedAdvert,
 });
 
 // A QA-only probe so a run can prove the fake really answered (found-nothing vs did-not-run — the

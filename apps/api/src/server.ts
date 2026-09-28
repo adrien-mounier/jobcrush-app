@@ -59,6 +59,10 @@ import { PLACEMENT_SCHEMA_VERSION } from "@jobcrush/contracts";
 import type { JudgeFn, JudgePeekFn } from "./judge.js";
 import { runWithVisitor } from "./llmVisitorContext.js";
 import { InMemoryUsageLedgerStore, type UsageLedgerStore } from "./usageLedgerStore.js";
+import { InMemoryPostingStore, type PostingStore } from "./postingStore.js";
+import { InMemoryPasteRecordStore, type PasteRecordStore } from "./pasteRecordStore.js";
+import type { ReadPastedAdvert } from "./pastedAdvert.js";
+import { pasteRoutes } from "./routes/paste.js";
 import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
 import type { RetrievalRequest } from "./postingRetrieval.js";
 import { reconcileImport } from "./importReconciliation.js";
@@ -152,6 +156,19 @@ export interface BuildOptions {
    *  doesn't wire one, local dev with no DATABASE_URL) defaults to a fresh, empty in-memory ledger —
    *  never throws, just reports zero spend. */
   usageLedger?: UsageLedgerStore;
+  /** #303 — the provider-record store, now reachable from a ROUTE and not only from the retrieval
+   *  seam: a pasted advert is written into it as an ordinary provider record and read back out of
+   *  it by the job's own screen, because nothing can re-fetch it. Production passes the SAME
+   *  instance makePostingRetriever was built with; absent → a fresh in-memory store, so a test that
+   *  doesn't wire one still gets a working paste door with nothing shared. */
+  postings?: PostingStore;
+  /** #303 (#294 clause 11) — who pasted which advert, and when. First-write-wins, session-keyed,
+   *  swept with the session. */
+  pasteRecords?: PasteRecordStore;
+  /** #303: reads the title/company/location/closing date out of one pasted advert. Absent → the
+   *  paste door answers 503 rather than inventing a posting, the same rule readAd/judge follow:
+   *  real model calls are wired in main.ts only, never defaulted here. */
+  readPastedAdvert?: ReadPastedAdvert;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */
@@ -202,10 +219,17 @@ export function buildServer(opts: BuildOptions = {}) {
   const familyLearning = opts.familyLearning ?? new InMemoryFamilyLearningStore();
   const unmappedLabels = opts.unmappedLabels ?? new InMemoryUnmappedLabelStore();
   const usageLedger = opts.usageLedger ?? new InMemoryUsageLedgerStore();
+  const postings = opts.postings ?? new InMemoryPostingStore();
+  const pasteRecords = opts.pasteRecords ?? new InMemoryPasteRecordStore();
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" }).withTypeProvider<ZodTypeProvider>();
   guestbook.init().catch((err) => app.log.error(err, "guestbook init failed"));
   familyLearning.init().catch((err) => app.log.error(err, "family learning init failed"));
   jobBlocks.init().catch((err) => app.log.error(err, "job block store init failed"));
+  // #303: both are already init'd by main.ts in production (fail-fast, before serving). This is the
+  // same best-effort init every store above gets, and it is what makes a test's own default
+  // in-memory pair usable without each test remembering to call it.
+  postings.init().catch((err) => app.log.error(err, "posting store init failed"));
+  pasteRecords.init().catch((err) => app.log.error(err, "paste record store init failed"));
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.register(cookie);
@@ -559,6 +583,23 @@ export function buildServer(opts: BuildOptions = {}) {
         })
       : undefined,
   }));
+  // #303: the paste door and the job's own screen. Its own plugin, not onboarding's — see the
+  // file's header for why. It shares the deck's read/judge seams so a pasted job is read, scored and
+  // checkpointed by exactly the code a fetched one is.
+  app.register(
+    pasteRoutes({
+      postings,
+      pasteRecords,
+      readPastedAdvert: opts.readPastedAdvert,
+      claims,
+      eligibility,
+      jobBlocks,
+      placeFamily,
+      readAd: opts.readAd,
+      judge: opts.judge,
+      judgePeek: opts.judgePeek,
+    }),
+  );
   app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail, limiter: opts.authRateLimiter }));
   app.register(
     familyLearningRoutes({

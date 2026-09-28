@@ -38,7 +38,12 @@ export type LlmStage =
   // priced differently from every other row here — Anthropic's per-search charge sits on top of the
   // tokens — and because it is the one stage whose spend is SHARED: a lookup is paid for once and
   // read by every visitor who ever names that employer, so its rows carry no visitor at all.
-  | "employer-lookup";
+  | "employer-lookup"
+  // #303: reading the title/company/location/closing date out of an advert somebody PASTED. Its own
+  // stage, not folded into advert-reading: that is the requirements read every advert gets, this is
+  // the split a provider's feed would have done for free, and #315's per-application cost has to be
+  // able to tell the paste door's own spend from the deck's.
+  | "pasted-advert-reading";
 
 /** One completed model call. `visitorId` is a pseudonym (a session id) or null for an unattributed
  *  call — never dropped, never guessed. `inputTokens`/`outputTokens`/`costUsd` are null together

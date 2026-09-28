@@ -25,6 +25,7 @@ import {
 import { useRouter } from "next/navigation";
 import "../deck.css";
 import { CardBody, useReducedMotion } from "../jobcard";
+import { PasteDoor } from "../pastedoor";
 import {
   ensureSession,
   chooseFallback,
@@ -753,6 +754,20 @@ export default function DeckPage() {
         {liveMessage}
       </div>
 
+      {/* #303 (QA D3): the door's slot on the deck's RESTING states — the empty deck, a provider
+          outage, a failed load. A signed-in person sitting on "No matches yet" is exactly the one
+          who wants to bring a job of his own, and before this there was no top bar on that screen
+          at all, so there was no way to reach the door from where he had landed.
+          Deliberately NOT on loading/searching/tailorHandoff: those pass in a second or two, and a
+          top bar appearing and vanishing under him is worse than a door he did not need yet. */}
+      {authed && (screen === "empty" || screen === "unavailable" || screen === "error") && (
+        <div className="topbar">
+          <span className="wordmark">JobCrush</span>
+          <span className="spacer" />
+          <PasteDoor />
+        </div>
+      )}
+
       {screen === "loading" && <div className="loadstate">{L1}</div>}
 
       {screen === "searching" && <div className="loadstate">{S1}</div>}
@@ -852,6 +867,11 @@ export default function DeckPage() {
           <div className="topbar">
             <span className="wordmark">JobCrush</span>
             <span className="spacer" />
+            {/* #303: the same top-bar slot on every signed-in screen. The rule is stated HERE and
+                only here because the deck is the one screen that also renders before the wall —
+                /profile, /tailor and /job are reachable signed-in only (a signed-out visitor is
+                redirected to the wall), so their door needs no guard of its own. */}
+            {authed && <PasteDoor />}
           </div>
           <p className="deckcount">
             {currentIndex + 1} of {n} matched today · swipe or tap
@@ -895,6 +915,7 @@ export default function DeckPage() {
           <div className="topbar">
             <span className="wordmark">JobCrush</span>
             <span className="spacer" />
+            {authed && <PasteDoor />}
           </div>
           <div className="loopback">
             <p className="big">{LOOPBACK_COPY}</p>

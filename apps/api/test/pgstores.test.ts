@@ -24,6 +24,11 @@ import {
   normaliseEmployerKey,
   type EmployerLookupStore,
 } from "../src/employerLookup.js";
+import {
+  InMemoryPasteRecordStore,
+  PgPasteRecordStore,
+  type PasteRecordStore,
+} from "../src/pasteRecordStore.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 
 function pgPool() {
@@ -1473,3 +1478,87 @@ it("#282 PgEmployerLookupStore keeps its answers across store reconstruction", a
   const afterRestart = new PgEmployerLookupStore(pool);
   expect(await afterRestart.get("nordea bank")).toMatchObject({ summary: "A Nordic bank." });
 });
+
+// #303 (#294 clause 11) — the per-person paste record, both drivers against one contract, real SQL
+// in CI. Its whole value is FIRST-WRITE-WINS: the ageing line (#305) counts from when THIS person
+// brought the job in, and a re-paste is a re-visit, not a new arrival.
+const pasteRecordDrivers: [string, () => PasteRecordStore][] = [
+  ["in-memory", () => new InMemoryPasteRecordStore()],
+  ["postgres (pg-mem)", () => new PgPasteRecordStore(pgPool())],
+];
+
+for (const [name, make] of pasteRecordDrivers) {
+  describe(`PasteRecordStore contract — ${name} (#303)`, () => {
+    let store: PasteRecordStore;
+    beforeEach(async () => {
+      store = make();
+      await store.init();
+    });
+
+    it("records person + advert + when, and reads it back", async () => {
+      await store.record("session-1", "posting:aaa", "2026-09-28T08:00:00.000Z");
+      expect(await store.listBySession("session-1")).toEqual([
+        { sessionId: "session-1", adId: "posting:aaa", pastedAt: "2026-09-28T08:00:00.000Z" },
+      ]);
+      expect(await store.listBySession("session-2")).toEqual([]);
+    });
+
+    it("first write wins — pasting the same advert again never resets the clock", async () => {
+      const first = await store.record("session-1", "posting:aaa", "2026-09-21T08:00:00.000Z");
+      const second = await store.record("session-1", "posting:aaa", "2026-09-28T08:00:00.000Z");
+      expect(first).toBe("2026-09-21T08:00:00.000Z");
+      expect(second).toBe("2026-09-21T08:00:00.000Z"); // the stored time is handed back, not the new one
+      const rows = await store.listBySession("session-1");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.pastedAt).toBe("2026-09-21T08:00:00.000Z");
+    });
+
+    it("two people pasting the SAME advert each get their own record", async () => {
+      await store.record("session-1", "posting:aaa", "2026-09-21T08:00:00.000Z");
+      await store.record("session-2", "posting:aaa", "2026-09-28T08:00:00.000Z");
+      expect((await store.listBySession("session-1"))[0]!.pastedAt).toBe("2026-09-21T08:00:00.000Z");
+      expect((await store.listBySession("session-2"))[0]!.pastedAt).toBe("2026-09-28T08:00:00.000Z");
+    });
+
+    it("one person's adverts read back newest first — the pinned band's own order (#305)", async () => {
+      await store.record("session-1", "posting:older", "2026-09-01T08:00:00.000Z");
+      await store.record("session-1", "posting:newer", "2026-09-28T08:00:00.000Z");
+      expect((await store.listBySession("session-1")).map((r) => r.adId)).toEqual([
+        "posting:newer",
+        "posting:older",
+      ]);
+    });
+  });
+}
+
+// #303 (#294 clause 9) — the pasted advert's OWN TEXT is stored on the job, through the store every
+// other posting already uses. It is the first record in this app that cannot be re-fetched, so a
+// driver that truncated or dropped `excerpt` would lose it for good; this is the round trip that
+// says it does not.
+for (const [name, make] of postingDrivers) {
+  it(`a pasted advert's full text survives a round trip — ${name} (#303)`, async () => {
+    const store = make();
+    await store.init();
+    // Longer than any excerpt a provider feed sends, with the blank lines and punctuation a real
+    // copy-paste carries — an excerpt column that silently clipped would show up here.
+    const text = Array.from({ length: 40 }, (_, i) => `Paragraph ${i}: deliver the programme — on time, "properly".`).join("\n\n");
+    const pasted = providerRecord({
+      providerId: "pasted-by-you",
+      providerPostingId: "fp-1",
+      sourceUrl: "pasted:fp-1",
+      applicationUrl: "https://example.com/apply",
+      excerpt: text,
+      verifiedLiveAt: null, // never confirmed live and never confirmable (#302)
+      expiresAt: "2026-10-15", // the employer's own closing date, read out of the text (#294 c4)
+    });
+    await store.upsert(pasted);
+
+    const read = await store.get("pasted-by-you", "fp-1");
+    expect(read?.excerpt).toBe(text);
+    expect(read?.verifiedLiveAt).toBeNull();
+    expect(read?.expiresAt).toBe("2026-10-15");
+    expect(read?.applicationUrl).toBe("https://example.com/apply");
+    // And through the list read the job's own screen resolves an adId against.
+    expect((await store.listByProvider("pasted-by-you")).map((r) => r.excerpt)).toEqual([text]);
+  });
+}

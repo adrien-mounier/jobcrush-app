@@ -1,0 +1,30 @@
+/* job.css — #303 the job's own screen. Almost nothing: the card is the deck's card, so deck.css
+   already styles everything inside it. All this does is give one card a page to sit on instead of a
+   deck's stacked slot. `.jobscreen` sits on the `.jobdeck` root, so every token comes from there.
+
+   Deliberately NOT restyling the card. #306 owns the four changes to it; anything this file did to
+   its insides would be a fifth, made by the wrong ticket. */
+.jobdeck.jobscreen {
+  overflow: auto;
+}
+
+.jobscreen .onejob {
+  flex: 1;
+  min-height: 0;
+  padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
+}
+.jobscreen .onejob .jobcard {
+  width: 100%;
+  max-width: 560px;
+  /* The deck's card fills a fixed slot; here the page scrolls and the card is as tall as the job. */
+  height: auto;
+  touch-action: auto;
+  user-select: auto;
+  -webkit-user-select: auto;
+}
+.jobscreen .onejob .jcbody {
+  overflow-y: visible;
+  padding-bottom: 19px;
+}

@@ -11,6 +11,7 @@ import { PgClaimStore } from "../src/claims.js";
 import { PgAuthStore } from "../src/auth.js";
 import { PgJudgementStore } from "../src/judgementStore.js";
 import { PgUsageLedgerStore } from "../src/usageLedgerStore.js";
+import { PgPasteRecordStore } from "../src/pasteRecordStore.js";
 import { runPurge } from "../src/purge.js";
 
 describe("JC-20 runPurge", () => {
@@ -22,6 +23,7 @@ describe("JC-20 runPurge", () => {
     await new PgAuthStore(pool).init();
     await new PgJudgementStore(pool).init();
     await new PgUsageLedgerStore(pool).init();
+    await new PgPasteRecordStore(pool).init();
 
     const old = new Date(Date.now() - 30 * 86_400_000).toISOString();
     // stale + unclaimed → purged (and its claim)
@@ -77,6 +79,14 @@ describe("JC-20 runPurge", () => {
       [old],
     );
 
+    // #303 (#294 clause 11): the per-person paste records join the sweep. The stale unclaimed
+    // visitor's record goes with their profile; the claimed owner's stays. Both name the SAME
+    // advert on purpose — the advert itself is shared and is NOT swept (it lives in
+    // provider_postings, which this function has never touched), so this also proves the sweep is
+    // per person rather than per advert.
+    await pool.query(`INSERT INTO paste_records (session_id, ad_id, pasted_at) VALUES ('stale', 'posting:abc', $1)`, [old]);
+    await pool.query(`INSERT INTO paste_records (session_id, ad_id, pasted_at) VALUES ('owned', 'posting:abc', $1)`, [old]);
+
     const { sessions } = await runPurge(pool, 14);
     expect(sessions).toBe(1); // only 'stale' deleted
 
@@ -93,5 +103,8 @@ describe("JC-20 runPurge", () => {
     expect(ledgerRows).toHaveLength(1);
     expect(ledgerRows[0]!.visitor_id).toBe("stale");
     expect(Number(ledgerRows[0]!.cost_usd)).toBeCloseTo(0.0057, 8);
+
+    const survivingPastes = (await pool.query(`SELECT session_id FROM paste_records ORDER BY session_id`)).rows;
+    expect(survivingPastes.map((r) => r.session_id)).toEqual(["owned"]);
   });
 });

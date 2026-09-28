@@ -1,0 +1,51 @@
+/* pastedoor.css — #303 the `＋ Paste a job` door. Deliberately UNSCOPED, for exactly the reason
+   factbadge.css is (its §0A): this control renders on four differently-scoped screens (the deck,
+   the tailor, the profile and the paste screen itself), and scoping it four times would be four
+   copies of one block. Every token it uses (--hud-2, --hud-line, --hud-mute, --hud-ink, --sans) is
+   declared on the `.jobdeck` root all four share. `.chip`/`.badge` are taken globally — this block
+   never uses them. */
+.pastedoor {
+  /* Rendered as an <a> when it is a door and as a <button> when it is inert (pastedoor.tsx: a
+     disabled control leaves the tab order, and the slot must not move). One block, so the button
+     has to shed its UA styling. */
+  appearance: none;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto; /* right-anchors it as the topbar's last child, spacer or not */
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--hud-2);
+  border: 1px solid var(--hud-line);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--hud-ink);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 240ms ease,
+    border-color 240ms ease,
+    color 240ms ease;
+}
+.pastedoor:hover {
+  background: #262f3a; /* the same hover literal .prof uses, so the two pills match */
+}
+/* Inert on the screen it opens (#291): visibly present and visibly not a door. Muted rather than
+   removed — the slot must not move between screens, or it stops being a slot. */
+.pastedoor[aria-disabled="true"] {
+  color: var(--hud-mute);
+  cursor: default;
+  background: none;
+  border-style: dashed;
+}
+.pastedoor[aria-disabled="true"]:hover {
+  background: none;
+}
+
+/* A topbar carrying both the fact badge and this door: the badge keeps its pill, the door takes the
+   far-right slot, and only the FIRST of them needs the auto margin. */
+.topbar .prof + .pastedoor {
+  margin-left: 8px;
+}

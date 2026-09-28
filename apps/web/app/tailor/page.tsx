@@ -15,6 +15,7 @@ import "../deck.css";
 import "../tailor.css";
 import { FactBadge, type FactChipFlight } from "../factbadge";
 import { CardBody, useReducedMotion } from "../jobcard";
+import { PasteDoor } from "../pastedoor";
 import {
   answerTailor,
   dropTailor,
@@ -519,6 +520,8 @@ export default function TailorPage() {
             <span className="wordmark">JobCrush</span>
             <span className="spacer" />
             <FactBadge count={badgeCount} fly={fly} rootRef={rootRef} />
+            {/* #303: the door's slot is the topbar's far right on every screen, badge or no badge. */}
+            <PasteDoor />
           </div>
 
           <div className="live-wrap" ref={liveWrapRef}>

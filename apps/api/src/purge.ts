@@ -54,6 +54,16 @@ export async function runPurge(pool: Pool, ttlDays = 14): Promise<{ sessions: nu
        SELECT id FROM sessions WHERE claimed_by_user_id IS NULL AND last_seen_at < $1)`,
     [cutoff],
   );
+  // #303 (#294 clause 11): the per-person paste record joins the sweep unchanged — it is keyed on
+  // the session, so it goes when the session's whole profile goes, and it costs nothing new. Note
+  // what it does NOT take with it: the pasted advert itself lives in provider_postings, which this
+  // function has never touched, and is shared by everyone who pasted the same text. That retention
+  // is named as a carried risk in #294 clause 10, not engineered away.
+  await pool.query(
+    `DELETE FROM paste_records WHERE session_id IN (
+       SELECT id FROM sessions WHERE claimed_by_user_id IS NULL AND last_seen_at < $1)`,
+    [cutoff],
+  );
   const { rowCount } = await pool.query(
     `DELETE FROM sessions WHERE claimed_by_user_id IS NULL AND last_seen_at < $1`,
     [cutoff],
