@@ -66,7 +66,27 @@ minutes. The root cause was in **this ticket's own unit fixture**, which carried
 and was green, because a hand-built object handed to an injected `readAd` is never parsed. The fixture
 now goes through `AdRequirementsV1.parse` on the way out. Three lessons recorded.
 
-**Committed, not pushed** — `d8df3d9` (code) + `c584688` (docs). A push is a deploy; that call is the owner's. Correction for the record: #302's roadmap row said "committed, not pushed", but `origin/main` already carries `1f19bb4` — it shipped between sessions, so its named consequence (the stored posting pool empties until techmap re-fetches) has already happened. Both rows are corrected.
+**Pushed on the owner's say-so** — `d8df3d9` (code) + `c584688` (docs) + `6344f68` (a push-state correction: #302's row claimed "committed, not pushed" while `origin/main` already carried it).
+
+### The push went red, and it was mine
+
+CI run `36388626550`: `test` green, **`e2e` red with 3 failures, `deploy-staging` skipped — nothing deployed.** All three were `profile.spec.ts` (`:262`, `:306` phone sheet/toggle; `:538` a focus assertion), and the previous commit's run had e2e green, so #303 caused it.
+
+Playwright named the intercepting element and it was **not** the paste door: `<a class="prof"> intercepts pointer events` — the **fact badge**. `.prof` and `.pastedoor` both carried `margin-left: auto`, and the profile's top bar is a back button plus an *absolutely centred* view toggle plus that badge inside a column `deck.css` caps at 560px. A fourth labelled control pushed the badge leftward until its deliberately enlarged 45px hit area (`factbadge.css`'s `.prof::after`) covered the centred toggle and ate taps meant for it. Not a phone squeeze — that cap applies from 641px up, so the bar is narrow on a desktop too.
+
+Fixed in **`2fd71b7`**: below 900px the door keeps the slot and drops its words (same mark, same place, `aria-label="Paste a job"` in both forms, so never a bare "+"); above 900px `profile.css:719` widens the bar to 1120px and the words stay — the gate measured **318px of clearance left at 1280**, and the first cut of this fix hid them there for nothing, on a comment that was factually wrong. Measured at eight widths: the door's right edge is bar-right − 16px at every one, and 16px on `/deck`, `/profile`, `/tailor`, `/job/<adId>`. **The label changes; the slot does not**, which is what AC1 is about.
+
+The door had **no coverage on a push** — `paste-door-journey.mjs` is not in `run-tier2.mjs` — so the only thing between it and a repeat was `profile.spec.ts` going red. One guard added there (`profile.spec.ts:1874`), by **accessible name** so it passes where the door is `＋` alone, plus the words shown at 1280 and hidden at 375. **Both halves mutation-checked**: deleting `<PasteDoor />` reddens it; widening the media query to 9999px reddens it naming the width.
+
+### Green and deployed
+
+CI run `36394348112`: **`test` success, `e2e` success (169 passed, was 165+3 red), `deploy-staging` success.** Verified on staging rather than trusted off the green tick — `https://jobcrush-web-staging.fly.dev/paste` serves the real screen (heading, advert box, the optional link field, *Read it*, and the door inert with its `aria-label`), and `POST /onboarding/paste` answers **401** without a session: live and gated.
+
+**The paste door is on staging.** #303 closed on the first push.
+
+### #318 filed — not mine, and worse than what I broke
+
+Between **641px and 899px** the profile's bar shrink-wraps to 202px and the badge covers the view toggle outright: both Sorted and Constellation are unpressable. A/B'd with the door deleted from the live DOM — **Constellation was already dead before #303**, which took it from one unreachable button to two. The band is outside **every** viewport the browser gate drives (360/375/1200/1280), on every screen, not just this one.
 
 **Gate: GO** (confirmed twice — once on the real stack, once on the fake one after the QA wiring).
 1722 api + 55 contract tests, typecheck, web build, ratchet 870/870. The journey
