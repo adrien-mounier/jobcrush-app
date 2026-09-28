@@ -2,6 +2,59 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-28 — #304 built: the wait is narrated, and a failed read keeps his text
+
+`/implement` → `/code-review` → `/qa-gate` (**GO**) on **#304**, V3's third ticket. Commit `f8fcac8`.
+
+**What a person gets.** Pressing *Read it* no longer hands him a frozen button for three seconds.
+The read became a **job**: `POST /onboarding/paste` answers 202 with a job id and runs behind it,
+over the **same job/progress record and SSE stream the front door's CV read already uses** — no new
+channel was built. Three named steps move in turn, his advert's requirements appear on the paste
+screen **in the advert's own words before any score exists**, and an advert that yields nothing gets
+a full failure screen naming what came back and what usually fixes it, text kept, *Read it again*
+one press away. That last screen is where **#301 amends #86**.
+
+**The defect that made the whole feature invisible, and the only thing that found it.** The server
+narrated correctly, a unit test proved it, and `curl` through the app's own `/api/*` proxy showed the
+events properly spaced. In a **real browser** all five arrived at once, at the end. Next compresses
+what it proxies when the client asks for gzip, and a compressed body is held back until the stream
+closes; curl does not ask for gzip, so it exercised a path no user is on. Two response headers fix it
+(`Cache-Control: no-transform`, `X-Accel-Buffering: no`), pinned by a test in `api.test.ts` and
+written up as `lessons.md`'s newest entry. **The front door's CV read had the same defect since it was
+built** — it just showed "reading…" either way, so nobody could see it.
+
+**The QA gate earned its keep twice.** It re-introduced the buffering and proved the new journey
+**stayed green** against it: EventSource dispatches each buffered message as its own task, so React
+still renders them in sequence and an order-only assertion cannot tell a healthy run from a broken
+one. The journey now records each frame's **clock** and asserts step 2 starts at least 800ms after
+step 1 (measured: 1501ms, and it goes red when the floor is raised above the real gap).
+
+**Where the code went.** Nothing in the spine — `routes/onboarding.ts` untouched, ratchet green. The
+runner and the failure copy live in `routes/paste.ts` beside the `cardFor` pass they use.
+`employerLookup.ts` is reused rather than re-implemented, so the paste door and the industry labeler
+share one cache and one payment per company, ever.
+
+**Two items the owner folded in** (recorded on #304's comment), both done: the paste door joins the
+deck's `searching` state (it polls for minutes and is no transient), and **both** paste journeys join
+`run-tier2.mjs` with coverage entries — `paste-door-journey` for the regression net #303's
+double-encoded id proved was needed, `paste-wait-journey` because everything above is invisible to
+`pnpm test` by construction.
+
+**Three judgement calls, flagged for the owner, none blocking.** The employer lookup is a real paid
+web search (shared + cached, so once per company ever) and its answer is **rendered** — the spec names
+the step but never says to show what it found. The requirements arrive **all at once**, because the
+reader is one call that returns the whole set; "as they are read" is honoured, "lifting out" is only
+approximated. On a deployment with **no Anthropic key** the employer step flashes past doing nothing;
+production has the key, and a dynamic step list for a configuration production never has would be
+speculative.
+
+**Open, not fixed here.** `apps/web/e2e/posting-contract-v5-journey.mjs` is still untracked, left over
+from #302's session — deliberately not swept into this commit. And the design hook flags `9.5px` mono
+labels on the paste screen as below `DESIGN.md`'s 10.5px floor: true, and it is a **shipped
+convention**, not this diff's drift (`deck.css` 9px, `tailor.css` 9.5/10px, `paste.css` 9.5px from
+#303). Either DESIGN.md's floor is wrong about labels or five screens are — an owner call, and its
+own ticket.
+
 ## 2026-09-28 — #303 built: paste an advert, get a job card
 
 `/implement` → `/code-review` → `/qa-gate` on **#303**, V3's second ticket and the first slice a person
