@@ -186,6 +186,21 @@ export const JOURNEYS = [
   // back in. A door is only a door if it is reachable AND exitable, and no address-typing journey
   // can go red when either half breaks. ~2 min against the fake-model API; no sign-in.
   "work-history-door-journey.mjs",
+  // The two paste-door journeys, added 2026-09-28 (#304, owner's call recorded on the ticket).
+  // They earn their slots on this file's own rule — a specific real-stack regression each alone can
+  // catch — and #303 supplied the proof rather than the argument: an adId encoded twice made EVERY
+  // paste 404 on the job's own screen while 1721 unit tests stayed green. That class of bug is only
+  // visible in a browser, and #304, #305 and #306 all change either the paste screen or the job
+  // screen, so this is a regression net under work already queued.
+  //   paste-door  — the door in every top-bar slot, the link pre-fill, one advert shared by two
+  //                 people, the landing on the job's own screen. ~2 min; TWO sign-ins per run,
+  //                 against the generous limiter qa-main.ts already passes.
+  //   paste-wait  — #304's own render test: the three named steps in order, the requirements on the
+  //                 paste screen before anything is scored, and the failure screen that keeps his
+  //                 text. Every one of those is proved server-side in pasteAdvert.test.ts and none
+  //                 of that proves a screen. ~50s; no sign-in, so it spends no limiter budget.
+  "paste-door-journey.mjs",
+  "paste-wait-journey.mjs",
 ];
 
 // Only run when invoked directly — the selection self-check imports JOURNEYS from here.

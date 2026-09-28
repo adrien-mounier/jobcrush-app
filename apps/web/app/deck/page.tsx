@@ -758,9 +758,14 @@ export default function DeckPage() {
           outage, a failed load. A signed-in person sitting on "No matches yet" is exactly the one
           who wants to bring a job of his own, and before this there was no top bar on that screen
           at all, so there was no way to reach the door from where he had landed.
-          Deliberately NOT on loading/searching/tailorHandoff: those pass in a second or two, and a
-          top bar appearing and vanishing under him is worse than a door he did not need yet. */}
-      {authed && (screen === "empty" || screen === "unavailable" || screen === "error") && (
+          #304 added `searching`, on #303's own QA finding: it is NOT transient — it polls until a
+          provider retrieval finishes, which can run for minutes, and a real wait is exactly the
+          moment to bring your own job rather than keep waiting for ours.
+          Still deliberately NOT on loading/tailorHandoff: `loading` passes in a moment and
+          `tailorHandoff` is a hard 800ms then navigates. A bar that appears and vanishes under him
+          is worse than a door he did not need yet. */}
+      {authed &&
+        (screen === "empty" || screen === "searching" || screen === "unavailable" || screen === "error") && (
         <div className="topbar">
           <span className="wordmark">JobCrush</span>
           <span className="spacer" />

@@ -256,6 +256,11 @@ const { app } = buildServer({
   // can make a live call by accident and a build without it answers honestly instead of inventing
   // a posting.
   readPastedAdvert: makePastedAdvertReader(metered("pasted-advert-reading", llm)),
+  // #304: the paste door's "looking up the employer" step, and it is the SAME lookup the industry
+  // labeler uses — one shared cache, one payment per company ever, whichever of the two asks
+  // first. Wired only with a real Anthropic key, for #282's own reason: the lookup is a
+  // server-side tool on Anthropic's API and the local CLI fallback cannot run one.
+  employerLookup,
 });
 
 // JC-20 purge: sweep unclaimed anonymous sessions/claims + spent tokens on boot and every 6h

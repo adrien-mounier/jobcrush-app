@@ -82,6 +82,8 @@ export interface JobSnapshot {
   progress: {
     feed?: string[];
     importProof?: ImportProof;
+    /** #304: the paste door's narrated read, on the same record and the same SSE stream. */
+    paste?: PasteProgress;
     [k: string]: unknown;
   };
 }
@@ -799,7 +801,37 @@ export interface PasteResult {
   card: JobCard;
 }
 
-export function pasteJob(text: string, applicationUrl: string | null): Promise<PasteResult> {
+/** #304 — the three named steps, in the order the server runs them. The labels the screen prints
+ *  are the paste screen's own (this is the wire, not the copy). */
+export type PasteStep = "reading" | "employer" | "profile";
+
+/** What the paste screen watches while the advert is being read, off `progress.paste` of the same
+ *  job/progress record the front door's CV read already streams. */
+export interface PasteProgress {
+  step: PasteStep;
+  /** The advert's own requirements, published the moment they are read — before anything is
+   *  scored, which is the property this whole panel exists to make visible. */
+  requirements: string[];
+  /** What the employer lookup said, or null when it had nothing to add. */
+  employer: string | null;
+  result?: PasteResult;
+  failure?: PasteFailure;
+}
+
+/** Why a paste produced no job. Two lines, never one: the honest report, and the part he can act
+ *  on. Rendered as a full screen with his pasted text kept (#304). */
+export interface PasteFailure {
+  /** Deliberately open, not the server's closed union: this screen adds one of its own for the
+   *  failure only it can see — the read that never reported back at all. Nothing branches on it;
+   *  the two sentences are what a person reads, and the code is for a report. */
+  code: string;
+  cameBack: string;
+  fix: string;
+}
+
+/** Starts the read and answers immediately with the job to watch — the card is the END of a read
+ *  that takes seconds, and those seconds are the point (#304). */
+export function pasteJob(text: string, applicationUrl: string | null): Promise<{ jobId: string }> {
   return jfetch("/api/onboarding/paste", {
     method: "POST",
     body: JSON.stringify({ text, applicationUrl }),

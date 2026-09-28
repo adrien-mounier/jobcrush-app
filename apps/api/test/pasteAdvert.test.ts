@@ -1,14 +1,24 @@
-// #303 — the paste door, driven through the API the way the web client drives it (spec #301's
+// #303/#304 — the paste door, driven through the API the way the web client drives it (spec #301's
 // primary seam). Everything a person can perceive is observable here: an advert pasted and read, a
 // reading reused on the second paste, two people sharing one reading, a closing date kept, the deck
 // unchanged by a paste, and the landing being that job's own screen.
 //
-// What is deliberately NOT here, because it belongs to a later slice: the narrated wait and the
-// failure screen's copy (#304), the deck stitching, pinning, freshness exemptions and ageing line
-// (#305), the job screen's own four changes (#306).
+// #304 made the read a JOB. The route answers 202 with a job id and the work runs behind it,
+// because three named steps can only be watched by a screen that is told about them WHILE the read
+// happens. Every test below therefore drives the paste through `paste()`, which drains that job to
+// its end — and the step sequence itself is observable because the server is built on a job store
+// that records every progress write (`recordingJobs`).
+//
+// What is deliberately NOT here, because it belongs to a later slice: the deck stitching, pinning,
+// freshness exemptions and ageing line (#305), the job screen's own four changes (#306). The SCREEN
+// side of #304 — that the steps and the failure lines actually reach a rendered page — is
+// apps/web/e2e/paste-wait-journey.mjs, because a payload assertion here passes while the screen
+// stays blank.
 import { describe, expect, it, vi } from "vitest";
 import { AdRequirementsV1 } from "@jobcrush/contracts";
 import { buildDeckServer, coverEssentialFloor, injectSettled } from "./fixtureDeck.js";
+import { InMemoryJobStore, type JobRecord, type JobStore } from "../src/jobs.js";
+import type { PasteProgress } from "../src/routes/paste.js";
 import { advertFingerprint, linkInText, makePastedAdvertReader } from "../src/pastedAdvert.js";
 import { PASTED_SOURCE_PROVIDER_ID } from "../src/postingRetrieval.js";
 import { InMemoryPostingStore } from "../src/postingStore.js";
@@ -69,6 +79,28 @@ function requirementsFor(posting: Posting): AdRequirementsV1 {
   });
 }
 
+/** A job store that keeps every `progress.paste` it is ever handed, in order.
+ *
+ *  Delegating by hand rather than spreading the instance: InMemoryJobStore's methods live on its
+ *  prototype, so `{ ...store, update }` would produce an object with no `create` and no
+ *  `subscribe`. The recording is the only reason this exists — #304's whole claim is about the
+ *  ORDER things are published in, and polling the job cannot see a step that came and went.  */
+function recordingJobs(): { store: JobStore; writes: PasteProgress[] } {
+  const inner = new InMemoryJobStore();
+  const writes: PasteProgress[] = [];
+  const store: JobStore = {
+    create: (type, sessionId) => inner.create(type, sessionId),
+    get: (id) => inner.get(id),
+    subscribe: (id, listener) => inner.subscribe(id, listener),
+    update: (id, patch) => {
+      const paste = (patch.progress as { paste?: PasteProgress } | undefined)?.paste;
+      if (paste) writes.push(structuredClone(paste));
+      return inner.update(id, patch);
+    },
+  };
+  return { store, writes };
+}
+
 /** A server with the paste door wired: a stub advert reader (one call per unread advert, counted)
  *  and the deck's own reader answering for whatever it produces. */
 function pasteServer(header: typeof HEADER | null = HEADER) {
@@ -76,8 +108,13 @@ function pasteServer(header: typeof HEADER | null = HEADER) {
   const readAd = vi.fn(async (posting: Posting) => requirementsFor(posting));
   const postings = new InMemoryPostingStore();
   const pasteRecords = new InMemoryPasteRecordStore();
-  const built = buildDeckServer({ readPastedAdvert, readAd, postings, pasteRecords });
-  return { ...built, readPastedAdvert, readAd, postings, pasteRecords };
+  // #304: what the employer step really does. Deliberately a counting fake rather than absent —
+  // "one cached lookup" is a claim about how many times this is called, and an unwired seam cannot
+  // prove a number.
+  const employerLookup = vi.fn(async (employer: string) => `${employer} is a fake company.`);
+  const { store, writes } = recordingJobs();
+  const built = buildDeckServer({ readPastedAdvert, readAd, postings, pasteRecords, employerLookup, store });
+  return { ...built, readPastedAdvert, readAd, postings, pasteRecords, employerLookup, writes };
 }
 
 async function anonSession(app: ReturnType<typeof pasteServer>["app"]): Promise<string> {
@@ -85,20 +122,47 @@ async function anonSession(app: ReturnType<typeof pasteServer>["app"]): Promise<
   return `jc_session=${res.cookies.find((c) => c.name === "jc_session")!.value}`;
 }
 
-const paste = (
+/** What a finished paste produced: the 202 (or whatever refusal came instead of one), the job as it
+ *  ended, and the two outcomes the screen reads — one of which is always absent. */
+interface PasteRun {
+  accepted: number;
+  job: JobRecord | null;
+  result: NonNullable<PasteProgress["result"]> | null;
+  failure: NonNullable<PasteProgress["failure"]> | null;
+}
+
+/** Paste an advert and wait for the read behind it to finish.
+ *
+ *  setImmediate rather than a timer, for fixtureDeck.ts's own reason: nothing in this path sleeps,
+ *  it settles on microtasks, so yielding a turn of the event loop is exactly the wait required. */
+async function paste(
   app: ReturnType<typeof pasteServer>["app"],
   cookie: string,
   payload: { text: string; applicationUrl?: string | null },
-) => app.inject({ method: "POST", url: "/onboarding/paste", headers: { cookie }, payload });
+): Promise<PasteRun> {
+  const started = await app.inject({ method: "POST", url: "/onboarding/paste", headers: { cookie }, payload });
+  if (started.statusCode !== 202) return { accepted: started.statusCode, job: null, result: null, failure: null };
+  const { jobId } = started.json();
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    const res = await app.inject({ method: "GET", url: `/jobs/${jobId}`, headers: { cookie } });
+    const job = res.json() as JobRecord;
+    if (job.status === "completed" || job.status === "failed") {
+      const progress = (job.progress as { paste?: PasteProgress }).paste ?? null;
+      return { accepted: 202, job, result: progress?.result ?? null, failure: progress?.failure ?? null };
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  throw new Error("the paste job never finished");
+}
 
 describe("#303 POST /onboarding/paste", () => {
   it("reads a pasted advert and answers with that job's own card", async () => {
     const { app, readPastedAdvert } = pasteServer();
     const cookie = await anonSession(app);
 
-    const res = await paste(app, cookie, { text: ADVERT });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
+    const run = await paste(app, cookie, { text: ADVERT });
+    expect(run.accepted).toBe(202);
+    const body = run.result!;
     expect(readPastedAdvert).toHaveBeenCalledTimes(1);
     expect(body.adId).toMatch(/^posting:/);
     expect(body.reused).toBe(false);
@@ -153,9 +217,9 @@ describe("#303 POST /onboarding/paste", () => {
     // like — the fingerprint normalises those, so it is still ONE advert.
     const second = await paste(app, cookie, { text: `  ${ADVERT.replace(/\n/g, "\n ")}  ` });
 
-    expect(second.statusCode).toBe(200);
-    expect(second.json().adId).toBe(first.json().adId);
-    expect(second.json().reused).toBe(true);
+    expect(second.accepted).toBe(202);
+    expect(second.result!.adId).toBe(first.result!.adId);
+    expect(second.result!.reused).toBe(true);
     expect(readPastedAdvert).toHaveBeenCalledTimes(1); // the second paste never reached the model
   });
 
@@ -167,9 +231,9 @@ describe("#303 POST /onboarding/paste", () => {
     const hers = await paste(app, her, { text: ADVERT });
     const his = await paste(app, him, { text: ADVERT });
 
-    const adId = hers.json().adId;
-    expect(his.json().adId).toBe(adId);
-    expect(his.json().reused).toBe(true);
+    const adId = hers.result!.adId;
+    expect(his.result!.adId).toBe(adId);
+    expect(his.result!.reused).toBe(true);
     expect(readPastedAdvert).toHaveBeenCalledTimes(1); // one advert, one reading, whoever pasted it
 
     // …and one record each, both naming the same advert — what keeps #305's ageing line true
@@ -191,16 +255,17 @@ describe("#303 POST /onboarding/paste", () => {
     const records = await pasteRecords.listBySession(sessionId);
     expect(records).toHaveLength(1);
     // First write wins: the clock #305 counts from is when he FIRST brought this job in.
-    expect(second.json().pastedAt).toBe(first.json().pastedAt);
-    expect(records[0]!.pastedAt).toBe(first.json().pastedAt);
+    expect(second.result!.pastedAt).toBe(first.result!.pastedAt);
+    expect(records[0]!.pastedAt).toBe(first.result!.pastedAt);
   });
 
   it("refuses a fragment that is not an advert, and never spends on it", async () => {
     const { app, readPastedAdvert } = pasteServer();
     const cookie = await anonSession(app);
-    const res = await paste(app, cookie, { text: "About us\n\nWe are a great place to work." });
-    expect(res.statusCode).toBe(422);
-    expect(res.json().error.code).toBe("too_short");
+    const run = await paste(app, cookie, { text: "About us\n\nWe are a great place to work." });
+    expect(run.failure!.code).toBe("too_short");
+    expect(run.job!.status).toBe("failed");
+    expect(run.result).toBeNull();
     expect(readPastedAdvert).not.toHaveBeenCalled();
   });
 
@@ -208,10 +273,10 @@ describe("#303 POST /onboarding/paste", () => {
     const { app, readPastedAdvert, postings } = pasteServer();
     const cookie = await anonSession(app);
     const chinese = "我們正在尋找一位高級專案經理，負責亞太區的技術專案組合。".repeat(8);
-    const res = await paste(app, cookie, { text: chinese });
+    const run = await paste(app, cookie, { text: chinese });
 
-    expect(res.statusCode).toBe(422);
-    expect(res.json().error.code).toBe("unsupported_language");
+    expect(run.failure!.code).toBe("unsupported_language");
+    expect(run.result).toBeNull();
     // The gate the deck would have applied anyway, applied BEFORE the model call — an advert we
     // were always going to drop must never be read and then lost behind a card that never appears.
     expect(readPastedAdvert).not.toHaveBeenCalled();
@@ -221,8 +286,10 @@ describe("#303 POST /onboarding/paste", () => {
   it("refuses an application link that is not a web address", async () => {
     const { app, postings } = pasteServer();
     const cookie = await anonSession(app);
-    const res = await paste(app, cookie, { text: ADVERT, applicationUrl: "javascript:alert(1)" });
-    expect(res.statusCode).toBe(400);
+    // Refused at the boundary by the body schema, so it never becomes a job at all — there is
+    // nothing to narrate about a request that was never accepted.
+    const run = await paste(app, cookie, { text: ADVERT, applicationUrl: "javascript:alert(1)" });
+    expect(run.accepted).toBe(400);
     expect(await postings.listByProvider(PASTED_SOURCE_PROVIDER_ID)).toHaveLength(0);
   });
 
@@ -251,29 +318,26 @@ describe("#303 POST /onboarding/paste", () => {
       pasteRecords: new InMemoryPasteRecordStore(),
     });
     const cookie = await anonSession(app);
-    const res = await paste(app, cookie, { text: ADVERT });
+    const run = await paste(app, cookie, { text: ADVERT });
 
-    expect(res.statusCode).toBe(409);
-    expect(res.json().error.code).toBe("read_incomplete");
-    expect(res.json().error.message).toContain("Read it again");
-    expect(res.json().error.message).not.toContain("you do not have");
+    expect(run.failure!.code).toBe("read_incomplete");
+    expect(run.failure!.fix).toContain("Read it again");
+    expect(`${run.failure!.cameBack} ${run.failure!.fix}`).not.toContain("you do not have");
   });
 
   it("an advert the reader cannot read is refused honestly — no posting is invented", async () => {
     const { app, postings } = pasteServer(null);
     const cookie = await anonSession(app);
-    const res = await paste(app, cookie, { text: ADVERT });
-    expect(res.statusCode).toBe(422);
-    expect(res.json().error.code).toBe("unreadable");
+    const run = await paste(app, cookie, { text: ADVERT });
+    expect(run.failure!.code).toBe("unreadable");
     expect(await postings.listByProvider(PASTED_SOURCE_PROVIDER_ID)).toHaveLength(0);
   });
 
   it("a build with no reader wired says so rather than inventing a posting", async () => {
     const { app } = buildDeckServer({ readAd: async (posting: Posting) => requirementsFor(posting) });
     const cookie = await anonSession(app);
-    const res = await paste(app, cookie, { text: ADVERT });
-    expect(res.statusCode).toBe(503);
-    expect(res.json().error.code).toBe("reader_unavailable");
+    const run = await paste(app, cookie, { text: ADVERT });
+    expect(run.failure!.code).toBe("reader_unavailable");
   });
 
   it("carries the typed application link, and reads one out of the text when he typed none", async () => {
@@ -315,11 +379,95 @@ describe("#303 POST /onboarding/paste", () => {
   });
 });
 
+describe("#304 the narrated wait", () => {
+  it("narrates three named steps, in order, over the job record the front door already uses", async () => {
+    const { app, writes } = pasteServer();
+    const cookie = await anonSession(app);
+
+    const run = await paste(app, cookie, { text: ADVERT });
+    expect(run.result).not.toBeNull();
+    expect(run.job!.type).toBe("paste-advert");
+    // The sequence he watches. Deduped because a step is written more than once — the requirements
+    // land inside "reading" — but it may never go backwards or skip one.
+    const sequence = writes.map((write) => write.step).filter((step, i, all) => step !== all[i - 1]);
+    expect(sequence).toEqual(["reading", "employer", "profile"]);
+  });
+
+  it("puts the advert's requirements on the wire BEFORE anything is scored", async () => {
+    const { app, writes } = pasteServer();
+    const cookie = await anonSession(app);
+    await paste(app, cookie, { text: ADVERT });
+
+    const firstWithRequirements = writes.findIndex((write) => write.requirements.length > 0);
+    const firstWithCard = writes.findIndex((write) => write.result !== undefined);
+    expect(firstWithRequirements).toBeGreaterThanOrEqual(0);
+    expect(firstWithCard).toBeGreaterThan(firstWithRequirements);
+    // In the advert's own words, which is the whole reason they can be shown before a score exists.
+    expect(writes[firstWithRequirements]!.requirements).toEqual([
+      "Coordinate business and technical stakeholders",
+      "Report to a steering committee",
+    ]);
+    // And nothing scored has reached the wire at that moment.
+    expect(writes[firstWithRequirements]!.result).toBeUndefined();
+  });
+
+  it("looks the employer up exactly once, by name, and carries what came back", async () => {
+    const { app, employerLookup } = pasteServer();
+    const cookie = await anonSession(app);
+
+    const run = await paste(app, cookie, { text: ADVERT });
+    expect(employerLookup).toHaveBeenCalledTimes(1);
+    expect(employerLookup).toHaveBeenCalledWith("Gradion");
+    expect(run.job!.progress.paste.employer).toBe("Gradion is a fake company.");
+  });
+
+  it("an advert that yields no requirements fails with both lines — what came back, and the fix", async () => {
+    // The state #301 amends #86 for: for a FETCHED advert this is "no card, retry next refresh",
+    // and for a PASTED one it is a screen, because he brought this job in deliberately.
+    const { app } = buildDeckServer({
+      readPastedAdvert: async () => HEADER,
+      readAd: async () => null,
+      postings: new InMemoryPostingStore(),
+      pasteRecords: new InMemoryPasteRecordStore(),
+    });
+    const cookie = await anonSession(app);
+
+    const run = await paste(app, cookie, { text: ADVERT });
+    expect(run.failure).toEqual({
+      code: "read_incomplete",
+      cameBack: expect.stringContaining("no requirements came out of the advert"),
+      fix: expect.stringContaining("Press Read it again"),
+    });
+    expect(run.result).toBeNull();
+  });
+
+  it("the read's own progress is the paster's alone — the whole advert travels in it", async () => {
+    // The job record now carries the card, and a pasted card carries the whole pasted text as
+    // `adExcerpt` (#294 clause 10 names what that text can contain). A guessable job id must not
+    // be a second door onto it beside the one GET /onboarding/jobs/:adId already guards.
+    const { app } = pasteServer();
+    const cookie = await anonSession(app);
+    const stranger = await anonSession(app);
+
+    const started = await app.inject({
+      method: "POST",
+      url: "/onboarding/paste",
+      headers: { cookie },
+      payload: { text: ADVERT },
+    });
+    const { jobId } = started.json();
+    const peek = await app.inject({ method: "GET", url: `/jobs/${jobId}`, headers: { cookie: stranger } });
+    expect(peek.statusCode).toBe(404);
+    const stream = await app.inject({ method: "GET", url: `/jobs/${jobId}/events`, headers: { cookie: stranger } });
+    expect(stream.statusCode).toBe(404);
+  });
+});
+
 describe("#303 GET /onboarding/jobs/:adId — the job's own screen", () => {
   it("serves the pasted job's card, so pasting lands on the job and not back on the deck", async () => {
     const { app } = pasteServer();
     const cookie = await anonSession(app);
-    const { adId } = (await paste(app, cookie, { text: ADVERT })).json();
+    const { adId } = (await paste(app, cookie, { text: ADVERT })).result!;
 
     const res = await injectSettled(app, {
       method: "GET",
@@ -335,7 +483,7 @@ describe("#303 GET /onboarding/jobs/:adId — the job's own screen", () => {
     const { app } = pasteServer();
     const her = await anonSession(app);
     const him = await anonSession(app);
-    const { adId } = (await paste(app, her, { text: ADVERT })).json();
+    const { adId } = (await paste(app, her, { text: ADVERT })).result!;
     await paste(app, him, { text: ADVERT });
 
     const res = await app.inject({
@@ -351,7 +499,7 @@ describe("#303 GET /onboarding/jobs/:adId — the job's own screen", () => {
     const { app } = pasteServer();
     const her = await anonSession(app);
     const stranger = await anonSession(app);
-    const { adId } = (await paste(app, her, { text: ADVERT })).json();
+    const { adId } = (await paste(app, her, { text: ADVERT })).result!;
 
     // adId is sha256(company|location|title) — computable by anyone who has seen the job — and the
     // card carries the whole pasted text as `adExcerpt`. The shared READING (#294 ruling 1) is not

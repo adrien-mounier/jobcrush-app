@@ -67,4 +67,21 @@ describe("api skeleton", () => {
     expect(events.length).toBeGreaterThanOrEqual(2);
     expect(events.at(-1).status).toBe("completed");
   });
+
+  it("#304: the stream forbids an intermediary from transforming or buffering it", async () => {
+    // Measured 2026-09-28, and the reason this assertion exists rather than a comment: the web app
+    // proxies /api/* through Next, Next compresses what it proxies when the browser asks for gzip,
+    // and a compressed body is held back until the stream closes. Every progress event of a
+    // three-second read therefore landed in ONE burst at the end — so the screen could only ever
+    // show the final state, however honestly the server narrated. curl hid it by not asking for
+    // gzip. Both headers are instructions to an intermediary to leave the body alone.
+    //
+    // This pins the instruction, not the proxy's obedience. What proves a person really watches the
+    // steps go by is apps/web/e2e/paste-wait-journey.mjs, in a real browser through the real proxy.
+    const { app } = buildServer();
+    const { id } = (await app.inject({ method: "POST", url: "/jobs/demo" })).json();
+    const res = await app.inject({ method: "GET", url: `/jobs/${id}/events` });
+    expect(res.headers["cache-control"]).toContain("no-transform");
+    expect(res.headers["x-accel-buffering"]).toBe("no");
+  });
 });

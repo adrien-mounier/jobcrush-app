@@ -104,15 +104,7 @@
   cursor: not-allowed;
 }
 
-.pastescreen .err {
-  margin: 0;
-  color: var(--gold);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-/* The wait's home. #304 fills it with the three named steps and the requirements lifting out of the
-   advert; it is drawn now so the screen he pastes into is the screen he then watches. */
+/* The wait's home: the three named steps and the requirements lifting out of the advert (#304). */
 .pastescreen .right {
   background: var(--hud-1);
   border: 1px solid var(--hud-line);
@@ -149,4 +141,144 @@
   .pastescreen .right {
     min-height: 0;
   }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   #304 — the narrated wait, and the screen a read that produced no job ends on.
+   Values are the ones already on this screen (deck.css HUD tokens, the panel's own 12.5px body and
+   9.5px mono label), so the wait reads as part of the room he pasted in. The one addition is the
+   failure headline at DESIGN.md's 17px "dialog lead text" step. The 9.5px mono label is below
+   DESIGN.md's 10.5px label floor and is deliberately matched to the sibling it sits under
+   (`.right h2`, shipped by #303 from the approved prototype): a panel with two labels a pixel apart
+   reads as a mistake, and the floor question is that whole prototype's, not this heading's.
+   --------------------------------------------------------------------------------------------- */
+.pastescreen .right h3 {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--hud-mute);
+  margin: 16px 0 9px;
+  font-weight: 400;
+}
+
+.pastescreen .steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.pastescreen .steps li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--hud-mute);
+}
+/* The dot is the whole state indicator, so it must be legible without colour alone: a done step is
+   filled, the live one is filled and pulsing, one not started yet is an empty ring. */
+.pastescreen .steps .mark {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  border: 1px solid var(--hud-line);
+  flex: none;
+}
+.pastescreen .steps li[data-state="done"] {
+  color: var(--hud-ink);
+}
+.pastescreen .steps li[data-state="done"] .mark {
+  background: var(--hud-mute);
+  border-color: var(--hud-mute);
+}
+.pastescreen .steps li[data-state="now"] {
+  color: var(--hud-ink);
+}
+.pastescreen .steps li[data-state="now"] .mark {
+  background: var(--gold);
+  border-color: var(--gold);
+  animation: pastepulse 1.4s ease-in-out infinite;
+}
+@keyframes pastepulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pastescreen .steps li[data-state="now"] .mark {
+    animation: none;
+  }
+}
+
+.pastescreen .employer {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--hud-mute);
+  margin: 12px 0 0;
+}
+
+.pastescreen .reqs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pastescreen .reqs li {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--hud-ink);
+  padding-left: 13px;
+  position: relative;
+}
+.pastescreen .reqs li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--gold);
+}
+
+/* The failure screen. It takes the whole desk — an advert he pasted deliberately that came back
+   with nothing is not a footnote under the form — and his text stays right below it, untouched and
+   editable, so "read it again" is one press away. */
+.pastescreen.failed .desk {
+  grid-template-columns: 1fr;
+}
+.pastescreen .failure {
+  grid-column: 1 / -1;
+  background: var(--hud-1);
+  border: 1px solid var(--gold);
+  border-radius: 11px;
+  padding: 17px;
+  max-width: 62ch;
+}
+.pastescreen .failure h2 {
+  /* 17px — DESIGN.md's documented "dialog lead text" step, which is what this is. */
+  font-size: 17px;
+  font-weight: 620;
+  margin: 0 0 10px;
+  letter-spacing: -0.01em;
+  color: var(--hud-ink);
+}
+.pastescreen .failure p {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--hud-mute);
+  margin: 0 0 8px;
+}
+.pastescreen .failure p b {
+  color: var(--hud-ink);
+  font-weight: 620;
+}
+.pastescreen .failure .kept {
+  margin: 12px 0 0;
+  color: var(--hud-ink);
 }

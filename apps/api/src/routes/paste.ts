@@ -21,7 +21,15 @@ import type { ClaimStore } from "../claims.js";
 import type { EligibilityStore } from "../eligibility.js";
 import type { JobBlockStore } from "../jobBlockStore.js";
 import type { JudgeFn, JudgePeekFn } from "../judge.js";
-import { advertFamilyIdFor, buildDeckCards, resolveSessionYears, type JobCard } from "../deck.js";
+import type { EmployerLookup } from "../employerLookup.js";
+import type { JobStatus, JobStore } from "../jobs.js";
+import {
+  advertFamilyIdFor,
+  buildDeckCards,
+  resolveAdRequirements,
+  resolveSessionYears,
+  type JobCard,
+} from "../deck.js";
 import { readingLanguages } from "../language.js";
 import { eligiblePostings, type Posting } from "../preview.js";
 import {
@@ -37,6 +45,16 @@ export interface PasteDeps extends PasteAdvertDeps {
   claims: ClaimStore;
   eligibility: EligibilityStore;
   jobBlocks: JobBlockStore;
+  /** #304: the job/progress store the front door's CV read already narrates over. The paste door
+   *  narrates over the SAME one rather than a channel of its own — same record, same SSE route
+   *  (`GET /jobs/:id/events`), same session scoping. */
+  jobs: JobStore;
+  /** #304, the "looking up the employer" step, and it is a real lookup rather than a label on a
+   *  pause: employerLookup.ts is cache-first and keyed on a normalised company name, so a company
+   *  is paid for once ever and every later paste of any advert from that employer is free. Absent
+   *  (no Anthropic key — main.ts's own condition) → the step still runs and completes, saying
+   *  nothing, exactly as the industry labeler behaves without it. */
+  employerLookup?: EmployerLookup;
   placeFamily: (session: Readonly<SessionRecord>) => Promise<FamilyPlacement>;
   /** #104/#105, the same optional seams the deck route carries: absent → fixture-only reads and the
    *  deterministic tick, so a build that wires neither behaves exactly as it does today. */
@@ -64,12 +82,72 @@ const Body = z.object({
 
 const Params = z.object({ adId: z.string().min(1) });
 
-const PASTE_FAILURES: Record<PasteAdvertRefusal, string> = {
-  too_short: "there is not enough here to read as a job advert",
-  unsupported_language: "we can only read job adverts written in English at the moment",
-  unreadable: "we could not read a job advert out of that text",
-  reader_unavailable: "reading a pasted advert is not configured on this deployment",
+/** #304 — the three named steps, in the order they run. The names are the spec's own words and they
+ *  are honest: each one is a thing the server really does, and none of them is on screen before the
+ *  work behind it has started. */
+//  The web has its own copy of these three ids and their labels (apps/web/app/paste/page.tsx),
+//  because the LABELS are copy and belong on the screen while the ORDER is this file's. The two
+//  are not guarded by a unit test and deliberately so: what a mismatch would produce is a screen
+//  that marks the wrong step as in progress, which only a rendered screen can see —
+//  apps/web/e2e/paste-wait-journey.mjs reads the order off the live DOM and goes red on it.
+const PASTE_STEPS = ["reading", "employer", "profile"] as const;
+export type PasteStep = (typeof PASTE_STEPS)[number];
+
+export type PasteFailureCode = PasteAdvertRefusal | CardRefusal | "error";
+
+/** What the screen is told when a paste produces no job. Two lines, never one: **what came back**
+ *  is the honest report, and **what usually fixes it** is the only part he can act on — a failure
+ *  message with no second line is a dead end dressed up as an explanation (#304).
+ *
+ *  Written as whole sentences rather than clause fragments, because this text is now a full screen
+ *  rather than the tail of "We could not read that: …". */
+const PASTE_FAILURES: Record<PasteFailureCode, { cameBack: string; fix: string }> = {
+  too_short: {
+    cameBack: "There was not enough text there to read as a job advert.",
+    fix: "Paste the whole advert — the title, the employer, what the job is and what it asks for. A heading on its own gives us nothing to read.",
+  },
+  unsupported_language: {
+    cameBack: "That advert is not in English, and English is the only language we can read at the moment.",
+    fix: "If the employer also published the advert in English, paste that version instead.",
+  },
+  unreadable: {
+    cameBack: "We could not find a job title, an employer and a place in that text.",
+    fix: "Paste the advert itself rather than the page around it — a cookie notice, a menu or a list of other jobs leaves us nothing to read.",
+  },
+  reader_unavailable: {
+    cameBack: "Reading a pasted advert is switched off on this deployment.",
+    fix: "There is nothing to fix from your side — this one is ours.",
+  },
+  // The ticket's own case: the advert read fine as a job, and nothing came out of it that a card
+  // could be built from. It is NOT a dead end — the advert is already stored and the reading
+  // self-heals into the cache when it lands, so pressing again costs nothing.
+  read_incomplete: {
+    cameBack: "We read the title, the employer and the place, but no requirements came out of the advert.",
+    fix: "Press Read it again in a moment — the advert is already saved, so a second press costs nothing. If it keeps coming back empty, paste more of the advert.",
+  },
+  withdrawn: {
+    cameBack: "This job asks for something you have told us you do not have.",
+    fix: "If that has changed, correct the answer on your profile and paste the advert again.",
+  },
+  error: {
+    cameBack: "Something went wrong on our side while we were reading it.",
+    fix: "Press Read it again — your text is still here, and nothing was lost.",
+  },
 };
+
+/** What the paste screen watches, carried in the job record's `progress.paste`. One object,
+ *  rewritten whole on every update: the job store merges `progress` one level deep only, so a
+ *  partial patch here would silently drop whatever it did not name. */
+export interface PasteProgress {
+  step: PasteStep;
+  /** The advert's requirements, in the advert's own words, published the moment they are read and
+   *  BEFORE anything is scored (#304: nothing is scored on screen before it is read). */
+  requirements: string[];
+  /** What the employer lookup said about the company, or null when it had nothing / is not wired. */
+  employer: string | null;
+  result?: { adId: string; reused: boolean; pastedAt: string; card: JobCard };
+  failure?: { code: PasteFailureCode; cameBack: string; fix: string };
+}
 
 
 export function pasteRoutes(deps: PasteDeps) {
@@ -126,29 +204,82 @@ export function pasteRoutes(deps: PasteDeps) {
       return (await pastedPostings(deps.postings)).find((p) => p.id === adId);
     };
 
+    /** #304 — the whole read, narrated. Runs detached from the request that started it and reports
+     *  only into the job record, which is why the three steps can be watched at all: a synchronous
+     *  route can say one thing, once, when it is already over.
+     *
+     *  The order is the product's, not the engine's convenience. The requirements are resolved on
+     *  their own and PUBLISHED before the card pass runs, so what he sees first is the advert read
+     *  back to him, and the score arrives after it — never before (#304: nothing is scored on
+     *  screen before it is read). buildDeckCards then resolves the same requirements again, which
+     *  is free: the real reader (adReader.ts) persists every read and answers the second call from
+     *  its store. */
+    const runPaste = async (session: SessionRecord, jobId: string, body: z.infer<typeof Body>) => {
+      const state: PasteProgress = { step: "reading", requirements: [], employer: null };
+      const push = (patch?: { status?: JobStatus; error?: string }) =>
+        deps.jobs.update(jobId, { ...patch, progress: { paste: { ...state } } });
+      const fail = (code: PasteFailureCode) => {
+        state.failure = { code, ...PASTE_FAILURES[code] };
+        return push({ status: "failed", error: code });
+      };
+
+      await push({ status: "running" });
+      try {
+        const outcome = await pasteAdvert(deps, {
+          sessionId: session.id,
+          text: body.text,
+          applicationUrl: body.applicationUrl ?? null,
+        });
+        if (!outcome.ok) return void (await fail(outcome.reason));
+
+        const adReq = await resolveAdRequirements(outcome.posting.id, deps.readAd, outcome.posting);
+        // #301 amends #86 here, and this is the line where it happens: for a FETCHED advert "no
+        // requirements" means no card and retry on the next refresh, and for a PASTED one that is
+        // silence about something he did deliberately. It gets the failure screen instead.
+        if (!adReq) return void (await fail("read_incomplete"));
+        state.requirements = adReq.requirements.map((requirement) => requirement.requirement);
+        await push();
+
+        state.step = "employer";
+        await push();
+        // ONE lookup, and it is cache-first (employerLookup.ts): a company is looked up once ever,
+        // shared by everyone, so this step is free for every employer anybody has pasted before.
+        // Never throws — makeEmployerLookup turns every failure into null — so a dead lookup slows
+        // the read and cannot break it.
+        state.employer = deps.employerLookup ? await deps.employerLookup(outcome.posting.company) : null;
+
+        state.step = "profile";
+        await push();
+        const built = await cardFor(session, outcome.posting);
+        // The advert is stored whatever happens here, so nothing is lost and a retry re-spends
+        // nothing; what he is told is why he is not being shown a card.
+        if ("refusal" in built) return void (await fail(built.refusal));
+        // He asked for this job, so he goes to the job — never back to the deck (#291 ruling 2).
+        // The card travels with the id so the screen he lands on renders without a second trip.
+        state.result = {
+          adId: outcome.adId,
+          reused: outcome.reused,
+          pastedAt: outcome.pastedAt,
+          card: built.card,
+        };
+        await push({ status: "completed" });
+      } catch (err) {
+        // Nothing above is allowed to leave the job `running` for ever: the screen watching it has
+        // no other way to stop waiting, and a spinner with no end is the worst of the outcomes.
+        console.error(`[ops] paste read failed: ${err instanceof Error ? err.message : String(err)}`);
+        await fail("error");
+      }
+    };
+
+    /** 202 and a job id, never the card: the card is the END of a read that takes seconds, and the
+     *  whole point of this ticket is that those seconds are watched rather than waited out. The
+     *  screen opens `GET /jobs/:jobId/events` — the same SSE stream the front door's CV read uses,
+     *  session-scoped by that route's own `canSee`. */
     app.post("/onboarding/paste", { schema: { body: Body } }, async (req, reply) => {
       const session = requireSession(req);
-      const outcome = await pasteAdvert(deps, {
-        sessionId: session.id,
-        text: req.body.text,
-        applicationUrl: req.body.applicationUrl ?? null,
-      });
-      if (!outcome.ok) {
-        // #304 turns these into the failure screen that keeps his text. Here they are named
-        // honestly and separately — "we could not read it" and "there was not enough to read" are
-        // different things to tell somebody — and 422 says the request was fine and the content
-        // was not.
-        return reply
-          .status(outcome.reason === "reader_unavailable" ? 503 : 422)
-          .send({ error: { code: outcome.reason, message: PASTE_FAILURES[outcome.reason] } });
-      }
-      const built = await cardFor(session, outcome.posting);
-      // The advert is stored whatever happens here, so nothing is lost and a retry re-spends
-      // nothing; what he is told is why he is not being shown a card.
-      if ("refusal" in built) return reply.status(409).send({ error: CARD_REFUSALS[built.refusal] });
-      // He asked for this job, so he goes to the job — never back to the deck (#291 ruling 2). The
-      // card travels with the id so the screen he lands on renders without a second round trip.
-      return { adId: outcome.adId, reused: outcome.reused, pastedAt: outcome.pastedAt, card: built.card };
+      const job = await deps.jobs.create("paste-advert", session.id);
+      void runPaste(session, job.id, req.body);
+      return reply.status(202).send({ jobId: job.id });
     });
 
     app.get("/onboarding/jobs/:adId", { schema: { params: Params } }, async (req, reply) => {
@@ -172,13 +303,13 @@ type CardOutcome = { card: JobCard } | { refusal: CardRefusal };
 // his text; #305 removes `withdrawn` outright — a job he brought is never withdrawn, it stays and
 // says why.
 const CARD_REFUSALS: Record<CardRefusal, { code: CardRefusal; message: string }> = {
-  withdrawn: {
-    code: "withdrawn",
-    message: "this job asks for something you have told us you do not have",
-  },
-  read_incomplete: {
-    code: "read_incomplete",
-    message:
-      "we have not finished reading this advert yet — press Read it again in a moment, and if it keeps failing, paste more of the advert",
-  },
+  withdrawn: refusalFor("withdrawn"),
+  read_incomplete: refusalFor("read_incomplete"),
 };
+
+/** One wording, two shapes. The paste screen reads the two lines separately (it has room for a
+ *  heading and a remedy); this route has one `message` field and joins them, so the words a person
+ *  is shown cannot drift apart depending on which door asked. */
+function refusalFor(code: CardRefusal): { code: CardRefusal; message: string } {
+  return { code, message: `${PASTE_FAILURES[code].cameBack} ${PASTE_FAILURES[code].fix}` };
+}

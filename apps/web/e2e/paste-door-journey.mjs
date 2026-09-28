@@ -22,8 +22,12 @@
 //   AC10 the deck's own search intent is byte-identical before and after the paste
 //
 // Not this journey's business, and each one is a sibling ticket's: the narrated three-step wait and
-// the full failure screen (#304), the deck's pinned band and the ageing line (#305), the job
-// screen's four changes (#306).
+// the full failure screen are apps/web/e2e/paste-wait-journey.mjs (#304), the deck's pinned band and
+// the ageing line (#305), the job screen's four changes (#306).
+//
+// #304 changed the shape this journey drives: POST /onboarding/paste now answers 202 with a job id
+// and the read runs behind it, so "what the paste produced" is read off that job rather than off
+// the POST's own body. `drainPaste` below is that one change, applied at all three paste sites.
 //
 // Run:
 //   pnpm --filter @jobcrush/api build
@@ -94,6 +98,36 @@ const must = async (ok, note) => {
 
 const door = () => page.locator('[data-testid="paste-door"]');
 const inertDoor = () => page.locator('[data-testid="paste-door-inert"]');
+
+/** #304 — what a paste produced, read off the job the 202 named.
+ *
+ *  `call` is whoever is asking: the browser's own `fetch` for the person driving the screen, or the
+ *  second person's cookie jar. Returns the old body shape ({ adId, reused, pastedAt, card }) so
+ *  every assertion below still reads as "paste this, and see what came of it" — or the failure, for
+ *  a read that produced no job at all. */
+const drainPaste = async (call, jobId, budgetMs = SETTLE_MS) => {
+  const until = Date.now() + budgetMs;
+  while (Date.now() < until) {
+    const job = await call(`/api/jobs/${jobId}`);
+    const status = job.body?.status;
+    if (status === "completed" || status === "failed") {
+      const paste = job.body?.progress?.paste ?? {};
+      return { result: paste.result ?? null, failure: paste.failure ?? null, progress: paste };
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return { result: null, failure: { code: "timeout", cameBack: "the read never finished", fix: "" }, progress: {} };
+};
+
+/** The same, driven from inside the page with the browser's own cookies. */
+const pageCall = (path, init) =>
+  page.evaluate(
+    async ([p, i]) => {
+      const r = await fetch(p, i ?? undefined);
+      return { status: r.status, body: await r.json().catch(() => null) };
+    },
+    [path, init ?? null],
+  );
 
 // ---------------------------------------------------------------------------------------------
 // 1) Become a signed-in person. The paste door is only offered past the wall, so every assertion
@@ -361,55 +395,63 @@ await qa.scrollThrough("read the filled desk back — the advert on the left, th
 // ---------------------------------------------------------------------------------------------
 // 5) AC9 — press "Read it" and land on that job's own screen.
 // ---------------------------------------------------------------------------------------------
-const t0 = Date.now();
-const pasteResponse = page.waitForResponse(
-  (r) => r.url().includes("/api/onboarding/paste") && r.request().method() === "POST",
-  { timeout: SETTLE_MS },
+// #304: pressing "Read it" starts a JOB. The screen narrates it and navigates itself when it
+// lands, so what a press produces is read off that job — and the press that matters to a person is
+// still the same press.
+const pressAndWait = async (label, why) => {
+  const accepted = page.waitForResponse(
+    (r) => r.url().includes("/api/onboarding/paste") && r.request().method() === "POST",
+    { timeout: SETTLE_MS },
+  );
+  const t = Date.now();
+  await qa.click(page.getByRole("button", { name: label }), why);
+  const res = await accepted.catch(() => null);
+  const jobId = res ? (await res.json().catch(() => null))?.jobId : null;
+  const run = jobId ? await drainPaste(pageCall, jobId) : { result: null, failure: null };
+  return { ...run, jobId, accepted: res ? res.status() : 0, ms: Date.now() - t };
+};
+
+let press = await pressAndWait("Read it", "press 'Read it' — this is the one real model call a pasted advert pays for");
+const firstReadMs = press.ms;
+let pasted = press.result;
+await qa.note(
+  `POST /onboarding/paste → HTTP ${press.accepted} (job ${press.jobId}) and the read finished in ` +
+    `${(firstReadMs / 1000).toFixed(1)}s${pasted?.adId ? `, adId ${pasted.adId}` : ""}`,
 );
-await qa.click(page.getByRole("button", { name: "Read it" }), "press 'Read it' — this is the one real model call a pasted advert pays for");
-const res = await pasteResponse.catch(() => null);
-const firstReadMs = Date.now() - t0;
-let pasted = res ? await res.json().catch(() => null) : null;
-const firstStatus = res ? res.status() : 0;
-await qa.note(`POST /onboarding/paste → HTTP ${firstStatus} in ${(firstReadMs / 1000).toFixed(1)}s${pasted?.adId ? `, adId ${pasted.adId}` : ""}`);
 
 // A first read that came back without a job. Everything a person can see is on this screen, so what
 // he is TOLD here is the product, and it is recorded verbatim before anything is retried.
 if (!pasted?.adId) {
-  const onScreen = (await page.locator(".pastescreen .err").textContent().catch(() => "")) || "(nothing)";
+  const onScreen =
+    (await page.locator('[data-testid="paste-failure"]').innerText().catch(() => "")) || "(nothing)";
   await qa.note(
-    `the first read produced no job. HTTP ${firstStatus}, body ${JSON.stringify(pasted).slice(0, 300)}. ` +
-      `What the person is told, word for word, on the screen he is still standing on: "${onScreen.trim()}"`,
+    `the first read produced no job (${press.failure?.code ?? "no failure reported"}). ` +
+      `What the person is told, word for word, on the screen he is still standing on: ` +
+      `"${onScreen.replace(/\s+/g, " ").trim()}"`,
   );
   // NOT a failure yet. On a slow reader the requirements read misses its own 15s deadline while
   // still running, and the product says exactly that: "press Read it again IN A MOMENT". Asserting
   // a defect before honouring the instruction on the screen would be testing something the product
   // never promised. The failure is declared below, if the moment passes and the job still never
   // comes — which is the only version of this that a person would call broken.
-  await qa.scrollThrough("read what the product says after a read that has not finished");
+  await qa.scrollThrough("read the failure screen the product shows after a read that produced nothing");
   // A person waits, then presses again. The advert is already stored and the read self-heals into
   // the cache when it lands, so every press after the first costs nothing.
   for (let attempt = 2; attempt <= 4 && !pasted?.adId; attempt++) {
     await page.waitForTimeout(RETRY_WAIT_MS);
-    const retry = page.waitForResponse(
-      (r) => r.url().includes("/api/onboarding/paste") && r.request().method() === "POST",
-      { timeout: SETTLE_MS },
+    press = await pressAndWait(
+      "Read it again",
+      `press 'Read it again' — the ${attempt === 2 ? "second" : attempt === 3 ? "third" : "fourth"} press, after waiting the moment the screen asked for`,
     );
-    const t = Date.now();
-    await qa.click(
-      page.getByRole("button", { name: "Read it" }),
-      `press 'Read it' again — the ${attempt === 2 ? "second" : attempt === 3 ? "third" : "fourth"} press, after waiting the moment the screen asked for`,
-    );
-    const againRes = await retry.catch(() => null);
-    pasted = againRes ? await againRes.json().catch(() => null) : null;
+    pasted = press.result;
     await qa.note(
-      `press ${attempt} → HTTP ${againRes ? againRes.status() : "no response"} in ${((Date.now() - t) / 1000).toFixed(1)}s` +
-        (pasted?.adId ? `, and this time there is a job: ${pasted.adId}` : " — still reading"),
+      `press ${attempt} → HTTP ${press.accepted} in ${(press.ms / 1000).toFixed(1)}s` +
+        (pasted?.adId ? `, and this time there is a job: ${pasted.adId}` : ` — ${press.failure?.code ?? "still reading"}`),
     );
   }
   await must(
     Boolean(pasted?.adId),
-    `AC9 — "Read it" produced that job's own screen (the first press returned HTTP ${firstStatus} and said "${onScreen.trim()}"; ` +
+    `AC9 — "Read it" produced that job's own screen (the first press said "${onScreen.replace(/\s+/g, " ").trim()}"; ` +
       `pressing again after the moment it asked for ${pasted?.adId ? "produced the job" : "never produced one"})`,
   );
 }
@@ -455,25 +497,29 @@ await qa.note(`AC3 — the card's origin line reads: "${reread.body?.card?.origi
 // ---------------------------------------------------------------------------------------------
 // 7) AC6 — the same advert again, by the same person. One reading, and nothing spent.
 // ---------------------------------------------------------------------------------------------
-const again = await page.evaluate(async (text) => {
-  const t = Date.now();
-  const r = await fetch("/api/onboarding/paste", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    // Re-pasted with the incidental whitespace a second copy really carries.
-    body: JSON.stringify({ text: `  ${text.replace(/\n/g, "\n ")}  `, applicationUrl: null }),
-  });
-  return { status: r.status, ms: Date.now() - t, body: await r.json() };
-}, ADVERT);
+const againT0 = Date.now();
+const againStart = await pageCall("/api/onboarding/paste", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  // Re-pasted with the incidental whitespace a second copy really carries.
+  body: JSON.stringify({ text: `  ${ADVERT.replace(/\n/g, "\n ")}  `, applicationUrl: null }),
+});
+// #304: the read is a job of its own now, drained here so "reused" is read off what it produced.
+const again = {
+  status: againStart.status,
+  ...(await drainPaste(pageCall, againStart.body?.jobId)),
+  ms: Date.now() - againT0,
+};
+const againBody = again.result ?? {};
 await qa.note(
   `AC6 — the same advert pasted again: HTTP ${again.status} in ${(again.ms / 1000).toFixed(1)}s (the first read took ` +
-    `${(firstReadMs / 1000).toFixed(1)}s). reused: ${again.body.reused}, same job: ${again.body.adId === pasted.adId}, ` +
-    `pastedAt unchanged: ${again.body.pastedAt === pasted.pastedAt}`,
+    `${(firstReadMs / 1000).toFixed(1)}s). reused: ${againBody.reused}, same job: ${againBody.adId === pasted.adId}, ` +
+    `pastedAt unchanged: ${againBody.pastedAt === pasted.pastedAt}`,
 );
-await must(again.body.reused === true, "AC6 — the same advert pasted twice reuses the first reading");
-await must(again.body.adId === pasted.adId, "AC6 — the same advert is one job, not two");
-await must(again.body.pastedAt === pasted.pastedAt, "AC5 — the paste record is first-write-wins; a re-paste never resets the clock");
-await qa.goto(`/job/${encodeURIComponent(again.body.adId)}`, "open the job again by its own address — one advert, one job");
+await must(againBody.reused === true, "AC6 — the same advert pasted twice reuses the first reading");
+await must(againBody.adId === pasted.adId, "AC6 — the same advert is one job, not two");
+await must(againBody.pastedAt === pasted.pastedAt, "AC5 — the paste record is first-write-wins; a re-paste never resets the clock");
+await qa.goto(`/job/${encodeURIComponent(againBody.adId ?? pasted.adId)}`, "open the job again by its own address — one advert, one job");
 await settle(page.locator(".jobscreen .jobcard h2"), "the same job's own screen", JOB_SCREEN_MS);
 await qa.expectText(page.locator(".jobscreen .jobcard h2"), pasted.card.title, "AC6 — the second paste came back to the same job, with the same reading");
 
@@ -518,7 +564,10 @@ const otherRaw = await otherPerson("/api/onboarding/paste", {
   method: "POST",
   body: JSON.stringify({ text: ADVERT, applicationUrl: null }),
 });
-const otherResult = { status: otherRaw.status, ms: Date.now() - otherT0, body: otherRaw.body ?? {} };
+// #304: their read is a job of their own, drained with their own cookies — which is also proof
+// that the job/progress stream is per-person, not one queue everybody watches.
+const otherRun = await drainPaste((path) => otherPerson(path), otherRaw.body?.jobId);
+const otherResult = { status: otherRaw.status, ms: Date.now() - otherT0, body: otherRun.result ?? {} };
 await qa.note(
   `AC7 — a second, different person pasted the same advert: HTTP ${otherResult.status} in ` +
     `${(otherResult.ms / 1000).toFixed(1)}s, reused: ${otherResult.body.reused}, same job id: ` +

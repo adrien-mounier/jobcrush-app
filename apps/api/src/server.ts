@@ -62,6 +62,7 @@ import { InMemoryUsageLedgerStore, type UsageLedgerStore } from "./usageLedgerSt
 import { InMemoryPostingStore, type PostingStore } from "./postingStore.js";
 import { InMemoryPasteRecordStore, type PasteRecordStore } from "./pasteRecordStore.js";
 import type { ReadPastedAdvert } from "./pastedAdvert.js";
+import type { EmployerLookup } from "./employerLookup.js";
 import { pasteRoutes } from "./routes/paste.js";
 import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
 import type { RetrievalRequest } from "./postingRetrieval.js";
@@ -140,6 +141,11 @@ export interface BuildOptions {
   /** #104: reads an advert nobody hand-curated (fixture-only when absent — every pre-#104 test
    *  stays valid, and nothing here ever makes a live call unless main.ts wires the real reader). */
   readAd?: (posting: Posting) => Promise<AdRequirementsV1 | null>;
+  /** #304: the paste door's "looking up the employer" step, cache-first and shared across everyone
+   *  (employerLookup.ts). Absent — every test, and any deployment with no Anthropic key, which is
+   *  main.ts's own condition for wiring it — means the step runs and says nothing, never that it is
+   *  skipped or faked. */
+  employerLookup?: EmployerLookup;
   /** #105: meaning-aware judging (deterministic tick when absent — every pre-#105 test stays valid,
    *  and nothing here ever makes a live judging call unless main.ts wires the real judge). */
   judge?: JudgeFn;
@@ -591,6 +597,10 @@ export function buildServer(opts: BuildOptions = {}) {
       postings,
       pasteRecords,
       readPastedAdvert: opts.readPastedAdvert,
+      // #304: the paste door narrates over the SAME job/progress record the front door's CV read
+      // uses, so the screen watches `GET /jobs/:id/events` and nothing new had to be built.
+      jobs: store,
+      employerLookup: opts.employerLookup,
       claims,
       eligibility,
       jobBlocks,
@@ -662,7 +672,16 @@ export function buildServer(opts: BuildOptions = {}) {
 
       reply.raw.writeHead(200, {
         "content-type": "text/event-stream",
-        "cache-control": "no-cache",
+        // `no-transform` is load-bearing, not belt-and-braces. Measured 2026-09-28 (#304): the web
+        // app proxies /api/* through Next, Next compresses what it proxies when the browser asks
+        // for gzip — and a compressed stream is BUFFERED until it closes. Every progress event of a
+        // three-second read therefore arrived in one burst at the end, so the screen could only ever
+        // show the final state however well the server narrated. curl hid it by not asking for gzip.
+        // `no-transform` is the standard instruction to an intermediary to leave a body alone, and
+        // `x-accel-buffering` is the same instruction for the nginx-family proxies in front of a
+        // deploy. The front door's CV read rides this same stream and had the same defect.
+        "cache-control": "no-cache, no-transform",
+        "x-accel-buffering": "no",
         connection: "keep-alive",
       });
       const send = (j: JobRecord) => reply.raw.write(`data: ${JSON.stringify(clientView(j))}\n\n`);

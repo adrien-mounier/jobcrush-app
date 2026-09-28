@@ -532,7 +532,20 @@ const qaPostingsV1 = () => {
 // Convention the journeys write against: line 1 is "<title> — <company>", line 2 is the location,
 // and a line matching "applications close <date>" gives the closing date. An advert that does not
 // follow it reads as unreadable, which is what drives #304's failure screen.
+/** #304 — how long each faked step of a pasted read is made to take on this entry.
+ *
+ *  Deliberate, and the same reasoning `pending-unscored-card-journey` already runs on: a narrated
+ *  wait is UNOBSERVABLE against a reader that answers instantly. The three steps would flash past
+ *  between two frames, and a browser journey could only ever prove that the screen ends up
+ *  somewhere — never that the person was shown the work happening, which is the whole ticket.
+ *  Long enough for a browser driver paced at ~1s per action to land inside a step, short enough
+ *  that the four pastes across the two paste journeys cost about twelve seconds between them.
+ *  It can no more reach production than the rest of this file can. */
+const QA_PASTE_STEP_MS = 1500;
+const qaPause = () => new Promise((resolve) => setTimeout(resolve, QA_PASTE_STEP_MS));
+
 const qaReadPastedAdvert = async (text: string) => {
+  await qaPause();
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -790,6 +803,15 @@ const { app } = buildServer({
   postings: qaPostingStore,
   pasteRecords: qaPasteRecords,
   readPastedAdvert: qaReadPastedAdvert,
+  // #304: the narrated wait's second step, off the SAME canned table the industry labeler reads
+  // (#282) — one fake employer answer on this entry, not two that could disagree. Paced only HERE,
+  // where a person is watching a step go by; the labeler's own path runs at its old speed, so no
+  // CV journey pays for this. An employer the table does not carry answers null, which is the real
+  // degraded path and is what the screen must survive.
+  employerLookup: async (employer: string) => {
+    await qaPause();
+    return qaEmployerLookup(employer);
+  },
 });
 
 // A QA-only probe so a run can prove the fake really answered (found-nothing vs did-not-run — the

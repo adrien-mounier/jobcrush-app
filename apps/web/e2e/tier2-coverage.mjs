@@ -142,6 +142,20 @@ const AUTH = [
 const PROFILE = ["apps/api/src/profile.ts", "apps/web/app/profile/**", "apps/web/app/profile.css"];
 const FACTBADGE = ["apps/web/app/factbadge.tsx", "apps/web/app/factbadge.css"];
 const YEARS = ["apps/api/src/yearsWorked.ts"];
+// #303/#304 — the paste door: its own subsystem, with its own store, its own route and its own
+// screen. Carries employerLookup.ts as well as the two INDUSTRY_LABELER entries do, because #304's
+// "looking up the employer" step is that same shared, cached lookup — a change to it can redden the
+// wait journey's employer assertion.
+const PASTE = [
+  "apps/api/src/pastedAdvert.ts",
+  "apps/api/src/pasteRecordStore.ts",
+  "apps/api/src/routes/paste.ts",
+  "apps/api/src/employerLookup.ts",
+  "apps/api/prompts/pasted-advert.md",
+  "apps/web/app/paste/**",
+  "apps/web/app/pastedoor.tsx",
+  "apps/web/app/pastedoor.css",
+];
 
 const union = (...groups) => [...new Set(groups.flat())];
 
@@ -254,6 +268,16 @@ export const COVERAGE = {
   // front door, CV intake (a read has to produce records first), discovery, the fact badge, the
   // profile that now carries the door, and the job-block screen and store behind it.
   "work-history-door-journey.mjs": union(FRONT_DOOR, CV_INTAKE, DISCOVERY, FACTBADGE, PROFILE, JOB_BLOCKS),
+  // #303: the door in every signed-in top-bar slot, the link pre-fill, one advert shared by two
+  // people, the landing on the job's own screen. It walks the deck, the profile, the tailor and a
+  // job screen looking for that slot, and it asserts the deck's own search intent is unchanged by a
+  // paste — so the deck, the profile and the tailor are all paths it can genuinely go red on.
+  "paste-door-journey.mjs": union(PASTE, POSTINGS, DECK, PROFILE, TAILOR, AUTH, DISCOVERY),
+  // #304: the narrated wait and the failure screen — the render test for both. Narrower on purpose:
+  // it never signs in and never leaves the paste screen except to land on the job, so what it can go
+  // red on is the paste subsystem, the advert reader behind the requirements it prints, and the job
+  // screen it lands on.
+  "paste-wait-journey.mjs": union(PASTE, POSTINGS, DECK),
   // #165: a language and its level are two facts; the ladder on the deck's own cards.
   "language-ladder-journey.mjs": union(
     ["apps/api/src/language.ts", "apps/api/src/languageLevel.ts"],

@@ -1,5 +1,27 @@
 # Lessons — jobcrush-app
 
+## A proxy that compresses will buffer your event stream, and curl will not show you
+
+Learned 2026-09-28 building #304's narrated wait. The server published five progress events over
+three seconds, a unit test proved it, and `curl` through the web app's own `/api/*` proxy showed
+them arriving properly spaced. In a real browser all five arrived **at once, at the end** — so the
+screen could only ever render the final state, and the whole feature was invisible while looking
+green everywhere I had thought to look.
+
+The cause: Next compresses what it proxies when the client asks for gzip, and a compressed body is
+held back until the stream closes. `curl` does not send `Accept-Encoding: gzip` unless you ask it
+to, so it exercised a different code path from every browser. The fix is two response headers on the
+SSE route — `Cache-Control: no-cache, no-transform` (the standard instruction to an intermediary)
+and `X-Accel-Buffering: no` (the same thing for the nginx family, which sits in front of a deploy).
+
+Three things to carry:
+- **`curl` is not a browser.** For anything streaming, add `-H 'accept-encoding: gzip'` or you are
+  testing a path no user is on.
+- **Any new SSE route needs those headers**, and the front door's CV read had silently had this
+  defect since it was built — it just showed "reading…" either way, so nobody could see it.
+- The only check that would have caught it is a **browser reading the screen over time**. Every
+  server-side assertion was correct and every one of them was about the wrong end of the wire.
+
 ## A design doc states a rule; the shipped screens show how far it actually reaches
 
 Learned 2026-09-27, reworking the requirement panel. `DESIGN.md`'s **Gold Law** says gold marks what
