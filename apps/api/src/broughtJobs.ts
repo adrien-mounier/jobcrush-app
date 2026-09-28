@@ -33,11 +33,18 @@ export const AGEING_SILENT_DAYS = 7;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** One advert this person brought: the posting to stitch into his deck, and the line its card and its
- *  own screen carry — null through the silent first week. */
+/** One advert this person brought: the posting to stitch into his deck, the line its card and its own
+ *  screen carry — null through the silent first week — and where to apply for it, null until somebody
+ *  gives us a link. Both facts ride on the same record for the same reason: `Posting` is the shape the
+ *  card-shaping side reads and it drops everything the reader did not need, so anything the card must
+ *  say about the advert ITSELF is resolved here, once, from the stored paste. */
 export interface BroughtJob {
   posting: Posting;
   ageing: string | null;
+  /** #306 — the link he gave the paste door, or the one he added afterwards on the job's own screen.
+   *  Read from the shared advert record, so the job's own screen shows the link the emailed report
+   *  will print (#293) rather than a second copy that could disagree with it. */
+  applicationUrl: string | null;
 }
 
 /** Newest first — the order the pinned band is shown in, and the order the cap counts down. */
@@ -74,7 +81,13 @@ export function makeBroughtJobs(deps: BroughtJobsDeps): BroughtJobsFn {
       // possible, not automatic, and the honest answer to "the advert behind this record is no longer
       // in the store" is one fewer card, never a broken deck.
       if (!posting) return [];
-      return [{ posting: postingOf(posting), ageing: ageingLine(record.pastedAt, posting.expiresAt, now) }];
+      return [
+        {
+          posting: postingOf(posting),
+          ageing: ageingLine(record.pastedAt, posting.expiresAt, now),
+          applicationUrl: posting.applicationUrl,
+        },
+      ];
     });
   };
 }
@@ -103,10 +116,22 @@ export function pinBrought<T extends { adId: string }>(cards: T[], brought: read
   return [...pinned, ...cards.filter((card) => !isPinned.has(card.adId))];
 }
 
-/** The ageing line on a card, or the card untouched — through the silent first week, and for every job
- *  we found ourselves, the field is simply absent (additive, like `notTested`). */
-export function withAgeing(card: JobCardV1, job: BroughtJob | undefined): JobCardV1 {
-  return job?.ageing ? { ...card, ageing: job.ageing } : card;
+/** What a card says because it is a job HE BROUGHT: its ageing line, and where to apply for it. Both
+ *  are additive like `notTested` — a job we found ourselves, or a brought one still in its silent first
+ *  week with no link, gets the card back untouched and the fields are simply absent.
+ *
+ *  #306: the apply link rides on the card for BOTH surfaces, and only the job's own screen renders it.
+ *  That is deliberate and it is the cheap half of the rule: the deck card is swiped, so a link inside
+ *  it fights the gesture (#300), and the way to be sure the deck never grows one is that the deck's
+ *  renderer is never handed a control to grow it with — apps/web/app/jobcard.tsx takes the apply row as
+ *  a slot its caller fills, and the deck passes nothing. */
+export function withBroughtFacts(card: JobCardV1, job: BroughtJob | undefined): JobCardV1 {
+  if (!job) return card;
+  return {
+    ...card,
+    ...(job.ageing ? { ageing: job.ageing } : {}),
+    ...(job.applicationUrl ? { applicationUrl: job.applicationUrl } : {}),
+  };
 }
 
 /**

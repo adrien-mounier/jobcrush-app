@@ -2,8 +2,8 @@
    already styles everything inside it. All this does is give one card a page to sit on instead of a
    deck's stacked slot. `.jobscreen` sits on the `.jobdeck` root, so every token comes from there.
 
-   Deliberately NOT restyling the card. #306 owns the four changes to it; anything this file did to
-   its insides would be a fifth, made by the wrong ticket. */
+   #306 then added the two card rules that belong to THIS screen and nowhere else — the un-muted gap
+   rows and the apply row — and nothing beyond them. */
 .jobdeck.jobscreen {
   overflow: auto;
 }
@@ -27,4 +27,123 @@
 .jobscreen .onejob .jcbody {
   overflow-y: visible;
   padding-bottom: 19px;
+}
+
+/* #306 change 4 — the "where you don't — yet" rows, un-muted HERE ONLY (owner call 2026-09-27,
+   closing #300's one open question). `.jobdeck .open` mutes their text, which is right on a card
+   being skimmed and wrong on the screen he reads before deciding: it makes the single line most
+   worth reading the faintest thing there. Scoped to `.jobscreen`, so the deck card keeps its quiet
+   skim styling with no prop, no flag and no second renderer. The marks keep their own grey — what
+   was too faint is the WORDS. */
+.jobscreen .jobcard .open {
+  color: var(--hud-ink);
+}
+
+/* #306 change 1 — the apply row. Sits under the header's facts at body size: this is the one thing
+   on the screen he acts on, so it is not a footnote, and it is not a button competing with the one
+   full-width action either. */
+.jobscreen .applyrow {
+  margin: 14px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.jobscreen .applylink {
+  color: var(--gold);
+  font-weight: 620;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(232, 163, 61, 0.45);
+}
+.jobscreen .applylink:hover {
+  border-bottom-color: var(--gold);
+}
+.jobscreen .applylink:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+/* Where the link goes, beside it — quiet, because it is a check rather than a claim. */
+.jobscreen .applyhost {
+  color: var(--hud-mute);
+  font-size: 12px;
+}
+/* The empty state is a CONTROL, not a caption (#300 change 1) — so it has to look pressable. Styled
+   as the app's quiet inline door rather than a second primary button: the one primary action on this
+   screen is "Write the tailored CV". */
+.jobscreen .applyadd {
+  appearance: none;
+  border: 1px dashed var(--hud-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--hud-mute);
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 13px;
+  min-height: 40px;
+  cursor: pointer;
+  text-align: left;
+}
+.jobscreen .applyadd:hover {
+  color: var(--hud-ink);
+  border-color: var(--hud-mute);
+}
+.jobscreen .applyadd:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.jobscreen .applyrow.adding {
+  gap: 8px;
+}
+.jobscreen .applyinput {
+  flex: 1 1 200px;
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid var(--hud-line);
+  border-radius: 8px;
+  background: var(--hud-2);
+  color: var(--hud-ink);
+  font: inherit;
+  /* 16px: anything smaller makes mobile Safari zoom the page on focus (#274). */
+  font-size: 16px;
+  padding: 8px 11px;
+}
+.jobscreen .applyinput:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+.jobscreen .applysave,
+.jobscreen .applycancel {
+  appearance: none;
+  border: 1px solid var(--hud-line);
+  border-radius: 999px;
+  background: var(--hud-2);
+  color: var(--hud-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 620;
+  min-height: 40px;
+  padding: 8px 15px;
+  cursor: pointer;
+}
+.jobscreen .applycancel {
+  color: var(--hud-mute);
+  font-weight: 400;
+}
+.jobscreen .applysave:disabled,
+.jobscreen .applycancel:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.jobscreen .applysave:focus-visible,
+.jobscreen .applycancel:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.jobscreen .applyerr {
+  flex: 1 0 100%;
+  color: #e0876c;
+  font-size: 12.5px;
 }

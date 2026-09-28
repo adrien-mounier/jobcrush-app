@@ -1,5 +1,21 @@
 # Lessons — jobcrush-app
 
+## A browser journey that WRITES to shared data is not re-runnable until its fixture is stamped
+
+Learned 2026-09-29 building #306. The journey pastes an advert and then adds an application link to
+it. A pasted advert's record is shared by everyone who pastes the same text and **the first link
+wins** — correct product behaviour — so the second run against a still-warm API pasted the same
+words, landed on the record the first run had already given a link to, and reported the empty-state
+control as missing. The run before it had passed. Nothing about the product had changed between them.
+
+The fix is one interpolation in the fixture (a run stamp in the advert's first line, which is what
+the fingerprint is taken from), but the reusable part is the question: **does this journey change
+state that outlives it, and is that state keyed on anything the run varies?** A journey that only
+reads is idempotent for free. One that writes to a per-session store is idempotent because the
+session is new. One that writes to a record keyed on its own fixture's CONTENT is idempotent only
+until somebody runs it twice — and CI, which starts a fresh API every time, will never tell you. It
+fails on the second local run, which is exactly when a person is trying to debug something else.
+
 ## The store hands out the object it stores, so "what this response saw" is a race you must pin
 
 Learned 2026-09-28 building #305. The deck route reads the session, asks the retrieval coordinator

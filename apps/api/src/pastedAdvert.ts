@@ -256,7 +256,7 @@ export async function pasteAdvert(deps: PasteAdvertDeps, input: PasteAdvertInput
     });
   }
 
-  const adId = `posting:${canonicalKeyOf(record.company, record.location, record.title)}`;
+  const adId = adIdOf(record);
   const pastedAt = await deps.pasteRecords.record(input.sessionId, adId, capturedAt);
   return {
     ok: true,
@@ -282,6 +282,56 @@ export function postingOf(canonical: PostingV1Value): Posting {
     excerpt: canonical.excerpt,
     language: canonical.language,
   };
+}
+
+/** The canonical id a stored record answers to — the id the job's own screen is opened with. One
+ *  formula, in one place: two copies of an id shape is how an id format drifts apart. */
+const adIdOf = (record: ProviderPostingRecordV1Value) =>
+  `posting:${canonicalKeyOf(record.company, record.location, record.title)}`;
+
+/**
+ * #306 — the one sanctioned way an application link is added to an advert already pasted.
+ *
+ * It exists because #294 clause 9 made the first paste win WHOLE: a second paste carrying a link the
+ * first did not have is deliberately not merged in, and the remedy it named instead is this — an
+ * explicit human edit on the job's own screen, where the empty state is a control rather than a
+ * caption (#300 change 1). So the rule here is the same rule from the other side: **the first link
+ * wins**, and a record that already carries one is left exactly as it is, reported back as `false`.
+ * Nothing in this product may replace a link somebody else typed without saying so.
+ *
+ * The write lands on the SHARED advert record, which is what everything else about a pasted advert
+ * already is (#294 ruling 1: one reading per advert, whoever pastes it) — including the link the paste
+ * door itself stores. Adding a link therefore helps the next person who brings the same job in, and
+ * cannot overwrite anything they gave us first.
+ *
+ * Returns false when nothing was written: no stored advert has this canonical id, or the one that does
+ * already has a link. The caller decides what that means to the person.
+ */
+export async function addPastedApplicationUrl(
+  store: Pick<PostingStore, "listByProvider" | "upsert">,
+  adId: string,
+  applicationUrl: string,
+): Promise<boolean> {
+  // Refused here as well as at the route's own boundary: this value is printed at the top of the
+  // application email and rendered as an anchor, and a write path that trusts its caller's validation
+  // is one route away from storing a scheme nobody checked.
+  if (!isWebLink(applicationUrl)) return false;
+  const records = await store.listByProvider(PASTED_SOURCE_PROVIDER_ID);
+  // Matched on the CANONICAL id rather than the fingerprint, because that is the id the job's own
+  // screen was opened with — and two different pastings of the same job (a fuller copy, a re-format)
+  // fingerprint apart while canonicalising together. Every record behind the id gets the link, so the
+  // answer does not depend on which of them the dedupe happens to pick today.
+  // ponytail: reads every pasted row to find the handful behind one id — the same bound
+  // `pastedPostings` already states, and this runs once, on a human pressing a button. Index by
+  // canonical key in the store if the pasted table ever grows large.
+  let written = false;
+  for (const record of records) {
+    if (adIdOf(record) !== adId) continue;
+    if (record.applicationUrl) continue; // first link wins, as above
+    await store.upsert({ ...record, applicationUrl });
+    written = true;
+  }
+  return written;
 }
 
 /** Every advert pasted by anyone, as canonical postings. Goes through dedupePostings rather than

@@ -160,6 +160,11 @@ const PASTE = [
 // Its own group rather than a line in PASTE, because a change here reddens the DECK journeys (the
 // pinned card and its notice are deck rendering), not the paste door's own screen.
 const BROUGHT = ["apps/api/src/broughtJobs.ts"];
+// #306 — the job's own screen: the shipped deck card plus the three things that are true only here
+// (the apply row, the un-muted gap rows, the one full-width action). Its own group because these
+// files were mapped NOWHERE until now — a change to them matched nothing, which under rule 1 meant
+// every journey ran. Fail-open worked; naming them is what makes the selection mean something.
+const JOB_SCREEN = ["apps/web/app/job/**", "apps/web/app/applyrow.tsx"];
 
 const union = (...groups) => [...new Set(groups.flat())];
 
@@ -276,17 +281,23 @@ export const COVERAGE = {
   // people, the landing on the job's own screen. It walks the deck, the profile, the tailor and a
   // job screen looking for that slot, and it asserts the deck's own search intent is unchanged by a
   // paste — so the deck, the profile and the tailor are all paths it can genuinely go red on.
-  "paste-door-journey.mjs": union(PASTE, POSTINGS, DECK, PROFILE, TAILOR, AUTH, DISCOVERY),
+  "paste-door-journey.mjs": union(PASTE, POSTINGS, DECK, PROFILE, TAILOR, AUTH, DISCOVERY, JOB_SCREEN),
   // #304: the narrated wait and the failure screen — the render test for both. Narrower on purpose:
   // it never signs in and never leaves the paste screen except to land on the job, so what it can go
   // red on is the paste subsystem, the advert reader behind the requirements it prints, and the job
   // screen it lands on.
-  "paste-wait-journey.mjs": union(PASTE, POSTINGS, DECK),
+  "paste-wait-journey.mjs": union(PASTE, POSTINGS, DECK, JOB_SCREEN),
   // #305: the ageing line on a rendered card, on the deck and on the job's own screen. It reads the
   // deck's order and its notice, so the brought-job rules, the paste subsystem behind the advert, the
   // deck's own card rendering and the retrieval that supplies the jobs it is pinned above are all
   // paths it can genuinely go red on.
-  "brought-job-ageing-journey.mjs": union(BROUGHT, PASTE, DECK, POSTINGS, AUTH),
+  "brought-job-ageing-journey.mjs": union(BROUGHT, PASTE, DECK, POSTINGS, AUTH, JOB_SCREEN),
+  // #306: the four changes to the job's own screen, each proved on the screen it belongs to — which
+  // is why this one carries the DECK as well as the job screen. Two of its claims are about what the
+  // deck card does NOT have and one is about what the deck card does too, so a deck-side regression
+  // reddens it exactly as a job-screen one does. The apply link's own write path is the paste
+  // subsystem's, and the gap rows it reads the colour of are the card's.
+  "job-screen-journey.mjs": union(JOB_SCREEN, DECK, PASTE, BROUGHT, POSTINGS, AUTH),
   // #165: a language and its level are two facts; the ladder on the deck's own cards.
   "language-ladder-journey.mjs": union(
     ["apps/api/src/language.ts", "apps/api/src/languageLevel.ts"],

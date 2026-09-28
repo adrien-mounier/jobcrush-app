@@ -6,7 +6,7 @@
 // design spec §3: "add it in the extracted CardBody — it improves /deck too") and a `data-req` hook
 // on each row (harmless to /deck, and what #23's live-card re-score flash needs to find the row it
 // just changed).
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import type { JobCard } from "../lib/api";
 
 const H1 = "Where you fit";
@@ -217,9 +217,18 @@ function rowClass(kind: "fit" | "open" | "settled", id: string, landedId?: strin
   return id === landedId ? `row ${kind} landed` : `row ${kind}`;
 }
 
-// The card anatomy (deck AC4): title -> meta -> ring, then the highlight bubble, then the three
-// ranked lists, then the ad folded shut last. Callers own the outer card wrapper (deck's
-// `.jobcard > .jcbody`, tailor's `.live-card`) — their CSS scoping differs, this doesn't.
+// The card anatomy, as #306 leaves it: title -> meta -> ring, then what the card says about the job
+// ITSELF — how old it is, where to apply, the advert in full — and only then what the machine has to
+// say about the person: the highlight bubble, the three ranked lists, the breakdown.
+//
+// #306 change 3 moved the ad up out of the last slot, on BOTH screens: it had been sitting under
+// everything the machine had to say about him, and checking our reading against the source is
+// something he does BEFORE reading our opinion of him, not after (#300). No restyling — `details.ad`'s
+// existing top hairline read as a footer separator at the bottom and reads as the header's closing
+// rule here.
+//
+// Callers own the outer card wrapper (deck's `.jobcard > .jcbody`, tailor's `.live-card`) — their CSS
+// scoping differs, this doesn't.
 export function CardBody({
   card,
   headingRef,
@@ -229,6 +238,7 @@ export function CardBody({
   gaveUp,
   retrying,
   onRetry,
+  applyRow,
 }: {
   card: JobCard;
   headingRef: RefObject<HTMLHeadingElement | null>;
@@ -240,6 +250,11 @@ export function CardBody({
   gaveUp?: boolean; // the poll exhausted its attempts while this card was still pending
   retrying?: boolean; // a manual retry fetch (onRetry) is in flight
   onRetry?: () => void; // required whenever gaveUp can be true
+  /** #306 change 1 — the apply row, as a SLOT rather than a flag. The job's own screen fills it; the
+   *  deck passes nothing and therefore cannot grow a link inside a card that is swiped (#300). A
+   *  boolean would put the decision in this file, where a later caller could get it the wrong way
+   *  round; a slot puts it in the one screen that is allowed to have it. */
+  applyRow?: ReactNode;
 }) {
   const metaLine1 = [card.company, card.place].filter(Boolean).join(" · ");
   const metaLine2 = [card.salary, card.pattern].filter(Boolean).join(" · ");
@@ -300,6 +315,20 @@ export function CardBody({
           directly under the header because it is a fact about the job he needs BEFORE the score, not
           a footnote under it. */}
       {card.ageing && <p className="ageing">{card.ageing}</p>}
+
+      {/* Under the header's facts rather than above them: the ageing line is the one thing on this
+          card we cannot verify, and he should read "we cannot check whether this is still open"
+          BEFORE the link that takes him out of the app. */}
+      {applyRow}
+
+      {/* #117b design §11.6: controlled only so `unscored` can start open — a judged/estimated/
+          pending card gets adOpen=false at mount, same as the old uncontrolled default, and the
+          visitor's own toggle then drives it exactly as before. shouldIgnoreSwipeStart already
+          excludes `details.ad[open]` from starting a swipe (deck/page.tsx), unchanged. */}
+      <details className="ad" open={adOpen} onToggle={(e) => setAdOpen(e.currentTarget.open)}>
+        <summary>{A1}</summary>
+        <p>{card.adExcerpt}</p>
+      </details>
 
       {card.scored === "pending" ? (
         <PendingBubble gaveUp={gaveUp} retrying={retrying} onRetry={onRetry} />
@@ -381,15 +410,6 @@ export function CardBody({
       </div>
 
       <MatchBreakdown card={card} pct={pct} />
-
-      {/* #117b design §11.6: controlled only so `unscored` can start open — a judged/estimated/
-          pending card gets adOpen=false at mount, same as the old uncontrolled default, and the
-          visitor's own toggle then drives it exactly as before. shouldIgnoreSwipeStart already
-          excludes `details.ad[open]` from starting a swipe (deck/page.tsx), unchanged. */}
-      <details className="ad" open={adOpen} onToggle={(e) => setAdOpen(e.currentTarget.open)}>
-        <summary>{A1}</summary>
-        <p>{card.adExcerpt}</p>
-      </details>
     </>
   );
 }

@@ -33,6 +33,7 @@ import {
 import { readingLanguages } from "../language.js";
 import { eligiblePostings, type Posting } from "../preview.js";
 import {
+  addPastedApplicationUrl,
   isWebLink,
   MAX_ADVERT_CHARS,
   pasteAdvert,
@@ -81,6 +82,20 @@ const Body = z.object({
 });
 
 const Params = z.object({ adId: z.string().min(1) });
+
+/** #306 — what the apply row's own control sends. The same shape and the same guard the paste door
+ *  applies to the link beside the advert, because it is the same field being written: only a real web
+ *  address is ever stored, since this value is printed at the top of the application email and
+ *  rendered as an anchor. Never nullable — this endpoint ADDS a link, and "" would be a way to clear
+ *  one nobody offered to clear. */
+const LinkBody = z.object({
+  applicationUrl: z
+    .string()
+    .trim()
+    .min(1)
+    .max(2048)
+    .refine(isWebLink, { message: "the application link must start with http:// or https://" }),
+});
 
 /** #304 — the three named steps, in the order they run. The names are the spec's own words and they
  *  are honest: each one is a thing the server really does, and none of them is on screen before the
@@ -286,6 +301,36 @@ export function pasteRoutes(deps: PasteDeps) {
       return reply.status(202).send({ jobId: job.id });
     });
 
+    /** #306 — he adds the link himself, on the job's own screen, when the advert he pasted carried
+     *  none. This is the endpoint behind the apply row's empty state, and it is the ONLY way a link
+     *  reaches an advert after its first paste: #294 clause 9 refused a silent backfill on a second
+     *  paste and named this control as the remedy, so a second invisible writer of the same field is
+     *  exactly what must not exist.
+     *
+     *  Scoped to the adverts HE brought, like the screen itself: the reading is shared, but being
+     *  allowed to write to a shared record is a different question from being allowed to read it, and
+     *  an unscoped write here would let anyone who can guess an adId put a link of their choosing in
+     *  front of the people who pasted that job.
+     *
+     *  409, not a silent success, when the record already has a link: the control is only offered on
+     *  a job with none, so arriving here anyway means somebody else got there first — and the honest
+     *  answer is to say so and show what they gave, never to replace it. */
+    app.put(
+      "/onboarding/jobs/:adId/application-link",
+      { schema: { params: Params, body: LinkBody } },
+      async (req, reply) => {
+        const session = requireSession(req);
+        const job = await broughtJobFor(session, req.params.adId);
+        if (!job) return reply.status(404).send(UNKNOWN_CARD);
+        if (job.applicationUrl) {
+          return reply.status(409).send({ error: LINK_ALREADY_SET, applicationUrl: job.applicationUrl });
+        }
+        const written = await addPastedApplicationUrl(deps.postings, req.params.adId, req.body.applicationUrl);
+        if (!written) return reply.status(409).send({ error: LINK_ALREADY_SET });
+        return { applicationUrl: req.body.applicationUrl };
+      },
+    );
+
     app.get("/onboarding/jobs/:adId", { schema: { params: Params } }, async (req, reply) => {
       const session = requireSession(req);
       const job = await broughtJobFor(session, req.params.adId);
@@ -298,6 +343,13 @@ export function pasteRoutes(deps: PasteDeps) {
 }
 
 const UNKNOWN_CARD = { error: { code: "unknown_card", message: "no such job" } };
+
+// #306: the first link wins (pastedAdvert.ts's addPastedApplicationUrl), so a race with another person
+// who pasted the same advert ends here rather than in a silent overwrite.
+const LINK_ALREADY_SET = {
+  code: "link_already_set",
+  message: "This job already has an application link.",
+};
 
 // #305 removed `withdrawn` from this union: a job he brought is never withdrawn (#294 c1), so the one
 // way a stored advert yields no card is a reading we could not finish.

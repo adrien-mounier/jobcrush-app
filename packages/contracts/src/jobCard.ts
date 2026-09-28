@@ -53,6 +53,16 @@ const JobCardCommon = z.object({
    *  nothing, so the deck card and the job's own screen cannot drift apart on the wording or the day
    *  it starts. */
   ageing: z.string().min(1).optional(),
+  /** #306 (#300 change 1) — where to apply for this job, when we have it: the link he gave the paste
+   *  door, or the one he added afterwards on the job's own screen. Optional and additive for the
+   *  third time on this contract (`notTested`, `ageing`): a job with no link omits it, which is the
+   *  case the job screen's apply row answers with a control rather than a caption.
+   *
+   *  Constrained to http(s) here as well as at both write boundaries (pastedAdvert.ts's `isWebLink`),
+   *  because this value is rendered as an anchor and emailed as one: the scheme is a safety question,
+   *  not a formatting one, and a contract that accepted any non-empty string would make the renderer
+   *  the last line of defence. */
+  applicationUrl: z.string().regex(/^https?:\/\//i).optional(),
 });
 
 /** A real score: judged against the candidate's evidence, or — only when no judge is wired at all —

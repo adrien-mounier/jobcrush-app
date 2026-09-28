@@ -704,6 +704,46 @@ describe("JobCard v1", () => {
     }
   });
 
+  // #306: the three OPTIONAL additive fields this contract has grown (#162 notTested, #305 ageing,
+  // #306 applicationUrl) were each checked by hand when they landed and enforced by nothing. Absent
+  // is the pre-existing payload and must stay valid in both; present-and-malformed is where a zod
+  // port and its oracle drift apart in silence, because neither side fails loudly on a field the
+  // other simply does not know about.
+  it("keeps oracle and zod in agreement on the optional additive fields", () => {
+    const present: Array<(card: any) => void> = [
+      (card) => (card.notTested = [{ id: "years", band: "essential", requirement: "8 years" }]),
+      (card) => (card.ageing = "You pasted this 9 days ago."),
+      (card) => (card.applicationUrl = "https://example.com/apply"),
+      (card) => (card.applicationUrl = "http://example.com/apply"),
+      // A URL scheme is case-insensitive, and so are both write boundaries — a contract that refused
+      // this would reject links the product itself stores (QA gate on #306, finding D1).
+      (card) => (card.applicationUrl = "HTTPS://example.com/apply"),
+    ];
+    for (const mutate of present) {
+      const card = fixture("job-card-v1.valid.json");
+      mutate(card);
+      expect(JobCardV1.safeParse(card).success).toBe(validateJobCardV1(card).ok);
+      expect(validateJobCardV1(card).ok, `${mutate.toString()} should be accepted`).toBe(true);
+    }
+
+    const malformed: Array<(card: any) => void> = [
+      (card) => (card.notTested = [{ id: "years", band: "critical", requirement: "8 years" }]),
+      (card) => (card.notTested = "years"),
+      (card) => (card.ageing = ""), // a blank notice renders as an empty line, which is worse than none
+      (card) => (card.ageing = 9),
+      (card) => (card.applicationUrl = ""),
+      (card) => (card.applicationUrl = "javascript:alert(1)"), // rendered as an anchor — scheme is safety
+      (card) => (card.applicationUrl = "example.com/apply"),
+      (card) => (card.applicationUrl = 42),
+    ];
+    for (const mutate of malformed) {
+      const card = fixture("job-card-v1.valid.json");
+      mutate(card);
+      expect(JobCardV1.safeParse(card).success).toBe(validateJobCardV1(card).ok);
+      expect(validateJobCardV1(card).ok, `${mutate.toString()} should be rejected`).toBe(false);
+    }
+  });
+
   it("rejects a pending card that claims any number (#117 AC5) in both", () => {
     const mutations: Array<(card: any) => void> = [
       (card) => (card.matchPct = 50),

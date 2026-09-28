@@ -5,12 +5,15 @@
 // deciding (#300) — the same `CardBody`, inside the same `.jobcard > .jcbody` wrapper, with the
 // swipe gesture and its two stamps left behind because there is nothing here to swipe past.
 //
-// #306 makes the four changes that turn this into the finished screen: the apply row under the
-// title, one full-width "Write the tailored CV", "Read the ad in full" moved up, and the "where you
-// don't — yet" rows un-muted here only. This ticket builds the room it lands in and nothing more.
+// #306 made the four changes that turn it into the finished screen, and three of the four are here:
+// the apply row under the title (a slot CardBody renders and the deck never fills), one full-width
+// "Write the tailored CV" where the deck has its swipe pair, and the "where you don't — yet" rows
+// un-muted by job.css on this screen only. The fourth — "Read the ad in full" moved up under the
+// heading — is in CardBody, because it happens on both screens.
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { ensureSession, getJob, type JobCard } from "../../../lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ensureSession, getJob, wantCard, type JobCard } from "../../../lib/api";
+import { ApplyRow } from "../../applyrow";
 import { CardBody } from "../../jobcard";
 import { PasteDoor } from "../../pastedoor";
 import "../../deck.css";
@@ -21,6 +24,13 @@ const GONE_H = "This job isn't on your deck";
 const GONE =
   "We couldn't open it. A job you pasted stays; one we found can drop off when its listing does.";
 const BACK = "Back to my deck";
+// #306 change 2 / #300: ONE full-width action, and it says what the press produces. It reads
+// differently from the deck's own button on purpose — there "I want this one" pairs with "Not for me"
+// and matches the stamp shown when the card is dragged right, so relabelling it would make a card
+// contradict itself mid-swipe. Same card, two contexts, one word different.
+const WRITE = "Write the tailored CV";
+const WRITING = "Opening…";
+const WRITE_FAILED = "We couldn't start on this one. Please try again.";
 
 /** Next's `useParams` hands back the URL segment as it was WRITTEN, still percent-encoded — and an
  *  adId is `posting:<hex>`, whose colon the paste screen had to encode to put it in a path. Without
@@ -44,6 +54,8 @@ export default function JobScreen() {
   const [error, setError] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const goneHeadingRef = useRef<HTMLHeadingElement>(null);
+  const [starting, setStarting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -64,6 +76,22 @@ export default function JobScreen() {
   useEffect(() => {
     if (error) goneHeadingRef.current?.focus();
   }, [error]);
+
+  /** The one next step. It is the deck's own handoff — the same `want` call, so a job reaches the
+   *  Tailor step by one route whichever screen he pressed it from — minus the swipe choreography the
+   *  deck wraps it in, because there is no card to animate off a screen showing one job. */
+  const write = useCallback(async () => {
+    if (!card || starting) return;
+    setStarting(true);
+    setActionError(null);
+    try {
+      await wantCard(card.adId);
+      router.push("/tailor");
+    } catch {
+      setActionError(WRITE_FAILED);
+      setStarting(false);
+    }
+  }, [card, router, starting]);
 
   return (
     <div className="jobdeck jobscreen">
@@ -95,7 +123,21 @@ export default function JobScreen() {
         <div className="onejob">
           <div className="jobcard">
             <div className="jcbody">
-              <CardBody card={card} headingRef={headingRef} />
+              <CardBody
+                card={card}
+                headingRef={headingRef}
+                applyRow={<ApplyRow adId={card.adId} applicationUrl={card.applicationUrl} />}
+              />
+            </div>
+            {actionError && (
+              <p className="deckerr" role="alert">
+                {actionError}
+              </p>
+            )}
+            <div className="jcfoot">
+              <button type="button" className="sw yes" disabled={starting} onClick={write}>
+                {starting ? WRITING : WRITE}
+              </button>
             </div>
           </div>
         </div>

@@ -83,6 +83,17 @@ export function validateJobCardV1(card) {
   if (card.ageing !== undefined) {
     e.require(isNonEmptyString(card.ageing), "ageing must be a non-empty string");
   }
+  // #306 (#300 change 1) — where to apply, optional and additive like the two above. http(s) only:
+  // the value is rendered as an anchor and emailed as one, so the scheme is checked at the contract
+  // as well as at both write boundaries rather than trusted to the renderer. Case-insensitive because
+  // a URL scheme is (RFC 3986 §3.1) and because both write boundaries already are: a contract stricter
+  // than the product that feeds it makes the product store cards its own spec rejects (QA gate D1).
+  if (card.applicationUrl !== undefined) {
+    e.require(
+      isNonEmptyString(card.applicationUrl) && /^https?:\/\//i.test(card.applicationUrl),
+      "applicationUrl must be an http(s) URL",
+    );
+  }
   return result(e);
 }
 

@@ -207,6 +207,12 @@ export const JOURNEYS = [
   // ~2 min against the fake-model API; one magic-link sign-in.
   "brought-job-ageing-journey.mjs",
   "paste-wait-journey.mjs",
+  // #306: the only asset anywhere that can catch the job's own screen losing one of its four
+  // changes. Three of them are invisible to every server-side test — a slot the deck never fills, a
+  // CSS rule, and a change of ORDER — and the fourth is a claim about the DIFFERENCE between two
+  // screens. It adds a link through the real control, so it needs no QA-only knob at all.
+  // ~2 min against the fake-model API; one magic-link sign-in.
+  "job-screen-journey.mjs",
 ];
 
 // Only run when invoked directly — the selection self-check imports JOURNEYS from here.

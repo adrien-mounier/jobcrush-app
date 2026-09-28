@@ -279,8 +279,29 @@ await answerFloorWith(
   () => cjson('/onboarding/discovery'),
   (body) => cjson('/onboarding/discovery/answer', 'POST', body),
 );
-const ctlCard = (await cjson('/onboarding/cards')).cards?.find((c) => c.adId === COMPOUND_AD);
+// Waited for, not read once. The FIRST uncached deck read answers `searching: true` with no cards
+// while the retrieval runs in the background — that is deckRetrieval.ts's documented fail-closed
+// behaviour (#245), which #305 made reliable by pinning what a response observed before its first
+// await. This arm used to read the deck one call after answering the floor and win that race by
+// accident; when it stopped winning, the control card came back undefined and the A/B below reported
+// a product defect that was never there. The browser arm needs no such wait because it walks the UI
+// for seconds first. Nothing about what is asserted changes — only whether the answer exists yet.
+let ctlCard;
+for (let attempt = 0; attempt < 60; attempt += 1) {
+  const deck = await cjson('/onboarding/cards');
+  if (deck?.searching === false) {
+    ctlCard = deck.cards?.find((c) => c.adId === COMPOUND_AD);
+    break;
+  }
+  await page.waitForTimeout(500);
+}
 await ctl.dispose();
+if (ctlCard === undefined) {
+  await qa.note(
+    'the control deck never settled within 30s — so the A/B below has no control score, and that is ' +
+      'THIS RUN failing to get an answer rather than the product refusing to give one.',
+  );
+}
 
 await qa.note(
   `A/B — this visitor typed "${ROLE}" and scores ${compound?.matchPct}%; an otherwise identical ` +

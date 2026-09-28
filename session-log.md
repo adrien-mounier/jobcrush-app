@@ -2,6 +2,83 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-29 — #306 built: the job's own screen is finished, and V3 is complete
+
+`/implement` → `/code-review` → `/qa-gate` (**GO**, two low defects, both fixed and re-verified
+before the commit) on **#306**, V3's fifth and last ticket.
+
+**What a person gets.** The screen he lands on after pasting a job is finished. Four changes, and the
+ticket asked for nothing else:
+
+- **A link to apply, under the title.** When the advert carried one, it is there as a link he can
+  press, with the site it goes to beside it so he can see where he is being sent. When it carried
+  none, the empty state is **a control, not a caption**: *"No application link yet — add the
+  application link"* is a button, and pressing it is how the gap closes. The link he adds is on the
+  job from then on, not just on the screen he is looking at.
+- **One full-width *Write the tailored CV*.** One next step, measured at full width by the browser
+  test rather than asserted. **The deck's own card does not change** — there the button still pairs
+  with *Not for me* and matches the *Want it* stamp a dragged card shows, so a card cannot contradict
+  itself mid-swipe.
+- **The advert moved up**, directly under the title, **on both screens**. He checks our reading
+  against the source before he reads our opinion of him, not after.
+- **The list of what he is missing is as readable as everything else — here only.** The deck card
+  keeps its quiet skim styling. One CSS rule scoped to this screen, so there is no second renderer
+  and no flag to get the wrong way round.
+
+**The apply link deliberately does not go on the deck card**, and that is structural rather than
+remembered: the shared card renderer takes the apply row as a *slot its caller fills*, and the deck
+passes nothing. The QA gate attacked this from the payload side — the deck's own data for that job
+does carry the link — and found no link, no control, and nothing hidden, on the deck or on the third
+surface that reuses the same card.
+
+**Adding a link is the one sanctioned way, and it cannot overwrite anybody.** #294 clause 9 refused a
+silent backfill on a second paste and named this control as the remedy, so a second invisible writer
+of that field is exactly what must not exist. The write is scoped to the adverts he brought (a
+stranger who knows the id gets a 404), refuses anything that is not a real web address at three
+boundaries, and **the first link wins**: a second one is refused with the link that is actually
+there, which the screen then shows him rather than an error. An advert record is shared by everyone
+who pastes it, so a link he adds helps the next person and can never be taken from them.
+
+**What the ticket asked for and did not get, stated plainly.** *"Not checked: … prints beside the
+number"* is carried by the shipped `notTested` block, which prints under the heading **"Not tested"**
+in the ranked lists rather than beside the score ring. Moving it would be a fifth change, which the
+ticket's own first criterion forbids. **Owner call on the wording.** It is also not drivable in a
+browser on the QA stack: its canned reader gives a pasted advert no eligibility dimension, so no
+pasted job there can carry an untested bar — the gate proved the rendering by injecting the payload
+instead.
+
+**One deliberate deviation, one line to reverse.** The ticket says the apply row goes *directly*
+under the title; on a job old enough to carry its ageing line, that line sits above it — so he reads
+*"we cannot check whether it is still open"* **before** the link that takes him out of the app. The
+browser test now proves the order in exactly that state, because a rule pinned to a fixed position
+would have gone red on a healthy seven-day-old job.
+
+**What the reviews and the gate earned.** Code review found the screen's error line was not announced
+to a screen reader, a saved link that could go stale against its own card, a refusal that told him a
+link existed without showing it, a refused link that reached him as the words *"Bad Request"*, an
+apply-row position test that would redden on a healthy aged job, *full width* claimed but never
+measured, and one id formula written twice. The QA gate then found the product **storing a card its
+own contract rejects** — an uppercase `HTTPS://` passes both write boundaries, because a URL scheme
+is case-insensitive, and was refused by the zod port and the oracle alike. The contract was the wrong
+side; both moved together, and the golden test now pins the case.
+
+**A red CI run that was not this ticket's.** The run meant to verify #305 came back **red**, and it
+was real: `family-years-scope-journey`'s control arm read the deck once, immediately, and #305 had
+just made the first uncached read honestly answer *"still searching"* — the accident that journey had
+been winning. Its assertions are untouched; it now waits for the answer to exist, and says so when it
+gives up. The A/B behind it still fires (47% against 49%), which is the whole point of it.
+
+**Contract, ratchet, gates.** `applicationUrl` is optional and additive on the job card — zod port
+and `.mjs` oracle changed together, with the golden agreement test the last two additive fields never
+got (`notTested`, `ageing`), and every one of its rules proved able to fail. `routes/onboarding.ts`
+is untouched at 842: the endpoint lives in the paste door's own file and its logic beside the posting
+store. A new browser journey, registered with its coverage entry; the job screen's files were mapped
+into that coverage map for the first time (they had matched nothing, so a change to them ran the
+whole gate).
+
+**Gates:** 1806 unit tests, typecheck, 169 mocked browser specs, Tier 2 selection 15/15, and eight
+Tier 2 journeys driven live — the new one plus the seven the diff can reach.
+
 ## 2026-09-28 — #305 built: a job he brought never expires, and ages in public
 
 `/implement` → `/code-review` → `/qa-gate` (**GO**, no defects) on **#305**, V3's fourth ticket.

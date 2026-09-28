@@ -28,7 +28,7 @@ import {
   INDUSTRY_SCOPE_PREFIX,
 } from "./yearsWorked.js";
 import { lookupAdRequirements } from "./e5stub.js";
-import { pinBrought, withAgeing, type BroughtJob } from "./broughtJobs.js";
+import { pinBrought, withBroughtFacts, type BroughtJob } from "./broughtJobs.js";
 import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
 import { applyEligibilityQuestions, excludingEligibility } from "./eligibilityDiscovery.js";
@@ -835,8 +835,9 @@ export async function buildDeckCards(
     // #305: the ageing line rides on the card, composed by broughtJobs.ts, so the deck card and the
     // job's own screen (routes/paste.ts, which runs this same pass over one posting) cannot drift
     // apart on the wording or on the day it starts. Absent for every job we found — there is nothing
-    // to say about the age of an advert we re-asked its provider for this minute.
-    card: withAgeing(
+    // to say about the age of an advert we re-asked its provider for this minute. #306 adds the apply
+    // link the same way and for the same reason; only the job's own screen renders it.
+    card: withBroughtFacts(
       buildJobCard(
         entry.posting,
         entry.adReq,

@@ -15,8 +15,11 @@ async function jfetch<T>(url: string, init?: RequestInit): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const envelope = (body as { error?: { code?: string; message?: string } }).error;
-    const err = new Error(envelope?.message ?? res.statusText) as Error & { code?: string };
+    const err = new Error(envelope?.message ?? res.statusText) as Error & { code?: string; body?: unknown };
     err.code = envelope?.code; // callers branch on this (e.g. login_required → the wall)
+    // …and the refusal's own body rides along, for the refusals that carry an ANSWER rather than just
+    // a reason (#306: a 409 on the apply link returns the link that is already there).
+    err.body = body;
     throw err;
   }
   return body as T;
@@ -841,4 +844,14 @@ export function pasteJob(text: string, applicationUrl: string | null): Promise<{
 /** One job's own screen — a job he pasted, or one the app found and his deck still holds. */
 export function getJob(adId: string): Promise<{ card: JobCard }> {
   return jfetch(`/api/onboarding/jobs/${encodeURIComponent(adId)}`);
+}
+
+/** #306 — the apply row's own control: he adds the link an advert he pasted did not carry. The
+ *  server answers with the link the job now holds, and refuses (409, `link_already_set`) rather than
+ *  replacing one somebody else gave first — the advert record is shared by everyone who pastes it. */
+export function addApplicationLink(adId: string, applicationUrl: string): Promise<{ applicationUrl: string }> {
+  return jfetch(`/api/onboarding/jobs/${encodeURIComponent(adId)}/application-link`, {
+    method: "PUT",
+    body: JSON.stringify({ applicationUrl }),
+  });
 }
