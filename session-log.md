@@ -49,11 +49,25 @@ production has the key, and a dynamic step list for a configuration production n
 speculative.
 
 **Open, not fixed here.** `apps/web/e2e/posting-contract-v5-journey.mjs` is still untracked, left over
-from #302's session — deliberately not swept into this commit. And the design hook flags `9.5px` mono
-labels on the paste screen as below `DESIGN.md`'s 10.5px floor: true, and it is a **shipped
-convention**, not this diff's drift (`deck.css` 9px, `tailor.css` 9.5/10px, `paste.css` 9.5px from
-#303). Either DESIGN.md's floor is wrong about labels or five screens are — an owner call, and its
-own ticket.
+from #302's session — deliberately not swept into this commit.
+
+**Settled the same day, in `4f939d4`.** The design hook flagged six values on the paste screen as off
+`DESIGN.md`'s documented scales. The owner asked to **see** the difference rather than read it as a
+table — fair, and the right instinct: rendered side by side, the answer split three ways and two
+thirds of my written recommendation would have been wrong to apply wholesale. The panel labels went
+to **10.5px** (the document is right — 9.5px small capitals are genuinely hard to read), both corners
+to **10px** (invisible, so the consistency is free), and the **heading stayed at 22px** with DESIGN.md
+amended instead. The reason for that last one got stronger on the way: **22px was already shipping
+undocumented on two screens in two different roles** — this `h1` and `profile.css`'s fact count — so
+naming it as a `screen-title` step documents what ships rather than inventing a step for one heading.
+The paste screen now carries no off-scale value at all.
+
+**Still open, and the one that is not paint.** `DESIGN.md`'s #274 rule says a field's text is **16px**,
+because mobile Safari zooms the whole page into any focused field under it; the deck, discovery and the
+front door all comply. The paste screen's two fields are **13px and 12.5px** — on the screen whose
+whole job is pasting a long advert on a phone. The design hook cannot see it (both are legal sizes,
+just not for a field). Predicted from the document and three complying screens, **not yet confirmed on
+a real device** — which is the first thing its ticket should do.
 
 ## 2026-09-28 — #303 built: paste an advert, get a job card
 
