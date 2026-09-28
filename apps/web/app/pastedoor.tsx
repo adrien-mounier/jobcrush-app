@@ -11,7 +11,21 @@
 import Link from "next/link";
 import "./pastedoor.css";
 
-const LABEL = "＋ Paste a job";
+const LABEL = "Paste a job";
+const MARK = "＋";
+
+/** The mark always shows; the words collapse only where the top bar has no room for them — the
+ *  profile's, BELOW 900px, where a back button, an absolutely centred view toggle and the fact badge
+ *  already share a column capped at 560px. From 900px up the profile widens that bar to 1120px and
+ *  the words come back, so this is not a profile-wide compromise (pastedoor.css carries the measured
+ *  numbers). `aria-label` carries the full name in every case, so the control is never announced as
+ *  a bare "+". */
+const Face = () => (
+  <>
+    <span aria-hidden="true">{MARK}</span>
+    <span className="pdwords">{LABEL}</span>
+  </>
+);
 
 export function PasteDoor({ inert }: { inert?: boolean }) {
   // A disabled control rather than a hidden one: the slot does not move between screens, which is
@@ -21,13 +35,19 @@ export function PasteDoor({ inert }: { inert?: boolean }) {
   // announced, reachable, and does nothing.
   if (inert)
     return (
-      <button type="button" className="pastedoor" aria-disabled="true" data-testid="paste-door-inert">
-        {LABEL}
+      <button
+        type="button"
+        className="pastedoor"
+        aria-disabled="true"
+        aria-label={LABEL}
+        data-testid="paste-door-inert"
+      >
+        <Face />
       </button>
     );
   return (
-    <Link className="pastedoor" href="/paste" data-testid="paste-door">
-      {LABEL}
+    <Link className="pastedoor" href="/paste" aria-label={LABEL} title={LABEL} data-testid="paste-door">
+      <Face />
     </Link>
   );
 }

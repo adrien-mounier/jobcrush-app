@@ -1865,3 +1865,40 @@ test("#278: with no Professional Experience section at all, the door is still on
   await expect(door).toHaveAttribute("href", "/job-blocks");
   await expect(door).toHaveCount(1); // still exactly one — never two doors to the same screen
 });
+
+// #303: the paste door's ONLY coverage on a push. `paste-door-journey.mjs` proves the whole door but
+// is not in run-tier2.mjs, so nothing else in CI touches it — and the regression that made this
+// necessary was exactly a profile-topbar collision: the door pushed the fact badge's enlarged hit
+// area over the centred view toggle and killed two phone specs. Those specs catch the collision;
+// this catches the door going missing or losing its name, which they would not notice.
+test("#303: the profile's top bar carries the paste door, named, on phone and on desktop", async ({
+  page,
+}) => {
+  await stubSession(page);
+  await stubProfile(page);
+
+  for (const { width, height, words } of [
+    { width: 375, height: 800, words: false }, // no room below 900px — the mark alone
+    { width: 1280, height: 900, words: true }, // profile.css:719 widens the bar to 1120px
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/profile");
+    // By ACCESSIBLE NAME, not by its visible text: below 900px the door renders as "＋" alone, and
+    // the whole point of the aria-label is that the control is still called "Paste a job" there.
+    // Counted BEFORE visibility, so a second door fails as a count rather than a strict-mode error.
+    const door = page.getByRole("link", { name: "Paste a job", exact: true });
+    await expect(door, `door missing or unnamed at ${width}px`).toHaveCount(1);
+    await expect(door).toBeVisible();
+    await expect(door).toHaveAttribute("href", "/paste");
+    // In the top bar, not loose on the page — the slot is what AC1 is about.
+    await expect(page.locator(".topbar .pastedoor")).toHaveCount(1);
+    // The words themselves, both directions. Finding the door by name is width-independent, so
+    // without this the `@media (max-width: 899px)` rule could be deleted or re-widened and nothing
+    // would notice: the dangerous direction (words back on a phone, pushing the fact badge over the
+    // view toggle) reddens the two phone specs above, but the cosmetic one (words gone on desktop,
+    // where they fit with 318px to spare) is only caught here.
+    const wordsLocator = page.locator(".topbar .pastedoor .pdwords");
+    if (words) await expect(wordsLocator, `words should show at ${width}px`).toBeVisible();
+    else await expect(wordsLocator, `words should be hidden at ${width}px`).toBeHidden();
+  }
+});
