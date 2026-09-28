@@ -72,6 +72,7 @@ typography:
     emphasis: "17px"
     headline: "18px"
     stat: "19px"
+    screen-title: "22px"
     moment: "24px"
     reveal: "27px"
     hero-count: "38px"
@@ -233,7 +234,7 @@ export format.)
 ### Hierarchy
 - **Display** (660, 29px, 1.13, -0.022em): the advert hero title on the tailor screen;
   one per screen at most.
-- **Headline** (600–700, 18–21px): card titles, screen headings.
+- **Headline** (600–700, 18–22px): card titles, screen headings.
 - **Title** (620, 15px): section heads inside cards and panels.
 - **Body** (400, 14px, 1.5): everything readable.
 - **Label** (mono, 10.5–11.5px): counts, build stamps, tiny keys — always with words,
@@ -242,12 +243,17 @@ export format.)
 ### Working Ramp
 The dark room ships a wider ladder than the five roles above; the full working ramp
 (frontmatter `typography.scale` plus the roles) is:
-**10.5 / 11 / 11.5 / 12 / 12.5 / 13 / 13.5 / 14 / 14.5 / 15 / 17 / 18 / 19 / 24 /
+**10.5 / 11 / 11.5 / 12 / 12.5 / 13 / 13.5 / 14 / 14.5 / 15 / 17 / 18 / 19 / 22 / 24 /
 27 / 29 / 38 / 42px.**
 The notable steps: **42px** is the celebration burst on the deck reveal · **38px**
 the profile's hero fact count · **27px** the curtain reveal headline · **24px** the
 dark room's "moment" headline (load states, loopback) · **19px** mono stat numbers ·
-**18px** card and wall headings (the 18–21px headline band) · **17px** dialog lead
+**22px** a screen's own title, the top of the headline band — **added 2026-09-28**, on the
+owner's call after seeing the paste screen rendered at 19px beside 22px: at 19px a screen
+heading stops reading as a room of its own. It was already shipping undocumented on two
+screens in two different roles (`paste.css`'s `h1`, `profile.css`'s fact count), which is the
+other half of why it is named here rather than designed away · **18px** card and wall headings
+(the 18–22px headline band) · **17px** dialog lead
 text · **12.5px** the workhorse secondary/meta size · **10.5–11.5px** the mono label
 family. Half-steps within 0.5px of a documented step (15.5, 16.5, 18.5) read as that
 step.

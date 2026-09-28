@@ -43,7 +43,9 @@
   background: var(--hud-1);
   color: var(--hud-ink);
   border: 1px solid var(--hud-line);
-  border-radius: 9px;
+  /* 10px — DESIGN.md's `rounded.soft`, and its Inputs rule states that radius outright. Was 9px
+     from the approved prototype; owner's call 2026-09-28, after seeing both rendered. */
+  border-radius: 10px;
   padding: 15px 17px;
   font-family: var(--sans);
   font-size: 13px;
@@ -76,7 +78,7 @@
   background: var(--hud-1);
   color: var(--hud-ink);
   border: 1px solid var(--hud-line);
-  border-radius: 8px;
+  border-radius: 10px; /* same rule, same call — was 8px */
   padding: 9px 11px;
   font-family: var(--mono);
   font-size: 12.5px;
@@ -114,7 +116,10 @@
 }
 .pastescreen .right h2 {
   font-family: var(--mono);
-  font-size: 9.5px;
+  /* 10.5px — DESIGN.md's label floor ("the smallest reading text in the product is 10.5px").
+     Was 9.5px from the approved prototype; owner's call 2026-09-28, after seeing both rendered
+     side by side: at 9.5px this line is genuinely hard to read and the floor exists for a reason. */
+  font-size: 10.5px;
   letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--hud-mute);
@@ -145,16 +150,14 @@
 
 /* ---------------------------------------------------------------------------------------------
    #304 — the narrated wait, and the screen a read that produced no job ends on.
-   Values are the ones already on this screen (deck.css HUD tokens, the panel's own 12.5px body and
-   9.5px mono label), so the wait reads as part of the room he pasted in. The one addition is the
-   failure headline at DESIGN.md's 17px "dialog lead text" step. The 9.5px mono label is below
-   DESIGN.md's 10.5px label floor and is deliberately matched to the sibling it sits under
-   (`.right h2`, shipped by #303 from the approved prototype): a panel with two labels a pixel apart
-   reads as a mistake, and the floor question is that whole prototype's, not this heading's.
+   Values are the ones already on this screen (deck.css HUD tokens, the panel's own 12.5px body),
+   so the wait reads as part of the room he pasted in. The failure headline is DESIGN.md's 17px
+   "dialog lead text" step, and the panel labels are its 10.5px label floor — see the owner's
+   2026-09-28 call recorded on the rules above.
    --------------------------------------------------------------------------------------------- */
 .pastescreen .right h3 {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10.5px; /* the label floor, matched to the h2 above it */
   letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--hud-mute);
