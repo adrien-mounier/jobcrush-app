@@ -32,7 +32,7 @@
 // has today. Feeding the fact back into the number/row is #292 ruling 10 and req 10 ("the number
 // names what it could not test; a movement is narrated"), which the V4 order places after this
 // ticket — and open thread: the owner may rule on that wording (#306 handoff §8.2).
-import type { AdRequirementsV1, LanguageLevel } from "@jobcrush/contracts";
+import type { AdRequirementV1, AdRequirementsV1, LanguageLevel } from "@jobcrush/contracts";
 import type { EligibilityFact } from "./eligibility.js";
 import { DECLINE_OPTION, workRightsQuestionFor } from "./eligibilityDiscovery.js";
 import { findWithdrawingRequirement, findWorkRightsFact, isExplicitNo } from "./withdrawal.js";
@@ -235,4 +235,28 @@ export function skippedLine(ask: ProfileAsk): string {
   return ask.dimension === "language"
     ? `Nothing saved — I'll ask about ${ask.language} again on another job that needs it.`
     : `Nothing saved — I'll ask again on another job in ${ask.market}.`;
+}
+
+/** #309 — the blocking gap, named in the person's own terms, for the two lines below. `market` is
+ *  the posting's placed market display name (marketForLocationText), null when it cannot be placed
+ *  — defensive only: a work-rights withdrawal needs a placed region to fire at all. */
+function gapNoun(req: AdRequirementV1, market: string | null): string {
+  if (req.eligibilityDimension === "work-rights") {
+    return market ? `the right to work in ${market}` : "the right to work where it is based";
+  }
+  // language/certification carry the subject the withdrawal matched on (withdrawal.ts's scopeFor).
+  return req.eligibilitySubject?.trim() ?? req.requirement;
+}
+
+/** #309 AC3 — a FOUND job withdrawn by the answer he just gave names its reason. The old deliberate
+ *  silence (#107 M3) was designed for a job the app quietly noticed; a job that vanishes because he
+ *  just answered says why, so the disappearance is a rule he learns rather than a bug he suspects. */
+export function withdrawalReasonLine(req: AdRequirementV1, market: string | null): string {
+  return `This job needs ${gapNoun(req, market)}, and your answer says you don't have it — so it has come off your deck.`;
+}
+
+/** #309 AC4 — a job HE BROUGHT stays despite the same answer, and says why in one line, so the
+ *  asymmetry with a found job reads as a promise rather than an inconsistency (#294 c1). */
+export function broughtStaysLine(req: AdRequirementV1, market: string | null): string {
+  return `You brought this job, so it stays and I'll draft for it — but it needs ${gapNoun(req, market)}, and that gap is real.`;
 }

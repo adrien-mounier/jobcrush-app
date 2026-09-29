@@ -444,16 +444,24 @@ describe("#23 POST /onboarding/tailor/answer", () => {
     expect(after.closedGaps.closed).toBe(1);
   });
 
-  it("the % never decreases even after correcting the same requirement to a 'no'", async () => {
+  // #309 AC1/AC2: the never-falls floor is REMOVED (#86's own prose ruling — "never-decreasing
+  // becomes a lie once corrections are honoured"). This is the exact journey #31's floor was built
+  // to hold up; it now falls, honestly, and the response carries the raw number.
+  it("#309: correcting the same requirement to a 'no' LOWERS the % — the floor is gone", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "floor-holds@example.com");
+    await reachTailor(app, cookie, "floor-gone@example.com");
     const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
     const q = s0.questions[0];
 
     const afterYes = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" })).json();
+    expect(afterYes.card.matchPct).toBeGreaterThan(s0.card.matchPct); // the yes really moved it
     const afterNo = (await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })).json();
-    expect(afterNo.card.matchPct).toBeGreaterThanOrEqual(afterYes.card.matchPct);
+    expect(afterNo.card.matchPct).toBeLessThan(afterYes.card.matchPct);
+    // The cause is named beside the fall: the corrected requirement's own ledger line.
+    expect(
+      afterNo.ledger.some((l: { requirementId: string }) => l.requirementId === q.requirementId),
+    ).toBe(true);
   });
 
   it("never re-asks a requirement answered 'no' — a fresh GET still omits it", async () => {
@@ -917,17 +925,15 @@ describe("#23 POST /onboarding/tailor/drop", () => {
   });
 });
 
-// #31 AC1 at the layer the visitor actually reads — card.matchPct over HTTP, not the stored floor
-// (pgstores.test.ts pins the column on both drivers; this pins that it reaches the screen).
-// The correction is the discriminator: re-answering the SAME requirement "No" flips its claim
-// negative, so the raw tick falls and only a surviving floor can hold the number. Pre-#31 this exact
-// journey read 19% → 0%; the plain drop → re-swipe → GET alone would pass either way, because the
-// tick is recomputed from claims the drop never touched.
-describe("#31 the visible % survives drop + re-swipe of the same job", () => {
-  it("holds the earned % through drop → re-swipe → a correction that lowers the raw tick", async () => {
+// #309 — the floor #31 built (drop + re-swipe kept the earned %, a correction could never lower
+// the number) is REMOVED, at the layer the visitor actually reads: card.matchPct over HTTP. The
+// score is a pure function of (this ad, this session's claims) again — earned answers survive a
+// drop because the CLAIMS survive it, never because a stored floor holds the number up.
+describe("#309 the % is honest across drop + re-swipe — no stored floor", () => {
+  it("drop → re-swipe keeps the earned % (the claims carry it), and a correction then lowers it", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "floor-survives-drop@example.com");
+    await reachTailor(app, cookie, "no-floor-drop@example.com");
     const s0 = (await get(app, cookie, "/onboarding/tailor")).json();
     const q = s0.questions[0];
 
@@ -940,18 +946,19 @@ describe("#31 the visible % survives drop + re-swipe of the same job", () => {
     await warmRetrieval(app, cookie); // #63: a re-swipe happens on the deck, which reads it first
     await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`); // swipe right on the same card again
     const resumed = (await get(app, cookie, "/onboarding/tailor")).json();
-    expect(resumed.card.matchPct).toBeGreaterThanOrEqual(earned);
+    expect(resumed.card.matchPct).toBe(earned); // recomputed from the surviving claims, no clamp
 
+    // Pre-#309 this exact correction was held at `earned` by the floor; now it falls, honestly.
     const corrected = (
       await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "No" })
     ).json();
-    expect(corrected.card.matchPct).toBeGreaterThanOrEqual(earned);
+    expect(corrected.card.matchPct).toBeLessThan(earned);
   });
 
-  it("a DIFFERENT job after a drop is scored on its own merits — no floor carried over", async () => {
-    const { app, sessions } = buildServer();
+  it("a DIFFERENT job after a drop is scored on its own merits", async () => {
+    const { app } = buildServer();
     const cookie = await anonSession(app);
-    await reachTailor(app, cookie, "other-job-no-floor@example.com");
+    await reachTailor(app, cookie, "other-job-own-merits@example.com");
     const q = (await get(app, cookie, "/onboarding/tailor")).json().questions[0];
     await post(app, cookie, "/onboarding/tailor/answer", { requirementId: q.requirementId, answer: "Yes" });
     await post(app, cookie, "/onboarding/tailor/drop");
@@ -960,8 +967,6 @@ describe("#31 the visible % survives drop + re-swipe of the same job", () => {
       (c: { adId: string }) => c.adId !== VALID_AD_ID,
     );
     await post(app, cookie, `/onboarding/cards/${other.adId}/want`);
-    const me = await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } });
-    expect((await sessions.getById(me.json().id as string))?.tailorFloorPct).toBe(0);
     expect((await get(app, cookie, "/onboarding/tailor")).json().card.matchPct).toBe(other.matchPct);
   });
 });

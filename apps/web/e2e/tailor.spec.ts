@@ -207,7 +207,9 @@ test("answering a gap re-scores up, flips the ? to a check, rewrites the bubble,
   await expect(ledger).not.toHaveClass(/quiet/);
 });
 
-test("the % never drops, even if the server ever sent a lower tick", async ({ page }) => {
+// #309: the inverse of the old "never drops" pin — the defensive client clamp is gone with the
+// server's floor. A lower server number is the truth, and the screen shows it, with its cause.
+test("#309 a lower server tick really shows — no client clamp holds the % up", async ({ page }) => {
   await openTailor(page, STATE_FIRST);
   const lowerTick: TailorState = { ...STATE_AFTER_SAP, card: { ...STATE_AFTER_SAP.card, matchPct: 50 } };
   await stubAnswer(page, { "sap:Yes, ran a project on it": lowerTick });
@@ -215,8 +217,11 @@ test("the % never drops, even if the server ever sent a lower tick", async ({ pa
   await page.getByRole("button", { name: "Yes, ran a project on it" }).click();
 
   await expect(page.locator(".flat").getByText("Ran an S/4HANA project, through cutover")).toBeVisible();
-  await expect(page.getByRole("img", { name: "61% match" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "50% match" })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "50% match" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "61% match" })).toHaveCount(0);
+  // The fall carries its cause: the drop's size, the requirement JUST answered (never another
+  // line's), and never a "+N%" gain blamed for a drop (QA gate finding, run 1).
+  await expect(page.locator(".tailor .ledger")).toHaveText("Down 11% — re-scored on “SAP S/4HANA”");
 });
 
 test('running out of questions lands the ending — the same one "I\'m done" reaches', async ({ page }) => {
@@ -440,4 +445,98 @@ test("#308 the graded language question: why and cost before six rungs, the cost
     "Remembered for Mandarin: I get by day to day. No job will ask you this again.",
   );
   await expect(page.locator(".tailor .ask .q")).toHaveText(STATE_FIRST.questions[0]!.question);
+});
+
+// ---------------------------------------------------------------------------------------------
+// #309 — the score stops flattering: a fall renders with its cause, a withdrawal names its
+// reason on the gone screen, and a brought job that stays says why in one line.
+// ---------------------------------------------------------------------------------------------
+
+const LANGUAGE_KEPT_LOW =
+  "Remembered. Jobs that need Mandarin will stay off your deck.";
+const WITHDRAW_REASON =
+  "This job needs the right to work in Hong Kong, and your answer says you don't have it — so it has come off your deck.";
+const STAYED_LINE =
+  "You brought this job, so it stays and I'll draft for it — but it needs the right to work in Hong Kong, and that gap is real.";
+
+test("#309 a permanent answer that lowers the score tweens the ring DOWN and names the fall's size with its cause", async ({
+  page,
+}) => {
+  await openTailor(page, { ...STATE_FIRST, questions: [LANGUAGE_Q, ...STATE_FIRST.questions] });
+  await stubProfileAnswer(page, {
+    changed: LANGUAGE_KEPT_LOW,
+    state: { ...STATE_FIRST, card: { ...STATE_FIRST.card, matchPct: 49 } },
+  });
+
+  await expect(page.getByRole("img", { name: "61% match" })).toBeVisible();
+  await page.getByRole("button", { name: "I don't speak this one" }).click();
+
+  // The fall is shown with its cause: the drop's size prefixed onto the answer's own line…
+  await expect(page.locator(".tailor .ledger")).toHaveText(`Down 12% — ${LANGUAGE_KEPT_LOW}`);
+  // …and the ring really falls — no client-side clamp holds it at 61.
+  await expect(page.getByRole("img", { name: "49% match" })).toBeVisible();
+});
+
+test("#309 a fall on the answer that empties the queue keeps its cause visible at the ending", async ({ page }) => {
+  await openTailor(page, { ...STATE_FIRST, questions: [LANGUAGE_Q] });
+  await stubProfileAnswer(page, {
+    changed: LANGUAGE_KEPT_LOW,
+    state: { ...STATE_FIRST, card: { ...STATE_FIRST.card, matchPct: 49 }, questions: [], done: true },
+  });
+
+  await page.getByRole("button", { name: "I don't speak this one" }).click();
+
+  await expect(page.getByRole("heading", { name: /as strong as I can make it/ })).toBeVisible();
+  await expect(page.locator(".finish .ledger")).toHaveText(`Down 12% — ${LANGUAGE_KEPT_LOW}`);
+});
+
+test("#309 a withdrawal mid-tailor names its reason on the gone screen, above the honest count", async ({ page }) => {
+  await openTailor(page, { ...STATE_PROFILE_FIRST, questions: [PROFILE_Q] });
+  await page.route("**/api/onboarding/tailor/profile-answer", async (route) => {
+    await route.fulfill({ json: { changed: AFTER_NO, state: null, withdrawal: WITHDRAW_REASON } });
+  });
+
+  await page.getByRole("button", { name: "Not yet — I'd need sponsorship" }).click();
+
+  await expect(page.getByRole("heading", { name: "Saved to your profile" })).toBeVisible();
+  await expect(page.locator(".loadstate .gone-reason")).toHaveText(WITHDRAW_REASON);
+  await expect(page.locator(".loadstate p:not(.gone-reason)")).toHaveText(AFTER_NO);
+});
+
+test("#309 a brought job that stays despite the gap says why, on the flow and at the ending", async ({ page }) => {
+  await openTailor(page, { ...STATE_FIRST, stayed: STAYED_LINE });
+  await expect(page.locator(".tailor .ask .stayed")).toHaveText(STAYED_LINE);
+
+  await openTailor(page, { ...STATE_FIRST, stayed: STAYED_LINE, questions: [], done: true });
+  await expect(page.getByRole("heading", { name: /as strong as I can make it/ })).toBeVisible();
+  await expect(page.locator(".tailor .ask .stayed")).toHaveText(STAYED_LINE);
+});
+
+// QA gate run 2's adversarial gap: with a one-line ledger, a regression back to `.at(-1)` still
+// passes the test above. Here the answered requirement's line is deliberately NOT last.
+test("#309 the fall's cause is the answer JUST GIVEN, even when its ledger line is not last", async ({ page }) => {
+  // "public" was answered earlier, so its line sits LAST in the advert's rank-ordered ledger; the
+  // sap answer that causes this fall sits first. Also covers a fall landing on the ending screen.
+  const publicAnswered: TailorState = {
+    ...STATE_FIRST,
+    questions: [STATE_FIRST.questions[0]!], // only sap still open
+    ledger: [{ requirementId: "public", text: "asked and closed · 2 still open" }],
+  };
+  const fallen: TailorState = {
+    ...publicAnswered,
+    card: { ...STATE_FIRST.card, matchPct: 50 },
+    questions: [],
+    done: true,
+    ledger: [
+      { requirementId: "sap", text: "+9% · SAP S/4HANA" },
+      { requirementId: "public", text: "asked and closed · 2 still open" },
+    ],
+  };
+  await openTailor(page, publicAnswered);
+  await stubAnswer(page, { "sap:Yes, ran a project on it": fallen });
+
+  await page.getByRole("button", { name: "Yes, ran a project on it" }).click();
+
+  await expect(page.getByRole("heading", { name: /as strong as I can make it/ })).toBeVisible();
+  await expect(page.locator(".finish .ledger")).toHaveText("Down 11% — re-scored on “SAP S/4HANA”");
 });

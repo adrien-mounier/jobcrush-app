@@ -28,6 +28,7 @@ import {
   INDUSTRY_SCOPE_PREFIX,
 } from "./yearsWorked.js";
 import { lookupAdRequirements } from "./e5stub.js";
+import { NO_KNOWN_FAMILY } from "./adReader.js";
 import { pinBrought, withBroughtFacts, type BroughtJob } from "./broughtJobs.js";
 import { eligiblePostings, sessionPostings, type Posting } from "./preview.js";
 import { ANY_FAMILY, type EligibilityFact } from "./eligibility.js";
@@ -438,11 +439,12 @@ export function resolveUserYears(facts: readonly EligibilityFact[]): number | nu
  *
  *  `advertFamilyId` comes from advertFamilyIdFor (below): the confirmed floor when one is pinned,
  *  else the target-role placement — the deck's own closed-vocabulary family. `adRequirements
- *  .familyFit` is still deliberately NOT used for the YEARS fact: #243 made it a closed-vocabulary
- *  answer (validated against the published list, so word-matching is no longer the objection) and
- *  consumes it for deck MEMBERSHIP and order (partitionByFamilyFit / orderCardsForReveal), but a
- *  years fact keys on the family the deck was searched for, which stays these two functions'
- *  resolution. */
+ *  .familyFit` is deliberately NOT used for a FOUND advert's YEARS fact: #243 made it a
+ *  closed-vocabulary answer and consumes it for deck MEMBERSHIP and order (partitionByFamilyFit /
+ *  orderCardsForReveal), but a found advert's years fact keys on the family the deck was searched
+ *  for, which stays these two functions' resolution. The one exception is a job HE BROUGHT (#309
+ *  AC5, advertYearsFamilyId below): it skips the family gate, so the deck family can be the wrong
+ *  field entirely, and its years are read at its own familyFit instead. */
 export interface SessionYears extends YearsAtScopes {
   familySource: "fact" | "zero" | "fallback" | "unscoped";
   familyConfidence: PlacementConfidence | null;
@@ -551,6 +553,28 @@ export function resolveSessionYears(
   return { total, family: 0, familySource: "zero", familyConfidence: null, ...industries };
 }
 
+/** #309 AC5 — the family scope an advert's years are read at. A job HE BROUGHT can sit outside the
+ *  family his deck was searched for (it skips the wrong-family deletion, #292 req 11), and reading
+ *  its years bars at the DECK's family lends him the deck family's years — or the career total —
+ *  for a field his work history may not cover. His placed history against the advert's OWN
+ *  read-stamped family gives the honest number, including a known zero (resolveSessionYears's
+ *  "zero" rule: every counting job placed, none in it). A familyFit the reader could not place
+ *  (NO_KNOWN_FAMILY) reads UNSCOPED (null → the career total): the deck's family would be arbitrary
+ *  for a job that isn't in it, and could even be a known zero — and an unknown never lowers
+ *  anything. Deliberately independent of deckFamilyId for a brought job, so every surface that
+ *  scores one (deck, the job's own screen, the tailor) reads the same number whatever deck scope it
+ *  happened to pass. Found jobs keep the deck scope unchanged: a found job on a family deck IS in
+ *  the deck's family (partitionByFamilyFit), so this only changes what a brought job is scored
+ *  against. */
+export function advertYearsFamilyId(
+  adReq: AdRequirementsV1,
+  broughtJob: boolean,
+  deckFamilyId: string | null,
+): string | null {
+  if (!broughtJob) return deckFamilyId;
+  return adReq.familyFit.family === NO_KNOWN_FAMILY ? null : adReq.familyFit.family;
+}
+
 /** #229 — the career changer's signal: this deck's family is a KNOWN zero for her (every counting
  *  job placed, none in it — familySource "zero", never the fallback/unscoped unknowns) while her
  *  career holds real years elsewhere. ADR-0014's restraint rule verbatim: the score stays generous
@@ -581,9 +605,8 @@ export function withYearsShortfall(
  *  "never a decreasing floor", which is wrong and was corrected. That guarantee was never true here,
  *  and the spec deliberately does not want it to be: the OLD unconditional monotonic floor is
  *  superseded by persistence plus recompute-on-real-change (a correction that genuinely lowers fit
- *  DOES lower the score — "becomes a lie once corrections are honoured"). The one floor mechanism
- *  that still exists — buildTailorState's Math.max(…, tailorFloorPct) — is untouched by this slice,
- *  not extended to buildJobCard, and not removed (#105 out of scope; slice 10 owns retiring it).
+ *  DOES lower the score — "becomes a lie once corrections are honoured"). #309 finished the job:
+ *  the tailor surface's own Math.max floor is gone too, so NO surface clamps a score anywhere.
  *  #29: the negative-filter lives HERE, not in the tailor assembly. A requirement answered "no" while
  *  tailoring is asked-and-closed on every surface that renders this ad — spec #37, "the list of open
  *  things only ever shrinks". #23 applied it in the tailor assembly alone, deliberately, to keep #19's
@@ -785,6 +808,9 @@ export async function buildDeckCards(
     confirmed: ClaimRecord[];
     negatives: ClaimRecord[];
     facts: readonly EligibilityFact[];
+    /** #309 AC5: the labeled job records, so a BROUGHT job's years can be re-read at its own
+     *  advert family (advertYearsFamilyId) instead of inheriting the deck-wide `years`. */
+    blocks: readonly JobBlockView[];
     years: SessionYears;
     deckFamilyId: string | null;
     langs: string[];
@@ -831,31 +857,43 @@ export async function buildDeckCards(
   // judgeDeck: peek → rank → bound → budget → resolve, the whole paid-judging pass — see its own doc
   // for #117 must-fix A/1/C/2 and the spend-bound properties it carries.
   const { entries: resolved, judgeWired } = await judgeDeck(openCandidates, input.confirmed, deps);
-  const cardCandidates = resolved.map((entry) => ({
-    // #305: the ageing line rides on the card, composed by broughtJobs.ts, so the deck card and the
-    // job's own screen (routes/paste.ts, which runs this same pass over one posting) cannot drift
-    // apart on the wording or on the day it starts. Absent for every job we found — there is nothing
-    // to say about the age of an advert we re-asked its provider for this minute. #306 adds the apply
-    // link the same way and for the same reason; only the job's own screen renders it.
-    card: withBroughtFacts(
-      buildJobCard(
-        entry.posting,
-        entry.adReq,
-        input.confirmed,
-        input.negatives,
-        // #107 (D5): the years-experience shortfall, applied at read time — see withYearsShortfall.
-        withYearsShortfall(entry.judgement, entry.adReq, input.years),
-        // #117 must-fix 2: a real paid attempt that missed the budget is `pending` (genuinely in
-        // flight, will self-heal into the store); one the bound never attempted at all is `unscored`.
-        !judgeWired ? "estimated" : entry.attempted ? "pending" : "unscored",
-        input.years, // #162 AC6 untested-bar + #222 confidence attenuation, both in buildJobCard
+  const cardCandidates = resolved.map((entry) => {
+    // #309 AC5 — a brought job's years bars are answered against ITS advert family, not the deck's:
+    // his placed history in a field he never worked reads as an honest zero, never the career total
+    // lent to him. Found jobs keep the shared per-request `years` untouched.
+    const years = broughtById.has(entry.posting.id)
+      ? resolveSessionYears(
+          input.facts,
+          input.blocks,
+          advertYearsFamilyId(entry.adReq, true, input.deckFamilyId),
+        )
+      : input.years;
+    return {
+      // #305: the ageing line rides on the card, composed by broughtJobs.ts, so the deck card and the
+      // job's own screen (routes/paste.ts, which runs this same pass over one posting) cannot drift
+      // apart on the wording or on the day it starts. Absent for every job we found — there is nothing
+      // to say about the age of an advert we re-asked its provider for this minute. #306 adds the apply
+      // link the same way and for the same reason; only the job's own screen renders it.
+      card: withBroughtFacts(
+        buildJobCard(
+          entry.posting,
+          entry.adReq,
+          input.confirmed,
+          input.negatives,
+          // #107 (D5): the years-experience shortfall, applied at read time — see withYearsShortfall.
+          withYearsShortfall(entry.judgement, entry.adReq, years),
+          // #117 must-fix 2: a real paid attempt that missed the budget is `pending` (genuinely in
+          // flight, will self-heal into the store); one the bound never attempted at all is `unscored`.
+          !judgeWired ? "estimated" : entry.attempted ? "pending" : "unscored",
+          years, // #162 AC6 untested-bar + #222 confidence attenuation, both in buildJobCard
+        ),
+        broughtById.get(entry.posting.id),
       ),
-      broughtById.get(entry.posting.id),
-    ),
-    curated: entry.adReq.curated,
-    // #243 decision 2: on a family deck, a weak family-fit confidence sinks the card's RANK.
-    ...(input.deckFamilyId === null ? {} : { familyConfidence: entry.adReq.familyFit.confidence }),
-  }));
+      curated: entry.adReq.curated,
+      // #243 decision 2: on a family deck, a weak family-fit confidence sinks the card's RANK.
+      ...(input.deckFamilyId === null ? {} : { familyConfidence: entry.adReq.familyFit.confidence }),
+    };
+  });
   // #308: the deck card no longer asks the language ladder — the graded question moved into the
   // Tailor queue (tailorProfile.ts), the one place every question about a job is asked.
   const ranked = orderCardsForReveal(cardCandidates);
@@ -944,7 +982,7 @@ export async function buildDeckResponse(
   // order + pin. See its own doc (and judgeDeck's) for the spend-bound properties.
   const { cards, pendingCount, withdrawn } = await buildDeckCards(
     postings,
-    { confirmed, negatives, facts, years, deckFamilyId, langs, brought },
+    { confirmed, negatives, facts, blocks, years, deckFamilyId, langs, brought },
     deps,
   );
   // #235: whether the empty deck may say "answer a few more questions" (hasOpenDiscoveryQuestions).
@@ -1079,6 +1117,11 @@ export interface TailorState {
   closedGaps: { closed: number; asked: number };
   done: boolean;
   factCount: number;
+  /** #309 AC4 — present only on a job HE BROUGHT that a found job would have been withdrawn for:
+   *  the one line saying why it stays despite the gap ("you brought this job anyway, so I've
+   *  drafted for it; the gap is real"). Set by the route (it holds the eligibility facts this is
+   *  derived from), recomputed on every read so it survives reloads. */
+  stayed?: string;
 }
 
 /** This session's tailor target, resolved to its posting + requirements — or null if either is no
@@ -1121,7 +1164,9 @@ export async function tailorTarget(
 
 /** Pure composition of TailorState — same split as buildJobCard: matchtick.ts (or judgedScore.ts,
  *  when `judgement` is available — #105 decision 1) + tailor.ts score/rank, this shapes the pinned
- *  response. matchPct obeys the monotonic floor (AC1): never the raw tick/judged score alone.
+ *  response. matchPct is the raw tick/judged score — #309 removed the monotonic floor (#86's own
+ *  prose ruling, "never-decreasing becomes a lie once corrections are honoured"): an honest answer
+ *  that lowers the fit lowers the number, and the ledger/after-line names the cause.
  *  tailorQuestions gets the SAME uncovered list buildJobCard's dontYet is built from, passed in
  *  explicitly (tailor.ts's own optional param) — a requirement the judge already considers met is
  *  never re-asked as a question just because the token-overlap tick alone wouldn't have covered it.
@@ -1136,7 +1181,6 @@ export function buildTailorState(
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
   role: string | null,
-  floorPct: number,
   judgement: JudgementRecord | null,
   // #162 AC6, review must-fix: the tailor surface renders the SAME advert as the deck, so it must
   // reach the same verdict on whether the years bar could be tested. Without this it defaulted to
@@ -1151,13 +1195,9 @@ export function buildTailorState(
   profileQuestions: TailorQuestion[] = [],
 ): TailorState {
   // Deliberately the RAW judged tick — no family-confidence or industry-closeness attenuation
-  // (#222/#285): attenuation is a deck-RANKING device, and this surface's floor (Math.max below)
-  // would silently swallow an attenuated number anyway. Same rule the family floor comment at
-  // buildDeckCards states; restated here so nobody "fixes" the missing factor later.
-  const matchPct = Math.max(
-    judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
-    floorPct,
-  );
+  // (#222/#285): attenuation is a deck-RANKING device, not a per-job truth. Same rule the family
+  // floor comment at buildDeckCards states; restated here so nobody "fixes" the missing factor later.
+  const matchPct = judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq);
   const uncovered = judgement
     ? judgedUncoveredRequirements(judgement.verdicts, adReq)
     : uncoveredRequirements(confirmed, adReq);
@@ -1181,9 +1221,8 @@ export function buildTailorState(
   // bound here to be excluded by; a failed/timed-out call still shows today's deterministic number,
   // now labelled rather than silent.
   // Confidence deliberately STRIPPED here: attenuation is a deck-RANKING device (ADR-0014
-  // amendment 1 decision 5), and the tailor's monotonic floor (raiseTailorFloor stores the raw
-  // judged number) would silently swallow it anyway — an attenuated card score under a raw floor
-  // reads as the floor. One surface, one number.
+  // amendment 1 decision 5), and this surface shows one raw, honest number (#309 removed the
+  // monotonic floor that used to sit on top). One surface, one number.
   const card = buildJobCard(posting, adReq, confirmed, negatives, judgement, "estimated",
     years && { ...years, familyConfidence: null });
 

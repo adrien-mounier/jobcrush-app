@@ -35,6 +35,9 @@ const REMEMBER = "I'll remember this for every job in Hong Kong.";
 const QUESTION = 'Can you already work in Hong Kong without visa sponsorship?';
 const AFTER_YES = 'Remembered: you can work in Hong Kong. No job will ask you this again.';
 const AFTER_NO = 'Hidden 2 Hong Kong jobs from your deck — change this any time in your profile.';
+// #309 AC3: the withdrawal names its reason — the line above the count on the gone screen.
+const WITHDRAW_REASON =
+  "This job needs the right to work in Hong Kong, and your answer says you don't have it — so it has come off your deck.";
 
 const qa = await createSession('asked-once-journey', {
   baseURL: BASE,
@@ -188,7 +191,9 @@ await qa.click(page.getByRole('button', { name: "Not yet — I'd need sponsorshi
 await page.waitForTimeout(1400);
 await qa.expectVisible(page.getByRole('heading', { name: 'Saved to your profile' }),
   'the answer is kept — the screen says so, and the job is not');
-await qa.expectText('.jobdeck.tailor .loadstate p', AFTER_NO,
+await qa.expectText('.jobdeck.tailor .loadstate .gone-reason', WITHDRAW_REASON,
+  '#309 AC3: the job that vanished because he just answered says WHY — a rule he learns, not a bug he suspects');
+await qa.expectText('.jobdeck.tailor .loadstate p:not(.gone-reason)', AFTER_NO,
   'AC6: the honest consequence, with the count — both Hong Kong work-rights jobs, this one included');
 await qa.click(page.getByRole('button', { name: 'Back to the deck' }), 'the one door off the gone screen');
 await page.waitForURL('**/deck', { timeout: 10_000 });

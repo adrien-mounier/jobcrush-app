@@ -198,7 +198,7 @@ describe("#162 an untested bar is named once, on every surface", () => {
   });
 
   it("the tailor surface reaches the same verdict as the deck", () => {
-    const state = buildTailorState(posting, adReq, [], [], null, 0, null, UNTESTABLE);
+    const state = buildTailorState(posting, adReq, [], [], null, null, UNTESTABLE);
     expect(state.card.notTested?.map((r) => r.id)).toEqual(["years"]);
     expect(state.card.dontYet.map((r) => r.id)).not.toContain("years");
   });

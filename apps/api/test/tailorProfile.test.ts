@@ -9,11 +9,18 @@
 // move cards.test.ts and qa-main.ts's #209 language adverts make, for the same reason: writing a
 // work-rights requirement into the shipped fixture would put words into a real employer's advert.
 import { describe, expect, it } from "vitest";
-import type { AdRequirementsV1 } from "@jobcrush/contracts";
+import type { AdRequirementsV1, FamilyPlacement, MinedJobBlock } from "@jobcrush/contracts";
 import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
 import { liveIdFor, warmRetrieval, getCardsWhenRetrieved } from "./fixtureDeck.js";
 import type { Posting } from "../src/preview.js";
+import type { JudgeFn } from "../src/judge.js";
+import { advertYearsFamilyId } from "../src/deck.js";
+import { NO_KNOWN_FAMILY } from "../src/adReader.js";
+import { InMemoryJobBlockStore } from "../src/jobBlockStore.js";
+import { InMemoryEligibilityStore, ANY_FAMILY } from "../src/eligibility.js";
+import { refreshWorkedYears } from "../src/yearsWorked.js";
 import {
+  broughtStaysLine,
   languageChangeLine,
   newlyHiddenCount,
   NOT_SURE_YET,
@@ -21,6 +28,7 @@ import {
   profileOwnedRequirementIds,
   skippedLine,
   tailorProfileAsks,
+  withdrawalReasonLine,
   type LanguageProfileAsk,
   type WorkRightsProfileAsk,
 } from "../src/tailorProfile.js";
@@ -312,6 +320,35 @@ describe("#307 profileChangeLine — AC6's after-line", () => {
   });
 });
 
+// --- #309: the two withdrawal-asymmetry lines ----------------------------------------------------
+
+describe("#309 withdrawalReasonLine + broughtStaysLine", () => {
+  const workRightsReq = workRightsAd("ad-1").requirements.find((r) => r.id === "right-to-work-hk")!;
+  const mandarinBlocking = {
+    ...mandarinPlus,
+    kind: "blocking" as const,
+    requirement: "Fluent Mandarin is required",
+  };
+
+  it("AC3: a found job's withdrawal names the gap in the person's own terms", () => {
+    expect(withdrawalReasonLine(workRightsReq, "Hong Kong")).toBe(
+      "This job needs the right to work in Hong Kong, and your answer says you don't have it — so it has come off your deck.",
+    );
+    expect(withdrawalReasonLine(mandarinBlocking, "Hong Kong")).toBe(
+      "This job needs Mandarin, and your answer says you don't have it — so it has come off your deck.",
+    );
+  });
+
+  it("AC4: the brought job's stays-anyway line names the same gap and calls it real", () => {
+    expect(broughtStaysLine(workRightsReq, "Hong Kong")).toBe(
+      "You brought this job, so it stays and I'll draft for it — but it needs the right to work in Hong Kong, and that gap is real.",
+    );
+    expect(broughtStaysLine(mandarinBlocking, null)).toBe(
+      "You brought this job, so it stays and I'll draft for it — but it needs Mandarin, and that gap is real.",
+    );
+  });
+});
+
 // --- the HTTP seam -------------------------------------------------------------------------------
 
 // Two UNCURATED Hong Kong corpus postings (no sample-ad-requirements entry, so the injected reader
@@ -363,8 +400,8 @@ async function signIn(app: App, cookie: string, email: string): Promise<void> {
   await post(app, cookie, "/auth/verify", { token });
 }
 
-/** tailor.test.ts's reachTailor, on this suite's own server + target advert. */
-async function reachTailor(app: App, cookie: string, email: string, adId: string = AD_A): Promise<void> {
+/** Discovery answered, signed in, retrieval warmed — the deck, with nothing targeted yet. */
+async function reachDeck(app: App, cookie: string, email: string): Promise<void> {
   await post(app, cookie, "/onboarding/discovery/start", { role: "IT project manager" });
   for (const itemId of [
     "end-to-end-delivery",
@@ -376,8 +413,29 @@ async function reachTailor(app: App, cookie: string, email: string, adId: string
   }
   await signIn(app, cookie, email);
   await warmRetrieval(app, cookie);
+}
+
+/** tailor.test.ts's reachTailor, on this suite's own server + target advert. */
+async function reachTailor(app: App, cookie: string, email: string, adId: string = AD_A): Promise<void> {
+  await reachDeck(app, cookie, email);
   const want = await post(app, cookie, `/onboarding/cards/${adId}/want`);
   expect(want.statusCode).toBe(200);
+}
+
+/** The paste door end to end: start the paste, poll the job, return the pasted advert's adId. */
+async function pasteJob(app: App, cookie: string, text: string): Promise<string> {
+  const started = await post(app, cookie, "/onboarding/paste", { text });
+  expect(started.statusCode).toBe(202);
+  const { jobId } = started.json();
+  let adId: string | null = null;
+  for (let attempt = 0; attempt < 500 && !adId; attempt += 1) {
+    const job = (await get(app, cookie, `/jobs/${jobId}`)).json();
+    if (job.status === "failed") throw new Error("paste failed");
+    adId = job.progress?.paste?.result?.adId ?? null;
+    if (!adId) await new Promise((resolve) => setImmediate(resolve));
+  }
+  expect(adId).toBeTruthy();
+  return adId!;
 }
 
 const PROFILE_Q_ID = "eligibility-work-rights-hong-kong";
@@ -468,7 +526,7 @@ describe("#307 POST /onboarding/tailor/profile-answer", () => {
     expect(again.statusCode).toBe(404);
   });
 
-  it("a no on a FOUND job withdraws it — state null, target cleared, and the after-line carries the honest count", async () => {
+  it("a no on a FOUND job withdraws it — state null, target cleared, the after-line carries the honest count, and (#309 AC3) the withdrawal names its reason", async () => {
     const { app } = workRightsServer();
     const cookie = await anonSession(app);
     await reachTailor(app, cookie, "no-withdraws@example.com");
@@ -482,6 +540,10 @@ describe("#307 POST /onboarding/tailor/profile-answer", () => {
     // Both Hong Kong work-rights adverts go — the one being tailored and its sibling in the deck.
     expect(body.changed).toBe("Hidden 2 Hong Kong jobs from your deck — change this any time in your profile.");
     expect(body.state).toBeNull();
+    // #309 AC3: he just answered, so the job's disappearance names its rule — never silence.
+    expect(body.withdrawal).toBe(
+      "This job needs the right to work in Hong Kong, and your answer says you don't have it — so it has come off your deck.",
+    );
 
     // The target is cleared the same way GET's own withdrawal rule clears it (#107 M3).
     expect((await get(app, cookie, "/onboarding/tailor")).statusCode).toBe(409);
@@ -492,14 +554,16 @@ describe("#307 POST /onboarding/tailor/profile-answer", () => {
     expect(ids).not.toContain(AD_B);
   });
 
-  it("AC2: a job he BROUGHT asks in the same queue, and a no never takes it away (#294 c1)", async () => {
+  it("AC2: a job he BROUGHT asks in the same queue, a no never takes it away (#294 c1), and (#309 AC4) it says in one line why it stays", async () => {
     const { app } = workRightsServer();
     const cookie = await anonSession(app);
     await reachTailor(app, cookie, "brought-stays@example.com");
 
     // Bring a job: the paste door, then want it — the same queue, no other surface.
-    const started = await post(app, cookie, "/onboarding/paste", {
-      text: [
+    const adId = await pasteJob(
+      app,
+      cookie,
+      [
         "Regional Project Manager — Pasted Co",
         "Hong Kong",
         "",
@@ -507,22 +571,14 @@ describe("#307 POST /onboarding/tailor/profile-answer", () => {
         "region. You will coordinate business and technical stakeholders and hold the plan end to",
         "end. Applicants must already hold the right to work in Hong Kong without sponsorship.",
       ].join("\n"),
-    });
-    expect(started.statusCode).toBe(202);
-    const { jobId } = started.json();
-    let adId: string | null = null;
-    for (let attempt = 0; attempt < 500 && !adId; attempt += 1) {
-      const job = (await get(app, cookie, `/jobs/${jobId}`)).json();
-      if (job.status === "failed") throw new Error("paste failed");
-      adId = job.progress?.paste?.result?.adId ?? null;
-      if (!adId) await new Promise((resolve) => setImmediate(resolve));
-    }
-    expect(adId).toBeTruthy();
+    );
     await post(app, cookie, `/onboarding/cards/${adId}/want`);
 
-    // Same queue, same first question — the job's origin decides nothing.
+    // Same queue, same first question — the job's origin decides nothing. And no stays-anyway
+    // line yet: nothing he has answered contradicts this job (#309 AC4 fires on the gap, not the origin).
     const state = (await get(app, cookie, "/onboarding/tailor")).json();
     expect(state.questions[0]).toMatchObject({ requirementId: PROFILE_Q_ID, kind: "profile" });
+    expect(state.stayed).toBeUndefined();
 
     const res = await post(app, cookie, "/onboarding/tailor/profile-answer", {
       requirementId: PROFILE_Q_ID,
@@ -535,7 +591,14 @@ describe("#307 POST /onboarding/tailor/profile-answer", () => {
     expect(body.state.card.adId).toBe(adId);
     // …while the two FOUND Hong Kong adverts are honestly gone from the deck.
     expect(body.changed).toBe("Hidden 2 Hong Kong jobs from your deck — change this any time in your profile.");
-    expect((await get(app, cookie, "/onboarding/tailor")).statusCode).toBe(200);
+    // #309 AC4: the asymmetry reads as a promise — the survivor says why it survived, in one line…
+    const stayed =
+      "You brought this job, so it stays and I'll draft for it — but it needs the right to work in Hong Kong, and that gap is real.";
+    expect(body.state.stayed).toBe(stayed);
+    // …and the line is derived from the stored facts, so a reload still carries it.
+    const reloaded = await get(app, cookie, "/onboarding/tailor");
+    expect(reloaded.statusCode).toBe(200);
+    expect(reloaded.json().stayed).toBe(stayed);
   });
 
   it("refuses what the queue never asked: an unknown question is a 404, the discovery decline a 400", async () => {
@@ -712,5 +775,158 @@ describe("#308 the language ladder in the queue, through the HTTP seam", () => {
     expect(
       next.questions.some((q: { requirementId: string }) => q.requirementId === LANG_Q_ID),
     ).toBe(true);
+  });
+});
+
+// --- #309 AC5: the honest zero — a pasted job outside his field ----------------------------------
+//
+// The years scope for a job HE BROUGHT is the advert's OWN read-stamped family
+// (advertYearsFamilyId), not the family his deck was searched for. Without that, a field-marketing
+// advert's "5+ years" bar was answered with his IT-project-delivery years — his career total lent
+// to a field his work history does not cover — and the CV would be drafted as though he had them.
+
+const MARKETING_BAR_ID = "five-years-marketing";
+
+const marketingAd = (adId: string): AdRequirementsV1 => ({
+  schemaVersion: "1",
+  adId,
+  curated: false,
+  language: "en",
+  familyFit: { family: "field-marketing", confidence: 0.9 },
+  requirements: [
+    {
+      id: MARKETING_BAR_ID,
+      band: "essential",
+      requirement: "5+ years running field marketing campaigns",
+      cvSection: "experience",
+      eligibilityDimension: "years-experience",
+      comparable: { op: ">=", value: 5 },
+      sourceSpan: "Test fixture (#309): 5+ years running field marketing campaigns.",
+    },
+  ],
+});
+
+// A judge that finds every requirement fully evidenced, instantly — so any movement in matchPct
+// below comes from the years shortfall under test, nothing else (familyYears.test.ts's own shape).
+const fullFitJudge: JudgeFn = async (adReq) => ({
+  verdicts: adReq.requirements.map((r) => ({
+    requirementId: r.id,
+    fit: 1,
+    supportingFactId: null,
+    reason: "test",
+  })),
+  version: "test",
+  cost: { model: "fake-judge", inputTokens: 1, outputTokens: 1, judgedAt: new Date().toISOString() },
+});
+
+const decision = (value: string) => ({
+  value,
+  source_quote: value,
+  machine_touch: "verbatim" as const,
+  classification: "Verified" as const,
+});
+
+function pmBlock(id: string, startYear: number, endYear: number): MinedJobBlock {
+  return {
+    id,
+    employer: decision(`Employer ${id}`),
+    title: decision("Regional PM"),
+    start: {
+      value: { year: startYear, month: 1, precision: "month" },
+      source_quote: `Jan ${startYear}`,
+      machine_touch: "verbatim",
+      classification: "Verified",
+    },
+    end: {
+      value: { state: "ended", date: { year: endYear, month: 12, precision: "month" } },
+      source_quote: `Dec ${endYear}`,
+      machine_touch: "verbatim",
+      classification: "Verified",
+    },
+    kind: decision("job") as MinedJobBlock["kind"],
+  };
+}
+
+const placedIn = (familyId: string): FamilyPlacement => ({
+  schemaVersion: "2",
+  outcome: "confirmed",
+  families: [{ familyId, version: 1 }],
+  confidence: "certain",
+});
+
+function honestZeroServer() {
+  const jobBlocks = new InMemoryJobBlockStore();
+  const eligibility = new InMemoryEligibilityStore();
+  const postings = new InMemoryPostingStore();
+  const pasteRecords = new InMemoryPasteRecordStore();
+  return {
+    ...buildServer({
+      postings,
+      pasteRecords,
+      jobBlocks,
+      eligibility,
+      judge: fullFitJudge,
+      judgeMaxCards: 99,
+      readAd: async (posting: Posting) =>
+        posting.company === "Pasted Co" ? marketingAd(posting.id) : null,
+      readPastedAdvert: async () => ({
+        title: "Field Marketing Lead",
+        company: "Pasted Co",
+        location: HK_LOCATION,
+        closingDate: null,
+      }),
+    }),
+    jobBlocks,
+    eligibility,
+  };
+}
+
+describe("#309 AC5 — a pasted job outside his field scores an honest zero, not the career total", () => {
+  it("the scope rule: a brought job reads its OWN family; found jobs keep the deck's; an unplaceable familyFit reads the career total", () => {
+    const ad = marketingAd("x");
+    expect(advertYearsFamilyId(ad, true, "it-project-delivery")).toBe("field-marketing");
+    expect(advertYearsFamilyId(ad, false, "it-project-delivery")).toBe("it-project-delivery");
+    // NO_KNOWN_FAMILY → unscoped (career total), NOT the deck's family — the deck scope would be
+    // arbitrary for a job that isn't in it and could even be a known zero, and an unknown never
+    // lowers. Independent of the deck scope, so every surface reads the same number.
+    const unknown = { ...ad, familyFit: { family: NO_KNOWN_FAMILY, confidence: 0.2 } };
+    expect(advertYearsFamilyId(unknown, true, "it-project-delivery")).toBeNull();
+    expect(advertYearsFamilyId(unknown, true, null)).toBeNull();
+  });
+
+  it("his 8 placed IT years are not lent to a field-marketing bar: the tailor shows the bar open and the score at zero", async () => {
+    const { app, jobBlocks, eligibility } = honestZeroServer();
+    const cookie = await anonSession(app);
+    await reachDeck(app, cookie, "honest-zero@example.com");
+    const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
+
+    // One dated job, 2016–2023, placed with certainty in HIS family — nothing unaccounted, so the
+    // advert's family is a KNOWN zero (resolveSessionYears's "zero" rule), never the fallback.
+    await jobBlocks.ingest(sessionId, { schemaVersion: "1", blocks: [pmBlock("b1", 2016, 2023)] }, "{}");
+    await jobBlocks.label(sessionId, "b1", placedIn("it-project-delivery"));
+    await refreshWorkedYears(jobBlocks, eligibility, sessionId);
+    // Sanity: the career total really exists and would clear the bar — the thing that must not be lent.
+    const total = await eligibility.get(sessionId, "years-experience", ANY_FAMILY);
+    expect(Number(total?.value)).toBeGreaterThanOrEqual(5);
+
+    const adId = await pasteJob(
+      app,
+      cookie,
+      [
+        "Field Marketing Lead — Pasted Co",
+        "Hong Kong",
+        "",
+        "We are looking for a marketer to run our regional campaigns end to end.",
+        "5+ years running field marketing campaigns.",
+      ].join("\n"),
+    );
+    await post(app, cookie, `/onboarding/cards/${adId}/want`);
+
+    const state = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(state.card.adId).toBe(adId);
+    // The one essential bar is 5+ years in the advert's own field. His known zero there fails it —
+    // the judge found everything evidenced, so only the years shortfall can be holding this down.
+    expect(state.card.matchPct).toBe(0);
+    expect(state.card.dontYet.map((r: { id: string }) => r.id)).toContain(MARKETING_BAR_ID);
   });
 });

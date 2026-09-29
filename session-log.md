@@ -2,7 +2,47 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
-## 2026-09-29 — #308 built: the honest way out of a question, and the ladder moves into the queue
+## 2026-09-29 — #309 built: the score stops flattering — the floor goes, and every disappearance carries its rule
+
+`/implement` → `/code-review` → `/qa-gate` (NO-GO once, fixed, **GO** on the scoped re-run) on
+**#309**, committed to `main` and pushed-when-green.
+
+**What a person gets.** The number on the Tailor screen is a fact again, not a flatterer. The
+never-falls floor — stored per session, clamped on the server, clamped a second time on the
+screen — is deleted at every layer, so an honest answer that lowers the fit lowers the visible
+number, tweening down with the drop's size and its cause named (*"Down 9% — asked and closed · 5
+still open"*, or for a re-scored "Yes", *"Down 11% — re-scored on "SAP S/4HANA""*). A found job
+withdrawn by the answer he just gave says why on the gone screen (*"This job needs the right to
+work in Hong Kong, and your answer says you don't have it — so it has come off your deck."*)
+above the honest count. A job he brought that the same answer would have withdrawn stays and says
+why in one line — the gap named, called real — recomputed on every read so it survives reloads.
+And a pasted job in a field his placed work history does not cover scores its years bars against
+**that field** (a known zero), never his career total lent to him, so the CV is not drafted as
+though he had years he does not have; an unplaceable advert family falls back to the career total
+on every surface, because an unknown never lowers.
+
+**The QA gate earned its NO-GO.** First run: 4/5 ACs pass, but the fall's cause was the ledger's
+*last line in the advert's rank order*, not the answer just given — over the real API the screen
+would have blamed a drop on a different answer, shown as a gain ("Down 9% — +19% · Manage project
+risks…"). Fixed at the root (cause resolved by the posted requirementId; a "+N%" line is never
+blamed for a drop), and the tester's own adversarial probe — the answered line deliberately not
+last — was adopted into `tailor.spec.ts` so a regression to `.at(-1)` can't pass. Code review's
+one material find also landed: `advertYearsFamilyId` maps an unplaceable brought family to the
+career total (null scope) instead of the deck's family, which could have been a known zero — and
+which kept the paste screen and the deck reading the same number.
+
+**Left silent on purpose (owner may overrule):** the two *stale*-withdrawal paths (a reload or
+second tab discovering a job withdrawn earlier) still 409 back to the deck without a reason — the
+ticket's own wording anchors the reason on "vanished because he just answered", which is the
+profile-answer path, and the deck's own withdrawal footnote covers the landing. Schema note: the
+old `tailor_floor_*` columns stay orphaned (defaulted, unread) on the live database; fresh
+databases are born without them.
+
+**Gates:** 1772 API + 56 contract tests and 7/7 typecheck green uncached, twice (both gate runs);
+17/17 mocked tailor specs; live on the fake-model stack: `asked-once` 26/26 (now asserting the
+withdrawal-reason line), `tailor` 56/56, `withdrawal` 21/21, `paste-door` 26/26, `job-screen`
+19/19. Honest zero and the stays-line are server-tested + mocked-screen-tested only — the local
+test stack can't paste a job that states a work-rights bar or sits outside his field.
 
 `/implement` → `/code-review` → `/qa-gate` **GO** on **#308**, committed to `main` locally.
 **NOT pushed** — the workflow-dispatch CI run verifying #305–#307 (36508142754) was in flight and

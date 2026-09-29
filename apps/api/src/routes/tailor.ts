@@ -25,11 +25,10 @@ import { isBrought, type BroughtJobsFn } from "../broughtJobs.js";
 import { currentDiscoveryFamily } from "../discoveryEngine.js";
 import { readingLanguages, languageEligible } from "../language.js";
 import { eligiblePostings, sessionPostings, type Posting } from "../preview.js";
-import { retrievalRequestForSession, retrievalFingerprint } from "../postingRetrieval.js";
-import { matchTick } from "../matchtick.js";
-import { judgedMatchTick } from "../judgedScore.js";
+import { marketForLocationText, retrievalRequestForSession, retrievalFingerprint } from "../postingRetrieval.js";
 import {
   advertFamilyIdFor,
+  advertYearsFamilyId,
   buildTailorState,
   partitionByFamilyFit,
   resolveAdRequirements,
@@ -45,12 +44,14 @@ import { answerLanguageLevel, rungForSituation } from "../languageLevel.js";
 import { isNoAnswer } from "../discovery.js";
 import { composeTailorLine, tailorClaimId } from "../tailor.js";
 import {
+  broughtStaysLine,
   languageChangeLine,
   newlyHiddenCount,
   profileChangeLine,
   profileOwnedRequirementIds,
   skippedLine,
   tailorProfileAsks,
+  withdrawalReasonLine,
 } from "../tailorProfile.js";
 
 export interface TailorRouteDeps {
@@ -97,10 +98,11 @@ export function tailorRoutes(deps: TailorRouteDeps) {
 
     // #308 (the #307 review's own deferral): the resolve-judgement → years → buildTailorState tail
     // every state-returning handler used to repeat, extracted the moment a fourth caller (the skip
-    // path) arrived. `raiseFloor` preserves /tailor/answer's ordering exactly — the floor is
-    // raised from the fresh judgement BEFORE the state is built, as the inline code always did.
+    // path) arrived. #309 removed the floor raise that used to sit between judgement and state —
+    // the score is the raw honest number now, on every path.
     // `skips` is the session's queue state (#308): profile questions skipped on THIS job, left out
-    // of the rebuilt queue so a skip never re-fires on the same job.
+    // of the rebuilt queue so a skip never re-fires on the same job. `broughtJob` (#309) switches
+    // the years scope to the advert's own family (AC5) and adds the stays-anyway line (AC4).
     const composeTailorState = async (
       session: SessionRecord,
       posting: Posting,
@@ -110,31 +112,36 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       facts: EligibilityFact[],
       blocks: JobBlockView[],
       skips: ReadonlySet<string>,
-      opts: { raiseFloor?: boolean } = {},
+      broughtJob: boolean,
     ) => {
       const role = session.targetTitles[0] ?? null;
-      // #105 decision 7 (on the answer paths): the floor is raised from the HONEST number when a
-      // judgement is available; falls back to matchTick when no judge is wired.
       const rawJudgement = await resolveJudgement(adReq, confirmed, deps.judge);
       // #107 (D5) / #222: the years shortfall at the bar's own scope — see applyYearsShortfall
       // (judgedScore.ts) + resolveSessionYears (deck.ts). #162 AC6: null years means no readable
       // work history, so this surface reports the years bar untested exactly as the deck card does.
-      const years = resolveSessionYears(facts, blocks, await advertFamilyIdFor(session, deps.placeFamily));
+      // #309 AC5: a job he brought reads its years at ITS OWN advert family (advertYearsFamilyId),
+      // so a field his work history does not cover scores an honest zero, never the career total.
+      const years = resolveSessionYears(
+        facts,
+        blocks,
+        advertYearsFamilyId(adReq, broughtJob, await advertFamilyIdFor(session, deps.placeFamily)),
+      );
       const judgement = withYearsShortfall(rawJudgement, adReq, years);
-      if (opts.raiseFloor) {
-        await deps.sessions.raiseTailorFloor(
-          session.id,
-          judgement ? judgedMatchTick(judgement.verdicts, adReq) : matchTick(confirmed, adReq),
-        );
-      }
       const family = role ? await currentFamily(session) : null;
       const state = buildTailorState(
-        posting, adReq, confirmed, negatives, role, session.tailorFloorPct, judgement, years,
+        posting, adReq, confirmed, negatives, role, judgement, years,
         family?.items ?? [],
         // #307/#308: the profile-level questions THIS advert still has open, first in the queue.
         tailorProfileAsks(adReq, posting.location, facts, skips),
       );
       state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
+      // #309 AC4: a job he brought that the same answers WOULD withdraw were it found (the empty
+      // brought list asks the predicate with nobody exempt) says in one line why it stays. Derived
+      // from the stored facts on every compose, so it holds across reloads, not just the answer.
+      if (broughtJob) {
+        const gap = findWithdrawingRequirement(adReq, facts, posting.location);
+        if (gap) state.stayed = broughtStaysLine(gap, marketForLocationText(posting.location ?? ""));
+      }
       return state;
     };
 
@@ -172,13 +179,14 @@ export function tailorRoutes(deps: TailorRouteDeps) {
       }
       return composeTailorState(
         session, posting, adReq, confirmed, negatives, facts, blocks, tailorSkipsFor(session, adId),
+        isBrought(brought, adId),
       );
     });
 
     // Idempotent, like #18's discovery answer: re-answering the same requirement CORRECTS it
     // (positive<->negative flip) via the same upserting add()/answerNegative() — no 409 guard needed.
-    // The floor only ever rises (raiseTailorFloor: Math.max/GREATEST), so a correction/"no" right
-    // after can never make the responded matchPct lower than a prior response's (AC1).
+    // #309: no floor holds the number up any more — a correction/"no" that lowers the real fit
+    // lowers the responded matchPct, and the ledger line beside it names the answer that did it.
     app.post(
       "/onboarding/tailor/answer",
       { schema: { body: z.object({ requirementId: z.string(), answer: z.string().trim().min(1) }) } },
@@ -243,10 +251,10 @@ export function tailorRoutes(deps: TailorRouteDeps) {
 
         const [confirmed, negatives, facts, blocks] = await reads(session.id);
         // The answer just changed the fact set, so this is a fresh (adId, fingerprint), never a
-        // cache hit reusing a stale judgement — raiseFloor uses the honest number (#105 decision 7).
+        // cache hit reusing a stale judgement — the re-score is the honest number (#105 decision 7).
         return composeTailorState(
           session, posting, adReq, confirmed, negatives, facts, blocks,
-          tailorSkipsFor(session, adId), { raiseFloor: true },
+          tailorSkipsFor(session, adId), isBrought(brought, adId),
         );
       },
     );
@@ -258,8 +266,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
     // claims store" rule (#106 must-fix 1) are all inherited, never re-implemented. The response
     // carries `changed` (AC6's after-line: what this answer just did) and the rebuilt state — or
     // `state: null` when the answer withdrew the very job being tailored (a found job only; one he
-    // brought never withdraws, #294 c1). #309 owns naming the withdrawal's reason; here the client
-    // gets the honest signal and the deck to go back to.
+    // brought never withdraws, #294 c1), with `withdrawal` naming the reason (#309 AC3).
     app.post(
       "/onboarding/tailor/profile-answer",
       { schema: { body: z.object({ requirementId: z.string(), answer: z.string().trim().min(1) }) } },
@@ -298,6 +305,7 @@ export function tailorRoutes(deps: TailorRouteDeps) {
           skips.add(ask.requirementId);
           const state = await composeTailorState(
             session, posting, adReq, confirmed, negatives, factsBefore, blocks, skips,
+            isBrought(brought, adId),
           );
           return { changed: skippedLine(ask), state };
         }
@@ -377,13 +385,21 @@ export function tailorRoutes(deps: TailorRouteDeps) {
 
         // The answer may have withdrawn the very job being tailored — a found one only (#294 c1).
         // Same clear as GET's M3 rule; the client gets `state: null` and the deck to go back to.
-        if (findWithdrawingRequirement(adReq, factsAfter, posting.location, brought)) {
+        // #309 AC3: the withdrawal names its reason — he just answered, so silence here would read
+        // as a bug, not a rule. The reason is the withdrawing requirement itself, in his own terms.
+        const withdrawing = findWithdrawingRequirement(adReq, factsAfter, posting.location, brought);
+        if (withdrawing) {
           await deps.sessions.clearTailorTarget(session.id);
-          return { changed, state: null };
+          return {
+            changed,
+            state: null,
+            withdrawal: withdrawalReasonLine(withdrawing, marketForLocationText(posting.location ?? "")),
+          };
         }
         // The answered question is gone from the rebuilt queue (its fact is stored now).
         const state = await composeTailorState(
           session, posting, adReq, confirmed, negatives, factsAfter, blocks, skips,
+          isBrought(brought, adId),
         );
         return { changed, state };
       },

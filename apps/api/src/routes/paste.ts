@@ -174,8 +174,9 @@ export function pasteRoutes(deps: PasteDeps) {
      *  `deckFamilyId` is null, not this session's family: family-fit DELETION is a property of a
      *  DECK — is this advert worth a slot in a list she is browsing — and she is looking at one job
      *  she asked for by name. #305 makes a brought job skip that deletion on the deck too, so the two
-     *  surfaces now agree by rule rather than by coincidence. The years scope still reads the session's
-     *  real family, so the number here is the number the deck would show.
+     *  surfaces now agree by rule rather than by coincidence. The years scope for a brought job is
+     *  the advert's OWN family (#309 AC5, advertYearsFamilyId inside buildDeckCards) on both
+     *  surfaces, so the number here is still the number the deck would show.
      *
      *  #305: there is no `withdrawn` outcome any more. A job he brought is never withdrawn (#294 c1) —
      *  `brought` is passed to the deck pass, which holds it out of the withdrawal filter, so the only
@@ -191,7 +192,7 @@ export function pasteRoutes(deps: PasteDeps) {
       const langs = readingLanguages(session);
       const { cards } = await buildDeckCards(
         eligiblePostings(langs, [brought.posting]),
-        { confirmed, negatives, facts, years, deckFamilyId: null, langs, brought: [brought] },
+        { confirmed, negatives, facts, blocks, years, deckFamilyId: null, langs, brought: [brought] },
         deps,
       );
       // No card left means we did not finish READING the advert — the requirements read timed out or

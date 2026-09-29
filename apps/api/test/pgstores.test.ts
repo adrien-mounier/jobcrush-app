@@ -65,7 +65,6 @@ for (const [name, make] of sessionDrivers) {
       const s = await store.create();
       expect(s.stage).toBe("deck");
       expect(s.tailorAdId).toBeNull();
-      expect(s.tailorFloorPct).toBe(0);
       expect(s.sourceEntry).toBeNull();
       expect(s.importProof).toBeNull();
       expect(s.importResolutions).toEqual({});
@@ -85,7 +84,6 @@ for (const [name, make] of sessionDrivers) {
         token: s.token,
         stage: "deck",
         tailorAdId: null,
-        tailorFloorPct: 0,
         sourceEntry: null,
       });
       expect(await store.getById(s.id)).toMatchObject({ id: s.id });
@@ -686,37 +684,9 @@ for (const [name, make] of sessionDrivers) {
       expect(got?.tailorAdId).toBe("ad-1");
     });
 
-    // #23 — the monotonic re-score floor: raises only, never lowers.
-    it("raiseTailorFloor raises the floor but never lowers it", async () => {
-      const s = await store.create();
-      await store.setTailorTarget(s.id, "ad-1");
-      await store.raiseTailorFloor(s.id, 40);
-      expect((await store.getById(s.id))?.tailorFloorPct).toBe(40);
-      await store.raiseTailorFloor(s.id, 25); // lower — must not regress
-      expect((await store.getById(s.id))?.tailorFloorPct).toBe(40);
-      await store.raiseTailorFloor(s.id, 60);
-      expect((await store.getById(s.id))?.tailorFloorPct).toBe(60);
-    });
-
-    it("setTailorTarget resets the floor to 0 — a new job starts fresh", async () => {
-      const s = await store.create();
-      await store.setTailorTarget(s.id, "ad-1");
-      await store.raiseTailorFloor(s.id, 50);
-      await store.setTailorTarget(s.id, "ad-2");
-      expect((await store.getById(s.id))?.tailorFloorPct).toBe(0);
-    });
-
-    // D2 (QA-observed regression: drop + re-swipe the same card showed 29% -> 12%): re-targeting the
-    // SAME ad must keep its floor — only a genuinely different ad resets it.
-    it("setTailorTarget re-targeting the SAME ad keeps its floor (drop + re-swipe never regresses)", async () => {
-      const s = await store.create();
-      await store.setTailorTarget(s.id, "ad-1");
-      await store.raiseTailorFloor(s.id, 29);
-      await store.setTailorTarget(s.id, "ad-1"); // e.g. drop() then /want the same card again
-      expect((await store.getById(s.id))?.tailorFloorPct).toBe(29);
-      await store.setTailorTarget(s.id, "ad-2"); // a genuinely different ad still resets it
-      expect((await store.getById(s.id))?.tailorFloorPct).toBe(0);
-    });
+    // #309: the #23/#31 tailor score floor (raiseTailorFloor, tailor_floor_pct/tailor_floor_ad_id)
+    // is removed — the score is a pure function of the session's claims, so there is nothing for
+    // the store to hold up. Only the badge's factFloor below remains a floor.
 
     it("clearTailorTarget drops back to deck with no ad targeted", async () => {
       const s = await store.create();
@@ -727,35 +697,15 @@ for (const [name, make] of sessionDrivers) {
       expect(got?.tailorAdId).toBeNull();
     });
 
-    // #31 — drop() nulls tailorAdId, but the floor is keyed to tailorFloorAdId (the ad it was earned
-    // on), not to tailorAdId — so a drop + re-swipe of the SAME card must not zero the floor either.
-    it("drop + re-swipe the SAME ad keeps its floor (#31)", async () => {
-      const s = await store.create();
-      await store.setTailorTarget(s.id, "ad-1");
-      await store.raiseTailorFloor(s.id, 65);
-      await store.clearTailorTarget(s.id);
-      expect((await store.getById(s.id))?.tailorAdId).toBeNull(); // 409-after-drop still depends on this
-      await store.setTailorTarget(s.id, "ad-1");
-      expect((await store.getById(s.id))?.tailorFloorPct).toBe(65);
-    });
-
-    it("drop then swiping a DIFFERENT ad still starts that ad fresh, no floor carried over (#31)", async () => {
-      const s = await store.create();
-      await store.setTailorTarget(s.id, "ad-1");
-      await store.raiseTailorFloor(s.id, 65);
-      await store.clearTailorTarget(s.id);
-      await store.setTailorTarget(s.id, "ad-2");
-      expect((await store.getById(s.id))?.tailorFloorPct).toBe(0);
-    });
-
     it("touch doesn't throw and keeps the row", async () => {
       const s = await store.create();
       await store.touch(s.id);
       expect(await store.getById(s.id)).toBeTruthy();
     });
 
-    // #33 — the profile badge's monotonic floor: raises only, never lowers. Same shape as #23's
-    // raiseTailorFloor, unkeyed (there's only ever one factCount per session, no #31-style ad key).
+    // #33 — the profile badge's monotonic floor: raises only, never lowers. Unkeyed — there's only
+    // ever one factCount per session. (Deliberately survives #309: the SCORE floor lied once
+    // corrections were honoured; the badge counts facts given, which a correction never un-gives.)
     it("raiseFactFloor raises the floor but never lowers it", async () => {
       const s = await store.create();
       expect((await store.getById(s.id))?.factFloor).toBe(0);

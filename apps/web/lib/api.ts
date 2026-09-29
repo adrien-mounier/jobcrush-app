@@ -457,6 +457,9 @@ export interface TailorState {
   ledger: TailorLedgerEntry[];
   cvLines: DiscoveryCvLine[];
   closedGaps: { closed: number; asked: number };
+  /** #309 AC4 — only on a job the person brought that their own answers would have withdrawn were
+   *  it a found job: the one line saying why it stays ("the gap is real"). Server-composed. */
+  stayed?: string;
   done: boolean;
   factCount: number; // #17's profile badge count, on the tailor screen too
 }
@@ -474,11 +477,12 @@ export function answerTailor(requirementId: string, answer: string): Promise<Tai
 
 /** #307: a profile-level answer — permanent, written to the profile, never re-asked. `changed` is
  *  the one line after saying what the answer did; `state` is null when the answer withdrew the very
- *  job being tailored (a found job whose stated requirement he cannot meet — the deck is next). */
+ *  job being tailored (a found job whose stated requirement he cannot meet — the deck is next),
+ *  and `withdrawal` (#309 AC3) then names the reason the job went. */
 export function answerTailorProfile(
   requirementId: string,
   answer: string,
-): Promise<{ changed: string; state: TailorState | null }> {
+): Promise<{ changed: string; state: TailorState | null; withdrawal?: string }> {
   return jfetch("/api/onboarding/tailor/profile-answer", {
     method: "POST",
     body: JSON.stringify({ requirementId, answer }),

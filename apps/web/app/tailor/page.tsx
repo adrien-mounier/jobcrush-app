@@ -30,8 +30,8 @@ import {
 } from "../../lib/api";
 
 // #307: "gone" is the state after a permanent answer withdrew the very job being tailored — the
-// server cleared the target and handed back the one line saying what changed. #309 owns naming the
-// withdrawal's reason; until then this screen carries the honest consequence and the way back.
+// server cleared the target and handed back the line saying what changed, plus (#309) the
+// withdrawal's named reason, so the honest consequence carries its rule and the way back.
 type Screen = "loading" | "error" | "flow" | "applied" | "saved" | "gone";
 
 // #117c (addendum §12.5): was "Opening this job…", written for a cache read. ~7 of 15 cards now
@@ -68,6 +68,13 @@ const SECTIONS: { key: CvSection; label: string }[] = [
   { key: "skills", label: "Skills" },
   { key: "education", label: "Education" },
 ];
+
+// #309: the score may fall, and the fall is shown with its cause. When the new server number sits
+// below the last server number, the answer's own server-composed line is prefixed with the size of
+// the drop — narration from two server-given values, like the tween; never a re-derived score.
+function withFall(prevPct: number, nextPct: number, cause: string): string {
+  return nextPct < prevPct ? `Down ${prevPct - nextPct}% — ${cause}` : cause;
+}
 
 function closedGapsLine(cg: { closed: number; asked: number }): string {
   if (cg.closed === 0) return "Everything you told me is in there.";
@@ -145,12 +152,14 @@ export default function TailorPage() {
   const [displayPct, setDisplayPct] = useState(0);
   const [scoreBumped, setScoreBumped] = useState(false);
   const [landedId, setLandedId] = useState<string | null>(null);
-  const [ledgerView, setLedgerView] = useState<{ key: string; text: string; gold: boolean } | null>(null);
+  const [ledgerView, setLedgerView] = useState<{ key: string; text: string; gold: boolean; fell?: boolean } | null>(null);
   const [finishedEarly, setFinishedEarly] = useState(false);
   const [answering, setAnswering] = useState<{ requirementId: string; answer: string } | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
   // #307: the after-line of a permanent answer that took the tailored job itself off the deck.
   const [goneNote, setGoneNote] = useState<string | null>(null);
+  // #309 AC3: why THIS job went — the withdrawal's named reason, above the after-line.
+  const [goneReason, setGoneReason] = useState<string | null>(null);
   const [dropConfirming, setDropConfirming] = useState(false);
   const [dropBusy, setDropBusy] = useState(false);
   const [dropError, setDropError] = useState<string | null>(null);
@@ -282,12 +291,12 @@ export default function TailorPage() {
   }, [screen, tailor]);
 
   // #307: same rule for the gone screen — its transition unmounts the whole flow, so focus the
-  // heading and announce the one line saying what changed, once.
+  // heading and announce once. #309: the reason leads the announcement when the server named one.
   useEffect(() => {
     if (screen !== "gone" || !goneNote) return;
     goneHeadingRef.current?.focus();
-    setLiveMessage(goneNote);
-  }, [screen, goneNote]);
+    setLiveMessage(goneReason ? `${goneReason} ${goneNote}` : goneNote);
+  }, [screen, goneNote, goneReason]);
 
   // Scrolls the row that just changed into view, then flashes it — never the other way round (the
   // prototype's rule). Runs after `tailor` actually re-renders with the row in its new list, so the
@@ -340,10 +349,10 @@ export default function TailorPage() {
   }, [dropConfirming, closeDropConfirm]);
 
   // Tweens the ring + number from `from` to `to` (proto's rAF easing, job-card.prototype.html:387-402);
-  // reduced motion (or a no-op change) snaps straight to the final value. §8: matchPct never
-  // decreases — `to` is defensively floored at `from` in case a lower value ever arrived.
-  function tweenScore(from: number, serverTo: number) {
-    const to = Math.max(from, serverTo);
+  // reduced motion (or a no-op change) snaps straight to the final value. #309: the score may FALL —
+  // the old defensive Math.max(from, to) floor is gone with the server's own; an honest correction
+  // tweens the number down, and the ledger line beside it names the answer that did it.
+  function tweenScore(from: number, to: number) {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     setScoreBumped(true);
     if (bumpTimerRef.current) clearTimeout(bumpTimerRef.current);
@@ -370,14 +379,23 @@ export default function TailorPage() {
     if (answering || !tailor) return;
     setAnswering({ requirementId, answer });
     setAskError(null);
+    const prevPct = tailor.card.matchPct; // #309: the fall's size is server-number to server-number
     try {
-      const { changed, state } = await answerTailorProfile(requirementId, answer);
+      const { changed, state, withdrawal } = await answerTailorProfile(requirementId, answer);
       if (!state) {
+        // #309 AC3: the withdrawal names its reason — he just answered, so the job's disappearance
+        // must read as a rule, not a bug. The reason leads; the after-line keeps the count + undo.
+        setGoneReason(withdrawal ?? null);
         setGoneNote(changed);
         setScreen("gone");
         return;
       }
-      setLedgerView({ key: `profile:${requirementId}`, text: changed, gold: false });
+      setLedgerView({
+        key: `profile:${requirementId}`,
+        text: withFall(prevPct, state.card.matchPct, changed),
+        gold: false,
+        fell: state.card.matchPct < prevPct,
+      });
       setBadgeCount((c) => Math.max(c, state.factCount));
       setTailor(state);
       tweenScore(displayPct, state.card.matchPct);
@@ -396,8 +414,21 @@ export default function TailorPage() {
     const prevCard = tailor.card;
     try {
       const next = await answerTailor(requirementId, answer);
-      const ledgerText = next.ledger.at(-1)?.text ?? "";
-      setLedgerView({ key: `${requirementId}:${next.ledger.length}`, text: ledgerText, gold: next.card.matchPct > prevPct });
+      // #309 (QA gate finding): the cause is the ANSWER JUST GIVEN, never another requirement's
+      // line — the ledger is in the advert's own rank order, so its last entry can belong to any
+      // earlier answer. Looked up by the requirement that was just posted.
+      const own = next.ledger.find((l) => l.requirementId === requirementId)?.text ?? "";
+      const fell = next.card.matchPct < prevPct;
+      // A "+N%" gain line is never blamed for a drop: a fall on a positive answer is the fresh
+      // honest re-score of that answer, and the line says so, naming the requirement.
+      const cause =
+        fell && own.startsWith("+") ? `re-scored on “${own.replace(/^\+\d+% · /, "")}”` : own;
+      setLedgerView({
+        key: `${requirementId}:${next.ledger.length}`,
+        text: withFall(prevPct, next.card.matchPct, cause),
+        gold: next.card.matchPct > prevPct,
+        fell,
+      });
       pendingScrollRef.current = resolveLandedId(prevCard, next.card);
       // #17: unconditional, same as discovery — FactBadge's own guard makes a correction's zero
       // delta a no-op (this screen has no correction UI today, but the guard costs nothing to keep).
@@ -606,13 +637,14 @@ export default function TailorPage() {
         </div>
       )}
 
-      {/* #307: a permanent answer took this job off the deck. The server's own line carries the
-          honest consequence and the undo's location; #309 will add the withdrawal's named reason. */}
+      {/* #307: a permanent answer took this job off the deck. #309 AC3: the withdrawal's named
+          reason leads; the server's after-line below it keeps the honest count and the undo. */}
       {screen === "gone" && goneNote && (
         <div className="loadstate">
           <h1 className="big" tabIndex={-1} ref={goneHeadingRef}>
             {T22}
           </h1>
+          {goneReason && <p className="gone-reason">{goneReason}</p>}
           <p>{goneNote}</p>
           <button type="button" onClick={() => router.push("/deck")}>
             {T21}
@@ -647,6 +679,9 @@ export default function TailorPage() {
           </div>
 
           <div className="ask">
+            {/* #309 AC4: a job he brought that his own answers would have withdrawn (were it a
+                found job) stays — and says why in one line. Server-composed, reload-stable. */}
+            {tailor.stayed && <p className="notice stayed">{tailor.stayed}</p>}
             {!showEnding ? (
               <>
                 <p className="why">{T4}</p>
@@ -670,9 +705,10 @@ export default function TailorPage() {
                   <p className="note">{closedGapsLine(tailor.closedGaps)}</p>
                   {/* #307: a PERMANENT answer's own line still shows when it also emptied the
                       queue — AC6's "what changed" must not vanish behind the ending. Scoped to
-                      profile answers: an advert answer's ledger line staying off the ending is the
-                      pre-#307 behaviour, untouched. */}
-                  {ledgerView?.key.startsWith("profile:") && (
+                      profile answers plus (#309) any answer that LOWERED the score: a fall's cause
+                      must never vanish behind the ending either. Other advert answers' lines
+                      staying off the ending is the pre-#307 behaviour, untouched. */}
+                  {ledgerView && (ledgerView.key.startsWith("profile:") || ledgerView.fell) && (
                     <p key={ledgerView.key} className="ledger quiet show">
                       {ledgerView.text}
                     </p>

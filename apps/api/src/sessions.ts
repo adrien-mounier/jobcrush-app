@@ -326,15 +326,6 @@ export interface SessionRecord {
   targetTitles: string[];
   stage: OnboardingStage;
   tailorAdId: string | null;
-  /** #23 the monotonic re-score floor for the current tailor target: the highest match tick ever
-   *  posted this job, so a correction/"no" can never make the visible % regress. setTailorTarget
-   *  resets it to 0 only when the ad actually changes — keyed to tailorFloorAdId below (#31), so
-   *  re-entering the SAME job, drop + re-swipe included, keeps its floor (D2). */
-  tailorFloorPct: number;
-  /** #31 the ad tailorFloorPct was earned on. Keyed separately from tailorAdId because drop
-   *  (clearTailorTarget) nulls tailorAdId but must NOT forget whose floor this is — re-swiping the
-   *  same ad after a drop compares against this, not against tailorAdId, so the floor survives. */
-  tailorFloorAdId: string | null;
   /** #308 — QUEUE state, never a fact: the profile questions skipped ("not sure yet"), each
    *  stored as "<adId>::<requirementId>" so a skip is permanently per-advert. Nothing here
    *  reaches the eligibility or claims stores — that is the whole point of a skip (AC5). Never
@@ -344,8 +335,9 @@ export interface SessionRecord {
   tailorSkips: string[];
   /** #33 the monotonic floor for the profile badge's factCount: the highest factCount ever shown
    *  this session, so a rejected claim in the S2 deck can lower the raw confirmed+negatives count
-   *  without the badge ever visibly shrinking. Session-wide (unlike tailorFloorPct) — there's no
-   *  ad to key it to, so raiseFactFloor is unconditional, unlike setTailorTarget's reset. */
+   *  without the badge ever visibly shrinking. Session-wide, raised unconditionally. (The tailor
+   *  SCORE's floor is gone — #309: an honest correction lowers the number — but the badge counts
+   *  facts given, which a correction never un-gives.) */
   factFloor: number;
   /** #246 the promise's number: how many adverts her own search returned, counted once at question
    *  1 and then KEPT. Stored rather than recomputed per response for two reasons, one practical and
@@ -413,8 +405,6 @@ export interface SessionStore {
   setTailorTarget(id: string, adId: string): Promise<void>;
   /** #23 drop: exit tailor back to the deck, clearing the target. Never touches claims. */
   clearTailorTarget(id: string): Promise<void>;
-  /** #23: raises the tailor floor only — Math.max/GREATEST — so a correction can't lower it. */
-  raiseTailorFloor(id: string, pct: number): Promise<void>;
   /** #308: records one skipped profile question, keyed "<adId>::<requirementId>" (idempotent). */
   addTailorSkip(id: string, skipKey: string): Promise<void>;
   /** #33: raises the factCount floor only — Math.max/GREATEST — so a deck reject can't lower it. */
@@ -458,8 +448,6 @@ function newSession(): SessionRecord {
     targetTitles: [],
     stage: "deck",
     tailorAdId: null,
-    tailorFloorPct: 0,
-    tailorFloorAdId: null,
     tailorSkips: [],
     factFloor: 0,
     promiseOpenJobs: null,
@@ -657,11 +645,6 @@ export class InMemorySessionStore implements SessionStore {
     const s = this.byId.get(id);
     if (s) {
       s.stage = "tailor";
-      // #31: the floor is keyed to tailorFloorAdId, not tailorAdId — drop nulls tailorAdId, but the
-      // floor earned on this ad must survive a drop + re-swipe of the SAME ad. Only a genuinely
-      // different ad resets it. (#308's tailorSkips never reset — their keys carry the adId.)
-      if (s.tailorFloorAdId !== adId) s.tailorFloorPct = 0;
-      s.tailorFloorAdId = adId;
       s.tailorAdId = adId;
     }
   }
@@ -672,11 +655,6 @@ export class InMemorySessionStore implements SessionStore {
       s.stage = "deck";
       s.tailorAdId = null;
     }
-  }
-
-  async raiseTailorFloor(id: string, pct: number): Promise<void> {
-    const s = this.byId.get(id);
-    if (s) s.tailorFloorPct = Math.max(s.tailorFloorPct, pct);
   }
 
   async addTailorSkip(id: string, skipKey: string): Promise<void> {
@@ -710,8 +688,6 @@ CREATE TABLE IF NOT EXISTS sessions (
   target_titles      jsonb NOT NULL DEFAULT '[]',
   stage              text NOT NULL DEFAULT 'deck',
   tailor_ad_id       text,
-  tailor_floor_pct   integer NOT NULL DEFAULT 0,
-  tailor_floor_ad_id text,
   tailor_skips       jsonb NOT NULL DEFAULT '[]',
   fact_floor         integer NOT NULL DEFAULT 0,
   promise_open_jobs  integer,
@@ -730,14 +706,9 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 const SESSIONS_ALTERS = [
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tailor_ad_id text",
-  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tailor_floor_pct integer NOT NULL DEFAULT 0",
-  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tailor_floor_ad_id text",
-  // #31 backfill (deviates from this file's plain ADD COLUMN idiom, deliberately): without it, a
-  // live session mid-tailor gets tailor_floor_ad_id = NULL on this deploy, and NULL = $2 is unknown
-  // in SQL — not false — so setTailorTarget's CASE falls to ELSE 0 on the very next re-swipe, zeroing
-  // the floor once for every in-flight session. Idempotent and inert after the first run: post-change
-  // setTailorTarget always writes both columns together, so this WHERE can never match again.
-  "UPDATE sessions SET tailor_floor_ad_id = tailor_ad_id WHERE tailor_floor_ad_id IS NULL AND tailor_ad_id IS NOT NULL",
+  // #309: tailor_floor_pct / tailor_floor_ad_id (#23/#31's never-falls score floor) are no longer
+  // created, read, or written — the floor is removed, an honest correction lowers the score. A
+  // database that already has the columns keeps them, orphaned and defaulted; nothing drops them.
   // #308: no backfill — an existing row simply has no skips recorded, and the empty list is the
   // honest state for a session that was never offered "not sure yet".
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tailor_skips jsonb NOT NULL DEFAULT '[]'",
@@ -782,8 +753,6 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     targetTitles: Array.isArray(titles) ? (titles as string[]) : JSON.parse((titles as string) ?? "[]"),
     stage: (r.stage as OnboardingStage) ?? "deck",
     tailorAdId: (r.tailor_ad_id as string) ?? null,
-    tailorFloorPct: (r.tailor_floor_pct as number) ?? 0,
-    tailorFloorAdId: (r.tailor_floor_ad_id as string) ?? null,
     tailorSkips: Array.isArray(skips) ? (skips as string[]) : JSON.parse((skips as string) ?? "[]"),
     factFloor: (r.fact_floor as number) ?? 0,
     promiseOpenJobs: (r.promise_open_jobs as number) ?? null,
@@ -1086,29 +1055,14 @@ export class PgSessionStore implements SessionStore {
   }
 
   async setTailorTarget(id: string, adId: string): Promise<void> {
-    // #31: tailor_floor_ad_id on the right of the CASE reads the PRE-update row (standard SQL: every
-    // SET expression in one UPDATE sees the old row, not siblings' new values) — so this resets the
-    // floor only when the ad the floor was earned on is actually changing. Keyed to tailor_floor_ad_id
-    // (not tailor_ad_id) so a drop (which nulls tailor_ad_id) doesn't lose the floor on re-swipe.
-    // NULL = $2 is unknown, not false, so it also falls to ELSE 0 — correct for a first-ever target,
-    // which is exactly why the backfill in SESSIONS_ALTERS exists for rows that predate this column.
     await this.pool.query(
-      `UPDATE sessions SET stage = 'tailor', tailor_ad_id = $2, tailor_floor_ad_id = $2,
-         tailor_floor_pct = CASE WHEN tailor_floor_ad_id = $2 THEN tailor_floor_pct ELSE 0 END
-       WHERE id = $1`,
+      `UPDATE sessions SET stage = 'tailor', tailor_ad_id = $2 WHERE id = $1`,
       [id, adId],
     );
   }
 
   async clearTailorTarget(id: string): Promise<void> {
     await this.pool.query(`UPDATE sessions SET stage = 'deck', tailor_ad_id = NULL WHERE id = $1`, [id]);
-  }
-
-  async raiseTailorFloor(id: string, pct: number): Promise<void> {
-    await this.pool.query(
-      `UPDATE sessions SET tailor_floor_pct = GREATEST(tailor_floor_pct, $2) WHERE id = $1`,
-      [id, pct],
-    );
   }
 
   async addTailorSkip(id: string, skipKey: string): Promise<void> {
