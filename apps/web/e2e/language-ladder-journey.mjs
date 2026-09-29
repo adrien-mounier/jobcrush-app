@@ -395,7 +395,12 @@ if (!advertsPresent) {
   await page.waitForTimeout(1600);
   await qa.expectVisible(page.getByRole('heading', { name: 'Saved to your profile' }),
     'the answer is kept — the screen says so, and the job is honestly gone');
-  const goneLine = await txt('.jobdeck.tailor .loadstate p');
+  // #309 AC3: the withdrawal names its reason, in the language's own terms, ABOVE the count.
+  const goneReason = await txt('.jobdeck.tailor .loadstate .gone-reason');
+  await qa.note(`the reason, named: ${JSON.stringify(goneReason)}`);
+  await assert(/This job needs Cantonese/.test(goneReason ?? ''),
+    `#309 AC3: the job that vanished because she just answered says why — "${goneReason}"`);
+  const goneLine = await txt('.jobdeck.tailor .loadstate p:not(.gone-reason)');
   await qa.note(`the consequence, named: ${JSON.stringify(goneLine)}`);
   await assert(/Hidden 1 job that needs Cantonese/i.test(goneLine ?? ''),
     `the honest count, with the language named — "${goneLine}"`);
