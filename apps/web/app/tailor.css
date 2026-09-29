@@ -179,6 +179,30 @@
   color: var(--hud-mute);
 }
 
+/* #308, from the retired deck ladder (#125 decision 4): what an answer costs, said BEFORE the
+   rungs, at reading weight rather than as a muted footnote — a person who cannot tell which taps
+   are safe answers defensively. */
+.tailor .ask .cost {
+  margin: 0 0 11px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--hud-ink);
+}
+
+/* #308: the skip ("Not sure yet" / "Not now") — visibly not one of the answers. */
+.tailor .ask .skip {
+  appearance: none;
+  margin-top: 10px;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: var(--hud-mute);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .tailor .opts {
   display: flex;
   flex-direction: column;

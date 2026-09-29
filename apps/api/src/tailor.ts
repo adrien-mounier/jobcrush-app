@@ -19,6 +19,14 @@ export interface TailorQuestion {
   remember?: string;
   /** #307: the market a profile answer is a fact about — display name, for the after-line. */
   market?: string;
+  /** #308: present on a profile question — the skip's label ("Not sure yet" / "Not now"). Posted
+   *  as an answer it stores nothing, and the question returns on the next job that raises it. */
+  skip?: string;
+  /** #308: the language ladder's own lines, present on a language profile question only — why THIS
+   *  advert asks (its own requirement, quoted) and what answering costs, both shown BEFORE the
+   *  rungs (#125 decision 4). */
+  why?: string;
+  consequence?: string;
 }
 export interface LedgerLine {
   requirementId: string;

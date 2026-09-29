@@ -1,16 +1,21 @@
-// #165 — "a language and its level are two facts": the ladder, driven the way a person drives it.
+// #165/#308 — "a language and its level are two facts": the ladder, driven the way a person
+// drives it. #308 moved the graded question off the swipe card into the TAILOR QUEUE — rungs and
+// "Not now" intact — so this journey now proves the promise where the question actually lives.
 //
 // This is the inversion of language-withdrawal-journey.mjs (#123), which is now STALE: it asserts
 // that leaving Mandarin unticked REMOVES the Mandarin-mandatory posting, which is exactly the harm
-// #165 was written to delete. This journey proves the new promise on the rendered screen:
+// #165 was written to delete. This journey proves the promise on the rendered screen:
 //
 //   front door -> discovery -> the floor -> work-rights -> THE LANGUAGES TYPE-AHEAD (a known word
 //   completed from the list, and a word OFF the list kept in the person's own spelling, with
 //   Mandarin and Cantonese deliberately LEFT OUT) -> sign in -> the deck, where
 //     * the Mandarin-MANDATORY posting is STILL THERE (leaving a language out costs nothing),
-//     * that card carries the level question with THIS advert's own line as the reason,
+//     * the deck card itself no longer asks anything (#308 — the ladder is retired off it),
+//     * wanting the job lands the Tailor queue, where the graded question is asked with THIS
+//       advert's own line as the reason and the cost said before the rungs,
 //     * answering a rung BELOW the advert's bar closes the question and keeps the job,
 //     * a language named only as a PLUS triggers the question too,
+//     * "Not now" stores nothing: the same job never re-asks, the NEXT job that needs it does,
 //     * and only the deliberately-tapped bottom rung ("I don't speak this one") ever removes a job.
 //
 //   PORT=34101 node apps/api/dist/qa-main.js          # fake model, readAd seam wired (#209)
@@ -63,7 +68,9 @@ const deck = () => page.evaluate(async () => {
     ok: true,
     count: j.cards.length,
     ids: j.cards.map((c) => c.adId),
-    asks: j.cards.filter((c) => c.levelAsk).map((c) => ({ adId: c.adId, language: c.levelAsk.language })),
+    // #308: the deck payload no longer carries a levelAsk — recorded here so a regression that
+    // brings the card-side ask back goes red in this journey, not just in the API tests.
+    cardsThatAsk: j.cards.filter((c) => c.levelAsk).map((c) => c.adId),
     withdrawn: j.withdrawn ?? null,
   };
 });
@@ -251,33 +258,53 @@ if (!advertsPresent) {
 
   const foundMandarin = await openCard(MANDARIN_BLOCKING_AD, 'the Mandarin-mandatory posting she never listed Mandarin for');
   await assert(foundMandarin, 'AC2 ON THE SCREEN: the Mandarin-mandatory job is reachable in her deck, card by card');
-  await qa.scrollThrough('read the whole card, down to the question at the bottom of it');
+  await qa.scrollThrough('read the whole card, top to bottom');
 
   // -----------------------------------------------------------------------------------------
-  // 8. AC3 — the level question, on the card whose advert makes it matter, with its own reason.
+  // 8. #308 — the card no longer asks. The question moved into the Tailor queue.
   // -----------------------------------------------------------------------------------------
-  await qa.expectVisible('.jcbody fieldset.ladder', 'AC3: the level question is asked ON the card that triggered it, not up front');
-  const ladder = await page.evaluate(() => {
-    const f = document.querySelector('.jcbody fieldset.ladder');
-    if (!f) return null;
+  const cardLadders = await page.locator('.jcbody fieldset.ladder').count();
+  await assert(cardLadders === 0,
+    '#308: the deck card no longer asks the ladder — the graded question lives in the Tailor queue now');
+  const deckPayload = await deck();
+  await assert((deckPayload.cardsThatAsk ?? []).length === 0,
+    `#308: no card in the payload carries a level ask either — ${JSON.stringify(deckPayload.cardsThatAsk)}`);
+
+  const readAsk = () => page.evaluate(() => {
+    const root = document.querySelector('.tailor .ask');
+    if (!root) return null;
+    const kids = [...root.children];
     return {
-      legend: f.querySelector('legend')?.textContent?.trim() ?? null,
-      why: f.querySelector('.why')?.textContent?.trim() ?? null,
-      cost: f.querySelector('.cost')?.textContent?.trim() ?? null,
-      rungs: [...f.querySelectorAll('.rungs .rung')].map((b) => b.textContent.trim()),
-      skip: f.querySelector('.skip')?.textContent?.trim() ?? null,
-      describedby: f.getAttribute('aria-describedby'),
-      describedbyResolves: (f.getAttribute('aria-describedby') ?? '').split(/\s+/).every((id) => !!document.getElementById(id)),
-      costBeforeRungs: (() => {
-        const kids = [...f.children];
-        return kids.findIndex((k) => k.classList.contains('cost')) < kids.findIndex((k) => k.classList.contains('rungs'));
+      q: root.querySelector('.q')?.textContent?.trim() ?? null,
+      notices: [...root.querySelectorAll('.notice')].map((n) => n.textContent.trim()),
+      cost: root.querySelector('.cost')?.textContent?.trim() ?? null,
+      rungs: [...root.querySelectorAll('.opts .opt')].map((b) => b.textContent.trim()),
+      skip: root.querySelector('.skip')?.textContent?.trim() ?? null,
+      costBeforeRungs:
+        kids.findIndex((k) => k.classList.contains('cost')) < kids.findIndex((k) => k.classList.contains('opts')),
+      describedbyResolves: (() => {
+        const db = root.querySelector('.opts')?.getAttribute('aria-describedby') ?? '';
+        return db.length > 0 && db.split(/\s+/).every((id) => !!document.getElementById(id));
       })(),
     };
   });
-  await qa.note(`the ladder as it renders: ${JSON.stringify(ladder, null, 1)}`);
-  await assert(/Mandarin/.test(ladder?.legend ?? ''), `AC3: the question names the language — "${ladder?.legend}"`);
-  await assert(/Mandarin/.test(ladder?.why ?? '') && /weekly reviews|"/.test(ladder?.why ?? ''),
-    `AC3: the reason is THIS ADVERT'S OWN LINE, quoted, not a generic explanation — "${ladder?.why}"`);
+
+  await qa.click(page.getByRole('button', { name: 'I want this one, tailor this job' }),
+    "press 'I want this one' — into the Tailor queue, the one place every question about a job is asked");
+  await page.waitForURL('**/tailor', { timeout: 15_000 });
+  await qa.expectVisible('.jobdeck.tailor', 'the Tailor step mounted');
+  await page.waitForTimeout(900);
+
+  // -----------------------------------------------------------------------------------------
+  // 9. AC3 — the graded question, first in the queue, with this advert's own line as the reason.
+  // -----------------------------------------------------------------------------------------
+  const ladder = await readAsk();
+  await qa.note(`the question as it renders: ${JSON.stringify(ladder, null, 1)}`);
+  await assert(/Mandarin/.test(ladder?.q ?? ''), `AC3: the question names the language — "${ladder?.q}"`);
+  await assert(ladder?.notices.some((n) => /Mandarin/.test(n) && /weekly reviews|"/.test(n)),
+    `AC3: the reason is THIS ADVERT'S OWN LINE, quoted, not a generic explanation — ${JSON.stringify(ladder?.notices)}`);
+  await assert(ladder?.notices.some((n) => /remember this for every job/i.test(n)),
+    `the permanence is said BEFORE she answers — ${JSON.stringify(ladder?.notices)}`);
   await assert(ladder?.rungs.length === 6, `#125 decision 3: six rungs — ${JSON.stringify(ladder?.rungs)}`);
   await assert(!ladder?.rungs.some((r) => /\bB2\b|\bC1\b|fluent|native speaker|proficien/i.test(r)),
     'ADR-0003 clause 8a: every rung is a SITUATION a person can picture, never a code or an adjective');
@@ -286,62 +313,106 @@ if (!advertsPresent) {
   await assert(/Only the last one takes jobs out/i.test(ladder?.cost ?? '') && ladder?.costBeforeRungs === true,
     `#125 decision 4: the cost is stated BEFORE the answer, never after — "${ladder?.cost}"`);
   await assert(/not now/i.test(ladder?.skip ?? ''), `ADR-0011 clause 4: the skip is "not now", not "stop asking" — "${ladder?.skip}"`);
-  await assert(ladder?.describedbyResolves === true, 'a11y: the reason and the cost are both announced with the question');
+  await assert(!ladder?.rungs.some((r) => /^(Yes|No)\b/.test(r)),
+    '#308 AC4: a language answer is graded — the queue never offers a Yes/No about a language');
+  await assert(ladder?.describedbyResolves === true,
+    'a11y: the reason and the cost are announced with the rungs, as the deck ladder always did');
 
   // -----------------------------------------------------------------------------------------
-  // 9. Answer a rung BELOW the advert's bar. It closes the question and keeps the job.
+  // 10. Answer a rung BELOW the advert's bar. It closes the question and keeps the job.
   // -----------------------------------------------------------------------------------------
-  await qa.click(page.locator('.jcbody .rungs .rung', { hasText: 'I get by day to day' }).first(),
+  await qa.click(page.locator('.tailor .opts .opt', { hasText: 'I get by day to day' }).first(),
     "she places herself BELOW the advert's bar: 'I get by day to day'");
   await page.waitForTimeout(1600);
-  const noted = await txt('.jcbody p.ladder.done');
+  const noted = await txt('.tailor .ledger');
   await qa.note(`what she is told after answering: ${JSON.stringify(noted)}`);
-  await assert(/Noted for Mandarin/i.test(noted ?? '') && /won't ask again/i.test(noted ?? ''),
+  await assert(/Remembered for Mandarin/i.test(noted ?? '') && /No job will ask you this again/i.test(noted ?? ''),
     `AC3: answering closes the question, and the screen says so — "${noted}"`);
 
   const belowBar = await deck();
   await qa.note(`deck after answering below the bar: ${JSON.stringify(belowBar)}`);
   await assert(belowBar.ids.includes(MANDARIN_BLOCKING_AD),
     'ADR-0003 clause 8a / #125 decision 5: being BELOW the bar never withdraws — the job is still there');
-  await assert(!belowBar.asks.some((a) => a.language === 'Mandarin'),
-    `AC3: Mandarin is never asked again, on this advert or any other — remaining asks: ${JSON.stringify(belowBar.asks)}`);
 
-  await qa.goto('/deck', 'reload the deck as a returning visitor');
-  const stillClosed = await deck();
-  await assert(!stillClosed.asks.some((a) => a.language === 'Mandarin'),
-    'AC3: the answer survives a reload — the ladder does not re-ask a language she already placed herself on');
+  await qa.goto('/tailor', 'reload the Tailor step as a returning visitor');
+  await page.waitForTimeout(900);
+  const reloaded = await readAsk();
+  await assert(!/Mandarin/.test(reloaded?.q ?? ''),
+    `AC3: the answer survives a reload — Mandarin is never asked again ("${reloaded?.q}")`);
 
   // -----------------------------------------------------------------------------------------
-  // 10. AC3 again, for a language named ONLY as a plus — the case #125 decision 4 overrode.
+  // 11. A language named ONLY as a plus triggers the question too — and "Not now" stores nothing.
   // -----------------------------------------------------------------------------------------
-  await assert(stillClosed.asks.some((a) => a.adId === CANTONESE_PLUS_AD && a.language === 'Cantonese'),
-    'AC3: a language named only as an ADVANTAGE triggers the question too — that is where a real level wins a job');
   const foundPlus = await openCard(CANTONESE_PLUS_AD, 'the posting where Cantonese is only "an advantage"');
   await assert(foundPlus, 'the "Cantonese an advantage" card is reachable in her deck');
-  await qa.scrollThrough('read the plus-only card down to its question');
-  const plusWhy = await txt('.jcbody fieldset.ladder .why');
-  await qa.note(`the reason on the plus-only card: ${JSON.stringify(plusWhy)}`);
-  await assert(/Cantonese/.test(plusWhy ?? '') && /advantage/i.test(plusWhy ?? ''),
-    `AC3: it quotes the advert's own "an advantage" line as the reason — "${plusWhy}"`);
+  await qa.click(page.getByRole('button', { name: 'I want this one, tailor this job' }),
+    'want the plus-only job — its queue must ask about Cantonese too');
+  await page.waitForURL('**/tailor', { timeout: 15_000 });
+  await page.waitForTimeout(900);
+  const plusAsk = await readAsk();
+  await qa.note(`the plus-only job's question: ${JSON.stringify(plusAsk, null, 1)}`);
+  await assert(/Cantonese/.test(plusAsk?.q ?? ''),
+    'AC3: a language named only as an ADVANTAGE triggers the question too — that is where a real level wins a job');
+  await assert(plusAsk?.notices.some((n) => /Cantonese/.test(n) && /advantage/i.test(n)),
+    `AC3: it quotes the advert's own "an advantage" line as the reason — ${JSON.stringify(plusAsk?.notices)}`);
+
+  // #308 AC1/AC2/AC5 — the skip. Nothing is saved, THIS job stops asking, the NEXT job asks again.
+  await qa.click(page.locator('.tailor .ask .skip'), "she is not sure — 'Not now'");
+  await page.waitForTimeout(1600);
+  const skippedLine = await txt('.tailor .ledger');
+  await qa.note(`what she is told after skipping: ${JSON.stringify(skippedLine)}`);
+  await assert(/Nothing saved/i.test(skippedLine ?? '') && /Cantonese/.test(skippedLine ?? ''),
+    `#308: the skip says both halves out loud — nothing saved, and it will be asked again — "${skippedLine}"`);
+  await qa.goto('/tailor', 'reload the same job — a skip must not nag on the job it was skipped on');
+  await page.waitForTimeout(900);
+  const afterSkip = await readAsk();
+  await assert(!/Cantonese/.test(afterSkip?.q ?? ''),
+    `ADR-0011 clause 4: never twice for the same advert — the reload does not re-ask ("${afterSkip?.q}")`);
 
   // -----------------------------------------------------------------------------------------
-  // 11. The one answer that DOES remove a job — deliberately tapped, and only then.
+  // 12. The skipped question RETURNS on the next job that needs it — and the one answer that
+  //     does remove a job is a deliberate tap on the bottom rung, nothing else.
   // -----------------------------------------------------------------------------------------
-  await qa.click(page.locator('.jcbody .rungs .rung', { hasText: "I don't speak this one" }).first(),
+  // The card walk cannot pick this one out by eye: three fixture postings share the literal title
+  // "Senior Project Manager" with it, and the deck renders no per-card id. Target it through the
+  // same /want route the card's own button posts to (asked-once-journey's pattern) — its presence
+  // in her deck was already asserted above (advertsPresent).
+  const wantedBlocking = await page.evaluate(
+    (id) => fetch(`/api/onboarding/cards/${encodeURIComponent(id)}/want`, { method: 'POST', credentials: 'include' })
+      .then((r) => r.status),
+    CANTONESE_BLOCKING_AD,
+  );
+  await assert(wantedBlocking === 200,
+    `the Cantonese-mandatory job becomes the tailor target (HTTP ${wantedBlocking}) — the skipped question must come back here`);
+  await qa.goto('/tailor', 'open the Tailor step for the Cantonese-mandatory job');
+  await page.waitForTimeout(900);
+  const returned = await readAsk();
+  await assert(/Cantonese/.test(returned?.q ?? ''),
+    `#308 AC2: not now meant not now — the NEXT job that needs Cantonese asks again ("${returned?.q}")`);
+
+  await qa.click(page.locator('.tailor .opts .opt', { hasText: "I don't speak this one" }).first(),
     "she deliberately taps the bottom rung for Cantonese — the ONE answer with a cost");
   await page.waitForTimeout(1600);
+  await qa.expectVisible(page.getByRole('heading', { name: 'Saved to your profile' }),
+    'the answer is kept — the screen says so, and the job is honestly gone');
+  const goneLine = await txt('.jobdeck.tailor .loadstate p');
+  await qa.note(`the consequence, named: ${JSON.stringify(goneLine)}`);
+  await assert(/Hidden 1 job that needs Cantonese/i.test(goneLine ?? ''),
+    `the honest count, with the language named — "${goneLine}"`);
+  await qa.click(page.getByRole('button', { name: 'Back to the deck' }), 'the one door off the gone screen');
+  await page.waitForURL('**/deck', { timeout: 10_000 });
+
   const afterNo = await deck();
   await qa.note(`deck after the deliberate "I don't speak Cantonese": ${JSON.stringify(afterNo)}`);
   await assert(!afterNo.ids.includes(CANTONESE_BLOCKING_AD),
     'a CHOSEN removal still works: the Cantonese-MANDATORY posting is gone once she says she does not speak it');
   await assert(afterNo.ids.includes(CANTONESE_PLUS_AD),
     'and the posting where Cantonese was only an advantage STAYS — an ordinary requirement never removes a job');
-  await qa.goto('/deck', 'reload the deck once more');
   await qa.scrollThrough('read the deck she is left with');
 }
 
 // -------------------------------------------------------------------------------------------
-// 12. Her profile shows both languages — including the one no list offered.
+// 13. Her profile shows both languages — including the one no list offered.
 // -------------------------------------------------------------------------------------------
 await qa.goto('/profile', 'open her profile');
 await qa.scrollThrough('read the profile top to bottom');

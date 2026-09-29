@@ -49,7 +49,7 @@ import {
 import { applyFallbackChoice } from "../deckFallback.js";
 import type { BroughtJobsFn } from "../broughtJobs.js";
 import { makeRetrievalCoordinator } from "../deckRetrieval.js";
-import { answerLanguageLevel, LanguageLevelBody, withLanguageLevelAsks } from "../languageLevel.js";
+import { answerLanguageLevel, LanguageLevelBody } from "../languageLevel.js";
 import { runLabelerRetry } from "../jobBlockPlacementRetry.js";
 import { findWithdrawingRequirement } from "../withdrawal.js";
 import {
@@ -647,7 +647,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       },
     );
 
-    // #165 — the ladder's answer; write path in languageLevel.ts. Pre-wall, like the deck that fires it.
+    // #165 — the ladder's direct write door; #308 status note at answerLanguageLevel's doc.
     app.post(
       "/onboarding/language-level",
       { schema: { body: LanguageLevelBody } },

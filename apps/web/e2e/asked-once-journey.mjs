@@ -124,8 +124,12 @@ const options = await page.locator('.tailor .opts .opt').allTextContents();
 await qa.note(`options offered: ${JSON.stringify(options)}`);
 await assert(
   options.length === 2 && !options.some((o) => /ask me later/i.test(o)),
-  'two answers, no decline — a skip that hardens into a blank cannot be tapped into existence here',
+  'two answers, no decline — the discovery decline (which hardens into a blank) cannot be tapped here',
 );
+// #308: the way out is the skip, visibly apart from the answers — it stores nothing (person two
+// below proves that live) and the question returns on the next job that asks.
+await qa.expectText('.tailor .ask .skip', 'Not sure yet',
+  "#308: the third option is there — 'Not sure yet', not one of the answers");
 await qa.scrollThrough('read the queue screen the way a person would');
 
 // -------------------------------------------------------------------------------------------
@@ -155,15 +159,31 @@ await assert(/^This job wants:/.test(firstQOnB ?? ''),
 await assert(firstQOnB !== QUESTION, 'the profile question specifically is gone');
 
 // -------------------------------------------------------------------------------------------
-// 5. Person two: the "Not yet" path. A found job withdraws, honestly, with the count.
+// 5. Person two: "Not sure yet" first (#308 — stores nothing, returns on the next job), then
+//    the "Not yet" path. A found job withdraws, honestly, with the count.
 // -------------------------------------------------------------------------------------------
-await qa.note('— a fresh person now, same deck, answering the other way —');
+await qa.note('— a fresh person now, same deck, skipping first and then answering the other way —');
 await page.context().clearCookies();
 await seedSignedInSession(`asked-once-b-${Date.now()}@example.com`);
 await qa.cardsWhenRetrieved();
 await assert((await want(AD_A)) === 200, 'person two targets job A');
 await qa.goto('/tailor', 'the Tailor step again, fresh session');
 await qa.expectText('.tailor .ask .q', QUESTION, 'the question is asked afresh for a person who never answered');
+
+// #308 AC1/AC2/AC5: the skip, live. Nothing saved, this job stops asking, the next one asks again.
+await qa.click(page.locator('.tailor .ask .skip'), "person two is not sure — 'Not sure yet'");
+await page.waitForTimeout(1400);
+await qa.expectText('.tailor .ledger', 'Nothing saved — I\'ll ask again on another job in Hong Kong.',
+  '#308: the skip says both halves out loud — nothing saved, and it will be asked again');
+const afterSkipQ = await txt('.tailor .ask .q');
+await qa.note(`the queue after the skip: ${JSON.stringify(afterSkipQ)}`);
+await assert(/^This job wants:/.test(afterSkipQ ?? ''),
+  "#308: the skipped question stepped aside — the advert's own questions follow, and this job never re-asks");
+
+await assert((await want(AD_B)) === 200, 'person two moves to job B — the next job that states the gate');
+await qa.goto('/tailor', 'the Tailor step for job B');
+await qa.expectText('.tailor .ask .q', QUESTION,
+  '#308 AC2: not now meant not now — the next job that needs the answer asks again');
 await qa.click(page.getByRole('button', { name: "Not yet — I'd need sponsorship" }), 'answer the permanent question with a no');
 await page.waitForTimeout(1400);
 await qa.expectVisible(page.getByRole('heading', { name: 'Saved to your profile' }),

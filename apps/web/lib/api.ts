@@ -334,33 +334,10 @@ export interface WithdrawnSummary {
   byLanguage: Array<{ language: string; count: number }>;
 }
 
-// #165 — the ladder question THIS advert triggers, when the person's level for a language it names
-// is still unknown (apps/api/src/languageLevel.ts). Rides on the card rather than the ask dock
-// because that is the moment it earns its interruption: the reason is this advert, and `why` quotes
-// it. `options` are ordered rungs of concrete situations, lowest first; the lowest ("not-at-all") is
-// the only answer that ever removes jobs, and it takes a deliberate tap. Skipping is "not now" —
-// a later advert testing the same language asks again (ADR-0011 clause 4).
-export interface LanguageLevelAsk {
-  language: string;
-  question: string;
-  why: string;
-  /** What answering costs, shown BEFORE the rungs — #125 decision 4. */
-  consequence: string;
-  options: Array<{ value: string; situation: string }>;
-  skipOption: string;
-}
-
-export function answerLanguageLevel(language: string, level: string): Promise<{ ok: true }> {
-  return jfetch("/api/onboarding/language-level", {
-    method: "POST",
-    body: JSON.stringify({ language, level }),
-  });
-}
-
-/** A card as the deck actually receives it: the frozen JobCardV1 contract plus whatever this
- *  session-specific advert happens to trigger. Kept separate from JobCard so the contract type stays
- *  exactly the contract. */
-export type DeckCard = JobCard & { levelAsk?: LanguageLevelAsk };
+// #308: the language ladder no longer rides on the deck card — the graded question moved into the
+// Tailor queue (TailorQuestion below carries its lines). The DeckCard alias stays so the deck's own
+// code keeps one name for "a card as this screen receives it".
+export type DeckCard = JobCard;
 
 export interface CardsResponse {
   stage: string;
@@ -456,6 +433,13 @@ export interface TailorQuestion {
   remember?: string;
   /** #307: the market the answer is a fact about — display name. */
   market?: string;
+  /** #308: on a profile question — the skip's label ("Not sure yet" / "Not now"). Posted like an
+   *  answer; the server stores nothing and the question returns on the next job that raises it. */
+  skip?: string;
+  /** #308: the language ladder's own lines (a language profile question only) — why THIS advert
+   *  asks, quoting its requirement, and what answering costs. Both render BEFORE the rungs. */
+  why?: string;
+  consequence?: string;
 }
 
 export interface TailorLedgerEntry {

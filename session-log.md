@@ -2,6 +2,45 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-29 — #308 built: the honest way out of a question, and the ladder moves into the queue
+
+`/implement` → `/code-review` → `/qa-gate` **GO** on **#308**, committed to `main` locally.
+**NOT pushed** — the workflow-dispatch CI run verifying #305–#307 (36508142754) was in flight and
+a push cancels it; the push waits for that run's outcome and the owner's say-so.
+
+**What a person gets.** Every question in the Tailor queue now has a way out that is not a wrong
+"No": **"Not sure yet"** on the permanent work-rights question, **"Not now"** on the language
+ladder. A skip **stores nothing** — not in his profile, not as a decline — and the screen says so
+(*"Nothing saved — I'll ask again on another job…"*). The job he skipped on never nags him again,
+even if he tailors another job and comes back; the next job that raises the question asks again.
+And the **graded language ladder moved off the swipe card into the queue** — six situation rungs,
+the advert's own line as the reason, the cost said before the rungs, "I don't speak this one"
+last — so "Mandarin an advantage" still has a middle. The deck card asks nothing any more, and a
+language can never be answered Yes/No anywhere: the advert's twin question is subtracted and both
+answer doors refuse it.
+
+**Where the skip lives**: session queue state, keyed per advert — never the fact store. The
+handoff called this the sharp criterion and it held under an adversarial gate: profile payload
+byte-identical before and after a skip, store empty at both dimensions.
+
+**Code review earned its keep again** (both axes + fixes): it caught the skip memory resetting on
+a detour (skip A → tailor B → back to A re-asked A, against ADR-0011 clause 4) — fixed by keying
+skips per advert, which *deleted* the reset logic; and it caught the ladder's screen-reader
+announcement of the cost line being dropped in the move — restored. One behaviour change shipped
+knowingly: answering a question on an already-withdrawn job now says "no job being tailored"
+*before* recording anything, so the refusal can never outrank the honest 409.
+
+**QA gate: GO, 5/5 ACs PASS** with evidence — gates uncached (1779 API tests, 7/7 typecheck),
+37/37 mocked specs, three journeys green live (`language-ladder` reworked to drive the queue 45/45,
+`asked-once` extended with the skip 25/25, and the gate's own new adversarial
+`not-sure-yet-detour-journey` 23/23, adopted into Tier 2). The gate also proved the database
+migration and the skip write on a real Postgres by hand — the in-memory store can't run that
+operator, so nothing automated covers the Pg path; noted, not fixed.
+
+**One decision for the owner**: the old direct language-level endpoint has no screen using it any
+more (the queue writes through its own door). Kept for now, with the reasoning recorded in code —
+keep it as the future profile surface's write path, or delete it.
+
 ## 2026-09-29 — #307 built: asked once, remembered for every job (V4 opens)
 
 `/implement` → `/code-review` → `/qa-gate` on **#307**, V4's first ticket, built in the

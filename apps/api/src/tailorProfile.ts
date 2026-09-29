@@ -18,8 +18,12 @@
 //     job blocks. There is no years branch below, and tailorProfile.test.ts pins that an advert's
 //     years bar produces no question — the queue-side half of AC8's "no family-floor question".
 //
-// The language ladder stays on the card for now — #308 retires it into this queue. This module's
-// shape (one question kind, prepended before the advert's own) is what #308 extends.
+// #308 adds the second kind — the graded language ladder, retired off the deck card into this
+// queue (rungs and "Not now" intact; languageLevel.ts still owns the rungs and the write path) —
+// and the queue's way out: a skip ("Not sure yet" / "Not now") that stores NOTHING, on either
+// path. Not a fact, not a sentinel, not a decline marker — skip memory is QUEUE state
+// (SessionRecord.tailorSkips, keyed per advert), so a skipped question returns on the next job
+// that raises it and never re-fires on the job it was skipped on (ADR-0011 clause 4).
 //
 // DELIBERATELY UNTOUCHED (spec review, recorded so nobody "fixes" it silently): the card's own gap
 // row for a profile-answered requirement. A work-rights bar answered "yes" stays listed under
@@ -28,64 +32,119 @@
 // has today. Feeding the fact back into the number/row is #292 ruling 10 and req 10 ("the number
 // names what it could not test; a movement is narrated"), which the V4 order places after this
 // ticket — and open thread: the owner may rule on that wording (#306 handoff §8.2).
-import type { AdRequirementsV1 } from "@jobcrush/contracts";
+import type { AdRequirementsV1, LanguageLevel } from "@jobcrush/contracts";
 import type { EligibilityFact } from "./eligibility.js";
 import { DECLINE_OPTION, workRightsQuestionFor } from "./eligibilityDiscovery.js";
 import { findWithdrawingRequirement, findWorkRightsFact, isExplicitNo } from "./withdrawal.js";
 import { marketForLocationText } from "./postingRetrieval.js";
+import { LANGUAGE_LADDER, LANGUAGE_NOT_AT_ALL, languageLevelAsk } from "./languageLevel.js";
 import type { BroughtJob } from "./broughtJobs.js";
 import type { Posting } from "./preview.js";
 
-/** One profile-level queue entry. Rides in TailorState.questions AHEAD of the advert's own
- *  questions (#292 ruling 3: he never answers five requirement questions about a job he cannot
- *  legally take). `requirementId` carries the eligibility itemId — the client posts it back to
- *  /onboarding/tailor/profile-answer untouched, and it can never collide with an advert
- *  requirement id (those are the reader's own kebab ids, never "eligibility-" prefixed). */
-export interface ProfileAsk {
+/** #308 AC1 — the third option on a permanent question. Not an answer: the route stores NOTHING
+ *  when it is tapped (AC5), and the question returns on the next job that raises it. */
+export const NOT_SURE_YET = "Not sure yet";
+
+interface ProfileAskBase {
   requirementId: string;
   kind: "profile";
-  /** The eligibility dimension the answer writes to — the route maps the tapped option through
-   *  mapEligibilityAnswer at THIS dimension, so the after-line's yes/no branch is derived from the
-   *  answer he actually gave, never from a store re-read that could miss on a scope mismatch. */
-  dimension: "work-rights";
   question: string;
   options: string[];
   /** AC6's before-line: said BEFORE he answers, because the answer is permanent. */
   remember: string;
+  /** #308 AC2 — the way out. Tapping it writes nothing anywhere but the session's own queue
+   *  state (tailorSkips), so the question steps aside for THIS job only and comes back on the
+   *  next one that asks (ADR-0011 clause 4: a skip is "not now", never "stop asking"). */
+  skip: string;
+}
+
+/** One profile-level queue entry. Rides in TailorState.questions AHEAD of the advert's own
+ *  questions (#292 ruling 3: he never answers five requirement questions about a job he cannot
+ *  legally take). Discriminated on `dimension` — the route dispatches the write path on it, so
+ *  the after-line is always derived from the answer he actually gave, never a store re-read.
+ *
+ *  `requirementId` is what the client posts back untouched: the eligibility itemId for
+ *  work-rights (never collides with a reader id — those are kebab ids, never "eligibility-"
+ *  prefixed), and the advert requirement's own id for a language (the same id
+ *  profileOwnedRequirementIds subtracts from the advert's questions). */
+export interface WorkRightsProfileAsk extends ProfileAskBase {
+  dimension: "work-rights";
   /** The market the answer is a fact about — display name ("Hong Kong"), for the after-line. */
   market: string;
 }
 
+/** #308 AC3/AC4 — the ladder, in the queue: `options` are the six rungs' SITUATIONS in the
+ *  ladder's own offered order (descending, so "I don't speak this one" sits last, where a
+ *  distracted thumb does not land), so a language answer is graded, never a Yes/No.
+ *  languageLevelAsk composes every line of it — languageLevel.ts stays the one module that owns
+ *  the ladder's rules, and the deck card that used to render this ask no longer asks at all. */
+export interface LanguageProfileAsk extends ProfileAskBase {
+  dimension: "language";
+  /** The language, in the store's canonical casing when declared — shown to a person. */
+  language: string;
+  /** Why THIS advert cares, quoting its own requirement line. */
+  why: string;
+  /** What answering costs, said BEFORE the rungs (#125 decision 4). */
+  consequence: string;
+}
+
+export type ProfileAsk = WorkRightsProfileAsk | LanguageProfileAsk;
+
 /** The profile-level questions THIS advert raises for THIS session — [] when the advert asks for
- *  nothing profile-level, when the posting's market cannot be placed (never guess a market to ask
- *  about), or when the fact is already stored (asked once, ever). At most one per kind per advert
- *  (#292 ruling 3's cap): work rights is per-market and a posting has one market.
+ *  nothing profile-level or every question is already answered (asked once, ever). At most one per
+ *  KIND per advert (#292 ruling 3's cap): work-rights first (never five questions about a job he
+ *  cannot legally take), then the language ladder (#308 — one language per advert, the first
+ *  unknown in the advert's own rank order, languageLevelAsk's rule unchanged by the move).
  *
- *  No decline option in #307 — a decline here would close the question through the claims store,
- *  which is exactly the "skip hardens into a blank" ADR-0011 clause 4 forbids. The third option
- *  ("not sure yet", stores nothing, returns) is #308's. Until then the exits stay open: nothing
- *  forces an answer — "I'm done — use this CV" and "Drop this job" both stand. */
+ *  The discovery decline never appears here — it would close the question through the claims
+ *  store, the exact "skip hardens into a blank" ADR-0011 clause 4 forbids. The way out is `skip`
+ *  (#308): stores nothing, returns on the next job that asks.
+ *
+ *  `skips` (#308) is the session's queue state, already narrowed to the CURRENT tailor target by
+ *  the caller (routes/tailor.ts's tailorSkipsFor) — requirementIds he said "not now" to on THIS
+ *  job. A skipped ask is left out here, so it never re-fires on the job it was skipped on; a
+ *  different job raising the same question carries a different key, so it asks. */
 export function tailorProfileAsks(
   adReq: AdRequirementsV1,
   postingLocation: string | null | undefined,
   facts: readonly EligibilityFact[],
+  skips: ReadonlySet<string> = new Set(),
 ): ProfileAsk[] {
-  if (!adReq.requirements.some((r) => r.eligibilityDimension === "work-rights")) return [];
+  const asks: ProfileAsk[] = [];
   const market = marketForLocationText(postingLocation ?? "");
-  if (!market) return [];
-  if (findWorkRightsFact(facts, postingLocation)) return []; // answered once — never again
-  const question = workRightsQuestionFor(market);
-  return [
-    {
+  if (
+    adReq.requirements.some((r) => r.eligibilityDimension === "work-rights") &&
+    market && // never guess a market for a permanent question
+    !findWorkRightsFact(facts, postingLocation) // answered once — never again
+  ) {
+    const question = workRightsQuestionFor(market);
+    asks.push({
       requirementId: question.itemId,
       kind: "profile",
       dimension: "work-rights",
       question: question.question,
       options: question.options.filter((o) => o !== DECLINE_OPTION),
       remember: `I'll remember this for every job in ${market}.`,
+      skip: NOT_SURE_YET,
       market,
-    },
-  ];
+    });
+  }
+  const lang = languageLevelAsk(adReq, facts); // null once answered — asked once per language ever
+  if (lang) {
+    asks.push({
+      requirementId: lang.requirementId,
+      kind: "profile",
+      dimension: "language",
+      language: lang.language,
+      question: lang.question,
+      why: lang.why,
+      consequence: lang.consequence,
+      remember: "I'll remember this for every job.",
+      options: lang.options.map((rung) => rung.situation),
+      skip: lang.skipOption,
+    });
+  }
+  return asks.filter((ask) => !skips.has(ask.requirementId));
 }
 
 /** Requirement ids whose question IS the profile question — one queue means one question. Without
@@ -95,16 +154,29 @@ export function tailorProfileAsks(
  *  THAT one would write the advert-scoped claim AC4 forbids. buildTailorState subtracts this set
  *  from the advert's questions, and the answer route refuses these ids outright.
  *
- *  Scoped to a PLACEABLE market: when the posting's market cannot be resolved, no profile question
- *  exists to own the requirement, so it stays an ordinary advert question — the pre-#307
- *  behaviour, unchanged, rather than a requirement with no door to answer it at all. */
+ *  Work-rights is scoped to a PLACEABLE market: when the posting's market cannot be resolved, no
+ *  profile question exists to own the requirement, so it stays an ordinary advert question — the
+ *  pre-#307 behaviour, unchanged, rather than a requirement with no door to answer it at all.
+ *
+ *  #308: a language requirement WITH a subject is owned unconditionally — the graded ladder is the
+ *  only door a language answer may take (AC4: graded, never yes-or-no), its door needs no market,
+ *  and once the level is answered the question is closed everywhere (asked once per language
+ *  ever), never reopened as a Yes/No. A language requirement with NO subject stays an ordinary
+ *  advert question: there is no safe way to know which language is meant. Ownership deliberately
+ *  ignores skips — a skipped ladder must step aside, not reappear as its own Yes/No twin. */
 export function profileOwnedRequirementIds(
   adReq: AdRequirementsV1,
   postingLocation: string | null | undefined,
 ): Set<string> {
-  if (!marketForLocationText(postingLocation ?? "")) return new Set();
+  const marketPlaced = marketForLocationText(postingLocation ?? "") !== null;
   return new Set(
-    adReq.requirements.filter((r) => r.eligibilityDimension === "work-rights").map((r) => r.id),
+    adReq.requirements
+      .filter(
+        (r) =>
+          (marketPlaced && r.eligibilityDimension === "work-rights") ||
+          (r.eligibilityDimension === "language" && r.eligibilitySubject),
+      )
+      .map((r) => r.id),
   );
 }
 
@@ -137,4 +209,30 @@ export function profileChangeLine(value: string, market: string, hidden: number)
     return `Hidden ${hidden} ${market} ${jobs} from your deck — change this any time in your profile.`;
   }
   return `Remembered. Jobs in ${market} that need sponsorship will stay off your deck — change this any time in your profile.`;
+}
+
+/** #308 — the language answer's after-line, profileChangeLine's sibling. `rung` is the stored
+ *  ladder value the tapped situation mapped to; every rung above "I don't speak this one" keeps
+ *  every job (the ladder's own promise), so only that one branches on the hidden count. No
+ *  profile-undo clause here, deliberately: unlike work-rights (#292 ruling 7's per-market door),
+ *  the profile has no surface today that changes a placed level, and the line must not promise
+ *  one. */
+export function languageChangeLine(language: string, rung: LanguageLevel, hidden: number): string {
+  if (rung !== LANGUAGE_NOT_AT_ALL) {
+    const situation = LANGUAGE_LADDER.find((r) => r.value === rung)!.situation;
+    return `Remembered for ${language}: ${situation}. No job will ask you this again.`;
+  }
+  if (hidden > 0) {
+    const jobs = hidden === 1 ? "job that needs" : "jobs that need";
+    return `Hidden ${hidden} ${jobs} ${language} from your deck.`;
+  }
+  return `Remembered. Jobs that need ${language} will stay off your deck.`;
+}
+
+/** #308 AC1/AC2 — what a skip answers back. Honest about both halves: nothing was saved, and the
+ *  question is not gone for good — the next job that raises it asks again. */
+export function skippedLine(ask: ProfileAsk): string {
+  return ask.dimension === "language"
+    ? `Nothing saved — I'll ask about ${ask.language} again on another job that needs it.`
+    : `Nothing saved — I'll ask again on another job in ${ask.market}.`;
 }

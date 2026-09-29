@@ -14,11 +14,17 @@ import { buildItProjectDeliveryServer as buildServer } from "./placedServer.js";
 import { liveIdFor, warmRetrieval, getCardsWhenRetrieved } from "./fixtureDeck.js";
 import type { Posting } from "../src/preview.js";
 import {
+  languageChangeLine,
   newlyHiddenCount,
+  NOT_SURE_YET,
   profileChangeLine,
   profileOwnedRequirementIds,
+  skippedLine,
   tailorProfileAsks,
+  type LanguageProfileAsk,
+  type WorkRightsProfileAsk,
 } from "../src/tailorProfile.js";
+import { LANGUAGE_LADDER } from "../src/languageLevel.js";
 import type { EligibilityFact } from "../src/eligibility.js";
 import type { BroughtJob } from "../src/broughtJobs.js";
 import { InMemoryPostingStore } from "../src/postingStore.js";
@@ -70,6 +76,17 @@ const plainAd = (adId: string): AdRequirementsV1 => ({
   ],
 });
 
+/** #308 — a language the advert names only as a plus; the graded ask must fire on it anyway. */
+const mandarinPlus: AdRequirementsV1["requirements"][number] = {
+  id: "mandarin-advantage",
+  band: "nice-to-have",
+  requirement: "Mandarin is an advantage when working with the regional vendors",
+  cvSection: "skills",
+  eligibilityDimension: "language",
+  eligibilitySubject: "Mandarin",
+  sourceSpan: "Test fixture (#308): Mandarin is an advantage.",
+};
+
 const HK_LOCATION = "Hong Kong, Hong Kong SAR";
 const hkFact = (value: string): EligibilityFact => ({
   dimension: "work-rights",
@@ -91,10 +108,10 @@ describe("#307 tailorProfileAsks", () => {
     expect(ask!.question).toBe("Can you already work in Hong Kong without visa sponsorship?");
     // AC6's before-line: he is told the answer is permanent BEFORE he gives it.
     expect(ask!.remember).toBe("I'll remember this for every job in Hong Kong.");
-    // No decline: the tailor queue's third option ("not sure yet", stores nothing) is #308's; the
-    // discovery decline would close the question through the claims store — a skip hardened into
-    // a blank, which ADR-0011 clause 4 forbids.
+    // No decline: the discovery decline would close the question through the claims store — a
+    // skip hardened into a blank, which ADR-0011 clause 4 forbids. The way out is #308's skip.
     expect(ask!.options).toEqual(["Yes — no sponsorship needed", "Not yet — I'd need sponsorship"]);
+    expect(ask!.skip).toBe(NOT_SURE_YET);
   });
 
   it("AC7: an advert that states no work-rights requirement raises no question, whatever the market", () => {
@@ -132,6 +149,92 @@ describe("#307 tailorProfileAsks", () => {
   });
 });
 
+// --- #308: the language ladder in the queue, and the skip -----------------------------------------
+
+describe("#308 tailorProfileAsks — the graded language question, in the queue", () => {
+  it("AC3/AC4: an advert naming a language raises the ladder — graded rungs, never Yes/No, work-rights first", () => {
+    const asks = tailorProfileAsks(workRightsAd("ad-1", [mandarinPlus]), HK_LOCATION, []);
+    expect(asks).toHaveLength(2);
+    expect(asks[0]!.dimension).toBe("work-rights"); // #292 ruling 3's order, kept
+    const lang = asks[1] as LanguageProfileAsk;
+    expect(lang).toMatchObject({
+      kind: "profile",
+      dimension: "language",
+      requirementId: "mandarin-advantage",
+      language: "Mandarin",
+      skip: "Not now",
+      remember: "I'll remember this for every job.",
+    });
+    // Graded, not yes-or-no: the six situations, offered descending so the one answer with a cost
+    // sits last — the ladder's own order, unchanged by the move off the card.
+    expect(lang.options).toEqual([...LANGUAGE_LADDER].reverse().map((r) => r.situation));
+    expect(lang.options).not.toContain("Yes");
+    // Why THIS advert cares, its own line quoted, and the cost said before the rungs.
+    expect(lang.why).toContain("Mandarin is an advantage");
+    expect(lang.consequence).toContain("takes jobs out of your deck");
+  });
+
+  it("the ladder needs no market: a language ask fires even where work-rights cannot", () => {
+    const asks = tailorProfileAsks(workRightsAd("ad-1", [mandarinPlus]), "Shenzhen, Guangdong, China", []);
+    expect(asks).toHaveLength(1);
+    expect(asks[0]!.dimension).toBe("language");
+  });
+
+  it("asked once per language ever: a placed rung means no question, on this job or any other", () => {
+    const placed: EligibilityFact = {
+      dimension: "language",
+      familyId: "Mandarin",
+      value: "gets-by",
+      label: "Mandarin — I get by day to day",
+    };
+    const asks = tailorProfileAsks(workRightsAd("ad-1", [mandarinPlus]), HK_LOCATION, [placed]);
+    expect(asks.map((a) => a.dimension)).toEqual(["work-rights"]);
+  });
+
+  it("AC1/AC2: a skipped question is left out for THIS job — and only the skipped one", () => {
+    const ad = workRightsAd("ad-1", [mandarinPlus]);
+    const workRightsId = "eligibility-work-rights-hong-kong";
+    expect(
+      tailorProfileAsks(ad, HK_LOCATION, [], new Set([workRightsId])).map((a) => a.dimension),
+    ).toEqual(["language"]);
+    expect(
+      tailorProfileAsks(ad, HK_LOCATION, [], new Set([workRightsId, "mandarin-advantage"])),
+    ).toEqual([]);
+    // An empty skip set is every pre-#308 caller unchanged.
+    expect(tailorProfileAsks(ad, HK_LOCATION, [])).toHaveLength(2);
+  });
+});
+
+describe("#308 languageChangeLine + skippedLine — the after-lines", () => {
+  it("a placed rung says what is remembered and that the question is closed", () => {
+    expect(languageChangeLine("Mandarin", "gets-by", 0)).toBe(
+      "Remembered for Mandarin: I get by day to day. No job will ask you this again.",
+    );
+  });
+  it("the deliberate bottom rung names the honest count", () => {
+    expect(languageChangeLine("Cantonese", "not-at-all", 3)).toBe(
+      "Hidden 3 jobs that need Cantonese from your deck.",
+    );
+    expect(languageChangeLine("Cantonese", "not-at-all", 1)).toBe(
+      "Hidden 1 job that needs Cantonese from your deck.",
+    );
+  });
+  it("a bottom rung that hid nothing still says what it means for the deck", () => {
+    expect(languageChangeLine("Cantonese", "not-at-all", 0)).toBe(
+      "Remembered. Jobs that need Cantonese will stay off your deck.",
+    );
+  });
+  it("a skip says both halves out loud: nothing saved, and the question comes back", () => {
+    const asks = tailorProfileAsks(workRightsAd("ad-1", [mandarinPlus]), HK_LOCATION, []);
+    expect(skippedLine(asks[0] as WorkRightsProfileAsk)).toBe(
+      "Nothing saved — I'll ask again on another job in Hong Kong.",
+    );
+    expect(skippedLine(asks[1] as LanguageProfileAsk)).toBe(
+      "Nothing saved — I'll ask about Mandarin again on another job that needs it.",
+    );
+  });
+});
+
 describe("#307 profileOwnedRequirementIds — one queue means one question", () => {
   it("the profile question owns the advert's work-rights requirement, so no Yes/No twin is asked", () => {
     expect(profileOwnedRequirementIds(workRightsAd("ad-1"), HK_LOCATION)).toEqual(
@@ -139,8 +242,24 @@ describe("#307 profileOwnedRequirementIds — one queue means one question", () 
     );
     expect(profileOwnedRequirementIds(plainAd("ad-1"), HK_LOCATION)).toEqual(new Set());
   });
-  it("an unplaceable market owns nothing — the requirement keeps its ordinary question rather than losing every door", () => {
+  it("an unplaceable market owns no work-rights requirement — it keeps its ordinary question rather than losing every door", () => {
     expect(profileOwnedRequirementIds(workRightsAd("ad-1"), "Shenzhen, Guangdong, China")).toEqual(new Set());
+  });
+  // #308 AC4: the graded ladder is the only door a language answer may take — a Yes/No twin for a
+  // subject-carrying language requirement would write the advert-scoped claim the ticket forbids.
+  it("#308: a language requirement with a subject is owned everywhere, even where no market places", () => {
+    expect(
+      profileOwnedRequirementIds(workRightsAd("ad-1", [mandarinPlus]), "Shenzhen, Guangdong, China"),
+    ).toEqual(new Set(["mandarin-advantage"]));
+    expect(profileOwnedRequirementIds(workRightsAd("ad-1", [mandarinPlus]), HK_LOCATION)).toEqual(
+      new Set(["right-to-work-hk", "mandarin-advantage"]),
+    );
+    // No subject means no safe way to know WHICH language — it stays an ordinary advert question.
+    const noSubject = { ...mandarinPlus, id: "some-language" };
+    delete (noSubject as { eligibilitySubject?: string }).eligibilitySubject;
+    expect(profileOwnedRequirementIds(workRightsAd("ad-1", [noSubject]), HK_LOCATION)).toEqual(
+      new Set(["right-to-work-hk"]),
+    );
   });
 });
 
@@ -203,7 +322,7 @@ const AD_A = liveIdFor(CHARTERHOUSE);
 const AD_B = liveIdFor(SANDERSON);
 const WORK_RIGHTS_ADS = new Set([AD_A, AD_B]);
 
-function workRightsServer() {
+function workRightsServer(extras: AdRequirementsV1["requirements"] = []) {
   const postings = new InMemoryPostingStore();
   const pasteRecords = new InMemoryPasteRecordStore();
   return {
@@ -211,10 +330,11 @@ function workRightsServer() {
       postings,
       pasteRecords,
       // The two found adverts AND the pasted one all read as work-rights adverts — the pasted
-      // posting is recognisable by the company the header stub below stamps on it.
+      // posting is recognisable by the company the header stub below stamps on it. `extras`
+      // (#308) lets a test add a language requirement to both found adverts.
       readAd: async (posting: Posting) =>
         WORK_RIGHTS_ADS.has(posting.id) || posting.company === "Pasted Co"
-          ? workRightsAd(posting.id)
+          ? workRightsAd(posting.id, extras)
           : null,
       // #307's brought arm pastes an advert; the header stub plays the model's part (#303's seam).
       readPastedAdvert: async () => ({
@@ -435,5 +555,162 @@ describe("#307 POST /onboarding/tailor/profile-answer", () => {
       answer: "Ask me later",
     });
     expect(decline.statusCode).toBe(400);
+  });
+});
+
+// --- #308: the skip and the graded language answer, through the HTTP seam ------------------------
+
+const NOT_NOW = "Not now";
+const LANG_Q_ID = "mandarin-advantage";
+
+describe("#308 POST /onboarding/tailor/profile-answer — the skip", () => {
+  it("AC1/AC2/AC5: 'not sure yet' writes NOTHING, steps aside for this job, and returns on the next", async () => {
+    const built = workRightsServer();
+    const { app, eligibility, claims } = built;
+    const cookie = await anonSession(app);
+    await reachTailor(app, cookie, "not-sure-yet@example.com");
+    const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
+    const claimsBefore = [
+      (await claims.confirmed(sessionId)).length,
+      (await claims.negatives(sessionId)).length,
+    ];
+
+    const res = await post(app, cookie, "/onboarding/tailor/profile-answer", {
+      requirementId: PROFILE_Q_ID,
+      answer: "Not sure yet",
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.changed).toBe("Nothing saved — I'll ask again on another job in Hong Kong.");
+    // The queue moves on: the skipped question is gone from THIS job's queue…
+    expect(body.state).not.toBeNull();
+    expect(body.state.questions.every((q: { kind?: string }) => q.kind === undefined)).toBe(true);
+
+    // AC5, the sharp one: a skip is not an answer. Nothing in the eligibility store…
+    expect(await eligibility.get(sessionId, "work-rights", "hong-kong")).toBeNull();
+    // …and nothing in the claims store either — no decline marker, no sentinel.
+    expect([
+      (await claims.confirmed(sessionId)).length,
+      (await claims.negatives(sessionId)).length,
+    ]).toEqual(claimsBefore);
+
+    // Never twice for the same advert (ADR-0011 clause 4): a reload does not re-ask…
+    const reloaded = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(reloaded.questions.every((q: { kind?: string }) => q.kind === undefined)).toBe(true);
+    // …a drop + re-swipe of the SAME job does not re-ask…
+    await post(app, cookie, "/onboarding/tailor/drop");
+    await post(app, cookie, `/onboarding/cards/${AD_A}/want`);
+    const reentered = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(reentered.questions.every((q: { kind?: string }) => q.kind === undefined)).toBe(true);
+    // …and re-skipping the now-absent question is the same 404 as any question the queue never asked.
+    const reskip = await post(app, cookie, "/onboarding/tailor/profile-answer", {
+      requirementId: PROFILE_Q_ID,
+      answer: "Not sure yet",
+    });
+    expect(reskip.statusCode).toBe(404);
+
+    // AC1/AC2: the NEXT job that states the requirement asks again — a skip never hardens.
+    await post(app, cookie, `/onboarding/cards/${AD_B}/want`);
+    const next = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(next.card.adId).toBe(AD_B);
+    expect(next.questions[0]).toMatchObject({ requirementId: PROFILE_Q_ID, kind: "profile" });
+
+    // And the skip is PER-ADVERT, not per-most-recent-target: coming back to the job it was
+    // skipped on — with another job tailored in between — still does not re-ask (ADR-0011
+    // clause 4's "never twice for the same advert", the code-review hole this line pins).
+    await post(app, cookie, `/onboarding/cards/${AD_A}/want`);
+    const backOnA = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(backOnA.card.adId).toBe(AD_A);
+    expect(backOnA.questions.every((q: { kind?: string }) => q.kind === undefined)).toBe(true);
+  });
+});
+
+describe("#308 the language ladder in the queue, through the HTTP seam", () => {
+  it("AC3/AC4: the graded question follows work-rights; answering a rung writes the level, never a claim, and never asks again", async () => {
+    const built = workRightsServer([mandarinPlus]);
+    const { app, eligibility, claims } = built;
+    const cookie = await anonSession(app);
+    await reachTailor(app, cookie, "graded-answer@example.com");
+    const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
+
+    const state = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(state.questions[0]).toMatchObject({ requirementId: PROFILE_Q_ID, kind: "profile" });
+    const lang = state.questions[1];
+    expect(lang).toMatchObject({ requirementId: LANG_Q_ID, kind: "profile", skip: NOT_NOW });
+    expect(lang.options).toHaveLength(6); // graded — the six situations, never Yes/No
+    // AC4's twin check: the advert's own language requirement never appears as a Yes/No question…
+    expect(
+      state.questions.filter((q: { requirementId: string }) => q.requirementId === LANG_Q_ID),
+    ).toHaveLength(1);
+    // …and the advert-answer door refuses it outright.
+    const twin = await post(app, cookie, "/onboarding/tailor/answer", {
+      requirementId: LANG_Q_ID,
+      answer: "Yes",
+    });
+    expect(twin.statusCode).toBe(404);
+    // A grade that is not a tapped situation is refused, not guessed at.
+    const graded = await post(app, cookie, "/onboarding/tailor/profile-answer", {
+      requirementId: LANG_Q_ID,
+      answer: "fluent",
+    });
+    expect(graded.statusCode).toBe(400);
+
+    const claimsBefore = [
+      (await claims.confirmed(sessionId)).length,
+      (await claims.negatives(sessionId)).length,
+    ];
+    const res = await post(app, cookie, "/onboarding/tailor/profile-answer", {
+      requirementId: LANG_Q_ID,
+      answer: "I get by day to day",
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.changed).toBe("Remembered for Mandarin: I get by day to day. No job will ask you this again.");
+    // Below the advert's bar keeps the job — the ladder's whole promise, intact after the move.
+    expect(body.state).not.toBeNull();
+    expect(body.state.card.adId).toBe(AD_A);
+    // The level is a fact at the language's own scope, and never a claim (#106 must-fix 1).
+    expect(await eligibility.get(sessionId, "language", "Mandarin")).toMatchObject({ value: "gets-by" });
+    expect([
+      (await claims.confirmed(sessionId)).length,
+      (await claims.negatives(sessionId)).length,
+    ]).toEqual(claimsBefore);
+
+    // Asked once per language ever: the next job naming Mandarin asks nothing about it.
+    await post(app, cookie, `/onboarding/cards/${AD_B}/want`);
+    const next = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(
+      next.questions.some((q: { requirementId: string }) => q.requirementId === LANG_Q_ID),
+    ).toBe(false);
+  });
+
+  it("AC2/AC5: 'Not now' on the ladder stores nothing and the next job asks again", async () => {
+    const built = workRightsServer([mandarinPlus]);
+    const { app, eligibility } = built;
+    const cookie = await anonSession(app);
+    await reachTailor(app, cookie, "ladder-not-now@example.com");
+    const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
+
+    const res = await post(app, cookie, "/onboarding/tailor/profile-answer", {
+      requirementId: LANG_Q_ID,
+      answer: NOT_NOW,
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.changed).toBe("Nothing saved — I'll ask about Mandarin again on another job that needs it.");
+    // Gone from this job's queue — but the work-rights question is untouched by the language skip.
+    expect(body.state.questions[0]).toMatchObject({ requirementId: PROFILE_Q_ID });
+    expect(
+      body.state.questions.some((q: { requirementId: string }) => q.requirementId === LANG_Q_ID),
+    ).toBe(false);
+    // Nothing stored: no level, not even a declaration.
+    expect(await eligibility.get(sessionId, "language", "Mandarin")).toBeNull();
+
+    // The next job that names Mandarin asks the ladder again.
+    await post(app, cookie, `/onboarding/cards/${AD_B}/want`);
+    const next = (await get(app, cookie, "/onboarding/tailor")).json();
+    expect(
+      next.questions.some((q: { requirementId: string }) => q.requirementId === LANG_Q_ID),
+    ).toBe(true);
   });
 });

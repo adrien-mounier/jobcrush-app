@@ -444,8 +444,41 @@ export default function TailorPage() {
         <p className="q" id="tailor-ask-q">
           {item.question}
         </p>
-        {item.remember && <p className="notice">{item.remember}</p>}
-        <div className="opts" role="group" aria-labelledby="tailor-ask-q">
+        {/* #308, the language ladder's own lines: why THIS advert asks, then the remember line,
+            then the cost — all BEFORE the rungs (#125 decision 4), never after. Static ids are
+            safe here: exactly one question renders at a time (questions[0]). */}
+        {item.why && (
+          <p className="notice" id="tailor-ask-why">
+            {item.why}
+          </p>
+        )}
+        {item.remember && (
+          <p className="notice" id="tailor-ask-remember">
+            {item.remember}
+          </p>
+        )}
+        {item.consequence && (
+          <p className="cost" id="tailor-ask-cost">
+            {item.consequence}
+          </p>
+        )}
+        <div
+          className="opts"
+          role="group"
+          aria-labelledby="tailor-ask-q"
+          // The retired deck ladder announced its reason and cost with the question (its e2e
+          // pinned this); the queue keeps that — a screen-reader user jumping to the buttons
+          // must still hear which tap has a cost.
+          aria-describedby={
+            [
+              item.why && "tailor-ask-why",
+              item.remember && "tailor-ask-remember",
+              item.consequence && "tailor-ask-cost",
+            ]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
+        >
           {item.options.map((opt, i) => {
             const cls = !isAnswering ? "opt" : opt === answering?.answer ? "opt picked" : "opt dim";
             return (
@@ -462,6 +495,18 @@ export default function TailorPage() {
             );
           })}
         </div>
+        {/* #308: the skip — posted like an answer, but the server stores nothing and the question
+            returns on the next job that raises it. Visibly not one of the answers. */}
+        {item.skip && (
+          <button
+            type="button"
+            className="skip"
+            disabled={isAnswering}
+            onClick={() => answerWith(item.requirementId, item.skip!)}
+          >
+            {item.skip}
+          </button>
+        )}
         {askError && (
           <p className="err" role="alert">
             {askError}

@@ -1,5 +1,16 @@
 # Lessons — jobcrush-app
 
+## Deck cards render no per-card id, and real postings share literal titles — a journey cannot walk to a SPECIFIC card by heading
+
+Learned 2026-09-29 building #308. The corpus holds four postings titled exactly "Senior Project
+Manager", and the rendered card carries no `data-adid` (nothing in the DOM names the advert). A
+journey that walks the deck matching headings to reach a named advert stops on the FIRST title
+match — the wrong job — then tailors it, and every downstream assertion fails three screens from
+the cause (here: an expected language question "missing" because the tailored ad was a lookalike).
+Headings work only for unique titles. For an ambiguous one, set the target through
+`POST /onboarding/cards/:adId/want` — the same route the card's own button posts — and then assert
+the tailor screen's `card.adId` says you are on the job you meant.
+
 ## The QA judge covers exactly requirements[0], so a canned advert's requirement ORDER is load-bearing
 
 Learned 2026-09-29 building #307. qa-main's fake judge grades every advert the same way: the first

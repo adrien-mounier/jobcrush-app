@@ -335,6 +335,13 @@ export interface SessionRecord {
    *  (clearTailorTarget) nulls tailorAdId but must NOT forget whose floor this is — re-swiping the
    *  same ad after a drop compares against this, not against tailorAdId, so the floor survives. */
   tailorFloorAdId: string | null;
+  /** #308 — QUEUE state, never a fact: the profile questions skipped ("not sure yet"), each
+   *  stored as "<adId>::<requirementId>" so a skip is permanently per-advert. Nothing here
+   *  reaches the eligibility or claims stores — that is the whole point of a skip (AC5). Never
+   *  reset: ADR-0011 clause 4's "never twice for the same advert" holds across reloads, drop +
+   *  re-swipe, AND a detour through another job; a DIFFERENT advert raising the same question
+   *  asks anyway, because its key differs. Bounded by jobs tailored × questions per job. */
+  tailorSkips: string[];
   /** #33 the monotonic floor for the profile badge's factCount: the highest factCount ever shown
    *  this session, so a rejected claim in the S2 deck can lower the raw confirmed+negatives count
    *  without the badge ever visibly shrinking. Session-wide (unlike tailorFloorPct) — there's no
@@ -408,6 +415,8 @@ export interface SessionStore {
   clearTailorTarget(id: string): Promise<void>;
   /** #23: raises the tailor floor only — Math.max/GREATEST — so a correction can't lower it. */
   raiseTailorFloor(id: string, pct: number): Promise<void>;
+  /** #308: records one skipped profile question, keyed "<adId>::<requirementId>" (idempotent). */
+  addTailorSkip(id: string, skipKey: string): Promise<void>;
   /** #33: raises the factCount floor only — Math.max/GREATEST — so a deck reject can't lower it. */
   raiseFactFloor(id: string, n: number): Promise<void>;
   /** #246: the number question 1's search found, written once by discoveryEngine.ts's
@@ -451,6 +460,7 @@ function newSession(): SessionRecord {
     tailorAdId: null,
     tailorFloorPct: 0,
     tailorFloorAdId: null,
+    tailorSkips: [],
     factFloor: 0,
     promiseOpenJobs: null,
     sourceEntry: null,
@@ -649,7 +659,7 @@ export class InMemorySessionStore implements SessionStore {
       s.stage = "tailor";
       // #31: the floor is keyed to tailorFloorAdId, not tailorAdId — drop nulls tailorAdId, but the
       // floor earned on this ad must survive a drop + re-swipe of the SAME ad. Only a genuinely
-      // different ad resets it.
+      // different ad resets it. (#308's tailorSkips never reset — their keys carry the adId.)
       if (s.tailorFloorAdId !== adId) s.tailorFloorPct = 0;
       s.tailorFloorAdId = adId;
       s.tailorAdId = adId;
@@ -667,6 +677,11 @@ export class InMemorySessionStore implements SessionStore {
   async raiseTailorFloor(id: string, pct: number): Promise<void> {
     const s = this.byId.get(id);
     if (s) s.tailorFloorPct = Math.max(s.tailorFloorPct, pct);
+  }
+
+  async addTailorSkip(id: string, skipKey: string): Promise<void> {
+    const s = this.byId.get(id);
+    if (s && !s.tailorSkips.includes(skipKey)) s.tailorSkips.push(skipKey);
   }
 
   async raiseFactFloor(id: string, n: number): Promise<void> {
@@ -697,6 +712,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   tailor_ad_id       text,
   tailor_floor_pct   integer NOT NULL DEFAULT 0,
   tailor_floor_ad_id text,
+  tailor_skips       jsonb NOT NULL DEFAULT '[]',
   fact_floor         integer NOT NULL DEFAULT 0,
   promise_open_jobs  integer,
   source_entry       jsonb,
@@ -722,6 +738,9 @@ const SESSIONS_ALTERS = [
   // the floor once for every in-flight session. Idempotent and inert after the first run: post-change
   // setTailorTarget always writes both columns together, so this WHERE can never match again.
   "UPDATE sessions SET tailor_floor_ad_id = tailor_ad_id WHERE tailor_floor_ad_id IS NULL AND tailor_ad_id IS NOT NULL",
+  // #308: no backfill — an existing row simply has no skips recorded, and the empty list is the
+  // honest state for a session that was never offered "not sure yet".
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tailor_skips jsonb NOT NULL DEFAULT '[]'",
   // #33: no backfill needed, unlike #31 above — fact_floor defaults to 0 and only ever rises, so an
   // existing row just starts at 0 and gets raised back up to its true peak on the very first read.
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS fact_floor integer NOT NULL DEFAULT 0",
@@ -753,6 +772,7 @@ const SESSIONS_ALTERS = [
 
 function toSession(r: Record<string, unknown>): SessionRecord {
   const titles = r.target_titles;
+  const skips = r.tailor_skips;
   return {
     id: r.id as string,
     token: r.token as string,
@@ -764,6 +784,7 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     tailorAdId: (r.tailor_ad_id as string) ?? null,
     tailorFloorPct: (r.tailor_floor_pct as number) ?? 0,
     tailorFloorAdId: (r.tailor_floor_ad_id as string) ?? null,
+    tailorSkips: Array.isArray(skips) ? (skips as string[]) : JSON.parse((skips as string) ?? "[]"),
     factFloor: (r.fact_floor as number) ?? 0,
     promiseOpenJobs: (r.promise_open_jobs as number) ?? null,
     sourceEntry: (r.source_entry as SourceEntry) ?? null,
@@ -1087,6 +1108,16 @@ export class PgSessionStore implements SessionStore {
     await this.pool.query(
       `UPDATE sessions SET tailor_floor_pct = GREATEST(tailor_floor_pct, $2) WHERE id = $1`,
       [id, pct],
+    );
+  }
+
+  async addTailorSkip(id: string, skipKey: string): Promise<void> {
+    // jsonb `?` is "array contains this string" — the guard makes a re-skip a no-op, same as the
+    // in-memory driver's includes() check.
+    await this.pool.query(
+      `UPDATE sessions SET tailor_skips = COALESCE(tailor_skips, '[]'::jsonb) || to_jsonb($2::text)
+       WHERE id = $1 AND NOT (COALESCE(tailor_skips, '[]'::jsonb) ? $2)`,
+      [id, skipKey],
     );
   }
 

@@ -302,12 +302,28 @@ export const COVERAGE = {
   // reddens it exactly as a job-screen one does. The apply link's own write path is the paste
   // subsystem's, and the gap rows it reads the colour of are the card's.
   "job-screen-journey.mjs": union(JOB_SCREEN, DECK, PASTE, BROUGHT, POSTINGS, AUTH),
-  // #165: a language and its level are two facts; the ladder on the deck's own cards.
+  // #165/#308: a language and its level are two facts; the graded ladder now asked in the Tailor
+  // queue (the deck card no longer asks — this journey pins the absence too), with #308's "Not
+  // now" skip proven live. Reaches the tailor screen and routes on top of its original surfaces.
   "language-ladder-journey.mjs": union(
     ["apps/api/src/language.ts", "apps/api/src/languageLevel.ts"],
     DISCOVERY,
     ELIGIBILITY,
     DECK,
+    TAILOR,
+    POSTINGS,
+    PROFILE,
+    AUTH,
+  ),
+  // #308: the skip, adversarially — the queue payload's no-Yes/No-twin guarantee, the refused
+  // doors, the untouched profile after "Not now", and per-advert skip memory across a detour.
+  // Same reach as the ladder journey (it drives the same queue over the same canned adverts).
+  "not-sure-yet-detour-journey.mjs": union(
+    ["apps/api/src/language.ts", "apps/api/src/languageLevel.ts"],
+    DISCOVERY,
+    ELIGIBILITY,
+    DECK,
+    TAILOR,
     POSTINGS,
     PROFILE,
     AUTH,

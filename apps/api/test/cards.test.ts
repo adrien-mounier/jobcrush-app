@@ -1533,17 +1533,16 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
   });
 });
 
-// #165 AC3 — the advert-triggered ladder, end to end through GET /onboarding/cards. The question is
-// asked at the moment an advert makes it matter (ADR-0011 clause 1), on the card that makes it
-// matter, with that advert's own words as the reason. Answering closes the language for good.
-describe("#165 AC3 the level question an advert triggers", () => {
-  type CardWithAsk = JobCard & {
-    levelAsk?: { language: string; why: string; options: Array<{ value: string }>; skipOption: string };
-  };
+// #308 — the ladder is RETIRED off the deck card into the Tailor queue (tailorProfile.test.ts
+// carries the queue-side coverage). The deck payload no longer asks anything: a card whose advert
+// tests a language carries no levelAsk, same as every other card. The ladder's write path
+// (/onboarding/language-level) stays — it is the level's own door, unchanged.
+describe("#308 the deck card no longer asks the language ladder", () => {
+  type CardWithAsk = JobCard & { levelAsk?: unknown };
   const cardsOf = async (app: Parameters<typeof get>[0], cookie: string) =>
     ((await get(app, cookie, "/onboarding/cards")).json() as { cards: CardWithAsk[] }).cards;
 
-  it("rides on the card whose advert tests Mandarin, and states why that advert cares", async () => {
+  it("no card carries a levelAsk, even the one whose advert tests Mandarin", async () => {
     const target = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
       posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
@@ -1551,61 +1550,8 @@ describe("#165 AC3 the level question an advert triggers", () => {
     const cookie = await anonSession(app);
 
     const cards = await cardsOf(app, cookie);
-    const asked = cards.find((c) => c.adId === target.id)!;
-    expect(asked.levelAsk?.language).toBe("Mandarin");
-    expect(asked.levelAsk?.why).toContain("Mandarin");
-    expect(asked.levelAsk?.skipOption).toBe("Not now");
-    // Every OTHER card in the deck asks nothing — the trigger is the advert, not the session.
-    expect(cards.filter((c) => c.adId !== target.id).every((c) => c.levelAsk === undefined)).toBe(true);
-  });
-
-  it("fires when the advert names Mandarin only as a plus", async () => {
-    const target = uncachedEnglishPostings()[0]!;
-    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
-      posting.id === target.id ? mandarinAdvantage(posting.id) : stubRequirements(posting.id);
-    const { app } = buildServer({ readAd });
-    const cookie = await anonSession(app);
-
-    const cards = await cardsOf(app, cookie);
-    expect(cards.find((c) => c.adId === target.id)?.levelAsk?.language).toBe("Mandarin");
-  });
-
-  it("never fires again for that language once answered — on this advert or any other", async () => {
-    const [first, second] = uncachedEnglishPostings();
-    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
-      posting.id === first!.id || posting.id === second!.id
-        ? mandarinAdvantage(posting.id)
-        : stubRequirements(posting.id);
-    const { app } = buildServer({ readAd });
-    const cookie = await anonSession(app);
-    expect((await cardsOf(app, cookie)).some((c) => c.levelAsk)).toBe(true);
-
-    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "meetings" });
-
-    const after = await cardsOf(app, cookie);
-    expect(after.every((c) => c.levelAsk === undefined)).toBe(true);
-    // …and being below the advert's bar changed nothing about the deck itself.
-    expect(after.map((c) => c.adId)).toContain(first!.id);
-  });
-
-  // #165 point 6: a language answered under #123's tick-list carries the wrong shape, so the ladder
-  // asks again rather than reading the old binary answer as a level.
-  it("still fires for a language answered under the pre-#165 tick-list", async () => {
-    const target = uncachedEnglishPostings()[0]!;
-    const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
-      posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
-    const { app, eligibility } = buildServer({ readAd });
-    const cookie = await anonSession(app);
-    const sid = await sessionId(app, cookie);
-    await eligibility.put(sid, {
-      dimension: "language",
-      familyId: "Mandarin",
-      value: "professional", // the pre-#165 vocabulary
-      label: "Professional fluency in Mandarin",
-    });
-
-    const cards = await cardsOf(app, cookie);
-    expect(cards.find((c) => c.adId === target.id)?.levelAsk?.language).toBe("Mandarin");
+    expect(cards.map((c) => c.adId)).toContain(target.id); // the posting is there — it just no longer asks
+    expect(cards.every((c) => c.levelAsk === undefined)).toBe(true);
   });
 
   it("rejects a level that isn't a rung — a grade is never stored as one", async () => {

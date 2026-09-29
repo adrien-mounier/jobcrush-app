@@ -8,7 +8,7 @@ import {
   isDeclaredValue,
   languageLevelAsk,
   levelOf,
-  withLanguageLevelAsks,
+  rungForSituation,
 } from "../src/languageLevel.js";
 import { InMemoryEligibilityStore } from "../src/eligibility.js";
 
@@ -117,6 +117,9 @@ describe("#165 AC3 — an advert triggers the level question at the moment it ma
     const ask = languageLevelAsk(ad(), [])!;
     expect(ask).not.toBeNull();
     expect(ask.language).toBe("Mandarin");
+    // #308: the ask names the advert requirement it answers for, so the tailor queue can round-trip
+    // it and subtract the requirement from the advert's own questions.
+    expect(ask.requirementId).toBe("mandarin");
     expect(ask.question).toBe("How comfortable are you working in Mandarin?");
     // The reason is the ADVERT's own line, so the person can check it against the posting in front
     // of them rather than taking our word for it (#125 decision 4 / ADR-0011 clause 1).
@@ -203,16 +206,15 @@ describe("#165 AC3 — an advert triggers the level question at the moment it ma
   });
 });
 
-describe("#165 withLanguageLevelAsks", () => {
-  it("attaches each card's own ask, and leaves a card with nothing to ask untouched", () => {
-    const cards = [{ adId: "ad-1" }, { adId: "ad-2" }];
-    const candidates = [
-      { posting: { id: "ad-1" }, adReq: ad() },
-      { posting: { id: "ad-2" }, adReq: ad({ adId: "ad-2", requirements: [requirement({ eligibilityDimension: undefined, eligibilitySubject: undefined })] }) },
-    ];
-    const [first, second] = withLanguageLevelAsks(cards, candidates, []);
-    expect(first!.levelAsk?.language).toBe("Mandarin");
-    expect(second!.levelAsk).toBeUndefined();
+describe("#308 rungForSituation — the queue's answer strings back to stored values", () => {
+  it("maps every offered situation to its own rung, and nothing else to anything", () => {
+    for (const rung of LANGUAGE_LADDER) {
+      expect(rungForSituation(rung.situation)).toBe(rung.value);
+      expect(rungForSituation(`  ${rung.situation}  `)).toBe(rung.value); // trimmed, never fuzzy
+    }
+    for (const bad of ["fluent", "B2", "meetings", "Not now", "not-at-all", ""]) {
+      expect(rungForSituation(bad)).toBeNull(); // a stored value or a grade is NOT a tapped answer
+    }
   });
 });
 

@@ -294,6 +294,7 @@ const PROFILE_Q = {
   options: ["Yes — no sponsorship needed", "Not yet — I'd need sponsorship"],
   remember: "I'll remember this for every job in Hong Kong.",
   market: "Hong Kong",
+  skip: "Not sure yet", // #308: the third option — stores nothing, returns on the next job
 };
 
 const STATE_PROFILE_FIRST: TailorState = {
@@ -357,4 +358,86 @@ test("#307 a profile answer that withdrew the job lands the gone screen: the hon
 
   await page.getByRole("button", { name: "Back to the deck" }).click();
   await page.waitForURL("/deck");
+});
+
+// ---------------------------------------------------------------------------------------------
+// #308 — the skip ("not sure yet" / "Not now") and the graded language question, in the queue.
+// ---------------------------------------------------------------------------------------------
+
+const SKIPPED_LINE = "Nothing saved — I'll ask again on another job in Hong Kong.";
+
+// The ladder, as the queue serves it (tailorProfile.ts's LanguageProfileAsk): six situations,
+// descending, the one answer with a cost last, and "Not now" as the way out.
+const LANGUAGE_Q = {
+  requirementId: "mandarin-advantage",
+  kind: "profile" as const,
+  question: "How comfortable are you working in Mandarin?",
+  why: 'This job asks about Mandarin: "Mandarin is an advantage when working with the regional vendors".',
+  consequence:
+    "Only the last one takes jobs out of your deck — every other answer keeps them all, even if this job wants more than you picked.",
+  remember: "I'll remember this for every job.",
+  options: [
+    "I speak it like my first language",
+    "I can negotiate a contract in it",
+    "I can run a meeting in it",
+    "I get by day to day",
+    "I know a few words",
+    "I don't speak this one",
+  ],
+  skip: "Not now",
+};
+
+test("#308 'Not sure yet' is not one of the answers: it posts, the line lands, and the queue moves on", async ({
+  page,
+}) => {
+  await openTailor(page, STATE_PROFILE_FIRST);
+  await stubProfileAnswer(page, { changed: SKIPPED_LINE, state: STATE_FIRST });
+
+  // The skip renders apart from the answers — two options, one visibly different way out.
+  await expect(page.locator(".tailor .opts .opt")).toHaveCount(2);
+  const skip = page.locator(".tailor .ask .skip");
+  await expect(skip).toHaveText("Not sure yet");
+
+  await skip.click();
+
+  // The honest line lands in the ledger slot, and the advert's own question follows —
+  // which offers no skip of its own.
+  await expect(page.locator(".tailor .ledger")).toHaveText(SKIPPED_LINE);
+  await expect(page.locator(".tailor .ask .q")).toHaveText(STATE_FIRST.questions[0]!.question);
+  await expect(page.locator(".tailor .ask .skip")).toHaveCount(0);
+});
+
+test("#308 the graded language question: why and cost before six rungs, the costly answer last, 'Not now' offered", async ({
+  page,
+}) => {
+  await openTailor(page, { ...STATE_FIRST, questions: [LANGUAGE_Q, ...STATE_FIRST.questions] });
+  await stubProfileAnswer(page, {
+    changed: "Remembered for Mandarin: I get by day to day. No job will ask you this again.",
+    state: STATE_FIRST,
+  });
+
+  await expect(page.locator(".tailor .ask .q")).toHaveText(LANGUAGE_Q.question);
+  // Why THIS advert asks, the remember line, and the cost — all said BEFORE the rungs.
+  await expect(page.locator(".tailor .ask .notice").nth(0)).toHaveText(LANGUAGE_Q.why);
+  await expect(page.locator(".tailor .ask .notice").nth(1)).toHaveText(LANGUAGE_Q.remember);
+  await expect(page.locator(".tailor .ask .cost")).toHaveText(LANGUAGE_Q.consequence);
+  const beforeRungs = await page.evaluate(() => {
+    const ask = document.querySelector(".tailor .ask")!;
+    const kids = [...ask.querySelectorAll(".cost, .opts")];
+    return kids.length === 2 && kids[0]!.classList.contains("cost");
+  });
+  expect(beforeRungs).toBe(true);
+  // Graded, never Yes/No: the six situations, with the one costly answer LAST.
+  const rungs = page.locator(".tailor .opts .opt");
+  await expect(rungs).toHaveCount(6);
+  await expect(rungs.first()).toHaveText("I speak it like my first language");
+  await expect(rungs.last()).toHaveText("I don't speak this one");
+  await expect(page.locator(".tailor .ask .skip")).toHaveText("Not now");
+
+  await page.getByRole("button", { name: "I get by day to day" }).click();
+
+  await expect(page.locator(".tailor .ledger")).toHaveText(
+    "Remembered for Mandarin: I get by day to day. No job will ask you this again.",
+  );
+  await expect(page.locator(".tailor .ask .q")).toHaveText(STATE_FIRST.questions[0]!.question);
 });

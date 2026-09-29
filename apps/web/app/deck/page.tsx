@@ -15,7 +15,6 @@
 import {
   useCallback,
   useEffect,
-  useId,
   useRef,
   useState,
   type CSSProperties,
@@ -32,13 +31,11 @@ import {
   getCards,
   requestLink,
   setStage,
-  answerLanguageLevel,
   wantCard,
   type CardsResponse,
   type DeckCard,
   type DeckFallbackState,
   type JobCard,
-  type LanguageLevelAsk,
   type RetrievalOutcome,
   type ScoredJobCard,
   type WithdrawnSummary,
@@ -1042,77 +1039,8 @@ function shouldIgnoreSwipeStart(target: EventTarget) {
   return !!target.closest("button,a,summary,input,textarea,select,details.ad[open]");
 }
 
-// #165 — the ladder an advert triggers, rendered inside the card that triggered it so the reason and
-// the question are in the same place. Answering closes this language for good (server-side: a stored
-// rung is what stops it firing again); skipping is "not now" and a later advert testing the same
-// language will ask again, so this deliberately keeps no "don't ask me again" control — ADR-0011
-// clause 4 forbids a permanent mute until the profile surface that undoes one exists.
-//
-// ponytail: a skip is remembered for this card view only, not stored. Reloading the deck re-shows it
-// on the same advert, which ADR-0011's "never twice for the same advert" would rather it did not.
-// Give the skip a home in the store when there is a per-advert record to hang it on.
-function LanguageLadder({ ask }: { ask: LanguageLevelAsk }) {
-  const [closed, setClosed] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  // Ids are per-instance: two mounted cards would otherwise both claim "ladder-why" and a screen
-  // reader would read the wrong card's reason.
-  const uid = useId();
-  if (closed) {
-    return (
-      <p className="ladder done" role="status">
-        {closed}
-      </p>
-    );
-  }
-  async function answer(level: string, situation: string) {
-    setBusy(true);
-    setErr(null);
-    try {
-      await answerLanguageLevel(ask.language, level);
-      setClosed(`Noted for ${ask.language}: ${situation.toLowerCase()}. I won't ask again.`);
-    } catch {
-      setErr("That didn't save. Try again?");
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <fieldset className="ladder" aria-describedby={`${uid}-why ${uid}-cost`}>
-      <legend>{ask.question}</legend>
-      <p className="why" id={`${uid}-why`}>
-        {ask.why}
-      </p>
-      {/* #125 decision 4: the screen says what an answer costs BEFORE the answer, never after. */}
-      <p className="cost" id={`${uid}-cost`}>
-        {ask.consequence}
-      </p>
-      <div className="rungs">
-        {ask.options.map((rung) => (
-          <button
-            key={rung.value}
-            type="button"
-            className="rung"
-            data-level={rung.value}
-            disabled={busy}
-            onClick={() => answer(rung.value, rung.situation)}
-          >
-            {rung.situation}
-          </button>
-        ))}
-      </div>
-      <button type="button" className="skip" disabled={busy} onClick={() => setClosed(skipNotice(ask.language))}>
-        {ask.skipOption}
-      </button>
-      {err && (
-        <p className="err" role="alert">
-          {err}
-        </p>
-      )}
-    </fieldset>
-  );
-}
-const skipNotice = (language: string): string => `Skipped — I'll ask about ${language} another time.`;
+// #308: the language ladder that used to render here moved into the Tailor queue — the deck card no
+// longer asks anything (tailor/page.tsx renders the graded question, rungs and "Not now" intact).
 
 function JobCardView({
   card,
@@ -1230,7 +1158,6 @@ function JobCardView({
       </span>
       <div className="jcbody">
         <CardBody card={card} gaveUp={gaveUp} headingRef={headingRef} onRetry={onRetry} retrying={retrying} />
-        {card.levelAsk && <LanguageLadder ask={card.levelAsk} />}
       </div>
       {deckError && (
         <p className="deckerr" role="alert">

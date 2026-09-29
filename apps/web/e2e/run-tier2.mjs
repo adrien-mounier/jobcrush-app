@@ -71,6 +71,10 @@ export const JOURNEYS = [
   "years-worked-out-journey.mjs",
   "job-blocks-confirm-journey.mjs",
   "language-ladder-journey.mjs",
+  // #308 (left by the QA gate, adopted): the adversarial half of the skip — no Yes/No twin
+  // anywhere in the queue payload, refused doors (404s), an unchanged profile payload after
+  // "Not now", and per-advert skip memory surviving an A → B → A detour. ~3 min, fake-model API.
+  "not-sure-yet-detour-journey.mjs",
   "pending-unscored-card-journey.mjs",
   "master-cv-dates-note-journey.mjs",
   // #222: the only journey that can catch the family-scoped years reading going dead on the

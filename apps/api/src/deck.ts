@@ -74,7 +74,6 @@ import {
 import { retrievalIsInProgress } from "./deckRetrieval.js";
 import { fallbackOffer } from "./deckFallback.js";
 import type { ProductionFamilyFloorStore } from "./familyFloors.js";
-import { withLanguageLevelAsks } from "./languageLevel.js";
 import { partitionByWithdrawal } from "./withdrawal.js";
 import { profileOwnedRequirementIds } from "./tailorProfile.js";
 import {
@@ -857,8 +856,9 @@ export async function buildDeckCards(
     // #243 decision 2: on a family deck, a weak family-fit confidence sinks the card's RANK.
     ...(input.deckFamilyId === null ? {} : { familyConfidence: entry.adReq.familyFit.confidence }),
   }));
-  // #165: each card carries the level question its OWN advert triggers — see withLanguageLevelAsks.
-  const ranked = withLanguageLevelAsks(orderCardsForReveal(cardCandidates), openCandidates, input.facts);
+  // #308: the deck card no longer asks the language ladder — the graded question moved into the
+  // Tailor queue (tailorProfile.ts), the one place every question about a job is asked.
+  const ranked = orderCardsForReveal(cardCandidates);
   // #305 (#294 c7): his newest three brought jobs sit above the ranked deck, newest first. Ranking
   // answers "which of these is worth my time" and a job he brought has already answered that — but
   // only the newest three, or the deck becomes an archive; the rest stay where their score put them.

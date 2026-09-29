@@ -107,10 +107,14 @@ export function declaredLanguages(facts: readonly EligibilityFact[]): string[] {
 
 const norm = (s: string): string => s.trim().toLowerCase();
 
-// An ask carries no itemId. The answer is keyed by (session, language) in the eligibility store, and
-// "already answered" is read back from that stored rung — there is no question record to name, and a
-// synthetic id nothing reads would just be one more thing to keep consistent.
+// The ask is keyed by the advert requirement that raised it (#308: the tailor queue round-trips
+// requirementId), but the ANSWER stays keyed by (session, language) in the eligibility store —
+// "already answered" is read back from that stored rung, never from a question record.
 export interface LanguageLevelAsk {
+  /** #308 — the advert requirement this ask answers for. The queue posts it back untouched, and
+   *  profileOwnedRequirementIds subtracts it from the advert's own questions (one queue, one
+   *  question — never a graded ask and a Yes/No twin one tap apart). */
+  requirementId: string;
   /** The language, in the STORE's canonical casing when this session already declared it, else the
    *  advert's own word. Never a normalised token — this string is shown to a person. */
   language: string;
@@ -162,6 +166,7 @@ export function languageLevelAsk(
     if (levelOf(fact?.value) !== null) continue; // answered — closed for good
     const language = fact?.familyId ?? subject;
     return {
+      requirementId: req.id,
       language,
       question: `How comfortable are you working in ${language}?`,
       why: whyThisAdvertCares(req, language),
@@ -173,24 +178,11 @@ export function languageLevelAsk(
   return null;
 }
 
-/** Attaches each card's own triggered ask, keyed by adId — the deck route's one-liner, kept here so
- *  the spine never learns the ladder's rules (routes/onboarding.ts is a ratchet). A card with nothing
- *  to ask is returned untouched, so the payload only grows where there is a real question.
- *
- *  The ladder is asked at the moment an advert makes it matter (ADR-0011 clause 1), never up front,
- *  and this step is free: it reads facts the deck already fetched against requirements the deck
- *  already resolved, with no IO and no model call of its own. */
-export function withLanguageLevelAsks<T extends { adId: string }>(
-  cards: T[],
-  candidates: ReadonlyArray<{ posting: { id: string }; adReq: AdRequirementsV1 }>,
-  facts: readonly EligibilityFact[],
-): Array<T & { levelAsk?: LanguageLevelAsk }> {
-  const byAdId = new Map(candidates.map((entry) => [entry.posting.id, entry.adReq]));
-  return cards.map((card) => {
-    const adReq = byAdId.get(card.adId);
-    const levelAsk = adReq ? languageLevelAsk(adReq, facts) : null;
-    return levelAsk ? { ...card, levelAsk } : card;
-  });
+/** #308 — the queue's answer strings are the rungs' SITUATIONS (the words the person tapped), and
+ *  this is the one reverse lookup back to the stored value. Null for anything that is not exactly a
+ *  rung's situation — the caller treats that as an unrecognized answer, never a guess. */
+export function rungForSituation(situation: string): LanguageLevel | null {
+  return LANGUAGE_LADDER.find((r) => r.situation === situation.trim())?.value ?? null;
 }
 
 export type LanguageLevelAnswerResult =
@@ -210,6 +202,13 @@ export type LanguageLevelAnswerResult =
  * The level never reaches the claims store — #106's must-fix 1 stands unchanged (a real eligibility
  * answer would render as an unconditional assertion or a confirmed gap, and both lie about the
  * visitor).
+ *
+ * #308 status: the deck ladder that used to call this through POST /onboarding/language-level is
+ * retired; the Tailor queue's profile-answer route calls this function DIRECTLY, so that HTTP
+ * route now has no UI caller — only tests use it, as the level's direct write door. Kept, not
+ * deleted, pending the owner's call (#308 review): it is the one server door a future
+ * profile-level surface would reuse, and it validates exactly as the queue does (nothing that is
+ * not a rung is ever stored).
  */
 export async function answerLanguageLevel(
   eligibility: EligibilityStore,
