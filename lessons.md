@@ -4019,3 +4019,18 @@ Next build** (`UnhandledSchemeError: node:crypto`). `import type` is fine — ty
 Sharing a runtime helper with client code therefore needs a subpath `exports` map on the package, not
 just a new file. Worth it for a rule that decides what gets STORED; not worth it for one whose drift
 costs a slightly different pre-filled form field. Say which one it is in the comment, in both copies.
+
+## A new line on a shared screen breaks every test that reads that screen positionally
+
+#309 added a reason line above the gone screen's existing consequence line. `asked-once-journey`
+read that screen and was updated; `language-ladder-journey` read the SAME screen through a
+`.first()` text helper and wasn't — the grep that found affected journeys searched for the
+FEATURE's words ("withdraw", "gone"), not for the SCREEN's selectors (`.loadstate p`). CI went
+red an hour after push on a journey the affected-tests pick had skipped.
+
+The reusable rule: when a change adds, removes, or reorders a rendered element, grep the e2e
+suite for the screen's **selectors and neighbouring text**, not the feature's vocabulary — a
+positional reader (`first()`, `nth()`, `p:not(...)`, `at(-1)`) two features away is the thing
+that breaks. Same failure shape as the ledger's own `at(-1)` bug inside this very ticket:
+positional reads of an ordered list rot silently the moment the order stops meaning what it
+meant.

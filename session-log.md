@@ -44,6 +44,16 @@ withdrawal-reason line), `tailor` 56/56, `withdrawal` 21/21, `paste-door` 26/26,
 19/19. Honest zero and the stays-line are server-tested + mocked-screen-tested only — the local
 test stack can't paste a job that states a work-rights bar or sits outside his field.
 
+**CI post-push: red twice, neither a product defect, both resolved same-day.** First red was
+`profile.spec.ts`'s phone-door focus assertion racing a cold page — reproduced once cold locally,
+4/4 green warm, passed on the CI rerun; filed as **#319** (a flaky Tier-1 gate cancels deploys for
+unrelated pushes). Second red was real and mine: `language-ladder-journey`'s gone-screen check
+read the FIRST `.loadstate p`, which #309's new reason line now occupies — the screen was right,
+the journey wasn't updated (the gate's affected-journey pick missed it too; only `asked-once` got
+the selector fix). Fixed in `6a98414`: the journey now asserts the reason line (the language
+flavour of AC3, previously live-checked nowhere) AND the count below it — proven on the full
+local stack, 46/46 — then pushed to supersede the red run.
+
 `/implement` → `/code-review` → `/qa-gate` **GO** on **#308**, committed to `main` locally.
 **NOT pushed** — the workflow-dispatch CI run verifying #305–#307 (36508142754) was in flight and
 a push cancels it; the push waits for that run's outcome and the owner's say-so.
