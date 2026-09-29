@@ -20,7 +20,7 @@ import { InMemoryPostingStore } from "../src/postingStore.js";
 import type { JobRecord } from "../src/jobs.js";
 import type { PasteProgress } from "../src/routes/paste.js";
 import type { Posting } from "../src/preview.js";
-import { LANGUAGE_NOT_AT_ALL } from "../src/languageLevel.js";
+import { answerLanguageLevel, LANGUAGE_NOT_AT_ALL } from "../src/languageLevel.js";
 
 const ROLE = "IT project manager in Hong Kong";
 
@@ -262,11 +262,13 @@ describe("#305 the deck stitches in a job he brought", () => {
 
   it("is never withdrawn, on the deck or on the way into tailoring", async () => {
     useFakeClock();
-    const { app } = broughtServer({ blockingLanguage: "Mandarin", retrievePostings: fixtureRetriever([FOUND]) });
+    const { app, eligibility } = broughtServer({ blockingLanguage: "Mandarin", retrievePostings: fixtureRetriever([FOUND]) });
     const cookie = await readyForDeck(app);
     await signIn(app, cookie, "brought-withdrawal@example.com");
     // He has said, on the ladder, that he does not speak it at all — the one answer that withdraws.
-    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: LANGUAGE_NOT_AT_ALL });
+    // (#308: the ladder's HTTP door is deleted — placed through the ladder's own write function.)
+    const sid = (await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } })).json().id as string;
+    await answerLanguageLevel(eligibility, sid, "Mandarin", LANGUAGE_NOT_AT_ALL);
     const adId = await paste(app, cookie, PASTED);
 
     const cards = (await deck(app, cookie)).cards;

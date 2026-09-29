@@ -15,7 +15,6 @@
 // all, the only value that withdraws is a rung they must deliberately tap ("not-at-all"), and every
 // legacy value from the old shape reads as UNKNOWN here (levelOf below) — which never withdraws,
 // and which is what makes the four already-answered languages get re-asked on the new ladder.
-import { z } from "zod";
 import type { AdRequirementV1, AdRequirementsV1, LanguageLevel } from "@jobcrush/contracts";
 import type { EligibilityFact, EligibilityStore } from "./eligibility.js";
 
@@ -203,12 +202,11 @@ export type LanguageLevelAnswerResult =
  * answer would render as an unconditional assertion or a confirmed gap, and both lie about the
  * visitor).
  *
- * #308 status: the deck ladder that used to call this through POST /onboarding/language-level is
- * retired; the Tailor queue's profile-answer route calls this function DIRECTLY, so that HTTP
- * route now has no UI caller — only tests use it, as the level's direct write door. Kept, not
- * deleted, pending the owner's call (#308 review): it is the one server door a future
- * profile-level surface would reuse, and it validates exactly as the queue does (nothing that is
- * not a rung is ever stored).
+ * #308: the ONLY door to this function is the Tailor queue's profile-answer route, which calls it
+ * directly. The old POST /onboarding/language-level endpoint (the deck ladder's door) was deleted
+ * with the ladder's retirement — owner's decision, 2026-09-29: nothing on any screen used it, and
+ * a future profile surface that sets levels would rebuild its own door (with its own before/after
+ * lines) over this same function.
  */
 export async function answerLanguageLevel(
   eligibility: EligibilityStore,
@@ -239,9 +237,3 @@ export async function answerLanguageLevel(
  *  near it. Owned here rather than by the declaring question because both doors into a language fact
  *  — declaring a list, and placing a level — must agree on it. */
 export const MAX_LANGUAGE_WORD = 60;
-
-/** The ladder route's body, beside the handler it feeds. Bounds `language` at the trust boundary. */
-export const LanguageLevelBody = z.object({
-  language: z.string().min(1).max(MAX_LANGUAGE_WORD),
-  level: z.string().max(40),
-});

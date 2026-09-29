@@ -37,9 +37,12 @@ knowingly: answering a question on an already-withdrawn job now says "no job bei
 migration and the skip write on a real Postgres by hand — the in-memory store can't run that
 operator, so nothing automated covers the Pg path; noted, not fixed.
 
-**One decision for the owner**: the old direct language-level endpoint has no screen using it any
-more (the queue writes through its own door). Kept for now, with the reasoning recorded in code —
-keep it as the future profile surface's write path, or delete it.
+**The owner ruled on the leftover door the same day: deleted.** The old direct language-level
+endpoint (no screen used it after the ladder's move) is gone; the shared write function stays —
+it is what the queue calls, and what any future profile surface would rebuild a door over. The
+~15 tests that used the endpoint as a seeding shortcut now place levels through that same
+function, so nothing they prove got weaker, and the spine's ratchet fell again, **698 → 685**.
+Committed and **pushed together with the #308 commit** once the in-flight CI run resolved green.
 
 ## 2026-09-29 — #307 built: asked once, remembered for every job (V4 opens)
 

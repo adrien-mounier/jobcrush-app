@@ -67,7 +67,7 @@ import { fileURLToPath } from "node:url";
 // drop — moved to its own plugin (routes/tailor.ts), where the ticket's new profile-answer endpoint
 // landed too. The queue's own rules went into tailorProfile.ts, never in here, and the spine shrank
 // by the last sixth it was carrying.
-const MAX_LINES = 698;
+const MAX_LINES = 685;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

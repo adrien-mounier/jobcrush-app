@@ -49,7 +49,6 @@ import {
 import { applyFallbackChoice } from "../deckFallback.js";
 import type { BroughtJobsFn } from "../broughtJobs.js";
 import { makeRetrievalCoordinator } from "../deckRetrieval.js";
-import { answerLanguageLevel, LanguageLevelBody } from "../languageLevel.js";
 import { runLabelerRetry } from "../jobBlockPlacementRetry.js";
 import { findWithdrawingRequirement } from "../withdrawal.js";
 import {
@@ -644,18 +643,6 @@ export function onboardingRoutes(deps: OnboardingDeps) {
             deps.productionFamilyFloors,
           ),
         };
-      },
-    );
-
-    // #165 — the ladder's direct write door; #308 status note at answerLanguageLevel's doc.
-    app.post(
-      "/onboarding/language-level",
-      { schema: { body: LanguageLevelBody } },
-      async (req, reply) => {
-        const session = requireSession(req);
-        const r = await answerLanguageLevel(deps.eligibility, session.id, req.body.language, req.body.level);
-        if (!r.ok) return reply.status(r.status).send({ error: { code: r.code, message: r.message } });
-        return { ok: true };
       },
     );
 

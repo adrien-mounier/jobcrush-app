@@ -28,6 +28,7 @@ import {
 } from "../src/discovery.js";
 import { ANY_FAMILY, PgEligibilityStore, type EligibilityStore } from "../src/eligibility.js";
 import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
+import { answerLanguageLevel } from "../src/languageLevel.js";
 import { initialProductionFamilyFloors, productionDiscoveryFamily } from "../src/familyFloors.js";
 
 const item = (over: Partial<FloorItem>): FloorItem => ({
@@ -1512,8 +1513,10 @@ describe("#123 the languages question", () => {
     const sid = me.json().id as string;
 
     await post(app, cookie, "/onboarding/discovery/answer", { itemId, answers: ["English", "French"] });
-    await post(app, cookie, "/onboarding/language-level", { language: "Cantonese", level: "meetings" });
-    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "not-at-all" });
+    // #308: the ladder's HTTP door is deleted — a rung is placed through the ladder's own write
+    // function, the same call the tailor queue's profile-answer route makes.
+    await answerLanguageLevel(eligibility, sid, "Cantonese", "meetings");
+    await answerLanguageLevel(eligibility, sid, "Mandarin", "not-at-all");
 
     await post(app, cookie, "/onboarding/discovery/answer", { itemId, answer: DECLINE_OPTION });
 

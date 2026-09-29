@@ -18,6 +18,7 @@ import { InMemoryAdRequirementsStore } from "../src/adRequirementsStore.js";
 import { readCounters } from "../src/counters.js";
 import type { LlmClient } from "../src/llm.js";
 import { DECLINE_OPTION } from "../src/eligibilityDiscovery.js";
+import { answerLanguageLevel } from "../src/languageLevel.js";
 import { ANY_FAMILY, type EligibilityFact } from "../src/eligibility.js";
 import { discoveryClaimId } from "../src/discovery.js";
 import { initialProductionFamilyFloors, productionDiscoveryFamily } from "../src/familyFloors.js";
@@ -972,6 +973,17 @@ const sessionId = async (app: ReturnType<typeof buildServer>["app"], cookie: str
   return me.json().id as string;
 };
 
+// #308: the ladder's HTTP door (POST /onboarding/language-level) was deleted with the card ladder
+// — owner decision, 2026-09-29. Tests place a rung through the ladder's own write function, the
+// exact call the tailor queue's profile-answer route makes; the function still validates (a
+// non-rung is refused), so nothing these tests prove got weaker.
+const placeLevel = async (
+  built: Pick<ReturnType<typeof buildServer>, "app" | "eligibility">,
+  cookie: string,
+  language: string,
+  level: string,
+) => answerLanguageLevel(built.eligibility, await sessionId(built.app, cookie), language, level);
+
 // #123 — module-scoped (not local to one describe block) so both the "driven end to end" block and
 // the withdrawn.total/byLanguage reporting block below can start discovery and find the languages
 // question's itemId the same way, without each re-implementing the lookup.
@@ -1315,7 +1327,8 @@ describe("#123 the languages question, driven end to end into #107's withdrawal 
     const target = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
       posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
-    const { app } = buildServer({ readAd });
+    const built = buildServer({ readAd });
+    const { app } = built;
     const cookie = await anonSession(app);
     const itemId = await languageItemId(app, cookie);
 
@@ -1325,11 +1338,8 @@ describe("#123 the languages question, driven end to end into #107's withdrawal 
     expect(kept.cards.map((c) => c.adId)).toContain(target.id);
 
     // The one deliberate answer that does withdraw it.
-    const said = await post(app, cookie, "/onboarding/language-level", {
-      language: "Mandarin",
-      level: "not-at-all",
-    });
-    expect(said.statusCode).toBe(200);
+    const said = await placeLevel(built, cookie, "Mandarin", "not-at-all");
+    expect(said).toEqual({ ok: true });
     const after = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     expect(after.cards.map((c) => c.adId)).not.toContain(target.id);
   });
@@ -1339,10 +1349,11 @@ describe("#123 the languages question, driven end to end into #107's withdrawal 
     const target = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
       posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
-    const { app } = buildServer({ readAd });
+    const built = buildServer({ readAd });
+    const { app } = built;
     const cookie = await anonSession(app);
 
-    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "gets-by" });
+    await placeLevel(built, cookie, "Mandarin", "gets-by");
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     expect(body.cards.map((c) => c.adId)).toContain(target.id);
@@ -1377,14 +1388,15 @@ describe("#123 the languages question, driven end to end into #107's withdrawal 
     const target = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
       posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
-    const { app } = buildServer({ readAd });
+    const built = buildServer({ readAd });
+    const { app } = built;
     const cookie = await anonSession(app);
 
-    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "not-at-all" });
+    await placeLevel(built, cookie, "Mandarin", "not-at-all");
     const withdrawn = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     expect(withdrawn.cards.map((c) => c.adId)).not.toContain(target.id);
 
-    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "gets-by" });
+    await placeLevel(built, cookie, "Mandarin", "gets-by");
     const corrected = (await get(app, cookie, "/onboarding/cards")).json() as { cards: JobCard[] };
     expect(corrected.cards.map((c) => c.adId)).toContain(target.id);
   });
@@ -1442,9 +1454,10 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
     const target = uncachedEnglishPostings()[0]!;
     const readAd = async (posting: Posting): Promise<AdRequirementsV1 | null> =>
       posting.id === target.id ? mandarinBlocking(posting.id) : stubRequirements(posting.id);
-    const { app } = buildServer({ readAd });
+    const built = buildServer({ readAd });
+    const { app } = built;
     const cookie = await anonSession(app);
-    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "not-at-all" });
+    await placeLevel(built, cookie, "Mandarin", "not-at-all");
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as {
       cards: JobCard[];
@@ -1475,10 +1488,11 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
       if (posting.id === cantoneseTarget!.id) return cantoneseBlocking(posting.id);
       return stubRequirements(posting.id);
     };
-    const { app } = buildServer({ readAd });
+    const built = buildServer({ readAd });
+    const { app } = built;
     const cookie = await anonSession(app);
-    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "not-at-all" });
-    await post(app, cookie, "/onboarding/language-level", { language: "Cantonese", level: "not-at-all" });
+    await placeLevel(built, cookie, "Mandarin", "not-at-all");
+    await placeLevel(built, cookie, "Cantonese", "not-at-all");
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as {
       cards: JobCard[];
@@ -1518,9 +1532,10 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
       if (posting.id === mandarinTarget!.id) return mandarinBlocking(posting.id);
       return stubRequirements(posting.id);
     };
-    const { app } = buildServer({ readAd });
+    const built = buildServer({ readAd });
+    const { app } = built;
     const cookie = await anonSession(app);
-    await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "not-at-all" });
+    await placeLevel(built, cookie, "Mandarin", "not-at-all");
 
     const body = (await get(app, cookie, "/onboarding/cards")).json() as {
       cards: JobCard[];
@@ -1535,8 +1550,9 @@ describe("#123 GET /onboarding/cards reports withdrawn.total/byLanguage for the 
 
 // #308 — the ladder is RETIRED off the deck card into the Tailor queue (tailorProfile.test.ts
 // carries the queue-side coverage). The deck payload no longer asks anything: a card whose advert
-// tests a language carries no levelAsk, same as every other card. The ladder's write path
-// (/onboarding/language-level) stays — it is the level's own door, unchanged.
+// tests a language carries no levelAsk, same as every other card. The ladder's old HTTP door is
+// deleted too (owner decision, 2026-09-29); its write function's own refusals are pinned in
+// languageLevel.test.ts.
 describe("#308 the deck card no longer asks the language ladder", () => {
   type CardWithAsk = JobCard & { levelAsk?: unknown };
   const cardsOf = async (app: Parameters<typeof get>[0], cookie: string) =>
@@ -1554,13 +1570,6 @@ describe("#308 the deck card no longer asks the language ladder", () => {
     expect(cards.every((c) => c.levelAsk === undefined)).toBe(true);
   });
 
-  it("rejects a level that isn't a rung — a grade is never stored as one", async () => {
-    const { app } = buildServer();
-    const cookie = await anonSession(app);
-    const res = await post(app, cookie, "/onboarding/language-level", { language: "Mandarin", level: "fluent" });
-    expect(res.statusCode).toBe(400);
-    expect(res.json()).toMatchObject({ error: { code: "invalid_answer" } });
-  });
 });
 
 // #107 (E5 slice 6, D4) — withdrawal holds on every surface that renders an advert, not only the deck.
