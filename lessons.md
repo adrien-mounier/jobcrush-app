@@ -4034,3 +4034,30 @@ positional reader (`first()`, `nth()`, `p:not(...)`, `at(-1)`) two features away
 that breaks. Same failure shape as the ledger's own `at(-1)` bug inside this very ticket:
 positional reads of an ordered list rot silently the moment the order stops meaning what it
 meant.
+
+## `expect(...).toPass()` retries nothing unless the assertions inside it carry their own timeouts
+
+#319's first attempt wrapped a click-then-check in `toPass({ timeout: 5000 })` and passed 174 local
+runs, then went red on CI (run 36664002625) at exactly 5.0s. An `expect` **inside** `toPass` with no
+timeout of its own inherits the whole remaining `toPass` budget, so the first iteration spends every
+second waiting for a condition a lost click will never satisfy — and the retry never happens. It was
+a single-attempt wrapper wearing a retry's clothes, with a deadline *shorter* than the assertion it
+replaced. The fix is one word per line: `toHaveCount(0, { timeout: 1000 })`, `click({ timeout: 2000 })`
+inside a generous outer budget.
+
+The general rule: any bounded retry needs the inner attempt bounded **tighter** than the loop, or
+there is only ever one attempt. Prove the loop cycles — instrument it and watch iteration 2 happen —
+because a retry that never retries passes every green test you throw at it.
+
+## A route-mocked e2e flake must be reproduced on a production build, not the dev server
+
+The same #319 bug was invisible across 174 dev-server runs and reproduced on the *first* run against
+`pnpm --filter @jobcrush/web build && start`. CI's e2e job runs a production build (`.github/workflows/ci.yml`
+— `next start`, workers: 1); a dev server hydrates on a different schedule and hides readiness races.
+Recipe: kill whatever holds 3000 (`netstat -ano | grep :3000` → `taskkill //PID <pid> //F`; the `start`
+script hardcodes `-p 3000`), build, start, run.
+
+Two traps found doing it: rebuilding **under** a running `next start` replaces the chunks it serves
+and turns every test red for reasons that have nothing to do with the change — always restart after a
+rebuild. And `pkill -f "next start"` does not match it on Windows, so the "new" server silently loses
+the port to the old one and you test a stale build.

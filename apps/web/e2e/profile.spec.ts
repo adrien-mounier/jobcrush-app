@@ -69,17 +69,24 @@ async function stubProfile(page: Page, state: ProfileState = PROFILE) {
 }
 
 // #319 a door click that lands before the page is interactive opens nothing, and whatever the test
-// asserts next then times out — on CI run 36591135202 that was a focus assertion 15s later, and the
-// same test failed once locally on a cold first compile of /profile. Retry the click instead of
-// raising timeouts: every door on this screen is REPLACED by its own question when it opens, so the
-// door going away is the proof that the click landed, and the same check is what keeps the retry
-// from re-clicking a door that did open. Use this for the first click of a test, where the page may
-// still be cold; a click later in a flow already has an interactive page behind it.
+// asserts next then times out — on CI run 36591135202 that was a phone-door focus assertion, 15s
+// later, on a push that changed nothing /profile loads. Retry the click instead of raising timeouts:
+// every door on this screen is REPLACED by its own question when it opens, so the door going away is
+// the proof the click landed, and the same check keeps a retry from re-clicking a door that did open.
+// Use this for the first click of a test, where the page may still be cold; a click later in a flow
+// already has an interactive page behind it.
+//
+// BOTH inner timeouts are load-bearing, and leaving them off is what made run 36664002625 red: an
+// expect inside toPass with no timeout of its own inherits the whole remaining toPass budget, so the
+// first iteration spends every second waiting for a door that a lost click will never close, and the
+// retry never happens. Measured on a production build (`next start`, what CI runs — a dev server is
+// too fast to show it): the door can be present-but-not-yet-visible, which skips the click, so the
+// SECOND iteration is the one that opens the door.
 async function openDoor(door: Locator) {
   await expect(async () => {
-    if (await door.isVisible()) await door.click();
-    await expect(door).toHaveCount(0);
-  }).toPass({ timeout: 5000 });
+    if (await door.isVisible()) await door.click({ timeout: 2000 });
+    await expect(door).toHaveCount(0, { timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
 }
 
 test("the screen loads with groups in payload order, experience facts as full rows, no empty About you group", async ({

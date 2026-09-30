@@ -2,6 +2,40 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-30 — #319's first fix went red on CI; the correction, and why the gate missed it
+
+`d4533be` was gated GO, pushed, and **reddened CI** (run 36664002625, e2e job, two `profile.spec.ts`
+tests failing at exactly 5.0s — the deploy was skipped). Corrected, re-gated against a production
+build, **GO**. #320 filed and then re-scoped with harder evidence.
+
+**The bug I shipped.** The retry I added never retried. An `expect` nested inside
+`expect(async () => …).toPass({ timeout })` with no timeout of its own inherits the whole remaining
+budget, so the first attempt spent all 5s waiting for a door a lost click would never close. I had
+replaced a 15-second flake with a 5-second one, and 174 green local runs never showed it. The fix is
+one explicit timeout per inner line — `click({ timeout: 2000 })`, `toHaveCount(0, { timeout: 1000 })`
+— inside a 15s outer budget.
+
+**Why the first gate passed it.** The gate ran the dev server; CI runs a production build
+(`next build && next start`, `.github/workflows/ci.yml`). The race is invisible in dev and reproduces
+on the first prod-build run. The second gate was told to run the CI-shaped stack and to prove the loop
+cycles rather than accept green tests as proof — it measured 24 cold door-opens: 20 opened first try,
+**4 needed a second attempt** (door present but not yet visible, so attempt 1 skipped the click), and
+with the old code those same 4 failed at 5.2s having never reached attempt 2. That is run
+36664002625's signature, reproduced locally.
+
+**The lesson, in `lessons.md`:** a bounded retry needs its inner attempt bounded *tighter* than the
+loop or there is only ever one attempt — and prove it cycles, because a retry that never retries
+passes every green test you throw at it. Plus the Windows recipe for running the gate on a production
+build (and the two traps: rebuilding under a live `next start` reddens everything, and
+`pkill -f "next start"` silently misses it).
+
+**#320 re-scoped, not just filed.** The leftover role-door flake (focus *returning* to the door after
+a save) is not local-only as first filed: it can redden the deploy gate, and it is a real user-facing
+bug — a keyboard user who saves that answer has focus dropped to nowhere. Rate looks low (the gate saw
+0/5 where I saw 1/1) and part of what looked like it was the #319 retry bug. Product-side cause
+suspected: a `requestAnimationFrame` focus that can be dropped, where the languages door in the same
+file already does it durably.
+
 ## 2026-09-30 — #319 fixed: the profile screen's test doors wait until the page is actually awake
 
 `/implement` → `/code-review` (both axes) → `/qa-gate` (**GO**, no defects) on **#319**, the flaky
