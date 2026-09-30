@@ -2,6 +2,39 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-30 — #320 closed: the profile doors' focus-return moves off the raw frame
+
+`/implement` → `/code-review` (both axes) → `/qa-gate` (**GO**, re-affirmed after a post-verdict
+addition) on **#320**. Commit `e105d0e`.
+
+**The cause was product-side, as #320 suspected.** On close, a door sets `asking` false and schedules
+`requestAnimationFrame(() => doorRef.current?.focus())` in the same breath — but the door button
+renders only in the `!asking` branch, so when the frame beats React's commit the ref is still null and
+the focus goes nowhere. Not a slow machine losing a scheduled callback: the element simply does not
+exist yet. That is why the flake tracked worker contention so exactly.
+
+**The fix is the pattern already on the screen.** Each door arms a pending-focus flag and returns
+focus from the effect that already keyed on the open/closed state — what the languages door has done
+since #186. Converted: the role door, both contact doors, and the search-areas door (whose effect also
+defers the return past the "Fetching … jobs…" window, when no door is on screen to take it). One
+pattern on this screen now, not two.
+
+**What the gate caught that the diff review didn't.** The areas door's focus-return had **no CI cover
+at all** — the gate deleted it and all 58 profile tests stayed green. One assertion on the #188 AC3
+test now covers it, and it fails two ways: remove the focus call, or remove the fetch guard so the
+return fires mid-fetch.
+
+**Left deliberately unfixed, needs its own ticket.** The work-rights door's `wrDoorRef` is attached to
+the cancel button *inside* the open door, so its focus-return has always aimed at a node that
+unmounts — closing a work-rights question drops a keyboard user to `<body>`. Pre-existing, unrelated
+to #320's flake, and converting it to the effect pattern would not fix it: the ref has to move to the
+closed-state door button first, per market row.
+
+**Numbers.** 96/96 on the named test at the local default of 8 workers (the shape that flaked 1–2 in
+8), 58/58 profile spec across seven rounds, full gates green. Every converted door was broken,
+confirmed red, and restored. No timeout raised, no local worker pinning — both explicitly forbidden by
+the ticket.
+
 ## 2026-09-30 — #319's first fix went red on CI; the correction, and why the gate missed it
 
 `d4533be` was gated GO, pushed, and **reddened CI** (run 36664002625, e2e job, two `profile.spec.ts`
