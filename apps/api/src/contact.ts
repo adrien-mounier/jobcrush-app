@@ -9,7 +9,11 @@
 import type { Pool } from "pg";
 import { getPool } from "./db.js";
 
-export type ContactField = "phone" | "email";
+// #310 adds "header": the CV's own letterhead block, stored as read at mine time so the tailored
+// draft can print a name and city long after the raw CV is gone. It rides this store because it is
+// contact-adjacent session fact data with the same lifecycle (same sweep, same origin rules); it is
+// NOT part of getRecord()'s phone/email shape and no person-said door writes it.
+export type ContactField = "phone" | "email" | "header";
 export type ContactOrigin = "read" | "person-said";
 
 export interface ContactValue {

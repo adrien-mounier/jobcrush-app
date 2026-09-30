@@ -87,6 +87,8 @@ export interface JobSnapshot {
     importProof?: ImportProof;
     /** #304: the paste door's narrated read, on the same record and the same SSE stream. */
     paste?: PasteProgress;
+    /** #310: the tailored-draft build — `failure` carries the server's own plain words. */
+    tailorDraft?: { ready?: boolean; failure?: { cameBack: string; fix: string } };
     [k: string]: unknown;
   };
 }
@@ -491,6 +493,41 @@ export function answerTailorProfile(
 
 export function dropTailor(): Promise<{ stage: "deck" }> {
   return jfetch("/api/onboarding/tailor/drop", { method: "POST" });
+}
+
+// --- #310: the CV brain's draft, at the Tailor step's ending ---
+
+/** #154, re-homed onto the ending: one job's disclosure — what the draft held back and why. A
+ *  choice (facts held back for this posting) and a fault (a line that took on too much) are
+ *  explained differently on purpose; the copy lives in tailor/draft.tsx. */
+export interface JobDisclosure {
+  employer: string;
+  role: string;
+  factCount: number;
+  /** Held-back facts in the profile's OWN wording, never shortened (#154 Q10). */
+  heldBack: string[];
+  overfull: { text: string; count: number; lostResult: boolean; sources: string[] }[];
+}
+
+export interface TailorDraftView {
+  /** The rendered CV document — self-contained HTML for a sandboxed iframe (the server render,
+   *  watermark included; never re-derived here). */
+  html: string;
+  disclosure: JobDisclosure[];
+  /** Plain-words notices when the draft shipped lossy after its retry — empty on a clean draft. */
+  conservationNotices: string[];
+  draftedAt: string;
+}
+
+/** Starts (or joins) the draft build for the job being tailored. `ready` ⇒ the stored draft already
+ *  matches the current facts and reading it costs nothing; otherwise the job to watch over the same
+ *  `/api/jobs/:id/events` stream the paste door uses. */
+export function requestTailorDraft(): Promise<{ ready?: boolean; jobId?: string }> {
+  return jfetch("/api/onboarding/tailor/draft", { method: "POST" });
+}
+
+export function getTailorDraft(): Promise<TailorDraftView> {
+  return jfetch("/api/onboarding/tailor/draft");
 }
 
 // --- E2 auth (magic-link) ---

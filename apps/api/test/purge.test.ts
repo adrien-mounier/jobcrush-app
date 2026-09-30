@@ -12,6 +12,7 @@ import { PgAuthStore } from "../src/auth.js";
 import { PgJudgementStore } from "../src/judgementStore.js";
 import { PgUsageLedgerStore } from "../src/usageLedgerStore.js";
 import { PgPasteRecordStore } from "../src/pasteRecordStore.js";
+import { PgTailorDraftStore } from "../src/tailorDraftStore.js";
 import { runPurge } from "../src/purge.js";
 
 describe("JC-20 runPurge", () => {
@@ -24,6 +25,7 @@ describe("JC-20 runPurge", () => {
     await new PgJudgementStore(pool).init();
     await new PgUsageLedgerStore(pool).init();
     await new PgPasteRecordStore(pool).init();
+    await new PgTailorDraftStore(pool).init();
 
     const old = new Date(Date.now() - 30 * 86_400_000).toISOString();
     // stale + unclaimed → purged (and its claim)
@@ -87,6 +89,14 @@ describe("JC-20 runPurge", () => {
     await pool.query(`INSERT INTO paste_records (session_id, ad_id, pasted_at) VALUES ('stale', 'posting:abc', $1)`, [old]);
     await pool.query(`INSERT INTO paste_records (session_id, ad_id, pasted_at) VALUES ('owned', 'posting:abc', $1)`, [old]);
 
+    // #310: the tailored-draft checkpoint is session-keyed CV content and joins the sweep — the
+    // stale visitor's draft goes with their profile, the claimed owner's stays.
+    await pool.query(
+      `INSERT INTO tailor_drafts (session_id, ad_id, draft, notices, input_fingerprint, drafted_at)
+       VALUES ('stale', 'posting:abc', '{}', '[]', 'fp', $1), ('owned', 'posting:abc', '{}', '[]', 'fp', $1)`,
+      [old],
+    );
+
     const { sessions } = await runPurge(pool, 14);
     expect(sessions).toBe(1); // only 'stale' deleted
 
@@ -106,5 +116,8 @@ describe("JC-20 runPurge", () => {
 
     const survivingPastes = (await pool.query(`SELECT session_id FROM paste_records ORDER BY session_id`)).rows;
     expect(survivingPastes.map((r) => r.session_id)).toEqual(["owned"]);
+
+    const survivingDrafts = (await pool.query(`SELECT session_id FROM tailor_drafts ORDER BY session_id`)).rows;
+    expect(survivingDrafts.map((r) => r.session_id)).toEqual(["owned"]);
   });
 });

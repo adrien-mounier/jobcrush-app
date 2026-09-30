@@ -1,5 +1,17 @@
 # Lessons — jobcrush-app
 
+## When a fake fills a gap, check what fills it in production — a hardcoded fixture can green-light a defect
+
+Learned 2026-10-01 on #310. The draft caller passed an empty letterhead, so a real model would print
+"Your name here" on a real person's CV — and every gate was green, because the unit fake AND
+qa-main's stand-in both hardcode a sample name ("Maria Kowalski"), silently supplying the very value
+the product failed to. The pattern to watch: any value a fake invents rather than reads back out of
+its prompt is a value no test can prove the product actually delivers. When wiring a fake, derive
+every asserted-on field from the input (qa-main's judge branch already does this — it reads the
+requirement ids out of the prompt); when reviewing one, grep the fake for literals that also appear
+in assertions. The catch here came only from the QA gate reasoning about the prompt's own
+"(none captured)" marker against the engine's rule 3 — no run showed it.
+
 ## Deck cards render no per-card id, and real postings share literal titles — a journey cannot walk to a SPECIFIC card by heading
 
 Learned 2026-09-29 building #308. The corpus holds four postings titled exactly "Senior Project

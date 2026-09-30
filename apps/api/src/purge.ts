@@ -64,6 +64,13 @@ export async function runPurge(pool: Pool, ttlDays = 14): Promise<{ sessions: nu
        SELECT id FROM sessions WHERE claimed_by_user_id IS NULL AND last_seen_at < $1)`,
     [cutoff],
   );
+  // #310: the tailored-draft checkpoint is session-keyed CV content — it goes when the session's
+  // whole profile goes, same shape as claims and paste_records above.
+  await pool.query(
+    `DELETE FROM tailor_drafts WHERE session_id IN (
+       SELECT id FROM sessions WHERE claimed_by_user_id IS NULL AND last_seen_at < $1)`,
+    [cutoff],
+  );
   const { rowCount } = await pool.query(
     `DELETE FROM sessions WHERE claimed_by_user_id IS NULL AND last_seen_at < $1`,
     [cutoff],

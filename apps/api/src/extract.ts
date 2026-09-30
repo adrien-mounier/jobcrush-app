@@ -158,6 +158,11 @@ export interface ContactFieldRead {
 export interface ContactExtraction {
   phone: ContactFieldRead | null;
   email: ContactFieldRead | null;
+  /** #310: the CV's own letterhead — the same contact/preamble slice the deleted upload-pipeline
+   *  draft caller fed the tailor (preview.ts's old makePreviewStep recipe, byte for byte), captured
+   *  here so the draft door can hand the engine a name and city after the raw CV is gone. Empty
+   *  string is an honest absence, never invented. */
+  header: string;
 }
 
 /** #190: deterministic phone/email parse over the already-tagged contact block(s) — reuses the same
@@ -173,6 +178,12 @@ export function extractContact(blocks: RawCvBlock[]): ContactExtraction {
   return {
     email: email ? { value: email[0], sourceText: email[0] } : null,
     phone: phone ? { value: phone[0].trim(), sourceText: phone[0].trim() } : null,
+    header: blocks
+      .filter((b) => b.kind === "contact" || b.kind === "other")
+      .slice(0, 2)
+      .map((b) => b.text)
+      .join("\n")
+      .slice(0, 600),
   };
 }
 

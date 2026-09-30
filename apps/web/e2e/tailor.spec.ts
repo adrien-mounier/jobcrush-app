@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { ScoredJobCard, TailorState } from "../lib/api";
+import type { ScoredJobCard, TailorDraftView, TailorState } from "../lib/api";
 
 // #23 Tailor (screen 3): re-score, the live card, and the exits. Stubbed at the route layer exactly
 // like deck.spec.ts's screen 2b tests — GET/POST /api/onboarding/tailor* aren't necessarily wired
@@ -116,8 +116,45 @@ async function stubSession(page: Page) {
   });
 }
 
+// #310 — the ending's draft: the CV brain's rendered document plus the re-homed #154 disclosure.
+const DRAFT_VIEW: TailorDraftView = {
+  html:
+    "<!doctype html><html><body><h1>Maria Kowalski</h1>" +
+    "<li>Led the checkout replatforming, delivered 2 months early</li></body></html>",
+  disclosure: [
+    {
+      employer: "Nordic Retail Group",
+      role: "IT Project Manager",
+      factCount: 9,
+      heldBack: ["Ran the PCI certification audit end to end"],
+      overfull: [
+        {
+          text: "Led the checkout replatforming and managed the vendor budget",
+          count: 2,
+          lostResult: true,
+          sources: ["Led the checkout replatforming", "Managed a budget of EUR 1.2M"],
+        },
+      ],
+    },
+  ],
+  conservationNotices: [
+    "Your languages could not be placed on this draft. You can retry the draft or add them when you review.",
+  ],
+  draftedAt: "2026-09-30T08:00:00.000Z",
+};
+
+/** The draft endpoints, stubbed on the checkpoint-hit path by default: POST answers `ready`, GET
+ *  hands the view. Registered by openTailor so every test that lands the ending has a draft. */
+async function stubDraft(page: Page, view: TailorDraftView = DRAFT_VIEW) {
+  await page.route("**/api/onboarding/tailor/draft", async (route) => {
+    if (route.request().method() === "POST") await route.fulfill({ json: { ready: true } });
+    else await route.fulfill({ json: view });
+  });
+}
+
 async function openTailor(page: Page, state: TailorState) {
   await stubSession(page);
+  await stubDraft(page);
   await page.route("**/api/onboarding/tailor", async (route) => {
     await route.fulfill({ json: state });
   });
@@ -539,4 +576,114 @@ test("#309 the fall's cause is the answer JUST GIVEN, even when its ledger line 
 
   await expect(page.getByRole("heading", { name: /as strong as I can make it/ })).toBeVisible();
   await expect(page.locator(".finish .ledger")).toHaveText("Down 11% — re-scored on “SAP S/4HANA”");
+});
+
+// --- #310: the ending's draft is the CV brain's, and it shows what it held back ---
+
+test("#310 the ending renders the real draft and the re-homed #154 panel — document, held-back facts, over-full line, notice", async ({
+  page,
+}) => {
+  await openTailor(page, STATE_ENDED);
+
+  // The document reaches the screen: the sandboxed frame is visible and carries the server render.
+  const frame = page.locator(".draft-frame");
+  await expect(frame).toBeVisible();
+  await expect(frame).toHaveAttribute("srcdoc", /Maria Kowalski/);
+  await expect(frame).toHaveAttribute("srcdoc", /Led the checkout replatforming/);
+
+  // The #154 disclosure, on the Tailor step's ending: the choice (held back), in the profile's own
+  // words, behind its "show them" control…
+  const panel = page.locator(".disclose");
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText("Nordic Retail Group — IT Project Manager");
+  await expect(panel).toContainText("9 facts");
+  await expect(page.getByText("Ran the PCI certification audit end to end")).toBeHidden();
+  await panel.locator("summary").click();
+  await expect(page.getByText("Ran the PCI certification audit end to end")).toBeVisible();
+  // …and the fault (an over-full line), worded as ours, never dressed up as a choice.
+  await expect(panel).toContainText("One printed line carries 2 facts at once");
+  await expect(panel).toContainText("“Led the checkout replatforming and managed the vendor budget”");
+
+  // A lossy ship's plain-words notice reaches the same screen.
+  await expect(
+    page.getByText("Your languages could not be placed on this draft.", { exact: false }),
+  ).toBeVisible();
+
+  // And the ending's own controls are still there beneath it.
+  await expect(page.getByRole("button", { name: "Apply with this CV" })).toBeVisible();
+});
+
+test("#310 a fresh draft narrates its wait over the job stream, then the document lands", async ({ page }) => {
+  await stubSession(page);
+  await page.route("**/api/onboarding/tailor", async (route) => {
+    await route.fulfill({ json: STATE_ENDED });
+  });
+  await page.route("**/api/onboarding/tailor/draft", async (route) => {
+    if (route.request().method() === "POST") {
+      // Hold the 202 briefly so the writing line is assertable, not a flash.
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      await route.fulfill({ status: 202, json: { jobId: "draft-job-1" } });
+    } else {
+      await route.fulfill({ json: DRAFT_VIEW });
+    }
+  });
+  await page.route("**/api/jobs/draft-job-1/events", async (route) => {
+    const snapshot = { id: "draft-job-1", status: "completed", error: null, progress: { tailorDraft: { ready: true } } };
+    await route.fulfill({
+      contentType: "text/event-stream",
+      body: `data: ${JSON.stringify(snapshot)}\n\n`,
+    });
+  });
+
+  await page.goto("/tailor");
+
+  await expect(page.getByText("Writing your CV for this job…")).toBeVisible();
+  await expect(page.locator(".draft-frame")).toBeVisible();
+  await expect(page.locator(".draft-frame")).toHaveAttribute("srcdoc", /Maria Kowalski/);
+});
+
+test("#310 a failed draft says so in plain words, and Try again really retries", async ({ page }) => {
+  await stubSession(page);
+  await page.route("**/api/onboarding/tailor", async (route) => {
+    await route.fulfill({ json: STATE_ENDED });
+  });
+  // Every build attempt fails first (an attempt COUNTER would break under React strict mode's
+  // double mount — dev runs every effect twice, so the very first paint already makes two POSTs);
+  // the route is REPLACED with the succeeding one once the failure screen is really on screen.
+  const draftPost = (response: { status?: number; json: unknown }) => async (route: import("@playwright/test").Route) => {
+    if (route.request().method() !== "POST") return void (await route.fulfill({ json: DRAFT_VIEW }));
+    await route.fulfill(response);
+  };
+  await page.route("**/api/onboarding/tailor/draft", draftPost({ status: 202, json: { jobId: "draft-job-2" } }));
+  await page.route("**/api/jobs/draft-job-2/events", async (route) => {
+    // The server's own plain words ride in the job record (tailorDraft.ts's DRAFT_FAILURE) — the
+    // screen renders THESE, not a hardcoded twin.
+    const snapshot = {
+      id: "draft-job-2",
+      status: "failed",
+      error: "draft_failed",
+      progress: {
+        tailorDraft: {
+          failure: {
+            cameBack: "We could not finish writing this CV.",
+            fix: "Press Try again — everything you answered is saved, and nothing already done is re-done.",
+          },
+        },
+      },
+    };
+    await route.fulfill({
+      contentType: "text/event-stream",
+      body: `data: ${JSON.stringify(snapshot)}\n\n`,
+    });
+  });
+
+  await page.goto("/tailor");
+
+  await expect(page.getByText("We could not finish writing this CV.")).toBeVisible();
+  await expect(page.getByText("nothing already done is re-done", { exact: false })).toBeVisible();
+  // The retry hits the checkpoint path and succeeds.
+  await page.unroute("**/api/onboarding/tailor/draft");
+  await page.route("**/api/onboarding/tailor/draft", draftPost({ json: { ready: true } }));
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.locator(".draft-frame")).toBeVisible();
 });

@@ -2,6 +2,42 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-01 — #310 closed: the draft is the CV brain's, and it shows what it held back
+
+`/implement` -> `/code-review` (both axes) -> `/qa-gate` (**NO-GO**, fixed, re-ran, **GO**) on **#310**
+(#301 slice 3, absorbing #66). One closing commit; #66 closed by hand against it.
+
+**What shipped.** The CV brain (preview.ts — untouched, as the ticket demanded, beyond two optional
+input fields) finally has its caller: the Tailor ending POSTs `/onboarding/tailor/draft`, a detached
+job (the paste door's SSE pattern) runs `tailorDraft` on the session's confirmed facts with the
+card's negatives and open gaps riding as never-print / never-satisfied context, and the result
+checkpoints per (session, advert) in a new `tailor_drafts` store keyed by a sha of the exact engine
+input — so a reload, a retry or leaving and coming back re-spends nothing, while any supported
+answer changes the fingerprint and redrafts. GET refuses a checkpoint the facts have outgrown. The
+#154 disclosure panel (ported from the screen #272 deleted) renders under the document, the lint's
+plain-words notices reach the screen at last, and stored phone/email corrections apply at *read*
+time so a later correction still lands.
+
+**The gate's catch — the reason fakes exist to be distrusted.** Every suite was green and the live
+QA flow looked perfect, yet the first verdict was NO-GO: the caller passed an empty letterhead, so
+a *real* model would print "Your name here" on a real person's CV — invisible because both the unit
+fake and qa-main's stand-in hardcode a sample name. Fix: `extractContact` now captures the CV's
+letterhead (the old caller's exact block slice), `persistContact` stores it under the contact
+store's new `header` field at CV-read time, and both draft doors hand it to the engine (it is part
+of the fingerprint). Confirmed with one real model call through `llmFromEnv` (CLI driver, $0):
+name and city print. **Carried consequence:** profiles whose CV was read before this commit have no
+stored letterhead and draft nameless until the CV is pasted again.
+
+**Also fixed on re-run:** duplicate conservation notices collided as React keys and stuttered on
+screen (index keys + display-side dedupe).
+
+**Escalated to the owner, deliberately unchanged:** the draft still carries the engine's
+"DRAFT — NOT VERIFIED … not for submission" watermark directly above "Apply with this CV" — false
+words on this surface, where every fact is his own. Pre-existing engine copy, covered by no AC;
+rewording it is a product call (likely #313's, where approving becomes sending). Also observed, not
+fixed: after an early "I'm done", a return shows the questions again until "I'm done" is pressed
+once more (the draft then reappears instantly — `finishedEarly` is client state).
+
 ## 2026-09-30 — #321 closed: every work-rights door returns focus to its own market
 
 `/implement` -> `/code-review` (both axes) -> `/qa-gate` (**GO**) on **#321**, the defect #320 found and

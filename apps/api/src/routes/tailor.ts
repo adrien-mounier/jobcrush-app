@@ -42,6 +42,11 @@ import { findWithdrawingRequirement } from "../withdrawal.js";
 import { answerEligibilityItem, mapEligibilityAnswer } from "../eligibilityDiscovery.js";
 import { answerLanguageLevel, rungForSituation } from "../languageLevel.js";
 import { isNoAnswer } from "../discovery.js";
+import type { JobStore } from "../jobs.js";
+import type { ContactStore } from "../contact.js";
+import type { LlmClient } from "../llm.js";
+import type { TailorDraftStore } from "../tailorDraftStore.js";
+import { composeDraftInputs, runTailorDraftJob, tailorDraftView } from "../tailorDraft.js";
 import { composeTailorLine, tailorClaimId } from "../tailor.js";
 import {
   broughtStaysLine,
@@ -66,6 +71,14 @@ export interface TailorRouteDeps {
   /** #104/#105, the same optional seams the deck route carries. */
   readAd?: ReadAdFn;
   judge?: JudgeFn;
+  /** #310 — the draft endpoints' own deps. `jobs` is the SAME job/progress store the front door and
+   *  the paste door narrate over, so the ending watches `GET /jobs/:id/events` and nothing new had
+   *  to be built. `tailorLlm` follows the readPastedAdvert rule: real model calls are wired in
+   *  main.ts (and qa-main's fake) only, never defaulted here — absent, the draft door answers 503. */
+  jobs: JobStore;
+  contact: ContactStore;
+  tailorDrafts: TailorDraftStore;
+  tailorLlm?: LlmClient;
 }
 
 // #308: a skip is stored per-advert ("<adId>::<requirementId>", sessions.ts's tailorSkips) so
@@ -404,6 +417,117 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         return { changed, state };
       },
     );
+
+    // --- #310: the draft — the CV brain, bound to the job being tailored ------------------------
+
+    // The same resolve-and-guard tail GET /onboarding/tailor opens with, shared by the two draft
+    // doors: no target and a withdrawn target both behave exactly like no target at all (#107 M3),
+    // and a job he brought is never withdrawn (#294 c1). Returns the reads the draft needs so the
+    // doors never read twice.
+    interface DraftTarget {
+      posting: Posting;
+      adReq: AdRequirementsV1;
+      confirmed: ClaimRecord[];
+      negatives: ClaimRecord[];
+      blocks: JobBlockView[];
+    }
+    type DraftTargetResult =
+      | { refused: { status: 404 | 409; code: string; message: string }; target?: undefined }
+      | { refused?: undefined; target: DraftTarget };
+    const NO_TARGET = { status: 409 as const, code: "no_tailor_target", message: "no job being tailored" };
+    const resolveDraftTarget = async (session: SessionRecord): Promise<DraftTargetResult> => {
+      const adId = session.tailorAdId;
+      if (!adId) return { refused: NO_TARGET };
+      const [confirmed, negatives, facts, blocks] = await reads(session.id);
+      const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
+      const brought = (await deps.broughtJobs?.(session.id)) ?? [];
+      const target = await tailorTarget(session, adId, deps.readAd, fingerprint, brought);
+      if (!target)
+        return { refused: { status: 404, code: "not_found", message: "unknown card" } };
+      if (findWithdrawingRequirement(target.adReq, facts, target.posting.location, brought)) {
+        await deps.sessions.clearTailorTarget(session.id);
+        return { refused: NO_TARGET };
+      }
+      return { target: { ...target, confirmed, negatives, blocks } };
+    };
+
+    // #310: one in-flight run per (session, advert, fact set) — a reload mid-write joins the run
+    // already paying instead of starting a second one. ponytail: per-process only; a multi-process
+    // deploy would need the job store to arbitrate, which one machine does not.
+    const draftRuns = new Map<string, string>();
+
+    /** Starts (or joins, or short-circuits) the draft for the job being tailored. `{ ready: true }`
+     *  on a checkpoint hit — the stored draft matches the current fact set and nothing is spent —
+     *  otherwise 202 + the job to watch over `GET /jobs/:id/events`, the paste door's own shape. */
+    app.post("/onboarding/tailor/draft", async (req, reply) => {
+      const session = requireUser(req);
+      const resolved = await resolveDraftTarget(session);
+      if (resolved.refused) {
+        const { status, code, message } = resolved.refused;
+        return reply.status(status).send({ error: { code, message } });
+      }
+      // The readPastedAdvert rule: no model client wired ⇒ refuse honestly, never invent a draft.
+      if (!deps.tailorLlm)
+        return reply.status(503).send({
+          error: { code: "draft_unavailable", message: "writing the tailored CV is switched off on this deployment" },
+        });
+      const { posting, adReq, confirmed, negatives, blocks } = resolved.target;
+      // CandidateClaims requires at least one claim; structurally unreachable through the product
+      // (reaching tailor means discovery answered), kept honest rather than thrown from the engine.
+      if (confirmed.length === 0)
+        return reply
+          .status(409)
+          .send({ error: { code: "no_facts", message: "no confirmed facts to draft from" } });
+      // #310 (QA gate D1): the CV's letterhead, stored at mine time — without it the engine's own
+      // rule 3 prints "Your name here" on a real person's CV.
+      const header = (await deps.contact.get(session.id, "header"))?.value ?? "";
+      const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
+      const stored = await deps.tailorDrafts.get(session.id, posting.id);
+      if (stored?.inputFingerprint === inputs.fingerprint) return { ready: true };
+      const runKey = JSON.stringify([session.id, posting.id, inputs.fingerprint]);
+      const running = draftRuns.get(runKey);
+      if (running) return reply.status(202).send({ jobId: running });
+      const job = await deps.jobs.create("tailor-draft", session.id);
+      draftRuns.set(runKey, job.id);
+      void runTailorDraftJob(
+        { jobs: deps.jobs, tailorDrafts: deps.tailorDrafts, tailorLlm: deps.tailorLlm },
+        session.id,
+        job.id,
+        posting,
+        inputs,
+      ).finally(() => draftRuns.delete(runKey));
+      return reply.status(202).send({ jobId: job.id });
+    });
+
+    /** The checkpointed draft for the job being tailored: the rendered document, the #154
+     *  disclosure (what it held back and why), and the conservation notices when it shipped lossy.
+     *  Reading spends nothing — that is what makes exiting free: the supported draft stays here,
+     *  behind no further gate (#66's fourth criterion). */
+    app.get("/onboarding/tailor/draft", async (req, reply) => {
+      const session = requireUser(req);
+      const resolved = await resolveDraftTarget(session);
+      if (resolved.refused) {
+        const { status, code, message } = resolved.refused;
+        return reply.status(status).send({ error: { code, message } });
+      }
+      const { posting, adReq, confirmed, negatives, blocks } = resolved.target;
+      const stored = await deps.tailorDrafts.get(session.id, posting.id);
+      const header = (await deps.contact.get(session.id, "header"))?.value ?? "";
+      const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
+      // A stored draft whose fingerprint no longer matches the current fact set reads as no draft
+      // at all — "a supported answer changes the draft consistently" holds on EVERY door, not only
+      // the POST the shipped screen happens to call first. The remedy is the same as a plain miss:
+      // ask for the draft again, and only the changed input is re-spent.
+      if (!stored || stored.inputFingerprint !== inputs.fingerprint)
+        return reply
+          .status(404)
+          .send({ error: { code: "no_draft", message: "no draft for this job's current facts" } });
+      const contact = await deps.contact.getRecord(session.id);
+      return tailorDraftView(stored, inputs.claimsDoc, posting, {
+        phone: contact.phone?.value ?? null,
+        email: contact.email?.value ?? null,
+      });
+    });
 
     // Drop: back to the deck, never touching a claim — "everything you told me stays on your profile."
     app.post("/onboarding/tailor/drop", async (req) => {

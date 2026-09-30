@@ -233,6 +233,15 @@ describe("#190 extractContact — deterministic phone/email parse", () => {
     expect(contact.phone).toBeNull();
     expect(contact.email).toBeNull();
   });
+
+  // #310 (QA gate D1): the letterhead is kept whole — it is what the draft engine prints the name
+  // and city from, long after the raw CV is gone. Same block slice the old draft caller fed it.
+  it("captures the CV's letterhead (contact/preamble blocks) whole, and an honest empty when none", () => {
+    const blocks = segment("Jane Doe\nParis, France\njane@example.com\n\nExperience\nPM at X");
+    expect(extractContact(blocks).header).toContain("Jane Doe");
+    expect(extractContact(blocks).header).toContain("Paris, France");
+    expect(extractContact([{ kind: "role", text: "PM at X", confidence: 0.9 }]).header).toBe("");
+  });
 });
 
 describe("JC-12 pipeline job (extract stage over the JC-9 machinery)", () => {

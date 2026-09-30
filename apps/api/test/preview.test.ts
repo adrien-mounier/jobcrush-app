@@ -558,6 +558,31 @@ describe("buildTailorInput carries claim ids (#158, #153 falsifiable check)", ()
   });
 });
 
+describe("#310 buildTailorInput carries the card's negatives and open points (#66)", () => {
+  it("emits a CARD-CONTEXT block: negatives are never-print, open points never satisfied", async () => {
+    const claims = await recordedClaims();
+    const input = buildTailorInput(claims, matchPosting([]), "", {
+      negatives: ["Security clearance"],
+      openPoints: ["Kubernetes in production"],
+    });
+    expect(input).toContain("===CARD-CONTEXT===");
+    const context = input.split("===CARD-CONTEXT===")[1]!.split("===JOB-POSTING===")[0]!;
+    expect(context).toContain("Security clearance");
+    expect(context).toMatch(/never print/i);
+    expect(context).toContain("Kubernetes in production");
+    expect(context).toMatch(/never present.*as satisfied|never.*satisfied/i);
+  });
+
+  it("absent or empty → the input is byte-identical to the pre-#310 shape", async () => {
+    const claims = await recordedClaims();
+    const posting = matchPosting([]);
+    expect(buildTailorInput(claims, posting)).not.toContain("CARD-CONTEXT");
+    expect(buildTailorInput(claims, posting, "", { negatives: [], openPoints: [] })).toBe(
+      buildTailorInput(claims, posting),
+    );
+  });
+});
+
 describe("Draft schema — bullet spend rail, no floor, claim provenance (#158)", () => {
   const bullet = (n: number, claimIds: string[] = [`claim-${n}`]) => ({
     text: `Delivered outcome number ${n} for the team`,

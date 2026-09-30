@@ -318,6 +318,85 @@
   gap: 14px;
 }
 
+/* ---------- #310: the draft (the CV brain's document + the #154 disclosure) ---------- */
+.tailor .draft {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tailor .draft-frame {
+  width: 100%;
+  height: 72vh;
+  border: 1px solid var(--hud-line);
+  border-radius: 12px;
+  background: #fff;
+}
+.tailor .draft-hint,
+.tailor .draft-wait-sub {
+  font-size: 12px;
+  color: var(--hud-mute);
+  margin: 0;
+  line-height: 1.45;
+}
+.tailor .draft-wait,
+.tailor .draft-fail {
+  padding: 26px 4px;
+}
+.tailor .draft-wait-line,
+.tailor .draft-fail p[role="alert"] {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.tailor .draft-fail button {
+  margin-top: 10px;
+  appearance: none;
+  border: 1px solid var(--hud-line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--hud-ink);
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.tailor .disclose {
+  border: 1px solid var(--hud-line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.tailor .disclose p,
+.tailor .disclose ul {
+  margin: 0 0 8px;
+}
+.tailor .disclose-job {
+  font-weight: 620;
+}
+.tailor .disclose-lede,
+.tailor .disclose summary {
+  color: var(--hud-mute);
+}
+.tailor .disclose summary {
+  cursor: pointer;
+}
+.tailor .disclose details ul {
+  margin-top: 8px;
+}
+.tailor .disclose-overfull {
+  margin-top: 10px;
+}
+.tailor .disclose-line {
+  font-style: italic;
+}
+.tailor .draft-notice {
+  font-size: 12.5px;
+  color: var(--hud-mute);
+  margin: 0;
+  line-height: 1.5;
+}
+
 /* ---------- the ending ---------- */
 .tailor .finish {
   display: flex;
@@ -454,7 +533,8 @@
   .jobdeck.tailor:has(.live-wrap) .t-cv-col .divider {
     flex: 0 0 auto;
   }
-  .jobdeck.tailor:has(.live-wrap) .t-cv-col .cv {
+  .jobdeck.tailor:has(.live-wrap) .t-cv-col .cv,
+  .jobdeck.tailor:has(.live-wrap) .t-cv-col .draft {
     flex: 1 1 0;
     overflow-y: auto;
     min-height: 0;

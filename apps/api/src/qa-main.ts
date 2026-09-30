@@ -285,10 +285,11 @@ const fakeLlm: LlmClient = {
       // preview-tailor.md rule 3 tells the real tailor to carry the candidate's own header through
       // verbatim. The fake must do the same, or a flow that checks the rendered contact line is
       // grading the fake instead of the product.
-      const header = (/===CANDIDATE-HEADER===\n([\s\S]*?)\n\n/.exec(prompt) ?? [, ""])[1]!.trim();
-      const contact = header && header !== "(none captured)"
-        ? header.split("\n").filter(Boolean).join(" · ")
-        : DRAFT.contact;
+      // #310: "(none captured)" is buildTailorInput's OWN empty-header marker (the draft door
+      // passes no header text) — it must read as "no header", never be printed as a person's name.
+      const rawHeader = (/===CANDIDATE-HEADER===\n([\s\S]*?)\n\n/.exec(prompt) ?? [, ""])[1]!.trim();
+      const header = rawHeader === "(none captured)" ? "" : rawHeader;
+      const contact = header ? header.split("\n").filter(Boolean).join(" · ") : DRAFT.contact;
       const name = header ? (header.split("\n")[0] || DRAFT.name).trim() : DRAFT.name;
       return JSON.stringify({ ...DRAFT, name, contact });
     }
@@ -901,6 +902,10 @@ const { app } = buildServer({
   postings: qaPostingStore,
   pasteRecords: qaPasteRecords,
   readPastedAdvert: qaReadPastedAdvert,
+  // #310: the draft door over the SAME stage-aware fake — its ===JOB-POSTING=== branch already
+  // answers a conserving draft, so a browser journey can watch the CV brain's ending, free. The
+  // checkpoint store stays buildServer's in-memory default, like every other QA store.
+  tailorLlm: fakeLlm,
   // #304: the narrated wait's second step, off the SAME canned table the industry labeler reads
   // (#282) — one fake employer answer on this entry, not two that could disagree. Paced only HERE,
   // where a person is watching a step go by; the labeler's own path runs at its old speed, so no

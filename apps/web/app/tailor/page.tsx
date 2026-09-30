@@ -16,6 +16,7 @@ import "../tailor.css";
 import { FactBadge, type FactChipFlight } from "../factbadge";
 import { CardBody, useReducedMotion } from "../jobcard";
 import { PasteDoor } from "../pastedoor";
+import { TailorDraft } from "./draft";
 import {
   answerTailor,
   answerTailorProfile,
@@ -674,7 +675,9 @@ export default function TailorPage() {
             </div>
             <div className="t-cv-col">
               <div className="divider">{T6}</div>
-              {renderCv(tailor.cvLines)}
+              {/* #310: at the ending, "your CV for this job" stops being the mechanical fact list
+                  and becomes the CV brain's draft — with the #154 disclosure re-homed under it. */}
+              {showEnding ? <TailorDraft /> : renderCv(tailor.cvLines)}
             </div>
           </div>
 

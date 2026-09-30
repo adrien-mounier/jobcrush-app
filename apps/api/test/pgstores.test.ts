@@ -29,6 +29,13 @@ import {
   PgPasteRecordStore,
   type PasteRecordStore,
 } from "../src/pasteRecordStore.js";
+import {
+  InMemoryTailorDraftStore,
+  PgTailorDraftStore,
+  type TailorDraftRecord,
+  type TailorDraftStore,
+} from "../src/tailorDraftStore.js";
+import type { Draft } from "../src/preview.js";
 import { readCounters, resetCountersForTest } from "../src/counters.js";
 
 function pgPool() {
@@ -1510,5 +1517,73 @@ for (const [name, make] of postingDrivers) {
     expect(read?.applicationUrl).toBe("https://example.com/apply");
     // And through the list read the job's own screen resolves an adId against.
     expect((await store.listByProvider("pasted-by-you")).map((r) => r.excerpt)).toEqual([text]);
+  });
+}
+
+// #310 — the tailored-draft checkpoint: one row per (session, advert), fingerprint-keyed reuse.
+const draftFixture: Draft = {
+  name: "Maria Kowalski",
+  headline: "IT Project Manager",
+  contact: "Warsaw · maria@example.com",
+  summary: "Delivery-accountable project manager.",
+  experience: [
+    {
+      role: "IT Project Manager",
+      employer: "Nordic Retail Group",
+      location: "",
+      dates: "2021 - Present",
+      bullets: [{ text: "Led the checkout replatforming", claimIds: ["nrg-led"], outcome: "" }],
+      unprinted: [],
+    },
+  ],
+  skills: [{ label: "Delivery", items: ["Jira"] }],
+  certifications: [],
+  education: [],
+  additional: [],
+};
+const draftRecord = (fingerprint: string, notices: string[] = []): TailorDraftRecord => ({
+  draft: draftFixture,
+  conservationNotices: notices,
+  inputFingerprint: fingerprint,
+  draftedAt: "2026-09-30T08:00:00.000Z",
+});
+
+const tailorDraftDrivers: [string, () => TailorDraftStore][] = [
+  ["in-memory", () => new InMemoryTailorDraftStore()],
+  ["postgres (pg-mem)", () => new PgTailorDraftStore(pgPool())],
+];
+
+for (const [name, make] of tailorDraftDrivers) {
+  describe(`TailorDraftStore contract — ${name} (#310)`, () => {
+    let store: TailorDraftStore;
+    beforeEach(async () => {
+      store = make();
+      await store.init();
+    });
+
+    it("a draft round-trips whole — schema, notices, fingerprint, timestamp", async () => {
+      await store.put("session-1", "ad-1", draftRecord("fp-1", ["Your languages could not be placed."]));
+      const read = await store.get("session-1", "ad-1");
+      expect(read).toEqual(draftRecord("fp-1", ["Your languages could not be placed."]));
+    });
+
+    it("misses are null: an unknown session, an unknown advert, another person's draft", async () => {
+      await store.put("session-1", "ad-1", draftRecord("fp-1"));
+      expect(await store.get("session-2", "ad-1")).toBeNull();
+      expect(await store.get("session-1", "ad-2")).toBeNull();
+    });
+
+    it("a redraft for the same (session, advert) replaces the prior record", async () => {
+      await store.put("session-1", "ad-1", draftRecord("fp-1"));
+      await store.put("session-1", "ad-1", draftRecord("fp-2"));
+      expect((await store.get("session-1", "ad-1"))?.inputFingerprint).toBe("fp-2");
+    });
+
+    it("a stored row the current Draft schema rejects reads as a miss, never a throw", async () => {
+      const broken = draftRecord("fp-1");
+      // A draft with no experience at all fails Draft.parse (min(1)) — the shape a schema bump leaves behind.
+      await store.put("session-1", "ad-1", { ...broken, draft: { ...draftFixture, experience: [] } as unknown as Draft });
+      expect(await store.get("session-1", "ad-1")).toBeNull();
+    });
   });
 }

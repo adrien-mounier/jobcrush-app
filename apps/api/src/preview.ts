@@ -333,6 +333,15 @@ export interface TailorInputOpts {
   /** #163 / ADR-0002 clause 4: the dimensions the advert gates on (blocking requirements from the
    *  ad-requirements store). A declared fact matching one must also rise into the summary. */
   advertTests?: string[];
+  /** #310 (#66): requirements the candidate answered NO to, in the advert's own words. Carried into
+   *  the input as never-print context — a denial must never surface as positive substance, nor be
+   *  softened into a stretch (#287 c1-c3; the mechanical page check is #311's). The claims list
+   *  already cannot contain them (negatives never enter confirmed()), so this is the second lock:
+   *  the model is told the denial exists rather than left to rediscover the gap and fill it. */
+  negatives?: string[];
+  /** #310 (#66): advert requirements still unanswered — neither covered nor denied. Told to the
+   *  model so an open gap is left visibly open, never presented as satisfied. */
+  openPoints?: string[];
 }
 
 export function buildTailorInput(
@@ -356,11 +365,24 @@ export function buildTailorInput(
       `matches one of these must ALSO be woven into the summary — it stays in its usual section too. ` +
       `Never invent a fact to satisfy a gate.\n\n`
     : "";
+  // #310 (#66): the card's negatives and open points, as context the tailor must respect — never as
+  // material it may render from. Empty/absent → no block, byte-identical to the pre-#310 input.
+  const negativeLines = opts.negatives?.length
+    ? `The candidate has said NO to these — never print them, never imply them, and never soften ` +
+      `one into a stretch:\n${opts.negatives.map((n) => `- ${n}`).join("\n")}\n`
+    : "";
+  const openLines = opts.openPoints?.length
+    ? `These advert requirements are still unanswered — leave them out, and never present one as ` +
+      `satisfied:\n${opts.openPoints.map((o) => `- ${o}`).join("\n")}\n`
+    : "";
+  const cardContext =
+    negativeLines || openLines ? `===CARD-CONTEXT===\n${negativeLines}${openLines}\n` : "";
   return (
     `${tailorPrompt()}\n` +
     `===CANDIDATE-HEADER===\n${headerText.slice(0, 600) || "(none captured)"}\n\n` +
     `Roles:\n${roles}\n\nClaims:\n${claimLines}\n\n` +
     advertTests +
+    cardContext +
     `===JOB-POSTING===\n${posting.title} at ${posting.company} (${posting.location})\n\n${posting.excerpt}\n`
   );
 }

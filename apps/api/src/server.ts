@@ -61,6 +61,8 @@ import { runWithVisitor } from "./llmVisitorContext.js";
 import { InMemoryUsageLedgerStore, type UsageLedgerStore } from "./usageLedgerStore.js";
 import { InMemoryPostingStore, type PostingStore } from "./postingStore.js";
 import { InMemoryPasteRecordStore, type PasteRecordStore } from "./pasteRecordStore.js";
+import { InMemoryTailorDraftStore, type TailorDraftStore } from "./tailorDraftStore.js";
+import type { LlmClient } from "./llm.js";
 import type { ReadPastedAdvert } from "./pastedAdvert.js";
 import { makeBroughtJobs } from "./broughtJobs.js";
 import type { EmployerLookup } from "./employerLookup.js";
@@ -177,6 +179,12 @@ export interface BuildOptions {
    *  paste door answers 503 rather than inventing a posting, the same rule readAd/judge follow:
    *  real model calls are wired in main.ts only, never defaulted here. */
   readPastedAdvert?: ReadPastedAdvert;
+  /** #310 — the tailored-draft checkpoint, one row per (session, advert), swept with the session. */
+  tailorDrafts?: TailorDraftStore;
+  /** #310: the model client behind the CV brain's draft call. Absent → the draft door answers 503
+   *  rather than inventing a CV — the readPastedAdvert rule; main.ts wires the metered real client,
+   *  qa-main.ts its stage-aware fake, tests their own. */
+  tailorLlm?: LlmClient;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */
@@ -229,6 +237,7 @@ export function buildServer(opts: BuildOptions = {}) {
   const usageLedger = opts.usageLedger ?? new InMemoryUsageLedgerStore();
   const postings = opts.postings ?? new InMemoryPostingStore();
   const pasteRecords = opts.pasteRecords ?? new InMemoryPasteRecordStore();
+  const tailorDrafts = opts.tailorDrafts ?? new InMemoryTailorDraftStore();
   const app = Fastify({ logger: process.env.NODE_ENV !== "test" }).withTypeProvider<ZodTypeProvider>();
   guestbook.init().catch((err) => app.log.error(err, "guestbook init failed"));
   familyLearning.init().catch((err) => app.log.error(err, "family learning init failed"));
@@ -238,6 +247,7 @@ export function buildServer(opts: BuildOptions = {}) {
   // in-memory pair usable without each test remembering to call it.
   postings.init().catch((err) => app.log.error(err, "posting store init failed"));
   pasteRecords.init().catch((err) => app.log.error(err, "paste record store init failed"));
+  tailorDrafts.init().catch((err) => app.log.error(err, "tailor draft store init failed"));
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.register(cookie);
@@ -506,6 +516,13 @@ export function buildServer(opts: BuildOptions = {}) {
       (async (sessionId, extraction) => {
         if (extraction.phone) await contact.put(sessionId, "phone", { ...extraction.phone, origin: "read" });
         if (extraction.email) await contact.put(sessionId, "email", { ...extraction.email, origin: "read" });
+        // #310: the CV's letterhead, kept for the draft door — the engine prints name/city from it.
+        if (extraction.header)
+          await contact.put(sessionId, "header", {
+            value: extraction.header,
+            origin: "read",
+            sourceText: extraction.header,
+          });
       }),
     // #161: shared by both intake paths, same convention as persistContact above — sessionId travels
     // as a plain argument so job-block capture works uniformly on either upload or paste.
@@ -630,6 +647,12 @@ export function buildServer(opts: BuildOptions = {}) {
       broughtJobs: makeBroughtJobs({ postings, pasteRecords }),
       readAd: opts.readAd,
       judge: opts.judge,
+      // #310: the draft doors — the SAME job/progress store the front and paste doors narrate over,
+      // the contact store whose corrected values win the render, and the checkpoint store above.
+      jobs: store,
+      contact,
+      tailorDrafts,
+      tailorLlm: opts.tailorLlm,
     }),
   );
   app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail, limiter: opts.authRateLimiter }));

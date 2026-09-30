@@ -28,6 +28,7 @@ import { getPool } from "./db.js";
 import { usageLedgerStoreFromEnv } from "./usageLedgerStore.js";
 import { postingStoreFromEnv } from "./postingStore.js";
 import { pasteRecordStoreFromEnv } from "./pasteRecordStore.js";
+import { tailorDraftStoreFromEnv } from "./tailorDraftStore.js";
 import { makePastedAdvertReader } from "./pastedAdvert.js";
 import { unmappedLabelStoreFromEnv } from "./unmappedLabels.js";
 import { techmapProviderFromEnv } from "./postingProvider.js";
@@ -84,6 +85,8 @@ const postingStore = postingStoreFromEnv(process.env.DATABASE_URL);
 // #303 (#294 clause 11): who pasted which advert, and when — the per-person record the ageing
 // clock (#305) counts from. Session-keyed and swept with the session; see purge.ts.
 const pasteRecords = pasteRecordStoreFromEnv(process.env.DATABASE_URL);
+// #310: the tailored-draft checkpoint — durable so leaving the app never costs him the draft.
+const tailorDrafts = tailorDraftStoreFromEnv(process.env.DATABASE_URL);
 // #252: the vocabulary-growth feed survives a deploy — one store, shared by both labeler halves
 // and by the ops route that reads it back.
 const unmappedLabels = unmappedLabelStoreFromEnv(process.env.DATABASE_URL);
@@ -149,6 +152,7 @@ try {
   await pasteRecords.init();
   await unmappedLabels.init();
   await employerLookups.init();
+  await tailorDrafts.init();
 } catch (err) {
   console.error("store init failed", err);
   process.exit(1);
@@ -256,6 +260,10 @@ const { app } = buildServer({
   // can make a live call by accident and a build without it answers honestly instead of inventing
   // a posting.
   readPastedAdvert: makePastedAdvertReader(metered("pasted-advert-reading", llm)),
+  // #310: the CV brain's draft call — bound at last (#272 unbound it). Same metering stage the old
+  // upload-pipeline binding used, so /ops/spend keeps one name for the same work.
+  tailorLlm: metered("preview-tailor", llm),
+  tailorDrafts,
   // #304: the paste door's "looking up the employer" step, and it is the SAME lookup the industry
   // labeler uses — one shared cache, one payment per company ever, whichever of the two asks
   // first. Wired only with a real Anthropic key, for #282's own reason: the lookup is a
