@@ -1043,11 +1043,29 @@ function LocationPanel({
   const [wrOpenMarket, setWrOpenMarket] = useState<string | null>(null);
   const [wrSaving, setWrSaving] = useState(false);
   const [wrError, setWrError] = useState(false);
-  const wrDoorRef = useRef<HTMLButtonElement>(null);
   const wrFirstOptRef = useRef<HTMLButtonElement>(null);
+  // #321: work rights render one door per market, so the focus-return needs one ref per market —
+  // a single shared ref would point at whichever row rendered last. The ref lives on the CLOSED
+  // door (the button the person lands back on); the cancel button inside the open door unmounts.
+  const wrDoorRefs = useRef(new Map<string, HTMLButtonElement>());
+  const wrRestoreMarketRef = useRef<string | null>(null);
+  // A fresh callback identity each render means React detaches (null → delete) then re-attaches
+  // (set) every pass, and the answered/unanswered branches put DIFFERENT buttons under the same
+  // market key. Safe because refs settle before effects run: by the time the effect below reads the
+  // map, the delete and the set for this render have both happened, in that order.
+  const setWrDoorRef = (market: string) => (el: HTMLButtonElement | null) => {
+    if (el) wrDoorRefs.current.set(market, el);
+    else wrDoorRefs.current.delete(market);
+  };
 
   useEffect(() => {
-    if (wrOpenMarket) wrFirstOptRef.current?.focus();
+    if (wrOpenMarket) {
+      wrFirstOptRef.current?.focus();
+    } else if (wrRestoreMarketRef.current) {
+      const market = wrRestoreMarketRef.current;
+      wrRestoreMarketRef.current = null;
+      wrDoorRefs.current.get(market)?.focus();
+    }
   }, [wrOpenMarket]);
 
   // A market list change never carries a door's open state across — an open question about a
@@ -1066,10 +1084,10 @@ function LocationPanel({
     setWrError(false);
     setWrOpenMarket(market);
   }
-  function closeWrDoor() {
+  function closeWrDoor(market: string) {
+    wrRestoreMarketRef.current = market;
     setWrOpenMarket(null);
     setWrError(false);
-    requestAnimationFrame(() => wrDoorRef.current?.focus());
   }
 
   async function pickWorkRights(row: ProfileLocation["workRights"][number], option: string) {
@@ -1091,8 +1109,8 @@ function LocationPanel({
     }
     onAnnounce(`Work rights for ${row.market}: ${option}.`);
     setWrSaving(false);
+    wrRestoreMarketRef.current = row.market;
     setWrOpenMarket(null);
-    requestAnimationFrame(() => wrDoorRef.current?.focus());
   }
 
   return (
@@ -1239,7 +1257,7 @@ function LocationPanel({
                 if (e.key === "Escape") {
                   e.preventDefault();
                   e.stopPropagation();
-                  closeWrDoor();
+                  closeWrDoor(row.market);
                 }
               }}
             >
@@ -1264,7 +1282,12 @@ function LocationPanel({
                   );
                 })}
               </div>
-              <button type="button" ref={wrDoorRef} className="rdoor" disabled={wrSaving} onClick={closeWrDoor}>
+              <button
+                type="button"
+                className="rdoor"
+                disabled={wrSaving}
+                onClick={() => closeWrDoor(row.market)}
+              >
                 {row.answer !== null ? WR_KEEP : "Not now"}
               </button>
               {wrSaving && <p className="rbusy">{CX_SAVING}</p>}
@@ -1279,14 +1302,24 @@ function LocationPanel({
             <>
               <p className="rrole">{row.answer}</p>
               <p className="src">{P24}</p>
-              <button type="button" className="rdoor" onClick={() => openWrDoor(row.market)}>
+              <button
+                type="button"
+                ref={setWrDoorRef(row.market)}
+                className="rdoor"
+                onClick={() => openWrDoor(row.market)}
+              >
                 {WR_CHANGE}
               </button>
             </>
           ) : (
             <>
               <p className="rrole rmute">{`${row.question}${WR_TOLD_TAIL}`}</p>
-              <button type="button" className="rdoor" onClick={() => openWrDoor(row.market)}>
+              <button
+                type="button"
+                ref={setWrDoorRef(row.market)}
+                className="rdoor"
+                onClick={() => openWrDoor(row.market)}
+              >
                 {WR_ASK}
               </button>
             </>

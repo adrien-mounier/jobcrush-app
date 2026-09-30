@@ -1559,6 +1559,73 @@ test("#188 AC4/AC5/AC6/AC7: work rights are market-keyed — a switch never cred
   await expect(yesOption).toHaveAttribute("aria-current", "true");
 });
 
+test("#321: with two markets on the rail, each work-rights door hands focus back to its OWN door button", async ({
+  page,
+}) => {
+  await stubSession(page);
+  // Two markets at once is the case a single shared ref cannot serve — it would point at whichever
+  // row rendered last, so Paris's door would steal the focus Hong Kong's close owes back.
+  const areas = [fixtureArea("Paris")!, fixtureArea("Hong Kong")!];
+  let current: ProfileState = {
+    ...PROFILE,
+    location: { areas, workRights: [WR_PARIS, WR_HONG_KONG_UNANSWERED] },
+  };
+  await page.route("**/api/profile", async (route) => {
+    await route.fulfill({ json: current });
+  });
+  await page.route("**/api/sessions/me/intent", async (route) => {
+    await route.fulfill({ json: intentJson(areas) });
+  });
+  await page.route("**/api/onboarding/cards", async (route) => {
+    await route.fulfill({ json: { stage: "deck", cards: [], authed: true, pendingCount: 0 } });
+  });
+  await page.route("**/api/onboarding/discovery/answer", async (route) => {
+    current = {
+      ...current,
+      location: {
+        areas,
+        workRights: [WR_PARIS, { ...WR_HONG_KONG_UNANSWERED, answer: "Ask me later" }],
+      },
+    };
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.goto("/profile");
+
+  // Every locator here is scoped to its market's own row, never a position: "the second door in
+  // DOM order" is a property the last-render-wins bug this ticket fixes would also satisfy.
+  const loc = page.locator(".rloc");
+  const parisRow = loc.locator(".rrow").filter({ hasText: "Work rights · Paris" });
+  const hkRow = loc.locator(".rrow").filter({ hasText: "Work rights · Hong Kong" });
+  const parisDoor = parisRow.getByRole("button", { name: "Change this answer" });
+  const hkDoor = hkRow.getByRole("button", { name: "Answer it now" });
+  await expect(parisDoor).toBeVisible();
+  await expect(hkDoor).toBeVisible();
+
+  // Backing out of the SECOND market's door returns focus to that market's door, not the first's.
+  await openDoor(hkDoor);
+  await expect(hkRow.getByText(WR_HONG_KONG_UNANSWERED.question)).toBeVisible();
+  await hkRow.getByRole("button", { name: "Not now" }).click();
+  await expect(hkDoor).toBeFocused();
+
+  // And the FIRST market's door, while the second is still on screen below it.
+  await parisDoor.click();
+  await expect(parisRow.getByText(WR_PARIS.question)).toBeVisible();
+  await parisRow.getByRole("button", { name: "Keep my answer" }).click();
+  await expect(parisDoor).toBeFocused();
+
+  // Escape is the third close path, and it returns focus the same way.
+  await parisDoor.click();
+  await expect(parisRow.getByText(WR_PARIS.question)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(parisDoor).toBeFocused();
+
+  // Saving an answer returns focus to the door the answer belongs to — which has now become the
+  // "Change this answer" door of the Hong Kong row.
+  await hkDoor.click();
+  await hkRow.getByRole("button", { name: "Ask me later" }).click();
+  await expect(hkRow.getByRole("button", { name: "Change this answer" })).toBeFocused();
+});
+
 test("#188 AC7: no in-place editing — the section shows plain values and doors, never a free-standing input", async ({
   page,
 }) => {
