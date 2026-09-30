@@ -162,6 +162,36 @@ export function requirementCovered(requirement: AdRequirementV1, factTokens: Set
   return requirementFit(requirement, [factTokens]) === 1;
 }
 
+/** #311: the token roots of a free text — the same normalisation the scorer reads evidence with,
+ *  exported so the denied-capability checks speak the tick's own vocabulary. */
+export function textTokens(text: string): Set<string> {
+  return tokenize(text);
+}
+
+/** #311 (#287 c2): does `tokens` (one page element's words) state the WHOLE denied phrase? True only
+ *  when every meaningful token root of the phrase is present — deliberately stricter than the
+ *  half-tokens coverage rule above, because this check makes a draft fail: a denial about
+ *  "experience with SQL" must flag "SQL Server experience", never every line that says "experience".
+ *  The stated ceiling (#287 c2): it catches the denial's own words, never a paraphrase. */
+export function phraseStated(phrase: string, tokens: Set<string>): boolean {
+  const words = tokenize(phrase);
+  if (words.size === 0) return false;
+  return overlapCount(words, tokens) === words.size;
+}
+
+/** #311 (#287 c4): does this requirement ask, in at least one of its clauses, for what the denial's
+ *  words say? The clause fit is the scorer's own "covered" convention (half the clause's meaningful
+ *  tokens) — PLUS a two-shared-words floor (#311 QA gate defect 1): a short clause like "delivery
+ *  discipline" or "coordinate stakeholders" is half-covered by ONE domain-common word, which had a
+ *  single "No" recited across most of the deck. One shared word is never evidence that the posting
+ *  asks for the denied capability; two is the cheapest honest bar, and the stated words-not-
+ *  paraphrase ceiling absorbs what it now misses (a compound floor question may go unnamed). */
+export function anyClauseAsked(requirement: string, deniedTokens: Set<string>): boolean {
+  return requirementClauses(requirement).some(
+    (clause) => overlapCount(clause, deniedTokens) >= 2 && bestClauseFit(clause, [deniedTokens]) === 1,
+  );
+}
+
 /**
  * The instant match tick (#19): a deterministic, IO-free 0..100 score against an ad's ranked,
  * band-weighted requirements.

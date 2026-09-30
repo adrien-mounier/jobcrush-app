@@ -1118,3 +1118,83 @@ describe("#163 lint — advert-tested promotion and corrected dates", () => {
     expect(conservationIssues(claims, fixed, blocks)).toEqual([]);
   });
 });
+
+// --- #311 (#287 c1-c3): a denied capability never prints, is never implied, never stretches --------
+
+describe("#311 the page check — a denial's own words must not appear anywhere on the page", () => {
+  const DENIED = "SAP S/4HANA migration experience";
+
+  it("flags a summary that states the denial, fatally", async () => {
+    const lossy: Draft = {
+      ...sampleDraft,
+      summary: "Seasoned in SAP S/4HANA migration experience across retail.",
+    };
+    const issues = conservationIssues(await recordedClaims(), lossy, [], [], [DENIED]);
+    const hit = issues.find((i) => i.fatal);
+    expect(hit).toBeDefined();
+    expect(hit!.message).toContain("denied capability stated");
+    expect(hit!.visitor).toContain("you told me you don't have");
+  });
+
+  it("catches the denial anywhere on the page — a skills entry included", async () => {
+    const lossy: Draft = {
+      ...sampleDraft,
+      skills: [{ label: "Delivery", items: ["SAP S/4HANA migration experience", "Jira"] }],
+    };
+    expect(conservationIssues(await recordedClaims(), lossy, [], [], [DENIED]).some((i) => i.fatal)).toBe(true);
+  });
+
+  it("never flags a page that merely shares a generic word with the denial", async () => {
+    // sampleDraft's bullets say "Led", "Managed a budget", "delivered" — none states the denial.
+    const issues = conservationIssues(await recordedClaims(), sampleDraft, [], [], [
+      "Experience leading SAP migrations",
+    ]);
+    expect(issues.filter((i) => i.fatal)).toEqual([]);
+  });
+
+  it("tailorDraft NEVER ships a denial-stating draft — after the retry it fails instead of falling back", async () => {
+    const lossy: Draft = {
+      ...sampleDraft,
+      summary: "Seasoned in SAP S/4HANA migration experience across retail.",
+    };
+    await expect(
+      tailorDraft(await recordedClaims(), matchPosting([]), llmReturning(lossy), "", { negatives: [DENIED] }),
+    ).rejects.toThrow(/denied capability stated/);
+  });
+
+  it("the retry is real: a denial-stating first draft followed by a clean one ships clean", async () => {
+    const lossy: Draft = {
+      ...sampleDraft,
+      summary: "Seasoned in SAP S/4HANA migration experience across retail.",
+    };
+    let calls = 0;
+    const llm: LlmClient = {
+      complete: async () => JSON.stringify(++calls === 1 ? lossy : sampleDraft),
+    };
+    const { draft, conservationNotices } = await tailorDraft(
+      await recordedClaims(),
+      matchPosting([]),
+      llm,
+      "",
+      { negatives: [DENIED] },
+    );
+    expect(calls).toBe(2);
+    expect(draft.summary).toBe(sampleDraft.summary);
+    expect(conservationNotices).toEqual([]);
+  });
+});
+
+// #311 code-review finding: role titles and employers are model-written page text too — a denial
+// restated as a role title is the same handed capability as a bullet stating it.
+describe("#311 the page check covers role titles", () => {
+  it("flags a denial restated as an experience role title", async () => {
+    const lossy: Draft = {
+      ...sampleDraft,
+      experience: [{ ...sampleDraft.experience[0]!, role: "SAP S/4HANA migration experience lead" }],
+    };
+    const issues = conservationIssues(await recordedClaims(), lossy, [], [], [
+      "SAP S/4HANA migration experience",
+    ]);
+    expect(issues.some((i) => i.fatal)).toBe(true);
+  });
+});

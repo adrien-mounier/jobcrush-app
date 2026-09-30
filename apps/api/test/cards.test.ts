@@ -292,11 +292,16 @@ describe("#19 GET /onboarding/cards", () => {
     expect(fitIds).toContain(discoveryClaimId(END_TO_END));
     expect(fitIds).toContain(discoveryClaimId(STAKEHOLDERS));
 
-    // The recorded "no" shows up in askedClosed on every card — a closed question, not a gap:
-    // it's never confirmed (fit) and it's not what dontYet renders (dontYet is the AD's own
-    // requirements, not discovery items).
+    // #311 (#287 c4): the recorded "no" is NOT recited on every card any more — a denial is named
+    // only on a posting that asks for it in words the denial covers, with a two-shared-words floor
+    // (the QA gate's defect 1: one common word had a single "No" recited across most of the deck).
+    // This floor question is compound ("…risks, dependencies, timelines, or budgets?") and shares
+    // at most one word with any clause of these fixture adverts, so under the stated words-not-
+    // paraphrase ceiling it is named NOWHERE — and never a confirmed fact. The positive path (a
+    // denial named on an ad that asks in matching words) is pinned by tailor.test.ts's #311 suite
+    // and the cross-ad assertion at the end of this file's tailor-"no" test.
     for (const card of body.cards) {
-      expect(card.askedClosed.map((f) => f.id)).toContain(discoveryClaimId(RISKS));
+      expect(card.askedClosed.map((f) => f.id)).not.toContain(discoveryClaimId(RISKS));
       expect(card.fit.map((f) => f.id)).not.toContain(discoveryClaimId(RISKS));
     }
   });
@@ -447,8 +452,10 @@ describe("#19 GET /onboarding/cards", () => {
     expect(otherAfter.dontYet).toEqual(otherBefore.dontYet);
     expect(otherAfter.bubble).toEqual(otherBefore.bubble);
     expect(otherAfter.matchPct).toBe(otherBefore.matchPct);
-    // askedClosed is session-wide, not ad-scoped: every recorded "no" lands on every card, exactly as
-    // it already did for discovery negatives (#19). Unchanged by #29 — pinned so it stays deliberate.
+    // #311 (#287 c4): no longer session-wide. The other ad names this denial ONLY because it asks
+    // for the same capability in words the denial covers (these fixture adverts share requirement
+    // phrasing); an ad that asked for nothing like it would stay untouched — the "named only on the
+    // postings that actually ask for it" rule, pinned at the unit seam in tailor.test.ts's #311 suite.
     expect(otherAfter.askedClosed.length).toBe(otherBefore.askedClosed.length + 1);
   });
 

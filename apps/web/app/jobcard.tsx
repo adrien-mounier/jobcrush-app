@@ -11,7 +11,12 @@ import type { JobCard } from "../lib/api";
 
 const H1 = "Where you fit";
 const H2 = "Where you don't — yet";
-const H3 = "Asked and closed";
+// #311 (#287 c4): was "Asked and closed" — a denial named on a card is now a statement about HIS
+// OWN answer, on the one posting that asks for it, so the heading says exactly that.
+const H3 = "You told me you don't have this";
+// #311 (#287 c6): the door on every named denial's row — tapping it turns the row back into a
+// question (rendered by the Tailor step's own question dock).
+const DOOR = "Changed? Add it";
 // #162 AC6: a bar we could not test is not a bar the person failed — said plainly. The note claims
 // only what is true: the years total this bar is measured against does not exist yet, and adding
 // the dates underneath is what changes it.
@@ -239,6 +244,7 @@ export function CardBody({
   retrying,
   onRetry,
   applyRow,
+  onGrowDoor,
 }: {
   card: JobCard;
   headingRef: RefObject<HTMLHeadingElement | null>;
@@ -255,6 +261,10 @@ export function CardBody({
    *  boolean would put the decision in this file, where a later caller could get it the wrong way
    *  round; a slot puts it in the one screen that is allowed to have it. */
   applyRow?: ReactNode;
+  /** #311 — the "Changed? Add it" door on a named denial's row, same slot principle as applyRow:
+   *  only the Tailor step passes it (the door belongs with the questions, before the draft), so the
+   *  deck card structurally cannot grow one. Called with the row's claim id. */
+  onGrowDoor?: (claimId: string) => void;
 }) {
   const metaLine1 = [card.company, card.place].filter(Boolean).join(" · ");
   const metaLine2 = [card.salary, card.pattern].filter(Boolean).join(" · ");
@@ -392,8 +402,8 @@ export function CardBody({
             <p className="untested-note">{NOT_TESTED_NOTE}</p>
           </>
         )}
-        {/* Omitted when empty — no discovery "no" recorded yet is the common 2a case, but a
-            session that already closed one before reaching the deck still shows it here. */}
+        {/* Omitted when empty — which #311 makes the common case: a denial is named here only when
+            THIS posting asks for it (server-filtered), never recited on every card. */}
         {card.askedClosed.length > 0 && (
           <>
             <h3>{H3}</h3>
@@ -403,6 +413,12 @@ export function CardBody({
                   ·
                 </span>
                 <span>{f.text}</span>
+                {/* #311: the door — rendered only where the Tailor step passed the slot. */}
+                {onGrowDoor && (
+                  <button type="button" className="grow-door" onClick={() => onGrowDoor(f.id)}>
+                    {DOOR}
+                  </button>
+                )}
               </div>
             ))}
           </>

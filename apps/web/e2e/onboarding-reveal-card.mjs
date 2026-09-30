@@ -92,7 +92,10 @@ await qa.expectVisible(page.locator(".jobcard h2").first(), "card leads with the
 await qa.expectVisible(page.locator(".bubble"), "the highlight bubble sits under the score (strongest hit + biggest open)");
 await qa.expectVisible(page.getByRole("heading", { name: "Where you fit" }), "'Where you fit' — my confirmed facts");
 await qa.expectVisible(page.getByRole("heading", { name: "Where you don't — yet" }), "'Where you don't — yet' — the ad's open asks");
-await qa.expectVisible(page.getByRole("heading", { name: "Asked and closed" }), "'Asked and closed' — the recorded 'no'");
+// #311 (#287 c4): the recorded "no" is named only on a posting that asks for it in the denial's
+// own words — the top card may honestly show nothing. Note what this card does, assert nothing.
+const deniedHeadings = await page.getByRole("heading", { name: "You told me you don't have this" }).count();
+qa.note(`#311 denial naming: 'You told me you don't have this' present on the top card = ${deniedHeadings} (named only where the posting asks)`);
 
 // 5) The ad is folded shut, last (AC4).
 await qa.expectVisible(page.getByText("Read the ad in full"), "the ad is present, folded shut, last");
@@ -106,7 +109,10 @@ const crosses = await page.evaluate(() => {
 });
 qa.note(`AC5 never-a-cross: cross-glyph counts in the rendered card = ${JSON.stringify(crosses)} (all expected 0)`);
 await qa.expectVisible(page.locator(".row.fit .mk").first(), "a gold ✓ marks a fit row");
-await qa.expectVisible(page.locator(".row.settled .mk").first(), "a dim · marks an asked-and-closed row");
+// #311: the settled · row exists only when THIS card names the denial (see the heading note above).
+if (deniedHeadings > 0) {
+  await qa.expectVisible(page.locator(".row.settled .mk").first(), "a dim · marks a named denial's row");
+}
 
 const ok = await qa.finish();
 process.exit(ok ? 0 : 1);

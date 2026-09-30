@@ -2,6 +2,43 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-01 — #311 closed: a "No" never prints, and growing is one step (V4 complete)
+
+`/implement` -> `/code-review` (both axes) -> `/qa-gate` (**NO-GO**, fixed, re-ran, **GO**) on **#311**
+(#301 slice 3, #287's clauses 1-4 and 6-10 as running code). One closing commit; not pushed on the
+owner's instruction — another session's CI run was in flight.
+
+**What shipped.** (1) *Never on the page:* every unsuperseded denial rides into the draft input in
+its own words, and a new fatal conservation check scans every printed element of the finished page
+(roles and employers included) for them — a draft that still states a denial after the retry FAILS
+honestly instead of shipping with a notice, because a page he cannot defend must not exist. (2)
+*Named only where asked:* `askedClosed` stopped being session-wide — a denial appears on a card only
+when that posting asks for it (exact claim id for this ad's own "No", word-match elsewhere) and only
+while the ask is still open; the heading became "You told me you don't have this". (3) *The door:*
+`TailorState.doors` carries one "Changed? Add it" per named row, rendered by the same question dock
+and answered through the same `/tailor/answer` path with coarse "since when?" choices (this year /
+1-2 years / 3 or more); the grow writes a NEW dated claim under its own `-grew` id — the old "No"
+stays untouched at its original decision seq, the requirement re-scores "+N%", and the row leaves
+the card as the dated fact lands in fit. The deck card names denials but never grows a door (the
+door belongs with the questions, before the draft). Contracts untouched; ratchet untouched.
+
+**The gate's catch.** All suites green, mocked browser tests green — and the first verdict was
+NO-GO: the word-match counted a denial as "asked" when it half-covered any comma-separated clause,
+so a two-word clause like "delivery discipline" matched on the single common word "delivery"; one
+"No" was recited across most of the deck, and the door then quoted the *matched* requirement as the
+thing he denied — one tap added a dated line he never stated. Fix: `anyClauseAsked` now also needs
+**two shared word roots** (one common word is never an ask), and a word-matched door quotes the
+denial's own words ("You said no to: …"), never "you told me you don't have this" about a
+requirement he never answered. Re-run: GO, 12/12 on the exact repro, 23/23 smoke, 51/51 affected
+specs. QA left two regression journeys in `apps/web/e2e/` (grow-door, denial-scope).
+
+**Stated ceilings, for the owner.** The checks match words, never paraphrase (the ticket's carried
+risk): a compound floor question ("…risks, dependencies, timelines, or budgets?") now names nowhere
+on the fixture deck under the two-word floor, and the page check misses a denial restated from a
+subset of its words or with a short inflection ("Owned" vs "Own") — the prompt's never-print block
+remains the first defence there. Minor copy note: a named row still reads "Not applicable — …"
+under the new heading; pre-existing wording, one string, owner's call.
+
 ## 2026-10-01 — #310 closed: the draft is the CV brain's, and it shows what it held back
 
 `/implement` -> `/code-review` (both axes) -> `/qa-gate` (**NO-GO**, fixed, re-ran, **GO**) on **#310**

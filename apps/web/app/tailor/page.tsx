@@ -25,6 +25,7 @@ import {
   getTailor,
   type CvSection,
   type DiscoveryCvLine,
+  type GrowDoor,
   type JobCard,
   type TailorQuestion,
   type TailorState,
@@ -56,6 +57,7 @@ const T16 = "Save it and come back later";
 const T19 = "Saved";
 const T21 = "Back to the deck";
 const T22 = "Saved to your profile"; // #307: the gone screen's heading — the answer is kept; the job is not
+const T23 = "No change"; // #311: closes an open door without saving anything — his "No" stands
 const DROP_FAILED = "Couldn't drop this job — try again.";
 
 const SCORE_TWEEN_MS = 680;
@@ -157,6 +159,10 @@ export default function TailorPage() {
   const [finishedEarly, setFinishedEarly] = useState(false);
   const [answering, setAnswering] = useState<{ requirementId: string; answer: string } | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
+  // #311: the open "Changed? Add it" door — the denial row turned back into a question. Renders in
+  // the same question dock and posts through answerTailor (the existing answer path); the server
+  // keeps the old "No" and lands a new fact dated by the tapped choice.
+  const [doorAsk, setDoorAsk] = useState<GrowDoor | null>(null);
   // #307: the after-line of a permanent answer that took the tailored job itself off the deck.
   const [goneNote, setGoneNote] = useState<string | null>(null);
   // #309 AC3: why THIS job went — the withdrawal's named reason, above the after-line.
@@ -299,6 +305,14 @@ export default function TailorPage() {
     setLiveMessage(goneReason ? `${goneReason} ${goneNote}` : goneNote);
   }, [screen, goneNote, goneReason]);
 
+  // #311: an opened door is a new question in the dock — focus its first option and announce it,
+  // the same convention as the askKey effect above (which cannot see it: doors are not queue state).
+  useEffect(() => {
+    if (!doorAsk) return;
+    firstControlRef.current?.focus();
+    setLiveMessage(doorAsk.question);
+  }, [doorAsk]);
+
   // Scrolls the row that just changed into view, then flashes it — never the other way round (the
   // prototype's rule). Runs after `tailor` actually re-renders with the row in its new list, so the
   // `[data-req]` lookup below always finds the element in its post-answer position.
@@ -435,6 +449,7 @@ export default function TailorPage() {
       // delta a no-op (this screen has no correction UI today, but the guard costs nothing to keep).
       setBadgeCount((c) => Math.max(c, next.factCount));
       if (flyFromRef.current) setFly({ rect: flyFromRef.current, label: answer });
+      setDoorAsk(null); // #311: an answered door closes; the refreshed state no longer carries it
       setTailor(next);
       // the tween's `from` is what's actually on screen right now, not the last server number — if a
       // prior tween is still mid-flight this keeps the new one visually continuous instead of jumping.
@@ -671,13 +686,21 @@ export default function TailorPage() {
                 pct={displayPct}
                 bumped={scoreBumped}
                 landedId={landedId}
+                // #311: the "Changed? Add it" door on each named denial's row — Tailor only (the
+                // door belongs with the questions, before the draft; the deck passes nothing).
+                onGrowDoor={(claimId) => {
+                  const door = tailor.doors.find((d) => d.claimId === claimId);
+                  if (door) setDoorAsk(door);
+                }}
               />
             </div>
             <div className="t-cv-col">
               <div className="divider">{T6}</div>
               {/* #310: at the ending, "your CV for this job" stops being the mechanical fact list
-                  and becomes the CV brain's draft — with the #154 disclosure re-homed under it. */}
-              {showEnding ? <TailorDraft /> : renderCv(tailor.cvLines)}
+                  and becomes the CV brain's draft — with the #154 disclosure re-homed under it.
+                  #311: keyed on the ledger so a door answered AT the ending (a new fact) remounts
+                  it — the stored draft no longer matches the fact set, and the remount rebuilds. */}
+              {showEnding ? <TailorDraft key={tailor.ledger.length} /> : renderCv(tailor.cvLines)}
             </div>
           </div>
 
@@ -685,7 +708,18 @@ export default function TailorPage() {
             {/* #309 AC4: a job he brought that his own answers would have withdrawn (were it a
                 found job) stays — and says why in one line. Server-composed, reload-stable. */}
             {tailor.stayed && <p className="notice stayed">{tailor.stayed}</p>}
-            {!showEnding ? (
+            {/* #311: an open door takes the question slot — the row became a question again, on the
+                existing answer path. Available at the ending too: answering there honestly redrafts
+                (the checkpoint no longer matches the fact set), which is the price of growing late,
+                not a reason to lock the door. T23 closes it without saving; his "No" stands. */}
+            {doorAsk ? (
+              <>
+                {renderQuestion(doorAsk)}
+                <button type="button" className="skip" disabled={!!answering} onClick={() => setDoorAsk(null)}>
+                  {T23}
+                </button>
+              </>
+            ) : !showEnding ? (
               <>
                 <p className="why">{T4}</p>
                 {tailor.questions[0] && renderQuestion(tailor.questions[0])}

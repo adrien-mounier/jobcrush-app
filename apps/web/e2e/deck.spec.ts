@@ -241,7 +241,10 @@ test("screen 2a: the reveal, then the top card's ring, all three marks, and the 
   await expect(page.getByRole("img", { name: /% match/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Where you fit" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Where you don't — yet" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Asked and closed" })).toBeVisible();
+  // #311 (#287 c4): the recorded "no" is no longer recited on every card — the denial's section
+  // appears only on a posting that asks for it in the denial's own words, which this live deck's
+  // top card may or may not. Its anatomy (heading, · mark, no door on the deck) is pinned by the
+  // stubbed "#311: a named denial" test below; what this live test still owes is "never a cross".
 
   // The ad is folded shut, last.
   await expect(page.getByText("Read the ad in full")).toBeVisible();
@@ -251,6 +254,21 @@ test("screen 2a: the reveal, then the top card's ring, all three marks, and the 
   await expect(page.getByText("✗", { exact: true })).toHaveCount(0);
   await expect(page.getByText("✕", { exact: true })).toHaveCount(0);
   await expect(page.getByText("×", { exact: true })).toHaveCount(0);
+});
+
+// #311: a denial the posting asks for is named under its own heading, with the quiet · mark — and
+// the DECK card carries no "Changed? Add it" door (the door belongs to the Tailor step, with the
+// questions; CardBody only renders it when that screen passes the slot).
+test("#311: a named denial reads 'You told me you don't have this', · mark, and no door on the deck", async ({
+  page,
+}) => {
+  const denial = { id: "tailor-ad-1-sap", text: "Not applicable — SAP S/4HANA migration" };
+  await openStubbedDeck(page, [{ ...card("ad-1", "IT Project Manager", 82), askedClosed: [denial] }]);
+
+  await expect(page.getByRole("heading", { name: "You told me you don't have this" })).toBeVisible();
+  await expect(page.getByText(denial.text)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Changed? Add it" })).toHaveCount(0);
+  await expect(page.getByText("✗", { exact: true })).toHaveCount(0);
 });
 
 test("screen 2b: 'Not for me' advances to the next card", async ({ page }) => {

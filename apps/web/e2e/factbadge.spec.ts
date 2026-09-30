@@ -192,6 +192,7 @@ test("the badge renders on both discovery and tailor, and tapping it opens /prof
     ledger: [],
     cvLines: [{ itemId: "role", section: "summary", text: "Senior IT Project Manager" }],
     closedGaps: { closed: 0, asked: 0 },
+    doors: [],
     done: false,
     factCount: 12,
   };

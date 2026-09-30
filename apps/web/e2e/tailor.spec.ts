@@ -51,6 +51,7 @@ const STATE_FIRST: TailorState = {
   ledger: [],
   cvLines: [{ itemId: "role", section: "summary", text: "Senior IT Project Manager" }],
   closedGaps: { closed: 0, asked: 0 },
+  doors: [],
   done: false,
   factCount: 24,
 };
@@ -88,6 +89,7 @@ const STATE_AFTER_SAP: TailorState = {
     { itemId: SAP_CLAIM_ID, section: "experience", text: "Ran an S/4HANA project, through cutover" },
   ],
   closedGaps: { closed: 1, asked: 1 },
+  doors: [],
   done: false,
   factCount: 25,
 };
@@ -106,6 +108,16 @@ const STATE_ENDED: TailorState = {
   ledger: [...STATE_AFTER_SAP.ledger, { requirementId: "public", text: "asked and closed · 1 still open" }],
   cvLines: STATE_AFTER_SAP.cvLines,
   closedGaps: { closed: 1, asked: 2 },
+  // #311: the ended card names the "public" denial, so it carries the row's door.
+  doors: [
+    {
+      claimId: PUBLIC_CLAIM_ID,
+      requirementId: "public",
+      question:
+        'This job wants: "Public-sector delivery." You told me you don\'t have this. Changed? Since when?',
+      options: ["This year", "1-2 years ago", "3 or more years ago"],
+    },
+  ],
   done: true,
   factCount: 26,
 };
@@ -686,4 +698,67 @@ test("#310 a failed draft says so in plain words, and Try again really retries",
   await page.route("**/api/onboarding/tailor/draft", draftPost({ json: { ready: true } }));
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(page.locator(".draft-frame")).toBeVisible();
+});
+
+// --- #311: a "No" never prints, and growing is one step --------------------------------------------
+
+const GROWN_CLAIM_ID = "tailor-ad-1-public-grew";
+// What the server answers a door's "1-2 years ago" with: the dated fact in fit (a NEW claim id — the
+// old "No" is kept server-side, never overwritten), the named denial and its door gone, +N% earned.
+const STATE_GROWN: TailorState = {
+  ...STATE_ENDED,
+  card: {
+    ...STATE_ENDED.card,
+    matchPct: 76,
+    fit: [...STATE_ENDED.card.fit, { id: GROWN_CLAIM_ID, text: "Public-sector delivery (since 2025)." }],
+    askedClosed: [],
+  },
+  ledger: [
+    ...STATE_ENDED.ledger.slice(0, 1),
+    { requirementId: "public", text: "+9% · Public-sector delivery" },
+  ],
+  closedGaps: { closed: 2, asked: 2 },
+  doors: [],
+};
+
+test("#311 the door: a named denial grows in one step, through the existing answer path", async ({ page }) => {
+  await openTailor(page, STATE_ENDED);
+  await stubAnswer(page, { "public:1-2 years ago": STATE_GROWN });
+
+  // The denial is named under its own heading, and its row carries the door.
+  await expect(page.getByRole("heading", { name: "You told me you don't have this" })).toBeVisible();
+  const door = page.getByRole("button", { name: "Changed? Add it" });
+  await expect(door).toBeVisible();
+
+  // Tapping it turns the row back into a question — server-composed, coarse dates, a way out.
+  await door.click();
+  // #tailor-ask-q, not getByText: the sr-only live region announces the same question (by design).
+  await expect(page.locator("#tailor-ask-q")).toHaveText(/Changed\? Since when\?/);
+  await expect(page.getByRole("button", { name: "This year" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "3 or more years ago" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "No change" })).toBeVisible();
+
+  await page.getByRole("button", { name: "1-2 years ago" }).click();
+
+  // The dated fact lands in fit; the named denial and its door are gone with it.
+  await expect(page.locator(".row.fit").filter({ hasText: "Public-sector delivery (since 2025)." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "You told me you don't have this" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Changed? Add it" })).toHaveCount(0);
+});
+
+test("#311 'No change' closes the door with nothing posted — his 'No' stands", async ({ page }) => {
+  await openTailor(page, STATE_ENDED);
+  let answerPosts = 0;
+  await page.route("**/api/onboarding/tailor/answer", async (route) => {
+    answerPosts += 1;
+    await route.fulfill({ json: STATE_ENDED });
+  });
+
+  await page.getByRole("button", { name: "Changed? Add it" }).click();
+  await expect(page.locator("#tailor-ask-q")).toHaveText(/Changed\? Since when\?/);
+  await page.getByRole("button", { name: "No change" }).click();
+
+  await expect(page.locator("#tailor-ask-q")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "You told me you don't have this" })).toBeVisible();
+  expect(answerPosts).toBe(0);
 });

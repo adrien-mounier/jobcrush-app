@@ -1,5 +1,19 @@
 # Lessons — jobcrush-app
 
+## The half-tokens "covered" convention is ONE word on a two-word clause — never reuse it to match entities
+
+Learned 2026-10-01 on #311. matchtick's clause fit calls a clause covered at HALF its meaningful
+tokens (`overlap / size * 2`), which is the right generosity for scoring evidence — but reused as a
+cross-entity match ("does this posting ask for the capability he denied?") it fires on a single
+domain-common word: "delivery discipline" matched a denial about a *Delivery* Manager title, and one
+"No" was recited across most of the deck with a door that put words in the owner's mouth. Every
+suite was green because unit fixtures share wording with what they assert and mocked browser tests
+never exercise real cross-advert vocabulary; only the QA gate's live drive across the real fixture
+ads surfaced it (52 one-common-word matches in 10 ads). The rule now in `anyClauseAsked`: a match
+needs at least TWO shared word roots. The reusable shape: any time a scoring heuristic is borrowed
+to assert a *relationship between two texts*, ask what its minimum winning overlap is in TOKENS, not
+in ratio — and test it against the real corpus, not fixtures written to match.
+
 ## When a fake fills a gap, check what fills it in production — a hardcoded fixture can green-light a defect
 
 Learned 2026-10-01 on #310. The draft caller passed an empty letterhead, so a real model would print

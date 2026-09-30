@@ -23,6 +23,7 @@ import {
   type PostingRetrievalResultV1,
 } from "@jobcrush/contracts";
 import type { JobBlockView } from "./jobBlockStore.js";
+import { phraseStated, textTokens } from "./matchtick.js";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
 import { EMAIL_RE, PHONE_RE, type RawCv } from "./extract.js";
@@ -408,6 +409,10 @@ export interface ConservationIssue {
    *  thing with the person's own profile wording beside it. Kept out of `conservationNotices` so
    *  the same sentence does not appear twice on one screen; it still drives the retry. */
   blockCovered?: true;
+  /** #311 (#287 c1/c2): this issue is a denied capability stated on the page. Unlike every other
+   *  finding it never ships with a notice — a page he cannot defend in the room must not exist at
+   *  all, so tailorDraft fails the draft instead of falling back to it. */
+  fatal?: true;
 }
 
 /**
@@ -422,8 +427,47 @@ export function conservationIssues(
   draft: Draft,
   jobBlocks: JobBlockView[] = [],
   advertTests: string[] = [],
+  // #311 (#287 c1/c2): denied capabilities, each in its own words (tailorDraft.ts's
+  // deniedCapabilities — already unsuperseded and eligibility-free).
+  denied: string[] = [],
 ): ConservationIssue[] {
   const issues: ConservationIssue[] = [];
+
+  // #311 (#287 c1/c2): a denied capability never prints and is never implied anywhere on the page.
+  // The claims list structurally cannot carry a denial (negatives never enter confirmed()), so what
+  // this catches is the tailor WRITING one back — a summary or skills line handing the recruiter
+  // the capability without citing any claim, or a denial softened into a stretch (#287 c3: a denial
+  // means there is nothing to stretch from, so a softened version is an invention). Checked per
+  // page element, every meaningful word of the denial (phraseStated): the stated ceiling is that it
+  // catches the denial's own words, never a paraphrase.
+  if (denied.length > 0) {
+    const pageTexts = [
+      draft.headline,
+      draft.summary,
+      // Role titles and employers are model-written text that prints too — a denial restated as a
+      // role title ("SAP Migration Lead") is the same handed capability as a bullet stating it.
+      ...draft.experience.flatMap((r) => [`${r.role} ${r.employer}`, ...r.bullets.map((b) => b.text)]),
+      ...draft.skills.flatMap((s) => [s.label, ...s.items]),
+      ...draft.certifications.map((c) => c.name),
+      ...draft.education.map((e) => `${e.institution} ${e.detail}`),
+      ...draft.additional.map((a) => `${a.label} ${a.value}`),
+    ];
+    for (const phrase of denied) {
+      const hit = pageTexts.find((t) => phraseStated(phrase, textTokens(t)));
+      if (hit) {
+        issues.push({
+          fatal: true,
+          message:
+            `denied capability stated: the candidate answered NO to "${phrase}" but the page says ` +
+            `"${hit.slice(0, 120)}". A denial never prints, is never implied, and is never softened ` +
+            `into a stretch — remove every trace of it from the page.`,
+          visitor:
+            `This draft claimed something you told me you don't have (${phrase}), so I stopped it. ` +
+            `Press Try again.`,
+        });
+      }
+    }
+  }
 
   const certs = claims.claims.filter(isCertClaim);
   if (certs.length > draft.certifications.length) {
@@ -769,10 +813,21 @@ export async function tailorDraft(
       lastError = err instanceof Error ? err.message.slice(0, 2000) : String(err);
       continue;
     }
-    const issues = conservationIssues(claims, draft, opts.jobBlocks ?? [], opts.advertTests ?? []);
+    const issues = conservationIssues(
+      claims,
+      draft,
+      opts.jobBlocks ?? [],
+      opts.advertTests ?? [],
+      opts.negatives ?? [],
+    );
     if (issues.length === 0) return { draft, conservationNotices: [] };
-    fallback = draft;
-    fallbackNotices = issues.filter((i) => !i.blockCovered).map((i) => i.visitor);
+    // #311 (#287 c1): a draft that states a denied capability is never a fallback — shipping it
+    // with a notice would still hand him a page he cannot defend in the room. It only drives the
+    // retry, and if the retry still states the denial the draft fails honestly below.
+    if (!issues.some((i) => i.fatal)) {
+      fallback = draft;
+      fallbackNotices = issues.filter((i) => !i.blockCovered).map((i) => i.visitor);
+    }
     lastError = issues.map((i) => i.message).join("\n");
   }
   if (fallback) {

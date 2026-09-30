@@ -12,8 +12,13 @@ import { loadAdRequirements } from "../src/e5stub.js";
 import { matchTick } from "../src/matchtick.js";
 import { discoveryClaimId } from "../src/discovery.js";
 import {
+  advertDeniedRows,
   buildTailorLedger,
+  composeGrownLine,
   composeTailorLine,
+  deniedCapabilities,
+  growSinceYear,
+  grownTailorClaimId,
   negativeRequirementIds,
   tailorClaimId,
   tailorCvLines,
@@ -968,5 +973,185 @@ describe("#309 the % is honest across drop + re-swipe — no stored floor", () =
     );
     await post(app, cookie, `/onboarding/cards/${other.adId}/want`);
     expect((await get(app, cookie, "/onboarding/tailor")).json().card.matchPct).toBe(other.matchPct);
+  });
+});
+
+// --- #311 (#287): a "No" never prints, and growing is one step ------------------------------------
+
+describe("#311 advertDeniedRows — a denial is named only on a posting that asks for it", () => {
+  const denial = (id: string, words: string): ClaimRecord => ({
+    id,
+    role: "profile",
+    text: `Not applicable — ${words}`,
+    machine_touch: "verbatim",
+    classification: "Verified",
+    source_quote: words.slice(0, 200),
+    needs_grill: false,
+    grill_hint: null,
+    decision: "negative",
+    origin: "user-authored",
+    seq: ++seqCounter,
+  });
+
+  it("names this ad's own tailor 'No' by claim id, mapped to the requirement it answered", () => {
+    const rows = advertDeniedRows(AD, [], [noClaim(OWN_BUDGET)]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.claim.id).toBe(tailorClaimId(AD.adId, OWN_BUDGET.id));
+    expect(rows[0]!.requirement.id).toBe(OWN_BUDGET.id);
+  });
+
+  it("names a foreign denial (a discovery 'No') when a requirement clause is covered by its words", () => {
+    const rows = advertDeniedRows(AD, [], [denial("discovery-budget", "Own a project budget")]);
+    expect(rows.map((r) => r.requirement.id)).toEqual([OWN_BUDGET.id]);
+  });
+
+  it("never names a denial nothing on this advert asks about — gaps are not recited on every card", () => {
+    expect(advertDeniedRows(AD, [], [denial("discovery-danish", "Speak fluent Danish")])).toEqual([]);
+  });
+
+  // #311 QA gate defect 1: ONE shared domain-common word ("delivery" here; "project"/"stakeholder"
+  // in the wild) half-covers a two-word clause like "delivery discipline", and had a single "No"
+  // recited across most of the deck — with a door claiming he denied a requirement he never saw.
+  // Two shared words is the floor (anyClauseAsked) — one is never "this posting asks for it".
+  it("one shared common word is not an ask — the QA gate's exact repro stays unnamed", () => {
+    const shortClauseAd: AdRequirementsV1 = {
+      ...AD,
+      requirements: [
+        {
+          id: "governance-discipline",
+          band: "essential",
+          requirement: "Drive governance, benefit realisation, and delivery discipline",
+          sourceSpan: "Drive governance, benefit realisation, and delivery discipline",
+        },
+      ],
+    };
+    const titleDenial = denial("tailor-other-ad-title", "Prior title of Delivery Manager or equivalent");
+    expect(advertDeniedRows(shortClauseAd, [], [titleDenial])).toEqual([]);
+  });
+
+  it("drops the row once a confirmed fact covers the ask — the fact prints in fit on its own merit", () => {
+    const negatives = [noClaim(OWN_BUDGET)];
+    expect(advertDeniedRows(AD, [], negatives)).toHaveLength(1);
+    expect(advertDeniedRows(AD, [yesClaim(OWN_BUDGET)], negatives)).toEqual([]);
+  });
+});
+
+describe("#311 the grow vocabulary — asked, never stamped", () => {
+  const NOW = new Date("2026-10-01T12:00:00Z");
+
+  it("growSinceYear maps the three coarse choices to their conservative years, anything else to null", () => {
+    expect(growSinceYear("This year", NOW)).toBe(2026);
+    expect(growSinceYear("1-2 years ago", NOW)).toBe(2025);
+    expect(growSinceYear("3 or more years ago", NOW)).toBe(2023);
+    expect(growSinceYear("Yes", NOW)).toBeNull();
+    expect(growSinceYear("No", NOW)).toBeNull();
+  });
+
+  it("composeGrownLine restates the requirement with the asked year — and still covers it (the tick moves)", () => {
+    const line = composeGrownLine(OWN_BUDGET, 2025);
+    expect(line).toBe("Own a project budget with vendor oversight (since 2025).");
+    expect(matchTick([{ text: line }], AD)).toBeGreaterThan(matchTick([], AD));
+  });
+
+  it("grownTailorClaimId is a kebab slug distinct from the denial's own id", () => {
+    const grown = grownTailorClaimId(AD.adId, OWN_BUDGET.id);
+    expect(grown).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+    expect(grown).not.toBe(tailorClaimId(AD.adId, OWN_BUDGET.id));
+  });
+
+  it("a grown fact earns its '+N%' ledger line while the old 'No' still sits on the record", () => {
+    const negatives = [noClaim(OWN_BUDGET)];
+    const grown: ClaimRecord = {
+      ...yesClaim(OWN_BUDGET),
+      id: grownTailorClaimId(AD.adId, OWN_BUDGET.id),
+      text: composeGrownLine(OWN_BUDGET, 2025),
+    };
+    const { ledger, closedGaps } = buildTailorLedger(AD, [grown], negatives);
+    const line = ledger.find((l) => l.requirementId === OWN_BUDGET.id)!;
+    expect(line.text).toMatch(/^\+\d+% · /);
+    expect(closedGaps).toEqual({ asked: 1, closed: 1 });
+  });
+});
+
+describe("#311 deniedCapabilities — the page's never-print list", () => {
+  it("carries each denial in its own words, answer scaffolding stripped", () => {
+    expect(deniedCapabilities([noClaim(OWN_BUDGET)], [])).toEqual([
+      "Own a project budget with vendor oversight",
+    ]);
+  });
+
+  it("drops a denial a confirmed claim now states — the grown fact outranks the old 'No'", () => {
+    const grown: ClaimRecord = {
+      ...yesClaim(OWN_BUDGET),
+      id: grownTailorClaimId(AD.adId, OWN_BUDGET.id),
+      text: composeGrownLine(OWN_BUDGET, 2025),
+    };
+    expect(deniedCapabilities([noClaim(OWN_BUDGET)], [grown])).toEqual([]);
+    // An unrelated confirmed fact supersedes nothing.
+    expect(deniedCapabilities([noClaim(OWN_BUDGET)], [yesClaim(LEAD_TEAM)])).toHaveLength(1);
+  });
+});
+
+describe("#311 the 'Changed? Add it' door at the HTTP seam", () => {
+  it("a 'No' names the denial with its door; growing keeps the old 'No' and lands a dated fact", async () => {
+    const server = buildServer();
+    const { app, claims } = server;
+    const cookie = await anonSession(app);
+    await reachTailor(app, cookie, "grow-door@example.com");
+    const sessionId = (await get(app, cookie, "/sessions/me")).json().id as string;
+
+    let state = (await get(app, cookie, "/onboarding/tailor")).json();
+    const reqId = state.questions[0].requirementId as string;
+    state = (
+      await post(app, cookie, "/onboarding/tailor/answer", { requirementId: reqId, answer: "No" })
+    ).json();
+
+    // The denial is named on THIS card (its posting asks — he was just asked), with its door.
+    const claimId = tailorClaimId(VALID_AD_ID, reqId);
+    expect(state.card.askedClosed.map((f: { id: string }) => f.id)).toContain(claimId);
+    const door = state.doors.find((d: { claimId: string }) => d.claimId === claimId);
+    expect(door).toBeDefined();
+    expect(door.requirementId).toBe(reqId);
+    expect(door.options).toEqual(["This year", "1-2 years ago", "3 or more years ago"]);
+
+    // Growing: the existing answer path, one of the door's coarse choices.
+    const res = await post(app, cookie, "/onboarding/tailor/answer", {
+      requirementId: reqId,
+      answer: "1-2 years ago",
+    });
+    expect(res.statusCode).toBe(200);
+    state = res.json();
+
+    // The dated fact prints in fit and earns its ledger share; the row and its door are gone.
+    const year = new Date().getFullYear() - 1;
+    const fitTexts = state.card.fit.map((f: { text: string }) => f.text);
+    expect(fitTexts.some((t: string) => t.includes(`(since ${year})`))).toBe(true);
+    expect(state.card.askedClosed.map((f: { id: string }) => f.id)).not.toContain(claimId);
+    expect(state.doors.map((d: { claimId: string }) => d.claimId)).not.toContain(claimId);
+    expect(state.ledger.find((l: { requirementId: string }) => l.requirementId === reqId)!.text).toMatch(/^\+\d+% · /);
+    // Never re-asked: the question stays closed.
+    expect(state.questions.map((q: { requirementId: string }) => q.requirementId)).not.toContain(reqId);
+
+    // #287 c9: the old "No" is KEPT, untouched at its original decision seq — the record never
+    // claims he always had it. The grown fact lives beside it under its own id.
+    const negatives = await claims.negatives(sessionId);
+    const kept = negatives.find((c) => c.id === claimId);
+    expect(kept).toBeDefined();
+    expect(kept!.text).toMatch(/^Not applicable — /);
+    const confirmed = await claims.confirmed(sessionId);
+    expect(confirmed.some((c) => c.id === grownTailorClaimId(VALID_AD_ID, reqId))).toBe(true);
+  });
+
+  it("a grow for a requirement nothing denied maps to is refused (400), fail-closed like the door it lacks", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    await reachTailor(app, cookie, "grow-refused@example.com");
+    const state = (await get(app, cookie, "/onboarding/tailor")).json();
+    const res = await post(app, cookie, "/onboarding/tailor/answer", {
+      requirementId: state.questions[0].requirementId,
+      answer: "This year",
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe("invalid_answer");
   });
 });

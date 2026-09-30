@@ -295,3 +295,23 @@ describe("#310 the draft is the CV brain's, checkpointed, and the ending can rea
     expect(view.conservationNotices[0]).toMatch(/could not be traced back to your CV/);
   });
 });
+
+// --- #311 (#287 c1/c2): every denial rides into the draft input, in its own words ------------------
+
+describe("#311 the never-print list is session-wide, not advert-scoped", () => {
+  it("the prompt's never-print block carries the discovery 'No', scaffolding stripped", async () => {
+    const { prompts, llm } = draftingLlm();
+    const { app } = buildServer({ tailorLlm: llm });
+    const cookie = await anonSession(app);
+    await reachTailor(app, cookie, "denied-in-prompt@example.com"); // records the RISKS discovery "No"
+    const res = await post(app, cookie, "/onboarding/tailor/draft");
+    expect(res.statusCode).toBe(202);
+    await awaitJob(app, cookie, res.json().jobId);
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain("The candidate has said NO to these");
+    // The denial in its OWN words — the floor question he answered "No" to — never only this
+    // advert's requirement texts, and never the stored answer scaffolding.
+    expect(prompts[0]).toContain("Have you acted on delivery risks, dependencies, timelines, or budgets?");
+    expect(prompts[0]).not.toContain("Not applicable —");
+  });
+});

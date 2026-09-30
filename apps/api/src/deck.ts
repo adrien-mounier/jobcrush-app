@@ -78,10 +78,13 @@ import type { ProductionFamilyFloorStore } from "./familyFloors.js";
 import { partitionByWithdrawal } from "./withdrawal.js";
 import { profileOwnedRequirementIds } from "./tailorProfile.js";
 import {
+  advertDeniedRows,
   buildTailorLedger,
+  growDoors,
   negativeRequirementIds,
   tailorCvLines,
   tailorQuestions,
+  type GrowDoor,
   type LedgerLine,
   type TailorQuestion,
 } from "./tailor.js";
@@ -683,7 +686,15 @@ export function buildJobCard(
     // symmetry even though nothing eligibility-related is ever in `confirmed` today (must-fix 1: a
     // real eligibility answer never enters the claims store at all).
     fit: excludingEligibility(confirmed).map((c) => ({ id: c.id, text: c.text })),
-    askedClosed: excludingEligibility(negatives).map((c) => ({ id: c.id, text: c.text })),
+    // #311 (#287 c4): a denial is named only on a posting that actually asks for it, and only while
+    // the ask is still open — his gaps are not recited at him on every card. Until this ticket every
+    // recorded "no" in the session landed on every card, the same defect the eligibility declines
+    // were already filtered for while the discovery and tailor answers were missed (the eligibility
+    // filter now lives inside advertDeniedRows itself, fail-closed for every caller).
+    askedClosed: advertDeniedRows(adReq, confirmed, negatives).map(({ claim }) => ({
+      id: claim.id,
+      text: claim.text,
+    })),
     adExcerpt: posting.excerpt,
     ...(notTested.length > 0 ? { notTested } : {}),
   };
@@ -1122,6 +1133,12 @@ export interface TailorState {
    *  drafted for it; the gap is real"). Set by the route (it holds the eligibility facts this is
    *  derived from), recomputed on every read so it survives reloads. */
   stayed?: string;
+  /** #311 (#287 c6-c8) — one "Changed? Add it" door per denial the card names (askedClosed), keyed
+   *  by that row's claim id. Tailor-state only, never on the deck card: the door belongs WITH the
+   *  questions, before the draft is written — answering it goes through the same /tailor/answer
+   *  path as every other requirement answer, keeps the old "No" untouched, and lands a new fact
+   *  dated by the tapped choice. */
+  doors: GrowDoor[];
 }
 
 /** This session's tailor target, resolved to its posting + requirements — or null if either is no
@@ -1240,6 +1257,9 @@ export function buildTailorState(
     ledger,
     cvLines,
     closedGaps,
+    // #311: the doors come from the SAME mapping the card's askedClosed rows come from
+    // (advertDeniedRows), so a named denial always has its door and an unnamed one never does.
+    doors: growDoors(adReq, confirmed, negatives),
     done: questions.length === 0,
     // #106 code-review D1 (2026-08-03, round 3): a decline is a refusal, not a recorded fact.
     factCount: factCount(excludingEligibility(confirmed), excludingEligibility(negatives)),

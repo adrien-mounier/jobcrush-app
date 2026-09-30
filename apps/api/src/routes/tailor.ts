@@ -12,7 +12,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
-import type { AdRequirementsV1, CandidateClaim, FamilyPlacement } from "@jobcrush/contracts";
+import type { AdRequirementsV1, FamilyPlacement } from "@jobcrush/contracts";
 import { requireUser } from "../server.js";
 import type { ClaimRecord, ClaimStore } from "../claims.js";
 import type { SessionRecord, SessionStore } from "../sessions.js";
@@ -47,7 +47,15 @@ import type { ContactStore } from "../contact.js";
 import type { LlmClient } from "../llm.js";
 import type { TailorDraftStore } from "../tailorDraftStore.js";
 import { composeDraftInputs, runTailorDraftJob, tailorDraftView } from "../tailorDraft.js";
-import { composeTailorLine, tailorClaimId } from "../tailor.js";
+import {
+  advertDeniedRows,
+  composeGrownLine,
+  composeTailorLine,
+  growSinceYear,
+  grownTailorClaimId,
+  tailorClaimId,
+  userAnswerClaim,
+} from "../tailor.js";
 import {
   broughtStaysLine,
   languageChangeLine,
@@ -242,25 +250,37 @@ export function tailorRoutes(deps: TailorRouteDeps) {
             .status(404)
             .send({ error: { code: "unknown_requirement", message: "no such requirement" } });
 
-        const no = isNoAnswer(req.body.answer);
-        const claim: CandidateClaim = {
-          id: tailorClaimId(adReq.adId, requirement.id),
-          semantic_key: tailorClaimId(adReq.adId, requirement.id),
-          field_key: null,
-          field_value: null,
-          field_label: null,
-          role: "profile",
-          text: no
-            ? `Not applicable — ${requirement.requirement}`
-            : composeTailorLine(requirement, req.body.answer),
-          machine_touch: "verbatim", // the visitor's own answer
-          classification: "Verified", // user-authored, they vouch for it
-          source_quote: req.body.answer.slice(0, 200),
-          needs_grill: false,
-          grill_hint: null,
-        };
-        if (no) await deps.claims.answerNegative(session.id, claim);
-        else await deps.claims.add(session.id, claim);
+        // #311 (#287 c6-c10): a "Changed? Add it" answer — one of the door's coarse date choices —
+        // grows the profile WITHOUT touching the stored "No". The new fact lands under its OWN id
+        // (grownTailorClaimId), dated by the tapped choice, so the record never claims he always
+        // had it and never prints a date he never gave. Refused (fail-closed, like the unknown-
+        // requirement 404 above) unless a stored denial actually names this requirement — the only
+        // rows that carry the door.
+        const sinceYear = growSinceYear(req.body.answer);
+        if (sinceYear !== null) {
+          const denied = advertDeniedRows(adReq, targetConfirmed, targetNegatives);
+          if (!denied.some((d) => d.requirement.id === requirement.id))
+            return reply
+              .status(400)
+              .send({ error: { code: "invalid_answer", message: "nothing denied to grow here" } });
+          await deps.claims.add(
+            session.id,
+            userAnswerClaim(
+              grownTailorClaimId(adReq.adId, requirement.id),
+              composeGrownLine(requirement, sinceYear),
+              req.body.answer,
+            ),
+          );
+        } else {
+          const no = isNoAnswer(req.body.answer);
+          const claim = userAnswerClaim(
+            tailorClaimId(adReq.adId, requirement.id),
+            no ? `Not applicable — ${requirement.requirement}` : composeTailorLine(requirement, req.body.answer),
+            req.body.answer,
+          );
+          if (no) await deps.claims.answerNegative(session.id, claim);
+          else await deps.claims.add(session.id, claim);
+        }
 
         const [confirmed, negatives, facts, blocks] = await reads(session.id);
         // The answer just changed the fact set, so this is a fresh (adId, fingerprint), never a

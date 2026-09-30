@@ -449,6 +449,17 @@ export interface TailorLedgerEntry {
   text: string;
 }
 
+/** #311: one "Changed? Add it" door per denial the card names (an askedClosed row, matched by
+ *  `claimId`). Tapping it turns the row back into a question — the server-composed `question` +
+ *  `options` render through the same question dock and post through answerTailor, the existing
+ *  answer path. The old "No" is kept server-side; the new fact lands dated by the tapped choice. */
+export interface GrowDoor {
+  claimId: string;
+  requirementId: string;
+  question: string;
+  options: string[];
+}
+
 export interface TailorState {
   // #117: narrowed to the scored variant, not the full JobCard union — see the comment block above.
   // This is the "discriminated union on scored" the ticket asked for: it lets every existing use of
@@ -462,6 +473,8 @@ export interface TailorState {
   /** #309 AC4 — only on a job the person brought that their own answers would have withdrawn were
    *  it a found job: the one line saying why it stays ("the gap is real"). Server-composed. */
   stayed?: string;
+  /** #311: the "Changed? Add it" doors — one per denial the card names, keyed by askedClosed row. */
+  doors: GrowDoor[];
   done: boolean;
   factCount: number; // #17's profile badge count, on the tailor screen too
 }

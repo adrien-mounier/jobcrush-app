@@ -2,9 +2,10 @@
 // template, the composed CV line, and the ledger derivation. Same split as discovery.ts: this module
 // holds pure helpers; the route (routes/onboarding.ts, alongside buildJobCard) does the I/O and
 // assembles these into TailorState.
-import type { AdRequirementV1, AdRequirementsV1 } from "@jobcrush/contracts";
+import type { AdRequirementV1, AdRequirementsV1, CandidateClaim } from "@jobcrush/contracts";
 import type { ClaimRecord } from "./claims.js";
-import { BAND_WEIGHT, uncoveredRequirements } from "./matchtick.js";
+import { anyClauseAsked, BAND_WEIGHT, phraseStated, textTokens, uncoveredRequirements } from "./matchtick.js";
+import { excludingEligibility } from "./eligibilityDiscovery.js";
 import { freeTextLine, type DiscoveryCvLine } from "./discovery.js";
 
 export interface TailorQuestion {
@@ -44,6 +45,160 @@ export const isTailorClaimId = (claimId: string): boolean => claimId.startsWith(
 
 const isBareYes = (answer: string) => /^yes[.!]?$/i.test(answer.trim());
 
+// --- #311 (#287 c6-c10): the "Changed? Add it" door -------------------------------------------
+//
+// A denied capability's row carries a door back into the existing answer path. Answering it never
+// touches the stored "No" (the record keeps its original date); it adds a NEW claim under its own
+// id, dated by asking him when — never by stamping the day he told us (#287 c10).
+
+/** The coarse date choices. Asked, never stamped: "since September 2026" over a capability held
+ *  since 2024 makes a true line read weaker than it is (cv-authoring-rules.md's "never infer a
+ *  month", applied to an asked fact).
+ *  ⚠️ These strings are also the WIRE PROTOCOL: the server offers them on the door and recognises
+ *  them back on /tailor/answer (growSinceYear), so a copy change here stays consistent end to end —
+ *  but the web e2e fixtures hardcode them and must move with it. */
+export const GROW_SINCE_OPTIONS = ["This year", "1-2 years ago", "3 or more years ago"] as const;
+
+/** The year the grown line prints, from the tapped choice — the CONSERVATIVE bound of what he said
+ *  ("1-2 years ago" prints last year: he claimed at least that, never more). Null for anything that
+ *  is not a door answer, which is how the route tells a grow from an ordinary yes/no. */
+export function growSinceYear(answer: string, now = new Date()): number | null {
+  const year = now.getFullYear();
+  switch (answer.trim()) {
+    case GROW_SINCE_OPTIONS[0]:
+      return year;
+    case GROW_SINCE_OPTIONS[1]:
+      return year - 1;
+    case GROW_SINCE_OPTIONS[2]:
+      return year - 3;
+    default:
+      return null;
+  }
+}
+
+/** The grown fact's own id — NEVER tailorClaimId: writing under the denial's id would upsert the
+ *  "No" away, and the record would claim he always had it (#287 c9). The mistap flip through
+ *  /tailor/answer's plain yes/no path still overwrites; the two stay distinguishable events. */
+export const grownTailorClaimId = (adId: string, requirementId: string): string =>
+  `${tailorClaimId(adId, requirementId)}-grew`;
+
+/** Is this claim an answer to (adId, requirementId) — plain or grown? The one place both id shapes
+ *  are known, so no reader has to remember the grown id exists. */
+const isAnswerClaimId = (claimId: string, adId: string, requirementId: string): boolean =>
+  claimId === tailorClaimId(adId, requirementId) || claimId === grownTailorClaimId(adId, requirementId);
+
+/** One user-answered tailor claim, fully shaped — the route's two write branches (plain answer,
+ *  grow) differ only in id and text, and the claim composition belongs here, not in the route. */
+export function userAnswerClaim(id: string, text: string, sourceQuote: string): CandidateClaim {
+  return {
+    id,
+    semantic_key: id,
+    field_key: null,
+    field_value: null,
+    field_label: null,
+    role: "profile",
+    text,
+    machine_touch: "verbatim", // the visitor's own answer — the tap is the warrant
+    classification: "Verified", // user-authored, they vouch for it
+    source_quote: sourceQuote.slice(0, 200),
+    needs_grill: false,
+    grill_hint: null,
+  };
+}
+
+/** The dated CV line a grow lands: the requirement restated (the tap is the warrant, same as a bare
+ *  "Yes") plus the asked date — a recently acquired skill reads as someone still learning (#287 c9). */
+export function composeGrownLine(requirement: AdRequirementV1, sinceYear: number): string {
+  return freeTextLine(`${requirement.requirement} (since ${sinceYear})`);
+}
+
+/** A denial's own words: the stored claim text minus the answer scaffolding — for a tailor "No"
+ *  that is exactly the requirement's own words. */
+export const deniedWords = (claimText: string): string => claimText.replace(/^Not applicable — /, "");
+
+/** The live denials: eligibility declines out (a decline is a refusal, not a denial — it never
+ *  names a gap), superseded denials out (a confirmed fact — a grow included — states the denial's
+ *  own words, so he now claims the capability and it is no longer a gap ANYWHERE). Both callers
+ *  below share this filter so the card, the doors, and the page's never-print list can never
+ *  disagree on what counts as denied. */
+function liveDenials(
+  negatives: ClaimRecord[],
+  confirmed: ClaimRecord[],
+): { claim: ClaimRecord; words: string }[] {
+  const confirmedTokens = confirmed.map((c) => textTokens(c.text));
+  return excludingEligibility(negatives)
+    .map((claim) => ({ claim, words: deniedWords(claim.text) }))
+    .filter(({ words }) => !confirmedTokens.some((tokens) => phraseStated(words, tokens)));
+}
+
+/** #311 (#287 c4): the denials THIS advert actually asks about, and only while the ask is still
+ *  open. Everything the card names a denial for — and every door — comes from this one mapping, so
+ *  the row and its door can never disagree.
+ *    - this ad's own tailor "No"s match by claim id;
+ *    - every other denial (discovery, another ad's tailor answer) matches by words: a requirement
+ *      clause the denial's words would have covered had the answer been yes (#287 c2's ceiling:
+ *      words, never paraphrase — a differently-worded ask goes unnamed, stated not papered over);
+ *    - only UNCOVERED requirements count: once a confirmed fact (a grow included) covers the ask,
+ *      the row leaves this list and the fact prints on its own merit in `fit`. */
+export function advertDeniedRows(
+  adReq: AdRequirementsV1,
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+): { claim: ClaimRecord; requirement: AdRequirementV1 }[] {
+  const open = uncoveredRequirements(confirmed, adReq);
+  return liveDenials(negatives, confirmed).flatMap(({ claim, words }) => {
+    const tokens = textTokens(words);
+    const requirement = open.find(
+      (r) => claim.id === tailorClaimId(adReq.adId, r.id) || anyClauseAsked(r.requirement, tokens),
+    );
+    return requirement ? [{ claim, requirement }] : [];
+  });
+}
+
+/** One "Changed? Add it" door — TailorState carries one per named denial. It rides WITH the
+ *  questions, before the draft is written (#287 c8): the client renders it through the same
+ *  question dock and posts the tapped choice to the same /tailor/answer door every other
+ *  requirement answer takes. */
+export interface GrowDoor {
+  /** The askedClosed row this door sits on — the denial claim's own id. */
+  claimId: string;
+  requirementId: string;
+  question: string;
+  options: string[];
+}
+
+export function growDoors(
+  adReq: AdRequirementsV1,
+  confirmed: ClaimRecord[],
+  negatives: ClaimRecord[],
+): GrowDoor[] {
+  return advertDeniedRows(adReq, confirmed, negatives).map(({ claim, requirement }) => {
+    const denied = deniedWords(claim.text);
+    // #311 QA gate defect 1 (second half): a word-matched row must never claim he denied THIS
+    // requirement — he denied something LIKE it, in his own words, and the question quotes those
+    // words so nothing is ever put in his mouth. Answering still grows the requirement shown (the
+    // dated line he is looking at IS what a tap vouches for — the machine never adds silently).
+    const saidNo =
+      denied === requirement.requirement
+        ? "You told me you don't have this."
+        : `You said no to: "${/[.!?]$/.test(denied) ? denied : `${denied}.`}"`;
+    return {
+      claimId: claim.id,
+      requirementId: requirement.id,
+      question: `This job wants: "${requirement.requirement}." ${saidNo} Changed? Since when?`,
+      options: [...GROW_SINCE_OPTIONS],
+    };
+  });
+}
+
+/** #311 (#287 c1/c2): every denial whose words the finished page must not state — the page check's
+ *  input and the draft prompt's never-print list. A denial fully covered by a confirmed claim's own
+ *  words is superseded (he grew, or he vouched for the capability elsewhere) and drops out: the
+ *  confirmed fact outranks the old "No" and prints on its own merit. */
+export function deniedCapabilities(negatives: ClaimRecord[], confirmed: ClaimRecord[]): string[] {
+  return liveDenials(negatives, confirmed).map(({ words }) => words);
+}
+
 /** A cheap, deterministic CV line from a tailor answer — same "instant, unpolished, audited later"
  *  contract as discovery.ts's composeCvLine. A tapped "Yes" restates the requirement itself as a CV
  *  bullet (the tap IS the warrant) — NOT first-person: a bullet reads like discovery's own lines
@@ -71,10 +226,11 @@ const answered = (
   reqId: string,
   confirmed: ClaimRecord[],
   negatives: ClaimRecord[],
-): boolean => {
-  const id = tailorClaimId(adId, reqId);
-  return confirmed.some((c) => c.id === id) || negatives.some((c) => c.id === id);
-};
+): boolean =>
+  // #311: a grown fact is an answer too (isAnswerClaimId) — without it, a judge that still reads
+  // the requirement as uncovered would re-ask a question the door just closed.
+  confirmed.some((c) => isAnswerClaimId(c.id, adId, reqId)) ||
+  negatives.some((c) => c.id === tailorClaimId(adId, reqId));
 
 /** The ad's ranked requirements, minus any this session already answered (yes or no) — #13's
  *  never-re-ask rule. A requirement stays a question until it's BOTH uncovered and unanswered; a "no"
@@ -104,7 +260,9 @@ export function tailorQuestions(
  *  overwhelmingly common case in the stub — see sample-ad-requirements.json). */
 export function tailorCvLines(adReq: AdRequirementsV1, confirmed: ClaimRecord[]): DiscoveryCvLine[] {
   return adReq.requirements.flatMap((req) => {
-    const claim = confirmed.find((c) => c.id === tailorClaimId(adReq.adId, req.id));
+    // #311: a grown fact (the door's dated claim) is this requirement's CV line exactly as a plain
+    // answer is — "the line appears in the CV beside her" (#287 c7).
+    const claim = confirmed.find((c) => isAnswerClaimId(c.id, adReq.adId, req.id));
     return claim ? [{ itemId: claim.id, section: req.cvSection ?? "experience", text: claim.text }] : [];
   });
 }
@@ -164,7 +322,7 @@ export function buildTailorLedger(
   for (const { claim, isNegative } of answeredInOrder) {
     if (isNegative) negativesSoFar.push(claim);
     else confirmedSoFar.push(claim);
-    const req = adReq.requirements.find((r) => tailorClaimId(adReq.adId, r.id) === claim.id);
+    const req = adReq.requirements.find((r) => isAnswerClaimId(claim.id, adReq.adId, r.id));
     if (!req) continue; // not this ad's requirement (a discovery claim, or another ad's tailor claim)
     const uncoveredSoFar = uncoveredRequirements(confirmedSoFar, adReq);
     const negIdsSoFar = negativeRequirementIds(adReq, negativesSoFar);
@@ -177,7 +335,9 @@ export function buildTailorLedger(
   for (const req of adReq.requirements) {
     const id = tailorClaimId(adReq.adId, req.id);
     const isNegative = negatives.some((c) => c.id === id);
-    const isPositive = confirmed.some((c) => c.id === id);
+    // #311: a grown fact is a positive answer (isAnswerClaimId) — the requirement it covers earns
+    // its "+N%" line even though the old "No" is (deliberately) still on the record beside it.
+    const isPositive = confirmed.some((c) => isAnswerClaimId(c.id, adReq.adId, req.id));
     if (!isNegative && !isPositive) continue; // never answered — no ledger line
     asked++;
     if (isPositive && !uncoveredIds.has(req.id)) {

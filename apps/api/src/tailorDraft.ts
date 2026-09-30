@@ -16,7 +16,7 @@ import type { JobBlockView } from "./jobBlockStore.js";
 import type { JobStore } from "./jobs.js";
 import type { LlmClient } from "./llm.js";
 import { uncoveredRequirements } from "./matchtick.js";
-import { negativeRequirementIds } from "./tailor.js";
+import { deniedCapabilities, negativeRequirementIds } from "./tailor.js";
 import type { TailorDraftRecord, TailorDraftStore } from "./tailorDraftStore.js";
 import {
   applyStoredContact,
@@ -69,7 +69,12 @@ export function composeDraftInputs(
     // The dimensions the advert gates on — the essential band, same reading the card's own
     // essential/desirable split already makes.
     advertTests: adReq.requirements.filter((r) => r.band === "essential").map((r) => r.requirement),
-    negatives: adReq.requirements.filter((r) => negativeIds.has(r.id)).map((r) => r.requirement),
+    // #311 (#287 c1/c2): EVERY unsuperseded denial in the session, in its own words — not only this
+    // advert's — because the page must never state a denied capability whichever job asked about
+    // it. Feeds the prompt's never-print block AND the mechanical page check (conservationIssues).
+    // A denial a confirmed fact now covers (he grew) is superseded and drops out — the new fact
+    // prints on its own merit. Eligibility declines are refusals, not denials, and never enter.
+    negatives: deniedCapabilities(negatives, confirmed),
     // Open points: neither covered by a confirmed fact nor answered "No" — the unanswered gaps.
     openPoints: uncoveredRequirements(confirmed, adReq)
       .filter((r) => !negativeIds.has(r.id))
