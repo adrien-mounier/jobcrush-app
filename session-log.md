@@ -2,6 +2,41 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-30 — #321 closed: every work-rights door returns focus to its own market
+
+`/implement` -> `/code-review` (both axes) -> `/qa-gate` (**GO**) on **#321**, the defect #320 found and
+deliberately left behind. Commit `6613fd8`.
+
+**Not a race — a ref on the wrong node.** `wrDoorRef` sat on the cancel button *inside* the open door,
+which unmounts with it, so the focus-return was a no-op every single time. The closed doors a person
+should land on carried no ref at all.
+
+**Why one ref could not do it.** Work rights render one row per market, so a single shared ref points
+at whichever row rendered last — two markets on the rail and Paris steals the focus Hong Kong's close
+owes back. The refs are now a `Map` keyed by market, filled by a callback on the CLOSED door, and the
+return runs from the effect keyed on open/closed state (#320's shape). Escape routes through the same
+close, so all three paths return focus.
+
+**The subtlety worth remembering.** The callback identity changes each render, so React detaches
+(`null` -> delete) and re-attaches (set) every pass, and the answered/unanswered branches put
+*different* buttons under the same market key. It is correct only because refs settle before effects
+run — now said out loud in the file instead of left to be rediscovered.
+
+**Test cover that cannot pass by accident.** A new Tier-1 test renders Paris and Hong Kong together
+and asserts all four returns, every locator scoped to its own market's `.rrow`. Review caught the
+first draft asserting `nth(1)` — "the second door in DOM order", which the last-render-wins bug would
+*also* satisfy. Proven red twice: focus call removed, and a shared ref simulated (a door **is**
+focused, just the wrong market's). The gate re-ran both breaks itself and restored the tree
+byte-identical.
+
+**Review finding not acted on:** the Standards axis wanted `openDoor()` wrapping every door click; the
+helper's own comment scopes it to the first click of a test, where the page may still be cold. Cited,
+not argued.
+
+**Left for the owner:** `work-rights-focus-return-journey.mjs` ships with the commit but has no entry
+in `tier2-coverage.mjs`, so CI never runs it (33 of 56 journeys are registered — unregistered is the
+norm here, not an oversight). Registering it is a gate-scope call, not a QA one.
+
 ## 2026-09-30 — #320 closed: the profile doors' focus-return moves off the raw frame
 
 `/implement` → `/code-review` (both axes) → `/qa-gate` (**GO**, re-affirmed after a post-verdict
