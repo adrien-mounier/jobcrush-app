@@ -1421,6 +1421,9 @@ test("#188 AC3: a valid switch shows a deliberate fetching state, distinguishabl
 
   await expect(page.getByText("Fetching Hong Kong jobs…", { exact: false })).toHaveCount(0);
   await expect(loc.locator(".rchips .lbl")).toHaveText(["Hong Kong"]);
+  // #320: the door takes focus back once the fetch line is gone — never mid-fetch, when no door is
+  // on screen to take it. The only cover for the areas door's focus-return.
+  await expect(loc.getByRole("button", { name: "Change", exact: true })).toBeFocused();
 });
 
 test("#188 AC3: a fetch failure shows a retry door, never an unbounded spinner", async ({ page }) => {

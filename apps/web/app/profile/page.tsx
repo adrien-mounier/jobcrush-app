@@ -675,12 +675,19 @@ function ContactField({
   const [error, setError] = useState<string | null>(null);
   const doorRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const restoreDoorFocusRef = useRef(false);
   const inputId = `contact-${field}-again`;
 
+  // #320: focus returns to the door from the effect, not a raw rAF — the door only renders again
+  // once React has committed the close, and a starved machine can run the frame before that commit,
+  // leaving the ref null and the focus lost. Same shape the languages door already uses.
   useEffect(() => {
     if (asking) {
       inputRef.current?.focus();
       inputRef.current?.select();
+    } else if (restoreDoorFocusRef.current) {
+      restoreDoorFocusRef.current = false;
+      doorRef.current?.focus();
     }
   }, [asking]);
 
@@ -691,9 +698,9 @@ function ContactField({
   }
 
   function closeDoor() {
+    restoreDoorFocusRef.current = true;
     setAsking(false);
     setError(null);
-    requestAnimationFrame(() => doorRef.current?.focus());
   }
 
   async function save() {
@@ -717,8 +724,8 @@ function ContactField({
     }
     onAnnounce(`${label} updated.`);
     setSaving(false);
+    restoreDoorFocusRef.current = true;
     setAsking(false);
-    requestAnimationFrame(() => doorRef.current?.focus());
   }
 
   return (
@@ -904,13 +911,18 @@ function LocationPanel({
   // returns to "whichever door-like button is now on screen" (B6).
   const areaDoorRef = useRef<HTMLButtonElement>(null);
   const areaInputRef = useRef<HTMLInputElement>(null);
+  const restoreAreaDoorFocusRef = useRef(false);
   const atCap = areaChips.length >= 3;
 
+  // #320: the door's focus-return runs from the effect, never a raw rAF (see ContactField).
   useEffect(() => {
     if (areaAsking) {
       areaInputRef.current?.focus();
+    } else if (restoreAreaDoorFocusRef.current && !fetchingMarket) {
+      restoreAreaDoorFocusRef.current = false;
+      areaDoorRef.current?.focus();
     }
-  }, [areaAsking]);
+  }, [areaAsking, fetchingMarket]);
 
   function openAreaDoor() {
     setAreaChips(location.areas.map((area) => ({ text: area.text, label: area.label })));
@@ -928,10 +940,10 @@ function LocationPanel({
       });
   }
   function closeAreaDoor() {
+    restoreAreaDoorFocusRef.current = true;
     setAreaAsking(false);
     setRefusedArea(null);
     setAreaSaveError(false);
-    requestAnimationFrame(() => areaDoorRef.current?.focus());
   }
 
   // The shared matcher (lib/areaMatch.ts). Deliberate divergence from the front door, kept at the
@@ -960,6 +972,9 @@ function LocationPanel({
   // actually drives the new market's pull, and it alone is what the fetching line waits on;
   // `getProfile()` runs alongside it only to bring the rest of the payload current.
   async function runFetch(market: string) {
+    // Armed up front for the same reason the doors arm before their state change: the effect that
+    // reads it only runs once the fetch line is gone and a door is on screen again.
+    restoreAreaDoorFocusRef.current = true;
     setFetchFailedMarket(null);
     setFetchingMarket(market);
     try {
@@ -969,7 +984,6 @@ function LocationPanel({
       setFetchingMarket(null);
       setFetchFailedMarket(market);
     }
-    requestAnimationFrame(() => areaDoorRef.current?.focus());
   }
 
   async function confirmArea() {
@@ -1303,11 +1317,16 @@ function JobFamilyPanel({
   const [error, setError] = useState<string | null>(null);
   const doorRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const restoreDoorFocusRef = useRef(false);
 
+  // #320: the door's focus-return runs from the effect, never a raw rAF (see ContactField).
   useEffect(() => {
     if (asking) {
       inputRef.current?.focus();
       inputRef.current?.select();
+    } else if (restoreDoorFocusRef.current) {
+      restoreDoorFocusRef.current = false;
+      doorRef.current?.focus();
     }
   }, [asking]);
 
@@ -1318,9 +1337,9 @@ function JobFamilyPanel({
   }
 
   function closeDoor() {
+    restoreDoorFocusRef.current = true;
     setAsking(false);
     setError(null);
-    requestAnimationFrame(() => doorRef.current?.focus());
   }
 
   async function save() {
@@ -1351,8 +1370,8 @@ function JobFamilyPanel({
       onAnnounce(`Now searching ${role}.`);
     }
     setSaving(false);
+    restoreDoorFocusRef.current = true;
     setAsking(false);
-    requestAnimationFrame(() => doorRef.current?.focus());
   }
 
   const hasSiblings = search.siblingTitles.length > 0;
