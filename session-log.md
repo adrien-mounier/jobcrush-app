@@ -2,6 +2,33 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-09-30 — #319 fixed: the profile screen's test doors wait until the page is actually awake
+
+`/implement` → `/code-review` (both axes) → `/qa-gate` (**GO**, no defects) on **#319**, the flaky
+Tier-1 gate that cancelled #309's staging deploy.
+
+**What it cost and what changed.** A red gate on an unrelated push is a cancelled deploy and a
+manual rerun. The cause was never a product fault: on a cold page the test's click on a door landed
+before the screen was interactive, so the door never opened and the assertion that followed timed
+out 15s later. One helper in `apps/web/e2e/profile.spec.ts` now retries the click until the door has
+actually gone — every door on that screen is replaced by its own question when it opens, so the door
+disappearing *is* the proof the click landed, and the same check is what stops a retry re-clicking a
+door that did open. Six first-click door sites use it (phone ×4, the job-role door, the languages
+door). No timeout was raised: the retry budget is 5s, shorter than the 15s assertion it replaces.
+
+**Proven, not assumed.** The gate gutted the focus effect in `ContactField` and confirmed both named
+tests go red (`expected: focused, received: inactive`), then gutted `openDoor()` so the click opens
+nothing and confirmed the retry fails fast at its 5s budget rather than looping. 174 spec runs green
+at CI's own single-worker setting; `pnpm test` (1772 api + 56 contracts + 15 selection checks) and
+`pnpm typecheck` green with the cache forced off. Worth knowing for anyone re-verifying this guard:
+removing only `inputRef.current?.focus()` is *not* a regression — the `select()` beside it focuses
+the input too.
+
+**Residual, not this ticket.** `profile.spec.ts:552` flakes on the focus *return* after a save when
+8 local workers share one dev server (HEAD's own spec flakes the same way, 2/8 · 1/8 · 2/8). CI pins
+one worker, where neither version flakes. Same family, different moment — a follow-up, not a
+blocker.
+
 ## 2026-09-29 — #309 built: the score stops flattering — the floor goes, and every disappearance carries its rule
 
 `/implement` → `/code-review` → `/qa-gate` (NO-GO once, fixed, **GO** on the scoped re-run) on

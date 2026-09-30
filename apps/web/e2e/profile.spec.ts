@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { ProfileState } from "../lib/api";
 
 // #20 the profile screen (Sorted + Constellation), under the colour law: gold = on the CV right now,
@@ -66,6 +66,20 @@ async function stubProfile(page: Page, state: ProfileState = PROFILE) {
   await page.route("**/api/profile", async (route) => {
     await route.fulfill({ json: state });
   });
+}
+
+// #319 a door click that lands before the page is interactive opens nothing, and whatever the test
+// asserts next then times out — on CI run 36591135202 that was a focus assertion 15s later, and the
+// same test failed once locally on a cold first compile of /profile. Retry the click instead of
+// raising timeouts: every door on this screen is REPLACED by its own question when it opens, so the
+// door going away is the proof that the click landed, and the same check is what keeps the retry
+// from re-clicking a door that did open. Use this for the first click of a test, where the page may
+// still be cold; a click later in a flow already has an interactive page behind it.
+async function openDoor(door: Locator) {
+  await expect(async () => {
+    if (await door.isVisible()) await door.click();
+    await expect(door).toHaveCount(0);
+  }).toPass({ timeout: 5000 });
 }
 
 test("the screen loads with groups in payload order, experience facts as full rows, no empty About you group", async ({
@@ -421,7 +435,7 @@ test("#194: phone: a contact door opens correctly from the rail, above the colla
   const contact = page.locator(".rcontact");
   await expect(contact).toBeVisible();
   await expect(page.locator("#profileview")).not.toBeVisible();
-  await contact.getByRole("button", { name: "Not your number?" }).click();
+  await openDoor(contact.getByRole("button", { name: "Not your number?" }));
 
   const input = page.getByLabel("What's the best phone number for your CV?");
   await expect(input).toBeFocused();
@@ -446,7 +460,7 @@ test("phone: Escape inside the contact door's question closes only the question,
   // this screen, just not as a reachable combination for this particular door any more).
   const contact = page.locator(".rcontact");
   const door = contact.getByRole("button", { name: "Not your number?" });
-  await door.click();
+  await openDoor(door);
 
   const input = page.getByLabel("What's the best phone number for your CV?");
   await expect(input).toBeFocused();
@@ -556,7 +570,7 @@ test("the door reopens the original role question pre-filled, and answering it u
   await page.goto("/profile");
 
   const door = page.getByRole("button", { name: "Not the job you meant?" });
-  await door.click();
+  await openDoor(door);
 
   const input = page.getByLabel("What kind of job are you going for?");
   await expect(input).toBeFocused();
@@ -739,7 +753,8 @@ test("an absent phone reads as honestly absent, and supplying one flows exactly 
   const contact = page.locator(".rcontact");
   await expect(contact.getByText("Not on your CV")).toHaveCount(2); // neither phone nor email captured yet
 
-  await contact.getByRole("button", { name: "What's the best phone number for your CV?" }).click();
+  await openDoor(contact.getByRole("button", { name: "What's the best phone number for your CV?" }));
+
   const input = page.getByLabel("What's the best phone number for your CV?");
   await expect(input).toBeFocused();
   await expect(input).toHaveValue("");
@@ -764,7 +779,7 @@ test("the phone door reopens pre-filled with the current value, and cancelling k
 
   const contact = page.locator(".rcontact");
   const door = contact.getByRole("button", { name: "Not your number?" });
-  await door.click();
+  await openDoor(door);
 
   const input = page.getByLabel("What's the best phone number for your CV?");
   await expect(input).toBeFocused();
@@ -1016,7 +1031,7 @@ test("#186 AC6: languages are edited in exactly one place, and the door pre-tick
   const door = page.getByRole("button", { name: "Change your languages" });
   await expect(door).toHaveCount(1);
 
-  await door.click();
+  await openDoor(door);
   // Ticks follow the eligibility answer, not the chip text: English is unticked (the answer never
   // included it, even though the claim mentions it), Mandarin/Cantonese are ticked.
   await expect(page.getByRole("checkbox", { name: "English" })).not.toBeChecked();
