@@ -29,6 +29,15 @@ every Chromium launch by default**, proven by reading the real launch line (`DEB
 Windows and inside the rebuilt Linux image. Fix: `ignoreDefaultArgs`. "I didn't set the flag" and
 "the flag is not set" are different claims; only the launch line settles the second.
 
+**The push went RED — not #312's code.** `tailor-journey.mjs:212` (from #311's commit, the session
+before) had an apostrophe in `don't` inside a single-quoted string: the whole journey file failed to
+PARSE, so Tier 2 crashed it in 0s having asserted nothing, and every other journey passed. It
+surfaced only now because #311 was never pushed on its own — its 03:42 CI run was superseded by this
+push, so this run was the first time Tier 2 ever executed the file. Fixed (backtick string), all 69
+journey files `node --check`ed clean, and the scoped gate re-ran the repaired journey live against
+the local QA stack: tailor 55/55, grow-door 23/23, denial-scope 12/12 — GO. Fix commit follows this
+entry.
+
 **Measured, as the ticket demanded.** Image growth **+454MB locally via Docker layer totals
 (686MB → 1.14GB; QA's per-layer count on the same build: browser 279MB + apt/fonts 47MB + npm
 13MB ≈ 339MB — the delta is Docker's whole-image rounding)** against the research's ~355MB
