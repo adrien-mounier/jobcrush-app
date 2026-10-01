@@ -4,7 +4,7 @@
 // order, and that a recorded "no" lands in askedClosed (never re-asked, never a gap).
 import { describe, expect, it, vi } from "vitest";
 import type { AdRequirementsV1 } from "@jobcrush/contracts";
-import { hasOpenDiscoveryQuestions, newToFamily, orderCardsForReveal, withReadTimeout, mapWithConcurrency, type SessionYears } from "../src/deck.js";
+import { buildDeckCards, hasOpenDiscoveryQuestions, newToFamily, orderCardsForReveal, resolveSessionYears, withReadTimeout, mapWithConcurrency, type SessionYears } from "../src/deck.js";
 // #63: the deck is fed by retrieval alone now, so the suite builds its server with the curated
 // corpus wired at that seam — same adverts, same requirement sets, reached the way production
 // reaches them. See fixtureDeck.ts.
@@ -756,6 +756,70 @@ describe("#105 mapWithConcurrency", () => {
   });
 });
 
+// #116 — the deck's read phase has ONE shared wall-clock budget, not a fresh READ_TIMEOUT_MS per
+// concurrency-cap wave. Staging 2026-10-01: 8 fresh adverts at a cap of 6 are two waves, 2 × 15s
+// reached the web proxy's 30s, the proxy reset the socket, and the owner's first screen was
+// "Couldn't line up your jobs." — for a deck whose reads were all still running fine. The judge phase
+// got this exact fix in #105 (judgeCards.test.ts proves it on a real clock); this proves the read
+// phase on a fake one. buildDeckCards directly, not HTTP, so Date can be faked in lockstep with the
+// timers (the shared deadline is Date.now()-based) without touching session/cookie machinery.
+describe("#116 the deck holds its reveal under ONE shared read budget", () => {
+  const posting = (n: number): Posting => ({
+    id: `cold-${n}`, // no fixture → resolveAdRequirements falls through to the reader
+    title: `Cold job ${n}`,
+    company: "Nobody",
+    location: "Paris",
+    keywords: [],
+    excerpt: "an advert nobody has read yet",
+    language: "en",
+  });
+  const input = () => ({
+    confirmed: [],
+    negatives: [],
+    facts: [],
+    blocks: [],
+    years: resolveSessionYears([], [], null),
+    deckFamilyId: null,
+    langs: ["en"],
+  });
+
+  it("every read hanging: responds after the one budget (never waves × READ_TIMEOUT_MS), with no cards and the reads counted still-running", async () => {
+    const postings = Array.from({ length: 13 }, (_, n) => posting(n)); // three waves at a cap of 6
+    const hungForever = () => new Promise<AdRequirementsV1 | null>(() => {});
+    const before = {
+      timedOut: readCounters()["postings.read_timed_out"],
+      held: readCounters()["deck.reveal_held"],
+    };
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      let settled: Awaited<ReturnType<typeof buildDeckCards>> | undefined;
+      const run = buildDeckCards(postings, input(), { readAd: hungForever }).then((r) => (settled = r));
+      await vi.advanceTimersByTimeAsync(15_000); // the whole budget, once
+      await vi.advanceTimersByTimeAsync(100); // later waves get ~0ms each — flush them
+      await run;
+      expect(settled).toBeDefined(); // per-wave stacking would still be waiting for 30s more
+      expect(settled!.cards).toEqual([]);
+      expect(settled!.unread).toBe(13);
+    } finally {
+      vi.useRealTimers();
+    }
+    // Only the first wave (6, the cap) was ever started and timed out; the other 7 were never raced
+    // against a spent budget — no timeout counted, no "timeout" failure entry, no read leaked past
+    // the cap. The re-ask starts them with a fresh budget.
+    expect(readCounters()["postings.read_timed_out"]).toBe(before.timedOut + 6);
+    expect(readCounters()["deck.reveal_held"]).toBe(before.held + 1);
+  });
+
+  it("every read landing in time: the deck is built as before, nothing held", async () => {
+    const readAd = async (p: Posting) => stubRequirements(p.id);
+    const held = readCounters()["deck.reveal_held"];
+    const result = await buildDeckCards([posting(1), posting(2)], input(), { readAd });
+    expect(result.unread).toBe(0);
+    expect(result.cards.map((c) => c.adId)).toEqual(expect.arrayContaining(["cold-1", "cold-2"]));
+    expect(readCounters()["deck.reveal_held"]).toBe(held);
+  });
+});
+
 // #115 — the confirmed cause of staging's read-failure spike: a read that legitimately takes longer
 // than the deck's own READ_TIMEOUT_MS (15s), not a validation/contract problem (measured: 10/10 real
 // reads succeeded with zero validation retries; the deadline, not the model, was the failure mode).
@@ -800,7 +864,7 @@ describe("#115 a timed-out read is not a read failure", () => {
     }
   }
 
-  it("the deck responds without the slow card, does not miscount it as a read failure, counts and alarms it as a timeout separately, still persists the paid-for read, exposes the reason (gated) over HTTP, and later serves it from cache with no second model call", async () => {
+  it("the deck holds its reveal (#116: searching, no cards) while the slow read runs, does not miscount it as a read failure, counts and alarms it as a timeout separately, still persists the paid-for read, exposes the reason (gated) over HTTP, and the later request reveals the whole deck from cache with no second model call", async () => {
     const uncached = uncachedEnglishPostings()[0]!;
 
     const store = new InMemoryAdRequirementsStore();
@@ -821,6 +885,7 @@ describe("#115 a timed-out read is not a read failure", () => {
     const before = {
       failed: readCounters()["postings.read_failed"],
       timedOut: readCounters()["postings.read_timed_out"],
+      held: readCounters()["deck.reveal_held"],
     };
     const built = buildServer({ readAd: makeAdReader(llm, store, [{ familyId: "IT Project Manager", label: "IT Project Manager", scope: "Delivering IT projects" }], []) });
     const { app } = built;
@@ -833,16 +898,23 @@ describe("#115 a timed-out read is not a read failure", () => {
     let res!: Awaited<ReturnType<typeof get>>;
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
-      const resPromise = get(app, cookie, "/onboarding/cards");
+      // A raw inject, not `get`: injectSettled would re-ask on `searching` and the second ask would
+      // wait on the same hung read against a fake clock nobody advances. One held response is the
+      // whole subject here.
+      const resPromise = app.inject({ method: "GET", url: "/onboarding/cards", headers: { cookie } });
       await vi.advanceTimersByTimeAsync(15_000); // the real READ_TIMEOUT_MS, simulated rather than waited
       res = await resPromise;
     } finally {
       vi.useRealTimers(); // always restore, even if an assertion above throws mid-block
     }
 
-    expect(res.statusCode).toBe(200); // no 500 — the slow advert is dropped, not fatal
-    const body = res.json() as { cards: JobCard[] };
-    expect(body.cards.map((c) => c.adId)).not.toContain(uncached.id);
+    expect(res.statusCode).toBe(200); // no 500 — the slow advert holds the reveal, it is not fatal
+    const body = res.json() as { cards: JobCard[]; searching: boolean };
+    // #116 (owner's option A): the reveal is HELD, not shown short — no cards, "still looking", and
+    // the client re-asks. The adverts that did read in time are not revealed without the slow one.
+    expect(body.searching).toBe(true);
+    expect(body.cards).toEqual([]);
+    expect(readCounters()["deck.reveal_held"]).toBe(before.held + 1);
 
     expect(readCounters()["postings.read_failed"]).toBe(before.failed); // NOT counted as a read failure
     expect(readCounters()["postings.read_timed_out"]).toBe(before.timedOut + 1); // counted as a timeout
@@ -878,7 +950,8 @@ describe("#115 a timed-out read is not a read failure", () => {
 
       const callsAfterFirstResolve = calls.length;
       const res2 = await get(app, cookie, "/onboarding/cards"); // a later request, real timers
-      const body2 = res2.json() as { cards: JobCard[] };
+      const body2 = res2.json() as { cards: JobCard[]; searching: boolean };
+      expect(body2.searching).toBe(false); // every read landed — revealed once, whole
       expect(body2.cards.map((c) => c.adId)).toContain(uncached.id); // now served from cache
       expect(calls.length).toBe(callsAfterFirstResolve); // no second model call
     } finally {
@@ -908,8 +981,12 @@ describe("#115 a timed-out read is not a read failure", () => {
     };
     const res = await get(app, cookie, "/onboarding/cards");
     expect(res.statusCode).toBe(200); // no 500
-    const body = res.json() as { cards: JobCard[] };
+    const body = res.json() as { cards: JobCard[]; searching: boolean };
     expect(body.cards.map((c) => c.adId)).not.toContain(uncached.id);
+    // #116 AC3: a read that genuinely FAILED holds nothing — the deck is revealed without it, exactly
+    // as #115 left it; only a read still running holds the reveal.
+    expect(body.searching).toBe(false);
+    expect(body.cards.length).toBeGreaterThan(0);
 
     expect(readCounters()["postings.read_failed"]).toBe(before.failed + 1); // a genuine failure...
     expect(readCounters()["postings.read_timed_out"]).toBe(before.timedOut); // ...never miscounted as a timeout

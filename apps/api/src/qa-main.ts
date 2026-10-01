@@ -252,6 +252,16 @@ function trailingArrayLength(prompt: string): number {
 // QA_JUDGE_DELAY_MS sets the starting value for a run that wants it on from the first request.
 let judgeDelayMs = Number(process.env.QA_JUDGE_DELAY_MS ?? 0);
 
+// #116 — the read-delay knob, the judge knob's twin for the OTHER half of a cold deck. The canned
+// reader below answers instantly, so no journey could ever see what a brand-new visitor on staging
+// sees: every advert still being read when the first deck request runs out of budget. With this
+// armed above the deck's read budget (15s), the first read of each advert takes this long and the
+// deck says "still looking" instead of revealing; later requests JOIN the running read (the same
+// in-flight map adReader.ts keeps, so re-asking never starts a second read) and reveal once it
+// lands — the whole count, once. Each advert is slowed exactly once per arming, like a real cold
+// read that is then cached. Same off-by-default rule and the same arming door as judgeDelayMs.
+let readDelayMs = Number(process.env.QA_READ_DELAY_MS ?? 0);
+
 // #209 — the same arming rule, for the canned language adverts below. Off by default and for the
 // same measured reason: serving them adds three cards to EVERY deck, and tailor-journey.mjs (Tier 2,
 // green for weeks) then tailors one of them and asks about a language requirement, which is not the
@@ -754,6 +764,25 @@ const qaReadAd = async (posting: Posting) => {
     : null;
 };
 
+// #116 — the read-delay knob's seam (see readDelayMs above): a cold read, once per advert per
+// arming, with the in-flight join adReader.ts gives production so a poll made during the read
+// waits on it rather than starting over.
+const readsSlowedOnce = new Set<string>();
+const readsInFlight = new Map<string, Promise<AdRequirementsV1 | null>>();
+const qaReadAdWithDelay = (posting: Posting): Promise<AdRequirementsV1 | null> => {
+  const existing = readsInFlight.get(posting.id);
+  if (existing) return existing;
+  const promise = (async () => {
+    if (readDelayMs > 0 && !readsSlowedOnce.has(posting.id)) {
+      readsSlowedOnce.add(posting.id);
+      await sleep(readDelayMs);
+    }
+    return qaReadAd(posting);
+  })().finally(() => readsInFlight.delete(posting.id));
+  readsInFlight.set(posting.id, promise);
+  return promise;
+};
+
 // A distinct dir/env-var name from main.ts's UPLOAD_DIR (not just a different default) so a real
 // dev API and this fake one can never be pointed at the same on-disk uploads by accident.
 // LocalDiskStorage directly, never storageFromEnv(): that helper reads ambient R2_ACCOUNT_ID/
@@ -886,7 +915,7 @@ const { app } = buildServer({
   auditCv: makeCvAuditor(fakeLlm),
   // #209: readAd is wired to the CANNED table above, never to a model — advert-reading stays free
   // and deterministic, and only the three adIds with no shipped fixture are answered at all.
-  readAd: qaReadAd,
+  readAd: qaReadAdWithDelay,
   // #63: see qaRetrievePostings' own comment — the curated corpus at the provider seam, because
   // this entry has no provider registry and the deck now has no other way to receive an advert.
   retrievePostings: qaRetrievePostings,
@@ -942,6 +971,7 @@ app.get("/qa/llm-calls", async () => seen);
 app.post<{
   Body: {
     judgeDelayMs?: number;
+    readDelayMs?: number;
     languageAdverts?: boolean;
     workRightsAdverts?: boolean;
     retrievalOutcome?: string;
@@ -954,6 +984,16 @@ app.post<{
       return reply.status(400).send({ error: { code: "bad_request", message: "judgeDelayMs must be a number" } });
     }
     judgeDelayMs = Math.max(0, Math.min(ms, 60_000));
+  }
+  // #116: same number discipline as judgeDelayMs — a junk value refuses, never disarms. Re-arming
+  // forgets which adverts were already slowed, so a second journey gets its own cold deck.
+  if (req.body?.readDelayMs !== undefined) {
+    const ms = Number(req.body.readDelayMs);
+    if (!Number.isFinite(ms)) {
+      return reply.status(400).send({ error: { code: "bad_request", message: "readDelayMs must be a number" } });
+    }
+    readDelayMs = Math.max(0, Math.min(ms, 60_000));
+    readsSlowedOnce.clear();
   }
   if (req.body?.languageAdverts !== undefined) {
     if (typeof req.body.languageAdverts !== "boolean") {
@@ -999,6 +1039,7 @@ app.post<{
   return {
     ok: true,
     judgeDelayMs,
+    readDelayMs,
     languageAdverts: languageAdvertsOn,
     workRightsAdverts: workRightsAdvertsOn,
     retrievalOutcome: qaRetrievalOutcome,

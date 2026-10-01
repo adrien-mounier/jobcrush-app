@@ -203,7 +203,9 @@ export const CARD_RESOLUTION_CONCURRENCY = 6;
 // phase isn't a rare edge case on staging, it's the ROUTINE case for a first-time visitor. 8s, not
 // 15s and not per-wave: generous enough that a normally-responding judge call (low single-digit
 // seconds against a live provider) still completes, small enough that even added to the read phase's
-// own separate, unchanged worst case there is wide margin under 30s, and — the property that actually
+// own budget (#116: one shared READ_TIMEOUT_MS for the whole phase, the same shape — live retrieval
+// made a cold read phase of two or three waves the ROUTINE case, and two waves alone reached the
+// proxy's 30s) there is wide margin under 30s, and — the property that actually
 // matters — a single WALL-CLOCK deadline shared across every card by resolveJudgement's optional
 // `deadlineAt` param, so the total time this phase can spend is bounded by this one number regardless
 // of how many waves the concurrency cap creates or how large the posting pool grows.
@@ -309,8 +311,9 @@ export function withReadTimeout<T>(promise: Promise<T>, ms: number): Promise<T> 
  *  rendered because a different call site resolved it differently. `readAd` absent (no dep wired)
  *  or the read itself failing both fall through to "no requirements for this posting" rather than
  *  throwing — a route 500 is worse than one missing card. A read that hangs past READ_TIMEOUT_MS is
- *  dropped for THIS request exactly like any other unreadable advert, but it is not counted as one
- *  (#115): the underlying read (makeAdReader's own promise, still running — nothing here or in
+ *  dropped for THIS request on the single-posting routes, and on the deck (#116) HOLDS the reveal
+ *  instead — reported through `budget.unread` below — but either way it is not counted as a
+ *  failure (#115): the underlying read (makeAdReader's own promise, still running — nothing here or in
  *  withReadTimeout cancels it) keeps going after the deadline fires, still validates, and still
  *  persists to the store on success, so the advert is cached for the next request. That is a slow
  *  first read, not a failed one — postings.read_failed (the read-failure alarm's numerator) is
@@ -328,14 +331,33 @@ export async function resolveAdRequirements(
   adId: string,
   readAd: ReadAdFn | undefined,
   posting: Posting,
+  /** #116: the deck's ONE shared read budget — mirrors resolveJudgement's `deadlineAt`. Absent (the
+   *  /want, paste and tailor routes, one posting per request) means a fresh READ_TIMEOUT_MS from
+   *  now, exactly as before. The deck passes one deadline computed once for its whole fan-out, so a
+   *  later concurrency-cap wave gets only what is left of it, and `unread` collects the ids this
+   *  request did not finish reading — a read that outlived the budget (still RUNNING, not failed —
+   *  see the doc above) or one the spent budget never started — which is what tells the deck to
+   *  hold its reveal rather than show a count that is missing them. */
+  budget?: { deadlineAt: number; unread: string[] },
 ): Promise<AdRequirementsV1 | null> {
   const lookup = lookupAdRequirements(adId);
   if (lookup.status === "found") return lookup.requirements;
   if (lookup.status === "invalid") return null; // no fallback to the reader — see doc above
   // status === "missing" — unchanged fall-through to the injected reader.
   if (!readAd) return null;
+  const remainingMs = budget ? Math.max(0, budget.deadlineAt - Date.now()) : READ_TIMEOUT_MS;
+  if (budget && remainingMs === 0) {
+    // The deck's budget is already spent (a later concurrency-cap wave): this advert is NOT read
+    // this request — the re-ask starts it, with a fresh budget and the same cap. Racing a read
+    // against 0ms instead would count a timeout and write a "timeout" failure entry for a read that
+    // never had a chance (enough of them trip the timeout alarm on one cold pool), and would leave
+    // the read running un-awaited past CARD_RESOLUTION_CONCURRENCY — the burst the cap exists to
+    // prevent, one per remaining posting.
+    budget.unread.push(adId);
+    return null;
+  }
   try {
-    const result = await withReadTimeout(readAd(posting), READ_TIMEOUT_MS);
+    const result = await withReadTimeout(readAd(posting), remainingMs);
     // Settled before the deadline — whatever it settled to (a real result, or a null already
     // counted as postings.read_failed inside makeAdReader). This is the timeout alarm's OTHER
     // half (counters.ts): a promptness signal, deliberately decoupled from validity.
@@ -345,6 +367,7 @@ export async function resolveAdRequirements(
     if (err instanceof ReadTimeoutError) {
       incrementCounter("postings.read_timed_out");
       recordReadFailure(adId, "timeout", err.message);
+      budget?.unread.push(adId);
     } else {
       // Not the timeout — readAd itself rejected. The production reader never does this (see
       // ReadTimeoutError's doc above), so this branch is untested territory for it; classified
@@ -833,11 +856,31 @@ export async function buildDeckCards(
   },
   deps: DeckJudgingDeps & { readAd?: ReadAdFn },
 ) {
+  // #116: ONE read budget for the whole phase (DECK_JUDGE_BUDGET_MS's reasoning, applied to reads):
+  // computed once, shared across every concurrency-cap wave, so the phase is bounded by this one
+  // number and no response can outlive the web proxy's 30s however large the pool grows.
+  const budget = { deadlineAt: Date.now() + READ_TIMEOUT_MS, unread: [] as string[] };
   const resolvedReqs = await mapWithConcurrency(postings, CARD_RESOLUTION_CONCURRENCY, async (posting) => {
-    const adReq = await resolveAdRequirements(posting.id, deps.readAd, posting);
+    const adReq = await resolveAdRequirements(posting.id, deps.readAd, posting, budget);
     if (!adReq || !languageEligible(adReq.language, input.langs)) return null;
     return { posting, adReq };
   });
+  // #116 (owner decision 2026-10-01, option A): the reveal is HELD while any advert is still being
+  // read — never shown once with a short count and silently completed later. A read that outlived
+  // the budget is still running (makeAdReader's in-flight map hands the next request the same
+  // promise, so re-asking costs nothing) and one the spent budget never started is picked up by
+  // the re-ask's fresh budget, so this response says "still looking" and the deck is
+  // revealed, once, with the full count, by the request that finds every read landed. Nothing below
+  // runs: judging now would buy numbers for a deck nobody is shown yet.
+  if (budget.unread.length > 0) {
+    incrementCounter("deck.reveal_held");
+    return {
+      cards: [],
+      pendingCount: 0,
+      withdrawn: { total: 0, byLanguage: [] }, // nothing was withdrawn — nothing was judged
+      unread: budget.unread.length,
+    };
+  }
   const candidates = resolvedReqs.filter(
     (entry): entry is { posting: Posting; adReq: AdRequirementsV1 } => entry !== null,
   );
@@ -912,7 +955,7 @@ export async function buildDeckCards(
   // answers "which of these is worth my time" and a job he brought has already answered that — but
   // only the newest three, or the deck becomes an archive; the rest stay where their score put them.
   const cards = pinBrought(ranked, brought);
-  return { cards, pendingCount: tallyCardProvenance(cards), withdrawn };
+  return { cards, pendingCount: tallyCardProvenance(cards), withdrawn, unread: 0 };
 }
 
 /** What GET /onboarding/cards needs that is not a store read: the retrieval coordinator's answer for
@@ -991,7 +1034,7 @@ export async function buildDeckResponse(
   const postings = eligiblePostings(langs, sessionPostings(observed, requestFingerprint, brought));
   // buildDeckCards: read → delete wrong-family → withdraw → judge within the paid bound → shape +
   // order + pin. See its own doc (and judgeDeck's) for the spend-bound properties.
-  const { cards, pendingCount, withdrawn } = await buildDeckCards(
+  const { cards, pendingCount, withdrawn, unread } = await buildDeckCards(
     postings,
     { confirmed, negatives, facts, blocks, years, deckFamilyId, langs, brought },
     deps,
@@ -1015,7 +1058,10 @@ export async function buildDeckResponse(
     authed: session.claimedByUserId !== null,
     withdrawn,
     retrieval,
-    searching: retrievalIsInProgress(retrieval),
+    // #245: retrieval still running; #116: or any advert still being read. Both are the same honest
+    // wait to the client — "Still looking for your jobs…", re-asked until a real deck or a finished
+    // empty result comes back.
+    searching: retrievalIsInProgress(retrieval) || unread > 0,
     moreQuestions,
     // #229: the career changer's one sentence — copy only, the score is untouched.
     newToFamily: newToFamily(years),

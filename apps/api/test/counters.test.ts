@@ -98,6 +98,8 @@ describe("#103 posting-pool counters", () => {
       // #107 — see counters.ts's own header for what this means.
       "deck.cards_withdrawn": 0,
       "deck.family_dropped": 0,
+      // #116 — a deck response held because an advert read outlived the shared read budget.
+      "deck.reveal_held": 0,
       // #100 — see counters.ts's own header for what these mean.
       "postings.techmap_calls_made": 0,
       "postings.techmap_calls_failed": 0,

@@ -344,6 +344,8 @@ export const COVERAGE = {
   ),
   // #117: "Still scoring" / "Not scored" / "Estimate" — the judged score's three honest states.
   "pending-unscored-card-journey.mjs": union(DECK, POSTINGS, DISCOVERY, AUTH, TAILOR),
+  // #116: CV upload → discovery → the held deck; arms qa-main's readDelayMs for its own run.
+  "cold-deck-hold-journey.mjs": union(CV_INTAKE, DECK, POSTINGS, DISCOVERY, AUTH),
   // #159: the passive missing-dates note on the built master CV, and no uninvited "Present".
   "master-cv-dates-note-journey.mjs": union(CV_INTAKE, JOB_BLOCKS, TAILOR, AUTH),
   // #222: an advert's years bars read at their own scope — family years vs the career total.

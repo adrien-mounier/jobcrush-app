@@ -267,7 +267,7 @@ Ordering constraints, so nobody re-litigates them:
 | Order | # | What | Skill | Model | Effort |
 |---|---|---|---|---|---|
 | 23 | #121 | Score jobs just ahead of the swipe | `/wayfinder` | Opus | high |
-| 24 | #116 | Deck appears instantly and fills in. ⚠️ Overlaps #245 (done) — check what #245 already covered before starting | `/implement` | Opus | medium |
+| ~~24~~ | ~~#116~~ | ~~Deck appears instantly and fills in~~ **DONE 2026-10-01 (owner's option A: the reveal is HELD while any advert is still being read — "Still looking for your jobs…" re-asks, then one whole deck; the read phase shares ONE 15s budget so no response outlives the web proxy's 30s). Pre-warming reads during discovery is a possible follow-up, not filed** | — | — | — |
 | 25 | #108 | The card's highlight sentence | `/implement` | Opus | medium |
 | 26 | #109 | "3 jobs just got better" | `/implement` | Opus | medium |
 | 27 | #110 | Choose the judging model by measuring it | `/implement` | Opus | high |

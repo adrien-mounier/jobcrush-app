@@ -147,6 +147,10 @@
 //     verdicts — either avoiding a model call entirely (every requirement was already met) or paying
 //     for only the still-open requirements in one smaller call. This is what makes AC2 ("unchanged
 //     verdicts are not re-purchased as the fact set grows") a number instead of an inference.
+//   - deck.reveal_held (#116): a deck response that answered "still looking" because at least one
+//     advert read outlived the read phase's ONE shared budget — the reveal is held, not shown short.
+//     Routine on a cold pool (the client re-asks and joins the running read); sustained means reads
+//     are slower than READ_TIMEOUT_MS as a rule.
 //   - deck.cards_judged / deck.cards_pending / deck.cards_unscored / deck.cards_estimated: the deck
 //     route's own card provenance tally — one increment per rendered card, all four mutually
 //     exclusive and exhaustive. Must-fix 2 (coordinator review) split what was one "pending" state
@@ -282,6 +286,11 @@ const counts = {
   "deck.judge_bound_hit": 0,
   "deck.cards_withdrawn": 0,
   "deck.family_dropped": 0,
+  // #116 — a deck response that said "still looking" because at least one advert read outlived the
+  // phase's shared budget (still running, not failed — postings.read_timed_out counts the reads, this
+  // counts the held responses). Routine on a cold pool; a run-away number means reads are slower
+  // than READ_TIMEOUT_MS as a rule, and the reveal is being held poll after poll.
+  "deck.reveal_held": 0,
   "postings.techmap_calls_made": 0,
   "postings.techmap_calls_failed": 0,
   "postings.techmap_records_fetched": 0,

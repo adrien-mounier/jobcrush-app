@@ -2,6 +2,37 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-01 — #116 closed: the cold deck holds its reveal instead of erroring
+
+`/implement` -> `/code-review` (both axes) -> `/qa-gate` (**GO**, first run) on **#116**, the owner's
+**option A** (decided 2026-10-01 on the ticket after the second live "Couldn't line up your jobs." on
+staging). One closing commit. QA drove a new visitor's cold deck live: "Still looking for your jobs…"
+held ~61s past the old 15s failure point, then "8 jobs just matched you" once, no reload, no error;
+left `apps/web/e2e/cold-deck-hold-journey.mjs` behind, wired into Tier 2 (~2.5 min).
+
+- **What a first-time visitor sees now**: "Still looking for your jobs…" stays up while any advert the
+  search found is still being read, the screen re-asks on its own, and the deck is revealed ONCE with
+  the whole count. Never a short deck that silently fills in later (rejected), never the proxy error.
+- **Why it errored**: the read phase had no total bound — each concurrency wave got its own fresh 15s,
+  so two waves of fresh adverts reached Next's 30s proxy timeout. Now the whole read phase shares ONE
+  15s budget (`buildDeckCards` → `resolveAdRequirements`'s new `budget` param, the exact shape #105
+  gave the judge phase); a read that outlives it is reported as unread and holds the reveal, and the
+  re-ask joins the still-running read through `makeAdReader`'s in-flight map, so nothing is paid twice.
+- **Review caught one real defect before QA** (spec axis): once the budget was spent, later waves still
+  raced each read against 0ms — counting a timeout and writing a "timeout" failure entry for a read that
+  never had a chance (enough to trip the timeout alarm on a single cold pool), and leaving the read
+  running un-awaited past `CARD_RESOLUTION_CONCURRENCY` — the burst the cap exists to prevent. Fixed:
+  a spent budget starts nothing; the re-ask's fresh budget picks those adverts up, cap intact.
+- **Observable**: new counter `deck.reveal_held`; `postings.read_timed_out` now counts only reads that
+  were actually started. /want, paste and tailor keep their per-request 15s, untouched (AC5).
+- **The gates can finally see a cold read**: `POST /qa/stack { readDelayMs }` on the QA entry slows each
+  advert's FIRST read once per arming with an in-flight join — the judge knob's twin.
+- **Carried limits, not findings**: a read that genuinely hangs holds the reveal until the LLM seam's own
+  60s abort (API path) turns it into a counted failure; the client's "still looking" poll has no attempt
+  ceiling (same as #245's retrieval wait); the non-held worst case is reads ~15s + judge 8s ≈ 23s, a
+  7s margin under the proxy, not a wide one. Pre-warming reads during discovery is the owner's named
+  follow-up, not filed.
+
 ## 2026-10-01 — #313 closed: approving is sending
 
 `/implement` -> `/code-review` (both axes) -> `/qa-gate` (**NO-GO**, fixed, re-ran, **GO**) on **#313**

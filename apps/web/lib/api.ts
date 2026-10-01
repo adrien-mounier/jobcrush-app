@@ -358,8 +358,10 @@ export interface CardsResponse {
   // number is as the poll's start/stop condition — it is deliberately never rendered (design §6).
   pendingCount: number;
   withdrawn?: WithdrawnSummary;
-  // #245: true only while the server is actively retrieving the first deck. An empty response with
-  // false/absent is a finished empty result and keeps the existing dead end unchanged.
+  // #245: true only while the server is actively retrieving the first deck — and, #116, while any
+  // advert it found is still being read (the reveal is held until every read lands, so the count is
+  // whole the one time it is shown). An empty response with false/absent is a finished empty result
+  // and keeps the existing dead end unchanged.
   searching?: boolean;
   // #235: whether any discovery question is genuinely still open for this session. The empty deck's
   // "answer a few more questions" line is only honest when one exists; otherwise the empty state

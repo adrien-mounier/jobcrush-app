@@ -1,5 +1,19 @@
 # Lessons — jobcrush-app
 
+## A shared deadline over a concurrency-capped fan-out must decide what a 0ms budget means
+
+Learned 2026-10-01 on #116. A wall-clock budget shared across waves (`deadlineAt`, remaining computed
+per call) is the right fix for "waves × timeout" — but once it is spent, every later call gets 0ms,
+and `withReadTimeout(work(), 0)` still **starts** the work. Three things then go wrong at once: the
+timeout counter and the failure ring buffer record a "timeout" for work that never had a chance
+(enough of them trip the alarm on one cold pool), the un-awaited work runs past the concurrency cap
+(one leaked call per remaining item — the burst the cap exists to prevent), and anything cheap in a
+late wave (a cache hit) "times out" too. The judge phase gets away with it only because a separate
+bound (`DECK_JUDGE_MAX_CARDS`) caps the leak at 8 and "pending, self-heals" is its contract. For reads
+there is no such bound, so a spent budget must start nothing and report the item as not yet read.
+The reusable shape: when you add a shared deadline, write the test for the wave that starts AFTER it
+is spent, and assert the counters, not just the elapsed time.
+
 ## "I didn't set the flag" is not "the flag is not set" — drivers inject defaults; read the real launch line
 
 Learned 2026-10-01 on #312. The AC forbade Chromium's `--disable-dev-shm-usage` workaround; the code

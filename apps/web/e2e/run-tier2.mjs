@@ -76,6 +76,12 @@ export const JOURNEYS = [
   // "Not now", and per-advert skip memory surviving an A → B → A detour. ~3 min, fake-model API.
   "not-sure-yet-detour-journey.mjs",
   "pending-unscored-card-journey.mjs",
+  // cold-deck-hold-journey.mjs added 2026-10-01 (#116), on the same rule: it is the ONLY journey that
+  // can see a cold read — the canned reader answers instantly, so it arms qa-main's readDelayMs for
+  // its own run (and puts it back) and proves "Still looking for your jobs…" holds past the 15s read
+  // budget, then ONE reveal with the whole count, never the proxy's "Couldn't line up your jobs.".
+  // Measured 2026-10-01: ~2.5 min, no sign-in.
+  "cold-deck-hold-journey.mjs",
   "master-cv-dates-note-journey.mjs",
   // #222: the only journey that can catch the family-scoped years reading going dead on the
   // shipped journey — the exact regression its own QA gate found once already (a production
