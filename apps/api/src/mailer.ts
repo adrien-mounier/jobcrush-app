@@ -12,6 +12,18 @@ export interface Mailer {
     targetRole: string,
     idempotencyKey: string,
   ): Promise<void>;
+  /** #313 — the approved tailored CV, as a PDF attachment. The text body grows into the
+   *  application report with #315; today it carries the ship-and-tell notices when the draft
+   *  shipped lossy, because a document leaving with a known loss must say so where he reads it. */
+  sendTailoredCv(email: string, doc: CvMail): Promise<void>;
+}
+
+/** #313 — one emailed CV: subject and body text, plus the PDF and the name it attaches under. */
+export interface CvMail {
+  subject: string;
+  text: string;
+  filename: string;
+  pdf: Buffer;
 }
 
 export class ResendMailer implements Mailer {
@@ -51,6 +63,21 @@ export class ResendMailer implements Mailer {
     });
     if (!res.ok) throw new Error(`resend family-ready delivery failed with status ${res.status}`);
   }
+  async sendTailoredCv(email: string, doc: CvMail): Promise<void> {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
+      body: JSON.stringify({
+        from: this.from,
+        to: [email],
+        subject: doc.subject,
+        text: doc.text,
+        // Resend's attachment contract: base64 content + filename.
+        attachments: [{ filename: doc.filename, content: doc.pdf.toString("base64") }],
+      }),
+    });
+    if (!res.ok) throw new Error(`resend cv delivery failed with status ${res.status}`);
+  }
 }
 
 /** No provider configured (local/CI/e2e): logs the link; the route returns it so signup is traversable. */
@@ -61,6 +88,9 @@ export class DevMailer implements Mailer {
   }
   async sendFamilyReady(email: string, targetRole: string): Promise<void> {
     console.log(`[dev-mailer] family matches ready for ${email}: ${targetRole}`);
+  }
+  async sendTailoredCv(email: string, doc: CvMail): Promise<void> {
+    console.log(`[dev-mailer] tailored CV for ${email}: "${doc.subject}" (${doc.pdf.length} bytes)`);
   }
 }
 

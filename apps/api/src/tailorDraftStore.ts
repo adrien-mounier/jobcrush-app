@@ -16,6 +16,10 @@ export interface TailorDraftRecord {
    *  changed fact set — or a prompt bump, which changes the input text itself — reads as a miss. */
   inputFingerprint: string;
   draftedAt: string; // ISO timestamp
+  /** #313 — the approval record: when this person pressed Approve on THIS draft (the press that
+   *  sends). null until pressed, and a redraft writes a fresh record, so approval never outlives
+   *  the document it was given to. */
+  approvedAt: string | null;
 }
 
 export interface TailorDraftStore {
@@ -56,6 +60,7 @@ CREATE TABLE IF NOT EXISTS tailor_drafts (
   notices           jsonb NOT NULL,
   input_fingerprint text NOT NULL,
   drafted_at        timestamptz NOT NULL,
+  approved_at       timestamptz,
   PRIMARY KEY (session_id, ad_id)
 )`;
 
@@ -70,11 +75,17 @@ export class PgTailorDraftStore implements TailorDraftStore {
 
   async init(): Promise<void> {
     await this.pool.query(TAILOR_DRAFTS_TABLE);
+    // #313 additive migration for tables created before the approval record. Idempotent;
+    // best-effort so it never blocks startup (auth.ts's own pattern — the fresh CREATE TABLE
+    // above already has the column).
+    await this.pool
+      .query(`ALTER TABLE tailor_drafts ADD COLUMN IF NOT EXISTS approved_at timestamptz`)
+      .catch(() => {});
   }
 
   async get(sessionId: string, adId: string): Promise<TailorDraftRecord | null> {
     const { rows } = await this.pool.query(
-      `SELECT draft, notices, input_fingerprint, drafted_at FROM tailor_drafts
+      `SELECT draft, notices, input_fingerprint, drafted_at, approved_at FROM tailor_drafts
        WHERE session_id = $1 AND ad_id = $2`,
       [sessionId, adId],
     );
@@ -84,16 +95,18 @@ export class PgTailorDraftStore implements TailorDraftStore {
       conservationNotices: parseJsonbColumn<string[]>(rows[0].notices),
       inputFingerprint: rows[0].input_fingerprint as string,
       draftedAt: new Date(rows[0].drafted_at as string).toISOString(),
+      approvedAt: rows[0].approved_at ? new Date(rows[0].approved_at as string).toISOString() : null,
     });
   }
 
   async put(sessionId: string, adId: string, record: TailorDraftRecord): Promise<void> {
     await this.pool.query(
-      `INSERT INTO tailor_drafts (session_id, ad_id, draft, notices, input_fingerprint, drafted_at)
-       VALUES ($1,$2,$3,$4,$5,$6)
+      `INSERT INTO tailor_drafts (session_id, ad_id, draft, notices, input_fingerprint, drafted_at, approved_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
        ON CONFLICT (session_id, ad_id) DO UPDATE SET
          draft = EXCLUDED.draft, notices = EXCLUDED.notices,
-         input_fingerprint = EXCLUDED.input_fingerprint, drafted_at = EXCLUDED.drafted_at`,
+         input_fingerprint = EXCLUDED.input_fingerprint, drafted_at = EXCLUDED.drafted_at,
+         approved_at = EXCLUDED.approved_at`,
       [
         sessionId,
         adId,
@@ -101,6 +114,7 @@ export class PgTailorDraftStore implements TailorDraftStore {
         JSON.stringify(record.conservationNotices),
         record.inputFingerprint,
         record.draftedAt,
+        record.approvedAt,
       ],
     );
   }

@@ -7,6 +7,7 @@
 // ported), and reads the checkpointed draft — a reload or a return re-spends nothing server-side.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  approveTailorDraft,
   getTailorDraft,
   requestTailorDraft,
   type JobDisclosure,
@@ -25,10 +26,112 @@ const D4 = "Press Try again — everything you answered is saved, and nothing al
 const D5 = "Try again";
 const D6 = "It is a full-page CV — scroll inside to read it all.";
 
+// #313 — the one press, and its narration. Silence is the failure mode to avoid: nearly every
+// press is a cold start of about half a minute, so the screen says what it is doing the whole
+// time, and the wait ends when the document is made and the mail is away (what we control) —
+// never when the email lands (which we don't).
+const S1 = "Approve and email me this CV";
+const S2 = "One press: we turn this draft into a PDF and email it to you. You send it on yourself.";
+const S3 = "Making your PDF…";
+const S4 = "The first press can take about half a minute while the machine warms up. Stay here.";
+const S5 = "Emailing it to you…";
+const S6 = "Done — your CV is made and the email is on its way.";
+const S7 = "We could not make and send this CV.";
+const S8 = "Press the button again — your draft and your approval are saved.";
+
 type Phase =
   | { kind: "writing" }
   | { kind: "ready"; view: TailorDraftView }
   | { kind: "failed"; cameBack?: string; fix?: string };
+
+// #313 — the press's own little machine, beside the draft's. `step` mirrors the server's
+// narration (progress.tailorExport.step) so the screen never says more than the server knows.
+type SendPhase =
+  | { kind: "idle" }
+  | { kind: "sending"; step: "printing" | "sending" }
+  | { kind: "sent"; email?: string }
+  | { kind: "sendFailed"; cameBack?: string; fix?: string };
+
+/** The one press: approve this exact draft (named by its draftedAt), then watch the narrated
+ *  print-and-mail over the same SSE stream the draft build used. */
+function SendBlock({ draftedAt }: { draftedAt: string }) {
+  const [phase, setPhase] = useState<SendPhase>({ kind: "idle" });
+  const streamRef = useRef<EventSource | null>(null);
+  const watchdogRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(
+    () => () => {
+      streamRef.current?.close();
+      clearTimeout(watchdogRef.current);
+    },
+    [],
+  );
+
+  const settle = (next: SendPhase) => {
+    streamRef.current?.close();
+    clearTimeout(watchdogRef.current);
+    setPhase(next);
+  };
+
+  const press = async () => {
+    setPhase({ kind: "sending", step: "printing" });
+    clearTimeout(watchdogRef.current);
+    watchdogRef.current = setTimeout(() => settle({ kind: "sendFailed" }), WAIT_CEILING_MS);
+    try {
+      const { jobId } = await approveTailorDraft(draftedAt);
+      const source = new EventSource(`/api/jobs/${jobId}/events`);
+      streamRef.current = source;
+      source.onmessage = (event) => {
+        let snapshot: JobSnapshot;
+        try {
+          snapshot = JSON.parse(event.data) as JobSnapshot;
+        } catch {
+          return settle({ kind: "sendFailed" });
+        }
+        const exported = snapshot.progress.tailorExport;
+        if (snapshot.status === "completed") settle({ kind: "sent", email: exported?.email });
+        else if (snapshot.status === "failed") settle({ kind: "sendFailed", ...exported?.failure });
+        else if (exported?.step === "sending") setPhase({ kind: "sending", step: "sending" });
+      };
+      source.onerror = () => {
+        if (source.readyState === EventSource.CLOSED) settle({ kind: "sendFailed" });
+      };
+    } catch (err) {
+      settle({ kind: "sendFailed", cameBack: err instanceof Error ? err.message : undefined });
+    }
+  };
+
+  if (phase.kind === "sending") {
+    return (
+      <div className="draft-send" role="status">
+        <p className="draft-wait-line">{phase.step === "printing" ? S3 : S5}</p>
+        {phase.step === "printing" && <p className="draft-wait-sub">{S4}</p>}
+      </div>
+    );
+  }
+  if (phase.kind === "sent") {
+    return (
+      <div className="draft-send" role="status">
+        <p className="draft-wait-line">{S6}</p>
+        {phase.email && <p className="draft-wait-sub">Sent to {phase.email}.</p>}
+      </div>
+    );
+  }
+  return (
+    <div className="draft-send">
+      {phase.kind === "sendFailed" && (
+        <>
+          <p role="alert">{phase.cameBack ?? S7}</p>
+          <p className="draft-wait-sub">{phase.fix ?? S8}</p>
+        </>
+      )}
+      <button type="button" onClick={() => void press()}>
+        {S1}
+      </button>
+      <p className="draft-wait-sub">{S2}</p>
+    </div>
+  );
+}
 
 // #154: one block per job. A choice (facts held back, explained as relevance to this posting) and a
 // fault of ours (an over-full line, explained as compression) are worded differently on purpose —
@@ -177,6 +280,8 @@ export function TailorDraft() {
     <div className="draft">
       <iframe className="draft-frame" sandbox="" srcDoc={view.html} title="Your tailored CV" />
       <p className="draft-hint">{D6}</p>
+      {/* keyed by draftedAt: a redraft is a new document, so the press state starts over */}
+      <SendBlock key={view.draftedAt} draftedAt={view.draftedAt} />
       {view.disclosure.map((d) => (
         <DisclosureBlock key={`${d.employer}-${d.role}`} d={d} />
       ))}

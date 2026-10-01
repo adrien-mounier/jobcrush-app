@@ -1546,6 +1546,7 @@ const draftRecord = (fingerprint: string, notices: string[] = []): TailorDraftRe
   conservationNotices: notices,
   inputFingerprint: fingerprint,
   draftedAt: "2026-09-30T08:00:00.000Z",
+  approvedAt: null,
 });
 
 const tailorDraftDrivers: [string, () => TailorDraftStore][] = [
@@ -1571,6 +1572,13 @@ for (const [name, make] of tailorDraftDrivers) {
       await store.put("session-1", "ad-1", draftRecord("fp-1"));
       expect(await store.get("session-2", "ad-1")).toBeNull();
       expect(await store.get("session-1", "ad-2")).toBeNull();
+    });
+
+    it("the approval record round-trips, and a redraft (approvedAt: null) clears it (#313)", async () => {
+      await store.put("session-1", "ad-1", { ...draftRecord("fp-1"), approvedAt: "2026-10-01T09:00:00.000Z" });
+      expect((await store.get("session-1", "ad-1"))?.approvedAt).toBe("2026-10-01T09:00:00.000Z");
+      await store.put("session-1", "ad-1", draftRecord("fp-2"));
+      expect((await store.get("session-1", "ad-1"))?.approvedAt).toBeNull();
     });
 
     it("a redraft for the same (session, advert) replaces the prior record", async () => {

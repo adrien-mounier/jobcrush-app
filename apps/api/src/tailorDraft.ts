@@ -126,6 +126,9 @@ export async function runTailorDraftJob(
       conservationNotices,
       inputFingerprint: inputs.fingerprint,
       draftedAt: new Date().toISOString(),
+      // #313: a fresh draft is a fresh document — approval never carries over to words he has
+      // not seen. The approve press stamps this.
+      approvedAt: null,
     };
     await deps.tailorDrafts.put(sessionId, posting.id, record);
     await deps.jobs.update(jobId, { status: "completed", progress: { tailorDraft: { ready: true } } });
@@ -159,13 +162,16 @@ export function tailorDraftView(
   claimsDoc: CandidateClaims,
   posting: Posting,
   contact: StoredContact = { phone: null, email: null },
+  // #313: the approved export prints the same render WITHOUT the DRAFT watermark/banner — the
+  // document leaving the app is no longer a draft. Every screen read keeps the default.
+  opts: { watermark?: boolean } = {},
 ): TailorDraftView {
   const draft = {
     ...record.draft,
     contact: applyStoredContact(record.draft.contact, contact),
   };
   return {
-    html: renderPreviewHtml(draft, posting),
+    html: renderPreviewHtml(draft, posting, opts),
     disclosure: draftDisclosure(claimsDoc, draft),
     // The lint speaks once per finding, so three untraceable lines in one role produce the same
     // visitor sentence three times — on screen that reads as a stutter, not three facts. Display

@@ -659,6 +659,11 @@ export function buildServer(opts: BuildOptions = {}) {
       contact,
       tailorDrafts,
       tailorLlm: opts.tailorLlm,
+      // #313: the approve-is-send press — the account's email, the mail seam, and #312's
+      // injected document maker (absent ⇒ the press answers 503, the readPastedAdvert rule).
+      auth,
+      mailer,
+      documentMaker: opts.documentMaker,
     }),
   );
   app.register(authRoutes({ auth, sessions, mailer, webUrl: opts.webUrl, googleEmail: opts.googleEmail, limiter: opts.authRateLimiter }));

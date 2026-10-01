@@ -89,6 +89,13 @@ export interface JobSnapshot {
     paste?: PasteProgress;
     /** #310: the tailored-draft build — `failure` carries the server's own plain words. */
     tailorDraft?: { ready?: boolean; failure?: { cameBack: string; fix: string } };
+    /** #313: the approve-is-send press, narrated — printing → sending → sent. */
+    tailorExport?: {
+      step?: "printing" | "sending" | "sent";
+      pages?: number;
+      email?: string;
+      failure?: { cameBack: string; fix: string };
+    };
     [k: string]: unknown;
   };
 }
@@ -541,6 +548,17 @@ export function requestTailorDraft(): Promise<{ ready?: boolean; jobId?: string 
 
 export function getTailorDraft(): Promise<TailorDraftView> {
   return jfetch("/api/onboarding/tailor/draft");
+}
+
+/** #313 — the one press: approving IS sending. `draftedAt` names the draft on screen, which is
+ *  what makes the approval provably his and provably of THIS document; the server gates (lint +
+ *  approval) and answers the job to watch — printing and mailing are narrated over the same
+ *  `/api/jobs/:id/events` stream as everything else. */
+export function approveTailorDraft(draftedAt: string): Promise<{ jobId: string }> {
+  return jfetch("/api/onboarding/tailor/approve", {
+    method: "POST",
+    body: JSON.stringify({ draftedAt }),
+  });
 }
 
 // --- E2 auth (magic-link) ---

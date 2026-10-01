@@ -34,7 +34,7 @@ import {
 // #307: "gone" is the state after a permanent answer withdrew the very job being tailored — the
 // server cleared the target and handed back the line saying what changed, plus (#309) the
 // withdrawal's named reason, so the honest consequence carries its rule and the way back.
-type Screen = "loading" | "error" | "flow" | "applied" | "saved" | "gone";
+type Screen = "loading" | "error" | "flow" | "saved" | "gone";
 
 // #117c (addendum §12.5): was "Opening this job…", written for a cache read. ~7 of 15 cards now
 // judge on demand here (§11), a genuinely cold call of several seconds — "Opening" promises an
@@ -52,7 +52,6 @@ const T10 = "Everything you told me stays on your profile.";
 const T11 = "Drop it";
 const T12 = "Keep it";
 const T13 = "This CV is as strong as I can make it for this job.";
-const T15 = "Apply with this CV";
 const T16 = "Save it and come back later";
 const T19 = "Saved";
 const T21 = "Back to the deck";
@@ -83,10 +82,6 @@ function closedGapsLine(cg: { closed: number; asked: number }): string {
   if (cg.closed === 0) return "Everything you told me is in there.";
   if (cg.asked === 1) return "You closed the one gap this job asked about.";
   return `You closed ${cg.closed} of the ${cg.asked} gaps this job asked about.`;
-}
-
-function appliedLine(title: string): string {
-  return `Your CV for “${title}” is done. Nothing goes out until you press send.`;
 }
 
 function savedLine(title: string, matchPct: number): string {
@@ -182,7 +177,6 @@ export default function TailorPage() {
   const rootRef = useRef<HTMLDivElement>(null);
   const cardHeadingRef = useRef<HTMLHeadingElement>(null);
   const endingHeadingRef = useRef<HTMLHeadingElement>(null);
-  const appliedHeadingRef = useRef<HTMLHeadingElement>(null);
   const savedHeadingRef = useRef<HTMLHeadingElement>(null);
   const goneHeadingRef = useRef<HTMLHeadingElement>(null); // #307
 
@@ -288,10 +282,7 @@ export default function TailorPage() {
   // this only ever fires on the `screen` transition itself.
   useEffect(() => {
     if (!tailor) return;
-    if (screen === "applied") {
-      appliedHeadingRef.current?.focus();
-      setLiveMessage(appliedLine(tailor.card.title));
-    } else if (screen === "saved") {
+    if (screen === "saved") {
       savedHeadingRef.current?.focus();
       setLiveMessage(savedLine(tailor.card.title, tailor.card.matchPct));
     }
@@ -629,18 +620,6 @@ export default function TailorPage() {
         </div>
       )}
 
-      {screen === "applied" && tailor && (
-        <div className="loadstate">
-          <h1 className="big" tabIndex={-1} ref={appliedHeadingRef}>
-            Ready to <em>send</em>
-          </h1>
-          <p>{appliedLine(tailor.card.title)}</p>
-          <button type="button" onClick={() => router.push("/deck")}>
-            {T21}
-          </button>
-        </div>
-      )}
-
       {screen === "saved" && tailor && (
         <div className="loadstate">
           <h1 className="big" tabIndex={-1} ref={savedHeadingRef}>
@@ -750,9 +729,9 @@ export default function TailorPage() {
                       {ledgerView.text}
                     </p>
                   )}
-                  <button type="button" className="btn-primary" onClick={() => setScreen("applied")}>
-                    {T15}
-                  </button>
+                  {/* #313: no "Apply with this CV" button any more — approving IS sending, and
+                      the one press lives under the draft itself (draft.tsx's SendBlock). A second
+                      button with no decision behind it is what the ticket rules out. */}
                   <button type="button" className="btn-ghost" onClick={() => setScreen("saved")}>
                     {T16}
                   </button>

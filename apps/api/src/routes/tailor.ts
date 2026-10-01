@@ -47,6 +47,10 @@ import type { ContactStore } from "../contact.js";
 import type { LlmClient } from "../llm.js";
 import type { TailorDraftStore } from "../tailorDraftStore.js";
 import { composeDraftInputs, runTailorDraftJob, tailorDraftView } from "../tailorDraft.js";
+import { exportGate, runTailorExportJob } from "../tailorExport.js";
+import type { AuthStore } from "../auth.js";
+import type { Mailer } from "../mailer.js";
+import type { DocumentMaker } from "../documentMaker.js";
 import {
   advertDeniedRows,
   composeGrownLine,
@@ -87,6 +91,13 @@ export interface TailorRouteDeps {
   contact: ContactStore;
   tailorDrafts: TailorDraftStore;
   tailorLlm?: LlmClient;
+  /** #313 — the approve-is-send press's own deps. `auth` resolves the signed-in account's email
+   *  (the document goes to HIM). `documentMaker` follows the readPastedAdvert rule: the real
+   *  browser is wired in main.ts, the stand-in in qa-main/tests — absent, the press answers 503
+   *  rather than inventing a document. `mailer` always exists (DevMailer in dev/CI). */
+  auth: AuthStore;
+  mailer: Mailer;
+  documentMaker?: DocumentMaker;
 }
 
 // #308: a skip is stored per-advert ("<adId>::<requirementId>", sessions.ts's tailorSkips) so
@@ -548,6 +559,72 @@ export function tailorRoutes(deps: TailorRouteDeps) {
         email: contact.email?.value ?? null,
       });
     });
+
+    // --- #313: approving is sending — one press, server-side gates, narrated wait --------------
+
+    // Same per-process in-flight guard as draftRuns: a double press (or a reload mid-wait) joins
+    // the send already running instead of emailing twice.
+    const exportRuns = new Map<string, string>();
+
+    /** The press. Body names the draftedAt of the document on his screen — that IS the approval,
+     *  and it provably belongs to this draft (exportGate). Gates refused synchronously; the slow
+     *  part (a ~33s cold browser start, then the mail) runs detached, narrated over
+     *  `GET /jobs/:id/events` — the same stream every other wait uses. */
+    app.post(
+      "/onboarding/tailor/approve",
+      { schema: { body: z.object({ draftedAt: z.string().min(1) }) } },
+      async (req, reply) => {
+        const session = requireUser(req);
+        const resolved = await resolveDraftTarget(session);
+        if (resolved.refused) {
+          const { status, code, message } = resolved.refused;
+          return reply.status(status).send({ error: { code, message } });
+        }
+        // The readPastedAdvert rule: no document maker wired ⇒ refuse honestly, never invent a PDF.
+        if (!deps.documentMaker)
+          return reply.status(503).send({
+            error: { code: "export_unavailable", message: "making the PDF is switched off on this deployment" },
+          });
+        const { posting, adReq, confirmed, negatives, blocks } = resolved.target;
+        const header = (await deps.contact.get(session.id, "header"))?.value ?? "";
+        const inputs = composeDraftInputs(confirmed, negatives, blocks, posting, adReq, header);
+        const stored = await deps.tailorDrafts.get(session.id, posting.id);
+        // Both server-side gates — the current draft carries his approval AND the conservation
+        // lint raises nothing fatal — live in exportGate, pure and directly tested.
+        const refused = exportGate(stored, inputs, req.body.draftedAt);
+        if (refused)
+          return reply.status(refused.status).send({ error: { code: refused.code, message: refused.message } });
+        const runKey = JSON.stringify([session.id, posting.id]);
+        const running = exportRuns.get(runKey);
+        if (running) return reply.status(202).send({ jobId: running });
+        // requireUser guarantees a claimed session; a claimed session with no account row is a
+        // store inconsistency and surfaces as our 500, never a silent mis-send.
+        const user = await deps.auth.getUserById(session.claimedByUserId!);
+        if (!user) throw new Error("claimed session has no account");
+        // The approval record, durable before anything slow starts (spec #301's store test).
+        await deps.tailorDrafts.put(session.id, posting.id, {
+          ...stored!,
+          approvedAt: new Date().toISOString(),
+        });
+        const contact = await deps.contact.getRecord(session.id);
+        const view = tailorDraftView(
+          stored!,
+          inputs.claimsDoc,
+          posting,
+          { phone: contact.phone?.value ?? null, email: contact.email?.value ?? null },
+          // The approved document is not a draft: no watermark, no banner.
+          { watermark: false },
+        );
+        const job = await deps.jobs.create("tailor-export", session.id);
+        exportRuns.set(runKey, job.id);
+        void runTailorExportJob(
+          { jobs: deps.jobs, documentMaker: deps.documentMaker, mailer: deps.mailer },
+          job.id,
+          { html: view.html, notices: view.conservationNotices, posting, email: user.email },
+        ).finally(() => exportRuns.delete(runKey));
+        return reply.status(202).send({ jobId: job.id });
+      },
+    );
 
     // Drop: back to the deck, never touching a claim — "everything you told me stays on your profile."
     app.post("/onboarding/tailor/drop", async (req) => {

@@ -291,7 +291,9 @@ test('running out of questions lands the ending — the same one "I\'m done" rea
   await expect(heading).toBeFocused();
   // scoped to `.note` — the same sentence is also in the (visually-hidden) live region.
   await expect(page.locator(".finish .note")).toHaveText("You closed 1 of the 2 gaps this job asked about.");
-  await expect(page.getByRole("button", { name: "Apply with this CV" })).toBeVisible();
+  // #313: approving IS sending — the old Apply button (a press with no decision behind it) is gone;
+  // the one real press lives in the draft column (SendBlock) once the draft is ready.
+  await expect(page.getByRole("button", { name: "Apply with this CV" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save it and come back later" })).toBeVisible();
   // Only Drop remains in the exits row — "I'm done" served its purpose getting here.
   await expect(page.getByRole("button", { name: "I'm done — use this CV" })).toHaveCount(0);
@@ -309,7 +311,9 @@ test('pressing "I\'m done" early lands the identical ending, with questions stil
   await expect(heading).toBeFocused();
   // scoped to `.note` — the same sentence is also in the (visually-hidden) live region.
   await expect(page.locator(".finish .note")).toHaveText("Everything you told me is in there.");
-  await expect(page.getByRole("button", { name: "Apply with this CV" })).toBeVisible();
+  // #313: approving IS sending — the old Apply button (a press with no decision behind it) is gone;
+  // the one real press lives in the draft column (SendBlock) once the draft is ready.
+  await expect(page.getByRole("button", { name: "Apply with this CV" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save it and come back later" })).toBeVisible();
   await expect(page.getByText(/stopped early/i)).toHaveCount(0);
 });
@@ -621,8 +625,9 @@ test("#310 the ending renders the real draft and the re-homed #154 panel — doc
     page.getByText("Your languages could not be placed on this draft.", { exact: false }),
   ).toBeVisible();
 
-  // And the ending's own controls are still there beneath it.
-  await expect(page.getByRole("button", { name: "Apply with this CV" })).toBeVisible();
+  // And the ending's own controls are still there beneath it — the draft is ready here, so the
+  // #313 approve-is-send press is the one that shows.
+  await expect(page.getByRole("button", { name: "Approve and email me this CV" })).toBeVisible();
 });
 
 test("#310 a fresh draft narrates its wait over the job stream, then the document lands", async ({ page }) => {

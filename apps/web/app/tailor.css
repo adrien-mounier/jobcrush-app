@@ -365,6 +365,29 @@
   font-weight: 600;
   margin: 0 0 4px;
 }
+/* #313 — the approve-is-send block under the draft: the screen's one real exit. The press is the
+   decision, so the button is the solid one on this surface; the narration reuses the wait type. */
+.tailor .draft-send {
+  padding: 14px 4px 4px;
+}
+.tailor .draft-send button {
+  appearance: none;
+  border: 1px solid var(--hud-ink);
+  border-radius: 10px;
+  background: var(--hud-ink);
+  color: var(--hud-0); /* dark surface token on the light ink fill — --hud-bg does not exist */
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 16px;
+  cursor: pointer;
+  margin: 0 0 6px;
+}
+.tailor .draft-send p[role="alert"] {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
 .tailor .draft-fail button {
   margin-top: 10px;
   appearance: none;

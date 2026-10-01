@@ -2,6 +2,31 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-01 — #313 closed: approving is sending
+
+`/implement` -> `/code-review` (both axes) -> `/qa-gate` (**NO-GO**, fixed, re-ran, **GO**) on **#313**
+(#301 slice 4). One closing commit.
+
+- **The press exists**: `POST /onboarding/tailor/approve` — one press, server-side double gate
+  (`exportGate` in `apps/api/src/tailorExport.ts`: the conservation lint re-run, fatal findings
+  refuse; approval = the body naming the `draftedAt` of the draft on his screen), then the detached
+  narrated job (printing -> sending -> sent) over the same `/jobs/:id/events` stream. The approval
+  is durable on the draft row (`approved_at`, additive migration); a redraft clears it. The mailer
+  grew `sendTailoredCv` (Resend attachment); ship-and-tell notices ride in the email text. The
+  exported document prints WITHOUT the DRAFT watermark (`tailorDraftView` opts).
+- **The old "Apply with this CV" button and its dead-end holding page are gone** — QA's NO-GO
+  finding 2: now the real send exists, the placeholder was exactly the "second button with no
+  decision behind it" the ticket rules out. NO-GO finding 1 was an invisible button label
+  (`--hud-bg` is not a defined token; `--hud-0` is).
+- Whole chain tested through the stand-in maker on every push (`test/tailorExport.test.ts`, 10
+  tests, incl. a route-level lint refusal via a tampered store record). New gate journey
+  `apps/web/e2e/approve-is-send-journey.mjs` (21 checks, incl. a contrast-ratio check on the
+  button) — not yet in `run-tier2.mjs`'s list.
+- Left for the owner: (1) the "check it before sending" notice sits BELOW the approve button;
+  (2) the secondary "Save it..." button is visually heavier than the approve press; (3) #315 grows
+  the email body into the application report; (4) real mail + the ~33s cold press prove out on
+  staging.
+
 ## 2026-10-01 — #312 closed: the machine can print (V5 opens)
 
 `/implement` -> `/code-review` (both axes) -> `/qa-gate` (**NO-GO**, fixed, re-ran, **GO**) on **#312**
