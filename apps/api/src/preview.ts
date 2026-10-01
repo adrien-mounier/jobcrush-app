@@ -950,6 +950,15 @@ export function renderPreviewHtml(
   /* Fit-to-width on phones: viewport meta reflows to the iframe width; trim the page
      margins so the content isn't cramped by the desktop padding. */
   @media (max-width:600px){body{padding:20px 16px;}}
+  /* Print (#312): page.pdf() paginates with print media on A4. Keep a role / cert row whole
+     across a page boundary, never strand a section head at a page bottom, and keep the #1F4E79
+     accents exact instead of print-dimmed. Screen rendering is untouched — these rules only
+     fire when the document is paginated. */
+  @media print{
+    body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .role,.cert{break-inside:avoid;}
+    h2{break-after:avoid;}
+  }
 </style></head><body>
 ${
   watermark

@@ -109,6 +109,17 @@ describe("JC-16 posting match + render", () => {
     expect(html).toContain('name="viewport"'); // fit-to-width on mobile, not pinch-to-read
   });
 
+  // #312: the print rules travel IN the document — page.pdf() paginates with `print` media, and
+  // without break control a role's bullets split across the page boundary while the accent colours
+  // print dimmed. The page count itself is the release gate's job (scripts/print-gate.mjs); this
+  // only ratchets the rules against accidental removal.
+  it("carries the print rules the browser paginates with (#312)", () => {
+    const html = renderPreviewHtml(sampleDraft, matchPosting(["Project Manager"]));
+    expect(html).toContain("@media print");
+    expect(html).toContain("break-inside:avoid");
+    expect(html).toContain("print-color-adjust:exact");
+  });
+
   it("escapes claim-derived content in the render", () => {
     const hostile = { ...sampleDraft, name: `<img src=x onerror=alert(1)>` };
     const html = renderPreviewHtml(hostile, matchPosting([]));

@@ -2,6 +2,42 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-01 — #312 closed: the machine can print (V5 opens)
+
+`/implement` -> `/code-review` (both axes) -> `/qa-gate` (**NO-GO**, fixed, re-ran, **GO**) on **#312**
+(#301 slice 4 opener, absorbs #156's measurement half). One closing commit.
+
+**What shipped.** The API container can now make the real document. (1) *The image:*
+`chrome-headless-shell` only (never full Chromium — plain `install chromium` would fetch both),
+apt deps hand-picked from playwright-core's own debian12-x64 list (never `--with-deps`, which was
+measured at +282MB of X/Mesa/CJK), plus the fonts that make page count mean something — Carlito
+(Calibri metrics) and Liberation (Arial), since the CV asks for three fonts the base image doesn't
+have one of. (2) *The renderer:* an `@media print` block in `renderPreviewHtml` — `break-inside:
+avoid` on roles and cert rows, no orphaned section heads, accents printed exact. (3) *The seam:*
+`documentMaker.ts` — `DocumentMaker` injected through `BuildOptions` beside the mailer/model/
+storage; main.ts wires the browser-backed maker (launch-per-print, page count read back from the
+produced bytes via pdf-parse, fail-closed), qa-main.ts wires `StandInDocumentMaker` so CI never
+downloads a browser. #313's approve route is the consumer. (4) *The deploy config:* `[[vm]]`
+2GB declared in `fly.api.toml`, matching the machine #297 scaled — a recreated machine no longer
+comes back at a browser-killing 256MB. SHARED_INFRA.md rule 7 updated to match. (5) *The release
+gate:* `pnpm --filter @jobcrush/api print-gate` — the real browser prints the documented 24-bullet
+density and must land on exactly 2 pages; proven to move (28+ bullets → 3 pages → exit 1).
+
+**The gate's catch.** The AC said Chromium's shared-memory workaround must not be added, the code
+never set it — and it ran on every print anyway: **Playwright adds `--disable-dev-shm-usage` to
+every Chromium launch by default**, proven by reading the real launch line (`DEBUG=pw:browser`) on
+Windows and inside the rebuilt Linux image. Fix: `ignoreDefaultArgs`. "I didn't set the flag" and
+"the flag is not set" are different claims; only the launch line settles the second.
+
+**Measured, as the ticket demanded.** Image growth **+454MB locally via Docker layer totals
+(686MB → 1.14GB; QA's per-layer count on the same build: browser 279MB + apt/fonts 47MB + npm
+13MB ≈ 339MB — the delta is Docker's whole-image rounding)** against the research's ~355MB
+estimate; browser peak printing this CV **~217MB inside the 2GB-capped Linux container** against
+the ~201MB Windows estimate. QA also proved Calibri→Carlito/Arial→Liberation Sans resolve inside
+the real image (`fc-match`), and the gate prints 2 pages identically under real Calibri (Windows)
+and Carlito (Linux). Left for staging, per the ticket's own design: the 985MB `/dev/shm` and the
+declared size on a recreated Fly machine.
+
 ## 2026-10-01 — #311 closed: a "No" never prints, and growing is one step (V4 complete)
 
 `/implement` -> `/code-review` (both axes) -> `/qa-gate` (**NO-GO**, fixed, re-ran, **GO**) on **#311**

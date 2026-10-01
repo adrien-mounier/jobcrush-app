@@ -209,7 +209,11 @@ AND every later edit.
   finding.** Its job is to stop one role eating the CV, nothing more. Measured on the owner's own CV,
   two pages holds roughly **24 experience bullets**; across three roles that is ~8 each, so **8 was a
   reasonable average and an unreasonable cap** — a rope sits above the average precisely because
-  roles are unequal.
+  roles are unequal. **The ~24-bullets figure is now measured against our own renderer** (#312,
+  2026-10-01): the real browser printing `renderPreviewHtml()`'s output at 24 bullets lands on
+  exactly 2 A4 pages, and `apps/api/scripts/print-gate.mjs` re-measures it at every release gate.
+  The page count is read back from the produced PDF itself; the budget's enforcement on the live
+  approve path (over two pages → tighten once, then ship and tell) lands with #314.
 - **First call is not a floor.** A role with 4 good bullets prints 4. Never pad to reach a number:
   a floor is what produced the merge damage below.
 - **A role is one flat bullet list. No sub-headings inside a role** (decided 2026-08-07, issue #155).

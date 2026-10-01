@@ -16,6 +16,15 @@ primary_region = "sin"
   auto_start_machines = true
   min_machines_running = 0
 
+# #312: the machine size is a declared, reviewable fact, not a property of one long-lived machine.
+# Matches the live machine (scaled 256MB → 2GB 2026-09-27, owner-approved #297): a machine
+# recreated at Fly's 256MB default cannot host the headless browser, and the failure mode is not a
+# failed PDF — Fly's OOM kill takes the whole API down. SHARED_INFRA.md rule 7 carries the record.
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "2gb"
+
 [checks.health]
   type = "http"
   port = 3000

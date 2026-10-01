@@ -88,6 +88,7 @@ import { InMemoryPostingStore } from "./postingStore.js";
 import { InMemoryPasteRecordStore, type PasteRecordStore } from "./pasteRecordStore.js";
 import { pastedPostings } from "./pastedAdvert.js";
 import { DevMailer } from "./mailer.js";
+import { StandInDocumentMaker } from "./documentMaker.js";
 import { createGuestbook } from "./guestbook.js";
 import { IpRateLimiter } from "./sessions.js";
 import type { LlmClient } from "./llm.js";
@@ -906,6 +907,10 @@ const { app } = buildServer({
   // answers a conserving draft, so a browser journey can watch the CV brain's ending, free. The
   // checkpoint store stays buildServer's in-memory default, like every other QA store.
   tailorLlm: fakeLlm,
+  // #312: the stand-in stands where the browser goes — this stack runs in CI on every push, and
+  // the one thing it must never do is download a 114MB browser to print a deterministic fixture.
+  // The real browser making a real PDF is the release gate (scripts/print-gate.mjs), not a test.
+  documentMaker: new StandInDocumentMaker(),
   // #304: the narrated wait's second step, off the SAME canned table the industry labeler reads
   // (#282) — one fake employer answer on this entry, not two that could disagree. Paced only HERE,
   // where a person is watching a step go by; the labeler's own path runs at its old speed, so no

@@ -23,6 +23,7 @@ import {
   makeFamilyCandidateScreen,
 } from "./familyLearning.js";
 import { mailerFromEnv } from "./mailer.js";
+import { makeBrowserDocumentMaker } from "./documentMaker.js";
 import { runPurge } from "./purge.js";
 import { getPool } from "./db.js";
 import { usageLedgerStoreFromEnv } from "./usageLedgerStore.js";
@@ -264,6 +265,10 @@ const { app } = buildServer({
   // upload-pipeline binding used, so /ops/spend keeps one name for the same work.
   tailorLlm: metered("preview-tailor", llm),
   tailorDrafts,
+  // #312: the real document maker — chrome-headless-shell, installed in the API image
+  // (Dockerfile) and nowhere else. Constructing it launches nothing; the browser runs only when
+  // #313's approve route asks for a document.
+  documentMaker: makeBrowserDocumentMaker(),
   // #304: the paste door's "looking up the employer" step, and it is the SAME lookup the industry
   // labeler uses — one shared cache, one payment per company ever, whichever of the two asks
   // first. Wired only with a real Anthropic key, for #282's own reason: the lookup is a

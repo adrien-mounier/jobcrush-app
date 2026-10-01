@@ -66,6 +66,7 @@ import type { LlmClient } from "./llm.js";
 import type { ReadPastedAdvert } from "./pastedAdvert.js";
 import { makeBroughtJobs } from "./broughtJobs.js";
 import type { EmployerLookup } from "./employerLookup.js";
+import type { DocumentMaker } from "./documentMaker.js";
 import { pasteRoutes } from "./routes/paste.js";
 import { tailorRoutes } from "./routes/tailor.js";
 import type { PostingRetrievalResultV1 } from "@jobcrush/contracts";
@@ -185,6 +186,11 @@ export interface BuildOptions {
    *  rather than inventing a CV — the readPastedAdvert rule; main.ts wires the metered real client,
    *  qa-main.ts its stage-aware fake, tests their own. */
   tailorLlm?: LlmClient;
+  /** #312: makes the two-page PDF from the rendered draft — consumed by #313's approve route.
+   *  Absent → that route answers 503 rather than inventing a document (the readPastedAdvert
+   *  rule); main.ts wires the real browser (chrome-headless-shell in the API image), qa-main.ts
+   *  and tests the stand-in, so CI never downloads a browser. */
+  documentMaker?: DocumentMaker;
 }
 
 /** 401 helper: routes that require the JC-10 anonymous session call this first. */

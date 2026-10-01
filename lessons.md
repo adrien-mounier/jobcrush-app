@@ -1,5 +1,16 @@
 # Lessons — jobcrush-app
 
+## "I didn't set the flag" is not "the flag is not set" — drivers inject defaults; read the real launch line
+
+Learned 2026-10-01 on #312. The AC forbade Chromium's `--disable-dev-shm-usage` workaround; the code
+never passed it; a comment said so; and it ran on every print anyway, because **Playwright adds it
+(and ~40 other switches) to every Chromium launch by default** (`chromiumSwitches` in playwright-core).
+Only the QA gate reading the actual spawned command line (`DEBUG=pw:browser`) caught it — no test can,
+since the test asserts on the args *we* pass. The fix is `ignoreDefaultArgs: ["--disable-dev-shm-usage"]`.
+The reusable shape: when a requirement is "X must not run" and X is controlled by a wrapper (Playwright,
+an ORM, a CLI shim), verify at the wrapper's OUTPUT (the launch line, the emitted SQL, the sent request),
+never at your input to it.
+
 ## The half-tokens "covered" convention is ONE word on a two-word clause — never reuse it to match entities
 
 Learned 2026-10-01 on #311. matchtick's clause fit calls a clause covered at HALF its meaningful
