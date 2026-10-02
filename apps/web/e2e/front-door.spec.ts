@@ -81,7 +81,6 @@ const PASTED_CV = "Jane Doe\nProject Manager\n\nExperience\nPM at Acme 2020-2024
 const USEFUL_PROOF = {
   outcome: "success",
   usefulFactCount: 1,
-  skippedQuestionCount: 0,
   representativeFacts: [{ id: "fact-1", text: "Led a platform migration", provenance: "cv" }],
   conflict: null,
 };
@@ -375,7 +374,9 @@ test("a saved choice survives a failed continue, says so honestly, and retry con
   await expect(page.getByLabel("Target role")).toBeVisible();
 });
 
-test("CV reading becomes a compact server-authored proof with equivalent facts shown once", async ({ page }) => {
+// #325: a good read has no screen of its own — not the counts, not the facts, not the conflict
+// field (the read below carries one; #323 owns whether it is asked again, and where).
+test("a CV that reads well goes straight to the job-and-area question, with no press", async ({ page }) => {
   await stubSourceEntry(page, { checkpoint: "invited", choice: null });
   await stubCvImport(page, [
     { id: "job-1", status: "running", error: null, progress: {} },
@@ -385,106 +386,75 @@ test("CV reading becomes a compact server-authored proof with equivalent facts s
       error: null,
       progress: {
         importProof: {
-          outcome: "success",
-          usefulFactCount: 1,
-          skippedQuestionCount: 0,
-          representativeFacts: [
-            { id: "fact-1", text: "Led a platform migration", provenance: "cv" },
-          ],
-          conflict: null,
+          ...USEFUL_PROOF,
+          conflict: { fieldId: "location", label: "Search area", userResolvedValue: null },
         },
       },
     },
   ]);
-  await page.goto("/");
-
-  await chooseCv(page);
-
-  const heading = page.getByRole("heading", { name: "Your CV gave us useful facts" });
-  await expect(heading).toBeFocused();
-  await expect(page.getByText("1", { exact: true })).toBeVisible();
-  await expect(page.getByText("0", { exact: true })).toBeVisible();
-  await expect(page.getByText("We’ll use them in the next step.")).toBeVisible();
-  await expect(page.getByText("Led a platform migration")).toHaveCount(1);
-  await expect(page.getByText("From your CV")).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Ask me what’s missing" })).toBeVisible();
-});
-
-test("local conflict saves the correction before continuing", async ({ page }) => {
-  await stubSourceEntry(page, { checkpoint: "invited", choice: null });
-  const proof = {
-    outcome: "success",
-    usefulFactCount: 3,
-    skippedQuestionCount: 1,
-    representativeFacts: [{ id: "fact-1", text: "Based in Bangkok", provenance: "cv" }],
-    conflict: { fieldId: "location", label: "Search area", userResolvedValue: null },
-  };
-  await stubCvImport(page, [
-    { id: "job-1", status: "completed", error: null, progress: { importProof: proof } },
-  ]);
-  const resolutionWrites: unknown[] = [];
+  await stubIntent(page, intentState({
+    intent: { targetRole: null, searchAreas: [] },
+    missing: ["targetRole", "searchArea"],
+    checkpoint: "intent_needed",
+  }));
   const stageWrites: unknown[] = [];
-  await page.route("**/api/sessions/me/import-resolution", async (route) => {
-    resolutionWrites.push(route.request().postDataJSON());
-    await route.fulfill({
-      json: { importProof: { ...proof, conflict: null } },
-    });
-  });
   await page.route("**/api/sessions/me/stage", async (route) => {
     stageWrites.push(route.request().postDataJSON());
     await route.fulfill({ json: { ok: true } });
   });
+  const resolutionWrites: unknown[] = [];
+  await page.route("**/api/sessions/me/import-resolution", async (route) => {
+    resolutionWrites.push(route.request().postDataJSON());
+    await route.fulfill({ json: {} });
+  });
   await page.goto("/");
+
   await chooseCv(page);
 
-  const input = page.getByLabel("Search area");
-  await input.fill("Remote in Thailand");
-  await page.getByRole("button", { name: "Save and continue" }).click();
-
-  await expect.poll(() => resolutionWrites.length).toBe(1);
-  await expect.poll(() => stageWrites.length).toBe(1);
-  expect(resolutionWrites).toEqual([{ fieldId: "location", value: "Remote in Thailand" }]);
+  await expect(
+    page.getByRole("heading", { name: "What kind of job are you going for, and where?" }),
+  ).toBeFocused();
   expect(stageWrites).toEqual([{ stage: "discovery" }]);
+  await expect(page.getByText("Led a platform migration")).toHaveCount(0);
+  await expect(page.getByText("From your CV")).toHaveCount(0);
+  await expect(page.getByLabel("Target role")).toHaveValue("");
+  expect(resolutionWrites).toEqual([]);
 });
 
-test("failed conflict correction is announced, focused, and retries without losing the answer", async ({ page }) => {
+// #325: the hand-off is a save; when it fails the person stays on the reading screen, told so, with
+// a retry — never stranded on a spinner.
+test("a good read whose hand-off fails is announced, focused, and retryable", async ({ page }) => {
   await stubSourceEntry(page, { checkpoint: "invited", choice: null });
-  const proof = {
-    outcome: "success",
-    usefulFactCount: 1,
-    skippedQuestionCount: 1,
-    representativeFacts: [{ id: "fact-1", text: "Based in Bangkok", provenance: "cv" }],
-    conflict: { fieldId: "location", label: "Search area", userResolvedValue: null },
-  };
   await stubCvImport(page, [
-    { id: "job-1", status: "completed", error: null, progress: { importProof: proof } },
+    { id: "job-1", status: "completed", error: null, progress: { importProof: USEFUL_PROOF } },
   ]);
-  let saveAttempts = 0;
-  await page.route("**/api/sessions/me/import-resolution", async (route) => {
-    saveAttempts += 1;
-    if (saveAttempts === 1) {
+  await stubIntent(page, intentState({
+    intent: { targetRole: null, searchAreas: [] },
+    missing: ["targetRole", "searchArea"],
+    checkpoint: "intent_needed",
+  }));
+  let stageAttempts = 0;
+  await page.route("**/api/sessions/me/stage", async (route) => {
+    stageAttempts += 1;
+    if (stageAttempts === 1) {
       await route.fulfill({ status: 503, json: { error: { message: "unavailable" } } });
       return;
     }
-    await route.fulfill({ json: { importProof: { ...proof, conflict: null } } });
-  });
-  await page.route("**/api/sessions/me/stage", async (route) => {
     await route.fulfill({ json: { ok: true } });
   });
   await page.goto("/");
   await chooseCv(page);
 
-  await page.getByLabel("Search area").fill("Remote in Thailand");
-  await page.getByRole("button", { name: "Save and continue" }).click();
-
-  const alert = page.getByRole("alert").filter({ hasText: "We couldn’t save your answer." });
+  const alert = page.getByRole("alert").filter({ hasText: "We couldn’t continue right now." });
   await expect(alert).toBeFocused();
-  await expect(page.getByLabel("Search area")).toHaveValue("Remote in Thailand");
   await alert.getByRole("button", { name: "Try again" }).click();
-  await expect.poll(() => saveAttempts).toBe(2);
+  await expect(
+    page.getByRole("heading", { name: "What kind of job are you going for, and where?" }),
+  ).toBeVisible();
+  expect(stageAttempts).toBe(2);
 });
 
-test("partial proof keeps readable facts and offers a session-safe retry", async ({ page }) => {
+test("a partly-read CV says so and offers a session-safe retry", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });
   await stubSourceEntry(page, { checkpoint: "invited", choice: null });
   await stubCvImport(page, [{
@@ -495,7 +465,6 @@ test("partial proof keeps readable facts and offers a session-safe retry", async
       importProof: {
         outcome: "partial",
         usefulFactCount: 1,
-        skippedQuestionCount: 1,
         representativeFacts: [{ id: "fact-1", text: "Managed vendor delivery", provenance: "cv" }],
         conflict: null,
       },
@@ -505,7 +474,8 @@ test("partial proof keeps readable facts and offers a session-safe retry", async
   await chooseCv(page);
 
   await expect(page.getByRole("heading", { name: "We read part of your CV" })).toBeFocused();
-  await expect(page.getByText("Managed vendor delivery")).toBeVisible();
+  await expect(page.getByText("Managed vendor delivery")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Ask me what’s missing" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Try the CV again" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
 });
@@ -520,7 +490,6 @@ test("total processing failure offers retry and question-first recovery", async 
       importProof: {
         outcome: "failed",
         usefulFactCount: 0,
-        skippedQuestionCount: 0,
         representativeFacts: [],
         conflict: null,
       },
@@ -535,12 +504,11 @@ test("total processing failure offers retry and question-first recovery", async 
   await chooseCv(page);
 
   await expect(page.getByRole("heading", { name: "We couldn’t read your CV" })).toBeFocused();
-  await expect(page.locator(".proof-metrics")).toHaveCount(0);
   await page.getByRole("button", { name: "Continue with questions" }).click();
   expect(stageWrites).toEqual([{ stage: "discovery" }]);
 });
 
-// #270 AC1/AC2/AC5/AC6/AC7: pasting is the same read as an upload — same proof screen, same next
+// #270 AC1/AC2/AC5/AC6/AC7: pasting is the same read as an upload — same hand-off, same next
 // step, same kind of visitor on the wire (`choice: "cv"`), and the page never navigates away.
 test("pasted CV text is read in place and reaches the target-role and search-area step", async ({ page }) => {
   const writes = await stubSourceEntry(page, { checkpoint: "invited", choice: null });
@@ -563,13 +531,9 @@ test("pasted CV text is read in place and reaches the target-role and search-are
   await page.getByLabel("Your CV text").fill(PASTED_CV);
   await page.getByRole("button", { name: "Use this text" }).click();
 
-  await expect(page.getByRole("heading", { name: "Your CV gave us useful facts" })).toBeFocused();
-  await expect(page.getByText("Led a platform migration")).toHaveCount(1);
   expect(pastes).toEqual([{ text: PASTED_CV }]);
   // A person who pastes is not a different kind of visitor: the same durable choice an upload saves.
   expect(writes).toEqual([{ checkpoint: "source_selected", choice: "cv" }]);
-
-  await page.getByRole("button", { name: "Ask me what’s missing" }).click();
   await expect(
     page.getByRole("heading", { name: "What kind of job are you going for, and where?" }),
   ).toBeVisible();
@@ -606,7 +570,6 @@ test("a live unreadable scan shows the scan guidance, not a bare repeat of the h
       importProof: {
         outcome: "failed",
         usefulFactCount: 0,
-        skippedQuestionCount: 0,
         representativeFacts: [],
         conflict: null,
       },
@@ -618,7 +581,6 @@ test("a live unreadable scan shows the scan guidance, not a bare repeat of the h
   await expect(page.getByRole("heading", { name: "We couldn’t read your CV" })).toBeFocused();
   await expect(page.getByText("If your CV is a scan, paste the text instead")).toBeVisible();
   await expect(page.getByRole("button", { name: "Paste the text instead" })).toBeVisible();
-  await expect(page.locator(".proof-metrics")).toHaveCount(0);
 });
 
 // #270 AC3: the scanned-PDF dead end. "Try again" cannot help — their CV is fine, the file is a
@@ -629,6 +591,11 @@ test("an unreadable CV offers pasting the text instead, and that route works", a
   const pastes = await stubCvPaste(page, [
     { id: "job-2", status: "completed", error: null, progress: { importProof: USEFUL_PROOF } },
   ]);
+  await stubIntent(page, intentState({
+    intent: { targetRole: null, searchAreas: [] },
+    missing: ["targetRole", "searchArea"],
+    checkpoint: "intent_needed",
+  }));
   await page.goto("/");
   await chooseCv(page);
 
@@ -637,7 +604,9 @@ test("an unreadable CV offers pasting the text instead, and that route works", a
   await page.getByLabel("Your CV text").fill(PASTED_CV);
   await page.getByRole("button", { name: "Use this text" }).click();
 
-  await expect(page.getByRole("heading", { name: "Your CV gave us useful facts" })).toBeFocused();
+  await expect(
+    page.getByRole("heading", { name: "What kind of job are you going for, and where?" }),
+  ).toBeVisible();
   expect(pastes).toEqual([{ text: PASTED_CV }]);
 });
 
@@ -651,7 +620,6 @@ test("failed question-first continuation is announced, focused, and retryable", 
       importProof: {
         outcome: "failed",
         usefulFactCount: 0,
-        skippedQuestionCount: 0,
         representativeFacts: [],
         conflict: null,
       },
@@ -677,21 +645,20 @@ test("failed question-first continuation is announced, focused, and retryable", 
   await expect.poll(() => stageAttempts).toBe(2);
 });
 
-test("reload restores a completed import proof without re-uploading or moving focus", async ({ page }) => {
-  const proof = {
-    outcome: "success",
-    usefulFactCount: 2,
-    skippedQuestionCount: 1,
-    representativeFacts: [
-      { id: "fact-1", text: "Led regional delivery", provenance: "cv" },
-    ],
-    conflict: null,
-  };
-  await stubSourceEntry(
-    page,
-    { checkpoint: "source_selected", choice: "cv" },
-    proof,
-  );
+// #325 AC3: a reload that lands between a good read and the hand-off (stage not yet moved on) goes
+// on to the job question — never back to a facts screen, never a second upload.
+test("reload after a good read lands on the job question, not a facts screen", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "source_selected", choice: "cv" }, USEFUL_PROOF);
+  await stubIntent(page, intentState({
+    intent: { targetRole: null, searchAreas: [] },
+    missing: ["targetRole", "searchArea"],
+    checkpoint: "intent_needed",
+  }));
+  const stageWrites: unknown[] = [];
+  await page.route("**/api/sessions/me/stage", async (route) => {
+    stageWrites.push(route.request().postDataJSON());
+    await route.fulfill({ json: { ok: true } });
+  });
   let uploadRequests = 0;
   await page.route("**/api/uploads", async (route) => {
     uploadRequests += 1;
@@ -699,14 +666,33 @@ test("reload restores a completed import proof without re-uploading or moving fo
   });
 
   await page.goto("/");
-  const heading = page.getByRole("heading", { name: "Your CV saved you some questions" });
+  const heading = page.getByRole("heading", { name: "What kind of job are you going for, and where?" });
   await expect(heading).toBeVisible();
   await expect(heading).not.toBeFocused();
-  await expect(page.getByText("Led regional delivery")).toBeVisible();
-  await page.reload();
-  await expect(heading).toBeVisible();
-  await expect(heading).not.toBeFocused();
+  await expect(page.locator(".import-status")).toHaveCount(0);
+  expect(stageWrites).toEqual([{ stage: "discovery" }]);
   expect(uploadRequests).toBe(0);
+});
+
+// #325: a session already past the front door is shown the job question, never pulled back to it.
+test("reload after a good read never moves a later stage back", async ({ page }) => {
+  await stubSourceEntry(page, { checkpoint: "source_selected", choice: "cv" }, USEFUL_PROOF, "deck");
+  await stubIntent(page, intentState({
+    intent: { targetRole: null, searchAreas: [] },
+    missing: ["targetRole", "searchArea"],
+    checkpoint: "intent_needed",
+  }));
+  const stageWrites: unknown[] = [];
+  await page.route("**/api/sessions/me/stage", async (route) => {
+    stageWrites.push(route.request().postDataJSON());
+    await route.fulfill({ json: { ok: true } });
+  });
+
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "What kind of job are you going for, and where?" }),
+  ).toBeVisible();
+  expect(stageWrites).toEqual([]);
 });
 
 test("reload restores terminal import failure without re-upload or duplicate alert", async ({ page }) => {
@@ -716,7 +702,6 @@ test("reload restores terminal import failure without re-upload or duplicate ale
     {
       outcome: "failed",
       usefulFactCount: 0,
-      skippedQuestionCount: 0,
       representativeFacts: [],
       conflict: null,
     },
@@ -727,7 +712,6 @@ test("reload restores terminal import failure without re-upload or duplicate ale
   await expect(heading).toBeVisible();
   await expect(heading).not.toBeFocused();
   await expect(page.getByText("Your session is still here. If your CV is a scan,")).not.toHaveAttribute("role", "alert");
-  await expect(page.locator(".proof-metrics")).toHaveCount(0);
   await page.reload();
   await expect(heading).toBeVisible();
   await expect(heading).not.toBeFocused();
@@ -836,7 +820,6 @@ test("CV proof continuation reload restores durable intent instead of returning 
     {
       outcome: "success",
       usefulFactCount: 2,
-      skippedQuestionCount: 1,
       representativeFacts: [
         { id: "fact-1", text: "Led regional delivery", provenance: "cv" },
       ],
@@ -856,7 +839,7 @@ test("CV proof continuation reload restores durable intent instead of returning 
   await expect(page.getByText(
     "We’ll look for Technical programme manager in Hong Kong.",
   )).toBeVisible();
-  await expect(page.getByText("Your CV saved you some questions")).toHaveCount(0);
+  await expect(page.locator(".import-status")).toHaveCount(0);
   await expect(page.getByText("Saved.", { exact: true })).toHaveCount(0);
 });
 
@@ -901,7 +884,6 @@ test("no useful facts is neutral, retryable, continuable, and durable across rel
     {
       outcome: "no_useful_facts",
       usefulFactCount: 0,
-      skippedQuestionCount: 0,
       representativeFacts: [],
       conflict: null,
     },
@@ -917,7 +899,6 @@ test("no useful facts is neutral, retryable, continuable, and durable across rel
   await expect(heading).toBeVisible();
   await expect(heading).not.toBeFocused();
   await expect(page.getByText("Try another CV, or continue with questions.")).not.toHaveAttribute("role", "alert");
-  await expect(page.locator(".proof-metrics, .proof-facts")).toHaveCount(0);
 
   const chooserPromise = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Try another CV" }).click();

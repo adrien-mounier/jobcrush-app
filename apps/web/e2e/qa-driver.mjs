@@ -287,25 +287,23 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
       );
       await api.click(page.getByRole('button', { name: 'Use this text' }), 'hands it over');
       const { jobId } = await (await pasteResponse).json();
-      // The reading panel wears the same shell; wait for it to hand over to the facts screen.
-      await page.locator('.proof-metrics, .import-actions').first().waitFor({ state: 'visible', timeout: 120000 });
-      const heading = ((await page.locator('.import-status h1').textContent().catch(() => '')) || '').trim();
+      // #325: a good read hands straight on to the job question; only a read she must act on
+      // (partial, failed, nothing useful) stops on a screen with buttons.
+      const intentHeading = page.getByRole('heading', { name: /What kind of job are you going for/ });
+      await intentHeading.or(page.locator('.import-actions')).first().waitFor({ state: 'visible', timeout: 120000 });
+      const heading = ((await page.locator('.import-status h1, .intent-screen h1').first().textContent().catch(() => '')) || '').trim();
       await api.note(`the read finished - the screen says "${heading}" (jobId ${jobId})`);
-      await api.scrollThrough('reads the facts the product found in her CV');
       return jobId;
     },
 
-    /** #271 - from the facts screen on to the target-role and search-area step. Resolving the one
-     *  conflict question a read can raise is deliberately deferred ("Answer later"): the old side
-     *  entrance never surfaced it, so answering it here would change what the session holds. */
+    /** #271 - on to the target-role and search-area step. #325: a good read is already there; a
+     *  partly-read CV still stops on its own screen and needs the press. */
     frontDoorContinueToIntent: async () => {
-      const answerLater = page.getByRole('button', { name: 'Answer later' });
-      if (await answerLater.isVisible().catch(() => false)) {
-        await api.click(answerLater, 'leaves the conflict question for later');
-      } else {
+      const intentHeading = page.getByRole('heading', { name: /What kind of job are you going for/ });
+      if (!(await intentHeading.isVisible().catch(() => false))) {
         await api.click(page.getByRole('button', { name: /Ask me what/ }), 'continues to what is missing');
       }
-      await page.getByRole('heading', { name: /What kind of job are you going for/ }).waitFor({ state: 'visible', timeout: 30000 });
+      await intentHeading.waitFor({ state: 'visible', timeout: 30000 });
     },
 
     /** #271 - wait out the read's whole pipeline, the sync point the old flow got for free by

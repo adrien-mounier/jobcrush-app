@@ -287,10 +287,16 @@ function discoveryState(value: unknown): ProductionDiscoveryState {
   };
 }
 
+/** #325: the web reads only `outcome` now (which screen a read gets, and where a reload lands).
+ *  The rest stays on the record for named readers:
+ *  - `representativeFacts` + `conflict`: the import-resolution route (routes/sessions.ts) and
+ *    re-upload reconciliation (importReconciliation.ts). Nothing on screen asks the conflict any
+ *    more; whether it is asked again, and where, is #323's — it inherits this route.
+ *  - `usefulFactCount`: no product reader; the QA paste journey reads it to prove a read's facts
+ *    survived to the intent step, and preview.test.ts checks it. Delete it with those checks. */
 export interface ImportProof {
   outcome: "success" | "partial" | "failed" | "no_useful_facts";
   usefulFactCount: number;
-  skippedQuestionCount: number;
   representativeFacts: Array<{ id: string; text: string; provenance: "cv" }>;
   conflict: null | { fieldId: string; label: string; userResolvedValue: string | null };
 }

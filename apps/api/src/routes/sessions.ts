@@ -20,7 +20,6 @@ const sourceEntrySchema = z.discriminatedUnion("checkpoint", [
 const importProofSchema = z.object({
   outcome: z.enum(["success", "partial", "failed", "no_useful_facts"]),
   usefulFactCount: z.number().int().nonnegative(),
-  skippedQuestionCount: z.number().int().nonnegative(),
   representativeFacts: z.array(
     z.object({
       id: z.string(),

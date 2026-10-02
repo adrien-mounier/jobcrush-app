@@ -41,12 +41,13 @@ try {
   await input.setInputFiles(PDF);
   await qa.note(`set PDF on file input: ${PDF}`);
 
-  // The front door now shows "Reading your CV…" then a server-authored proof on success,
-  // or its current read/upload error state. Wait generously for the fake-model mine step.
+  // The front door shows "Reading your CV…", then (#325) the job question on a good read, its
+  // partly-read screen, or its read/upload error state. Wait generously for the fake-model mine step.
   const outcomeHandle = await page
     .waitForFunction(
       () => {
         const root = document.querySelector('[data-cv]');
+        if (root?.getAttribute('data-view') === 'intent') return 'success';
         if (root?.getAttribute('data-cv') === 'proof') return 'success';
         if (root?.getAttribute('data-cv') === 'error') return 'error';
         return null;
@@ -62,12 +63,11 @@ try {
     failures.push(`upload did not reach success — outcome=${outcome}`);
   }
 
-  // Final state screenshot + assert the current proof, including honest provenance, is present.
+  // #325: a good read hands straight on to the job question — no facts screen in between.
   await qa.expectVisible(
-    page.getByRole('heading', { name: /(Your CV (gave us useful facts|saved you some questions)|We read part of your CV)/ }),
-    'front door shows the successful CV proof after PDF upload',
+    page.getByRole('heading', { name: /(What kind of job are you going for|We read part of your CV)/ }),
+    'front door moves on to the job question (or says it read part) after a PDF upload',
   );
-  await qa.expectVisible(page.getByText('From your CV').first(), 'the proof names the PDF as the source');
 } catch (err) {
   failures.push(`flow threw: ${err.message}`);
 }

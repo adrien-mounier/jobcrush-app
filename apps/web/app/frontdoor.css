@@ -195,91 +195,13 @@
   font-size: 15px;
   line-height: 1.5;
 }
-.frontdoor .import-proof { margin-top: 24px; }
-.frontdoor .proof-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 0 24px;
-  text-align: center;
-}
-.frontdoor .proof-metrics div {
-  min-width: 0;
-  padding: 16px 8px;
-  border: 1px solid var(--hud-line);
-  border-radius: 12px;
-  background: var(--hud-1);
-}
-.frontdoor .proof-metrics dd {
-  margin: 0;
-  font-size: 24px;
-  line-height: 1.1;
-  font-weight: 680;
-}
-.frontdoor .proof-metrics dt {
-  margin-top: 6px;
-  color: var(--hud-mute);
-  font-size: 12.5px;
-  line-height: 1.4;
-}
-.frontdoor .proof-facts {
-  margin: 0;
-  padding: 8px 16px;
-  border: 1px solid var(--hud-line);
-  border-radius: 12px;
-  background: var(--hud-1);
-  list-style: none;
-}
-.frontdoor .proof-facts li {
-  padding: 12px 0;
-  overflow-wrap: anywhere;
-  font-size: 14px;
-  line-height: 1.45;
-}
-.frontdoor .proof-facts li + li { border-top: 1px solid var(--hud-line); }
-.frontdoor .proof-facts span {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--hud-mute);
-  font-family: var(--mono);
-  font-size: 11px;
-  text-transform: uppercase;
-}
-.frontdoor .conflict {
-  margin-top: 16px;
-  padding: 16px;
-  border: 1px solid var(--gold);
-  border-radius: 12px;
-  background: var(--hud-1);
-}
-.frontdoor .conflict label,
 .frontdoor .paste-field label {
   display: block;
   margin-bottom: 8px;
   font-size: 14px;
   font-weight: 680;
 }
-.frontdoor .conflict input {
-  width: 100%;
-  min-height: 44px;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border: 1px solid var(--hud-line);
-  border-radius: 10px;
-  background: var(--hud-2);
-  color: var(--hud-ink);
-  font: inherit;
-  font-size: 16px;
-  overflow-wrap: anywhere;
-}
-.frontdoor .conflict p {
-  margin: 8px 0 0;
-  color: var(--hud-mute);
-  font-size: 12.5px;
-  line-height: 1.4;
-}
-/* #270 the front-door paste view — the conflict field's shape, sized for a whole CV. The label
-   rule is shared with .conflict above; only the box and its message differ. */
+/* #270 the front-door paste view, sized for a whole CV. */
 .frontdoor .paste-field { margin-top: 20px; }
 .frontdoor .paste-field textarea {
   width: 100%;

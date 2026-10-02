@@ -41,7 +41,6 @@ describe("JC-12 text extraction", () => {
     expect(proof).toMatchObject({
       outcome: "success",
       usefulFactCount: 1,
-      skippedQuestionCount: 0,
       representativeFacts: [
         { id: "experience-acme-delivery", text: "Led Acme delivery.", provenance: "cv" },
       ],
@@ -124,7 +123,6 @@ describe("JC-12 text extraction", () => {
     expect(proof).toEqual({
       outcome: "no_useful_facts",
       usefulFactCount: 0,
-      skippedQuestionCount: 0,
       representativeFacts: [],
       conflict: null,
     });
@@ -266,7 +264,6 @@ describe("JC-12 pipeline job (extract stage over the JC-9 machinery)", () => {
         importProof: {
           outcome: "failed",
           usefulFactCount: 0,
-          skippedQuestionCount: 0,
           representativeFacts: [],
         },
       },

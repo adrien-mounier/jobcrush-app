@@ -307,7 +307,6 @@ describe("JC-10 anonymous sessions", () => {
     await sessions.setImportProof(created.json().id, {
       outcome: "success",
       usefulFactCount: 2,
-      skippedQuestionCount: 2,
       representativeFacts: [
         { id: "role-title", text: "Worked as a Project Manager", provenance: "cv" },
         { id: "residence", text: "Lives in Bangkok", provenance: "cv" },
@@ -357,7 +356,6 @@ describe("JC-10 anonymous sessions", () => {
     await sessions.setImportProof(session!.id, {
       outcome: "success",
       usefulFactCount: 2,
-      skippedQuestionCount: 2,
       representativeFacts: [
         { id: "role-acme", text: "Led Acme delivery", provenance: "cv" },
         { id: "skill-sql", text: "Used SQL", provenance: "cv" },

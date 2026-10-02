@@ -24,7 +24,7 @@ that reward visible.
 ```text
 Invitation
   → optional source assistance
-  → import proof, when a CV was provided
+  → CV read, when a CV was provided (a good read shows no screen of its own — #325)
   → recover target role and search area
   → place the role in a job family
       → known or clarified family: adaptive discovery
@@ -74,19 +74,19 @@ the bottom.
 
 No account is required. Anonymous onboarding data is temporary.
 
-## 3. CV import proves saved effort
+## 3. CV import (the proof screen is removed — #325)
 
 Treat explicit statements in a user-provided CV, including defensible semantic equivalents, as
 **source-supported facts**. They can receive full first-match credit. This means “supported by
 information you provided,” not “independently certified by JobCrush.”
 
-After a useful import, show a compact proof:
-
-- useful facts found;
-- questions skipped;
-- three or four representative facts labelled **From your CV**;
-- any material ambiguity or conflict JobCrush still needs to ask about;
-- **Ask me what’s missing** as the continuation.
+**Removed (owner decision 2026-10-01, #325):** the compact proof screen (fact and skipped-question
+counts, representative facts labelled **From your CV**, the conflict field, **Ask me what’s
+missing**). It could not keep its promise — the skipped count was always 0 and the facts were the
+first four in CV order. A good read now goes straight to the target-role and search-area step. The
+"your CV saved you work" promise moves to discovery, by not asking what the CV already says. Only
+the reads the person must act on keep a screen: could not read, nothing useful, read only in part.
+Whether a genuine conflict is still asked, and where, is #323's.
 
 Do not recreate the old confirmation deck here.
 

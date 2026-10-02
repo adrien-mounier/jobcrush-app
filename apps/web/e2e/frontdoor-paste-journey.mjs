@@ -5,10 +5,10 @@
 //
 // Three phases, one report:
 //   1. The paste door on the source step — refuse a too-short paste without costing the typing,
-//      then paste a real CV, see the SAME facts-found screen an upload produces, never leave "/",
-//      and carry on to the target-role and search-area step.       (AC1, AC2, AC4, AC6, AC7)
+//      then paste a real CV, never leave "/", and land on the target-role and search-area step
+//      exactly as an upload does (#325: a good read has no screen of its own). (AC1, AC2, AC4, AC6, AC7)
 //   2. The scanned-CV dead end — upload a picture-only PDF, and take the "paste the text instead"
-//      route the failure screen now offers, through to the same facts screen.        (AC3)
+//      route the failure screen now offers, through to the same next step.           (AC3)
 //   3. Parity — a fresh session that UPLOADS a readable CV is stored the same way a pasted one is:
 //      same session record, same importProof shape, same durable source choice.       (AC5)
 //
@@ -94,31 +94,19 @@ async function openSourceStep(label) {
   await qa.scrollThrough(`${label}: reads down the tiles the front door offers`);
 }
 
-/** Ride the facts-found screen, whatever shape the read produced, and continue from it. */
+/** #325: a good read hands straight on to the job question; a partly-read CV stops on its own
+ *  screen first and needs the press. A failure screen here is a failed journey. */
 async function readFactsAndContinue(label) {
-  const proofHeading = page.locator('.import-status h1');
-  await proofHeading.waitFor({ state: 'visible', timeout: 60000 });
-  // The reading panel wears the same shell, so wait for it to hand over before reading the heading.
-  await page
-    .locator('.proof-metrics, .import-actions')
-    .first()
-    .waitFor({ state: 'visible', timeout: 60000 });
-  const headingText = (await proofHeading.textContent())?.trim() ?? '';
-  await qa.note(`${label}: the read finishes and the screen says "${headingText}"`);
-  if (/couldn’t|couldn't/i.test(headingText))
-    throw new Error(`${label}: expected a facts screen, got a failure screen: "${headingText}"`);
-  await qa.expectVisible(page.locator('.proof-metrics'), `${label}: the fact counts are on screen`);
-  await qa.expectVisible(
-    page.locator('.proof-facts li').first(),
-    `${label}: a fact read out of the CV is shown, with where it came from`,
-  );
-  await qa.expectText(
-    page.locator('.proof-facts li').first(),
-    'From your CV',
-    `${label}: the fact is labelled as coming from the CV`,
-  );
-  await qa.scrollThrough(`${label}: reads the facts the product found`);
-  return headingText;
+  const intentHeading = page.getByRole('heading', { name: /What kind of job are you going for/ });
+  await intentHeading.or(page.locator('.import-actions')).first().waitFor({ state: 'visible', timeout: 60000 });
+  if (!(await intentHeading.isVisible())) {
+    const headingText = (await page.locator('.import-status h1').textContent())?.trim() ?? '';
+    await qa.note(`${label}: the read stops on a screen that says "${headingText}"`);
+    if (headingText !== 'We read part of your CV')
+      throw new Error(`${label}: expected the job question or a partial read, got "${headingText}"`);
+    await qa.click(page.getByRole('button', { name: 'Ask me what’s missing' }), `${label}: continues`);
+  }
+  await qa.expectVisible(intentHeading, `${label}: reaches the target-role and search-area step`);
 }
 
 try {
@@ -153,7 +141,7 @@ try {
   // AC1/AC2 — the real paste, in place.
   await qa.fill(page.getByLabel('Your CV text'), CV_TEXT, 'AC1: pastes the whole CV');
   await qa.click(page.getByRole('button', { name: 'Use this text' }), 'AC1: hands it over');
-  const pastedHeading = await readFactsAndContinue('AC2 paste');
+  await readFactsAndContinue('AC2 paste');
 
   if (new URL(page.url()).pathname !== '/')
     throw new Error(`AC6: the read navigated away — now on ${page.url()}`);
@@ -172,28 +160,11 @@ try {
       `AC5: a paste saved a different kind of visitor — choice=${afterPaste.sourceEntry?.choice}`,
     );
 
-  // The proof is durable, not just on screen: a reload brings it back without re-pasting.
+  // The read is durable, not just on screen: a reload goes on from it without re-pasting.
   await qa.goto(`${BASE}/`, 'AC5: reloads the front door');
   await qa.expectVisible(
-    page.locator('.import-status h1'),
-    'AC5: the pasted facts come back from the session after a reload',
-  );
-  await qa.expectText(page.locator('.import-status h1'), pastedHeading.slice(0, 12), 'AC5: the same screen');
-
-  // AC7 — on to the target role and search area.
-  const conflict = page.locator('.conflict input');
-  if (await conflict.isVisible().catch(() => false)) {
-    await qa.fill(conflict, 'Jane Doe', 'AC7: answers the one thing the CV left ambiguous');
-    await qa.click(page.getByRole('button', { name: 'Save and continue' }), 'AC7: continues');
-  } else {
-    await qa.click(
-      page.getByRole('button', { name: 'Ask me what’s missing' }),
-      'AC7: continues to the next step',
-    );
-  }
-  await qa.expectVisible(
     page.getByRole('heading', { name: /What kind of job are you going for/ }),
-    'AC7: reaches the target-role and search-area step',
+    'AC5: a reload lands on the job question again, never on a facts screen',
   );
   const atIntent = await sessionState();
   await qa.note(

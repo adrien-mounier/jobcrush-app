@@ -2,6 +2,19 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-02 — #325: a good CV read goes straight to the job-and-area question
+
+`/implement` -> `/code-review` (both axes) -> `/qa-gate` (NO-GO on AC4, then **GO**) on **#325**.
+The front door's import proof screen (counts, "From your CV" lines, conflict field, "Ask me what's
+missing") is gone: a good read keeps "Reading your CV…" up until the job question opens, with a
+retry if that hand-off fails. Kept: could-not-read, nothing-useful and read-in-part screens, each
+with its retry. A reload after a good read lands on the job question, and never pulls a later stage
+back (spec-review catch). API: always-zero `skippedQuestionCount` deleted; the other proof fields
+and the import-resolution route stay, with their readers named on the `ImportProof` type — the
+conflict question is now asked nowhere, and #323 inherits that. **Fake-stack caveat:** the fake
+miner's recorded read always comes back "partial", so Tier 2 journeys walk the partial screen; the
+QA-left `import-straight-to-intent.mjs` relabels the outcome to drive the good-read path live.
+
 ## 2026-10-02 — Skill-guidance pass: contents lists on long docs, QA checklist (no ticket)
 
 Studied Anthropic's updated skill best practices (via the Simon Scrapes video of 2026-10-01) and

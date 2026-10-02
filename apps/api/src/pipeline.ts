@@ -124,7 +124,6 @@ export function buildImportProof(
           ? "partial"
           : "success",
     usefulFactCount: unique.length,
-    skippedQuestionCount: 0,
     representativeFacts: unique.slice(0, 4).map((claim) => ({
       id: proofKey(claim),
       text: claim.text,
@@ -143,7 +142,6 @@ export function buildImportProof(
 const failedImportProof = (): ImportProof => ({
   outcome: "failed",
   usefulFactCount: 0,
-  skippedQuestionCount: 0,
   representativeFacts: [],
   conflict: null,
 });

@@ -102,7 +102,6 @@ for (const [name, make] of sessionDrivers) {
       const proof = {
         outcome: "success" as const,
         usefulFactCount: 2,
-        skippedQuestionCount: 2,
         representativeFacts: [
           { id: "role-acme", text: "Led Acme delivery", provenance: "cv" as const },
         ],
@@ -122,7 +121,6 @@ for (const [name, make] of sessionDrivers) {
       const proof = {
         outcome: "no_useful_facts" as const,
         usefulFactCount: 0,
-        skippedQuestionCount: 0,
         representativeFacts: [],
         conflict: null,
       };
@@ -147,7 +145,6 @@ for (const [name, make] of sessionDrivers) {
       const proof = {
         outcome: "success" as const,
         usefulFactCount: 1,
-        skippedQuestionCount: 1,
         representativeFacts: [
           { id: "role-title", text: "Programme Manager", provenance: "cv" as const },
         ],
@@ -166,7 +163,6 @@ for (const [name, make] of sessionDrivers) {
       await store.setImportProof(s.id, {
         outcome: "success",
         usefulFactCount: 2,
-        skippedQuestionCount: 0,
         representativeFacts: [
           { id: "role-title", text: "PM", provenance: "cv" },
           { id: "search-area", text: "London", provenance: "cv" },

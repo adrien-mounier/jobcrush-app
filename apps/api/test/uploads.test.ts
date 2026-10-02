@@ -67,7 +67,6 @@ describe("JC-11 CV upload", () => {
     expect(session.json().importProof).toEqual({
       outcome: "failed",
       usefulFactCount: 0,
-      skippedQuestionCount: 0,
       representativeFacts: [],
       conflict: null,
     });

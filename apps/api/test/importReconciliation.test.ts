@@ -27,7 +27,6 @@ function claim(over: Partial<CandidateClaim> = {}): CandidateClaim {
 const proof: ImportProof = {
   outcome: "success",
   usefulFactCount: 1,
-  skippedQuestionCount: 0,
   representativeFacts: [{ id: "sk-1", text: "Led delivery.", provenance: "cv" }],
   conflict: null,
 };

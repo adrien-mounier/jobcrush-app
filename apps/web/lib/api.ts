@@ -100,27 +100,10 @@ export interface JobSnapshot {
   };
 }
 
+// #325: the web reads only the outcome — the read's screens (failed, nothing useful, partial) and
+// whether a reload goes on to the job question. The facts and the conflict stay on the API record.
 export interface ImportProof {
   outcome: "success" | "partial" | "failed" | "no_useful_facts";
-  usefulFactCount: number;
-  skippedQuestionCount: number;
-  representativeFacts: Array<{
-    id: string;
-    text: string;
-    provenance: "cv";
-  }>;
-  conflict: null | {
-    fieldId: string;
-    label: string;
-    userResolvedValue: string | null;
-  };
-}
-
-export function saveImportResolution(fieldId: string, value: string) {
-  return jfetch<{ importProof: ImportProof }>("/api/sessions/me/import-resolution", {
-    method: "PUT",
-    body: JSON.stringify({ fieldId, value }),
-  });
 }
 
 // --- S2 onboarding deck (JC-21/22/27/31) ---

@@ -8,7 +8,6 @@ import {
   getIntent,
   getSessionCheckpoint,
   pasteCv,
-  saveImportResolution,
   saveIntent,
   saveSourceEntry,
   setStage,
@@ -77,7 +76,6 @@ export default function FrontDoor() {
   const readyErrorRef = useRef<HTMLDivElement>(null);
   const choiceErrorRef = useRef<HTMLDivElement>(null);
   const importHeadingRef = useRef<HTMLHeadingElement>(null);
-  const conflictInputRef = useRef<HTMLInputElement>(null);
   const importErrorRef = useRef<HTMLDivElement>(null);
   const pasteRef = useRef<HTMLTextAreaElement>(null);
   // #270: the tile that opened the paste view, so closing it returns focus where it came from.
@@ -99,10 +97,8 @@ export default function FrontDoor() {
   const [pendingChoice, setPendingChoice] = useState<Source | null>(null);
   const [choiceError, setChoiceError] = useState<{ choice: Source; saved: boolean } | null>(null);
   const [cv, setCv] = useState<CvState>({ phase: "idle" });
-  const [conflictValue, setConflictValue] = useState("");
-  const [conflictError, setConflictError] = useState(false);
-  const [importAction, setImportAction] = useState<"saving" | "continuing" | null>(null);
-  const [importError, setImportError] = useState<"saving" | "continuing" | null>(null);
+  const [continuing, setContinuing] = useState(false);
+  const [continueError, setContinueError] = useState(false);
   const [intent, setIntent] = useState<IntentState | null>(null);
   const [intentFresh, setIntentFresh] = useState(false);
   const [intentLoadError, setIntentLoadError] = useState(false);
@@ -141,8 +137,13 @@ export default function FrontDoor() {
         setVisibleChoice(choice);
         if (session.stage === "discovery") {
           await openIntent(false);
+        } else if (session.importProof?.outcome === "success") {
+          // #325: a good read has no screen of its own — a reload that lands between the read and
+          // the hand-off goes on to the job question, never back to a facts screen. Only a session
+          // still at the front door moves its stage; a later one is never pulled back.
+          if (!session.stage || session.stage === "front-door") await advanceToIntent(false);
+          else await openIntent(false);
         } else if (session.importProof) {
-          setConflictValue(session.importProof.conflict?.userResolvedValue ?? "");
           setCv({ phase: "proof", proof: session.importProof, restored: true });
         } else if (choice === "questions") {
           await openIntent(false);
@@ -242,7 +243,12 @@ export default function FrontDoor() {
       if (snapshot.status === "completed" || snapshot.status === "failed") {
         source.close();
         const proof = snapshot.progress.importProof;
-        setConflictValue(proof?.conflict?.userResolvedValue ?? "");
+        // #325: a good read hands straight on to the job question; "Reading your CV…" stays up
+        // until it does. Only a read the person must act on gets a screen of its own.
+        if (proof?.outcome === "success") {
+          void continueToQuestions();
+          return;
+        }
         setCv(
           proof
             ? { phase: "proof", proof }
@@ -289,7 +295,7 @@ export default function FrontDoor() {
   };
 
   // #270: pasted text takes the same road as an uploaded file — the same job, the same event stream,
-  // the same proof screen. The only difference is where the bytes came from.
+  // the same screens. The only difference is where the bytes came from.
   const openPaste = () => setCv({ phase: "paste", text: "", error: null });
 
   const submitPaste = async () => {
@@ -327,38 +333,15 @@ export default function FrontDoor() {
   }, [cv.phase]);
 
   const continueToQuestions = async () => {
-    if (importAction) return;
-    setImportError(null);
-    setImportAction("continuing");
+    if (continuing) return;
+    setContinueError(false);
+    setContinuing(true);
     try {
       await advanceToIntent(true);
-      setImportAction(null);
+      setContinuing(false);
     } catch {
-      setImportAction(null);
-      setImportError("continuing");
-      requestAnimationFrame(() => importErrorRef.current?.focus());
-    }
-  };
-
-  const saveConflict = async (proof: ImportProof) => {
-    if (!proof.conflict || importAction) return;
-    const value = conflictValue.trim();
-    if (!value) {
-      setConflictError(true);
-      conflictInputRef.current?.focus();
-      return;
-    }
-    setConflictError(false);
-    setImportError(null);
-    setImportAction("saving");
-    try {
-      const result = await saveImportResolution(proof.conflict.fieldId, value);
-      setCv({ phase: "proof", proof: result.importProof });
-      await advanceToIntent(true);
-      setImportAction(null);
-    } catch {
-      setImportAction(null);
-      setImportError("saving");
+      setContinuing(false);
+      setContinueError(true);
       requestAnimationFrame(() => importErrorRef.current?.focus());
     }
   };
@@ -502,17 +485,9 @@ export default function FrontDoor() {
             <ImportPanel
               cv={cv}
               headingRef={importHeadingRef}
-              conflictInputRef={conflictInputRef}
               importErrorRef={importErrorRef}
-              conflictValue={conflictValue}
-              conflictError={conflictError}
-              action={importAction}
-              importError={importError}
-              onConflictValue={(value) => {
-                setConflictValue(value);
-                setConflictError(false);
-              }}
-              onSave={(proof) => void saveConflict(proof)}
+              continuing={continuing}
+              continueError={continueError}
               onContinue={() => void continueToQuestions()}
               onRetry={retryCv}
               onPaste={openPaste}
@@ -894,59 +869,51 @@ function IntentPanel({
 function ImportPanel({
   cv,
   headingRef,
-  conflictInputRef,
   importErrorRef,
-  conflictValue,
-  conflictError,
-  action,
-  importError,
-  onConflictValue,
-  onSave,
+  continuing,
+  continueError,
   onContinue,
   onRetry,
   onPaste,
 }: {
   cv: Exclude<CvState, { phase: "idle" } | { phase: "paste" }>;
   headingRef: React.RefObject<HTMLHeadingElement | null>;
-  conflictInputRef: React.RefObject<HTMLInputElement | null>;
   importErrorRef: React.RefObject<HTMLDivElement | null>;
-  conflictValue: string;
-  conflictError: boolean;
-  action: "saving" | "continuing" | null;
-  importError: "saving" | "continuing" | null;
-  onConflictValue: (value: string) => void;
-  onSave: (proof: ImportProof) => void;
+  continuing: boolean;
+  continueError: boolean;
   onContinue: () => void;
   onRetry: () => void;
   onPaste: () => void;
 }) {
+  const continueAlert = continueError && (
+    <div className="async-error" role="alert" tabIndex={-1} ref={importErrorRef}>
+      We couldn’t continue right now. <button type="button" onClick={onContinue}>Try again</button>
+    </div>
+  );
+
+  // #325: a good read stays on this screen only until the job question opens — and here, with its
+  // retry, if opening it fails.
   if (cv.phase === "reading") {
     return (
-      <div className="import-status" role="status" aria-live="polite" aria-busy="true">
-        <h1>Reading your CV…</h1>
-        <p>{cv.slow ? "This is taking longer than usual. Your CV progress is safe." : "Finding useful facts so you don’t repeat yourself."}</p>
-      </div>
+      <>
+        <div className="import-status" role="status" aria-live="polite" aria-busy={!continueError}>
+          <h1>Reading your CV…</h1>
+          <p>{cv.slow ? "This is taking longer than usual. Your CV progress is safe." : "Finding useful facts so you don’t repeat yourself."}</p>
+        </div>
+        {continueAlert}
+      </>
     );
   }
 
+  // #325: only the reads the person must act on reach here — a good read never does.
   const proof = cv.phase === "proof" ? cv.proof : null;
   const failed = cv.phase === "error" || proof?.outcome === "failed";
   const noUsefulFacts = proof?.outcome === "no_useful_facts";
-  const partial = proof?.outcome === "partial";
-  const conflict = proof
-    && proof.outcome !== "failed"
-    && proof.outcome !== "no_useful_facts"
-    ? proof.conflict
-    : null;
   const heading = failed
     ? "We couldn’t read your CV"
     : noUsefulFacts
       ? "We couldn’t find useful facts"
-    : partial
-      ? "We read part of your CV"
-      : proof && proof.skippedQuestionCount === 0
-        ? "Your CV gave us useful facts"
-        : "Your CV saved you some questions";
+      : "We read part of your CV";
   const body = cv.phase === "error"
     ? cv.message
     : failed
@@ -955,11 +922,10 @@ function ImportPanel({
     ? "Your session is still here. If your CV is a scan, paste the text instead — or try the file again, or continue without it."
     : noUsefulFacts
       ? "Try another CV, or continue with questions."
-    : partial
-      ? "The facts below are saved. We’ll ask only for missing information that matters."
-      : proof && proof.skippedQuestionCount === 0
-        ? "We’ll use them in the next step."
-        : "We found information we can use in the next step.";
+      : "What we could read is saved. We’ll ask only for missing information that matters.";
+  const continueLabel = continuing
+    ? "Continuing…"
+    : failed || noUsefulFacts ? "Continue with questions" : "Ask me what’s missing";
 
   return (
     <>
@@ -967,34 +933,6 @@ function ImportPanel({
         <h1 tabIndex={-1} ref={headingRef}>{heading}</h1>
         <p role={failed && !(cv.phase === "proof" && cv.restored) ? "alert" : undefined}>{body}</p>
       </div>
-      {proof && proof.outcome !== "failed" && proof.outcome !== "no_useful_facts" && (
-        <div className="import-proof">
-          <dl className="proof-metrics">
-            <div><dd>{proof.usefulFactCount}</dd><dt>{proof.usefulFactCount === 1 ? "useful fact found" : "useful facts found"}</dt></div>
-            <div><dd>{proof.skippedQuestionCount}</dd><dt>{proof.skippedQuestionCount === 1 ? "question skipped" : "questions skipped"}</dt></div>
-          </dl>
-          <ul className="proof-facts">
-            {proof.representativeFacts.map((fact) => (
-              <li key={fact.id}><span>From your CV</span>{fact.text}</li>
-            ))}
-          </ul>
-          {conflict && (
-            <div className="conflict">
-              <label htmlFor="import-conflict">{conflict.label}</label>
-              <input
-                id="import-conflict"
-                ref={conflictInputRef}
-                value={conflictValue}
-                onChange={(event) => onConflictValue(event.target.value)}
-                aria-describedby="conflict-helper"
-                aria-invalid={conflictError}
-              />
-              <p id="conflict-helper">Your answer will be used if you import this CV again.</p>
-              {conflictError && <p role="alert">Enter your answer, or choose Answer later.</p>}
-            </div>
-          )}
-        </div>
-      )}
       <div className="import-actions">
         {failed || noUsefulFacts ? (
           <>
@@ -1006,41 +944,16 @@ function ImportPanel({
             <button type="button" className={failed ? undefined : "primary"} onClick={onRetry}>
               {noUsefulFacts ? "Try another CV" : "Try again"}
             </button>
-            <button type="button" onClick={onContinue} disabled={action === "continuing"}>
-              {action === "continuing" ? "Continuing…" : "Continue with questions"}
-            </button>
-          </>
-        ) : conflict ? (
-          <>
-            <button type="button" className="primary" onClick={() => onSave(proof!)} disabled={action === "saving"}>
-              {action === "saving" ? "Saving…" : "Save and continue"}
-            </button>
-            <button type="button" onClick={onContinue} disabled={action === "continuing"}>
-              {action === "continuing" ? "Continuing…" : "Answer later"}
-            </button>
+            <button type="button" onClick={onContinue} disabled={continuing}>{continueLabel}</button>
           </>
         ) : (
           <>
-            <button type="button" className="primary" onClick={onContinue} disabled={action === "continuing"}>
-              {action === "continuing" ? "Continuing…" : "Ask me what’s missing"}
-            </button>
-            {partial && <button type="button" onClick={onRetry}>Try the CV again</button>}
+            <button type="button" className="primary" onClick={onContinue} disabled={continuing}>{continueLabel}</button>
+            <button type="button" onClick={onRetry}>Try the CV again</button>
           </>
         )}
       </div>
-      {importError && (
-        <div className="async-error" role="alert" tabIndex={-1} ref={importErrorRef}>
-          {importError === "saving"
-            ? "We couldn’t save your answer."
-            : "We couldn’t continue right now."}{" "}
-          <button
-            type="button"
-            onClick={importError === "saving" && proof ? () => onSave(proof) : onContinue}
-          >
-            Try again
-          </button>
-        </div>
-      )}
+      {continueAlert}
     </>
   );
 }
