@@ -105,8 +105,7 @@ await expectAbsent(
 // AC4 — the work-rights question is asked once per selected MARKET (Melbourne and Vietnam are two
 // different markets; visas are national, so the Melbourne chip asks about Australia). #257 already
 // landed her on discovery, where the eligibility questions are asked.
-await qa.fill('#q1-role', ROLE, 'confirm the role on the first discovery question');
-await qa.click('button.go.wide', 'confirm the role — "That’s me"');
+// #322: the front door already took the role, so discovery opens on the checklist - no question 1.
 await qa.scrollThrough('read the discovery page the way a person would');
 
 const workRights = page.locator('.opts[data-elig="work-rights"]');

@@ -67,7 +67,9 @@ import { fileURLToPath } from "node:url";
 // drop — moved to its own plugin (routes/tailor.ts), where the ticket's new profile-answer endpoint
 // landed too. The queue's own rules went into tailorProfile.ts, never in here, and the spine shrank
 // by the last sixth it was carrying.
-const MAX_LINES = 685;
+// #322 lowered it from 685: question 1's writes moved to discoveryEngine.ts (answerQuestionOne), so
+// the discovery GET could take the front door's role through the same path instead of a copy.
+const MAX_LINES = 682;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

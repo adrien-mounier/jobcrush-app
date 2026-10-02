@@ -31,12 +31,12 @@ import {
   isEligibilityItemId,
 } from "../eligibilityDiscovery.js";
 import {
+  answerQuestionOne,
   buildDiscoveryRouteState,
   currentDiscoveryFamily,
   prependReaderQuestionFromJob,
   productionDiscoveryFamilyLookup,
   reconcileSessionDiscovery,
-  searchAtQuestionOne,
 } from "../discoveryEngine.js";
 import { answerJobDateHole, isJobDateItemId } from "../yearsWorked.js";
 import { readingLanguages, languageEligible } from "../language.js";
@@ -425,10 +425,14 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       "/onboarding/discovery",
       { schema: { querystring: z.object({ job: z.string().optional() }) } },
       async (req) => {
-        const session = requireSession(req);
+        // #322: a role the front door already took is question 1 answered — never asked twice.
+        const opened = requireSession(req);
+        const handedRole = opened.targetTitles.length === 0 ? opened.intent.targetRole : null;
+        const handed = handedRole ? await answerQuestionOne(opened, handedRole, deps, retrievalCoordinator) : null;
+        const session = handed?.session ?? opened;
         const role = session.targetTitles[0] ?? null;
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const family = role ? await reconciledFamily(session) : null;
+        const family = handed ? handed.family : role ? await reconciledFamily(session) : null;
         const state = buildDiscoveryRouteState(role, confirmed, negatives, rejected, facts, session, family, blocks);
         // #35: a deck-rejected reader-role claim still closes the question — same never-re-ask rule
         // discoveryState now applies internally; this check is separate (the reader question isn't a
@@ -457,15 +461,8 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       { schema: { body: z.object({ role: z.string().trim().min(1) }) } },
       async (req) => {
         const session = requireSession(req);
-        // #246 QA finding 2: read BEFORE the write below — this is the only thing that tells a
-        // genuine first question 1 from a re-submit, and only the first one may buy a search.
-        const firstAsk = session.targetTitles.length === 0;
-        await deps.sessions.setTargetTitles(session.id, [req.body.role]);
-        const intent = await deps.sessions.setIntent(session.id, { targetRole: req.body.role });
-        await deps.sessions.setStage(session.id, "discovery");
-        const sessionWithRole = { ...session, intent, targetTitles: [req.body.role] };
+        const searched = await answerQuestionOne(session, req.body.role, deps, retrievalCoordinator);
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const searched = await searchAtQuestionOne(sessionWithRole, confirmed, negatives, deps, retrievalCoordinator, firstAsk);
         const state = buildDiscoveryRouteState(req.body.role, confirmed, negatives, rejected, facts, searched.session, searched.family, blocks);
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;

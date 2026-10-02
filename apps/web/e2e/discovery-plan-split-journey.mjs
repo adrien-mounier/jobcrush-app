@@ -129,8 +129,7 @@ await qa.note(
 await assertTrue(blocks.length === 3, 'three dated records landed, one of them education');
 
 await qa.goto('/discovery', 'into discovery — the sign-up questions');
-await qa.fill('#q1-role', ROLE, 'the role she is going for');
-await qa.click('button.go.wide', 'answer the role question');
+// #322: the front door already took the role, so discovery opens on the checklist - no question 1.
 await page.waitForTimeout(2500);
 await qa.scrollThrough('read the discovery screen the way a real visitor would');
 

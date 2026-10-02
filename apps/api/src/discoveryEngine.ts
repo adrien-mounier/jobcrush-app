@@ -238,6 +238,28 @@ export async function searchAtQuestionOne(
   return { session: { ...pinned, promiseOpenJobs }, family };
 }
 
+/** Question 1, answered: the role becomes the target title and the intent's role, the session
+ *  enters discovery, and the first ask buys its one search. #322 — the one path for both doors:
+ *  question 1 typed on this screen, and the role the front door already took (discovery GET). */
+export async function answerQuestionOne(
+  session: SessionRecord,
+  role: string,
+  deps: DiscoveryPlanDeps & {
+    sessions: Pick<SessionStore, "setTargetTitles" | "setIntent" | "setStage">;
+    claims: Pick<ClaimStore, "confirmed">;
+  },
+  coordinator: Pick<ReturnType<typeof makeRetrievalCoordinator>, "awaitRetrievalWithoutReveal">,
+): Promise<{ session: SessionRecord; family: DiscoveryFamily | null }> {
+  // #246 QA finding 2: read BEFORE the write below — this is the only thing that tells a
+  // genuine first question 1 from a re-submit, and only the first one may buy a search.
+  const firstAsk = session.targetTitles.length === 0;
+  await deps.sessions.setTargetTitles(session.id, [role]);
+  const intent = await deps.sessions.setIntent(session.id, { targetRole: role });
+  await deps.sessions.setStage(session.id, "discovery");
+  const [confirmed, negatives] = await Promise.all([deps.claims.confirmed(session.id), deps.claims.negatives(session.id)]);
+  return searchAtQuestionOne({ ...session, intent, targetTitles: [role] }, confirmed, negatives, deps, coordinator, firstAsk);
+}
+
 /** #246 — the promise's number is read off the session, where question 1's search recorded it
  *  (`searchAtQuestionOne` above). Every later discovery response — an answer, a resume — restates
  *  the same number for free; only question 1 ever pays a provider to find it. */

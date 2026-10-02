@@ -2,6 +2,25 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-02 — #322 closed: discovery no longer re-asks the job the front door took
+
+`/implement` -> `/code-review` (both axes) -> `/qa-gate` (NO-GO, then **GO**) on **#322**, from the
+owner's 2026-10-01 staging walk. One closing commit.
+
+- **What changed for the visitor**: a role typed at the front door now counts as question 1 answered —
+  discovery opens on the family checklist with the "N new jobs" promise, and a reload re-asks nothing.
+  A direct visit to /discovery with no role anywhere still asks question 1.
+- **How**: question 1's writes + its one paid search moved to `discoveryEngine.ts`
+  (`answerQuestionOne`); `POST /onboarding/discovery/start` and the discovery GET (when the session has
+  an intent role but no target title) both call it. The ratchet came down 685 → 682.
+- **The NO-GO**: five Tier 2 journeys still typed into the role box after giving the role at the front
+  door, so the deploy check would have gone red. The step was removed (not made optional); QA's new
+  `front-door-role-handoff-journey.mjs` joined Tier 2 with a coverage entry.
+- **Known, accepted**: two simultaneous first opens can still each buy a search in the milliseconds
+  before the role is written — the same window the typed question 1 has had since #246; it could not
+  be reproduced in-process. `family-placement-journey` and `field-style-journey` (outside Tier 2)
+  probably still type into question 1 and will need the same edit when next run.
+
 ## 2026-10-01 — #116 closed: the cold deck holds its reveal instead of erroring
 
 `/implement` -> `/code-review` (both axes) -> `/qa-gate` (**GO**, first run) on **#116**, the owner's

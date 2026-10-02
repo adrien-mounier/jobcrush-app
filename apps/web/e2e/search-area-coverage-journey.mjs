@@ -125,8 +125,7 @@ await qa.expectText(
   'in Hong Kong.',
   'AC4 setup: the search area resolved to Hong Kong while the role text says Paris',
 );
-await qa.fill('#q1-role', 'IT project manager in Paris', 'answer Q1 with a role naming Paris again');
-await qa.click('button.go.wide', "confirm the role — \"That's me\"");
+// #322: the front door already took the role, so discovery opens on the checklist - no question 1.
 await qa.scrollThrough('read the page the way a person would');
 // #214 owner decision: the promise sentence names NO place — with up to 3 selected places, naming
 // one was a half-truth. The location signal is proven by the work-rights question below instead.

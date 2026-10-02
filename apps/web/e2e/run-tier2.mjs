@@ -82,6 +82,9 @@ export const JOURNEYS = [
   // budget, then ONE reveal with the whole count, never the proxy's "Couldn't line up your jobs.".
   // Measured 2026-10-01: ~2.5 min, no sign-in.
   "cold-deck-hold-journey.mjs",
+  // #322: the front door's role is question 1 answered — discovery opens on the checklist, a reload
+  // re-asks nothing, and a role-less visitor is still asked. Measured 2026-10-02: under a minute.
+  "front-door-role-handoff-journey.mjs",
   "master-cv-dates-note-journey.mjs",
   // #222: the only journey that can catch the family-scoped years reading going dead on the
   // shipped journey — the exact regression its own QA gate found once already (a production

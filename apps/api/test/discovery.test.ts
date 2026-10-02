@@ -479,6 +479,39 @@ describe("#16 discovery routes", () => {
     expect(searches).toBe(1);
   });
 
+  // #322 — the front door already took the job: discovery opens on the checklist, never re-asks it,
+  // and the hand-off records the role exactly as question 1 would — one search, never two on reload.
+  it("#322: a role given at the front door skips question 1 and is recorded once", async () => {
+    let searches = 0;
+    const retriever = fixtureRetriever();
+    const { app } = buildServer({
+      retrievePostings: async (input) => {
+        searches += 1;
+        return retriever(input as never);
+      },
+    });
+    const cookie = await anonSession(app);
+    await put(app, cookie, "/sessions/me/intent", { targetRole: ROLE, searchArea: "Hong Kong" });
+    const opened: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
+    const asked: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    // What question 1 would have produced, minus its own (now skipped) search.
+    expect({ ...opened, promise: null }).toEqual({ ...asked, promise: null });
+    expect(opened.questions[0]?.itemId).toBe(END_TO_END);
+    expect(opened.promise).toEqual({ count: 16 });
+
+    const reloaded: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
+    expect(reloaded.questions[0]?.itemId).toBe(END_TO_END);
+    expect(searches).toBe(1);
+  });
+
+  it("#322: with no role anywhere, discovery still opens on question 1", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    await put(app, cookie, "/sessions/me/intent", { searchArea: "Hong Kong" });
+    const opened: DiscoveryState = (await get(app, cookie, "/onboarding/discovery")).json();
+    expect(opened).toMatchObject({ role: null, questions: [] });
+  });
+
   it("a positive answer adds a CV line, advances its section bar + the countdown", async () => {
     const { app } = buildServer();
     const cookie = await anonSession(app);
