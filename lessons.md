@@ -1,5 +1,16 @@
 # Lessons — jobcrush-app
 
+## "Verified on the owner's CV" costs nothing locally — run the real model through the CLI fallback
+
+Learned 2026-10-03 on #323. With no `ANTHROPIC_API_KEY` set, `llmFromEnv()` drives the Claude Code
+CLI, so a real miner (or tailor) run on the owner's actual CV spends no petty cash and needs no
+staging deploy: build the API, import the compiled step from `apps/api/dist/`, feed it the PDF, and
+read the real output. #325's session wanted to spend cents on staging to learn how the owner's CV
+reads; this answers the same question for free, before the push, and the QA tester can re-run it
+as evidence. The run is non-deterministic — do it twice when the result is borderline — and the
+fake stack's recorded read never exercises a prompt change, so this is the only honest check for
+one. Pattern: `scratchpad/real-cv-323.mjs` (extract → mine → proof → reconcile, printed).
+
 ## A long reference doc needs a contents list at the top; CLAUDE.md does not
 
 Learned 2026-10-02 from Anthropic's updated skill guidance (via Simon Scrapes, "Everything You Know
