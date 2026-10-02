@@ -38,6 +38,14 @@ const supports = (
   claim.semantic_key === itemId ||
   claim.id === fixtureDiscoveryClaimId(floor.familyId, floor.version, itemId);
 
+/** #324: what closes an item without evidence — an explicit "no", or a skipped answer ("I don't
+ *  know": her own answer, recorded rejected so it is never a fact). A rejected MINED claim is not an
+ *  answer — the CV's evidence was withdrawn, so its item reopens. */
+const closedBy = (claims: ClaimRecord[], negatives: ClaimRecord[]): ClaimRecord[] => [
+  ...negatives,
+  ...claims.filter((claim) => claim.decision === "rejected" && claim.origin === "user-authored"),
+];
+
 export function adaptiveDiscoveryState(
   floor: AdaptiveDiscoveryFloor,
   claims: ClaimRecord[],
@@ -58,7 +66,7 @@ export function adaptiveDiscoveryState(
   });
   const negativeIds = new Set(
     floor.essentialItems
-      .filter((item) => negatives.some((claim) => supports(claim, floor, item.id)))
+      .filter((item) => closedBy(claims, negatives).some((claim) => supports(claim, floor, item.id)))
       .map((item) => item.id),
   );
   const positiveByItem = new Map(positiveEvidence.map((evidence) => [evidence.itemId, evidence]));
@@ -123,7 +131,7 @@ export function planDiscoveryState(
         .filter(
           (item) =>
             state.positiveEvidence.some((evidence) => evidence.itemId === item.id) ||
-            negatives.some((claim) => supports(claim, scoped, item.id)),
+            closedBy(claims, negatives).some((claim) => supports(claim, scoped, item.id)),
         )
         .map((item) => item.id),
     };

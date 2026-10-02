@@ -57,6 +57,7 @@ import {
   factCount,
   freeTextLine,
   isNoAnswer,
+  recordDiscoveryAnswer,
   READER_ROLE_ITEM_ID,
 } from "../discovery.js";
 import { FamilyPlacement } from "@jobcrush/contracts";
@@ -208,8 +209,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           needs_grill: false,
           grill_hint: null,
         };
-        if (isNoAnswer(req.body.answer)) await deps.claims.answerNegative(session.id, claim);
-        else await deps.claims.add(session.id, claim);
+        await recordDiscoveryAnswer(deps.claims, session.id, claim, req.body.answer);
         return fixtureState(session.id, req.body.placement, reply);
       },
     );
@@ -434,10 +434,10 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
         const family = handed ? handed.family : role ? await reconciledFamily(session) : null;
         const state = buildDiscoveryRouteState(role, confirmed, negatives, rejected, facts, session, family, blocks);
-        // #35: a deck-rejected reader-role claim still closes the question — same never-re-ask rule
-        // discoveryState now applies internally; this check is separate (the reader question isn't a
-        // floor item) so it needs its own look at `rejected`.
-        await prependReaderQuestionFromJob(state, req.query.job, deps.store, session, confirmed, rejected);
+        // #35/#324: a deck-rejected, skipped or "no" reader-role claim still closes the question — same
+        // never-re-ask rule discoveryState applies internally; this check is separate (the reader
+        // question isn't a floor item) so it needs its own look at `rejected` and `negatives`.
+        await prependReaderQuestionFromJob(state, req.query.job, deps.store, session, confirmed, [...rejected, ...negatives]);
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
@@ -544,7 +544,6 @@ export function onboardingRoutes(deps: OnboardingDeps) {
               .send({ error: { code: "invalid_answer", message: "this item requires a single answer" } });
           }
           let claim: CandidateClaim;
-          let no = false;
           if (req.body.itemId === READER_ROLE_ITEM_ID) {
             // #18 AC6: the reader-only question has no floor item — the free-text answer IS the CV line.
             claim = {
@@ -567,7 +566,6 @@ export function onboardingRoutes(deps: OnboardingDeps) {
             if (!item)
               return reply.status(404).send({ error: { code: "unknown_item", message: "no such floor item" } });
 
-            no = isNoAnswer(answer);
             claim = {
               id: discoveryClaimId(item.id),
               semantic_key: item.id,
@@ -575,7 +573,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
               field_value: null,
               field_label: null,
               role: "profile",
-              text: no ? `Not applicable — ${item.question}` : composeCvLine(item, answer),
+              text: isNoAnswer(answer) ? `Not applicable — ${item.question}` : composeCvLine(item, answer),
               machine_touch: "verbatim", // the visitor's own answer
               classification: "Verified", // user-authored, they vouch for it
               source_quote: answer.slice(0, 200),
@@ -583,8 +581,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
               grill_hint: null,
             };
           }
-          if (no) await deps.claims.answerNegative(session.id, claim);
-          else await deps.claims.add(session.id, claim);
+          await recordDiscoveryAnswer(deps.claims, session.id, claim, answer);
         }
 
         const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);

@@ -12,8 +12,8 @@
 //   - discoveryState — rebuilds the whole DiscoveryState from the session's role + its recorded
 //     discovery answers (confirmed positives + negatives + #35's deck-rejected, all of which close a
 //     question), so GET /discovery resumes with no client state.
-import type { FloorItem, CvSection, MinedRole, EligibilityDimension } from "@jobcrush/contracts";
-import type { ClaimRecord } from "./claims.js";
+import type { CandidateClaim, FloorItem, CvSection, MinedRole, EligibilityDimension } from "@jobcrush/contracts";
+import type { ClaimRecord, ClaimStore } from "./claims.js";
 
 export const CV_SECTIONS = ["summary", "experience", "skills", "education"] as const;
 
@@ -357,4 +357,28 @@ export function discoveryState(
  *  negative — CLAUDE.md conservation). The full "no" treatment — asked-and-closed, correction — is #18. */
 export function isNoAnswer(answer: string): boolean {
   return /^no[.!]?$/i.test(answer.trim());
+}
+
+/** #324: a typed non-answer ("I don't know", "not sure", "n/a", "idk", the Skip button's "Not sure")
+ *  — it closes the question but is never a fact about the person. Whole-answer match only: "Not sure
+ *  which, but the CFO and IT" asserts something and is conserved like any other answer. */
+export const NON_ANSWER = /^(?:(?:i )?(?:do ?n[o']?t|dont) (?:know|remember|recall)|(?:i have )?no (?:idea|clue)|idk|dunno|(?:i'?m )?(?:not sure|unsure)(?: yet)?|n\.?\/?a\.?|not applicable|none|nothing|skip|pass|\?+|-+)$/;
+export function isNonAnswer(answer: string): boolean {
+  return NON_ANSWER.test(answer.trim().toLowerCase().replace(/[’‘]/g, "'").replace(/[.!]+$/, "").replace(/\s+/g, " "));
+}
+
+/** #324: the one write path for a discovery answer. A non-answer is recorded REJECTED (#35's shape:
+ *  closes the question, no CV line, no factCount, never confirmed) — so it also retracts a fact
+ *  when someone corrects an earlier answer to "not sure". A bare "no" is a negative; else a fact.
+ *  The skip lands as a negative first, so a failed reject leaves a "no", never a fact. */
+export async function recordDiscoveryAnswer(
+  claims: Pick<ClaimStore, "add" | "answerNegative" | "reject">,
+  sessionId: string,
+  claim: CandidateClaim,
+  answer: string,
+): Promise<void> {
+  if (isNoAnswer(answer)) return claims.answerNegative(sessionId, claim);
+  if (!isNonAnswer(answer)) return claims.add(sessionId, claim);
+  await claims.answerNegative(sessionId, claim);
+  await claims.reject(sessionId, claim.id);
 }

@@ -1,5 +1,14 @@
 # Lessons — jobcrush-app
 
+## "Answered" has two readers in discovery — the screen and the deck gate
+
+Learned 2026-10-02 on #324. `discoveryState` (what the screen asks next) and `adaptiveDiscovery.ts`'s
+`planDiscoveryState` (the checkpoint that unlocks the deck) each decide independently whether a
+checklist item is closed. Adding a new way to close an item (a skip stored as a rejected claim) to
+one and not the other strands the person: the screen stops asking, the deck stays refused, and every
+discovery-route test stays green. Any new answer shape needs a test against `checkpoint` too
+(`productionDiscovery.test.ts`), not only against `questions`.
+
 ## A shared deadline over a concurrency-capped fan-out must decide what a 0ms budget means
 
 Learned 2026-10-01 on #116. A wall-clock budget shared across waves (`deadlineAt`, remaining computed

@@ -69,7 +69,9 @@ import { fileURLToPath } from "node:url";
 // by the last sixth it was carrying.
 // #322 lowered it from 685: question 1's writes moved to discoveryEngine.ts (answerQuestionOne), so
 // the discovery GET could take the front door's role through the same path instead of a copy.
-const MAX_LINES = 682;
+// #324 lowered it from 682: both discovery answer writes route through discovery.ts's
+// recordDiscoveryAnswer (the one place a non-answer becomes a skip, never a fact).
+const MAX_LINES = 679;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

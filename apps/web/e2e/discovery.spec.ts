@@ -573,6 +573,12 @@ test("a free-text question renders its consequence, and stays plain when it has 
   await expect(page.getByText("What should employers notice first?", { exact: true })).toBeVisible();
   await expect(page.locator(".discovery .conseq")).toHaveCount(0);
   await expect(page.locator("#floor-free")).not.toHaveAttribute("aria-describedby", /./);
+  // #324: a free-text question can be declined without typing — the date question cannot.
+  await expect(page.getByRole("button", { name: "Not sure — skip" })).toBeVisible();
+  current = AFTER_JOB_DATE_HOLE;
+  await page.goto("/discovery");
+  await expect(page.getByText("When did you leave Nordic Retail Group?", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Not sure — skip" })).toHaveCount(0);
 });
 
 test("declining an eligibility question is informative, never a failure, and stays correctable", async ({ page }) => {

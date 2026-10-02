@@ -340,6 +340,26 @@ describe("#61/#216 discovery over the published family floors", () => {
     expect(discovery.coveredItemIds).toContain("delivery-communication");
   });
 
+  // #324: a skip ("I don't know") stores no fact but is still an answer — it must close the item for
+  // the deck gate too, or the screen stops asking while the deck stays refused.
+  it("treats a skipped question as allowed coverage and writes completion", async () => {
+    const { app, sessions, cookie, sessionId } = await setup([
+      "end-to-end-delivery",
+      "risk-dependency-control",
+      "delivery-communication",
+    ]);
+    await start(app, cookie);
+
+    const completed = await answer(app, cookie, "stakeholder-coordination", "I don't know");
+    expect(completed.statusCode).toBe(200);
+    expect(completed.json().cvLines.map((line: { itemId: string }) => line.itemId)).not.toContain(
+      "stakeholder-coordination",
+    );
+    const discovery = await stored(sessions, sessionId);
+    expect(discovery.checkpoint).toBe("essential_floor_covered");
+    expect(discovery.coveredItemIds).toContain("stakeholder-coordination");
+  });
+
   it("covers a server-mined semantic equivalent once but excludes unsupported inference", async () => {
     const equivalent = imported("equivalent-a", {
       semantic_key: "end-to-end-delivery",

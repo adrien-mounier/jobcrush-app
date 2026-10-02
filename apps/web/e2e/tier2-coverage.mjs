@@ -348,6 +348,8 @@ export const COVERAGE = {
   "cold-deck-hold-journey.mjs": union(CV_INTAKE, DECK, POSTINGS, DISCOVERY, AUTH),
   // #322: the front door's role and area carried into discovery as question 1 answered.
   "front-door-role-handoff-journey.mjs": union(FRONT_DOOR, DISCOVERY, POSTINGS),
+  // #324: skips close the question, write no fact, leave the profile alone and still open the deck.
+  "non-answer-skip-journey.mjs": union(["apps/api/src/adaptiveDiscovery.ts"], DISCOVERY, PROFILE, FACTBADGE, DECK),
   // #159: the passive missing-dates note on the built master CV, and no uninvited "Present".
   "master-cv-dates-note-journey.mjs": union(CV_INTAKE, JOB_BLOCKS, TAILOR, AUTH),
   // #222: an advert's years bars read at their own scope — family years vs the career total.

@@ -1,6 +1,7 @@
 // #16 discovery (screen 1a) — the pure line/family helpers + the discovery HTTP API (the spec's
 // primary seam: every server-decided behaviour observed through the route). Prior art:
 // onboarding.test.ts (real requests over the spine) and preview.test.ts (pure helpers).
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { newDb } from "pg-mem";
 import type { FloorItem, PostingRetrievalResultV1 } from "@jobcrush/contracts";
@@ -21,6 +22,8 @@ import {
   discoveryState,
   factCount,
   isNoAnswer,
+  isNonAnswer,
+  NON_ANSWER,
   parseCity,
   readerQuestion,
   slug,
@@ -138,6 +141,18 @@ describe("#16 discovery pure helpers", () => {
     expect(isNoAnswer("No.")).toBe(true);
     expect(isNoAnswer("No, but a related certification")).toBe(false);
     expect(isNoAnswer("Yes, over $1M")).toBe(false);
+  });
+
+  it("#324: isNonAnswer catches a typed 'I don't know' — never a real answer, never a bare 'no'", () => {
+    for (const a of ["I don't know", "I don’t know.", "dont know", "idk", "Not sure", "I'm not sure!", "n/a", "N/A", "N.A.",
+      "no idea", "?", "Skip", "not sure yet", "I don't remember", "don't recall", "none", "Nothing."])
+      expect(isNonAnswer(a), a).toBe(true);
+    for (const a of ["No", "Business, engineering, and vendors", "Not sure yet which, but the CFO and IT", "I know SAP",
+      "None of the vendors, only internal teams"])
+      expect(isNonAnswer(a), a).toBe(false);
+    // The web client mirrors the pattern by hand (apps can't import each other) — pin it byte-identical.
+    const page = readFileSync(new URL("../../web/app/discovery/page.tsx", import.meta.url), "utf8");
+    expect(page).toContain(`const NON_ANSWER = ${NON_ANSWER};`);
   });
 
   it("discoveryState before Q1 (no role) is the empty skeleton", () => {
@@ -565,6 +580,29 @@ describe("#16 discovery routes", () => {
     const sid = session.json().id as string;
     expect((await claims.confirmed(sid)).map((c) => c.id)).toContain(discoveryClaimId(COMMUNICATION));
     expect((await claims.negatives(sid)).map((c) => c.id)).not.toContain(discoveryClaimId(COMMUNICATION));
+  });
+
+  // #324: a non-answer to a free-text question closes it but is never stored as a fact about you —
+  // recorded as rejected (#35's shape: closes the question, no CV line, no factCount, never confirmed).
+  it("#324: 'I don't know' closes the question but stores no fact — and correcting a fact to a skip removes it", async () => {
+    const { app, claims } = buildServer();
+    const cookie = await anonSession(app);
+    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
+    const s: DiscoveryState = (
+      await post(app, cookie, "/onboarding/discovery/answer", { itemId: STAKEHOLDERS, answer: "I don't know" })
+    ).json();
+    expect(s.questions.map((q) => q.itemId)).not.toContain(STAKEHOLDERS);
+    expect(s.cvLines.some((l) => l.itemId === STAKEHOLDERS)).toBe(false);
+    expect(s.factCount).toBe(0);
+    const sid = (await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } })).json().id as string;
+    const stored = async () => [...(await claims.confirmed(sid)), ...(await claims.negatives(sid))].map((c) => c.id);
+    expect(await stored()).not.toContain(discoveryClaimId(STAKEHOLDERS));
+
+    // A fact typed before this fix ("I don't know." vouched for) is removed by correcting it to a skip.
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: COMMUNICATION, answer: "Weekly steering decks" });
+    expect(await stored()).toContain(discoveryClaimId(COMMUNICATION));
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: COMMUNICATION, answer: "Not sure" });
+    expect(await stored()).not.toContain(discoveryClaimId(COMMUNICATION));
   });
 
   it("answers persist server-side — a reload (fresh GET) resumes with the lines, not re-derived from the client", async () => {

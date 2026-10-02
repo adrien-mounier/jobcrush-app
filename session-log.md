@@ -2,6 +2,29 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-02 — #324: a non-answer is never stored as a fact (stays open on AC3)
+
+`/implement` -> `/code-review` (both axes) -> `/qa-gate` (NO-GO, then **GO**) on **#324**, from the
+owner's 2026-10-01 staging walk (he typed "I don't know" twice and it became two vouched facts).
+
+- **What changed for the visitor**: free-text checklist questions carry **"Not sure — skip"**, and a
+  typed non-answer ("I don't know", "not sure yet", "n/a", "idk", "none", "I don't remember" …) is a
+  skip too. A skip closes the question with "Noted — one less thing to ask.", adds no CV line, no
+  fact count, nothing on the profile, and never reaches the judge or the draft. Correcting an earlier
+  answer to a skip (same visit) removes the fact. The job-date question has no skip.
+- **How**: one write path, `discovery.ts`'s `recordDiscoveryAnswer` — a skip lands as a "no" and is
+  then rejected (#35's shape), so a half-failed write leaves a "no", never a fact. The web copy of the
+  pattern is pinned byte-identical by a unit test. Ratchet 682 → 679.
+- **The review catch**: the deck's unlock gate (`adaptiveDiscovery.ts`) counted only facts and "no"s
+  as covered, so a skipped checklist question would have left her with no question and no deck. A
+  rejected *user-authored* answer now covers; a rejected *CV-mined* claim still reopens its item.
+- **The NO-GO**: "not sure yet", "I don't remember", "N.A.", "none" were still stored. Widened.
+  QA's `non-answer-skip-journey.mjs` adopted into Tier 2. Known misses, logged not blocking: "I don't
+  know yet", "unknown", "can't remember", "no comment", "nope" — a list never catches every wording.
+- **Open — AC3**: the owner's two existing "I don't know." facts on staging. The profile has no
+  remove control and discovery only corrects within the visit, so it needs either his OK to clean
+  them on staging or a profile remove ticket. **#324 stays open until he decides.**
+
 ## 2026-10-02 — #322 closed: discovery no longer re-asks the job the front door took
 
 `/implement` -> `/code-review` (both axes) -> `/qa-gate` (NO-GO, then **GO**) on **#322**, from the

@@ -85,6 +85,10 @@ export const JOURNEYS = [
   // #322: the front door's role is question 1 answered — discovery opens on the checklist, a reload
   // re-asks nothing, and a role-less visitor is still asked. Measured 2026-10-02: under a minute.
   "front-door-role-handoff-journey.mjs",
+  // #324 (left by the QA gate, adopted): "a non-answer is never stored as a fact" on the rendered
+  // screen — the skip and a typed "I don't know" close the question with no CV line, no fact-count
+  // move, nothing on the profile, and the deck still opens. No sign-in.
+  "non-answer-skip-journey.mjs",
   "master-cv-dates-note-journey.mjs",
   // #222: the only journey that can catch the family-scoped years reading going dead on the
   // shipped journey — the exact regression its own QA gate found once already (a production

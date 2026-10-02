@@ -285,9 +285,9 @@ export async function prependReaderQuestionFromJob(
   jobs: JobStore,
   session: Pick<SessionRecord, "id">,
   confirmed: ClaimRecord[],
-  rejected: ClaimRecord[],
+  closed: ClaimRecord[], // rejected + negatives: asked and closed, no CV line
 ): Promise<void> {
-  const readerAnswered = [...confirmed, ...rejected].some((c) => c.id === discoveryClaimId(READER_ROLE_ITEM_ID));
+  const readerAnswered = [...confirmed, ...closed].some((c) => c.id === discoveryClaimId(READER_ROLE_ITEM_ID));
   if (!jobId || readerAnswered) return;
   const job = await jobs.get(jobId);
   const roles = job && job.sessionId === session.id ? minedRoles(job) : [];

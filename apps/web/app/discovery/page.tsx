@@ -76,6 +76,7 @@ const C22 = "I scored the three closest — tell me more and I'll score them bet
 const C23 = "Locked in — I'll use that on every job, so I won't ask again.";
 const C24 = "No problem — I'll ask again when a job needs it.";
 const C26 = "Answer it now";
+const C27 = "Not sure — skip"; // #324: declines a free-text question without typing
 
 // C8/C9's tail — the count renders beside it in its own emphasized `.n` slot (matching
 // first-question.prototype.html, which the design spec builds against), so the two pieces read as
@@ -118,6 +119,16 @@ function countdownCopy(n: number): string {
 function isNoAnswer(answer: string): boolean {
   return /^no[.!]?$/i.test(answer.trim());
 }
+// #324: mirrors the server's isNonAnswer — a typed "I don't know" closes the question as a skip
+// (noted-and-closed, C15), never "saved to your profile". SKIP is what the Skip button sends.
+const SKIP = "Not sure";
+// Kept byte-identical to the server's NON_ANSWER — apps/api/test/discovery.test.ts fails if they drift.
+const NON_ANSWER = /^(?:(?:i )?(?:do ?n[o']?t|dont) (?:know|remember|recall)|(?:i have )?no (?:idea|clue)|idk|dunno|(?:i'?m )?(?:not sure|unsure)(?: yet)?|n\.?\/?a\.?|not applicable|none|nothing|skip|pass|\?+|-+)$/;
+function isNonAnswer(answer: string): boolean {
+  return NON_ANSWER.test(answer.trim().toLowerCase().replace(/[’‘]/g, "'").replace(/[.!]+$/, "").replace(/\s+/g, " "));
+}
+// A job-date question (yearsWorked.ts) needs a date to mean anything — no skip there.
+const skippable = (itemId: string) => !itemId.startsWith("job-date-");
 // #123: joins a ticked-language list in `options` order for L3/L4 (design spec §6's join rule) —
 // sentence case, no quotes, no bold, and never an Oxford comma before "and".
 function joinList(items: string[]): string {
@@ -602,7 +613,7 @@ function DiscoveryScreen() {
         setNotice(null);
         setNoticeSlot({ itemId: answeredItemId, answer: rawAnswer, ...(answersList ? { answers: answersList } : {}) });
         setLiveMessage(`${line} ${countdownCopy(remaining(next))}`);
-      } else if (answeredItemId && rawAnswer && isNoAnswer(rawAnswer)) {
+      } else if (answeredItemId && rawAnswer && (isNoAnswer(rawAnswer) || isNonAnswer(rawAnswer))) {
         setNotice(null);
         setNoticeSlot({ itemId: answeredItemId, answer: rawAnswer });
         setLiveMessage(`${C15} ${countdownCopy(remaining(next))}`);
@@ -1002,6 +1013,11 @@ function DiscoveryScreen() {
             </button>
           </div>
           <p className="notice">
+            {skippable(correcting.itemId) && (
+              <button type="button" disabled={isAnswering} onClick={() => commitCorrection(correcting.itemId, SKIP)}>
+                {C27}
+              </button>
+            )}{" "}
             <button type="button" disabled={isAnswering} onClick={cancelCorrection}>
               {C18}
             </button>
@@ -1404,6 +1420,13 @@ function DiscoveryScreen() {
               Continue
             </button>
           </div>
+          {skippable(item.itemId) && (
+            <p className="notice">
+              <button type="button" disabled={isAnswering} onClick={() => answerFloor(item, SKIP)}>
+                {C27}
+              </button>
+            </p>
+          )}
           {renderNotice()}
           {askError && (
             <p className="err" role="alert">
