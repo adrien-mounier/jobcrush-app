@@ -47,6 +47,57 @@ describe("reconcileImport", () => {
     expect(result.claims[0]!.id).toBe("sk-1");
   });
 
+  // #323: one field key, two different values is two facts (a genuine contradiction), not one fact
+  // read twice — tailor by emphasis, not amputation starts at import. Neither may be dropped.
+  it("#323: keeps both claims when one field key carries two different values", () => {
+    const result = reconcileImport(
+      proof,
+      [
+        claim({ id: "a", semantic_key: "sa-bkk", field_key: "search-area", field_value: "Bangkok", text: "Bangkok" }),
+        claim({ id: "b", semantic_key: "sa-ldn", field_key: "search-area", field_value: "London", text: "London" }),
+      ],
+      {},
+    );
+    expect(result.claims.map((c) => [c.id, c.field_value])).toEqual([
+      ["search-area-bangkok", "Bangkok"],
+      ["search-area-london", "London"],
+    ]);
+    // The same ids whatever order the miner emits the pair in: a deck decision stays on its value.
+    const reversed = reconcileImport(
+      proof,
+      [
+        claim({ id: "b", semantic_key: "sa-ldn", field_key: "search-area", field_value: "London", text: "London" }),
+        claim({ id: "a", semantic_key: "sa-bkk", field_key: "search-area", field_value: "Bangkok", text: "Bangkok" }),
+      ],
+      {},
+    );
+    expect(reversed.claims.map((c) => c.id).sort()).toEqual(["search-area-bangkok", "search-area-london"]);
+    // Values in another script get distinct, stable ids too (QA finding on #323).
+    const thai = reconcileImport(
+      proof,
+      [
+        claim({ id: "a", semantic_key: "sa-1", field_key: "search-area", field_value: "กรุงเทพ", text: "กรุงเทพ" }),
+        claim({ id: "b", semantic_key: "sa-2", field_key: "search-area", field_value: "เชียงใหม่", text: "เชียงใหม่" }),
+      ],
+      {},
+    );
+    expect(new Set(thai.claims.map((c) => c.id)).size).toBe(2);
+    expect(thai.claims.every((c) => /^search-area-[a-z0-9]+$/.test(c.id))).toBe(true);
+  });
+
+  it("#323: collapses them to the person's own answer once they have resolved the field", () => {
+    const result = reconcileImport(
+      proof,
+      [
+        claim({ id: "a", semantic_key: "sa-bkk", field_key: "search-area", field_value: "Bangkok", text: "Bangkok" }),
+        claim({ id: "b", semantic_key: "sa-ldn", field_key: "search-area", field_value: "London", text: "London" }),
+      ],
+      { "search-area": "London" },
+    );
+    expect(result.claims).toHaveLength(1);
+    expect(result.claims[0]).toMatchObject({ id: "search-area", text: "London", field_value: "London" });
+  });
+
   it("a stored correction outranks the freshly re-read value, on text AND field_value", () => {
     const result = reconcileImport(
       proof,
@@ -86,7 +137,7 @@ describe("reconcileImport", () => {
   it("clears a conflict the person already answered, and keeps one they have not", () => {
     const conflicted: ImportProof = {
       ...proof,
-      conflict: { fieldId: "email", label: "Email", userResolvedValue: null },
+      conflict: { fieldId: "email", label: "Email: your CV says a@x.com and also b@x.com. Which one is right?", values: ["a@x.com", "b@x.com"], userResolvedValue: null },
     };
     expect(reconcileImport(conflicted, [claim()], { email: "new@x.com" }).proof.conflict).toBeNull();
     expect(reconcileImport(conflicted, [claim()], {}).proof.conflict).toEqual(conflicted.conflict);

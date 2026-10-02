@@ -1,4 +1,4 @@
-<!-- claim-miner prompt v3 (JC-13 lineage, #208 capture unit). Lineage: JobCrush docs/spikes/jc2-miner-prompt.md, with the
+<!-- claim-miner prompt v3.1 (JC-13 lineage, #208 capture unit; #323: field tags never on repeatable kinds). Lineage: JobCrush docs/spikes/jc2-miner-prompt.md, with the
 two JC-2 smoke-run findings fixed: (1) verbatim/reworded boundary narrowed so cosmetic
 normalization no longer costs an individual deck card; (2) asserted-vs-evidenced classification
 sharpened so fluffy self-descriptions stop coming back Verified. v2 adds section coverage
@@ -72,8 +72,12 @@ Rules — these mirror the claim-graph extraction discipline:
 Stable identity fields:
 - `semantic_key` is the fact's canonical meaning, not a paraphrase or claim id. Equivalent facts
   MUST receive the same kebab-case key across wording changes and repeated sources.
-- For a single-valued fact that can conflict locally, set both `field_key` and `field_value`.
-  Also set `field_label` to concise human-readable copy for that field.
+- For a single-valued fact — one a person has exactly one of, such as a search area or a notice
+  period — set both `field_key` and `field_value`. Also set `field_label` to the field's short
+  name ("Search area"), never to the fact itself.
+- Never set them on anything a CV can legitimately list more than once: degrees, jobs,
+  certifications, languages, skills. Rule 8's `edu-`/`cert-`/`lang-`/`skill-` claims always carry
+  null for all three — two degrees are two facts, not a contradiction.
 - General achievements use null for all three. Never set only some of them.
 
 Output shape:

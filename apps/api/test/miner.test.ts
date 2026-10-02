@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { CandidateClaims } from "@jobcrush/contracts";
 import { buildMinerInput, extractJson, mineClaims } from "../src/miner.js";
+import { buildImportProof } from "../src/pipeline.js";
+import { reconcileImport } from "../src/importReconciliation.js";
 import type { LlmClient } from "../src/llm.js";
 
 const validDoc = {
@@ -86,5 +88,34 @@ describe("JC-13 miner plumbing", () => {
     const mined = await mineClaims("cv text", llm);
     expect(mined.claims[0]!.source_quote).toBe("x".repeat(200));
     expect(llm.calls).toHaveLength(1);
+  });
+
+  // #323: the owner's CV came back with its Master's as a "conflict" — two degrees tagged with one
+  // field key. Education, jobs, certifications, languages and skills can all legitimately repeat, so
+  // a claim of those kinds is never a single-valued field, whatever the model tagged it with.
+  it("#323: a repeatable claim (edu-/cert-/lang-/skill-) never carries field tags, so two degrees are two facts", async () => {
+    const doc = structuredClone(validDoc);
+    const degree = (id: string, text: string) => ({
+      ...doc.claims[0]!,
+      id,
+      semantic_key: id,
+      role: "profile",
+      text,
+      source_quote: text,
+      field_key: "education",
+      field_value: text,
+      field_label: text,
+    });
+    doc.claims = [
+      degree("edu-msc-esiea", "Master's Degree in Computer Science — ESIEA (2017)"),
+      degree("edu-exchange-kth", "Exchange semester — KTH (2016)"),
+    ];
+    const llm = fakeLlm([JSON.stringify(doc)]);
+    const mined = await mineClaims("cv text", llm);
+    for (const claim of mined.claims) {
+      expect(claim).toMatchObject({ field_key: null, field_value: null, field_label: null });
+    }
+    expect(buildImportProof(mined.claims).conflict).toBeNull();
+    expect(reconcileImport(buildImportProof(mined.claims), mined.claims, {}).claims).toHaveLength(2);
   });
 });

@@ -112,10 +112,17 @@ export function buildImportProof(
       byField.set(claim.field_key, [...(byField.get(claim.field_key) ?? []), claim]);
     }
   }
-  const conflictEntry = [...byField].find(
-    ([, fieldClaims]) => new Set(fieldClaims.map((claim) => claim.field_value)).size > 1,
-  );
-  const conflictClaim = conflictEntry?.[1][0];
+  const conflictEntry = [...byField]
+    .map(([, fieldClaims]) => ({
+      claim: fieldClaims[0]!,
+      values: [...new Set(fieldClaims.map((claim) => claim.field_value ?? ""))],
+    }))
+    .find(({ values }) => values.length > 1);
+  // #323: a conflict reads as a question naming both values; the field label alone ("Search area",
+  // or the model's own fact text) tells the person nothing about what is being asked.
+  const conflictQuestion = ({ claim, values }: NonNullable<typeof conflictEntry>) =>
+    `${claim.field_label}: your CV says ${values.slice(0, -1).join(", ")}` +
+    ` and also ${values.at(-1)}. Which one is right?`;
   return {
     outcome:
       unique.length === 0
@@ -129,10 +136,11 @@ export function buildImportProof(
       text: claim.text,
       provenance: "cv" as const,
     })),
-    conflict: conflictClaim
+    conflict: conflictEntry
       ? {
-          fieldId: conflictClaim.field_key!,
-          label: conflictClaim.field_label!,
+          fieldId: conflictEntry.claim.field_key!,
+          label: conflictQuestion(conflictEntry),
+          values: conflictEntry.values,
           userResolvedValue: null,
         }
       : null,

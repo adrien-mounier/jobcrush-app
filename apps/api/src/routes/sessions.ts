@@ -31,6 +31,8 @@ const importProofSchema = z.object({
     .object({
       fieldId: z.string(),
       label: z.string(),
+      // Sessions stored before #323 carry a conflict without values; they still parse.
+      values: z.array(z.string()).default([]),
       userResolvedValue: z.string().nullable(),
     })
     .nullable(),

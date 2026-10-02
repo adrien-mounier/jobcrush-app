@@ -2,6 +2,24 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-03 — #323: two degrees are two facts — the false import conflict, and the silent drop
+
+`/implement` -> `/code-review` (both axes) -> `/qa-gate` (**GO**, first run) on **#323**. The owner's
+CV showed its Master's as a "question": the miner tagged two education entries with one field key,
+the proof read that as a contradiction, and reconciliation kept only the last of the two. Three
+cuts: (1) the miner's repair step strips field tags from any claim of a kind that can repeat (the
+prompt's own `edu-`/`cert-`/`lang-`/`skill-` ids), so neither reader can misfire whatever the model
+tags — and the prompt rule now says so (v3.1); (2) reconciliation keeps two claims that share a
+field key with different values — a genuine contradiction is two facts for the deck, not one fact
+read twice — under stable value-named ids (`search-area-london`), collapsing only to the person's
+own stored answer; (3) a conflict on the record reads as a question naming both values ("Search
+area: your CV says Bangkok and also London. Which one is right?") with the values carried as the
+choices. **Decision inherited from #325 and taken here:** no screen asks the conflict; both claims
+go to the deck, where the person's review decides. The import-resolution route stays, server-side
+only, ready for a screen if one is ever wanted. **Live proof, no API money:** the owner's real CV
+mined twice through the local CLI — both degrees as plain facts, no conflict, 49 of 49 kept.
+Written-only gap: jobs have no id prefix, so only the prompt protects them from a field tag.
+
 ## 2026-10-02 — #325: a good CV read goes straight to the job-and-area question
 
 `/implement` -> `/code-review` (both axes) -> `/qa-gate` (NO-GO on AC4, then **GO**) on **#325**.

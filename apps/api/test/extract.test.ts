@@ -91,9 +91,11 @@ describe("JC-12 text extraction", () => {
 
     expect(proof.outcome).toBe("partial");
     expect(proof.usefulFactCount).toBe(3);
+    // #323: a genuine contradiction reads as a question naming both values as the choices.
     expect(proof.conflict).toEqual({
       fieldId: "search-area",
-      label: "Search area",
+      label: "Search area: your CV says Bangkok and also London. Which one is right?",
+      values: ["Bangkok", "London"],
       userResolvedValue: null,
     });
     expect(proof.representativeFacts).toContainEqual({

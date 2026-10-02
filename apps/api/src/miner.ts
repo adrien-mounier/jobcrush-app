@@ -39,20 +39,33 @@ export function extractJson(raw: string): unknown {
  * - source_quote must be ≤ 200 chars (candidateClaims schema); on long CV bullets the model
  *   quotes past the cap despite the prompt. Clamp to the 200-char prefix — still a verbatim
  *   fragment of the CV, same as the grill does for answers.
+ * - #323: a claim of a kind that can legitimately repeat (the prompt's rule-8 inventory ids:
+ *   `edu-`, `cert-`, `lang-`, `skill-`) is never a single-valued field, whatever the model tagged
+ *   it with. Left in place, two degrees sharing one field_key read as a contradiction
+ *   (buildImportProof) and collapse to one at import (reconcileImport) — the owner's own CV did
+ *   both. Dropping the tags here, before validation, fixes both readers at once.
  */
+const REPEATABLE_CLAIM_ID = /^(edu|cert|lang|skill)-/;
+
 export function repairClaims(doc: unknown): unknown {
   if (typeof doc !== "object" || doc === null || !Array.isArray((doc as { claims?: unknown[] }).claims)) {
     return doc;
   }
-  for (const claim of (doc as { claims: Array<{ id?: unknown; source_quote?: unknown }> }).claims) {
+  for (const claim of (doc as {
+    claims: Array<{ id?: unknown; source_quote?: unknown; field_key?: unknown; field_value?: unknown; field_label?: unknown }>;
+  }).claims) {
     if (typeof claim?.id === "string") {
-      claim.id =
+      const id =
         claim.id
           .normalize("NFD")
           .replace(/[̀-ͯ]/g, "")
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-+|-+$/g, "") || "claim";
+      claim.id = id;
+      if (REPEATABLE_CLAIM_ID.test(id)) {
+        claim.field_key = claim.field_value = claim.field_label = null;
+      }
     }
     if (typeof claim?.source_quote === "string" && claim.source_quote.length > 200) {
       claim.source_quote = claim.source_quote.slice(0, 200);

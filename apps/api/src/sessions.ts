@@ -298,7 +298,10 @@ export interface ImportProof {
   outcome: "success" | "partial" | "failed" | "no_useful_facts";
   usefulFactCount: number;
   representativeFacts: Array<{ id: string; text: string; provenance: "cv" }>;
-  conflict: null | { fieldId: string; label: string; userResolvedValue: string | null };
+  /** #323: `label` is the question itself, in plain English, naming every value the CV gave;
+   *  `values` are those values as the choices. Asked on no screen since #325 — both claims stay in
+   *  the deck instead, where the person's review decides. */
+  conflict: null | { fieldId: string; label: string; values: string[]; userResolvedValue: string | null };
 }
 
 function resolutionMap(value: unknown): Record<string, string> {
