@@ -139,8 +139,7 @@ async function freshVisitor(label, { withCv = false } = {}) {
     await page.waitForTimeout(1200);
   }
   await qa.goto('/discovery', 'into discovery — the sign-up questions');
-  await qa.fill('#q1-role', PLACED_ROLE, 'answer question 1: the role she is going for');
-  await qa.click('button.go.wide', 'send question 1');
+  // #322: the role typed above answers question 1 — discovery opens on the checklist.
   await page.waitForTimeout(2500);
 }
 

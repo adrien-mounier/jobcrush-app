@@ -96,8 +96,7 @@ await frontDoorTypingRole('IT project manager', 'a brand-new visitor lands on th
 
 apiCalls.length = 0;
 await qa.goto('/discovery', 'walk on to the discovery screen, the only discovery UI that exists');
-await qa.fill('#q1-role', 'IT project manager', 'answer question 1 — the role she is going for');
-await qa.click('button.go.wide', 'send question 1');
+// #322: the front door already took the role, so discovery opens on the checklist — no question 1.
 await page.waitForTimeout(2500);
 await qa.scrollThrough('read the discovery screen the way a visitor would');
 

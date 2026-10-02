@@ -116,8 +116,7 @@ await qa.click('button:has-text("Save and continue")', 'Save and continue');
 await page.waitForTimeout(1200);
 
 await qa.goto('/discovery', 'into discovery — the family floor questions');
-await qa.fill('#q1-role', PLACED_ROLE, 'answer question 1: the role she is going for');
-await qa.click('button.go.wide', 'send question 1');
+// #322: the front door already took the role, so discovery opens on the checklist — no question 1.
 await page.waitForTimeout(2500);
 const asked = await qa.answerFloorOnScreen();
 await qa.note(`the questions her own screen put to her: ${asked.join(', ') || '(none)'}`);

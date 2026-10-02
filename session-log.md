@@ -2,6 +2,18 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-02 — #327: deploys unblocked — six Tier 2 journeys stop typing into question 1
+
+`/implement` -> review -> `/qa-gate` (**GO**, first run) on **#327**. #322's CI run went red on Tier 2
+(6 of 35 journeys), so **#322 never reached staging, and #324 was queued behind it**. All six gave
+the role at the front door and then still typed into question 1, which #322 removed — the same miss
+#322's own gate caught in five other journeys. Five lose the step; `family-role-name` (which tests
+question 1's suggestion list) now reaches question 1 the only way a visitor still can — opening
+discovery with no role anywhere. `promise-counts`' timing note now runs from the Save press, where
+the search actually starts (review catch). Local fake-stack runs: 22/29/11/32/22/67 checks, 0 failed.
+Also this session, owner's OK: the four "I don't know." discovery facts on staging (two sessions,
+both his walks) were set to rejected directly in `jobcrush-pg-staging` — #324 closed.
+
 ## 2026-10-02 — #324: a non-answer is never stored as a fact (stays open on AC3)
 
 `/implement` -> `/code-review` (both axes) -> `/qa-gate` (NO-GO, then **GO**) on **#324**, from the

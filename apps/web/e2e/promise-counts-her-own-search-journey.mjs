@@ -172,22 +172,21 @@ async function walkIntoDiscovery(role) {
   await qa.frontDoorContinueToIntent();
   await qa.fill('#target-role', role, `the job she is going for: "${role}"`);
   await qa.fill('#search-area', AREA, `where she wants to work: ${AREA}`);
+  // #322: the save walks her on to discovery (#257), and that first open IS question 1 answered —
+  // the moment the product goes and searches — so the clock runs from this press.
+  const t0 = Date.now();
   await qa.click('button:has-text("Save and continue")', 'Save and continue');
-  // #257: the save walks her on to discovery by itself — wait for that navigation to settle
-  // before leaving, so the next goto never races it.
   await page.waitForURL(/\/discovery/);
+  await page.waitForTimeout(2500);
+  const elapsedMs = Date.now() - t0;
   for (let i = 0; i < 60; i += 1) {
     const b = await json('/job-blocks');
     if (b?.blocks?.length) break;
     await page.waitForTimeout(500);
   }
 
-  await qa.goto('/discovery', 'into discovery — the sign-up questions');
-  await qa.fill('#q1-role', role, 'answer question 1: the role she is going for');
-  const t0 = Date.now();
-  await qa.click('button.go.wide', 'send question 1 — this is the moment the product goes and searches');
+  await qa.goto('/discovery', 'into discovery, now her CV has landed');
   await page.waitForTimeout(2500);
-  const elapsedMs = Date.now() - t0;
   await qa.scrollThrough('read the discovery screen the way a real visitor would');
   return elapsedMs;
 }

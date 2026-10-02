@@ -89,18 +89,11 @@ async function callAsVisitor(method, path, body) {
   return result;
 }
 
-async function freshVisitorAtQuestionOne(role, note) {
+// #322: a role typed at the front door now answers question 1, so its suggestion list is only met
+// by a visitor who arrives with no role anywhere — she opens discovery directly.
+async function freshVisitorAtQuestionOne(note) {
   await qa.context.clearCookies();
-  await qa.goto('/', note);
-  await qa.scrollThrough('read the front door top to bottom');
-  await qa.click('button:has-text("Ready?")', 'open the front door');
-  await qa.click('button:has-text("Start questions instead")', 'choose to start from questions');
-  await qa.fill('#target-role', role, `type the target role: "${role}"`);
-  await qa.fill('#search-area', 'Singapore', 'type the search area');
-  await qa.press('#search-area', 'Enter', 'place the search area chip');
-  await qa.click('button:has-text("Save and continue")', 'save what I want next');
-  await page.waitForURL(/\/discovery/);
-  await qa.goto('/discovery', 'walk on to question 1');
+  await qa.goto('/discovery', note);
 }
 
 /** Type into question 1 and read back what the screen actually offers her. */
@@ -198,7 +191,7 @@ await qa.note(
   'VISITOR 1 — a business analyst. She types the job she does; the product must recognise it and ' +
     'offer her the words the market actually advertises it under.',
 );
-await freshVisitorAtQuestionOne('Business analyst', 'a brand-new visitor lands on the front door');
+await freshVisitorAtQuestionOne('a brand-new visitor opens discovery directly');
 
 const baOffered = await typeAtQuestionOne('business analyst');
 await qa.expectVisible('.sugg.live', 'the suggestion list opens under question 1');
@@ -243,7 +236,7 @@ await qa.note(
   'VISITOR 2 — a project manager. The rename must not have moved her: the delivery family still ' +
     'answers her query, and the analyst family must not have stolen it.',
 );
-await freshVisitorAtQuestionOne('IT project manager', 'a second brand-new visitor lands on the front door');
+await freshVisitorAtQuestionOne('a second brand-new visitor opens discovery directly');
 
 const pmOffered = await typeAtQuestionOne('project manager');
 await qa.expectVisible('.sugg.live', 'the suggestion list opens for her too');
@@ -276,7 +269,7 @@ await qa.note(
     'covers. None of these four may lose their way to it, and none may be offered back the words ' +
     'she just typed — a suggestion is a one-tap search, and no employer advertises "agile coach".',
 );
-await freshVisitorAtQuestionOne('Scrum master', 'a third brand-new visitor lands on the front door');
+await freshVisitorAtQuestionOne('a third brand-new visitor opens discovery directly');
 
 for (const typed of SCOPE_ALIASES) {
   const offered = await typeAtQuestionOne(typed);
@@ -310,7 +303,7 @@ await qa.note(
     'NOTHING rather than the nearest family\'s words: a suggestion is one tap from a placement, so ' +
     'a helpful guess here is a wrong placement (#255 QA-gate defect 1).',
 );
-await freshVisitorAtQuestionOne('Marine engineer', 'a fourth brand-new visitor lands on the front door');
+await freshVisitorAtQuestionOne('a fourth brand-new visitor opens discovery directly');
 
 const marineOffered = await typeAtQuestionOne('marine engineer');
 await qa.note(`the screen offered her: ${JSON.stringify(marineOffered)}`);
@@ -359,7 +352,7 @@ await qa.note(
     'A new placement written at v1 would be a stored reference to a floor the product has moved on ' +
     'from, and it would resolve for ever to the old name.',
 );
-await freshVisitorAtQuestionOne('Business analyst', 'a sixth brand-new visitor lands on the front door');
+await freshVisitorAtQuestionOne('a sixth brand-new visitor opens discovery directly');
 const placed = await callAsVisitor('POST', '/onboarding/discovery/start', { role: 'Business analyst' });
 await qa.expectVisible('#qa-wire', 'the placement this stack made for a business-analyst role');
 const placedBody = placed.status === 200 ? JSON.parse(placed.body) : null;
