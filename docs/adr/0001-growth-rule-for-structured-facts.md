@@ -6,6 +6,23 @@
 - **Depends on:** [#128](https://github.com/adrien-mounier/jobcrush-app/issues/128) (where a structured fact comes from), [#126](https://github.com/adrien-mounier/jobcrush-app/issues/126) (a job is its own record)
 - **Does not decide:** how a structured record becomes text on a tailored CV — that is [#135](https://github.com/adrien-mounier/jobcrush-app/issues/135)
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+  - [1. Every new kind of fact gets its own shape, designed once](#1-every-new-kind-of-fact-gets-its-own-shape-designed-once)
+  - [2. Adding a new fact never rewrites what is already stored](#2-adding-a-new-fact-never-rewrites-what-is-already-stored)
+  - [3. Structuring a fact never removes its sentence](#3-structuring-a-fact-never-removes-its-sentence)
+  - [4. A new element is not released until every reader understands it](#4-a-new-element-is-not-released-until-every-reader-understands-it)
+  - [5. Two categories: facts and preferences](#5-two-categories-facts-and-preferences)
+  - [6. New advert-side bars are allowed, at a stated price](#6-new-advert-side-bars-are-allowed-at-a-stated-price)
+  - [7. An unrecognised fact is shown, never acted on](#7-an-unrecognised-fact-is-shown-never-acted-on)
+  - [8. A rollback never deletes data](#8-a-rollback-never-deletes-data)
+- [What this rule does NOT cover — read this before assuming it does](#what-this-rule-does-not-cover-read-this-before-assuming-it-does)
+- [Consequences](#consequences)
+- [Alternatives rejected](#alternatives-rejected)
+- [Verification](#verification)
+
 ## Context
 
 The owner's requirement for the CV data model: *"this data model should be flexible enough so we can

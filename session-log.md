@@ -2,6 +2,17 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-02 — Skill-guidance pass: contents lists on long docs, QA checklist (no ticket)
+
+Studied Anthropic's updated skill best practices (via the Simon Scrapes video of 2026-10-01) and
+applied two of its rules. **Contents lists** added to the 17 agent-read docs over 100 lines (every
+ADR, `CONTEXT.md`, `cv-brain/` rules, reasoning and the IT-PM research note); `CLAUDE.md` left
+without one on purpose (see `lessons.md`). **QA tester brief** (`~/.claude/agents/qa-tester.md`,
+outside the repo) now carries a copy-and-tick checklist and a go-back line: a failed browser step
+cannot be ticked and sends the tester back to the gates. Rule still under design, not applied: a
+**self-correcting CV brain** — a failed draft proposes the missing authoring rule for the owner to
+approve. Docs-only; no CI, no deploy.
+
 ## 2026-10-02 — #327: deploys unblocked — six Tier 2 journeys stop typing into question 1
 
 `/implement` -> review -> `/qa-gate` (**GO**, first run) on **#327**. #322's CI run went red on Tier 2

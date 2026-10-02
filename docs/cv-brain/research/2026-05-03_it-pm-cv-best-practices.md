@@ -7,6 +7,41 @@
 
 ---
 
+## Contents
+
+- [1. Recommended Section Order](#1-recommended-section-order)
+  - [Notes on ordering flexibility](#notes-on-ordering-flexibility)
+- [2. Ideal CV Length](#2-ideal-cv-length)
+- [3. Professional Summary](#3-professional-summary)
+  - [Structure](#structure)
+  - [Guidelines](#guidelines)
+- [4. Bullet Structure for Experience Sections](#4-bullet-structure-for-experience-sections)
+  - [The formula](#the-formula)
+  - [Action verbs — recommended for IT PM](#action-verbs-recommended-for-it-pm)
+  - [Density and length](#density-and-length)
+  - [AI-specific framing (2026 trend)](#ai-specific-framing-2026-trend)
+  - [What to avoid](#what-to-avoid)
+- [5. Skills Section](#5-skills-section)
+  - [The "T-Shaped" model](#the-t-shaped-model)
+  - [Recommended categories (2026)](#recommended-categories-2026)
+  - [On skill ratings (stars, bars, percentages)](#on-skill-ratings-stars-bars-percentages)
+- [6. ATS Optimization](#6-ats-optimization)
+  - [Keyword strategy](#keyword-strategy)
+  - [High-priority keyword clusters for IT PM (2025–2026)](#high-priority-keyword-clusters-for-it-pm-20252026)
+  - [Formatting rules for ATS compatibility](#formatting-rules-for-ats-compatibility)
+  - [File format](#file-format)
+- [7. What to Omit or Avoid](#7-what-to-omit-or-avoid)
+  - [Outdated content](#outdated-content)
+  - [Outdated patterns](#outdated-patterns)
+  - [Red flags for recruiters](#red-flags-for-recruiters)
+- [8. 2026-Specific Trends](#8-2026-specific-trends)
+  - [AI integration in delivery](#ai-integration-in-delivery)
+  - [Hybrid delivery as the default](#hybrid-delivery-as-the-default)
+  - [Power skills as differentiators](#power-skills-as-differentiators)
+  - [Certifications in demand](#certifications-in-demand)
+  - [Framing shift: 2024 vs. 2026](#framing-shift-2024-vs-2026)
+- [Summary — Key Principles to Apply](#summary-key-principles-to-apply)
+
 ## 1. Recommended Section Order
 
 > **Superseded for this project (2026-06-11):** section order is fixed by the root CV -

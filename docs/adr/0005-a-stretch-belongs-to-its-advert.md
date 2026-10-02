@@ -6,6 +6,23 @@
 - **Depends on:** [ADR-0002](0002-how-a-structured-fact-reaches-the-cv.md) (how a fact reaches the page), [ADR-0003](0003-the-shared-parts-organisation-date-level.md) clause 9 (a stretch carries two independent labels), [ADR-0004](0004-each-elements-own-parts.md) clause 1a (every fact points at its origin; origin decides reuse), map #127 owner decision 9 (the product proposes stretches, it does not police honesty)
 - **Does not decide:** the words on the decline control, or any other interface question (map #127, Out of scope) · where the visitor reads an interview narrative back ([#142](https://github.com/adrien-mounier/jobcrush-app/issues/142)) · whether a fact may be held but never printed ([#144](https://github.com/adrien-mounier/jobcrush-app/issues/144))
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+  - [1. A stretch is a fact about one application, not a fact about the person](#1-a-stretch-is-a-fact-about-one-application-not-a-fact-about-the-person)
+  - [2. Stretches are stored beside the profile, never inside it with a separation](#2-stretches-are-stored-beside-the-profile-never-inside-it-with-a-separation)
+  - [3. The stretch library proposes. It never adds.](#3-the-stretch-library-proposes-it-never-adds)
+  - [4. A stretch may displace a genuine fact, but never invisibly](#4-a-stretch-may-displace-a-genuine-fact-but-never-invisibly)
+  - [5. A stretch never graduates. It is superseded by a real fact.](#5-a-stretch-never-graduates-it-is-superseded-by-a-real-fact)
+  - [6. Written once at proposal, frozen at render — and placed like any other fact](#6-written-once-at-proposal-frozen-at-render-and-placed-like-any-other-fact)
+  - [7. There is no such thing as an approved stretch with no advert](#7-there-is-no-such-thing-as-an-approved-stretch-with-no-advert)
+  - [8. Each approval is its own record, pointing back at the one it came from](#8-each-approval-is-its-own-record-pointing-back-at-the-one-it-came-from)
+  - [9. Declining says which decline it is](#9-declining-says-which-decline-it-is)
+- [Consequences](#consequences)
+- [Alternatives rejected](#alternatives-rejected)
+- [Verification](#verification)
+
 ## Context
 
 Owner decision 9 makes the product **propose** stretches: when a role wants a signal the person lacks,

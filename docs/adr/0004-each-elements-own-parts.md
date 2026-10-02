@@ -7,6 +7,26 @@
 - **Evidence:** [`docs/research/skill-shape-granularity-normalisation-levels.md`](../research/skill-shape-granularity-normalisation-levels.md) and [`docs/research/last30days-skill-shape.md`](../research/last30days-skill-shape.md) (both commissioned mid-decision as [#145](https://github.com/adrien-mounier/jobcrush-app/issues/145)), [`docs/research/cv-elements-existing-data-standards.md`](../research/cv-elements-existing-data-standards.md), [`docs/research/cv-elements-what-cvs-contain-and-what-employers-screen.md`](../research/cv-elements-what-cvs-contain-and-what-employers-screen.md), six real CVs in `data/cvs/`
 - **Does not decide:** whether a fact that must not print exists at all ([#144](https://github.com/adrien-mounier/jobcrush-app/issues/144)); how a stretch is scoped to one advert ([#141](https://github.com/adrien-mounier/jobcrush-app/issues/141)); how a coarse date is written on the page ([#143](https://github.com/adrien-mounier/jobcrush-app/issues/143))
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+  - [1. A skill is one record with two labels, and it must show its working](#1-a-skill-is-one-record-with-two-labels-and-it-must-show-its-working)
+  - [1a. 🚨 Every structured fact points at its origin, and "nowhere" is a defect](#1a-every-structured-fact-points-at-its-origin-and-nowhere-is-a-defect)
+  - [2. Skills carry no self-assessed level, and we never ask for one](#2-skills-carry-no-self-assessed-level-and-we-never-ask-for-one)
+  - [3. Do not target an external skills taxonomy](#3-do-not-target-an-external-skills-taxonomy)
+  - [4. ADR-0003 clause 8's ladder holds; its *trigger* does not scale](#4-adr-0003-clause-8s-ladder-holds-its-trigger-does-not-scale)
+  - [5. A certification carries its validity, in three states, confirmed by the person](#5-a-certification-carries-its-validity-in-three-states-confirmed-by-the-person)
+  - [6. An education entry with no qualification is kept, and never compared](#6-an-education-entry-with-no-qualification-is-kept-and-never-compared)
+  - [7. A job carries where it happened](#7-a-job-carries-where-it-happened)
+  - [8. A stated language level is stored verbatim and confirmed, never mapped](#8-a-stated-language-level-is-stored-verbatim-and-confirmed-never-mapped)
+  - [9. No jobs and an unreadable CV are different states](#9-no-jobs-and-an-unreadable-cv-are-different-states)
+  - [10. The reader mines the Skills list; a tool inside a bullet is *proposed*, and the person owns the list](#10-the-reader-mines-the-skills-list-a-tool-inside-a-bullet-is-proposed-and-the-person-owns-the-list)
+- [Corrections to what this repo previously believed](#corrections-to-what-this-repo-previously-believed)
+- [Consequences](#consequences)
+- [Alternatives rejected](#alternatives-rejected)
+- [Verification](#verification)
+
 ## Context
 
 ADR-0003 answered the parts every element shares. This ADR answers what each element holds on its

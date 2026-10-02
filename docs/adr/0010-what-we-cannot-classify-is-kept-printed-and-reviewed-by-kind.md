@@ -7,6 +7,23 @@
 - **Evidence:** all six CVs in `data/cvs/` re-read first-hand for this ticket — the measurement §5 of the ticket asked for and nobody had done
 - **Does not decide:** the alert channel (Telegram, email, a dashboard — interface, handed to the design effort with the rest of [#157](https://github.com/adrien-mounier/jobcrush-app/issues/157)); the shape of any element a kind may one day graduate into (that is ADR-0001's growth rule, per verdict 4)
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+  - [1. Nothing is discarded — the block is captured whole, with an origin](#1-nothing-is-discarded-the-block-is-captured-whole-with-an-origin)
+  - [2. The kind is the unit — machine-proposed, owner-curated](#2-the-kind-is-the-unit-machine-proposed-owner-curated)
+  - [3. Alerts are per kind, never per case](#3-alerts-are-per-kind-never-per-case)
+  - [4. The default is `additional`, faithfully corrected — an owner decision, overruling the session's recommendation](#4-the-default-is-additional-faithfully-corrected-an-owner-decision-overruling-the-sessions-recommendation)
+  - [5. An LLM sanity gate catches only the obviously absurd — and its removals are declared](#5-an-llm-sanity-gate-catches-only-the-obviously-absurd-and-its-removals-are-declared)
+  - [6. The gate also flags the seven strip-list names inside homeless content](#6-the-gate-also-flags-the-seven-strip-list-names-inside-homeless-content)
+  - [7. Review has four verdicts, verdicts apply retroactively, and waiting is honest](#7-review-has-four-verdicts-verdicts-apply-retroactively-and-waiting-is-honest)
+  - [8. The negative test — for the classifier and the gate both](#8-the-negative-test-for-the-classifier-and-the-gate-both)
+  - [9. Three interface requirements are named and handed to the design effort](#9-three-interface-requirements-are-named-and-handed-to-the-design-effort)
+- [Consequences](#consequences)
+- [Alternatives rejected](#alternatives-rejected)
+- [Verification](#verification)
+
 ## Context
 
 The owner raised this inside [#146](https://github.com/adrien-mounier/jobcrush-app/issues/146), in his

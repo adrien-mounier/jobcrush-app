@@ -7,6 +7,23 @@
 - **Evidence:** [`docs/research/work-projects-inside-a-job.md`](../research/work-projects-inside-a-job.md) (deep sources), [`docs/research/last30days-work-projects-inside-a-job.md`](../research/last30days-work-projects-inside-a-job.md) (recent movement), six real CVs in `data/cvs/` re-read first-hand, the 17-advert corpus, this repo's own grader and contracts
 - **Does not decide:** what happens to a part of a CV we cannot classify ([#149](https://github.com/adrien-mounier/jobcrush-app/issues/149)); how a coarse date is written on the page ([#143](https://github.com/adrien-mounier/jobcrush-app/issues/143)); anything about the **personal** project, which is [ADR-0006](0006-a-project-is-a-container-not-a-fact.md)'s
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+  - [1. A project done for an employer stays a bullet](#1-a-project-done-for-an-employer-stays-a-bullet)
+  - [2. 🚨 The ticket's description of the corpus is wrong in the one detail the design hung on](#2-the-tickets-description-of-the-corpus-is-wrong-in-the-one-detail-the-design-hung-on)
+  - [3. 🚨 The 7:1 count is real, and it is one document from outside our market](#3-the-71-count-is-real-and-it-is-one-document-from-outside-our-market)
+  - [4. The corpus row #147 got wrong is corrected here](#4-the-corpus-row-147-got-wrong-is-corrected-here)
+  - [5. Naming it buys nothing in matching, and that is checkable rather than argued](#5-naming-it-buys-nothing-in-matching-and-that-is-checkable-rather-than-argued)
+  - [6. The gain that does exist is presentation, and presentation is not this map's](#6-the-gain-that-does-exist-is-presentation-and-presentation-is-not-this-maps)
+  - [7. 🚨 A client line is never an employment entry — the guardrail this research actually earned](#7-a-client-line-is-never-an-employment-entry-the-guardrail-this-research-actually-earned)
+  - [8. The confidentiality case is answered, and it cuts the other way](#8-the-confidentiality-case-is-answered-and-it-cuts-the-other-way)
+  - [9. This is decided before #126 ships, deliberately](#9-this-is-decided-before-126-ships-deliberately)
+- [Consequences](#consequences)
+- [Alternatives rejected](#alternatives-rejected)
+- [Verification](#verification)
+
 ## Context
 
 ADR-0006 decided the **personal** project and explicitly left this one open: a project done **for an

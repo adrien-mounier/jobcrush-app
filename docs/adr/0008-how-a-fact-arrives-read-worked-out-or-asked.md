@@ -7,6 +7,21 @@
 - **Refines:** #128 §5. *"Never ask for what you can compute"* is kept, but its scope is narrowed to what it can actually carry — see clause 2.
 - **Does not decide:** how many decisions the confirm screen costs, or which read facts get an individual card versus a batched line (**interface** — handed to the design effort, see [Consequences](#consequences)); which silences get a question versus a visible blank (map fog, still open); how a coarse date is written on the page ([#143](https://github.com/adrien-mounier/jobcrush-app/issues/143))
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+  - [1. A fact arrives one of three ways, and keeps that way permanently](#1-a-fact-arrives-one-of-three-ways-and-keeps-that-way-permanently)
+  - [2. Never ask for a value the machine will regenerate on its own](#2-never-ask-for-a-value-the-machine-will-regenerate-on-its-own)
+  - [3. When the calculation cannot run, ask for the missing parts underneath — never the answer on top](#3-when-the-calculation-cannot-run-ask-for-the-missing-parts-underneath-never-the-answer-on-top)
+  - [4. A silence in the document is asked, and the answer outranks any later re-read](#4-a-silence-in-the-document-is-asked-and-the-answer-outranks-any-later-re-read)
+  - [5. Where the five gated dimensions fall, today](#5-where-the-five-gated-dimensions-fall-today)
+  - [6. A language and its level are two facts, arriving different ways](#6-a-language-and-its-level-are-two-facts-arriving-different-ways)
+- [What this rule does NOT change](#what-this-rule-does-not-change)
+- [Consequences](#consequences)
+- [Alternatives rejected](#alternatives-rejected)
+- [Verification](#verification)
+
 ## Context
 
 #128 established a rule in one line — *never ask for what you can compute* — and #131 was opened to

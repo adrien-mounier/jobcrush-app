@@ -18,6 +18,19 @@
   effort, [#157](https://github.com/adrien-mounier/jobcrush-app/issues/157)); which topics exist as
   chunks (that follows the element list); anything about capture (#130's *capture the maximum* stands)
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+  - [1. Three channels, sorted by consequence](#1-three-channels-sorted-by-consequence)
+  - [2. Ingestion asks about facts, never quality](#2-ingestion-asks-about-facts-never-quality)
+  - [3. A chunk is bounded by its topic, never by a number](#3-a-chunk-is-bounded-by-its-topic-never-by-a-number)
+  - [4. A skip means "not now" — and "stop asking" cannot exist without its undo](#4-a-skip-means-not-now-and-stop-asking-cannot-exist-without-its-undo)
+  - [5. The absorption is measured, not assumed](#5-the-absorption-is-measured-not-assumed)
+- [What this rule does NOT change](#what-this-rule-does-not-change)
+- [Alternatives rejected](#alternatives-rejected)
+- [Verification](#verification)
+
 ## Context
 
 ADR-0008 clause 4 made every silence in every element **permitted** to become a question — and

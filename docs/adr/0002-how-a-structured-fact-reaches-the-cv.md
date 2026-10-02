@@ -6,6 +6,21 @@
 - **Depends on:** [#128](https://github.com/adrien-mounier/jobcrush-app/issues/128) (where a structured fact comes from), [#126](https://github.com/adrien-mounier/jobcrush-app/issues/126) (a job is its own record), [ADR-0001](0001-growth-rule-for-structured-facts.md) (the growth rule)
 - **Satisfies:** ADR-0001 clause 4, reader 3 — *"it prints on the tailored CV"*. That gate was unbuildable until this ADR existed.
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+  - [1. The bridge is chosen by provenance, never by element type](#1-the-bridge-is-chosen-by-provenance-never-by-element-type)
+  - [2. Thin input: propose the shape, never the substance](#2-thin-input-propose-the-shape-never-the-substance)
+  - [3. A sentence that contradicts a corrected fact is held, never edited](#3-a-sentence-that-contradicts-a-corrected-fact-is-held-never-edited)
+  - [4. Placement: the labelled line by default, the summary when the advert tests it](#4-placement-the-labelled-line-by-default-the-summary-when-the-advert-tests-it)
+  - [5. The conservation lint watches declared facts too, and it speaks](#5-the-conservation-lint-watches-declared-facts-too-and-it-speaks)
+- [What this rule does NOT change](#what-this-rule-does-not-change)
+- [Consequences](#consequences)
+- [Alternatives rejected](#alternatives-rejected)
+- [Open, carried to the build ticket — not a decision](#open-carried-to-the-build-ticket-not-a-decision)
+- [Verification](#verification)
+
 ## Context
 
 [#128](https://github.com/adrien-mounier/jobcrush-app/issues/128) §4 promised that a correction lands

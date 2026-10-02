@@ -8,6 +8,26 @@
 - **Fills:** ADR-0002's missing case. That ADR decides *where* a fact lands and assumes throughout that a held fact is a printable fact.
 - **Does not decide:** the content of any country page (research, see [Consequences](#consequences)); how a coarse date is written on the page ([#143](https://github.com/adrien-mounier/jobcrush-app/issues/143))
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+  - [1. There is no unprintable fact. Printing is decided per application](#1-there-is-no-unprintable-fact-printing-is-decided-per-application)
+  - [2. Print by default; a per-market strip-list may withhold](#2-print-by-default-a-per-market-strip-list-may-withhold)
+  - [3. No page means nothing is stripped](#3-no-page-means-nothing-is-stripped)
+  - [4. Nothing is removed silently, and the candidate can put it back](#4-nothing-is-removed-silently-and-the-candidate-can-put-it-back)
+  - [5. A withholding never touches the profile](#5-a-withholding-never-touches-the-profile)
+  - [6. The seven are stored facts, not letterhead text](#6-the-seven-are-stored-facts-not-letterhead-text)
+  - [7. A fact that is printed but never matched ships on four gates, not five](#7-a-fact-that-is-printed-but-never-matched-ships-on-four-gates-not-five)
+  - [8. The market is resolved when the advert is read, not when the CV is built](#8-the-market-is-resolved-when-the-advert-is-read-not-when-the-cv-is-built)
+  - [9. An expired certification prints with its state shown, and the person chooses](#9-an-expired-certification-prints-with-its-state-shown-and-the-person-chooses)
+  - [10. The record says which page answered, and a withholding is declared to the lint](#10-the-record-says-which-page-answered-and-a-withholding-is-declared-to-the-lint)
+  - [11. Each country page carries its own next-check date](#11-each-country-page-carries-its-own-next-check-date)
+- [What this rule does NOT change](#what-this-rule-does-not-change)
+- [Consequences](#consequences)
+- [Alternatives rejected](#alternatives-rejected)
+- [Verification](#verification)
+
 ## Context
 
 The map flagged *capture versus render* twice as needing its own ticket. It arrived carrying a legal

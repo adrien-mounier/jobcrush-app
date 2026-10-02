@@ -9,6 +9,21 @@ existing `FamilyPlacement` contract: `confirmed`, `needs_clarification` (2+ choi
 `unmapped` — never the nearest family. One call per job, checkpointed so retries never
 re-spend.
 
+## Contents
+
+  - [The decisions, and the roads not taken](#the-decisions-and-the-roads-not-taken)
+  - [Consequences](#consequences)
+- [Amendment 1 — a job can be in several families, the machine never asks, and doubt is carried by the ranking](#amendment-1-a-job-can-be-in-several-families-the-machine-never-asks-and-doubt-is-carried-by-the-ranking)
+  - [The decisions](#the-decisions)
+  - [What is deliberately not decided here](#what-is-deliberately-not-decided-here)
+  - [Consequences](#consequences-1)
+- [Amendment 2 — relatedness is a group tree, decided once and published as data](#amendment-2-relatedness-is-a-group-tree-decided-once-and-published-as-data)
+  - [The decisions](#the-decisions-1)
+  - [Consequences](#consequences-2)
+- [Amendment 3 — what the employer is, looked up once for everyone](#amendment-3-what-the-employer-is-looked-up-once-for-everyone)
+  - [The decisions](#the-decisions-2)
+  - [Consequences](#consequences-3)
+
 ## The decisions, and the roads not taken
 
 1. **Closed vocabulary on both axes.** Kind-of-work (job family) and kind-of-employer

@@ -7,6 +7,24 @@
 - **Evidence:** [`docs/research/personal-projects-on-a-cv.md`](../research/personal-projects-on-a-cv.md), [`docs/research/last30days-personal-projects-on-a-cv.md`](../research/last30days-personal-projects-on-a-cv.md), [`docs/research/projects-umbrella-section-naming.md`](../research/projects-umbrella-section-naming.md), [`docs/research/last30days-projects-umbrella-section-naming.md`](../research/last30days-projects-umbrella-section-naming.md) (all four commissioned mid-decision as [#147](https://github.com/adrien-mounier/jobcrush-app/issues/147) and [#148](https://github.com/adrien-mounier/jobcrush-app/issues/148)), six real CVs in `data/cvs/`, the 17-advert corpus
 - **Does not decide:** whether a project done *for an employer* gets a named entry inside the job ([#150](https://github.com/adrien-mounier/jobcrush-app/issues/150)) — **since decided by [ADR-0009](0009-a-work-project-stays-a-bullet.md): it stays a bullet**, and clause 5 below is extended there to cover a **client** as well as a project; what happens to a part of a CV we cannot classify ([#149](https://github.com/adrien-mounier/jobcrush-app/issues/149)); whether an expired or sensitive fact prints ([#144](https://github.com/adrien-mounier/jobcrush-app/issues/144))
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+  - [1. The section is `Projects`](#1-the-section-is-projects)
+  - [2. A project is a named container, exactly parallel to a job](#2-a-project-is-a-named-container-exactly-parallel-to-a-job)
+  - [3. A project's sentences are ordinary claims — there is no new sentence type](#3-a-projects-sentences-are-ordinary-claims-there-is-no-new-sentence-type)
+  - [4. The container holds a name and an optional link. It holds no date.](#4-the-container-holds-a-name-and-an-optional-link-it-holds-no-date)
+  - [5. A project is never an employment entry](#5-a-project-is-never-an-employment-entry)
+  - [6. A project never counts towards years of experience](#6-a-project-never-counts-towards-years-of-experience)
+  - [7. The tailor may drop a project; the conservation lint must learn to watch the section](#7-the-tailor-may-drop-a-project-the-conservation-lint-must-learn-to-watch-the-section)
+  - [8. 🚨 A link is not a project, and this is the clearest finding in the research](#8-a-link-is-not-a-project-and-this-is-the-clearest-finding-in-the-research)
+  - [9. ADR-0001's *used in matching* gate is satisfied by either matching mechanism](#9-adr-0001s-used-in-matching-gate-is-satisfied-by-either-matching-mechanism)
+  - [10. The map's destination drops the paper stress test](#10-the-maps-destination-drops-the-paper-stress-test)
+- [Consequences](#consequences)
+- [Alternatives rejected](#alternatives-rejected)
+- [Verification](#verification)
+
 ## Context
 
 Map #127 promised the growth rule would be *stress-tested on paper against a second element*. #146 was

@@ -14,6 +14,19 @@ Enforcement is automatic, not optional:
 A "CV file" is any `root_cv/**/*.md`, any `**/tailored_cv/**/*.md`, or any `cv_mounier_*.md`.
 
 <!-- DIGEST:START -->
+## Contents
+
+- [Hard rules (auto-injected on every CV edit)](#hard-rules-auto-injected-on-every-cv-edit)
+- [Output Rules (full — was CLAUDE.md §4)](#output-rules-full-was-claudemd-4)
+  - [ATS compliance](#ats-compliance)
+  - [Dates](#dates)
+  - [Coarse and unknown dates (decided 2026-08-06, issue #143)](#coarse-and-unknown-dates-decided-2026-08-06-issue-143)
+  - [Professional Summary](#professional-summary)
+  - [Length and bullet density (decided 2026-08-07, issue #153)](#length-and-bullet-density-decided-2026-08-07-issue-153)
+  - [Visual formatting and section design](#visual-formatting-and-section-design)
+- [Writing Style (full — was CLAUDE.md §6)](#writing-style-full-was-claudemd-6)
+- [Quality Checklist (full — was CLAUDE.md §10)](#quality-checklist-full-was-claudemd-10)
+
 ## Hard rules (auto-injected on every CV edit)
 
 - **Length / density — the budget is the page, not the bullet.** 2 pages max, single column. The

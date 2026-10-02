@@ -1,5 +1,15 @@
 # Lessons — jobcrush-app
 
+## A long reference doc needs a contents list at the top; CLAUDE.md does not
+
+Learned 2026-10-02 from Anthropic's updated skill guidance (via Simon Scrapes, "Everything You Know
+About Skills IS OUTDATED"). When an agent opens a reference file on demand it often previews only the
+first ~100 lines to decide whether the file is worth reading, so a rule below that line may never be
+seen. Every ADR, `CONTEXT.md` and the CV-brain files now open with a `## Contents` list of their
+headings so the agent can jump to the section it needs. `CLAUDE.md` deliberately has none: it is
+injected whole into every session, so an index there costs context and buys nothing. Keep the list
+current when adding a heading; a new doc over ~100 lines starts with one.
+
 ## "Answered" has two readers in discovery — the screen and the deck gate
 
 Learned 2026-10-02 on #324. `discoveryState` (what the screen asks next) and `adaptiveDiscovery.ts`'s

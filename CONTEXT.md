@@ -3,6 +3,41 @@
 Language for describing the evidence JobCrush uses to understand a person and compare that evidence
 with job requirements.
 
+## Contents
+
+- [Language](#language)
+  - [Source-supported fact](#source-supported-fact)
+  - [System inference](#system-inference)
+  - [Corroborated fact](#corroborated-fact)
+  - [User-resolved fact](#user-resolved-fact)
+  - [Target role](#target-role)
+  - [Search area](#search-area)
+  - [Job family](#job-family)
+  - [Family floor](#family-floor)
+  - [Career neighborhood](#career-neighborhood)
+  - [Unmapped target role](#unmapped-target-role)
+  - [Word search](#word-search)
+  - [Family research request](#family-research-request)
+  - [Family research candidate](#family-research-candidate)
+  - [Family learning](#family-learning)
+  - [Family learning attempt](#family-learning-attempt)
+  - [Unmapped label](#unmapped-label)
+  - [Vocabulary-growth run](#vocabulary-growth-run)
+  - [Vocabulary proposal](#vocabulary-proposal)
+  - [Floor corpus](#floor-corpus)
+  - [Demand count](#demand-count)
+  - [Important gap](#important-gap)
+  - [Blocking requirement](#blocking-requirement)
+  - [Eligibility fact](#eligibility-fact)
+  - [Family placement](#family-placement)
+  - [Placement confidence](#placement-confidence)
+  - [Industry](#industry)
+  - [Industry group](#industry-group)
+  - [Industry closeness](#industry-closeness)
+  - [Industry placement](#industry-placement)
+  - [Employer lookup](#employer-lookup)
+  - [Posting family fit](#posting-family-fit)
+
 ## Language
 
 **Source-supported fact**:

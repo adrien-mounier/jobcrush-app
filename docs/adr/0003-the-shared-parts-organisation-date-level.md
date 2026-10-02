@@ -7,6 +7,26 @@
 - **Evidence:** [`docs/research/cv-elements-existing-data-standards.md`](../research/cv-elements-existing-data-standards.md), [`docs/research/cv-elements-what-cvs-contain-and-what-employers-screen.md`](../research/cv-elements-what-cvs-contain-and-what-employers-screen.md), [`docs/research/eligibility-dimensions-from-the-corpus.md`](../research/eligibility-dimensions-from-the-corpus.md), six real CVs in `data/cvs/`
 - **Does not decide:** what any individual element is made of — that is [#140](https://github.com/adrien-mounier/jobcrush-app/issues/140)
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+  - [1. An organisation is one kind of thing; the role lives on the link](#1-an-organisation-is-one-kind-of-thing-the-role-lives-on-the-link)
+  - [2. The typed name is always stored; the organisation record is an addition](#2-the-typed-name-is-always-stored-the-organisation-record-is-an-addition)
+  - [3. Two names are the same organisation when the visitor says so](#3-two-names-are-the-same-organisation-when-the-visitor-says-so)
+  - [4. Organisation *names* are shared; organisation *answers* are private](#4-organisation-names-are-shared-organisation-answers-are-private)
+  - [5. A date carries its own precision](#5-a-date-carries-its-own-precision)
+  - [6. A date range has three end states, not two](#6-a-date-range-has-three-end-states-not-two)
+  - [7. Every fact carries when we learned it and from whom; a correction supersedes, never replaces](#7-every-fact-carries-when-we-learned-it-and-from-whom-a-correction-supersedes-never-replaces)
+  - [8. A claimed capability is a ladder; an awarded grade is verbatim](#8-a-claimed-capability-is-a-ladder-an-awarded-grade-is-verbatim)
+  - [9. A stretch carries two independent labels](#9-a-stretch-carries-two-independent-labels)
+  - [10. An overlap is normal](#10-an-overlap-is-normal)
+- [What this rule does NOT change](#what-this-rule-does-not-change)
+- [Consequences](#consequences)
+- [Alternatives rejected](#alternatives-rejected)
+- [Verification](#verification)
+- [✅ Verification result — both tests ran 2026-08-06 (#140 / ADR-0004)](#-verification-result-both-tests-ran-2026-08-06-140-adr-0004)
+
 ## Context
 
 An employer, a school and a certificate issuer are all organisations. A job, a degree and a

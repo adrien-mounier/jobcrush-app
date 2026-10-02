@@ -7,6 +7,12 @@
 - **Fills:** the arbitration `cv-authoring-rules.md` never had. Two rules it states both bind, and when a role overflows they demand opposite things.
 - **Does not decide:** the bullet budget itself ([#153](https://github.com/adrien-mounier/jobcrush-app/issues/153), closed); putting a held-back fact back on the draft for one application (its own ticket).
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+- [Consequences](#consequences)
+
 ## Context
 
 Two rules this product enforces contradicted each other, and no code arbitrated.

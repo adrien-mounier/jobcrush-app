@@ -7,6 +7,22 @@
 > (file conventions, agent/command wiring) was intentionally left out; only the transferable
 > reasoning is here. From here on this file evolves with **the product**, independently of JobCrush.
 
+## Contents
+
+- [1. What tailoring produces](#1-what-tailoring-produces)
+- [2. Target roles (the role taxonomy the tailor reasons over)](#2-target-roles-the-role-taxonomy-the-tailor-reasons-over)
+- [3. Content classification (the 5 levels)](#3-content-classification-the-5-levels)
+- [4. Decision rules (which role language the CV adopts)](#4-decision-rules-which-role-language-the-cv-adopts)
+- [5. Gap handling](#5-gap-handling)
+- [6. The conservation principle (product-specific, added at the fork)](#6-the-conservation-principle-product-specific-added-at-the-fork)
+- [7. Reading a dated block (#161, added at the durable-record build)](#7-reading-a-dated-block-161-added-at-the-durable-record-build)
+- [8. A denied capability (#287, decided 2026-09-27)](#8-a-denied-capability-287-decided-2026-09-27)
+  - [The document](#the-document)
+  - [What the person is told](#what-the-person-is-told)
+  - [The door](#the-door)
+  - [The application report](#the-application-report)
+  - [Not decided here](#not-decided-here)
+
 ## 1. What tailoring produces
 
 Every tailoring run produces two things that must never be mixed without labelling:
