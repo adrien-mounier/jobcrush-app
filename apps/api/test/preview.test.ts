@@ -298,6 +298,83 @@ describe("conservation lint — tailor by emphasis, not amputation", () => {
     expect(issues.some((i) => i.message.includes("languages lost"))).toBe(true);
   });
 
+  // #337: every language the person holds prints; one missing is fatal, whatever the label says.
+  describe("every language prints (#337)", () => {
+    const withLangs = async (...texts: string[]): Promise<CandidateClaims> => {
+      const base = await recordedClaims();
+      const lang = (text: string, i: number) => ({
+        ...base.claims[0]!,
+        id: `lang-held-${i}`,
+        semantic_key: `lang-held-${i}`,
+        role: "profile" as const,
+        text,
+      });
+      // Drop the recording's older, non-`lang-` language claims: this block tests the new rule alone.
+      const rest = base.claims.filter((c) => !c.id.startsWith("profile-language-"));
+      return { ...base, claims: [...rest, ...texts.map(lang)] };
+    };
+    const printing = (value: string, label = "Languages"): Draft => ({
+      ...sampleDraft,
+      additional: [{ label, value }],
+    });
+
+    it("a missing language is a fatal issue naming it", async () => {
+      const claims = await withLangs("Polish (Native)", "English (Fluent)", "German (B1)");
+      const fatal = conservationIssues(claims, printing("Polish (Native), English (Fluent)")).filter((i) => i.fatal);
+      expect(fatal).toHaveLength(1);
+      expect(fatal[0]!.message).toContain("German");
+      expect(fatal[0]!.visitor).toContain("German");
+    });
+
+    it("a draft carrying every language passes, whatever the line's label is called", async () => {
+      const claims = await withLangs("Polish (Native)", "English (Fluent)", "German (B1)");
+      for (const label of ["Languages", "Spoken", "Sprachen", "Tongues"]) {
+        expect(conservationIssues(claims, printing("Polish (Native), English (Fluent), German (B1)", label))).toEqual([]);
+      }
+    });
+
+    it("a language is not satisfied by a longer word that contains it", async () => {
+      const claims = await withLangs("Polish (Native)");
+      expect(conservationIssues(claims, printing("Polishing (Expert)")).some((i) => i.fatal)).toBe(true);
+    });
+
+    // QA gate D1: a line the reader cannot parse cleanly must never become a required string that
+    // refuses a correct CV with no way out.
+    it.each([
+      ["Fluent in English, French and German", "English (Fluent), French (Fluent), German (Fluent)"],
+      ["Mother tongue: Polish", "Polish (Native)"],
+      ["Language skills: English (C1)", "English (C1)"],
+      ["Bilingual English/Spanish", "English (Native), Spanish (Native)"],
+      ["Mandarin Chinese (Fluent)", "Mandarin (Fluent)"],
+      ["Native", "Polish (Native)"],
+      // QA re-run F1/F2: a one-word label or a name in the CV's own language is not a language name
+      // in English, so it is never demanded.
+      ["Mothertongue: Polish", "Polish (Native)"],
+      ["Mother-tongue: Polish", "Polish (Native)"],
+      ["Muttersprache (Deutsch)", "German (Native)"],
+      ["Français (natif)", "French (Native)"],
+      ["Anglais (courant)", "English (Fluent)"],
+    ])("an unreadable language line never refuses a correct draft: %s", async (line, printed) => {
+      const claims = await withLangs(line);
+      expect(conservationIssues(claims, printing(printed)).filter((i) => i.fatal)).toEqual([]);
+    });
+
+    it("a claim the lint cannot read into names still gets the coarse check: some Languages line must exist", async () => {
+      const claims = await withLangs("Languages: English, Polish");
+      const noLine = conservationIssues(claims, { ...sampleDraft, additional: [] });
+      expect(noLine.map((i) => i.message).join()).toContain("languages lost");
+      expect(noLine.some((i) => i.fatal)).toBe(false);
+      expect(conservationIssues(claims, printing("English, Polish"))).toEqual([]);
+    });
+
+    it("a sentence claim holding two languages is counted as two, not blocked as one odd name", async () => {
+      const claims = await withLangs("Fluent in English and German.");
+      expect(conservationIssues(claims, printing("English, German"))).toEqual([]);
+      const fatal = conservationIssues(claims, printing("English")).filter((i) => i.fatal);
+      expect(fatal.map((i) => i.message).join()).toContain("German");
+    });
+  });
+
   // #153/#158: the hidden floor (Math.min(6, sourceBullets) on the newest role) is deleted.
   // A thin current role is no longer a conservation issue — "first call is not a floor."
   it("does not flag a thinned current role — the floor was deleted (#153)", async () => {

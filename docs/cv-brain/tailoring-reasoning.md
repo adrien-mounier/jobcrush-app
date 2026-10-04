@@ -129,6 +129,10 @@ focused 8-12, not exhaustively conserved. This principle is enforced mechanicall
 lint in `apps/api/src/preview.ts` (`conservationIssues`) and is the direct lesson of the JC-2 rating
 failure that prompted this fork.
 
+Languages are conserved one by one (#337): every language the person holds prints on every tailored
+CV, found by name on any "additional" line whatever its label says, and a missing one is **fatal** —
+the draft is refused and the export gate blocks it, like a denied capability.
+
 ## 7. Reading a dated block (#161, added at the durable-record build)
 
 Before #161, a dated entry (a job, a school, a client engagement) was read as four loose strings and

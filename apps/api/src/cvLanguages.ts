@@ -61,7 +61,9 @@ export function parseCvLanguage(text: string): { language: string; level: string
 
 /** Every language the CV lists, in CV order, once each — a rejected claim is the person's own "not
  *  this", so it is left out; a language with no level word is kept, unticked, never dropped. */
-export function cvLanguages(claims: readonly ClaimRecord[]): CvLanguage[] {
+export function cvLanguages(
+  claims: readonly (Pick<ClaimRecord, "id" | "text"> & { decision?: ClaimRecord["decision"] })[],
+): CvLanguage[] {
   const seen = new Set<string>();
   const out: CvLanguage[] = [];
   for (const c of claims) {
@@ -73,4 +75,25 @@ export function cvLanguages(claims: readonly ClaimRecord[]): CvLanguage[] {
     out.push({ language, level, preTicked: working(level) });
   }
   return out;
+}
+
+let knownNames: Set<string> | null = null;
+/** #337: is `name` an English name of a real language ("German", "Haitian Creole")? From the runtime's
+ *  own CLDR data over every 2- and 3-letter code, so no list of ours to rot. The conservation lint
+ *  demands a language be printed only when its name passes this — a misread line ("Mothertongue",
+ *  "Fluent in English") is not a language and must never become a required string. Built once, ~130ms. */
+export function isKnownLanguageName(name: string): boolean {
+  if (!knownNames) {
+    const names = new Intl.DisplayNames(["en"], { type: "language", fallback: "none" });
+    const letters = "abcdefghijklmnopqrstuvwxyz";
+    knownNames = new Set();
+    for (const a of letters)
+      for (const b of letters) {
+        for (const code of [a + b, ...[...letters].map((c) => a + b + c)]) {
+          const n = names.of(code);
+          if (n) knownNames.add(n.toLowerCase());
+        }
+      }
+  }
+  return knownNames.has(name.toLowerCase());
 }

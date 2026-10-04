@@ -57,7 +57,7 @@ async function reachTailor(app: App, cookie: string, email: string) {
 }
 
 /** The tailorDraft.test.ts fake model: cites real claim ids from the prompt's own Claims: block. */
-function draftingLlm(): LlmClient {
+function draftingLlm(additional: { label: string; value: string }[] = []): LlmClient {
   return {
     model: "test-fake",
     async complete(prompt: string): Promise<string> {
@@ -83,7 +83,7 @@ function draftingLlm(): LlmClient {
         skills: [{ label: "Delivery", items: ["Jira"] }],
         certifications: [],
         education: [],
-        additional: [],
+        additional,
       });
     },
   };
@@ -264,6 +264,50 @@ describe("#313 one press: approve → lint → document → email, through the s
     expect(res.statusCode).toBe(409);
     expect(res.json().error.code).toBe("lint_failed");
     expect(sent).toHaveLength(0);
+  });
+
+  it("the route refuses a draft that lost a language the person holds, and a draft carrying it goes out (#337)", async () => {
+    // The person holds German (a confirmed lang- claim). The model prints it, the draft is stored,
+    // the press goes out; then the stored document loses the line (store corruption again — the
+    // engine itself refuses to checkpoint it) and the same press is refused through the route.
+    const { sent, mailer } = recordingMailer();
+    const tailorDrafts = new InMemoryTailorDraftStore();
+    const { app, sessions, claims } = buildServer({
+      tailorLlm: draftingLlm([{ label: "Spoken", value: "German (B1)" }]),
+      documentMaker: new StandInDocumentMaker(),
+      mailer,
+      tailorDrafts,
+    });
+    const cookie = await anonSession(app);
+    const token = cookie.split("=")[1]!;
+    const session = (await sessions.getByToken(token))!;
+    await claims.add(session.id, {
+      id: "lang-german",
+      semantic_key: "lang-german",
+      role: "profile",
+      text: "German (B1)",
+      machine_touch: "verbatim",
+      classification: "Verified",
+      source_quote: "German (B1)",
+      needs_grill: false,
+      grill_hint: null,
+    } as Parameters<typeof claims.add>[1]);
+    await reachTailor(app, cookie, "export-language@example.com");
+    const view = await draftAndRead(app, cookie);
+    expect(view.html).toContain("German");
+
+    const stored = (await tailorDrafts.get(session.id, VALID_AD_ID))!;
+    await tailorDrafts.put(session.id, VALID_AD_ID, { ...stored, draft: { ...stored.draft, additional: [] } });
+    const refused = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error.code).toBe("lint_failed");
+    expect(sent).toHaveLength(0);
+
+    await tailorDrafts.put(session.id, VALID_AD_ID, stored);
+    const sentOk = await post(app, cookie, "/onboarding/tailor/approve", { draftedAt: view.draftedAt });
+    expect(sentOk.statusCode).toBe(202);
+    expect((await awaitJob(app, cookie, sentOk.json().jobId)).status).toBe("completed");
+    expect(sent).toHaveLength(1);
   });
 
   it("a second press while the first still runs joins it — one email, not two", async () => {

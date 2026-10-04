@@ -2,6 +2,25 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-04 — #337: every language prints; a missing one is a fatal conservation issue
+
+A tailored CV that loses a language the person holds is now refused: the conservation check counts each
+`lang-` claim's language, finds it by name on any "additional" line (the label's wording never decides),
+and a missing one is **fatal**. The draft step refuses it after the retry, and the export gate returns
+409 `lint_failed` through the HTTP path. Lives in `conservationIssues` (`preview.ts`); the name list is
+`isKnownLanguageName` in `cvLanguages.ts`. Brain doc `tailoring-reasoning.md` §6 updated.
+**The hard part was refusing correct CVs, not catching lost languages.** QA gave NO-GO twice: first
+because a line the reader misparses ("Fluent in English, French and German", "Mother tongue: Polish")
+became a junk required name, then because the "clean name" shape test still let "Mothertongue: Polish"
+and "Anglais (courant)" through as required. Final rule: a name is demanded only if it is a real English
+language name from the runtime's own CLDR data (636 names, built once, ~130ms, full ICU confirmed on the
+production `node:22-slim` image); everything else falls back to the old non-fatal "some Languages line
+exists" check. **Declared ceilings** (`ponytail:` comment): a synonym the tailor swaps in (Chinese →
+Mandarin, Norwegian Bokmål → Norwegian, Persian → Farsi) is still demanded and fails the draft if the
+model keeps it on the retry. The fix is an alias table, if a real CV hits it. A line holding two languages
+checks only the first. Any additional line naming the word counts. Not measured: how often the real model
+keeps a synonym on both tries (no live calls made).
+
 ## 2026-10-04 — #336: languages pre-ticked from the CV's own level
 
 The languages question now carries the CV's languages (`cvLanguages` on the question), each with the

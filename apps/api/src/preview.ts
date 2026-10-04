@@ -27,6 +27,7 @@ import { phraseStated, textTokens } from "./matchtick.js";
 import { extractJson } from "./miner.js";
 import type { LlmClient } from "./llm.js";
 import { EMAIL_RE, PHONE_RE, type RawCv } from "./extract.js";
+import { cvLanguages, isKnownLanguageName } from "./cvLanguages.js";
 import { detectLanguage, languageEligible, SERVED_LANGUAGES } from "./language.js";
 import { incrementCounter } from "./counters.js";
 import type { SessionRecord } from "./sessions.js";
@@ -481,14 +482,50 @@ export function conservationIssues(
     });
   }
 
-  const langs = claims.claims.filter(isLanguageClaim);
-  if (langs.length > 0 && !draft.additional.some((a) => /language/i.test(a.label))) {
+  // #337: every language the person holds prints — each one counted, and a missing one is FATAL
+  // (like a denied capability, the page must not exist: a recruiter reads a CV that hides a
+  // language the person speaks). Found by name anywhere in the "additional" lines, so the label's
+  // wording ("Languages", "Spoken", "Sprachen") never decides. A sentence-style claim holding
+  // several ("Fluent in English and Mandarin") is split into its languages first.
+  // Fatal ONLY when every name the claim yields is a real language name (isKnownLanguageName): a line
+  // the reader cannot parse cleanly ("Fluent in English, French and German", "Mother tongue: Polish",
+  // "Mothertongue: Polish", "Français") would turn junk into a required string and refuse a correct
+  // CV with no way out (#337 QA gate D1/F1), so it falls back to the coarse check below.
+  // ponytail: verbatim name match on the "additional" lines only — a synonym the tailor swaps in
+  // ("Chinese" -> "Mandarin", "Persian" -> "Farsi") is still demanded, and the retry names the exact
+  // word; a line holding two languages checks only the first; any additional line naming the word
+  // counts. Widen with the miner / an alias table if the owner's real CV trips it.
+  const namesOf = (c: { id: string; text: string }): string[] => {
+    const [l] = cvLanguages([c]);
+    const names = (l?.language ?? "").split(/\s*(?:,|&|\/|\band\b)\s*/i).filter(Boolean);
+    return names.length > 0 && names.every(isKnownLanguageName) ? names : [];
+  };
+  const checkable = (c: { id: string; text: string }) => c.id.startsWith("lang-") && namesOf(c).length > 0;
+  // Every other language claim (older recordings, profile-shaped facts, an unreadable line) keeps the
+  // earlier coarse, non-fatal check: some Languages line exists.
+  if (
+    claims.claims.some((c) => isLanguageClaim(c) && !checkable(c)) &&
+    !draft.additional.some((a) => /language/i.test(a.label))
+  ) {
     issues.push({
       message:
         `languages lost: the source lists languages but "additional" has no Languages entry. ` +
         `Add { "label": "Languages", "value": "..." } with the candidate's languages verbatim.`,
       visitor:
         "Your languages could not be placed on this draft. You can retry the draft or add them when you review.",
+    });
+  }
+  const printedAdditional = draft.additional.map((a) => `${a.label} ${a.value}`).join("\n");
+  for (const name of new Set(claims.claims.filter(checkable).flatMap(namesOf))) {
+    const printed = new RegExp(`(?<!\\p{L})${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\p{L})`, "iu");
+    if (printed.test(printedAdditional)) continue;
+    issues.push({
+      fatal: true,
+      message:
+        `languages lost: the candidate holds ${name} but no "additional" line prints it. Every language ` +
+        `must appear, verbatim, on the Languages line: { "label": "Languages", "value": "..." }.`,
+      visitor:
+        `Your language ${name} could not be placed on this draft, so I stopped it. Press Try again.`,
     });
   }
 
