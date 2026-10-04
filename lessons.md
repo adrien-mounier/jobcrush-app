@@ -1,5 +1,19 @@
 # Lessons — jobcrush-app
 
+## A model test is only blind if the generator never saw the answer — and the session model always has
+
+Learned 2026-10-04 on #326. The first "simulation" of drafted CV lines was written by the session
+model right after it had read the owner's real lines; the owner liked the output because it was
+partly a copy of his own CV, and the match table graded it against text it had just seen. The honest
+run: hide the answer from the input, and generate in a **separate process**. `claude -p --model <id>
+--effort <level> --tools "" --system-prompt "..." < input.md` with **`CLAUDE_CODE_DISABLE_CLAUDE_MDS=1`**
+(verified: without it the run sees the owner's global CLAUDE.md). Two costs to know: every CLI run
+carries **~134k tokens of Claude Code's own context** even with no tools, which dominates the weekly
+quota of a short run; and `--bare` would drop it but demands an `ANTHROPIC_API_KEY`. Fireworks models
+run the same input over plain HTTP (`docs/cv-brain/research/2026-10-03_thin-job-line-generation/
+run-fireworks.mjs`). Read the Fable weekly share first (`MSYS_NO_PATHCONV=1 claude -p "/usage"` from
+Git Bash) before spending it on tests.
+
 ## "Verified on the owner's CV" costs nothing locally — run the real model through the CLI fallback
 
 Learned 2026-10-03 on #323. With no `ANTHROPIC_API_KEY` set, `llmFromEnv()` drives the Claude Code

@@ -1,0 +1,80 @@
+[
+  {
+    "name": "kimi-fast-latest (Fire Pass)",
+    "id": "accounts/fireworks/routers/kimi-fast-latest",
+    "secs": 51,
+    "in": 1579,
+    "out": 2951,
+    "cost": 0
+  },
+  {
+    "name": "kimi-k3",
+    "id": "accounts/fireworks/models/kimi-k3",
+    "secs": 39,
+    "in": 1579,
+    "out": 1643,
+    "cost": 0.029382
+  },
+  {
+    "name": "glm-5p3",
+    "id": "accounts/fireworks/models/glm-5p3",
+    "secs": 52,
+    "in": 1488,
+    "out": 3096,
+    "cost": 0.015705600000000004
+  },
+  {
+    "name": "glm-5p3-flash",
+    "id": "accounts/fireworks/models/glm-5p3-flash",
+    "secs": 19,
+    "in": 1488,
+    "out": 2414,
+    "cost": 0.0014302
+  },
+  {
+    "name": "deepseek-v4-pro",
+    "id": "accounts/fireworks/models/deepseek-v4-pro",
+    "error": "404 {\"error\":{\"message\":\"Model not found, inaccessible, and/or not deployed\",\"param\":\"model\",\"code\":\"NOT_FOUND\",\"type\":\"error\"},\"request_id\":\"chatcmpl-fc121c72af8c4c4ab2250e7c86bfdf00\"}",
+    "secs": 0
+  },
+  {
+    "name": "deepseek-v4p1-flash",
+    "id": "accounts/fireworks/models/deepseek-v4p1-flash",
+    "secs": 174,
+    "in": 1498,
+    "out": 13014,
+    "cost": 0.0160662
+  },
+  {
+    "name": "qwen3p8-max",
+    "id": "accounts/fireworks/models/qwen3p8-max",
+    "secs": 218,
+    "in": 1590,
+    "out": 22559,
+    "cost": 0.138534
+  },
+  {
+    "name": "minimax-m3",
+    "id": "accounts/fireworks/models/minimax-m3",
+    "secs": 68,
+    "in": 1550,
+    "out": 11551,
+    "cost": 0.014326199999999999
+  },
+  {
+    "name": "gpt-oss-120b",
+    "id": "accounts/fireworks/models/gpt-oss-120b",
+    "secs": 71,
+    "in": 1516,
+    "out": 14959,
+    "cost": 0.009202799999999999
+  },
+  {
+    "name": "nemotron-3-ultra",
+    "id": "accounts/fireworks/models/nemotron-3-ultra-nvfp4",
+    "secs": 59,
+    "in": 1569,
+    "out": 7416,
+    "cost": 0.0187398
+  }
+]

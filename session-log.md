@@ -2,6 +2,31 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-04 — #326 grilling: discovery stops asking, the CV is reviewed instead
+
+`/grilling` on **#326**, five rounds, every branch decided and confirmed by the owner. **The
+decision:** the four family-checklist questions are removed. After the CV read, the app reviews the
+CV job by job: it fixes spelling and grammar (applied, listed, undo each), suggests unticking weak
+lines (quality only — weak, duplicate, aim without result; fit is decided per advert), and **drafts**
+one line per must-have a job does not show, under six rules (duties only; every word true for anyone
+at that level, variable duties as their own OPTIONAL line; seniority verbs; industry guesses flagged;
+never repeat; never pad, max 10). Vague phrases in a drafted line carry CV-first suggestions plus a
+text box. Nothing prints until ticked (server-side). Journey: CV read → job and area → work rights →
+languages (pre-ticked only at Native/Fluent/Professional) → mandatory "Your CV, reviewed" →
+reveal/wall/deck → tailor. The countdown and "your CV saved you N questions" are removed.
+
+**Evidence, blind.** The session model's first simulation was contaminated — written after reading
+the real BRED lines — and is kept, labelled as such. The re-run hid the BRED lines from every
+generator: 16 Claude runs and 10 Fireworks open models, scored against the real lines. Only Fable 5.1
+max and Opus 5.5 max never stated a guess as a fact; Fable max also recovered the owner's distinctive
+BRED facts; no open model matched it (best open: Kimi K3). **Model:** Fable 5.1 max for the product at
+≈ $1.40 per CV (the full review measured on Opus 5.5 max at $1.39–1.41 and ~10 min; Fable estimated,
+because the Fable week was 97% used); tests run on Opus 5.5. Fireworks spend: 10 calls, ≈ USD 0.25.
+**Found on the way:** the language conservation check only looks for a Languages line, not each
+language (owner: every language prints, always); the app's Anthropic call disables thinking, which
+Fable rejects. Everything is in `docs/cv-brain/research/2026-10-03_thin-job-line-generation/`.
+Next: `/to-spec`.
+
 ## 2026-10-03 — #323: two degrees are two facts — the false import conflict, and the silent drop
 
 `/implement` -> `/code-review` (both axes) -> `/qa-gate` (**GO**, first run) on **#323**. The owner's
