@@ -2,6 +2,17 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-04 — #333: ADR-0016 + glossary — the CV is reviewed, not asked
+
+Docs only. **ADR-0016** records the "Your CV, reviewed" design: discovery keeps only work rights and
+languages; the review (fixes, quality-only untick suggestions, drafted lines under R1–R6, vague-phrase
+choices); ticked/kept line states with a server-side print gate; the jobs gate becomes "review
+completed"; drafted lines generated once and stored. It amends ADR-0011 clause 2, ADR-0013 clause 2 and
+ADR-0002 clause 2, each now carrying a pointer at the clause; it states ADR-0007 stands whole and notes
+ADR-0015's "the floor gates the reveal" is superseded. `CONTEXT.md` gains **review**, **drafted line**,
+**ticked line**, **kept line**; **family floor** no longer gates the reveal — it feeds the drafter and
+keeps matching/scoring. Next frontier: #334, #335, #336, #337.
+
 ## 2026-10-04 — #326 grilling: discovery stops asking, the CV is reviewed instead
 
 `/grilling` on **#326**, five rounds, every branch decided and confirmed by the owner. **The

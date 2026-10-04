@@ -66,6 +66,10 @@ long tail of *could ask* moves to *an advert will ask when it matters*.
 
 ### 2. Ingestion asks about facts, never quality
 
+> **Amended by [ADR-0016](0016-the-cv-is-reviewed-not-asked.md)** (2026-10-04): the CV review now judges quality at ingestion, as suggestions
+> only — fixes listed and undoable, untick suggestions never applied by the machine. Ingestion still
+> *asks* only about facts.
+
 The polish question — *"anything to add to this bullet? A number helps"* — never fires at ingestion.
 It moves to the **moment of application**: when a thin sentence is load-bearing for a real advert, the
 product asks then, with the reason (*"this advert leads on cost reduction — your bullet mentions it

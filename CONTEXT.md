@@ -37,6 +37,10 @@ with job requirements.
   - [Industry placement](#industry-placement)
   - [Employer lookup](#employer-lookup)
   - [Posting family fit](#posting-family-fit)
+  - [Review](#review)
+  - [Drafted line](#drafted-line)
+  - [Ticked line](#ticked-line)
+  - [Kept line](#kept-line)
 
 ## Language
 
@@ -76,8 +80,9 @@ may be related without belonging to the same job family.
 _Avoid_: Career neighborhood, job title
 
 **Family floor**:
-The ranked checklist of what every job in a family expects, which discovery must cover before the
-job reveal. One concept with two names: the CV brain (`tailoring-reasoning.md` §4) says "family
+The ranked checklist of what every job in a family expects. It drives matching and scoring, and its
+must-haves feed the **review**'s drafter: a job that does not show one gets a **drafted line** for it
+(ADR-0016). It is no longer asked as discovery questions and no longer gates the job reveal. One concept with two names: the CV brain (`tailoring-reasoning.md` §4) says "family
 floor"; `onboarding-reward-design.md` §6 says "ranked essential floor" / "essential requirement
 floor" and defines its shape (§6.2). It is the opposite of §4's role-language discriminators, which
 separate roles within a family — misreading those as the floor is the documented mistake behind #6.
@@ -257,3 +262,28 @@ the deck it doesn't belong to entirely, and a weak confidence on the right famil
 rank without ever removing it or touching its score. The family compared against is the one the
 deck was searched for, never the visitor's own.
 _Avoid_: Relevance score, title match, family placement
+
+**Review**:
+The stored, once-generated pass over a person's imported CV, shown as "Your CV, reviewed" before any
+jobs: per section and per job, spelling and grammar fixes (applied, each undoable), untick suggestions
+judged on quality only — never on fit to a job — **drafted lines**, a missing-end-date question and any
+import conflict. The jobs stay locked until the person completes it (ADR-0016).
+_Avoid_: Discovery, onboarding questions, CV audit
+
+**Drafted line**:
+A CV line the **review** writes for a **family floor** must-have a job does not already show, using that
+job's own **family placement**. It describes duties only, cites its source (the must-have and/or the
+CV's own words), and arrives unticked: it is a proposal, not a fact, until the person ticks it, which
+makes it a **user-resolved fact**.
+_Avoid_: Suggested bullet, generated claim, system inference
+
+**Ticked line**:
+A CV line in the state that prints. Lines read from the CV arrive ticked; a **drafted line** becomes
+ticked only by the person's tap. The server renders ticked lines only, on the master CV, every tailored
+draft and every export.
+_Avoid_: Confirmed line, approved line
+
+**Kept line**:
+A CV line the person unticked: held in the profile under "kept for when a job needs it", never printed,
+never deleted, and re-tickable at any time. Unticking is always the person's tap, never the machine's.
+_Avoid_: Deleted line, removed line, hidden line

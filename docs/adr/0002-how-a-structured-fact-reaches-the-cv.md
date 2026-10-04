@@ -64,6 +64,10 @@ actually typed, which is both honest and wanted.
 
 ### 2. Thin input: propose the shape, never the substance
 
+> **Amended by [ADR-0016](0016-the-cv-is-reviewed-not-asked.md)** (2026-10-04): a thin job gets a drafted line whose vague phrases are
+> choices (CV words first, typical second, plus free text) instead of empty holes. Clause 1's ban on
+> invented precision stands.
+
 When the visitor's own words are too thin to sell, show the **finished CV line with its holes visible
 and empty**, for them to fill:
 

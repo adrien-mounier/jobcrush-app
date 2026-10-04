@@ -40,6 +40,9 @@ and the second appearance carries its origin (clause 1a).
 
 ### 2. Improvement never means invention
 
+> **Amended by [ADR-0016](0016-the-cv-is-reviewed-not-asked.md)** (2026-10-04): a drafted line may be pre-filled when it arrives unticked,
+> cites its source and obeys drafting rules R1–R6. *Improvement never means invention* stands.
+
 Everything the master CV adds must already be present in the person's own material. #211's mechanical
 form of this is the strictest available and should be preferred wherever it fits: **the added string
 must appear verbatim in the source.** Where no such guard is possible — nothing in the source to check
