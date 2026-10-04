@@ -2,6 +2,21 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-04 — #334: per-step AI configuration (provider, model, reasoning, limits, streaming)
+
+Each AI step now reads its provider, model, reasoning level, output cap and deadline from
+`apps/api/data/ai-steps.json`; main.ts builds every step with `llmForStep(step)`. Existing steps are
+configured to their old values (sonnet-5, thinking off, 32k, Fireworks MiniMax M3 at 8k/60s);
+`JUDGE_MODEL` / `FAMILY_PLACEMENT_MODEL` still override. The Anthropic call now **streams** and sends
+the configured level as adaptive thinking + effort ("off" keeps thinking disabled). A stream that
+errors or ends before `message_stop` fails the call. A **review** step exists: Fable 5.1 at max, or
+Opus 5.5 at max under `AI_PROFILE=test`. The settings file is checked at boot: a Claude step must name
+a reasoning level and a Fireworks step must not. QA GO: 1850 API tests, 8 mutations all went red, the
+compiled app boots, CLI fallback and one Fireworks call ran live (~$0.0001). **Not proven:** a real
+Fable/Opus streamed call, because there is no Anthropic key locally. #340 (blind test) is the first
+real run. Fable's `refusal` stop reason is not handled yet; it would come back as empty text, so #341
+must handle it. The endpoints' own `fallbacks` option was not enabled.
+
 ## 2026-10-04 — #333: ADR-0016 + glossary — the CV is reviewed, not asked
 
 Docs only. **ADR-0016** records the "Your CV, reviewed" design: discovery keeps only work rights and

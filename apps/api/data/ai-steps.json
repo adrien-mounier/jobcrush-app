@@ -1,0 +1,21 @@
+{
+  "advert-reading": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
+  "judging": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
+  "claim-mining": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
+  "job-block-mining": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
+  "preview-tailor": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
+  "grill": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
+  "cv-audit": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
+  "family-screen": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
+  "family-placement": { "provider": "fireworks", "model": "accounts/fireworks/models/minimax-m3", "maxTokens": 8000, "timeoutMs": 60000 },
+  "industry-placement": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
+  "pasted-advert-reading": { "provider": "anthropic", "model": "claude-sonnet-5", "reasoning": "off", "maxTokens": 32000, "timeoutMs": 600000 },
+  "review": {
+    "provider": "anthropic",
+    "model": "claude-fable-5-1",
+    "reasoning": "max",
+    "maxTokens": 128000,
+    "timeoutMs": 1800000,
+    "test": { "model": "claude-opus-5-5" }
+  }
+}

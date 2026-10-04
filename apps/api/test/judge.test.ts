@@ -20,7 +20,8 @@ import {
 } from "../src/judge.js";
 import { InMemoryJudgementStore, type JudgementRecord, type JudgementStore } from "../src/judgementStore.js";
 import { readCounters } from "../src/counters.js";
-import { llmFromEnv } from "../src/llm.js";
+import { llmForStep } from "../src/llm.js";
+import { textStream } from "./anthropicStream.js";
 import type { LlmClient } from "../src/llm.js";
 
 const AD: AdRequirementsV1 = {
@@ -457,37 +458,24 @@ describe("#105 makeJudge — the shared, persisted, fingerprint- and version-awa
 // #105 review round 3, cheap fix: proves the model is configuration end to end — not just that
 // judgeFacts/makeJudge accept whatever LlmClient they're given (already covered above), but that an
 // env-var-style override actually reaches the judging call the same way main.ts wires it for real:
-// `const judgeLlm = llmFromEnv(process.env.JUDGE_MODEL); … judge: makeJudge(judgeLlm, judgements)`.
+// `judge: makeJudge(step("judging"), judgements)`, where step() builds from llmForStep (#334).
 describe("#105 review round 3: JUDGE_MODEL reaches the judging call", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("an env-var-style model override flows llmFromEnv -> makeJudge -> the persisted cost record, with no code change", async () => {
-    const previousKey = process.env.ANTHROPIC_API_KEY;
-    process.env.ANTHROPIC_API_KEY = "test-key";
-    try {
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            content: [{ type: "text", text: JSON.stringify(validDoc) }],
-            usage: { input_tokens: 111, output_tokens: 22 },
-          }),
-          { status: 200 },
-        ),
-      );
-      const judgeModelOverride = "claude-opus-9-test-override"; // stands in for a real JUDGE_MODEL value
-      // The exact line main.ts uses to build the judging driver — this test proves that value, not a
-      // hardcoded default, is what the judging call actually sees.
-      const llm = llmFromEnv(judgeModelOverride);
-      const store = new InMemoryJudgementStore();
-      const judge = makeJudge(llm, store);
-      const result = await judge(AD, FACTS);
-      expect(result?.cost.model).toBe(judgeModelOverride);
-      const stored = await store.get("ad-1", judgementFingerprint(AD, FACTS));
-      expect(stored?.cost.model).toBe(judgeModelOverride); // and it's what's actually persisted, too
-    } finally {
-      if (previousKey === undefined) delete process.env.ANTHROPIC_API_KEY;
-      else process.env.ANTHROPIC_API_KEY = previousKey;
-    }
+  it("an env-var-style model override flows llmForStep -> makeJudge -> the persisted cost record, with no code change", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      textStream(JSON.stringify(validDoc), { input_tokens: 111, output_tokens: 22 }),
+    );
+    const judgeModelOverride = "claude-opus-9-test-override"; // stands in for a real JUDGE_MODEL value
+    // The same builder main.ts uses for the judging driver — this test proves that value, not a
+    // hardcoded default, is what the judging call actually sees.
+    const llm = llmForStep("judging", { ANTHROPIC_API_KEY: "test-key", JUDGE_MODEL: judgeModelOverride });
+    const store = new InMemoryJudgementStore();
+    const judge = makeJudge(llm, store);
+    const result = await judge(AD, FACTS);
+    expect(result?.cost.model).toBe(judgeModelOverride);
+    const stored = await store.get("ad-1", judgementFingerprint(AD, FACTS));
+    expect(stored?.cost.model).toBe(judgeModelOverride); // and it's what's actually persisted, too
   });
 });
 

@@ -15,7 +15,7 @@
 //   stranger recall       >= 0.90   of the roles no family covers, how many were honestly unmapped
 //   false-unknown rate    <= 0.05   of the cases that belong somewhere, how many went unmapped
 import { describe, expect, it } from "vitest";
-import { familyPlacementLlm, llmFromEnv, FAMILY_PLACEMENT_MODEL } from "../src/llm.js";
+import { FireworksLlm, llmForStep } from "../src/llm.js";
 import { BARS, describeMisses, rateGrid, runGrid } from "./harness.js";
 
 // One call at a time by default. Measured 2026-08-15: the local Claude Code CLI driver (the
@@ -28,12 +28,12 @@ describe("#220 the labeler measurement grid", () => {
     "meets the bars ADR-0014 requires before the labeler is trusted",
     { timeout: 60 * 60 * 1000 },
     async () => {
-      // The model production actually wires (llm.ts's familyPlacementLlm), never a stand-in — a
-      // gate that measures a different model than the one serving visitors proves nothing. Falls
-      // back to the app's ordinary client only when no Fireworks key is configured, and says so.
-      const wired = familyPlacementLlm();
-      console.log(`grid running against: ${wired ? FAMILY_PLACEMENT_MODEL : "llmFromEnv fallback (NO FIREWORKS KEY — not the production model)"}`);
-      const results = await runGrid(wired ?? llmFromEnv(), { concurrency: CONCURRENCY });
+      // The client production actually wires (llm.ts's llmForStep), never a stand-in — a gate that
+      // measures a different model than the one serving visitors proves nothing. llmForStep falls
+      // back to the app's ordinary client only when no Fireworks key is configured; say so.
+      const llm = llmForStep("family-placement");
+      console.log(`grid running against: ${llm instanceof FireworksLlm ? llm.model : "default Claude fallback (NO FIREWORKS KEY — not the production model)"}`);
+      const results = await runGrid(llm, { concurrency: CONCURRENCY });
 
       // Before any rate is believed: a run where calls failed or came back unparseable measured the
       // driver, not the prompt. Say so and stop, rather than reporting a number built on it.

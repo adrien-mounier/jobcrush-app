@@ -3,7 +3,7 @@
 import { join } from "node:path";
 import { buildServer } from "./server.js";
 import { storageFromEnv } from "./storage.js";
-import { familyPlacementLlm, llmFromEnv } from "./llm.js";
+import { llmForStep } from "./llm.js";
 import { makeMineStep } from "./miner.js";
 import { makeGrillPhraser } from "./grill.js";
 import { makeCvAuditor } from "./audit.js";
@@ -46,22 +46,18 @@ import { employerLookupStoreFromEnv, makeEmployerLookup } from "./employerLookup
 import { publishedIndustryVocabulary } from "./industryVocabulary.js";
 import { pricingTableFromEnv } from "./llmPricing.js";
 import { meterLlm } from "./llmMeter.js";
-import type { LlmClient } from "./llm.js";
-import type { LlmStage } from "./usageLedgerStore.js";
+import type { AiStep, LlmClient } from "./llm.js";
 
-const llm = llmFromEnv();
-// #105 AC: which model judges a card is configuration, never a code change — JUDGE_MODEL overrides
-// the default (llmFromEnv's own DEFAULT_MODEL) with no edit needed here when it's changed.
-const judgeLlm = llmFromEnv(process.env.JUDGE_MODEL);
 const blobs = storageFromEnv(process.env.UPLOAD_DIR ?? join(process.cwd(), "data", "uploads"));
 
 // #118: the durable, priced usage ledger — one metered client per spending stage, so a stage is
 // structurally hard to spend unmetered (main.ts hands every step an already-wrapped client, never
-// the raw driver). Both `llm` and `judgeLlm` above get wrapped once per stage they back, never
-// shared unwrapped past this point.
+// the raw driver).
+// #334: and each step's client is built from its own entry in data/ai-steps.json — provider, model,
+// reasoning level, output cap, deadline — so switching a step's model is a settings change.
 const usageLedger = usageLedgerStoreFromEnv(process.env.DATABASE_URL);
 const llmPricing = pricingTableFromEnv(process.env);
-const metered = (stage: LlmStage, client: LlmClient): LlmClient => meterLlm(client, stage, usageLedger, llmPricing);
+const step = (name: AiStep): LlmClient => meterLlm(llmForStep(name), name, usageLedger, llmPricing);
 
 // JC-6 persistence: Postgres when DATABASE_URL is set (survives restart — accounts + claim graph),
 // in-memory otherwise. Init (create tables) before serving; fail fast if the DB is unreachable.
@@ -173,10 +169,10 @@ const { app } = buildServer({
   // rule readAd/judge follow: every test that doesn't inject its own placement stays at exactly
   // today's behaviour, and nothing makes a live placement call unless main.ts wires it.
   // The model is the one the #220 bake-off measured (MiniMax M3 via Fireworks), not the app's
-  // default Claude client — see familyPlacementLlm's own doc. No key configured → falls back to
-  // `llm`, so discovery still works, on a model this grid never measured.
+  // default Claude client — see data/ai-steps.json. No Fireworks key configured → llmForStep falls
+  // back to the default Claude client, so discovery still works, on a model this grid never measured.
   placeFamily: makeFamilyPlacer(
-    metered("family-placement", familyPlacementLlm() ?? llm),
+    step("family-placement"),
     publishedFamilies(productionFamilyFloors),
     unmappedLabels,
   ),
@@ -184,19 +180,19 @@ const { app } = buildServer({
   retrievePostings,
   auth,
   familyLearning,
-  screenFamilyCandidate: makeFamilyCandidateScreen(metered("family-screen", llm)),
+  screenFamilyCandidate: makeFamilyCandidateScreen(step("family-screen")),
   familyLearningOperatorKey: process.env.FAMILY_LEARNING_OPERATOR_KEY,
   mailer: mailerFromEnv(),
   webUrl: process.env.WEB_URL,
   blobs,
   pipeline: {
-    mine: makeMineStep(metered("claim-mining", llm)),
-    mineJobBlocks: makeMineJobBlocksStep(metered("job-block-mining", llm)),
+    mine: makeMineStep(step("claim-mining")),
+    mineJobBlocks: makeMineJobBlocksStep(step("job-block-mining")),
     // #221: every mined job record is placed in a job family, on the same model the #220 grid
     // measured. Wired here only, like placeFamily above — a test that doesn't inject it leaves
     // every block unlabeled, which is exactly today's behaviour.
     labelJobBlocks: makeJobBlockLabeler(
-      metered("family-placement", familyPlacementLlm() ?? llm),
+      step("family-placement"),
       publishedFamilies(productionFamilyFloors),
       jobBlocks,
       // #222: labeling changes what the per-family years facts should say — the labeler re-derives
@@ -208,7 +204,7 @@ const { app } = buildServer({
     // own call. Deliberately on the DEFAULT (Anthropic) client rather than the Fireworks family
     // model: #282's employer web lookup is a server-side tool on Anthropic's own API.
     labelJobBlockIndustries: makeJobBlockIndustryLabeler(
-      metered("industry-placement", llm),
+      step("industry-placement"),
       industryVocabulary.activeIndustries(),
       jobBlocks,
       // The person's own CV lines — what makes an employer nobody has heard of placeable at all.
@@ -227,8 +223,8 @@ const { app } = buildServer({
     // paid `preview-tailor` model call per upload whose output no live screen read. The engine
     // (makePreviewStep, preview.ts) is kept for the post-deck tailored CV, deliberately unbound.
   },
-  phraseGrill: makeGrillPhraser(metered("grill", llm)),
-  auditCv: makeCvAuditor(metered("cv-audit", llm)),
+  phraseGrill: makeGrillPhraser(step("grill")),
+  auditCv: makeCvAuditor(step("cv-audit")),
   // #104: real reads only in production — never a buildServer default, so every test that doesn't
   // wire its own fake stays exactly at today's fixture-only behaviour.
   // #243: the reader's closed family list is the PUBLISHED production vocabulary — the same
@@ -237,20 +233,20 @@ const { app } = buildServer({
   // #284: and the closed INDUSTRY list, the same published vocabulary the industry labeler places
   // into — so an advert's industry bar and a person's job label always name the same words.
   readAd: makeAdReader(
-    metered("advert-reading", llm),
+    step("advert-reading"),
     adRequirements,
     publishedFamilies(productionFamilyFloors),
     industryVocabulary.activeIndustries(),
   ),
   // #105: same rule — real judging only in production; every test that doesn't wire its own fake
-  // stays exactly at today's deterministic-tick behaviour. judgeLlm, not llm: JUDGE_MODEL can name a
-  // different model than mine/preview/grill/audit/adReader use, with no code change.
-  judge: makeJudge(metered("judging", judgeLlm), judgements),
+  // stays exactly at today's deterministic-tick behaviour. JUDGE_MODEL still overrides the judging
+  // step's model, with no code change.
+  judge: makeJudge(step("judging"), judgements),
   // #117 must-fix 1: the SAME judgements store, wired cache-only — a stored judgement (an earlier
   // visit, a tailored ad, another visitor's identical facts) resolves for free on the deck without
   // ever competing for DECK_JUDGE_MAX_CARDS's paid-judging bound.
   judgePeek: makeJudgePeek(judgements),
-  // #117 AC4/AC8: the same ledger every metered() client above writes into, read back by /ops/spend.
+  // #117 AC4/AC8: the same ledger every step() client above writes into, read back by /ops/spend.
   usageLedger,
   // #303: the paste door writes into the SAME provider-record store the retrieval seam above was
   // built with — a pasted advert is an ordinary provider record, and two stores would mean the deck
@@ -260,10 +256,10 @@ const { app } = buildServer({
   // #303: same rule as readAd/judge — the real reader is wired here and nowhere else, so no test
   // can make a live call by accident and a build without it answers honestly instead of inventing
   // a posting.
-  readPastedAdvert: makePastedAdvertReader(metered("pasted-advert-reading", llm)),
+  readPastedAdvert: makePastedAdvertReader(step("pasted-advert-reading")),
   // #310: the CV brain's draft call — bound at last (#272 unbound it). Same metering stage the old
   // upload-pipeline binding used, so /ops/spend keeps one name for the same work.
-  tailorLlm: metered("preview-tailor", llm),
+  tailorLlm: step("preview-tailor"),
   tailorDrafts,
   // #312: the real document maker — chrome-headless-shell, installed in the API image
   // (Dockerfile) and nowhere else. Constructing it launches nothing; the browser runs only when

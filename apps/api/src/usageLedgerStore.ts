@@ -43,7 +43,9 @@ export type LlmStage =
   // stage, not folded into advert-reading: that is the requirements read every advert gets, this is
   // the split a provider's feed would have done for free, and #315's per-application cost has to be
   // able to tell the paste door's own spend from the deck's.
-  | "pasted-advert-reading";
+  | "pasted-advert-reading"
+  // #334: "Your CV, reviewed" — the per-job review of the imported CV (#332), on its own model.
+  | "review";
 
 /** One completed model call. `visitorId` is a pseudonym (a session id) or null for an unattributed
  *  call — never dropped, never guessed. `inputTokens`/`outputTokens`/`costUsd` are null together

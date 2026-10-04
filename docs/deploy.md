@@ -1,12 +1,20 @@
 # JC-6 — infra bootstrap
 
+> **Which model each AI step runs on is a settings file, not code (#334).**
+> `apps/api/data/ai-steps.json` holds one entry per step: provider (Anthropic or Fireworks), model,
+> reasoning level, output cap and deadline. Editing it and deploying is how a step changes model.
+> Two older env vars still override a model on top of it: `JUDGE_MODEL` (card judging) and
+> `FAMILY_PLACEMENT_MODEL` (the job labeler). `AI_PROFILE=test` switches a step to its `test` entry
+> where it has one; the review step uses this to run on Opus 5.5 instead of Fable 5.1. Never set
+> `AI_PROFILE` on a deployment that serves the real product.
+
 > **`FIREWORKS_API_KEY` — the second model provider, and the first non-Anthropic one (#220).** The
 > job labeler (which kind of work a visitor's target role is) runs on **MiniMax M3 via Fireworks**,
 > not on the app's Claude client. It was chosen by measurement, not preference: eight models over the
 > same 60-case grid (`apps/api/eval/modelBakeoff.eval.ts`) landed within five points of each other
 > while their prices spread 27×, so the labeler costs about **$0.81 per thousand visitors instead of
-> roughly $5**. Read once by `src/llm.ts`'s `familyPlacementLlm()`; the model id is overridable with
-> `FAMILY_PLACEMENT_MODEL`.
+> roughly $5**. Set in `apps/api/data/ai-steps.json` (the `family-placement` step); the model id is
+> still overridable with `FAMILY_PLACEMENT_MODEL`.
 > **Without the key the labeler still works — it falls back to the app's Claude client, which this
 > grid has never measured, at ~6× the cost.** It fails soft on purpose (a missing key must never take
 > discovery down), which is exactly why nothing will alarm if you forget it. Set it with:
