@@ -209,6 +209,15 @@ export interface DiscoveryQuestion {
   // #123: the consequence of leaving an option unticked, stated in the question itself (AC5).
   // Rendered at full ink weight, never muted like `.sub` — see eligibilitySub's exclusion below.
   consequence?: string;
+  // #336: the languages question only — the CV's languages with the CV's own level word. The screen
+  // pre-ticks `preTicked` ones; nothing is stored until the person submits.
+  cvLanguages?: CvLanguage[];
+}
+
+export interface CvLanguage {
+  language: string;
+  level: string | null;
+  preTicked: boolean;
 }
 
 export interface DiscoveryCvLine {

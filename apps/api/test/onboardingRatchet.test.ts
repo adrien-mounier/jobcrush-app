@@ -71,7 +71,9 @@ import { fileURLToPath } from "node:url";
 // the discovery GET could take the front door's role through the same path instead of a copy.
 // #324 lowered it from 682: both discovery answer writes route through discovery.ts's
 // recordDiscoveryAnswer (the one place a non-answer becomes a skip, never a fact).
-const MAX_LINES = 679;
+// #336 lowered it from 679: the discovery reads moved to discoveryEngine.ts (discoveryReads), where
+// they gained the CV's languages, and buildDiscoveryRouteState takes the reads whole.
+const MAX_LINES = 664;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

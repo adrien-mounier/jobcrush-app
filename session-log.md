@@ -2,6 +2,22 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-04 — #336: languages pre-ticked from the CV's own level
+
+The languages question now carries the CV's languages (`cvLanguages` on the question), each with the
+CV's own level word. Native / Fluent / Professional (plus bilingual, mother tongue) are pre-ticked;
+"limited", "semi", "not", "non", "basic", "elementary" pull a level back below working; any other
+level shows unticked with its word; no level shows unticked and bare. Nothing is stored until the
+person submits. **Design choice:** the structure is parsed on read from the stored `lang-` claim text
+(`apps/api/src/cvLanguages.ts`), not stored in a new column. No contract change, and CVs already
+imported get it too. QA first NO-GO: the real claim miner writes sentence-style lines for
+sentence-style CVs ("fluent in English", "Native Polish speaker"), which the first parse read as
+the language name. Fixed by reading level words wherever they sit; real-miner output is now a test
+case. Discovery reads moved from the onboarding route to `discoveryEngine.ts` (ratchet 679 → 664).
+Local e2e: run against `qa-main.js`, not `main.js`, or the 12/hour anonymous-session limit fails
+the spec halfway. New journey `apps/web/e2e/cv-languages-preticked-journey.mjs` (not in Tier 2: it
+injects the CV languages, so the route-mocked spec already covers it).
+
 ## 2026-10-04 — #335: ticked and kept CV lines, enforced by the server-side print gate
 
 Every claim now carries `lineState` (`ticked` | `kept`, a text column defaulting to `ticked`, so

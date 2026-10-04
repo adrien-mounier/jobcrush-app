@@ -12,6 +12,7 @@
 //   - discoveryState — rebuilds the whole DiscoveryState from the session's role + its recorded
 //     discovery answers (confirmed positives + negatives + #35's deck-rejected, all of which close a
 //     question), so GET /discovery resumes with no client state.
+import type { CvLanguage } from "./cvLanguages.js";
 import type { CandidateClaim, FloorItem, CvSection, MinedRole, EligibilityDimension } from "@jobcrush/contracts";
 import type { ClaimRecord, ClaimStore } from "./claims.js";
 
@@ -145,6 +146,10 @@ export interface DiscoveryQuestion {
    *  never discovered later by a missing job. Present only alongside `multiSelect` today, but is its
    *  own field (not folded into `question`) so a future single-select question could carry one too. */
   consequence?: string;
+  /** #336: the languages question only, and only when the CV lists languages — each with the CV's
+   *  own level word and whether the screen pre-ticks it. A proposal: nothing is stored until the
+   *  person submits the question. */
+  cvLanguages?: CvLanguage[];
 }
 export interface DiscoveryCvLine {
   itemId: string; // "role" for the lead line, else the floor item id

@@ -645,3 +645,70 @@ test("the last eligibility answer hands off to the deck, same as the last floor 
   ).toBeVisible();
   await expectDiscoveryFitsViewport(page);
 });
+
+// #336: the languages question pre-ticks the CV's languages at Native, Fluent or Professional; any
+// other level shows unticked with the CV's own word; a language with no level shows unticked and
+// bare. What the person submits — unticks and additions included — is exactly what is posted.
+const Q_ELIG_LANGUAGES = {
+  itemId: "eligibility-languages",
+  question: "Which languages do you speak? Start typing — I'll suggest as you go.",
+  consequence: "Nothing you leave out counts against you.",
+  options: ["English", "Mandarin", "Cantonese", "Vietnamese", "Ask me later"],
+  multiSelect: true as const,
+  typeAhead: true as const,
+  cvSection: "skills" as const,
+  eligibility: { dimension: "language" as const, familyId: "", scopeLabel: null, declineOption: "Ask me later" },
+  cvLanguages: [
+    { language: "Polish", level: "Native", preTicked: true },
+    { language: "English", level: "Fluent", preTicked: true },
+    { language: "German", level: "Professional working proficiency", preTicked: true },
+    { language: "French", level: "Conversational", preTicked: false },
+    { language: "Italian", level: null, preTicked: false },
+  ],
+};
+
+test("the languages question pre-ticks the CV's working languages, and what is submitted is what the person chose", async ({
+  page,
+}) => {
+  current = { ...AFTER_ELIG_START, questions: [Q_ELIG_LANGUAGES] };
+  await stubDiscovery(page);
+  const posted: unknown[] = [];
+  await page.route("**/api/onboarding/discovery/answer", async (route) => {
+    posted.push(route.request().postDataJSON());
+    await route.fulfill({ json: AFTER_ELIG_ALL_DONE });
+  });
+
+  await page.goto("/discovery");
+  const box = (name: string) => page.getByRole("checkbox", { name });
+  for (const name of ["Polish", "English", "German"]) await expect(box(name)).toBeChecked();
+  for (const name of ["French", "Italian"]) await expect(box(name)).not.toBeChecked();
+  await expect(page.locator(".opt.check", { hasText: "French" })).toContainText("Conversational");
+  await expect(page.locator(".opt.check", { hasText: "Italian" }).locator(".state")).toHaveCount(0);
+  // No language is shown twice: English is a CV tick-box, never also a chip.
+  await expect(page.locator(".lang-typeahead .chips")).toHaveCount(0);
+
+  await box("German").uncheck();
+  await page.locator("#lang-input").fill("Swedish");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("button", { name: "That's all of them" }).click();
+
+  await expect.poll(() => posted.length).toBe(1);
+  expect(posted[0]).toEqual({ itemId: "eligibility-languages", answers: ["Polish", "English", "Swedish"] });
+});
+
+test('"Ask me later" on the languages question posts the decline, never the pre-ticked languages', async ({ page }) => {
+  current = { ...AFTER_ELIG_START, questions: [Q_ELIG_LANGUAGES] };
+  await stubDiscovery(page);
+  const posted: unknown[] = [];
+  await page.route("**/api/onboarding/discovery/answer", async (route) => {
+    posted.push(route.request().postDataJSON());
+    await route.fulfill({ json: AFTER_ELIG_ALL_DONE });
+  });
+
+  await page.goto("/discovery");
+  await expect(page.getByRole("checkbox", { name: /^Polish\b/ })).toBeChecked();
+  await page.getByRole("button", { name: /^Ask me later/ }).click();
+
+  await expect.poll(() => posted.length).toBe(1);
+  expect(posted[0]).toEqual({ itemId: "eligibility-languages", answer: "Ask me later" });
+});

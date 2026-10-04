@@ -1688,3 +1688,73 @@ describe("#123 the languages question", () => {
     expect(await eligibility.get(sid, "language", "Lao")).toBeNull();
   });
 });
+
+// --- #336 the CV's languages pre-tick the languages question ------------------------------------
+describe("#336 languages pre-ticked from the CV's own level", () => {
+  const langClaim = (id: string, text: string) => ({
+    id,
+    semantic_key: id,
+    field_key: null,
+    field_value: null,
+    field_label: null,
+    role: "profile",
+    text,
+    machine_touch: "verbatim" as const,
+    classification: "Verified" as const,
+    source_quote: text,
+    needs_grill: false,
+    grill_hint: null,
+  });
+  async function withCvLanguages() {
+    const server = buildServer();
+    const cookie = await anonSession(server.app);
+    const sid = (await server.app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } })).json().id as string;
+    await server.claims.seed(sid, [
+      langClaim("lang-polish", "Polish (Native)"),
+      langClaim("lang-english", "English (Fluent)"),
+      langClaim("lang-german", "German (Professional working proficiency)"),
+      langClaim("lang-french", "French (Conversational)"),
+      langClaim("lang-italian", "Italian"),
+    ]);
+    const start: DiscoveryState = (await post(server.app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    const question = start.questions.find((q) => q.eligibility?.dimension === "language")!;
+    return { ...server, cookie, sid, question };
+  }
+
+  it("carries every CV language with its level word; only Native, Fluent and Professional pre-tick", async () => {
+    const { question } = await withCvLanguages();
+    expect(question.cvLanguages).toEqual([
+      { language: "Polish", level: "Native", preTicked: true },
+      { language: "English", level: "Fluent", preTicked: true },
+      { language: "German", level: "Professional working proficiency", preTicked: true },
+      { language: "French", level: "Conversational", preTicked: false },
+      { language: "Italian", level: null, preTicked: false },
+    ]);
+  });
+
+  it("pre-ticking stores nothing: no language fact exists until the person submits", async () => {
+    const { eligibility, sid } = await withCvLanguages();
+    expect((await eligibility.list(sid)).filter((f) => f.dimension === "language")).toEqual([]);
+  });
+
+  it("what the person submits is what is stored — an untick and an added language included", async () => {
+    const { app, cookie, eligibility, sid, question } = await withCvLanguages();
+    // Unticks German, keeps Polish and English, adds Swedish the CV does not list.
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: question.itemId, answers: ["Polish", "English", "Swedish"] });
+    const stored = (await eligibility.list(sid)).filter((f) => f.dimension === "language").map((f) => f.familyId);
+    expect(stored.sort()).toEqual(["English", "Polish", "Swedish"]);
+  });
+
+  it(`"${DECLINE_OPTION}" stores no language at all`, async () => {
+    const { app, cookie, eligibility, sid, question } = await withCvLanguages();
+    await post(app, cookie, "/onboarding/discovery/answer", { itemId: question.itemId, answer: DECLINE_OPTION });
+    expect((await eligibility.list(sid)).filter((f) => f.dimension === "language")).toEqual([]);
+  });
+
+  it("a CV with no languages sends no cvLanguages field", async () => {
+    const { app } = buildServer();
+    const cookie = await anonSession(app);
+    const start: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
+    expect(start.questions.find((q) => q.eligibility?.dimension === "language")).not.toHaveProperty("cvLanguages");
+  });
+});

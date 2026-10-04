@@ -21,10 +21,11 @@ import {
   type DiscoveryFamily,
   type DiscoveryState,
 } from "./discovery.js";
-import { withReadTimeout } from "./deck.js";
+import { withReadTimeout, type DeckDiscoveryReads } from "./deck.js";
 import type { makeRetrievalCoordinator } from "./deckRetrieval.js";
-import { applyEligibilityQuestions, excludingEligibility } from "./eligibilityDiscovery.js";
-import type { EligibilityFact } from "./eligibility.js";
+import { cvLanguages, type CvLanguage } from "./cvLanguages.js";
+import { applyEligibilityQuestions, excludingEligibility, LANGUAGE_ITEM_ID } from "./eligibilityDiscovery.js";
+import type { EligibilityFact, EligibilityStore } from "./eligibility.js";
 import {
   eligiblePublication,
   productionDiscoveryFamily,
@@ -260,21 +261,47 @@ export async function answerQuestionOne(
   return searchAtQuestionOne({ ...session, intent, targetTitles: [role] }, confirmed, negatives, deps, coordinator, firstAsk);
 }
 
+/** Every read the discovery screen and the deck are built from, fired in parallel. Third element
+ *  (rejected) is #35's — no new store method, just the existing list() filtered. Fourth (facts) is
+ *  #106's stored eligibility facts. Fifth (blocks) is #162's dated job records, whose unknown ends
+ *  are asked instead of a years total (ADR-0008 clause 3). Callers that need fewer destructure fewer.
+ *
+ *  #336: `cvLanguages` rides on the same tuple — the CV's languages, read off the very list() the
+ *  rejected filter already pays for — so the deck keeps taking it as plain DeckDiscoveryReads. */
+export type DiscoveryReads = DeckDiscoveryReads & { cvLanguages: CvLanguage[] };
+
+export async function discoveryReads(
+  deps: { claims: Pick<ClaimStore, "confirmed" | "negatives" | "list">; eligibility: Pick<EligibilityStore, "list">; jobBlocks: Pick<JobBlockStore, "list"> },
+  sessionId: string,
+): Promise<DiscoveryReads> {
+  const [confirmed, negatives, all, facts, blocks] = await Promise.all([
+    deps.claims.confirmed(sessionId),
+    deps.claims.negatives(sessionId),
+    deps.claims.list(sessionId),
+    deps.eligibility.list(sessionId),
+    deps.jobBlocks.list(sessionId),
+  ]);
+  const reads: DeckDiscoveryReads = [confirmed, negatives, all.filter((c) => c.decision === "rejected"), facts, blocks];
+  return Object.assign(reads, { cvLanguages: cvLanguages(all) });
+}
+
 /** #246 — the promise's number is read off the session, where question 1's search recorded it
  *  (`searchAtQuestionOne` above). Every later discovery response — an answer, a resume — restates
- *  the same number for free; only question 1 ever pays a provider to find it. */
+ *  the same number for free; only question 1 ever pays a provider to find it.
+ *
+ *  #336: the languages question carries the CV's languages, so the screen can pre-tick the ones the
+ *  CV says the person works in. A proposal only — nothing is stored until the person submits. */
 export function buildDiscoveryRouteState(
   role: string | null,
-  confirmed: ClaimRecord[],
-  negatives: ClaimRecord[],
-  rejected: ClaimRecord[],
-  facts: readonly EligibilityFact[],
+  reads: DiscoveryReads,
   session: Pick<SessionRecord, "intent" | "promiseOpenJobs">,
   family: DiscoveryFamily | null,
-  blocks: readonly JobBlockView[],
 ): DiscoveryState {
+  const [confirmed, negatives, rejected, facts, blocks] = reads;
   const state = discoveryState(role, confirmed, negatives, rejected, null, family, session.promiseOpenJobs);
   if (role) applyDiscoveryEligibility(state, session, confirmed, negatives, rejected, facts, family, blocks);
+  const languages = state.questions.find((q) => q.itemId === LANGUAGE_ITEM_ID);
+  if (languages && reads.cvLanguages.length > 0) languages.cvLanguages = reads.cvLanguages;
   state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
   return state;
 }

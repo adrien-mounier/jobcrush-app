@@ -29,6 +29,7 @@ import {
   type DiscoveryPromise,
   type DiscoveryQuestion,
   type DiscoveryState,
+  type CvLanguage,
   type EligibilityAsk,
 } from "../../lib/api";
 import { lookForSentence } from "../../lib/intentCopy";
@@ -506,9 +507,20 @@ function DiscoveryScreen() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [correcting, cancelCorrection]);
 
+  // #336: the very first ask pre-ticks the languages the CV says the person works in (ADR-0016
+  // clause 1) — once per load, so coming back from a correction never resets their own ticks. A
+  // proposal on screen only: nothing is stored until they submit.
+  const langSeededRef = useRef(false);
+  useEffect(() => {
+    const q = discovery?.questions[0];
+    if (!q?.cvLanguages || askKey !== q.itemId || langSeededRef.current) return;
+    langSeededRef.current = true;
+    setLangSelected(new Set(q.cvLanguages.filter((l) => l.preTicked).map((l) => l.language)));
+  }, [askKey, discovery]);
+
   // #123: entering the language question's correction pre-ticks whatever was last confirmed
   // (design spec §7 point 2) — a prior decline pre-ticks nothing, since noticeSlot.answers is only
-  // ever set by a multi-select confirm. Never pre-tick anything on the very first ask.
+  // ever set by a multi-select confirm.
   useEffect(() => {
     if (!correcting) return;
     const seen = seenQuestionsRef.current.get(correcting.itemId);
@@ -517,11 +529,13 @@ function DiscoveryScreen() {
     setLangSelected(new Set(prior ?? []));
   }, [correcting, noticeSlot]);
 
+  // Case-insensitive, like addLang below: a typed "polish" and the CV's "Polish" are one language.
   function toggleLang(name: string) {
     setLangSelected((s) => {
+      const same = [...s].filter((n) => n.toLowerCase() === name.toLowerCase());
+      if (same.length === 0) return new Set([...s, name]);
       const next = new Set(s);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
+      for (const n of same) next.delete(n);
       return next;
     });
   }
@@ -1119,6 +1133,7 @@ function DiscoveryScreen() {
       eligibility?: EligibilityAsk;
       consequence?: string;
       typeAhead?: true;
+      cvLanguages?: CvLanguage[];
     },
     opts: {
       isAnswering: boolean;
@@ -1135,8 +1150,13 @@ function DiscoveryScreen() {
     const anyTicked = langSelected.size > 0;
     const orderedTicked = [...langSelected];
     const query = langQuery.trim();
+    // #336: the CV's own languages get a tick-box each (with the CV's level word); chips and
+    // suggestions cover only the rest, so no language shows twice.
+    const cvLangs = q.cvLanguages ?? [];
+    const sameAs = (a: string) => (b: string) => a.toLowerCase() === b.toLowerCase();
+    const fromCv = (name: string) => cvLangs.some((l) => sameAs(l.language)(name));
     const matches = languages
-      .filter((name) => !orderedTicked.some((n) => n.toLowerCase() === name.toLowerCase()))
+      .filter((name) => !orderedTicked.some(sameAs(name)) && !fromCv(name))
       .filter((name) => query.length === 0 || name.toLowerCase().includes(query.toLowerCase()))
       .slice(0, 5);
     const exactMatch = languages.some((name) => name.toLowerCase() === query.toLowerCase());
@@ -1156,9 +1176,29 @@ function DiscoveryScreen() {
           </p>
           {q.typeAhead ? (
             <div className="lang-typeahead">
-              {orderedTicked.length > 0 && (
+              {cvLangs.length > 0 && (
+                <div className="opts" role="group" aria-labelledby="lang-cv-label">
+                  <p className="sub" id="lang-cv-label">
+                    From your CV — I can work in this language:
+                  </p>
+                  {cvLangs.map((l) => (
+                    <label className="opt check" key={l.language}>
+                      <input
+                        type="checkbox"
+                        name="elig-language-cv"
+                        checked={orderedTicked.some(sameAs(l.language))}
+                        disabled={opts.isAnswering}
+                        onChange={() => toggleLang(l.language)}
+                      />
+                      <span className="lbl">{l.language}</span>
+                      {l.level && <span className="state">{l.level}</span>}
+                    </label>
+                  ))}
+                </div>
+              )}
+              {orderedTicked.some((n) => !fromCv(n)) && (
                 <ul className="chips" aria-label="Languages you've listed">
-                  {orderedTicked.map((name) => (
+                  {orderedTicked.filter((n) => !fromCv(n)).map((name) => (
                     <li key={name}>
                       <span className="lbl">{name}</span>
                       <button

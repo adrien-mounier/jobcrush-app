@@ -34,6 +34,7 @@ import {
   answerQuestionOne,
   buildDiscoveryRouteState,
   currentDiscoveryFamily,
+  discoveryReads,
   prependReaderQuestionFromJob,
   productionDiscoveryFamilyLookup,
   reconcileSessionDiscovery,
@@ -397,22 +398,6 @@ export function onboardingRoutes(deps: OnboardingDeps) {
     // The whole screen is a pure function of the session's role (Q1) + its recorded discovery answers,
     // so every response is `discoveryState(...)` and GET resumes with no client state.
 
-    // Third element (rejected) is #35's addition: no new store method — filter the existing list()
-    // rather than add a ClaimStore.rejected(). Fourth element (facts) is #106's: the session's stored
-    // eligibility facts, read the same way for the same reason — kept in this one Promise.all (not a
-    // separate serialized read) so a Pg-backed read still fires every query in parallel; callers that
-    // don't need the extras (cards, tailor) just destructure the first two.
-    const discoveryReads = (sessionId: string) =>
-      Promise.all([
-        deps.claims.confirmed(sessionId),
-        deps.claims.negatives(sessionId),
-        deps.claims.list(sessionId).then((all) => all.filter((c) => c.decision === "rejected")),
-        deps.eligibility.list(sessionId),
-        // #162: the dated job records the years-of-experience total is worked out from — and whose
-        // unknown ends are the questions asked instead of that total (ADR-0008 clause 3).
-        deps.jobBlocks.list(sessionId),
-      ]);
-
     // #106: eligibility questions are layered onto discoveryState()'s pure floor-only output by
     // eligibilityDiscovery.ts's applyEligibilityQuestions — see its own doc for the band-interleaving
     // rule and the funnel regression that produced it.
@@ -431,9 +416,10 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         const handed = handedRole ? await answerQuestionOne(opened, handedRole, deps, retrievalCoordinator) : null;
         const session = handed?.session ?? opened;
         const role = session.targetTitles[0] ?? null;
-        const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
+        const reads = await discoveryReads(deps, session.id);
+        const [confirmed, negatives, rejected] = reads;
         const family = handed ? handed.family : role ? await reconciledFamily(session) : null;
-        const state = buildDiscoveryRouteState(role, confirmed, negatives, rejected, facts, session, family, blocks);
+        const state = buildDiscoveryRouteState(role, reads, session, family);
         // #35/#324: a deck-rejected, skipped or "no" reader-role claim still closes the question — same
         // never-re-ask rule discoveryState applies internally; this check is separate (the reader
         // question isn't a floor item) so it needs its own look at `rejected` and `negatives`.
@@ -462,8 +448,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       async (req) => {
         const session = requireSession(req);
         const searched = await answerQuestionOne(session, req.body.role, deps, retrievalCoordinator);
-        const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
-        const state = buildDiscoveryRouteState(req.body.role, confirmed, negatives, rejected, facts, searched.session, searched.family, blocks);
+        const state = buildDiscoveryRouteState(req.body.role, await discoveryReads(deps, session.id), searched.session, searched.family);
         state.factCount = await withFactFloor(deps.sessions, session, state.factCount);
         return state;
       },
@@ -584,13 +569,13 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           await recordDiscoveryAnswer(deps.claims, session.id, claim, answer);
         }
 
-        const [confirmed, negatives, rejected, facts, blocks] = await discoveryReads(session.id);
+        const reads = await discoveryReads(deps, session.id);
         // #216: the closing read is the reconciling one, whichever branch above ran — the answer
         // just recorded is what moves coverage, so the session's checkpoint is rewritten from it
         // before this response leaves. placeFamily is cached per session+role (familyLabeler.ts),
         // so the second derivation on the floor-item branch costs nothing.
         const routeFamily = await reconciledFamily(session);
-        const state = buildDiscoveryRouteState(role, confirmed, negatives, rejected, facts, session, routeFamily, blocks);
+        const state = buildDiscoveryRouteState(role, reads, session, routeFamily);
         // #18 AC1 / #106: the essential band fully asked AND every eligibility question closed flips
         // the session to the deck stage, so a reload lands there too. Code-review must-fix 2: the
         // full set of remaining floor + eligibility items is visible from the very first response
@@ -611,7 +596,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
       const session = requireSession(req);
       deps.watchFamilyCandidate?.(session); // #236 — background, never awaited, never user-visible.
       await runLabelerRetry(deps.retryJobBlockLabels, session.id, fastify.log);
-      const reads = await discoveryReads(session.id);
+      const reads = await discoveryReads(deps, session.id);
       return buildDeckResponse(session, reads, {
         ...deps,
         ensureRetrieval: retrievalCoordinator.ensureRetrieval,
@@ -648,7 +633,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         // #103: an ad this session's languages can't read isn't a valid want target either, even if
         // guessed directly by id — same dual gate (posting AND requirement-set language) as the deck.
         const langs = readingLanguages(session);
-        const [confirmed, negatives, , facts] = await discoveryReads(session.id);
+        const [confirmed, negatives, , facts] = await discoveryReads(deps, session.id);
         const fingerprint = retrievalFingerprint(retrievalRequestForSession(session, confirmed, negatives));
         // #305: a job he brought is in no snapshot — it is stitched in from storage (broughtJobs.ts).
         const brought = (await deps.broughtJobs?.(session.id)) ?? [];
