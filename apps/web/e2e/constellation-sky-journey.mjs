@@ -163,7 +163,7 @@ await qa.scrollThrough('Looking over the whole sky, employer labels and section 
 await qa.click('.skylist button[aria-label*="Ran the go-live cutover"]', '#187 A5: tapping a star in the sky — a kept fact read from the CV.');
 await qa.expectVisible('.sheet.in', '#187 A5: the fact detail opens.');
 await qa.expectText('.sheet.in', 'Read from your CV.', '#187 A5: the same said-vs-read line the list shows.');
-await qa.expectText('.sheet.in', 'Left out for space', '#187 A5: the same kept caption the list shows.');
+await qa.expectText('.sheet.in', 'Not on your CV yet', '#187 A5: the same grey caption the list shows (#335 wording).');
 await page.keyboard.press('Escape');
 await page.waitForTimeout(500);
 

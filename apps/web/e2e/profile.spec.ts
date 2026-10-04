@@ -503,7 +503,7 @@ test("phone at 360×800: 'Not the job you meant?' is visible without any scrolli
   expect(scrollTop).toBe(0); // visible at rest, before any scroll happens
 });
 
-test("the hero reads the live counts with the 'kept for when a job needs them' framing, no colour name", async ({ page }) => {
+test("the hero reads the live counts with the 'not on your CV yet' framing, no colour name", async ({ page }) => {
   await stubSession(page);
   const state: ProfileState = {
     ...PROFILE,
@@ -536,7 +536,8 @@ test("the hero reads the live counts with the 'kept for when a job needs them' f
   await expect(page.getByRole("heading", { name: "24 things you've told me" })).toBeVisible();
   await expect(page.locator(".pwait")).toContainText("18");
   await expect(page.locator(".pwait")).toContainText("make your CV right now");
-  await expect(page.locator(".pwait")).toContainText("kept for when a job needs them");
+  // #335: "kept" now means only a line the person unticked, so the hero no longer says it.
+  await expect(page.locator(".pwait")).toContainText("The rest are not on your CV yet.");
   // The hero and the sorted-list note never name a colour — the copy this ticket controls.
   await expect(page.locator(".phead")).not.toContainText(/gold|grey/i);
   await expect(page.locator(".dnote")).not.toContainText(/gold|grey/i);
@@ -918,7 +919,7 @@ test("#186 AC2: experience job blocks never pool — a kept fact in job A and an
   // Job A's block holds only its own kept fact — job B's on-CV fact never pools into it.
   await expect(blocks.nth(0).getByText("Coordinated vendor contracts across three markets.")).toBeVisible();
   await expect(blocks.nth(0).getByText("Delivered a SAP rollout across three sites.")).toHaveCount(0);
-  await expect(blocks.nth(0).locator(".krun")).toHaveText("Left out for space — it swaps in when a job needs it");
+  await expect(blocks.nth(0).locator(".krun")).toHaveText("Not on your CV yet");
 
   // Job B's block holds only its own on-CV fact — job A's kept fact never pools into it.
   await expect(blocks.nth(1).getByText("Delivered a SAP rollout across three sites.")).toBeVisible();
@@ -950,7 +951,7 @@ test("#186 AC3: skills/certifications/languages render as chips, sentence facts 
   await expect(page.locator(".fact", { hasText: "MBA, INSEAD." })).toHaveCount(0);
 });
 
-test("#186 AC4/AC5: the kept caption shows verbatim in list runs and in detail, told/read shows on every fact, and the dead 'waiting for a job that asks' phrasing is gone", async ({
+test("#186 AC4/AC5 (#335 wording): the grey caption shows verbatim in list runs and in detail, told/read shows on every fact, and the dead 'waiting for a job that asks' phrasing is gone", async ({
   page,
 }) => {
   await stubSession(page);
@@ -976,31 +977,123 @@ test("#186 AC4/AC5: the kept caption shows verbatim in list runs and in detail, 
   await stubProfile(page, state);
   await page.goto("/profile");
 
-  // List-run captions, verbatim (A5) — the experience variant differs from every other section's.
-  await expect(page.locator(".jblk .krun")).toHaveText("Left out for space — it swaps in when a job needs it");
-  await expect(page.locator(".dom").filter({ hasText: "Skills" }).locator(".krun")).toHaveText("Kept for when a job needs it");
+  // List-run captions, verbatim (A5) — #335: one wording for the not-yet-confirmed grey everywhere.
+  await expect(page.locator(".jblk .krun")).toHaveText("Not on your CV yet");
+  await expect(page.locator(".dom").filter({ hasText: "Skills" }).locator(".krun")).toHaveText("Not on your CV yet");
 
   const dialog = page.locator("dialog.detail");
 
-  // A kept experience fact's detail: the experience caption + the job context line + told/read.
+  // A grey experience fact's detail: the caption + the job context line + told/read.
   await page.locator(".frow.grey").click();
   await expect(dialog).toContainText(jobA);
-  await expect(dialog).toContainText("Left out for space — it swaps in when a job needs it. You told me this.");
+  await expect(dialog).toContainText("Not on your CV yet. You told me this.");
   await page.getByRole("button", { name: "Close" }).click();
   await expect(dialog).not.toBeVisible();
 
-  // A kept, non-experience fact's detail: the generic caption + the read line.
+  // A grey, non-experience fact's detail: the same caption + the read line.
   await page.locator(".fact.grey").click();
-  await expect(dialog).toContainText("Kept for when a job needs it. Read from your CV.");
+  await expect(dialog).toContainText("Not on your CV yet. Read from your CV.");
   await page.getByRole("button", { name: "Close" }).click();
   await expect(dialog).not.toBeVisible();
 
-  // An on-CV fact's detail: no kept caption, and the told line still shows.
+  // An on-CV fact's detail: no grey caption, and the told line still shows.
   await page.locator(".fact.gold").click();
+  await expect(dialog).not.toContainText("Not on your CV yet");
   await expect(dialog).not.toContainText("Kept for when a job needs it");
   await expect(dialog).toContainText("You told me this.");
 
   await expect(page.getByText(/waiting for a job that asks/i)).toHaveCount(0);
+});
+
+// #335 — a line the person unticked is grey under "Kept for when a job needs it", in its own run
+// after the not-yet-confirmed grey and never mixed with it: in About you, a job block, a chip section
+// and a row section, in the detail, and to a screen reader.
+test("#335: a kept line shows grey under 'Kept for when a job needs it', apart from the not-yet-confirmed grey", async ({
+  page,
+}) => {
+  await stubSession(page);
+  const job = "IT Project Manager · Veolia";
+  const state: ProfileState = {
+    ...PROFILE,
+    domains: [
+      {
+        tag: "profile",
+        heading: "About you",
+        facts: [
+          { id: "a1", text: "Holds a PSM I certification.", colour: "grey", source: "read", job: null, kept: true },
+          { id: "a2", text: "Based in Hong Kong.", colour: "grey", source: "read", job: null },
+        ],
+      },
+      {
+        tag: "experience",
+        heading: "Professional Experience",
+        facts: [
+          { id: "k1", text: "Responsible for various tasks.", colour: "grey", source: "read", job, kept: true },
+          { id: "g1", text: "Delivered a SAP rollout across three sites.", colour: "gold", source: "read", job },
+          { id: "p1", text: "Ran weekly status meetings.", colour: "grey", source: "read", job },
+        ],
+      },
+      {
+        tag: "skill",
+        heading: "Skills",
+        facts: [
+          { id: "s1", text: "Excel.", colour: "grey", source: "read", job: null, kept: true },
+          { id: "s2", text: "SQL.", colour: "grey", source: "read", job: null },
+        ],
+      },
+      {
+        tag: "edu",
+        heading: "Education",
+        facts: [
+          { id: "d1", text: "Diploma in office skills.", colour: "grey", source: "read", job: null, kept: true },
+          { id: "d2", text: "MBA, INSEAD.", colour: "gold", source: "read", job: null },
+        ],
+      },
+    ],
+  };
+  await stubProfile(page, state);
+  await page.goto("/profile");
+
+  // Top to bottom: on the CV, not on it yet, then kept — kept last although the payload sent it first.
+  await expect(page.locator(".jblk").locator(".frow, .krun")).toHaveText([
+    "Delivered a SAP rollout across three sites.",
+    "Not on your CV yet",
+    "Ran weekly status meetings.",
+    "Kept for when a job needs it",
+    "Responsible for various tasks.",
+  ]);
+  await expect(page.locator(".frow", { hasText: "Responsible for various tasks." })).toHaveClass(/\bgrey\b/);
+  await expect(page.locator(".dom").filter({ has: page.getByRole("heading", { name: "Skills" }) }).locator(".fact, .krun")).toHaveText([
+    "Not on your CV yet",
+    "SQL",
+    "Kept for when a job needs it",
+    "Excel",
+  ]);
+  await expect(page.locator(".fact", { hasText: "Excel" })).toHaveClass(/\bgrey\b/);
+  await expect(page.locator(".dom").filter({ has: page.getByRole("heading", { name: "About you" }) }).locator(".frow, .krun")).toHaveText([
+    "Based in Hong Kong.",
+    "Kept for when a job needs it",
+    "Holds a PSM I certification.",
+  ]);
+  await expect(page.locator(".dom").filter({ has: page.getByRole("heading", { name: "Education" }) }).locator(".frow, .krun")).toHaveText([
+    "MBA, INSEAD.",
+    "Kept for when a job needs it",
+    "Diploma in office skills.",
+  ]);
+
+  // A screen reader hears the difference too, not only the caption above it.
+  await expect(page.getByRole("button", { name: "Responsible for various tasks. — Kept for when a job needs it" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ran weekly status meetings. — Saved to your profile" })).toBeVisible();
+
+  const dialog = page.locator("dialog.detail");
+  await page.locator(".frow", { hasText: "Responsible for various tasks." }).click();
+  await expect(dialog).toContainText("Kept for when a job needs it. Read from your CV.");
+  await expect(dialog).not.toContainText("Not on your CV yet");
+  await page.getByRole("button", { name: "Close" }).click();
+
+  await page.locator(".frow", { hasText: "Ran weekly status meetings." }).click();
+  await expect(dialog).toContainText("Not on your CV yet. Read from your CV.");
+  await expect(dialog).not.toContainText("Kept for when a job needs it");
 });
 
 test("#186 AC6: languages are edited in exactly one place, and the door pre-ticks from the eligibility answer — never the CV-mined chip text", async ({
@@ -1750,7 +1843,7 @@ test("#187 AC5: tapping a star in Constellation opens the same fact detail as th
   const sheet = page.locator(".sheet.in");
   await expect(sheet).toContainText("Owned a seven-figure vendor budget.");
   await expect(sheet).toContainText("Read from your CV."); // #186 P25 — the said-vs-read line
-  await expect(sheet).toContainText("Left out for space — it swaps in when a job needs it"); // experience's kept caption
+  await expect(sheet).toContainText("Not on your CV yet"); // the not-yet-confirmed caption (#335)
 });
 
 test("#187 AC4: colour comes only from the payload — no client-side re-derivation of gold", async ({ page }) => {

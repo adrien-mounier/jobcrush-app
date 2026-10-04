@@ -85,6 +85,11 @@ A "CV file" is any `root_cv/**/*.md`, any `**/tailored_cv/**/*.md`, or any `cv_m
   adjacent **true** fact on its own merit instead. The denied item's own words must not appear anywhere
   on the page. The gap is **disclosed** to the candidate, never filled
   (`tailoring-reasoning.md` §8).
+- **An unticked line never prints** (#335, [ADR-0016](../adr/0016-the-cv-is-reviewed-not-asked.md)
+  clause 5). Every CV line is **ticked** (prints) or **kept** (the person unticked it: held in the
+  profile under *"kept for when a job needs it"*, never deleted, re-tickable). The master CV, every
+  tailored draft and every export are built from ticked lines only — a kept line never reaches the
+  tailor's input. Unticking is always the person's tap, never the machine's.
 - Full detail, ATS pitfalls, formatting standards, and the banned-word list are below.
 <!-- DIGEST:END -->
 

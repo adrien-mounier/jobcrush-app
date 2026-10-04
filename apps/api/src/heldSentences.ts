@@ -44,7 +44,9 @@ export async function holdContradictingSentences(
   const forms = printableForms(supersededValue);
   if (forms.length === 0) return [];
   const held: HeldSentence[] = [];
-  for (const claim of await claims.confirmed(sessionId)) {
+  // #335: every confirmed line, ticked or kept — confirmed() is the print gate and skips a kept line,
+  // which would then bring the superseded value back onto the CV the moment it is re-ticked.
+  for (const claim of (await claims.list(sessionId)).filter((c) => c.decision === "confirmed")) {
     const hit = forms.find((f) => claim.text.toLowerCase().includes(f.toLowerCase()));
     if (!hit) continue;
     await claims.reopen(sessionId, claim.id);

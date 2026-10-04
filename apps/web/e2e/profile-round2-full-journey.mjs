@@ -234,7 +234,7 @@ await qa.scrollThrough('read the whole desktop screen, top to bottom and back');
 // --- the hero: live counts, kept framing, no colour named ---
 await qa.expectText('.pcount', "12 things you've told me", 'the hero counts everything she has told the machine');
 await qa.expectText('.pwait', 'make your CV right now', 'the second line counts what makes her CV right now');
-await qa.expectText('.pwait', 'kept for when a job needs them', 'the rest are KEPT — selection, never rejection');
+await qa.expectText('.pwait', 'The rest are not on your CV yet', 'the rest are not on the CV yet — selection, never rejection (#335 wording)');
 const heroCopy = ((await page.locator('.phead').innerText()) ?? '');
 await check(!/when a job asks/i.test(heroCopy), 'the killed "waiting for a job that asks" framing is nowhere in the hero');
 await check(!/\b(gold|grey|gray|amber|yellow)\b/i.test(heroCopy), 'the hero never names a colour');
@@ -261,7 +261,7 @@ for (const [i, name, foreign] of [[0, JOB_A, 'treasury reporting'], [1, JOB_B, '
   await check(cls[0].includes('gold') && cls[cls.length - 1].includes('grey'), `${name}: on-CV facts sit on top, kept facts underneath — inside this job, never pooled`);
   await check(!rows.some((r) => r.includes(foreign)), `${name}: no other job's fact leaked into this block`);
 }
-await qa.expectText('.jblk .krun', 'Left out for space', 'the experience kept-caption says who chose and why');
+await qa.expectText('.jblk .krun', 'Not on your CV yet', 'the experience grey caption reads the #335 wording');
 await qa.expectVisible(page.locator('.dom').filter({ hasText: 'Skills' }).locator('.fact').first(), 'skills draw as compact chips');
 await qa.expectVisible(page.locator('.dom').filter({ hasText: 'Education' }).locator('.frow').first(), 'a sentence fact draws as a full row');
 await check((await page.locator('.frow', { hasText: 'SQL' }).count()) === 0, 'a one-word fact never spends a whole row');

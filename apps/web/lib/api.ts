@@ -582,6 +582,9 @@ export interface ProfileFact {
   // with no CV-mined detail behind it (absent/undefined on every other fact). Never derived
   // client-side from `id` shape; the API is the one source of this flag.
   answerOnly?: true;
+  // #335: true only for a line the person unticked — grey under "Kept for when a job needs it",
+  // never the not-yet-confirmed grey. Absent on every other fact.
+  kept?: true;
 }
 
 export interface ProfileDomain {

@@ -656,6 +656,11 @@ Two rules that would have caught it in seconds:
   health-wait against a fixed port cannot tell your process from someone else's.
 - A journey or gate run ends by killing what it started. A leftover listener does not fail loudly —
   it answers, with old code, and everything downstream believes it.
+- **Stopping the background task is not killing the server** (Windows, 2026-10-04, #335). Stopping
+  a backgrounded `npx next dev -p 3000` ends the shell wrapper only; the node server kept :3000 and
+  the `.next` folder, and the QA gate had to find and end it. After stopping one, kill whatever still
+  owns the port (`Get-NetTCPConnection -LocalPort 3000 -State Listen` → `Stop-Process -Id
+  <OwningProcess>`) and confirm the port is free.
 
 CI never sees this: fresh runners have no yesterday.
 

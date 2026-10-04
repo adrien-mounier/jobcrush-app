@@ -197,7 +197,7 @@ for (const [i, jobName] of [[0, JOB_A], [1, JOB_B]]) {
   if (rows.some((r) => r.includes(foreign))) throw new Error(`${jobName}: another job's fact pooled into this block`);
 }
 await qa.expectText(page.locator('.jblk').nth(0).locator('.jhead'), 'Veolia', 'the first job block is headed by its own job line');
-await qa.expectText('.jblk .krun', 'Left out for space', 'the experience kept-caption reads the experience wording');
+await qa.expectText('.jblk .krun', 'Not on your CV yet', 'the experience grey caption reads the #335 wording');
 
 // AC3 — chips for word facts, rows for sentences, and the two never cross.
 const skills = page.locator('.dom').filter({ hasText: 'Skills' });
@@ -208,19 +208,19 @@ await qa.expectVisible(page.locator('.dom').filter({ hasText: 'Education' }).loc
 if ((await page.locator('.frow', { hasText: 'SQL' }).count()) !== 0) throw new Error('a chip fact leaked into a row');
 if ((await page.locator('.fact', { hasText: 'MBA, INSEAD' }).count()) !== 0) throw new Error('a sentence fact leaked into a chip');
 
-// AC4 — the kept captions, verbatim, in both the list runs and the detail.
-await qa.expectText(skills.locator('.krun'), 'Kept for when a job needs it', 'the non-experience kept caption reads verbatim');
+// AC4 — the grey captions, verbatim, in both the list runs and the detail (#335 wording).
+await qa.expectText(skills.locator('.krun'), 'Not on your CV yet', 'the non-experience grey caption reads verbatim');
 const skillsKrun = (await skills.locator('.krun').textContent()) ?? '';
-if (skillsKrun.trim() !== 'Kept for when a job needs it') throw new Error(`kept caption not verbatim: "${skillsKrun}"`);
+if (skillsKrun.trim() !== 'Not on your CV yet') throw new Error(`grey caption not verbatim: "${skillsKrun}"`);
 
 // AC3/AC5 — a chip's detail opens exactly like a row's, and shows said vs read.
 await qa.click(skills.locator('.fact.grey').first(), 'tap the kept skill chip "Excel"');
 await qa.expectVisible('dialog.detail', "a chip's detail opens the same panel a row's does");
-await qa.expectText('dialog.detail', 'Kept for when a job needs it. Read from your CV.', 'the chip detail carries the kept caption and says it was READ from the CV');
+await qa.expectText('dialog.detail', 'Not on your CV yet. Read from your CV.', 'the chip detail carries the grey caption and says it was READ from the CV');
 await qa.click('dialog.detail button:has-text("Close")', 'close the chip detail');
 
 await qa.click(page.locator('.jblk').nth(0).locator('.frow.grey').first(), 'tap the kept fact inside the Veolia job block');
-await qa.expectText('dialog.detail', 'Left out for space — it swaps in when a job needs it. Read from your CV.', 'the experience kept caption + said/read line show together in the detail');
+await qa.expectText('dialog.detail', 'Not on your CV yet. Read from your CV.', 'the experience grey caption + said/read line show together in the detail');
 await qa.expectText('dialog.detail .dctx', 'Veolia', 'the detail names the job the fact belongs to');
 await qa.click('dialog.detail button:has-text("Close")', 'close the detail');
 
@@ -345,11 +345,11 @@ const phoneHeads = await text('.dname');
 await qa.note(`phone section order: ${phoneHeads.join(' → ')}`);
 if (phoneHeads[0] !== 'About you') throw new Error('About you must lead on the phone too');
 await qa.expectVisible('.jblk .jhead', 'the per-job blocks survive the phone layout');
-await qa.expectText('.jblk .krun', 'Left out for space', 'the experience kept caption reads correctly on the phone');
+await qa.expectText('.jblk .krun', 'Not on your CV yet', 'the experience grey caption reads correctly on the phone');
 
 await qa.click(page.locator('.dom').filter({ hasText: 'Skills' }).locator('.fact.grey').first(), 'tap a kept skill chip on the phone');
 await qa.expectVisible('dialog.detail', "a chip's detail opens inside the phone sheet");
-await qa.expectText('dialog.detail', 'Kept for when a job needs it. Read from your CV.', 'the kept caption and said/read line read correctly on the phone');
+await qa.expectText('dialog.detail', 'Not on your CV yet. Read from your CV.', 'the grey caption and said/read line read correctly on the phone');
 await qa.press('body', 'Escape', 'close the detail with Escape');
 await qa.expectVisible('.pfsheet.open', 'closing the detail did NOT also collapse the sheet');
 

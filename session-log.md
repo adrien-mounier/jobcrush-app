@@ -2,6 +2,24 @@
 
 Newest first. One entry per working session. Ticket + commit refs so the plan stays honest.
 
+## 2026-10-04 — #335: ticked and kept CV lines, enforced by the server-side print gate
+
+Every claim now carries `lineState` (`ticked` | `kept`, a text column defaulting to `ticked`, so
+existing rows backfill and keep printing). The print rule is `prints` (confirmed AND ticked) inside
+`claims.confirmed()`, the one list the master CV, the tailored draft and the export all read, so a
+kept line reaches none of them. **Owner-visible consequence:** a kept line also stops counting as
+evidence for job matching and tailoring, and an untick changes the deck's search fingerprint (one
+fresh search on the next deck read), the same as a confirm or reject does today. `PUT /cv/lines/:id`
+`{state}` records the person's tap (session-scoped, 404 for unknown/foreign). Confirming, editing,
+re-seeding or re-answering never re-ticks a kept line. The correction sweep (`heldSentences.ts`) now
+scans kept lines too, otherwise a re-tick brought back a superseded value. **Owner decision:** the
+profile's not-yet-confirmed grey reads "Not on your CV yet" (captions, detail, hero line, sorted-list
+note); "Kept for when a job needs it" now means only an unticked line, shown last in its job or
+section. CV-brain rule added (`cv-authoring-rules.md`). QA: first NO-GO (About you didn't split kept
+lines), fixed. New journey `apps/web/e2e/ticked-kept-lines-journey.mjs`. Three older profile
+journeys (constellation-sky, list-style-b, shape-a) crash on fixture data stale since #188 — outside
+every CI tier, not fixed here.
+
 ## 2026-10-04 — #334: per-step AI configuration (provider, model, reasoning, limits, streaming)
 
 Each AI step now reads its provider, model, reasoning level, output cap and deadline from

@@ -127,7 +127,7 @@ await assert(side.sideBySide && side.sameTop, `desktop: rail sits beside the fie
 await ownerShot('desktop-overview.png');
 
 await qa.expectText('.pcount', '4 things', 'the hero counts what the person has told me');
-await qa.expectText('.pwait', 'kept for when a job needs them', 'the hero carries the kept-for-later framing');
+await qa.expectText('.pwait', 'not on your CV yet', 'the hero carries the not-on-your-CV-yet framing (#335)');
 await qa.scrollThrough('read the desktop screen top to bottom');
 
 await qa.click('button[aria-label="Constellation"]', 'switch to the Constellation view');
@@ -255,12 +255,11 @@ await qa.goto('/profile', 'reload with 24 told / 18 on the CV — the ticket’s
 await qa.expectText('.pcount', "24 things you've told me", 'the headline number is everything the person told me');
 await qa.expectText('.pwait', '18', 'the second number is what makes the CV right now');
 await qa.expectText('.pwait', 'make your CV right now — your strongest selection', 'the split reads as selection, never rejection');
-await qa.expectText('.pwait', 'The rest are kept for when a job needs them', 'the rest are kept, not rejected');
+await qa.expectText('.pwait', 'The rest are not on your CV yet', 'the rest are not on the CV yet, not rejected');
 
 setState({ factCount: 6, domains: [{ tag: 'skill', heading: 'Skills', facts: facts(6, 'grey', 'Saved') }] });
 await qa.goto('/profile', 'reload with nothing on the CV yet (gold = 0)');
-await qa.expectText('.pwait', 'None make your CV right now', 'the zero branch does not print a bare 0');
-await qa.expectText('.pwait', "they're all kept for when a job needs them", 'the zero branch keeps the framing');
+await qa.expectText('.pwait', 'None of them are on your CV yet', 'the zero branch does not print a bare 0, and keeps the framing');
 
 setState({ factCount: 6, domains: [{ tag: 'skill', heading: 'Skills', facts: [...facts(1, 'gold', 'On-CV'), ...facts(5, 'grey', 'Saved')] }] });
 await qa.goto('/profile', 'reload with exactly one fact on the CV');
@@ -308,11 +307,11 @@ await qa.note(`hero + note + rail copy read: ${JSON.stringify(headCopy)}`);
 await assert(!/when a job asks/i.test(allCopy), 'the dead "when a job asks" framing appears nowhere on the screen');
 await qa.click('.frow.grey >> nth=0', 'open a saved fact to read its detail copy');
 const detailCopy = await page.evaluate(() => document.querySelector('dialog.detail')?.innerText ?? '');
-// #186 gave experience its own kept caption ("Left out for space — it swaps in when a job needs
-// it."); every other section keeps the original. Either is the new kept-for-later framing.
+// #335 gave the not-yet-confirmed grey one caption everywhere ("Not on your CV yet."); "Kept for
+// when a job needs it." now means only a line the person unticked.
 await assert(
-  /Kept for when a job needs it\.|Left out for space — it swaps in when a job needs it\./.test(detailCopy),
-  'the detail sheet carries the new kept-for-later wording',
+  /Not on your CV yet\./.test(detailCopy),
+  'the detail sheet carries the not-on-your-CV-yet wording',
 );
 await assert(!/when a job asks/i.test(detailCopy), 'the detail sheet no longer says "when a job asks"');
 await qa.press('dialog.detail', 'Escape', 'close the detail sheet');

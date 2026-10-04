@@ -826,6 +826,41 @@ for (const [name, make] of claimDrivers) {
       expect(await store.list("other-session")).toEqual([]);
     });
 
+    // #335 — ticked prints, kept never does; only the person's tick moves a line between them.
+    it("lines arrive ticked; a kept line leaves confirmed(), re-ticking restores it", async () => {
+      await store.seed(sid, [claim({ id: "a" }), claim({ id: "b" })]);
+      expect((await store.list(sid)).map((c) => c.lineState)).toEqual(["ticked", "ticked"]);
+      await store.confirm(sid, "a");
+      await store.confirm(sid, "b");
+
+      expect(await store.setLineState(sid, "a", "kept")).toBe(true);
+      expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["b"]);
+      expect((await store.list(sid)).find((c) => c.id === "a")).toMatchObject({ decision: "confirmed", lineState: "kept" });
+
+      await store.setLineState(sid, "a", "ticked");
+      expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a", "b"]);
+    });
+
+    it("confirming, editing, re-seeding or re-answering a kept line never re-ticks it", async () => {
+      await store.seed(sid, [claim({ id: "a" }), claim({ id: "g" })]);
+      await store.setLineState(sid, "a", "kept");
+      await store.setLineState(sid, "g", "kept");
+      await store.confirm(sid, "a");
+      await store.edit(sid, "a", "new text");
+      await store.seed(sid, [claim({ id: "a" })]);
+      await store.add(sid, claim({ id: "g", text: "re-answered" }));
+      expect(await store.confirmed(sid)).toEqual([]);
+      expect((await store.list(sid)).map((c) => c.lineState)).toEqual(["kept", "kept"]);
+    });
+
+    it("setLineState is session-scoped and reports an unknown line", async () => {
+      await store.seed(sid, [claim({ id: "a" })]);
+      await store.confirm(sid, "a");
+      expect(await store.setLineState("other-session", "a", "kept")).toBe(false);
+      expect(await store.setLineState(sid, "nope", "kept")).toBe(false);
+      expect((await store.confirmed(sid)).map((c) => c.id)).toEqual(["a"]);
+    });
+
     // #13 — the "no" write path + fact correction, proven on both drivers.
     it("answerNegative persists a negative — distinct from rejected, absent from confirmed, present in negatives", async () => {
       await store.answerNegative(sid, claim({ id: "grill-1", text: "No PMP certification." }));

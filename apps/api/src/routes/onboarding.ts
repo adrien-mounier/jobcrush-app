@@ -388,7 +388,7 @@ export function onboardingRoutes(deps: OnboardingDeps) {
         session,
         factCount(excludingEligibility(confirmed), excludingEligibility(negatives)),
       );
-      return buildProfileState(facts, confirmed, profileFactCount, session.targetTitles[0] ?? null, await deps.contact.getRecord(session.id), await resolveProfileLocation(deps.eligibility, session.id, session.intent.searchAreas), await resolveLanguagesQuestion(deps.eligibility, session.id));
+      return buildProfileState(facts, profileFactCount, session.targetTitles[0] ?? null, await deps.contact.getRecord(session.id), await resolveProfileLocation(deps.eligibility, session.id, session.intent.searchAreas), await resolveLanguagesQuestion(deps.eligibility, session.id));
     });
 
     // --- #16 discovery (screen 1a): the answer→CV-line→section-bar loop -------------------------

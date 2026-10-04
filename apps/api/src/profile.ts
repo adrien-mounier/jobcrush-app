@@ -3,13 +3,14 @@
 // rail's Job family section draws.
 //
 // Colour law (#20): a fact is gold iff its claim id appears in the rendered root CV's trace. That
-// trace derives from the same confirmed renderable facts as /onboarding/build; grey otherwise
-// means mined-but-not-yet-confirmed, i.e. still `pending` in the deck. Rejected/negative claims
-// are stripped before this module is called (AC5): the profile never lists what the visitor
-// lacks, while negatives still count in factCount.
+// trace derives from the same printing facts as /onboarding/build (`prints`: confirmed AND ticked);
+// grey otherwise — either mined-but-not-yet-confirmed (still `pending` in the deck) or, #335, a
+// line the person unticked, which also carries `kept: true` so the screen shows it apart.
+// Rejected/negative claims are stripped before this module is called (AC5): the profile never
+// lists what the visitor lacks, while negatives still count in factCount.
 import { buildClaimGraph, kindTag } from "./graph.js";
 import { renderRootCv, SECTIONS } from "./rootcv.js";
-import type { ClaimRecord } from "./claims.js";
+import { prints, type ClaimRecord } from "./claims.js";
 import type { ContactRecord } from "./contact.js";
 import type { EligibilityStore } from "./eligibility.js";
 import { languagesQuestion, workRightsAnswerLabel, workRightsQuestionFor } from "./eligibilityDiscovery.js";
@@ -31,6 +32,9 @@ export interface ProfileFact {
    *  it) — explicit and additive so the frontend never keys off the `lang-answer-` id prefix.
    *  Absent/undefined on every other fact, including CV-claim language chips. */
   answerOnly?: true;
+  /** #335: the person unticked this line — grey under "Kept for when a job needs it", never the
+   *  not-yet-confirmed grey. Absent on every other fact. */
+  kept?: true;
 }
 // #185: the no-job facts group (tag "profile") heads the rail as "About you" and orders first — a
 // PROFILE-SCREEN-ONLY heading. rootcv.ts's own SECTIONS ("Professional Summary") stays untouched;
@@ -194,18 +198,16 @@ export async function resolveLanguagesQuestion(
 }
 
 /** Assembles GET /profile's payload: facts grouped by kind tag in SECTIONS order, coloured by the
- *  colour law above. `facts` excludes rejected/negative; `confirmed` is its confirmed subset
- *  (passed in rather than re-filtered so the route's one list() read serves both). */
+ *  colour law above. `facts` excludes rejected/negative. */
 export function buildProfileState(
   facts: ClaimRecord[],
-  confirmed: ClaimRecord[],
   factCount: number,
   role: string | null,
   contact: ContactRecord = { phone: null, email: null },
   location: ProfileLocation = EMPTY_PROFILE_LOCATION,
   languages: ProfileLanguagesQuestion = UNANSWERED_LANGUAGES_QUESTION,
 ): ProfileState {
-  const rootCv = renderRootCv(buildClaimGraph(confirmed));
+  const rootCv = renderRootCv(buildClaimGraph(facts.filter(prints)));
   const goldIds = new Set(rootCv.trace.entries.flatMap((e) => e.nodeIds));
 
   const byTag = new Map<string, ProfileFact[]>();
@@ -218,6 +220,7 @@ export function buildProfileState(
       colour: goldIds.has(c.id) ? "gold" : "grey",
       source: c.origin === "user-authored" ? "told" : "read",
       job: tag === "experience" ? c.role : null,
+      kept: c.lineState === "kept" || undefined,
     });
     byTag.set(tag, bucket);
   }

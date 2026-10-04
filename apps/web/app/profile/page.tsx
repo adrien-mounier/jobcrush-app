@@ -55,7 +55,6 @@ const P19 = "saved for later";
 const P20 = "Every point is something you told me. Tap one.";
 const P21 = "On your CV right now";
 const P22 = "Saved to your profile";
-const P23 = "Kept for when a job needs it. ";
 const P24 = "You told me this.";
 const P25 = "Read from your CV.";
 const P26 = "Close";
@@ -69,17 +68,19 @@ const P29 = "Every fact, as a list";
 // another name (the one thing this screen may never grow).
 const P30 = "Check your work history";
 
-// #186 the list, style B — the two kept-caption wordings (design-186-188.md §A5). The list-run
-// caption never carries a trailing period; the detail caption does (feeding straight into the bold
-// told/read line beside it, matching P23's own shape).
-const CAP_EXP_RUN = "Left out for space — it swaps in when a job needs it";
-const CAP_OTHER_RUN = "Kept for when a job needs it";
-const CAP_EXP_DETAIL = "Left out for space — it swaps in when a job needs it. ";
-function keptRunCaption(tag: string): string {
-  return tag === "experience" ? CAP_EXP_RUN : CAP_OTHER_RUN;
+// #186 the list, style B — the grey-run captions (design-186-188.md §A5). #335 splits grey in two
+// (owner's call, 2026-10-04): a line not yet confirmed reads "Not on your CV yet"; a line the person
+// unticked reads "Kept for when a job needs it" — so "kept" only ever means their own untick. The
+// list-run caption never carries a trailing period; the detail caption does (feeding straight into
+// the bold told/read line beside it).
+const CAP_PENDING_RUN = "Not on your CV yet";
+const CAP_KEPT_RUN = "Kept for when a job needs it";
+function greyDetailCaption(fact: ProfileFact): string {
+  return `${fact.kept ? CAP_KEPT_RUN : CAP_PENDING_RUN}. `;
 }
-function keptDetailCaption(tag: string): string {
-  return tag === "experience" ? CAP_EXP_DETAIL : P23;
+// #335: a kept line says so to a screen reader too, not only by the caption above it.
+function statusLabel(fact: ProfileFact): string {
+  return fact.colour === "gold" ? P21 : fact.kept ? CAP_KEPT_RUN : P22;
 }
 
 // #186 A8 — the languages door. Review round 2 (must-fix): question/consequence/options render from
@@ -177,18 +178,18 @@ const ICON_ENVELOPE = (
 const CT_TITLE = "Contact";
 const CT_SUB = "What's on your CV.";
 
-// #183 hero line 2 (design-183-desktop-profile-shape-a.md §2) — the "kept for when a job needs
-// them" framing, never the dead "waiting for a job that asks" one. `rest` is total − gold; it is
-// never itself numbered in copy, only gold is.
+// #183 hero line 2 (design-183-desktop-profile-shape-a.md §2) — never the dead "waiting for a job
+// that asks" framing; #335 retired "kept for when a job needs them" here, since "kept" now means only
+// a line the person unticked. `rest` is total − gold; it is never itself numbered in copy, only gold is.
 function Pwait({ gold, rest }: { gold: number; rest: number }) {
   if (rest > 0) {
     if (gold === 0) {
-      return <p className="pwait">None make your CV right now — they&apos;re all kept for when a job needs them.</p>;
+      return <p className="pwait">None of them are on your CV yet.</p>;
     }
     return (
       <p className="pwait">
         <b className="g">{gold}</b> {gold === 1 ? "makes" : "make"} your CV right now — your strongest selection. The rest
-        are kept for when a job needs them.
+        are not on your CV yet.
       </p>
     );
   }
@@ -211,10 +212,9 @@ function sourceLine(source: ProfileFact["source"]): string {
 }
 
 // The shared detail block (§4/A7) — the same lines whether painted into the Sorted dialog or the
-// Constellation sheet. `tag` is the owning domain's tag, passed down alongside the fact (never
-// re-derived from the fact's text) — it picks the kept caption's wording and, via `fact.job`,
-// whether the job context line (`.dctx`, A7 new) draws at all.
-function DetailBody({ fact, tag }: { fact: ProfileFact; tag: string }) {
+// Constellation sheet. `fact.job` decides whether the job context line (`.dctx`, A7 new) draws at
+// all; `fact.kept` picks the grey caption's wording (#335).
+function DetailBody({ fact }: { fact: ProfileFact }) {
   const on = fact.colour === "gold";
   return (
     <>
@@ -225,7 +225,7 @@ function DetailBody({ fact, tag }: { fact: ProfileFact; tag: string }) {
       {fact.job !== null && <p className="dctx">{fact.job}</p>}
       <p className="txt">{fact.text}</p>
       <p className="src">
-        {!on && keptDetailCaption(tag)}
+        {!on && greyDetailCaption(fact)}
         <b>{sourceLine(fact.source)}</b>
       </p>
     </>
@@ -236,19 +236,17 @@ function DetailBody({ fact, tag }: { fact: ProfileFact; tag: string }) {
 // never a <p tabindex=0>.
 function FactRow({
   fact,
-  tag,
   onOpenFact,
 }: {
   fact: ProfileFact;
-  tag: string;
-  onOpenFact: (fact: ProfileFact, tag: string) => void;
+  onOpenFact: (fact: ProfileFact) => void;
 }) {
   return (
     <button
       type="button"
       className={`frow ${fact.colour}`}
-      aria-label={`${fact.text} — ${fact.colour === "gold" ? P21 : P22}`}
-      onClick={() => onOpenFact(fact, tag)}
+      aria-label={`${fact.text} — ${statusLabel(fact)}`}
+      onClick={() => onOpenFact(fact)}
     >
       <i className="fdot" aria-hidden="true" />
       <span className="ftxt">{fact.text}</span>
@@ -264,12 +262,10 @@ function FactRow({
 // an empty/misleading DetailBody.
 function ChipButton({
   fact,
-  tag,
   onOpenFact,
 }: {
   fact: ProfileFact;
-  tag: string;
-  onOpenFact: (fact: ProfileFact, tag: string) => void;
+  onOpenFact: (fact: ProfileFact) => void;
 }) {
   if (fact.answerOnly) {
     return <span className={`fact ${fact.colour} inert`}>{chipText(fact.text)}</span>;
@@ -278,40 +274,49 @@ function ChipButton({
     <button
       type="button"
       className={`fact ${fact.colour}`}
-      aria-label={`${fact.text} — ${fact.colour === "gold" ? P21 : P22}`}
-      onClick={() => onOpenFact(fact, tag)}
+      aria-label={`${fact.text} — ${statusLabel(fact)}`}
+      onClick={() => onOpenFact(fact)}
     >
       {chipText(fact.text)}
     </button>
   );
 }
 
-// #186 A4 — gold chips, then the kept caption (only if ≥1 grey), then grey chips. Two separate
-// `.facts` runs, never one combined list, so an all-gold or all-kept section draws only the run it
-// has (A9).
+// #186 A4 — gold chips, then the grey caption (only if ≥1 grey), then grey chips; #335 adds the
+// person's unticked chips last, under their own caption. Separate `.facts` runs, never one combined
+// list, so a section draws only the runs it has (A9).
 function ChipGroup({
   domain,
   onOpenFact,
 }: {
   domain: ProfileDomain;
-  onOpenFact: (fact: ProfileFact, tag: string) => void;
+  onOpenFact: (fact: ProfileFact) => void;
 }) {
   const gold = domain.facts.filter((f) => f.colour === "gold");
-  const grey = domain.facts.filter((f) => f.colour === "grey");
+  const grey = domain.facts.filter((f) => f.colour === "grey" && !f.kept);
+  const kept = domain.facts.filter((f) => f.kept);
   return (
     <>
       {gold.length > 0 && (
         <div className="facts">
           {gold.map((f) => (
-            <ChipButton key={f.id} fact={f} tag={domain.tag} onOpenFact={onOpenFact} />
+            <ChipButton key={f.id} fact={f} onOpenFact={onOpenFact} />
           ))}
         </div>
       )}
-      {grey.length > 0 && <p className="krun">{keptRunCaption(domain.tag)}</p>}
+      {grey.length > 0 && <p className="krun">{CAP_PENDING_RUN}</p>}
       {grey.length > 0 && (
         <div className="facts">
           {grey.map((f) => (
-            <ChipButton key={f.id} fact={f} tag={domain.tag} onOpenFact={onOpenFact} />
+            <ChipButton key={f.id} fact={f} onOpenFact={onOpenFact} />
+          ))}
+        </div>
+      )}
+      {kept.length > 0 && <p className="krun">{CAP_KEPT_RUN}</p>}
+      {kept.length > 0 && (
+        <div className="facts">
+          {kept.map((f) => (
+            <ChipButton key={f.id} fact={f} onOpenFact={onOpenFact} />
           ))}
         </div>
       )}
@@ -321,8 +326,9 @@ function ChipGroup({
 
 // #186 A3 — Professional Experience's job blocks. Block order = first appearance of each `job`
 // value in payload order; `job === null` facts form one leading, unheaded block. Inside a block:
-// gold rows (payload order), the kept caption (if ≥1 grey), then grey rows (payload order) — the
-// only reordering this screen permits, and it never pools across blocks.
+// gold rows (payload order), the grey caption (if ≥1 grey), then grey rows (payload order), then
+// #335's unticked rows under their own caption — the only reordering this screen permits, and it
+// never pools across blocks.
 // #187 A4 — one derivation of Professional Experience's job blocks, shared by the list
 // (ExperienceBody) and the constellation (buildSky). Block order = first appearance of each `job`
 // value in payload order; `job === null` facts form one leading, unheaded block.
@@ -354,7 +360,7 @@ function ExperienceBody({
   onOpenFact,
 }: {
   domain: ProfileDomain;
-  onOpenFact: (fact: ProfileFact, tag: string) => void;
+  onOpenFact: (fact: ProfileFact) => void;
 }) {
   const blocks = jobBlocks(domain);
 
@@ -362,16 +368,21 @@ function ExperienceBody({
     <>
       {blocks.map((block, i) => {
         const gold = block.facts.filter((f) => f.colour === "gold");
-        const grey = block.facts.filter((f) => f.colour === "grey");
+        const grey = block.facts.filter((f) => f.colour === "grey" && !f.kept);
+        const kept = block.facts.filter((f) => f.kept);
         return (
           <div className="jblk" id={`job-${i}`} key={block.job ?? "__none__"}>
             {block.job !== null && <h3 className="jhead">{block.job}</h3>}
             {gold.map((f) => (
-              <FactRow key={f.id} fact={f} tag="experience" onOpenFact={onOpenFact} />
+              <FactRow key={f.id} fact={f} onOpenFact={onOpenFact} />
             ))}
-            {grey.length > 0 && <p className="krun">{CAP_EXP_RUN}</p>}
+            {grey.length > 0 && <p className="krun">{CAP_PENDING_RUN}</p>}
             {grey.map((f) => (
-              <FactRow key={f.id} fact={f} tag="experience" onOpenFact={onOpenFact} />
+              <FactRow key={f.id} fact={f} onOpenFact={onOpenFact} />
+            ))}
+            {kept.length > 0 && <p className="krun">{CAP_KEPT_RUN}</p>}
+            {kept.map((f) => (
+              <FactRow key={f.id} fact={f} onOpenFact={onOpenFact} />
             ))}
           </div>
         );
@@ -576,10 +587,30 @@ function LanguageDoor({
   );
 }
 
+// #335 — a flat-row section (About you, Education): rows in store order, then the person's unticked
+// lines last, under their own caption — never left in place where they read as not-yet-confirmed.
+function FlatRows({ facts, onOpenFact }: { facts: ProfileFact[]; onOpenFact: (fact: ProfileFact) => void }) {
+  const kept = facts.filter((f) => f.kept);
+  return (
+    <>
+      {facts
+        .filter((f) => !f.kept)
+        .map((f) => (
+          <FactRow key={f.id} fact={f} onOpenFact={onOpenFact} />
+        ))}
+      {kept.length > 0 && <p className="krun">{CAP_KEPT_RUN}</p>}
+      {kept.map((f) => (
+        <FactRow key={f.id} fact={f} onOpenFact={onOpenFact} />
+      ))}
+    </>
+  );
+}
+
 // #186 the domain section shell — .dom/.dhead/.dname/.dcount/.aura reused exactly as shipped, per
 // domain, in payload order. Body varies by tag: experience gets job blocks (A3), skill/cert/lang get
 // chips (A4, lang also gets the languages door), everything else (edu) gets flat sentence rows in
-// store order — the "Still List Rule": no reordering except the gold-then-grey split A3/A4 name.
+// store order — the "Still List Rule": no reordering except the gold-then-grey split A3/A4 name, and
+// #335's unticked lines, last under their own caption.
 function DomainSection({
   domain,
   index,
@@ -594,7 +625,7 @@ function DomainSection({
   index: number;
   biggest: number;
   reducedMotion: boolean;
-  onOpenFact: (fact: ProfileFact, tag: string) => void;
+  onOpenFact: (fact: ProfileFact) => void;
   languagesQuestion: ProfileLanguagesQuestion;
   onProfileRefreshed: (profile: ProfileState) => void;
   onAnnounce: (message: string) => void;
@@ -623,7 +654,7 @@ function DomainSection({
           )}
         </>
       ) : (
-        domain.facts.map((f) => <FactRow key={f.id} fact={f} tag={domain.tag} onOpenFact={onOpenFact} />)
+        <FlatRows facts={domain.facts} onOpenFact={onOpenFact} />
       )}
     </section>
   );
@@ -804,7 +835,7 @@ function AboutYou({
   onOpenFact,
 }: {
   domain: ProfileDomain;
-  onOpenFact: (fact: ProfileFact, tag: string) => void;
+  onOpenFact: (fact: ProfileFact) => void;
 }) {
   return (
     <section className="dom">
@@ -815,9 +846,7 @@ function AboutYou({
           <span className="sr-only"> {domain.facts.length === 1 ? "fact" : "facts"}</span>
         </span>
       </div>
-      {domain.facts.map((f) => (
-        <FactRow key={f.id} fact={f} tag="profile" onOpenFact={onOpenFact} />
-      ))}
+      <FlatRows facts={domain.facts} onOpenFact={onOpenFact} />
     </section>
   );
 }
@@ -1507,7 +1536,7 @@ export default function ProfilePage() {
   const [liveMessage, setLiveMessage] = useState("");
   // #186: the fact plus the tag of the domain it came from — the detail block needs the tag to pick
   // the right kept-caption wording (A5) without re-deriving it from the fact's text.
-  const [selected, setSelected] = useState<{ fact: ProfileFact; tag: string } | null>(null);
+  const [selected, setSelected] = useState<{ fact: ProfileFact } | null>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -1576,14 +1605,14 @@ export default function ProfilePage() {
   }, [view]);
 
   const openFact = useCallback(
-    (fact: ProfileFact, tag: string) => {
-      setSelected({ fact, tag });
+    (fact: ProfileFact) => {
+      setSelected({ fact });
       if (view === "sorted" && !dialogRef.current?.open) {
         const active = document.activeElement;
         dialogOpenerRef.current = active instanceof HTMLElement ? active : null;
         dialogRef.current?.showModal();
       }
-      setLiveMessage(`${fact.text} — ${fact.colour === "gold" ? P21 : P22}. ${sourceLine(fact.source)}`);
+      setLiveMessage(`${fact.text} — ${statusLabel(fact)}. ${sourceLine(fact.source)}`);
     },
     [view],
   );
@@ -1708,9 +1737,9 @@ function ReadyScreen({
   skyButtonRef: React.RefObject<HTMLButtonElement | null>;
   dialogRef: React.RefObject<HTMLDialogElement | null>;
   sortedBodyRef: React.RefObject<HTMLDivElement | null>;
-  selected: { fact: ProfileFact; tag: string } | null;
+  selected: { fact: ProfileFact } | null;
   onSwitchView: (v: View) => void;
-  onOpenFact: (f: ProfileFact, tag: string) => void;
+  onOpenFact: (f: ProfileFact) => void;
   onCloseDialog: () => void;
   onDialogClosed: () => void;
   onBack: () => void;
@@ -2062,7 +2091,7 @@ function ReadyScreen({
                     <p className="dnote">
                       {showP12
                         ? P12
-                        : "The highlighted ones make your CV right now. The rest are kept for when a job needs them. Your CV is two pages, so it picks; nothing is ever dropped."}
+                        : "The highlighted ones make your CV right now. The rest are not on your CV yet. Your CV is two pages, so it picks; nothing is ever dropped."}
                     </p>
                   </div>
                 ) : (
@@ -2095,7 +2124,7 @@ function ReadyScreen({
       >
         {selected && (
           <>
-            <DetailBody fact={selected.fact} tag={selected.tag} />
+            <DetailBody fact={selected.fact} />
             <button type="button" className="detailclose" onClick={onCloseDialog}>
               {P26}
             </button>
@@ -2114,7 +2143,6 @@ const PAD_B = 104;
 interface SkyNode {
   fact: ProfileFact;
   domainIndex: number;
-  tag: string; // #186: the owning domain's tag, threaded to onOpenFact for the detail's caption wording
   nx: number;
   ny: number;
   depth: number;
@@ -2146,7 +2174,6 @@ function placeBlock(
   cx: number,
   cy: number,
   spread: number,
-  tag: string,
   secIdx: number,
   clusterIdx: number | null,
 ) {
@@ -2176,7 +2203,7 @@ function placeBlock(
       }
     }
     const idx = nodes.length;
-    const node: SkyNode = { fact, domainIndex: secIdx, tag, nx, ny, depth, ph, sp, linked: [], clusterIdx };
+    const node: SkyNode = { fact, domainIndex: secIdx, nx, ny, depth, ph, sp, linked: [], clusterIdx };
     if (nearest >= 0) {
       node.linked.push(nearest);
       nodes[nearest].linked.push(idx);
@@ -2230,10 +2257,10 @@ function buildSky(domains: ProfileDomain[]): { nodes: SkyNode[]; clusters: SkyCl
           jobIdx = clusters.length;
           clusters.push({ kind: "job", label: block.job, cx: subCx, cy: subCy, spread: subSpr, angle: beta, parent: secIdx, nodeIdx: [] });
         }
-        placeBlock(nodes, clusters, block.facts, subCx, subCy, subSpr, d.tag, secIdx, jobIdx);
+        placeBlock(nodes, clusters, block.facts, subCx, subCy, subSpr, secIdx, jobIdx);
       });
     } else {
-      placeBlock(nodes, clusters, d.facts, cx, cy, spread, d.tag, secIdx, null);
+      placeBlock(nodes, clusters, d.facts, cx, cy, spread, secIdx, null);
     }
   });
 
@@ -2248,8 +2275,8 @@ function Constellation({
 }: {
   domains: ProfileDomain[];
   reducedMotion: boolean;
-  selected: { fact: ProfileFact; tag: string } | null;
-  onOpenFact: (f: ProfileFact, tag: string) => void;
+  selected: { fact: ProfileFact } | null;
+  onOpenFact: (f: ProfileFact) => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -2364,7 +2391,7 @@ function Constellation({
       const idx = nearestNode(e.clientX - rect.left, e.clientY - rect.top, 46, performance.now() - t0Ref.current);
       if (idx !== null) {
         selIndexRef.current = idx;
-        onOpenFact(nodesRef.current[idx].fact, nodesRef.current[idx].tag);
+        onOpenFact(nodesRef.current[idx].fact);
       }
     }
     canvas.addEventListener("pointermove", onPointerMove);
@@ -2568,7 +2595,7 @@ function Constellation({
   function chooseNode(i: number) {
     selIndexRef.current = i;
     hoveredRef.current = i;
-    onOpenFact(nodes[i].fact, nodes[i].tag);
+    onOpenFact(nodes[i].fact);
   }
 
   return (
@@ -2596,8 +2623,8 @@ function Constellation({
                 className={`star ${node.fact.colour}${selected?.fact.id === node.fact.id ? " active" : ""}`}
                 aria-label={
                   node.fact.job !== null
-                    ? `${node.fact.job} — ${node.fact.text} — ${node.fact.colour === "gold" ? P21 : P22}`
-                    : `${node.fact.text} — ${node.fact.colour === "gold" ? P21 : P22}`
+                    ? `${node.fact.job} — ${node.fact.text} — ${statusLabel(node.fact)}`
+                    : `${node.fact.text} — ${statusLabel(node.fact)}`
                 }
                 onFocus={() => chooseNode(i)}
                 onPointerEnter={() => {
@@ -2613,7 +2640,7 @@ function Constellation({
         })}
       </ul>
       <div className={`sheet ${selected ? "in sheetin" : "hint"}`}>
-        {selected ? <DetailBody fact={selected.fact} tag={selected.tag} /> : <p>{P20}</p>}
+        {selected ? <DetailBody fact={selected.fact} /> : <p>{P20}</p>}
       </div>
     </div>
   );

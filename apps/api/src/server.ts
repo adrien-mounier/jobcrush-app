@@ -558,7 +558,7 @@ export function buildServer(opts: BuildOptions = {}) {
     return { jobId: job.id };
   };
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
-  app.register(cvRoutes({ store, pipeline: pipelineDeps }));
+  app.register(cvRoutes({ store, pipeline: pipelineDeps, claims }));
   app.register(contactRoutes({ contact }));
   // #221: the same production registry the labeler places against backs the review screen's choices
   // and the family-correction check — one closed vocabulary, read in one place.

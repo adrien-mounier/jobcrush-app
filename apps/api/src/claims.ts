@@ -9,10 +9,18 @@ import { getPool } from "./db.js";
 export type ClaimDecision = "pending" | "confirmed" | "rejected" | "negative";
 // mined = straight from the CV; user-authored = the user edited it (deck) or typed it (grill).
 export type ClaimOrigin = "mined" | "user-authored";
+/** #335 (ADR-0016 clause 5): whether a CV line prints. `ticked` prints; `kept` is the person's
+ *  untick — held in the profile under "kept for when a job needs it", never printed, never deleted,
+ *  re-tickable. Lines arrive ticked. Only `ticked` passes the print gate (`prints`/confirmed()), so a
+ *  later state — a drafted line that stays unticked until the person ticks it — joins this union and
+ *  is refused by the same gate with no schema change (the column is text). Orthogonal to `decision`:
+ *  confirming, editing or re-answering a line never re-ticks it — only the person's tick does. */
+export type LineState = "ticked" | "kept";
 
 export interface ClaimRecord extends CandidateClaim {
   decision: ClaimDecision;
   origin: ClaimOrigin;
+  lineState: LineState;
   /** #28: a monotonic per-session ordinal — the order this claim's answer was FIRST RECORDED, so a
    *  derived view (tailor.ts's buildTailorLedger) can replay confirmed() and negatives() — two
    *  separately-ordered lists — as ONE true answer order instead of stamping every line from today's
@@ -35,7 +43,8 @@ export interface ClaimStore {
   /** Load the miner's candidate claims for a session as pending (no decisions yet). */
   seed(sessionId: string, claims: CandidateClaim[]): Promise<void>;
   list(sessionId: string): Promise<ClaimRecord[]>;
-  /** The graph builder + gate consume exactly this. */
+  /** The print gate: confirmed AND ticked (`prints`). The graph builder + gate, the tailored draft
+   *  and the export consume exactly this, so a kept line reaches none of them. */
   confirmed(sessionId: string): Promise<ClaimRecord[]>;
   confirm(sessionId: string, id: string): Promise<void>;
   reject(sessionId: string, id: string): Promise<void>;
@@ -49,7 +58,14 @@ export interface ClaimStore {
   answerNegative(sessionId: string, claim: CandidateClaim): Promise<void>;
   /** #13: correction — flip a mistapped decision (e.g. a "no") back to pending, reopening the gap. */
   reopen(sessionId: string, id: string): Promise<void>;
+  /** #335: the person's untick (→ kept) or re-tick. Touches nothing else. False when the session has
+   *  no such line. */
+  setLineState(sessionId: string, id: string, state: LineState): Promise<boolean>;
 }
+
+/** #335: the one rule for what prints — the in-memory confirmed() and the profile's gold.
+ *  PgClaimStore.confirmed() states the same rule in SQL; the store contract test pins the two. */
+export const prints = (c: ClaimRecord): boolean => c.decision === "confirmed" && c.lineState === "ticked";
 
 /** The nullable trio must be present-and-null, never absent. Postgres reads them back as `null`
  *  (toClaim); a spread of a source object that simply omits them yields `undefined`, so the two
@@ -103,7 +119,7 @@ export class InMemoryClaimStore implements ClaimStore {
     // ON CONFLICT DO NOTHING — the store-contract test pins the two drivers together).
     for (const c of claims) {
       if (!m.has(c.id))
-        m.set(c.id, { ...withFields(c), decision: "pending", origin: "mined", seq: this.nextSeq(sessionId) });
+        m.set(c.id, { ...withFields(c), decision: "pending", origin: "mined", lineState: "ticked", seq: this.nextSeq(sessionId) });
     }
   }
 
@@ -112,7 +128,7 @@ export class InMemoryClaimStore implements ClaimStore {
   }
 
   async confirmed(sessionId: string): Promise<ClaimRecord[]> {
-    return [...this.forSession(sessionId).values()].filter((c) => c.decision === "confirmed");
+    return [...this.forSession(sessionId).values()].filter(prints);
   }
 
   async confirm(sessionId: string, id: string): Promise<void> {
@@ -152,6 +168,7 @@ export class InMemoryClaimStore implements ClaimStore {
       ...withFields(claim),
       decision: "confirmed",
       origin: "user-authored",
+      lineState: existing?.lineState ?? "ticked",
       seq,
       decisionSeq: this.decisionSeq(sessionId, existing),
     });
@@ -169,6 +186,7 @@ export class InMemoryClaimStore implements ClaimStore {
       ...withFields(claim),
       decision: "negative",
       origin: "user-authored",
+      lineState: existing?.lineState ?? "ticked",
       seq,
       decisionSeq: this.decisionSeq(sessionId, existing),
     });
@@ -180,6 +198,12 @@ export class InMemoryClaimStore implements ClaimStore {
       c.decision = "pending";
       delete c.decisionSeq;
     }
+  }
+
+  async setLineState(sessionId: string, id: string, state: LineState): Promise<boolean> {
+    const c = this.forSession(sessionId).get(id);
+    if (c) c.lineState = state;
+    return c !== undefined;
   }
 }
 
@@ -202,6 +226,7 @@ CREATE TABLE IF NOT EXISTS claims (
   field_key      text,
   field_value    text,
   field_label    text,
+  line_state     text NOT NULL DEFAULT 'ticked',
   PRIMARY KEY (session_id, id)
 )`;
 
@@ -216,6 +241,10 @@ const CLAIMS_ALTERS = [
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS field_key text",
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS field_value text",
   "ALTER TABLE claims ADD COLUMN IF NOT EXISTS field_label text",
+  // #335: every existing row backfills to ticked, so confirmed content keeps printing exactly as
+  // before. No insert or upsert below names the column: a new line takes the default, and a re-seed
+  // or re-answer never re-ticks a line the person unticked.
+  "ALTER TABLE claims ADD COLUMN IF NOT EXISTS line_state text NOT NULL DEFAULT 'ticked'",
 ];
 
 // Insert columns only — `seq` is never listed (bigserial auto-assigns it). Every READ, by contrast,
@@ -243,6 +272,7 @@ function toClaim(r: Record<string, unknown>): ClaimRecord {
     grill_hint: (r.grill_hint as string) ?? null,
     decision: r.decision as ClaimDecision,
     origin: r.origin as ClaimOrigin,
+    lineState: r.line_state as LineState,
     // #28: bigserial reads back as a string (pg avoids silent precision loss past 2^53) — session
     // seq counts never get remotely close, so a plain Number() is safe.
     seq: Number(r.seq),
@@ -291,7 +321,7 @@ export class PgClaimStore implements ClaimStore {
 
   async confirmed(sessionId: string): Promise<ClaimRecord[]> {
     const { rows } = await this.pool.query(
-      `SELECT * FROM claims WHERE session_id = $1 AND decision = 'confirmed' ORDER BY seq`,
+      `SELECT * FROM claims WHERE session_id = $1 AND decision = 'confirmed' AND line_state = 'ticked' ORDER BY seq`,
       [sessionId],
     );
     return rows.map(toClaim);
@@ -364,6 +394,14 @@ export class PgClaimStore implements ClaimStore {
 
   async reopen(sessionId: string, id: string): Promise<void> {
     await this.pool.query(`UPDATE claims SET decision = 'pending', decision_seq = NULL WHERE session_id = $1 AND id = $2`, [sessionId, id]);
+  }
+
+  async setLineState(sessionId: string, id: string, state: LineState): Promise<boolean> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE claims SET line_state = $3 WHERE session_id = $1 AND id = $2`,
+      [sessionId, id, state],
+    );
+    return (rowCount ?? 0) > 0;
   }
 }
 
