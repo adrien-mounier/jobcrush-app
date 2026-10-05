@@ -391,8 +391,9 @@ this file removes it from the active registry immediately**, with no other code 
 
 Lives at `apps/api/data/posting-providers.json`, zod-validated on load — same read-and-validate
 pattern as `sample-ad-requirements.json` (`e5stub.ts`) and the production family publications. It is a new file under `data/`,
-so it needs `git add -f` (the directory is gitignored by default; `lessons.md` already documents this
-exact trap from #12's fixtures).
+so it needed `git add -f` at the time (the directory was gitignored by default — #12's fixtures hit the
+same trap; `.gitignore` now whitelists `apps/api/data/*.json`, history in
+`docs/archive/lessons-2026-10-06.md`).
 
 ### 2.3 Routing — search area to provider(s)
 
@@ -683,7 +684,7 @@ fixtures with no live-status concept. Draft clarification text for the orchestra
 > scored `JobCardV1` — `matchPct`/`breakdown`/`fit`/`dontYet` need a per-posting `AdRequirements` list
 > (`matchtick.ts`), which today only exists as a hand-authored fixture
 > (`apps/api/data/sample-ad-requirements.json`, `e5stub.ts`). Generating `AdRequirements` for a
-> genuinely new live posting is the E5 cluster-engine's job (roadmap S3, "one cheap LLM call per job
+> genuinely new live posting is the E5 cluster-engine's job (milestone S3 in `docs/archive/roadmap-2026-10-06.md`, "one cheap LLM call per job
 > ad") and is out of both #85's and #63's stated scope. #63 cannot honestly compute a match score for a
 > posting it just retrieved live without either (a) a minimal per-ad requirements-generation step
 > folded into #63's own build, or (b) a new ticket between #85 and #63 that owns it. Recommend the

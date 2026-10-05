@@ -2,7 +2,8 @@
 
 - **Status:** decided 2026-09-27 in [#299](https://github.com/adrien-mounier/jobcrush-app/issues/299)
   (map [#290](https://github.com/adrien-mounier/jobcrush-app/issues/290), row V1i). **Not built.**
-- **Where the build lives:** the spine spec, roadmap row V2 — a decision map carries no build slices.
+- **Where the build lives:** the spine spec [#301](https://github.com/adrien-mounier/jobcrush-app/issues/301),
+  sliced as #316 → #317 — a decision map carries no build slices.
 - **Binds:** [`docs/cv-brain/tailoring-reasoning.md`](../cv-brain/tailoring-reasoning.md) §8 clauses 7, 9
   and 10 (#287); [ADR-0003](../adr/0003-the-shared-parts-organisation-date-level.md) clause 5 (a date
   carries its own precision).

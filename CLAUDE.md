@@ -15,8 +15,9 @@ It is a **clean-room repo**: logic is **ported by copying** from the personal-pi
 product owner — pastes a real job posting he'd actually apply to, runs it through the app end to
 end, and it hands him a CV good enough that he chooses to send it himself. The paste-a-job-ad door
 is the way in; the deck stays live but off the critical path. **No real visitors while this scope
-holds** (#288 un-parks first the day that changes). Everything parked in `roadmap.md`'s future
-phases remains the final product — parked, not cancelled.
+holds** (#288 un-parks first the day that changes). Every phase `roadmap.md`'s Milestones lists as
+parked (full tables in `docs/archive/roadmap-2026-10-06.md`) remains the final product — parked, not
+cancelled.
 
 **The golden rule — built for one user, designed for many.** No schema, contract, or code path may
 hardcode the owner's case: job families stay plural and growable, markets stay a parameter,
@@ -66,6 +67,9 @@ refuses, moralises, or adds anti-lying guardrails. The one clause that is the ow
 machine never adds silently; the human owns every stretch.* Visible proposal = the product; silent
 drift = the bug. ADR-0004/0005 carry the full shape.
 
+**Before pricing a CV-reasoning feature, read what the owner's cv-factory produces**
+(`C:/Users/adrie/AI/cv-factory/job_offers/*/report.md`) — the running reference implementation.
+
 ## Git workflow
 
 Solo repo, no branch protection. **Stay on `main`** for ordinary work.
@@ -81,7 +85,14 @@ When a meaningful unit of work lands (see session hygiene):
    in `.github/workflows/ci.yml`). `apps/api/prompts/*.md` are the product, not documentation — they
    are code and still gate the deploy. Run the pipeline by hand on a skipped push with the
    workflow's `workflow_dispatch`. **A superseded run is cancelled**, so pushing again supersedes the
-   previous push's checks.
+   previous push's checks. Nothing a test reads may live under a `paths-ignore` path (`docs/**`) — a
+   docs-only edit would then break `main` on exactly the push that skipped the suite.
+3. **`pnpm test` runs no browser tests.** Before calling a slice done, run the browser specs and
+   journeys the diff can reach (`e2e:mocked`, `e2e:tier2` in `apps/web`) — a contract or shared-step
+   change lands there, not in the unit tier.
+
+**Stage files by name — never `git add -A`.** Scratch scripts, screenshots and workspace copies live
+in the session scratch dir, never under the repo (a copied `apps/web` once broke every gate).
 
 **`Closes #123` on its own line ends a finishing commit — written only after `/qa-gate` returns
 GO.** The keyword acts on push, the same moment the deploy does, so a `Closes` written earlier
@@ -101,9 +112,17 @@ part of the work, not only at session end:
 
 - After a meaningful unit of work lands: add a newest-first `session-log.md` entry with ticket +
   commit refs, update `roadmap.md`, then commit and push-when-green. Skip trivia; log what a future
-  session would want to know.
+  session would want to know. Caps (enforced by `close-session`): entries ≤ ~10 lines, the file
+  keeps the last ~10 — older ones move unedited to `docs/session-log/YYYY-MM.md`; `roadmap.md` is
+  one screen that links the tracker, never copies it (history: `docs/archive/`).
 - When you learn something non-obvious that would save future-you time, add a short `lessons.md`
-  entry — genuinely reusable insight only.
+  entry under its topic (~40 lessons max). A lesson that has become an always/never rule goes into
+  this file or `CODING_STANDARDS.md` instead, where every session sees it.
+- When you disprove a claim, grep for every copy and correct the source document first.
+  `session-log.md` entries are history: annotate with a dated correction, never rewrite.
+- Commit research and evidence files an ADR or doc cites — background agents are told not to
+  commit, so the session that receives the artifact does.
+- A reference doc over ~100 lines opens with a `## Contents` list; this file, injected whole, has none.
 
 The `close-session` skill does the full end-of-session sync; this rule keeps the docs honest
 between those.
@@ -123,7 +142,11 @@ Standard pnpm monorepo (`apps/{api,web,mobile}`, `packages/`, `docs/`). The non-
 ## Develop
 
 Commands are in `package.json`. Smoke test after a build:
-`node apps/api/dist/main.js`, then `curl localhost:3000/healthz`.
+`node apps/api/dist/main.js`, then `curl localhost:3000/healthz`. Bypass the turbo cache with
+`TURBO_FORCE=1 pnpm test` (never `pnpm test -- --force`, which vitest rejects); prefer `pnpm test`
+over raw vitest, which can't resolve an unbuilt `@jobcrush/contracts`. **`vitacairn` shares this
+machine, the Fly/Cloudflare accounts and ports 3000/3001** (`../SHARED_INFRA.md`): drive locally on
+free high ports, prove *which* server answered, and kill only what you started.
 
 The LLM seam (`apps/api/src/llm.ts`): a real `ANTHROPIC_API_KEY` uses the Anthropic API; local dev
 falls back to the Claude Code CLI; tests inject a fake. Model: `claude-sonnet-5`, thinking disabled.
@@ -148,6 +171,15 @@ criterion, and drives the real app in a browser with evidence — commit only on
 
 - **Issue tracker:** specs and tickets are GitHub Issues in `adrien-mounier/jobcrush-app` (via
   `gh`). See `docs/agents/issue-tracker.md`. Labels: `ready-for-agent`, `wayfinder:*`.
+  - Read a ticket with `--comments` (decisions often live there) and check every AC and premise
+    against HEAD before designing — the tracker lags the code by design.
+  - A stale or contradicted AC is the owner's call: build the later decision and quote both sources
+    to him; never retire an AC yourself.
+  - A deferral, or a closing decision/research ticket, names a *filed* ticket for the follow-up —
+    file it in the same breath; a roadmap phrase is invisible to every frontier query.
+  - On PowerShell, pass bodies with `--body-file` (a here-string splits into many args) and read
+    `gh api` with `--jq` (`ConvertFrom-Json | Select-Object` prints blank rows that look like "none").
+    A 422 "already been taken" on `blocked_by` means the edge already exists.
 - **Domain docs:** glossary in `CONTEXT.md`, decisions in `docs/adr/`. See `docs/agents/domain.md`.
 - **Coding standards:** `CODING_STANDARDS.md` — read and cited by the Standards axis of
   `/code-review`.

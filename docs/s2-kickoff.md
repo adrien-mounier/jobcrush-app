@@ -36,7 +36,7 @@ Anonymous preview (S1, unchanged) → **signup wall** → **confirm deck** → *
    holds, must-fill gaps were at least asked. A thin-but-honest profile passes and flips to `ready`.
    Failures are auto-retryable or a precise loop-back to one card/question — never a dead end, never
    a judgment. (Profile-strength feedback is the future advisory "improve your profile" feature —
-   see roadmap "Later".)
+   see "Later (unscheduled)" in `docs/archive/roadmap-2026-10-06.md`.)
 
 6. **Audit vs gate:** the audit is the LLM re-reading the finished root CV against `docs/cv-brain/`
    rules (AI tells, formatting, conservation) and fixing wording; the gate is the mechanical

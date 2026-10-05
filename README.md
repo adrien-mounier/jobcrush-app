@@ -3,7 +3,8 @@
 Hosted JobCrush v0.1 — server API + web and mobile thin clients. Clean-room repo: logic is
 **ported by copying** from the personal-pipeline repo (`JobCrush`), never imported across repos.
 
-**Plan lives here:** the forward roadmap is [`roadmap.md`](roadmap.md) (S2 → S4; S0 + S1 done). The
+**Plan lives here:** the forward roadmap is [`roadmap.md`](roadmap.md) (one screen, linking the issue tracker;
+history in `docs/archive/`). The
 original detailed spec, per-ticket ACs, and per-slice kickoffs are **archived in the JobCrush repo**
 (`docs/onboarding-init-design.md` §8 authoritative, `docs/dev-plan-v01-hosted.md`,
 `docs/s0..s4-kickoff.md`) — frozen reference, not a live dependency.
