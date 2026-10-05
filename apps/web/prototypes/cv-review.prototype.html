@@ -1,0 +1,738 @@
+<!-- PROTOTYPE — throwaway. Lives on branch prototype/cv-review-332 only, never on main.
+     Question: what does "Your CV, reviewed" (spec #332, ADR-0016) look like with every part on it,
+     so #338, #341, #342 and #343 build into one agreed layout?
+     Three structurally different layouts, side by side at mobile width, same content:
+       A — One page:            the whole review as one scroll, job cards top to bottom
+       B — One job at a time:   a step per job, "needs you" first, fixes last
+       C — Marked-up CV:        the CV itself on paper, every review item a mark you tap
+     Content: the owner's real CV and the research run's real review output
+     (docs/cv-brain/research/2026-10-03_thin-job-line-generation/), with Société Générale thinned to
+     two lines so it plays the thin job. Contact details are placeholders.
+     Toggle "Still running" to see the progress state. State lives in memory; reload resets.
+     Open by double-clicking. Not production code. -->
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your CV, reviewed — layout options</title>
+<style>
+  :root {
+    --hud-0: #101419; --hud-1: #171c23; --hud-2: #1f262f; --hud-3: #262e38; --hud-line: #2b333d;
+    --hud-ink: #e8eaed; --hud-mute: #8b97a4; --gold: #e8a33d; --gold-dim: #a8762b;
+    --gold-glow: rgba(232,163,61,.14);
+    --fix: #3fb950; --fix-bg: rgba(63,185,80,.12); --warn: #d29922; --warn-bg: rgba(210,153,34,.12);
+    --sans: "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --paper: #f6f2ea; --paper-edge: #e2dacb; --ink: #16150f; --ink-mute: #6b6455; --rule: #d9d0bd;
+    --page: #0a0d11;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: #cfd5dc; font-family: var(--sans); }
+  button { font: inherit; color: inherit; }
+
+  /* ---------- prototype chrome (not part of the design) ---------- */
+  .chrome { position: sticky; top: 0; z-index: 50; display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+    padding: 10px 20px; background: #05070a; border-bottom: 1px dashed #333; font-size: 13px; }
+  .chrome b { color: #fff; }
+  .chrome .seg { display: inline-flex; border: 1px solid #444; border-radius: 999px; overflow: hidden; }
+  .chrome .seg button { background: none; border: 0; padding: 5px 12px; cursor: pointer; color: #aaa; }
+  .chrome .seg button.on { background: #fff; color: #000; }
+  .chrome .reset { background: none; border: 1px solid #444; border-radius: 999px; padding: 5px 12px; cursor: pointer; color: #aaa; }
+  .stage { display: flex; justify-content: center; gap: 24px; padding: 18px 16px 90px; transform-origin: top center; }
+  .col { display: flex; flex-direction: column; gap: 10px; width: 390px; flex: 0 0 390px; }
+  .col h2 { margin: 0; font-size: 14px; color: #fff; font-weight: 650; }
+  .col h2 small { display: block; font-weight: 400; color: #8a939d; font-size: 12px; margin-top: 2px; line-height: 1.4; }
+  .readout { font-family: var(--mono); font-size: 10.5px; color: #7d8792; line-height: 1.6; border: 1px dashed #2a2f36;
+    border-radius: 8px; padding: 6px 9px; }
+  .readout b { color: #c9d1d9; font-weight: 500; }
+  .switcher { display: none; position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 60;
+    background: #fff; color: #000; border-radius: 999px; padding: 6px 8px; gap: 6px; align-items: center;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5); font-size: 13px; font-weight: 600; }
+  .switcher button { background: #eee; border: 0; border-radius: 999px; width: 30px; height: 30px; cursor: pointer; color: #000; }
+  @media (max-width: 700px) {
+    .stage { padding: 0 0 70px; gap: 0; }
+    .col { display: none; width: 100vw; flex-basis: 100vw; }
+    .col.cur { display: flex; }
+    .col h2, .readout { padding: 0 12px; }
+    .switcher { display: flex; }
+    .phone { width: 100vw !important; height: calc(100dvh - 150px) !important; border-radius: 0 !important; }
+  }
+
+  /* ---------- phone ---------- */
+  .phone { width: 390px; height: 800px; border-radius: 30px; overflow: hidden; position: relative;
+    background: var(--hud-0); color: var(--hud-ink); border: 1px solid #262e38;
+    box-shadow: 0 0 0 7px #030507, 0 30px 60px -20px rgba(0,0,0,.8); display: flex; flex-direction: column;
+    font-size: 14px; line-height: 1.45; }
+  .scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #333 transparent; }
+  .wordmark { font-size: 11.5px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--hud-mute);
+    padding: 14px 16px 0; }
+  .ph-head { padding: 6px 16px 12px; }
+  .ph-head h1 { margin: 0; font-size: 22px; letter-spacing: -.01em; font-weight: 650; }
+  .ph-head p { margin: 4px 0 0; color: var(--hud-mute); font-size: 13.5px; }
+
+  /* progress */
+  .prog { margin: 0 16px 12px; padding: 10px 12px; border-radius: 12px; background: var(--hud-1); border: 1px solid var(--hud-line); }
+  .prog p { margin: 0 0 7px; font-size: 13px; }
+  .prog small { color: var(--hud-mute); font-size: 12px; display: block; margin-top: 6px; }
+  .bar { height: 4px; border-radius: 999px; background: var(--hud-2); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 38%; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); border-radius: 999px;
+    animation: breathe 2.4s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: .55; } }
+
+  /* shared bits */
+  .card { margin: 0 12px 12px; background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 14px; padding: 14px; }
+  .eyebrow { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--hud-mute); font-weight: 650; margin: 0 0 8px; }
+  .jt { margin: 0; font-size: 16px; font-weight: 650; }
+  .je { margin: 1px 0 0; color: var(--hud-mute); font-size: 13px; }
+  .je .q { color: var(--gold); font-weight: 650; }
+  .sec { margin: 14px 0 6px; font-size: 12px; font-weight: 650; color: var(--hud-mute); }
+  .sec span { font-weight: 400; display: block; margin-top: 1px; }
+  .lh-row { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--hud-line); font-size: 13.5px; }
+  .lh-row:first-of-type { border-top: 0; }
+  .lh-row .k { width: 70px; color: var(--hud-mute); font-size: 12px; flex: none; }
+  .lh-row .v { flex: 1; word-break: break-word; }
+  .lh-row input { flex: 1; background: var(--hud-0); color: var(--hud-ink); border: 1px solid var(--gold-dim); border-radius: 8px; padding: 5px 8px; font: inherit; min-width: 0; }
+  .link { background: none; border: 0; color: var(--gold); cursor: pointer; padding: 2px 0; font-size: 12.5px; font-weight: 600; }
+  .link.mute { color: var(--hud-mute); }
+
+  .line { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--hud-line); }
+  .line:first-child { border-top: 0; }
+  .line .txt { flex: 1; font-size: 13.5px; }
+  .line.kept .txt { color: var(--hud-mute); }
+  .keptnote { display: block; font-size: 11.5px; color: var(--hud-mute); margin-top: 3px; }
+  .tk { flex: none; width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--hud-mute); background: none; cursor: pointer;
+    display: grid; place-items: center; margin-top: 1px; padding: 0; }
+  .tk.on { background: var(--gold); border-color: var(--gold); }
+  .tk.on::after { content: ""; width: 10px; height: 5px; border: solid #16150f; border-width: 0 0 2.5px 2.5px; transform: translateY(-1px) rotate(-45deg); }
+  .tk.new { border-style: dashed; border-color: var(--gold-dim); }
+  .tk.new.on { border-style: solid; }
+  .sugg { margin-top: 7px; padding: 8px 10px; border-radius: 9px; background: var(--warn-bg); border-left: 3px solid var(--warn); font-size: 12.5px; }
+  .sugg b { color: var(--warn); }
+  .sugg .row { display: flex; gap: 14px; margin-top: 5px; }
+  .btn-s { background: var(--hud-3); border: 1px solid var(--hud-line); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 12.5px; font-weight: 600; }
+  .btn-s.gold { background: var(--gold); color: #16150f; border-color: var(--gold); }
+  .btn-s.warn { border-color: var(--warn); color: var(--warn); background: none; }
+
+  .fixes { margin: 4px 0 0; padding: 0; list-style: none; }
+  .fixes li { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--hud-line); font-size: 13px; }
+  .fixes li:first-child { border-top: 0; }
+  .fixes .d { flex: 1; }
+  .fixes s { color: var(--hud-mute); }
+  .fixes .to { color: var(--fix); }
+  .fixes li.undone .to { color: var(--hud-mute); text-decoration: line-through; }
+  .fixes li.undone s { color: var(--hud-ink); text-decoration: none; }
+  .fixes .where { display: block; font-size: 11px; color: var(--hud-mute); }
+  details.fx > summary { cursor: pointer; list-style: none; font-size: 12.5px; color: var(--hud-mute); padding: 4px 0; }
+  details.fx > summary::before { content: "▸ "; }
+  details.fx[open] > summary::before { content: "▾ "; }
+  .fxtag { color: var(--fix); }
+
+  .draft { padding: 10px; margin-top: 8px; border-radius: 10px; border: 1px dashed var(--gold-dim); background: var(--gold-glow); display: flex; gap: 10px; align-items: flex-start; }
+  .draft.on { border-style: solid; border-color: var(--hud-line); background: none; }
+  .draft .body { flex: 1; min-width: 0; }
+  .draft .txt { font-size: 13.5px; }
+  .ph { background: none; border: 0; padding: 0 1px; cursor: pointer; font-size: inherit; color: var(--gold);
+    text-decoration: underline dotted 1.5px; text-underline-offset: 3px; }
+  .ph.set { color: inherit; text-decoration: underline solid 1px var(--gold-dim); }
+  .ph.open { background: rgba(232,163,61,.22); border-radius: 4px; }
+  .flags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+  .flag { font-size: 10px; font-weight: 700; letter-spacing: .06em; padding: 2px 6px; border-radius: 4px; border: 1px solid; }
+  .flag.opt { color: #9fb7d0; border-color: #4a5c70; }
+  .flag.ind { color: var(--warn); border-color: #7a5a1a; }
+  .src { margin-top: 6px; font-size: 11.5px; color: var(--hud-mute); }
+  .src div + div { margin-top: 2px; }
+  .src i { font-style: normal; color: #b8c2cc; }
+  .acts { display: flex; gap: 14px; margin-top: 6px; }
+  textarea.ed { width: 100%; min-height: 76px; background: var(--hud-0); color: var(--hud-ink); border: 1px solid var(--gold-dim); border-radius: 8px;
+    padding: 8px; font: inherit; font-size: 13.5px; resize: vertical; }
+
+  .choices { margin-top: 8px; padding: 10px; border-radius: 10px; background: var(--hud-2); border: 1px solid var(--hud-line); }
+  .choices .ch-h { margin: 0 0 6px; font-size: 12.5px; }
+  .choices .ch-g { margin: 8px 0 4px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--hud-mute); font-weight: 650; }
+  .chip { display: flex; width: 100%; text-align: left; gap: 8px; align-items: baseline; background: var(--hud-1); border: 1px solid var(--hud-line);
+    border-radius: 9px; padding: 7px 9px; margin-bottom: 5px; cursor: pointer; font-size: 13px; }
+  .chip:hover { border-color: var(--gold-dim); }
+  .chip .mk { flex: none; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; padding: 1px 5px; border-radius: 4px; }
+  .chip.cv .mk { background: var(--gold); color: #16150f; }
+  .chip.typ .mk { border: 1px solid var(--hud-mute); color: var(--hud-mute); }
+  .chip .t { flex: 1; }
+  .chip small { display: block; color: var(--hud-mute); font-size: 11px; margin-top: 1px; }
+  .own { display: flex; gap: 6px; margin-top: 6px; }
+  .own input { flex: 1; min-width: 0; background: var(--hud-0); color: var(--hud-ink); border: 1px solid var(--hud-line); border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 13px; }
+
+  .ask { margin-top: 10px; padding: 11px 12px; border-radius: 11px; background: var(--hud-2); border: 1px solid var(--gold-dim); }
+  .ask p { margin: 0 0 8px; font-size: 13.5px; font-weight: 600; }
+  .ask p small { display: block; font-weight: 400; color: var(--hud-mute); font-size: 12px; margin-top: 2px; }
+  .ask .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .ask select { background: var(--hud-0); color: var(--hud-ink); border: 1px solid var(--hud-line); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 13px; }
+  .ask.done { border-color: var(--hud-line); }
+  .ask.done p { font-weight: 400; margin: 0; display: flex; justify-content: space-between; gap: 8px; }
+  .opt-btn { background: var(--hud-1); border: 1px solid var(--hud-line); border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
+  .opt-btn:hover { border-color: var(--gold-dim); }
+
+  .complete { margin-top: 10px; padding: 10px 12px; border-radius: 11px; background: var(--fix-bg); border: 1px solid rgba(63,185,80,.35); font-size: 13px; }
+  .complete b { color: var(--fix); display: block; font-size: 13.5px; }
+  .checking { margin-top: 10px; padding: 9px 12px; border-radius: 11px; background: var(--hud-2); font-size: 12.5px; color: var(--hud-mute); display: flex; gap: 8px; align-items: center; }
+  .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--hud-line); border-top-color: var(--gold); animation: spin 1s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .foot { padding: 14px 16px 18px; border-top: 1px solid var(--hud-line); background: var(--hud-0); }
+  .foot p { margin: 0 0 10px; font-size: 12.5px; color: var(--hud-mute); }
+  .cta { width: 100%; background: var(--gold); color: #16150f; border: 0; border-radius: 999px; padding: 13px; font-weight: 700; font-size: 15px; cursor: pointer; }
+  .cta:disabled { background: var(--hud-2); color: var(--hud-mute); cursor: default; }
+  .cta.ghost { background: none; border: 1px solid var(--hud-line); color: var(--hud-ink); }
+  .doneview { padding: 40px 24px; text-align: center; }
+  .doneview h3 { margin: 0 0 6px; font-size: 19px; }
+  .doneview p { color: var(--hud-mute); margin: 0 0 14px; font-size: 13.5px; }
+
+  /* ---------- B: stepper ---------- */
+  .steps { display: flex; gap: 6px; overflow-x: auto; padding: 0 12px 12px; scrollbar-width: none; flex: none; }
+  .step { flex: none; display: flex; gap: 6px; align-items: center; border: 1px solid var(--hud-line); background: var(--hud-1);
+    border-radius: 999px; padding: 5px 11px; font-size: 12.5px; cursor: pointer; color: var(--hud-mute); }
+  .step.cur { border-color: var(--gold); color: var(--hud-ink); }
+  .step .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--hud-line); }
+  .step .dot.ok { background: var(--fix); }
+  .step .dot.needs { background: var(--gold); }
+  .step .dot.busy { background: none; border: 1.5px solid var(--hud-mute); border-top-color: var(--gold); animation: spin 1s linear infinite; width: 9px; height: 9px; }
+  .bnav { display: flex; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--hud-line); flex: none; }
+  .bnav .cta { flex: 2; }
+  .bnav .cta.ghost { flex: 1; }
+  .bigjob { padding: 2px 16px 10px; }
+  .bigjob .jt { font-size: 20px; }
+  .bsec { margin: 0 12px 12px; }
+  .bsec > h3 { margin: 0 4px 6px; font-size: 13px; font-weight: 650; }
+  .bsec > h3 small { display: block; font-weight: 400; color: var(--hud-mute); font-size: 12px; }
+  .summary-list { list-style: none; padding: 0; margin: 0; }
+  .summary-list li { display: flex; justify-content: space-between; padding: 9px 0; border-top: 1px solid var(--hud-line); font-size: 13.5px; }
+  .summary-list li:first-child { border-top: 0; }
+  .summary-list b { font-variant-numeric: tabular-nums; }
+
+  /* ---------- sheet (B + C) ---------- */
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.5); z-index: 20; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--hud-1); border-top: 1px solid var(--hud-line);
+    border-radius: 18px 18px 0 0; padding: 8px 16px 20px; max-height: 78%; overflow-y: auto; animation: up .22s ease-out; }
+  @keyframes up { from { transform: translateY(30px); opacity: 0; } }
+  .sheet .grab { width: 36px; height: 4px; border-radius: 4px; background: var(--hud-line); margin: 0 auto 10px; }
+  .sheet .close { float: right; }
+  .sheet h4 { margin: 0 0 8px; font-size: 15px; }
+  .sheet .choices { background: none; border: 0; padding: 0; }
+  .sheet .quote { font-size: 13.5px; padding: 8px 10px; border-left: 2px solid var(--hud-line); margin: 0 0 10px; }
+
+  /* ---------- C: paper ---------- */
+  .chud { display: flex; align-items: center; gap: 8px; padding: 0 16px 10px; flex: none; }
+  .chud .count { flex: 1; font-size: 12.5px; color: var(--hud-mute); }
+  .chud .count b { color: var(--hud-ink); }
+  .legend { display: flex; gap: 12px; padding: 0 16px 10px; font-size: 11px; color: var(--hud-mute); flex: none; flex-wrap: wrap; }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .legend .l1::before { background: var(--fix); }
+  .legend .l2::before { background: var(--warn); }
+  .legend .l3::before { border: 1.5px dashed var(--gold-dim); }
+  .legend .l4::before { border-bottom: 2px dotted var(--gold); border-radius: 0; height: 6px; }
+  .paper { margin: 0 10px 14px; background: var(--paper); color: var(--ink); border-radius: 6px; padding: 18px 16px 22px;
+    box-shadow: 0 1px 0 var(--paper-edge), 0 12px 30px -12px rgba(0,0,0,.6); font-family: var(--serif); font-size: 12.5px; line-height: 1.45; position: relative; }
+  .paper .nm { font-size: 22px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+  .paper .role { margin: 0 0 4px; color: var(--ink-mute); font-size: 13px; }
+  .paper .contact { font-size: 11.5px; color: var(--ink-mute); }
+  .paper h5 { font-family: var(--sans); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; margin: 16px 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--rule); color: var(--ink-mute); }
+  .pjob { position: relative; margin-top: 12px; }
+  .pjob .h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .pjob .t { font-weight: 700; font-size: 13.5px; }
+  .pjob .e { color: var(--ink-mute); font-size: 12px; }
+  .pjob .dt { font-family: var(--sans); font-size: 11px; color: var(--ink-mute); white-space: nowrap; }
+  .pjob ul { margin: 5px 0 0; padding-left: 16px; }
+  .pjob li { margin: 3px 0; cursor: pointer; border-radius: 3px; }
+  .pjob li:hover { background: rgba(0,0,0,.04); }
+  .pjob li.kept { color: #a59d8c; list-style: none; margin-left: -16px; padding-left: 16px; }
+  .pjob li.kept::before { content: "kept · "; font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: .05em; }
+  .pjob li.sg { background: rgba(210,153,34,.13); box-shadow: -8px 0 0 -5px var(--warn); }
+  .pjob li.new-on::after { content: " new"; font-family: var(--sans); font-size: 9.5px; font-weight: 700; color: #0b6e5f; letter-spacing: .05em; }
+  mark.fx { background: rgba(63,185,80,.2); color: inherit; border-bottom: 1.5px solid var(--fix); cursor: pointer; padding: 0 1px; }
+  .pill { font-family: var(--sans); font-size: 10.5px; font-weight: 700; background: var(--gold); color: #16150f; border: 0; border-radius: 999px; padding: 1px 7px; cursor: pointer; }
+  .pill.set { background: none; color: var(--ink-mute); border: 1px solid var(--rule); font-weight: 600; }
+  .gline { list-style: none; margin: 5px 0 5px -16px !important; padding: 5px 7px 5px 6px; border: 1.5px dashed #c9a25a; border-radius: 5px;
+    display: flex; gap: 7px; align-items: flex-start; color: #5d5646; background: rgba(232,163,61,.07); }
+  .gline:hover { background: rgba(232,163,61,.14) !important; }
+  .gline .plus { flex: none; width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid #b98a3a; background: none; color: #8a6424;
+    font-family: var(--sans); font-size: 13px; line-height: 13px; padding: 0; cursor: pointer; margin-top: 1px; }
+  .gline .gx { flex: 1; }
+  .gline .gf { font-family: var(--sans); font-size: 9px; font-weight: 700; letter-spacing: .05em; color: #8a6424; margin-left: 4px; }
+  .gline .gsrc { display: block; font-family: var(--sans); font-size: 10.5px; color: #8a7f68; margin-top: 2px; }
+  .paper .ph { color: #8a5a10; text-decoration-color: #c9862a; }
+  .paper .ph.set { color: inherit; }
+  .stamp { position: absolute; right: -2px; top: -6px; font-family: var(--sans); font-size: 10px; font-weight: 800; letter-spacing: .08em; color: #1a7f37;
+    border: 1.5px solid #1a7f37; border-radius: 4px; padding: 1px 6px; transform: rotate(4deg); background: var(--paper); cursor: pointer; }
+  .pchecking { font-family: var(--sans); font-size: 10.5px; color: var(--ink-mute); display: inline-flex; gap: 5px; align-items: center; margin-top: 4px; }
+  .pchecking .spin { border-color: var(--rule); border-top-color: #b98a3a; width: 10px; height: 10px; }
+  .pjob.busy ul { opacity: .55; }
+  .lhmark { outline: 1.5px dashed #c9a25a; outline-offset: 5px; border-radius: 3px; cursor: pointer; }
+  .lhnote { font-family: var(--sans); font-size: 10px; font-weight: 700; color: #8a6424; letter-spacing: .05em; margin-top: 8px; display: block; }
+  .paper .rest { font-size: 12px; }
+</style>
+
+<div class="chrome">
+  <b>“Your CV, reviewed” — 3 layouts</b>
+  <span>Review:</span>
+  <span class="seg" id="runseg"><button data-run="0" class="on">Finished</button><button data-run="1">Still running</button></span>
+  <button class="reset" id="reset">Reset all</button>
+  <span style="color:#777">Same content in each. Tap anything. Reload resets.</span>
+</div>
+<div class="stage" id="stage">
+  <div class="col" data-v="A"><h2>A — One page<small>Everything on one scroll, job card after job card. Confirm at the very bottom.</small></h2><div class="phone" id="pA"></div><div class="readout" id="rA"></div></div>
+  <div class="col" data-v="B"><h2>B — One job at a time<small>A step per job. Inside a job: questions, then new lines, then your lines, then fixes.</small></h2><div class="phone" id="pB"></div><div class="readout" id="rB"></div></div>
+  <div class="col" data-v="C"><h2>C — Marked-up CV<small>Your CV as it will print. Every review item is a mark on it; tap a mark to act.</small></h2><div class="phone" id="pC"></div><div class="readout" id="rC"></div></div>
+</div>
+<div class="switcher" id="switcher"><button data-dir="-1">←</button><span id="swlabel"></span><button data-dir="1">→</button></div>
+
+<script>
+// ---------------- content ----------------
+const WHY = {
+  e2e: 'running a project from planning to finish',
+  coord: 'working with the business and technical teams involved',
+  risk: 'acting on risks, dependencies, timelines or budgets',
+  comms: 'reporting progress to the people involved',
+};
+const CV = {
+  letterhead: { name: 'Adrien Mounier', role: 'Senior Project Manager', fields: [
+    ['Email', 'adrien.mounier@example.com'], ['Phone', '+66 81 234 5678'], ['City', 'Bangkok, Thailand'], ['LinkedIn', 'linkedin.com/in/adrien-mounier'] ] },
+  summaryFix: { id: 'sum-1', where: 'Summary', from: 'accross multiple regions', to: 'across multiple regions' },
+  jobs: [
+    { id: 'bred', title: 'Senior Project Manager', employer: 'BRED Banque Populaire', place: 'Bangkok', dates: '2023 – now', short: 'BRED',
+      readyWhileRunning: true, complete: true,
+      lines: [
+        { id: 'b1', text: 'Lead end-to-end banking IT projects covering core banking systems, mobile banking and digital transformation programs, ensuring full compliance with banking regulations, PCI DSS and internal IT governance.' },
+        { id: 'b2', text: 'Coordinate international teams (developers, QA, business analysts, cybersecurity, external vendors) across Europe, Asia-Pacific and Africa, managing scope, timelines, risks and dependencies.' },
+        { id: 'b3', text: 'Act as the primary interface between IT, business stakeholders and external partners; run regular stakeholder reviews and solution demonstrations.', fix: { from: 'Act as primary', to: 'Act as the primary' } },
+        { id: 'b4', text: 'Apply Agile / Scrum practices, running sprint planning, backlog refinement and retrospectives to maintain a steady delivery cadence.', fix: { from: 'maintain steady', to: 'maintain a steady' } },
+        { id: 'b5', text: 'Prepare and present project status reports and steering committee presentations across ~4 concurrent banking IT projects.' },
+        { id: 'b6', text: 'Maintain a formal risk register across active projects, tracking, escalating and mitigating risks on mission-critical systems.' },
+        { id: 'b7', text: 'Implemented a trading platform (Lao Forex Exchange) integrated into the internal financial system.' },
+        { id: 'b8', text: 'Led the development and rollout of PIN-code authentication for the mobile banking app, strengthening customer security.' },
+        { id: 'b9', text: 'Led the design and development of an LLM-based Splunk log-triage workflow intended to streamline how analysts process log data.',
+          sugg: 'It says what the work was meant to do, not what it achieved.' },
+      ], drafted: [] },
+    { id: 'okoone', title: 'Product Owner', employer: 'Okoone', place: 'Phnom Penh', dates: '2020 – 2023', short: 'Okoone',
+      readyWhileRunning: false,
+      conflict: { q: 'Your CV gives two start years for this job. Which one is right?', options: ['2019', '2020'] },
+      lines: [
+        { id: 'o1', text: 'Owned the product vision and roadmap for a cross-border e-commerce logistics SaaS platform.', fix: { from: 'eCommerce', to: 'e-commerce' } },
+        { id: 'o2', text: 'Led a cross-functional product team, managing scope, priorities, budget and delivery timelines.' },
+        { id: 'o3', text: 'Translated business and user needs into functional specifications and user stories for development teams.' },
+        { id: 'o4', text: 'Maintained and prioritized the product backlog using Jira, ensuring continuous value delivery.', fix: { from: 'JIRA', to: 'Jira' },
+          sugg: 'The end of the line, “ensuring continuous value delivery”, is a general phrase a recruiter cannot check.' },
+        { id: 'o5', text: 'Built Ship24.com from scratch into a scalable cross-border logistics platform within 2 years.' },
+        { id: 'o6', text: 'Delivered a universal shipment tracking API and customs clearance services.' },
+        { id: 'o7', text: 'Platform in 2023: 16M website visitors, 3000+ active API subscriptions, +30% user growth year on year.' },
+      ], drafted: [] },  // Product Owner: no published family yet, so fixes and suggestions only
+    { id: 'sg', title: 'Junior IT Project Manager', employer: 'Société Générale', place: 'Paris', dates: '2017', short: 'Société Gén.',
+      readyWhileRunning: false, missingEnd: true,
+      titleFix: { from: 'IT Junior Project Manager', to: 'Junior IT Project Manager' },
+      lines: [
+        { id: 's1', text: 'Delivered IT projects using Agile / Scrum, supporting delivery execution.' },
+        { id: 's2', text: 'Participated in software and data architecture discussions, with a focus on data governance.', fix: { from: 'with focus', to: 'with a focus' },
+          sugg: 'It says you took part in discussions, but not what you did or delivered.' },
+      ],
+      drafted: [
+        { id: 'd1', why: 'e2e', quote: ['this job', 'Delivered IT projects using Agile / Scrum, supporting delivery execution.'],
+          parts: ['Kept project plans up to date and tracked ', { id: 'p1', label: 'deliverables', cv: [['sprint deliverables', 'this job: “using Agile / Scrum”'], ['Jira tickets', 'Skills: “JIRA, Confluence, Notion”']], typ: ['milestones and deadlines', 'tasks and action items'] },
+                  ' for ', { id: 'p2', label: 'projects', cv: [['data governance projects', 'this job: “with a focus on data governance”']], typ: ['application releases', 'internal IT projects for business teams'] },
+                  ' from planning through completion.'] },
+        { id: 'd2', why: 'coord', quote: ['Skills', 'Stakeholder Management'],
+          parts: ['Worked with ', { id: 'p3', label: 'business and technical teams', cv: [['data and architecture teams', 'this job: “software and data architecture discussions”']], typ: ['developers, testers and business users', 'business teams and IT support'] },
+                  ' to keep delivery on track.'] },
+        { id: 'd3', why: 'risk', quote: ['Skills', 'Risk & Dependency Management'],
+          parts: ['Tracked delivery risks and dependencies, and escalated issues to prevent delays.'] },
+        { id: 'd4', why: 'comms',
+          parts: ['Prepared ', { id: 'p4', label: 'status updates', cv: [], typ: ['weekly status reports', 'sprint review notes', 'dashboard updates'] },
+                  ' on project progress and risks for ', { id: 'p5', label: 'management', cv: [], typ: ['the project manager', 'department managers', 'the steering committee'] }, '.'] },
+        { id: 'd5', why: null, flags: ['ind'], quote: ['Skills', 'IT Governance & Delivery Management'], industry: 'banking',
+          parts: ['Followed the bank’s IT governance and compliance rules when delivering projects.'] },
+        { id: 'd6', why: 'risk', flags: ['opt'],
+          parts: ['Helped track project budgets.'] },
+      ] },
+  ],
+  restFixes: [
+    { id: 'r1', where: 'Skills', from: 'JIRA, Confluence, Notion', to: 'Jira, Confluence, Notion' },
+  ],
+};
+CV.restFixes.unshift(CV.summaryFix);
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// ---------------- state ----------------
+let RUN = false;
+const fresh = () => ({ tick: {}, undone: {}, phrase: {}, edit: {}, editing: null, lh: {}, endDate: null, conflict: null,
+  confirmed: false, open: null, sheet: null, step: 0 });
+const S = { A: fresh(), B: fresh(), C: fresh() };
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ready = j => !RUN || j.readyWhileRunning;
+const allJobs = () => CV.jobs;
+const findDraft = id => { for (const j of CV.jobs) for (const d of j.drafted) if (d.id === id) return [j, d]; };
+const findLine = id => { for (const j of CV.jobs) for (const l of j.lines) if (l.id === id) return [j, l]; };
+const findPhrase = (did, pid) => findDraft(did)[1].parts.find(p => p.id === pid);
+const isTicked = (st, id, def) => st.tick[id] ?? def;
+
+function jobFixes(j) {
+  const out = [];
+  if (j.titleFix) out.push({ id: j.id + '-title', where: 'Job title', ...j.titleFix });
+  j.lines.forEach((l, i) => l.fix && out.push({ id: l.id + '-fx', where: 'Line ' + (i + 1), ...l.fix }));
+  return out;
+}
+function lineText(st, l, mark) {
+  const t = esc(l.text);
+  if (!l.fix) return t;
+  if (st.undone[l.id + '-fx']) return t.replace(esc(l.fix.to), esc(l.fix.from));
+  return mark ? t.replace(esc(l.fix.to), `<mark class="fx" data-act="sheet" data-k="fix" data-id="${l.id}-fx">${esc(l.fix.to)}</mark>`) : t;
+}
+function jobTitle(st, j, mark) {
+  if (!j.titleFix) return esc(j.title);
+  if (st.undone[j.id + '-title']) return esc(j.titleFix.from);
+  return mark ? `<mark class="fx" data-act="sheet" data-k="fix" data-id="${j.id}-title">${esc(j.title)}</mark>` : esc(j.title);
+}
+function draftPlain(st, d) {
+  return st.edit[d.id] ?? d.parts.map(p => typeof p === 'string' ? p : (st.phrase[d.id + '|' + p.id] ?? p.label)).join('');
+}
+function draftHtml(st, d, openKey) {
+  if (st.edit[d.id] != null) return esc(st.edit[d.id]);
+  return d.parts.map(p => {
+    if (typeof p === 'string') return esc(p);
+    const k = d.id + '|' + p.id, v = st.phrase[k];
+    return `<button class="ph ${v ? 'set' : ''} ${openKey === k ? 'open' : ''}" data-act="phrase" data-id="${k}">${esc(v ?? p.label)}</button>`;
+  }).join('');
+}
+function flagsHtml(d) {
+  if (!d.flags) return '';
+  return `<div class="flags">${d.flags.map(f => f === 'opt' ? '<span class="flag opt">OPTIONAL</span>' : '<span class="flag ind">INDUSTRY GUESS</span>').join('')}</div>`;
+}
+function srcHtml(d) {
+  const rows = [];
+  if (d.why) rows.push(`<div>Why: IT project manager jobs ask for <i>${WHY[d.why]}</i>.</div>`);
+  if (d.industry) rows.push(`<div>Why: a guess, because most ${d.industry} IT projects work this way.</div>`);
+  if (d.flags?.includes('opt')) rows.push(`<div>Not everyone at this level does this. Tick it only if you did.</div>`);
+  if (d.quote) rows.push(`<div>From your CV (${esc(d.quote[0])}): <i>“${esc(d.quote[1])}”</i></div>`);
+  return `<div class="src">${rows.join('')}</div>`;
+}
+function choicesHtml(st, key) {
+  const [did, pid] = key.split('|'), p = findPhrase(did, pid);
+  const chip = (t, cls, mk, small) => `<button class="chip ${cls}" data-act="pick" data-id="${key}" data-v="${esc(t)}"><span class="mk">${mk}</span><span class="t">${esc(t)}${small ? `<small>${esc(small)}</small>` : ''}</span></button>`;
+  return `<div class="choices">
+    <p class="ch-h">Make “${esc(p.label)}” specific:</p>
+    <p class="ch-g">From your CV</p>
+    ${p.cv.length ? p.cv.map(([t, w]) => chip(t, 'cv', 'YOUR CV', w)).join('') : '<p style="margin:0 0 4px;font-size:12px;color:var(--hud-mute)">Your CV does not say.</p>'}
+    <p class="ch-g">Typical</p>
+    ${p.typ.map(t => chip(t, 'typ', 'TYPICAL')).join('')}
+    <div class="own"><input placeholder="Or type your own" data-own="${key}"><button class="btn-s gold" data-act="own" data-id="${key}">Use</button></div>
+  </div>`;
+}
+function endAskHtml(st, j) {
+  if (st.endDate) return `<div class="ask done"><p><span>Left ${esc(j.employer)}: <b>${st.endDate === 'notsure' ? 'Not sure' : esc(st.endDate)}</b></span><button class="link" data-act="end-change">Change</button></p></div>`;
+  const yrs = []; for (let y = 2025; y >= 2017; y--) yrs.push(y);
+  return `<div class="ask"><p>When did you leave ${esc(j.employer)}?<small>Your CV does not say. We use it to work out your years of experience.</small></p>
+    <div class="row"><select data-end="m"><option value="">Month</option>${MONTHS.map(m => `<option>${m}</option>`).join('')}</select>
+    <select data-end="y"><option value="">Year</option>${yrs.map(y => `<option>${y}</option>`).join('')}</select>
+    <button class="btn-s gold" data-act="end-save">Save</button><button class="opt-btn" data-act="end-notsure">Not sure</button></div></div>`;
+}
+function conflictHtml(st, j) {
+  const c = j.conflict;
+  if (st.conflict) return `<div class="ask done"><p><span>Started at ${esc(j.employer)}: <b>${st.conflict === 'notsure' ? 'Not sure' : st.conflict}</b></span><button class="link" data-act="conflict" data-v="">Change</button></p></div>`;
+  return `<div class="ask"><p>${esc(c.q)}<small>We read both on your CV.</small></p><div class="row">
+    ${c.options.map(o => `<button class="opt-btn" data-act="conflict" data-v="${o}">${o}</button>`).join('')}
+    <button class="opt-btn" data-act="conflict" data-v="notsure">Not sure</button></div></div>`;
+}
+function datesText(st, j) {
+  let start = j.dates.split(' – ')[0], end = j.dates.split(' – ')[1] ?? '';
+  if (j.conflict) start = st.conflict && st.conflict !== 'notsure' ? st.conflict : '2019 or 2020';
+  if (j.missingEnd) end = st.endDate && st.endDate !== 'notsure' ? st.endDate : '<span class="q">?</span>';
+  return `${start} – ${end}`;
+}
+function counts(st) {
+  let prints = 0, kept = 0, newOn = 0, newAll = 0, undone = 0, sugOpen = 0;
+  for (const j of CV.jobs) {
+    for (const l of j.lines) { if (isTicked(st, l.id, true)) { prints++; if (l.sugg && ready(j)) sugOpen++; } else kept++; }
+    if (ready(j)) for (const d of j.drafted) { newAll++; if (isTicked(st, d.id, false)) { newOn++; prints++; } }
+  }
+  undone = Object.values(st.undone).filter(Boolean).length;
+  const qs = (st.endDate ? 0 : 1) + (st.conflict ? 0 : 1);
+  return { prints, kept, newOn, newAll, undone, sugOpen, qs };
+}
+function footerNote(st) {
+  const c = counts(st);
+  if (RUN) return 'Your jobs open when the check is finished.';
+  const left = c.newAll - c.newOn;
+  return (left ? `${left} new line${left > 1 ? 's are' : ' is'} not ticked. ${left > 1 ? 'They' : 'It'} will not go on your CV. ` : '') + 'You can come back to this page at any time.';
+}
+function progHtml() {
+  if (!RUN) return '';
+  return `<div class="prog"><p>Checking your CV… 1 of 3 jobs ready</p><div class="bar"><i></i></div><small>About 4 minutes left. You can start with the parts that are ready.</small></div>`;
+}
+function doneView() {
+  return `<div class="doneview"><h3>Done. Here are your jobs.</h3><p>(Prototype: the deck would open here.)</p><button class="cta ghost" data-act="unconfirm">Back to the review</button></div>`;
+}
+function letterheadRows(st) {
+  return CV.letterhead.fields.map(([k, v]) => {
+    const val = st.lh[k] ?? v;
+    if (st.editing === 'lh:' + k) return `<div class="lh-row"><span class="k">${k}</span><input value="${esc(val)}" data-lh="${k}"><button class="link" data-act="lh-save" data-id="${k}">Save</button></div>`;
+    return `<div class="lh-row"><span class="k">${k}</span><span class="v">${esc(val)}</span><button class="link mute" data-act="lh-edit" data-id="${k}">Edit</button></div>`;
+  }).join('');
+}
+
+// ---------------- shared line pieces (A, B) ----------------
+function lineRow(st, j, l) {
+  const on = isTicked(st, l.id, true);
+  const sugg = l.sugg && ready(j) && on ? `<div class="sugg"><b>Suggestion: untick this line.</b> ${esc(l.sugg)}<div class="row"><button class="btn-s warn" data-act="tick" data-id="${l.id}">Untick</button></div></div>` : '';
+  return `<div class="line ${on ? '' : 'kept'}"><button class="tk ${on ? 'on' : ''}" data-act="tick" data-id="${l.id}" aria-label="tick"></button>
+    <div class="txt">${lineText(st, l)}${on ? '' : '<span class="keptnote">Kept for when a job needs it. Not on your CV.</span>'}${sugg}</div></div>`;
+}
+function draftRow(st, d, inlineChoices) {
+  const on = isTicked(st, d.id, false);
+  if (st.editing === d.id) return `<div class="draft"><div class="body"><textarea class="ed" data-ed="${d.id}">${esc(draftPlain(st, d))}</textarea>
+    <div class="acts"><button class="btn-s gold" data-act="ed-save" data-id="${d.id}">Save</button><button class="link mute" data-act="ed-cancel">Cancel</button></div></div></div>`;
+  const openHere = inlineChoices && st.open && st.open.startsWith(d.id + '|') ? st.open : null;
+  return `<div class="draft ${on ? 'on' : ''}"><button class="tk new ${on ? 'on' : ''}" data-act="tick" data-id="${d.id}" aria-label="tick"></button>
+    <div class="body"><div class="txt">${draftHtml(st, d, openHere)}</div>${flagsHtml(d)}${openHere ? choicesHtml(st, openHere) : ''}${srcHtml(d)}
+    <div class="acts"><button class="link mute" data-act="ed" data-id="${d.id}">Edit</button></div></div></div>`;
+}
+function fixList(st, fixes) {
+  return `<ul class="fixes">${fixes.map(f => { const u = st.undone[f.id];
+    return `<li class="${u ? 'undone' : ''}"><span class="d"><s>${esc(f.from)}</s> → <span class="to">${esc(f.to)}</span><span class="where">${esc(f.where)}</span></span>
+      <button class="link ${u ? '' : 'mute'}" data-act="undo" data-id="${f.id}">${u ? 'Use fix' : 'Undo'}</button></li>`; }).join('')}</ul>`;
+}
+
+// ---------------- A: one page ----------------
+function renderA(st) {
+  if (st.confirmed) return doneView();
+  const jobs = CV.jobs.map(j => {
+    const fx = jobFixes(j);
+    const head = `<p class="jt">${jobTitle(st, j)}</p><p class="je">${esc(j.employer)} · ${esc(j.place)} · ${datesText(st, j)}</p>`;
+    const asks = (j.missingEnd ? endAskHtml(st, j) : '') + (j.conflict ? conflictHtml(st, j) : '');
+    if (!ready(j)) return `<div class="card">${head}${asks}<div class="checking"><span class="spin"></span>Still checking this job. Your lines as we read them:</div>
+      <div class="sec">Your lines</div>${j.lines.map(l => lineRow(st, j, l)).join('')}</div>`;
+    return `<div class="card">${head}${asks}
+      ${j.complete ? `<div class="complete"><b>This job is already complete.</b>Your lines already show everything IT project manager jobs ask for.</div>` : ''}
+      ${fx.length ? `<div class="sec">We fixed ${fx.length} small mistake${fx.length > 1 ? 's' : ''}</div>${fixList(st, fx)}` : ''}
+      <div class="sec">Your lines<span>Ticked lines go on your CV.</span></div>${j.lines.map(l => lineRow(st, j, l)).join('')}
+      ${j.drafted.length ? `<div class="sec">New lines for you to check<span>We wrote these from your CV. They go on your CV only if you tick them. Tap an underlined word to choose.</span></div>${j.drafted.map(d => draftRow(st, d, true)).join('')}` : ''}
+    </div>`;
+  }).join('');
+  return `<div class="wordmark">JobCrush</div><div class="scroll">
+    <div class="ph-head"><h1>Your CV, reviewed</h1><p>Check each part before we show your jobs. Nothing new goes on your CV until you tick it.</p></div>
+    ${progHtml()}
+    <div class="card"><p class="eyebrow">Your details</p><p class="jt">${esc(CV.letterhead.name)}</p><p class="je" style="margin-bottom:8px">Check these. They go at the top of every CV.</p>${letterheadRows(st)}</div>
+    ${jobs}
+    ${RUN ? '' : `<div class="card"><p class="eyebrow">Rest of your CV</p><div class="sec" style="margin-top:0">We fixed ${CV.restFixes.length} small mistakes</div>${fixList(st, CV.restFixes)}</div>`}
+    <div class="foot"><p>${footerNote(st)}</p><button class="cta" data-act="confirm" ${RUN ? 'disabled' : ''}>I’m done — show my jobs</button></div>
+  </div>`;
+}
+
+// ---------------- B: one job at a time ----------------
+const STEPS = ['contact', 'bred', 'okoone', 'sg', 'rest', 'finish'];
+function stepState(st, s) {
+  const j = CV.jobs.find(x => x.id === s);
+  if (!j) return s === 'rest' && RUN ? 'busy' : 'ok';
+  if (!ready(j)) return 'busy';
+  if ((j.missingEnd && !st.endDate) || (j.conflict && !st.conflict)) return 'needs';
+  if (j.drafted.some(d => !isTicked(st, d.id, false)) || j.lines.some(l => l.sugg && isTicked(st, l.id, true))) return 'needs';
+  return 'ok';
+}
+function renderB(st) {
+  if (st.confirmed) return doneView();
+  const s = STEPS[st.step];
+  const label = x => x === 'contact' ? 'Your details' : x === 'rest' ? 'Rest of CV' : x === 'finish' ? 'Finish' : CV.jobs.find(j => j.id === x).short;
+  const bar = `<div class="steps">${STEPS.map((x, i) => `<button class="step ${i === st.step ? 'cur' : ''}" data-act="step" data-id="${i}">${x === 'finish' ? '' : `<span class="dot ${stepState(st, x)}"></span>`}${label(x)}</button>`).join('')}</div>`;
+  let body = '';
+  if (s === 'contact') body = `<div class="bigjob"><p class="eyebrow">Step 1 · Your details</p><p class="jt">${esc(CV.letterhead.name)}</p><p class="je">Check these. They go at the top of every CV.</p></div><div class="card">${letterheadRows(st)}</div>`;
+  else if (s === 'rest') body = `<div class="bigjob"><p class="eyebrow">Rest of your CV</p><p class="jt">Summary, skills, education</p></div>` +
+    (RUN ? `<div class="card"><div class="checking" style="margin:0"><span class="spin"></span>Still checking.</div></div>` : `<div class="bsec"><h3>Small fixes we made</h3><div class="card" style="margin:0">${fixList(st, CV.restFixes)}</div></div>`);
+  else if (s === 'finish') {
+    const c = counts(st);
+    body = `<div class="bigjob"><p class="eyebrow">Finish</p><p class="jt">Your CV is ready</p><p class="je">You can come back to this page at any time.</p></div>
+      <div class="card"><ul class="summary-list"><li>Lines on your CV <b>${c.prints}</b></li><li>New lines you ticked <b>${c.newOn} of ${c.newAll}</b></li><li>Kept, not on your CV <b>${c.kept}</b></li><li>Fixes you undid <b>${c.undone}</b></li></ul></div>
+      ${c.newAll - c.newOn ? `<p style="margin:0 16px;font-size:12.5px;color:var(--hud-mute)">New lines you did not tick will not go on your CV.</p>` : ''}`;
+  } else {
+    const j = CV.jobs.find(x => x.id === s), fx = jobFixes(j), i = CV.jobs.indexOf(j);
+    const asks = (j.missingEnd ? endAskHtml(st, j) : '') + (j.conflict ? conflictHtml(st, j) : '');
+    body = `<div class="bigjob"><p class="eyebrow">Job ${i + 1} of ${CV.jobs.length}</p><p class="jt">${jobTitle(st, j)}</p><p class="je">${esc(j.employer)} · ${esc(j.place)} · ${datesText(st, j)}</p></div>`;
+    if (asks) body += `<div class="bsec"><h3>A question for you</h3>${asks}</div>`;
+    if (!ready(j)) body += `<div class="bsec"><div class="checking" style="margin:0 0 10px"><span class="spin"></span>Still checking this job. About 3 minutes. You can check your other jobs first.</div>
+      <h3>Your lines, as we read them</h3><div class="card" style="margin:0">${j.lines.map(l => lineRow(st, j, l)).join('')}</div></div>`;
+    else {
+      if (j.complete) body += `<div class="bsec"><div class="complete" style="margin:0"><b>This job is already complete.</b>Your lines already show everything IT project manager jobs ask for.</div></div>`;
+      if (j.drafted.length) body += `<div class="bsec"><h3>New lines — tick the ones that are true<small>We wrote these from your CV. Tap an underlined word to choose.</small></h3>${j.drafted.map(d => draftRow(st, d, false)).join('')}</div>`;
+      body += `<div class="bsec"><h3>Your lines<small>Ticked lines go on your CV.</small></h3><div class="card" style="margin:0">${j.lines.map(l => lineRow(st, j, l)).join('')}</div></div>`;
+      if (fx.length) body += `<div class="bsec"><details class="fx"><summary><span class="fxtag">●</span> We fixed ${fx.length} small mistake${fx.length > 1 ? 's' : ''}</summary><div class="card" style="margin:6px 0 0">${fixList(st, fx)}</div></details></div>`;
+    }
+  }
+  const next = st.step < STEPS.length - 1 ? `<button class="cta" data-act="step" data-id="${st.step + 1}">Next: ${label(STEPS[st.step + 1])} →</button>`
+    : `<button class="cta" data-act="confirm" ${RUN ? 'disabled' : ''}>${RUN ? 'Still checking…' : 'Show my jobs'}</button>`;
+  const back = st.step > 0 ? `<button class="cta ghost" data-act="step" data-id="${st.step - 1}">Back</button>` : '';
+  return `<div class="wordmark">JobCrush</div><div class="ph-head"><h1>Your CV, reviewed</h1></div>${progHtml()}${bar}
+    <div class="scroll">${body}<div style="height:12px"></div></div><div class="bnav">${back}${next}</div>${sheetHtml(st)}`;
+}
+
+// ---------------- C: marked-up CV ----------------
+function renderC(st) {
+  if (st.confirmed) return doneView();
+  const c = counts(st);
+  const lh = CV.letterhead, f = Object.fromEntries(lh.fields.map(([k, v]) => [k, st.lh[k] ?? v]));
+  const sumFix = RUN || st.undone[CV.summaryFix.id] ? CV.summaryFix.from : `<mark class="fx" data-act="sheet" data-k="fix" data-id="${CV.summaryFix.id}">${CV.summaryFix.to}</mark>`;
+  const jobs = CV.jobs.map(j => {
+    const rd = ready(j);
+    let dates = esc(j.dates);
+    if (j.conflict) dates = `<button class="pill ${st.conflict ? 'set' : ''}" data-act="sheet" data-k="conflict">${st.conflict && st.conflict !== 'notsure' ? st.conflict : st.conflict ? 'start ?' : '2019 or 2020?'}</button> – 2023`;
+    if (j.missingEnd) dates = `2017 – <button class="pill ${st.endDate ? 'set' : ''}" data-act="sheet" data-k="end">${st.endDate && st.endDate !== 'notsure' ? esc(st.endDate) : st.endDate ? 'not sure' : 'end date?'}</button>`;
+    const lis = j.lines.map(l => {
+      const on = isTicked(st, l.id, true);
+      return `<li class="${on ? '' : 'kept'} ${on && l.sugg && rd ? 'sg' : ''}" data-act="sheet" data-k="line" data-id="${l.id}">${rd ? lineText(st, l, true) : esc(l.text)}</li>`;
+    }).join('');
+    const ghosts = rd ? j.drafted.map(d => {
+      const on = isTicked(st, d.id, false);
+      if (on) return `<li class="new-on" data-act="sheet" data-k="draft" data-id="${d.id}">${esc(draftPlain(st, d))}</li>`;
+      return `<li class="gline" data-act="sheet" data-k="draft" data-id="${d.id}"><button class="plus" data-act="tick" data-id="${d.id}" aria-label="tick">+</button>
+        <span class="gx">${draftHtml(st, d)}${(d.flags || []).map(x => `<span class="gf">${x === 'opt' ? 'OPTIONAL' : 'INDUSTRY GUESS'}</span>`).join('')}
+        <span class="gsrc">${[d.why ? 'For: ' + WHY[d.why] : d.industry ? 'A guess from the ' + d.industry + ' industry' : '', d.quote ? 'from your CV (' + esc(d.quote[0]) + ')' : ''].filter(Boolean).join(' · ')}</span></span></li>`;
+    }).join('') : '';
+    return `<div class="pjob ${rd ? '' : 'busy'}">${rd && j.complete ? `<span class="stamp" data-act="sheet" data-k="complete">COMPLETE ✓</span>` : ''}
+      <div class="h"><span class="t">${rd ? jobTitle(st, j, true) : esc(j.title)}</span></div>
+      <div class="h"><span class="e">${esc(j.employer)}, ${esc(j.place)}</span><span class="dt">${dates}</span></div>
+      ${rd ? '' : `<span class="pchecking"><span class="spin"></span>Still checking this job</span>`}
+      <ul>${lis}${ghosts}</ul></div>`;
+  }).join('');
+  const skillsFix = RUN || st.undone.r1 ? 'JIRA, Confluence, Notion' : `<mark class="fx" data-act="sheet" data-k="fix" data-id="r1">Jira</mark>, Confluence, Notion`;
+  const todo = c.qs + c.sugOpen;
+  return `<div class="wordmark">JobCrush</div><div class="ph-head"><h1>Your CV, reviewed</h1><p>This is your CV as it will print. Tap a mark to check it.</p></div>
+    ${progHtml()}
+    <div class="chud"><span class="count"><b>${todo}</b> to check · <b>${c.newAll - c.newOn}</b> new lines to tick or leave</span><button class="btn-s" data-act="nextmark">Next ↓</button></div>
+    <div class="legend"><span class="l1">fixed</span><span class="l2">suggestion</span><span class="l3">new line</span><span class="l4">choose a word</span></div>
+    <div class="scroll"><div class="paper">
+      <div class="lhmark" data-act="sheet" data-k="contact"><p class="nm">${esc(lh.name)}</p><p class="role">${esc(lh.role)}</p>
+      <div class="contact">${esc(f.Email)} · ${esc(f.Phone)}<br>${esc(f.City)} · ${esc(f.LinkedIn)}</div></div>
+      <span class="lhnote">↑ CHECK YOUR DETAILS</span>
+      <h5>Summary</h5><div class="rest">Senior Project Manager with 7+ years of experience delivering banking, fintech and SaaS solutions. Able to lead teams ${sumFix}, including Europe, Asia-Pacific and Africa.</div>
+      <h5>Experience</h5>${jobs}
+      <h5>Skills</h5><div class="rest">Agile / Scrum · Stakeholder Management · Risk &amp; Dependency Management · ${skillsFix}</div>
+      <h5>Education</h5><div class="rest">Master’s degree in Computer Science, ESIEA, Paris · 2017</div>
+    </div>
+    <div class="foot"><p>${footerNote(st)}</p><button class="cta" data-act="confirm" ${RUN ? 'disabled' : ''}>I’m done — show my jobs</button></div></div>
+    ${sheetHtml(st)}`;
+}
+
+// ---------------- sheet (B: phrase choices; C: everything) ----------------
+function sheetHtml(st) {
+  const sh = st.sheet; if (!sh) return '';
+  let h = '';
+  const allFixes = [...CV.jobs.flatMap(jobFixes), ...CV.restFixes];
+  if (sh.k === 'phrase') h = `<h4>Choose a word</h4>${choicesHtml(st, sh.id)}`;
+  else if (sh.k === 'fix') { const f = allFixes.find(x => x.id === sh.id); h = `<h4>We fixed a small mistake</h4>${fixList(st, [f])}`; }
+  else if (sh.k === 'line') {
+    const [j, l] = findLine(sh.id), on = isTicked(st, l.id, true);
+    h = `<h4>${on ? 'On your CV' : 'Kept, not on your CV'}</h4><p class="quote">${lineText(st, l)}</p>
+      ${on && l.sugg && ready(j) ? `<div class="sugg" style="margin:0 0 10px"><b>Suggestion: untick this line.</b> ${esc(l.sugg)}</div>` : ''}
+      ${on ? `<button class="btn-s ${l.sugg ? 'warn' : ''}" data-act="tick" data-id="${l.id}">Untick — keep it for when a job needs it</button>` : `<button class="btn-s gold" data-act="tick" data-id="${l.id}">Tick — put it back on my CV</button>`}`;
+  } else if (sh.k === 'draft') {
+    const [, d] = findDraft(sh.id), on = isTicked(st, d.id, false);
+    const ph = sh.ph;
+    h = `<h4>${on ? 'New line — on your CV' : 'New line — not on your CV yet'}</h4>` +
+      (st.editing === d.id
+        ? `<textarea class="ed" data-ed="${d.id}">${esc(draftPlain(st, d))}</textarea><div class="acts"><button class="btn-s gold" data-act="ed-save" data-id="${d.id}">Save</button><button class="link mute" data-act="ed-cancel">Cancel</button></div>`
+        : `<p class="quote">${draftHtml(st, d, ph)}</p>${flagsHtml(d)}${ph ? choicesHtml(st, ph) : ''}${srcHtml(d)}
+           <div class="acts" style="margin-top:12px"><button class="btn-s ${on ? '' : 'gold'}" data-act="tick" data-id="${d.id}">${on ? 'Untick' : 'Tick — put it on my CV'}</button><button class="link mute" data-act="ed" data-id="${d.id}">Edit</button></div>`);
+  } else if (sh.k === 'end') h = endAskHtml(st, CV.jobs.find(j => j.missingEnd));
+  else if (sh.k === 'conflict') h = conflictHtml(st, CV.jobs.find(j => j.conflict));
+  else if (sh.k === 'contact') h = `<h4>Your details</h4><p style="margin:0 0 8px;color:var(--hud-mute);font-size:12.5px">Check these. They go at the top of every CV.</p>${letterheadRows(st)}`;
+  else if (sh.k === 'complete') h = `<div class="complete" style="margin:0"><b>This job is already complete.</b>Your lines already show everything IT project manager jobs ask for.</div>`;
+  return `<div class="scrim" data-act="close"></div><div class="sheet"><div class="grab"></div><button class="link mute close" data-act="close">Close</button>${h}</div>`;
+}
+
+// ---------------- wiring ----------------
+const R = { A: renderA, B: renderB, C: renderC };
+function readout(v) {
+  const st = S[v], c = counts(st);
+  document.getElementById('r' + v).innerHTML =
+    `on CV: <b>${c.prints}</b> · kept: <b>${c.kept}</b> · new ticked: <b>${c.newOn}/${c.newAll}</b> · fixes undone: <b>${c.undone}</b><br>` +
+    `end date: <b>${st.endDate ?? '—'}</b> · start year: <b>${st.conflict ?? '—'}</b> · words chosen: <b>${Object.keys(st.phrase).length}</b> · edited: <b>${Object.keys(st.edit).length}</b> · confirmed: <b>${st.confirmed ? 'yes' : 'no'}</b>`;
+}
+function draw(v) {
+  const el = document.getElementById('p' + v), sc = el.querySelector('.scroll'), top = sc ? sc.scrollTop : 0;
+  el.innerHTML = R[v](S[v]);
+  const sc2 = el.querySelector('.scroll'); if (sc2) sc2.scrollTop = top;
+  readout(v);
+}
+const drawAll = () => ['A', 'B', 'C'].forEach(draw);
+
+function act(v, b) {
+  const st = S[v], a = b.dataset.act, id = b.dataset.id, phone = document.getElementById('p' + v);
+  const def = id && findDraft(id) ? false : true;
+  switch (a) {
+    case 'tick': st.tick[id] = !isTicked(st, id, def); break;
+    case 'undo': st.undone[id] = !st.undone[id]; break;
+    case 'phrase':
+      if (v === 'A') st.open = st.open === id ? null : id;
+      else if (v === 'C' && st.sheet?.k === 'draft') st.sheet.ph = st.sheet.ph === id ? null : id;
+      else if (v === 'C') st.sheet = { k: 'draft', id: id.split('|')[0], ph: id };
+      else st.sheet = { k: 'phrase', id };
+      break;
+    case 'pick': st.phrase[id] = b.dataset.v; st.open = null; if (st.sheet?.k === 'phrase') st.sheet = null; if (st.sheet?.ph) st.sheet.ph = null; break;
+    case 'own': { const val = phone.querySelector(`[data-own="${id}"]`).value.trim(); if (!val) return; st.phrase[id] = val; st.open = null;
+      if (st.sheet?.k === 'phrase') st.sheet = null; if (st.sheet?.ph) st.sheet.ph = null; break; }
+    case 'ed': st.editing = id; st.open = null; break;
+    case 'ed-save': st.edit[id] = phone.querySelector(`[data-ed="${id}"]`).value.trim(); st.editing = null; break;
+    case 'ed-cancel': st.editing = null; break;
+    case 'lh-edit': st.editing = 'lh:' + id; break;
+    case 'lh-save': st.lh[id] = phone.querySelector(`[data-lh="${id}"]`).value; st.editing = null; break;
+    case 'end-save': { const m = phone.querySelector('[data-end="m"]').value, y = phone.querySelector('[data-end="y"]').value; if (!y) return;
+      st.endDate = (m ? m + ' ' : '') + y; if (v === 'C') st.sheet = null; break; }
+    case 'end-notsure': st.endDate = 'notsure'; if (v === 'C') st.sheet = null; break;
+    case 'end-change': st.endDate = null; break;
+    case 'conflict': st.conflict = b.dataset.v || null; if (v === 'C' && st.conflict) st.sheet = null; break;
+    case 'confirm': st.confirmed = true; st.sheet = null; break;
+    case 'unconfirm': st.confirmed = false; break;
+    case 'step': st.step = +id; phone.querySelector('.scroll').scrollTop = 0; break;
+    case 'sheet': st.sheet = { k: b.dataset.k, id }; st.editing = null; break;
+    case 'close': st.sheet = null; st.editing = null; break;
+    case 'nextmark': {
+      const sc = phone.querySelector('.scroll');
+      const marks = [...sc.querySelectorAll('.lhmark, mark.fx, li.sg, li.gline, .pill:not(.set)')];
+      const cur = sc.scrollTop + 60;
+      const nx = marks.find(m => m.offsetTop + m.offsetParent.offsetTop > cur + 4) ?? marks[0];
+      if (nx) { sc.scrollTo({ top: nx.offsetTop + nx.offsetParent.offsetTop - 40, behavior: 'smooth' }); nx.animate([{ outline: '3px solid #e8a33d' }, { outline: '3px solid transparent' }], 900); }
+      return;
+    }
+  }
+  if (a === 'tick' && st.sheet?.k === 'line') st.sheet = null;
+  draw(v);
+}
+['A', 'B', 'C'].forEach(v => {
+  const el = document.getElementById('p' + v);
+  el.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (!b || !el.contains(b)) return; e.stopPropagation(); act(v, b); });
+  el.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.own) act(v, { dataset: { act: 'own', id: e.target.dataset.own } }); });
+});
+document.getElementById('runseg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  RUN = b.dataset.run === '1';
+  document.querySelectorAll('#runseg button').forEach(x => x.classList.toggle('on', x === b));
+  drawAll();
+});
+document.getElementById('reset').onclick = () => { S.A = fresh(); S.B = fresh(); S.C = fresh(); drawAll(); };
+
+// fit three phones on screen; one at a time on a real phone (?variant=A|B|C, ← → keys)
+const stage = document.getElementById('stage');
+function fit() {
+  const w = 3 * 390 + 2 * 24 + 32, z = Math.min(1, window.innerWidth / w);
+  stage.style.zoom = window.innerWidth > 700 ? z : 1;
+}
+const VS = ['A', 'B', 'C'];
+let cur = VS.indexOf(new URLSearchParams(location.search).get('variant') ?? 'A'); if (cur < 0) cur = 0;
+function showCur() {
+  document.querySelectorAll('.col').forEach(c => c.classList.toggle('cur', c.dataset.v === VS[cur]));
+  document.getElementById('swlabel').textContent = document.querySelector(`.col[data-v="${VS[cur]}"] h2`).firstChild.textContent;
+  const u = new URL(location); u.searchParams.set('variant', VS[cur]); history.replaceState(null, '', u);
+}
+document.getElementById('switcher').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; cur = (cur + +b.dataset.dir + 3) % 3; showCur(); });
+window.addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea, select, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { cur = (cur + (e.key === 'ArrowRight' ? 1 : -1) + 3) % 3; showCur(); }
+});
+window.addEventListener('resize', fit);
+fit(); showCur(); drawAll();
+</script>
+</html>
