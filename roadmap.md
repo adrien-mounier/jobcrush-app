@@ -33,6 +33,9 @@ before #332; recent sessions worked #332 first. **Order between the two is an ow
 **Model rule:** Fable for builds that can ship subtly wrong and still pass; Opus for the rest and for
 every grill/spec/map. No ticket starts at max effort. Fable quota spent → Opus, one effort step higher.
 Never point `/implement` at a parent or spec issue (#54, #86, #127, #301, #332).
+**Build mode (2026-10-06):** finish #332 with `/implement`, one ticket at a time (per-ticket model
+rule; #340 and #345 need the owner mid-ticket). From the next spec on, `/implement-spec <spec>`
+builds a whole spec in parallel; #301 is wired for it (sub-issues linked).
 
 ## Milestones
 
