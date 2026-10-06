@@ -175,20 +175,38 @@ await qa.scrollThrough('read the first deck card top to bottom, the way a job se
 // The deck as it stands BEFORE anything touches the discovery record. Everything below has to leave
 // this untouched — that is the whole claim of the ticket.
 //
-// #338 (CI run 37459528860): the two background labelers (family, industry) answer for each dated job
-// a few seconds after the read, and an industry-scope years bar is scored generously until the
-// industry placement lands (judgedScore.ts's answerIndustryBar). The snapshot below used to land
-// after them by accident — discovery asked one more question then. Wait for them, so the two reads
-// this journey compares differ only by what the discovery record did, never by a labeler landing.
-for (let i = 0; i < 60; i += 1) {
-  const blocks = (await json('/job-blocks'))?.blocks ?? [];
-  const settled = blocks.filter((b) => b.kind === 'job').every((b) => b.family?.value !== null && b.industry?.value !== null);
-  if (blocks.length > 0 && settled) break;
-  await page.waitForTimeout(500);
-}
-const deckBefore = (await json('/onboarding/cards'))?.cards ?? [];
-const scoresBefore = deckBefore.map((c) => `${c.adId}=${c.matchPct}%`);
-await qa.note(`the deck she reached: ${deckBefore.length} cards — ${scoresBefore.slice(0, 4).join(', ')}${deckBefore.length > 4 ? ', …' : ''}`);
+// #338 (CI runs 37459528860, 37471254079, 37480981918 — three for three on the shared runner, never
+// locally, where both reads give 49%): the "before" read came back 59% on every card and the "after"
+// read 49%, so the order moved. The score a card shows is recomputed at every read from the facts the
+// background labelers write a few seconds after the CV read (family and industry placements, then
+// the per-scope years facts — deck.ts resolveSessionYears, judgedScore.ts answerIndustryBar), and on
+// the slow runner that landing falls between this journey's two reads. Waiting for the placements
+// alone (c5d0cd4) was not enough — the years facts land after the placement, and a read can fall in
+// between. So both snapshots now wait for a SETTLED deck: every counting job placed, no card still
+// pending or estimated, and three consecutive reads a second apart identical. The two decks compared
+// then differ only by what the discovery record did.
+const settledDeck = async (what) => {
+  let last = null;
+  let same = 0;
+  let cards = [];
+  for (let i = 0; i < 45; i += 1) {
+    const blocks = (await json('/job-blocks'))?.blocks ?? []; // also kicks the labelers' retry
+    const placed = blocks.length > 0 && blocks
+      .filter((b) => b.countsTowardExperience)
+      .every((b) => b.family?.value != null && b.industry?.value != null);
+    cards = (await json('/onboarding/cards'))?.cards ?? [];
+    const unfinished = cards.filter((c) => c.scored === 'pending' || c.scored === 'estimated').length;
+    const fingerprint = JSON.stringify(cards.map((c) => [c.adId, c.matchPct, c.scored]));
+    same = fingerprint === last ? same + 1 : 0;
+    last = fingerprint;
+    if (placed && cards.length > 0 && unfinished === 0 && same >= 2) break;
+    await page.waitForTimeout(1000);
+  }
+  const provenance = cards.reduce((acc, c) => ({ ...acc, [c.scored]: (acc[c.scored] ?? 0) + 1 }), {});
+  await qa.note(`${what}: ${cards.length} cards — ${cards.map((c) => `${c.adId}=${c.matchPct}%`).slice(0, 4).join(', ')}${cards.length > 4 ? ', …' : ''} (scored: ${JSON.stringify(provenance)}; settled after ${same} identical re-reads)`);
+  return cards;
+};
+const deckBefore = await settledDeck('the deck she reached');
 await assertTrue(deckBefore.length > 0, 'the deck is not empty — she has cards to act on');
 
 // =============================================================================================
@@ -271,8 +289,7 @@ await qa.expectVisible('.jobdeck', 'DECK: still a deck, not a blank screen');
 await qa.expectVisible(page.getByRole('img', { name: /% match/ }), 'DECK: still a scored card');
 await qa.scrollThrough('read the deck again, looking for anything that moved');
 
-const deckAfter = (await json('/onboarding/cards'))?.cards ?? [];
-await qa.note(`the deck now: ${deckAfter.length} cards — ${deckAfter.map((c) => `${c.adId}=${c.matchPct}%`).slice(0, 4).join(', ')}`);
+const deckAfter = await settledDeck('the deck now');
 await assertTrue(
   deckAfter.length === deckBefore.length,
   `the deck has the same number of cards as before discovery pinned anything (${deckBefore.length} -> ${deckAfter.length})`,
