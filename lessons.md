@@ -149,6 +149,7 @@ real Postgres once; grep both drivers for asymmetric work; normalise in the driv
 - A journey that writes to a record keyed on its fixture's content (a pasted advert: first link wins) is not re-runnable until the fixture carries a run stamp.
 - Deck cards carry no per-card id and real postings share titles — reach a specific advert via `POST /onboarding/cards/:adId/want`, then assert `card.adId`.
 - A prompt-routing fake matches each stage by its own opening line; both miners end in `===CV-TEXT===`.
+- A journey that compares two deck reads must first wait for the background labelers (`GET /job-blocks`: every job's `family.value` and `industry.value` non-null). An industry-scope years bar scores generously until the industry placement lands, so a snapshot taken a few seconds too early differs by ten points — green locally for weeks, red on the slower CI runner the day a question before the deck went away (#338, CI run 37459528860).
 
 ### Read the gate's verdict, not its summary line
 - A journey that self-skips with a `qa.note` still prints "35 passed, 0 failed" — grep the report for skip notes.

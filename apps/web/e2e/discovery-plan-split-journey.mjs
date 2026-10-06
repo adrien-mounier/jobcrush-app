@@ -174,6 +174,18 @@ await qa.scrollThrough('read the first deck card top to bottom, the way a job se
 
 // The deck as it stands BEFORE anything touches the discovery record. Everything below has to leave
 // this untouched — that is the whole claim of the ticket.
+//
+// #338 (CI run 37459528860): the two background labelers (family, industry) answer for each dated job
+// a few seconds after the read, and an industry-scope years bar is scored generously until the
+// industry placement lands (judgedScore.ts's answerIndustryBar). The snapshot below used to land
+// after them by accident — discovery asked one more question then. Wait for them, so the two reads
+// this journey compares differ only by what the discovery record did, never by a labeler landing.
+for (let i = 0; i < 60; i += 1) {
+  const blocks = (await json('/job-blocks'))?.blocks ?? [];
+  const settled = blocks.filter((b) => b.kind === 'job').every((b) => b.family?.value !== null && b.industry?.value !== null);
+  if (blocks.length > 0 && settled) break;
+  await page.waitForTimeout(500);
+}
 const deckBefore = (await json('/onboarding/cards'))?.cards ?? [];
 const scoresBefore = deckBefore.map((c) => `${c.adId}=${c.matchPct}%`);
 await qa.note(`the deck she reached: ${deckBefore.length} cards — ${scoresBefore.slice(0, 4).join(', ')}${deckBefore.length > 4 ? ', …' : ''}`);

@@ -16,6 +16,9 @@ conflict's two readings stay off the CV until settled (code review). The date qu
 the spine shrank, ratchet 664 → 648. Every CV-carrying journey now completes the review over the wire
 (`qa.completeReview()`); `cv-review-journey.mjs` walks it as a person. QA: round 1 NO-GO (the paste-a-job door still scored a job against an unreviewed CV — closed at the paste read,
 test shown to fail), round 2 **GO** (API 1930, specs 84, gate-doors 23/23, review 30/30, paste-door 26/26).
+CI on the push went red on one Tier 2 journey (discovery-plan-split: its first deck snapshot now lands
+before the industry labeler, 59% vs 49% — a pre-existing race the shorter discovery exposed); the
+journey waits for the labelers now, scoped GO, pushed as the follow-up commit. Lesson filed.
 Not built here, by the layout comment's split: the legend and the AI marks (#341–#343); a name field with
 its own Edit (no name store exists); job-level date conflicts (the proof holds one field conflict).
 
