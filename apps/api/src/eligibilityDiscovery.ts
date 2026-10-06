@@ -22,7 +22,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import type { EligibilityDimension, FloorItem, JobBlockView } from "@jobcrush/contracts";
+import type { EligibilityDimension, FloorItem } from "@jobcrush/contracts";
 import type { ClaimRecord, ClaimStore } from "./claims.js";
 import {
   discoveryClaimId,
@@ -34,7 +34,6 @@ import {
 } from "./discovery.js";
 import { ANY_FAMILY, type EligibilityFact, type EligibilityStore } from "./eligibility.js";
 import { isDeclaredValue, LANGUAGE_DECLARED, levelOf, MAX_LANGUAGE_WORD } from "./languageLevel.js";
-import { dateHoleQuestions } from "./yearsWorked.js";
 
 export const DECLINE_OPTION = "Ask me later";
 
@@ -143,8 +142,8 @@ export const LANGUAGE_ITEM_ID = `${ELIGIBILITY_ITEM_PREFIX}languages`;
 // computes it from the dated job records), so any answer a person typed would be deleted by the next
 // recompute: the question is not merely redundant, it destroys what they typed. When the calculation
 // cannot run, clause 3 says ask for the missing part UNDERNEATH — yearsWorked.ts's dateHoleQuestions,
-// placed by applyEligibilityQuestions below. This line is the ADR's own falsifiable check; a test
-// (eligibilityDiscovery.test.ts) fails if it is ever re-added.
+// asked on the job's own card in "Your CV, reviewed" (#338, cvReview.ts). This line is the ADR's own
+// falsifiable check; a test (eligibilityDiscovery.test.ts) fails if it is ever re-added.
 const ASK_DIMENSIONS: readonly EligibilityDimension[] = ["work-rights", "language"];
 
 // work-rights does NOT vary by job family (right to work doesn't depend on the role) but, per #182 /
@@ -364,10 +363,9 @@ export function unresolvedEligibilityQuestions(
  *  Mutates `state` in place, as it always has — every call site builds a fresh DiscoveryState from
  *  discoveryState() one line earlier and keeps using it after.
  *
- *  #162: the date-hole questions (yearsWorked.ts) ride in the SAME band. They are ADR-0008 clause 3's
- *  replacement for the years-experience question this module no longer asks — the missing part
- *  underneath, asked where the answer it replaces used to be — and ADR-0011 clause 1's "asked now"
- *  channel: the answer moves the total, so it belongs before the deck, not after it. */
+ *  #162 rode the date-hole questions (yearsWorked.ts's dateHoleQuestions) in this same band; #338
+ *  moved them to "Your CV, reviewed", where each is asked on its own job's card (ADR-0016 clause 2) —
+ *  still before the deck, since the review gates it. */
 export function applyEligibilityQuestions(
   state: DiscoveryState,
   confirmed: ClaimRecord[],
@@ -376,15 +374,11 @@ export function applyEligibilityQuestions(
   facts: readonly { dimension: EligibilityDimension; familyId: string }[],
   markets: readonly string[],
   floor: readonly FloorItem[],
-  blocks: readonly JobBlockView[] = [],
 ): void {
   // #214: `markets` (the session's resolved covered markets, up to 3) replaces state.city here —
   // work-rights is per selected market now, and the display city on `state` is a chip label, not
   // the visa scope.
-  const eligQuestions = [
-    ...unresolvedEligibilityQuestions(ANY_FAMILY, markets, confirmed, negatives, rejected, facts),
-    ...dateHoleQuestions(blocks),
-  ];
+  const eligQuestions = unresolvedEligibilityQuestions(ANY_FAMILY, markets, confirmed, negatives, rejected, facts);
   const standardIds = new Set(
     floor.filter((i) => i.rankBand === "standard").map((i) => i.id),
   );

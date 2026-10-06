@@ -1,0 +1,411 @@
+/* review.css — #338 "Your CV, reviewed", layout C: the CV on paper inside the app's dark chrome,
+   every review item a mark on the paper, one bottom sheet. Tokens scoped on .review (never :root),
+   values from apps/web/prototypes/cv-review.prototype.html (branch prototype/cv-review-332) and
+   deck.css's HUD block. A normal scrolling page, not the deck's fixed field. */
+.review {
+  --hud-0: #101419;
+  --hud-1: #171c23;
+  --hud-2: #1f262f;
+  --hud-line: #2b333d;
+  --hud-ink: #e8eaed;
+  --hud-mute: #8a95a2; /* DESIGN.md night-muted-readable */
+  --gold: #e8a33d;
+  --gold-dim: #a8762b;
+  --paper: #f6f2ea;
+  --paper-edge: #e2dacb;
+  --ink: #16150f;
+  --ink-mute: #6b6455;
+  --rule: #d9d0bd;
+  --kept: #a59d8c; /* the prototype's kept-line grey on paper (no DESIGN.md token yet) */
+  --sans:
+    "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui,
+    sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px 10px 40px;
+  background: var(--hud-0);
+  color: var(--hud-ink);
+  font-family: var(--sans);
+  min-height: 100svh;
+}
+.review :focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.review .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.review .loadstate {
+  min-height: 60svh;
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  text-align: center;
+  color: var(--hud-mute);
+}
+
+/* ---------- header ---------- */
+.review .rhead {
+  padding: 0 6px 10px;
+}
+.review h1 {
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+}
+.review .lede {
+  margin: 0 0 10px;
+  color: var(--hud-mute);
+  font-size: 14px;
+}
+.review .chud {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.review .chud .count {
+  flex: 1;
+  font-size: 13px;
+  color: var(--hud-mute);
+}
+.review .chud .count b {
+  color: var(--hud-ink);
+}
+
+/* ---------- buttons ---------- */
+.review .btn-s {
+  appearance: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hud-ink);
+  background: var(--hud-2);
+  border: 1px solid var(--hud-line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.review .btn-s.gold {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--ink);
+}
+.review .btn-s:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.review .link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 6px 4px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--gold);
+  cursor: pointer;
+}
+.review .link.mute {
+  color: var(--hud-mute);
+}
+.review .cta {
+  appearance: none;
+  width: 100%;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--gold);
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 18px;
+  cursor: pointer;
+}
+.review .cta:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.review .err {
+  color: #e0876c; /* DESIGN.md danger-soft */
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+
+/* ---------- the paper ---------- */
+.review .paper {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 18px 16px 22px;
+  box-shadow:
+    0 1px 0 var(--paper-edge),
+    0 12px 30px -12px rgba(0, 0, 0, 0.6);
+  font-family: var(--serif);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.review .paper .empty {
+  margin: 0 0 12px;
+  color: var(--ink-mute);
+}
+.review .paper h5 {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 16px 0 6px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-mute);
+}
+.review .paper ul {
+  margin: 5px 0 0;
+  padding-left: 16px;
+}
+.review .paper li {
+  margin: 3px 0;
+}
+.review .paper li.kept {
+  list-style: none;
+  margin-left: -16px;
+  padding-left: 16px;
+}
+.review .paper .line {
+  appearance: none;
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 1px 4px;
+  margin: 0 -4px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.review .paper .line:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.review .paper li.kept .line {
+  color: var(--kept);
+}
+.review .paper .ktag {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* the letterhead mark */
+.review .lhmark {
+  appearance: none;
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  outline: 1.5px dashed #c9a25a; /* the prototype's mark on paper (no DESIGN.md token yet) */
+  outline-offset: 5px;
+  border-radius: 6px;
+  padding: 0;
+  cursor: pointer;
+}
+.review .lhmark:focus-visible {
+  outline: 2px solid var(--gold-dim);
+}
+.review .lhmark .lh {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.review .lhmark .contact {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-mute);
+}
+.review .lhnote {
+  display: block;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 700;
+  color: #8a6424; /* the prototype's mark ink on paper (no DESIGN.md token yet) */
+  letter-spacing: 0.05em;
+  margin-top: 10px;
+}
+.review .conflict {
+  margin: 10px 0 0;
+}
+
+/* jobs */
+.review .pjob {
+  position: relative;
+  margin-top: 12px;
+}
+.review .pjob .h {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+.review .pjob .t {
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.review .pjob .e {
+  color: var(--ink-mute);
+  font-size: 12px;
+}
+.review .pjob .dt {
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--ink-mute);
+  white-space: nowrap;
+}
+
+/* the gold pill: a question the CV itself raises */
+.review .pill {
+  appearance: none;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  background: var(--gold);
+  color: var(--ink);
+  border: 0;
+  border-radius: 999px;
+  padding: 1px 7px;
+  cursor: pointer;
+}
+
+/* ---------- footer ---------- */
+.review .foot {
+  padding: 16px 6px 0;
+}
+.review .foot p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--hud-mute);
+}
+
+/* ---------- the sheet (one at a time) ---------- */
+.review .scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.55);
+}
+.review .sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 21;
+  max-height: 88svh;
+  overflow-y: auto;
+  margin: 0 auto;
+  max-width: 640px;
+  background: var(--hud-1);
+  color: var(--hud-ink);
+  border-top: 1px solid var(--hud-line);
+  border-radius: 20px 20px 0 0; /* the profile's phone sheet (.pfsheet), same lift */
+  box-shadow: 0 -12px 36px -10px rgba(0, 0, 0, 0.6);
+  padding: 14px 18px calc(22px + env(safe-area-inset-bottom));
+}
+.review .sheet h2 {
+  font-size: 16px;
+  margin: 6px 0 8px;
+  padding-right: 60px;
+}
+.review .sheet .close {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+}
+.review .sheet .sub {
+  margin: 0 0 10px;
+  color: var(--hud-mute);
+  font-size: 13px;
+}
+.review .sheet .quote {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: var(--hud-2);
+  border-radius: 6px;
+  font-family: var(--serif);
+  font-size: 14px;
+}
+.review .sheet .asread {
+  white-space: pre-wrap;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--hud-2);
+  border-radius: 6px;
+  font-family: var(--serif);
+  font-size: 13px;
+}
+.review .sheet .choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.review .sheet .lhrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--hud-line);
+}
+.review .sheet .lhrow .lbl {
+  width: 56px;
+  font-size: 12px;
+  color: var(--hud-mute);
+}
+.review .sheet .lhrow .val {
+  flex: 1;
+  font-size: 14px;
+}
+.review .sheet .lhedit {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.review .sheet input,
+.review .sheet select {
+  font: inherit;
+  font-size: 14px;
+  color: var(--hud-ink);
+  background: var(--hud-2);
+  border: 1px solid var(--hud-line);
+  border-radius: 10px; /* DESIGN.md rounded.soft */
+  padding: 8px 10px;
+  min-width: 0;
+}
+.review .sheet .lhedit input {
+  flex: 1 1 160px;
+}
+.review .sheet .dateask {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 8px;
+}
+.review .sheet .dateask input {
+  width: 84px;
+}

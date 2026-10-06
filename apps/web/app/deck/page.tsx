@@ -373,6 +373,12 @@ export default function DeckPage() {
   }, [runPoll]);
 
   const applyCardsResponse = useCallback((res: CardsResponse) => {
+      // #338 (ADR-0016 clause 6): a brought CV is reviewed before any job is shown. The server
+      // held the deck (no cards, no retrieval); the honest screen is the review, not a dead end.
+      if (res.reviewPending) {
+        router.replace("/review");
+        return;
+      }
       // #117: the server now returns cards already correctly ordered — judged, then estimated, then
       // pending, score-sorted within each group, curated-opener promotion applied. A client re-sort
       // by matchPct both fails to type-check (matchPct is null on a pending card) and would destroy
@@ -437,7 +443,7 @@ export default function DeckPage() {
       } else {
         setScreen("reveal");
       }
-  }, [startPolling]);
+  }, [router, startPolling]);
 
   const load = useCallback(async () => {
     setScreen("loading");

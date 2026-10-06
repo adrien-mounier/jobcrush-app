@@ -679,6 +679,17 @@ for (const [name, make] of sessionDrivers) {
       expect(got?.targetTitles).toEqual(["PM", "BA"]);
     });
 
+    // #338: the review's confirmation is a one-way latch — a reopened review never resets it.
+    it("completeReview persists once; a second confirmation keeps the first time", async () => {
+      const s = await store.create();
+      expect(s.reviewCompletedAt).toBeNull();
+      await store.completeReview(s.id);
+      const first = (await store.getById(s.id))?.reviewCompletedAt;
+      expect(typeof first).toBe("string");
+      await store.completeReview(s.id);
+      expect((await store.getById(s.id))?.reviewCompletedAt).toBe(first);
+    });
+
     it("setTailorTarget persists the tailor stage and selected ad id together", async () => {
       const s = await store.create();
       await store.setTailorTarget(s.id, "ad-1");

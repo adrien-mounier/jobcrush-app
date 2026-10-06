@@ -128,8 +128,6 @@ const NON_ANSWER = /^(?:(?:i )?(?:do ?n[o']?t|dont) (?:know|remember|recall)|(?:
 function isNonAnswer(answer: string): boolean {
   return NON_ANSWER.test(answer.trim().toLowerCase().replace(/[’‘]/g, "'").replace(/[.!]+$/, "").replace(/\s+/g, " "));
 }
-// A job-date question (yearsWorked.ts) needs a date to mean anything — no skip there.
-const skippable = (itemId: string) => !itemId.startsWith("job-date-");
 // #123: joins a ticked-language list in `options` order for L3/L4 (design spec §6's join rule) —
 // sentence case, no quotes, no bold, and never an Oxford comma before "and".
 function joinList(items: string[]): string {
@@ -446,6 +444,7 @@ function DiscoveryScreen() {
         : discovery.role === null
           ? "q1"
           : (discovery.questions[0]?.itemId ?? (loopbackFromDeck ? "loopback" : null));
+  const reviewPending = discovery?.reviewPending === true;
   useEffect(() => {
     if (!askKey) return;
     // #24: leaving a correction (askKey was `fix:X`, now isn't) re-lands on whatever question was
@@ -458,17 +457,20 @@ function DiscoveryScreen() {
       // sub-second bridge (design's pinned approach), then this navigates. No focus/announce here:
       // /deck's own entry effect focuses its heading and gives the one polite announce, so
       // announcing on this side too would double it (AC2).
+      // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6) — the server
+      // says which with `reviewPending`; the deck itself refuses an unreviewed session anyway.
+      const next = reviewPending ? "/review" : "/deck";
       const t = setTimeout(() => {
         if (!deckNavigatedRef.current) {
           deckNavigatedRef.current = true;
-          router.push("/deck");
+          router.push(next);
         }
       }, 800);
       return () => clearTimeout(t);
     } else if (!leavingCorrection) {
       firstControlRef.current?.focus();
     }
-  }, [askKey, router]);
+  }, [askKey, reviewPending, router]);
 
   // #24: focuses a corrected `.cv-line` button once it has actually re-rendered as the real,
   // enabled control (not the aria-hidden typing placeholder, not disabled mid-request) — decoupled
@@ -1027,11 +1029,9 @@ function DiscoveryScreen() {
             </button>
           </div>
           <p className="notice">
-            {skippable(correcting.itemId) && (
-              <button type="button" disabled={isAnswering} onClick={() => commitCorrection(correcting.itemId, SKIP)}>
-                {C27}
-              </button>
-            )}{" "}
+            <button type="button" disabled={isAnswering} onClick={() => commitCorrection(correcting.itemId, SKIP)}>
+              {C27}
+            </button>{" "}
             <button type="button" disabled={isAnswering} onClick={cancelCorrection}>
               {C18}
             </button>
@@ -1460,13 +1460,11 @@ function DiscoveryScreen() {
               Continue
             </button>
           </div>
-          {skippable(item.itemId) && (
-            <p className="notice">
-              <button type="button" disabled={isAnswering} onClick={() => answerFloor(item, SKIP)}>
-                {C27}
-              </button>
-            </p>
-          )}
+          <p className="notice">
+            <button type="button" disabled={isAnswering} onClick={() => answerFloor(item, SKIP)}>
+              {C27}
+            </button>
+          </p>
           {renderNotice()}
           {askError && (
             <p className="err" role="alert">

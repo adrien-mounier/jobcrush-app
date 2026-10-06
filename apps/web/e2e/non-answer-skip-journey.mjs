@@ -64,6 +64,7 @@ const profileText = async () => JSON.stringify(await json('/profile'));
 
 async function walkIntoDiscovery(label) {
   await qa.frontDoorPaste(CV_TEXT, `${label}: she pastes her CV at the front door`);
+  await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
   await qa.frontDoorContinueToIntent();
   await qa.fill('#target-role', ROLE, `the job she is going for: "${ROLE}"`);
   await qa.fill('#search-area', AREA, 'where she wants to work');

@@ -124,6 +124,7 @@ async function freshVisitor(label, { withCv = false } = {}) {
     // #271: her CV goes in first, through the front door's paste tile — the order a person walks
     // (the deleted /paste side entrance used to let the CV arrive mid-journey instead).
     await qa.frontDoorPaste(CV_TEXT, `${label} — the front door: she pastes her CV, two dated jobs and one degree`);
+    await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
     await qa.frontDoorContinueToIntent();
   } else {
     await qa.goto('/', `${label} — the front door`);

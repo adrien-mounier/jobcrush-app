@@ -32,6 +32,7 @@ import {
 } from "../deck.js";
 import { readingLanguages } from "../language.js";
 import { eligiblePostings, type Posting } from "../preview.js";
+import { reviewOpensJobs } from "../postingRetrieval.js";
 import {
   addPastedApplicationUrl,
   isWebLink,
@@ -156,7 +157,10 @@ export interface PasteProgress {
   requirements: string[];
   /** What the employer lookup said about the company, or null when it had nothing / is not wired. */
   employer: string | null;
-  result?: { adId: string; reused: boolean; pastedAt: string; card: JobCard };
+  /** #338: `card` is absent while the person's CV waits to be reviewed — the advert is stored and
+   *  read, but nothing is scored against an unreviewed CV; the job's own screen builds the card
+   *  once the review is complete. */
+  result?: { adId: string; reused: boolean; pastedAt: string; card?: JobCard };
   failure?: { code: PasteFailureCode; cameBack: string; fix: string };
 }
 
@@ -270,6 +274,13 @@ export function pasteRoutes(deps: PasteDeps) {
         // — pasteAdvert wrote both rows a moment ago — so it is reported as our failure, not his.
         const job = await broughtJobFor(session, outcome.adId);
         if (!job) return void (await fail("error"));
+        // #338 (ADR-0016 clause 6): a CV that waits to be reviewed is scored against nothing — the
+        // advert is stored and read, the card is not built, and the screen he lands on sends him to
+        // the review (its own 409 below). The same door, held the same way as the deck's.
+        if (!reviewOpensJobs(session)) {
+          state.result = { adId: outcome.adId, reused: outcome.reused, pastedAt: outcome.pastedAt };
+          return void (await push({ status: "completed" }));
+        }
         const built = await cardFor(session, job);
         // The advert is stored whatever happens here, so nothing is lost and a retry re-spends
         // nothing; what he is told is why he is not being shown a card.
@@ -334,6 +345,9 @@ export function pasteRoutes(deps: PasteDeps) {
 
     app.get("/onboarding/jobs/:adId", { schema: { params: Params } }, async (req, reply) => {
       const session = requireSession(req);
+      // #338 (ADR-0016 clause 6): no job is shown until a brought CV is reviewed — this screen included.
+      // 409 with its own code, so the screen can open the review instead of calling the job gone.
+      if (!reviewOpensJobs(session)) return reply.status(409).send({ error: REVIEW_PENDING });
       const job = await broughtJobFor(session, req.params.adId);
       if (!job) return reply.status(404).send(UNKNOWN_CARD);
       const built = await cardFor(session, job);
@@ -344,6 +358,7 @@ export function pasteRoutes(deps: PasteDeps) {
 }
 
 const UNKNOWN_CARD = { error: { code: "unknown_card", message: "no such job" } };
+const REVIEW_PENDING = { code: "review_pending", message: "your CV is waiting to be reviewed" };
 
 // #306: the first link wins (pastedAdvert.ts's addPastedApplicationUrl), so a race with another person
 // who pasted the same advert ends here rather than in a silent overwrite.

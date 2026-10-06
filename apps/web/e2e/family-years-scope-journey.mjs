@@ -112,6 +112,7 @@ const json = async (path) => (await api('GET', path)).json();
 // #271: the CV goes in first, through the front door's paste tile — the order a person walks
 // (the deleted /paste side entrance used to let these steps run backwards).
 await qa.frontDoorPaste(CV_TEXT, 'the front door — pastes the dated work history every years number below is worked out from');
+await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
 
 // State the target role. This is the ONLY thing that resolves the advert's family on the shipped
 // journey (makeFamilyPlacer reads session.intent.targetRole), so it is load-bearing, not setup.
@@ -263,6 +264,7 @@ const cjson = async (path, method = 'GET', data) =>
 await ctl.fetch(`${BASE}/api/sessions/anonymous`, { method: 'POST' });
 await cjson('/sessions/me/intent', 'PUT', { targetRole: UNPLACEABLE_ROLE, searchArea: AREA });
 await cjson('/cv/paste', 'POST', { text: CV_TEXT });
+await cjson('/review/complete', 'POST'); // #338
 let ctlBlocks = [];
 for (let i = 0; i < 60; i++) {
   const b = await cjson('/job-blocks');

@@ -99,6 +99,7 @@ const before = await counters();
 // ---- 2. The walk a brand-new visitor takes: CV in, intent, discovery floor --------------------
 await page.context().clearCookies();
 await qa.frontDoorPaste(CV_TEXT, 'the front door — a brand-new visitor pastes her CV');
+await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
 await qa.frontDoorContinueToIntent();
 if (await page.locator('#target-role').count()) {
   await qa.fill('#target-role', ROLE, `the job she is going for: "${ROLE}"`);

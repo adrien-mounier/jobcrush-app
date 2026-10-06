@@ -245,6 +245,7 @@ async function tailoringWithCv(email: string, opts: Parameters<typeof buildServe
   });
   await signIn(app, cookie, email);
   await readCv(app, cookie);
+  await post(app, cookie, "/review/complete"); // #338: a brought CV is reviewed before any job is shown
   await warmRetrieval(app, cookie);
   await post(app, cookie, `/onboarding/cards/${VALID_AD_ID}/want`);
   return { app, cookie };

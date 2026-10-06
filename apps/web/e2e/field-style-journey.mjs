@@ -118,6 +118,7 @@ await page.locator('.frontdoor .paste-field textarea').waitFor({ state: 'visible
 await auditField('.frontdoor .paste-field textarea', 'Front door · paste box');
 
 await qa.frontDoorPaste(CV, 'the front door — a visitor brings her CV in as a person does');
+await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
 await qa.note('the paste box accepted her text and the read completed — the field still submits');
 
 await qa.frontDoorContinueToIntent();

@@ -9,7 +9,7 @@
 // Not the only writer of `session.discovery`, and deliberately so: familyCandidateIntake.ts pins a
 // family the background screen recognised (#236), and deckFallback.ts records the widening she
 // accepted (#228). Both write facts the interview does not own. This module owns the interview.
-import type { FamilyPlacement, JobBlockView } from "@jobcrush/contracts";
+import type { FamilyPlacement } from "@jobcrush/contracts";
 import { discoveryPlan, planDiscoveryState } from "./adaptiveDiscovery.js";
 import type { ClaimRecord, ClaimStore } from "./claims.js";
 import {
@@ -34,7 +34,7 @@ import {
 import type { JobBlockStore } from "./jobBlockStore.js";
 import { minedRoles, type JobStore } from "./jobs.js";
 import { readingLanguages } from "./language.js";
-import { retrievalFingerprint, retrievalRequestForSession, resolvedMarketsFor } from "./postingRetrieval.js";
+import { retrievalFingerprint, retrievalRequestForSession, resolvedMarketsFor, reviewOpensJobs } from "./postingRetrieval.js";
 import { retrievedPostingCount } from "./preview.js";
 import { pinnedOrDerived, planPinned, planUpgradable, samePlan } from "./sessions.js";
 import type { DiscoveryPlan, SessionRecord, SessionStore } from "./sessions.js";
@@ -294,15 +294,18 @@ export async function discoveryReads(
 export function buildDiscoveryRouteState(
   role: string | null,
   reads: DiscoveryReads,
-  session: Pick<SessionRecord, "intent" | "promiseOpenJobs">,
+  session: Pick<SessionRecord, "intent" | "promiseOpenJobs" | "importProof" | "reviewCompletedAt">,
   family: DiscoveryFamily | null,
 ): DiscoveryState {
-  const [confirmed, negatives, rejected, facts, blocks] = reads;
+  const [confirmed, negatives, rejected, facts] = reads;
   const state = discoveryState(role, confirmed, negatives, rejected, null, family, session.promiseOpenJobs);
-  if (role) applyDiscoveryEligibility(state, session, confirmed, negatives, rejected, facts, family, blocks);
+  if (role) applyDiscoveryEligibility(state, session, confirmed, negatives, rejected, facts, family);
   const languages = state.questions.find((q) => q.itemId === LANGUAGE_ITEM_ID);
   if (languages && reads.cvLanguages.length > 0) languages.cvLanguages = reads.cvLanguages;
   state.factCount = factCount(excludingEligibility(confirmed), excludingEligibility(negatives));
+  // #338: where the last answer hands off — "Your CV, reviewed" while a brought CV is unreviewed,
+  // the jobs otherwise. The server owns the gate (postingRetrieval.ts); this only tells the screen.
+  state.reviewPending = !reviewOpensJobs(session);
   return state;
 }
 
@@ -329,7 +332,6 @@ export function applyDiscoveryEligibility(
   rejected: ClaimRecord[],
   facts: readonly EligibilityFact[],
   family: DiscoveryFamily | null,
-  blocks: readonly JobBlockView[] = [],
 ): void {
   applyEligibilityQuestions(
     state,
@@ -339,6 +341,5 @@ export function applyDiscoveryEligibility(
     facts,
     resolvedMarketsFor(session.intent.searchAreas),
     family?.items ?? [],
-    blocks,
   );
 }

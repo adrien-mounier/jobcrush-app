@@ -70,6 +70,7 @@ import {
   resolvedMarketsFor,
   retrievalFingerprint,
   retrievalRequestForSession,
+  reviewOpensJobs,
   type RetrievalRequest,
 } from "./postingRetrieval.js";
 import { retrievalIsInProgress } from "./deckRetrieval.js";
@@ -1008,6 +1009,24 @@ export async function buildDeckResponse(
   [confirmed, negatives, rejected, facts, blocks]: DeckDiscoveryReads,
   deps: DeckResponseDeps,
 ) {
+  // #338 (ADR-0016 clause 6): a CV that has not been reviewed earns no deck — not even a retrieval.
+  // The posting pool below would refuse the cards anyway (sessionPostings, the gate every reader
+  // passes through); answering here as well is what lets the screen send the person to the review
+  // instead of a dead end, and keeps the provider unasked for a deck nobody may see yet.
+  if (!reviewOpensJobs(session)) {
+    return {
+      stage: session.stage,
+      cards: [],
+      pendingCount: 0,
+      authed: session.claimedByUserId !== null,
+      withdrawn: { total: 0, byLanguage: [] },
+      searching: false,
+      moreQuestions: false,
+      newToFamily: false,
+      fallback: null,
+      reviewPending: true as const,
+    };
+  }
   const retrievalRequest = retrievalRequestForSession(session, confirmed, negatives);
   const requestFingerprint = retrievalFingerprint(retrievalRequest);
   // ONE response, ONE observed session state. The background retrieval this call is about to start
@@ -1015,7 +1034,12 @@ export async function buildDeckResponse(
   // object), so the posting pool below is read off the retrieval as it stood when the response began.
   // Without this pin, whether a refreshing deck shows the old snapshot or the new one depends on how
   // many awaits happen to run in between — which is a coin toss, not a rule.
-  const observed = { retrieval: session.retrieval, discovery: session.discovery };
+  const observed = {
+    retrieval: session.retrieval,
+    discovery: session.discovery,
+    importProof: session.importProof,
+    reviewCompletedAt: session.reviewCompletedAt,
+  };
   // deckRetrieval.ts returns the response snapshot and starts background work when this process owns it.
   const retrieval = deps.ensureRetrieval(session, retrievalRequest, requestFingerprint);
   // #222: years at BOTH scopes — the advert's family (advertFamilyIdFor: the confirmed floor, else the
@@ -1046,7 +1070,6 @@ export async function buildDeckResponse(
     negatives,
     rejected,
     facts,
-    blocks,
     await deps.currentFamily(session),
   );
   // #22: authed tells the client whether the account wall at the reveal applies — false only for a
@@ -1196,7 +1219,7 @@ export async function tailorTarget(
   // #248: `discovery` is here because sessionPostings now reads it to answer "may she be shown
   // retrieved postings at all?" — the tailor target is one of the three doors onto that pool, and
   // widening the type is what makes it impossible for this one to skip the check.
-  session: Pick<SessionRecord, "id" | "retrieval" | "discovery">,
+  session: Pick<SessionRecord, "id" | "retrieval" | "discovery" | "importProof" | "reviewCompletedAt">,
   adId: string,
   readAd: ReadAdFn | undefined,
   requestFingerprint: string,
@@ -1325,7 +1348,6 @@ export function hasOpenDiscoveryQuestions(
   negatives: ClaimRecord[],
   rejected: ClaimRecord[],
   facts: readonly EligibilityFact[],
-  blocks: readonly JobBlockView[],
   discoveryFamily: DiscoveryFamily | null,
 ): boolean {
   if (
@@ -1345,7 +1367,6 @@ export function hasOpenDiscoveryQuestions(
     facts,
     resolvedMarketsFor(session.intent.searchAreas),
     discoveryFamily?.items ?? [],
-    blocks,
   );
   return state.questions.length > 0;
 }

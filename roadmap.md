@@ -15,9 +15,9 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 
 ## Now / Next
 
-**Now: "Your CV, reviewed"** (spec #332, 5 of 13 tickets done): discovery stops asking, the CV is reviewed instead.
+**Now: "Your CV, reviewed"** (spec #332, 6 of 13 tickets done): discovery stops asking, the CV is reviewed instead.
 
-1. [#338](https://github.com/adrien-mounier/jobcrush-app/issues/338) the review screen (layout C, the marked-up CV) — `/implement`, Fable, high
+1. ~~[#338](https://github.com/adrien-mounier/jobcrush-app/issues/338) the review screen (layout C, the marked-up CV)~~ done 2026-10-06
 2. [#340](https://github.com/adrien-mounier/jobcrush-app/issues/340) review prompt + blind test on the owner's real CV, ≈ $1.40/run — `/implement`, Fable, high
 3. [#339](https://github.com/adrien-mounier/jobcrush-app/issues/339) discovery stops asking — `/implement`, Opus, high
 4. [#341](https://github.com/adrien-mounier/jobcrush-app/issues/341) the review runs in the background — `/implement`, Fable, xhigh
@@ -47,7 +47,7 @@ builds a whole spec in parallel; #301 is wired for it (sub-issues linked).
 - S2.75 — CV quality: question A **done** (#11); question B (how `cv-authoring-rules.md` is fed) **open, unticketed**.
 - Phase 1 — make the live deck honest: **done** Aug 2026 (only #250 left, parked).
 - V1 — the spine (map #290, spec #301): V3 and V4 **done**; V5 half done (#312, #313); #314–#317 open.
-- V6 — discovery redesign (#326 decided, spec #332): **in progress**, 5 of 13.
+- V6 — discovery redesign (#326 decided, spec #332): **in progress**, 6 of 13.
 - S3 the hunt / S4 every day, everywhere — the original destination milestones: open, text in the archive.
 - Phase 2 — the profile gets rich (#127 fan-out): parked 2026-09-26, not cancelled — see archive.
 - Phase 3 — the deck gets cheap and trustworthy: parked 2026-09-26, not cancelled — see archive.

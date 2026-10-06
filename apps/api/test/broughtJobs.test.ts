@@ -281,6 +281,37 @@ describe("#305 the deck stitches in a job he brought", () => {
   });
 });
 
+describe("#338 a job he brought waits for the review too", () => {
+  it("is stored and read, but not scored, while his CV waits; the job's screen holds, then opens", async () => {
+    const built = broughtServer({ placed: true });
+    const { app } = built;
+    const cookie = await readyForDeck(app);
+    const sessionId = (await app.inject({ method: "GET", url: "/sessions/me", headers: { cookie } })).json().id as string;
+    await built.sessions.setImportProof(sessionId, { outcome: "success", usefulFactCount: 1, representativeFacts: [], conflict: null });
+
+    const started = await post(app, cookie, "/onboarding/paste", { text: PASTED });
+    expect(started.statusCode).toBe(202);
+    const { jobId } = started.json();
+    let result: PasteProgress["result"] | undefined;
+    for (let attempt = 0; attempt < 500 && !result; attempt += 1) {
+      const job = (await app.inject({ method: "GET", url: `/jobs/${jobId}`, headers: { cookie } })).json() as JobRecord;
+      if (job.status === "completed" || job.status === "failed") result = (job.progress as { paste?: PasteProgress }).paste?.result;
+      else await new Promise((resolve) => setImmediate(resolve));
+    }
+    expect(result).toBeDefined(); // the advert is stored and read …
+    expect(result).not.toHaveProperty("card"); // … but nothing is scored against an unreviewed CV
+    const adId = result!.adId;
+    const held = await app.inject({ method: "GET", url: `/onboarding/jobs/${encodeURIComponent(adId)}`, headers: { cookie } });
+    expect(held.statusCode).toBe(409);
+    expect(held.json().error.code).toBe("review_pending");
+
+    await post(app, cookie, "/review/complete");
+    const open = await app.inject({ method: "GET", url: `/onboarding/jobs/${encodeURIComponent(adId)}`, headers: { cookie } });
+    expect(open.statusCode).toBe(200);
+    expect(open.json().card.adId).toBe(adId);
+  });
+});
+
 describe("#305 it ages in public", () => {
   it("says nothing in the first days", async () => {
     useFakeClock();

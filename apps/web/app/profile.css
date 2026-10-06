@@ -126,6 +126,18 @@
   text-transform: uppercase;
   color: var(--hud-mute);
 }
+/* #338: the door back to "Your CV, reviewed" — a plain line, not a button; the review is a
+   place to return to, never a task to finish again. */
+.profile .review-door {
+  display: inline-block;
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--gold);
+  text-decoration: none;
+}
+.profile .review-door:hover {
+  text-decoration: underline;
+}
 .profile .pcount {
   margin: 0 0 6px;
   font-size: 22px;

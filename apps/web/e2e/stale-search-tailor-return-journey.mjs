@@ -109,6 +109,7 @@ await asVisitor('POST', '/qa/stack', { retrievalOutcome: 'relevant_postings' });
 // #271: the CV goes in first, through the front door's paste tile — the order a person walks
 // (the deleted /paste side entrance used to let these steps run backwards).
 await qa.frontDoorPaste(CV_TEXT, 'she pastes her CV — the work history the deck will judge her against');
+await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
 await qa.frontDoorContinueToIntent();
 await qa.fill('#target-role', PLACED_ROLE, `the job she is going for: "${PLACED_ROLE}"`);
 await qa.fill('#search-area', AREA, `where she is looking to start with: ${AREA}`);

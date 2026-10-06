@@ -110,6 +110,7 @@ await qa.scrollThrough('read the front door top to bottom, the way a first-time 
 // #271: the CV goes in first, through the front door's paste tile — the order a person walks
 // (the deleted /paste side entrance used to let these steps run backwards).
 await qa.frontDoorPaste(CV_TEXT, 'she pastes her CV — two dated jobs and one degree');
+await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
 await qa.frontDoorContinueToIntent();
 await qa.fill('#target-role', PLACED_ROLE, `the job she is going for: "${PLACED_ROLE}"`);
 await qa.fill('#search-area', AREA, 'where she wants to work');

@@ -73,7 +73,10 @@ import { fileURLToPath } from "node:url";
 // recordDiscoveryAnswer (the one place a non-answer becomes a skip, never a fact).
 // #336 lowered it from 679: the discovery reads moved to discoveryEngine.ts (discoveryReads), where
 // they gained the CV's languages, and buildDiscoveryRouteState takes the reads whole.
-const MAX_LINES = 664;
+// #338 lowered it from 664: the date-hole answer branch left the discovery answer route — the
+// question is asked on the job's own card in "Your CV, reviewed" now, whose routes are their own
+// plugin (routes/review.ts) over their own module (cvReview.ts). The spine gained nothing.
+const MAX_LINES = 648;
 
 describe("onboarding.ts ratchet", () => {
   it(`routes/onboarding.ts stays at or under ${MAX_LINES} lines`, () => {

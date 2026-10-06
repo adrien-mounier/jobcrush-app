@@ -49,6 +49,7 @@ const P11 = "Answer a question";
 const P13 = "Sorted";
 const P14 = "Constellation";
 const P15 = "How to view your profile";
+const P16 = "Check your CV, line by line";
 const P12 = "Everything you tell me from here lands on this screen and stays.";
 const P18 = "on your CV";
 const P19 = "saved for later";
@@ -2017,6 +2018,11 @@ function ReadyScreen({
               Sorted-only hero via `.field.constellation .phead { display: none }` at ≥900px. */}
           <section className="phead">
             <p className="ptitle">{P5}</p>
+            {/* #338: the review can be reopened at any time, and this is its door — the only place
+                CV lines are ticked or unticked (ADR-0016 clause 6). */}
+            <a className="review-door" href="/review">
+              {P16}
+            </a>
             <h1 className="pcount" tabIndex={-1} ref={headingRef}>
               <span className="n">{totalCount}</span>{" "}
               <span className="t">{totalCount === 1 ? "thing you've told me" : "things you've told me"}</span>

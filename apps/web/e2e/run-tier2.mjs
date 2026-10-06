@@ -69,6 +69,16 @@ export const JOURNEYS = [
   "factbadge-journey.mjs",
   "band-vocabulary-journey.mjs",
   "years-worked-out-journey.mjs",
+  // cv-review-journey.mjs added 2026-10-06 (#338): the ONLY journey that walks "Your CV, reviewed"
+  // as a person does — the last question hands off to the review, lines untick/re-tick on the
+  // paper, the end-date pill is answered on the job's card, the deck refuses until the confirm and
+  // opens after it. Every other CV-carrying journey completes the review over the wire. ~3 min.
+  "cv-review-journey.mjs",
+  // cv-review-gate-doors-journey.mjs added 2026-10-06 by the #338 QA gate: the adversarial half —
+  // every door onto the jobs (deck, cards API, the paste-a-job door and that job's screen, want,
+  // tailor) tried with an UNREVIEWED CV and held, then opened by the confirm. It is the journey
+  // that found the paste door scoring a job against an unreviewed CV. ~3 min, fake-model API.
+  "cv-review-gate-doors-journey.mjs",
   "job-blocks-confirm-journey.mjs",
   "language-ladder-journey.mjs",
   // #308 (left by the QA gate, adopted): the adversarial half of the skip — no Yes/No twin

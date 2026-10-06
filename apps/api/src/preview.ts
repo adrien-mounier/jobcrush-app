@@ -31,7 +31,7 @@ import { cvLanguages, isKnownLanguageName } from "./cvLanguages.js";
 import { detectLanguage, languageEligible, SERVED_LANGUAGES } from "./language.js";
 import { incrementCounter } from "./counters.js";
 import type { SessionRecord } from "./sessions.js";
-import { isReusableRetrievalSnapshot, sessionDeckIsAuthorized } from "./postingRetrieval.js";
+import { isReusableRetrievalSnapshot, reviewOpensJobs, sessionDeckIsAuthorized } from "./postingRetrieval.js";
 // #305: type-only, and it has to stay that way — broughtJobs.ts reads `Posting` from here, so a value
 // import in this direction would close a runtime cycle. TS erases this one.
 import type { BroughtJob } from "./broughtJobs.js";
@@ -119,7 +119,7 @@ export function eligiblePostings(languages: string[], postings = loadPostings())
  * the promise fetches at question 1, a real relevant-postings snapshot exists BEFORE she has earned
  * anything, and only this stops it becoming her deck. */
 export function sessionPostings(
-  session: Pick<SessionRecord, "retrieval" | "discovery">,
+  session: Pick<SessionRecord, "retrieval" | "discovery" | "importProof" | "reviewCompletedAt">,
   requestFingerprint: string,
   // #305: the adverts HE BROUGHT, stitched in here — at the one door all three posting readers pass
   // through, so no caller can forget them and no caller can apply the snapshot's rules to them. They
@@ -135,6 +135,11 @@ export function sessionPostings(
   // own screen the paste door sends her to. Flagged for the owner as a rule read narrowly, not widened.
   brought: readonly BroughtJob[] = [],
 ): Posting[] {
+  // #338 (ADR-0016 clause 6): the review gate is NOT the #248 gate the paragraph above bypasses. It
+  // asks whether the CV the jobs are matched against has been checked, and a job he brought is
+  // matched against it exactly as a fetched one is — so an unreviewed CV holds every row, his own
+  // included. The job's own screen (routes/paste.ts) refuses on the same predicate.
+  if (!reviewOpensJobs(session)) return [];
   const authorized =
     sessionDeckIsAuthorized(session) && isReusableRetrievalSnapshot(session.retrieval, requestFingerprint);
   const retrieved = authorized ? retrievedPostings(session.retrieval?.result ?? null) : [];

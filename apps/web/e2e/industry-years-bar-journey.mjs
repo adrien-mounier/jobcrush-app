@@ -139,6 +139,7 @@ const compoundCard = async () =>
 // 1. The front door: she brings her CV in, and states what she is going for.
 // ================================================================================================
 const jobId = await qa.frontDoorPaste(CV_TEXT, 'she pastes a CV with two dated jobs and a degree on the front door');
+await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
 await qa.waitForJobDone(jobId);
 
 // The target role is the ONLY thing that resolves the advert family on the shipped journey, and the
@@ -333,6 +334,7 @@ async function wireArm(industryId) {
   await ctl.fetch(`${BASE}/api/sessions/anonymous`, { method: 'POST' });
   await cjson('/sessions/me/intent', 'PUT', { targetRole: ROLE, searchArea: AREA });
   await cjson('/cv/paste', 'POST', { text: CV_TEXT });
+  await cjson('/review/complete', 'POST'); // #338
   let blocks = [];
   for (let i = 0; i < 60; i++) {
     const b = await cjson('/job-blocks');

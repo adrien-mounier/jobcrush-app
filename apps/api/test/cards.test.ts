@@ -1813,20 +1813,20 @@ describe("#235 hasOpenDiscoveryQuestions", () => {
             checkpoint: "family_confirmed",
           },
         }),
-        [], [], [], [], [], DISCOVERY_FAMILY,
+        [], [], [], [], DISCOVERY_FAMILY,
       ),
     ).toBe(true);
   });
 
   it("a fresh role still has its floor and eligibility questions open", () => {
-    expect(hasOpenDiscoveryQuestions(session(), [], [], [], [], [], DISCOVERY_FAMILY)).toBe(true);
+    expect(hasOpenDiscoveryQuestions(session(), [], [], [], [], DISCOVERY_FAMILY)).toBe(true);
   });
 
   it("no role means question 1 itself is open", () => {
     expect(
       hasOpenDiscoveryQuestions(
         session({ targetTitles: [], intent: { targetRole: null, searchAreas: [] } }),
-        [], [], [], [], [], DISCOVERY_FAMILY,
+        [], [], [], [], DISCOVERY_FAMILY,
       ),
     ).toBe(true);
   });
@@ -1838,7 +1838,7 @@ describe("#235 hasOpenDiscoveryQuestions", () => {
       { dimension: "work-rights", familyId: ANY_FAMILY, value: "yes", label: "Right to work" },
       { dimension: "language", familyId: ANY_FAMILY, value: "English", label: "Languages" },
     ];
-    expect(hasOpenDiscoveryQuestions(session(), confirmed, [], [], facts, [], DISCOVERY_FAMILY)).toBe(false);
+    expect(hasOpenDiscoveryQuestions(session(), confirmed, [], [], facts, DISCOVERY_FAMILY)).toBe(false);
   });
 
   it("a floorless plan with eligibility closed has no phantom questions open", () => {
@@ -1846,7 +1846,7 @@ describe("#235 hasOpenDiscoveryQuestions", () => {
       { dimension: "work-rights", familyId: ANY_FAMILY, value: "yes", label: "Right to work" },
       { dimension: "language", familyId: ANY_FAMILY, value: "English", label: "Languages" },
     ];
-    expect(hasOpenDiscoveryQuestions(session(), [], [], [], facts, [], null)).toBe(false);
+    expect(hasOpenDiscoveryQuestions(session(), [], [], [], facts, null)).toBe(false);
   });
 });
 

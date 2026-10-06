@@ -245,6 +245,9 @@ export interface DiscoveryState {
   essentialRemaining: number; // the countdown
   cvLines: DiscoveryCvLine[]; // role lead line first, then answered lines — for resume
   factCount: number; // #17's profile badge count — every recorded answer, a "no" included, never decreases
+  // #338: once `stage` is "deck", where the screen hands off — "Your CV, reviewed" while a brought CV
+  // is unreviewed, the jobs otherwise. Optional defensively: an absent field is the pre-#338 handoff.
+  reviewPending?: boolean;
 }
 
 // jobId (#18, AC6): when a CV was uploaded via the front-door shortcut, the server composes a
@@ -367,6 +370,9 @@ export interface CardsResponse {
   // #228: the widening offered at the dead end. Server-owned — this screen renders it and never
   // decides. Optional defensively: an absent field is "no offer", today's dead end unchanged.
   fallback?: DeckFallbackState;
+  // #338: true when the server held the deck because a brought CV has not been reviewed yet — no
+  // cards, no retrieval. The screen's only honest answer is to open "Your CV, reviewed".
+  reviewPending?: boolean;
   // #63: what actually happened when we went looking. The screen needs this because an empty deck
   // has more than one honest meaning, and they are NOT interchangeable words: `empty_pool` is "we
   // asked and there was nothing", `provider_unavailable` is "we could not ask". Collapsing the
@@ -678,6 +684,64 @@ export interface ContactRecord {
   email: ContactValue | null;
 }
 
+// --- #338 "Your CV, reviewed" — mirrors apps/api/src/cvReview.ts's ReviewState. ---------------
+export type ReviewLineState = "ticked" | "kept";
+export interface ReviewLine {
+  id: string;
+  text: string;
+  state: ReviewLineState;
+}
+export interface ReviewJob {
+  id: string;
+  blockId: string | null;
+  title: string;
+  employer: string;
+  dates: { start: string; end: string | null } | null;
+  endDateQuestion: string | null;
+  lines: ReviewLine[];
+}
+export type ReviewSection =
+  | { tag: "experience"; heading: string; jobs: ReviewJob[] }
+  | { tag: string; heading: string; lines: ReviewLine[] };
+export interface ReviewState {
+  completed: boolean;
+  letterhead: {
+    header: string | null;
+    phone: ProfileContactField | null;
+    email: ProfileContactField | null;
+  };
+  conflict: { fieldId: string; question: string; values: string[] } | null;
+  sections: ReviewSection[];
+}
+
+export function getReview(): Promise<ReviewState> {
+  return jfetch("/api/review");
+}
+
+export function completeReview(): Promise<{ completed: true }> {
+  return jfetch("/api/review/complete", { method: "POST" });
+}
+
+// #335's tap: untick (→ kept) or re-tick. The print gate is the server's; this only records it.
+export function setLineState(id: string, state: ReviewLineState): Promise<{ id: string; state: ReviewLineState }> {
+  return jfetch(`/api/cv/lines/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ state }) });
+}
+
+export function settleReviewConflict(fieldId: string, value: string): Promise<{ ok: true }> {
+  return jfetch(`/api/review/conflicts/${encodeURIComponent(fieldId)}`, {
+    method: "POST",
+    body: JSON.stringify({ value }),
+  });
+}
+
+// "Not sure" has no call: it stores nothing.
+export function answerReviewEndDate(blockId: string, answer: string): Promise<{ ok: true }> {
+  return jfetch(`/api/review/jobs/${encodeURIComponent(blockId)}/end`, {
+    method: "POST",
+    body: JSON.stringify({ answer }),
+  });
+}
+
 export function saveContact(field: "phone" | "email", value: string): Promise<ContactRecord> {
   return jfetch("/api/contact", {
     method: "PUT",
@@ -874,7 +938,7 @@ export interface PasteResult {
   /** True when this advert had already been read (by him, or by anyone): nothing was spent. */
   reused: boolean;
   pastedAt: string;
-  card: JobCard;
+  card?: JobCard; // #338: absent while the CV waits to be reviewed
 }
 
 /** #304 — the three named steps, in the order the server runs them. The labels the screen prints

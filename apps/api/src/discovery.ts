@@ -182,6 +182,9 @@ export interface DiscoveryState {
   essentialRemaining: number;
   cvLines: DiscoveryCvLine[];
   factCount: number;
+  /** #338: once `stage` is "deck", where the screen hands off — "Your CV, reviewed" while a brought
+   *  CV is unreviewed (ADR-0016 clause 6), the jobs otherwise. False here; the route sets it. */
+  reviewPending: boolean;
 }
 
 /** #17 profile badge / #23 factCount — "the pile that only grows": every recorded answer counts, a
@@ -291,6 +294,7 @@ export function discoveryState(
       essentialRemaining: 0,
       cvLines: [],
       factCount: factCount(confirmed, negatives),
+      reviewPending: false,
     };
   }
 
@@ -353,6 +357,7 @@ export function discoveryState(
     essentialRemaining,
     cvLines,
     factCount: factCount(confirmed, negatives),
+    reviewPending: false,
   };
 }
 

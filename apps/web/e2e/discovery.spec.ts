@@ -35,15 +35,12 @@ const Q_HEADLINE = {
   options: [],
   cvSection: "summary" as const,
 };
-// #162: a free-text question may carry a `consequence` — the date-hole question puts its whole
-// reason for existing there. Shape copied from apps/api/src/yearsWorked.ts's dateHoleQuestions.
-const Q_JOB_DATE = {
-  itemId: "job-date-nordic-retail",
-  question: "When did you leave Nordic Retail Group?",
-  consequence:
-    "I don't have an end date for this job, so right now it adds nothing to your years of experience —" +
-    " that makes your total read shorter than it is, and jobs that ask for a minimum stop matching you." +
-    ' Type the month and year you left, or "still there".',
+// #162: a free-text question may carry a `consequence`, stated on the question itself. The
+// date-hole question that first carried one moved to "Your CV, reviewed" (#338); the shape stays.
+const Q_WITH_CONSEQUENCE = {
+  itemId: "biggest-delivery",
+  question: "What is the biggest delivery you have run?",
+  consequence: "Jobs that ask for a minimum size stop matching you without it.",
   options: [],
   cvSection: "experience" as const,
 };
@@ -142,9 +139,9 @@ const AFTER_FREE_TEXT: DiscoveryState = {
   ...AFTER_ANSWER,
   questions: [Q_HEADLINE],
 };
-const AFTER_JOB_DATE_HOLE: DiscoveryState = {
+const AFTER_CONSEQUENCE: DiscoveryState = {
   ...AFTER_ANSWER,
-  questions: [Q_JOB_DATE],
+  questions: [Q_WITH_CONSEQUENCE],
 };
 
 // #18: "budget" was the last essential item — the server flips the stage, no new line either way.
@@ -548,23 +545,23 @@ test("an eligibility question states its scope in the question itself, offers a 
   await expectDiscoveryFitsViewport(page);
 });
 
-// #162, QA NO-GO regression: the date-hole question's reason lived only on the wire. The free-text
-// branch rendered the question and an input and dropped `consequence` entirely, so the person was
-// asked for a date and never told that leaving it blank shortens their experience and drops them out
-// of jobs — the only reason they would answer. Server-side tests passed throughout; nothing checked
-// the render. This is that check.
+// #162, QA NO-GO regression: a question's reason lived only on the wire. The free-text branch
+// rendered the question and an input and dropped `consequence` entirely, so the person was never
+// told why answering mattered. Server-side tests passed throughout; nothing checked the render.
+// This is that check. (#338 moved the date question itself to the review; every free-text question
+// can now be declined without typing — "Not sure" stores nothing, ADR-0016 clause 1.)
 test("a free-text question renders its consequence, and stays plain when it has none", async ({ page }) => {
-  current = AFTER_JOB_DATE_HOLE;
+  current = AFTER_CONSEQUENCE;
   await stubDiscovery(page);
 
   await page.goto("/discovery");
-  await expect(page.getByText("When did you leave Nordic Retail Group?", { exact: true })).toBeVisible();
+  await expect(page.getByText("What is the biggest delivery you have run?", { exact: true })).toBeVisible();
   const why = page.locator(".discovery .conseq");
   await expect(why).toBeVisible();
-  await expect(why).toContainText("adds nothing to your years of experience");
-  await expect(why).toContainText("jobs that ask for a minimum stop matching you");
+  await expect(why).toContainText("stop matching you without it");
   // a11y: the reason travels with the input, not just visually near it.
   await expect(page.locator("#floor-free")).toHaveAttribute("aria-describedby", "floor-free-why");
+  await expect(page.getByRole("button", { name: "Not sure — skip" })).toBeVisible();
   await expectDiscoveryFitsViewport(page);
 
   // A free-text question with no consequence renders no empty line.
@@ -573,12 +570,29 @@ test("a free-text question renders its consequence, and stays plain when it has 
   await expect(page.getByText("What should employers notice first?", { exact: true })).toBeVisible();
   await expect(page.locator(".discovery .conseq")).toHaveCount(0);
   await expect(page.locator("#floor-free")).not.toHaveAttribute("aria-describedby", /./);
-  // #324: a free-text question can be declined without typing — the date question cannot.
   await expect(page.getByRole("button", { name: "Not sure — skip" })).toBeVisible();
-  current = AFTER_JOB_DATE_HOLE;
+});
+
+// #338 (ADR-0016 clause 6): a brought CV is reviewed before any job is shown. The server says so on
+// the state, and the same handoff moment lands on "Your CV, reviewed" instead of the deck.
+test("the essential band done with a CV to review: discovery hands off to the review", async ({ page }) => {
+  current = AFTER_ANSWER;
+  await stubDiscovery(page);
+  await page.route("**/api/review", async (route) => {
+    await route.fulfill({
+      json: { completed: false, letterhead: { header: "Jane Doe", phone: null, email: null }, conflict: null, sections: [] },
+    });
+  });
+  await page.route("**/api/onboarding/discovery/answer", async (route) => {
+    current = { ...AFTER_ESSENTIAL_DONE, reviewPending: true };
+    await route.fulfill({ json: current });
+  });
+
   await page.goto("/discovery");
-  await expect(page.getByText("When did you leave Nordic Retail Group?", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Not sure — skip" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Yes", exact: true }).click();
+  await expect(page.getByText("That's all I need to ask.", { exact: true })).toBeVisible();
+  await page.waitForURL("/review");
+  await expect(page.getByRole("heading", { name: "Your CV, reviewed" })).toBeVisible();
 });
 
 test("declining an eligibility question is informative, never a failure, and stays correctable", async ({ page }) => {

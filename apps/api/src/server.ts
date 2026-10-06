@@ -23,6 +23,7 @@ import { jobBlocksRoutes } from "./routes/jobBlocks.js";
 import { InMemoryEligibilityStore, type EligibilityStore } from "./eligibility.js";
 import { InMemoryContactStore, type ContactStore } from "./contact.js";
 import { contactRoutes } from "./routes/contact.js";
+import { reviewRoutes } from "./routes/review.js";
 import type { GrillPhraser } from "./grill.js";
 import type { CvAuditor } from "./audit.js";
 import {
@@ -560,6 +561,8 @@ export function buildServer(opts: BuildOptions = {}) {
   app.register(uploadRoutes({ uploads, blobs, onUploaded: opts.onUploaded ?? defaultOnUploaded }));
   app.register(cvRoutes({ store, pipeline: pipelineDeps, claims }));
   app.register(contactRoutes({ contact }));
+  // #338: "Your CV, reviewed" — the screen between the last question and the jobs.
+  app.register(reviewRoutes({ claims, sessions, jobBlocks, eligibility, contact }));
   // #221: the same production registry the labeler places against backs the review screen's choices
   // and the family-correction check — one closed vocabulary, read in one place.
   app.register(

@@ -39,7 +39,6 @@ import {
   productionDiscoveryFamilyLookup,
   reconcileSessionDiscovery,
 } from "../discoveryEngine.js";
-import { answerJobDateHole, isJobDateItemId } from "../yearsWorked.js";
 import { readingLanguages, languageEligible } from "../language.js";
 import type { JudgeFn, JudgePeekFn } from "../judge.js";
 import {
@@ -504,21 +503,6 @@ export function onboardingRoutes(deps: OnboardingDeps) {
           );
           if (!result.ok)
             return reply.status(result.status).send({ error: { code: result.code, message: result.message } });
-        } else if (isJobDateItemId(req.body.itemId)) {
-          // #162 / ADR-0008 clause 3: the missing part underneath a worked-out total. The answer
-          // corrects the job record itself (yearsWorked.ts owns parsing, the correction and the
-          // recompute) — it is never stored as a claim, and never as a years total.
-          const result = await answerJobDateHole(
-            deps.jobBlocks,
-            deps.eligibility,
-            session.id,
-            req.body.itemId,
-            req.body.answer,
-          );
-          if (!result.ok)
-            return reply
-              .status(result.code === "not_found" ? 404 : 400)
-              .send({ error: { code: result.code, message: result.message } });
         } else {
           // A floor item / the reader-only question predates `answers` entirely (#123) — neither ever
           // accepts a multi-select shape, so this is the same single-`answer` flow as before.

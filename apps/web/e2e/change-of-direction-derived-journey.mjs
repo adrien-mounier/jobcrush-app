@@ -101,6 +101,7 @@ async function visitor({ moveFamily, label }) {
 
   // #271: the CV comes in through the front door's paste tile, the way a person brings one.
   await qa.frontDoorPaste(CV_TEXT, `${label}: her real dated work history, pasted on the front door`);
+  await qa.completeReview(); // #338: a brought CV is reviewed before any job is shown (ADR-0016 clause 6)
 
   let blocks = [];
   for (let i = 0; i < 60; i += 1) {

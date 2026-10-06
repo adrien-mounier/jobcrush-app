@@ -263,7 +263,6 @@ export function familyPlacementConfidence(
 // --- the question underneath (ADR-0008 clause 3, #143) ----------------------------------------
 
 export const JOB_DATE_ITEM_PREFIX = "job-date-";
-export const isJobDateItemId = (itemId: string): boolean => itemId.startsWith(JOB_DATE_ITEM_PREFIX);
 const blockIdOf = (itemId: string): string => itemId.slice(JOB_DATE_ITEM_PREFIX.length);
 
 /** #143 / AC4 — the reason is said ALOUD, on the question itself. An unknown end contributes zero,

@@ -127,64 +127,45 @@ await assertTrue(
 );
 
 // ---------------------------------------------------------------------------------------------
-// 3. Open a date hole underneath, and see what the product asks instead. (AC3b, AC4)
+// 3. Open a date hole underneath, and see where the product asks instead. (AC3b, AC4)
+//    #338: the question left the discovery ask-list for "Your CV, reviewed", where it sits on the
+//    job's own card (ADR-0016 clause 2) — still before the deck, which the review now gates.
 // ---------------------------------------------------------------------------------------------
 await api('POST', '/job-blocks/nordic-retail-it-pm/correct', { key: 'end', value: { state: 'unknown' } });
 await qa.note("the end date of the Nordic Retail job is now unknown — the hole ADR-0008 clause 3 says to ask about");
 
-await qa.goto('/discovery', 'back into discovery with a date hole open');
-await page.waitForTimeout(1200);
+const holeInDiscovery = ((await (await api('GET', '/onboarding/discovery')).json()).questions ?? [])
+  .filter((q) => q.itemId.startsWith('job-date-'));
+await assertTrue(holeInDiscovery.length === 0, 'AC3b — discovery no longer asks for the date; the review does');
+const reviewJobs = async () =>
+  (await (await api('GET', '/review')).json()).sections.find((s) => s.tag === 'experience').jobs;
+const holeOnWire = (await reviewJobs()).find((j) => j.blockId === 'nordic-retail-it-pm');
+await qa.note(`the job as the review has it ready: ${JSON.stringify(holeOnWire, null, 2)}`);
+await assertTrue(
+  holeOnWire?.endDateQuestion === 'When did you leave Nordic Retail Group?',
+  "AC3b — with a date missing, the product asks for THAT date, on the job's own card",
+);
 
-const holeOnWire = ((await (await api('GET', '/onboarding/discovery')).json()).questions ?? [])
-  .find((q) => q.itemId.startsWith('job-date-'));
-await qa.note(`the question the product now has ready: ${JSON.stringify(holeOnWire, null, 2)}`);
-await assertTrue(!!holeOnWire, 'AC3b — with a date missing, the product asks for THAT date');
-
-// Walk the dock forward, answering each question the way a person would, until the date
-// question is the one on screen.
-let holeQuestion = null;
-for (let i = 0; i < 16; i++) {
-  const q = await txt('.discovery #ask-q, .discovery legend.q, .discovery label.q');
-  if (!q) break;
-  if (/when did you leave/i.test(q)) { holeQuestion = q; break; }
-  const opts = page.locator('.discovery .opts .opt');
-  const later = page.getByRole('button', { name: 'Ask me later', exact: true });
-  // #165: matched by role in the actions row, never by label. Pinning the words here is what broke
-  // this journey when the languages question's confirm was reworded — the walk stalled on it and
-  // never reached the date question, failing four assertions that had nothing to do with languages.
-  const multiDone = page.locator('.discovery .elig-actions .go');
-  if (await multiDone.count()) await qa.click(multiDone.first(), `finish the multi-select "${q}"`);
-  else if (await opts.count()) await qa.click(opts.first(), `answer "${q}" with the first option`);
-  else if (await later.count()) await qa.click(later.first(), 'ask me later');
-  else if (await page.locator('#floor-free').count()) {
-    await qa.fill('#floor-free', 'Yes', `answer "${q}" in the person's own words`);
-    await qa.click('.field .go', 'send it');
-  } else break;
-  await page.waitForTimeout(1100);
-}
-await qa.scrollThrough('the date question as the person actually sees it');
-await assertTrue(!!holeQuestion, `AC3b on screen — the person is asked "${holeQuestion ?? '(never shown)'}"`);
+await qa.goto('/review', 'into "Your CV, reviewed" with a date hole open');
+const pill = page.getByRole('button', { name: 'When did you leave Nordic Retail Group?' });
+await qa.expectVisible(pill, 'the job wears a gold "end date?" pill in its date slot');
+await qa.scrollThrough('the paper as the person actually sees it');
+await qa.click(pill, 'taps the pill');
+const sheet = page.getByRole('dialog');
+await qa.expectText(sheet, 'When did you leave Nordic Retail Group?', 'AC3b on screen — the person is asked for the date');
 
 // AC4 — the reason must be SAID ALOUD to the person, not merely carried on the wire.
-const askDock = (await page.locator('.discovery .ask').count())
-  ? await page.locator('.discovery .ask').first().innerText()
-  : '';
-await qa.note(`everything the ask dock says to the person right now:\n${askDock}`);
-const reasonShown = /years of experience/i.test(askDock) && /matching|matches|shorter/i.test(askDock);
-await assertTrue(
-  reasonShown,
-  'AC4 — the screen tells the person WHY this date matters to their matches ' +
-    `(consequence on the wire: ${holeOnWire?.consequence ? 'present' : 'absent'}; on screen: ${reasonShown ? 'shown' : 'NOT SHOWN'})`,
-);
+const sheetText = await sheet.innerText();
+await qa.note(`everything the sheet says to the person right now:\n${sheetText}`);
+await assertTrue(/years of experience/i.test(sheetText), 'AC4 — the screen tells the person WHY this date matters');
 
 // ---------------------------------------------------------------------------------------------
 // 4. Answer it — the correction must stick on the record underneath. (AC5)
 // ---------------------------------------------------------------------------------------------
-if (holeQuestion) {
-  await qa.fill('#floor-free', 'December 2024', 'the person types the month and year they left');
-  await qa.click('.field .go', 'send the date');
-  await page.waitForTimeout(1500);
-}
+await sheet.getByRole('combobox', { name: 'Month' }).selectOption('December');
+await qa.fill(sheet.getByRole('textbox', { name: 'Year' }), '2024', 'the person types the year they left');
+await qa.click(sheet.getByRole('button', { name: 'Save' }), 'saves the date');
+await page.waitForTimeout(1500);
 const corrected = ((await (await api('GET', '/job-blocks')).json()).blocks ?? [])
   .find((b) => b.id === 'nordic-retail-it-pm');
 await qa.note(`the record underneath now reads: ${JSON.stringify(corrected?.end, null, 2)}`);
@@ -192,11 +173,11 @@ await assertTrue(
   corrected?.end?.value?.state === 'ended' &&
     corrected.end.value.date.year === 2024 && corrected.end.value.date.month === 12 &&
     corrected.end.origin?.kind === 'corrected',
-  'AC5 — the answer corrected the job record itself, marked as the person\'s own correction',
+  "AC5 — the answer corrected the job record itself, marked as the person's own correction",
 );
-const stillAsking = ((await (await api('GET', '/onboarding/discovery')).json()).questions ?? [])
-  .filter((q) => q.itemId.startsWith('job-date-'));
+const stillAsking = (await reviewJobs()).filter((j) => j.endDateQuestion);
 await assertTrue(stillAsking.length === 0, 'AC5 — the question closes; the person is not asked twice');
+await qa.expectText(page.locator('.paper'), 'Dec 2024', 'AC5 on screen — the job now prints its end date');
 
 // ---------------------------------------------------------------------------------------------
 // 5. A second visitor with NO readable work history — the deck must not mark them down. (AC6)
@@ -212,6 +193,7 @@ await page.context().clearCookies();
 await qa.goto('/', 'a control visitor: a readable work history, no discovery answers');
 await api('POST', '/sessions/anonymous', {});
 await api('POST', '/cv/paste', { text: CV_TEXT });
+await api('POST', '/review/complete'); // #338
 for (let i = 0; i < 60; i++) {
   const r = await api('GET', '/job-blocks');
   if (r.ok() && ((await r.json()).blocks ?? []).length) break;

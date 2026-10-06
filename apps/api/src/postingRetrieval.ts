@@ -66,12 +66,27 @@ export function searchFamilyOf(
  *  first cut of #248 guarded `ensureRetrieval` alone - which decides the payload's `retrieval`
  *  field, NOT the cards - so an early snapshot would still have rendered as a deck while the status
  *  field said the floor was uncovered. Both review axes caught it independently. */
-export function sessionDeckIsAuthorized(session: Pick<SessionRecord, "discovery">): boolean {
-  return deckReadIsAuthorized({
-    ...searchFamilyOf(session),
-    questionFloors: session.discovery.questionFloors,
-    checkpoint: session.discovery.checkpoint,
-  });
+export function sessionDeckIsAuthorized(
+  session: Pick<SessionRecord, "discovery" | "importProof" | "reviewCompletedAt">,
+): boolean {
+  return (
+    reviewOpensJobs(session) &&
+    deckReadIsAuthorized({
+      ...searchFamilyOf(session),
+      questionFloors: session.discovery.questionFloors,
+      checkpoint: session.discovery.checkpoint,
+    })
+  );
+}
+
+/** #338 (ADR-0016 clause 6) — the jobs wait for a completed review. A session that brought a CV
+ *  (it holds an import proof, whatever the read's outcome) sees no posting until the person reached
+ *  the end of "Your CV, reviewed" and confirmed it. A session with no CV has nothing to review and
+ *  is not held. Composed into `sessionDeckIsAuthorized` above, so every posting reader — the deck,
+ *  the want door, the tailor target — gets it without being able to forget it; the floor gate it
+ *  sits beside leaves with #339. */
+export function reviewOpensJobs(session: Pick<SessionRecord, "importProof" | "reviewCompletedAt">): boolean {
+  return session.importProof === null || session.reviewCompletedAt !== null;
 }
 
 /** Builds the one server-owned retrieval request used to fingerprint deck, want, and tailor reads.

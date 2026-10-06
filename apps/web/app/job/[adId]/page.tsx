@@ -63,10 +63,16 @@ export default function JobScreen() {
         await ensureSession();
         setCard((await getJob(adId)).card);
       } catch (e) {
+        // #338 (ADR-0016 clause 6): no job is shown until a brought CV is reviewed — the server
+        // says so with its own code, and the review is where he goes, not a "gone" screen.
+        if ((e as { code?: string }).code === "review_pending") {
+          router.replace("/review");
+          return;
+        }
         setError(e instanceof Error ? e.message : GONE);
       }
     })();
-  }, [adId]);
+  }, [adId, router]);
 
   // He arrived here by pressing a door on another screen, so the heading of what he asked for is
   // where focus belongs — the same route-change rule the deck follows for its own card.

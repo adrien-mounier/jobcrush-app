@@ -191,6 +191,19 @@ export async function createSession(name, { baseURL = '', outDir = OUT_ROOT, vie
       );
     },
 
+    /** #338 - complete "Your CV, reviewed" over the wire, for a journey whose claim is not the
+     *  review itself. A brought CV is reviewed before any job is shown (ADR-0016 clause 6): the deck,
+     *  the want door and the tailor refuse an unreviewed session, and discovery's last answer hands
+     *  off to /review instead of /deck. A journey that reads a CV and then wants its jobs calls this
+     *  once, after the read has landed. Runs in-page for the same Secure-cookie reason as
+     *  seedFloorAnswers. Returns the server's answer, so a caller can assert it happened. */
+    completeReview: async () =>
+      page.evaluate(async () => {
+        const res = await fetch('/api/review/complete', { method: 'POST', credentials: 'same-origin' });
+        if (!res.ok) throw new Error(`review completion refused: ${res.status}`);
+        return res.json();
+      }),
+
     /** #216 - answer WHICHEVER question is currently on screen, whatever shape its control is.
      *
      *  The researched family floor mixes tap-an-option items with type-your-own ones (2 of the 4 in

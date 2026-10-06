@@ -72,29 +72,41 @@ async function seeded(blocks: MinedJobBlock[]) {
 }
 
 describe("#162 the question asked instead of the total", () => {
-  it("asks for the missing end date, never for the years total (AC3, AC4)", async () => {
+  // #338 moved the question from the discovery ask-list to "Your CV, reviewed", where it sits on the
+  // job's own card (ADR-0016 clause 2) — still before the deck, which the review now gates.
+  const reviewJobs = async (app: ReturnType<typeof buildServer>["app"], cookie: string) => {
+    const state = (await app.inject({ method: "GET", url: "/review", headers: { cookie } })).json();
+    return state.sections.find((s: { tag: string }) => s.tag === "experience").jobs as Array<{
+      blockId: string;
+      dates: { start: string; end: string | null };
+      endDateQuestion: string | null;
+    }>;
+  };
+
+  it("asks for the missing end date on the job's own card, never for the years total (AC3, AC4)", async () => {
     const { app, cookie } = await seeded([block("b1", "Standard Chartered", 2004, null)]);
     const state: DiscoveryState = (await post(app, cookie, "/onboarding/discovery/start", { role: ROLE })).json();
 
     expect(state.questions.some((q) => q.eligibility?.dimension === "years-experience")).toBe(false);
-    const hole = state.questions.find((q) => q.itemId === "job-date-b1")!;
-    expect(hole.question).toBe("When did you leave Standard Chartered?");
-    expect(hole.consequence).toMatch(/adds nothing to your years of experience/); // #143: the reason, aloud
-    expect(hole.options).toEqual([]); // free text — a date, in the person's own words
+    expect(state.questions.some((q) => q.itemId.startsWith("job-date-"))).toBe(false);
+    const [job] = await reviewJobs(app, cookie);
+    expect(job).toMatchObject({
+      blockId: "b1",
+      dates: { start: "Jan 2004", end: null },
+      endDateQuestion: "When did you leave Standard Chartered?",
+    });
   });
 
   it("the answer corrects the record, moves the total, and closes the question (AC5)", async () => {
     const { app, cookie, sessionId, eligibility, jobBlocks } = await seeded([
       block("b1", "Standard Chartered", 2004, null),
     ]);
-    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
     expect(await eligibility.numeric(sessionId, "years-experience", ANY_FAMILY)).toBe(0); // unknown end = zero
 
-    const after: DiscoveryState = (
-      await post(app, cookie, "/onboarding/discovery/answer", { itemId: "job-date-b1", answer: "December 2023" })
-    ).json();
+    expect((await post(app, cookie, "/review/jobs/b1/end", { answer: "December 2023" })).statusCode).toBe(200);
 
-    expect(after.questions.map((q) => q.itemId)).not.toContain("job-date-b1");
+    const [job] = await reviewJobs(app, cookie);
+    expect(job).toMatchObject({ dates: { start: "Jan 2004", end: "Dec 2023" }, endDateQuestion: null });
     expect(await eligibility.numeric(sessionId, "years-experience", ANY_FAMILY)).toBe(20);
     const stored = (await jobBlocks.list(sessionId))[0]!;
     expect(stored.end.value).toEqual({ state: "ended", date: { year: 2023, month: 12, precision: "month" } });
@@ -103,11 +115,7 @@ describe("#162 the question asked instead of the total", () => {
 
   it("refuses an answer it cannot read rather than storing a guess", async () => {
     const { app, cookie, sessionId, eligibility } = await seeded([block("b1", "Standard Chartered", 2004, null)]);
-    await post(app, cookie, "/onboarding/discovery/start", { role: ROLE });
-    const res = await post(app, cookie, "/onboarding/discovery/answer", {
-      itemId: "job-date-b1",
-      answer: "ages ago",
-    });
+    const res = await post(app, cookie, "/review/jobs/b1/end", { answer: "ages ago" });
     expect(res.statusCode).toBe(400);
     expect(await eligibility.numeric(sessionId, "years-experience", ANY_FAMILY)).toBe(0);
   });

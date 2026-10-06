@@ -146,6 +146,17 @@ const AUTH = [
 const PROFILE = ["apps/api/src/profile.ts", "apps/web/app/profile/**", "apps/web/app/profile.css"];
 const FACTBADGE = ["apps/web/app/factbadge.tsx", "apps/web/app/factbadge.css"];
 const YEARS = ["apps/api/src/yearsWorked.ts"];
+// #338: "Your CV, reviewed" - its module, its routes, its screen, and the line-state door it taps.
+// Every CV-carrying journey now completes the review (over the wire, or on the screen), so a
+// change here can redden each of them; the gate itself lives in postingRetrieval.ts and deck.ts.
+const REVIEW = [
+  "apps/api/src/cvReview.ts",
+  "apps/api/src/routes/review.ts",
+  "apps/api/src/routes/cv.ts",
+  "apps/api/src/claims.ts",
+  "apps/web/app/review/**",
+  "apps/web/app/review.css",
+];
 // #303/#304 — the paste door: its own subsystem, with its own store, its own route and its own
 // screen. Carries employerLookup.ts as well as the two INDUSTRY_LABELER entries do, because #304's
 // "looking up the employer" step is that same shared, cached lookup — a change to it can redden the
@@ -274,7 +285,12 @@ export const COVERAGE = {
   // #102: the requirement-band rename staying invisible on the deck and in Tailor.
   "band-vocabulary-journey.mjs": union(POSTINGS, DECK, TAILOR, AUTH, DISCOVERY),
   // #162: years are derived from dated job records, never asked; a date hole is asked for instead.
-  "years-worked-out-journey.mjs": union(CV_INTAKE, JOB_BLOCKS, DISCOVERY, DECK, YEARS),
+  "years-worked-out-journey.mjs": union(CV_INTAKE, JOB_BLOCKS, DISCOVERY, DECK, YEARS, REVIEW),
+  // #338: the review screen walked as a person - intake, discovery's handoff, the paper and its
+  // sheet, the date hole answered there, and the deck gate on either side of the confirm.
+  "cv-review-journey.mjs": union(REVIEW, CV_INTAKE, JOB_BLOCKS, DISCOVERY, DECK, POSTINGS, YEARS, REVEAL_GATE),
+  // #338 QA: every door onto the jobs held by an unreviewed CV — the paste door and the job screen too.
+  "cv-review-gate-doors-journey.mjs": union(REVIEW, CV_INTAKE, JOB_BLOCKS, DISCOVERY, DECK, POSTINGS, PASTE, JOB_SCREEN, TAILOR, AUTH, REVEAL_GATE),
   // #161/#157: the confirm-swipe deck for structured job records, undo and reload included.
   "job-blocks-confirm-journey.mjs": union(CV_INTAKE, JOB_BLOCKS, TAILOR, AUTH),
   // #278: the work-history check reached the way a person reaches it. Its chain IS its coverage —
@@ -345,15 +361,15 @@ export const COVERAGE = {
   // #117: "Still scoring" / "Not scored" / "Estimate" — the judged score's three honest states.
   "pending-unscored-card-journey.mjs": union(DECK, POSTINGS, DISCOVERY, AUTH, TAILOR),
   // #116: CV upload → discovery → the held deck; arms qa-main's readDelayMs for its own run.
-  "cold-deck-hold-journey.mjs": union(CV_INTAKE, DECK, POSTINGS, DISCOVERY, AUTH),
+  "cold-deck-hold-journey.mjs": union(REVIEW, CV_INTAKE, DECK, POSTINGS, DISCOVERY, AUTH),
   // #322: the front door's role and area carried into discovery as question 1 answered.
   "front-door-role-handoff-journey.mjs": union(FRONT_DOOR, DISCOVERY, POSTINGS),
   // #324: skips close the question, write no fact, leave the profile alone and still open the deck.
-  "non-answer-skip-journey.mjs": union(["apps/api/src/adaptiveDiscovery.ts"], DISCOVERY, PROFILE, FACTBADGE, DECK),
+  "non-answer-skip-journey.mjs": union(REVIEW, ["apps/api/src/adaptiveDiscovery.ts"], DISCOVERY, PROFILE, FACTBADGE, DECK),
   // #159: the passive missing-dates note on the built master CV, and no uninvited "Present".
   "master-cv-dates-note-journey.mjs": union(CV_INTAKE, JOB_BLOCKS, TAILOR, AUTH),
   // #222: an advert's years bars read at their own scope — family years vs the career total.
-  "family-years-scope-journey.mjs": union(
+  "family-years-scope-journey.mjs": union(REVIEW, 
     CV_INTAKE,
     JOB_BLOCKS,
     FAMILY_REGISTRY,
@@ -377,7 +393,7 @@ export const COVERAGE = {
     ["apps/api/src/usageLedgerStore.ts", "apps/api/src/llmPricing.ts"],
   ),
   // #216/#234: the shipped interview writes the record the reveal is gated on.
-  "discovery-plan-split-journey.mjs": union(
+  "discovery-plan-split-journey.mjs": union(REVIEW, 
     DISCOVERY,
     FAMILY_REGISTRY,
     LABELER,
@@ -387,7 +403,7 @@ export const COVERAGE = {
     CV_INTAKE,
   ),
   // #216 gate: every floor answer is a real click on the screen's own button.
-  "discovery-earns-reveal-gate.mjs": union(
+  "discovery-earns-reveal-gate.mjs": union(REVIEW, 
     DISCOVERY,
     FAMILY_REGISTRY,
     LABELER,
@@ -397,13 +413,13 @@ export const COVERAGE = {
     CV_INTAKE,
   ),
   // #248: a fresh retrieval snapshot is not permission — every door onto the pool refuses.
-  "snapshot-is-not-permission-journey.mjs": union(CV_INTAKE, REVEAL_GATE, POSTINGS, DECK, TAILOR, AUTH, DISCOVERY),
+  "snapshot-is-not-permission-journey.mjs": union(REVIEW, CV_INTAKE, REVEAL_GATE, POSTINGS, DECK, TAILOR, AUTH, DISCOVERY),
   // #63: the reveal is the server's to give; empty pool and provider outage read differently.
-  "credible-reveal-journey.mjs": union(CV_INTAKE, REVEAL_GATE, POSTINGS, DECK, DISCOVERY, AUTH),
+  "credible-reveal-journey.mjs": union(REVIEW, CV_INTAKE, REVEAL_GATE, POSTINGS, DECK, DISCOVERY, AUTH),
   // #63: changing her search area while tailoring must not dead-end her.
-  "stale-search-tailor-return-journey.mjs": union(CV_INTAKE, POSTINGS, DECK, TAILOR, DISCOVERY, AUTH, REVEAL_GATE),
+  "stale-search-tailor-return-journey.mjs": union(REVIEW, CV_INTAKE, POSTINGS, DECK, TAILOR, DISCOVERY, AUTH, REVEAL_GATE),
   // #246: the promise on question 1 counts her own search and names no job family.
-  "promise-counts-her-own-search-journey.mjs": union(
+  "promise-counts-her-own-search-journey.mjs": union(REVIEW, 
     DISCOVERY,
     POSTINGS,
     FAMILY_REGISTRY,
@@ -434,7 +450,7 @@ export const COVERAGE = {
   // #231/#235: a covered role placed, an unmapped one served without refusal, feed written.
   "family-placement-journey.mjs": union(FRONT_DOOR, DISCOVERY, FAMILY_REGISTRY, LABELER, VOCABULARY_FEED),
   // #256/#229: the change-of-direction sentence off a genuinely DERIVED known zero.
-  "change-of-direction-derived-journey.mjs": union(
+  "change-of-direction-derived-journey.mjs": union(REVIEW, 
     CV_INTAKE,
     JOB_BLOCKS,
     FAMILY_REGISTRY,

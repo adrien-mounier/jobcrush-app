@@ -2,6 +2,23 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-06 — #338: "Your CV, reviewed" with lines as read; the jobs wait for a completed review
+
+The journey is CV read → job and area → work rights → languages → **Your CV, reviewed** → jobs. The
+screen is layout C (the CV on paper, every review item a mark, one sheet): letterhead as read, each job
+with its lines ticked, untick → kept / re-tick, the end-date pill on the job's own card ("Not sure"
+sends nothing), the import conflict settled once, the confirm. It is also the silent-failure state for
+#341. **The gate:** a session that brought a CV sees no posting until the review is completed —
+`reviewOpensJobs` sits inside the one predicate every posting reader passes through, so the deck, the
+want door, the tailor, and a job the person pasted are all held (code review found the pasted-job hole;
+closed). The floor gate stays beside it until #339. Completing confirms the lines as read; an open
+conflict's two readings stay off the CV until settled (code review). The date question left discovery:
+the spine shrank, ratchet 664 → 648. Every CV-carrying journey now completes the review over the wire
+(`qa.completeReview()`); `cv-review-journey.mjs` walks it as a person. QA: round 1 NO-GO (the paste-a-job door still scored a job against an unreviewed CV — closed at the paste read,
+test shown to fail), round 2 **GO** (API 1930, specs 84, gate-doors 23/23, review 30/30, paste-door 26/26).
+Not built here, by the layout comment's split: the legend and the AI marks (#341–#343); a name field with
+its own Edit (no name store exists); job-level date conflicts (the proof holds one field conflict).
+
 ## 2026-10-06 — Retro of 10 agent sessions: environment fixes landed (`524cc55`); #351 follow-ups
 
 `/retro` found the environment, not the product work, costing the time. Landed (owner: "go ahead for

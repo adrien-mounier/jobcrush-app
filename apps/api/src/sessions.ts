@@ -360,6 +360,12 @@ export interface SessionRecord {
   sourceEntry: SourceEntry;
   importProof: ImportProof | null;
   importResolutions: Record<string, string>;
+  /** #338 (ADR-0016 clause 6): when the person reached the end of "Your CV, reviewed" and confirmed
+   *  it. Null until then. Read by the jobs gate (postingRetrieval.ts's reviewOpensJobs): a session
+   *  that brought a CV sees no posting before this is set. Stored here, per session, beside the
+   *  import proof it reviews — never inside the discovery checkpoint, which is recomputed from the
+   *  claims on every answer. The review itself can be reopened at any time; this never clears. */
+  reviewCompletedAt: string | null;
   intent: SearchIntent;
   discovery: ProductionDiscoveryState;
   retrieval: RetrievalSnapshot | null;
@@ -411,6 +417,9 @@ export interface SessionStore {
    *  latch (an accepted family is never re-chosen, never unset) is deckFallback.ts's rule. */
   setDiscoveryFallback(id: string, fallback: DiscoveryFallback): Promise<ProductionDiscoveryState>;
   resolveImport(id: string, fieldId: string, value: string): Promise<ImportProof>;
+  /** #338: the person confirmed "Your CV, reviewed". Idempotent; the first confirmation's time is
+   *  kept, a later one (a reopened review) never resets it. */
+  completeReview(id: string): Promise<void>;
   setTailorTarget(id: string, adId: string): Promise<void>;
   /** #23 drop: exit tailor back to the deck, clearing the target. Never touches claims. */
   clearTailorTarget(id: string): Promise<void>;
@@ -463,6 +472,7 @@ function newSession(): SessionRecord {
     sourceEntry: null,
     importProof: null,
     importResolutions: {},
+    reviewCompletedAt: null,
     intent: { targetRole: null, searchAreas: [] },
     discovery: emptyDiscovery(),
     retrieval: null,
@@ -650,6 +660,11 @@ export class InMemorySessionStore implements SessionStore {
     throw new Error("import proof not ready");
   }
 
+  async completeReview(id: string): Promise<void> {
+    const s = this.byId.get(id);
+    if (s) s.reviewCompletedAt ??= new Date().toISOString();
+  }
+
   async setTailorTarget(id: string, adId: string): Promise<void> {
     const s = this.byId.get(id);
     if (s) {
@@ -748,6 +763,9 @@ const SESSIONS_ALTERS = [
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval_in_flight_fingerprint text",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval_in_flight_owner text",
   "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS retrieval_in_flight_claimed_at timestamptz",
+  // #338: null for every session that predates the review, which the jobs gate reads as "not yet
+  // reviewed" — the honest state for a CV nobody has walked through. No backfill (no live users).
+  "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS review_completed_at timestamptz",
 ];
 
 function toSession(r: Record<string, unknown>): SessionRecord {
@@ -768,6 +786,7 @@ function toSession(r: Record<string, unknown>): SessionRecord {
     sourceEntry: (r.source_entry as SourceEntry) ?? null,
     importProof: (r.import_proof as ImportProof) ?? null,
     importResolutions: resolutionMap(r.import_resolutions),
+    reviewCompletedAt: r.review_completed_at == null ? null : iso(r.review_completed_at),
     intent: {
       targetRole: (r.target_role as string) ?? null,
       searchAreas:
@@ -1061,6 +1080,13 @@ export class PgSessionStore implements SessionStore {
     } finally {
       client.release();
     }
+  }
+
+  async completeReview(id: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE sessions SET review_completed_at = COALESCE(review_completed_at, now()) WHERE id = $1`,
+      [id],
+    );
   }
 
   async setTailorTarget(id: string, adId: string): Promise<void> {
