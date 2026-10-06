@@ -41,6 +41,9 @@ with job requirements.
   - [Drafted line](#drafted-line)
   - [Ticked line](#ticked-line)
   - [Kept line](#kept-line)
+  - [Master CV](#master-cv)
+  - [CV chat](#cv-chat)
+  - [Chat proposal](#chat-proposal)
 
 ## Language
 
@@ -287,3 +290,24 @@ _Avoid_: Confirmed line, approved line
 A CV line the person unticked: held in the profile under "kept for when a job needs it", never printed,
 never deleted, and re-tickable at any time. Unticking is always the person's tap, never the machine's.
 _Avoid_: Deleted line, removed line, hidden line
+
+**Master CV**:
+The person's one base CV — every job, line and letterhead detail they have confirmed. Each tailored
+CV starts from it; changing it changes the base, never one application. It may hold more ticked lines
+than any one application prints: which of them print is decided per application (ADR-0007).
+_Avoid_: Root CV, base CV, profile CV
+
+**CV chat**:
+A conversation with the product that changes the **master CV**, opened from a door on one thing
+("+ tell us more": a job, a line, the letterhead — the chat covers only that thing) or on a section
+("+ add": something new of that kind). The person sees it as *Chat with JobCrush* — the product
+speaks as itself. Everything it produces is a **chat proposal**; the person's own words are its only
+source (#346).
+_Avoid_: Assistant, AI editor, CV builder
+
+**Chat proposal**:
+Anything the **CV chat** offers to change on the **master CV** — a line, a better wording, a date, an
+employer, a whole new job, a letterhead detail. It changes nothing until the person taps it, and it
+shows the words it came from. It is never a stretch — a stretch belongs to one advert (ADR-0005). A
+ticked proposed line is an ordinary **ticked line** (ADR-0017).
+_Avoid_: Drafted line (that is the review's, written for a family floor must-have), suggestion, edit

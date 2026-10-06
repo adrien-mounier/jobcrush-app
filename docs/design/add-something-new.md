@@ -1,5 +1,9 @@
 # "Add something new" — the profile's way in
 
+> **Replaced by [ADR-0017](../adr/0017-the-cv-chat-proposes-from-the-persons-own-words.md)** (2026-10-06,
+> #346): the CV chat's "+ add" door on each section does this job. The date rules and the recall step
+> below carry over into the chat; the three-step form is not built. Kept as the source of that wording.
+
 - **Status:** decided 2026-09-27 in [#299](https://github.com/adrien-mounier/jobcrush-app/issues/299)
   (map [#290](https://github.com/adrien-mounier/jobcrush-app/issues/290), row V1i). **Not built.**
 - **Where the build lives:** the spine spec [#301](https://github.com/adrien-mounier/jobcrush-app/issues/301),

@@ -121,6 +121,10 @@ end of the review and confirmed it. Undecided drafted lines do not block complet
 not print. The gate stays server-side. The review can be reopened later; it is the only place CV lines
 are edited.
 
+> **Amended by [ADR-0017](0017-the-cv-chat-proposes-from-the-persons-own-words.md)** (2026-10-06): CV
+> lines are edited only in the CV chat's tab, which the review screen and the profile both open. The
+> deck gate is unchanged.
+
 ### 7. Generated once, stored
 
 A drafted line is never regenerated behind the person's back — the same input gives different wording

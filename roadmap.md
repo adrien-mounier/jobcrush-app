@@ -23,15 +23,19 @@ case. Full text: `CLAUDE.md`, "v1 scope and the golden rule". The destination is
 4. [#341](https://github.com/adrien-mounier/jobcrush-app/issues/341) the review runs in the background — `/implement`, Fable, xhigh
 5. [#342](https://github.com/adrien-mounier/jobcrush-app/issues/342) drafted lines for missing must-haves, then [#343](https://github.com/adrien-mounier/jobcrush-app/issues/343) (Opus) and [#344](https://github.com/adrien-mounier/jobcrush-app/issues/344) (Fable)
 6. [#345](https://github.com/adrien-mounier/jobcrush-app/issues/345) two test accounts — Opus, medium; old test answers wiped only after the owner confirms what
-7. Optional, blocks nothing: [#346](https://github.com/adrien-mounier/jobcrush-app/issues/346) grilling — talk to the product to improve your root CV (`/grill-with-docs`, Opus).
+7. ~~#346 grilling — talk to the product to improve your CV~~ decided 2026-10-06 (ADR-0017).
+
+**Next: Chat with JobCrush** (spec [#350](https://github.com/adrien-mounier/jobcrush-app/issues/350),
+owner call: right after #332, ahead of the rest of the spine): talk to improve the master CV; it replaces
+#316/#317 *Add something new*. `/to-spec` → `/to-tickets` → `/implement-spec`. Small and independent:
+[#348](https://github.com/adrien-mounier/jobcrush-app/issues/348) a sign-in door on the landing page.
 
 **Still open on the v1 spine** (spec #301): #314 over two pages, tighten once then ship and tell ·
-#315 the application report · #316 → #317 *Add something new* (independent). The old roadmap ran these
-before #332; recent sessions worked #332 first. **Order between the two is an owner call.**
+#315 the application report.
 **Finish line:** one real posting end to end, `/qa-gate` GO on the whole journey.
 
 **Model rule:** Fable for builds that can ship subtly wrong and still pass; Opus for the rest and for
-every grill/spec/map. No ticket starts at max effort. Fable quota spent → Opus, one effort step higher.
+every grill/spec/map. Name versions: Fable 5.1, Opus 5.5 (current as of 2026-10-06). No ticket starts at max effort. Fable quota spent → Opus, one effort step higher.
 Never point `/implement` at a parent or spec issue (#54, #86, #127, #301, #332).
 **Build mode (2026-10-06):** finish #332 with `/implement`, one ticket at a time (per-ticket model
 rule; #340 and #345 need the owner mid-ticket). From the next spec on, `/implement-spec <spec>`
