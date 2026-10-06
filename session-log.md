@@ -2,6 +2,18 @@
 
 Newest first. Last ~10 sessions, ≤ ~10 lines per entry. Older entries: `docs/session-log/YYYY-MM.md` (moved unedited; under docs/ so CI stays inert).
 
+## 2026-10-06 — Retro of 10 agent sessions: environment fixes landed (`524cc55`); #351 follow-ups
+
+`/retro` found the environment, not the product work, costing the time. Landed (owner: "go ahead for
+everything"): the QA gate on main is now git's own pre-commit/pre-push hooks (`.claude/githooks/`) —
+code reaches main only byte-identical to what the qa-tester tested (`record-go.mjs` fingerprints the
+tested tree); Playwright starts its own fake-model stack on private ports; miner recordings follow the
+prompt's id prefixes (+ test); `sourceHygiene` test replaces the dead lint; `.gitattributes`, PYTHONUTF8,
+ADR index, CLAUDE.md/issue-tracker fixes. QA: rounds 1-5 NO-GO on the gate (a command-text parser is
+unwinnable — four rounds found new shapes; the git-hook redesign ended it), round 6 GO. **Git's hooks
+also gate the owner's own terminal commits on main** (docs pass; override `SKIP_QA_GATE=1`).
+Follow-ups (low): #351.
+
 ## 2026-10-06 — #346 grilled: Chat with JobCrush decided (ADR-0017); spec #350 next after #332
 
 The owner wants to talk to the product instead of updating his CV in outside Claude sessions. Decided:
