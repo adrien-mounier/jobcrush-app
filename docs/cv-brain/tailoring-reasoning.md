@@ -22,6 +22,7 @@
   - [The door](#the-door)
   - [The application report](#the-application-report)
   - [Not decided here](#not-decided-here)
+- [9. The CV review: drafting rules R1–R6 and quality-only judging (#340, ADR-0016)](#9-the-cv-review-drafting-rules-r1r6-and-quality-only-judging-340-adr-0016)
 
 ## 1. What tailoring produces
 
@@ -238,3 +239,36 @@ stands untouched. The hole it leaves (a person who learns SQL before any posting
 separate feature, [#299](https://github.com/adrien-mounier/jobcrush-app/issues/299): a guided
 **"Add something new"** flow that recognises a denied capability at the moment she types it. A design
 session owns its screen-versus-sheet question.
+
+## 9. The CV review: drafting rules R1–R6 and quality-only judging (#340, ADR-0016)
+
+Before any jobs are shown, the review reads the whole CV and, per job, fixes spelling, judges each
+existing line, and drafts the lines a thin job is missing for its **own** family's must-haves. The
+prompt is `apps/api/prompts/cv-review.md`; this section is the rule it must stay true to.
+
+**Judging is quality-only.** A line may be suggested for unticking for one of three kinds — *weak*
+(nothing a reader can use), *duplicate* (another line of the same job says it), *aim without result*
+(an intention with no delivered result) — each with a one-sentence reason. **Fit is never a reason:**
+whether a line matters for a target job is decided per advert (ADR-0007), never on the master CV.
+The research run that marked a real revenue result "off-topic for an IT PM role" is the forbidden
+kind. The machine never applies an untick; the line arrives ticked and the person decides.
+
+**Drafting rules, carried from the blind test (`research/2026-10-03_thin-job-line-generation/`):**
+
+- **R1 — duties only.** No number, achievement, system, product, client, certification or outcome
+  the CV does not name. A skill listed anywhere on the CV may be used, flagged OPTIONAL, with its quote.
+- **R2 — true for anyone at that level.** A duty that varies between people in the same job (a
+  budget, managing people, choosing vendors) is its own OPTIONAL line.
+- **R3 — verbs follow seniority** in the job title: a junior supports and coordinates, a senior owns
+  and leads.
+- **R4 — an industry-only guess is flagged** INDUSTRY GUESS, and only when nearly universal. A fact
+  written under a different job is not this job's fact: OPTIONAL with its quote, never a plain line.
+- **R5 — never repeat** what the job already states, in any wording.
+- **R6 — never pad.** A missing must-have earns its one line whatever the job's length (spec story
+  26); the OPTIONAL and INDUSTRY GUESS extras stop where existing plus drafted lines reach 10.
+
+Every drafted line cites its source (the must-have id and/or the verbatim CV words) and arrives
+unticked. Its vague phrases are choices — the CV's own words first, marked CV, then typical ones,
+marked TYPICAL — so a typical option is never presented as the person's fact. A job placed in no
+published family gets fixes and judgements but no drafted lines. The whole CV is context for every
+job (recall depends on facts written elsewhere), but the answer is produced and stored per job.

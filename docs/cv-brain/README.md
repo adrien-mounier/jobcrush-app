@@ -27,6 +27,9 @@ here, so jobcrush-app has no runtime or authoring dependency on the JobCrush che
   the section-coverage discipline).
 - `apps/api/prompts/preview-tailor.md` — tailors the claims into a draft (implements the density,
   conservation, and writing-style rules in `cv-authoring-rules.md` and `tailoring-reasoning.md`).
+- `apps/api/prompts/cv-review.md` — reviews the whole CV job by job before any jobs show: fixes,
+  quality-only untick suggestions, and drafted lines for a thin job's missing must-haves under R1–R6
+  (implements `tailoring-reasoning.md` §9; blind-tested with `apps/api/scripts/blind-test.mjs`).
 - `apps/api/src/preview.ts` — the canonical Draft schema + `conservationIssues()` lint (the mechanical
   enforcement of "tailor by emphasis, not amputation").
 
@@ -43,6 +46,7 @@ When you change any of those, this folder is the reference they must stay true t
 | `research/2026-05-03_it-pm-cv-best-practices.md` | IT PM CV length, bullet formula, 2026 trends. |
 | `research/2026-05-09_ai-writing-tells.md` | Banned-word and banned-opener lists (avoid AI-sounding prose). |
 | `research/2026-06-09_cv-formatting-design-standards.md` | Visual formatting and section-design standards. |
+| `research/2026-10-03_thin-job-line-generation/` | The blind test behind the CV review: model comparison, R1–R6, the shipped prompt scored on the owner's real CV. |
 | `templates/example_tailoring.md` | Worked tailoring example. |
 | `templates/tailoring_report.md` | Tailoring-report template. |
 | `templates/job_offer_intake.md` | Job-offer intake template. |

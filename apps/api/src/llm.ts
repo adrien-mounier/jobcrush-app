@@ -117,7 +117,6 @@ async function readMessageStream(
   let text = "";
   let inputTokens = 0;
   let outputTokens = 0;
-  let buffered = "";
   let stopped = false;
   const handle = (line: string) => {
     if (!line.startsWith("data:")) return;
@@ -134,7 +133,15 @@ async function readMessageStream(
     else if (event.type === "message_stop") stopped = true;
     else if (event.type === "error") throw new Error(`anthropic api stream ${event.error?.type}: ${event.error?.message}`);
   };
+  await eachSseLine(body, handle);
+  if (!stopped) throw new Error("anthropic api stream ended before message_stop");
+  return { text, usage: { inputTokens, outputTokens } };
+}
+
+/** Feeds a streamed body to `handle` one line at a time, across chunk boundaries. */
+async function eachSseLine(body: ReadableStream<Uint8Array>, handle: (line: string) => void): Promise<void> {
   const decoder = new TextDecoder();
+  let buffered = "";
   for await (const chunk of body) {
     buffered += decoder.decode(chunk, { stream: true });
     const lines = buffered.split("\n");
@@ -142,8 +149,40 @@ async function readMessageStream(
     lines.forEach(handle);
   }
   handle(buffered);
-  if (!stopped) throw new Error("anthropic api stream ended before message_stop");
-  return { text, usage: { inputTokens, outputTokens } };
+}
+
+/** Reassembles a streamed chat-completions response (Fireworks). Streaming here is a deadline fix,
+ *  not a feature: Node's fetch gives up on a response whose HEADERS take over five minutes (undici's
+ *  default), a limit no per-step timeout can raise — and a reasoning model on a whole-CV review sits
+ *  silent that long before a non-streamed answer begins (#340's first Fireworks run died exactly so).
+ *  Streamed, the headers arrive at once and the step's own deadline is the only clock. Usage rides
+ *  the final chunk (`stream_options.include_usage`); a stream that ends without `[DONE]` fails the
+ *  call, for the same reason the Anthropic reader fails without message_stop. */
+async function readChatStream(
+  body: ReadableStream<Uint8Array>,
+  model: string,
+): Promise<{ text: string; usage: { inputTokens: number; outputTokens: number } }> {
+  let text = "";
+  let usage = { inputTokens: 0, outputTokens: 0 };
+  let done = false;
+  await eachSseLine(body, (line) => {
+    if (!line.startsWith("data:")) return;
+    const data = line.slice(5).trim();
+    if (data === "[DONE]") {
+      done = true;
+      return;
+    }
+    const chunk = JSON.parse(data) as {
+      choices?: Array<{ delta?: { content?: string | null } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
+      error?: { message?: string };
+    };
+    if (chunk.error) throw new Error(`fireworks ${model} stream: ${chunk.error.message}`);
+    text += chunk.choices?.[0]?.delta?.content ?? "";
+    if (chunk.usage) usage = { inputTokens: chunk.usage.prompt_tokens ?? 0, outputTokens: chunk.usage.completion_tokens ?? 0 };
+  });
+  if (!done) throw new Error(`fireworks ${model} stream ended before [DONE]`);
+  return { text, usage };
 }
 
 /** Local-dev driver: shells to the Claude Code CLI (same pattern as spine/dailyDriver.mjs). */
@@ -227,21 +266,14 @@ export class FireworksLlm implements LlmClient {
         // read as a labeler failure when it is really a max_tokens failure.
         max_tokens: opts.maxTokens ?? this.settings.maxTokens ?? 8000,
         temperature: 0,
+        // Streamed (#340): see readChatStream — the deadline above only counts once headers arrive.
+        stream: true,
+        stream_options: { include_usage: true },
         messages: [{ role: "user", content: prompt }],
       }),
     });
-    if (!res.ok) throw new Error(`fireworks ${this.model} ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    const body = (await res.json()) as {
-      choices: Array<{ message?: { content?: string | null } }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number };
-    };
-    return {
-      text: body.choices?.[0]?.message?.content ?? "",
-      usage: {
-        inputTokens: body.usage?.prompt_tokens ?? 0,
-        outputTokens: body.usage?.completion_tokens ?? 0,
-      },
-    };
+    if (!res.ok || !res.body) throw new Error(`fireworks ${this.model} ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    return readChatStream(res.body, this.model);
   }
 }
 

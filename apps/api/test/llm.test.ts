@@ -10,6 +10,18 @@ import {
 } from "../src/llm.js";
 import { sse, textStream } from "./anthropicStream.js";
 
+/** A canned streamed chat-completions response (Fireworks): one chunk per text piece, usage on the
+ *  last data chunk, then `[DONE]` unless `done: false`. */
+function chatStream(pieces: string[], usage?: { prompt_tokens: number; completion_tokens: number }, opts = { done: true }) {
+  const chunks = pieces.map((content) => ({ choices: [{ delta: { content } }] }));
+  const body = [
+    ...chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`),
+    `data: ${JSON.stringify({ choices: [], usage: usage ?? null })}\n\n`,
+    ...(opts.done ? ["data: [DONE]\n\n"] : []),
+  ].join("");
+  return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+}
+
 function sentBody(fetchMock: { mock: { calls: unknown[][] } }) {
   return JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
 }
@@ -108,10 +120,25 @@ describe("AnthropicLlm request shape", () => {
 describe("FireworksLlm limits come from the step (#334)", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  const ok = () =>
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ choices: [{ message: { content: "{}" } }] }), { status: 200 }),
-    );
+  const ok = () => vi.spyOn(globalThis, "fetch").mockResolvedValue(chatStream(["{}"]));
+
+  // #340: a reasoning model on a whole-CV review answers nothing for minutes; non-streamed, Node's
+  // fetch gave up on the silent headers at five minutes whatever the step's deadline said.
+  it("streams, reassembles the text across chunks, and reads usage from the final chunk", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(chatStream(['{"a":', "1}"], { prompt_tokens: 3210, completion_tokens: 87 }));
+    const { text, usage } = await new FireworksLlm("m", "k").completeWithUsage("hi");
+    expect(text).toBe('{"a":1}');
+    expect(usage).toEqual({ inputTokens: 3210, outputTokens: 87 });
+    expect(sentBody(fetchMock).stream).toBe(true);
+    expect(sentBody(fetchMock).stream_options).toEqual({ include_usage: true });
+  });
+
+  it("a stream that closes before [DONE] fails the call instead of returning partial text", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(chatStream(['{"a":', "1}"], undefined, { done: false }));
+    await expect(new FireworksLlm("m", "k").complete("hi")).rejects.toThrow(/before \[DONE\]/);
+  });
 
   it("keeps today's 8,000-token cap and 60s deadline when the step sets none", async () => {
     const fetchMock = ok();

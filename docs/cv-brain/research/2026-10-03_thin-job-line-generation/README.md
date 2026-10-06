@@ -13,6 +13,9 @@ lines without inventing, and which model does it best?
 - [Findings](#findings)
 - [Open-model shortlist](#open-model-shortlist)
 - [Cost of this test](#cost-of-this-test)
+- [Cost per run (added 2026-10-04)](#cost-per-run-added-2026-10-04)
+- [The full-CV review (added 2026-10-04)](#the-full-cv-review-added-2026-10-04)
+- [The shipped prompt, scored (2026-10-06, #340)](#the-shipped-prompt-scored-2026-10-06-340)
 - [Re-running it](#re-running-it)
 
 ## Method
@@ -161,7 +164,79 @@ untick, never delete), draft missing must-haves, and offer options for vague phr
   Okoone's "+50% advertising revenue" was marked UNTICK as "off-topic for an IT PM role". Relevance to
   a target job is decided per application (ADR-0007), not on the master CV.
 
+## The shipped prompt, scored (2026-10-06, #340)
+
+The product's own prompt (`apps/api/prompts/cv-review.md`) run through the product's own drivers by
+`apps/api/scripts/blind-test.mjs`, on the product setting — **Claude Fable 5.1, reasoning max, through
+the Anthropic API** (run on the staging machine, which holds the key). Two inputs, both the owner's
+real CV with the IT Project Manager family and these placements: BRED → it-project-delivery, Okoone
+(Product Owner) → no published family, Société Générale → it-project-delivery. The letterhead carries the
+name only (contact details withheld from this record).
+
+| Input | Output | Time | Tokens (in / out, output includes reasoning) | Pay-per-call cost |
+|---|---|---|---|---|
+| `input-cv-review.md` — the whole CV, every line, all three jobs + sections | `outputs/cv-review-prompt_claude-fable-5-1_max_run1.{json,md}` | **214 s** | 6,708 / 18,702 | **USD 1.002** |
+| `input-cv-review-thin.md` — BRED's 15 lines deleted, only BRED to review | `outputs/cv-review-prompt-thin_claude-fable-5-1_max_run1.{json,md}` | **293 s** | 5,774 / 26,704 | **USD 1.393** |
+
+Prices read from `platform.claude.com/docs/en/about-claude/pricing` on 2026-10-06 (Fable 5.1 $10 in /
+$50 out per million). **This replaces the spec's extrapolated "≈ USD 1.40 per CV" with a measured
+USD 1.0–1.4, and the "about 10 minutes" wait with 3.5–5 minutes.**
+
+**Scored against the acceptance criteria** (the ground truth is the owner's real BRED lines, which the
+thin run never saw):
+
+| Check | Whole CV | Thin BRED |
+|---|---|---|
+| No guess stated as fact (no slip) | ✅ nothing drafted (see R6 below) | ✅ 8 lines: 4 plain must-have lines in generic wording; budget, team leadership and LLM workflows each **OPTIONAL** with its CV quote; regulatory compliance flagged **INDUSTRY GUESS** although it also cites a summary quote (over-cautious — the prompt's R4 would call it OPTIONAL — not a slip). Zero slips |
+| No line unticked for fit | ✅ one untick in the whole CV: b15, *aim-without-result* ("intended to streamline"). Okoone's "+50% advertising revenue" (o12) — the research run's "off-topic" failure — is **keep** | ✅ no lines to judge |
+| Nothing invented against R1 | ✅ | ✅ every drafted line sources a must-have id and/or a verbatim quote; `refused` names "any achievement, metric or named deliverable for BRED (R1)" |
+| No job over 10 lines | ✅ BRED has 15 existing lines → **drafted nothing**, `refused … (R6)`; Société Générale's 8 lines show all four must-haves → complete | ✅ 0 + 8 |
+| No repeats | ✅ `refused` lists two R5 cases on Société Générale | ✅ |
+
+**Personal facts recovered on the thin run (of the research's 6): 5** — core banking and digital
+banking transformation (as CV options under the delivery line), teams across Europe / Asia-Pacific /
+Africa (CV option under the OPTIONAL team line), LLM workflows (OPTIONAL line), external vendors (CV
+options under coordination and risks). Missed: the AI workshops, refused under R6 as padding. The
+difference from the research runs is deliberate: a fact written under another job or the summary now
+arrives as a **tappable option marked CV**, never as a plain BRED line — the R2/R4 discipline the
+prompt states.
+
+**Also observed:** zero spelling fixes on this CV (GLM 5.3 Flash proposed two, one of which reworded
+a sentence beyond its mistake — a cheaper model's fix needs the undo more). The letterhead check
+flagged the withheld contact block, which is the right call. Okoone (no published family) got
+judgements and no drafted lines.
+
+**The Fireworks path, proven on GLM 5.3 Flash** (`outputs/cv-review-prompt*_glm-5p3-flash_run1.*`):
+whole CV 745 s, USD 0.009; thin 133 s, USD 0.010 — JSON well-formed both times, four generic must-have
+lines on the thin job and **zero personal facts recovered**, as the model table above predicts. Not a
+candidate for this step; the run is here to show the script's second provider works.
+
+**Prompt text after these runs** (code review, same day): two sentences changed and nothing was re-run. (1) `letterhead` and `sections` are `null` when `sections` is not in JOBS TO REVIEW — the thin run returned them empty, which a checkpointing caller could not tell from *checked, clean*. (2) R6 now reads "a missing must-have earns its one line whatever the job's length; OPTIONAL and INDUSTRY GUESS extras stop at 10" instead of "a job with 10 or more lines gets nothing" — on this CV both readings give the same answer (BRED's 15 lines show all four must-haves), so the evidence above stands; a 10-line job missing a must-have is where they differ.
+
+**Spend for this ticket (petty cash, USD 10 float): 6 calls, at most ≈ USD 3.9.** Anthropic: 3 calls
+— one lost when Fly's proxy stopped the staging machine 7 minutes into the run (billed amount unknown
+to us; at most ≈ USD 1.4), then USD 1.002 and 1.393 measured. Fireworks: 3 calls — one aborted at
+Node's 5-minute header timeout before the driver streamed (at most USD 0.017), then 0.009 and 0.010.
+Dollars, not calls, were the binding cap; neither provider's quota was approached. The two lost calls
+are the two lessons in `lessons.md` (auto-stop, header timeout).
+
 ## Re-running it
+
+**The shipped prompt, any model (the gate before a model switch):** build the API once, then
+
+```sh
+cd apps/api
+# product setting (data/ai-steps.json "review"): needs ANTHROPIC_API_KEY — run it on the staging machine, see lessons.md "Staging ops"
+node scripts/blind-test.mjs --input ../../docs/cv-brain/research/2026-10-03_thin-job-line-generation/input-cv-review.md --out <dir>
+# any other model, Anthropic or Fireworks
+node scripts/blind-test.mjs --input <the same> --out <dir> --model accounts/fireworks/models/glm-5p3-flash --max-tokens 32000
+node scripts/blind-test.mjs --input <the same> --out <dir> --model claude-opus-5-5 --reasoning max
+```
+
+It writes `<label>.json` (raw answer, tokens, seconds, USD at the prices in the script) and `<label>.md`
+(rendered for scoring). Score the way the table above does.
+
+**The original research inputs** (rules inside the input file, prose output):
 
 ```sh
 # Claude — run from a directory with no CLAUDE.md

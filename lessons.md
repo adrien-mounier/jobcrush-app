@@ -216,6 +216,15 @@ answer (bit the QA gate twice, 2026-10-06). Write `X~1` and `rev-list A --not B`
 - The interactive `!` prompt runs bash and echoes into the transcript — never route a secret through it; the user sets secrets in their own terminal.
 - Resend's free tier verifies one domain per account (a second free account works); the key must come from the account owning the domain.
 - `flyctl secrets set --stage` parks values; one real `secrets set` applies all in one restart.
+- **A paid model run on the product setting runs on the staging machine** (#340): the API key is a Fly
+  secret the agent never reads, and `fly ssh console -C` inherits it. The machine is stopped by
+  default (`fly machine start` first; `ssh console` does not auto-start it), `sftp shell` is
+  interactive-only (upload with `echo <base64> | base64 -d > path` over `-C`), and a file added in
+  the working tree (a new prompt, a script) is not on the machine until a deploy — upload it too.
+  Launch with `nohup … &`, and first `fly machine update <id> --autostop=off -y`: a `/healthz` ping
+  every minute did NOT hold the machine (the proxy stopped it 7 min into a run, and a restart boots a
+  fresh rootfs — uploads and `/tmp` gone, the paid call lost). Restore with `--autostop=stop` after;
+  the next deploy restores it from `fly.api.toml` regardless.
 
 ### Origins: OAuth, CORS, redirects, magic links
 - After a domain move, update Google Console redirect URIs in the same motion as the `WEB_URL` Fly secret (a Google 400 page = Console gap; "sign-in didn't complete" = state cookie/token).
@@ -224,6 +233,14 @@ answer (bit the QA gate twice, 2026-10-06). Write `X~1` and `rev-list A --not B`
 - R2 CORS is not in the dashboard and the object-scoped token can't set it: run `pnpm --filter @jobcrush/api set-r2-cors` once with a temporary admin token, delete it, and check with `pnpm --filter @jobcrush/web e2e:r2-cors` after any upload-path change.
 
 ## Backend and data
+
+### Node's fetch gives up on silent headers at five minutes, whatever your deadline says
+A reasoning model on a whole-CV review answers nothing for minutes; the non-streamed Fireworks call
+died at 300 s with `UND_ERR_HEADERS_TIMEOUT` while the step's own deadline was 30 minutes. That is
+undici's headers timeout, which an `AbortSignal` cannot raise and which `undici` (not a dependency
+here) would be needed to configure. **Apply:** stream every call that may think for long — headers
+arrive at once and the step deadline becomes the only clock (both drivers in `llm.ts` stream now).
+A per-step timeout above five minutes on a non-streamed call is a setting nothing honours.
 
 ### Widening to nullable disarms the checks you rely on
 A `!` strips `null` as readily as `undefined`, so widening `verifiedLiveAt` produced no compile error
