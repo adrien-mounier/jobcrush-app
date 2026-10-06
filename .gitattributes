@@ -1,0 +1,4 @@
+# Every text file is LF in the repo AND in the working copy. Without this, core.autocrlf=true on the
+# Windows dev box left a mix (git-checked-out files CRLF, tool-written files LF), and sed/Edit
+# diffs churned whole files. Binary files are auto-detected by text=auto.
+* text=auto eol=lf

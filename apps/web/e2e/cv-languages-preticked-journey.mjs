@@ -8,9 +8,10 @@
 //   confirms — and her profile, read back from the server, holds exactly what she chose —
 //   OR (QA_SCENARIO=decline) she presses the decline and the server stores no language at all.
 //
-// ONE SEAM IS PATCHED, and only one: qa-main's fake miner replays a recording that has no `lang-`
-// claims, so no live session can carry CV languages. The flow therefore lets every discovery
-// response come from the real server and adds `cvLanguages` to the real languages question only —
+// ONE SEAM IS PATCHED, and only one: qa-main's fake miner replays a recording whose `lang-` claims
+// (Polish, English, German — since 2026-10-06) cover only some level shapes. The flow therefore lets
+// every discovery response come from the real server and replaces `cvLanguages` on the real
+// languages question only, with a set that covers every shape —
 // the payload below is what the real parser (apps/api/src/cvLanguages.ts) returned for the real
 // claim miner's output (see CV_LANGUAGES). The answer POST and the
 // profile read-back are unpatched: what is stored is the real server's own record.
@@ -53,7 +54,7 @@ await page.route(/\/api\/onboarding\/discovery(\/start|\/answer)?(\?.*)?$/, asyn
   let body;
   try { body = await res.json(); } catch { return route.fulfill({ response: res }); }
   const q = body?.questions?.find((x) => x.itemId === LANGUAGE_ITEM_ID);
-  if (q && !q.cvLanguages) q.cvLanguages = CV_LANGUAGES;
+  if (q) q.cvLanguages = CV_LANGUAGES;
   return route.fulfill({ response: res, json: body });
 });
 

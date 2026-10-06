@@ -114,6 +114,42 @@ describe("JC-13 miner eval (recorded outputs)", () => {
     });
   }
 
+  // Downstream checks key on the claim-miner prompt's rule-8 id prefixes (cvLanguages.ts and
+  // preview.ts's fatal language check read `lang-`). Recordings mined before the rule used
+  // `profile-language-*`, so #337 shipped against fixtures that could not exercise it. The prefix
+  // list is read from the prompt itself, so a prompt change that renames a prefix fails here too.
+  it("claim ids use the claim-miner prompt's kind prefixes (rule 8), and every prefix is exercised", async () => {
+    const prompt = await readFile(join(testDir, "..", "prompts", "claim-miner.md"), "utf8");
+    const prefixes = [...prompt.matchAll(/`([a-z]+)-…`/g)].map((m) => m[1]!);
+    expect(prefixes.sort()).toEqual(["cert", "edu", "lang", "skill"]);
+    // An id that LEADS with a rule-8 kind in any other form (`profile-language-polish`,
+    // `education-bsc`, `skills-jira`) is invisible to a check keyed on the prefix. Only the lead
+    // word (after an optional `profile-`) counts: `profile-soft-skills` is a self-description, not
+    // a skill inventory. ponytail: a trailing kind word (`profile-prince2-cert`) slips past —
+    // the every-prefix-exercised assertion below is the backstop.
+    const kindWords: Record<string, string[]> = {
+      cert: ["cert", "certs", "certificate", "certification", "certifications"],
+      edu: ["edu", "education"],
+      lang: ["lang", "language", "languages"],
+      skill: ["skill", "skills"],
+    };
+    const bad: string[] = [];
+    const seen = new Set<string>();
+    for (const c of recorded) {
+      const doc = CandidateClaims.parse(JSON.parse(await readFile(recordingPath(c.name), "utf8")));
+      for (const { id } of doc.claims) {
+        const [first, second] = id.split("-");
+        const lead = first === "profile" ? second : first;
+        for (const p of prefixes) {
+          if (first === p) seen.add(p);
+          else if (kindWords[p]!.includes(lead!)) bad.push(`${c.name}: ${id} (want ${p}-)`);
+        }
+      }
+    }
+    expect(bad, "re-record with RECORD_MINER=1").toEqual([]);
+    expect([...seen].sort(), "a prescribed prefix no recording exercises").toEqual([...prefixes].sort());
+  });
+
   it("aggregate tier accuracy ≥ 90% (JC-13 merge bar)", () => {
     const total = scores.reduce((n, s) => n + s.total, 0);
     const correct = scores.reduce((n, s) => n + s.correct, 0);

@@ -141,7 +141,7 @@ const DRAFT: Draft = {
     { name: "PSM I", date: "2020" },
   ],
   education: [{ institution: "University of Warsaw", detail: "MSc MIS", dates: "2017" }],
-  additional: [{ label: "Languages", value: "Polish (Native), English (Fluent)" }],
+  additional: [{ label: "Languages", value: "Polish (Native), English (Fluent), German (B1)" }],
 };
 
 const seen = { mine: 0, tailor: 0, grill: 0, audit: 0, jobBlocks: 0, judge: 0, familyPlacement: 0, industryPlacement: 0, unknown: 0 };

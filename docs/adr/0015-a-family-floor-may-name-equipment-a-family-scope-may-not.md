@@ -2,6 +2,10 @@
 
 Status: accepted (owner design pass, 2026-08-21, issue #259)
 
+> **Amended by [ADR-0016](0016-the-cv-is-reviewed-not-asked.md)** (2026-10-04): the family floor no
+> longer gates the reveal — it feeds the drafter, and the review gates the reveal (see 0016's "What
+> this rule does NOT change").
+
 A **family floor** item may name a concrete tool, language or platform — "Have you used SQL?" for
 business analysis, "Do you have experience in Java?" for backend engineering — whenever the
 **demand count** earns it. The **scope** sentence that says what the job family *is* may never name

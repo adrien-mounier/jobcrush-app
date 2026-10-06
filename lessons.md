@@ -163,23 +163,27 @@ A `next start` left from the previous day held :3000; the health-wait passed and
 old build for 21 minutes (144 "failures"). Stopping a background task ends the shell wrapper, not
 the node server. **Apply:** read the start log rather than trusting a health-wait; prove the stack
 serves your tree (rebuild, or grep `dist/` for a symbol the diff adds); after stopping a server
-check the port (`Get-NetTCPConnection -LocalPort 3000 -State Listen` → `Stop-Process`); kill only
-what you started. Spurious-failure tells: `429 rate_limited` (12 anonymous sessions/hour/IP,
-cleared by an API restart) and `ERR_NO_BUFFER_SPACE` late in a long Windows run (re-run alone).
+check the port with
+`$c = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if ($c) { $c | Select-Object LocalPort,OwningProcess } else { "port free" }`
+(the bare cmdlet exits 1 with no output on a free port, which reads as an error), then
+`Stop-Process` only what you started. `ERR_NO_BUFFER_SPACE` late in a long Windows run is spurious —
+re-run that spec alone.
+
+### Browser tests run against the fake-model API; `main.js` is for live drives
+Specs start their own fake-model stack (`apps/web/playwright.config.ts` — its header says why
+`main.js` fails them); journeys need `start:qa` as `ci.yml` runs it. A live drive on the real model
+is the one use for `main.js`: build, then `node apps/api/dist/main.js` with no
+`DATABASE_URL`/`ANTHROPIC_API_KEY` (in-memory stores), on the high ports from `SHARED_INFRA.md`,
+with the web built against that `API_URL`. The dev overlay intercepts clicks on bottom-docked buttons; a Fastify 404 body on `/`
+means you hit an API on your web port; a `"use client"` page SSRs only its shell — screenshot with
+Playwright, don't curl.
 
 ### Next and turbo build traps
 - `next dev` and `next build`/`start` against the same `.next` → `start` serves 400s for chunks; the page never hydrates. Attach `page.on("requestfailed")` before blaming the feature.
 - Rebuilding under a running `next start` swaps its chunks; restart after a rebuild.
 - Deleting a page leaves `tsc` red via `.next/types` until `pnpm exec next build`.
-- `API_URL` is baked at build time; turbo neither hashes it (cache restores the wrong port) nor passes undeclared env. For a custom API port, `rm -rf .next && API_URL=… npx next build` in `apps/web`, and verify through the web app's own `/api/*` proxy.
+- `API_URL` is baked at build time (`SHARED_INFRA.md`), and turbo neither hashes it (cache restores the wrong port) nor passes undeclared env: for a custom API port, `rm -rf .next && API_URL=… npx next build` in `apps/web`, not through turbo.
 - Mirroring CI by hand in one checkout: run the turbo `pnpm build` *before* the e2e web build — it bakes the dead `:3001` fallback.
-
-### Running the app for a live drive
-`apps/api`'s `dev` needs ts-node; instead `pnpm --filter @jobcrush/api build` and
-`PORT=3001 node apps/api/dist/main.js` with no `DATABASE_URL`/`ANTHROPIC_API_KEY` (in-memory stores).
-For the web, `next start` (or `next dev -p <free port>`) with `API_URL=http://127.0.0.1:3001`; the dev
-overlay intercepts clicks on bottom-docked buttons. A Fastify 404 body on `/` means you hit an API on
-your web port. A `"use client"` page SSRs only its shell — screenshot with Playwright, don't curl.
 
 ### Commit the `/playwright` drivers with the slice
 QA drivers land in `apps/web/e2e/*.mjs` untracked (only `qa-results/` is ignored), so "everything is
@@ -194,11 +198,14 @@ reach inside an excluded directory (un-exclude the dir, re-exclude contents, whi
 `git check-ignore -v` exits 0 on a negation match — verify with `git add --dry-run`, probing both a
 file that must ship and one that must not.
 
+### Node's `execSync` runs cmd.exe here, which eats `^`
+`git rev-parse X^` / `rev-list A ^B` through `execSync` silently become `X` / `A B` — no error, wrong
+answer (bit the QA gate twice, 2026-10-06). Write `X~1` and `rev-list A --not B`.
+
 ## CI, deploy and ops
 
 ### CI: what's filtered, what blocks it, and how to deploy without it
 - `paths-ignore` is an explicit allowlist of inert paths, never an extension pattern — `apps/api/prompts/*.md` and `research-data/**` are product. Check with `git ls-files` against the filter.
-- `cancel-in-progress` sits on the pre-deploy jobs only; `deploy-staging` must finish.
 - 0-second jobs with no logs = an account block (a $0 spending limit reads as "payments failed"), never a code fault. Read the run's annotation; the billable-minutes API reads 0 on free tier.
 - Count undeployed work by diffing `main` against the last green `deploy-staging` sha, not by scanning the run list.
 - When Actions is unavailable, the hand-deploy recipe (same gates first, then two `flyctl deploy` with `BUILD_SHA`) is in the archive under "CI blocked ≠ deploy blocked".
@@ -266,7 +273,7 @@ its risk moved. Hiding a state from one view means auditing every count that sti
 
 ### Prototype and verify UI by driving it, at the owner's size
 - Prototype before `/to-spec`: one throwaway mock broke three of thirteen paper decisions.
-- Once a screen ships, prototype against the real component (a throwaway route importing the page with a stubbed `window.fetch`, e.g. `apps/web/app/prototype-299/page.tsx`), not a hand-drawn likeness.
+- Once a screen ships, prototype against the real component (a throwaway route importing the page with a stubbed `window.fetch`, deleted once decided — #299's settled `docs/design/add-something-new.md`), not a hand-drawn likeness.
 - Standalone prototype HTML needs `<meta name="viewport" …>` and real closing tags (anchor-based tools like the impeccable injector skip files without `</body>`). Drive it with Playwright `isMobile: true` — layout-shift bugs live in transitions, not end-state screenshots.
 - Style probes compare *worlds* side by side (type, material, shape), not palette swaps in a switcher.
 - Responsive bugs (the desktop CV/ask layout survived four sessions of patches): reproduce the owner's exact viewport and content, state negative visual invariants, fix ownership of height (siblings never size each other) instead of offsets, and compare a screenshot of the deployed SHA. "I can't see the improvement" contradicts completion.

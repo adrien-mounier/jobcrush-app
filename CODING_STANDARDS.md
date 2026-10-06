@@ -105,7 +105,9 @@ and cited alongside these.
 - **Prove a new test or gate can fail**: revert the fix (or break the guarded code), watch it go
   red for the right reason, restore. Green proves the assertions ran, not that they matter.
 - **Test the value that must get *through* a guard**, not only the one it stops; before asserting
-  something is excluded, show it would otherwise have been included.
+  something is excluded, show it would otherwise have been included. A new blocking check ships
+  with a table of real-world inputs it must let through, over fixtures that carry the shape it keys
+  on; a reviewer's false-block finding is fixed in the same slice (#337 cost three QA rounds).
 - **Pair every negative assertion with a positive one** — renaming the hunted string makes "X never
   appears" pass silently.
 - **Pin exact values and deltas.** `expect.any(Number)` and `toBeGreaterThanOrEqual` pass for the

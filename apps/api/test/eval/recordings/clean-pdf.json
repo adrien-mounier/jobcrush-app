@@ -106,7 +106,7 @@
       "field_label": null
     },
     {
-      "id": "profile-skills-list",
+      "id": "skill-tools",
       "role": "profile",
       "text": "Has skills in Jira, MS Project, Confluence, SQL basics, and Power BI.",
       "machine_touch": "verbatim",
@@ -114,13 +114,13 @@
       "source_quote": "Jira, MS Project, Confluence, SQL basics, Power BI",
       "needs_grill": true,
       "grill_hint": "Skills list is self-reported with no tied project evidence - ask for concrete examples of use.",
-      "semantic_key": "profile-skills-list",
+      "semantic_key": "skill-tools",
       "field_key": null,
       "field_value": null,
       "field_label": null
     },
     {
-      "id": "profile-prince2-cert",
+      "id": "cert-prince2-practitioner",
       "role": "profile",
       "text": "Holds PRINCE2 Practitioner certification, obtained 2019.",
       "machine_touch": "verbatim",
@@ -128,13 +128,13 @@
       "source_quote": "PRINCE2 Practitioner (2019)",
       "needs_grill": false,
       "grill_hint": null,
-      "semantic_key": "profile-prince2-cert",
+      "semantic_key": "cert-prince2-practitioner",
       "field_key": null,
       "field_value": null,
       "field_label": null
     },
     {
-      "id": "profile-psm1-cert",
+      "id": "cert-psm-i",
       "role": "profile",
       "text": "Holds PSM I certification, obtained 2020.",
       "machine_touch": "verbatim",
@@ -142,13 +142,13 @@
       "source_quote": "PSM I (2020)",
       "needs_grill": false,
       "grill_hint": null,
-      "semantic_key": "profile-psm1-cert",
+      "semantic_key": "cert-psm-i",
       "field_key": null,
       "field_value": null,
       "field_label": null
     },
     {
-      "id": "profile-language-polish",
+      "id": "lang-polish",
       "role": "profile",
       "text": "Native Polish speaker.",
       "machine_touch": "verbatim",
@@ -156,13 +156,13 @@
       "source_quote": "Polish (native)",
       "needs_grill": false,
       "grill_hint": null,
-      "semantic_key": "profile-language-polish",
+      "semantic_key": "lang-polish",
       "field_key": null,
       "field_value": null,
       "field_label": null
     },
     {
-      "id": "profile-language-english",
+      "id": "lang-english",
       "role": "profile",
       "text": "English proficiency at C1 level.",
       "machine_touch": "verbatim",
@@ -170,13 +170,13 @@
       "source_quote": "English (C1)",
       "needs_grill": false,
       "grill_hint": null,
-      "semantic_key": "profile-language-english",
+      "semantic_key": "lang-english",
       "field_key": null,
       "field_value": null,
       "field_label": null
     },
     {
-      "id": "profile-language-german",
+      "id": "lang-german",
       "role": "profile",
       "text": "German proficiency at B1 level.",
       "machine_touch": "verbatim",
@@ -184,7 +184,7 @@
       "source_quote": "German (B1)",
       "needs_grill": false,
       "grill_hint": null,
-      "semantic_key": "profile-language-german",
+      "semantic_key": "lang-german",
       "field_key": null,
       "field_value": null,
       "field_label": null

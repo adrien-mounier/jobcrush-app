@@ -50,7 +50,7 @@ const sampleDraft: Draft = {
     { name: "PSM I", date: "2020" },
   ],
   education: [{ institution: "University of Warsaw", detail: "MSc MIS", dates: "2017" }],
-  additional: [{ label: "Languages", value: "Polish (Native), English (Fluent)" }],
+  additional: [{ label: "Languages", value: "Polish (Native), English (Fluent), German (B1)" }],
 };
 
 async function recordedClaims(): Promise<CandidateClaims> {
@@ -309,8 +309,8 @@ describe("conservation lint — tailor by emphasis, not amputation", () => {
         role: "profile" as const,
         text,
       });
-      // Drop the recording's older, non-`lang-` language claims: this block tests the new rule alone.
-      const rest = base.claims.filter((c) => !c.id.startsWith("profile-language-"));
+      // Drop the recording's own `lang-` claims: this block tests the new rule alone.
+      const rest = base.claims.filter((c) => !c.id.startsWith("lang-"));
       return { ...base, claims: [...rest, ...texts.map(lang)] };
     };
     const printing = (value: string, label = "Languages"): Draft => ({

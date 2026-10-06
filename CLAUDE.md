@@ -15,9 +15,9 @@ It is a **clean-room repo**: logic is **ported by copying** from the personal-pi
 product owner — pastes a real job posting he'd actually apply to, runs it through the app end to
 end, and it hands him a CV good enough that he chooses to send it himself. The paste-a-job-ad door
 is the way in; the deck stays live but off the critical path. **No real visitors while this scope
-holds** (#288 un-parks first the day that changes). Every phase `roadmap.md`'s Milestones lists as
-parked (full tables in `docs/archive/roadmap-2026-10-06.md`) remains the final product — parked, not
-cancelled.
+holds**; the day that changes, #288 (sign-in refusal reads as a crash) and #298 (warm machine)
+un-park first. Every phase `roadmap.md`'s Milestones lists as parked (full tables in
+`docs/archive/roadmap-2026-10-06.md`) remains the final product — parked, not cancelled.
 
 **The golden rule — built for one user, designed for many.** No schema, contract, or code path may
 hardcode the owner's case: job families stay plural and growable, markets stay a parameter,
@@ -41,8 +41,9 @@ parked.
 
 ## Architecture decisions live in `docs/adr/`
 
-Every decided design shape is recorded in `docs/adr/`. **Read the relevant ADR before touching
-capture, render, or the claim graph.** The ADRs are the normative home; most are decided but not yet
+Every decided design shape is recorded in `docs/adr/`; its index (`docs/adr/README.md`) names the
+one you need. **Read the relevant ADR before touching capture, render, or the claim graph.** The
+ADRs are the normative home; most are decided but not yet
 built, so confirm in code before relying on any check one describes.
 
 ## The CV brain is the source of truth (read before touching CV logic)
@@ -89,7 +90,8 @@ When a meaningful unit of work lands (see session hygiene):
    docs-only edit would then break `main` on exactly the push that skipped the suite.
 3. **`pnpm test` runs no browser tests.** Before calling a slice done, run the browser specs and
    journeys the diff can reach (`e2e:mocked`, `e2e:tier2` in `apps/web`) — a contract or shared-step
-   change lands there, not in the unit tier.
+   change lands there, not in the unit tier. Specs start their own fake-model stack
+   (`playwright.config.ts`); journeys run against the one `ci.yml` starts.
 
 **Stage files by name — never `git add -A`.** Scratch scripts, screenshots and workspace copies live
 in the session scratch dir, never under the repo (a copied `apps/web` once broke every gate).
@@ -110,7 +112,8 @@ fast-forward into `main`, push-when-green (no PR).
 `roadmap.md`, `session-log.md`, and `lessons.md` are the project's memory — keep them current as
 part of the work, not only at session end:
 
-- After a meaningful unit of work lands: add a newest-first `session-log.md` entry with ticket +
+- After a meaningful unit of work lands — a code commit, and equally a decision recorded on the
+  tracker, a filed ticket, or a pushed prototype: add a newest-first `session-log.md` entry with ticket +
   commit refs, update `roadmap.md`, then commit and push-when-green. Skip trivia; log what a future
   session would want to know. Caps (enforced by `close-session`): entries ≤ ~10 lines, the file
   keeps the last ~10 — older ones move unedited to `docs/session-log/YYYY-MM.md`; `roadmap.md` is
@@ -142,14 +145,21 @@ Standard pnpm monorepo (`apps/{api,web,mobile}`, `packages/`, `docs/`). The non-
 ## Develop
 
 Commands are in `package.json`. Smoke test after a build:
-`node apps/api/dist/main.js`, then `curl localhost:3000/healthz`. Bypass the turbo cache with
+`PORT=34102 node apps/api/dist/main.js`, then `curl localhost:34102/healthz`. Bypass the turbo cache with
 `TURBO_FORCE=1 pnpm test` (never `pnpm test -- --force`, which vitest rejects); prefer `pnpm test`
 over raw vitest, which can't resolve an unbuilt `@jobcrush/contracts`. **`vitacairn` shares this
 machine, the Fly/Cloudflare accounts and ports 3000/3001** (`../SHARED_INFRA.md`): drive locally on
 free high ports, prove *which* server answered, and kill only what you started.
 
+Edit files with Edit/Write. Text holding quotes or backslashes (a script, a regex, a commit or
+ticket body) travels as a file in the scratch dir — `git commit -F`, `gh … --body-file` — since
+heredocs, here-strings and inline Python each rewrite it.
+
 The LLM seam (`apps/api/src/llm.ts`): a real `ANTHROPIC_API_KEY` uses the Anthropic API; local dev
 falls back to the Claude Code CLI; tests inject a fake. Model: `claude-sonnet-5`, thinking disabled.
+The agent's environment holds no key and the API skips the root `.env`, so local runs take the CLI
+path; a real API call runs on staging. Staging logs:
+`~/.fly/bin/flyctl.exe logs -a jobcrush-api-staging --no-tail` (flyctl sits off PATH).
 
 ## Agent skills
 
@@ -166,19 +176,28 @@ criterion, and drives the real app in a browser with evidence — commit only on
   next thing you bring the owner. A status report handed over mid-lifecycle reads as "finished"
   for work nothing has verified. Bring the owner a decision — GO/NO-GO, or a genuine blocker.
 
-  **Enforced, not written:** a commit hook refuses any `git commit` touching code until
-  `/qa-gate` has recorded a GO for the current HEAD. Docs-only commits pass freely.
+  **Enforced, not written:** git's own pre-commit/pre-push hooks (`.claude/githooks/`) let code
+  onto `main`, or the remote `main`, only as the qa-tester tested it (on GO it runs
+  `record-go.mjs` there). Inert paths (CI's `paths-ignore` list) commit and push freely.
+
+  **`/implement` and `/implement-spec` are owner-launched.** When a decision unlocks a build, end
+  the turn with the exact line to type, ticket number included, plus model and effort from the
+  **Model rule** in `roadmap.md`.
+
+  **`/code-review`'s fixed point is `HEAD`** (nothing is committed before GO): run
+  `git add -N <new files>` first so the diff shows them.
 
 - **Issue tracker:** specs and tickets are GitHub Issues in `adrien-mounier/jobcrush-app` (via
   `gh`). See `docs/agents/issue-tracker.md`. Labels: `ready-for-agent`, `wayfinder:*`.
-  - Read a ticket with `--comments` (decisions often live there) and check every AC and premise
-    against HEAD before designing — the tracker lags the code by design.
+  - Read a ticket's body and comments both, with the command in `issue-tracker.md`; decisions often
+    live in comments. Check every AC and premise against HEAD before designing — the tracker lags
+    the code by design.
   - A stale or contradicted AC is the owner's call: build the later decision and quote both sources
     to him; never retire an AC yourself.
   - A deferral, or a closing decision/research ticket, names a *filed* ticket for the follow-up —
     file it in the same breath; a roadmap phrase is invisible to every frontier query.
-  - On PowerShell, pass bodies with `--body-file` (a here-string splits into many args) and read
-    `gh api` with `--jq` (`ConvertFrom-Json | Select-Object` prints blank rows that look like "none").
+  - On PowerShell, read `gh api` with `--jq` (`ConvertFrom-Json | Select-Object` prints blank rows
+    that look like "none").
     A 422 "already been taken" on `blocked_by` means the edge already exists.
 - **Domain docs:** glossary in `GLOSSARY.md`, decisions in `docs/adr/`. See `docs/agents/domain.md`.
 - **Coding standards:** `CODING_STANDARDS.md` — read and cited by the Standards axis of
