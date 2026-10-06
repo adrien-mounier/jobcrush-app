@@ -1,6 +1,6 @@
 # Vocabulary-growth run — runbook
 
-_#254, spec #251, part of #218. Glossary terms as defined in `CONTEXT.md`: **unmapped label**,
+_#254, spec #251, part of #218. Glossary terms as defined in `GLOSSARY.md`: **unmapped label**,
 **vocabulary-growth run**, **vocabulary proposal**, job family, family placement, family learning
 attempt._
 

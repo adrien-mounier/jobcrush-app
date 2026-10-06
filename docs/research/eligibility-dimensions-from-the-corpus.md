@@ -107,7 +107,7 @@ count deliberately excludes.
   future family-floor question, but this eligibility layer remains limited to facts that apply across
   floors or markets.
 - **`language` — ask.** 2/17 is the weakest signal kept, but "a dimension nobody asks for is not
-  asked" is a zero bar, not a frequency threshold, and CONTEXT.md's own eligibility-fact examples name
+  asked" is a zero bar, not a frequency threshold, and GLOSSARY.md's own eligibility-fact examples name
   language fluency explicitly. Both postings that raise it name English specifically, so the one
   question built asks about English, not a generic "your languages" prompt — see the implementation
   note below on the real limitation that choice carries.

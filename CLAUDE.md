@@ -180,7 +180,7 @@ criterion, and drives the real app in a browser with evidence — commit only on
   - On PowerShell, pass bodies with `--body-file` (a here-string splits into many args) and read
     `gh api` with `--jq` (`ConvertFrom-Json | Select-Object` prints blank rows that look like "none").
     A 422 "already been taken" on `blocked_by` means the edge already exists.
-- **Domain docs:** glossary in `CONTEXT.md`, decisions in `docs/adr/`. See `docs/agents/domain.md`.
+- **Domain docs:** glossary in `GLOSSARY.md`, decisions in `docs/adr/`. See `docs/agents/domain.md`.
 - **Coding standards:** `CODING_STANDARDS.md` — read and cited by the Standards axis of
   `/code-review`.
 

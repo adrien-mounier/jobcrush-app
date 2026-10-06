@@ -1,17 +1,17 @@
 # Domain Docs
 
 How the engineering skills should consume this repo's domain documentation when exploring the
-codebase. **This is a single-context repo** — one `CONTEXT.md` + `docs/adr/` at the root.
+codebase. **This is a single-context repo** — one `GLOSSARY.md` + `docs/adr/` at the root.
 
 ## Before exploring, read these
 
-- **`CONTEXT.md`** at the repo root (the glossary), and
+- **`GLOSSARY.md`** at the repo root (the glossary), and
 - **`docs/adr/`** — read ADRs that touch the area you're about to work in.
 
 The CV-reasoning source of truth already lives in **`docs/cv-brain/`** — read it before any
 CV-tailoring work (miner/tailor prompts, the Draft schema, `conservationIssues()`).
 
-If `CONTEXT.md` or `docs/adr/` don't exist yet, **proceed silently**. Don't flag their absence; don't
+If `GLOSSARY.md` or `docs/adr/` don't exist yet, **proceed silently**. Don't flag their absence; don't
 suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs`) creates
 them lazily when terms or decisions actually get resolved.
 
@@ -19,7 +19,7 @@ them lazily when terms or decisions actually get resolved.
 
 ```
 /
-├── CONTEXT.md
+├── GLOSSARY.md
 ├── docs/
 │   ├── adr/
 │   │   ├── 0001-....md
@@ -31,7 +31,7 @@ them lazily when terms or decisions actually get resolved.
 ## Use the glossary's vocabulary
 
 When your output names a domain concept (an issue title, a refactor proposal, a hypothesis, a test
-name), use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.
+name), use the term as defined in `GLOSSARY.md`. Don't drift to synonyms the glossary explicitly avoids.
 
 If the concept you need isn't in the glossary yet, that's a signal — either you're inventing language
 the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
