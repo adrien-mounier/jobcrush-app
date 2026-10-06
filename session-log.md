@@ -39,6 +39,8 @@ test shown to fail), round 2 **GO** (API 1930, specs 84, gate-doors 23/23, revie
 CI on the push went red on one Tier 2 journey (discovery-plan-split: its first deck snapshot now lands
 before the industry labeler, 59% vs 49% — a pre-existing race the shorter discovery exposed); the
 journey waits for the labelers now, scoped GO, pushed as the follow-up commit. Lesson filed.
+That run then went red on a pre-existing front-door flake (focus moved on a frame timer, CODING_STANDARDS
+forbids it): fixed for the hand-off error, scoped GO; the four sibling spots are #352.
 Not built here, by the layout comment's split: the legend and the AI marks (#341–#343); a name field with
 its own Edit (no name store exists); job-level date conflicts (the proof holds one field conflict).
 

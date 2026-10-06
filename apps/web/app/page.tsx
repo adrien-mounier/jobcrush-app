@@ -342,9 +342,15 @@ export default function FrontDoor() {
     } catch {
       setContinuing(false);
       setContinueError(true);
-      requestAnimationFrame(() => importErrorRef.current?.focus());
     }
   };
+  // The hand-off error is focused from an effect keyed to the committed state, never from a frame
+  // timer: on a starved machine the frame ran before React had painted the alert, the ref was still
+  // null, and focus went nowhere (CI run 37471254079; CODING_STANDARDS, focus management). Each
+  // attempt resets the flag first, so a second failure re-fires this.
+  useEffect(() => {
+    if (continueError) importErrorRef.current?.focus();
+  }, [continueError]);
 
   const retryCv = () => fileInputRef.current?.click();
 
