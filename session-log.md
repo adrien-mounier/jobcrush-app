@@ -41,6 +41,10 @@ before the industry labeler, 59% vs 49% — a pre-existing race the shorter disc
 journey waits for the labelers now, scoped GO, pushed as the follow-up commit. Lesson filed.
 **Correction (2026-10-06, later session):** that wait did not hold — CI failed the same way on the next two
 pushes; the years facts land after the placements. The journey now waits for a settled deck (see lessons).
+**Correction 2 (2026-10-07):** the settled-deck wait failed too (runs 37494790890, 37559882744). The real cause,
+read off the report's diagnostics: the fake judge covers the first requirement it is handed and #117's superset
+reuse re-grades only the unmet ones, so the journey's own answers move scores and order. The assertion now
+checks membership, which is the ticket's claim; the lesson is rewritten.
 That run then went red on a pre-existing front-door flake (focus moved on a frame timer, CODING_STANDARDS
 forbids it): fixed for the hand-off error, scoped GO; the four sibling spots are #352.
 Not built here, by the layout comment's split: the legend and the AI marks (#341–#343); a name field with

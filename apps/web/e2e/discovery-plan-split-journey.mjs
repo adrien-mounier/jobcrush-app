@@ -173,18 +173,17 @@ await qa.expectVisible(page.getByRole('img', { name: /% match/ }), 'DECK: a real
 await qa.scrollThrough('read the first deck card top to bottom, the way a job seeker would');
 
 // The deck as it stands BEFORE anything touches the discovery record. Everything below has to leave
-// this untouched — that is the whole claim of the ticket.
-//
-// #338 (CI runs 37459528860, 37471254079, 37480981918 — three for three on the shared runner, never
-// locally, where both reads give 49%): the "before" read came back 59% on every card and the "after"
-// read 49%, so the order moved. The score a card shows is recomputed at every read from the facts the
-// background labelers write a few seconds after the CV read (family and industry placements, then
-// the per-scope years facts — deck.ts resolveSessionYears, judgedScore.ts answerIndustryBar), and on
-// the slow runner that landing falls between this journey's two reads. Waiting for the placements
-// alone (c5d0cd4) was not enough — the years facts land after the placement, and a read can fall in
-// between. So both snapshots now wait for a SETTLED deck: every counting job placed, no card still
-// pending or estimated, and three consecutive reads a second apart identical. The two decks compared
-// then differ only by what the discovery record did.
+// its MEMBERSHIP untouched — that is the claim of the ticket (#234: the search family still
+// resolves, so the same adverts are found). Scores and order are not part of the claim, and this
+// journey itself moves them: its answers and its "No" correction change the fact set, and the judge
+// re-grades on a changed fact set. CI (runs 37459528860 → 37559882744, never locally) showed how:
+// when the facts GROW, judge.ts re-grades only the still-unmet requirements (#117 superset reuse),
+// and the fake judge covers the FIRST requirement it is handed (qa-main.ts) — so each partial
+// re-grade adds one met requirement and ten points, and whether the "before" read had seen one
+// depends on when the first judgement ran relative to the answers. The real judge grades content,
+// so the product is unaffected; the "same order" assertion was reading the fake's index rule.
+// Both snapshots still wait for a settled deck (no card pending/estimated, two identical re-reads,
+// every counting job placed) so a half-scored deck never masquerades as a different one.
 const settledDeck = async (what) => {
   let last = null;
   let same = 0;
@@ -303,10 +302,13 @@ await assertTrue(
   deckAfter.length === deckBefore.length,
   `the deck has the same number of cards as before discovery pinned anything (${deckBefore.length} -> ${deckAfter.length})`,
 );
+const ids = (deck) => deck.map((c) => c.adId).sort();
 await assertTrue(
-  JSON.stringify(deckAfter.map((c) => c.adId)) === JSON.stringify(deckBefore.map((c) => c.adId)),
-  'the deck is in the same order — the advert-family scope the score rings ride on still resolves',
+  JSON.stringify(ids(deckAfter)) === JSON.stringify(ids(deckBefore)),
+  'the deck holds the same adverts — the advert-family scope retrieval rides on still resolves',
 );
+const movedScore = deckBefore.filter((b) => deckAfter.find((a) => a.adId === b.adId)?.matchPct !== b.matchPct).length;
+await qa.note(`${movedScore} of ${deckBefore.length} scores moved between the reads — expected when her answers changed the facts, not part of the claim`);
 
 // Nothing user-facing was added. #235/#236 own the visible half; if any of their words appear here,
 // this ticket has grown a scope it was explicitly told not to have (spec #233 decision 8).

@@ -149,12 +149,14 @@ real Postgres once; grep both drivers for asymmetric work; normalise in the driv
 - A journey that writes to a record keyed on its fixture's content (a pasted advert: first link wins) is not re-runnable until the fixture carries a run stamp.
 - Deck cards carry no per-card id and real postings share titles — reach a specific advert via `POST /onboarding/cards/:adId/want`, then assert `card.adId`.
 - A prompt-routing fake matches each stage by its own opening line; both miners end in `===CV-TEXT===`.
-- A journey that compares two deck reads must first wait for a SETTLED deck, not for the labelers: every
-  counting job placed (`GET /job-blocks`), no card `pending`/`estimated`, and three consecutive identical
-  reads. The per-scope years facts land AFTER a placement (`refreshWorkedYears` at the labeling door), and
-  a read between the two sees the generous career-total fallback — ten points higher. Waiting for placements
-  alone (c5d0cd4) still failed on CI three for three while passing locally every time (#338, CI runs
-  37459528860, 37471254079, 37480981918). Local passes prove nothing here: the fake labelers land before the first read.
+- A journey must never assert deck ORDER or scores across a step that changes the person's facts. When
+  the facts grow, `judge.ts` re-grades only the still-unmet requirements (#117 superset reuse), and the
+  fake judge covers the first requirement it is handed (`qa-main.ts`), so each partial re-grade adds a met
+  requirement and ten points; whether a read has seen one depends on when the first judgement ran relative
+  to the answers — green locally every time, red on CI five pushes in a row (#338, runs 37459528860 →
+  37559882744). Assert membership and the search family; print score provenance in the note. Two earlier
+  explanations (labelers landing late; years facts landing after placements) were wrong — the diagnostics in
+  the report, not reasoning, found the cause.
 
 ### Read the gate's verdict, not its summary line
 - A journey that self-skips with a `qa.note` still prints "35 passed, 0 failed" — grep the report for skip notes.
